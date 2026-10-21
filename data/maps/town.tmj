@@ -1,0 +1,44 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 40,
+  "height": 20,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 7,
+  "nextobjectid": 13,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "town"}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 608, "width": 1280, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 608},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 1248, "y": 0, "width": 32, "height": 608},
+      {"id": 4, "name": "well", "type": "", "rotation": 0, "visible": true, "x": 608, "y": 544, "width": 64, "height": 64}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 5, "name": "shop_roof", "type": "", "rotation": 0, "visible": true, "x": 160, "y": 480, "width": 256, "height": 8},
+      {"id": 6, "name": "balcony", "type": "", "rotation": 0, "visible": true, "x": 832, "y": 448, "width": 224, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 7, "name": "balcony_ladder", "type": "", "rotation": 0, "visible": true, "x": 1052, "y": 448, "width": 8, "height": 160}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 8, "name": "to_forest", "type": "", "rotation": 0, "visible": true, "x": 1200, "y": 544, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "forest"},
+        {"name": "target_portal", "type": "string", "value": "from_town"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 9, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 400, "y": 576, "width": 32, "height": 32}
+    ]}
+  ]
+}

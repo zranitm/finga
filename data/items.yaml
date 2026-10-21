@@ -1,0 +1,19 @@
+# Item templates. tab is also the inventory tab (page 5): equip never
+# stacks; use and etc stack to 100. Equipment may need a class and a
+# minimum level (OD-19 default). No rarity (OD-14).
+items:
+  # equip
+  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, attack: 10}
+  - {id: short_bow, name: Short Bow, tab: equip, slot: weapon, class: bowman, min_level: 1, attack: 9}
+  - {id: iron_sword, name: Iron Sword, tab: equip, slot: weapon, class: warrior, min_level: 8, attack: 18}
+  - {id: hunting_bow, name: Hunting Bow, tab: equip, slot: weapon, class: bowman, min_level: 8, attack: 16}
+  - {id: leather_cap, name: Leather Cap, tab: equip, slot: armor, min_level: 1, defense: 3}
+  - {id: leather_vest, name: Leather Vest, tab: equip, slot: armor, min_level: 5, defense: 5}
+  # use
+  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50}
+  - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30}
+  # etc
+  - {id: slime_gel, name: Slime Gel, tab: etc}
+  - {id: mushroom_cap, name: Mushroom Cap, tab: etc}
+  - {id: boar_tusk, name: Boar Tusk, tab: etc}
+  - {id: bat_wing, name: Bat Wing, tab: etc}

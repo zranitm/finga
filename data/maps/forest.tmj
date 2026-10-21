@@ -1,0 +1,66 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 60,
+  "height": 20,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 7,
+  "nextobjectid": 20,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 608, "width": 1920, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 608},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 1888, "y": 0, "width": 32, "height": 608},
+      {"id": 4, "name": "boulder", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 560, "width": 96, "height": 48}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 5, "name": "low_branch", "type": "", "rotation": 0, "visible": true, "x": 320, "y": 480, "width": 320, "height": 8},
+      {"id": 6, "name": "high_branch", "type": "", "rotation": 0, "visible": true, "x": 480, "y": 352, "width": 288, "height": 8},
+      {"id": 7, "name": "far_branch", "type": "", "rotation": 0, "visible": true, "x": 1280, "y": 448, "width": 384, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 8, "name": "vine", "type": "", "rotation": 0, "visible": true, "x": 636, "y": 352, "width": 8, "height": 128},
+      {"id": 9, "name": "far_vine", "type": "", "rotation": 0, "visible": true, "x": 1468, "y": 448, "width": 8, "height": 160}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 10, "name": "from_town", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 544, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "town"},
+        {"name": "target_portal", "type": "string", "value": "to_forest"}
+      ]},
+      {"id": 11, "name": "to_cave", "type": "", "rotation": 0, "visible": true, "x": 1840, "y": 544, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "cave"},
+        {"name": "target_portal", "type": "string", "value": "from_forest"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 12, "name": "slimes", "type": "", "rotation": 0, "visible": true, "x": 200, "y": 520, "width": 600, "height": 88, "properties": [
+        {"name": "mob", "type": "string", "value": "green_slime"},
+        {"name": "max", "type": "int", "value": 5},
+        {"name": "respawn_seconds", "type": "int", "value": 8}
+      ]},
+      {"id": 13, "name": "branch_slimes", "type": "", "rotation": 0, "visible": true, "x": 320, "y": 400, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "green_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 14, "name": "mushrooms", "type": "", "rotation": 0, "visible": true, "x": 1100, "y": 520, "width": 700, "height": 88, "properties": [
+        {"name": "mob", "type": "string", "value": "orange_mushroom"},
+        {"name": "max", "type": "int", "value": 4},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 15, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 576, "width": 32, "height": 32}
+    ]}
+  ]
+}

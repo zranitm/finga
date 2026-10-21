@@ -1,0 +1,33 @@
+# EXP needed to go from each level to the next: round(20 × level^1.7),
+# cap 30 (page 5, OD-13). Retuned after playtests.
+level_cap: 30
+exp_to_next:
+  - {level: 1, exp: 20}
+  - {level: 2, exp: 65}
+  - {level: 3, exp: 129}
+  - {level: 4, exp: 211}
+  - {level: 5, exp: 309}
+  - {level: 6, exp: 421}
+  - {level: 7, exp: 547}
+  - {level: 8, exp: 686}
+  - {level: 9, exp: 838}
+  - {level: 10, exp: 1002}
+  - {level: 11, exp: 1179}
+  - {level: 12, exp: 1367}
+  - {level: 13, exp: 1566}
+  - {level: 14, exp: 1776}
+  - {level: 15, exp: 1997}
+  - {level: 16, exp: 2229}
+  - {level: 17, exp: 2471}
+  - {level: 18, exp: 2723}
+  - {level: 19, exp: 2985}
+  - {level: 20, exp: 3257}
+  - {level: 21, exp: 3538}
+  - {level: 22, exp: 3830}
+  - {level: 23, exp: 4130}
+  - {level: 24, exp: 4440}
+  - {level: 25, exp: 4759}
+  - {level: 26, exp: 5087}
+  - {level: 27, exp: 5424}
+  - {level: 28, exp: 5770}
+  - {level: 29, exp: 6125}

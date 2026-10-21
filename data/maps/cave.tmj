@@ -1,0 +1,66 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 60,
+  "height": 20,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 7,
+  "nextobjectid": 20,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "floor", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 608, "width": 1920, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 608},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 1888, "y": 0, "width": 32, "height": 608},
+      {"id": 4, "name": "ceiling", "type": "", "rotation": 0, "visible": true, "x": 32, "y": 0, "width": 1856, "height": 96},
+      {"id": 5, "name": "stalagmite", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 544, "width": 64, "height": 64},
+      {"id": 6, "name": "pillar", "type": "", "rotation": 0, "visible": true, "x": 1312, "y": 384, "width": 64, "height": 224}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 7, "name": "ledge", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 448, "width": 384, "height": 8},
+      {"id": 8, "name": "shelf", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 416, "width": 352, "height": 8},
+      {"id": 9, "name": "upper_shelf", "type": "", "rotation": 0, "visible": true, "x": 1056, "y": 288, "width": 256, "height": 8},
+      {"id": 10, "name": "pillar_top", "type": "", "rotation": 0, "visible": true, "x": 1376, "y": 384, "width": 320, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 11, "name": "ledge_rope", "type": "", "rotation": 0, "visible": true, "x": 444, "y": 448, "width": 8, "height": 160},
+      {"id": 12, "name": "shelf_rope", "type": "", "rotation": 0, "visible": true, "x": 1180, "y": 288, "width": 8, "height": 128},
+      {"id": 13, "name": "pillar_rope", "type": "", "rotation": 0, "visible": true, "x": 1660, "y": 384, "width": 8, "height": 224}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 14, "name": "from_forest", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 544, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "forest"},
+        {"name": "target_portal", "type": "string", "value": "to_cave"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 15, "name": "boars", "type": "", "rotation": 0, "visible": true, "x": 200, "y": 520, "width": 480, "height": 88, "properties": [
+        {"name": "mob", "type": "string", "value": "wild_boar"},
+        {"name": "max", "type": "int", "value": 4},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 16, "name": "shelf_boars", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 336, "width": 352, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "wild_boar"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 15}
+      ]},
+      {"id": 17, "name": "bats", "type": "", "rotation": 0, "visible": true, "x": 1376, "y": 304, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "cave_bat"},
+        {"name": "max", "type": "int", "value": 4},
+        {"name": "respawn_seconds", "type": "int", "value": 15}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 18, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 576, "width": 32, "height": 32}
+    ]}
+  ]
+}

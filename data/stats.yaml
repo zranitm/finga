@@ -1,0 +1,25 @@
+# Derived stats per class (page 5, OD-18 caps):
+#   derived = base + Σ coef × stat + per_level × (level − 1) + equipment
+#   rates (crit_rate, penetration) = min(derived, cap)
+# attack_power and defense get the weapon's attack and the armor's defense
+# on top. Rates are fractions: 0.05 is 5%.
+warrior:
+  max_hp:       {base: 60, per_level: 18, coef: {vit: 12, str: 2}}
+  max_mp:       {base: 20, per_level: 4, coef: {int: 2}}
+  attack_power: {coef: {str: 1.5, vit: 0.3}}
+  accuracy:     {base: 10, coef: {dex: 1.0, str: 0.5}}
+  evasion:      {base: 5, coef: {agi: 0.8}}
+  crit_rate:    {base: 0.05, coef: {agi: 0.002}, cap: 0.6}
+  crit_damage:  {base: 0.5, coef: {dex: 0.005}}
+  defense:      {base: 5, coef: {vit: 1.0}}
+  penetration:  {cap: 0.5}
+bowman:
+  max_hp:       {base: 50, per_level: 12, coef: {vit: 9, agi: 1}}
+  max_mp:       {base: 25, per_level: 5, coef: {int: 2}}
+  attack_power: {coef: {dex: 1.5, agi: 0.3}}
+  accuracy:     {base: 15, coef: {dex: 1.2}}
+  evasion:      {base: 8, coef: {agi: 1.0}}
+  crit_rate:    {base: 0.05, coef: {agi: 0.003}, cap: 0.6}
+  crit_damage:  {base: 0.5, coef: {dex: 0.008}}
+  defense:      {base: 3, coef: {vit: 0.6}}
+  penetration:  {cap: 0.5}

@@ -1,0 +1,15 @@
+# Playable classes. Stage 1 has Warrior and Bowman (S1-Q1); Thief and
+# Magician arrive in Stage 2. Attack shapes and cooldowns from page 5.
+# level_up_points is the Stage 1 preset (5 points per level-up); Stage 2
+# lets players allocate (OD-16).
+classes:
+  - id: warrior
+    name: Warrior
+    attack: {kind: melee, width: 64, height: 56, cooldown: 600ms}
+    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
+    level_up_points: {str: 3, vit: 2}
+  - id: bowman
+    name: Bowman
+    attack: {kind: ranged, range: 420, cooldown: 800ms}
+    base_stats: {str: 5, dex: 12, int: 4, agi: 10, vit: 5}
+    level_up_points: {dex: 3, agi: 2}
