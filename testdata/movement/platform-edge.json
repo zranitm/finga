@@ -1,0 +1,209 @@
+{
+  "name": "platform-edge",
+  "notes": "Standing with one pixel of the box on the right end of the platform (x 100..300), then stepping right: the box leaves the platform and falls.",
+  "geometry": {
+    "solids": [
+      {
+        "x": 0,
+        "y": 500,
+        "w": 1000,
+        "h": 32
+      }
+    ],
+    "platforms": [
+      {
+        "x": 100,
+        "y": 420,
+        "w": 200,
+        "h": 8
+      }
+    ],
+    "ropes": []
+  },
+  "start": {
+    "x": 311,
+    "y": 420,
+    "vx": 0,
+    "vy": 0,
+    "on_ground": true,
+    "climbing": false,
+    "facing": 1,
+    "ground": 0,
+    "drop_platform": -1,
+    "drop_timer": 0
+  },
+  "inputs": [
+    {
+      "input": {},
+      "repeat": 2
+    },
+    {
+      "input": {
+        "right": true
+      },
+      "repeat": 1
+    },
+    {
+      "input": {},
+      "repeat": 10
+    }
+  ],
+  "expected": [
+    {
+      "x": 311,
+      "y": 420,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": 0,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 311,
+      "y": 420,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": 0,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 420.52777777777777,
+      "vx": 200,
+      "vy": 31.666666666666668,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 421.5833333333333,
+      "vx": 0,
+      "vy": 63.333333333333336,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 423.16666666666663,
+      "vx": 0,
+      "vy": 95,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 425.2777777777777,
+      "vx": 0,
+      "vy": 126.66666666666667,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 427.91666666666663,
+      "vx": 0,
+      "vy": 158.33333333333334,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 431.0833333333333,
+      "vx": 0,
+      "vy": 190,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 434.77777777777777,
+      "vx": 0,
+      "vy": 221.66666666666666,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 439,
+      "vx": 0,
+      "vy": 253.33333333333331,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 443.75,
+      "vx": 0,
+      "vy": 285,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 449.02777777777777,
+      "vx": 0,
+      "vy": 316.6666666666667,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 314.3333333333333,
+      "y": 454.8333333333333,
+      "vx": 0,
+      "vy": 348.33333333333337,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    }
+  ]
+}

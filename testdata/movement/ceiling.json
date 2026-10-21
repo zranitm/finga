@@ -1,0 +1,360 @@
+{
+  "name": "ceiling",
+  "notes": "Jumping under a block whose underside is y=440: the head (56 px above the feet) stops at it and the character falls back.",
+  "geometry": {
+    "solids": [
+      {
+        "x": 0,
+        "y": 500,
+        "w": 1000,
+        "h": 32
+      },
+      {
+        "x": 300,
+        "y": 420,
+        "w": 100,
+        "h": 20
+      }
+    ],
+    "platforms": [],
+    "ropes": []
+  },
+  "start": {
+    "x": 350,
+    "y": 500,
+    "vx": 0,
+    "vy": 0,
+    "on_ground": true,
+    "climbing": false,
+    "facing": 1,
+    "ground": -1,
+    "drop_platform": -1,
+    "drop_timer": 0
+  },
+  "inputs": [
+    {
+      "input": {
+        "jump": true
+      },
+      "repeat": 1
+    },
+    {
+      "input": {},
+      "repeat": 25
+    }
+  ],
+  "expected": [
+    {
+      "x": 350,
+      "y": 496,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 496.52777777777777,
+      "vx": 0,
+      "vy": 31.666666666666668,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 497.5833333333333,
+      "vx": 0,
+      "vy": 63.333333333333336,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 499.16666666666663,
+      "vx": 0,
+      "vy": 95,
+      "on_ground": false,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 350,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    }
+  ]
+}

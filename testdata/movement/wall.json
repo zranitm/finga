@@ -1,0 +1,284 @@
+{
+  "name": "wall",
+  "notes": "Walking right into a wall whose face is at x=700: the box stops at x=688 and stays on the ground.",
+  "geometry": {
+    "solids": [
+      {
+        "x": 0,
+        "y": 500,
+        "w": 1000,
+        "h": 32
+      },
+      {
+        "x": 700,
+        "y": 300,
+        "w": 32,
+        "h": 200
+      }
+    ],
+    "platforms": [],
+    "ropes": []
+  },
+  "start": {
+    "x": 650,
+    "y": 500,
+    "vx": 0,
+    "vy": 0,
+    "on_ground": true,
+    "climbing": false,
+    "facing": 1,
+    "ground": -1,
+    "drop_platform": -1,
+    "drop_timer": 0
+  },
+  "inputs": [
+    {
+      "input": {
+        "right": true
+      },
+      "repeat": 20
+    }
+  ],
+  "expected": [
+    {
+      "x": 653.3333333333334,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 656.6666666666667,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 660.0000000000001,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 663.3333333333335,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 666.6666666666669,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 670.0000000000002,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 673.3333333333336,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 676.666666666667,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 680.0000000000003,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 683.3333333333337,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 686.6666666666671,
+      "y": 500,
+      "vx": 200,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    },
+    {
+      "x": 688,
+      "y": 500,
+      "vx": 0,
+      "vy": 0,
+      "on_ground": true,
+      "climbing": false,
+      "facing": 1,
+      "ground": -1,
+      "drop_platform": -1,
+      "drop_timer": 0
+    }
+  ]
+}
