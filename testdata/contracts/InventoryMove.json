@@ -1,0 +1,10 @@
+{
+  "t": "InventoryMove",
+  "req": "r-6",
+  "d": {
+    "idempotency_key": "k-1",
+    "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01",
+    "tab": "use",
+    "slot": 3
+  }
+}

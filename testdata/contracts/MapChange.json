@@ -1,0 +1,8 @@
+{
+  "t": "MapChange",
+  "d": {
+    "map_id": "forest",
+    "x": 64,
+    "y": 608
+  }
+}

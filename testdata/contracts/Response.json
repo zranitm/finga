@@ -1,0 +1,9 @@
+{
+  "t": "Response",
+  "req": "r-6",
+  "d": {
+    "ok": false,
+    "code": "inventory_full",
+    "message": "your inventory is full"
+  }
+}

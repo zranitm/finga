@@ -1,0 +1,8 @@
+{
+  "t": "PartyRespond",
+  "req": "r-2",
+  "d": {
+    "invite_id": "inv-1",
+    "accept": true
+  }
+}

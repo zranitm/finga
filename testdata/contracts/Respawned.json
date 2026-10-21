@@ -1,0 +1,11 @@
+{
+  "t": "Respawned",
+  "tick": 81296,
+  "d": {
+    "character_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
+    "map_id": "town",
+    "x": 416,
+    "y": 608,
+    "hp": 125
+  }
+}

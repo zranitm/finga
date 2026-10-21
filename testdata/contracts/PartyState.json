@@ -1,0 +1,28 @@
+{
+  "t": "PartyState",
+  "d": {
+    "party": {
+      "leader": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
+      "members": [
+        {
+          "character_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
+          "name": "Ayla",
+          "level": 2,
+          "hp": 250,
+          "max_hp": 250,
+          "map_id": "forest",
+          "online": true
+        },
+        {
+          "character_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c",
+          "name": "Robin",
+          "level": 1,
+          "hp": 105,
+          "max_hp": 105,
+          "map_id": "town",
+          "online": false
+        }
+      ]
+    }
+  }
+}

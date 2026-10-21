@@ -1,0 +1,13 @@
+{
+  "t": "Correction",
+  "tick": 81235,
+  "d": {
+    "seq": 117,
+    "x": 416,
+    "y": 608,
+    "vx": 0,
+    "vy": 0,
+    "on_ground": true,
+    "climbing": false
+  }
+}

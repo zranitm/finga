@@ -1,0 +1,376 @@
+asyncapi: 3.0.0
+info:
+  title: Finga WebSocket protocol
+  version: "1"
+  description: |
+    Gameplay runs over one WebSocket at /ws (Low-level design, page 4).
+    Each frame is one message in a JSON envelope:
+
+      {"t": "<type>", "req": "<request id>", "seq": <input seq>, "tick": <server tick>, "d": {...}}
+
+    `req`, `seq` and `tick` are optional. The first message must be Hello
+    within 5 seconds. Commands that expect a result carry `req`, and the
+    server answers with a Response carrying the same `req`. Commands that
+    change items carry an idempotency key, generated once per player action
+    and reused on retry. `protocol_version` in Hello is 1; a mismatch is
+    answered with Kicked (outdated_protocol).
+
+    Golden examples of every message live in testdata/contracts/<Type>.json
+    and are checked by the server's and the client's tests. Market messages
+    and WalletChanged arrive in Stage 2.
+servers:
+  local:
+    host: localhost:8080
+    pathname: /ws
+    protocol: ws
+channels:
+  game:
+    address: /ws
+    messages:
+      # client to server
+      Hello: { $ref: "#/components/messages/Hello" }
+      Input: { $ref: "#/components/messages/Input" }
+      Attack: { $ref: "#/components/messages/Attack" }
+      PickUp: { $ref: "#/components/messages/PickUp" }
+      EnterPortal: { $ref: "#/components/messages/EnterPortal" }
+      ChatSend: { $ref: "#/components/messages/ChatSend" }
+      PartyInvite: { $ref: "#/components/messages/PartyInvite" }
+      PartyRespond: { $ref: "#/components/messages/PartyRespond" }
+      PartyLeave: { $ref: "#/components/messages/PartyLeave" }
+      PartyKick: { $ref: "#/components/messages/PartyKick" }
+      PartyPromote: { $ref: "#/components/messages/PartyPromote" }
+      InventoryMove: { $ref: "#/components/messages/InventoryMove" }
+      InventoryDiscard: { $ref: "#/components/messages/InventoryDiscard" }
+      Ping: { $ref: "#/components/messages/Ping" }
+      # server to client
+      Welcome: { $ref: "#/components/messages/Welcome" }
+      Snapshot: { $ref: "#/components/messages/Snapshot" }
+      Delta: { $ref: "#/components/messages/Delta" }
+      Correction: { $ref: "#/components/messages/Correction" }
+      Damage: { $ref: "#/components/messages/Damage" }
+      Died: { $ref: "#/components/messages/Died" }
+      Respawned: { $ref: "#/components/messages/Respawned" }
+      ExpGained: { $ref: "#/components/messages/ExpGained" }
+      LevelUp: { $ref: "#/components/messages/LevelUp" }
+      InventoryChanged: { $ref: "#/components/messages/InventoryChanged" }
+      MapChange: { $ref: "#/components/messages/MapChange" }
+      ChatMessage: { $ref: "#/components/messages/ChatMessage" }
+      PartyState: { $ref: "#/components/messages/PartyState" }
+      PartyInvited: { $ref: "#/components/messages/PartyInvited" }
+      Response: { $ref: "#/components/messages/Response" }
+      Kicked: { $ref: "#/components/messages/Kicked" }
+      Pong: { $ref: "#/components/messages/Pong" }
+operations:
+  clientSends:
+    action: send
+    channel: { $ref: "#/channels/game" }
+    summary: Inputs at most once per tick; Attack and PickUp 10/s; ChatSend 1/s burst 3; party 2/s; inventory 5/s.
+  serverSends:
+    action: receive
+    channel: { $ref: "#/channels/game" }
+components:
+  messages:
+    Hello: { summary: First message, with token, protocol version and character ID, payload: { $ref: "#/components/schemas/Hello" } }
+    Input: { summary: Held keys; seq in the envelope, payload: { $ref: "#/components/schemas/Input" } }
+    Attack: { summary: Attack the way the character faces; seq in the envelope, payload: { $ref: "#/components/schemas/Empty" } }
+    PickUp: { summary: Pick up the nearest eligible drop; seq in the envelope, payload: { $ref: "#/components/schemas/Empty" } }
+    EnterPortal: { summary: Use the portal stood in; seq in the envelope, payload: { $ref: "#/components/schemas/Empty" } }
+    ChatSend: { summary: Chat line up to 120 characters, payload: { $ref: "#/components/schemas/ChatSend" } }
+    PartyInvite: { summary: Invite a character (req), payload: { $ref: "#/components/schemas/CharacterRef" } }
+    PartyRespond: { summary: Accept or decline an invite (req), payload: { $ref: "#/components/schemas/PartyRespond" } }
+    PartyLeave: { summary: Leave the party (req), payload: { $ref: "#/components/schemas/Empty" } }
+    PartyKick: { summary: Kick a member, leader only (req), payload: { $ref: "#/components/schemas/CharacterRef" } }
+    PartyPromote: { summary: Hand over leadership (req), payload: { $ref: "#/components/schemas/CharacterRef" } }
+    InventoryMove: { summary: Move an item to a slot (req, idempotency key), payload: { $ref: "#/components/schemas/InventoryMove" } }
+    InventoryDiscard: { summary: Discard some of an item (req, idempotency key), payload: { $ref: "#/components/schemas/InventoryDiscard" } }
+    Ping: { summary: Latency probe, payload: { $ref: "#/components/schemas/Ping" } }
+    Welcome: { summary: After Hello, payload: { $ref: "#/components/schemas/Welcome" } }
+    Snapshot: { summary: Everything on the map, on join and map change (tick), payload: { $ref: "#/components/schemas/Snapshot" } }
+    Delta: { summary: What changed this tick (tick), payload: { $ref: "#/components/schemas/Delta" } }
+    Correction: { summary: The client's prediction diverged, payload: { $ref: "#/components/schemas/Correction" } }
+    Damage: { summary: One resolved hit, payload: { $ref: "#/components/schemas/Damage" } }
+    Died: { summary: A character fell, payload: { $ref: "#/components/schemas/Died" } }
+    Respawned: { summary: A character is back, payload: { $ref: "#/components/schemas/Respawned" } }
+    ExpGained: { summary: EXP awarded, payload: { $ref: "#/components/schemas/ExpGained" } }
+    LevelUp: { summary: New level and stats, payload: { $ref: "#/components/schemas/LevelUp" } }
+    InventoryChanged: { summary: Slots that changed after a committed change, payload: { $ref: "#/components/schemas/InventoryChanged" } }
+    MapChange: { summary: After a portal, payload: { $ref: "#/components/schemas/MapChange" } }
+    ChatMessage: { summary: A chat line, payload: { $ref: "#/components/schemas/ChatMessage" } }
+    PartyState: { summary: The whole party after any change, payload: { $ref: "#/components/schemas/PartyState" } }
+    PartyInvited: { summary: An invite, payload: { $ref: "#/components/schemas/PartyInvited" } }
+    Response: { summary: Answer to a command with req, payload: { $ref: "#/components/schemas/Response" } }
+    Kicked: { summary: Right before the server closes the connection, payload: { $ref: "#/components/schemas/Kicked" } }
+    Pong: { summary: Answer to Ping, payload: { $ref: "#/components/schemas/Pong" } }
+  schemas:
+    Empty: { type: object, additionalProperties: false }
+    Hello:
+      type: object
+      required: [token, protocol_version, character_id]
+      properties:
+        token: { type: string }
+        protocol_version: { type: integer }
+        character_id: { type: string, format: uuid }
+    Input:
+      type: object
+      properties:
+        left: { type: boolean }
+        right: { type: boolean }
+        up: { type: boolean }
+        down: { type: boolean }
+        jump: { type: boolean }
+    ChatSend:
+      type: object
+      required: [channel, text]
+      properties:
+        channel: { type: string, enum: [map, party] }
+        text: { type: string, maxLength: 120 }
+    CharacterRef:
+      type: object
+      required: [character_id]
+      properties:
+        character_id: { type: string, format: uuid }
+    PartyRespond:
+      type: object
+      required: [invite_id, accept]
+      properties:
+        invite_id: { type: string }
+        accept: { type: boolean }
+    InventoryMove:
+      type: object
+      required: [idempotency_key, item_id, tab, slot]
+      properties:
+        idempotency_key: { type: string }
+        item_id: { type: string, format: uuid }
+        tab: { type: string, enum: [equip, use, etc] }
+        slot: { type: integer }
+    InventoryDiscard:
+      type: object
+      required: [idempotency_key, item_id, quantity]
+      properties:
+        idempotency_key: { type: string }
+        item_id: { type: string, format: uuid }
+        quantity: { type: integer }
+    Ping:
+      type: object
+      required: [client_time]
+      properties:
+        client_time: { type: integer, description: Unix milliseconds }
+    Stats:
+      type: object
+      required: [str, dex, int, agi, vit]
+      properties:
+        str: { type: integer }
+        dex: { type: integer }
+        int: { type: integer }
+        agi: { type: integer }
+        vit: { type: integer }
+    CharacterView:
+      type: object
+      required: [id, name, class, level, exp, stats, hp, max_hp, mp, max_mp]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        class: { type: string }
+        level: { type: integer }
+        exp: { type: integer }
+        stats: { $ref: "#/components/schemas/Stats" }
+        hp: { type: integer }
+        max_hp: { type: integer }
+        mp: { type: integer }
+        max_mp: { type: integer }
+    ItemView:
+      type: object
+      required: [item_id, template, tab, slot, quantity]
+      properties:
+        item_id: { type: string, format: uuid }
+        template: { type: string }
+        tab: { type: string }
+        slot: { type: integer }
+        quantity: { type: integer }
+    PartyMember:
+      type: object
+      required: [character_id, name, level, hp, max_hp, map_id, online]
+      properties:
+        character_id: { type: string, format: uuid }
+        name: { type: string }
+        level: { type: integer }
+        hp: { type: integer }
+        max_hp: { type: integer }
+        map_id: { type: string }
+        online: { type: boolean }
+    PartyView:
+      type: object
+      required: [leader, members]
+      properties:
+        leader: { type: string, format: uuid }
+        members: { type: array, items: { $ref: "#/components/schemas/PartyMember" } }
+    Welcome:
+      type: object
+      required: [character, inventory, map_id, tick, server_time]
+      properties:
+        character: { $ref: "#/components/schemas/CharacterView" }
+        inventory: { type: array, items: { $ref: "#/components/schemas/ItemView" } }
+        party: { $ref: "#/components/schemas/PartyView" }
+        map_id: { type: string }
+        tick: { type: integer }
+        server_time: { type: integer, description: Unix milliseconds }
+    PlayerView:
+      type: object
+      required: [id, name, class, level, x, y, vx, vy, facing, on_ground, climbing, hp, max_hp]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        class: { type: string }
+        level: { type: integer }
+        x: { type: number }
+        y: { type: number }
+        vx: { type: number }
+        vy: { type: number }
+        facing: { type: integer, enum: [-1, 1] }
+        on_ground: { type: boolean }
+        climbing: { type: boolean }
+        hp: { type: integer }
+        max_hp: { type: integer }
+        dead: { type: boolean }
+    MobView:
+      type: object
+      required: [id, type, x, y, facing, hp, max_hp]
+      properties:
+        id: { type: integer }
+        type: { type: string }
+        x: { type: number }
+        y: { type: number }
+        facing: { type: integer }
+        hp: { type: integer }
+        max_hp: { type: integer }
+    DropView:
+      type: object
+      required: [id, template, quantity, x, y]
+      properties:
+        id: { type: integer }
+        template: { type: string }
+        quantity: { type: integer }
+        x: { type: number }
+        y: { type: number }
+    Snapshot:
+      type: object
+      required: [players, mobs, drops]
+      properties:
+        players: { type: array, items: { $ref: "#/components/schemas/PlayerView" } }
+        mobs: { type: array, items: { $ref: "#/components/schemas/MobView" } }
+        drops: { type: array, items: { $ref: "#/components/schemas/DropView" } }
+    Delta:
+      type: object
+      required: [ack_seq]
+      properties:
+        ack_seq: { type: integer, description: Latest input sequence applied for this player }
+        players: { type: array, items: { $ref: "#/components/schemas/PlayerView" } }
+        mobs: { type: array, items: { $ref: "#/components/schemas/MobView" } }
+        drops: { type: array, items: { $ref: "#/components/schemas/DropView" } }
+        removed_players: { type: array, items: { type: string } }
+        removed_mobs: { type: array, items: { type: integer } }
+        removed_drops: { type: array, items: { type: integer } }
+    Correction:
+      type: object
+      required: [seq, x, y, vx, vy, on_ground, climbing]
+      properties:
+        seq: { type: integer }
+        x: { type: number }
+        y: { type: number }
+        vx: { type: number }
+        vy: { type: number }
+        on_ground: { type: boolean }
+        climbing: { type: boolean }
+    Damage:
+      type: object
+      required: [source, target, amount]
+      properties:
+        source: { type: string, description: "p:<character id> or m:<mob id>" }
+        target: { type: string }
+        amount: { type: integer }
+        crit: { type: boolean }
+        miss: { type: boolean }
+    Died:
+      type: object
+      required: [character_id, x, y]
+      properties:
+        character_id: { type: string, format: uuid }
+        x: { type: number }
+        y: { type: number }
+    Respawned:
+      type: object
+      required: [character_id, map_id, x, y, hp]
+      properties:
+        character_id: { type: string, format: uuid }
+        map_id: { type: string }
+        x: { type: number }
+        y: { type: number }
+        hp: { type: integer }
+    ExpGained:
+      type: object
+      required: [amount, exp]
+      properties:
+        amount: { type: integer }
+        exp: { type: integer, description: EXP within the level after the award }
+    LevelUp:
+      type: object
+      required: [character]
+      properties:
+        character: { $ref: "#/components/schemas/CharacterView" }
+    InventorySlot:
+      type: object
+      required: [tab, slot]
+      properties:
+        tab: { type: string }
+        slot: { type: integer }
+        item: { $ref: "#/components/schemas/ItemView" }
+    InventoryChanged:
+      type: object
+      required: [slots]
+      properties:
+        slots: { type: array, items: { $ref: "#/components/schemas/InventorySlot" } }
+    MapChange:
+      type: object
+      required: [map_id, x, y]
+      properties:
+        map_id: { type: string }
+        x: { type: number }
+        y: { type: number }
+    ChatMessage:
+      type: object
+      required: [channel, sender, sender_name, text]
+      properties:
+        channel: { type: string, enum: [map, party] }
+        sender: { type: string, format: uuid }
+        sender_name: { type: string }
+        text: { type: string }
+    PartyState:
+      type: object
+      required: [party]
+      properties:
+        party: { oneOf: [{ $ref: "#/components/schemas/PartyView" }, { type: "null" }] }
+    PartyInvited:
+      type: object
+      required: [invite_id, from, from_name]
+      properties:
+        invite_id: { type: string }
+        from: { type: string, format: uuid }
+        from_name: { type: string }
+    Response:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        code: { type: string }
+        message: { type: string }
+    Kicked:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [logged_in_elsewhere, outdated_protocol, server_restart, abuse, unauthenticated] }
+    Pong:
+      type: object
+      required: [client_time, server_time]
+      properties:
+        client_time: { type: integer }
+        server_time: { type: integer }

@@ -1,0 +1,22 @@
+{
+  "t": "InventoryChanged",
+  "d": {
+    "slots": [
+      {
+        "tab": "use",
+        "slot": 0,
+        "item": {
+          "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01",
+          "template": "red_potion",
+          "tab": "use",
+          "slot": 0,
+          "quantity": 4
+        }
+      },
+      {
+        "tab": "etc",
+        "slot": 2
+      }
+    ]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "t": "Snapshot",
+  "tick": 81234,
+  "d": {
+    "players": [
+      {
+        "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
+        "name": "Ayla",
+        "class": "warrior",
+        "level": 2,
+        "x": 416,
+        "y": 608,
+        "vx": 200,
+        "vy": 0,
+        "facing": 1,
+        "on_ground": true,
+        "climbing": false,
+        "hp": 250,
+        "max_hp": 250
+      }
+    ],
+    "mobs": [
+      {
+        "id": 7,
+        "type": "green_slime",
+        "x": 500,
+        "y": 608,
+        "facing": -1,
+        "hp": 30,
+        "max_hp": 30
+      }
+    ],
+    "drops": [
+      {
+        "id": 12,
+        "template": "slime_gel",
+        "quantity": 2,
+        "x": 520,
+        "y": 608
+      }
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "t": "LevelUp",
+  "d": {
+    "character": {
+      "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b",
+      "name": "Ayla",
+      "class": "warrior",
+      "level": 2,
+      "exp": 15,
+      "stats": {
+        "str": 15,
+        "dex": 5,
+        "int": 4,
+        "agi": 5,
+        "vit": 12
+      },
+      "hp": 250,
+      "max_hp": 250,
+      "mp": 32,
+      "max_mp": 32
+    }
+  }
+}
