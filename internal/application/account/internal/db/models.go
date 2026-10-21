@@ -18,6 +18,27 @@ type Account struct {
 	CreatedAt    time.Time
 }
 
+type Character struct {
+	ID            uuid.UUID
+	AccountID     uuid.UUID
+	Name          string
+	Class         string
+	Level         int32
+	Exp           int64
+	Strength      int32
+	Dexterity     int32
+	Intelligence  int32
+	Agility       int32
+	Vitality      int32
+	UnspentPoints int32
+	Hp            int32
+	Mp            int32
+	MapID         string
+	PosX          float32
+	PosY          float32
+	UpdatedAt     time.Time
+}
+
 type Session struct {
 	ID        uuid.UUID
 	AccountID uuid.UUID

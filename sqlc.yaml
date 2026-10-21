@@ -34,3 +34,13 @@ sql:
               pointer: true
           - db_type: citext
             go_type: string
+  - engine: postgresql
+    schema: migrations
+    queries: internal/application/character/queries
+    gen:
+      go:
+        package: db
+        out: internal/application/character/internal/db
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        overrides: *overrides
