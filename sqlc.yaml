@@ -1,17 +1,36 @@
 # sqlc: one entry per module. Each module's queries live in
 # internal/application/<module>/queries and generate into that module's
 # internal/db package, which Go lets only the module import. `make gen` runs it.
-# The schema for every entry is the whole migrations/ directory, so a query
-# is checked against the real tables.
+# The schema for every entry is the whole migrations/ directory (goose files;
+# sqlc ignores the Down sections), so a query is checked against the real
+# tables.
 version: "2"
-sql: []
-# Step 05 adds the first entry, shaped like:
-#   - engine: postgresql
-#     schema: migrations
-#     queries: internal/application/account/queries
-#     gen:
-#       go:
-#         package: db
-#         out: internal/application/account/internal/db
-#         sql_package: pgx/v5
-#         emit_pointers_for_null_types: true
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: internal/application/account/queries
+    gen:
+      go:
+        package: db
+        out: internal/application/account/internal/db
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        overrides: &overrides
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: uuid
+            nullable: true
+            go_type:
+              import: github.com/google/uuid
+              type: UUID
+              pointer: true
+          - db_type: timestamptz
+            go_type: time.Time
+          - db_type: timestamptz
+            nullable: true
+            go_type:
+              import: time
+              type: Time
+              pointer: true
+          - db_type: citext
+            go_type: string
