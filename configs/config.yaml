@@ -1,0 +1,24 @@
+# configs/config.yaml: committed defaults for local runs and docker-compose.
+# Any key can be overridden as FINGA_<KEY_PATH>, e.g. FINGA_SERVER_ADDR.
+# Nothing here is secret. A value that ever is would come from the environment
+# or from config.local.yaml, which is git-ignored.
+
+server:
+  addr: ":8080"
+  cors_origins: []          # browser origins allowed for REST and WebSocket; empty: same origin only
+  shutdown_grace: 10s
+
+database:
+  url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
+  max_conns: 20
+
+world:
+  tick_rate_hz: 20
+  checkpoint_interval: 30s  # TD-02
+  data_dir: data
+
+economy:
+  workers: 8
+
+telemetry:
+  log_level: info

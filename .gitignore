@@ -1,0 +1,14 @@
+# local overrides, never committed
+.env
+configs/config.local.yaml
+
+# build and test output
+bin/
+coverage.out
+coverage.html
+coverage.tmp
+
+# client build output and dependencies; maps are copied from data/ at build time
+web/node_modules/
+web/dist/
+web/public/maps/
