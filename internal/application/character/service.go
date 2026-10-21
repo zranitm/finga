@@ -16,6 +16,9 @@ type Options struct {
 const (
 	nameMin = 3
 	nameMax = 12
+	// maxCharacters is the Stage 1 cap per account (OD-09 default), so the
+	// character-select screen stays bounded before A3 arrives.
+	maxCharacters = 3
 )
 
 // A name starts with a letter and continues with letters and digits.
@@ -51,6 +54,13 @@ func (s *Service) Create(ctx context.Context, account model.AccountID, in Create
 	if !ok {
 		return Character{}, ErrClassUnavailable
 	}
+	existing, err := s.store.List(ctx, account)
+	if err != nil {
+		return Character{}, err
+	}
+	if len(existing) >= maxCharacters {
+		return Character{}, ErrSlotsFull
+	}
 	town := s.content.Town()
 	derived := DeriveStats(formulas, class.BaseStats, 1, Equipment{})
 	c := Character{
@@ -58,7 +68,7 @@ func (s *Service) Create(ctx context.Context, account model.AccountID, in Create
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: s.now(),
 	}
-	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().Insert(ctx, c)
 	})
 	if err != nil {

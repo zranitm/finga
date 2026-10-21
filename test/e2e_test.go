@@ -1,0 +1,197 @@
+// Package e2e runs the game server as production builds it (server.Build)
+// against a real Postgres, in process. Each Stage 1 acceptance criterion
+// that the REST API covers is a row named after its feature.
+package e2e_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+
+	"finga/internal/config"
+	"finga/internal/server"
+	"finga/migrations"
+	"finga/pkg/pgtest"
+)
+
+var cluster *pgtest.Cluster
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+	var err error
+	cluster, err = pgtest.Start(ctx, migrations.Up)
+	if err != nil {
+		panic(err)
+	}
+	code := m.Run()
+	_ = cluster.Close(ctx)
+	os.Exit(code)
+}
+
+// stack is one game server over a fresh database, served by httptest.
+type stack struct {
+	t   *testing.T
+	url string
+}
+
+func newStack(t *testing.T) *stack {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cfg := config.Config{
+		Server:    config.Server{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}, ShutdownGrace: time.Second},
+		Database:  config.Database{URL: cluster.URL(t), MaxConns: 4},
+		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
+		Economy:   config.Economy{Workers: 2},
+		Telemetry: config.Telemetry{LogLevel: "error"},
+	}
+	srv, err := server.Build(ctx, server.BuildOptions{
+		Config:   cfg,
+		Logger:   slog.New(slog.DiscardHandler),
+		Registry: prometheus.NewRegistry(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.Close)
+	ts := httptest.NewServer(srv.Handler())
+	t.Cleanup(ts.Close)
+	return &stack{t: t, url: ts.URL}
+}
+
+type response struct {
+	status int
+	body   map[string]any
+}
+
+func (s *stack) call(method, path, token string, body any) response {
+	s.t.Helper()
+	var buf bytes.Buffer
+	if body != nil {
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			s.t.Fatal(err)
+		}
+	}
+	req, err := http.NewRequest(method, s.url+path, &buf)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		s.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	out := response{status: res.StatusCode}
+	raw, _ := io.ReadAll(res.Body)
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &out.body); err != nil {
+			s.t.Fatalf("%s %s: body %q is not JSON", method, path, raw)
+		}
+	}
+	return out
+}
+
+func (s *stack) mustStatus(r response, want int) {
+	s.t.Helper()
+	if r.status != want {
+		s.t.Fatalf("status %d, want %d: %v", r.status, want, r.body)
+	}
+}
+
+func TestAcceptance(t *testing.T) {
+	t.Run("A1/sign-up-and-log-in", func(t *testing.T) {
+		s := newStack(t)
+		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "alice", "password": "correct horse"}), http.StatusCreated)
+		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "ALICE", "password": "correct horse"}), http.StatusConflict)
+		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "alice", "password": "correct horse"})
+		s.mustStatus(login, http.StatusCreated)
+		token, _ := login.body["token"].(string)
+		if token == "" {
+			t.Fatalf("no token: %v", login.body)
+		}
+		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusOK)
+		s.mustStatus(s.call("POST", "/api/sessions", "", map[string]string{"username": "alice", "password": "wrong"}), http.StatusUnauthorized)
+		s.mustStatus(s.call("DELETE", "/api/sessions/current", token, nil), http.StatusNoContent)
+		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusUnauthorized)
+	})
+
+	t.Run("A1/throttled-after-repeated-failures", func(t *testing.T) {
+		s := newStack(t)
+		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "bob", "password": "correct horse"}), http.StatusCreated)
+		for range 5 {
+			s.mustStatus(s.call("POST", "/api/sessions", "", map[string]string{"username": "bob", "password": "wrong"}), http.StatusUnauthorized)
+		}
+		r := s.call("POST", "/api/sessions", "", map[string]string{"username": "bob", "password": "correct horse"})
+		s.mustStatus(r, http.StatusTooManyRequests)
+		if r.body["code"] != "rate_limited" {
+			t.Fatalf("body %v", r.body)
+		}
+	})
+
+	t.Run("A2/create-a-character", func(t *testing.T) {
+		s := newStack(t)
+		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "carol", "password": "correct horse"}), http.StatusCreated)
+		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"})
+		token := login.body["token"].(string)
+		created := s.call("POST", "/api/characters", token, map[string]string{"name": "Ayla", "class": "warrior"})
+		s.mustStatus(created, http.StatusCreated)
+		if created.body["level"] != float64(1) || created.body["class"] != "warrior" || created.body["map_id"] != "town" || created.body["hp"] != float64(204) {
+			t.Fatalf("character %v", created.body)
+		}
+		s.mustStatus(s.call("POST", "/api/characters", token, map[string]string{"name": "ayla", "class": "bowman"}), http.StatusConflict)
+		s.mustStatus(s.call("POST", "/api/characters", token, map[string]string{"name": "Merlin", "class": "magician"}), http.StatusBadRequest)
+		list := s.call("GET", "/api/characters", token, nil)
+		s.mustStatus(list, http.StatusOK)
+		chars, _ := list.body["characters"].([]any)
+		if len(chars) != 1 {
+			t.Fatalf("characters %v", list.body)
+		}
+	})
+
+	t.Run("B6/settings-saved-and-returned", func(t *testing.T) {
+		s := newStack(t)
+		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "dave", "password": "correct horse"}), http.StatusCreated)
+		token := s.call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).body["token"].(string)
+		initial := s.call("GET", "/api/settings", token, nil)
+		s.mustStatus(initial, http.StatusOK)
+		if initial.body["control_preset"] != "classic" {
+			t.Fatalf("default settings %v", initial.body)
+		}
+		s.mustStatus(s.call("PUT", "/api/settings", token, map[string]string{"control_preset": "wasd"}), http.StatusOK)
+		s.mustStatus(s.call("PUT", "/api/settings", token, map[string]string{"control_preset": "vim"}), http.StatusBadRequest)
+		after := s.call("GET", "/api/settings", token, nil)
+		if after.body["control_preset"] != "wasd" {
+			t.Fatalf("settings after save %v", after.body)
+		}
+		// A new login still sees the saved preset.
+		token2 := s.call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).body["token"].(string)
+		if s.call("GET", "/api/settings", token2, nil).body["control_preset"] != "wasd" {
+			t.Fatal("settings did not survive a new session")
+		}
+	})
+
+	t.Run("probes/healthz-readyz-metrics", func(t *testing.T) {
+		s := newStack(t)
+		s.mustStatus(s.call("GET", "/healthz", "", nil), http.StatusOK)
+		res, err := http.Get(s.url + "/metrics")
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("metrics status %d", res.StatusCode)
+		}
+	})
+}

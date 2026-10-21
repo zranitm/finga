@@ -19,6 +19,7 @@ var (
 	ErrNameTaken        = errs.New(errs.Conflict, "that name is taken")
 	ErrBadName          = errs.Invalid("name must be 3 to 12 letters and digits, starting with a letter")
 	ErrClassUnavailable = errs.Invalid("that class is not available")
+	ErrSlotsFull        = errs.New(errs.Conflict, "this account already has the most characters allowed")
 )
 
 // Character is a character as stored.

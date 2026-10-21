@@ -238,3 +238,22 @@ func TestDerivedForACharacter(t *testing.T) {
 		t.Fatalf("thief: %v", err)
 	}
 }
+
+func TestCharacterSlots(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _ := newService(t)
+	owner := model.NewAccountID()
+	for _, name := range []string{"Ayla", "Robin", "Cass"} {
+		if _, err := svc.Create(ctx, owner, character.CreateInput{Name: name, Class: model.Warrior}); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	_, err := svc.Create(ctx, owner, character.CreateInput{Name: "Dori", Class: model.Warrior})
+	if !errors.Is(err, character.ErrSlotsFull) || errs.CodeOf(err) != errs.Conflict {
+		t.Fatalf("fourth character: %v, want ErrSlotsFull (conflict)", err)
+	}
+	// Another account is not affected.
+	if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Dori", Class: model.Warrior}); err != nil {
+		t.Fatal(err)
+	}
+}

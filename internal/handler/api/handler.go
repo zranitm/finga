@@ -1,0 +1,234 @@
+// Package api is the REST handler layer (Low-level design, page 4): it
+// decodes requests, resolves the caller from the bearer token, calls
+// exactly one service method per endpoint, and maps results and errors to
+// HTTP. Business rules live in the services; this package only rejects
+// input that is malformed whatever the rules are.
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+
+	"finga/internal/application/account"
+	"finga/internal/application/character"
+	"finga/internal/model"
+	"finga/pkg/auth"
+	"finga/pkg/errs"
+)
+
+// maxBodyBytes caps a request body; the biggest legitimate body is a
+// password of 128 characters.
+const maxBodyBytes = 64 << 10
+
+// AccountService is what the handler needs from the account module.
+type AccountService interface {
+	Register(ctx context.Context, in account.RegisterInput) (account.Account, error)
+	Login(ctx context.Context, in account.LoginInput) (string, error)
+	Settings(ctx context.Context, id model.AccountID) (account.Settings, error)
+	UpdateSettings(ctx context.Context, id model.AccountID, s account.Settings) error
+}
+
+// CharacterService is what the handler needs from the character module.
+type CharacterService interface {
+	Create(ctx context.Context, owner model.AccountID, in character.CreateInput) (character.Character, error)
+	List(ctx context.Context, owner model.AccountID) ([]character.Character, error)
+}
+
+// Dependencies are the services and settings the handler is built from.
+type Dependencies struct {
+	Accounts    AccountService
+	Characters  CharacterService
+	Sessions    auth.Sessions
+	Logger      *slog.Logger
+	CORSOrigins []string
+}
+
+// Route is one endpoint, for the OpenAPI drift check.
+type Route struct {
+	Method string
+	Path   string
+}
+
+// Routes lists every endpoint the handler serves.
+func Routes() []Route {
+	return []Route{
+		{http.MethodPost, "/api/accounts"},
+		{http.MethodPost, "/api/sessions"},
+		{http.MethodDelete, "/api/sessions/current"},
+		{http.MethodGet, "/api/characters"},
+		{http.MethodPost, "/api/characters"},
+		{http.MethodGet, "/api/settings"},
+		{http.MethodPut, "/api/settings"},
+	}
+}
+
+type handler struct {
+	accounts   AccountService
+	characters CharacterService
+	sessions   auth.Sessions
+}
+
+// NewHandler builds the /api routes with their middleware: logging and
+// panic recovery outermost, then CORS, then authentication where needed.
+func NewHandler(d Dependencies) http.Handler {
+	h := &handler{accounts: d.Accounts, characters: d.Characters, sessions: d.Sessions}
+	mux := http.NewServeMux()
+	public := func(fn http.HandlerFunc) http.Handler { return fn }
+	authed := func(fn http.HandlerFunc) http.Handler { return requireAuth(d.Sessions, fn) }
+
+	mux.Handle("POST /api/accounts", public(h.register))
+	mux.Handle("POST /api/sessions", public(h.login))
+	mux.Handle("DELETE /api/sessions/current", authed(h.logout))
+	mux.Handle("GET /api/characters", authed(h.listCharacters))
+	mux.Handle("POST /api/characters", authed(h.createCharacter))
+	mux.Handle("GET /api/settings", authed(h.settings))
+	mux.Handle("PUT /api/settings", authed(h.updateSettings))
+	mux.HandleFunc("/", notFound)
+
+	return withLogging(d.Logger, withCORS(d.CORSOrigins, mux))
+}
+
+// notFound answers unknown paths and wrong methods with a JSON error, so
+// clients never see the mux's plain-text defaults.
+func notFound(w http.ResponseWriter, r *http.Request) {
+	for _, route := range Routes() {
+		if route.Path == r.URL.Path {
+			writeCode(w, http.StatusMethodNotAllowed, errs.InvalidArgument, "method not allowed")
+			return
+		}
+	}
+	writeCode(w, http.StatusNotFound, errs.NotFound, "no such endpoint")
+}
+
+var errMalformed = errs.Invalid("malformed request body")
+
+// decode reads one JSON document into v, rejecting unknown fields, trailing
+// data, and bodies over the limit.
+func decode(w http.ResponseWriter, r *http.Request, v any) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeCode(w, http.StatusRequestEntityTooLarge, errs.InvalidArgument, "request body too large")
+			return err
+		}
+		writeError(w, errMalformed)
+		return err
+	}
+	if dec.More() {
+		writeError(w, errMalformed)
+		return errMalformed
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		writeError(w, errMalformed)
+		return errMalformed
+	}
+	return nil
+}
+
+// missing rejects a structurally incomplete request: a required field left
+// out. Whether the value is acceptable is the service's rule.
+func missing(w http.ResponseWriter, fields ...string) bool {
+	for _, f := range fields {
+		if f == "" {
+			writeError(w, errs.Invalid("missing a required field"))
+			return true
+		}
+	}
+	return false
+}
+
+func (h *handler) register(w http.ResponseWriter, r *http.Request) {
+	var req RegisterRequest
+	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
+		return
+	}
+	acc, err := h.accounts.Register(r.Context(), account.RegisterInput{Username: req.Username, Password: req.Password})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toAccount(acc))
+}
+
+func (h *handler) login(w http.ResponseWriter, r *http.Request) {
+	var req LoginRequest
+	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
+		return
+	}
+	token, err := h.accounts.Login(r.Context(), account.LoginInput{Username: req.Username, Password: req.Password, IP: clientIP(r)})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, SessionResponse{Token: token})
+}
+
+func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
+	if err := h.sessions.Revoke(r.Context(), principalFrom(r.Context()).SessionID); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handler) listCharacters(w http.ResponseWriter, r *http.Request) {
+	cs, err := h.characters.List(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toCharacters(cs))
+}
+
+func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
+	var req CreateCharacterRequest
+	if decode(w, r, &req) != nil || missing(w, req.Name, req.Class) {
+		return
+	}
+	c, err := h.characters.Create(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID), character.CreateInput{Name: req.Name, Class: model.Class(req.Class)})
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toCharacter(c))
+}
+
+func (h *handler) settings(w http.ResponseWriter, r *http.Request) {
+	s, err := h.accounts.Settings(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID))
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toSettings(s))
+}
+
+func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
+	var req SettingsRequest
+	if decode(w, r, &req) != nil || missing(w, req.ControlPreset) {
+		return
+	}
+	s := account.Settings{ControlPreset: account.Preset(req.ControlPreset)}
+	if err := h.accounts.UpdateSettings(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID), s); err != nil {
+		writeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toSettings(s))
+}
+
+// clientIP is the peer's address. Stage 1 has no proxy in front, so the
+// socket address is the client; Stage 2's nginx will set X-Forwarded-For.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}

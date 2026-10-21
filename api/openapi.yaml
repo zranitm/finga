@@ -1,0 +1,195 @@
+openapi: 3.1.0
+info:
+  title: Finga REST API
+  version: 0.1.0
+  description: |
+    Accounts, sessions, characters and settings (Low-level design, page 4).
+    Gameplay runs over the WebSocket at /ws, described in asyncapi.yaml.
+    Errors return an HTTP status and a body with `code` and `message`; the
+    code is one of the generic codes (invalid_argument, unauthenticated,
+    not_found, conflict, rate_limited, unavailable, internal) or a domain
+    code. Authenticated calls send `Authorization: Bearer TOKEN`.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/accounts:
+    post:
+      summary: Sign up
+      description: Username 3 to 16 characters (letters, digits, underscore); password 8 to 128 characters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Account" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/sessions:
+    post:
+      summary: Log in
+      description: Returns an opaque token and revokes any older session. Rate-limited per username and per IP (5 per minute).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "201":
+          description: Session created; the token is shown only here
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Session" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /api/sessions/current:
+    delete:
+      summary: Log out
+      security: [{ bearer: [] }]
+      responses:
+        "204": { description: Session revoked }
+        "401": { $ref: "#/components/responses/Error" }
+  /api/characters:
+    get:
+      summary: List my characters
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The account's characters, oldest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Characters" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a character
+      description: Name 3 to 12 characters (letters and digits, starting with a letter), unique ignoring case; class one of the stage's playable classes. At most 3 characters per account in Stage 1.
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateCharacterRequest" }
+      responses:
+        "201":
+          description: Created, at level 1 in the town
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Character" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /api/settings:
+    get:
+      summary: Read settings
+      security: [{ bearer: [] }]
+      responses:
+        "200":
+          description: The account's settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "401": { $ref: "#/components/responses/Error" }
+    put:
+      summary: Save settings
+      description: The control preset must be classic or wasd (B6).
+      security: [{ bearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Settings" }
+      responses:
+        "200":
+          description: The saved settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Settings" }
+        "400": { $ref: "#/components/responses/Error" }
+        "401": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  responses:
+    Error:
+      description: An error with a code and a player-safe message
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    Account:
+      type: object
+      required: [id, username, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        created_at: { type: string, format: date-time }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string }
+    Session:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string }
+    CreateCharacterRequest:
+      type: object
+      required: [name, class]
+      properties:
+        name: { type: string }
+        class: { type: string, enum: [warrior, bowman] }
+    Stats:
+      type: object
+      required: [str, dex, int, agi, vit]
+      properties:
+        str: { type: integer }
+        dex: { type: integer }
+        int: { type: integer }
+        agi: { type: integer }
+        vit: { type: integer }
+    Character:
+      type: object
+      required: [id, name, class, level, exp, stats, hp, mp, map_id]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        class: { type: string }
+        level: { type: integer }
+        exp: { type: integer, description: EXP within the current level }
+        stats: { $ref: "#/components/schemas/Stats" }
+        hp: { type: integer }
+        mp: { type: integer }
+        map_id: { type: string }
+    Characters:
+      type: object
+      required: [characters]
+      properties:
+        characters:
+          type: array
+          items: { $ref: "#/components/schemas/Character" }
+    Settings:
+      type: object
+      required: [control_preset]
+      properties:
+        control_preset: { type: string, enum: [classic, wasd] }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
