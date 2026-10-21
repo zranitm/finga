@@ -20,7 +20,7 @@ in `docs/ai-coding-log.md`.
 ## Make targets
 
 ```bash
-make up      # start Postgres (later: migrations, the game server on :8080, the client on :5173)
+make up      # start Postgres on :5432 (FINGA_POSTGRES_PORT to change it); later: migrations, the game server on :8080, the client on :5173
 make down    # stop everything and drop the database volume
 make test    # every test, with the race detector
 make cover   # coverage report; fails below 80% of statements in internal/ and pkg/

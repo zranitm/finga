@@ -52,6 +52,14 @@ linters:
               desc: application declares observer interfaces; telemetry implements them
             - pkg: finga/internal/config
               desc: application takes option structs; server fills them from configuration
+        # services never see a transaction: pgx and pkg/dbx are for repository.go, sqlc output, server wiring, and tests.
+        application-no-sql:
+          files: ["**/internal/application/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
+          deny:
+            - pkg: github.com/jackc/pgx
+              desc: only repository.go talks to the database
+            - pkg: finga/pkg/dbx
+              desc: only the module store (repository.go) opens transactions
         # handlers speak the transport and call services; never a repository or its generated code.
         handler:
           files: ["**/internal/handler/**"]
@@ -60,6 +68,10 @@ linters:
               desc: handler never imports server
             - pkg: finga/internal/application/*/internal/db
               desc: a handler never calls a repository or its generated code
+            - pkg: github.com/jackc/pgx
+              desc: a handler never talks to the database
+            - pkg: finga/pkg/dbx
+              desc: a handler never opens a transaction
         # telemetry, protocol and config sit beside application; they never reach up into handlers or wiring.
         support:
           files: ["**/internal/telemetry/**", "**/internal/protocol/**", "**/internal/config/**"]

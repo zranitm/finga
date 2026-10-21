@@ -7,7 +7,7 @@ services:
   postgres:
     image: postgres:17-alpine
     ports:
-      - "5432:5432"
+      - "${FINGA_POSTGRES_PORT:-5432}:5432"   # host port; set FINGA_POSTGRES_PORT when 5432 is taken
     environment:
       POSTGRES_USER: finga
       POSTGRES_PASSWORD: finga
