@@ -20,6 +20,9 @@ export function socketUrl(apiOrigin: string, pageOrigin: string): string {
 }
 
 export function createServices(): Services {
-  const socket = new GameSocket({ url: socketUrl(env.apiOrigin, location.origin) });
+  const socket = new GameSocket({
+    url: socketUrl(env.apiOrigin, location.origin),
+    delayMs: env.netDelayMs,
+  });
   return { rest: createRestClient(), socket, game: new GameHandle({ socket }) };
 }

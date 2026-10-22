@@ -73,6 +73,8 @@ export interface SocketOptions {
   readonly pingIntervalMs?: number;
   readonly pongTimeoutMs?: number;
   readonly backoff?: BackoffOptions;
+  /** Development only: a one-way delay on every frame sent and received, for latency checks. */
+  readonly delayMs?: number;
 }
 
 interface Pending {
@@ -97,6 +99,7 @@ export class GameSocket {
   private readonly pingIntervalMs: number;
   private readonly pongTimeoutMs: number;
   private readonly backoffOptions: BackoffOptions;
+  private readonly delayMs: number;
 
   private ws: WebSocket | null = null;
   private status: SocketStatus = 'idle';
@@ -131,6 +134,7 @@ export class GameSocket {
     this.pingIntervalMs = opts.pingIntervalMs ?? 15_000;
     this.pongTimeoutMs = opts.pongTimeoutMs ?? 5000;
     this.backoffOptions = opts.backoff ?? { baseMs: 500, capMs: 10_000 };
+    this.delayMs = opts.delayMs ?? 0;
   }
 
   get currentStatus(): SocketStatus {
@@ -297,10 +301,9 @@ export class GameSocket {
           d: { token, protocol_version: PROTOCOL_VERSION, character_id: characterId },
         });
       };
-      ws.onmessage = (event: MessageEvent<unknown>) => {
-        const msg = this.decode(event.data);
-        if (!msg) {
-          return;
+      const handle = (msg: Message) => {
+        if (this.ws !== ws) {
+          return; // arrived (after the dev delay) for a socket already replaced
         }
         if (msg.t === 'Welcome' && !welcomed) {
           welcomed = true;
@@ -316,6 +319,12 @@ export class GameSocket {
           return;
         }
         this.receive(msg);
+      };
+      ws.onmessage = (event: MessageEvent<unknown>) => {
+        const msg = this.decode(event.data);
+        if (msg) {
+          this.afterDelay(() => handle(msg));
+        }
       };
       ws.onclose = (event: CloseEvent) => {
         clearTimeout(helloTimer);
@@ -485,7 +494,21 @@ export class GameSocket {
   private transmit(msg: Message): void {
     const ws = this.ws;
     if (ws?.readyState === OPEN) {
-      ws.send(this.codec.encode(msg));
+      const frame = this.codec.encode(msg);
+      this.afterDelay(() => {
+        if (ws.readyState === OPEN) {
+          ws.send(frame);
+        }
+      });
+    }
+  }
+
+  /** Runs fn now, or after the development delay when one is set. */
+  private afterDelay(fn: () => void): void {
+    if (this.delayMs > 0) {
+      setTimeout(fn, this.delayMs);
+    } else {
+      fn();
     }
   }
 

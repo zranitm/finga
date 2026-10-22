@@ -18,7 +18,7 @@ describe('env', () => {
       want: 'https://play.example',
     },
   ])('$name', ({ raw, want }) => {
-    expect(parseEnv(raw)).toEqual({ apiOrigin: want, isDev: raw.DEV });
+    expect(parseEnv(raw)).toEqual({ apiOrigin: want, isDev: raw.DEV, netDelayMs: 0 });
   });
 
   it.each([
@@ -30,8 +30,27 @@ describe('env', () => {
     expect(() => parseEnv({ VITE_API_ORIGIN: origin, DEV: true })).toThrow(/VITE_API_ORIGIN/);
   });
 
+  it.each([
+    { name: 'unset is no delay', raw: { DEV: true }, want: 0 },
+    { name: 'blank is no delay', raw: { VITE_NET_DELAY_MS: ' ', DEV: true }, want: 0 },
+    { name: '100 in development', raw: { VITE_NET_DELAY_MS: '100', DEV: true }, want: 100 },
+    { name: 'ignored in a build', raw: { VITE_NET_DELAY_MS: '100', DEV: false }, want: 0 },
+  ])('$name', ({ raw, want }) => {
+    expect(parseEnv(raw).netDelayMs).toBe(want);
+  });
+
+  it.each([
+    { name: 'not a number', value: 'slow' },
+    { name: 'negative', value: '-5' },
+    { name: 'fractional', value: '1.5' },
+    { name: 'over 5 s', value: '6000' },
+  ])('a delay that is $name throws', ({ value }) => {
+    expect(() => parseEnv({ VITE_NET_DELAY_MS: value, DEV: true })).toThrow(/VITE_NET_DELAY_MS/);
+  });
+
   it('the module value comes from import.meta.env', () => {
     expect(env.apiOrigin).toBe('');
     expect(typeof env.isDev).toBe('boolean');
+    expect(env.netDelayMs).toBe(0);
   });
 });
