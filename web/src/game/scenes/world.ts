@@ -10,6 +10,7 @@ import { FixedStep } from '@/lib/fixed-step';
 import type { GameSocket } from '@/net/socket';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
+import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
 import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
@@ -35,6 +36,7 @@ import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { DropTracker, PickupSystem, boxCentre } from '../systems/pickup';
+import { PortalSystem, standsIn } from '../systems/portals';
 import { Predictor } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
@@ -45,6 +47,16 @@ export interface WorldData {
   readonly characterId: string;
   readonly cls: string;
   readonly name: string;
+  /** After a MapChange: where the player arrives, shown until the Snapshot confirms it. */
+  readonly arrival?: { readonly x: number; readonly y: number };
+}
+
+const FADE_MS = 250;
+const BANNER_MS = 1800;
+
+/** "forest" as "Forest" for the arrival banner. */
+function mapTitle(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
 }
 
 type Wire = Data<'Snapshot'>['players'][number];
@@ -84,6 +96,9 @@ export class World extends Phaser.Scene {
   private pickup: PickupSystem | null = null;
   private hinted: number | null = null; // the drop within reach, if any
 
+  private view: MapView | null = null;
+  private portals: PortalSystem | null = null;
+
   constructor() {
     super(SCENES.World);
   }
@@ -107,8 +122,10 @@ export class World extends Phaser.Scene {
 
   private build(): void {
     const view = parseMap(this.entry.mapId, this.cache.json.get(mapKey(this.entry.mapId)));
+    this.view = view;
     const style = groundStyle(view.id);
     const cam = this.cameras.main;
+    cam.fadeIn(FADE_MS);
 
     this.background = this.add
       .image(0, 0, style.background)
@@ -138,8 +155,36 @@ export class World extends Phaser.Scene {
       facing: 1,
     });
     this.player.setVisible(false);
+    if (this.entry.arrival) {
+      // Through a portal: stand where MapChange said until the Snapshot confirms it.
+      this.player.apply({
+        x: this.entry.arrival.x,
+        y: this.entry.arrival.y,
+        vx: 0,
+        vy: 0,
+        on_ground: true,
+        climbing: false,
+        facing: 1,
+      });
+      this.player.setVisible(true);
+    }
     cam.setBounds(0, 0, view.width, view.height);
     cam.startFollow(this.player.sprite, true, 0.15, 0.15);
+    for (const p of view.portals) {
+      // A soft glow over each portal, breathing.
+      const glow = this.add
+        .rectangle(
+          p.area.x + p.area.w / 2,
+          p.area.y + p.area.h / 2,
+          p.area.w + 8,
+          p.area.h + 8,
+          0x7ac7ff,
+          0.18,
+        )
+        .setDepth(-1);
+      this.tweens.add({ targets: glow, alpha: 0.5, duration: 900, yoyo: true, repeat: -1 });
+    }
+    this.banner(mapTitle(view.id));
 
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
     this.socket = socket;
@@ -150,6 +195,8 @@ export class World extends Phaser.Scene {
     this.drops.clear();
     this.numbers.clear();
     this.pickup = new PickupSystem(() => socket.sendAction('PickUp'));
+    const portals = new PortalSystem(() => socket.sendAction('EnterPortal'));
+    this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
     this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), () =>
       socket.sendAction('Attack'),
@@ -159,7 +206,25 @@ export class World extends Phaser.Scene {
     sender.setCaptured(ui.getState().captureKeyboard);
     this.offs.push(
       bindKeyboard({
-        target: sender,
+        // Movement keys go to the input sender; the up key also asks the portals.
+        target: {
+          press: (a) => {
+            sender.press(a);
+            if (a === 'up') {
+              portals.keyDown(this.inPortal());
+            }
+          },
+          release: (a) => {
+            sender.release(a);
+            if (a === 'up') {
+              portals.keyUp();
+            }
+          },
+          releaseAll: () => {
+            sender.releaseAll();
+            portals.keyUp();
+          },
+        },
         preset: () => settings.getState().preset,
         captured: () => ui.getState().captureKeyboard,
         onAction: (action) => {
@@ -424,8 +489,39 @@ export class World extends Phaser.Scene {
   }
 
   /** The attack key: the class cooldown gates sending; the server decides hits. */
+  /** Whether the predicted feet stand in a portal right now (edges included, page 5). */
+  private inPortal(): boolean {
+    const p = this.predictor;
+    const v = this.view;
+    return !!p && !!v && this.placed && standsIn(p.state.x, p.state.y, v.portals) !== undefined;
+  }
+
+  /** The map's name for a moment on arrival. */
+  private banner(text: string): void {
+    const cam = this.cameras.main;
+    const t = this.add
+      .text(cam.width / 2, 28, text, {
+        fontSize: '22px',
+        color: '#f4f4f8',
+        fontFamily: 'sans-serif',
+      })
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(20);
+    this.tweens.add({
+      targets: t,
+      alpha: 0,
+      delay: BANNER_MS,
+      duration: FADE_MS * 2,
+      onComplete: () => t.destroy(),
+    });
+  }
+
   private attack(): void {
     const now = this.time.now;
+    if (this.view?.kind === 'town') {
+      return; // the server runs no combat on town maps
+    }
     if (this.transitionState.dead || !this.placed || !this.attackGate?.tryAttack(now)) {
       return;
     }
@@ -511,10 +607,18 @@ export class World extends Phaser.Scene {
         this.pushHp(a.hp);
         character.getState().setDead(false);
         return;
-      case 'change-map':
+      case 'change-map': {
         character.getState().setDead(false);
-        this.scene.restart({ ...this.entry, mapId: a.mapId });
+        this.portals?.arrived();
+        // Fade out, then the scene restarts for the named map; its Snapshot follows.
+        const next: WorldData = { ...this.entry, mapId: a.mapId, arrival: { x: a.x, y: a.y } };
+        this.placed = false;
+        this.cameras.main.fadeOut(FADE_MS);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+          this.scene.restart(next);
+        });
         return;
+      }
     }
   }
 
@@ -555,6 +659,8 @@ export class World extends Phaser.Scene {
     this.sender = null;
     this.attackGate = null;
     this.pickup = null;
+    this.portals = null;
+    this.view = null;
     this.placed = false;
     this.transitionState = initialTransition;
   }
