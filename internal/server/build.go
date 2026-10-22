@@ -10,8 +10,10 @@ import (
 
 	"finga/internal/application/account"
 	"finga/internal/application/character"
+	"finga/internal/application/chat"
 	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
+	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/config"
 	"finga/internal/handler/api"
@@ -54,12 +56,15 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	characters := character.NewService(character.NewPostgres(pool, func(tx pgx.Tx) character.StarterItems {
 		return items.Within(itemStore.UnitOfWork(tx))
 	}), data, character.Options{})
+	parties := party.NewService(party.Options{})
+	chatSvc := chat.NewService(parties, chat.Options{})
 	maps := world.New(data, characters, opts.Logger, world.Options{
 		TickInterval:       cfg.World.TickInterval(),
 		CheckpointInterval: cfg.World.CheckpointInterval,
 		Observer:           metrics,
 		Items:              items,
 		Workers:            world.NewWorkers(cfg.Economy.Workers, metrics),
+		Parties:            parties,
 	})
 
 	restAPI := api.NewHandler(api.Dependencies{
@@ -73,11 +78,14 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Sessions:    accounts,
 		Characters:  characters,
 		Items:       items,
+		Chat:        chatSvc,
+		Parties:     parties,
 		World:       worldAdapter{maps},
 		Logger:      opts.Logger,
 		Observer:    metrics,
 		CORSOrigins: cfg.Server.CORSOrigins,
 	})
+	parties.Notify(gateway) // PartyState and invites go out through the gateway
 	s := New(Options{Config: cfg.Server, Logger: opts.Logger}, Deps{
 		API:     restAPI,
 		Gateway: gateway,

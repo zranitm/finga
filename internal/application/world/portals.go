@@ -53,6 +53,7 @@ func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
 	sink := p.sink
 	p.state.X, p.state.Y = x, y
 	i.checkpointOn(p, target.ID)
+	i.tellParty(p, target.ID)
 	i.detach(p.ID)
 	i.opts.Transfer.Transfer(moved, sink, target.ID)
 }

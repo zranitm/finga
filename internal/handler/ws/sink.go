@@ -51,6 +51,8 @@ func (s *sink) Send(e world.Event) bool {
 			Stats: protocol.Stats{STR: ev.Stats.STR, DEX: ev.Stats.DEX, INT: ev.Stats.INT, AGI: ev.Stats.AGI, VIT: ev.Stats.VIT},
 			HP:    ev.HP, MaxHP: ev.MaxHP, MP: ev.MP, MaxMP: ev.MaxMP,
 		}}}
+	case world.Chat:
+		m = wsconn.Message{Type: "ChatMessage", Tick: ev.Tick, Data: protocol.ChatMessage{Channel: protocol.ChatMap, Sender: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}
 	case world.InventoryChanged:
 		m = wsconn.Message{Type: "InventoryChanged", Tick: ev.Tick, Data: protocol.InventoryChanged{Slots: inventorySlots(ev.Slots)}}
 	case world.PickupFailed:

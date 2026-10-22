@@ -37,6 +37,13 @@ type looter struct {
 	inventory int // InventoryChanged messages seen
 	failures  []protocol.Response
 	seq       uint32
+
+	// Recorded for the social rows, consumed by their helpers.
+	responses   []reply
+	partyStates []protocol.PartyState
+	invites     []protocol.PartyInvited
+	chatLines   []protocol.ChatMessage
+	exp         []protocol.ExpGained
 }
 
 func newLooter(p *player, snap protocol.Snapshot) *looter {
@@ -83,6 +90,35 @@ func (l *looter) observe(m wsconn.Message) {
 		if !d.OK {
 			l.failures = append(l.failures, d)
 		}
+		l.responses = append(l.responses, reply{m.ReqID, d})
+	case protocol.PartyState:
+		l.partyStates = append(l.partyStates, d)
+	case protocol.PartyInvited:
+		l.invites = append(l.invites, d)
+	case protocol.ChatMessage:
+		l.chatLines = append(l.chatLines, d)
+	case protocol.ExpGained:
+		l.exp = append(l.exp, d)
+	}
+}
+
+type reply struct {
+	req string
+	r   protocol.Response
+}
+
+// until pumps in short slices until pick finds what it wants in the
+// recorded messages (and consumes it), for up to d.
+func (l *looter) until(d time.Duration, pick func() bool) bool {
+	deadline := time.Now().Add(d)
+	for {
+		if pick() {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		l.pump(50*time.Millisecond, nil)
 	}
 }
 

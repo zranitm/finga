@@ -8,7 +8,9 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/application/character"
+	"finga/internal/application/chat"
 	"finga/internal/application/item"
+	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/handler/ws"
@@ -58,6 +60,7 @@ type fakeInstance struct {
 	attacks []model.CharacterID
 	pickups []model.CharacterID
 	portals []model.CharacterID
+	chats   []recordedChat
 	sinks   map[model.CharacterID]world.Sink
 	joinErr error
 }
@@ -192,4 +195,93 @@ func (f *fakeInstance) EnterPortal(id model.CharacterID) bool {
 	defer f.mu.Unlock()
 	f.portals = append(f.portals, id)
 	return true
+}
+
+func (f *fakeInstance) Chat(id model.CharacterID, name, text string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.chats = append(f.chats, recordedChat{id, name, text})
+	return true
+}
+
+type recordedChat struct {
+	id         model.CharacterID
+	name, text string
+}
+
+// fakeChat routes the way the chat service would, without cleaning.
+type fakeChat struct {
+	err        error
+	recipients []model.CharacterID // for the party channel
+}
+
+func (f *fakeChat) Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []model.CharacterID, error) {
+	if f.err != nil {
+		return chat.Message{}, nil, f.err
+	}
+	msg := chat.Message{Channel: channel, Sender: from.ID, SenderName: from.Name, Text: text}
+	if channel == chat.Party {
+		return msg, f.recipients, nil
+	}
+	return msg, nil, nil
+}
+
+// fakeParties records calls and answers with scripted results.
+type fakeParties struct {
+	mu      sync.Mutex
+	online  []party.Member
+	offline []model.CharacterID
+	calls   []string
+	of      map[model.CharacterID]party.Party
+	err     error
+}
+
+func (f *fakeParties) record(s string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, s)
+}
+
+func (f *fakeParties) Online(m party.Member) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.online = append(f.online, m)
+}
+
+func (f *fakeParties) Offline(id model.CharacterID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.offline = append(f.offline, id)
+}
+
+func (f *fakeParties) Of(id model.CharacterID) (party.Party, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.of[id]
+	return p, ok
+}
+
+func (f *fakeParties) Invite(from, to model.CharacterID) (party.Invite, error) {
+	f.record("invite " + from.String() + " " + to.String())
+	return party.Invite{ID: "inv-1", From: from, To: to}, f.err
+}
+
+func (f *fakeParties) Respond(who model.CharacterID, inviteID string, accept bool) error {
+	f.record("respond " + who.String() + " " + inviteID + " " + map[bool]string{true: "yes", false: "no"}[accept])
+	return f.err
+}
+
+func (f *fakeParties) Leave(who model.CharacterID) error {
+	f.record("leave " + who.String())
+	return f.err
+}
+
+func (f *fakeParties) Kick(leader, target model.CharacterID) error {
+	f.record("kick " + leader.String() + " " + target.String())
+	return f.err
+}
+
+func (f *fakeParties) Promote(leader, target model.CharacterID) error {
+	f.record("promote " + leader.String() + " " + target.String())
+	return f.err
 }

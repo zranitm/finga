@@ -39,12 +39,14 @@ type limit struct {
 }
 
 // rateLimits are page 4's per-account limits, keyed by message type.
+// ChatSend is missing on purpose: the chat service limits it (1 per
+// second, burst 3) and answers rate_limited, which a silent drop here
+// would hide.
 func rateLimits() map[string]limit {
 	l := map[string]limit{
-		"Input":    {20, 20},
-		"Attack":   {10, 10},
-		"PickUp":   {10, 10},
-		"ChatSend": {1, 3},
+		"Input":  {20, 20},
+		"Attack": {10, 10},
+		"PickUp": {10, 10},
 	}
 	for _, t := range []string{"PartyInvite", "PartyRespond", "PartyLeave", "PartyKick", "PartyPromote"} {
 		l[t] = limit{2, 2}

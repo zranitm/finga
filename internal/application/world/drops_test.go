@@ -111,13 +111,17 @@ func pickupFailures(s *sink) []world.PickupFailed {
 
 // runLootArena starts the arena with pickups wired to a fake item service
 // and a worker pool inside the bubble.
-func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64) (*world.Instance, func()) {
+func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...world.Options) (*world.Instance, func()) {
 	t.Helper()
 	workers := world.NewWorkers(2, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); workers.Run(ctx) }()
-	inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{Roll: scriptedRoll{roll}, Items: items, Workers: workers})
+	opts := world.Options{Roll: scriptedRoll{roll}, Items: items, Workers: workers}
+	if len(extra) > 0 {
+		opts.Parties = extra[0].Parties
+	}
+	inst, stop := runArena(t, data, arena(time.Hour), nil, opts)
 	return inst, func() { stop(); cancel(); <-workersDone }
 }
 

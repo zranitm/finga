@@ -42,6 +42,7 @@ type Options struct {
 	Transfer           Mover         // moves players between maps; nil respawns in place
 	Items              Pickups       // the item module; nil: pickups are unavailable
 	Workers            *Workers      // the economy worker pool; nil: pickups are unavailable
+	Parties            Parties       // the party service; nil: nobody has a party
 }
 
 func (o Options) withDefaults() Options {
@@ -103,6 +104,7 @@ type message struct {
 	pickup *pickupResult
 	pick   model.CharacterID
 	portal model.CharacterID // EnterPortal
+	chat   *chatMsg
 }
 
 type joinMsg struct {
@@ -292,6 +294,10 @@ func (i *Instance) drain() []model.CharacterID {
 		case !m.portal.IsZero():
 			if p, ok := i.players[m.portal]; ok && i.enterPortal(p) {
 				removed = append(removed, m.portal)
+			}
+		case m.chat != nil:
+			if _, ok := i.players[m.chat.from]; ok {
+				i.events = append(i.events, Chat{Tick: i.tick, Sender: m.chat.from, SenderName: m.chat.name, Text: m.chat.text})
 			}
 		case !m.leave.IsZero():
 			if i.remove(m.leave) {

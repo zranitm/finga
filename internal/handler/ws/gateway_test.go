@@ -14,8 +14,10 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/application/character"
+	"finga/internal/application/chat"
 	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
+	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/handler/ws"
@@ -625,5 +627,161 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	defer h.town.mu.Unlock()
 	if len(h.town.portals) != 1 || h.town.portals[0] != aylaID {
 		t.Fatalf("portals %v", h.town.portals)
+	}
+}
+
+func TestChatRouting(t *testing.T) {
+	fc := &fakeChat{recipients: []model.CharacterID{aylaID, brunoID}}
+	h := newHarness(t, func(d *ws.Dependencies) { d.Chat = fc })
+	ayla := h.dial(t)
+	ayla.hello(tokenAlice, aylaID)
+	ayla.expect("Snapshot")
+	bruno := h.dial(t)
+	bruno.hello(tokenBob, brunoID)
+	bruno.expect("Snapshot")
+
+	t.Run("a map line goes to the sender's map instance with the connection's identity", func(t *testing.T) {
+		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hello map"}})
+		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+		ayla.expect("Pong")
+		h.town.mu.Lock()
+		defer h.town.mu.Unlock()
+		if len(h.town.chats) != 1 || h.town.chats[0].id != aylaID || h.town.chats[0].name != "Ayla" || h.town.chats[0].text != "hello map" {
+			t.Fatalf("chats %+v", h.town.chats)
+		}
+	})
+	t.Run("a map line from the instance reaches the client as ChatMessage", func(t *testing.T) {
+		h.town.push(brunoID, world.Chat{Tick: 3, Sender: aylaID, SenderName: "Ayla", Text: "hello map"})
+		cm := bruno.expect("ChatMessage").Data.(protocol.ChatMessage)
+		if cm.Channel != protocol.ChatMap || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "hello map" {
+			t.Fatalf("chat message %+v", cm)
+		}
+	})
+	t.Run("a party line is delivered to every recipient's connection, the sender included", func(t *testing.T) {
+		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatParty, Text: "psst"}})
+		for _, c := range []*client{ayla, bruno} {
+			cm := c.expect("ChatMessage").Data.(protocol.ChatMessage)
+			if cm.Channel != protocol.ChatParty || cm.Sender != aylaID.String() || cm.Text != "psst" {
+				t.Fatalf("party chat %+v", cm)
+			}
+		}
+	})
+	t.Run("a refused line answers a Response without a request ID", func(t *testing.T) {
+		fc.err = chat.ErrTooLong
+		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "..."}})
+		r := ayla.expect("Response")
+		if r.ReqID != "" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "invalid_argument" {
+			t.Fatalf("response %+v", r)
+		}
+		fc.err = nil
+	})
+}
+
+func TestPartyCommandsAndState(t *testing.T) {
+	fp := &fakeParties{of: map[model.CharacterID]party.Party{
+		aylaID: {Leader: aylaID, Members: []party.Member{{ID: aylaID, Name: "Ayla", Level: 1, HP: 204, MaxHP: 204, MapID: "town", Online: true}, {ID: brunoID, Name: "Bruno", Level: 1, MapID: "forest"}}},
+	}}
+	h := newHarness(t, func(d *ws.Dependencies) { d.Parties = fp })
+	ayla := h.dial(t)
+	ayla.hello(tokenAlice, aylaID)
+	w := ayla.expect("Welcome").Data.(protocol.Welcome)
+	if w.Party == nil || w.Party.Leader != aylaID.String() || len(w.Party.Members) != 2 || w.Party.Members[1].Name != "Bruno" || w.Party.Members[1].MapID != "forest" || w.Party.Members[1].Online {
+		t.Fatalf("welcome party %+v", w.Party)
+	}
+	ayla.expect("Snapshot")
+	bruno := h.dial(t)
+	bruno.hello(tokenBob, brunoID)
+	if w := bruno.expect("Welcome").Data.(protocol.Welcome); w.Party != nil {
+		t.Fatalf("bruno has a party in Welcome: %+v", w.Party)
+	}
+	bruno.expect("Snapshot")
+	fp.mu.Lock()
+	if len(fp.online) != 2 || fp.online[0].ID != aylaID || fp.online[0].Name != "Ayla" || fp.online[0].MapID != "town" || fp.online[0].MaxHP != 204 || fp.online[0].Level != 1 {
+		t.Fatalf("online %+v", fp.online)
+	}
+	fp.mu.Unlock()
+
+	t.Run("each command carries the connection's identity and answers its request", func(t *testing.T) {
+		for k, tt := range []struct {
+			msg  any
+			want string
+		}{
+			{protocol.PartyInvite{CharacterID: brunoID.String()}, "invite " + aylaID.String() + " " + brunoID.String()},
+			{protocol.PartyRespond{InviteID: "inv-9", Accept: true}, "respond " + aylaID.String() + " inv-9 yes"},
+			{protocol.PartyKick{CharacterID: brunoID.String()}, "kick " + aylaID.String() + " " + brunoID.String()},
+			{protocol.PartyPromote{CharacterID: brunoID.String()}, "promote " + aylaID.String() + " " + brunoID.String()},
+			{protocol.PartyLeave{}, "leave " + aylaID.String()},
+		} {
+			req := "p-" + string(rune('a'+k))
+			ayla.send(wsconn.Message{ReqID: req, Data: tt.msg})
+			r := ayla.expect("Response")
+			if r.ReqID != req || !r.Data.(protocol.Response).OK {
+				t.Fatalf("%T: response %+v", tt.msg, r)
+			}
+			fp.mu.Lock()
+			got := fp.calls[len(fp.calls)-1]
+			fp.mu.Unlock()
+			if got != tt.want {
+				t.Fatalf("%T: call %q, want %q", tt.msg, got, tt.want)
+			}
+		}
+	})
+	t.Run("errors map to the Response code", func(t *testing.T) {
+		ayla.send(wsconn.Message{ReqID: "p-x", Data: protocol.PartyInvite{CharacterID: "nope"}})
+		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "invalid_argument" {
+			t.Fatalf("malformed id: %+v", r)
+		}
+		fp.err = party.ErrNotLeader
+		ayla.send(wsconn.Message{ReqID: "p-y", Data: protocol.PartyKick{CharacterID: brunoID.String()}})
+		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "conflict" || r.Message == "" {
+			t.Fatalf("not leader: %+v", r)
+		}
+		fp.err = nil
+	})
+	t.Run("the gateway is the notifier: PartyState and PartyInvited reach the connections", func(t *testing.T) {
+		h.gw.PartyChanged([]model.CharacterID{aylaID, brunoID, robinID}, &party.Party{Leader: brunoID, Members: []party.Member{{ID: brunoID, Name: "Bruno", Online: true}, {ID: aylaID, Name: "Ayla", Online: true}}})
+		for _, c := range []*client{ayla, bruno} {
+			ps := c.expect("PartyState").Data.(protocol.PartyState)
+			if ps.Party == nil || ps.Party.Leader != brunoID.String() || len(ps.Party.Members) != 2 {
+				t.Fatalf("party state %+v", ps)
+			}
+		}
+		h.gw.Invited(brunoID, party.Invite{ID: "inv-2", From: aylaID, FromName: "Ayla", To: brunoID})
+		if inv := bruno.expect("PartyInvited").Data.(protocol.PartyInvited); inv.InviteID != "inv-2" || inv.From != aylaID.String() || inv.FromName != "Ayla" {
+			t.Fatalf("invited %+v", inv)
+		}
+		h.gw.PartyChanged([]model.CharacterID{aylaID}, nil)
+		if ps := ayla.expect("PartyState").Data.(protocol.PartyState); ps.Party != nil {
+			t.Fatalf("party state after leaving %+v", ps)
+		}
+	})
+	t.Run("closing the connection tells the party service", func(t *testing.T) {
+		_ = bruno.c.Close(websocket.StatusNormalClosure, "bye")
+		deadline := time.Now().Add(2 * time.Second)
+		for time.Now().Before(deadline) {
+			fp.mu.Lock()
+			n := len(fp.offline)
+			fp.mu.Unlock()
+			if n == 1 {
+				return
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		t.Fatal("Offline was not called")
+	})
+}
+
+func TestChatAndPartyWithoutTheServices(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	c.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hi"}})
+	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "unavailable" {
+		t.Fatalf("chat: %+v", r)
+	}
+	c.send(wsconn.Message{ReqID: "p-1", Data: protocol.PartyLeave{}})
+	if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "unavailable" {
+		t.Fatalf("party: %+v", r)
 	}
 }

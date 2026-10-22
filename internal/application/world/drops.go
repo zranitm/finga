@@ -92,8 +92,8 @@ func (i *Instance) pickUp(p *player) {
 		if !d.reservedBy.IsZero() {
 			continue
 		}
-		if d.windowEnd > i.tick && d.killer != p.ID {
-			continue // someone else's loot for now
+		if d.windowEnd > i.tick && d.killer != p.ID && (i.opts.Parties == nil || !i.opts.Parties.SameParty(d.killer, p.ID)) {
+			continue // someone else's loot for now (the killer's party may)
 		}
 		dist := math.Hypot(d.x-cx, d.y-cy)
 		if dist <= pickupRange && dist < bestDist {

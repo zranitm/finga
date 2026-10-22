@@ -14,8 +14,10 @@ import (
 	"time"
 
 	"finga/internal/application/character"
+	"finga/internal/application/chat"
 	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
+	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/model"
@@ -40,6 +42,23 @@ type ItemSource interface {
 	Discard(ctx context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error)
 }
 
+// ChatSource cleans and limits chat lines and names the party recipients.
+type ChatSource interface {
+	Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []model.CharacterID, error)
+}
+
+// PartySource is what the gateway needs from the party service.
+type PartySource interface {
+	Online(m party.Member)
+	Offline(id model.CharacterID)
+	Of(id model.CharacterID) (party.Party, bool)
+	Invite(from, to model.CharacterID) (party.Invite, error)
+	Respond(who model.CharacterID, inviteID string, accept bool) error
+	Leave(who model.CharacterID) error
+	Kick(leader, target model.CharacterID) error
+	Promote(leader, target model.CharacterID) error
+}
+
 // MapInstance is what the gateway needs from a map actor.
 type MapInstance interface {
 	Join(ctx context.Context, p world.Player, sink world.Sink) error
@@ -48,6 +67,7 @@ type MapInstance interface {
 	Attack(id model.CharacterID) bool
 	PickUp(id model.CharacterID) bool
 	EnterPortal(id model.CharacterID) bool
+	Chat(id model.CharacterID, name, text string) bool
 }
 
 // World finds map instances.
@@ -67,7 +87,9 @@ type Observer interface {
 type Dependencies struct {
 	Sessions    auth.Sessions
 	Characters  CharacterSource
-	Items       ItemSource // nil: Welcome carries no items and inventory commands are unavailable
+	Items       ItemSource  // nil: Welcome carries no items and inventory commands are unavailable
+	Chat        ChatSource  // nil: ChatSend is unavailable
+	Parties     PartySource // nil: party commands are unavailable; the gateway is its Notifier
 	World       World
 	Logger      *slog.Logger
 	Observer    Observer
@@ -90,10 +112,11 @@ type Gateway struct {
 	limits map[string]limit
 	now    func() time.Time
 
-	mu         sync.Mutex
-	byConn     map[string]*session
-	byAccount  map[model.AccountID]*session
-	helloGrace time.Duration
+	mu          sync.Mutex
+	byConn      map[string]*session
+	byAccount   map[model.AccountID]*session
+	byCharacter map[model.CharacterID]*session // active sessions, for party and chat delivery
+	helloGrace  time.Duration
 }
 
 // New builds the gateway.
@@ -108,14 +131,22 @@ func New(deps Dependencies) *Gateway {
 		deps.Observer = noopObserver{}
 	}
 	return &Gateway{
-		deps:       deps,
-		codec:      protocol.NewCodec(),
-		limits:     rateLimits(),
-		now:        deps.Clock,
-		byConn:     map[string]*session{},
-		byAccount:  map[model.AccountID]*session{},
-		helloGrace: deps.HelloTimeout,
+		deps:        deps,
+		codec:       protocol.NewCodec(),
+		limits:      rateLimits(),
+		now:         deps.Clock,
+		byConn:      map[string]*session{},
+		byAccount:   map[model.AccountID]*session{},
+		byCharacter: map[model.CharacterID]*session{},
+		helloGrace:  deps.HelloTimeout,
 	}
+}
+
+// sessionOf finds the active session of a character, if any.
+func (g *Gateway) sessionOf(id model.CharacterID) *session {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.byCharacter[id]
 }
 
 // ServeHTTP upgrades the request and runs the session until it closes.
@@ -185,12 +216,43 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 			}
 			return g.deps.Items.Discard(ctx, actor, item.DiscardInput{Key: d.IdempotencyKey, ItemID: id, Quantity: d.Quantity})
 		})
+	case protocol.ChatSend:
+		g.chat(s, d)
+	case protocol.PartyInvite:
+		g.partyCommand(s, m.ReqID, func() error {
+			to, err := model.ParseCharacterID(d.CharacterID)
+			if err != nil {
+				return err
+			}
+			_, err = g.deps.Parties.Invite(s.character.ID, to)
+			return err
+		})
+	case protocol.PartyRespond:
+		g.partyCommand(s, m.ReqID, func() error { return g.deps.Parties.Respond(s.character.ID, d.InviteID, d.Accept) })
+	case protocol.PartyLeave:
+		g.partyCommand(s, m.ReqID, func() error { return g.deps.Parties.Leave(s.character.ID) })
+	case protocol.PartyKick:
+		g.partyCommand(s, m.ReqID, func() error {
+			target, err := model.ParseCharacterID(d.CharacterID)
+			if err != nil {
+				return err
+			}
+			return g.deps.Parties.Kick(s.character.ID, target)
+		})
+	case protocol.PartyPromote:
+		g.partyCommand(s, m.ReqID, func() error {
+			target, err := model.ParseCharacterID(d.CharacterID)
+			if err != nil {
+				return err
+			}
+			return g.deps.Parties.Promote(s.character.ID, target)
+		})
 	case protocol.Ping:
 		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
 	case protocol.Hello:
 		c.Close(wsconn.CloseKicked, "hello twice")
 	default:
-		// Portals, chat and party arrive in later steps.
+		// Market messages arrive in Stage 2.
 		if m.ReqID != "" {
 			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "not available yet"}})
 		}
@@ -205,6 +267,9 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	if s != nil && s.active() && g.byAccount[s.account] == s {
 		delete(g.byAccount, s.account)
 	}
+	if s != nil && s.active() && g.byCharacter[s.character.ID] == s {
+		delete(g.byCharacter, s.character.ID)
+	}
 	g.mu.Unlock()
 	if s == nil {
 		return
@@ -212,6 +277,9 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	s.helloTimer.Stop()
 	if s.active() {
 		s.inst().Leave(s.character.ID)
+		if g.deps.Parties != nil {
+			g.deps.Parties.Offline(s.character.ID)
+		}
 		g.deps.Observer.OnlineChanged(-1)
 	}
 	var ce *wsconn.CloseError
@@ -273,6 +341,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	g.mu.Lock()
 	old := g.byAccount[account]
 	g.byAccount[account] = s
+	g.byCharacter[c.ID] = s
 	s.account = account
 	s.sessionID = model.SessionID(p.SessionID)
 	s.character = c
@@ -283,12 +352,18 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	}
 	s.helloTimer.Stop()
 
-	g.send(s.conn, wsconn.Message{Data: protocol.Welcome{
+	welcome := protocol.Welcome{
 		Character:  characterView(c, derived),
 		Inventory:  inventory,
 		MapID:      c.MapID,
 		ServerTime: g.now().UnixMilli(),
-	}})
+	}
+	if g.deps.Parties != nil {
+		if p, ok := g.deps.Parties.Of(c.ID); ok {
+			welcome.Party = partyView(&p)
+		}
+	}
+	g.send(s.conn, wsconn.Message{Data: welcome})
 	player := world.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
 	snk := &sink{conn: s.conn, obs: g.deps.Observer, onTeleport: func(mapID string) {
 		if target, err := g.deps.World.Instance(mapID); err == nil {
@@ -301,8 +376,80 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		return
 	}
 	s.setActive()
+	if g.deps.Parties != nil {
+		g.deps.Parties.Online(party.Member{ID: c.ID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: derived.MaxHP, MapID: c.MapID})
+	}
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", c.ID, "map_id", c.MapID)
+}
+
+// chat cleans a line through the chat service, then hands a map line to
+// the sender's map instance (everyone there hears it, the sender too) or
+// delivers a party line to each member's connection, on any map. A
+// refused line answers a Response (ChatSend carries no request ID).
+func (g *Gateway) chat(s *session, d protocol.ChatSend) {
+	if g.deps.Chat == nil {
+		g.send(s.conn, wsconn.Message{Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "chat is not available"}})
+		return
+	}
+	msg, to, err := g.deps.Chat.Send(chat.Sender{ID: s.character.ID, Name: s.character.Name}, chat.Channel(d.Channel), d.Text)
+	if err != nil {
+		g.send(s.conn, wsconn.Message{Data: protocol.Response{OK: false, Code: string(errs.CodeOf(err)), Message: errs.MessageOf(err)}})
+		return
+	}
+	if msg.Channel == chat.Map {
+		s.inst().Chat(msg.Sender, msg.SenderName, msg.Text)
+		return
+	}
+	line := protocol.ChatMessage{Channel: protocol.ChatParty, Sender: msg.Sender.String(), SenderName: msg.SenderName, Text: msg.Text}
+	for _, id := range to {
+		if t := g.sessionOf(id); t != nil {
+			g.send(t.conn, wsconn.Message{Data: line})
+		}
+	}
+}
+
+// partyCommand runs a party command with the connection's identity and
+// answers a Response; the party service pushes PartyState itself.
+func (g *Gateway) partyCommand(s *session, reqID string, run func() error) {
+	if g.deps.Parties == nil {
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "parties are not available"}})
+		return
+	}
+	if err := run(); err != nil {
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.CodeOf(err)), Message: errs.MessageOf(err)}})
+		return
+	}
+	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
+}
+
+// PartyChanged implements party.Notifier: every listed member who is
+// connected gets the new PartyState (party null when they have none).
+func (g *Gateway) PartyChanged(members []model.CharacterID, p *party.Party) {
+	state := protocol.PartyState{Party: partyView(p)}
+	for _, id := range members {
+		if t := g.sessionOf(id); t != nil {
+			g.send(t.conn, wsconn.Message{Data: state})
+		}
+	}
+}
+
+// Invited implements party.Notifier: the recipient gets PartyInvited.
+func (g *Gateway) Invited(to model.CharacterID, inv party.Invite) {
+	if t := g.sessionOf(to); t != nil {
+		g.send(t.conn, wsconn.Message{Data: protocol.PartyInvited{InviteID: inv.ID, From: inv.From.String(), FromName: inv.FromName}})
+	}
+}
+
+func partyView(p *party.Party) *protocol.PartyView {
+	if p == nil {
+		return nil
+	}
+	v := &protocol.PartyView{Leader: p.Leader.String(), Members: make([]protocol.PartyMember, 0, len(p.Members))}
+	for _, m := range p.Members {
+		v.Members = append(v.Members, protocol.PartyMember{CharacterID: m.ID.String(), Name: m.Name, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Online: m.Online})
+	}
+	return v
 }
 
 // inventoryCommand runs an inventory command on the connection's own

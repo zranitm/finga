@@ -186,7 +186,7 @@ func (i *Instance) killMob(mb *mob, killer *player) {
 	st.alive--
 	st.returns = append(st.returns, i.tick+i.ticksFor(i.m.Spawns[mb.spawn].Respawn))
 	i.rollDrops(mb, killer)
-	i.award(killer, mb.def.Exp)
+	i.shareExp(killer, mb.def.Exp)
 }
 
 func removeMob(mobs []*mob, id uint64) []*mob {
@@ -215,6 +215,7 @@ func (i *Instance) award(p *player, amount int64) {
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
 	p.private = append(p.private, LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	i.tellParty(p, i.m.ID)
 	if i.persist != nil {
 		lu := character.LevelUp{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
 		select {
@@ -298,6 +299,7 @@ func (i *Instance) deathsAndRespawns() []model.CharacterID {
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
 			i.events = append(i.events, Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
 			p.state = sim.State{X: x, Y: y, Facing: 1, Ground: -1, DropPlatform: -1}
+			i.tellParty(p, i.m.ID)
 			p.moved = true
 			continue
 		}
