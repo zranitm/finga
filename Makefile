@@ -1,10 +1,13 @@
 # Targets the README documents: up, down, test, cover, lint, gen, smoke, bots.
+# test, lint and cover run both halves (Go, then the client through
+# npm --prefix web); the -go and -web targets run one half, which CI uses.
 GO        ?= go
 COVER_MIN ?= 80
 COMPOSE   ?= docker compose -f deploy/docker-compose.yml
 SMOKE_URL ?= http://localhost:8080
+NPM       ?= npm --prefix web
 
-.PHONY: up down test cover lint gen smoke bots
+.PHONY: up down test test-go test-web cover cover-go cover-web lint lint-go lint-web gen smoke bots
 
 up:            ## build the images and start Postgres, the migrations and the game server (:8080)
 	$(COMPOSE) up --build -d
@@ -12,21 +15,37 @@ up:            ## build the images and start Postgres, the migrations and the ga
 down:          ## stop everything and drop the database volume
 	$(COMPOSE) down -v
 
-test:          ## every test, with the race detector; no Docker needed
+test: test-go test-web   ## every Go test with the race detector, then the client tests
+
+test-go:
 	$(GO) test -race ./...
 
-# Coverage counts statements in internal/ and pkg/ only, from every test in the
-# module (end-to-end tests under test/ included). cmd/ is wiring, exercised end
-# to end, and stringer output (*_string.go) is generated, so both are excluded.
-cover:         ## coverage report; fails below COVER_MIN
+test-web:
+	$(NPM) test
+
+# Go coverage counts statements in internal/ and pkg/ only, from every test in
+# the module (end-to-end tests under test/ included). cmd/ is wiring, exercised
+# end to end, and stringer output (*_string.go) is generated, so both are
+# excluded. The client enforces page 7's 80% floor on its tested layers itself.
+cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
+
+cover-go:
 	$(GO) test -race -coverpkg=./internal/...,./pkg/... -coverprofile=coverage.out ./...
 	@grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@$(GO) tool cover -func=coverage.out | tail -1
 	@total=$$($(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
 	awk -v t="$$total" -v m="$(COVER_MIN)" 'BEGIN { if (t+0 < m+0) { printf "coverage %.1f%% is below the %d%% floor\n", t, m; exit 1 } printf "coverage %.1f%% meets the %d%% floor\n", t, m }'
 
-lint:          ## golangci-lint, including constant log messages (sloglint)
+cover-web:
+	$(NPM) run coverage
+
+lint: lint-go lint-web   ## golangci-lint, then the client: eslint, prettier, the layer-rule fixture
+
+lint-go:
 	golangci-lint run ./...
+
+lint-web:
+	$(NPM) run lint
 
 smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
 	FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/

@@ -17,12 +17,32 @@ jobs:
         with:
           version: v2.15.0   # built with Go 1.27, matching go.mod; an older build refuses the target version
           args: --help   # install only; `make lint` runs it below with the repo's settings
-      - run: make lint
-      # make test includes the step 13 crash test: it builds cmd/gameserver,
+      - run: make lint-go
+      # The Go half of make test, crash test included: it builds cmd/gameserver,
       # runs it as its own process over a Testcontainers Postgres, kills it
-      # mid-pickup, restarts it, and checks the item invariants.
-      - run: make test
-      - run: make cover
+      # mid-pickup, restarts it, and checks the item invariants. The client
+      # half of test, lint and cover runs in the node job.
+      - run: make test-go
+      - run: make cover-go
+
+  # The client: page 7's toolchain, with the lockfile as the cache key.
+  node:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run coverage
+      - run: npm run build
 
   # The packaging step: the images build, `make up` brings the whole Stage 1
   # game up from a clean clone, and a test client signs up, enters the world

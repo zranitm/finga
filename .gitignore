@@ -12,3 +12,6 @@ coverage.tmp
 web/node_modules/
 web/dist/
 web/public/maps/
+
+# client coverage output
+web/coverage/

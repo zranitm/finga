@@ -33,6 +33,23 @@ race detector; on Windows, for example `winget install
 BrechtSanders.WinLibs.POSIX.UCRT`), make, golangci-lint v2 for `make lint`,
 sqlc for `make gen`, and Docker for the tests that run a real Postgres.
 
+## Client
+
+The browser client lives in `web/` (Phaser 4, React 19, Vite 8, TypeScript,
+Zustand, Vitest; page 7 of the design). It is built step by step after the
+backend, the same way, with its own rows in `docs/ai-coding-log.md`.
+
+```bash
+make up                         # the server on :8080
+npm --prefix web install        # once; Node 24 (web/.nvmrc)
+npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the server
+```
+
+`make test`, `make lint` and `make cover` run the client's scripts too
+(`npm --prefix web test`, `run lint`, `run coverage`), so one command checks
+both halves. The lint step includes a fixture that must be rejected by the
+layer rule (page 7's five layers, enforced with `import-x/no-restricted-paths`).
+
 ## Configuration
 
 Defaults live in `configs/config.yaml`. Any key can be overridden as `FINGA_`
