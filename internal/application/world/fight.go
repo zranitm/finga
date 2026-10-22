@@ -244,6 +244,7 @@ func (i *Instance) contactDamage() {
 			hit := combat.Resolve(mb.attacker(), defenderOf(p.derived), i.roll)
 			i.events = append(i.events, Damage{Tick: i.tick, Source: EntityRef{Mob: mb.id}, Target: EntityRef{Player: p.ID}, Amount: hit.Damage, Crit: hit.Crit, Miss: hit.Miss})
 			p.invulnUntil = i.tick + i.ticksFor(invulnerability)
+			p.changed = true // the invulnerability starts: the Delta carries the edge (step 19)
 			dir := 1.0
 			if p.state.X < mb.x {
 				dir = -1
@@ -274,6 +275,11 @@ func (i *Instance) kill(p *player) {
 	p.held = sim.Input{}
 	p.pending = p.pending[:0]
 	progress := character.DeathPenalty(i.data, character.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
+	if progress.Exp != p.Exp {
+		// The penalty is private to the dying player: a negative ExpGained with
+		// the new total, sent with Died (step 19). No penalty, no message.
+		p.private = append(p.private, ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})
+	}
 	p.Exp = progress.Exp
 	p.changed = true
 	i.events = append(i.events, Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y})

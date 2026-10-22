@@ -233,6 +233,9 @@ components:
         hp: { type: integer }
         max_hp: { type: integer }
         dead: { type: boolean }
+        invulnerable:
+          type: boolean
+          description: Set while the second of invulnerability after contact damage lasts; omitted when false. Both edges are carried in Deltas (backend step 19).
     MobView:
       type: object
       required: [id, type, x, y, facing, hp, max_hp]

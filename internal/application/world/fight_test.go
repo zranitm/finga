@@ -290,9 +290,26 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		if v.State.VY >= 0 {
 			t.Fatalf("no knockback hop: %+v", v.State)
 		}
+		if !v.Invulnerable {
+			t.Fatalf("not invulnerable after contact damage: %+v", v)
+		}
 		// Stop, wait inside the invulnerability window: no second hit. Then
 		// walk back in as it ends: a second hit.
-		seq = walk(inst, id, seq, sim.Input{}, 15)
+		seq = walk(inst, id, seq, sim.Input{}, 22) // past the second of invulnerability, standing still
+		{                                          // the second is over: the Delta carries the cleared flag although the player stood still
+			var ticks []uint64
+			for _, d := range s.deltas() {
+				for _, pv := range d.Players {
+					if pv.ID == id && !pv.Invulnerable && pv.HP == 199 {
+						ticks = append(ticks, d.Tick)
+					}
+				}
+			}
+			hitTick := damages(s)[0].Tick
+			if len(ticks) == 0 || ticks[0] != hitTick+20 {
+				t.Fatalf("the invulnerability edge: cleared in deltas at ticks %v, want %d (one second after the hit at %d)", ticks, hitTick+20, hitTick)
+			}
+		}
 		if len(damages(s)) != 1 {
 			t.Fatalf("%d hits inside the invulnerability window", len(damages(s)))
 		}
@@ -325,6 +342,10 @@ func TestDeathAndRespawn(t *testing.T) {
 			v, _ := s.own(p.ID)
 			if !v.Dead || v.HP != 0 {
 				t.Fatalf("view after death %+v", v)
+			}
+			lost := s.ofType(func(e world.Event) bool { _, ok := e.(world.ExpGained); return ok })
+			if len(lost) != 1 || lost[0].(world.ExpGained).Amount != -1 || lost[0].(world.ExpGained).Exp != 9 {
+				t.Fatalf("the death penalty as ExpGained: %+v, want amount -1 and exp 9", lost)
 			}
 			x := v.State.X
 			inst.Input(p.ID, seq+1, sim.Input{Right: true})
@@ -502,6 +523,26 @@ func TestNoCombatInTown(t *testing.T) {
 		}
 		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok })) != 0 {
 			t.Fatal("died in a town")
+		}
+	})
+}
+
+func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(260)
+		p.HP, p.Exp = 1, 0 // at the start of the level: the penalty takes nothing
+		s := join(t, inst, p)
+		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		if died := s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok }); len(died) != 1 {
+			t.Fatalf("died events %+v", died)
+		}
+		if lost := s.ofType(func(e world.Event) bool { _, ok := e.(world.ExpGained); return ok }); len(lost) != 0 {
+			t.Fatalf("an ExpGained with nothing lost: %+v", lost)
 		}
 	})
 }

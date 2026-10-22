@@ -18,6 +18,22 @@
         "climbing": false,
         "hp": 250,
         "max_hp": 250
+      },
+      {
+        "id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c",
+        "name": "Robin",
+        "class": "bowman",
+        "level": 1,
+        "x": 540,
+        "y": 596,
+        "vx": 0,
+        "vy": -300,
+        "facing": -1,
+        "on_ground": false,
+        "climbing": false,
+        "hp": 90,
+        "max_hp": 105,
+        "invulnerable": true
       }
     ],
     "mobs": [
@@ -41,7 +57,7 @@
       }
     ],
     "removed_players": [
-      "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c"
+      "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7d"
     ],
     "removed_mobs": [
       6

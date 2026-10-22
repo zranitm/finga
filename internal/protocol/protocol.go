@@ -188,6 +188,8 @@ type PlayerView struct {
 	HP       int     `json:"hp"`
 	MaxHP    int     `json:"max_hp"`
 	Dead     bool    `json:"dead,omitempty"`
+	// Invulnerable is set while the second after contact damage lasts (step 19).
+	Invulnerable bool `json:"invulnerable,omitempty"`
 }
 
 // MobView is a mob on the map.

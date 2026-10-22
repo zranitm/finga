@@ -401,6 +401,9 @@ func cutInputs(q []inputMsg) []inputMsg {
 func (i *Instance) simulate() (changed []model.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
+		if p.invulnUntil == i.tick {
+			p.changed = true // the invulnerability ends this tick: the Delta carries the edge (step 19)
+		}
 		p.pending = cutInputs(p.pending)
 		hold := false
 		if len(p.pending) > 0 {
@@ -471,7 +474,7 @@ func (i *Instance) broadcast(changed, removed []model.CharacterID) []model.Chara
 }
 
 func (i *Instance) view(p *player) PlayerView {
-	return PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, State: p.state}
+	return PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state}
 }
 
 // checkpoint hands the player's state to the persistence worker without

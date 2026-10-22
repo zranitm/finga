@@ -9,10 +9,13 @@ func Samples() []wsconn.Message {
 	const (
 		charA = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b"
 		charB = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c"
+		charC = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7d"
 		item1 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01"
 	)
 	view := CharacterView{ID: charA, Name: "Ayla", Class: "warrior", Level: 2, Exp: 15, Stats: Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MaxHP: 250, MP: 32, MaxMP: 32}
 	player := PlayerView{ID: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 416, Y: 608, VX: 200, VY: 0, Facing: 1, OnGround: true, HP: 250, MaxHP: 250}
+	// A second player a second after contact damage: invulnerable (step 19).
+	hurt := PlayerView{ID: charB, Name: "Robin", Class: "bowman", Level: 1, X: 540, Y: 596, VX: 0, VY: -300, Facing: -1, OnGround: false, HP: 90, MaxHP: 105, Invulnerable: true}
 	mob := MobView{ID: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, HP: 30, MaxHP: 30}
 	drop := DropView{ID: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608}
 	party := &PartyView{Leader: charA, Members: []PartyMember{
@@ -37,7 +40,7 @@ func Samples() []wsconn.Message {
 
 		{Type: "Welcome", Data: Welcome{Token: "s3ss10n-t0k3n-r0t4t3d", Character: view, Inventory: []ItemView{{ItemID: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}}, Party: party, MapID: "town", Tick: 81234, ServerTime: 1761000000050}},
 		{Type: "Snapshot", Tick: 81234, Data: Snapshot{Players: []PlayerView{player}, Mobs: []MobView{mob}, Drops: []DropView{drop}}},
-		{Type: "Delta", Tick: 81235, Data: Delta{AckSeq: 117, Players: []PlayerView{player}, Mobs: []MobView{mob}, Drops: []DropView{drop}, RemovedPlayers: []string{charB}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{11}}},
+		{Type: "Delta", Tick: 81235, Data: Delta{AckSeq: 117, Players: []PlayerView{player, hurt}, Mobs: []MobView{mob}, Drops: []DropView{drop}, RemovedPlayers: []string{charC}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{11}}},
 		{Type: "Correction", Tick: 81235, Data: Correction{Seq: 117, X: 416, Y: 608, VX: 0, VY: 0, OnGround: true}},
 		{Type: "Damage", Tick: 81235, Data: Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "Died", Tick: 81236, Data: Died{CharacterID: charA, X: 500, Y: 608}},

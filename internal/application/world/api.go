@@ -50,7 +50,10 @@ type PlayerView struct {
 	HP    int
 	MaxHP int
 	Dead  bool
-	State sim.State
+	// Invulnerable is set while the second after contact damage lasts
+	// (step 19); its edges are carried in Deltas even without movement.
+	Invulnerable bool
+	State        sim.State
 }
 
 // MobView is a mob as everyone on the map sees it.
