@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/internal/config"
@@ -41,6 +42,7 @@ func TestMain(m *testing.M) {
 type stack struct {
 	t   *testing.T
 	url string
+	db  *pgxpool.Pool
 }
 
 func newStack(t *testing.T) *stack {
@@ -71,7 +73,12 @@ func newStack(t *testing.T) *stack {
 	t.Cleanup(func() { stopTasks(); <-tasksDone })
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
-	return &stack{t: t, url: ts.URL}
+	db, err := pgxpool.New(ctx, cfg.Database.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(db.Close)
+	return &stack{t: t, url: ts.URL, db: db}
 }
 
 type response struct {

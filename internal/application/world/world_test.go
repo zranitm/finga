@@ -17,15 +17,23 @@ import (
 
 // fakeSaver records checkpoints, as the character service would.
 type fakeSaver struct {
-	mu    sync.Mutex
-	saved []character.Checkpoint
-	err   error
+	mu       sync.Mutex
+	saved    []character.Checkpoint
+	levelUps []character.LevelUp
+	err      error
 }
 
 func (f *fakeSaver) SaveCheckpoint(_ context.Context, cp character.Checkpoint) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.saved = append(f.saved, cp)
+	return f.err
+}
+
+func (f *fakeSaver) SaveLevelUp(_ context.Context, lu character.LevelUp) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.levelUps = append(f.levelUps, lu)
 	return f.err
 }
 
@@ -126,7 +134,7 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 
 func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	data := loadData(t)
-	inst := world.NewInstance(data.Town(), data.Movement(), nil, world.Options{InboxSize: 1})
+	inst := world.NewInstance(data.Town(), data, nil, world.Options{InboxSize: 1})
 	// Not running: the first post fills the inbox, the second is refused.
 	if !inst.Input(model.NewCharacterID(), 1, sim0()) {
 		t.Fatal("first post refused")
@@ -141,7 +149,7 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 		t.Fatal("leave accepted with a full inbox")
 	}
 	t.Run("a join on a stopped instance gives up when the caller's context ends", func(t *testing.T) {
-		inst := world.NewInstance(data.Town(), data.Movement(), nil, world.Options{})
+		inst := world.NewInstance(data.Town(), data, nil, world.Options{})
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancel()
 		if err := inst.Join(ctx, newPlayer("Ayla", 0, 0), &sink{}); !errors.Is(err, context.DeadlineExceeded) {

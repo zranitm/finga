@@ -1,0 +1,507 @@
+package world_test
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"testing/synctest"
+	"time"
+
+	"finga/internal/application/gamedata"
+	"finga/internal/application/world"
+	"finga/internal/application/world/sim"
+	"finga/internal/model"
+)
+
+// fixedRoll always returns the same value: every attack hits for average
+// damage, nothing crits, and spawned mobs face right.
+type fixedRoll struct{ v float64 }
+
+func (r fixedRoll) Float64() float64 { return r.v }
+
+// arena is a hunting map with a floor at 608 and one green slime standing
+// still on a 32 px platform at x 300 (its patrol bounds collapse to a
+// point), 18 px above the floor so a shot at chest height crosses it.
+func arena(respawn time.Duration) *gamedata.Map {
+	return &gamedata.Map{
+		ID: "arena", Kind: gamedata.Hunting, Width: 1280, Height: 640,
+		Geometry: sim.Geometry{
+			Solids:    []sim.Rect{{X: 0, Y: 608, W: 1280, H: 32}},
+			Platforms: []sim.Rect{{X: 284, Y: 590, W: 32, H: 8}},
+		},
+		Spawns:      []gamedata.Spawn{{Mob: "green_slime", Max: 1, Respawn: respawn, Area: sim.Rect{X: 284, Y: 562, W: 32, H: 28}}},
+		PlayerSpawn: gamedata.Point{X: 100, Y: 608},
+	}
+}
+
+type transferRecorder struct {
+	mu    sync.Mutex
+	moved []world.Player
+	to    []string
+}
+
+func (r *transferRecorder) Transfer(p world.Player, _ world.Sink, mapID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.moved = append(r.moved, p)
+	r.to = append(r.to, mapID)
+}
+
+func (s *sink) ofType(want func(world.Event) bool) []world.Event {
+	var out []world.Event
+	for _, e := range s.all() {
+		if want(e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func damages(s *sink) []world.Damage {
+	var out []world.Damage
+	for _, e := range s.ofType(func(e world.Event) bool { _, ok := e.(world.Damage); return ok }) {
+		out = append(out, e.(world.Damage))
+	}
+	return out
+}
+
+// runArena starts an arena instance in the bubble with a fixed roll.
+func runArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- world.Job, opts world.Options) (*world.Instance, func()) {
+	t.Helper()
+	opts.TickInterval = tickInterval
+	if opts.Roll == nil {
+		opts.Roll = fixedRoll{0.5}
+	}
+	inst := world.NewInstance(m, data, persist, opts)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = inst.Run(ctx) }()
+	var once sync.Once
+	return inst, func() { once.Do(func() { cancel(); <-done }) }
+}
+
+func warriorAt(x float64) world.Player {
+	p := newPlayer("Ayla", x, 608)
+	return p
+}
+
+func bowmanAt(x float64) world.Player {
+	return world.Player{ID: model.NewCharacterID(), Name: "Robin", Class: model.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
+}
+
+func join(t *testing.T, inst *world.Instance, p world.Player) *sink {
+	t.Helper()
+	s := &sink{}
+	if err := inst.Join(context.Background(), p, s); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(tickInterval)
+	synctest.Wait()
+	return s
+}
+
+func mobsIn(s *sink) map[uint64]world.MobView {
+	seen := map[uint64]world.MobView{}
+	for _, e := range s.all() {
+		switch ev := e.(type) {
+		case world.Snapshot:
+			for _, m := range ev.Mobs {
+				seen[m.ID] = m
+			}
+		case world.Delta:
+			for _, m := range ev.Mobs {
+				seen[m.ID] = m
+			}
+			for _, id := range ev.RemovedMobs {
+				delete(seen, id)
+			}
+		}
+	}
+	return seen
+}
+
+func TestMobsSpawnAndRespawn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		inst, stop := runArena(t, data, arena(2*time.Second), nil, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval) // tick 1: the area fills
+		synctest.Wait()
+		s := join(t, inst, warriorAt(250))
+		{ // the snapshot carries the one spawned mob, standing on its platform facing right
+			mobs := mobsIn(s)
+			if len(mobs) != 1 {
+				t.Fatalf("%d mobs, want 1", len(mobs))
+			}
+			for _, m := range mobs {
+				if m.Type != "green_slime" || m.X != 300 || m.Y != 590 || m.HP != 30 || m.MaxHP != 30 || m.Facing != 1 {
+					t.Fatalf("mob %+v", m)
+				}
+			}
+		}
+		{ // two hits kill it (21 damage each against 30 HP); it leaves the map
+			inst.Attack(s.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			time.Sleep(12 * tickInterval) // the 600 ms cooldown
+			synctest.Wait()
+			inst.Attack(s.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			if got := damages(s); len(got) != 2 || got[0].Amount != 21 || got[1].Amount != 21 || !got[0].Source.Player.IsZero() == false && false {
+				t.Fatalf("damages %+v", got)
+			}
+			if len(mobsIn(s)) != 0 {
+				t.Fatal("the mob is still on the map after dying")
+			}
+		}
+		{ // nothing comes back before the respawn timer, then exactly one does
+			time.Sleep(time.Second)
+			synctest.Wait()
+			if len(mobsIn(s)) != 0 {
+				t.Fatal("a mob returned before the respawn timer")
+			}
+			time.Sleep(2 * time.Second)
+			synctest.Wait()
+			mobs := mobsIn(s)
+			if len(mobs) != 1 {
+				t.Fatalf("%d mobs after the respawn timer, want 1", len(mobs))
+			}
+			for _, m := range mobs {
+				if m.ID != 2 || m.HP != 30 {
+					t.Fatalf("respawned mob %+v", m)
+				}
+			}
+		}
+	})
+}
+
+// id finds the joining player's ID from the snapshot.
+func (s *sink) id(t *testing.T, _ *world.Instance) model.CharacterID {
+	t.Helper()
+	snap := s.all()[0].(world.Snapshot)
+	return snap.Players[len(snap.Players)-1].ID
+}
+
+func TestAttacks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		inst, stop := runArena(t, data, arena(time.Second), nil, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+
+		{ // the Warrior's box reaches a mob in front, not one behind or far away
+			far := join(t, inst, warriorAt(100)) // 184 px away: outside the 64 px box
+			inst.Attack(far.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			if len(damages(far)) != 0 {
+				t.Fatal("a Warrior hit a mob 184 px away")
+			}
+			inst.Leave(far.id(t, inst))
+			behind := join(t, inst, warriorAt(340)) // the mob is behind, facing right
+			inst.Attack(behind.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			if len(damages(behind)) != 0 {
+				t.Fatal("a Warrior hit a mob behind their back")
+			}
+			inst.Leave(behind.id(t, inst))
+			near := join(t, inst, warriorAt(250))
+			inst.Attack(near.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			got := damages(near)
+			if len(got) != 1 || got[0].Amount != 21 || got[0].Crit || got[0].Miss || got[0].Source.Player != near.id(t, inst) || !got[0].Target.IsMob() {
+				t.Fatalf("damages %+v", got)
+			}
+			inst.Leave(near.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+		}
+
+		{ // the Bowman's shot reaches 420 px along the facing line
+			s := join(t, inst, bowmanAt(100))
+			inst.Attack(s.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			got := damages(s)
+			if len(got) != 1 || got[0].Amount != 21 {
+				t.Fatalf("damages %+v", got)
+			}
+			inst.Leave(s.id(t, inst))
+			time.Sleep(tickInterval)
+			synctest.Wait()
+		}
+
+		{ // cooldowns hold even if the client spams Attack (after the slime, killed above, has respawned)
+			time.Sleep(1200 * time.Millisecond)
+			synctest.Wait()
+			s := join(t, inst, bowmanAt(100))
+			id := s.id(t, inst)
+			for range 30 {
+				inst.Attack(id)
+			}
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			for range 5 {
+				inst.Attack(id)
+				time.Sleep(tickInterval)
+				synctest.Wait()
+			}
+			if got := damages(s); len(got) != 1 {
+				t.Fatalf("%d hits from 35 attacks inside one 800 ms cooldown, want 1", len(got))
+			}
+			time.Sleep(16 * tickInterval) // the cooldown runs out
+			synctest.Wait()
+			inst.Attack(id)
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			if got := damages(s); len(got) != 2 {
+				t.Fatalf("%d hits after the cooldown, want 2", len(got))
+			}
+		}
+	})
+}
+
+func TestContactDamageAndInvulnerability(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		s := join(t, inst, warriorAt(260)) // 24 px from the mob's box; one tick of walking touches it
+		id := s.id(t, inst)
+		inst.Input(id, 1, sim.Input{Right: true})
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		got := damages(s)
+		if len(got) != 1 || !got[0].Source.IsMob() || got[0].Target.Player != id {
+			t.Fatalf("damages %+v", got)
+		}
+		// Slime attack 6 against defense 15: 6·100/115 = 5.2 → 5.
+		if got[0].Amount != 5 {
+			t.Fatalf("contact damage %d, want 5", got[0].Amount)
+		}
+		v, _ := s.own(id)
+		if v.HP != 199 {
+			t.Fatalf("HP %d, want 199", v.HP)
+		}
+		if v.State.VY >= 0 {
+			t.Fatalf("no knockback hop: %+v", v.State)
+		}
+		// Stop, wait inside the invulnerability window: no second hit. Then
+		// walk back in as it ends: a second hit.
+		inst.Input(id, 2, sim.Input{})
+		time.Sleep(15 * tickInterval)
+		synctest.Wait()
+		if len(damages(s)) != 1 {
+			t.Fatalf("%d hits inside the invulnerability window", len(damages(s)))
+		}
+		inst.Input(id, 3, sim.Input{Right: true})
+		time.Sleep(8 * tickInterval)
+		synctest.Wait()
+		if len(damages(s)) < 2 {
+			t.Fatal("no second hit after the invulnerability window")
+		}
+	})
+}
+
+func TestDeathAndRespawn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		persist := make(chan world.Job, 100)
+		tr := &transferRecorder{}
+		inst, stop := runArena(t, data, arena(time.Hour), persist, world.Options{Transfer: tr})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(260)
+		p.HP = 1
+		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
+		s := join(t, inst, p)
+		inst.Input(p.ID, 1, sim.Input{Right: true})
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		{ // the touch kills: Died to everyone, the player is marked dead and frozen
+			died := s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok })
+			if len(died) != 1 || died[0].(world.Died).ID != p.ID {
+				t.Fatalf("died events %+v", died)
+			}
+			v, _ := s.own(p.ID)
+			if !v.Dead || v.HP != 0 {
+				t.Fatalf("view after death %+v", v)
+			}
+			x := v.State.X
+			inst.Input(p.ID, 2, sim.Input{Right: true})
+			inst.Attack(p.ID)
+			time.Sleep(5 * tickInterval)
+			synctest.Wait()
+			if v2, ok := s.own(p.ID); ok && v2.State.X != x {
+				t.Fatal("a dead character moved")
+			}
+			if n := len(damages(s)); n != 1 {
+				t.Fatalf("%d damage events; a dead character attacked or was hit again", n)
+			}
+		}
+		{ // after 3 seconds: Respawned at the town spawn with 50% HP, the penalty applied, handed to the town
+			time.Sleep(3 * time.Second)
+			synctest.Wait()
+			resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
+			if len(resp) != 1 {
+				t.Fatalf("respawned events %+v", resp)
+			}
+			r := resp[0].(world.Respawned)
+			town := data.Town()
+			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 102 {
+				t.Fatalf("respawned %+v", r)
+			}
+			tel := s.ofType(func(e world.Event) bool { _, ok := e.(world.Teleport); return ok })
+			if len(tel) != 1 || tel[0].(world.Teleport).MapID != town.ID {
+				t.Fatalf("teleport events %+v", tel)
+			}
+			tr.mu.Lock()
+			defer tr.mu.Unlock()
+			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 102 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X {
+				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
+			}
+		}
+		{ // the arena checkpointed the player on the way out, with the penalized EXP
+			var cps []world.Job
+			for len(persist) > 0 {
+				cps = append(cps, <-persist)
+			}
+			found := false
+			for _, j := range cps {
+				if j.Checkpoint != nil && j.Checkpoint.ID == p.ID && j.Checkpoint.Exp == 9 && j.Checkpoint.MapID == data.Town().ID && j.Checkpoint.X == data.Town().PlayerSpawn.X {
+					found = true
+				}
+			}
+			if !found {
+				t.Fatalf("no checkpoint with the penalty among %+v", cps)
+			}
+		}
+	})
+}
+
+func TestNoPenaltyInTownAndRespawnInPlace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		m := arena(time.Hour)
+		m.ID, m.Kind = "town", gamedata.Town // a town with a mob, for the test only
+		inst, stop := runArena(t, data, m, nil, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(260)
+		p.HP, p.Exp = 1, 10
+		s := join(t, inst, p)
+		inst.Input(p.ID, 1, sim.Input{Right: true})
+		time.Sleep(2*tickInterval + 3*time.Second)
+		synctest.Wait()
+		resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
+		if len(resp) != 1 {
+			t.Fatalf("respawned %+v", resp)
+		}
+		v, _ := s.own(p.ID)
+		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
+			t.Fatalf("after respawn in place: %+v", v)
+		}
+		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Teleport); return ok })) != 0 {
+			t.Fatal("a respawn on the town itself teleported")
+		}
+	})
+}
+
+func TestKillGivesExpAndLevelsUp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		persist := make(chan world.Job, 100)
+		inst, stop := runArena(t, data, arena(time.Hour), persist, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(250)
+		p.Exp = 18 // level 1 needs 20; a slime gives 5
+		s := join(t, inst, p)
+		inst.Attack(p.ID)
+		time.Sleep(13 * tickInterval)
+		synctest.Wait()
+		inst.Attack(p.ID)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		exp := s.ofType(func(e world.Event) bool { _, ok := e.(world.ExpGained); return ok })
+		if len(exp) != 1 || exp[0].(world.ExpGained).Amount != 5 || exp[0].(world.ExpGained).Exp != 3 {
+			t.Fatalf("exp events %+v", exp)
+		}
+		lus := s.ofType(func(e world.Event) bool { _, ok := e.(world.LevelUp); return ok })
+		if len(lus) != 1 {
+			t.Fatalf("level-up events %+v", lus)
+		}
+		lu := lus[0].(world.LevelUp)
+		// STR 15, VIT 12 after the preset; max HP 60+144+30+18 = 252, max MP 20+8+4 = 32.
+		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}) || lu.HP != 252 || lu.MaxHP != 252 || lu.MP != 32 || lu.MaxMP != 32 {
+			t.Fatalf("level-up %+v", lu)
+		}
+		v, _ := s.own(p.ID)
+		if v.Level != 2 || v.HP != 252 || v.MaxHP != 252 {
+			t.Fatalf("view after level-up %+v", v)
+		}
+		var saved []world.Job
+		for len(persist) > 0 {
+			saved = append(saved, <-persist)
+		}
+		found := false
+		for _, j := range saved {
+			if j.LevelUp != nil && j.LevelUp.ID == p.ID && j.LevelUp.Level == 2 && j.LevelUp.HP == 252 && j.LevelUp.Stats.STR == 15 {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("no level-up job among %+v", saved)
+		}
+	})
+}
+
+func TestReplayingASeedGivesTheSameFight(t *testing.T) {
+	fight := func() []world.Damage {
+		var out []world.Damage
+		synctest.Test(t, func(t *testing.T) {
+			data := loadData(t)
+			inst, stop := runArena(t, data, arena(time.Second), nil, world.Options{Seed: 42, Roll: nil})
+			defer stop()
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			s := join(t, inst, bowmanAt(100))
+			for range 40 {
+				inst.Attack(s.id(t, inst))
+				time.Sleep(4 * tickInterval)
+				synctest.Wait()
+			}
+			out = damages(s)
+		})
+		return out
+	}
+	a, b := fight(), fight()
+	if len(a) == 0 || len(a) != len(b) {
+		t.Fatalf("%d and %d damage events", len(a), len(b))
+	}
+	for i := range a {
+		a[i].Source, b[i].Source = world.EntityRef{}, world.EntityRef{} // the players' random IDs differ between runs
+		if a[i] != b[i] {
+			t.Fatalf("event %d differs: %+v vs %+v", i, a[i], b[i])
+		}
+	}
+	crits, misses := 0, 0
+	for _, d := range a {
+		if d.Crit {
+			crits++
+		}
+		if d.Miss {
+			misses++
+		}
+	}
+	t.Logf("%d hits, %d crits, %d misses with seed 42", len(a), crits, misses)
+}

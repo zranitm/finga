@@ -54,6 +54,7 @@ type fakeInstance struct {
 	joined  []world.Player
 	left    []model.CharacterID
 	inputs  []recordedInput
+	attacks []model.CharacterID
 	sinks   map[model.CharacterID]world.Sink
 	joinErr error
 }
@@ -74,7 +75,7 @@ func (f *fakeInstance) Join(_ context.Context, p world.Player, s world.Sink) err
 	}
 	f.joined = append(f.joined, p)
 	f.sinks[p.ID] = s
-	s.Send(world.Snapshot{Tick: 1, MapID: "town", Players: []world.PlayerView{{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.MaxHP, State: sim.State{X: p.X, Y: p.Y, Facing: 1}}}})
+	s.Send(world.Snapshot{Tick: 1, MapID: "town", Players: []world.PlayerView{{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.HP, State: sim.State{X: p.X, Y: p.Y, Facing: 1}}}})
 	return nil
 }
 
@@ -90,6 +91,13 @@ func (f *fakeInstance) Input(id model.CharacterID, seq uint32, in sim.Input) boo
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.inputs = append(f.inputs, recordedInput{id, seq, in})
+	return true
+}
+
+func (f *fakeInstance) Attack(id model.CharacterID) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.attacks = append(f.attacks, id)
 	return true
 }
 

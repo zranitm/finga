@@ -54,6 +54,9 @@ func Run(ctx context.Context, interval time.Duration, s Steppable, opts ...Optio
 			return nil
 		case <-ticker.C:
 		}
+		if ctx.Err() != nil {
+			return nil // a tick and the cancellation were both ready; the cancellation wins
+		}
 		n++
 		start := time.Now()
 		s.Step(n, interval)

@@ -98,16 +98,16 @@ func townSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 }
 
 func newPlayer(name string, x, y float64) world.Player {
-	return world.Player{ID: model.NewCharacterID(), Name: name, Class: model.Warrior, Level: 1, HP: 204, MaxHP: 204, MP: 28, MaxMP: 28, X: x, Y: y}
+	return world.Player{ID: model.NewCharacterID(), Name: name, Class: model.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
 }
 
 // run starts an instance for the town inside the synctest bubble. The
 // returned function stops it and waits for Run to return, so no goroutine
 // outlives the bubble.
-func run(t *testing.T, data *gamedata.Data, persist chan<- character.Checkpoint, opts world.Options) (*world.Instance, func()) {
+func run(t *testing.T, data *gamedata.Data, persist chan<- world.Job, opts world.Options) (*world.Instance, func()) {
 	t.Helper()
 	opts.TickInterval = tickInterval
-	inst := world.NewInstance(data.Town(), data.Movement(), persist, opts)
+	inst := world.NewInstance(data.Town(), data, persist, opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = inst.Run(ctx) }()
@@ -332,7 +332,7 @@ func TestCheckpoints(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		persist := make(chan character.Checkpoint, 100)
+		persist := make(chan world.Job, 100)
 		inst, cancel := run(t, data, persist, world.Options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
@@ -349,8 +349,10 @@ func TestCheckpoints(t *testing.T) {
 			var out []character.Checkpoint
 			for {
 				select {
-				case cp := <-persist:
-					out = append(out, cp)
+				case j := <-persist:
+					if j.Checkpoint != nil {
+						out = append(out, *j.Checkpoint)
+					}
 				default:
 					return out
 				}

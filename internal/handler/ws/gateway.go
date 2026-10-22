@@ -34,6 +34,7 @@ type MapInstance interface {
 	Join(ctx context.Context, p world.Player, sink world.Sink) error
 	Leave(id model.CharacterID) bool
 	Input(id model.CharacterID, seq uint32, in sim.Input) bool
+	Attack(id model.CharacterID) bool
 }
 
 // World finds map instances.
@@ -147,7 +148,9 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 	switch d := m.Data.(type) {
 	case protocol.Input:
-		s.instance.Input(s.character.ID, m.Seq, sim.Input{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump})
+		s.inst().Input(s.character.ID, m.Seq, sim.Input{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump})
+	case protocol.Attack:
+		s.inst().Attack(s.character.ID)
 	case protocol.Ping:
 		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
 	case protocol.Hello:
@@ -174,7 +177,7 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	}
 	s.helloTimer.Stop()
 	if s.active() {
-		s.instance.Leave(s.character.ID)
+		s.inst().Leave(s.character.ID)
 		g.deps.Observer.OnlineChanged(-1)
 	}
 	var ce *wsconn.CloseError
@@ -229,7 +232,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	s.account = account
 	s.sessionID = model.SessionID(p.SessionID)
 	s.character = c
-	s.instance = inst
+	s.setInstance(inst)
 	g.mu.Unlock()
 	if old != nil && old != s {
 		g.kick(old.conn, protocol.KickLoggedInElsewhere)
@@ -242,8 +245,13 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		MapID:      c.MapID,
 		ServerTime: g.now().UnixMilli(),
 	}})
-	player := world.Player{ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, HP: c.HP, MaxHP: derived.MaxHP, MP: c.MP, MaxMP: derived.MaxMP, Exp: c.Exp, X: c.X, Y: c.Y}
-	if err := inst.Join(ctx, player, &sink{conn: s.conn, obs: g.deps.Observer}); err != nil {
+	player := world.Player{ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
+	snk := &sink{conn: s.conn, obs: g.deps.Observer, onTeleport: func(mapID string) {
+		if target, err := g.deps.World.Instance(mapID); err == nil {
+			s.setInstance(target)
+		}
+	}}
+	if err := inst.Join(ctx, player, snk); err != nil {
 		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", c.ID, "map_id", c.MapID, "err", err)
 		s.conn.Close(wsconn.CloseInternal, "join")
 		return

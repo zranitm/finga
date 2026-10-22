@@ -4,29 +4,33 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
 )
 
-// persistQueue is how many checkpoints may wait for the worker.
-const persistQueue = 4096
+const (
+	persistQueue    = 4096
+	transferTimeout = 5 * time.Second
+)
 
 // World is the registry: one instance per map, on one channel (B4 adds
-// more channels), and the persistence worker they share.
+// more channels), the persistence worker they share, and the transfers
+// between them.
 type World struct {
 	instances map[string]*Instance
 	order     []string
-	persist   chan character.Checkpoint
+	persist   chan Job
 	saver     Saver
 	log       *slog.Logger
 }
 
 // New builds an instance for every map in data.
 func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *World {
-	w := &World{instances: map[string]*Instance{}, persist: make(chan character.Checkpoint, persistQueue), saver: saver, log: log}
+	w := &World{instances: map[string]*Instance{}, persist: make(chan Job, persistQueue), saver: saver, log: log}
+	opts.Transfer = w
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = NewInstance(m, data.Movement(), w.persist, opts)
+		w.instances[m.ID] = NewInstance(m, data, w.persist, opts)
 		w.order = append(w.order, m.ID)
 	}
 	return w
@@ -41,8 +45,28 @@ func (w *World) Instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-// Run ticks every instance and runs the persistence worker until ctx is
-// done. Checkpoints queued on the way out are flushed before it returns.
+// Transfer joins the player to another map's instance from its own
+// goroutine, so the calling tick never waits. A failed join is logged; the
+// player's next Hello puts them back on their saved map.
+func (w *World) Transfer(p Player, sink Sink, mapID string) {
+	target, ok := w.instances[mapID]
+	if !ok {
+		if w.log != nil {
+			w.log.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
+		}
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
+		defer cancel()
+		if err := target.Join(ctx, p, sink); err != nil && w.log != nil {
+			w.log.ErrorContext(ctx, "transfer failed", "character_id", p.ID, "map_id", mapID, "err", err)
+		}
+	}()
+}
+
+// Run ticks every instance until ctx is done. Jobs queued on the way out
+// are flushed before it returns.
 func (w *World) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	for _, id := range w.order {
@@ -53,22 +77,22 @@ func (w *World) Run(ctx context.Context) error {
 		}(w.instances[id])
 	}
 	wg.Wait()
-	// The instances are done, so no more checkpoints arrive; drain what is
-	// queued with a context that is not cancelled.
+	// The instances are done, so no more jobs arrive; drain what is queued
+	// with a context that is not cancelled.
 	w.flush(context.WithoutCancel(ctx))
 	return nil
 }
 
-// RunPersistence saves queued checkpoints until ctx is done. Run calls it
-// implicitly through flush at the end; call it beside Run to save during
+// RunPersistence saves queued checkpoints and level-ups until ctx is done.
+// Run flushes the queue at the end; call this beside Run to save during
 // the run.
 func (w *World) RunPersistence(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case cp := <-w.persist:
-			w.save(ctx, cp)
+		case job := <-w.persist:
+			w.save(ctx, job)
 		}
 	}
 }
@@ -76,16 +100,23 @@ func (w *World) RunPersistence(ctx context.Context) {
 func (w *World) flush(ctx context.Context) {
 	for {
 		select {
-		case cp := <-w.persist:
-			w.save(ctx, cp)
+		case job := <-w.persist:
+			w.save(ctx, job)
 		default:
 			return
 		}
 	}
 }
 
-func (w *World) save(ctx context.Context, cp character.Checkpoint) {
-	if err := w.saver.SaveCheckpoint(ctx, cp); err != nil && w.log != nil {
-		w.log.ErrorContext(ctx, "checkpoint failed", "character_id", cp.ID, "map_id", cp.MapID, "err", err)
+func (w *World) save(ctx context.Context, job Job) {
+	var err error
+	switch {
+	case job.LevelUp != nil:
+		err = w.saver.SaveLevelUp(ctx, *job.LevelUp)
+	case job.Checkpoint != nil:
+		err = w.saver.SaveCheckpoint(ctx, *job.Checkpoint)
+	}
+	if err != nil && w.log != nil {
+		w.log.ErrorContext(ctx, "persistence failed", "err", err)
 	}
 }

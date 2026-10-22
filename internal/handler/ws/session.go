@@ -3,6 +3,7 @@ package ws
 import (
 	"errors"
 	"reflect"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +23,7 @@ type session struct {
 	account   model.AccountID
 	sessionID model.SessionID
 	character character.Character
+	instMu    sync.Mutex
 	instance  MapInstance
 
 	limiters map[string]*ratelimit.Buckets
@@ -84,4 +86,17 @@ func errText(err error) string {
 		return "peer closed"
 	}
 	return err.Error()
+}
+
+// inst is the map instance the session is on; it changes on a transfer.
+func (s *session) inst() MapInstance {
+	s.instMu.Lock()
+	defer s.instMu.Unlock()
+	return s.instance
+}
+
+func (s *session) setInstance(i MapInstance) {
+	s.instMu.Lock()
+	defer s.instMu.Unlock()
+	s.instance = i
 }

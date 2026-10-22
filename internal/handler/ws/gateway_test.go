@@ -178,7 +178,7 @@ func TestHelloHappyPath(t *testing.T) {
 	h.town.mu.Lock()
 	joined := h.town.joined
 	h.town.mu.Unlock()
-	if len(joined) != 1 || joined[0].ID != aylaID || joined[0].MaxHP != 204 || joined[0].X != 416 {
+	if len(joined) != 1 || joined[0].ID != aylaID || joined[0].HP != 204 || joined[0].Stats.STR != 12 || joined[0].X != 416 {
 		t.Fatalf("joined %+v", joined)
 	}
 	h.obs.mu.Lock()
@@ -444,5 +444,79 @@ func TestWelcomeIsValidJSONForTheClient(t *testing.T) {
 	var env map[string]any
 	if err := json.Unmarshal(data, &env); err != nil || env["t"] != "Welcome" {
 		t.Fatalf("welcome frame %s", data)
+	}
+}
+
+func TestAttackIsRoutedAsTheSender(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	c.send(wsconn.Message{Seq: 3, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.expect("Pong")
+	h.town.mu.Lock()
+	defer h.town.mu.Unlock()
+	if len(h.town.attacks) != 1 || h.town.attacks[0] != aylaID {
+		t.Fatalf("attacks %v", h.town.attacks)
+	}
+}
+
+func TestCombatEventsReachTheClient(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	h.town.push(aylaID, world.Damage{Tick: 5, Source: world.EntityRef{Player: aylaID}, Target: world.EntityRef{Mob: 7}, Amount: 21, Crit: true})
+	m := c.expect("Damage")
+	d := m.Data.(protocol.Damage)
+	if d.Source != "p:"+aylaID.String() || d.Target != "m:7" || d.Amount != 21 || !d.Crit || m.Tick != 5 {
+		t.Fatalf("damage %+v", d)
+	}
+	h.town.push(aylaID, world.Damage{Tick: 6, Source: world.EntityRef{Mob: 7}, Target: world.EntityRef{Player: aylaID}, Miss: true})
+	if d := c.expect("Damage").Data.(protocol.Damage); d.Source != "m:7" || !d.Miss {
+		t.Fatalf("damage %+v", d)
+	}
+	h.town.push(aylaID, world.Died{Tick: 7, ID: aylaID, X: 1, Y: 2})
+	if d := c.expect("Died").Data.(protocol.Died); d.CharacterID != aylaID.String() || d.X != 1 {
+		t.Fatalf("died %+v", d)
+	}
+	h.town.push(aylaID, world.Respawned{Tick: 8, ID: aylaID, MapID: "town", X: 416, Y: 608, HP: 102})
+	if r := c.expect("Respawned").Data.(protocol.Respawned); r.MapID != "town" || r.HP != 102 {
+		t.Fatalf("respawned %+v", r)
+	}
+	h.town.push(aylaID, world.ExpGained{Tick: 9, Amount: 5, Exp: 15})
+	if e := c.expect("ExpGained").Data.(protocol.ExpGained); e.Amount != 5 || e.Exp != 15 {
+		t.Fatalf("exp %+v", e)
+	}
+	h.town.push(aylaID, world.LevelUp{Tick: 10, ID: aylaID, Name: "Ayla", Class: model.Warrior, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, VIT: 12}, HP: 252, MaxHP: 252, MP: 32, MaxMP: 32})
+	lu := c.expect("LevelUp").Data.(protocol.LevelUp)
+	if lu.Character.Level != 2 || lu.Character.MaxHP != 252 || lu.Character.Stats.STR != 15 || lu.Character.Name != "Ayla" {
+		t.Fatalf("level-up %+v", lu)
+	}
+	h.town.push(aylaID, world.Delta{Tick: 11, Mobs: []world.MobView{{ID: 7, Type: "green_slime", X: 300, Y: 608, Facing: -1, HP: 9, MaxHP: 30}}, RemovedMobs: []uint64{6}})
+	dl := c.expect("Delta").Data.(protocol.Delta)
+	if len(dl.Mobs) != 1 || dl.Mobs[0].Type != "green_slime" || dl.Mobs[0].HP != 9 || len(dl.RemovedMobs) != 1 || dl.RemovedMobs[0] != 6 {
+		t.Fatalf("delta %+v", dl)
+	}
+}
+
+func TestTeleportRepointsTheSession(t *testing.T) {
+	forest := newFakeInstance()
+	h := newHarness(t, func(d *ws.Dependencies) {
+		d.World = &fakeWorld{instances: map[string]ws.MapInstance{"town": d.World.(*fakeWorld).instances["town"], "forest": forest}}
+	})
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	h.town.push(aylaID, world.Teleport{Tick: 3, MapID: "forest", X: 64, Y: 608})
+	c.expect("MapChange")
+	c.send(wsconn.Message{Seq: 9, Data: protocol.Input{Left: true}})
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.expect("Pong")
+	forest.mu.Lock()
+	defer forest.mu.Unlock()
+	if len(forest.inputs) != 1 || forest.inputs[0].id != aylaID {
+		t.Fatalf("forest inputs %+v; the session still points at the town", forest.inputs)
 	}
 }
