@@ -15,3 +15,4 @@ web/public/maps/
 
 # client coverage output
 web/coverage/
+web/src/gamedata/

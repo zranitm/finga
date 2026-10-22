@@ -7,15 +7,20 @@
     "node": ">=24"
   },
   "scripts": {
-    "predev": "node scripts/copy-maps.mjs",
+    "gen": "node scripts/gen-gamedata.ts",
+    "predev": "npm run gen && node scripts/copy-maps.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/copy-maps.mjs",
+    "prebuild": "npm run gen && node scripts/copy-maps.mjs",
     "build": "vite build",
     "preview": "vite preview",
+    "pretypecheck": "npm run gen",
     "typecheck": "tsc --noEmit",
+    "prelint": "npm run gen",
     "lint": "eslint . --max-warnings 0 && prettier --check . && node scripts/check-layers.mjs",
     "format": "prettier --write .",
+    "pretest": "npm run gen",
     "test": "vitest run",
+    "precoverage": "npm run gen",
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
@@ -46,6 +51,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0",
     "vite": "8.3.5",
-    "vitest": "4.1.12"
+    "vitest": "4.1.12",
+    "yaml": "2.9.1"
   }
 }
