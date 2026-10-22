@@ -1,5 +1,6 @@
 // The player view: a sprite that draws the state it is given (position,
-// facing, pose). It owns no rules; the scene passes it plain state.
+// facing, pose), with a name label when one is given. It owns no rules;
+// the scene passes it plain state.
 import type Phaser from 'phaser';
 
 import { ANIM, ART_SCALE, TEX } from '../keys';
@@ -46,18 +47,29 @@ export function classArt(cls: string): ClassArt {
   return art[cls] ?? warrior;
 }
 
+/** The label sits this far above the feet: the 64 px sprite plus a margin. */
+const LABEL_ABOVE = 70;
+
 export class PlayerView {
   readonly sprite: Phaser.GameObjects.Sprite;
+  readonly label: Phaser.GameObjects.Text | null;
   private readonly art: ClassArt;
 
-  constructor(scene: Phaser.Scene, cls: string) {
+  constructor(scene: Phaser.Scene, cls: string, name?: string) {
     this.art = classArt(cls);
     this.sprite = scene.add.sprite(0, 0, this.art.stand).setOrigin(0.5, 1).setScale(ART_SCALE);
+    this.label =
+      name === undefined
+        ? null
+        : scene.add
+            .text(0, 0, name, { fontSize: '12px', color: '#f4f4f8', fontFamily: 'sans-serif' })
+            .setOrigin(0.5, 1);
   }
 
   apply(s: PlayerState): void {
     this.sprite.setPosition(s.x, s.y);
     this.sprite.setFlipX(s.facing < 0);
+    this.label?.setPosition(s.x, s.y - LABEL_ABOVE);
     switch (poseFor(s)) {
       case 'walk':
         this.sprite.play(this.art.walk, true);
@@ -81,7 +93,13 @@ export class PlayerView {
     }
   }
 
+  setVisible(on: boolean): void {
+    this.sprite.setVisible(on);
+    this.label?.setVisible(on);
+  }
+
   destroy(): void {
     this.sprite.destroy();
+    this.label?.destroy();
   }
 }

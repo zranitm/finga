@@ -74,17 +74,19 @@ describe('App', () => {
     expect(await screen.findByText('Ayla, level 1 warrior')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(await screen.findByText('Entering the world…')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Back to characters' })).toBeInTheDocument();
     const ws = FakeWebSocket.latest();
     expect(ws.url).toBe('ws://game.test/ws');
     ws.open();
     expect(ws.frames()[0]?.d).toMatchObject({ token: 'tok-1', character_id: 'c-ayla' });
     ws.push({ t: 'Welcome', d: welcome });
-    expect(await screen.findByText('Ayla, level 1')).toBeInTheDocument();
-    expect(screen.getByText('Connection: connected')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
+    expect(screen.getByText('Lv. 1')).toBeInTheDocument();
+    expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '204');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument(); // connected: no notice
     await waitFor(() =>
       expect(game.started).toEqual([
-        [SCENES.World, { mapId: 'town', characterId: 'c-ayla', cls: 'warrior' }],
+        [SCENES.World, { mapId: 'town', characterId: 'c-ayla', cls: 'warrior', name: 'Ayla' }],
       ]),
     );
 

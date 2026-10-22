@@ -241,3 +241,39 @@ body {
   pointer-events: auto;
   font-size: 14px;
 }
+
+/* The HUD (C09): bars and level, top left over the canvas. */
+.hud {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  pointer-events: none;
+  font-size: 13px;
+}
+.hud-title {
+  display: flex;
+  justify-content: space-between;
+}
+.world-overlay {
+  top: auto;
+  bottom: 12px;
+}
+.notice-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: color-mix(in srgb, var(--danger) 25%, var(--panel));
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  font-size: 14px;
+}

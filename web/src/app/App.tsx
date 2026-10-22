@@ -7,9 +7,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { LoginScreen } from '@/features/auth/LoginScreen';
 import { CharactersScreen } from '@/features/characters/CharactersScreen';
+import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
+import { Hud } from '@/features/hud/Hud';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import type { Character } from '@/net/rest';
-import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
 import { session } from '@/state/session';
 import type { Account } from '@/state/session';
@@ -73,6 +74,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
                   mapId: welcome.map_id,
                   characterId: welcome.character.id,
                   cls: welcome.character.class,
+                  name: welcome.character.name,
                 });
               },
               (err: unknown) => {
@@ -111,17 +113,17 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
   );
 }
 
-/** Over the canvas: the Welcome character and the connection, until the HUD (C09). */
+/** Over the canvas: the HUD, the connection notice, and the way back to the characters. */
 function WorldOverlay({ onLeave }: { readonly onLeave: () => void }) {
-  const c = characterStore.use((s) => s.character);
-  const status = connection.use((s) => s.status);
   return (
-    <div className="world-overlay" aria-label="World">
-      <strong>{c ? `${c.name}, level ${c.level}` : 'Entering the world…'}</strong>
-      <span>Connection: {status}</span>
-      <button type="button" className="btn btn-quiet" onClick={onLeave}>
-        Back to characters
-      </button>
-    </div>
+    <>
+      <Hud />
+      <ConnectionNotice />
+      <div className="world-overlay" aria-label="World">
+        <button type="button" className="btn btn-quiet" onClick={onLeave}>
+          Back to characters
+        </button>
+      </div>
+    </>
   );
 }
