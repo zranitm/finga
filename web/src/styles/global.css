@@ -158,3 +158,70 @@ body {
   align-items: center;
   justify-content: center;
 }
+
+/* Forms and panels on the screens before the world. */
+.panel {
+  min-width: 360px;
+  max-width: 520px;
+  padding: 20px 24px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+}
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 320px;
+  padding: 24px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.field input[type='text'],
+.field input:not([type]),
+.field input[type='password'] {
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-border);
+  background: #0a0c16;
+  color: var(--text);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.row h1 {
+  flex: 1;
+  font-size: 20px;
+  margin: 0;
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+}
+.notice {
+  margin: 0;
+  color: var(--accent);
+}
+.characters {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+.characters li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
