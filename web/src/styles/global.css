@@ -225,3 +225,19 @@ body {
   padding: 6px 0;
   border-bottom: 1px solid var(--panel-border);
 }
+
+/* Over the canvas while in the world, until the HUD (C09). */
+.world-overlay {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  pointer-events: auto;
+  font-size: 14px;
+}
