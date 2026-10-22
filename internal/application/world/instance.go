@@ -126,7 +126,7 @@ type player struct {
 	sink    Sink
 	state   sim.State
 	held    sim.Input
-	pending []inputMsg // inputs received this tick, applied in sequence order
+	pending []inputMsg // inputs not yet applied, by sequence number; one per tick
 	lastSeq uint32
 	moved   bool
 	joined  bool
@@ -278,8 +278,8 @@ func (i *Instance) drain() []model.CharacterID {
 		case m.join != nil:
 			i.join(m.join)
 		case m.input != nil:
-			if p, ok := i.players[m.input.id]; ok && m.input.seq > p.lastSeq {
-				p.pending = append(p.pending, *m.input)
+			if p, ok := i.players[m.input.id]; ok {
+				p.pending = enqueueInput(p.pending, *m.input, p.lastSeq)
 			}
 		case !m.attack.IsZero():
 			if p, ok := i.players[m.attack]; ok {
@@ -356,21 +356,49 @@ func (i *Instance) remove(id model.CharacterID) bool {
 	return true
 }
 
-// simulate applies each player's pending inputs in sequence order (the
-// last one is the held keys for this tick) and runs the sub-steps. A dead
-// player stays where they fell.
+// Input queue bounds (step 18): a burst after a stall is cut to the newest
+// few, so the player catches up within ticks rather than lagging for good.
+const (
+	inputQueueMax  = 4
+	inputQueueKeep = 2
+)
+
+// enqueueInput adds an input to a player's queue in sequence order,
+// ignoring one already applied or already queued. The queue grows by at
+// most one tick's drain before simulate cuts it.
+func enqueueInput(q []inputMsg, in inputMsg, lastSeq uint32) []inputMsg {
+	if in.seq <= lastSeq {
+		return q
+	}
+	at, dup := slices.BinarySearchFunc(q, in.seq, func(m inputMsg, seq uint32) int { return int(m.seq) - int(seq) })
+	if dup {
+		return q
+	}
+	return slices.Insert(q, at, in)
+}
+
+// cutInputs drops a backlog longer than inputQueueMax down to the newest
+// inputQueueKeep, once per tick after the drain, so a burst after a stall
+// is caught up within a few ticks.
+func cutInputs(q []inputMsg) []inputMsg {
+	if len(q) > inputQueueMax {
+		return slices.Delete(q, 0, len(q)-inputQueueKeep)
+	}
+	return q
+}
+
+// simulate applies exactly one queued input per player per tick, the
+// oldest not yet applied (step 18), keeps the last held keys when none
+// is queued, and runs the sub-steps. A dead player stays where they fell.
 func (i *Instance) simulate() (changed []model.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
+		p.pending = cutInputs(p.pending)
 		if len(p.pending) > 0 {
-			slices.SortStableFunc(p.pending, func(a, b inputMsg) int { return int(a.seq) - int(b.seq) })
-			for _, in := range p.pending {
-				if in.seq > p.lastSeq {
-					p.held = in.in
-					p.lastSeq = in.seq
-				}
-			}
-			p.pending = p.pending[:0]
+			next := p.pending[0]
+			p.held = next.in
+			p.lastSeq = next.seq
+			p.pending = slices.Delete(p.pending, 0, 1)
 		}
 		before := p.state
 		if !p.dead {

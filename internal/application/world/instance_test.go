@@ -232,18 +232,22 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			}
 		}
 
-		{ // inputs in one tick apply in sequence order: the last wins
+		{ // two inputs in one tick apply over two ticks, in sequence order
 			before, _ := s.own(p.ID)
 			inst.Input(p.ID, 3, sim.Input{})            // stop
 			inst.Input(p.ID, 2, sim.Input{Right: true}) // arrives out of order but is older
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			after, _ := s.own(p.ID)
-			if after.State.X != before.State.X {
-				t.Fatalf("moved from %v to %v although the newest input is a stop", before.State.X, after.State.X)
+			want := before.State.X + 3*data.Movement().WalkSpeed*data.Movement().Dt
+			if !near(after.State.X, want) || s.last().AckSeq != 2 {
+				t.Fatalf("x = %v ack %d, want %v and ack 2: the older input applies first", after.State.X, s.last().AckSeq, want)
 			}
-			if s.last().AckSeq != 3 {
-				t.Fatalf("ack_seq %d, want 3", s.last().AckSeq)
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			stopped, _ := s.own(p.ID)
+			if stopped.State.X != after.State.X || s.last().AckSeq != 3 {
+				t.Fatalf("x %v -> %v ack %d, want a stop with ack 3 on the next tick", after.State.X, stopped.State.X, s.last().AckSeq)
 			}
 		}
 
@@ -303,10 +307,116 @@ func TestInputFloodCarriesOverToTheNextTick(t *testing.T) {
 			synctest.Wait()
 			acks = append(acks, s.last().AckSeq)
 		}
-		want := []uint32{2, 4, 5, 5}
+		want := []uint32{1, 2, 3, 4} // one applied per tick, whatever the drain brings
 		for i := range want {
 			if acks[i] != want[i] {
 				t.Fatalf("acks %v, want %v", acks, want)
+			}
+		}
+	})
+}
+
+func TestInputQueueAppliesOnePerTick(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		x, y := townSpawn(t, data)
+		inst, cancel := run(t, data, nil, world.Options{})
+		defer cancel()
+		p := newPlayer("Ayla", x, y)
+		s := &sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(25 * tickInterval) // land and settle
+		synctest.Wait()
+
+		{ // three inputs arriving in one tick are applied over the next three ticks
+			start, _ := s.own(p.ID)
+			inst.Input(p.ID, 1, sim.Input{Right: true})
+			inst.Input(p.ID, 2, sim.Input{Right: true})
+			inst.Input(p.ID, 3, sim.Input{Left: true})
+			var acks []uint32
+			var xs []float64
+			for range 3 {
+				time.Sleep(tickInterval)
+				synctest.Wait()
+				acks = append(acks, s.last().AckSeq)
+				v, _ := s.own(p.ID)
+				xs = append(xs, v.State.X)
+			}
+			perTick := 3 * data.Movement().WalkSpeed * data.Movement().Dt
+			if acks[0] != 1 || acks[1] != 2 || acks[2] != 3 {
+				t.Fatalf("acks %v, want 1 2 3", acks)
+			}
+			if !near(xs[0], start.State.X+perTick) || !near(xs[1], start.State.X+2*perTick) || !near(xs[2], start.State.X+perTick) {
+				t.Fatalf("xs %v from %v: want right, right, left one tick each", xs, start.State.X)
+			}
+		}
+
+		{ // six queued inputs are cut to the newest two
+			for seq := uint32(10); seq <= 15; seq++ {
+				inst.Input(p.ID, seq, sim.Input{})
+			}
+			var acks []uint32
+			for range 3 {
+				time.Sleep(tickInterval)
+				synctest.Wait()
+				acks = append(acks, s.last().AckSeq)
+			}
+			if acks[0] != 14 || acks[1] != 15 || acks[2] != 15 {
+				t.Fatalf("acks %v, want 14 15 15: the oldest four were dropped", acks)
+			}
+		}
+
+		{ // a duplicate sequence number queues once
+			inst.Input(p.ID, 20, sim.Input{Right: true})
+			inst.Input(p.ID, 20, sim.Input{Left: true})
+			inst.Input(p.ID, 21, sim.Input{})
+			time.Sleep(2 * tickInterval)
+			synctest.Wait()
+			if s.last().AckSeq != 21 {
+				t.Fatalf("ack %d, want 21: the duplicate did not take a tick of its own", s.last().AckSeq)
+			}
+		}
+	})
+}
+
+func TestServerStateMatchesSimStepExactly(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		x, y := townSpawn(t, data)
+		inst, cancel := run(t, data, nil, world.Options{})
+		defer cancel()
+		p := newPlayer("Ayla", x, y)
+		s := &sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(25 * tickInterval) // land and settle
+		synctest.Wait()
+		start, _ := s.own(p.ID)
+		state := start.State
+
+		inputs := []sim.Input{
+			{Right: true}, {Right: true}, {Right: true, Jump: true}, {Right: true}, {Right: true},
+			{}, {}, {Left: true}, {Left: true, Jump: true}, {Left: true}, {Left: true}, {},
+			{Right: true}, {Right: true}, {Right: true}, {}, {}, {}, {}, {},
+		}
+		geom := data.Town().Geometry
+		params := data.Movement()
+		for n, in := range inputs {
+			inst.Input(p.ID, uint32(n+1), in)
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			for range 3 {
+				state = sim.Step(state, in, geom, params)
+			}
+			got, _ := s.own(p.ID)
+			if got.State != state { // == like the movement vectors: an exact match
+				t.Fatalf("tick %d: server %+v, sim %+v", n+1, got.State, state)
+			}
+			if s.last().AckSeq != uint32(n+1) {
+				t.Fatalf("tick %d: ack %d", n+1, s.last().AckSeq)
 			}
 		}
 	})

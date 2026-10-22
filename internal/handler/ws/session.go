@@ -44,7 +44,7 @@ type limit struct {
 // would hide.
 func rateLimits() map[string]limit {
 	l := map[string]limit{
-		"Input":  {20, 20},
+		"Input":  {30, 30}, // one per tick is 20 a second; the headroom absorbs a burst after a stall
 		"Attack": {10, 10},
 		"PickUp": {10, 10},
 	}

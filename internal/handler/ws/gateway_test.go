@@ -347,8 +347,8 @@ func TestRateLimits(t *testing.T) {
 	}
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	c.expect("Pong") // inputs before it have been handled
-	if got := h.town.inputCount(); got != 20 {
-		t.Fatalf("%d inputs forwarded of 40 in one instant, want 20 (the burst)", got)
+	if got := h.town.inputCount(); got != 30 {
+		t.Fatalf("%d inputs forwarded of 40 in one instant, want 30 (the burst)", got)
 	}
 	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
 		for i := range 6 {
