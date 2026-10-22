@@ -79,6 +79,35 @@ describe('character store', () => {
     expect(character.getState().expToNext).toBe(65);
   });
 
+  it('ExpGained records the change for the HUD, each with a new counter; a negative one is the death penalty', () => {
+    character.getState().applyWelcome(welcome);
+    character.getState().applyExpGained({ amount: 5, exp: 15 });
+    expect(character.getState().lastExpChange).toEqual({ amount: 5, seq: 1 });
+    character.getState().applyExpGained({ amount: -1, exp: 14 });
+    expect(character.getState().lastExpChange).toEqual({ amount: -1, seq: 2 });
+    expect(character.getState().character?.exp).toBe(14);
+  });
+
+  it('dead is set and cleared only on a change, and Welcome and clear reset it', () => {
+    character.getState().applyWelcome(welcome);
+    let changes = 0;
+    const off = character.subscribe(() => changes++);
+    character.getState().setDead(true);
+    character.getState().setDead(true);
+    expect(character.getState().dead).toBe(true);
+    expect(changes).toBe(1);
+    character.getState().setDead(false);
+    expect(changes).toBe(2);
+    off();
+    character.getState().setDead(true);
+    character.getState().applyWelcome(welcome);
+    expect(character.getState().dead).toBe(false);
+    character.getState().setDead(true);
+    character.getState().clear();
+    expect(character.getState().dead).toBe(false);
+    expect(character.getState().lastExpChange).toBeNull();
+  });
+
   it('vitals change only when they differ, and clear empties the store', () => {
     character.getState().applyWelcome(welcome);
     const before = character.getState().character;

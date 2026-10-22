@@ -8,6 +8,7 @@ import { Modal } from '@/components/Modal';
 import { LoginScreen } from '@/features/auth/LoginScreen';
 import { CharactersScreen } from '@/features/characters/CharactersScreen';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
+import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import type { Character } from '@/net/rest';
@@ -119,6 +120,7 @@ function WorldOverlay({ onLeave }: { readonly onLeave: () => void }) {
     <>
       <Hud />
       <ConnectionNotice />
+      <DeathOverlay />
       <div className="world-overlay" aria-label="World">
         <button type="button" className="btn btn-quiet" onClick={onLeave}>
           Back to characters

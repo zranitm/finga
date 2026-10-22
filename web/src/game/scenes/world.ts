@@ -1,8 +1,9 @@
 // World: draws the map named in Welcome from its object layers, the local
-// player predicted one tick ahead of the server (C08), and the other
-// players interpolated 100 ms behind it (C09). A Welcome after a reconnect
-// reloads the map when it changed and waits for the next Snapshot. C10
-// adds the mobs. The scene stays thin: it calls the systems.
+// player predicted one tick ahead of the server (C08), the other players
+// and the mobs interpolated 100 ms behind it (C09, C10), damage numbers,
+// death and respawn, all from the server's messages. A Welcome after a
+// reconnect reloads the map when it changed and waits for the next
+// Snapshot. The scene stays thin: it calls the systems.
 import Phaser from 'phaser';
 
 import { FixedStep } from '@/lib/fixed-step';
@@ -13,12 +14,25 @@ import { character } from '@/state/character';
 import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
 
+import { DamageNumberLayer } from '../entities/damage-number';
+import { MobView } from '../entities/mob';
 import { PlayerView } from '../entities/player';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
+import {
+  AttackGate,
+  DamageNumbers,
+  InvulnFlash,
+  MobTracker,
+  classCooldownMs,
+  numberFor,
+  parseRef,
+} from '../systems/combat-view';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock, TICK_MS } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
+import { initialTransition, transition } from '../systems/map-transition';
+import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { Predictor } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
@@ -32,6 +46,10 @@ export interface WorldData {
 }
 
 type Wire = Data<'Snapshot'>['players'][number];
+type MobWire = Data<'Snapshot'>['mobs'][number];
+
+const ARROW_RANGE = 420;
+const ARROW_MS = 300;
 
 export class World extends Phaser.Scene {
   private entry: WorldData = { mapId: 'town', characterId: '', cls: 'warrior', name: '' };
@@ -50,6 +68,14 @@ export class World extends Phaser.Scene {
   private readonly renderClock = new RenderClock();
   private lastTick = 0;
 
+  private readonly mobs = new MobTracker();
+  private readonly mobViews = new Map<number, MobView>();
+  private readonly numbers = new DamageNumbers();
+  private numberLayer: DamageNumberLayer | null = null;
+  private attackGate: AttackGate | null = null;
+  private readonly flash = new InvulnFlash();
+  private transitionState: TransitionState = initialTransition;
+
   constructor() {
     super(SCENES.World);
   }
@@ -57,6 +83,7 @@ export class World extends Phaser.Scene {
   init(data: WorldData): void {
     this.entry = data;
     this.placed = false;
+    this.transitionState = initialTransition;
   }
 
   create(): void {
@@ -111,6 +138,12 @@ export class World extends Phaser.Scene {
     this.predictor = new Predictor(view.geometry);
     this.remotes = new RemotePlayers(this.entry.characterId);
     this.renderClock.reset();
+    this.mobs.clear();
+    this.numbers.clear();
+    this.numberLayer = new DamageNumberLayer(this);
+    this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), () =>
+      socket.sendAction('Attack'),
+    );
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
     sender.setCaptured(ui.getState().captureKeyboard);
@@ -119,14 +152,31 @@ export class World extends Phaser.Scene {
         target: sender,
         preset: () => settings.getState().preset,
         captured: () => ui.getState().captureKeyboard,
+        onAction: (action) => {
+          if (action === 'attack') {
+            this.attack();
+          }
+        },
       }),
       ui.subscribe((s) => sender.setCaptured(s.captureKeyboard)),
-      socket.on('Snapshot', (m) => this.onSnapshot(m.d.players, this.tickOf(m.tick))),
+      socket.on('Snapshot', (m) => this.onSnapshot(m.d.players, m.d.mobs, this.tickOf(m.tick))),
       socket.on('Delta', (m) =>
-        this.onDelta(m.d.players, m.d.removed_players, m.d.ack_seq, this.tickOf(m.tick)),
+        this.onDelta(
+          m.d.players,
+          m.d.removed_players,
+          m.d.mobs,
+          m.d.removed_mobs,
+          m.d.ack_seq,
+          this.tickOf(m.tick),
+        ),
       ),
       socket.on('Correction', (m) => this.onCorrection(m.d)),
       socket.on('Welcome', (m) => this.onWelcome(m.d.map_id)),
+      socket.on('Damage', (m) => this.onDamage(m.d)),
+      socket.on('Died', (m) => this.onTransition({ t: 'Died', d: m.d })),
+      socket.on('Respawned', (m) => this.onTransition({ t: 'Respawned', d: m.d })),
+      socket.on('MapChange', (m) => this.onTransition({ t: 'MapChange', d: m.d })),
+      socket.on('LevelUp', () => this.onLevelUp()),
     );
   }
 
@@ -144,15 +194,24 @@ export class World extends Phaser.Scene {
     if (!predictor || !sender || !socket || !this.placed) {
       return;
     }
+    const dead = this.transitionState.dead;
     for (const step of this.clock.advance(deltaMs)) {
+      if (dead) {
+        continue; // the server holds a dead player; nothing is sent or predicted
+      }
       if (step.tickStart) {
         const input = sender.tickStart();
         predictor.beginTick(socket.sequence, input);
       }
       predictor.subStep();
     }
-    this.player?.apply(predictor.state);
+    if (this.player) {
+      this.player.apply(predictor.state, time);
+      this.player.setAlpha(this.flash.alpha(time));
+    }
     this.drawRemotes(time);
+    this.drawMobs(time);
+    this.numberLayer?.sync(this.numbers.update(time));
   }
 
   private drawRemotes(now: number): void {
@@ -176,14 +235,35 @@ export class World extends Phaser.Scene {
     }
   }
 
+  private drawMobs(now: number): void {
+    const renderTime = this.renderClock.renderTime(now);
+    if (renderTime === null) {
+      return;
+    }
+    const { shown, gone } = this.mobs.render(renderTime);
+    for (const id of gone) {
+      this.mobViews.get(id)?.destroy();
+      this.mobViews.delete(id);
+    }
+    for (const [id, state] of shown) {
+      let v = this.mobViews.get(id);
+      if (!v) {
+        v = new MobView(this, state.type);
+        this.mobViews.set(id, v);
+      }
+      v.apply(state);
+    }
+  }
+
   private me(players: readonly Wire[]): Wire | undefined {
     return players.find((p) => p.id === this.entry.characterId);
   }
 
-  /** A Snapshot is the truth: it places the local player and replaces the other players. */
-  private onSnapshot(players: readonly Wire[], tick: number): void {
+  /** A Snapshot is the truth: it places the local player and replaces the others and the mobs. */
+  private onSnapshot(players: readonly Wire[], mobs: readonly MobWire[], tick: number): void {
     this.renderClock.update(tick, this.time.now);
     this.remotes?.applySnapshot(tick * TICK_MS, players);
+    this.mobs.applySnapshot(tick * TICK_MS, mobs);
     const me = this.me(players);
     if (!me || !this.predictor || !this.player) {
       return;
@@ -192,23 +272,34 @@ export class World extends Phaser.Scene {
     this.placed = true;
     this.player.setVisible(true);
     this.player.apply(this.predictor.state);
-    this.pushVitals(me);
+    this.applySelf(me);
   }
 
   private onDelta(
     players: readonly Wire[],
     removed: readonly string[],
+    mobs: readonly MobWire[],
+    removedMobs: readonly number[],
     ackSeq: number,
     tick: number,
   ): void {
     this.renderClock.update(tick, this.time.now);
     this.remotes?.applyDelta(tick * TICK_MS, players, removed);
+    this.mobs.applyDelta(tick * TICK_MS, mobs, removedMobs);
     const me = this.me(players);
     if (!me || !this.predictor || !this.placed) {
       return;
     }
-    this.predictor.reconcile(me, ackSeq);
-    this.pushVitals(me);
+    if (!this.transitionState.dead) {
+      this.predictor.reconcile(me, ackSeq);
+    }
+    this.applySelf(me);
+  }
+
+  /** The server's word on the local player's HP and flags. */
+  private applySelf(me: Wire): void {
+    this.pushHp(me.hp);
+    this.flash.set(me.invulnerable, this.time.now);
   }
 
   /** A Correction (reserved on page 4) has no facing; the current one stays. */
@@ -230,19 +321,138 @@ export class World extends Phaser.Scene {
     }
     this.placed = false;
     this.player?.setVisible(false);
+    this.clearOthers();
+  }
+
+  private clearOthers(): void {
     this.remotes?.clear();
+    this.mobs.clear();
     this.renderClock.reset();
     for (const v of this.remoteViews.values()) {
       v.destroy();
     }
     this.remoteViews.clear();
+    for (const v of this.mobViews.values()) {
+      v.destroy();
+    }
+    this.mobViews.clear();
+    this.numbers.clear();
+    this.numberLayer?.sync([]);
+  }
+
+  /** The attack key: the class cooldown gates sending; the server decides hits. */
+  private attack(): void {
+    const now = this.time.now;
+    if (this.transitionState.dead || !this.placed || !this.attackGate?.tryAttack(now)) {
+      return;
+    }
+    this.player?.attack(now);
+    if (this.entry.cls === 'bowman' && this.predictor) {
+      this.arrow(this.predictor.state.x, this.predictor.state.y - 28, this.predictor.state.facing);
+    }
+  }
+
+  /** The Bowman's arrow: a streak flying the attack range in the facing direction. */
+  private arrow(x: number, y: number, facing: 1 | -1): void {
+    const streak = this.add.rectangle(x, y, 16, 3, 0xf0ead6).setDepth(5);
+    this.tweens.add({
+      targets: streak,
+      x: x + facing * ARROW_RANGE,
+      duration: ARROW_MS,
+      onComplete: () => streak.destroy(),
+    });
+  }
+
+  /** A resolved hit: a number over the target, the mob's bar, the local player's HP. */
+  private onDamage(d: Data<'Damage'>): void {
+    const target = parseRef(d.target);
+    if (!target) {
+      return;
+    }
+    const now = this.time.now;
+    if (target.kind === 'mob') {
+      if (!d.miss) {
+        this.mobs.damage(target.id, d.amount);
+      }
+      const v = this.mobViews.get(target.id);
+      if (v) {
+        const n = numberFor(d, false);
+        this.numbers.spawn(v.sprite.x, v.sprite.y - 44, n.text, n.kind, now);
+      }
+      return;
+    }
+    const isMe = target.id === this.entry.characterId;
+    const at = isMe
+      ? this.predictor && { x: this.predictor.state.x, y: this.predictor.state.y }
+      : this.remoteViews.get(target.id)?.sprite;
+    if (at) {
+      const n = numberFor(d, isMe);
+      this.numbers.spawn(at.x, at.y - 72, n.text, n.kind, now);
+    }
+    if (isMe && !d.miss) {
+      const c = character.getState().character;
+      if (c) {
+        this.pushHp(Math.max(0, c.hp - d.amount)); // the next Delta confirms
+      }
+    }
+  }
+
+  /** Died, Respawned and MapChange for the local player, through the transition machine. */
+  private onTransition(msg: TransitionMsg): void {
+    const r = transition(this.transitionState, msg, this.entry.characterId, this.entry.mapId);
+    this.transitionState = r.state;
+    for (const a of r.actions) {
+      this.applyTransition(a);
+    }
+  }
+
+  private applyTransition(a: TransitionAction): void {
+    switch (a.type) {
+      case 'die':
+        this.player?.setDead(true);
+        this.flash.set(false, this.time.now);
+        this.attackGate?.reset();
+        character.getState().setDead(true);
+        return;
+      case 'respawn-here':
+        this.player?.setDead(false);
+        this.predictor?.reset({
+          x: a.x,
+          y: a.y,
+          vx: 0,
+          vy: 0,
+          on_ground: true,
+          climbing: false,
+          facing: 1,
+        });
+        this.pushHp(a.hp);
+        character.getState().setDead(false);
+        return;
+      case 'change-map':
+        character.getState().setDead(false);
+        this.scene.restart({ ...this.entry, mapId: a.mapId });
+        return;
+    }
+  }
+
+  /** A level-up effect on the entity; the HUD follows the store (wiring). */
+  private onLevelUp(): void {
+    if (this.predictor && this.placed) {
+      this.numbers.spawn(
+        this.predictor.state.x,
+        this.predictor.state.y - 80,
+        'LEVEL UP!',
+        'crit',
+        this.time.now,
+      );
+    }
   }
 
   /** HP into the character store only when it changed (the store checks); MP is not on the wire. */
-  private pushVitals(me: Wire): void {
+  private pushHp(hp: number): void {
     const c = character.getState().character;
-    if (c && c.hp !== me.hp) {
-      character.getState().setVitals(me.hp, c.mp);
+    if (c && c.hp !== hp) {
+      character.getState().setVitals(hp, c.mp);
     }
   }
 
@@ -251,16 +461,17 @@ export class World extends Phaser.Scene {
       off();
     }
     this.offs = [];
-    for (const v of this.remoteViews.values()) {
-      v.destroy();
-    }
-    this.remoteViews.clear();
+    this.clearOthers();
+    this.numberLayer?.destroy();
+    this.numberLayer = null;
     this.remotes = null;
     this.player = null;
     this.background = null;
     this.socket = null;
     this.predictor = null;
     this.sender = null;
+    this.attackGate = null;
     this.placed = false;
+    this.transitionState = initialTransition;
   }
 }

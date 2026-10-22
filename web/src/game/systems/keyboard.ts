@@ -17,6 +17,8 @@ export interface KeyboardOptions {
   readonly preset: () => Preset;
   /** Whether a text field or window has the keyboard (the ui store). */
   readonly captured: () => boolean;
+  /** A non-movement action's key went down (attack, pickup, inventory, party, chat). */
+  readonly onAction?: (action: Action) => void;
   /** Where key events arrive; the window by default. */
   readonly source?: EventTarget;
   /** What loses focus when the player switches away; the window by default. */
@@ -33,15 +35,22 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
     return action !== undefined && isMovement(action) ? action : undefined;
   };
   const down = (e: Event) => {
-    const action = movementFor(e);
+    const key = e as KeyboardEvent;
+    const action = actionFor(key.code, opts.preset());
     if (action === undefined) {
       return;
     }
     if (opts.captured()) {
       return; // typing: the keys belong to the text field
     }
+    if (!isMovement(action)) {
+      if (!key.repeat) {
+        opts.onAction?.(action);
+      }
+      return;
+    }
     e.preventDefault(); // arrows and space would scroll the page
-    if (!(e as KeyboardEvent).repeat) {
+    if (!key.repeat) {
       opts.target.press(action);
     }
   };

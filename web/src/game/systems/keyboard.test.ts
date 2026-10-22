@@ -56,6 +56,34 @@ describe('bindKeyboard', () => {
     expect(down.defaultPrevented).toBe(false);
   });
 
+  it.each([
+    { code: 'KeyX', action: 'attack' },
+    { code: 'KeyZ', action: 'pickup' },
+    { code: 'KeyI', action: 'inventory' },
+    { code: 'Enter', action: 'chat' },
+  ])('$code under classic reports $action once, not as a movement key', ({ code, action }) => {
+    const source = document.createElement('div');
+    const target = { press: vi.fn(), release: vi.fn(), releaseAll: vi.fn() };
+    const onAction = vi.fn();
+    const state = { captured: false };
+    bindKeyboard({
+      target,
+      preset: () => 'classic',
+      captured: () => state.captured,
+      onAction,
+      source,
+      focusSource: source,
+    });
+    source.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true }));
+    source.dispatchEvent(new KeyboardEvent('keydown', { code, repeat: true, cancelable: true }));
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onAction).toHaveBeenCalledWith(action);
+    expect(target.press).not.toHaveBeenCalled();
+    state.captured = true;
+    source.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true }));
+    expect(onAction).toHaveBeenCalledTimes(1);
+  });
+
   it('a held key repeats in the browser but presses once', () => {
     const { target, key } = setup();
     key('keydown', 'ArrowLeft');

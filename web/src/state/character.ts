@@ -11,11 +11,16 @@ export interface CharacterState {
   readonly character: CharacterView | null;
   /** EXP needed to reach the next level; null at the cap or with no character. */
   readonly expToNext: number | null;
+  /** The local player is dead until Respawned (C10). */
+  readonly dead: boolean;
+  /** The last ExpGained's amount (negative on the death penalty), with a counter so the HUD shows each one. */
+  readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
   applyWelcome(d: Data<'Welcome'>): void;
   applyLevelUp(d: Data<'LevelUp'>): void;
   /** The server's new total within the level; amount may be negative (the death penalty). */
   applyExpGained(d: Data<'ExpGained'>): void;
   setVitals(hp: number, mp: number): void;
+  setDead(dead: boolean): void;
   clear(): void;
 }
 
@@ -31,8 +36,10 @@ export function expToNextLevel(level: number): number | null {
 export const character = defineStore<CharacterState>((set, get) => ({
   character: null,
   expToNext: null,
+  dead: false,
+  lastExpChange: null,
   applyWelcome: (d) => {
-    set({ character: d.character, expToNext: expToNextLevel(d.character.level) });
+    set({ character: d.character, expToNext: expToNextLevel(d.character.level), dead: false });
   },
   applyLevelUp: (d) => {
     set({ character: d.character, expToNext: expToNextLevel(d.character.level) });
@@ -40,7 +47,8 @@ export const character = defineStore<CharacterState>((set, get) => ({
   applyExpGained: (d) => {
     const c = get().character;
     if (c) {
-      set({ character: { ...c, exp: d.exp } });
+      const seq = (get().lastExpChange?.seq ?? 0) + 1;
+      set({ character: { ...c, exp: d.exp }, lastExpChange: { amount: d.amount, seq } });
     }
   },
   setVitals: (hp, mp) => {
@@ -49,7 +57,12 @@ export const character = defineStore<CharacterState>((set, get) => ({
       set({ character: { ...c, hp, mp } });
     }
   },
+  setDead: (dead) => {
+    if (get().dead !== dead) {
+      set({ dead });
+    }
+  },
   clear: () => {
-    set({ character: null, expToNext: null });
+    set({ character: null, expToNext: null, dead: false, lastExpChange: null });
   },
 }));
