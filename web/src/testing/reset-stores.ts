@@ -7,10 +7,21 @@ import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 export function resetStores(): void {
-  for (const store of [session, character, inventory, party, chat, connection, settings, ui]) {
+  for (const store of [
+    session,
+    character,
+    inventory,
+    party,
+    chat,
+    connection,
+    settings,
+    ui,
+    toasts,
+  ]) {
     store.reset();
   }
 }

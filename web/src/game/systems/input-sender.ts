@@ -60,6 +60,11 @@ export class InputSender {
     return this.captured;
   }
 
+  /** The tick number of the last sample, for actions that go once per tick. */
+  get currentTick(): number {
+    return this.tick;
+  }
+
   /** The keys held right now, as the sim sees them, with a latched jump. */
   sample(): Input {
     if (this.captured) {

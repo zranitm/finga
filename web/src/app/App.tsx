@@ -10,11 +10,14 @@ import { CharactersScreen } from '@/features/characters/CharactersScreen';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
 import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
+import { Toasts } from '@/features/hud/Toasts';
+import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import type { Character } from '@/net/rest';
 import { connection } from '@/state/connection';
 import { session } from '@/state/session';
 import type { Account } from '@/state/session';
+import { ui } from '@/state/ui';
 
 import { PhaserGame } from './PhaserGame';
 import { createServices } from './services';
@@ -105,6 +108,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
 
   return (
     <WorldOverlay
+      socket={svc.socket}
       onLeave={() => {
         svc.game.leave();
         svc.socket.close();
@@ -115,12 +119,27 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
 }
 
 /** Over the canvas: the HUD, the connection notice, and the way back to the characters. */
-function WorldOverlay({ onLeave }: { readonly onLeave: () => void }) {
+function WorldOverlay({
+  socket,
+  onLeave,
+}: {
+  readonly socket: Services['socket'];
+  readonly onLeave: () => void;
+}) {
+  const inventoryOpen = ui.use((s) => s.windows.inventory);
   return (
     <>
       <Hud />
       <ConnectionNotice />
       <DeathOverlay />
+      <Toasts />
+      {inventoryOpen && (
+        <InventoryWindow
+          socket={socket}
+          onClose={() => ui.getState().closeWindow('inventory')}
+          onFocusChange={(focused) => ui.getState().setCaptureKeyboard(focused)}
+        />
+      )}
       <div className="world-overlay" aria-label="World">
         <button type="button" className="btn btn-quiet" onClick={onLeave}>
           Back to characters

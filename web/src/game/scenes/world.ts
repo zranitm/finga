@@ -15,6 +15,7 @@ import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
 
 import { DamageNumberLayer } from '../entities/damage-number';
+import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
 import { PlayerView } from '../entities/player';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
@@ -33,6 +34,7 @@ import { RemotePlayers, RenderClock, TICK_MS } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
+import { DropTracker, PickupSystem, boxCentre } from '../systems/pickup';
 import { Predictor } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
@@ -47,6 +49,7 @@ export interface WorldData {
 
 type Wire = Data<'Snapshot'>['players'][number];
 type MobWire = Data<'Snapshot'>['mobs'][number];
+type DropWire = Data<'Snapshot'>['drops'][number];
 
 const ARROW_RANGE = 420;
 const ARROW_MS = 300;
@@ -75,6 +78,11 @@ export class World extends Phaser.Scene {
   private attackGate: AttackGate | null = null;
   private readonly flash = new InvulnFlash();
   private transitionState: TransitionState = initialTransition;
+
+  private readonly drops = new DropTracker();
+  private readonly dropViews = new Map<number, DropView>();
+  private pickup: PickupSystem | null = null;
+  private hinted: number | null = null; // the drop within reach, if any
 
   constructor() {
     super(SCENES.World);
@@ -139,7 +147,9 @@ export class World extends Phaser.Scene {
     this.remotes = new RemotePlayers(this.entry.characterId);
     this.renderClock.reset();
     this.mobs.clear();
+    this.drops.clear();
     this.numbers.clear();
+    this.pickup = new PickupSystem(() => socket.sendAction('PickUp'));
     this.numberLayer = new DamageNumberLayer(this);
     this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), () =>
       socket.sendAction('Attack'),
@@ -153,19 +163,33 @@ export class World extends Phaser.Scene {
         preset: () => settings.getState().preset,
         captured: () => ui.getState().captureKeyboard,
         onAction: (action) => {
-          if (action === 'attack') {
-            this.attack();
+          switch (action) {
+            case 'attack':
+              this.attack();
+              return;
+            case 'pickup':
+              this.pickUp();
+              return;
+            case 'inventory':
+              ui.getState().toggleWindow('inventory');
+              return;
+            default:
+              return; // party and chat come with C13
           }
         },
       }),
       ui.subscribe((s) => sender.setCaptured(s.captureKeyboard)),
-      socket.on('Snapshot', (m) => this.onSnapshot(m.d.players, m.d.mobs, this.tickOf(m.tick))),
+      socket.on('Snapshot', (m) =>
+        this.onSnapshot(m.d.players, m.d.mobs, m.d.drops, this.tickOf(m.tick)),
+      ),
       socket.on('Delta', (m) =>
         this.onDelta(
           m.d.players,
           m.d.removed_players,
           m.d.mobs,
           m.d.removed_mobs,
+          m.d.drops,
+          m.d.removed_drops,
           m.d.ack_seq,
           this.tickOf(m.tick),
         ),
@@ -211,7 +235,49 @@ export class World extends Phaser.Scene {
     }
     this.drawRemotes(time);
     this.drawMobs(time);
+    this.hintDrops();
     this.numberLayer?.sync(this.numbers.update(time));
+  }
+
+  /** The drop within reach, if any, is marked; the pickup key acts on it. */
+  private hintDrops(): void {
+    const p = this.predictor;
+    if (!p) {
+      return;
+    }
+    const c = boxCentre(p.state.x, p.state.y);
+    const near = this.drops.nearest(c.x, c.y)?.id ?? null;
+    if (near === this.hinted) {
+      return;
+    }
+    if (this.hinted !== null) {
+      this.dropViews.get(this.hinted)?.setHint(false);
+    }
+    if (near !== null) {
+      this.dropViews.get(near)?.setHint(true);
+    }
+    this.hinted = near;
+  }
+
+  private applyDrops(added: readonly DropWire[], removed: readonly number[]): void {
+    for (const id of removed) {
+      this.dropViews.get(id)?.destroy();
+      this.dropViews.delete(id);
+      if (this.hinted === id) {
+        this.hinted = null;
+      }
+    }
+    for (const d of added) {
+      this.dropViews.set(d.id, new DropView(this, d.template, d.x, d.y));
+    }
+  }
+
+  /** The pickup key: one PickUp per tick, only with a drop in reach; the inventory follows InventoryChanged. */
+  private pickUp(): void {
+    if (this.transitionState.dead || !this.placed || !this.pickup || !this.sender) {
+      return;
+    }
+    this.pickup.press(this.hinted !== null, this.sender.currentTick);
   }
 
   private drawRemotes(now: number): void {
@@ -260,10 +326,17 @@ export class World extends Phaser.Scene {
   }
 
   /** A Snapshot is the truth: it places the local player and replaces the others and the mobs. */
-  private onSnapshot(players: readonly Wire[], mobs: readonly MobWire[], tick: number): void {
+  private onSnapshot(
+    players: readonly Wire[],
+    mobs: readonly MobWire[],
+    drops: readonly DropWire[],
+    tick: number,
+  ): void {
     this.renderClock.update(tick, this.time.now);
     this.remotes?.applySnapshot(tick * TICK_MS, players);
     this.mobs.applySnapshot(tick * TICK_MS, mobs);
+    const changed = this.drops.applySnapshot(drops);
+    this.applyDrops(changed.added, changed.removed);
     const me = this.me(players);
     if (!me || !this.predictor || !this.player) {
       return;
@@ -280,12 +353,16 @@ export class World extends Phaser.Scene {
     removed: readonly string[],
     mobs: readonly MobWire[],
     removedMobs: readonly number[],
+    drops: readonly DropWire[],
+    removedDrops: readonly number[],
     ackSeq: number,
     tick: number,
   ): void {
     this.renderClock.update(tick, this.time.now);
     this.remotes?.applyDelta(tick * TICK_MS, players, removed);
     this.mobs.applyDelta(tick * TICK_MS, mobs, removedMobs);
+    const changed = this.drops.applyDelta(drops, removedDrops);
+    this.applyDrops(changed.added, changed.removed);
     const me = this.me(players);
     if (!me || !this.predictor || !this.placed) {
       return;
@@ -336,6 +413,12 @@ export class World extends Phaser.Scene {
       v.destroy();
     }
     this.mobViews.clear();
+    this.drops.clear();
+    for (const v of this.dropViews.values()) {
+      v.destroy();
+    }
+    this.dropViews.clear();
+    this.hinted = null;
     this.numbers.clear();
     this.numberLayer?.sync([]);
   }
@@ -471,6 +554,7 @@ export class World extends Phaser.Scene {
     this.predictor = null;
     this.sender = null;
     this.attackGate = null;
+    this.pickup = null;
     this.placed = false;
     this.transitionState = initialTransition;
   }

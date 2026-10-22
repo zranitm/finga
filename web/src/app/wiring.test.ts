@@ -8,6 +8,7 @@ import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { session } from '@/state/session';
+import { toasts } from '@/state/toasts';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -174,6 +175,34 @@ describe('wiring', () => {
     applyStatus({ status: 'closed', reason: 'session_ended', kick: 'session_expired', code: 4003 });
     expect(connection.getState()).toMatchObject({ status: 'kicked', kick: 'session_expired' });
     expect(session.getState().loggedIn).toBe(false);
+  });
+
+  it.each([
+    {
+      name: 'inventory_full',
+      d: { ok: false, code: 'inventory_full' },
+      text: 'Your inventory is full.',
+    },
+    {
+      name: 'unavailable',
+      d: { ok: false, code: 'unavailable' },
+      text: 'The server is busy. Try again.',
+    },
+    {
+      name: 'another refusal with a message',
+      d: { ok: false, code: 'invalid_argument', message: 'nothing to pick up' },
+      text: 'nothing to pick up',
+    },
+  ])('a Response with no request ID and $name shows a toast', async ({ d, text }) => {
+    const { ws } = await connectedSocket();
+    ws.push({ t: 'Response', d });
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual([text]);
+  });
+
+  it('a Response with no request ID that is ok shows nothing', async () => {
+    const { ws } = await connectedSocket();
+    ws.push({ t: 'Response', d: { ok: true } });
+    expect(toasts.getState().toasts).toEqual([]);
   });
 
   it('unwiring stops the flow', async () => {

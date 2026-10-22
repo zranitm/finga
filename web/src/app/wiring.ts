@@ -2,12 +2,14 @@
 // store actions, and the socket's status becomes the connection store. Each
 // side is tested alone; this file is tested with the fake socket.
 import type { GameSocket, StatusEvent } from '@/net/socket';
+import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { session } from '@/state/session';
+import { toasts } from '@/state/toasts';
 
 /** Subscribes the stores to the socket; returns the function that undoes it. */
 export function wireSocket(socket: GameSocket): () => void {
@@ -39,6 +41,11 @@ export function wireSocket(socket: GameSocket): () => void {
       connection.getState().setRtt(socket.rtt);
     }),
     socket.onStatus(applyStatus),
+    socket.onUnmatchedResponse((d) => {
+      if (!d.ok) {
+        toasts.getState().push(responseText(d));
+      }
+    }),
   ];
   return () => {
     for (const off of offs) {
@@ -76,6 +83,20 @@ export function applyStatus(e: StatusEvent): void {
     case 'idle':
       c.setConnection('disconnected');
       return;
+  }
+}
+
+/** The words for a refused command with no request ID (a pickup, a chat line). */
+export function responseText(d: Data<'Response'>): string {
+  switch (d.code) {
+    case 'inventory_full':
+      return 'Your inventory is full.';
+    case 'unavailable':
+      return 'The server is busy. Try again.';
+    case 'rate_limited':
+      return 'Too fast. Wait a moment.';
+    default:
+      return d.message ?? d.code ?? 'The server refused.';
   }
 }
 
