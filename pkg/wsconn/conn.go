@@ -200,10 +200,13 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		}
 	}()
 
-	// Writer: the only goroutine that writes to the socket.
+	// Writer: the only goroutine that writes to the socket while the
+	// connection is open.
+	writerDone := make(chan struct{})
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer close(writerDone)
 		for {
 			select {
 			case b := <-c.send:
@@ -276,6 +279,11 @@ loop:
 		case CloseSlowConsumer, CloseTimeout:
 			_ = c.ws.CloseNow()
 		default:
+			// The writer has stopped (closed is closed); flush what the
+			// handler queued just before closing, such as a Kicked message,
+			// so the peer learns why before the close frame.
+			<-writerDone
+			c.flush(ctx)
 			_ = c.ws.Close(websocket.StatusCode(c.closeErr.Code), c.closeErr.Reason) //nolint:gosec // close codes are small
 		}
 	}
@@ -307,4 +315,21 @@ func newID() string {
 		panic(err)
 	}
 	return hex.EncodeToString(b)
+}
+
+// flush writes whatever is still queued, after the writer has stopped.
+func (c *conn) flush(ctx context.Context) {
+	for {
+		select {
+		case b := <-c.send:
+			wctx, wcancel := context.WithTimeout(ctx, writeTimeout)
+			err := c.ws.Write(wctx, websocket.MessageText, b)
+			wcancel()
+			if err != nil {
+				return
+			}
+		default:
+			return
+		}
+	}
 }

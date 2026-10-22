@@ -10,8 +10,10 @@ import (
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
+	"finga/internal/application/world"
 	"finga/internal/config"
 	"finga/internal/handler/api"
+	"finga/internal/handler/ws"
 	"finga/internal/telemetry"
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
@@ -26,8 +28,8 @@ type BuildOptions struct {
 
 // Build wires the game server as production runs it: game data, the
 // database pool, each module's store and service with options filled from
-// configuration, the REST handler, metrics, and the server. It fails fast
-// on bad data or an unreachable database.
+// configuration, the world, the REST handler and the gateway, metrics, and
+// the server. It fails fast on bad data or an unreachable database.
 func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	cfg := opts.Config
 	data, err := gamedata.Load(cfg.World.DataDir)
@@ -38,13 +40,19 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := telemetry.NewMetrics(opts.Registry); err != nil {
+	metrics, err := telemetry.NewMetrics(opts.Registry)
+	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
 
 	accounts := account.NewService(account.NewPostgres(pool), account.Options{})
 	characters := character.NewService(character.NewPostgres(pool), data, character.Options{})
+	maps := world.New(data, characters, opts.Logger, world.Options{
+		TickInterval:       cfg.World.TickInterval(),
+		CheckpointInterval: cfg.World.CheckpointInterval,
+		Observer:           metrics,
+	})
 
 	restAPI := api.NewHandler(api.Dependencies{
 		Accounts:    accounts,
@@ -53,12 +61,33 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Logger:      opts.Logger,
 		CORSOrigins: cfg.Server.CORSOrigins,
 	})
+	gateway := ws.New(ws.Dependencies{
+		Sessions:    accounts,
+		Characters:  characters,
+		World:       worldAdapter{maps},
+		Logger:      opts.Logger,
+		Observer:    metrics,
+		CORSOrigins: cfg.Server.CORSOrigins,
+	})
 	s := New(Options{Config: cfg.Server, Logger: opts.Logger}, Deps{
 		API:     restAPI,
+		Gateway: gateway,
 		Metrics: observability.MetricsHandler(opts.Registry),
 		DB:      pool,
+		Tasks: []Task{
+			{Name: "world", Run: maps.Run},
+			{Name: "persistence", Run: func(ctx context.Context) error { maps.RunPersistence(ctx); return nil }},
+		},
 	})
 	s.closers = append(s.closers, pool.Close)
 	opts.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "items", len(data.Items()), "mobs", len(data.Mobs()))
 	return s, nil
+}
+
+// worldAdapter narrows *world.World to the gateway's World interface.
+type worldAdapter struct{ w *world.World }
+
+// Instance finds a map actor as a gateway MapInstance.
+func (a worldAdapter) Instance(mapID string) (ws.MapInstance, error) {
+	return a.w.Instance(mapID)
 }

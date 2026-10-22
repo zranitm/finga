@@ -1,0 +1,448 @@
+package ws_test
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+	"github.com/google/uuid"
+
+	"finga/internal/application/character"
+	"finga/internal/application/gamedata"
+	"finga/internal/application/world"
+	"finga/internal/application/world/sim"
+	"finga/internal/handler/ws"
+	"finga/internal/model"
+	"finga/internal/protocol"
+	"finga/pkg/auth"
+	"finga/pkg/wsconn"
+)
+
+const (
+	tokenAlice = "tok-alice"
+	tokenBob   = "tok-bob"
+)
+
+var (
+	alice     = model.NewAccountID()
+	bob       = model.NewAccountID()
+	aylaID    = model.NewCharacterID()
+	robinID   = model.NewCharacterID()
+	brunoID   = model.NewCharacterID()
+	sessAlice = model.NewSessionID()
+	sessBob   = model.NewSessionID()
+)
+
+type harness struct {
+	ts   *httptest.Server
+	town *fakeInstance
+	obs  *fakeObserver
+	gw   *ws.Gateway
+}
+
+func newHarness(t *testing.T, opts ...func(*ws.Dependencies)) *harness {
+	t.Helper()
+	town := newFakeInstance()
+	obs := newFakeObserver()
+	deps := ws.Dependencies{
+		Sessions: &fakeSessions{tokens: map[string]auth.Principal{
+			tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)},
+			tokenBob:   {AccountID: uuid.UUID(bob), SessionID: uuid.UUID(sessBob)},
+		}},
+		Characters: &fakeCharacters{chars: map[model.CharacterID]character.Character{
+			aylaID:  {ID: aylaID, AccountID: alice, Name: "Ayla", Class: model.Warrior, Level: 1, HP: 204, MP: 28, MapID: "town", X: 416, Y: 608, Stats: gamedata.Stats{STR: 12}},
+			robinID: {ID: robinID, AccountID: alice, Name: "Robin", Class: model.Bowman, Level: 1, HP: 105, MP: 33, MapID: "town", X: 400, Y: 608},
+			brunoID: {ID: brunoID, AccountID: bob, Name: "Bruno", Class: model.Warrior, Level: 1, HP: 204, MP: 28, MapID: "town", X: 500, Y: 608},
+		}},
+		World:        &fakeWorld{instances: map[string]ws.MapInstance{"town": town}},
+		Logger:       slog.New(slog.DiscardHandler),
+		Observer:     obs,
+		HelloTimeout: 200 * time.Millisecond,
+	}
+	for _, o := range opts {
+		o(&deps)
+	}
+	gw := ws.New(deps)
+	ts := httptest.NewServer(gw)
+	t.Cleanup(ts.Close)
+	return &harness{ts: ts, town: town, obs: obs, gw: gw}
+}
+
+// client is a test WebSocket client speaking the envelope.
+type client struct {
+	t     *testing.T
+	c     *websocket.Conn
+	codec *wsconn.JSONCodec
+}
+
+func (h *harness) dial(t *testing.T) *client {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.CloseNow() })
+	return &client{t: t, c: c, codec: protocol.NewCodec()}
+}
+
+func (c *client) send(m wsconn.Message) {
+	c.t.Helper()
+	b, err := c.codec.Encode(m)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	if err := c.c.Write(context.Background(), websocket.MessageText, b); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+func (c *client) sendRaw(raw string) {
+	c.t.Helper()
+	if err := c.c.Write(context.Background(), websocket.MessageText, []byte(raw)); err != nil {
+		c.t.Fatal(err)
+	}
+}
+
+// read returns the next message, or the close status when the server closed.
+func (c *client) read() (wsconn.Message, websocket.StatusCode) {
+	c.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, data, err := c.c.Read(ctx)
+	if err != nil {
+		return wsconn.Message{}, websocket.CloseStatus(err)
+	}
+	m, err := c.codec.Decode(data)
+	if err != nil {
+		c.t.Fatalf("decode %s: %v", data, err)
+	}
+	return m, -1
+}
+
+// expect reads until a message of the given type, failing on close.
+func (c *client) expect(msgType string) wsconn.Message {
+	c.t.Helper()
+	for {
+		m, status := c.read()
+		if status != -1 {
+			c.t.Fatalf("closed with %d while waiting for %s", status, msgType)
+		}
+		if m.Type == msgType {
+			return m
+		}
+	}
+}
+
+func (c *client) hello(token string, charID model.CharacterID) {
+	c.t.Helper()
+	c.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: charID.String()}})
+}
+
+// expectKick reads a Kicked message with the reason, then the close.
+func (c *client) expectKick(reason protocol.KickReason) {
+	c.t.Helper()
+	m := c.expect("Kicked")
+	if got := m.Data.(protocol.Kicked).Reason; got != reason {
+		c.t.Fatalf("kicked for %q, want %q", got, reason)
+	}
+	if _, status := c.read(); status != websocket.StatusCode(wsconn.CloseKicked) {
+		c.t.Fatalf("close status %d after Kicked", status)
+	}
+}
+
+func TestHelloHappyPath(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	w := c.expect("Welcome")
+	welcome := w.Data.(protocol.Welcome)
+	if welcome.Character.ID != aylaID.String() || welcome.Character.Name != "Ayla" || welcome.Character.MaxHP != 204 || welcome.MapID != "town" || welcome.ServerTime == 0 {
+		t.Fatalf("welcome %+v", welcome)
+	}
+	if welcome.Inventory == nil {
+		t.Fatal("inventory must be an empty array, not null")
+	}
+	s := c.expect("Snapshot")
+	snap := s.Data.(protocol.Snapshot)
+	if s.Tick != 1 || len(snap.Players) != 1 || snap.Players[0].ID != aylaID.String() || snap.Players[0].X != 416 || snap.Mobs == nil || snap.Drops == nil {
+		t.Fatalf("snapshot %+v (tick %d)", snap, s.Tick)
+	}
+	h.town.mu.Lock()
+	joined := h.town.joined
+	h.town.mu.Unlock()
+	if len(joined) != 1 || joined[0].ID != aylaID || joined[0].MaxHP != 204 || joined[0].X != 416 {
+		t.Fatalf("joined %+v", joined)
+	}
+	h.obs.mu.Lock()
+	defer h.obs.mu.Unlock()
+	if h.obs.online != 1 || h.obs.in["Hello"] != 1 || h.obs.out["Welcome"] != 1 || h.obs.out["Snapshot"] != 1 {
+		t.Fatalf("observer %+v", h.obs)
+	}
+}
+
+func TestNoHelloInTimeClosesTheConnection(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	start := time.Now()
+	_, status := c.read()
+	if status != websocket.StatusCode(wsconn.CloseKicked) {
+		t.Fatalf("status %d", status)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatal("took too long: the Hello timeout is 200 ms here")
+	}
+	h.town.mu.Lock()
+	defer h.town.mu.Unlock()
+	if len(h.town.joined) != 0 {
+		t.Fatal("joined without Hello")
+	}
+}
+
+func TestHelloFailures(t *testing.T) {
+	tests := []struct {
+		name   string
+		hello  protocol.Hello
+		reason protocol.KickReason
+	}{
+		{"a bad token", protocol.Hello{Token: "nope", ProtocolVersion: protocol.Version, CharacterID: aylaID.String()}, protocol.KickUnauthenticated},
+		{"someone else's character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: brunoID.String()}, protocol.KickUnauthenticated},
+		{"an unknown character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: model.NewCharacterID().String()}, protocol.KickUnauthenticated},
+		{"a malformed character ID", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: "ayla"}, protocol.KickUnauthenticated},
+		{"an old protocol version", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version - 1, CharacterID: aylaID.String()}, protocol.KickOutdatedProtocol},
+		{"a future protocol version", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version + 1, CharacterID: aylaID.String()}, protocol.KickOutdatedProtocol},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			c := h.dial(t)
+			c.send(wsconn.Message{Data: tt.hello})
+			c.expectKick(tt.reason)
+			h.town.mu.Lock()
+			defer h.town.mu.Unlock()
+			if len(h.town.joined) != 0 {
+				t.Fatal("joined after a failed Hello")
+			}
+			h.obs.mu.Lock()
+			defer h.obs.mu.Unlock()
+			if h.obs.online != 0 {
+				t.Fatalf("players online %d after a failed Hello", h.obs.online)
+			}
+		})
+	}
+	t.Run("a join failure closes without a kick reason", func(t *testing.T) {
+		h := newHarness(t)
+		h.town.joinErr = world.ErrBusy
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		if _, status := c.read(); status != websocket.StatusInternalError {
+			t.Fatalf("status %d", status)
+		}
+	})
+	t.Run("a character on an unknown map", func(t *testing.T) {
+		h := newHarness(t, func(d *ws.Dependencies) {
+			d.Characters = &fakeCharacters{chars: map[model.CharacterID]character.Character{aylaID: {ID: aylaID, AccountID: alice, MapID: "limbo"}}}
+		})
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		if _, status := c.read(); status != websocket.StatusInternalError {
+			t.Fatalf("status %d", status)
+		}
+	})
+}
+
+func TestMessagesBeforeHelloAreRejected(t *testing.T) {
+	tests := []struct {
+		name string
+		msg  wsconn.Message
+	}{
+		{"an input", wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}}},
+		{"a ping", wsconn.Message{Data: protocol.Ping{ClientTime: 1}}},
+		{"an attack", wsconn.Message{Data: protocol.Attack{}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			c := h.dial(t)
+			c.send(tt.msg)
+			if _, status := c.read(); status != websocket.StatusCode(wsconn.CloseKicked) {
+				t.Fatalf("status %d", status)
+			}
+			if h.town.inputCount() != 0 {
+				t.Fatal("an input before Hello reached the world")
+			}
+		})
+	}
+}
+
+func TestIdentityComesFromTheConnection(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	// A raw Input that smuggles a character_id field: the field is ignored
+	// by the codec and the input is routed as Ayla's.
+	c.sendRaw(`{"t":"Input","seq":5,"d":{"right":true,"character_id":"` + brunoID.String() + `"}}`)
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 7}})
+	c.expect("Pong")
+	h.town.mu.Lock()
+	defer h.town.mu.Unlock()
+	if len(h.town.inputs) != 1 || h.town.inputs[0].id != aylaID || h.town.inputs[0].seq != 5 || !h.town.inputs[0].in.Right {
+		t.Fatalf("inputs %+v", h.town.inputs)
+	}
+	t.Run("a second Hello on an active session is refused", func(t *testing.T) {
+		c.hello(tokenAlice, robinID)
+		if _, status := c.read(); status != websocket.StatusCode(wsconn.CloseKicked) {
+			t.Fatalf("status %d", status)
+		}
+	})
+}
+
+func TestSecondLoginKicksTheFirst(t *testing.T) {
+	h := newHarness(t)
+	first := h.dial(t)
+	first.hello(tokenAlice, aylaID)
+	first.expect("Snapshot")
+	second := h.dial(t)
+	second.hello(tokenAlice, robinID) // same account, another character
+	second.expect("Snapshot")
+	first.expectKick(protocol.KickLoggedInElsewhere)
+	time.Sleep(50 * time.Millisecond)
+	h.town.mu.Lock()
+	left := append([]model.CharacterID(nil), h.town.left...)
+	h.town.mu.Unlock()
+	if len(left) != 1 || left[0] != aylaID {
+		t.Fatalf("left %v, want Ayla only", left)
+	}
+	// The second session keeps working.
+	second.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	second.expect("Pong")
+	h.obs.mu.Lock()
+	defer h.obs.mu.Unlock()
+	if h.obs.online != 1 {
+		t.Fatalf("players online %d, want 1", h.obs.online)
+	}
+}
+
+func TestRateLimits(t *testing.T) {
+	frozen := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
+	h := newHarness(t, func(d *ws.Dependencies) { d.Clock = func() time.Time { return frozen } })
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	for seq := uint32(1); seq <= 40; seq++ {
+		c.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
+	}
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.expect("Pong") // inputs before it have been handled
+	if got := h.town.inputCount(); got != 20 {
+		t.Fatalf("%d inputs forwarded of 40 in one instant, want 20 (the burst)", got)
+	}
+	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
+		for i := range 6 {
+			c.send(wsconn.Message{ReqID: "r", Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: "x", Tab: "use", Slot: i}})
+		}
+		var codes []string
+		for range 6 {
+			m := c.expect("Response")
+			codes = append(codes, m.Data.(protocol.Response).Code)
+		}
+		if codes[5] != "rate_limited" || codes[0] == "rate_limited" {
+			t.Fatalf("codes %v", codes)
+		}
+	})
+}
+
+func TestWorldEventsReachTheClient(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	h.town.push(aylaID, world.Delta{Tick: 9, AckSeq: 3, Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: model.Bowman, Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 20, VX: 200, Facing: -1, OnGround: true}}}, Removed: []model.CharacterID{brunoID}})
+	m := c.expect("Delta")
+	d := m.Data.(protocol.Delta)
+	if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].ID != robinID.String() || d.Players[0].VX != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
+		t.Fatalf("delta %+v (tick %d)", d, m.Tick)
+	}
+	h.town.push(aylaID, world.Teleport{Tick: 10, MapID: "forest", X: 64, Y: 608})
+	mc := c.expect("MapChange")
+	if mc.Data.(protocol.MapChange).MapID != "forest" {
+		t.Fatalf("map change %+v", mc.Data)
+	}
+}
+
+func TestCloseLeavesTheMap(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	_ = c.c.Close(websocket.StatusNormalClosure, "bye")
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		h.town.mu.Lock()
+		n := len(h.town.left)
+		h.town.mu.Unlock()
+		if n == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	h.town.mu.Lock()
+	defer h.town.mu.Unlock()
+	if len(h.town.left) != 1 || h.town.left[0] != aylaID {
+		t.Fatalf("left %v", h.town.left)
+	}
+	h.obs.mu.Lock()
+	defer h.obs.mu.Unlock()
+	if h.obs.online != 0 {
+		t.Fatalf("players online %d after close", h.obs.online)
+	}
+}
+
+func TestUnavailableCommandsAnswerWithAResponse(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.PartyLeave{}})
+	m := c.expect("Response")
+	if m.ReqID != "r-1" || m.Data.(protocol.Response).OK || m.Data.(protocol.Response).Code != "unavailable" {
+		t.Fatalf("response %+v", m)
+	}
+	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}}) // no req: silently ignored for now
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.expect("Pong")
+}
+
+func TestOriginCheckAppliesToTheGateway(t *testing.T) {
+	h := newHarness(t, func(d *ws.Dependencies) { d.CORSOrigins = []string{"http://localhost:5173"} })
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, res, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), &websocket.DialOptions{HTTPHeader: http.Header{"Origin": []string{"http://evil.example"}}})
+	if err == nil || res == nil || res.StatusCode != http.StatusForbidden {
+		t.Fatalf("err %v res %v", err, res)
+	}
+}
+
+func TestWelcomeIsValidJSONForTheClient(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	ctx := context.Background()
+	_, data, err := c.c.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env map[string]any
+	if err := json.Unmarshal(data, &env); err != nil || env["t"] != "Welcome" {
+		t.Fatalf("welcome frame %s", data)
+	}
+}

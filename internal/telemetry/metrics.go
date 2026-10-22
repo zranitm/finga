@@ -79,3 +79,15 @@ func (m *Metrics) ObserveTick(mapID string, took, budget time.Duration) {
 		m.TickOverruns.WithLabelValues(mapID).Inc()
 	}
 }
+
+// MessageIn counts a message received over the WebSocket.
+func (m *Metrics) MessageIn(msgType string) { m.WSMessages.WithLabelValues("in", msgType).Inc() }
+
+// MessageOut counts a message sent over the WebSocket.
+func (m *Metrics) MessageOut(msgType string) { m.WSMessages.WithLabelValues("out", msgType).Inc() }
+
+// SlowConsumer counts a connection closed because its send queue filled up.
+func (m *Metrics) SlowConsumer() { m.WSSlowConsumerDisconnects.Inc() }
+
+// OnlineChanged moves the online gauge by delta.
+func (m *Metrics) OnlineChanged(delta int) { m.PlayersOnline.Add(float64(delta)) }

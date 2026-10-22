@@ -103,3 +103,29 @@ func TestObserveTick(t *testing.T) {
 		})
 	}
 }
+
+func TestGatewayObserver(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := telemetry.NewMetrics(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.MessageIn("Input")
+	m.MessageIn("Input")
+	m.MessageOut("Delta")
+	m.SlowConsumer()
+	m.OnlineChanged(2)
+	m.OnlineChanged(-1)
+	if got := testutil.ToFloat64(m.WSMessages.WithLabelValues("in", "Input")); got != 2 {
+		t.Fatalf("in Input = %v", got)
+	}
+	if got := testutil.ToFloat64(m.WSMessages.WithLabelValues("out", "Delta")); got != 1 {
+		t.Fatalf("out Delta = %v", got)
+	}
+	if got := testutil.ToFloat64(m.WSSlowConsumerDisconnects); got != 1 {
+		t.Fatalf("slow consumers = %v", got)
+	}
+	if got := testutil.ToFloat64(m.PlayersOnline); got != 1 {
+		t.Fatalf("players online = %v", got)
+	}
+}

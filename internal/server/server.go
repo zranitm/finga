@@ -1,7 +1,8 @@
 // Package server wires the game server and runs its HTTP listener: /api
-// (REST), /ws (the gateway, from step 10), /healthz, /readyz and /metrics,
-// with graceful shutdown. Build constructs everything from configuration;
-// New takes ready-made parts, for tests and for Build.
+// (REST), /ws (the gateway), /healthz, /readyz and /metrics, with the
+// background tasks (the world's instances and the persistence worker) and
+// graceful shutdown. Build constructs everything from configuration; New
+// takes ready-made parts, for tests and for Build.
 package server
 
 import (
@@ -27,20 +28,29 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
+// Task is a background job that runs beside the listener and stops when
+// the server's context ends.
+type Task struct {
+	Name string
+	Run  func(ctx context.Context) error
+}
+
 // Options are the listener's settings.
 type Options struct {
 	Config config.Server
 	Logger *slog.Logger
 }
 
-// Deps are the handlers the server mounts.
+// Deps are the handlers the server mounts and the tasks it runs.
 type Deps struct {
 	API     http.Handler // /api/
+	Gateway http.Handler // /ws; nil mounts nothing
 	Metrics http.Handler // /metrics
 	DB      Pinger
+	Tasks   []Task
 }
 
-// Server is the HTTP server and its probes.
+// Server is the HTTP server, its probes, and its background tasks.
 type Server struct {
 	cfg     config.Server
 	log     *slog.Logger
@@ -56,6 +66,9 @@ type Server struct {
 func New(opts Options, deps Deps) *Server {
 	s := &Server{cfg: opts.Config, log: opts.Logger, deps: deps, mux: http.NewServeMux()}
 	s.mux.Handle("/api/", deps.API)
+	if deps.Gateway != nil {
+		s.mux.Handle("GET /ws", deps.Gateway)
+	}
 	s.mux.Handle("GET /metrics", deps.Metrics)
 	s.mux.HandleFunc("GET /healthz", s.healthz)
 	s.mux.HandleFunc("GET /readyz", s.readyz)
@@ -72,9 +85,27 @@ func (s *Server) Addr() string {
 	return s.addr
 }
 
-// Run listens on the configured address until ctx is done, then shuts down
-// gracefully within the grace period: no new connections, in-flight
-// requests finish. It returns nil after a clean shutdown.
+// RunTasks starts the background tasks and returns when they have all
+// stopped; they stop when ctx ends. Run calls it; tests that serve the
+// handler through httptest call it themselves.
+func (s *Server) RunTasks(ctx context.Context) {
+	var wg sync.WaitGroup
+	for _, t := range s.deps.Tasks {
+		wg.Add(1)
+		go func(t Task) {
+			defer wg.Done()
+			if err := t.Run(ctx); err != nil {
+				s.log.ErrorContext(ctx, "task stopped with an error", "task", t.Name, "err", err)
+			}
+		}(t)
+	}
+	wg.Wait()
+}
+
+// Run listens on the configured address and runs the tasks until ctx is
+// done, then shuts down gracefully within the grace period: no new
+// connections, in-flight requests finish, tasks flush. It returns nil
+// after a clean shutdown.
 func (s *Server) Run(ctx context.Context) error {
 	ln, err := net.Listen("tcp", s.cfg.Addr)
 	if err != nil {
@@ -84,6 +115,9 @@ func (s *Server) Run(ctx context.Context) error {
 	s.addr = ln.Addr().String()
 	s.mu.Unlock()
 	srv := &http.Server{Handler: s.mux, ReadHeaderTimeout: readTimeout}
+	taskCtx, stopTasks := context.WithCancel(ctx)
+	tasksDone := make(chan struct{})
+	go func() { defer close(tasksDone); s.RunTasks(taskCtx) }()
 	s.ready.Store(true)
 	s.log.InfoContext(ctx, "listening", "addr", s.addr)
 
@@ -92,6 +126,8 @@ func (s *Server) Run(ctx context.Context) error {
 	select {
 	case err := <-served:
 		s.ready.Store(false)
+		stopTasks()
+		<-tasksDone
 		return err
 	case <-ctx.Done():
 	}
@@ -99,8 +135,11 @@ func (s *Server) Run(ctx context.Context) error {
 	s.log.InfoContext(ctx, "shutting down", "grace", s.cfg.ShutdownGrace)
 	graceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cfg.ShutdownGrace)
 	defer cancel()
-	if err := srv.Shutdown(graceCtx); err != nil {
-		return err
+	shutdownErr := srv.Shutdown(graceCtx)
+	stopTasks()
+	<-tasksDone
+	if shutdownErr != nil {
+		return shutdownErr
 	}
 	if err := <-served; !errors.Is(err, http.ErrServerClosed) {
 		return err

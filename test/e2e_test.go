@@ -63,6 +63,12 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
+	// The handler is served by httptest; the world and persistence tasks
+	// run beside it as Run would start them.
+	taskCtx, stopTasks := context.WithCancel(context.Background())
+	tasksDone := make(chan struct{})
+	go func() { defer close(tasksDone); srv.RunTasks(taskCtx) }()
+	t.Cleanup(func() { stopTasks(); <-tasksDone })
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return &stack{t: t, url: ts.URL}
