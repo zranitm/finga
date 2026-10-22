@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/application/character"
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/handler/ws"
@@ -55,6 +56,7 @@ type fakeInstance struct {
 	left    []model.CharacterID
 	inputs  []recordedInput
 	attacks []model.CharacterID
+	pickups []model.CharacterID
 	sinks   map[model.CharacterID]world.Sink
 	joinErr error
 }
@@ -145,3 +147,41 @@ func (o *fakeObserver) MessageIn(t string)  { o.mu.Lock(); o.in[t]++; o.mu.Unloc
 func (o *fakeObserver) MessageOut(t string) { o.mu.Lock(); o.out[t]++; o.mu.Unlock() }
 func (o *fakeObserver) SlowConsumer()       { o.mu.Lock(); o.slow++; o.mu.Unlock() }
 func (o *fakeObserver) OnlineChanged(d int) { o.mu.Lock(); o.online += d; o.mu.Unlock() }
+
+func (f *fakeInstance) PickUp(id model.CharacterID) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pickups = append(f.pickups, id)
+	return true
+}
+
+// fakeItems answers inventory commands with scripted results.
+type fakeItems struct {
+	mu        sync.Mutex
+	inventory []item.Item
+	moves     []item.MoveInput
+	discards  []item.DiscardInput
+	actors    []item.Actor
+	result    item.Result
+	err       error
+}
+
+func (f *fakeItems) Inventory(context.Context, model.CharacterID) ([]item.Item, error) {
+	return f.inventory, nil
+}
+
+func (f *fakeItems) Move(_ context.Context, actor item.Actor, in item.MoveInput) (item.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.moves = append(f.moves, in)
+	f.actors = append(f.actors, actor)
+	return f.result, f.err
+}
+
+func (f *fakeItems) Discard(_ context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.discards = append(f.discards, in)
+	f.actors = append(f.actors, actor)
+	return f.result, f.err
+}

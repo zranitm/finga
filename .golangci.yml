@@ -53,8 +53,9 @@ linters:
             - pkg: finga/internal/config
               desc: application takes option structs; server fills them from configuration
         # services never see a transaction: pgx and pkg/dbx are for repository.go, sqlc output, server wiring, and tests.
+        # invariants.go (page 6) is SQL by nature: whole-table checks that the tests and, later, the auditor run.
         application-no-sql:
-          files: ["**/internal/application/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
+          files: ["**/internal/application/**", "!**/repository.go", "!**/invariants.go", "!**/internal/db/**", "!$test"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only repository.go talks to the database

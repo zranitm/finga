@@ -23,11 +23,12 @@ type World struct {
 	persist   chan Job
 	saver     Saver
 	log       *slog.Logger
+	workers   *Workers
 }
 
 // New builds an instance for every map in data.
 func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *World {
-	w := &World{instances: map[string]*Instance{}, persist: make(chan Job, persistQueue), saver: saver, log: log}
+	w := &World{instances: map[string]*Instance{}, persist: make(chan Job, persistQueue), saver: saver, log: log, workers: opts.Workers}
 	opts.Transfer = w
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = NewInstance(m, data, w.persist, opts)
@@ -65,10 +66,17 @@ func (w *World) Transfer(p Player, sink Sink, mapID string) {
 	}()
 }
 
-// Run ticks every instance until ctx is done. Jobs queued on the way out
-// are flushed before it returns.
+// Run ticks every instance and serves the economy workers until ctx is
+// done. Jobs queued on the way out are flushed before it returns.
 func (w *World) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
+	if w.workers != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			w.workers.Run(ctx)
+		}()
+	}
 	for _, id := range w.order {
 		wg.Add(1)
 		go func(i *Instance) {

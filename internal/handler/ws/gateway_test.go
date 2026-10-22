@@ -15,6 +15,7 @@ import (
 
 	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/handler/ws"
@@ -518,5 +519,96 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 	defer forest.mu.Unlock()
 	if len(forest.inputs) != 1 || forest.inputs[0].id != aylaID {
 		t.Fatalf("forest inputs %+v; the session still points at the town", forest.inputs)
+	}
+}
+
+func TestInventoryInWelcomeAndCommands(t *testing.T) {
+	potion := item.Item{ID: model.NewItemID(), TemplateID: "red_potion", Owner: aylaID, Tab: gamedata.Use, Slot: 0, Quantity: 5}
+	items := &fakeItems{inventory: []item.Item{potion}}
+	h := newHarness(t, func(d *ws.Dependencies) { d.Items = items })
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	w := c.expect("Welcome").Data.(protocol.Welcome)
+	if len(w.Inventory) != 1 || w.Inventory[0].ItemID != potion.ID.String() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 {
+		t.Fatalf("welcome inventory %+v", w.Inventory)
+	}
+	c.expect("Snapshot")
+
+	t.Run("PickUp is routed as the sender", func(t *testing.T) {
+		c.send(wsconn.Message{Seq: 4, Data: protocol.PickUp{}})
+		c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+		c.expect("Pong")
+		h.town.mu.Lock()
+		defer h.town.mu.Unlock()
+		if len(h.town.pickups) != 1 || h.town.pickups[0] != aylaID {
+			t.Fatalf("pickups %v", h.town.pickups)
+		}
+	})
+	t.Run("InventoryMove answers ok and sends the changed slots, with the connection's identity", func(t *testing.T) {
+		moved := potion
+		moved.Slot = 3
+		items.result = item.Result{Changed: []item.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &moved}}}
+		c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryMove{IdempotencyKey: "k-1", ItemID: potion.ID.String(), Tab: "use", Slot: 3}})
+		r := c.expect("Response")
+		if r.ReqID != "r-1" || !r.Data.(protocol.Response).OK {
+			t.Fatalf("response %+v", r)
+		}
+		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
+		if len(ic.Slots) != 2 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].Item.Quantity != 5 {
+			t.Fatalf("inventory changed %+v", ic)
+		}
+		items.mu.Lock()
+		defer items.mu.Unlock()
+		if len(items.moves) != 1 || items.moves[0].Key != "k-1" || items.moves[0].Slot != 3 || items.actors[0].Character != aylaID || items.actors[0].Account != alice {
+			t.Fatalf("moves %+v actors %+v", items.moves, items.actors)
+		}
+	})
+	t.Run("InventoryDiscard maps a rule error to the Response code", func(t *testing.T) {
+		items.err = item.ErrBadQuantity
+		c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k-2", ItemID: potion.ID.String(), Quantity: 9}})
+		r := c.expect("Response").Data.(protocol.Response)
+		if r.OK || r.Code != "invalid_argument" || r.Message == "" {
+			t.Fatalf("response %+v", r)
+		}
+		items.err = nil
+	})
+	t.Run("a malformed item ID is invalid_argument without reaching the service", func(t *testing.T) {
+		before := len(items.discards)
+		c.send(wsconn.Message{ReqID: "r-3", Data: protocol.InventoryDiscard{IdempotencyKey: "k-3", ItemID: "nope", Quantity: 1}})
+		r := c.expect("Response").Data.(protocol.Response)
+		if r.OK || r.Code != "invalid_argument" {
+			t.Fatalf("response %+v", r)
+		}
+		if len(items.discards) != before {
+			t.Fatal("the service was called")
+		}
+	})
+	t.Run("drops and pickup results reach the client", func(t *testing.T) {
+		h.town.push(aylaID, world.Delta{Tick: 12, Drops: []world.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}})
+		d := c.expect("Delta").Data.(protocol.Delta)
+		if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
+			t.Fatalf("delta %+v", d)
+		}
+		h.town.push(aylaID, world.PickupFailed{Tick: 13, Code: "inventory_full", Message: "full"})
+		r := c.expect("Response").Data.(protocol.Response)
+		if r.OK || r.Code != "inventory_full" {
+			t.Fatalf("response %+v", r)
+		}
+		h.town.push(aylaID, world.InventoryChanged{Tick: 14, Slots: []item.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: model.NewItemID(), TemplateID: "slime_gel", Tab: gamedata.Etc, Slot: 1, Quantity: 2}}}})
+		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
+		if len(ic.Slots) != 1 || ic.Slots[0].Item.Template != "slime_gel" {
+			t.Fatalf("inventory changed %+v", ic)
+		}
+	})
+}
+
+func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: model.NewItemID().String(), Quantity: 1}})
+	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "unavailable" {
+		t.Fatalf("response %+v", r)
 	}
 }

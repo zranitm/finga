@@ -24,10 +24,10 @@ func (s *sink) Send(e world.Event) bool {
 	switch ev := e.(type) {
 	case world.Snapshot:
 		m = wsconn.Message{Type: "Snapshot", Tick: ev.Tick, Data: protocol.Snapshot{
-			Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs, true), Drops: []protocol.DropView{},
+			Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs, true), Drops: dropViews(ev.Drops, true),
 		}}
 	case world.Delta:
-		d := protocol.Delta{AckSeq: ev.AckSeq, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs, false), RemovedMobs: ev.RemovedMobs}
+		d := protocol.Delta{AckSeq: ev.AckSeq, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs, false), Drops: dropViews(ev.Drops, false), RemovedMobs: ev.RemovedMobs, RemovedDrops: ev.RemovedDrops}
 		for _, id := range ev.Removed {
 			d.RemovedPlayers = append(d.RemovedPlayers, id.String())
 		}
@@ -51,6 +51,10 @@ func (s *sink) Send(e world.Event) bool {
 			Stats: protocol.Stats{STR: ev.Stats.STR, DEX: ev.Stats.DEX, INT: ev.Stats.INT, AGI: ev.Stats.AGI, VIT: ev.Stats.VIT},
 			HP:    ev.HP, MaxHP: ev.MaxHP, MP: ev.MP, MaxMP: ev.MaxMP,
 		}}}
+	case world.InventoryChanged:
+		m = wsconn.Message{Type: "InventoryChanged", Tick: ev.Tick, Data: protocol.InventoryChanged{Slots: inventorySlots(ev.Slots)}}
+	case world.PickupFailed:
+		m = wsconn.Message{Type: "Response", Tick: ev.Tick, Data: protocol.Response{OK: false, Code: ev.Code, Message: ev.Message}}
 	default:
 		return true // an event this gateway does not know yet; not a reason to drop the player
 	}
@@ -93,6 +97,21 @@ func mobViews(ms []world.MobView, always bool) []protocol.MobView {
 	out := make([]protocol.MobView, 0, len(ms))
 	for _, m := range ms {
 		out = append(out, protocol.MobView{ID: m.ID, Type: m.Type, X: m.X, Y: m.Y, Facing: m.Facing, HP: m.HP, MaxHP: m.MaxHP})
+	}
+	return out
+}
+
+// dropViews converts ground drops; a snapshot always carries an array.
+func dropViews(ds []world.DropView, always bool) []protocol.DropView {
+	if len(ds) == 0 {
+		if always {
+			return []protocol.DropView{}
+		}
+		return nil
+	}
+	out := make([]protocol.DropView, 0, len(ds))
+	for _, d := range ds {
+		out = append(out, protocol.DropView{ID: d.ID, Template: d.Template, Quantity: d.Quantity, X: d.X, Y: d.Y})
 	}
 	return out
 }

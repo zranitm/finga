@@ -191,7 +191,7 @@ func TestFightAndGrow(t *testing.T) {
 		for !died && time.Now().Before(deadline) {
 			m, ok := p.read(time.Until(deadline))
 			if !ok {
-				t.Fatal("connection closed")
+				t.Fatalf("no Died within 20 s (connection closed: %v)", p.closed(0))
 			}
 			if m.Type == "Died" && m.Data.(protocol.Died).CharacterID == id {
 				died = true

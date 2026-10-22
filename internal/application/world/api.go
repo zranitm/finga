@@ -13,6 +13,7 @@ import (
 
 	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
+	"finga/internal/application/item"
 	"finga/internal/application/world/sim"
 	"finga/internal/model"
 )
@@ -28,15 +29,16 @@ var (
 // joins; movement and combat state are the instance's own from then on.
 // Derived stats are computed by the instance from Class, Stats and Level.
 type Player struct {
-	ID    model.CharacterID
-	Name  string
-	Class model.Class
-	Level int
-	Exp   int64
-	Stats gamedata.Stats
-	HP    int
-	MP    int
-	X, Y  float64 // where to appear: feet centre
+	ID      model.CharacterID
+	Account model.AccountID // scopes the idempotency keys of its actions
+	Name    string
+	Class   model.Class
+	Level   int
+	Exp     int64
+	Stats   gamedata.Stats
+	HP      int
+	MP      int
+	X, Y    float64 // where to appear: feet centre
 }
 
 // PlayerView is a player as everyone on the map sees it.
@@ -79,18 +81,21 @@ type Snapshot struct {
 	MapID   string
 	Players []PlayerView
 	Mobs    []MobView
+	Drops   []DropView
 }
 
 // Delta is what changed in one tick, for one player: AckSeq is the latest
 // input sequence applied for that player, Players and Mobs the ones that
 // moved, changed or appeared, Removed the ones that left.
 type Delta struct {
-	Tick        uint64
-	AckSeq      uint32
-	Players     []PlayerView
-	Mobs        []MobView
-	Removed     []model.CharacterID
-	RemovedMobs []uint64
+	Tick         uint64
+	AckSeq       uint32
+	Players      []PlayerView
+	Mobs         []MobView
+	Drops        []DropView // new on the ground
+	Removed      []model.CharacterID
+	RemovedMobs  []uint64
+	RemovedDrops []uint64
 }
 
 // Teleport moves the player to another map: a respawn away from the town
@@ -189,4 +194,35 @@ type Mover interface {
 // internal/telemetry implements it.
 type TickObserver interface {
 	ObserveTick(mapID string, took, budget time.Duration)
+}
+
+// DropView is an item on the ground as everyone sees it.
+type DropView struct {
+	ID       uint64
+	Template string
+	Quantity int
+	X, Y     float64
+}
+
+// InventoryChanged tells the player which slots a committed change touched.
+type InventoryChanged struct {
+	Tick  uint64
+	Slots []item.Slot
+}
+
+// PickupFailed tells the player why a pickup did not happen (for example
+// inventory_full); the drop stays on the ground.
+type PickupFailed struct {
+	Tick    uint64
+	Code    string
+	Message string
+}
+
+func (InventoryChanged) event() {}
+func (PickupFailed) event()     {}
+
+// Pickups is what the world needs from the item module; the item service
+// satisfies it. Called from economy workers, never inside a tick.
+type Pickups interface {
+	Add(ctx context.Context, actor item.Actor, in item.AddInput) (item.Result, error)
 }

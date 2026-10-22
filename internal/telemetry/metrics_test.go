@@ -129,3 +129,17 @@ func TestGatewayObserver(t *testing.T) {
 		t.Fatalf("players online = %v", got)
 	}
 }
+
+func TestEconomyObserver(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := telemetry.NewMetrics(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.JobStarted()
+	m.JobStarted()
+	m.JobFinished()
+	if got := testutil.ToFloat64(m.EconomyJobsInflight); got != 1 {
+		t.Fatalf("economy_jobs_inflight = %v, want 1", got)
+	}
+}

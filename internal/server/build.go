@@ -58,6 +58,8 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		TickInterval:       cfg.World.TickInterval(),
 		CheckpointInterval: cfg.World.CheckpointInterval,
 		Observer:           metrics,
+		Items:              items,
+		Workers:            world.NewWorkers(cfg.Economy.Workers, metrics),
 	})
 
 	restAPI := api.NewHandler(api.Dependencies{
@@ -70,6 +72,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	gateway := ws.New(ws.Dependencies{
 		Sessions:    accounts,
 		Characters:  characters,
+		Items:       items,
 		World:       worldAdapter{maps},
 		Logger:      opts.Logger,
 		Observer:    metrics,

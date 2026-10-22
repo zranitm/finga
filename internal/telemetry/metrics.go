@@ -91,3 +91,9 @@ func (m *Metrics) SlowConsumer() { m.WSSlowConsumerDisconnects.Inc() }
 
 // OnlineChanged moves the online gauge by delta.
 func (m *Metrics) OnlineChanged(delta int) { m.PlayersOnline.Add(float64(delta)) }
+
+// JobStarted counts an economy job queued for a worker.
+func (m *Metrics) JobStarted() { m.EconomyJobsInflight.Inc() }
+
+// JobFinished counts an economy job done.
+func (m *Metrics) JobFinished() { m.EconomyJobsInflight.Dec() }

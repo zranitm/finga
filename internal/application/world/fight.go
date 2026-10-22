@@ -178,6 +178,7 @@ func (i *Instance) killMob(mb *mob, killer *player) {
 	st := &i.spawns[mb.spawn]
 	st.alive--
 	st.returns = append(st.returns, i.tick+i.ticksFor(i.m.Spawns[mb.spawn].Respawn))
+	i.rollDrops(mb, killer)
 	i.award(killer, mb.def.Exp)
 }
 

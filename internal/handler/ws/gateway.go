@@ -14,11 +14,14 @@ import (
 	"time"
 
 	"finga/internal/application/character"
+	"finga/internal/application/gamedata"
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/model"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
+	"finga/pkg/errs"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
 )
@@ -29,12 +32,21 @@ type CharacterSource interface {
 	Derived(c character.Character) (character.Derived, error)
 }
 
+// ItemSource is what the gateway needs from the item module: the inventory
+// for Welcome, and the two inventory commands.
+type ItemSource interface {
+	Inventory(ctx context.Context, owner model.CharacterID) ([]item.Item, error)
+	Move(ctx context.Context, actor item.Actor, in item.MoveInput) (item.Result, error)
+	Discard(ctx context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error)
+}
+
 // MapInstance is what the gateway needs from a map actor.
 type MapInstance interface {
 	Join(ctx context.Context, p world.Player, sink world.Sink) error
 	Leave(id model.CharacterID) bool
 	Input(id model.CharacterID, seq uint32, in sim.Input) bool
 	Attack(id model.CharacterID) bool
+	PickUp(id model.CharacterID) bool
 }
 
 // World finds map instances.
@@ -54,6 +66,7 @@ type Observer interface {
 type Dependencies struct {
 	Sessions    auth.Sessions
 	Characters  CharacterSource
+	Items       ItemSource // nil: Welcome carries no items and inventory commands are unavailable
 	World       World
 	Logger      *slog.Logger
 	Observer    Observer
@@ -66,7 +79,7 @@ type Dependencies struct {
 const (
 	defaultHelloTimeout = 5 * time.Second
 	joinTimeout         = 5 * time.Second
-	kickGrace           = 100 * time.Millisecond // between Kicked and the close frame of a replaced session
+	commandTimeout      = 5 * time.Second
 )
 
 // Gateway serves /ws.
@@ -142,7 +155,7 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 	if lim, limited := g.limits[m.Type]; limited && !s.allow(m.Type, lim, g.now) {
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: "rate_limited", Message: "slow down"}})
+			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: string(errs.RateLimited), Message: "slow down"}})
 		}
 		return
 	}
@@ -151,14 +164,32 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 		s.inst().Input(s.character.ID, m.Seq, sim.Input{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump})
 	case protocol.Attack:
 		s.inst().Attack(s.character.ID)
+	case protocol.PickUp:
+		s.inst().PickUp(s.character.ID)
+	case protocol.InventoryMove:
+		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor item.Actor) (item.Result, error) {
+			id, err := model.ParseItemID(d.ItemID)
+			if err != nil {
+				return item.Result{}, err
+			}
+			return g.deps.Items.Move(ctx, actor, item.MoveInput{Key: d.IdempotencyKey, ItemID: id, Tab: gamedata.Tab(d.Tab), Slot: d.Slot})
+		})
+	case protocol.InventoryDiscard:
+		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor item.Actor) (item.Result, error) {
+			id, err := model.ParseItemID(d.ItemID)
+			if err != nil {
+				return item.Result{}, err
+			}
+			return g.deps.Items.Discard(ctx, actor, item.DiscardInput{Key: d.IdempotencyKey, ItemID: id, Quantity: d.Quantity})
+		})
 	case protocol.Ping:
 		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
 	case protocol.Hello:
 		c.Close(wsconn.CloseKicked, "hello twice")
 	default:
-		// Attack, PickUp, chat, party and inventory arrive in later steps.
+		// Portals, chat and party arrive in later steps.
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: "unavailable", Message: "not available yet"}})
+			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "not available yet"}})
 		}
 	}
 }
@@ -225,6 +256,16 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		s.conn.Close(wsconn.CloseInternal, "map")
 		return
 	}
+	inventory := []protocol.ItemView{}
+	if g.deps.Items != nil {
+		items, err := g.deps.Items.Inventory(ctx, c.ID)
+		if err != nil {
+			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", c.ID, "err", err)
+			s.conn.Close(wsconn.CloseInternal, "inventory")
+			return
+		}
+		inventory = itemViews(items)
+	}
 
 	g.mu.Lock()
 	old := g.byAccount[account]
@@ -241,11 +282,11 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 
 	g.send(s.conn, wsconn.Message{Data: protocol.Welcome{
 		Character:  characterView(c, derived),
-		Inventory:  []protocol.ItemView{},
+		Inventory:  inventory,
 		MapID:      c.MapID,
 		ServerTime: g.now().UnixMilli(),
 	}})
-	player := world.Player{ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
+	player := world.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
 	snk := &sink{conn: s.conn, obs: g.deps.Observer, onTeleport: func(mapID string) {
 		if target, err := g.deps.World.Instance(mapID); err == nil {
 			s.setInstance(target)
@@ -259,6 +300,27 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	s.setActive()
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", c.ID, "map_id", c.MapID)
+}
+
+// inventoryCommand runs an inventory command on the connection's own
+// goroutine (it blocks on the database, never a tick), answers with a
+// Response, and sends the changed slots as InventoryChanged.
+func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, actor item.Actor) (item.Result, error)) {
+	if g.deps.Items == nil {
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "not available yet"}})
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	res, err := run(ctx, item.Actor{Account: s.account, Character: s.character.ID})
+	if err != nil {
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.CodeOf(err)), Message: errs.MessageOf(err)}})
+		return
+	}
+	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
+	if len(res.Changed) > 0 {
+		g.send(s.conn, wsconn.Message{Data: protocol.InventoryChanged{Slots: inventorySlots(res.Changed)}})
+	}
 }
 
 // kick tells the peer why and closes.
@@ -281,6 +343,31 @@ func characterView(c character.Character, d character.Derived) protocol.Characte
 		Stats: protocol.Stats{STR: c.Stats.STR, DEX: c.Stats.DEX, INT: c.Stats.INT, AGI: c.Stats.AGI, VIT: c.Stats.VIT},
 		HP:    c.HP, MaxHP: d.MaxHP, MP: c.MP, MaxMP: d.MaxMP,
 	}
+}
+
+func itemViews(items []item.Item) []protocol.ItemView {
+	out := make([]protocol.ItemView, 0, len(items))
+	for _, it := range items {
+		out = append(out, itemView(it))
+	}
+	return out
+}
+
+func itemView(it item.Item) protocol.ItemView {
+	return protocol.ItemView{ItemID: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity}
+}
+
+func inventorySlots(slots []item.Slot) []protocol.InventorySlot {
+	out := make([]protocol.InventorySlot, 0, len(slots))
+	for _, s := range slots {
+		slot := protocol.InventorySlot{Tab: string(s.Tab), Slot: s.Slot}
+		if s.Item != nil {
+			v := itemView(*s.Item)
+			slot.Item = &v
+		}
+		out = append(out, slot)
+	}
+	return out
 }
 
 // noopObserver is the Observer when none is given.

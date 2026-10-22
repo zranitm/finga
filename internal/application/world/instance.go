@@ -40,6 +40,8 @@ type Options struct {
 	Seed               uint64        // the random seed; 0 picks one
 	Roll               combat.Roll   // overrides the seeded generator, for tests
 	Transfer           Mover         // moves players between maps; nil respawns in place
+	Items              Pickups       // the item module; nil: pickups are unavailable
+	Workers            *Workers      // the economy worker pool; nil: pickups are unavailable
 }
 
 func (o Options) withDefaults() Options {
@@ -81,11 +83,15 @@ type Instance struct {
 	mobs     []*mob              // spawn order; removed on death
 	spawns   []spawnState
 	nextMob  uint64
+	drops    []*drop
+	nextDrop uint64
 	ticksPer uint64 // ticks between checkpoint sweeps
 
-	dropped     []model.CharacterID // removed during the last broadcast, reported next tick
-	removedMobs []uint64
-	events      []Event // map-wide events of the current tick
+	dropped      []model.CharacterID // removed during the last broadcast, reported next tick
+	removedMobs  []uint64
+	newDrops     []DropView
+	removedDrops []uint64
+	events       []Event // map-wide events of the current tick
 }
 
 // message is one inbox item.
@@ -94,6 +100,8 @@ type message struct {
 	leave  model.CharacterID
 	input  *inputMsg
 	attack model.CharacterID
+	pickup *pickupResult
+	pick   model.CharacterID
 }
 
 type joinMsg struct {
@@ -207,6 +215,11 @@ func (i *Instance) Attack(id model.CharacterID) bool {
 	return i.post(message{attack: id})
 }
 
+// PickUp asks for the nearest eligible drop within reach.
+func (i *Instance) PickUp(id model.CharacterID) bool {
+	return i.post(message{pick: id})
+}
+
 func (i *Instance) post(m message) bool {
 	select {
 	case i.inbox <- m:
@@ -224,12 +237,15 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.tick = n
 	i.events = i.events[:0]
 	i.removedMobs = i.removedMobs[:0]
+	i.newDrops = i.newDrops[:0]
+	i.removedDrops = i.removedDrops[:0]
 	removed := slices.Concat(i.dropped, i.drain())
 	changed := i.simulate()
 	i.stepMobs()
 	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
+	i.expireDrops()
 	if n%i.ticksPer == 0 {
 		for _, id := range i.order {
 			i.checkpoint(i.players[id])
@@ -259,6 +275,12 @@ func (i *Instance) drain() []model.CharacterID {
 		case !m.attack.IsZero():
 			if p, ok := i.players[m.attack]; ok {
 				p.attackQueued = true
+			}
+		case m.pickup != nil:
+			i.finishPickup(m.pickup)
+		case !m.pick.IsZero():
+			if p, ok := i.players[m.pick]; ok {
+				i.pickUp(p)
 			}
 		case !m.leave.IsZero():
 			if i.remove(m.leave) {
@@ -291,7 +313,7 @@ func (i *Instance) join(j *joinMsg) {
 	p.MP = min(p.MP, p.derived.MaxMP)
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
-	snap := Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]PlayerView, 0, len(i.order)), Mobs: make([]MobView, 0, len(i.mobs))}
+	snap := Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]PlayerView, 0, len(i.order)), Mobs: make([]MobView, 0, len(i.mobs)), Drops: i.dropViews()}
 	for _, id := range i.order {
 		snap.Players = append(snap.Players, i.view(i.players[id]))
 	}
@@ -371,7 +393,7 @@ func (i *Instance) broadcast(changed, removed []model.CharacterID) []model.Chara
 	var dropped []model.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		d := Delta{Tick: i.tick, AckSeq: p.lastSeq, Players: views, Mobs: mobViews, Removed: removed, RemovedMobs: slices.Clone(i.removedMobs)}
+		d := Delta{Tick: i.tick, AckSeq: p.lastSeq, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
 		ok := p.sink.Send(d)
 		for _, e := range i.events {
 			ok = ok && p.sink.Send(e)
