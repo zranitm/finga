@@ -14,7 +14,8 @@
   "nextobjectid": 20,
   "tilesets": [],
   "properties": [
-    {"name": "kind", "type": "string", "value": "hunting"}
+    {"name": "kind", "type": "string", "value": "hunting"},
+    {"name": "town", "type": "string", "value": "town"}
   ],
   "layers": [
     {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [

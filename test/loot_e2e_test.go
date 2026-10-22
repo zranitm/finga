@@ -32,6 +32,7 @@ import (
 type looter struct {
 	*player
 	x, y      float64
+	hp        int
 	drops     map[uint64]protocol.DropView
 	inventory int // InventoryChanged messages seen
 	failures  []protocol.Response
@@ -45,7 +46,7 @@ func newLooter(p *player, snap protocol.Snapshot) *looter {
 	}
 	for _, v := range snap.Players {
 		if v.ID == p.id {
-			l.x, l.y = v.X, v.Y
+			l.x, l.y, l.hp = v.X, v.Y, v.HP
 		}
 	}
 	return l
@@ -57,7 +58,7 @@ func (l *looter) observe(m wsconn.Message) {
 	case protocol.Delta:
 		for _, v := range d.Players {
 			if v.ID == l.id {
-				l.x, l.y = v.X, v.Y
+				l.x, l.y, l.hp = v.X, v.Y, v.HP
 			}
 		}
 		for _, dv := range d.Drops {
@@ -70,6 +71,11 @@ func (l *looter) observe(m wsconn.Message) {
 		l.drops = map[uint64]protocol.DropView{}
 		for _, dv := range d.Drops {
 			l.drops[dv.ID] = dv
+		}
+		for _, v := range d.Players {
+			if v.ID == l.id {
+				l.x, l.y, l.hp = v.X, v.Y, v.HP
+			}
 		}
 	case protocol.InventoryChanged:
 		l.inventory++
@@ -156,9 +162,11 @@ func (l *looter) hunt(d time.Duration, template string) (protocol.DropView, bool
 
 // walkTo walks until the character stands within 12 px of x, then stops.
 // Contact with a mob knocks the character back, so the direction is
-// re-evaluated every tick.
+// re-evaluated every tick; a character that stops making progress (a well,
+// a boulder) jumps.
 func (l *looter) walkTo(x float64, d time.Duration) bool {
 	deadline := time.Now().Add(d)
+	lastX, stuck := l.x, 0
 	for time.Now().Before(deadline) {
 		dx := x - l.x
 		if math.Abs(dx) < 12 {
@@ -166,7 +174,13 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 			l.pump(100*time.Millisecond, nil)
 			return math.Abs(x-l.x) < 24
 		}
-		if err := l.input(protocol.Input{Right: dx > 0, Left: dx < 0}); err != nil {
+		if math.Abs(l.x-lastX) < 1 {
+			stuck++
+		} else {
+			stuck = 0
+		}
+		lastX = l.x
+		if err := l.input(protocol.Input{Right: dx > 0, Left: dx < 0, Jump: stuck >= 3}); err != nil {
 			return false
 		}
 		l.pump(50*time.Millisecond, nil)
@@ -299,11 +313,17 @@ func TestLootAndKeep(t *testing.T) {
 		}
 
 		// D2: walk to it and pick it up twice in a row (two messages in one
-		// tick); the second finds the drop reserved, so exactly one item
-		// arrives.
-		// The drop lies where the slimes patrol, and a touch knocks the
-		// character back and up, out of range; so as a real client would,
-		// the pair is sent again until one of them lands.
+		// tick). The second PickUp finds the drop reserved and does nothing,
+		// unless a second drop lies in range too (a slime drops two items):
+		// then it takes that one, and the rule under test is still "one
+		// item per drop". The drop lies where the slimes patrol, and a touch
+		// knocks the character back and up, out of range; so as a real
+		// client would, the pair is sent again when the character was
+		// bounced away before anything arrived.
+		before := map[uint64]protocol.DropView{}
+		for k, v := range killer.drops {
+			before[k] = v
+		}
 		got := false
 		for attempt := 0; attempt < 20 && !got; attempt++ {
 			if !killer.walkTo(drop.X, 15*time.Second) {
@@ -315,14 +335,23 @@ func TestLootAndKeep(t *testing.T) {
 			if err := killer.pickUp(); err != nil {
 				t.Fatal(err)
 			}
-			got = killer.pump(500*time.Millisecond, func(m wsconn.Message) bool { return m.Type == "InventoryChanged" })
+			got = killer.pump(5*time.Second, func(m wsconn.Message) bool {
+				return m.Type == "InventoryChanged" || math.Abs(killer.x-drop.X) > 24 // bounced away
+			}) && killer.inventory > 0
 		}
 		if !got {
 			t.Fatalf("no InventoryChanged after PickUp (failures %+v, at %.0f, drop %+v)", killer.failures, killer.x, drop)
 		}
 		killer.pump(time.Second, nil)
-		if killer.inventory != 1 || len(killer.failures) != 0 {
-			t.Fatalf("%d InventoryChanged, failures %+v", killer.inventory, killer.failures)
+		var takenDrops []protocol.DropView
+		for k, v := range before {
+			if _, still := killer.drops[k]; !still {
+				takenDrops = append(takenDrops, v)
+			}
+		}
+		taken := len(takenDrops)
+		if taken < 1 || killer.inventory != taken || len(killer.failures) != 0 {
+			t.Fatalf("%d drops taken, %d InventoryChanged, failures %+v", taken, killer.inventory, killer.failures)
 		}
 		if _, still := killer.drops[drop.ID]; still {
 			t.Fatal("the drop is still on the ground")
@@ -330,12 +359,29 @@ func TestLootAndKeep(t *testing.T) {
 		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.ID]; return !seen }) {
 			t.Fatal("the watcher still sees the drop")
 		}
+		// One item event per drop, each under its own drop ID, and the
+		// template's stack holds the starter stack plus the drop.
+		var lootEvents, distinctDrops int
+		if err := s.db.QueryRow(context.Background(), `
+			SELECT count(*), count(DISTINCT e.cause_id) FROM item_events e JOIN items i ON i.id = e.item_id
+			WHERE i.owner_id = $1 AND e.cause_type = 'drop'`, id).Scan(&lootEvents, &distinctDrops); err != nil {
+			t.Fatal(err)
+		}
+		if lootEvents != taken || distinctDrops != taken {
+			t.Fatalf("%d loot events under %d drop IDs for %d drops taken", lootEvents, distinctDrops, taken)
+		}
+		wantQty, sameTemplate := starterQuantity(drop.Template), 0
+		for _, d := range takenDrops {
+			if d.Template == drop.Template {
+				wantQty += d.Quantity
+				sameTemplate++
+			}
+		}
 		rows, quantity, events := s.itemTotals(t, id, drop.Template)
-		wantQty := starterQuantity(drop.Template) + drop.Quantity
 		if rows != 1 || quantity != wantQty {
 			t.Fatalf("%s: %d rows holding %d, want 1 holding %d", drop.Template, rows, quantity, wantQty)
 		}
-		if wantEvents := 1 + min(starterQuantity(drop.Template), 1); events != wantEvents {
+		if wantEvents := sameTemplate + min(starterQuantity(drop.Template), 1); events != wantEvents {
 			t.Fatalf("%s: %d events, want %d", drop.Template, events, wantEvents)
 		}
 

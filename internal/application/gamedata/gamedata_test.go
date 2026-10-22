@@ -125,7 +125,11 @@ func tiledMap(kind, dropLayer string, objects []object) string {
 	var b strings.Builder
 	b.WriteString(`{"type":"map","version":"1.10","tiledversion":"1.11.0","orientation":"orthogonal","renderorder":"right-down",`)
 	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":7,"nextobjectid":99,"tilesets":[],`)
-	b.WriteString(`"properties":[{"name":"kind","type":"string","value":"` + kind + `"}],"layers":[`)
+	props := `{"name":"kind","type":"string","value":"` + kind + `"}`
+	if kind == "hunting" {
+		props += `,{"name":"town","type":"string","value":"town"}`
+	}
+	b.WriteString(`"properties":[` + props + `],"layers":[`)
 	first := true
 	id := 1
 	for i, layer := range []string{"solids", "platforms", "ropes", "portals", "spawns", "player_spawn"} {
@@ -280,6 +284,10 @@ func TestValidDataLoads(t *testing.T) {
 		if d.Town().ID != "town" {
 			t.Fatalf("Town() = %s", d.Town().ID)
 		}
+		hunting, _ := d.Map("field")
+		if town.Town != "town" || hunting.Town != "town" {
+			t.Fatalf("linked towns: town %q, hunting %q", town.Town, hunting.Town)
+		}
 		if town.Width != 1280 || town.Height != 640 {
 			t.Fatalf("town size = %v x %v, want 1280 x 640 (40 x 20 tiles of 32)", town.Width, town.Height)
 		}
@@ -352,6 +360,8 @@ func TestRejections(t *testing.T) {
 		{"a map missing a required layer", "maps/town.tmj", `"name":"ropes"`, `"name":"strings"`, []string{"town.tmj", "ropes"}},
 		{"a map without a kind", "maps/town.tmj", `"name":"kind"`, `"name":"mood"`, []string{"town.tmj", "kind"}},
 		{"a map with an unknown kind", "maps/town.tmj", `"value":"town"`, `"value":"dungeon"`, []string{"town.tmj", "kind", "dungeon"}},
+		{"a hunting map without a town", "maps/field.tmj", `"name":"town"`, `"name":"home"`, []string{"field.tmj", "town"}},
+		{"a hunting map whose town is not a town", "maps/field.tmj", `"name":"town","type":"string","value":"town"`, `"name":"town","type":"string","value":"field"`, []string{"field.tmj", "town", "field"}},
 		{"a town with a mob spawn", "maps/town.tmj", `"name":"spawns","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[]`, `"name":"spawns","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[{"id":50,"name":"s","type":"","rotation":0,"visible":true,"x":1,"y":1,"width":1,"height":1,"properties":[{"name":"mob","type":"string","value":"green_slime"},{"name":"max","type":"int","value":1},{"name":"respawn_seconds","type":"int","value":1}]}]`, []string{"town.tmj", "town", "spawn"}},
 		{"no town at all", "maps/town.tmj", `"value":"town"`, `"value":"hunting"`, []string{"town"}},
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},

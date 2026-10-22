@@ -477,6 +477,12 @@ func (d *Data) loadMaps(dir string) error {
 			}
 		}
 	}
+	for _, m := range d.maps {
+		town, ok := d.Map(m.Town)
+		if !ok || town.Kind != Town {
+			return fmt.Errorf("%s%s: map property %q names %q, which is not a town", m.ID, mapExt, propTown, m.Town)
+		}
+	}
 	if d.Town() == nil {
 		return errors.New("maps: no map has kind town")
 	}

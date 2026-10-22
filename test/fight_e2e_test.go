@@ -184,21 +184,59 @@ func TestFightAndGrow(t *testing.T) {
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.join(t, token, id)
-		p.drain(300 * time.Millisecond)
-		p.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}}) // walk into the slimes
+		// No settling drain here: a slime can stand on the spawn point, and
+		// a Died discarded in the first 300 ms would never be seen again.
+		// Walk back and forth inside the slime field (x 216..784). A contact
+		// misses 22% of the time, and a character that walked straight on
+		// could cross the field alive and stand against the boulder at 960
+		// where nothing patrols, so the direction flips every 1.5 s.
+		right := true
+		seq := uint32(1)
+		p.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
+		flip := time.Now().Add(1500 * time.Millisecond)
 		died := false
+		var hits, misses int
+		var me protocol.PlayerView
+		mobs := map[uint64]protocol.MobView{}
 		deadline := time.Now().Add(20 * time.Second)
 		for !died && time.Now().Before(deadline) {
-			m, ok := p.read(time.Until(deadline))
-			if !ok {
-				t.Fatalf("no Died within 20 s (connection closed: %v)", p.closed(0))
+			if time.Now().After(flip) {
+				right = !right
+				seq++
+				p.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: right, Left: !right}})
+				flip = time.Now().Add(1500 * time.Millisecond)
 			}
-			if m.Type == "Died" && m.Data.(protocol.Died).CharacterID == id {
-				died = true
+			m, ok := p.read(100 * time.Millisecond)
+			if !ok {
+				if p.closed(0) {
+					t.Fatal("the connection closed while waiting for Died")
+				}
+				continue
+			}
+			switch d := m.Data.(type) {
+			case protocol.Died:
+				died = d.CharacterID == id
+			case protocol.Damage:
+				if d.Target == "p:"+id {
+					if d.Miss {
+						misses++
+					} else {
+						hits++
+					}
+				}
+			case protocol.Delta:
+				for _, v := range d.Players {
+					if v.ID == id {
+						me = v
+					}
+				}
+				for _, mv := range d.Mobs {
+					mobs[mv.ID] = mv
+				}
 			}
 		}
 		if !died {
-			t.Fatal("never died walking into the slimes")
+			t.Fatalf("never died walking into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
 		}
 		r := p.expect("Respawned").Data.(protocol.Respawned)
 		if r.CharacterID != id || r.MapID != "town" || r.HP != 102 {

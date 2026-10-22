@@ -108,13 +108,14 @@ func (i *Instance) spawnMob(s int) {
 }
 
 // patrolBounds is the x range a mob at (x, y) can walk: the ground it
-// stands on, trimmed by half its width, or the spawn area when no ground
+// stands on within its spawn area, trimmed by half its width, or the spawn
+// area alone when no ground
 // is found right under it.
 func (i *Instance) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, maxX float64) {
 	ground := append(append([]combat.Rect(nil), rects(i.m.Geometry.Solids)...), rects(i.m.Geometry.Platforms)...)
 	for _, r := range ground {
 		if math.Abs(r.Y-y) < 1 && x >= r.X && x <= r.X+r.W {
-			return r.X + half, r.X + r.W - half
+			return max(r.X, area.Area.X) + half, min(r.X+r.W, area.Area.X+area.Area.W) - half
 		}
 	}
 	return area.Area.X + half, area.Area.X + area.Area.W - half
@@ -130,6 +131,12 @@ func rects(in []sim.Rect) []combat.Rect {
 
 // resolveAttacks runs every attack queued this tick, in join order.
 func (i *Instance) resolveAttacks() {
+	if i.m.Kind == gamedata.Town { // no combat in a town (page 5)
+		for _, id := range i.order {
+			i.players[id].attackQueued = false
+		}
+		return
+	}
 	for _, id := range i.order {
 		p := i.players[id]
 		if !p.attackQueued {
@@ -220,6 +227,9 @@ func (i *Instance) award(p *player, amount int64) {
 // contactDamage hurts a player touching a mob, then knocks the player back
 // and makes them invulnerable for a second.
 func (i *Instance) contactDamage() {
+	if i.m.Kind == gamedata.Town { // mobs in a town (none in the data) are harmless
+		return
+	}
 	for _, id := range i.order {
 		p := i.players[id]
 		if p.dead || p.invulnUntil > i.tick {
@@ -268,12 +278,13 @@ func (i *Instance) kill(p *player) {
 	i.events = append(i.events, Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y})
 }
 
-// deathsAndRespawns brings dead players back after the delay at the town's
-// player spawn with half their HP. On another map the player is handed to
-// the town's instance; the IDs of players who left this map are returned.
+// deathsAndRespawns brings dead players back after the delay at the linked
+// town's player spawn with half their HP. Away from that town the player
+// is handed to its instance; the IDs of players who left are returned. A
+// map with no reachable town (or no mover) respawns in place.
 func (i *Instance) deathsAndRespawns() []model.CharacterID {
 	var left []model.CharacterID
-	town := i.data.Town()
+	town, hasTown := i.data.Map(i.m.Town)
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
 		if !p.dead || p.deadUntil > i.tick {
@@ -282,11 +293,7 @@ func (i *Instance) deathsAndRespawns() []model.CharacterID {
 		p.dead = false
 		p.HP = max(1, p.derived.MaxHP*respawnHPPercent/100)
 		p.changed = true
-		target := i.m
-		if town != nil {
-			target = town
-		}
-		if target.ID == i.m.ID || i.opts.Transfer == nil {
+		if !hasTown || town.ID == i.m.ID || i.opts.Transfer == nil {
 			// Back on this very map: stand at its own player spawn.
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
 			i.events = append(i.events, Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
@@ -294,24 +301,14 @@ func (i *Instance) deathsAndRespawns() []model.CharacterID {
 			p.moved = true
 			continue
 		}
-		// Away from the town: the player hears it directly (they leave this
-		// map before the broadcast), everyone else through the tick's events;
-		// then tell the player where they go, hand them over, and drop them.
-		x, y := target.PlayerSpawn.X, target.PlayerSpawn.Y
-		respawned := Respawned{Tick: i.tick, ID: p.ID, MapID: target.ID, X: x, Y: y, HP: p.HP}
+		// The player hears it directly (they leave this map before the
+		// broadcast), everyone else through the tick's events.
+		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
+		respawned := Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
 		i.events = append(i.events, respawned)
 		p.sink.Send(respawned)
-		p.sink.Send(Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
-		moved := p.Player
-		moved.X, moved.Y = x, y
-		sink := p.sink
-		// The checkpoint records where the player is going, so a crash
-		// between the two instances still lands them in the town.
-		p.state.X, p.state.Y = x, y
-		i.checkpointOn(p, target.ID)
-		i.detach(id)
+		i.handOff(p, town, x, y)
 		left = append(left, id)
-		i.opts.Transfer.Transfer(moved, sink, target.ID)
 	}
 	return left
 }

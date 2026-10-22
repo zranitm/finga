@@ -180,6 +180,7 @@ type Spawn struct {
 type Map struct {
 	ID          string
 	Kind        MapKind
+	Town        string  // the town its players respawn in (map property town); a town names itself
 	Width       float64 // pixels
 	Height      float64
 	Geometry    sim.Geometry

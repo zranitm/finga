@@ -102,6 +102,7 @@ type message struct {
 	attack model.CharacterID
 	pickup *pickupResult
 	pick   model.CharacterID
+	portal model.CharacterID // EnterPortal
 }
 
 type joinMsg struct {
@@ -220,6 +221,12 @@ func (i *Instance) PickUp(id model.CharacterID) bool {
 	return i.post(message{pick: id})
 }
 
+// EnterPortal takes the portal the character stands in, if any. The
+// handoff to the target map happens inside the tick.
+func (i *Instance) EnterPortal(id model.CharacterID) bool {
+	return i.post(message{portal: id})
+}
+
 func (i *Instance) post(m message) bool {
 	select {
 	case i.inbox <- m:
@@ -281,6 +288,10 @@ func (i *Instance) drain() []model.CharacterID {
 		case !m.pick.IsZero():
 			if p, ok := i.players[m.pick]; ok {
 				i.pickUp(p)
+			}
+		case !m.portal.IsZero():
+			if p, ok := i.players[m.portal]; ok && i.enterPortal(p) {
+				removed = append(removed, m.portal)
 			}
 		case !m.leave.IsZero():
 			if i.remove(m.leave) {

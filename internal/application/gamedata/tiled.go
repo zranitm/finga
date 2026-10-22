@@ -21,6 +21,7 @@ const (
 	layerPlayerSpawn = "player_spawn"
 
 	propKind         = "kind"
+	propTown         = "town"
 	propTargetMap    = "target_map"
 	propTargetPortal = "target_portal"
 	propMob          = "mob"
@@ -90,6 +91,13 @@ func (d *Data) loadMap(path string) (*Map, error) {
 	m.Kind = MapKind(kind)
 	if m.Kind != Town && m.Kind != Hunting {
 		return nil, fmt.Errorf("%s: unknown %s %q", file, propKind, kind)
+	}
+	// A town is its own town; a hunting map names the town its players
+	// respawn in (page 5), checked against the loaded maps in loadMaps.
+	if m.Kind == Town {
+		m.Town = m.ID
+	} else if m.Town, ok = propString(tm.Properties, propTown); !ok {
+		return nil, fmt.Errorf("%s: missing map property %q", file, propTown)
 	}
 
 	layers := map[string]tiledLayer{}

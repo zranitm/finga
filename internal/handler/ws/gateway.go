@@ -47,6 +47,7 @@ type MapInstance interface {
 	Input(id model.CharacterID, seq uint32, in sim.Input) bool
 	Attack(id model.CharacterID) bool
 	PickUp(id model.CharacterID) bool
+	EnterPortal(id model.CharacterID) bool
 }
 
 // World finds map instances.
@@ -164,6 +165,8 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 		s.inst().Input(s.character.ID, m.Seq, sim.Input{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump})
 	case protocol.Attack:
 		s.inst().Attack(s.character.ID)
+	case protocol.EnterPortal:
+		s.inst().EnterPortal(s.character.ID)
 	case protocol.PickUp:
 		s.inst().PickUp(s.character.ID)
 	case protocol.InventoryMove:

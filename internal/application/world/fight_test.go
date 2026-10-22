@@ -24,7 +24,7 @@ func (r fixedRoll) Float64() float64 { return r.v }
 // point), 18 px above the floor so a shot at chest height crosses it.
 func arena(respawn time.Duration) *gamedata.Map {
 	return &gamedata.Map{
-		ID: "arena", Kind: gamedata.Hunting, Width: 1280, Height: 640,
+		ID: "arena", Kind: gamedata.Hunting, Town: "town", Width: 1280, Height: 640,
 		Geometry: sim.Geometry{
 			Solids:    []sim.Rect{{X: 0, Y: 608, W: 1280, H: 32}},
 			Platforms: []sim.Rect{{X: 284, Y: 590, W: 32, H: 8}},
@@ -386,35 +386,6 @@ func TestDeathAndRespawn(t *testing.T) {
 	})
 }
 
-func TestNoPenaltyInTownAndRespawnInPlace(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		m := arena(time.Hour)
-		m.ID, m.Kind = "town", gamedata.Town // a town with a mob, for the test only
-		inst, stop := runArena(t, data, m, nil, world.Options{})
-		defer stop()
-		time.Sleep(tickInterval)
-		synctest.Wait()
-		p := warriorAt(260)
-		p.HP, p.Exp = 1, 10
-		s := join(t, inst, p)
-		inst.Input(p.ID, 1, sim.Input{Right: true})
-		time.Sleep(2*tickInterval + 3*time.Second)
-		synctest.Wait()
-		resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
-		if len(resp) != 1 {
-			t.Fatalf("respawned %+v", resp)
-		}
-		v, _ := s.own(p.ID)
-		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
-			t.Fatalf("after respawn in place: %+v", v)
-		}
-		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Teleport); return ok })) != 0 {
-			t.Fatal("a respawn on the town itself teleported")
-		}
-	})
-}
-
 func TestKillGivesExpAndLevelsUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
@@ -504,4 +475,72 @@ func TestReplayingASeedGivesTheSameFight(t *testing.T) {
 		}
 	}
 	t.Logf("%d hits, %d crits, %d misses with seed 42", len(a), crits, misses)
+}
+
+func TestNoCombatInTown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		m := arena(time.Hour)
+		m.ID, m.Kind, m.Town = "town", gamedata.Town, "town" // a town with a mob, for the test only
+		tr := &transferRecorder{}
+		inst, stop := runArena(t, data, m, nil, world.Options{Transfer: tr})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(260)
+		p.HP = 1
+		s := join(t, inst, p)
+		inst.Input(p.ID, 1, sim.Input{Right: true}) // walk straight through the slime
+		time.Sleep(10 * tickInterval)
+		synctest.Wait()
+		inst.Input(p.ID, 2, sim.Input{Left: true})
+		time.Sleep(4 * tickInterval)
+		synctest.Wait()
+		inst.Input(p.ID, 3, sim.Input{})
+		inst.Attack(p.ID)
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		if n := len(damages(s)); n != 0 {
+			t.Fatalf("%d damage events in a town", n)
+		}
+		v, _ := s.own(p.ID)
+		if v.Dead || v.HP != 1 {
+			t.Fatalf("after walking through a mob in a town: %+v", v)
+		}
+		for _, mb := range mobsIn(s) {
+			if mb.HP != mb.MaxHP {
+				t.Fatalf("a mob was hurt in a town: %+v", mb)
+			}
+		}
+		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok })) != 0 {
+			t.Fatal("died in a town")
+		}
+	})
+}
+
+func TestRespawnInPlaceWithoutAMover(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(260)
+		p.HP, p.Exp = 1, 10
+		s := join(t, inst, p)
+		inst.Input(p.ID, 1, sim.Input{Right: true})
+		time.Sleep(2*tickInterval + 3*time.Second)
+		synctest.Wait()
+		resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
+		if len(resp) != 1 || resp[0].(world.Respawned).MapID != "arena" {
+			t.Fatalf("respawned %+v", resp)
+		}
+		v, _ := s.own(p.ID)
+		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
+			t.Fatalf("after respawn in place: %+v", v)
+		}
+		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Teleport); return ok })) != 0 {
+			t.Fatal("a respawn without a mover teleported")
+		}
+	})
 }

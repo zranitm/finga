@@ -57,6 +57,7 @@ type fakeInstance struct {
 	inputs  []recordedInput
 	attacks []model.CharacterID
 	pickups []model.CharacterID
+	portals []model.CharacterID
 	sinks   map[model.CharacterID]world.Sink
 	joinErr error
 }
@@ -184,4 +185,11 @@ func (f *fakeItems) Discard(_ context.Context, actor item.Actor, in item.Discard
 	f.discards = append(f.discards, in)
 	f.actors = append(f.actors, actor)
 	return f.result, f.err
+}
+
+func (f *fakeInstance) EnterPortal(id model.CharacterID) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.portals = append(f.portals, id)
+	return true
 }

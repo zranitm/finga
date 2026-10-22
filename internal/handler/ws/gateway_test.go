@@ -612,3 +612,18 @@ func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
 		t.Fatalf("response %+v", r)
 	}
 }
+
+func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	c.send(wsconn.Message{Seq: 7, Data: protocol.EnterPortal{}})
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.expect("Pong")
+	h.town.mu.Lock()
+	defer h.town.mu.Unlock()
+	if len(h.town.portals) != 1 || h.town.portals[0] != aylaID {
+		t.Fatalf("portals %v", h.town.portals)
+	}
+}
