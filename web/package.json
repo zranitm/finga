@@ -18,9 +18,9 @@
     "prelint": "npm run gen",
     "lint": "eslint . --max-warnings 0 && prettier --check . && node scripts/check-layers.mjs",
     "format": "prettier --write .",
-    "pretest": "npm run gen",
+    "pretest": "npm run gen && node scripts/copy-maps.mjs",
     "test": "vitest run",
-    "precoverage": "npm run gen",
+    "precoverage": "npm run gen && node scripts/copy-maps.mjs",
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
