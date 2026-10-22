@@ -91,13 +91,20 @@ type Attack struct {
 	Cooldown time.Duration
 }
 
+// Grant is a starter item: a template and a quantity.
+type Grant struct {
+	Item     string `yaml:"item"`
+	Quantity int    `yaml:"quantity"`
+}
+
 // Class is a playable class.
 type Class struct {
 	ID            model.Class
 	Name          string
 	Attack        Attack
-	BaseStats     Stats // primary stats at level 1
-	LevelUpPoints Stats // the Stage 1 preset: 5 points per level-up
+	BaseStats     Stats   // primary stats at level 1
+	LevelUpPoints Stats   // the Stage 1 preset: 5 points per level-up
+	StarterItems  []Grant // granted at character creation
 }
 
 // Item is an item template.

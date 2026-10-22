@@ -35,6 +35,7 @@ classes:
     attack: {kind: melee, width: 64, height: 56, cooldown: 600ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     level_up_points: {str: 3, vit: 2}
+    starter_items: [{item: wooden_sword, quantity: 1}]
   - id: bowman
     name: Bowman
     attack: {kind: ranged, range: 420, cooldown: 800ms}
@@ -362,6 +363,8 @@ func TestRejections(t *testing.T) {
 		{"a class with an unknown attack kind", "classes.yaml", `kind: melee`, `kind: magic`, []string{"classes.yaml", "warrior", "magic"}},
 		{"a class whose level-up preset isn't five points", "classes.yaml", `level_up_points: {str: 3, vit: 2}`, `level_up_points: {str: 3, vit: 3}`, []string{"classes.yaml", "warrior", "5"}},
 		{"a class id that isn't a class", "classes.yaml", `id: bowman`, `id: archer`, []string{"classes.yaml", "archer"}},
+		{"a starter item that doesn't exist", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: excalibur, quantity: 1}]`, []string{"classes.yaml", "warrior", "excalibur"}},
+		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "warrior", "wooden_sword"}},
 		{"an item with an unknown tab", "items.yaml", `tab: etc`, `tab: misc`, []string{"items.yaml", "slime_gel", "misc"}},
 		{"equipment without a slot", "items.yaml", `slot: weapon, `, ``, []string{"items.yaml", "wooden_sword", "slot"}},
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},

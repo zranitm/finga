@@ -17,10 +17,18 @@ type Store interface {
 	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error)
 }
 
-// UnitOfWork is every repository bound to one transaction. Step 12 adds
-// Starter(), the item rules bound to the same transaction.
+// UnitOfWork is every repository bound to one transaction, plus the item
+// module's starter rules bound to the same transaction.
 type UnitOfWork interface {
 	Characters() Repository
+	Starter() StarterItems
+}
+
+// StarterItems grants a new character its class's starter items inside
+// character creation's transaction. The item module implements it;
+// internal/server binds the two without either importing the other.
+type StarterItems interface {
+	GrantStarter(ctx context.Context, owner model.CharacterID, class model.Class) error
 }
 
 // Repository writes the characters table.

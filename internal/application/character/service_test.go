@@ -257,3 +257,27 @@ func TestCharacterSlots(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestStarterItemsAreGrantedInTheCreateTransaction(t *testing.T) {
+	ctx := context.Background()
+	t.Run("the starter is asked once, for the new character and its class", func(t *testing.T) {
+		svc, store, _ := newService(t)
+		c, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Bowman})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(store.grants) != 1 || store.grants[0].owner != c.ID || store.grants[0].class != model.Bowman {
+			t.Fatalf("grants %+v", store.grants)
+		}
+	})
+	t.Run("a failing starter rolls the character back", func(t *testing.T) {
+		svc, store, _ := newService(t)
+		store.starterErr = errors.New("inventory unavailable")
+		if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior}); err == nil {
+			t.Fatal("create succeeded")
+		}
+		if len(store.chars) != 0 {
+			t.Fatal("the character survived the failed starter")
+		}
+	})
+}

@@ -44,3 +44,13 @@ sql:
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: *overrides
+  - engine: postgresql
+    schema: migrations
+    queries: internal/application/item/queries
+    gen:
+      go:
+        package: db
+        out: internal/application/item/internal/db
+        sql_package: pgx/v5
+        emit_pointers_for_null_types: true
+        overrides: *overrides

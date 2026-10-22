@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
+	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/config"
 	"finga/internal/handler/api"
@@ -47,7 +49,11 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	}
 
 	accounts := account.NewService(account.NewPostgres(pool), account.Options{})
-	characters := character.NewService(character.NewPostgres(pool), data, character.Options{})
+	itemStore := item.NewPostgres(pool)
+	items := item.NewService(itemStore, data, item.Options{})
+	characters := character.NewService(character.NewPostgres(pool, func(tx pgx.Tx) character.StarterItems {
+		return items.Within(itemStore.UnitOfWork(tx))
+	}), data, character.Options{})
 	maps := world.New(data, characters, opts.Logger, world.Options{
 		TickInterval:       cfg.World.TickInterval(),
 		CheckpointInterval: cfg.World.CheckpointInterval,

@@ -17,13 +17,18 @@ import (
 
 // Postgres is the module's store.
 type Postgres struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	starter StarterFactory
 }
 
-// NewPostgres builds the store over a pool.
-func NewPostgres(pool *pgxpool.Pool) *Postgres {
-	return &Postgres{pool: pool, q: db.New(pool)}
+// StarterFactory binds the item module's starter rules to a transaction.
+type StarterFactory func(tx pgx.Tx) StarterItems
+
+// NewPostgres builds the store over a pool. starter may be nil: then new
+// characters get no items (tests, and before the item module is wired).
+func NewPostgres(pool *pgxpool.Pool, starter StarterFactory) *Postgres {
+	return &Postgres{pool: pool, q: db.New(pool), starter: starter}
 }
 
 // InTx runs fn inside one transaction with a unit of work bound to it.
@@ -31,7 +36,7 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 // transaction.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
-		return fn(unitOfWork{q: db.New(tx)})
+		return fn(unitOfWork{q: db.New(tx), tx: tx, starter: p.starter})
 	})
 	return classify(err)
 }
@@ -68,10 +73,28 @@ func toCharacter(r db.Character) Character {
 	}
 }
 
-type unitOfWork struct{ q *db.Queries }
+type unitOfWork struct {
+	q       *db.Queries
+	tx      pgx.Tx
+	starter StarterFactory
+}
 
 // Characters is the character repository bound to the transaction.
-func (u unitOfWork) Characters() Repository { return repo(u) }
+func (u unitOfWork) Characters() Repository { return repo{q: u.q} }
+
+// Starter is the item module's starter rules on this transaction.
+func (u unitOfWork) Starter() StarterItems {
+	if u.starter == nil {
+		return noStarter{}
+	}
+	return u.starter(u.tx)
+}
+
+// noStarter grants nothing.
+type noStarter struct{}
+
+// GrantStarter does nothing.
+func (noStarter) GrantStarter(context.Context, model.CharacterID, model.Class) error { return nil }
 
 type repo struct{ q *db.Queries }
 

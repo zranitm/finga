@@ -38,7 +38,7 @@ func Load(dir string) (*Data, error) {
 		mobIdx:   map[string]int{},
 		mapIdx:   map[string]int{},
 	}
-	steps := []func(string) error{d.loadMovement, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.loadMobs, d.loadMaps}
+	steps := []func(string) error{d.loadMovement, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
@@ -108,6 +108,7 @@ type classYAML struct {
 	Attack        attackYAML `yaml:"attack"`
 	BaseStats     Stats      `yaml:"base_stats"`
 	LevelUpPoints Stats      `yaml:"level_up_points"`
+	StarterItems  []Grant    `yaml:"starter_items"`
 }
 
 type attackYAML struct {
@@ -159,6 +160,7 @@ func (d *Data) loadClasses(dir string) error {
 			Attack:        Attack{Kind: kind, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Cooldown: c.Attack.Cooldown},
 			BaseStats:     c.BaseStats,
 			LevelUpPoints: c.LevelUpPoints,
+			StarterItems:  c.StarterItems,
 		})
 	}
 	return nil
@@ -489,4 +491,21 @@ func sortedKeys[V any](m map[string]V) func(func(string) bool) {
 			}
 		}
 	}
+}
+
+// validateStarters checks each class's starter items once the items are
+// loaded: known templates, positive quantities, one of a piece of equipment.
+func (d *Data) validateStarters(string) error {
+	for _, c := range d.classes {
+		for _, g := range c.StarterItems {
+			it, ok := d.Item(g.Item)
+			if !ok {
+				return fmt.Errorf("%s: class %s: starter item %s: unknown item", classesFile, c.ID, g.Item)
+			}
+			if g.Quantity < 1 || g.Quantity > it.MaxStack {
+				return fmt.Errorf("%s: class %s: starter item %s: quantity must be 1 to %d", classesFile, c.ID, g.Item, it.MaxStack)
+			}
+		}
+	}
+	return nil
 }

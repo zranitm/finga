@@ -2,6 +2,8 @@ package character_test
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -13,10 +15,12 @@ import (
 // fakeStore is an in-memory Store with the one constraint the service
 // relies on: a unique name ignoring case.
 type fakeStore struct {
-	mu      sync.Mutex
-	chars   map[model.CharacterID]character.Character
-	order   []model.CharacterID
-	txCount int
+	mu         sync.Mutex
+	chars      map[model.CharacterID]character.Character
+	order      []model.CharacterID
+	txCount    int
+	starterErr error
+	grants     []grant
 }
 
 func newFakeStore() *fakeStore {
@@ -27,7 +31,14 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow character.UnitOfWork) er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.txCount++
-	return fn(fakeUOW{s})
+	// A failing function rolls back: the maps are restored.
+	chars := maps.Clone(s.chars)
+	order := slices.Clone(s.order)
+	if err := fn(fakeUOW{s}); err != nil {
+		s.chars, s.order = chars, order
+		return err
+	}
+	return nil
 }
 
 func (s *fakeStore) List(_ context.Context, account model.AccountID) ([]character.Character, error) {
@@ -56,6 +67,23 @@ func (s *fakeStore) Load(_ context.Context, id model.CharacterID, account model.
 type fakeUOW struct{ s *fakeStore }
 
 func (u fakeUOW) Characters() character.Repository { return fakeRepo(u) }
+func (u fakeUOW) Starter() character.StarterItems  { return fakeStarter(u) }
+
+// fakeStarter records grants, or fails when the store says so.
+type fakeStarter struct{ s *fakeStore }
+
+func (f fakeStarter) GrantStarter(_ context.Context, owner model.CharacterID, class model.Class) error {
+	if f.s.starterErr != nil {
+		return f.s.starterErr
+	}
+	f.s.grants = append(f.s.grants, grant{owner, class})
+	return nil
+}
+
+type grant struct {
+	owner model.CharacterID
+	class model.Class
+}
 
 type fakeRepo struct{ s *fakeStore }
 

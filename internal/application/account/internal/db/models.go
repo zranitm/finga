@@ -39,6 +39,50 @@ type Character struct {
 	UpdatedAt     time.Time
 }
 
+type IdempotencyKey struct {
+	Owner       string
+	Scope       string
+	Key         string
+	RequestHash []byte
+	Response    []byte
+	CreatedAt   time.Time
+}
+
+type Item struct {
+	ID         uuid.UUID
+	TemplateID string
+	OwnerID    uuid.UUID
+	Location   string
+	Tab        *string
+	Slot       *int32
+	Quantity   int32
+	UpdatedAt  time.Time
+}
+
+type ItemEvent struct {
+	ID            int64
+	ItemID        uuid.UUID
+	Kind          string
+	QuantityDelta int32
+	FromOwner     *uuid.UUID
+	ToOwner       *uuid.UUID
+	CauseType     string
+	CauseID       *uuid.UUID
+	OccurredAt    time.Time
+}
+
+type Outbox struct {
+	ID          int64
+	EventID     uuid.UUID
+	Topic       string
+	Key         string
+	Type        string
+	ContentType string
+	Payload     []byte
+	OccurredAt  time.Time
+	PublishedAt *time.Time
+}
+
 type Session struct {
 	ID        uuid.UUID
 	AccountID uuid.UUID

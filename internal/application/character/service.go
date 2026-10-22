@@ -69,7 +69,10 @@ func (s *Service) Create(ctx context.Context, account model.AccountID, in Create
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: s.now(),
 	}
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Characters().Insert(ctx, c)
+		if err := uow.Characters().Insert(ctx, c); err != nil {
+			return err
+		}
+		return uow.Starter().GrantStarter(ctx, c.ID, c.Class)
 	})
 	if err != nil {
 		return Character{}, err
