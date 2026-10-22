@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
@@ -68,9 +69,7 @@ func Start(ctx context.Context, migrate MigrateFunc) (*Cluster, error) {
 func (c *Cluster) connect(ctx context.Context) error {
 	raw := os.Getenv(EnvURL)
 	if raw == "" {
-		container, err := postgres.Run(ctx, image,
-			postgres.WithDatabase(adminDB), postgres.WithUsername("pgtest"), postgres.WithPassword("pgtest"),
-			postgres.BasicWaitStrategies())
+		container, err := startContainer(ctx)
 		if err != nil {
 			return fmt.Errorf("pgtest: start container: %w", err)
 		}
@@ -189,4 +188,34 @@ func randomHex(n int) string {
 		panic(err)
 	}
 	return hex.EncodeToString(b)
+}
+
+const (
+	startAttempts = 3
+	startBackoff  = 500 * time.Millisecond
+)
+
+// startContainer runs Postgres, retrying a few times: when several test
+// packages start containers at once, Testcontainers' Docker provider
+// detection fails transiently on Windows ("rootless Docker is not
+// supported"), and a second attempt succeeds.
+func startContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
+	var err error
+	for attempt := 1; attempt <= startAttempts; attempt++ {
+		var c *postgres.PostgresContainer
+		c, err = postgres.Run(ctx, image,
+			postgres.WithDatabase(adminDB), postgres.WithUsername("pgtest"), postgres.WithPassword("pgtest"),
+			postgres.BasicWaitStrategies())
+		if err == nil {
+			return c, nil
+		}
+		if attempt < startAttempts {
+			select {
+			case <-time.After(startBackoff * time.Duration(attempt)):
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+	}
+	return nil, err
 }
