@@ -189,6 +189,16 @@ describe('wiring', () => {
       text: 'The server is busy. Try again.',
     },
     {
+      name: 'rate_limited (a chat line too soon)',
+      d: { ok: false, code: 'rate_limited' },
+      text: 'Too fast. Wait a moment.',
+    },
+    {
+      name: 'not_found (a party line with no party)',
+      d: { ok: false, code: 'not_found', message: 'you have no party' },
+      text: 'you have no party',
+    },
+    {
       name: 'another refusal with a message',
       d: { ok: false, code: 'invalid_argument', message: 'nothing to pick up' },
       text: 'nothing to pick up',

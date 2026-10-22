@@ -8,6 +8,7 @@ export interface Invite {
   readonly invite_id: string;
   readonly from: string;
   readonly from_name: string;
+  readonly at: number; // Unix milliseconds, when it arrived; it expires 30 s later
 }
 
 export interface PartyState {
@@ -15,7 +16,7 @@ export interface PartyState {
   readonly invites: readonly Invite[];
   applyWelcome(d: Data<'Welcome'>): void;
   applyPartyState(d: Data<'PartyState'>): void;
-  applyPartyInvited(d: Data<'PartyInvited'>): void;
+  applyPartyInvited(d: Data<'PartyInvited'>, at?: number): void;
   /** Answered or expired: the invite leaves the list. */
   dismissInvite(inviteId: string): void;
   clear(): void;
@@ -30,9 +31,9 @@ export const party = defineStore<PartyState>((set, get) => ({
   applyPartyState: (d) => {
     set({ party: d.party });
   },
-  applyPartyInvited: (d) => {
+  applyPartyInvited: (d, at = Date.now()) => {
     const invites = get().invites.filter((i) => i.invite_id !== d.invite_id);
-    set({ invites: [...invites, d] });
+    set({ invites: [...invites, { ...d, at }] });
   },
   dismissInvite: (inviteId) => {
     set({ invites: get().invites.filter((i) => i.invite_id !== inviteId) });

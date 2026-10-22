@@ -8,7 +8,11 @@ export type WindowName = 'inventory' | 'party' | 'settings';
 export interface UiState {
   readonly windows: Readonly<Record<WindowName, boolean>>;
   readonly captureKeyboard: boolean;
+  /** The chat input is asked to take focus (the Enter key, C13). */
+  readonly chatOpen: boolean;
   toggleWindow(name: WindowName): void;
+  openChat(): void;
+  closeChat(): void;
   openWindow(name: WindowName): void;
   closeWindow(name: WindowName): void;
   setCaptureKeyboard(capture: boolean): void;
@@ -19,6 +23,17 @@ const closed: Record<WindowName, boolean> = { inventory: false, party: false, se
 export const ui = defineStore<UiState>((set, get) => ({
   windows: closed,
   captureKeyboard: false,
+  chatOpen: false,
+  openChat: () => {
+    if (!get().chatOpen) {
+      set({ chatOpen: true });
+    }
+  },
+  closeChat: () => {
+    if (get().chatOpen) {
+      set({ chatOpen: false });
+    }
+  },
   toggleWindow: (name) => {
     set({ windows: { ...get().windows, [name]: !get().windows[name] } });
   },

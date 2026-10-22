@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { noInput } from '@/sim/input';
 import type { Input } from '@/sim/input';
+import { ui } from '@/state/ui';
 
 import { InputSender } from './input-sender';
 
@@ -103,5 +104,19 @@ describe('InputSender', () => {
     s.tickStart();
     s.tickStart();
     expect(sent).toEqual([1, 2, 3]);
+  });
+
+  it('while a text field has the keyboard (the ui store, as the chat input sets it), the sender sends nothing', () => {
+    ui.reset();
+    const { s, sent } = sender();
+    const off = ui.subscribe((state) => s.setCaptured(state.captureKeyboard));
+    ui.getState().setCaptureKeyboard(true); // the chat input took focus
+    expect(sent).toHaveLength(1); // the all-released Input on capture
+    s.press('right');
+    expect(s.tickStart().right).toBe(false);
+    ui.getState().setCaptureKeyboard(false);
+    s.press('right');
+    expect(s.tickStart().right).toBe(true);
+    off();
   });
 });

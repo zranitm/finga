@@ -7,13 +7,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { LoginScreen } from '@/features/auth/LoginScreen';
 import { CharactersScreen } from '@/features/characters/CharactersScreen';
+import { ChatBox } from '@/features/chat/ChatBox';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
 import { DeathOverlay } from '@/features/hud/DeathOverlay';
 import { Hud } from '@/features/hud/Hud';
+import { PartyPanel } from '@/features/hud/PartyPanel';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
+import { InviteToasts } from '@/features/party/InviteToast';
+import { PartyWindow } from '@/features/party/PartyWindow';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import type { Character } from '@/net/rest';
+import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
 import { session } from '@/state/session';
 import type { Account } from '@/state/session';
@@ -127,12 +132,25 @@ function WorldOverlay({
   readonly onLeave: () => void;
 }) {
   const inventoryOpen = ui.use((s) => s.windows.inventory);
+  const partyOpen = ui.use((s) => s.windows.party);
+  const me = characterStore.use((s) => s.character?.id ?? '');
   return (
     <>
       <Hud />
       <ConnectionNotice />
       <DeathOverlay />
       <Toasts />
+      <PartyPanel />
+      <InviteToasts socket={socket} />
+      <ChatBox socket={socket} />
+      {partyOpen && (
+        <PartyWindow
+          socket={socket}
+          me={me}
+          onClose={() => ui.getState().closeWindow('party')}
+          onFocusChange={(focused) => ui.getState().setCaptureKeyboard(focused)}
+        />
+      )}
       {inventoryOpen && (
         <InventoryWindow
           socket={socket}

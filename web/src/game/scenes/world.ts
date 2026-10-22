@@ -12,6 +12,7 @@ import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
+import { nearby } from '@/state/nearby';
 import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
 
@@ -238,8 +239,14 @@ export class World extends Phaser.Scene {
             case 'inventory':
               ui.getState().toggleWindow('inventory');
               return;
+            case 'party':
+              ui.getState().toggleWindow('party');
+              return;
+            case 'chat':
+              ui.getState().openChat();
+              return;
             default:
-              return; // party and chat come with C13
+              return;
           }
         },
       }),
@@ -356,13 +363,21 @@ export class World extends Phaser.Scene {
       this.remoteViews.get(id)?.destroy();
       this.remoteViews.delete(id);
     }
+    let arrivals = false;
     for (const [id, state] of shown) {
       let v = this.remoteViews.get(id);
       if (!v) {
         v = new PlayerView(this, remotes.classOf(id), remotes.nameOf(id));
         this.remoteViews.set(id, v);
+        arrivals = true;
       }
       v.apply(state);
+    }
+    if (arrivals || gone.length > 0) {
+      // Who is here, for the party window; only when someone came or went.
+      nearby
+        .getState()
+        .setNearby([...this.remoteViews.keys()].map((id) => ({ id, name: remotes.nameOf(id) })));
     }
   }
 
@@ -474,6 +489,7 @@ export class World extends Phaser.Scene {
       v.destroy();
     }
     this.remoteViews.clear();
+    nearby.getState().clear();
     for (const v of this.mobViews.values()) {
       v.destroy();
     }

@@ -396,3 +396,124 @@ body {
 .toast-error {
   border-color: var(--danger);
 }
+
+/* Chat and party (C13). */
+.chat {
+  position: fixed;
+  left: 12px;
+  bottom: 56px;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+  font-size: 13px;
+}
+.chat-lines {
+  list-style: none;
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 150px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  border-radius: var(--radius);
+}
+.chat-line {
+  line-height: 1.4;
+}
+.chat-party {
+  color: #9ad3ff;
+}
+.chat-tag {
+  color: var(--muted);
+}
+.chat-input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.chat-input-row input {
+  flex: 1;
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-border);
+  background: #0a0c16;
+  color: var(--text);
+}
+.chat-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+.chat-over {
+  color: var(--danger);
+}
+.party {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 280px;
+}
+.party h3 {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+.party-members,
+.party-nearby {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.party-nearby li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.party-member-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+.party-offline {
+  opacity: 0.6;
+}
+.muted {
+  color: var(--muted);
+}
+.party-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--panel) 80%, transparent);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  font-size: 12px;
+}
+.invites {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+}
+.invite {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
