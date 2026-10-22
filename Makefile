@@ -57,3 +57,8 @@ gen:           ## regenerate sqlc code
 
 bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99
 	$(GO) run ./cmd/bot -url $(SMOKE_URL) -bots 4 -duration 30m
+
+play:          ## the proof session with people: make up, the client production build, and vite preview on the LAN (:4173)
+	$(MAKE) up
+	npm --prefix web run build
+	npm --prefix web run preview -- --host --port 4173 --strictPort

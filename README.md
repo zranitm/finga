@@ -43,6 +43,7 @@ backend, the same way, with its own rows in `docs/ai-coding-log.md`.
 make up                         # the server on :8080
 npm --prefix web install        # once; Node 24 (web/.nvmrc)
 npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the server
+make play                       # for a play session on the LAN: make up, the production build, vite preview on :4173 (--host), same proxy
 ```
 
 `make test`, `make lint` and `make cover` run the client's scripts too
@@ -75,6 +76,7 @@ make cover   # coverage report over internal/ and pkg/; fails below 80%
 make lint    # golangci-lint: sloglint, depguard import directions, revive, staticcheck
 make smoke   # the packaging check, against a running stack
 make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed
+make play    # the proof session with people: the server plus the client preview build on the LAN (:4173)
 ```
 
 The tests that need a database start a Postgres container through
