@@ -1,6 +1,7 @@
-# make up / make down. Postgres only for now; the migrate job, the game server
-# and the web container join in later steps. Overrides for the game server go
-# in ../.env (git-ignored; see ../.env.example).
+# make up / make down. Postgres with a health check, the migrations as a
+# one-shot job, and the game server once they succeeded. Overrides for the
+# game server go in ../.env (git-ignored; see ../.env.example). The web
+# container (nginx serving the built client) joins when the frontend exists.
 name: finga
 
 services:
@@ -19,6 +20,37 @@ services:
       retries: 15
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CMD: migrate
+    environment:
+      FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  gameserver:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        CMD: gameserver
+        VERSION: ${VERSION:-dev}
+    ports:
+      - "${FINGA_PORT:-8080}:8080"
+    environment:
+      FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+      FINGA_SERVER_CORS_ORIGINS: http://localhost:5173
+    env_file:
+      - path: ../.env
+        required: false
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   pgdata:

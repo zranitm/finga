@@ -1,11 +1,12 @@
-# Targets the README documents: up, down, test, cover, lint, gen.
+# Targets the README documents: up, down, test, cover, lint, gen, smoke, bots.
 GO        ?= go
 COVER_MIN ?= 80
 COMPOSE   ?= docker compose -f deploy/docker-compose.yml
+SMOKE_URL ?= http://localhost:8080
 
-.PHONY: up down test cover lint gen
+.PHONY: up down test cover lint gen smoke bots
 
-up:            ## start Postgres (later: migrations, the game server, the client)
+up:            ## build the images and start Postgres, the migrations and the game server (:8080)
 	$(COMPOSE) up --build -d
 
 down:          ## stop everything and drop the database volume
@@ -27,7 +28,13 @@ cover:         ## coverage report; fails below COVER_MIN
 lint:          ## golangci-lint, including constant log messages (sloglint)
 	golangci-lint run ./...
 
+smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
+	FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
+
 # sqlc generates each module's queries into internal/application/<module>/internal/db.
-# No module has queries yet, so this is a no-op until step 02.
+# The schema for every entry is migrations/; run it after a query or migration change.
 gen:           ## regenerate sqlc code
 	@if [ -f sqlc.yaml ]; then sqlc generate; else echo "gen: no sqlc.yaml yet"; fi
+
+bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99
+	$(GO) run ./cmd/bot -url $(SMOKE_URL) -bots 4 -duration 30m

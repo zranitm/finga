@@ -396,6 +396,15 @@ func TestLootAndKeep(t *testing.T) {
 		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.ID]; return !seen }) {
 			t.Fatal("the watcher still sees the drop")
 		}
+		// D5: the path a real client takes after a lost reply: it re-sends
+		// the same PickUp (same seq) and still ends with the same items.
+		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: protocol.PickUp{}}); err != nil {
+			t.Fatal(err)
+		}
+		killer.pump(time.Second, nil)
+		if killer.inventory != taken || len(killer.failures) != 0 {
+			t.Fatalf("after re-sending PickUp with seq %d: %d InventoryChanged for %d drops, failures %+v", killer.seq, killer.inventory, taken, killer.failures)
+		}
 		// One item event per drop, each under its own drop ID, and the
 		// template's stack holds the starter stack plus the drop.
 		var lootEvents, distinctDrops int
@@ -537,8 +546,26 @@ type process struct {
 	env  []string
 	url  string
 	cmd  *exec.Cmd
-	out  bytes.Buffer
+	out  lockedBuffer // the process writes it from exec's copier goroutine while the test reads it
 	done chan struct{}
+}
+
+// lockedBuffer is a bytes.Buffer safe for one writer and one reader.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func buildGameserver(t *testing.T) string {
@@ -691,7 +718,7 @@ func TestCrashDuringPickups(t *testing.T) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	if strings.Contains(proc.out.String(), "level=ERROR") {
-		t.Fatalf("the server logged errors:\n%s", proc.out.String())
+	if out := proc.out.String(); strings.Contains(out, `"level":"ERROR"`) {
+		t.Fatalf("the server logged errors:\n%s", out)
 	}
 }
