@@ -263,15 +263,15 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			}
 		}
 
-		{ // held keys persist across ticks until the next input
+		{ // one input moves one tick; with none queued the player waits (step 18)
 			before, _ := s.own(p.ID)
 			inst.Input(p.ID, 4, sim.Input{Left: true})
 			time.Sleep(3 * tickInterval)
 			synctest.Wait()
 			after, _ := s.own(p.ID)
-			want := before.State.X - 9*data.Movement().WalkSpeed*data.Movement().Dt
+			want := before.State.X - 3*data.Movement().WalkSpeed*data.Movement().Dt
 			if !near(after.State.X, want) {
-				t.Fatalf("x = %v, want %v after three ticks of walking left", after.State.X, want)
+				t.Fatalf("x = %v, want %v after one tick of walking left and two of waiting", after.State.X, want)
 			}
 		}
 
@@ -376,6 +376,91 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 			synctest.Wait()
 			if s.last().AckSeq != 21 {
 				t.Fatalf("ack %d, want 21: the duplicate did not take a tick of its own", s.last().AckSeq)
+			}
+		}
+	})
+}
+
+func TestInputGapHoldsThePlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		x, y := townSpawn(t, data)
+		inst, cancel := run(t, data, nil, world.Options{})
+		defer cancel()
+		p := newPlayer("Ayla", x, y)
+		s := &sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(25 * tickInterval) // land and settle
+		synctest.Wait()
+		start, _ := s.own(p.ID)
+		state := start.State
+		geom := data.Town().Geometry
+		params := data.Movement()
+		tick := func(in *sim.Input, seq uint32) world.PlayerView {
+			if in != nil {
+				inst.Input(p.ID, seq, *in)
+			}
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			v, _ := s.own(p.ID)
+			return v
+		}
+		right := sim.Input{Right: true}
+
+		{ // a one-tick gap: the player waits, ack_seq repeats, and the next input lands exactly
+			for seq := uint32(1); seq <= 3; seq++ {
+				tick(&right, seq)
+				for range 3 {
+					state = sim.Step(state, right, geom, params)
+				}
+			}
+			held := tick(nil, 0)
+			if held.State != state || s.last().AckSeq != 3 {
+				t.Fatalf("during the gap: state %+v ack %d, want unmoved %+v and ack 3", held.State, s.last().AckSeq, state)
+			}
+			after := tick(&right, 4)
+			for range 3 {
+				state = sim.Step(state, right, geom, params)
+			}
+			if after.State != state || s.last().AckSeq != 4 {
+				t.Fatalf("after the gap: state %+v ack %d, want the exact sim state %+v and ack 4", after.State, s.last().AckSeq, state)
+			}
+		}
+
+		{ // a six-tick gap: five ticks held, then the last keys are simulated
+			var moved []bool
+			for range 6 {
+				v := tick(nil, 0)
+				moved = append(moved, v.State != state)
+				if s.last().AckSeq != 4 {
+					t.Fatalf("ack %d while starved, want 4 repeated", s.last().AckSeq)
+				}
+			}
+			want := []bool{false, false, false, false, false, true}
+			for n := range want {
+				if moved[n] != want[n] {
+					t.Fatalf("moved per starved tick %v, want %v", moved, want)
+				}
+			}
+			for range 3 {
+				state = sim.Step(state, right, geom, params)
+			}
+			if v, _ := s.own(p.ID); v.State != state {
+				t.Fatalf("after the hold: %+v, want one tick of the held keys %+v", v.State, state)
+			}
+			// the next input is applied as usual and the counter starts over
+			stop := sim.Input{}
+			v := tick(&stop, 5)
+			for range 3 {
+				state = sim.Step(state, stop, geom, params)
+			}
+			if v.State != state || s.last().AckSeq != 5 {
+				t.Fatalf("after the stall: %+v ack %d, want %+v ack 5", v.State, s.last().AckSeq, state)
+			}
+			if held := tick(nil, 0); held.State != state {
+				t.Fatalf("one tick without input after the stall moved the player: %+v", held.State)
 			}
 		}
 	})
@@ -602,3 +687,16 @@ func TestReplayMatchesSim(t *testing.T) {
 }
 
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+
+// walk sends the same Input once per tick for n ticks, as a client does
+// (step 18: a player with no queued Input waits), with sequence numbers
+// after seq; it returns the last one used.
+func walk(inst *world.Instance, id model.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
+	for range ticks {
+		seq++
+		inst.Input(id, seq, in)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+	}
+	return seq
+}

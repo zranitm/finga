@@ -128,6 +128,7 @@ type player struct {
 	held    sim.Input
 	pending []inputMsg // inputs not yet applied, by sequence number; one per tick
 	lastSeq uint32
+	starved int // ticks in a row with no queued input
 	moved   bool
 	joined  bool
 
@@ -361,6 +362,10 @@ func (i *Instance) remove(id model.CharacterID) bool {
 const (
 	inputQueueMax  = 4
 	inputQueueKeep = 2
+	// inputHoldTicks is how long a player waits for a late Input before the
+	// last held keys are simulated again, so a stalled client cannot hang in
+	// the air for good but a jittery one never diverges from its prediction.
+	inputHoldTicks = 5
 )
 
 // enqueueInput adds an input to a player's queue in sequence order,
@@ -388,20 +393,28 @@ func cutInputs(q []inputMsg) []inputMsg {
 }
 
 // simulate applies exactly one queued input per player per tick, the
-// oldest not yet applied (step 18), keeps the last held keys when none
-// is queued, and runs the sub-steps. A dead player stays where they fell.
+// oldest not yet applied (step 18), and runs the sub-steps. With none
+// queued the player waits, unmoved and with ack_seq repeated, for up to
+// inputHoldTicks, so the state for each sequence number equals what the
+// client predicted; past that the last held keys are simulated each tick
+// until an Input arrives. A dead player stays where they fell.
 func (i *Instance) simulate() (changed []model.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
 		p.pending = cutInputs(p.pending)
+		hold := false
 		if len(p.pending) > 0 {
 			next := p.pending[0]
 			p.held = next.in
 			p.lastSeq = next.seq
 			p.pending = slices.Delete(p.pending, 0, 1)
+			p.starved = 0
+		} else {
+			p.starved++
+			hold = p.starved <= inputHoldTicks
 		}
 		before := p.state
-		if !p.dead {
+		if !p.dead && !hold {
 			for range i.opts.SubSteps {
 				p.state = sim.Step(p.state, p.held, i.m.Geometry, i.params)
 			}

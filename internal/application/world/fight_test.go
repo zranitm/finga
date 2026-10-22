@@ -274,9 +274,7 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		synctest.Wait()
 		s := join(t, inst, warriorAt(260)) // 24 px from the mob's box; one tick of walking touches it
 		id := s.id(t, inst)
-		inst.Input(id, 1, sim.Input{Right: true})
-		time.Sleep(2 * tickInterval)
-		synctest.Wait()
+		seq := walk(inst, id, 0, sim.Input{Right: true}, 2)
 		got := damages(s)
 		if len(got) != 1 || !got[0].Source.IsMob() || got[0].Target.Player != id {
 			t.Fatalf("damages %+v", got)
@@ -294,15 +292,11 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		}
 		// Stop, wait inside the invulnerability window: no second hit. Then
 		// walk back in as it ends: a second hit.
-		inst.Input(id, 2, sim.Input{})
-		time.Sleep(15 * tickInterval)
-		synctest.Wait()
+		seq = walk(inst, id, seq, sim.Input{}, 15)
 		if len(damages(s)) != 1 {
 			t.Fatalf("%d hits inside the invulnerability window", len(damages(s)))
 		}
-		inst.Input(id, 3, sim.Input{Right: true})
-		time.Sleep(8 * tickInterval)
-		synctest.Wait()
+		walk(inst, id, seq, sim.Input{Right: true}, 8)
 		if len(damages(s)) < 2 {
 			t.Fatal("no second hit after the invulnerability window")
 		}
@@ -322,9 +316,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		p.HP = 1
 		p.Exp = 10 // level 1 needs 20; the penalty is 5% of 20, floored to 1
 		s := join(t, inst, p)
-		inst.Input(p.ID, 1, sim.Input{Right: true})
-		time.Sleep(2 * tickInterval)
-		synctest.Wait()
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
 		{ // the touch kills: Died to everyone, the player is marked dead and frozen
 			died := s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok })
 			if len(died) != 1 || died[0].(world.Died).ID != p.ID {
@@ -335,7 +327,7 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("view after death %+v", v)
 			}
 			x := v.State.X
-			inst.Input(p.ID, 2, sim.Input{Right: true})
+			inst.Input(p.ID, seq+1, sim.Input{Right: true})
 			inst.Attack(p.ID)
 			time.Sleep(5 * tickInterval)
 			synctest.Wait()
@@ -490,13 +482,9 @@ func TestNoCombatInTown(t *testing.T) {
 		p := warriorAt(260)
 		p.HP = 1
 		s := join(t, inst, p)
-		inst.Input(p.ID, 1, sim.Input{Right: true}) // walk straight through the slime
-		time.Sleep(10 * tickInterval)
-		synctest.Wait()
-		inst.Input(p.ID, 2, sim.Input{Left: true})
-		time.Sleep(4 * tickInterval)
-		synctest.Wait()
-		inst.Input(p.ID, 3, sim.Input{})
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 10) // walk straight through the slime
+		seq = walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
+		inst.Input(p.ID, seq+1, sim.Input{})
 		inst.Attack(p.ID)
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
@@ -528,8 +516,8 @@ func TestRespawnInPlaceWithoutAMover(t *testing.T) {
 		p := warriorAt(260)
 		p.HP, p.Exp = 1, 10
 		s := join(t, inst, p)
-		inst.Input(p.ID, 1, sim.Input{Right: true})
-		time.Sleep(2*tickInterval + 3*time.Second)
+		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		time.Sleep(3 * time.Second)
 		synctest.Wait()
 		resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
 		if len(resp) != 1 || resp[0].(world.Respawned).MapID != "arena" {
