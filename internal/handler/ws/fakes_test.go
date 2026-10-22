@@ -3,6 +3,7 @@ package ws_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -19,7 +20,10 @@ import (
 )
 
 type fakeSessions struct {
-	tokens map[string]auth.Principal
+	mu        sync.Mutex
+	tokens    map[string]auth.Principal
+	rotations int
+	expired   map[uuid.UUID]bool
 }
 
 func (f *fakeSessions) Issue(context.Context, uuid.UUID) (string, error) {
@@ -284,4 +288,32 @@ func (f *fakeParties) Kick(leader, target model.CharacterID) error {
 func (f *fakeParties) Promote(leader, target model.CharacterID) error {
 	f.record("promote " + leader.String() + " " + target.String())
 	return f.err
+}
+
+// Rotate hands out a fresh token per call; Check consults the expired set.
+func (f *fakeSessions) Rotate(_ context.Context, sessionID uuid.UUID) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rotations++
+	return "rotated-" + sessionID.String()[:8] + "-" + fmt.Sprint(f.rotations), nil
+}
+
+func (f *fakeSessions) Check(_ context.Context, sessionID uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.expired[sessionID] {
+		return errors.New("unauthenticated: session expired")
+	}
+	return nil
+}
+
+func (f *fakeSessions) RevokeAll(context.Context, uuid.UUID) error { return nil }
+
+func (f *fakeSessions) expire(sessionID uuid.UUID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.expired == nil {
+		f.expired = map[uuid.UUID]bool{}
+	}
+	f.expired[sessionID] = true
 }

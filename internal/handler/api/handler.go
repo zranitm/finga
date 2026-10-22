@@ -60,6 +60,7 @@ func Routes() []Route {
 		{http.MethodPost, "/api/accounts"},
 		{http.MethodPost, "/api/sessions"},
 		{http.MethodDelete, "/api/sessions/current"},
+		{http.MethodDelete, "/api/sessions"},
 		{http.MethodGet, "/api/characters"},
 		{http.MethodPost, "/api/characters"},
 		{http.MethodGet, "/api/settings"},
@@ -84,6 +85,7 @@ func NewHandler(d Dependencies) http.Handler {
 	mux.Handle("POST /api/accounts", public(h.register))
 	mux.Handle("POST /api/sessions", public(h.login))
 	mux.Handle("DELETE /api/sessions/current", authed(h.logout))
+	mux.Handle("DELETE /api/sessions", authed(h.logoutEverywhere))
 	mux.Handle("GET /api/characters", authed(h.listCharacters))
 	mux.Handle("POST /api/characters", authed(h.createCharacter))
 	mux.Handle("GET /api/settings", authed(h.settings))
@@ -231,4 +233,14 @@ func clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// logoutEverywhere ends every session of the account; the account service
+// tells the gateway, which closes the account's connections.
+func (h *handler) logoutEverywhere(w http.ResponseWriter, r *http.Request) {
+	if err := h.sessions.RevokeAll(r.Context(), principalFrom(r.Context()).AccountID); err != nil {
+		writeError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

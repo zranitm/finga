@@ -264,6 +264,7 @@ func (s *stack) welcome(t *testing.T, username, id string) (*player, protocol.We
 	p := s.connect(t, id)
 	p.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: id}})
 	w := p.expect("Welcome").Data.(protocol.Welcome)
+	p.token = w.Token
 	p.expect("Snapshot")
 	return p, w
 }

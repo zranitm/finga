@@ -71,9 +71,13 @@ type Session struct {
 	ID        model.SessionID
 	AccountID model.AccountID
 	TokenHash []byte // SHA-256 of the token
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	RevokedAt *time.Time
+	// PreviousTokenHash is the token retired by the last rotation; RotatedAt is
+	// when, cleared once that token has been used (step 16).
+	PreviousTokenHash []byte
+	RotatedAt         *time.Time
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
 }
 
 // RegisterInput is a sign-up.

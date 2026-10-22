@@ -40,7 +40,7 @@ func (s *stack) join(t *testing.T, token, id string) (*player, protocol.Snapshot
 	t.Helper()
 	p := s.connect(t, id)
 	p.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: id}})
-	p.expect("Welcome")
+	p.token = p.expect("Welcome").Data.(protocol.Welcome).Token
 	snap := p.expect("Snapshot").Data.(protocol.Snapshot)
 	return p, snap
 }
@@ -296,7 +296,7 @@ func TestFightAndGrow(t *testing.T) {
 		// Saved right away: the REST list shows level 2.
 		dl := time.Now().Add(5 * time.Second)
 		for time.Now().Before(dl) {
-			list := s.call("GET", "/api/characters", token, nil)
+			list := s.call("GET", "/api/characters", p.token, nil)
 			for _, c := range list.body["characters"].([]any) {
 				if cm := c.(map[string]any); cm["id"] == id && cm["level"] == float64(2) {
 					return

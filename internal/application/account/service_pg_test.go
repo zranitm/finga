@@ -19,8 +19,8 @@ func newPGService(t *testing.T) (*Service, *Postgres) {
 	t.Helper()
 	store := NewPostgres(cluster.DB(t))
 	svc := NewService(store, Options{
-		SessionTTL: time.Hour,
-		Hash:       password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32},
+		IdleTTL: time.Hour,
+		Hash:    password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32},
 	})
 	return svc, store
 }

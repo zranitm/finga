@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 
+	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/gamedata"
@@ -784,4 +785,71 @@ func TestChatAndPartyWithoutTheServices(t *testing.T) {
 	if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "unavailable" {
 		t.Fatalf("party: %+v", r)
 	}
+}
+
+func TestWelcomeCarriesTheRotatedToken(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	w := c.expect("Welcome").Data.(protocol.Welcome)
+	if w.Token == "" || w.Token == tokenAlice || !strings.HasPrefix(w.Token, "rotated-") {
+		t.Fatalf("welcome token %q", w.Token)
+	}
+}
+
+func TestSecondHelloOnTheSameSessionKicksTheFirst(t *testing.T) {
+	h := newHarness(t)
+	first := h.dial(t)
+	first.hello(tokenAlice, aylaID)
+	first.expect("Snapshot")
+	second := h.dial(t)
+	second.hello(tokenAlice, aylaID) // the same login session, as a retried Hello would be
+	second.expect("Snapshot")
+	first.expectKick(protocol.KickLoggedInElsewhere)
+}
+
+func TestExpiredSessionIsKicked(t *testing.T) {
+	sessions := &fakeSessions{tokens: map[string]auth.Principal{tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)}}}
+	h := newHarness(t, func(d *ws.Dependencies) {
+		d.Sessions = sessions
+		d.SessionCheckInterval = 20 * time.Millisecond
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = h.gw.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	time.Sleep(60 * time.Millisecond) // a few checks pass while the session is fine
+	sessions.expire(uuid.UUID(sessAlice))
+	c.expectKick(protocol.KickSessionExpired)
+}
+
+func TestRevokedSessionsAndAccountsAreKicked(t *testing.T) {
+	h := newHarness(t)
+	t.Run("a session ended by reuse or logout", func(t *testing.T) {
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		h.gw.KickSession(sessAlice)
+		c.expectKick(protocol.KickSessionExpired)
+	})
+	t.Run("logging out everywhere", func(t *testing.T) {
+		c := h.dial(t)
+		c.hello(tokenBob, brunoID)
+		c.expect("Snapshot")
+		h.gw.KickAccount(bob, "logged out")
+		c.expectKick(protocol.KickSessionExpired)
+		h.gw.KickAccount(bob, "logged out") // nobody left: nothing happens
+	})
+}
+
+func TestANewLoginElsewhereKicksAsLoggedInElsewhere(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	h.gw.KickAccount(alice, account.ReasonNewLogin)
+	c.expectKick(protocol.KickLoggedInElsewhere)
 }

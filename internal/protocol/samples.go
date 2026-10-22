@@ -35,7 +35,7 @@ func Samples() []wsconn.Message {
 		{Type: "InventoryDiscard", ReqID: "r-7", Data: InventoryDiscard{IdempotencyKey: "k-2", ItemID: item1, Quantity: 1}},
 		{Type: "Ping", Data: Ping{ClientTime: 1761000000000}},
 
-		{Type: "Welcome", Data: Welcome{Character: view, Inventory: []ItemView{{ItemID: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}}, Party: party, MapID: "town", Tick: 81234, ServerTime: 1761000000050}},
+		{Type: "Welcome", Data: Welcome{Token: "s3ss10n-t0k3n-r0t4t3d", Character: view, Inventory: []ItemView{{ItemID: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}}, Party: party, MapID: "town", Tick: 81234, ServerTime: 1761000000050}},
 		{Type: "Snapshot", Tick: 81234, Data: Snapshot{Players: []PlayerView{player}, Mobs: []MobView{mob}, Drops: []DropView{drop}}},
 		{Type: "Delta", Tick: 81235, Data: Delta{AckSeq: 117, Players: []PlayerView{player}, Mobs: []MobView{mob}, Drops: []DropView{drop}, RemovedPlayers: []string{charB}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{11}}},
 		{Type: "Correction", Tick: 81235, Data: Correction{Seq: 117, X: 416, Y: 608, VX: 0, VY: 0, OnGround: true}},

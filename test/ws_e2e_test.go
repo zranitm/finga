@@ -20,6 +20,7 @@ import (
 type player struct {
 	t     *testing.T
 	id    string
+	token string // the session token after Hello rotated it
 	conn  *websocket.Conn
 	codec *wsconn.JSONCodec
 	msgs  chan wsconn.Message
@@ -36,10 +37,11 @@ func (s *stack) enter(t *testing.T, username, charName, class string) *player {
 	id := created.body["id"].(string)
 	p := s.connect(t, id)
 	p.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: id}})
-	w := p.expect("Welcome")
-	if w.Data.(protocol.Welcome).Character.Name != charName {
-		t.Fatalf("welcome %+v", w.Data)
+	w := p.expect("Welcome").Data.(protocol.Welcome)
+	if w.Character.Name != charName {
+		t.Fatalf("welcome %+v", w)
 	}
+	p.token = w.Token // rotated on Hello (step 16): REST calls use this one from now on
 	p.expect("Snapshot")
 	return p
 }

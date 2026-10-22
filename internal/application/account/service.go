@@ -1,6 +1,7 @@
 package account
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -21,17 +22,29 @@ import (
 
 // Options tune the service. Zero values take the defaults below.
 type Options struct {
-	SessionTTL         time.Duration    // fixed lifetime until step 16 (TD-24)
+	IdleTTL            time.Duration    // a session ends after this long unused (TD-24: 7 days)
+	MaxLifetime        time.Duration    // and never lives longer than this from login (30 days)
+	ExtendEvery        time.Duration    // the idle expiry is pushed at most this often (10 minutes)
+	RotationGrace      time.Duration    // the token retired by a rotation works once within this (60 s)
 	LoginRatePerMinute float64          // per username and per IP (page 4: 5 per minute)
 	LoginBurst         float64          // attempts allowed at once
 	Now                func() time.Time // the clock; tests inject one
 	Hash               password.Params  // argon2id parameters
+
+	// OnSessionRevoked and OnAccountRevoked are told when the service ends
+	// sessions (reuse, logout, a new login elsewhere), so connections can
+	// be closed. Both may be nil.
+	OnSessionRevoked func(ctx context.Context, sessionID uuid.UUID, reason string)
+	OnAccountRevoked func(ctx context.Context, accountID uuid.UUID, reason string)
 }
 
 const (
-	defaultSessionTTL = 7 * 24 * time.Hour
-	defaultLoginRate  = 5
-	defaultLoginBurst = 5
+	defaultIdleTTL       = 7 * 24 * time.Hour
+	defaultMaxLifetime   = 30 * 24 * time.Hour
+	defaultExtendEvery   = 10 * time.Minute
+	defaultRotationGrace = 60 * time.Second
+	defaultLoginRate     = 5
+	defaultLoginBurst    = 5
 
 	tokenBytes      = 32
 	usernameMin     = 3
@@ -41,6 +54,13 @@ const (
 	loginKeyUser    = "user:"
 	loginKeyIP      = "ip:"
 	loginMaxRetries = 1 // once more, when the one_active_session index catches a race
+
+	reasonReuse  = "token reuse"
+	reasonLogout = "logged out"
+	// ReasonNewLogin is the reason OnAccountRevoked gives when a new login
+	// ended the older session (one active session per account).
+	ReasonNewLogin = "logged in elsewhere"
+	dummySecret    = "finga-dummy-password-for-timing" // hashed once; verified for unknown usernames
 )
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
@@ -48,9 +68,10 @@ var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 // Service is the account module's use cases. It implements pkg/auth.
 type Service struct {
 	store      Store
-	ttl        time.Duration
+	opts       Options
 	now        func() time.Time
 	hash       password.Params
+	dummy      string // an argon2id hash verified for unknown usernames, so they take as long
 	byUser     ratelimit.Limiter
 	byIP       ratelimit.Limiter
 	presetList []Preset
@@ -63,8 +84,17 @@ var (
 
 // NewService wires the service over its store.
 func NewService(store Store, opts Options) *Service {
-	if opts.SessionTTL <= 0 {
-		opts.SessionTTL = defaultSessionTTL
+	if opts.IdleTTL <= 0 {
+		opts.IdleTTL = defaultIdleTTL
+	}
+	if opts.MaxLifetime <= 0 {
+		opts.MaxLifetime = defaultMaxLifetime
+	}
+	if opts.ExtendEvery <= 0 {
+		opts.ExtendEvery = defaultExtendEvery
+	}
+	if opts.RotationGrace <= 0 {
+		opts.RotationGrace = defaultRotationGrace
 	}
 	if opts.LoginRatePerMinute <= 0 {
 		opts.LoginRatePerMinute = defaultLoginRate
@@ -78,12 +108,17 @@ func NewService(store Store, opts Options) *Service {
 	if opts.Hash == (password.Params{}) {
 		opts.Hash = password.Default
 	}
+	dummy, err := password.Hash(dummySecret, opts.Hash)
+	if err != nil {
+		panic("account: dummy hash: " + err.Error()) // the parameters were just validated by Hash's caller
+	}
 	perSecond := opts.LoginRatePerMinute / 60
 	return &Service{
 		store:      store,
-		ttl:        opts.SessionTTL,
+		opts:       opts,
 		now:        opts.Now,
 		hash:       opts.Hash,
+		dummy:      dummy,
 		byUser:     ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
 		byIP:       ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
 		presetList: []Preset{PresetClassic, PresetWASD},
@@ -130,12 +165,14 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 }
 
 // Verify implements auth.Authenticator. An unknown user and a wrong
-// password fail the same way, so responses don't reveal which usernames
-// exist.
+// password fail the same way and take the same time: an unknown username
+// is verified against a dummy hash, so responses don't reveal which
+// usernames exist, by content or by timing.
 func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, error) {
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
+			_, _ = password.Verify(s.dummy, pw)
 			return uuid.Nil, ErrUnauthenticated
 		}
 		return uuid.Nil, err
@@ -160,7 +197,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 		return "", err
 	}
 	now := s.now()
-	session := Session{ID: model.NewSessionID(), AccountID: model.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: now.Add(s.ttl)}
+	session := Session{ID: model.NewSessionID(), AccountID: model.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
 	for attempt := 0; ; attempt++ {
 		err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 			if err := uow.Accounts().Lock(ctx, session.AccountID); err != nil {
@@ -177,12 +214,17 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 		if err != nil {
 			return "", err
 		}
+		if s.opts.OnAccountRevoked != nil {
+			s.opts.OnAccountRevoked(ctx, accountID, ReasonNewLogin) // the older session's connection, if any
+		}
 		return token, nil
 	}
 }
 
 // Validate implements auth.Sessions. Unknown, expired and revoked tokens
-// all fail with ErrUnauthenticated.
+// all fail with ErrUnauthenticated. The token retired by the last rotation
+// is accepted once within the grace period; any other use of it is reuse
+// and revokes the session. A valid use slides the expiry.
 func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, error) {
 	hash := sha256.Sum256([]byte(token))
 	session, err := s.store.FindActiveSession(ctx, hash[:])
@@ -192,17 +234,122 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 		}
 		return auth.Principal{}, err
 	}
-	if !s.now().Before(session.ExpiresAt) {
+	now := s.now()
+	if !now.Before(session.ExpiresAt) {
 		return auth.Principal{}, ErrUnauthenticated
+	}
+	if !bytes.Equal(session.TokenHash, hash[:]) {
+		// The previous token: once, inside the grace; otherwise reuse.
+		if session.RotatedAt == nil || !now.Before(session.RotatedAt.Add(s.opts.RotationGrace)) {
+			if err := s.revoke(ctx, session.ID, now, reasonReuse); err != nil {
+				return auth.Principal{}, err
+			}
+			return auth.Principal{}, ErrUnauthenticated
+		}
+		err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+			return uow.Sessions().ConsumePrevious(ctx, session.ID)
+		})
+		if err != nil {
+			return auth.Principal{}, err
+		}
+	}
+	if err := s.extend(ctx, session, now); err != nil {
+		return auth.Principal{}, err
 	}
 	return auth.Principal{AccountID: uuid.UUID(session.AccountID), SessionID: uuid.UUID(session.ID)}, nil
 }
 
-// Revoke implements auth.Sessions.
-func (s *Service) Revoke(ctx context.Context, sessionID uuid.UUID) error {
+// Rotate implements auth.Sessions: the session gets a new token, and the
+// one it had becomes the previous token for the grace period.
+func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, error) {
+	token, hash, err := newToken()
+	if err != nil {
+		return "", err
+	}
 	now := s.now()
+	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
+		return uow.Sessions().Rotate(ctx, model.SessionID(sessionID), hash, now)
+	})
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return "", ErrUnauthenticated
+		}
+		return "", err
+	}
+	return token, nil
+}
+
+// Check implements auth.Sessions: the session is active and not expired.
+func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
+	session, err := s.store.FindSession(ctx, model.SessionID(sessionID))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ErrUnauthenticated
+		}
+		return err
+	}
+	if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) {
+		return ErrUnauthenticated
+	}
+	return nil
+}
+
+// Revoke implements auth.Sessions: logging out of one session.
+func (s *Service) Revoke(ctx context.Context, sessionID uuid.UUID) error {
+	return s.revoke(ctx, model.SessionID(sessionID), s.now(), reasonLogout)
+}
+
+// RevokeAll implements auth.Sessions: logging out everywhere.
+func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
+	now := s.now()
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		return uow.Sessions().RevokeAll(ctx, model.AccountID(accountID), now)
+	})
+	if err != nil {
+		return err
+	}
+	if s.opts.OnAccountRevoked != nil {
+		s.opts.OnAccountRevoked(ctx, accountID, reasonLogout)
+	}
+	return nil
+}
+
+func (s *Service) revoke(ctx context.Context, id model.SessionID, now time.Time, reason string) error {
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		return uow.Sessions().Revoke(ctx, id, now)
+	})
+	if err != nil {
+		return err
+	}
+	if s.opts.OnSessionRevoked != nil {
+		s.opts.OnSessionRevoked(ctx, uuid.UUID(id), reason)
+	}
+	return nil
+}
+
+// expiry is when a session used at now should end: the idle period from
+// now, never past the lifetime from its creation.
+func (s *Service) expiry(createdAt, now time.Time) time.Time {
+	until := now.Add(s.opts.IdleTTL)
+	if limit := createdAt.Add(s.opts.MaxLifetime); until.After(limit) {
+		until = limit
+	}
+	return until
+}
+
+// extend slides the expiry, at most once every ExtendEvery and only when
+// it moves it later.
+func (s *Service) extend(ctx context.Context, session Session, now time.Time) error {
+	lastExtended := session.ExpiresAt.Add(-s.opts.IdleTTL)
+	if now.Sub(lastExtended) < s.opts.ExtendEvery {
+		return nil
+	}
+	until := s.expiry(session.CreatedAt, now)
+	if !until.After(session.ExpiresAt) {
+		return nil
+	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Sessions().Revoke(ctx, model.SessionID(sessionID), now)
+		return uow.Sessions().Extend(ctx, session.ID, until)
 	})
 }
 

@@ -19,9 +19,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/internal/config"
+	"finga/internal/protocol"
 	"finga/internal/server"
 	"finga/migrations"
 	"finga/pkg/pgtest"
+	"finga/pkg/wsconn"
 )
 
 var cluster *pgtest.Cluster
@@ -138,6 +140,41 @@ func TestAcceptance(t *testing.T) {
 		s.mustStatus(s.call("POST", "/api/sessions", "", map[string]string{"username": "alice", "password": "wrong"}), http.StatusUnauthorized)
 		s.mustStatus(s.call("DELETE", "/api/sessions/current", token, nil), http.StatusNoContent)
 		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusUnauthorized)
+	})
+
+	t.Run("A1/hello-rotates-the-token-reuse-ends-the-session-and-logout-everywhere-kicks", func(t *testing.T) {
+		s := newStack(t)
+		p := s.enter(t, "erin", "Erin", "warrior")
+		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "erin", "password": "correct horse"})
+		// The login above is a second session for Erin: it kicked the first
+		// connection and revoked its session, as one active session demands.
+		p.expect("Kicked")
+		token := login.body["token"].(string)
+		q := s.connect(t, p.id)
+		q.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: p.id}})
+		w := q.expect("Welcome").Data.(protocol.Welcome)
+		q.expect("Snapshot")
+		if w.Token == "" || w.Token == token {
+			t.Fatalf("welcome token %q", w.Token)
+		}
+		// The rotated token works; the one sent in Hello works once more.
+		s.mustStatus(s.call("GET", "/api/characters", w.Token, nil), http.StatusOK)
+		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusOK)
+		// A second use of the retired token is reuse: the session ends, the
+		// connection is kicked, and the rotated token is dead too.
+		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusUnauthorized)
+		if k := q.expect("Kicked").Data.(protocol.Kicked); k.Reason != protocol.KickSessionExpired {
+			t.Fatalf("kicked for %s", k.Reason)
+		}
+		s.mustStatus(s.call("GET", "/api/characters", w.Token, nil), http.StatusUnauthorized)
+
+		// Log out everywhere: the connection is kicked and the token is dead.
+		r := s.enter(t, "fay", "Fay", "bowman")
+		s.mustStatus(s.call("DELETE", "/api/sessions", r.token, nil), http.StatusNoContent)
+		if k := r.expect("Kicked").Data.(protocol.Kicked); k.Reason != protocol.KickSessionExpired {
+			t.Fatalf("kicked for %s", k.Reason)
+		}
+		s.mustStatus(s.call("GET", "/api/characters", r.token, nil), http.StatusUnauthorized)
 	})
 
 	t.Run("A1/throttled-after-repeated-failures", func(t *testing.T) {

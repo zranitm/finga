@@ -54,7 +54,7 @@ func (s *fakeStore) FindActiveSession(_ context.Context, tokenHash []byte) (acco
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, se := range s.sessions {
-		if bytes.Equal(se.TokenHash, tokenHash) && se.RevokedAt == nil {
+		if (bytes.Equal(se.TokenHash, tokenHash) || bytes.Equal(se.PreviousTokenHash, tokenHash)) && se.RevokedAt == nil {
 			return se, nil
 		}
 	}
@@ -144,6 +144,48 @@ func (r fakeSessions) Revoke(_ context.Context, id model.SessionID, at time.Time
 		if r.s.sessions[i].ID == id && r.s.sessions[i].RevokedAt == nil {
 			t := at
 			r.s.sessions[i].RevokedAt = &t
+		}
+	}
+	return nil
+}
+
+func (s *fakeStore) FindSession(_ context.Context, id model.SessionID) (account.Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, se := range s.sessions {
+		if se.ID == id {
+			return se, nil
+		}
+	}
+	return account.Session{}, account.ErrNotFound
+}
+
+func (r fakeSessions) Rotate(_ context.Context, id model.SessionID, newHash []byte, at time.Time) error {
+	for i := range r.s.sessions {
+		if r.s.sessions[i].ID == id && r.s.sessions[i].RevokedAt == nil {
+			t := at
+			r.s.sessions[i].PreviousTokenHash = r.s.sessions[i].TokenHash
+			r.s.sessions[i].TokenHash = newHash
+			r.s.sessions[i].RotatedAt = &t
+			return nil
+		}
+	}
+	return account.ErrNotFound
+}
+
+func (r fakeSessions) ConsumePrevious(_ context.Context, id model.SessionID) error {
+	for i := range r.s.sessions {
+		if r.s.sessions[i].ID == id {
+			r.s.sessions[i].RotatedAt = nil
+		}
+	}
+	return nil
+}
+
+func (r fakeSessions) Extend(_ context.Context, id model.SessionID, until time.Time) error {
+	for i := range r.s.sessions {
+		if r.s.sessions[i].ID == id {
+			r.s.sessions[i].ExpiresAt = until
 		}
 	}
 	return nil

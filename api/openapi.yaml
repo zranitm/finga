@@ -47,6 +47,13 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "401": { $ref: "#/components/responses/Error" }
         "429": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Log out everywhere
+      description: Ends every session of the account and closes its game connections.
+      security: [{ bearer: [] }]
+      responses:
+        "204": { description: Every session revoked }
+        "401": { $ref: "#/components/responses/Error" }
   /api/sessions/current:
     delete:
       summary: Log out

@@ -25,7 +25,7 @@ func (c *clock) now() time.Time { return c.t }
 
 func newService(store account.Store) (*account.Service, *clock) {
 	c := &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)}
-	return account.NewService(store, account.Options{SessionTTL: time.Hour, Now: c.now, Hash: cheapHash}), c
+	return account.NewService(store, account.Options{IdleTTL: time.Hour, Now: c.now, Hash: cheapHash}), c
 }
 
 func register(t *testing.T, svc *account.Service, username, pw string) account.Account {

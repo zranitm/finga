@@ -84,10 +84,12 @@ type Outbox struct {
 }
 
 type Session struct {
-	ID        uuid.UUID
-	AccountID uuid.UUID
-	TokenHash []byte
-	CreatedAt time.Time
-	ExpiresAt time.Time
-	RevokedAt *time.Time
+	ID                uuid.UUID
+	AccountID         uuid.UUID
+	TokenHash         []byte
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+	PreviousTokenHash []byte
+	RotatedAt         *time.Time
 }

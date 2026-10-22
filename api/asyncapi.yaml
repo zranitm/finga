@@ -206,8 +206,9 @@ components:
         members: { type: array, items: { $ref: "#/components/schemas/PartyMember" } }
     Welcome:
       type: object
-      required: [character, inventory, map_id, tick, server_time]
+      required: [token, character, inventory, map_id, tick, server_time]
       properties:
+        token: { type: string, description: The rotated session token; the client uses it from now on and the one it sent in Hello works once more within 60 s }
         character: { $ref: "#/components/schemas/CharacterView" }
         inventory: { type: array, items: { $ref: "#/components/schemas/ItemView" } }
         party: { $ref: "#/components/schemas/PartyView" }

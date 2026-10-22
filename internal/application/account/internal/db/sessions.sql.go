@@ -12,19 +12,95 @@ import (
 	"github.com/google/uuid"
 )
 
-const findActiveSessionByTokenHash = `-- name: FindActiveSessionByTokenHash :one
-SELECT id, account_id, token_hash, created_at, expires_at, revoked_at
-FROM sessions
-WHERE token_hash = $1 AND revoked_at IS NULL
+const consumePreviousToken = `-- name: ConsumePreviousToken :execrows
+UPDATE sessions SET rotated_at = NULL WHERE id = $1 AND revoked_at IS NULL
 `
 
-func (q *Queries) FindActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (Session, error) {
+func (q *Queries) ConsumePreviousToken(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, consumePreviousToken, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const extendSession = `-- name: ExtendSession :execrows
+UPDATE sessions SET expires_at = $2 WHERE id = $1 AND revoked_at IS NULL
+`
+
+type ExtendSessionParams struct {
+	ID        uuid.UUID
+	ExpiresAt time.Time
+}
+
+func (q *Queries) ExtendSession(ctx context.Context, arg ExtendSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, extendSession, arg.ID, arg.ExpiresAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const findActiveSessionByTokenHash = `-- name: FindActiveSessionByTokenHash :one
+SELECT id, account_id, token_hash, previous_token_hash, rotated_at, created_at, expires_at, revoked_at
+FROM sessions
+WHERE (token_hash = $1 OR previous_token_hash = $1) AND revoked_at IS NULL
+`
+
+type FindActiveSessionByTokenHashRow struct {
+	ID                uuid.UUID
+	AccountID         uuid.UUID
+	TokenHash         []byte
+	PreviousTokenHash []byte
+	RotatedAt         *time.Time
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+}
+
+// Matches the current token or the one retired by the last rotation.
+func (q *Queries) FindActiveSessionByTokenHash(ctx context.Context, tokenHash []byte) (FindActiveSessionByTokenHashRow, error) {
 	row := q.db.QueryRow(ctx, findActiveSessionByTokenHash, tokenHash)
-	var i Session
+	var i FindActiveSessionByTokenHashRow
 	err := row.Scan(
 		&i.ID,
 		&i.AccountID,
 		&i.TokenHash,
+		&i.PreviousTokenHash,
+		&i.RotatedAt,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const findSessionByID = `-- name: FindSessionByID :one
+SELECT id, account_id, token_hash, previous_token_hash, rotated_at, created_at, expires_at, revoked_at
+FROM sessions
+WHERE id = $1
+`
+
+type FindSessionByIDRow struct {
+	ID                uuid.UUID
+	AccountID         uuid.UUID
+	TokenHash         []byte
+	PreviousTokenHash []byte
+	RotatedAt         *time.Time
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+}
+
+func (q *Queries) FindSessionByID(ctx context.Context, id uuid.UUID) (FindSessionByIDRow, error) {
+	row := q.db.QueryRow(ctx, findSessionByID, id)
+	var i FindSessionByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.TokenHash,
+		&i.PreviousTokenHash,
+		&i.RotatedAt,
 		&i.CreatedAt,
 		&i.ExpiresAt,
 		&i.RevokedAt,
@@ -84,6 +160,25 @@ type RevokeSessionParams struct {
 
 func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeSession, arg.ID, arg.RevokedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const rotateSessionToken = `-- name: RotateSessionToken :execrows
+UPDATE sessions SET previous_token_hash = token_hash, token_hash = $2, rotated_at = $3
+WHERE id = $1 AND revoked_at IS NULL
+`
+
+type RotateSessionTokenParams struct {
+	ID        uuid.UUID
+	TokenHash []byte
+	RotatedAt *time.Time
+}
+
+func (q *Queries) RotateSessionToken(ctx context.Context, arg RotateSessionTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, rotateSessionToken, arg.ID, arg.TokenHash, arg.RotatedAt)
 	if err != nil {
 		return 0, err
 	}

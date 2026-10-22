@@ -71,10 +71,11 @@ func (f *fakeCharacters) List(ctx context.Context, owner model.AccountID) ([]cha
 
 // fakeSessions knows one good token.
 type fakeSessions struct {
-	token     string
-	principal auth.Principal
-	revoked   []uuid.UUID
-	validate  func(token string) (auth.Principal, error) // overrides the default when set
+	token           string
+	principal       auth.Principal
+	revoked         []uuid.UUID
+	revokedAccounts []uuid.UUID
+	validate        func(token string) (auth.Principal, error) // overrides the default when set
 }
 
 func (f *fakeSessions) Issue(context.Context, uuid.UUID) (string, error) {
@@ -93,5 +94,16 @@ func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal
 
 func (f *fakeSessions) Revoke(_ context.Context, id uuid.UUID) error {
 	f.revoked = append(f.revoked, id)
+	return nil
+}
+
+func (f *fakeSessions) Rotate(context.Context, uuid.UUID) (string, error) {
+	return "", errors.New("not used by the REST handler")
+}
+
+func (f *fakeSessions) Check(context.Context, uuid.UUID) error { return nil }
+
+func (f *fakeSessions) RevokeAll(_ context.Context, accountID uuid.UUID) error {
+	f.revokedAccounts = append(f.revokedAccounts, accountID)
 	return nil
 }

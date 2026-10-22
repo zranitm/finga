@@ -64,6 +64,7 @@ func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (Ses
 	}
 	return Session{
 		ID: model.SessionID(row.ID), AccountID: model.AccountID(row.AccountID), TokenHash: row.TokenHash,
+		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
 	}, nil
 }
@@ -169,4 +170,41 @@ func classify(err error) error {
 	default:
 		return err
 	}
+}
+
+// FindSession loads a session by ID, revoked or not.
+func (p *Postgres) FindSession(ctx context.Context, id model.SessionID) (Session, error) {
+	row, err := p.q.FindSessionByID(ctx, uuid.UUID(id))
+	if err != nil {
+		return Session{}, classify(err)
+	}
+	return Session{
+		ID: model.SessionID(row.ID), AccountID: model.AccountID(row.AccountID), TokenHash: row.TokenHash,
+		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
+		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
+	}, nil
+}
+
+// Rotate retires the current token and installs a new hash.
+func (r sessionRepo) Rotate(ctx context.Context, id model.SessionID, newHash []byte, at time.Time) error {
+	n, err := r.q.RotateSessionToken(ctx, db.RotateSessionTokenParams{ID: uuid.UUID(id), TokenHash: newHash, RotatedAt: &at})
+	if err != nil {
+		return classify(err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ConsumePrevious ends the grace for the previous token.
+func (r sessionRepo) ConsumePrevious(ctx context.Context, id model.SessionID) error {
+	_, err := r.q.ConsumePreviousToken(ctx, uuid.UUID(id))
+	return classify(err)
+}
+
+// Extend moves the expiry.
+func (r sessionRepo) Extend(ctx context.Context, id model.SessionID, until time.Time) error {
+	_, err := r.q.ExtendSession(ctx, db.ExtendSessionParams{ID: uuid.UUID(id), ExpiresAt: until})
+	return classify(err)
 }

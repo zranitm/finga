@@ -21,6 +21,7 @@ const (
 	KickServerRestart     KickReason = "server_restart"
 	KickAbuse             KickReason = "abuse"
 	KickUnauthenticated   KickReason = "unauthenticated"
+	KickSessionExpired    KickReason = "session_expired" // the session ended: expired, logged out, or its token was reused
 )
 
 // ChatChannel is where a chat message goes.
@@ -162,6 +163,7 @@ type PartyView struct {
 
 // Welcome answers Hello. The wallet joins in Stage 2.
 type Welcome struct {
+	Token      string        `json:"token"` // the rotated session token; the client uses it from now on (step 16)
 	Character  CharacterView `json:"character"`
 	Inventory  []ItemView    `json:"inventory"`
 	Party      *PartyView    `json:"party,omitempty"`

@@ -12,7 +12,9 @@ import (
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
 	FindByUsername(ctx context.Context, username string) (Credentials, error)
+	// FindActiveSession finds the unrevoked session whose current or previous token has this hash.
 	FindActiveSession(ctx context.Context, tokenHash []byte) (Session, error)
+	FindSession(ctx context.Context, id model.SessionID) (Session, error)
 	Settings(ctx context.Context, id model.AccountID) (Settings, error)
 }
 
@@ -35,4 +37,9 @@ type SessionRepository interface {
 	Insert(ctx context.Context, s Session) error
 	RevokeAll(ctx context.Context, accountID model.AccountID, at time.Time) error
 	Revoke(ctx context.Context, id model.SessionID, at time.Time) error
+	// Rotate retires the current token as the previous one and sets a new hash; ErrNotFound when the session is not active.
+	Rotate(ctx context.Context, id model.SessionID, newHash []byte, at time.Time) error
+	// ConsumePrevious marks the previous token as used (the grace is over for it).
+	ConsumePrevious(ctx context.Context, id model.SessionID) error
+	Extend(ctx context.Context, id model.SessionID, until time.Time) error
 }

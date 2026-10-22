@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -18,6 +19,7 @@ import (
 	"finga/internal/config"
 	"finga/internal/handler/api"
 	"finga/internal/handler/ws"
+	"finga/internal/model"
 	"finga/internal/telemetry"
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
@@ -50,7 +52,11 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
 
-	accounts := account.NewService(account.NewPostgres(pool), account.Options{})
+	var gateway *ws.Gateway // built below; the hooks only fire once connections exist
+	accounts := account.NewService(account.NewPostgres(pool), account.Options{
+		OnSessionRevoked: func(_ context.Context, id uuid.UUID, _ string) { gateway.KickSession(model.SessionID(id)) },
+		OnAccountRevoked: func(_ context.Context, id uuid.UUID, reason string) { gateway.KickAccount(model.AccountID(id), reason) },
+	})
 	itemStore := item.NewPostgres(pool)
 	items := item.NewService(itemStore, data, item.Options{})
 	characters := character.NewService(character.NewPostgres(pool, func(tx pgx.Tx) character.StarterItems {
@@ -74,7 +80,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Logger:      opts.Logger,
 		CORSOrigins: cfg.Server.CORSOrigins,
 	})
-	gateway := ws.New(ws.Dependencies{
+	gateway = ws.New(ws.Dependencies{
 		Sessions:    accounts,
 		Characters:  characters,
 		Items:       items,
@@ -94,6 +100,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Tasks: []Task{
 			{Name: "world", Run: maps.Run},
 			{Name: "persistence", Run: func(ctx context.Context) error { maps.RunPersistence(ctx); return nil }},
+			{Name: "sessions", Run: gateway.Run},
 		},
 	})
 	s.closers = append(s.closers, pool.Close)

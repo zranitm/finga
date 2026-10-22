@@ -525,3 +525,20 @@ func TestResponsesAreJSON(t *testing.T) {
 		t.Fatalf("not JSON: %s", body)
 	}
 }
+
+func TestLogoutEverywhere(t *testing.T) {
+	t.Run("revokes every session of the account", func(t *testing.T) {
+		h := newHarness()
+		rec := h.do("DELETE", "/api/sessions", "", authed())
+		if rec.Code != http.StatusNoContent {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		if len(h.sessions.revokedAccounts) != 1 || h.sessions.revokedAccounts[0] != uuid.UUID(accountID) {
+			t.Fatalf("revoked accounts %v", h.sessions.revokedAccounts)
+		}
+	})
+	t.Run("needs a session", func(t *testing.T) {
+		h := newHarness()
+		assertError(t, h.do("DELETE", "/api/sessions", "", nil), http.StatusUnauthorized, "unauthenticated")
+	})
+}

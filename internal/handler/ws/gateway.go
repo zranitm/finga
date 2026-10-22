@@ -13,6 +13,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
+	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/gamedata"
@@ -97,12 +100,16 @@ type Dependencies struct {
 	Clock       func() time.Time
 	// HelloTimeout is how long a connection has to send Hello; 5 s by default.
 	HelloTimeout time.Duration
+	// SessionCheckInterval is how often Run checks each connection's session
+	// and kicks the expired ones; a minute by default.
+	SessionCheckInterval time.Duration
 }
 
 const (
-	defaultHelloTimeout = 5 * time.Second
-	joinTimeout         = 5 * time.Second
-	commandTimeout      = 5 * time.Second
+	defaultHelloTimeout         = 5 * time.Second
+	defaultSessionCheckInterval = time.Minute
+	joinTimeout                 = 5 * time.Second
+	commandTimeout              = 5 * time.Second
 )
 
 // Gateway serves /ws.
@@ -116,6 +123,7 @@ type Gateway struct {
 	byConn      map[string]*session
 	byAccount   map[model.AccountID]*session
 	byCharacter map[model.CharacterID]*session // active sessions, for party and chat delivery
+	bySession   map[model.SessionID]*session   // active connections by login session
 	helloGrace  time.Duration
 }
 
@@ -130,6 +138,9 @@ func New(deps Dependencies) *Gateway {
 	if deps.Observer == nil {
 		deps.Observer = noopObserver{}
 	}
+	if deps.SessionCheckInterval <= 0 {
+		deps.SessionCheckInterval = defaultSessionCheckInterval
+	}
 	return &Gateway{
 		deps:        deps,
 		codec:       protocol.NewCodec(),
@@ -138,8 +149,67 @@ func New(deps Dependencies) *Gateway {
 		byConn:      map[string]*session{},
 		byAccount:   map[model.AccountID]*session{},
 		byCharacter: map[model.CharacterID]*session{},
+		bySession:   map[model.SessionID]*session{},
 		helloGrace:  deps.HelloTimeout,
 	}
+}
+
+// Run checks every connection's login session on an interval until ctx is
+// done, kicking the ones whose session ended (expired, logged out, reused
+// token) with session_expired. It never returns an error.
+func (g *Gateway) Run(ctx context.Context) error {
+	ticker := time.NewTicker(g.deps.SessionCheckInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			g.checkSessions(ctx)
+		}
+	}
+}
+
+func (g *Gateway) checkSessions(ctx context.Context) {
+	g.mu.Lock()
+	active := make([]*session, 0, len(g.bySession))
+	for _, s := range g.bySession {
+		active = append(active, s)
+	}
+	g.mu.Unlock()
+	for _, s := range active {
+		if err := g.deps.Sessions.Check(ctx, uuid.UUID(s.sessionID)); err != nil {
+			g.kick(s.conn, protocol.KickSessionExpired)
+		}
+	}
+}
+
+// KickSession closes every connection on a login session; the account
+// service calls it when a session ends by reuse or logout.
+func (g *Gateway) KickSession(sessionID model.SessionID) {
+	g.mu.Lock()
+	s := g.bySession[sessionID]
+	g.mu.Unlock()
+	if s != nil {
+		g.kick(s.conn, protocol.KickSessionExpired)
+	}
+}
+
+// KickAccount closes every connection of an account: a logout everywhere,
+// or a new login elsewhere (account.ReasonNewLogin), which the player sees
+// as logged_in_elsewhere; anything else is session_expired.
+func (g *Gateway) KickAccount(accountID model.AccountID, reason string) {
+	g.mu.Lock()
+	s := g.byAccount[accountID]
+	g.mu.Unlock()
+	if s == nil {
+		return
+	}
+	why := protocol.KickSessionExpired
+	if reason == account.ReasonNewLogin {
+		why = protocol.KickLoggedInElsewhere
+	}
+	g.kick(s.conn, why)
 }
 
 // sessionOf finds the active session of a character, if any.
@@ -270,6 +340,9 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	if s != nil && s.active() && g.byCharacter[s.character.ID] == s {
 		delete(g.byCharacter, s.character.ID)
 	}
+	if s != nil && s.active() && g.bySession[s.sessionID] == s {
+		delete(g.bySession, s.sessionID)
+	}
 	g.mu.Unlock()
 	if s == nil {
 		return
@@ -302,6 +375,18 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	p, err := g.deps.Sessions.Validate(ctx, h.Token)
 	if err != nil {
 		g.kick(s.conn, protocol.KickUnauthenticated)
+		return
+	}
+	// Every Hello rotates the token (step 16): the client keeps the one in
+	// Welcome; the one it sent works once more for a minute.
+	token, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
+	if err != nil {
+		if errs.CodeOf(err) == errs.Unauthenticated {
+			g.kick(s.conn, protocol.KickUnauthenticated)
+			return
+		}
+		g.deps.Logger.ErrorContext(ctx, "token rotation failed", "session_id", p.SessionID, "err", err)
+		s.conn.Close(wsconn.CloseInternal, "session")
 		return
 	}
 	charID, err := model.ParseCharacterID(h.CharacterID)
@@ -340,19 +425,26 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 
 	g.mu.Lock()
 	old := g.byAccount[account]
+	sameSession := g.bySession[model.SessionID(p.SessionID)]
 	g.byAccount[account] = s
 	g.byCharacter[c.ID] = s
+	g.bySession[model.SessionID(p.SessionID)] = s
 	s.account = account
 	s.sessionID = model.SessionID(p.SessionID)
 	s.character = c
 	s.setInstance(inst)
 	g.mu.Unlock()
-	if old != nil && old != s {
-		g.kick(old.conn, protocol.KickLoggedInElsewhere)
+	// An older connection of the account, or a second Hello on the same
+	// session, loses: the newest connection wins.
+	for _, prev := range []*session{old, sameSession} {
+		if prev != nil && prev != s {
+			g.kick(prev.conn, protocol.KickLoggedInElsewhere)
+		}
 	}
 	s.helloTimer.Stop()
 
 	welcome := protocol.Welcome{
+		Token:      token,
 		Character:  characterView(c, derived),
 		Inventory:  inventory,
 		MapID:      c.MapID,
