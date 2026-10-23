@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
@@ -253,20 +251,4 @@ func ResolvePath(dir string) string {
 		return local
 	}
 	return filepath.Join(dir, defaultFile)
-}
-
-// LoadDotEnv sets variables from each file that exists, never overriding one
-// already set, so real environment variables win over a .env file and the
-// first file wins over later ones. A missing file is skipped. Call it before
-// ResolvePath and Load.
-func LoadDotEnv(paths ...string) error {
-	for _, p := range paths {
-		if err := godotenv.Load(p); err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			return fmt.Errorf("dotenv %s: %w", p, err)
-		}
-	}
-	return nil
 }

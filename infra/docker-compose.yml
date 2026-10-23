@@ -1,8 +1,10 @@
 # make up / make down. Postgres with a health check, the migrations as a
 # one-shot job, and the game server once they succeeded, built from
-# ../server. Overrides for the game server go in ../server/.env (git-ignored;
-# see ../server/.env.example). The client is served by Vite (make play) for
-# now; a web container joins when it is deployed.
+# ../server. Host ports come from .env next to this file (git-ignored; see
+# .env.example). The game server's overrides go in ../server/.env, passed in
+# whole as env_file; the environment entries below win over it. The client
+# is served by Vite (make play) for now; a web container joins when it is
+# deployed.
 name: finga
 
 services:

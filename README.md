@@ -35,15 +35,17 @@ make down    # stop everything and drop the database volume
 ```
 
 `make up` works from a clean clone with Docker and Compose only. When another
-Postgres owns port 5432 on the host, set `FINGA_POSTGRES_PORT`; the server's
-own port is `FINGA_PORT` (default 8080). Without Docker, run Postgres yourself
-and start the binaries:
+Postgres owns port 5432 on the host, set `FINGA_POSTGRES_PORT` in
+`infra/.env` (copy `infra/.env.example`); the server's own host port is
+`FINGA_PORT` (default 8080). Without Docker, run Postgres yourself and start
+the binaries:
 
 ```bash
-cd server
-go run ./cmd/migrate       # applies migrations/ to FINGA_DATABASE_URL
-go run ./cmd/gameserver    # REST under /api, the gateway at /ws, /healthz, /readyz, /metrics
+make run                   # exports server/.env, applies migrations/ to FINGA_DATABASE_URL, starts the game server
 ```
+
+The game server serves REST under /api, the gateway at /ws, /healthz,
+/readyz and /metrics.
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
@@ -71,14 +73,15 @@ layer rule (page 7's five layers, enforced with `import-x/no-restricted-paths`).
 ## Configuration
 
 Defaults live in `server/configs/config.yaml`, and the binaries read their
-paths from where they run, `server/`. Any key can be overridden as `FINGA_`
-plus its path in upper case, for example `FINGA_SERVER_ADDR=:9090`. Copy
-`server/.env.example` to `server/.env` (git-ignored) for local overrides;
-`make up` passes the same file to the container. Precedence, lowest to
-highest: the YAML file, `.env`, real environment variables. A
-`server/configs/config.local.yaml` (git-ignored) replaces the defaults file
-when present, and `CONFIG_PATH` names any file. Nothing committed is a
-secret.
+paths from where they run, `server/`. Any key can be overridden by an
+environment variable named `FINGA_` plus its path in upper case, for example
+`FINGA_SERVER_ADDR=:9090`. The binaries read the YAML file and their
+environment, nothing else. For local overrides, copy `server/.env.example`
+to `server/.env` (git-ignored): `make up` passes it to the game server
+container (Compose's `env_file`) and `make run` exports it before starting the
+binaries. A `server/configs/config.local.yaml` (git-ignored) replaces the
+defaults file when present, and `CONFIG_PATH` names any file. Nothing
+committed is a secret.
 
 | Section     | Keys                                                            |
 |-------------|-----------------------------------------------------------------|

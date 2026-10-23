@@ -19,7 +19,6 @@ import (
 
 const (
 	configDir    = "configs"
-	dotEnvFile   = ".env"
 	buildTimeout = 30 * time.Second
 )
 
@@ -31,10 +30,8 @@ func main() { os.Exit(run()) }
 func run() int {
 	// Configuration first: there is no logger until the level is known, so
 	// configuration errors go to stderr. The loader never echoes secrets.
-	if err := configload.LoadDotEnv(dotEnvFile); err != nil {
-		fmt.Fprintln(os.Stderr, "gameserver:", err)
-		return 1
-	}
+	// Overrides come from the environment only; whoever starts the process
+	// sets it (Compose under make up, make run exporting server/.env).
 	cfg, err := configload.Load[config.Config](configload.Options{Path: configload.ResolvePath(configDir), EnvPrefix: config.EnvPrefix, Strict: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gameserver: invalid configuration:", err)

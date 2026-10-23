@@ -1,4 +1,4 @@
-# Targets the README documents: up, down, test, cover, lint, gen, smoke, bots, play.
+# Targets the README documents: up, down, run, test, cover, lint, gen, smoke, bots, play.
 # The repository has three parts: server/ (the Go module), web/ (the client)
 # and infra/ (how it is run). test, lint and cover run both halves (Go inside
 # server/, then the client through npm --prefix web); the -go and -web
@@ -10,13 +10,18 @@ COMPOSE   ?= docker compose -f infra/docker-compose.yml
 SMOKE_URL ?= http://localhost:8080
 NPM       ?= npm --prefix web
 
-.PHONY: up down test test-go test-web cover cover-go cover-web lint lint-go lint-web gen smoke bots play
+.PHONY: up down run test test-go test-web cover cover-go cover-web lint lint-go lint-web gen smoke bots play
 
 up:            ## build the images and start Postgres, the migrations and the game server (:8080)
 	$(COMPOSE) up --build -d
 
 down:          ## stop everything and drop the database volume
 	$(COMPOSE) down -v
+
+# The binaries read only their environment, so run exports server/.env (when
+# present) into it, the way Compose's env_file does for make up.
+run:           ## without Docker: server/.env exported, the migrations, then the game server
+	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && $(GO) run ./cmd/gameserver
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
 
