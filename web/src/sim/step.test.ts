@@ -18,7 +18,7 @@ interface Vector {
   readonly expected: readonly State[];
 }
 
-const vectorsDir = path.resolve(process.cwd(), '..', 'testdata', 'movement');
+const vectorsDir = path.resolve(process.cwd(), '..', 'server', 'testdata', 'movement');
 const vectors = readdirSync(vectorsDir)
   .filter((name) => name.endsWith('.json'))
   .map((name) => ({

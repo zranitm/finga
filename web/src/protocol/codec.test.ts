@@ -7,8 +7,8 @@ import { JsonCodec, ProtocolError } from './codec';
 import { messageTypes } from './messages';
 import type { Message, MessageType } from './messages';
 
-// npm runs the scripts from web/, so the server's golden files are one level up.
-const contracts = path.resolve(process.cwd(), '..', 'testdata', 'contracts');
+// npm runs the scripts from web/, so the server's golden files are in ../server.
+const contracts = path.resolve(process.cwd(), '..', 'server', 'testdata', 'contracts');
 const goldens = readdirSync(contracts)
   .filter((name) => name.endsWith('.json'))
   .map((name) => ({ name, json: readFileSync(path.join(contracts, name), 'utf8') }));

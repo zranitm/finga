@@ -1,9 +1,9 @@
 // The error codes the server sends, in REST error bodies and in failed
 // Responses, and the Kicked reasons. Every failure has its own code
 // (name_taken, party_full); the server's table is the reference and writes
-// testdata/errors/codes.json, which errors.test.ts compares with this list.
+// server/testdata/errors/codes.json, which errors.test.ts compares with this list.
 
-/** Every code in testdata/errors/codes.json, sorted. */
+/** Every code in server/testdata/errors/codes.json, sorted. */
 export const errorCodes = [
   'account_not_found',
   'already_in_party',

@@ -12,7 +12,7 @@ import { movement } from '@/gamedata/movement';
 
 // The generated gamedata equals the YAML it came from: the server's data,
 // never typed by hand on the client.
-const dataDir = path.resolve(process.cwd(), '..', 'data');
+const dataDir = path.resolve(process.cwd(), '..', 'server', 'data');
 
 function yaml(name: string): Record<string, unknown> {
   return parse(readFileSync(path.join(dataDir, name), 'utf8')) as Record<string, unknown>;

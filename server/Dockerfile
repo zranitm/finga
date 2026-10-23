@@ -1,6 +1,6 @@
 # One Dockerfile for both binaries; CMD picks which (gameserver, migrate).
-# Build from the repository root:
-#   docker build -f deploy/Dockerfile --build-arg CMD=gameserver .
+# Build from server/ (infra/docker-compose.yml does):
+#   docker build --build-arg CMD=gameserver .
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./

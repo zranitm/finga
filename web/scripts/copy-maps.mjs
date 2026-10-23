@@ -1,4 +1,4 @@
-// Copies the Tiled maps the server reads (../data/maps) into public/maps
+// Copies the Tiled maps the server reads (../server/data/maps) into public/maps
 // before dev and build, so the client draws exactly what the server
 // simulates (page 7). public/maps is git-ignored.
 import { cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = join(here, '..', '..', 'data', 'maps');
+const source = join(here, '..', '..', 'server', 'data', 'maps');
 const target = join(here, '..', 'public', 'maps');
 
 rmSync(target, { recursive: true, force: true });

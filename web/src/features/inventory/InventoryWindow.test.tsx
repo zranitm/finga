@@ -174,7 +174,14 @@ describe('InventoryWindow', () => {
   it('store and window agree after the golden InventoryChanged payload', () => {
     const golden = JSON.parse(
       readFileSync(
-        path.resolve(process.cwd(), '..', 'testdata', 'contracts', 'InventoryChanged.json'),
+        path.resolve(
+          process.cwd(),
+          '..',
+          'server',
+          'testdata',
+          'contracts',
+          'InventoryChanged.json',
+        ),
         'utf8',
       ),
     ) as { d: Data<'InventoryChanged'> };

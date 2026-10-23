@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { arrival, MapError, parseMap } from './map';
 
-const mapsDir = path.resolve(process.cwd(), '..', 'data', 'maps');
+const mapsDir = path.resolve(process.cwd(), '..', 'server', 'data', 'maps');
 
 function load(id: string): unknown {
   return JSON.parse(readFileSync(path.join(mapsDir, `${id}.tmj`), 'utf8'));

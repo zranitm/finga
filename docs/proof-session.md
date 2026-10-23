@@ -3,7 +3,7 @@
 Stage 1 is done when the four criteria below hold on `make up` from a clean
 clone. This page is the checklist for the playtest and the record of the
 session run for it. Numbers come from the server's own `/metrics` and from
-the test clients; the bot that drives the session is `cmd/bot`
+the test clients; the bot that drives the session is `server/cmd/bot`
 (`make bots`).
 
 ## Checklist
@@ -12,8 +12,8 @@ the test clients; the bot that drives the session is `cmd/bot`
 |---|-----------|-----------------|-------|
 | 1 | A 30 to 60 minute session with 3 to 4 players: walk, fight, level up, loot, travel, party, chat, no crash, no desync | `make bots` plays 4 bots for 30 minutes: town → forest, hunting in the slime field, pickups, map chat, a party, trips back to the town; the report counts kills, pickups, hops, chat lines, refused commands and reconnects | the session record below |
 | 2 | Tick p99 under 25 ms with the session's players on | `tick_duration_seconds` per map, read by the bot at the end and computed the way `histogram_quantile` does | the session record below |
-| 3 | A hard kill of the game server never creates or loses an item | `TestCrashDuringPickups` (test/loot_e2e_test.go): the server as its own process, three clients looting concurrently, the process killed without warning, restarted, and `item.CheckInvariants` (checks 5, 6 and 8 of page 6) passing before and after the restart | `make test`, in CI |
-| 4 | A double pickup and a retried pickup each give exactly one item | end-to-end rows in test/loot_e2e_test.go: two PickUp messages in one tick, the same PickUp re-sent with the same `seq` after ignoring the reply, and the worker's add retried under the drop's key; one item event per drop taken, under distinct drop IDs | `make test`, in CI |
+| 3 | A hard kill of the game server never creates or loses an item | `TestCrashDuringPickups` (server/test/loot_e2e_test.go): the server as its own process, three clients looting concurrently, the process killed without warning, restarted, and `item.CheckInvariants` (checks 5, 6 and 8 of page 6) passing before and after the restart | `make test`, in CI |
+| 4 | A double pickup and a retried pickup each give exactly one item | end-to-end rows in server/test/loot_e2e_test.go: two PickUp messages in one tick, the same PickUp re-sent with the same `seq` after ignoring the reply, and the worker's add retried under the drop's key; one item event per drop taken, under distinct drop IDs | `make test`, in CI |
 
 Before the playtest with people:
 

@@ -1,6 +1,6 @@
 // One typed definition of every Stage 1 message (page 4), as valibot
 // schemas the TypeScript types are inferred from, so a type and its check
-// can't drift. The golden files in testdata/contracts/ are the reference:
+// can't drift. The golden files in server/testdata/contracts/ are the reference:
 // the protocol test decodes and re-encodes every one of them.
 import * as v from 'valibot';
 
