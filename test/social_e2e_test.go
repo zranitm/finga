@@ -115,12 +115,15 @@ func TestPlayTogether(t *testing.T) {
 				}
 			}
 		}
-		// A member cannot invite; the leader cannot invite a member again.
+		// A member cannot invite; the leader of a full party (four of four)
+		// cannot invite anyone, a member included: the party is full is the
+		// first rule that answers. Inviting a member of a party with room is
+		// already_in_party, covered by the party service tests.
 		if r := ben.command(t, "inv-x", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "not_party_leader" {
 			t.Fatalf("member invites: %+v", r)
 		}
-		if r := ann.command(t, "inv-y", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "already_in_party" {
-			t.Fatalf("inviting a member: %+v", r)
+		if r := ann.command(t, "inv-y", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "party_full" {
+			t.Fatalf("inviting from a full party: %+v", r)
 		}
 	})
 
