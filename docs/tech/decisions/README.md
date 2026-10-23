@@ -1,0 +1,28 @@
+# Tech decisions
+
+| Decision | Area | Status | Default | Outcome |
+| --- | --- | --- | --- | --- |
+| [TD-01. Session tokens: opaque and stored, or signed JWT?](./td-01-session-tokens-opaque-and-stored-or-signed-jwt.md) | Security | Open | Opaque and stored |  |
+| [TD-02. How often is non-economic progress saved?](./td-02-how-often-is-non-economic-progress-saved.md) | Data | Open | Every 30 seconds, plus on map change and logout |  |
+| [TD-03. What happens if a buyer's inventory is full at purchase?](./td-03-what-happens-if-a-buyers-inventory-is-full-at-purchase.md) | Architecture | Open | Reject the purchase |  |
+| [TD-04. Kafka topics: one per domain, or one overall?](./td-04-kafka-topics-one-per-domain-or-one-overall.md) | Architecture | Open | One per domain, keyed by aggregate ID |  |
+| [TD-05. Demo hosting: a VPS, or a platform such as Fly.io?](./td-05-demo-hosting-a-vps-or-a-platform-such-as-flyio.md) | Operations | Open | A VPS |  |
+| [TD-06. Ground drops: memory only, or persisted?](./td-06-ground-drops-memory-only-or-persisted.md) | Data | Open | Memory only |  |
+| [TD-07. Which roles should the repo impress?](./td-07-which-roles-should-the-repo-impress.md) | Project | Open | Backend and distributed-systems roles in general |  |
+| [TD-08. What is the load-test target?](./td-08-what-is-the-load-test-target.md) | Project | Open | 1,000 concurrent bot players on one node |  |
+| [TD-09. Backend language](./td-09-backend-language.md) | Architecture | Decided | Go | Go. Strong fit for concurrent, long-running servers, and matches existing experience. |
+| [TD-10. Client framework](./td-10-client-framework.md) | Architecture | Decided | Phaser with TypeScript | Phaser with TypeScript, over Ebitengine compiled to WASM. Menus like inventory and market are much easier as HTML overlays, and the ecosystem is bigger. |
+| [TD-11. Database migrations](./td-11-database-migrations.md) | Data | Decided | goose | goose, over golang-migrate. One file per migration, a transaction per migration, Go migrations when SQL isn't enough, and no dirty-state lock. |
+| [TD-12. Edge proxy](./td-12-edge-proxy.md) | Operations | Decided | nginx | nginx, over Caddy and Traefik. The most widely used in industry, so the skill transfers best. |
+| [TD-13. Cloudflare in front of the demo](./td-13-cloudflare-in-front-of-the-demo.md) | Operations | Decided | Free plan | Cloudflare's free plan in front of nginx for the public demo. Absorbs attacks, hides the origin IP, and caches static files. |
+| [TD-14. Kafka for durable domain events](./td-14-kafka-for-durable-domain-events.md) | Architecture | Decided | Kafka for durable domain events | Kafka is part of the target architecture, for durable domain events through the outbox. It arrives in Stage 2 to keep Stage 1's setup minimal; Stage 1 already writes every event to the outbox table, so adding Kafka changes no business logic. |
+| [TD-15. Repository structure](./td-15-repository-structure.md) | Architecture | Decided | Monorepo | One monorepo with one go.mod. Generic libraries in /pkg are shared by every binary; domain code stays in /internal. |
+| [TD-16. What sits between the client and the game server?](./td-16-what-sits-between-the-client-and-the-game-server.md) | Architecture | Decided | A game gateway, no BFF | A game gateway, not a BFF. There's one client and the traffic is a WebSocket stream, so a BFF would have nothing to aggregate. |
+| [TD-17. Authentication: our own accounts or an identity provider?](./td-17-authentication-our-own-accounts-or-an-identity-provider.md) | Security | Decided | Own account module | Own account module in Postgres for now, behind a pkg/auth interface. Keycloak (or Ory Kratos or Zitadel) can replace it later without touching the gateway. |
+| [TD-18. Movement: does the server simulate from inputs or check client positions?](./td-18-movement-does-the-server-simulate-from-inputs-or-check-client-positions.md) | Architecture | Open | Server simulates from inputs |  |
+| [TD-19. Where do parties live?](./td-19-where-do-parties-live.md) | Architecture | Open | In memory, lost on restart |  |
+| [TD-20. Repository layout and tooling](./td-20-repository-layout-and-tooling.md) | Architecture | Decided | Follow docviewer | Follow zranitm/docviewer's layout and tooling: api/, cmd/ with one binary per job, configs/ YAML with env overrides, deploy/ with one Dockerfile, docs/ exported from Notion, internal/, pkg/, test/, testdata/, tools/, web/. Same Makefile targets, golangci-lint setup, and test conventions. |
+| [TD-21. Observability: Prometheus and Grafana, or OpenTelemetry?](./td-21-observability-prometheus-and-grafana-or-opentelemetry.md) | Operations | Open | Prometheus and Grafana, as in the HLD |  |
+| [TD-22. One Postgres schema or one per module?](./td-22-one-postgres-schema-or-one-per-module.md) | Data | Decided | One schema | One schema (public) with plain table names, so queries stay short. Module ownership is kept by convention and listed in the data model's Table ownership table. |
+| [TD-23. Client stack and structure](./td-23-client-stack-and-structure.md) | Architecture | Decided | Phaser 4, React 19, Zustand, Vite 8, TypeScript 6 | Phaser 4 for the game, React 19 for the HTML overlay (replacing the earlier Preact proposal), Zustand as the shared store, Vite 8, TypeScript 6.x until typescript-eslint supports 7, Vitest 4, ESLint 9 with typescript-eslint, Prettier, Node 24 LTS. Layered layout following bulletproof-react. |
+| [TD-24. Session lifetime and token protection](./td-24-session-lifetime-and-token-protection.md) | Security | Open | Sliding expiry with a 30-day cap, token rotation on every Hello with reuse detection, one connection per session, log out everywhere |  |

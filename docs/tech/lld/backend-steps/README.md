@@ -1,0 +1,24 @@
+# Backend steps
+
+| Step | Depends on | Features | Milestone | Order | Status |
+| --- | --- | --- | --- | --- | --- |
+| [00. Repository skeleton](./00-repository-skeleton.md) | None |  | Foundations | 0 | Done |
+| [01. Foundations: config, errors, logging, shared types](./01-foundations-config-errors-logging-shared-types.md) | 00 |  | Foundations | 1 | Done |
+| [02. Database foundation](./02-database-foundation.md) | 01 |  | Foundations | 2 | Done |
+| [03. Movement simulation](./03-movement-simulation.md) | 00 | B2 | Foundations | 3 | Done |
+| [04. Game data](./04-game-data.md) | 01, 03 | B1 | Foundations | 4 | Done |
+| [05. Accounts and sessions](./05-accounts-and-sessions.md) | 02 | A1 | Foundations | 5 | Done |
+| [06. Characters and stats](./06-characters-and-stats.md) | 02, 04 | A2, C4 | Foundations | 6 | Done |
+| [07. REST API and server wiring](./07-rest-api-and-server-wiring.md) | 05, 06 | A1, A2, B6 | M1. Walk together | 7 | Done |
+| [08. WebSocket transport and message catalogue](./08-websocket-transport-and-message-catalogue.md) | 01 |  | M1. Walk together | 8 | Done |
+| [09. World: map instances and the tick](./09-world-map-instances-and-the-tick.md) | 03, 04, 06 | B1, B2 | M1. Walk together | 9 | Done |
+| [10. Gateway](./10-gateway.md) | 05, 08, 09 | B2 | M1. Walk together | 10 | Done |
+| [11. Mobs, combat, and EXP](./11-mobs-combat-and-exp.md) | 06, 09, 10 | C1, C2, C3, C4 | M2. Fight and grow | 11 | Done |
+| [12. Items and inventory](./12-items-and-inventory.md) | 02, 04, 06 | A2, D2, D5 | M3. Loot and keep | 12 | Done |
+| [13. Drops and pickup](./13-drops-and-pickup.md) | 11, 12 | D1, D2, D5 | M3. Loot and keep | 13 | Done |
+| [14. Portals and towns](./14-portals-and-towns.md) | 09, 10, 11 | B3, B5 | M4. Travel | 14 | Done |
+| [15. Chat and party](./15-chat-and-party.md) | 10, 11, 13, 14 | E1, E3 | M5. Play together | 15 | Done |
+| [16. Session hardening](./16-session-hardening.md) | 05, 10 | A1 | M6. Proof session | 16 | Done |
+| [17. Packaging and proof session](./17-packaging-and-proof-session.md) | All earlier steps |  | M6. Proof session | 17 | Done |
+| [18. Client follow-up: one Input per tick](./18-client-follow-up-one-input-per-tick.md) | 09, 10 | B2 | M1. Walk together | 18 | Done |
+| [19. Client follow-up: EXP after death and invulnerability](./19-client-follow-up-exp-after-death-and-invulnerability.md) | 11 | C1, C2, C3, C4 | M2. Fight and grow | 19 | Done |

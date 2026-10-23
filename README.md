@@ -2,13 +2,14 @@
 
 A browser-based 2D side-scrolling MMORPG-lite: pick a class, hunt mobs, level
 up, team up in parties of up to 4, and loot. Go game server, Postgres, and a
-Phaser client that comes after this backend. The design lives in Notion and
-is exported to `docs/`.
+Phaser client. The design lives in `docs/`: the product (what the game is) and
+the tech design (how it is built), starting at `docs/README.md`.
 
-This repository holds Stage 1, the proof of concept: the backend built in the
-18 steps of Low-level design page 8, one commit per step, with the evidence
-trail in `docs/ai-coding-log.md` and the proof-session checklist in
-`docs/proof-session.md`.
+This repository holds Stage 1, the proof of concept: the backend and the
+client, built in the steps of `docs/tech/lld/8-backend-implementation-steps.md`
+and `docs/tech/lld/9-client-implementation-steps.md`, one commit per step,
+with the evidence trail in `docs/ai-coding-log.md` and the proof-session
+checklist in `docs/proof-session.md`.
 
 ## Repository layout
 
@@ -18,7 +19,7 @@ server/   the Go module: the game server and its tools, migrations, configuratio
 web/      the browser client: Phaser 4, React, Vite, TypeScript
 infra/    how it runs: Docker Compose today; infrastructure as code and the
           Grafana dashboards join here
-docs/     the design export, the AI coding log, the proof-session checklist
+docs/     the design (product and tech), the AI coding log, the proof-session checklist
 ```
 
 The server is the reference for everything the two sides share: the client
@@ -177,4 +178,5 @@ with the reason. The caught bugs are kept on purpose, from a joined
 invariant query that multiplied quantities, to mobs that drifted across the
 whole map because the patrol rule was read too literally, to a session
 revoked in the database while its connection stayed open. The review
-happened at milestone ends, against that log and the Notion pages.
+happened at milestone ends, against that log and the design pages, which
+moved from Notion into `docs/` on 2026-10-23.
