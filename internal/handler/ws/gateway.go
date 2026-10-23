@@ -8,6 +8,7 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -23,10 +24,10 @@ import (
 	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
+	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
-	"finga/pkg/errs"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
 )
@@ -257,7 +258,7 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 	if lim, limited := g.limits[m.Type]; limited && !s.allow(m.Type, lim, g.now) {
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: string(errs.RateLimited), Message: "slow down"}})
+			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: refusal(errmap.RateLimited)})
 		}
 		return
 	}
@@ -324,7 +325,7 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	default:
 		// Market messages arrive in Stage 2.
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "not available yet"}})
+			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: refusal(errmap.NotImplemented)})
 		}
 	}
 }
@@ -381,7 +382,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	// Welcome; the one it sent works once more for a minute.
 	token, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
 	if err != nil {
-		if errs.CodeOf(err) == errs.Unauthenticated {
+		if errors.Is(err, account.ErrUnauthenticated) {
 			g.kick(s.conn, protocol.KickUnauthenticated)
 			return
 		}
@@ -457,7 +458,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	}
 	g.send(s.conn, wsconn.Message{Data: welcome})
 	player := world.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
-	snk := &sink{conn: s.conn, obs: g.deps.Observer, onTeleport: func(mapID string) {
+	snk := &sink{conn: s.conn, obs: g.deps.Observer, logger: g.deps.Logger, onTeleport: func(mapID string) {
 		if target, err := g.deps.World.Instance(mapID); err == nil {
 			s.setInstance(target)
 		}
@@ -481,12 +482,12 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 // refused line answers a Response (ChatSend carries no request ID).
 func (g *Gateway) chat(s *session, d protocol.ChatSend) {
 	if g.deps.Chat == nil {
-		g.send(s.conn, wsconn.Message{Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "chat is not available"}})
+		g.send(s.conn, wsconn.Message{Data: refusal(errmap.ChatUnavailable)})
 		return
 	}
 	msg, to, err := g.deps.Chat.Send(chat.Sender{ID: s.character.ID, Name: s.character.Name}, chat.Channel(d.Channel), d.Text)
 	if err != nil {
-		g.send(s.conn, wsconn.Message{Data: protocol.Response{OK: false, Code: string(errs.CodeOf(err)), Message: errs.MessageOf(err)}})
+		g.send(s.conn, wsconn.Message{Data: g.refuse(s, "ChatSend", err)})
 		return
 	}
 	if msg.Channel == chat.Map {
@@ -505,11 +506,11 @@ func (g *Gateway) chat(s *session, d protocol.ChatSend) {
 // answers a Response; the party service pushes PartyState itself.
 func (g *Gateway) partyCommand(s *session, reqID string, run func() error) {
 	if g.deps.Parties == nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "parties are not available"}})
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.PartiesUnavailable)})
 		return
 	}
 	if err := run(); err != nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.CodeOf(err)), Message: errs.MessageOf(err)}})
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "party", err)})
 		return
 	}
 	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
@@ -533,6 +534,22 @@ func (g *Gateway) Invited(to model.CharacterID, inv party.Invite) {
 	}
 }
 
+// refusal is a failure as a Response.
+func refusal(p errmap.Public) protocol.Response {
+	return protocol.Response{OK: false, Code: p.Code, Message: p.Message}
+}
+
+// refuse answers a command's error with its own code and message, and logs
+// the cause of an error nobody expected (a database failure), which the
+// player only sees as internal.
+func (g *Gateway) refuse(s *session, command string, err error) protocol.Response {
+	p := errmap.For(err)
+	if errmap.IsInternal(p) {
+		g.deps.Logger.Error("command failed", "conn", s.conn.ID(), "character_id", s.character.ID, "command", command, "err", err)
+	}
+	return refusal(p)
+}
+
 func partyView(p *party.Party) *protocol.PartyView {
 	if p == nil {
 		return nil
@@ -549,14 +566,14 @@ func partyView(p *party.Party) *protocol.PartyView {
 // Response, and sends the changed slots as InventoryChanged.
 func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, actor item.Actor) (item.Result, error)) {
 	if g.deps.Items == nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.Unavailable), Message: "not available yet"}})
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.InventoryUnavailable)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
 	res, err := run(ctx, item.Actor{Account: s.account, Character: s.character.ID})
 	if err != nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: false, Code: string(errs.CodeOf(err)), Message: errs.MessageOf(err)}})
+		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "inventory", err)})
 		return
 	}
 	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})

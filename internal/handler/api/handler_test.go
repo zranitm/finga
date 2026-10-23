@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,7 +22,6 @@ import (
 	"finga/internal/handler/api"
 	"finga/internal/model"
 	"finga/pkg/auth"
-	"finga/pkg/errs"
 )
 
 const goodToken = "tok-good-0123456789abcdef"
@@ -91,21 +91,21 @@ func assertError(t *testing.T, rec *httptest.ResponseRecorder, status int, code 
 	}
 }
 
-// errorRows are the service errors every endpoint must map the same way.
+// errorRows are the service errors every endpoint must map the same way:
+// each failure has its own code, and the status carries its class.
 var errorRows = []struct {
 	name   string
 	err    error
 	status int
 	code   string
 }{
-	{"invalid_argument is 400", errs.Invalid("bad"), http.StatusBadRequest, "invalid_argument"},
+	{"bad input is 400 with its own code", account.ErrBadPassword, http.StatusBadRequest, "bad_password"},
 	{"unauthenticated is 401", account.ErrUnauthenticated, http.StatusUnauthorized, "unauthenticated"},
-	{"not_found is 404", character.ErrNotFound, http.StatusNotFound, "not_found"},
-	{"conflict is 409", account.ErrUsernameTaken, http.StatusConflict, "conflict"},
-	{"rate_limited is 429", account.ErrRateLimited, http.StatusTooManyRequests, "rate_limited"},
-	{"unavailable is 503", errs.New(errs.Unavailable, "down"), http.StatusServiceUnavailable, "unavailable"},
+	{"a missing character is 404 character_not_found", character.ErrNotFound, http.StatusNotFound, "character_not_found"},
+	{"a taken username is 409 username_taken", account.ErrUsernameTaken, http.StatusConflict, "username_taken"},
+	{"too many logins is 429 login_rate_limited", account.ErrRateLimited, http.StatusTooManyRequests, "login_rate_limited"},
+	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", character.ErrNameTaken, errInternal)), http.StatusConflict, "name_taken"},
 	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, "internal"},
-	{"a domain code is 409", errs.New("inventory_full", "full"), http.StatusConflict, "inventory_full"},
 }
 
 func TestRegister(t *testing.T) {
@@ -136,26 +136,27 @@ func TestRegister(t *testing.T) {
 		tests := []struct {
 			name string
 			body string
+			code string
 		}{
-			{"not JSON", `{username`},
-			{"wrong type", `{"username":1,"password":"x"}`},
-			{"missing username", `{"password":"correct horse"}`},
-			{"missing password", `{"username":"alice"}`},
-			{"empty body", ``},
-			{"unknown field", `{"username":"alice","password":"correct horse","admin":true}`},
-			{"two JSON documents", `{"username":"alice","password":"correct horse"}{}`},
+			{"not JSON", `{username`, "malformed_body"},
+			{"wrong type", `{"username":1,"password":"x"}`, "malformed_body"},
+			{"missing username", `{"password":"correct horse"}`, "missing_field"},
+			{"missing password", `{"username":"alice"}`, "missing_field"},
+			{"empty body", ``, "malformed_body"},
+			{"unknown field", `{"username":"alice","password":"correct horse","admin":true}`, "malformed_body"},
+			{"two JSON documents", `{"username":"alice","password":"correct horse"}{}`, "malformed_body"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness() // register is nil: a malformed request must not reach the service
-				assertError(t, h.do("POST", "/api/accounts", tt.body, nil), http.StatusBadRequest, "invalid_argument")
+				assertError(t, h.do("POST", "/api/accounts", tt.body, nil), http.StatusBadRequest, tt.code)
 			})
 		}
 	})
 	t.Run("an oversized body is 413", func(t *testing.T) {
 		h := newHarness()
 		big := `{"username":"alice","password":"` + strings.Repeat("p", 70*1024) + `"}`
-		assertError(t, h.do("POST", "/api/accounts", big, nil), http.StatusRequestEntityTooLarge, "invalid_argument")
+		assertError(t, h.do("POST", "/api/accounts", big, nil), http.StatusRequestEntityTooLarge, "body_too_large")
 	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -197,7 +198,7 @@ func TestLogin(t *testing.T) {
 	})
 	t.Run("malformed input", func(t *testing.T) {
 		h := newHarness()
-		assertError(t, h.do("POST", "/api/sessions", `{"username":"alice"}`, nil), http.StatusBadRequest, "invalid_argument")
+		assertError(t, h.do("POST", "/api/sessions", `{"username":"alice"}`, nil), http.StatusBadRequest, "missing_field")
 	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -316,15 +317,16 @@ func TestCharacters(t *testing.T) {
 		tests := []struct {
 			name string
 			body string
+			code string
 		}{
-			{"missing class", `{"name":"Ayla"}`},
-			{"missing name", `{"class":"warrior"}`},
-			{"not JSON", `nope`},
+			{"missing class", `{"name":"Ayla"}`, "missing_field"},
+			{"missing name", `{"class":"warrior"}`, "missing_field"},
+			{"not JSON", `nope`, "malformed_body"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				assertError(t, h.do("POST", "/api/characters", tt.body, authed()), http.StatusBadRequest, "invalid_argument")
+				assertError(t, h.do("POST", "/api/characters", tt.body, authed()), http.StatusBadRequest, tt.code)
 			})
 		}
 	})
@@ -333,7 +335,7 @@ func TestCharacters(t *testing.T) {
 		h.characters.create = func(context.Context, model.AccountID, character.CreateInput) (character.Character, error) {
 			return character.Character{}, character.ErrClassUnavailable
 		}
-		assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla","class":"paladin"}`, authed()), http.StatusBadRequest, "invalid_argument")
+		assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla","class":"paladin"}`, authed()), http.StatusBadRequest, "class_unavailable")
 	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -385,12 +387,12 @@ func TestSettings(t *testing.T) {
 	})
 	t.Run("write with malformed input", func(t *testing.T) {
 		h := newHarness()
-		assertError(t, h.do("PUT", "/api/settings", `{}`, authed()), http.StatusBadRequest, "invalid_argument")
+		assertError(t, h.do("PUT", "/api/settings", `{}`, authed()), http.StatusBadRequest, "missing_field")
 	})
 	t.Run("an unknown preset is the service's rule", func(t *testing.T) {
 		h := newHarness()
 		h.accounts.updateSettings = func(context.Context, model.AccountID, account.Settings) error { return account.ErrBadPreset }
-		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, "invalid_argument")
+		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, "bad_control_preset")
 	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
@@ -510,6 +512,24 @@ func TestRequestLog(t *testing.T) {
 	}
 	if strings.Contains(h.logs.String(), goodToken) {
 		t.Fatal("the token reached a log line")
+	}
+	if lines[0]["code"] != nil || lines[1]["code"] != "unauthenticated" || lines[1]["err"] != nil {
+		t.Fatalf("a success carries no code, a refusal its own and no cause: %v / %v", lines[0], lines[1])
+	}
+}
+
+func TestRequestLogCarriesTheCauseOfAnUnexpectedError(t *testing.T) {
+	h := newHarness()
+	h.characters.list = func(context.Context, model.AccountID) ([]character.Character, error) {
+		return nil, fmt.Errorf("list characters: %w", errInternal)
+	}
+	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, "internal")
+	var l map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(h.logs.String())), &l); err != nil {
+		t.Fatalf("log %q: %v", h.logs.String(), err)
+	}
+	if l["level"] != "ERROR" || l["code"] != "internal" || l["err"] != "list characters: pq: connection reset" {
+		t.Fatalf("log line %v, want level ERROR, code internal and the cause", l)
 	}
 }
 

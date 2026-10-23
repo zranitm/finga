@@ -6,27 +6,46 @@
 package item
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 
 	"finga/internal/application/gamedata"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
-// The module's errors.
+// The module's errors. Each names one failure; the handlers give it a
+// code, a status and the words a player sees (internal/handler/errmap).
 var (
-	ErrNotFound      = errs.New(errs.NotFound, "item not found")
-	ErrSlotTaken     = errs.New(errs.Conflict, "that slot is taken")
-	ErrDifferentItem = errs.New(errs.Conflict, "that slot holds a different item")
-	ErrInventoryFull = errs.New("inventory_full", "your inventory is full")
-	ErrKeyReused     = errs.New("idempotency_key_reused", "that request was already made with other arguments")
-	ErrBadQuantity   = errs.Invalid("quantity must be at least 1 and no more than the item holds")
-	ErrBadSlot       = errs.Invalid("slot must be within the tab")
-	ErrWrongTab      = errs.Invalid("an item stays in its own tab")
-	ErrUnknownItem   = errs.Invalid("unknown item")
+	ErrNotFound      = errors.New("item: not found")
+	ErrSlotTaken     = errors.New("item: slot taken")
+	ErrDifferentItem = errors.New("item: slot holds a different item")
+	ErrInventoryFull = errors.New("item: inventory full")
+	ErrKeyReused     = errors.New("item: idempotency key reused with other arguments")
+	ErrBadQuantity   = errors.New("item: bad quantity")
+	ErrBadSlot       = errors.New("item: slot outside the tab")
+	ErrWrongTab      = errors.New("item: item moved to another tab")
+	ErrUnknownItem   = errors.New("item: unknown item template")
 )
+
+// rules are the errors above: a player ran into a rule, so retrying the
+// same request cannot help. Anything else (a database failure) may pass.
+var rules = []error{
+	ErrNotFound, ErrSlotTaken, ErrDifferentItem, ErrInventoryFull, ErrKeyReused,
+	ErrBadQuantity, ErrBadSlot, ErrWrongTab, ErrUnknownItem,
+}
+
+// IsRule reports whether err is one of the module's rule errors, as opposed
+// to a transient failure worth one retry.
+func IsRule(err error) bool {
+	for _, rule := range rules {
+		if errors.Is(err, rule) {
+			return true
+		}
+	}
+	return false
+}
 
 // SlotsPerTab is the inventory size of each tab (page 5).
 const SlotsPerTab = 24

@@ -50,7 +50,7 @@ export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
       await rest.login(username, password);
       onLoggedIn(username);
     } catch (err) {
-      if (err instanceof RestError && err.code === 'rate_limited') {
+      if (err instanceof RestError && err.code === 'login_rate_limited') {
         setProblem('Too many login attempts. Wait a minute, then try again.');
       } else if (err instanceof RestError) {
         setProblem(err.message);

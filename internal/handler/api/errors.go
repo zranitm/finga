@@ -4,41 +4,28 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"finga/pkg/errs"
+	"finga/internal/handler/errmap"
 )
 
-// statusFor maps an error code to an HTTP status. Generic codes have their
-// own; a domain code (inventory_full, idempotency_key_reused) is a rule the
-// request ran into, which is a conflict with the current state.
-func statusFor(code errs.Code) int {
-	switch code {
-	case errs.InvalidArgument:
-		return http.StatusBadRequest
-	case errs.Unauthenticated:
-		return http.StatusUnauthorized
-	case errs.NotFound:
-		return http.StatusNotFound
-	case errs.Conflict:
-		return http.StatusConflict
-	case errs.RateLimited:
-		return http.StatusTooManyRequests
-	case errs.Unavailable:
-		return http.StatusServiceUnavailable
-	case errs.Internal:
-		return http.StatusInternalServerError
-	default:
-		return http.StatusConflict
-	}
-}
-
-// writeError sends the error's code and player message. Nothing of a
-// wrapped cause reaches the body; the request log carries the details.
+// writeError answers a service error with its own code, status and player
+// message from errmap. Nothing of the error's text reaches the body. The
+// request log carries the code, and the cause too when the error is not
+// one the table knows.
 func writeError(w http.ResponseWriter, err error) {
-	writeCode(w, statusFor(errs.CodeOf(err)), errs.CodeOf(err), errs.MessageOf(err))
+	p := errmap.For(err)
+	if sw, ok := w.(*statusWriter); ok && errmap.IsInternal(p) {
+		sw.err = err
+	}
+	writePublic(w, p)
 }
 
-func writeCode(w http.ResponseWriter, status int, code errs.Code, message string) {
-	writeJSON(w, status, ErrorResponse{Code: string(code), Message: message})
+// writePublic sends a failure as the client sees it and notes its code
+// for the request log.
+func writePublic(w http.ResponseWriter, p errmap.Public) {
+	if sw, ok := w.(*statusWriter); ok {
+		sw.code = p.Code
+	}
+	writeJSON(w, p.Status, ErrorResponse{Code: p.Code, Message: p.Message})
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -365,7 +365,7 @@ components:
       required: [ok]
       properties:
         ok: { type: boolean }
-        code: { type: string }
+        code: { type: string, description: "On failure, the exact failure (party_full, inventory_full, chat_rate_limited); testdata/errors/codes.json lists them all" }
         message: { type: string }
     Kicked:
       type: object

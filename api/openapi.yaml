@@ -5,10 +5,12 @@ info:
   description: |
     Accounts, sessions, characters and settings (Low-level design, page 4).
     Gameplay runs over the WebSocket at /ws, described in asyncapi.yaml.
-    Errors return an HTTP status and a body with `code` and `message`; the
-    code is one of the generic codes (invalid_argument, unauthenticated,
-    not_found, conflict, rate_limited, unavailable, internal) or a domain
-    code. Authenticated calls send `Authorization: Bearer TOKEN`.
+    Errors return an HTTP status and a body with `code` and `message`. The
+    status is the class of failure (400 bad input, 401, 404, 409 a rule the
+    request ran into, 429, 503, 500); the code names the exact failure
+    (username_taken, name_taken, character_slots_full) and the message is
+    safe to show a player. testdata/errors/codes.json lists every code with
+    its status and message. Authenticated calls send `Authorization: Bearer TOKEN`.
 servers:
   - url: http://localhost:8080
 paths:
@@ -198,5 +200,5 @@ components:
       type: object
       required: [code, message]
       properties:
-        code: { type: string }
+        code: { type: string, description: "The exact failure, for example name_taken; testdata/errors/codes.json lists them all" }
         message: { type: string }

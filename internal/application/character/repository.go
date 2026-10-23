@@ -3,6 +3,7 @@ package character
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -149,9 +150,9 @@ func classify(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
-		return ErrNotFound.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintName:
-		return ErrNameTaken.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrNameTaken, err)
 	default:
 		return err
 	}

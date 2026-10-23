@@ -61,7 +61,7 @@ describe('App', () => {
       if (path === '/api/characters' && method === 'GET')
         return { status: 200, body: { characters: [sampleCharacter] } };
       if (path === '/api/sessions/current') return { status: 204 };
-      return { status: 404, body: { code: 'not_found', message: 'nope' } };
+      return { status: 404, body: { code: 'no_such_endpoint', message: 'nope' } };
     });
     render(<App services={svc} />);
     expect(FakeGame.live()).toHaveLength(1); // the canvas is there behind the login screen

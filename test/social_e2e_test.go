@@ -116,10 +116,10 @@ func TestPlayTogether(t *testing.T) {
 			}
 		}
 		// A member cannot invite; the leader cannot invite a member again.
-		if r := ben.command(t, "inv-x", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "conflict" {
+		if r := ben.command(t, "inv-x", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "not_party_leader" {
 			t.Fatalf("member invites: %+v", r)
 		}
-		if r := ann.command(t, "inv-y", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "conflict" {
+		if r := ann.command(t, "inv-y", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "already_in_party" {
 			t.Fatalf("inviting a member: %+v", r)
 		}
 	})
@@ -133,7 +133,7 @@ func TestPlayTogether(t *testing.T) {
 			}
 		}
 		ann.say(t, protocol.ChatMap, strings.Repeat("x", 121))
-		if r := ann.response(t); r.OK || r.Code != "invalid_argument" {
+		if r := ann.response(t); r.OK || r.Code != "chat_too_long" {
 			t.Fatalf("121 characters: %+v", r)
 		}
 		// Burst of three, then the fourth within the second is refused.
@@ -141,7 +141,7 @@ func TestPlayTogether(t *testing.T) {
 			ben.say(t, protocol.ChatMap, "spam "+string(rune('a'+k)))
 		}
 		ben.say(t, protocol.ChatMap, "spam d")
-		if r := ben.response(t); r.OK || r.Code != "rate_limited" {
+		if r := ben.response(t); r.OK || r.Code != "chat_rate_limited" {
 			t.Fatalf("fourth line: %+v", r)
 		}
 		ann.hears(t, "spam c")
@@ -218,7 +218,7 @@ func TestPlayTogether(t *testing.T) {
 		for _, l := range []*looter{ann, cat, dan} {
 			l.partyState(t, 3)
 		}
-		if r := cat.command(t, "kick", protocol.PartyKick{CharacterID: dan.id}); r.OK || r.Code != "conflict" {
+		if r := cat.command(t, "kick", protocol.PartyKick{CharacterID: dan.id}); r.OK || r.Code != "not_party_leader" {
 			t.Fatalf("a member kicks: %+v", r)
 		}
 		if r := ann.command(t, "leave", protocol.PartyLeave{}); !r.OK {

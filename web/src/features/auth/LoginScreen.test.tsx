@@ -63,7 +63,7 @@ describe('LoginScreen', () => {
   it('the login throttle shows a wait message', async () => {
     const ff = fakeFetch(() => ({
       status: 429,
-      body: { code: 'rate_limited', message: 'too many login attempts' },
+      body: { code: 'login_rate_limited', message: 'too many login attempts' },
     }));
     render(
       <LoginScreen rest={createRestClient({ origin: '', fetch: ff.fetch })} onLoggedIn={vi.fn()} />,

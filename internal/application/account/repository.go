@@ -162,11 +162,11 @@ func classify(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
-		return ErrNotFound.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintUsername:
-		return ErrUsernameTaken.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrUsernameTaken, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintActiveSession:
-		return errActiveSession.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrSessionRace, err)
 	default:
 		return err
 	}

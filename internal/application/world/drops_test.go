@@ -13,7 +13,6 @@ import (
 	"finga/internal/application/world"
 	"finga/internal/application/world/sim"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 // fakePickups stands in for the item service: idempotent by key, with a
@@ -276,7 +275,7 @@ func TestRetriedPickupJobGivesOneItem(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		items := newFakePickups()
-		items.failFirst = errs.New(errs.Unavailable, "database hiccup")
+		items.failFirst = errors.New("database hiccup")
 		inst, stop := runLootArena(t, data, items, 0.3)
 		defer stop()
 		time.Sleep(tickInterval)
@@ -319,7 +318,7 @@ func TestFullInventoryLeavesTheDrop(t *testing.T) {
 		time.Sleep(3 * tickInterval)
 		synctest.Wait()
 		fails := pickupFailures(s)
-		if len(fails) != 1 || fails[0].Code != "inventory_full" {
+		if len(fails) != 1 || !errors.Is(fails[0].Err, item.ErrInventoryFull) {
 			t.Fatalf("failures %+v", fails)
 		}
 		if len(dropsIn(s)) != 1 {
@@ -422,7 +421,7 @@ func TestPickupsUnavailableWithoutTheItemModule(t *testing.T) {
 		inst.PickUp(p.ID)
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
-		if f := pickupFailures(s); len(f) != 1 || f[0].Code != string(errs.Unavailable) {
+		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, world.ErrPickupsUnavailable) {
 			v, _ := s.own(p.ID)
 			t.Fatalf("failures %+v; drops %+v; player %+v; damages %d", f, dropsIn(s), v.State, len(damages(s)))
 		}

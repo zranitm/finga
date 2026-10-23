@@ -12,7 +12,6 @@ import (
 	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 // These rules are about transactions, so they run against real Postgres.
@@ -115,7 +114,7 @@ func TestAdd(t *testing.T) {
 		h.add(t, "fill-y", "slime_gel", 100)
 		items, events, outbox := h.count(t, `SELECT count(*) FROM items`), h.count(t, `SELECT count(*) FROM item_events`), h.count(t, `SELECT count(*) FROM outbox`)
 		_, err := h.svc.Add(ctx, h.actor, AddInput{Key: "full", TemplateID: "slime_gel", Quantity: 1, Cause: Cause{Type: CauseDrop}})
-		if !errors.Is(err, ErrInventoryFull) || errs.CodeOf(err) != "inventory_full" {
+		if !errors.Is(err, ErrInventoryFull) {
 			t.Fatalf("err = %v", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items`) != items || h.count(t, `SELECT count(*) FROM item_events`) != events || h.count(t, `SELECT count(*) FROM outbox`) != outbox {
@@ -171,7 +170,7 @@ func TestMove(t *testing.T) {
 	})
 	t.Run("onto a different item is a conflict", func(t *testing.T) {
 		_, err := move("m2", red.ID, 1) // blue is in slot 1
-		if !errors.Is(err, ErrDifferentItem) || errs.CodeOf(err) != errs.Conflict {
+		if !errors.Is(err, ErrDifferentItem) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -262,7 +261,7 @@ func TestMove(t *testing.T) {
 	t.Run("someone else's item cannot be moved by another character", func(t *testing.T) {
 		other := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
 		_, err := h.svc.Move(ctx, other, MoveInput{Key: "x", ItemID: blue.ID, Tab: gamedata.Use, Slot: 9})
-		if !errors.Is(err, ErrNotFound) || errs.CodeOf(err) != errs.NotFound {
+		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -346,7 +345,7 @@ func TestIdempotency(t *testing.T) {
 		other := in
 		other.Quantity = 4
 		_, err := h.svc.Add(ctx, h.actor, other)
-		if !errors.Is(err, ErrKeyReused) || errs.CodeOf(err) != "idempotency_key_reused" {
+		if !errors.Is(err, ErrKeyReused) {
 			t.Fatalf("err = %v", err)
 		}
 	})

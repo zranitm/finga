@@ -213,13 +213,20 @@ type InventoryChanged struct {
 	Slots []item.Slot
 }
 
-// PickupFailed tells the player why a pickup did not happen (for example
-// inventory_full); the drop stays on the ground.
+// PickupFailed tells the player why a pickup did not happen; the drop
+// stays on the ground. Err is item.ErrInventoryFull and the like, or one
+// of the world's own errors below; the gateway turns it into a Response.
 type PickupFailed struct {
-	Tick    uint64
-	Code    string
-	Message string
+	Tick uint64
+	Err  error
 }
+
+// The pickup errors the world raises itself. Each names one failure; the
+// handlers give it a code and the words a player sees (internal/handler/errmap).
+var (
+	ErrPickupsUnavailable = errors.New("world: pickups not wired")
+	ErrPickupBusy         = errors.New("world: pickup workers busy")
+)
 
 func (InventoryChanged) event() {}
 func (PickupFailed) event()     {}

@@ -159,10 +159,10 @@ describe('rest client', () => {
 
   it.each([
     {
-      name: 'a 409 on create character maps to conflict',
+      name: 'a 409 on create character keeps its own code, name_taken',
       status: 409,
-      body: { code: 'conflict', message: 'that name is taken' },
-      code: 'conflict',
+      body: { code: 'name_taken', message: 'that name is taken' },
+      code: 'name_taken',
       message: 'that name is taken',
     },
     {
@@ -173,11 +173,11 @@ describe('rest client', () => {
       message: 'invalid credentials or session',
     },
     {
-      name: 'a 429 maps to rate_limited',
+      name: 'a 429 keeps its own code, login_rate_limited',
       status: 429,
-      body: { code: 'rate_limited', message: 'slow down' },
-      code: 'rate_limited',
-      message: 'slow down',
+      body: { code: 'login_rate_limited', message: 'too many login attempts' },
+      code: 'login_rate_limited',
+      message: 'too many login attempts',
     },
     {
       name: 'an unknown code becomes internal',

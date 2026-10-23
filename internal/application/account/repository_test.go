@@ -10,12 +10,11 @@ import (
 
 	"finga/internal/model"
 	"finga/migrations"
-	"finga/pkg/errs"
 	"finga/pkg/pgtest"
 )
 
 // These run against real Postgres through the store, so errors arrive
-// classified. They are in the account package to reach errActiveSession.
+// classified. They are in the account package to reach ErrSessionRace.
 
 var cluster *pgtest.Cluster
 
@@ -67,9 +66,6 @@ func TestAccounts(t *testing.T) {
 		err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Accounts().Insert(ctx, newAccount("ALICE")) })
 		if !errors.Is(err, ErrUsernameTaken) {
 			t.Fatalf("err = %v", err)
-		}
-		if errs.CodeOf(err) != errs.Conflict {
-			t.Fatalf("code = %s", errs.CodeOf(err))
 		}
 	})
 
@@ -140,9 +136,9 @@ func TestSessions(t *testing.T) {
 		}
 	})
 
-	t.Run("a second active session is rejected by the partial unique index as errActiveSession", func(t *testing.T) {
+	t.Run("a second active session is rejected by the partial unique index as ErrSessionRace", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Sessions().Insert(ctx, session("t2")) })
-		if !errors.Is(err, errActiveSession) {
+		if !errors.Is(err, ErrSessionRace) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -189,7 +185,7 @@ func TestClassify(t *testing.T) {
 		{"nil", nil, nil},
 		{"no rows", noRows(), ErrNotFound},
 		{"username unique constraint", constraint("accounts_username_key"), ErrUsernameTaken},
-		{"one active session index", constraint("one_active_session"), errActiveSession},
+		{"one active session index", constraint("one_active_session"), ErrSessionRace},
 		{"another constraint passes through", constraint("characters_name_key"), nil},
 		{"a serialization failure passes through for retries", pgCode("40001"), nil},
 	}

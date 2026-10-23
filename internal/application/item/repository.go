@@ -184,7 +184,7 @@ func (i idem) Run(ctx context.Context, owner model.AccountID, scope, key string,
 	})
 	if err != nil {
 		if errors.Is(err, idempotency.ErrKeyReused) {
-			return Result{}, ErrKeyReused.Wrap(err)
+			return Result{}, fmt.Errorf("%w: %w", ErrKeyReused, err)
 		}
 		return Result{}, err
 	}
@@ -241,11 +241,11 @@ func classify(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
-		return ErrNotFound.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintSlot:
-		return ErrSlotTaken.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrSlotTaken, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintQuantity:
-		return ErrBadQuantity.Wrap(err)
+		return fmt.Errorf("%w: %w", ErrBadQuantity, err)
 	default:
 		return err
 	}

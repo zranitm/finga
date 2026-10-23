@@ -8,7 +8,6 @@ import (
 
 	"finga/internal/application/chat"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 type fakeParties struct {
@@ -63,14 +62,14 @@ func TestSend(t *testing.T) {
 			t.Fatalf("third line: %v", err)
 		}
 		_, _, err := svc.Send(from, chat.Map, "four")
-		if errs.CodeOf(err) != errs.RateLimited {
+		if !errors.Is(err, chat.ErrRate) {
 			t.Fatalf("fourth line: %v", err)
 		}
 		now = now.Add(time.Second)
 		if _, _, err := svc.Send(from, chat.Map, "five"); err != nil {
 			t.Fatalf("after a second: %v", err)
 		}
-		if _, _, err := svc.Send(from, chat.Map, "six"); errs.CodeOf(err) != errs.RateLimited {
+		if _, _, err := svc.Send(from, chat.Map, "six"); !errors.Is(err, chat.ErrRate) {
 			t.Fatalf("sixth line: %v", err)
 		}
 		// Another sender has their own bucket.
@@ -100,7 +99,7 @@ func TestSend(t *testing.T) {
 	})
 	t.Run("without a party service the party channel is unavailable", func(t *testing.T) {
 		solo := chat.NewService(nil, chat.Options{})
-		if _, _, err := solo.Send(from, chat.Party, "hi"); errs.CodeOf(err) != errs.Unavailable {
+		if _, _, err := solo.Send(from, chat.Party, "hi"); !errors.Is(err, chat.ErrNoParties) {
 			t.Fatalf("err %v", err)
 		}
 	})

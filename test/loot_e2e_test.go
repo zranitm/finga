@@ -514,7 +514,7 @@ func TestLootAndKeep(t *testing.T) {
 		p.expect("InventoryChanged")
 		// A move across tabs is refused.
 		p.send(wsconn.Message{ReqID: "m-3", Data: protocol.InventoryMove{IdempotencyKey: "move-3", ItemID: potions.ItemID, Tab: "etc", Slot: 1}})
-		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "invalid_argument" {
+		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "wrong_tab" {
 			t.Fatalf("cross-tab move %+v", r)
 		}
 		// Discard two, then more than there are.
@@ -527,7 +527,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("after discard %+v", ic)
 		}
 		p.send(wsconn.Message{ReqID: "d-2", Data: protocol.InventoryDiscard{IdempotencyKey: "discard-2", ItemID: potions.ItemID, Quantity: 9}})
-		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "invalid_argument" {
+		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_quantity" {
 			t.Fatalf("over-discard %+v", r)
 		}
 		if rows, quantity, _ := s.itemTotals(t, id, "red_potion"); rows != 1 || quantity != 3 {

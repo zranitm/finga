@@ -2,7 +2,6 @@ package world
 
 import (
 	"context"
-	"errors"
 	"math"
 	"time"
 
@@ -11,7 +10,6 @@ import (
 	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 // Loot rules (page 5, OD-05 default).
@@ -104,14 +102,14 @@ func (i *Instance) pickUp(p *player) {
 		return
 	}
 	if i.opts.Items == nil || i.opts.Workers == nil {
-		p.private = append(p.private, PickupFailed{Tick: i.tick, Code: string(errs.Unavailable), Message: "pickups are not available"})
+		p.private = append(p.private, PickupFailed{Tick: i.tick, Err: ErrPickupsUnavailable})
 		return
 	}
 	best.reservedBy = p.ID
 	job := pickupJob{drop: *best, actor: item.Actor{Account: p.Account, Character: p.ID}}
 	if !i.opts.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
 		best.reservedBy = model.CharacterID{}
-		p.private = append(p.private, PickupFailed{Tick: i.tick, Code: string(errs.Unavailable), Message: "try again in a moment"})
+		p.private = append(p.private, PickupFailed{Tick: i.tick, Err: ErrPickupBusy})
 	}
 }
 
@@ -126,17 +124,10 @@ type pickupJob struct {
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	in := item.AddInput{Key: job.drop.key.String(), TemplateID: job.drop.template, Quantity: job.drop.quantity, Cause: item.Cause{Type: item.CauseDrop, ID: job.drop.key}}
 	res, err := i.opts.Items.Add(ctx, job.actor, in)
-	if err != nil && !isRule(err) {
+	if err != nil && !item.IsRule(err) {
 		res, err = i.opts.Items.Add(ctx, job.actor, in) // the key makes a retry harmless
 	}
 	i.inbox <- message{pickup: &pickupResult{dropID: job.drop.id, who: job.actor.Character, result: res, err: err}}
-}
-
-// isRule reports whether err is a player-facing rule (a full inventory),
-// as opposed to a transient failure worth one retry.
-func isRule(err error) bool {
-	var e *errs.Error
-	return errors.As(err, &e) && e.Code != errs.Internal && e.Code != errs.Unavailable
 }
 
 type pickupResult struct {
@@ -163,7 +154,7 @@ func (i *Instance) finishPickup(r *pickupResult) {
 			d.reservedBy = model.CharacterID{}
 		}
 		if p != nil {
-			p.private = append(p.private, PickupFailed{Tick: i.tick, Code: string(errs.CodeOf(r.err)), Message: errs.MessageOf(r.err)})
+			p.private = append(p.private, PickupFailed{Tick: i.tick, Err: r.err})
 		}
 		return
 	}

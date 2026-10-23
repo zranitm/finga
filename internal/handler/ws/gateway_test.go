@@ -1,12 +1,16 @@
 package ws_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -418,7 +422,7 @@ func TestUnavailableCommandsAnswerWithAResponse(t *testing.T) {
 	c.expect("Snapshot")
 	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.PartyLeave{}})
 	m := c.expect("Response")
-	if m.ReqID != "r-1" || m.Data.(protocol.Response).OK || m.Data.(protocol.Response).Code != "unavailable" {
+	if m.ReqID != "r-1" || m.Data.(protocol.Response).OK || m.Data.(protocol.Response).Code != "parties_unavailable" {
 		t.Fatalf("response %+v", m)
 	}
 	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}}) // no req: silently ignored for now
@@ -570,16 +574,16 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		items.err = item.ErrBadQuantity
 		c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k-2", ItemID: potion.ID.String(), Quantity: 9}})
 		r := c.expect("Response").Data.(protocol.Response)
-		if r.OK || r.Code != "invalid_argument" || r.Message == "" {
+		if r.OK || r.Code != "bad_quantity" || r.Message == "" {
 			t.Fatalf("response %+v", r)
 		}
 		items.err = nil
 	})
-	t.Run("a malformed item ID is invalid_argument without reaching the service", func(t *testing.T) {
+	t.Run("a malformed item ID is bad_id without reaching the service", func(t *testing.T) {
 		before := len(items.discards)
 		c.send(wsconn.Message{ReqID: "r-3", Data: protocol.InventoryDiscard{IdempotencyKey: "k-3", ItemID: "nope", Quantity: 1}})
 		r := c.expect("Response").Data.(protocol.Response)
-		if r.OK || r.Code != "invalid_argument" {
+		if r.OK || r.Code != "bad_id" {
 			t.Fatalf("response %+v", r)
 		}
 		if len(items.discards) != before {
@@ -592,9 +596,9 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
 			t.Fatalf("delta %+v", d)
 		}
-		h.town.push(aylaID, world.PickupFailed{Tick: 13, Code: "inventory_full", Message: "full"})
+		h.town.push(aylaID, world.PickupFailed{Tick: 13, Err: item.ErrInventoryFull})
 		r := c.expect("Response").Data.(protocol.Response)
-		if r.OK || r.Code != "inventory_full" {
+		if r.OK || r.Code != "inventory_full" || r.Message != "your inventory is full" {
 			t.Fatalf("response %+v", r)
 		}
 		h.town.push(aylaID, world.InventoryChanged{Tick: 14, Slots: []item.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: model.NewItemID(), TemplateID: "slime_gel", Tab: gamedata.Etc, Slot: 1, Quantity: 2}}}})
@@ -605,13 +609,53 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	})
 }
 
+func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
+	logs := &lockedBuffer{}
+	items := &fakeItems{err: fmt.Errorf("discard: %w", errors.New("pq: connection reset"))}
+	h := newHarness(t, func(d *ws.Dependencies) {
+		d.Items = items
+		d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
+	})
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Welcome")
+	c.expect("Snapshot")
+	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: model.NewItemID().String(), Quantity: 1}})
+	r := c.expect("Response").Data.(protocol.Response)
+	if r.OK || r.Code != "internal" || strings.Contains(r.Message, "connection reset") {
+		t.Fatalf("response %+v; the cause must stay out of it", r)
+	}
+	got := logs.String()
+	if !strings.Contains(got, `"msg":"command failed"`) || !strings.Contains(got, `"err":"discard: pq: connection reset"`) || !strings.Contains(got, `"command":"inventory"`) {
+		t.Fatalf("log %s, want the command and its cause", got)
+	}
+}
+
+// lockedBuffer is a log destination the gateway's goroutines can share.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
 func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
 	h := newHarness(t)
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: model.NewItemID().String(), Quantity: 1}})
-	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "unavailable" {
+	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "inventory_unavailable" {
 		t.Fatalf("response %+v", r)
 	}
 }
@@ -671,7 +715,7 @@ func TestChatRouting(t *testing.T) {
 		fc.err = chat.ErrTooLong
 		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "..."}})
 		r := ayla.expect("Response")
-		if r.ReqID != "" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "invalid_argument" {
+		if r.ReqID != "" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "chat_too_long" {
 			t.Fatalf("response %+v", r)
 		}
 		fc.err = nil
@@ -729,12 +773,12 @@ func TestPartyCommandsAndState(t *testing.T) {
 	})
 	t.Run("errors map to the Response code", func(t *testing.T) {
 		ayla.send(wsconn.Message{ReqID: "p-x", Data: protocol.PartyInvite{CharacterID: "nope"}})
-		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "invalid_argument" {
+		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_id" {
 			t.Fatalf("malformed id: %+v", r)
 		}
 		fp.err = party.ErrNotLeader
 		ayla.send(wsconn.Message{ReqID: "p-y", Data: protocol.PartyKick{CharacterID: brunoID.String()}})
-		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "conflict" || r.Message == "" {
+		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "not_party_leader" || r.Message == "" {
 			t.Fatalf("not leader: %+v", r)
 		}
 		fp.err = nil
@@ -778,11 +822,11 @@ func TestChatAndPartyWithoutTheServices(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	c.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hi"}})
-	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "unavailable" {
+	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "chat_unavailable" {
 		t.Fatalf("chat: %+v", r)
 	}
 	c.send(wsconn.Message{ReqID: "p-1", Data: protocol.PartyLeave{}})
-	if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "unavailable" {
+	if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "parties_unavailable" {
 		t.Fatalf("party: %+v", r)
 	}
 }

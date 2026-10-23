@@ -16,9 +16,9 @@ import (
 
 	"finga/internal/application/account"
 	"finga/internal/application/character"
+	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/pkg/auth"
-	"finga/pkg/errs"
 )
 
 // maxBodyBytes caps a request body; the biggest legitimate body is a
@@ -100,14 +100,15 @@ func NewHandler(d Dependencies) http.Handler {
 func notFound(w http.ResponseWriter, r *http.Request) {
 	for _, route := range Routes() {
 		if route.Path == r.URL.Path {
-			writeCode(w, http.StatusMethodNotAllowed, errs.InvalidArgument, "method not allowed")
+			writePublic(w, errmap.MethodNotAllowed)
 			return
 		}
 	}
-	writeCode(w, http.StatusNotFound, errs.NotFound, "no such endpoint")
+	writePublic(w, errmap.NoSuchEndpoint)
 }
 
-var errMalformed = errs.Invalid("malformed request body")
+// errMalformed tells decode's caller the request was refused.
+var errMalformed = errors.New("api: malformed request body")
 
 // decode reads one JSON document into v, rejecting unknown fields, trailing
 // data, and bodies over the limit.
@@ -118,18 +119,18 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	if err := dec.Decode(v); err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writeCode(w, http.StatusRequestEntityTooLarge, errs.InvalidArgument, "request body too large")
+			writePublic(w, errmap.BodyTooLarge)
 			return err
 		}
-		writeError(w, errMalformed)
+		writePublic(w, errmap.MalformedBody)
 		return err
 	}
 	if dec.More() {
-		writeError(w, errMalformed)
+		writePublic(w, errmap.MalformedBody)
 		return errMalformed
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		writeError(w, errMalformed)
+		writePublic(w, errmap.MalformedBody)
 		return errMalformed
 	}
 	return nil
@@ -140,7 +141,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 func missing(w http.ResponseWriter, fields ...string) bool {
 	for _, f := range fields {
 		if f == "" {
-			writeError(w, errs.Invalid("missing a required field"))
+			writePublic(w, errmap.MissingField)
 			return true
 		}
 	}

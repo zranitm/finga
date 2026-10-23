@@ -185,7 +185,7 @@ func TestAcceptance(t *testing.T) {
 		}
 		r := s.call("POST", "/api/sessions", "", map[string]string{"username": "bob", "password": "correct horse"})
 		s.mustStatus(r, http.StatusTooManyRequests)
-		if r.body["code"] != "rate_limited" {
+		if r.body["code"] != "login_rate_limited" {
 			t.Fatalf("body %v", r.body)
 		}
 	})

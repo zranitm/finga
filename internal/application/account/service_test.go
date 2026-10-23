@@ -14,7 +14,6 @@ import (
 	"finga/internal/application/account"
 	"finga/pkg/auth"
 	"finga/pkg/auth/password"
-	"finga/pkg/errs"
 )
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
@@ -80,9 +79,6 @@ func TestRegister(t *testing.T) {
 				if !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
 				}
-				if errs.CodeOf(err) != errs.InvalidArgument {
-					t.Fatalf("code = %s", errs.CodeOf(err))
-				}
 				if store.txCount != 0 {
 					t.Fatal("an invalid input reached the store")
 				}
@@ -100,7 +96,7 @@ func TestRegister(t *testing.T) {
 		svc, _ := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		_, err := svc.Register(ctx, account.RegisterInput{Username: "ALICE", Password: "correct horse"})
-		if !errors.Is(err, account.ErrUsernameTaken) || errs.CodeOf(err) != errs.Conflict {
+		if !errors.Is(err, account.ErrUsernameTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -227,12 +223,6 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 			if !errors.Is(err, account.ErrUnauthenticated) {
 				t.Fatalf("err = %v, want ErrUnauthenticated", err)
 			}
-			if errs.CodeOf(err) != errs.Unauthenticated {
-				t.Fatalf("code = %s", errs.CodeOf(err))
-			}
-			if msg := errs.MessageOf(err); strings.Contains(msg, "expired") || strings.Contains(msg, "revoked") || strings.Contains(msg, "unknown") {
-				t.Fatalf("message reveals the reason: %q", msg)
-			}
 		})
 	}
 	t.Run("a token just before expiry still validates", func(t *testing.T) {
@@ -255,7 +245,7 @@ func TestLoginThrottling(t *testing.T) {
 			}
 		}
 		_, err := svc.Login(ctx, account.LoginInput{Username: "ALICE", Password: "correct horse", IP: "10.0.0.9"})
-		if !errors.Is(err, account.ErrRateLimited) || errs.CodeOf(err) != errs.RateLimited {
+		if !errors.Is(err, account.ErrRateLimited) {
 			t.Fatalf("sixth attempt: %v, want rate_limited even with the right password", err)
 		}
 		c.t = c.t.Add(time.Minute)

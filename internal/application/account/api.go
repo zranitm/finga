@@ -5,25 +5,27 @@
 package account
 
 import (
+	"errors"
 	"time"
 
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
-// The module's errors. Handlers map the codes; the messages are for players.
+// The module's errors. Each names one failure; the handlers give it a
+// code, a status and the words a player sees (internal/handler/errmap).
 var (
-	ErrNotFound        = errs.New(errs.NotFound, "account not found")
-	ErrUsernameTaken   = errs.New(errs.Conflict, "that username is taken")
-	ErrUnauthenticated = errs.New(errs.Unauthenticated, "invalid credentials or session")
-	ErrRateLimited     = errs.New(errs.RateLimited, "too many login attempts, try again in a minute")
-	ErrBadUsername     = errs.Invalid("username must be 3 to 16 letters, digits or underscores")
-	ErrBadPassword     = errs.Invalid("password must be 8 to 128 characters")
-	ErrBadPreset       = errs.Invalid("control preset must be classic or wasd")
+	ErrNotFound        = errors.New("account: not found")
+	ErrUsernameTaken   = errors.New("account: username taken")
+	ErrUnauthenticated = errors.New("account: invalid credentials or session")
+	ErrRateLimited     = errors.New("account: too many login attempts")
+	ErrBadUsername     = errors.New("account: bad username")
+	ErrBadPassword     = errors.New("account: bad password")
+	ErrBadPreset       = errors.New("account: bad control preset")
 
-	// errActiveSession is the partial unique index speaking: the service
-	// revokes first, so this only shows up in a race, and the login runs again.
-	errActiveSession = errs.New(errs.Conflict, "another session is active")
+	// ErrSessionRace is the partial unique index speaking: the service
+	// revokes first, so this only shows up when two logins race, and the
+	// login runs again; it leaves the service only when the retries run out.
+	ErrSessionRace = errors.New("account: another session became active during login")
 )
 
 // Preset is a control preset (B6, OD-20).

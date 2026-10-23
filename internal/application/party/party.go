@@ -5,6 +5,7 @@
 package party
 
 import (
+	"errors"
 	"slices"
 	"sync"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 // Defaults (page 5).
@@ -101,17 +101,18 @@ func (s *Service) Notify(n Notifier) {
 	s.notifier = n
 }
 
-// Errors the commands return.
+// The errors the commands return. Each names one failure; the handlers give
+// it a code and the words a player sees (internal/handler/errmap).
 var (
-	ErrNotLeader     = errs.New(errs.Conflict, "only the party leader can do that")
-	ErrFull          = errs.New(errs.Conflict, "the party is full")
-	ErrInParty       = errs.New(errs.Conflict, "already in a party")
-	ErrNoParty       = errs.New(errs.NotFound, "not in a party")
-	ErrNotMember     = errs.New(errs.NotFound, "not a member of your party")
-	ErrNotHere       = errs.New(errs.NotFound, "that character is not on your map")
-	ErrAlreadyAsked  = errs.New(errs.Conflict, "already invited")
-	ErrInviteExpired = errs.New(errs.NotFound, "the invite has expired")
-	ErrSelf          = errs.Invalid("you cannot invite yourself")
+	ErrNotLeader     = errors.New("party: not the leader")
+	ErrFull          = errors.New("party: full")
+	ErrInParty       = errors.New("party: already in a party")
+	ErrNoParty       = errors.New("party: not in a party")
+	ErrNotMember     = errors.New("party: not a member")
+	ErrNotHere       = errors.New("party: invitee not on the map")
+	ErrAlreadyAsked  = errors.New("party: already invited")
+	ErrInviteExpired = errors.New("party: invite expired")
+	ErrSelf          = errors.New("party: invited self")
 )
 
 // Online records a character as connected, with what the gateway knows.

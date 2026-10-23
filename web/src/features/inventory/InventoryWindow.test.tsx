@@ -133,7 +133,7 @@ describe('InventoryWindow', () => {
   });
 
   it('a refused Response clears the pending mark and shows the reason, the item never having moved', async () => {
-    setup([new RequestError('invalid_argument', 'that slot is taken')]);
+    setup([new RequestError('slot_taken', 'that slot is taken')]);
     fireEvent.dragStart(cell('Wooden Sword x1'));
     fireEvent.drop(cell('Leather Cap x1'));
     expect(await screen.findByRole('alert')).toHaveTextContent('that slot is taken');

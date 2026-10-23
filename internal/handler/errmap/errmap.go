@@ -1,0 +1,152 @@
+// Package errmap turns the errors services return into what a client sees.
+// Services return plain sentinel errors that name the exact failure
+// (party.ErrFull, character.ErrNameTaken) and wrap a cause with %w for the
+// logs. Handlers, HTTP and WebSocket alike, pass the error to For and get a
+// Public: an HTTP status, a stable code of its own for every failure
+// (party_full, name_taken), and a message safe to show a player. The
+// message is written here, never taken from the error, so a wrapped
+// cause's text cannot reach a client. An error the table does not know is
+// Internal; the handler logs it with its cause.
+package errmap
+
+import (
+	"cmp"
+	"errors"
+	"net/http"
+	"slices"
+
+	"finga/internal/application/account"
+	"finga/internal/application/character"
+	"finga/internal/application/chat"
+	"finga/internal/application/item"
+	"finga/internal/application/party"
+	"finga/internal/application/world"
+	"finga/internal/model"
+)
+
+// Public is an error as a client sees it. Status is for HTTP; the WebSocket
+// sends only Code and Message in a Response.
+type Public struct {
+	Code    string `json:"code"`
+	Status  int    `json:"status"`
+	Message string `json:"message"`
+}
+
+// The failures a handler raises itself, before or around a service call.
+var (
+	MalformedBody        = Public{"malformed_body", http.StatusBadRequest, "malformed request body"}
+	MissingField         = Public{"missing_field", http.StatusBadRequest, "missing a required field"}
+	BodyTooLarge         = Public{"body_too_large", http.StatusRequestEntityTooLarge, "request body too large"}
+	NoSuchEndpoint       = Public{"no_such_endpoint", http.StatusNotFound, "no such endpoint"}
+	MethodNotAllowed     = Public{"method_not_allowed", http.StatusMethodNotAllowed, "method not allowed"}
+	RateLimited          = Public{"rate_limited", http.StatusTooManyRequests, "slow down"}
+	NotImplemented       = Public{"not_implemented", http.StatusNotImplemented, "not available yet"}
+	ChatUnavailable      = Public{"chat_unavailable", http.StatusServiceUnavailable, "chat is not available"}
+	PartiesUnavailable   = Public{"parties_unavailable", http.StatusServiceUnavailable, "parties are not available"}
+	InventoryUnavailable = Public{"inventory_unavailable", http.StatusServiceUnavailable, "the inventory is not available"}
+	Internal             = Public{"internal", http.StatusInternalServerError, "something went wrong"}
+)
+
+var handlerRaised = []Public{
+	MalformedBody, MissingField, BodyTooLarge, NoSuchEndpoint, MethodNotAllowed, RateLimited,
+	NotImplemented, ChatUnavailable, PartiesUnavailable, InventoryUnavailable, Internal,
+}
+
+// table is every service error a client can meet. TestEveryServiceErrorIsMapped
+// fails when a module declares an Err variable that has no row here.
+var table = []struct {
+	err error
+	pub Public
+}{
+	{account.ErrNotFound, Public{"account_not_found", http.StatusNotFound, "account not found"}},
+	{account.ErrUsernameTaken, Public{"username_taken", http.StatusConflict, "that username is taken"}},
+	{account.ErrUnauthenticated, Public{"unauthenticated", http.StatusUnauthorized, "invalid credentials or session"}},
+	{account.ErrRateLimited, Public{"login_rate_limited", http.StatusTooManyRequests, "too many login attempts, try again in a minute"}},
+	{account.ErrBadUsername, Public{"bad_username", http.StatusBadRequest, "username must be 3 to 16 letters, digits or underscores"}},
+	{account.ErrBadPassword, Public{"bad_password", http.StatusBadRequest, "password must be 8 to 128 characters"}},
+	{account.ErrBadPreset, Public{"bad_control_preset", http.StatusBadRequest, "control preset must be classic or wasd"}},
+	{account.ErrSessionRace, Public{"session_race", http.StatusConflict, "another login is in progress, try again"}},
+
+	{character.ErrNotFound, Public{"character_not_found", http.StatusNotFound, "character not found"}},
+	{character.ErrNameTaken, Public{"name_taken", http.StatusConflict, "that name is taken"}},
+	{character.ErrBadName, Public{"bad_character_name", http.StatusBadRequest, "name must be 3 to 12 letters and digits, starting with a letter"}},
+	{character.ErrClassUnavailable, Public{"class_unavailable", http.StatusBadRequest, "that class is not available"}},
+	{character.ErrSlotsFull, Public{"character_slots_full", http.StatusConflict, "this account already has the most characters allowed"}},
+
+	{chat.ErrEmpty, Public{"chat_empty", http.StatusBadRequest, "nothing to say"}},
+	{chat.ErrTooLong, Public{"chat_too_long", http.StatusBadRequest, "a chat line is at most 120 characters"}},
+	{chat.ErrChannel, Public{"bad_chat_channel", http.StatusBadRequest, "unknown chat channel"}},
+	{chat.ErrNoParty, Public{"chat_no_party", http.StatusNotFound, "you have no party"}},
+	{chat.ErrRate, Public{"chat_rate_limited", http.StatusTooManyRequests, "slow down"}},
+	{chat.ErrNoParties, Public{"party_chat_unavailable", http.StatusServiceUnavailable, "party chat is not available"}},
+
+	{item.ErrNotFound, Public{"item_not_found", http.StatusNotFound, "item not found"}},
+	{item.ErrSlotTaken, Public{"slot_taken", http.StatusConflict, "that slot is taken"}},
+	{item.ErrDifferentItem, Public{"slot_holds_other_item", http.StatusConflict, "that slot holds a different item"}},
+	{item.ErrInventoryFull, Public{"inventory_full", http.StatusConflict, "your inventory is full"}},
+	{item.ErrKeyReused, Public{"idempotency_key_reused", http.StatusConflict, "that request was already made with other arguments"}},
+	{item.ErrBadQuantity, Public{"bad_quantity", http.StatusBadRequest, "quantity must be at least 1 and no more than the item holds"}},
+	{item.ErrBadSlot, Public{"bad_slot", http.StatusBadRequest, "slot must be within the tab"}},
+	{item.ErrWrongTab, Public{"wrong_tab", http.StatusBadRequest, "an item stays in its own tab"}},
+	{item.ErrUnknownItem, Public{"unknown_item", http.StatusBadRequest, "unknown item"}},
+
+	{party.ErrNotLeader, Public{"not_party_leader", http.StatusConflict, "only the party leader can do that"}},
+	{party.ErrFull, Public{"party_full", http.StatusConflict, "the party is full"}},
+	{party.ErrInParty, Public{"already_in_party", http.StatusConflict, "already in a party"}},
+	{party.ErrNoParty, Public{"no_party", http.StatusNotFound, "not in a party"}},
+	{party.ErrNotMember, Public{"not_party_member", http.StatusNotFound, "not a member of your party"}},
+	{party.ErrNotHere, Public{"target_not_on_map", http.StatusNotFound, "that character is not on your map"}},
+	{party.ErrAlreadyAsked, Public{"already_invited", http.StatusConflict, "already invited"}},
+	{party.ErrInviteExpired, Public{"invite_expired", http.StatusNotFound, "the invite has expired"}},
+	{party.ErrSelf, Public{"invite_self", http.StatusBadRequest, "you cannot invite yourself"}},
+
+	{world.ErrPickupsUnavailable, Public{"pickups_unavailable", http.StatusServiceUnavailable, "pickups are not available"}},
+	{world.ErrPickupBusy, Public{"pickup_busy", http.StatusServiceUnavailable, "try again in a moment"}},
+
+	{model.ErrBadID, Public{"bad_id", http.StatusBadRequest, "malformed ID"}},
+	{model.ErrUnknownClass, Public{"unknown_class", http.StatusBadRequest, "unknown class"}},
+}
+
+// internalOnly are service errors that never reach a client as a refusal:
+// the gateway closes the connection and logs them (a join into a full or
+// stopped instance, a character on a map that does not exist). Listing them
+// here keeps every exported error accounted for; For answers them Internal.
+var internalOnly = []error{world.ErrBusy, world.ErrNoMap, world.ErrStopped}
+
+// For is the Public form of err: the row of the first table error found in
+// err's chain, Internal for an error the table does not know (or one of
+// internalOnly), and the zero value for nil.
+func For(err error) Public {
+	if err == nil {
+		return Public{}
+	}
+	for _, e := range internalOnly {
+		if errors.Is(err, e) {
+			return Internal
+		}
+	}
+	for _, row := range table {
+		if errors.Is(err, row.err) {
+			return row.pub
+		}
+	}
+	return Internal
+}
+
+// IsInternal reports whether p is the answer to an error nobody expected,
+// which the handler must log with its cause.
+func IsInternal(p Public) bool {
+	return p.Code == Internal.Code
+}
+
+// Codes is every Public a client can receive, sorted by code; the golden
+// file testdata/errors/codes.json is written from it.
+func Codes() []Public {
+	out := make([]Public, 0, len(table)+len(handlerRaised))
+	for _, row := range table {
+		out = append(out, row.pub)
+	}
+	out = append(out, handlerRaised...)
+	slices.SortFunc(out, func(a, b Public) int { return cmp.Compare(a.Code, b.Code) })
+	return out
+}

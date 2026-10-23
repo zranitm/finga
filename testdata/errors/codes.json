@@ -1,0 +1,262 @@
+[
+  {
+    "code": "account_not_found",
+    "status": 404,
+    "message": "account not found"
+  },
+  {
+    "code": "already_in_party",
+    "status": 409,
+    "message": "already in a party"
+  },
+  {
+    "code": "already_invited",
+    "status": 409,
+    "message": "already invited"
+  },
+  {
+    "code": "bad_character_name",
+    "status": 400,
+    "message": "name must be 3 to 12 letters and digits, starting with a letter"
+  },
+  {
+    "code": "bad_chat_channel",
+    "status": 400,
+    "message": "unknown chat channel"
+  },
+  {
+    "code": "bad_control_preset",
+    "status": 400,
+    "message": "control preset must be classic or wasd"
+  },
+  {
+    "code": "bad_id",
+    "status": 400,
+    "message": "malformed ID"
+  },
+  {
+    "code": "bad_password",
+    "status": 400,
+    "message": "password must be 8 to 128 characters"
+  },
+  {
+    "code": "bad_quantity",
+    "status": 400,
+    "message": "quantity must be at least 1 and no more than the item holds"
+  },
+  {
+    "code": "bad_slot",
+    "status": 400,
+    "message": "slot must be within the tab"
+  },
+  {
+    "code": "bad_username",
+    "status": 400,
+    "message": "username must be 3 to 16 letters, digits or underscores"
+  },
+  {
+    "code": "body_too_large",
+    "status": 413,
+    "message": "request body too large"
+  },
+  {
+    "code": "character_not_found",
+    "status": 404,
+    "message": "character not found"
+  },
+  {
+    "code": "character_slots_full",
+    "status": 409,
+    "message": "this account already has the most characters allowed"
+  },
+  {
+    "code": "chat_empty",
+    "status": 400,
+    "message": "nothing to say"
+  },
+  {
+    "code": "chat_no_party",
+    "status": 404,
+    "message": "you have no party"
+  },
+  {
+    "code": "chat_rate_limited",
+    "status": 429,
+    "message": "slow down"
+  },
+  {
+    "code": "chat_too_long",
+    "status": 400,
+    "message": "a chat line is at most 120 characters"
+  },
+  {
+    "code": "chat_unavailable",
+    "status": 503,
+    "message": "chat is not available"
+  },
+  {
+    "code": "class_unavailable",
+    "status": 400,
+    "message": "that class is not available"
+  },
+  {
+    "code": "idempotency_key_reused",
+    "status": 409,
+    "message": "that request was already made with other arguments"
+  },
+  {
+    "code": "internal",
+    "status": 500,
+    "message": "something went wrong"
+  },
+  {
+    "code": "inventory_full",
+    "status": 409,
+    "message": "your inventory is full"
+  },
+  {
+    "code": "inventory_unavailable",
+    "status": 503,
+    "message": "the inventory is not available"
+  },
+  {
+    "code": "invite_expired",
+    "status": 404,
+    "message": "the invite has expired"
+  },
+  {
+    "code": "invite_self",
+    "status": 400,
+    "message": "you cannot invite yourself"
+  },
+  {
+    "code": "item_not_found",
+    "status": 404,
+    "message": "item not found"
+  },
+  {
+    "code": "login_rate_limited",
+    "status": 429,
+    "message": "too many login attempts, try again in a minute"
+  },
+  {
+    "code": "malformed_body",
+    "status": 400,
+    "message": "malformed request body"
+  },
+  {
+    "code": "method_not_allowed",
+    "status": 405,
+    "message": "method not allowed"
+  },
+  {
+    "code": "missing_field",
+    "status": 400,
+    "message": "missing a required field"
+  },
+  {
+    "code": "name_taken",
+    "status": 409,
+    "message": "that name is taken"
+  },
+  {
+    "code": "no_party",
+    "status": 404,
+    "message": "not in a party"
+  },
+  {
+    "code": "no_such_endpoint",
+    "status": 404,
+    "message": "no such endpoint"
+  },
+  {
+    "code": "not_implemented",
+    "status": 501,
+    "message": "not available yet"
+  },
+  {
+    "code": "not_party_leader",
+    "status": 409,
+    "message": "only the party leader can do that"
+  },
+  {
+    "code": "not_party_member",
+    "status": 404,
+    "message": "not a member of your party"
+  },
+  {
+    "code": "parties_unavailable",
+    "status": 503,
+    "message": "parties are not available"
+  },
+  {
+    "code": "party_chat_unavailable",
+    "status": 503,
+    "message": "party chat is not available"
+  },
+  {
+    "code": "party_full",
+    "status": 409,
+    "message": "the party is full"
+  },
+  {
+    "code": "pickup_busy",
+    "status": 503,
+    "message": "try again in a moment"
+  },
+  {
+    "code": "pickups_unavailable",
+    "status": 503,
+    "message": "pickups are not available"
+  },
+  {
+    "code": "rate_limited",
+    "status": 429,
+    "message": "slow down"
+  },
+  {
+    "code": "session_race",
+    "status": 409,
+    "message": "another login is in progress, try again"
+  },
+  {
+    "code": "slot_holds_other_item",
+    "status": 409,
+    "message": "that slot holds a different item"
+  },
+  {
+    "code": "slot_taken",
+    "status": 409,
+    "message": "that slot is taken"
+  },
+  {
+    "code": "target_not_on_map",
+    "status": 404,
+    "message": "that character is not on your map"
+  },
+  {
+    "code": "unauthenticated",
+    "status": 401,
+    "message": "invalid credentials or session"
+  },
+  {
+    "code": "unknown_class",
+    "status": 400,
+    "message": "unknown class"
+  },
+  {
+    "code": "unknown_item",
+    "status": 400,
+    "message": "unknown item"
+  },
+  {
+    "code": "username_taken",
+    "status": 409,
+    "message": "that username is taken"
+  },
+  {
+    "code": "wrong_tab",
+    "status": 400,
+    "message": "an item stays in its own tab"
+  }
+]

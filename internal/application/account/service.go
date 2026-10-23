@@ -208,7 +208,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 			}
 			return uow.Sessions().Insert(ctx, session)
 		})
-		if errors.Is(err, errActiveSession) && attempt < loginMaxRetries {
+		if errors.Is(err, ErrSessionRace) && attempt < loginMaxRetries {
 			continue
 		}
 		if err != nil {

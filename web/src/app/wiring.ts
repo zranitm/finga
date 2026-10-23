@@ -91,9 +91,10 @@ export function responseText(d: Data<'Response'>): string {
   switch (d.code) {
     case 'inventory_full':
       return 'Your inventory is full.';
-    case 'unavailable':
+    case 'pickup_busy':
       return 'The server is busy. Try again.';
     case 'rate_limited':
+    case 'chat_rate_limited':
       return 'Too fast. Wait a moment.';
     default:
       return d.message ?? d.code ?? 'The server refused.';

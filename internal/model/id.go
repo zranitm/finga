@@ -4,9 +4,10 @@
 package model
 
 import (
-	"github.com/google/uuid"
+	"errors"
+	"fmt"
 
-	"finga/pkg/errs"
+	"github.com/google/uuid"
 )
 
 // The ID types are distinct, so passing a character ID where an item ID is
@@ -23,7 +24,8 @@ type (
 	SessionID uuid.UUID
 )
 
-var errBadID = errs.Invalid("malformed ID")
+// ErrBadID is a malformed ID in a request.
+var ErrBadID = errors.New("model: malformed ID")
 
 func newID() uuid.UUID {
 	id, err := uuid.NewV7()
@@ -38,7 +40,7 @@ func newID() uuid.UUID {
 func parseID(s string) (uuid.UUID, error) {
 	id, err := uuid.Parse(s)
 	if err != nil {
-		return uuid.Nil, errBadID.Wrap(err)
+		return uuid.Nil, fmt.Errorf("%w: %w", ErrBadID, err)
 	}
 	return id, nil
 }
@@ -46,7 +48,7 @@ func parseID(s string) (uuid.UUID, error) {
 // NewAccountID mints a new ID.
 func NewAccountID() AccountID { return AccountID(newID()) }
 
-// ParseAccountID parses the text form; bad text is invalid_argument.
+// ParseAccountID parses the text form; bad text is ErrBadID.
 func ParseAccountID(s string) (AccountID, error) {
 	id, err := parseID(s)
 	return AccountID(id), err
@@ -74,7 +76,7 @@ func (id *AccountID) UnmarshalText(text []byte) error {
 // NewCharacterID mints a new ID.
 func NewCharacterID() CharacterID { return CharacterID(newID()) }
 
-// ParseCharacterID parses the text form; bad text is invalid_argument.
+// ParseCharacterID parses the text form; bad text is ErrBadID.
 func ParseCharacterID(s string) (CharacterID, error) {
 	id, err := parseID(s)
 	return CharacterID(id), err
@@ -102,7 +104,7 @@ func (id *CharacterID) UnmarshalText(text []byte) error {
 // NewItemID mints a new ID.
 func NewItemID() ItemID { return ItemID(newID()) }
 
-// ParseItemID parses the text form; bad text is invalid_argument.
+// ParseItemID parses the text form; bad text is ErrBadID.
 func ParseItemID(s string) (ItemID, error) {
 	id, err := parseID(s)
 	return ItemID(id), err
@@ -130,7 +132,7 @@ func (id *ItemID) UnmarshalText(text []byte) error {
 // NewSessionID mints a new ID.
 func NewSessionID() SessionID { return SessionID(newID()) }
 
-// ParseSessionID parses the text form; bad text is invalid_argument.
+// ParseSessionID parses the text form; bad text is ErrBadID.
 func ParseSessionID(s string) (SessionID, error) {
 	id, err := parseID(s)
 	return SessionID(id), err

@@ -84,7 +84,7 @@ describe('PartyWindow', () => {
 
   it('the leader sees kick and promote for the others, members see leave only, and a refusal shows the reason', async () => {
     const { socket, calls } = fakeSocket([
-      new RequestError('not_found', 'no such member'),
+      new RequestError('not_party_member', 'no such member'),
       { ok: true },
     ]);
     render(<PartyWindow socket={socket} me="c-ayla" onClose={vi.fn()} />);

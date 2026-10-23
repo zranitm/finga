@@ -13,7 +13,6 @@ import (
 	"finga/internal/application/gamedata"
 	"finga/internal/model"
 	"finga/migrations"
-	"finga/pkg/errs"
 	"finga/pkg/pgtest"
 )
 
@@ -70,7 +69,7 @@ func TestRepository(t *testing.T) {
 			_, err := uow.Items().LockOwned(ctx, sword.ID, bob)
 			return err
 		})
-		if !errors.Is(err, ErrNotFound) || errs.CodeOf(err) != errs.NotFound {
+		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -122,7 +121,7 @@ func TestRepository(t *testing.T) {
 		err := store.InTx(ctx, func(uow UnitOfWork) error {
 			return uow.Items().Insert(ctx, Item{ID: model.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0})
 		})
-		if !errors.Is(err, ErrSlotTaken) || errs.CodeOf(err) != errs.Conflict {
+		if !errors.Is(err, ErrSlotTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})

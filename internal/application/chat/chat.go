@@ -5,13 +5,13 @@
 package chat
 
 import (
+	"errors"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"finga/internal/model"
-	"finga/pkg/errs"
 	"finga/pkg/ratelimit"
 )
 
@@ -70,14 +70,15 @@ func NewService(parties Parties, opts Options) *Service {
 	return &Service{parties: parties, limiter: ratelimit.NewBuckets(RatePerSecond, Burst, lopts...)}
 }
 
-// Errors.
+// The module's errors. Each names one failure; the handlers give it a
+// code, a status and the words a player sees (internal/handler/errmap).
 var (
-	ErrEmpty     = errs.Invalid("nothing to say")
-	ErrTooLong   = errs.Invalid("a chat line is at most 120 characters")
-	ErrChannel   = errs.Invalid("unknown chat channel")
-	ErrNoParty   = errs.New(errs.NotFound, "you have no party")
-	ErrRate      = errs.New(errs.RateLimited, "slow down")
-	ErrNoParties = errs.New(errs.Unavailable, "party chat is not available")
+	ErrEmpty     = errors.New("chat: empty line")
+	ErrTooLong   = errors.New("chat: line too long")
+	ErrChannel   = errors.New("chat: unknown channel")
+	ErrNoParty   = errors.New("chat: party line from a player with no party")
+	ErrRate      = errors.New("chat: rate limited")
+	ErrNoParties = errors.New("chat: party chat not wired")
 )
 
 // Send cleans the text and charges the sender's limit. For the map channel

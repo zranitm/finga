@@ -184,24 +184,29 @@ describe('wiring', () => {
       text: 'Your inventory is full.',
     },
     {
-      name: 'unavailable',
-      d: { ok: false, code: 'unavailable' },
+      name: 'pickup_busy',
+      d: { ok: false, code: 'pickup_busy' },
       text: 'The server is busy. Try again.',
     },
     {
-      name: 'rate_limited (a chat line too soon)',
-      d: { ok: false, code: 'rate_limited' },
+      name: 'chat_rate_limited (a chat line too soon)',
+      d: { ok: false, code: 'chat_rate_limited', message: 'slow down' },
       text: 'Too fast. Wait a moment.',
     },
     {
-      name: 'not_found (a party line with no party)',
-      d: { ok: false, code: 'not_found', message: 'you have no party' },
+      name: 'rate_limited (any message too soon)',
+      d: { ok: false, code: 'rate_limited', message: 'slow down' },
+      text: 'Too fast. Wait a moment.',
+    },
+    {
+      name: 'chat_no_party (a party line with no party)',
+      d: { ok: false, code: 'chat_no_party', message: 'you have no party' },
       text: 'you have no party',
     },
     {
       name: 'another refusal with a message',
-      d: { ok: false, code: 'invalid_argument', message: 'nothing to pick up' },
-      text: 'nothing to pick up',
+      d: { ok: false, code: 'pickups_unavailable', message: 'pickups are not available' },
+      text: 'pickups are not available',
     },
   ])('a Response with no request ID and $name shows a toast', async ({ d, text }) => {
     const { ws } = await connectedSocket();

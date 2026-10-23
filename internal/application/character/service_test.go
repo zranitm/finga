@@ -3,14 +3,12 @@ package character_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"finga/internal/application/character"
 	"finga/internal/application/gamedata"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 type clock struct{ t time.Time }
@@ -85,7 +83,7 @@ func TestCreate(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				svc, store, _ := newService(t)
 				_, err := svc.Create(ctx, owner, character.CreateInput{Name: tt.input, Class: model.Warrior})
-				if !errors.Is(err, character.ErrBadName) || errs.CodeOf(err) != errs.InvalidArgument {
+				if !errors.Is(err, character.ErrBadName) {
 					t.Fatalf("err = %v", err)
 				}
 				if store.txCount != 0 {
@@ -109,11 +107,8 @@ func TestCreate(t *testing.T) {
 			t.Run(string(class), func(t *testing.T) {
 				svc, _, _ := newService(t)
 				_, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: class})
-				if !errors.Is(err, character.ErrClassUnavailable) || errs.CodeOf(err) != errs.InvalidArgument {
+				if !errors.Is(err, character.ErrClassUnavailable) {
 					t.Fatalf("err = %v", err)
-				}
-				if strings.Contains(errs.MessageOf(err), string(class)) {
-					t.Fatal("message echoes the input")
 				}
 			})
 		}
@@ -125,7 +120,7 @@ func TestCreate(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "AYLA", Class: model.Bowman})
-		if !errors.Is(err, character.ErrNameTaken) || errs.CodeOf(err) != errs.Conflict {
+		if !errors.Is(err, character.ErrNameTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -164,7 +159,7 @@ func TestListAndLoad(t *testing.T) {
 
 	t.Run("someone else's character gives not_found", func(t *testing.T) {
 		_, err := svc.Load(ctx, a1.ID, bob)
-		if !errors.Is(err, character.ErrNotFound) || errs.CodeOf(err) != errs.NotFound {
+		if !errors.Is(err, character.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -249,7 +244,7 @@ func TestCharacterSlots(t *testing.T) {
 		}
 	}
 	_, err := svc.Create(ctx, owner, character.CreateInput{Name: "Dori", Class: model.Warrior})
-	if !errors.Is(err, character.ErrSlotsFull) || errs.CodeOf(err) != errs.Conflict {
+	if !errors.Is(err, character.ErrSlotsFull) {
 		t.Fatalf("fourth character: %v, want ErrSlotsFull (conflict)", err)
 	}
 	// Another account is not affected.

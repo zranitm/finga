@@ -1,9 +1,11 @@
 package ws
 
 import (
+	"log/slog"
 	"strconv"
 
 	"finga/internal/application/world"
+	"finga/internal/handler/errmap"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -15,6 +17,7 @@ import (
 type sink struct {
 	conn       wsconn.Conn
 	obs        Observer
+	logger     *slog.Logger
 	onTeleport func(mapID string)
 }
 
@@ -56,7 +59,11 @@ func (s *sink) Send(e world.Event) bool {
 	case world.InventoryChanged:
 		m = wsconn.Message{Type: "InventoryChanged", Tick: ev.Tick, Data: protocol.InventoryChanged{Slots: inventorySlots(ev.Slots)}}
 	case world.PickupFailed:
-		m = wsconn.Message{Type: "Response", Tick: ev.Tick, Data: protocol.Response{OK: false, Code: ev.Code, Message: ev.Message}}
+		p := errmap.For(ev.Err)
+		if errmap.IsInternal(p) && s.logger != nil {
+			s.logger.Error("pickup failed", "conn", s.conn.ID(), "err", ev.Err)
+		}
+		m = wsconn.Message{Type: "Response", Tick: ev.Tick, Data: refusal(p)}
 	default:
 		return true // an event this gateway does not know yet; not a reason to drop the player
 	}

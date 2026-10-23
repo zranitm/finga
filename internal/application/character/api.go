@@ -6,20 +6,21 @@
 package character
 
 import (
+	"errors"
 	"time"
 
 	"finga/internal/application/gamedata"
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
-// The module's errors.
+// The module's errors. Each names one failure; the handlers give it a
+// code, a status and the words a player sees (internal/handler/errmap).
 var (
-	ErrNotFound         = errs.New(errs.NotFound, "character not found")
-	ErrNameTaken        = errs.New(errs.Conflict, "that name is taken")
-	ErrBadName          = errs.Invalid("name must be 3 to 12 letters and digits, starting with a letter")
-	ErrClassUnavailable = errs.Invalid("that class is not available")
-	ErrSlotsFull        = errs.New(errs.Conflict, "this account already has the most characters allowed")
+	ErrNotFound         = errors.New("character: not found")
+	ErrNameTaken        = errors.New("character: name taken")
+	ErrBadName          = errors.New("character: bad name")
+	ErrClassUnavailable = errors.New("character: class not available")
+	ErrSlotsFull        = errors.New("character: account has no free character slot")
 )
 
 // Character is a character as stored.

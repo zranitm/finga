@@ -13,7 +13,6 @@ import (
 	"finga/internal/application/gamedata"
 	"finga/internal/model"
 	"finga/migrations"
-	"finga/pkg/errs"
 	"finga/pkg/pgtest"
 )
 
@@ -57,7 +56,7 @@ func TestRepository(t *testing.T) {
 
 	t.Run("a duplicate name in different letter case gives ErrNameTaken", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Characters().Insert(ctx, sample(bob, "AYLA")) })
-		if !errors.Is(err, ErrNameTaken) || errs.CodeOf(err) != errs.Conflict {
+		if !errors.Is(err, ErrNameTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -78,7 +77,7 @@ func TestRepository(t *testing.T) {
 
 	t.Run("loading another account's character gives ErrNotFound", func(t *testing.T) {
 		_, err := store.Load(ctx, ayla.ID, bob)
-		if !errors.Is(err, ErrNotFound) || errs.CodeOf(err) != errs.NotFound {
+		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})

@@ -2,13 +2,12 @@ package model_test
 
 import (
 	"encoding/json"
-	"strings"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
 
 	"finga/internal/model"
-	"finga/pkg/errs"
 )
 
 func TestParseClass(t *testing.T) {
@@ -33,11 +32,8 @@ func TestParseClass(t *testing.T) {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}
 			if err != nil {
-				if errs.CodeOf(err) != errs.InvalidArgument {
-					t.Fatalf("code = %q, want invalid_argument", errs.CodeOf(err))
-				}
-				if msg := errs.MessageOf(err); tt.in != "" && strings.Contains(msg, tt.in) {
-					t.Fatalf("message echoes the input: %q", msg)
+				if !errors.Is(err, model.ErrUnknownClass) {
+					t.Fatalf("err = %v, want ErrUnknownClass", err)
 				}
 				return
 			}
@@ -110,16 +106,9 @@ func TestParseIDs(t *testing.T) {
 				t.Fatalf("got %q, %v", got, err)
 			}
 		})
-		t.Run(p.name+" rejects bad text as invalid_argument without echoing it", func(t *testing.T) {
-			_, err := p.parse(bad)
-			if err == nil {
-				t.Fatal("no error")
-			}
-			if errs.CodeOf(err) != errs.InvalidArgument {
-				t.Fatalf("code = %q", errs.CodeOf(err))
-			}
-			if strings.Contains(errs.MessageOf(err), bad) {
-				t.Fatal("message echoes the input")
+		t.Run(p.name+" rejects bad text as ErrBadID", func(t *testing.T) {
+			if _, err := p.parse(bad); !errors.Is(err, model.ErrBadID) {
+				t.Fatalf("err = %v, want ErrBadID", err)
 			}
 		})
 	}

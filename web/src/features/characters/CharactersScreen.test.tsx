@@ -65,7 +65,7 @@ describe('CharactersScreen', () => {
       if (method === 'POST' && path === '/api/characters') {
         const b = body as { name: string; class: string };
         return b.name === 'Ayla'
-          ? { status: 409, body: { code: 'conflict', message: 'that name is taken' } }
+          ? { status: 409, body: { code: 'name_taken', message: 'that name is taken' } }
           : {
               status: 201,
               body: { ...sampleCharacter, id: 'c-robin', name: b.name, class: b.class },
@@ -102,7 +102,7 @@ describe('CharactersScreen', () => {
         ? {
             status: 409,
             body: {
-              code: 'conflict',
+              code: 'character_slots_full',
               message: 'this account already has the most characters allowed',
             },
           }

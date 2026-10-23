@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -11,8 +12,8 @@ import (
 	"time"
 
 	"finga/internal/application/account"
+	"finga/internal/handler/errmap"
 	"finga/pkg/auth"
-	"finga/pkg/errs"
 )
 
 type ctxKey int
@@ -49,7 +50,7 @@ func requireAuth(sessions auth.Sessions, next http.Handler) http.Handler {
 		}
 		p, err := sessions.Validate(r.Context(), token)
 		if err != nil {
-			if errs.CodeOf(err) == errs.Unauthenticated {
+			if errors.Is(err, account.ErrUnauthenticated) {
 				w.Header().Set("WWW-Authenticate", "Bearer")
 			}
 			writeError(w, err)
@@ -84,10 +85,13 @@ func withCORS(origins []string, next http.Handler) http.Handler {
 	})
 }
 
-// statusWriter remembers the status for the request log.
+// statusWriter remembers what the request log needs: the status, the code
+// of a refusal, and the error behind an internal one.
 type statusWriter struct {
 	http.ResponseWriter
 	status int
+	code   string
+	err    error
 }
 
 // WriteHeader records the first status written.
@@ -107,8 +111,10 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 }
 
 // withLogging logs one line per request: method, path, status and
-// duration. Never headers or bodies, so tokens and passwords stay out.
-// A panic is logged with its stack and answered with 500 internal.
+// duration, the error code of a refusal, and the cause of an internal
+// error at level ERROR. Never headers or bodies, so tokens and passwords
+// stay out. A panic is logged with its stack and answered with 500
+// internal.
 func withLogging(log *slog.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -116,11 +122,20 @@ func withLogging(log *slog.Logger, next http.Handler) http.Handler {
 		defer func() {
 			if p := recover(); p != nil {
 				if sw.status == 0 {
-					writeCode(sw, http.StatusInternalServerError, errs.Internal, errs.InternalMessage)
+					writePublic(sw, errmap.Internal)
 				}
 				log.ErrorContext(r.Context(), "panic in request", "method", r.Method, "path", r.URL.Path, "panic", p, "stack", string(debug.Stack()))
 			}
-			log.InfoContext(r.Context(), "request", "method", r.Method, "path", r.URL.Path, "status", sw.status, "duration_ms", float64(time.Since(start).Microseconds())/1000)
+			args := []any{"method", r.Method, "path", r.URL.Path, "status", sw.status, "duration_ms", float64(time.Since(start).Microseconds()) / 1000}
+			level := slog.LevelInfo
+			if sw.code != "" {
+				args = append(args, "code", sw.code)
+			}
+			if sw.err != nil {
+				args = append(args, "err", sw.err.Error())
+				level = slog.LevelError
+			}
+			log.Log(r.Context(), level, "request", args...)
 		}()
 		next.ServeHTTP(sw, r)
 	})
