@@ -1,4 +1,4 @@
-package server_test
+package app_test
 
 import (
 	"context"
@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"finga/cmd/gameserver/app"
 	"finga/internal/config"
-	"finga/internal/server"
 )
 
-func newServer(t *testing.T, api http.Handler) *server.Server {
+func newServer(t *testing.T, api http.Handler) *app.Server {
 	t.Helper()
-	return server.New(server.Options{
+	return app.New(app.Options{
 		Config: config.Server{Addr: "127.0.0.1:0", ShutdownGrace: 2 * time.Second},
 		Logger: slog.New(slog.DiscardHandler),
-	}, server.Deps{API: api, Metrics: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("# metrics\n")) })})
+	}, app.Deps{API: api, Metrics: http.NotFoundHandler()})
 }
 
 func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
@@ -33,16 +33,12 @@ func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 // ready from the moment it listens until shutdown starts, and it checks no
 // dependency: the database is shared by every instance, so failing on it
 // would pull them all out of rotation at once (Build already refuses to
-// start without it).
-func TestProbes(t *testing.T) {
+// start without it). The router (internal/handler) serves the probes; these
+// tests check that the process drives them.
+func TestReadinessFollowsTheProcess(t *testing.T) {
 	srv := newServer(t, http.NotFoundHandler())
 	h := srv.Handler()
 
-	t.Run("healthz is always 200", func(t *testing.T) {
-		if rec := get(t, h, "/healthz"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ok") {
-			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
-		}
-	})
 	t.Run("readyz is 503 before the server runs", func(t *testing.T) {
 		if rec := get(t, h, "/readyz"); rec.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status %d", rec.Code)
@@ -56,11 +52,6 @@ func TestProbes(t *testing.T) {
 
 	t.Run("readyz is 200 once listening", func(t *testing.T) {
 		if rec := get(t, h, "/readyz"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ready") {
-			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
-		}
-	})
-	t.Run("metrics is served", func(t *testing.T) {
-		if rec := get(t, h, "/metrics"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "# metrics") {
 			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
 		}
 	})
@@ -150,10 +141,10 @@ func TestRunFailsOnABusyAddress(t *testing.T) {
 	defer cancel()
 	go func() { _ = first.Run(ctx) }()
 	waitFor(t, func() bool { return first.Addr() != "" })
-	second := server.New(server.Options{
+	second := app.New(app.Options{
 		Config: config.Server{Addr: first.Addr(), ShutdownGrace: time.Second},
 		Logger: slog.New(slog.DiscardHandler),
-	}, server.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler()})
+	}, app.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler()})
 	if err := second.Run(ctx); err == nil {
 		t.Fatal("second Run on the same address succeeded")
 	}

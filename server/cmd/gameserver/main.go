@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"finga/cmd/gameserver/app"
 	"finga/internal/config"
-	"finga/internal/server"
 	"finga/pkg/configload"
 	"finga/pkg/observability"
 )
@@ -48,7 +48,7 @@ func run() int {
 	defer stop()
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
-	srv, err := server.Build(buildCtx, server.BuildOptions{Config: *cfg, Logger: log, Registry: observability.NewRegistry()})
+	srv, err := app.Build(buildCtx, app.BuildOptions{Config: *cfg, Logger: log, Registry: observability.NewRegistry()})
 	if err != nil {
 		log.Error("startup failed", "err", err)
 		return 1

@@ -119,9 +119,17 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
 ## Architecture at a glance
 
 One Go module in `server/`, laid out so that imports only point one way
-(depguard checks it): `cmd` → `internal/server` → `internal/handler` →
-`internal/application` → `internal/model` → `pkg`.
+(depguard checks it): `cmd` → `internal/handler` → `internal/application`
+→ `internal/model` → `pkg`.
 
+- **`cmd/gameserver/app`** is the game server's composition root: `Build`
+  wires every module from configuration, and `Server` listens, runs the
+  background tasks and shuts down gracefully. Each binary wires its own
+  dependencies next to its main; this one is a package of its own so the
+  end-to-end tests can build the server exactly as production does.
+- **`internal/handler/router.go`** is the route table: REST under `/api`,
+  the gateway at `/ws`, `/metrics`, `/healthz`, and `/readyz`, which
+  says whether the process can take traffic and checks no dependency.
 - **`internal/handler/api`** is the REST API (sign up, log in, characters,
   settings; contract in `server/api/openapi.yaml`, checked for drift by a test).
 - **`internal/handler/ws`** is the WebSocket gateway: the Hello handshake, one

@@ -1,4 +1,5 @@
-// Package e2e runs the game server as production builds it (server.Build)
+// Package e2e runs the game server as production builds it (app.Build, the
+// game server's composition root next to its main)
 // against a real Postgres, in process. Each Stage 1 acceptance criterion
 // that the REST API covers is a row named after its feature.
 package e2e_test
@@ -18,9 +19,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
+	"finga/cmd/gameserver/app"
 	"finga/internal/config"
 	"finga/internal/protocol"
-	"finga/internal/server"
 	"finga/migrations"
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
@@ -58,7 +59,7 @@ func newStack(t *testing.T) *stack {
 		Economy:   config.Economy{Workers: 2},
 		Telemetry: config.Telemetry{LogLevel: "error"},
 	}
-	srv, err := server.Build(ctx, server.BuildOptions{
+	srv, err := app.Build(ctx, app.BuildOptions{
 		Config:   cfg,
 		Logger:   slog.New(slog.DiscardHandler),
 		Registry: prometheus.NewRegistry(),

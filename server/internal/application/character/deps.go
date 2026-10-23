@@ -26,7 +26,8 @@ type UnitOfWork interface {
 
 // StarterItems grants a new character its class's starter items inside
 // character creation's transaction. The item module implements it;
-// internal/server binds the two without either importing the other.
+// the game server's composition root (cmd/gameserver/app) binds the two
+// without either importing the other.
 type StarterItems interface {
 	GrantStarter(ctx context.Context, owner model.CharacterID, class model.Class) error
 }

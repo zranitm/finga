@@ -1,9 +1,14 @@
-// Package server wires the game server and runs its HTTP listener: /api
-// (REST), /ws (the gateway), /healthz, /readyz and /metrics, with the
-// background tasks (the world's instances and the persistence worker) and
-// graceful shutdown. Build constructs everything from configuration; New
-// takes ready-made parts, for tests and for Build.
-package server
+// Package app is the game server's composition root and its process. Build
+// wires every module from configuration, the one place that knows them all;
+// Server runs the HTTP listener on the router from internal/handler, with
+// the background tasks (the world's instances, the persistence worker, the
+// session sweeper) and graceful shutdown. New takes ready-made parts, for
+// tests and for Build.
+//
+// Each binary wires its own dependencies next to its main. This one lives in
+// a package of its own, not in main, because Go cannot import a main package
+// and the end-to-end tests build the server exactly as production does.
+package app
 
 import (
 	"context"
@@ -16,6 +21,7 @@ import (
 	"time"
 
 	"finga/internal/config"
+	"finga/internal/handler"
 )
 
 const readTimeout = 10 * time.Second
@@ -33,7 +39,7 @@ type Options struct {
 	Logger *slog.Logger
 }
 
-// Deps are the handlers the server mounts and the tasks it runs.
+// Deps are the handlers the router mounts and the tasks the server runs.
 type Deps struct {
 	API     http.Handler // /api/
 	Gateway http.Handler // /ws; nil mounts nothing
@@ -41,33 +47,33 @@ type Deps struct {
 	Tasks   []Task
 }
 
-// Server is the HTTP server, its probes, and its background tasks.
+// Server is the HTTP listener, its readiness, and its background tasks.
 type Server struct {
 	cfg     config.Server
 	log     *slog.Logger
 	deps    Deps
-	mux     *http.ServeMux
+	handler http.Handler
 	ready   atomic.Bool
 	mu      sync.Mutex
 	addr    string
 	closers []func()
 }
 
-// New mounts the handlers. Run starts listening.
+// New builds the router over the handlers, with readiness from this
+// server's state. Run starts listening.
 func New(opts Options, deps Deps) *Server {
-	s := &Server{cfg: opts.Config, log: opts.Logger, deps: deps, mux: http.NewServeMux()}
-	s.mux.Handle("/api/", deps.API)
-	if deps.Gateway != nil {
-		s.mux.Handle("GET /ws", deps.Gateway)
-	}
-	s.mux.Handle("GET /metrics", deps.Metrics)
-	s.mux.HandleFunc("GET /healthz", s.healthz)
-	s.mux.HandleFunc("GET /readyz", s.readyz)
+	s := &Server{cfg: opts.Config, log: opts.Logger, deps: deps}
+	s.handler = handler.NewRouter(handler.Routes{
+		API:     deps.API,
+		Gateway: deps.Gateway,
+		Metrics: deps.Metrics,
+		Ready:   s.ready.Load,
+	})
 	return s
 }
 
 // Handler is the whole server as one handler, for tests through httptest.
-func (s *Server) Handler() http.Handler { return s.mux }
+func (s *Server) Handler() http.Handler { return s.handler }
 
 // Addr is the listening address once Run has bound it; empty before.
 func (s *Server) Addr() string {
@@ -105,7 +111,7 @@ func (s *Server) Run(ctx context.Context) error {
 	s.mu.Lock()
 	s.addr = ln.Addr().String()
 	s.mu.Unlock()
-	srv := &http.Server{Handler: s.mux, ReadHeaderTimeout: readTimeout}
+	srv := &http.Server{Handler: s.handler, ReadHeaderTimeout: readTimeout}
 	taskCtx, stopTasks := context.WithCancel(ctx)
 	tasksDone := make(chan struct{})
 	go func() { defer close(tasksDone); s.RunTasks(taskCtx) }()
@@ -143,25 +149,4 @@ func (s *Server) Close() {
 	for _, c := range s.closers {
 		c()
 	}
-}
-
-func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
-}
-
-// readyz says whether this process can take traffic: 200 from the moment
-// it listens (game data loaded, everything wired) until shutdown starts, 503
-// before and after. It checks no dependency. The database is shared by every
-// instance, so failing on it would take them all out of rotation at once;
-// Build refuses to start without it, and a later outage shows in the logs
-// and the request errors instead.
-func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if !s.ready.Load() {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"status":"not ready"}` + "\n"))
-		return
-	}
-	_, _ = w.Write([]byte(`{"status":"ready"}` + "\n"))
 }

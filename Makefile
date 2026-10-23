@@ -31,14 +31,15 @@ test-go:
 test-web:
 	$(NPM) test
 
-# Go coverage counts statements in server/internal/ and server/pkg/ only, from
-# every test in the module (end-to-end tests under server/test/ included).
-# cmd/ is wiring, exercised end to end, and stringer output (*_string.go) is
+# Go coverage counts statements in server/internal/, server/pkg/ and the game
+# server's composition root (server/cmd/gameserver/app/), from every test in
+# the module (end-to-end tests under server/test/ included). The main.go files
+# are entry points, exercised end to end, and stringer output (*_string.go) is
 # generated, so both are excluded. The client enforces page 7's 80% floor on its tested layers itself.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 cover-go:
-	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/... -coverprofile=coverage.out ./...
+	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./cmd/gameserver/app/... -coverprofile=coverage.out ./...
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
