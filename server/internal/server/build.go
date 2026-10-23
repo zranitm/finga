@@ -96,7 +96,6 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		API:     restAPI,
 		Gateway: gateway,
 		Metrics: observability.MetricsHandler(opts.Registry),
-		DB:      pool,
 		Tasks: []Task{
 			{Name: "world", Run: maps.Run},
 			{Name: "persistence", Run: func(ctx context.Context) error { maps.RunPersistence(ctx); return nil }},

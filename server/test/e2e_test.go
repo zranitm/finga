@@ -235,6 +235,7 @@ func TestAcceptance(t *testing.T) {
 	t.Run("probes/healthz-readyz-metrics", func(t *testing.T) {
 		s := newStack(t)
 		s.mustStatus(s.call("GET", "/healthz", "", nil), http.StatusOK)
+		s.mustStatus(s.call("GET", "/readyz", "", nil), http.StatusOK)
 		res, err := http.Get(s.url + "/metrics")
 		if err != nil {
 			t.Fatal(err)

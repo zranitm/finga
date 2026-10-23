@@ -18,15 +18,7 @@ import (
 	"finga/internal/config"
 )
 
-const (
-	readTimeout = 10 * time.Second
-	readyPing   = 2 * time.Second
-)
-
-// Pinger is what readiness needs from the database.
-type Pinger interface {
-	Ping(ctx context.Context) error
-}
+const readTimeout = 10 * time.Second
 
 // Task is a background job that runs beside the listener and stops when
 // the server's context ends.
@@ -46,7 +38,6 @@ type Deps struct {
 	API     http.Handler // /api/
 	Gateway http.Handler // /ws; nil mounts nothing
 	Metrics http.Handler // /metrics
-	DB      Pinger
 	Tasks   []Task
 }
 
@@ -159,21 +150,17 @@ func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
 }
 
-// readyz is 200 once the server is listening (game data loaded, everything
-// wired) and the database answers a ping; 503 otherwise, with no detail.
-func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
+// readyz says whether this process can take traffic: 200 from the moment
+// it listens (game data loaded, everything wired) until shutdown starts, 503
+// before and after. It checks no dependency. The database is shared by every
+// instance, so failing on it would take them all out of rotation at once;
+// Build refuses to start without it, and a later outage shows in the logs
+// and the request errors instead.
+func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if !s.ready.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"status":"starting"}` + "\n"))
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), readyPing)
-	defer cancel()
-	if err := s.deps.DB.Ping(ctx); err != nil {
-		s.log.WarnContext(ctx, "readiness: database ping failed", "err", err)
-		w.WriteHeader(http.StatusServiceUnavailable)
-		_, _ = w.Write([]byte(`{"status":"database unavailable"}` + "\n"))
+		_, _ = w.Write([]byte(`{"status":"not ready"}` + "\n"))
 		return
 	}
 	_, _ = w.Write([]byte(`{"status":"ready"}` + "\n"))

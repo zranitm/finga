@@ -2,13 +2,11 @@ package server_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,29 +14,12 @@ import (
 	"finga/internal/server"
 )
 
-type pinger struct {
-	mu  sync.Mutex
-	err error
-}
-
-func (p *pinger) Ping(context.Context) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.err
-}
-
-func (p *pinger) set(err error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.err = err
-}
-
-func newServer(t *testing.T, api http.Handler, db *pinger) *server.Server {
+func newServer(t *testing.T, api http.Handler) *server.Server {
 	t.Helper()
 	return server.New(server.Options{
 		Config: config.Server{Addr: "127.0.0.1:0", ShutdownGrace: 2 * time.Second},
 		Logger: slog.New(slog.DiscardHandler),
-	}, server.Deps{API: api, DB: db, Metrics: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("# metrics\n")) })})
+	}, server.Deps{API: api, Metrics: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("# metrics\n")) })})
 }
 
 func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
@@ -48,9 +29,13 @@ func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 	return rec
 }
 
+// Readiness answers one question: can this process take traffic now? It is
+// ready from the moment it listens until shutdown starts, and it checks no
+// dependency: the database is shared by every instance, so failing on it
+// would pull them all out of rotation at once (Build already refuses to
+// start without it).
 func TestProbes(t *testing.T) {
-	db := &pinger{}
-	srv := newServer(t, http.NotFoundHandler(), db)
+	srv := newServer(t, http.NotFoundHandler())
 	h := srv.Handler()
 
 	t.Run("healthz is always 200", func(t *testing.T) {
@@ -69,17 +54,9 @@ func TestProbes(t *testing.T) {
 	go func() { done <- srv.Run(ctx) }()
 	waitFor(t, func() bool { return srv.Addr() != "" })
 
-	t.Run("readyz is 200 once running with the database answering", func(t *testing.T) {
-		if rec := get(t, h, "/readyz"); rec.Code != http.StatusOK {
+	t.Run("readyz is 200 once listening", func(t *testing.T) {
+		if rec := get(t, h, "/readyz"); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "ready") {
 			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
-		}
-	})
-	t.Run("readyz is 503 when the database does not answer", func(t *testing.T) {
-		db.set(errors.New("down"))
-		defer db.set(nil)
-		rec := get(t, h, "/readyz")
-		if rec.Code != http.StatusServiceUnavailable || strings.Contains(rec.Body.String(), "down") {
-			t.Fatalf("status %d body %s (database error text must not leak)", rec.Code, rec.Body.String())
 		}
 	})
 	t.Run("metrics is served", func(t *testing.T) {
@@ -118,7 +95,7 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("done"))
 	})
-	srv := newServer(t, api, &pinger{})
+	srv := newServer(t, api)
 	ctx, cancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() { runDone <- srv.Run(ctx) }()
@@ -142,6 +119,9 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 	}()
 	<-entered
 	cancel() // shutdown starts while the request is in flight
+	// Draining: readiness drops first, so a load balancer stops sending new
+	// traffic while the in-flight request finishes.
+	waitFor(t, func() bool { return get(t, srv.Handler(), "/readyz").Code == http.StatusServiceUnavailable })
 	select {
 	case err := <-runDone:
 		t.Fatalf("Run returned %v before the in-flight request finished", err)
@@ -165,7 +145,7 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 }
 
 func TestRunFailsOnABusyAddress(t *testing.T) {
-	first := newServer(t, http.NotFoundHandler(), &pinger{})
+	first := newServer(t, http.NotFoundHandler())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() { _ = first.Run(ctx) }()
@@ -173,7 +153,7 @@ func TestRunFailsOnABusyAddress(t *testing.T) {
 	second := server.New(server.Options{
 		Config: config.Server{Addr: first.Addr(), ShutdownGrace: time.Second},
 		Logger: slog.New(slog.DiscardHandler),
-	}, server.Deps{API: http.NotFoundHandler(), DB: &pinger{}, Metrics: http.NotFoundHandler()})
+	}, server.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler()})
 	if err := second.Run(ctx); err == nil {
 		t.Fatal("second Run on the same address succeeded")
 	}
