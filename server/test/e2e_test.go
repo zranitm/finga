@@ -235,7 +235,9 @@ func TestAcceptance(t *testing.T) {
 	t.Run("probes/healthz-readyz-metrics", func(t *testing.T) {
 		s := newStack(t)
 		s.mustStatus(s.call("GET", "/healthz", "", nil), http.StatusOK)
-		s.mustStatus(s.call("GET", "/readyz", "", nil), http.StatusOK)
+		// No /readyz here: this stack serves the handler through httptest
+		// and never calls Run, so it is rightly not ready. The server tests
+		// cover readiness, and CI's compose job polls it on the real binary.
 		res, err := http.Get(s.url + "/metrics")
 		if err != nil {
 			t.Fatal(err)
