@@ -11,8 +11,8 @@ import (
 
 	"finga/internal/application/character"
 	"finga/internal/application/world"
-	"finga/internal/application/world/sim"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 // fakeSaver records checkpoints, as the character service would.

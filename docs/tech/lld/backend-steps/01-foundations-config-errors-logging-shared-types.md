@@ -6,6 +6,8 @@
 - **Status:** Done
 - **Step:** 01. Foundations: config, errors, logging, shared types
 
+> **Changed by step 20 (2026-10-27):** the ID types in `internal/model` sit on `pkg/typedid`, with the same names and behaviour.
+
 **Goal:** the small pieces every later package uses.
 
 ## Scope

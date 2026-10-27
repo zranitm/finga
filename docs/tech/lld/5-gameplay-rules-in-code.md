@@ -16,7 +16,7 @@ The rules come from Product → Systems; this page turns them into algorithms. N
 
 ## Movement
 
-The same algorithm exists in Go (`internal/application/world/sim`) and TypeScript (`web/src/sim`). Shared test vectors in `testdata/movement/` must pass in both.
+The same algorithm exists in Go (`internal/sim`) and TypeScript (`web/src/sim`). In Go every product added to a position or velocity is converted with `float64(...)`, which rounds it and stops the compiler fusing it into a multiply-add on arm64, so both architectures and the browser compute the same bits. Shared test vectors in `testdata/movement/` must pass in both.
 
 - Fixed sub-step of 1/60 s. The server runs 3 sub-steps per 20 Hz tick.
 - Starting constants: walk 200 px/s, jump velocity 620 px/s, gravity 1,900 px/s², max fall speed 900 px/s, climb 140 px/s.

@@ -13,9 +13,10 @@ import (
 	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
-	"finga/internal/application/world/sim"
 	"finga/internal/handler/ws"
 	"finga/internal/model"
+	"finga/internal/progression"
+	"finga/internal/sim"
 	"finga/pkg/auth"
 )
 
@@ -50,8 +51,8 @@ func (f *fakeCharacters) Load(_ context.Context, id model.CharacterID, account m
 	return c, nil
 }
 
-func (f *fakeCharacters) Derived(c character.Character) (character.Derived, error) {
-	return character.Derived{MaxHP: c.HP, MaxMP: c.MP}, nil
+func (f *fakeCharacters) Derived(c character.Character) (progression.Derived, error) {
+	return progression.Derived{MaxHP: c.HP, MaxMP: c.MP}, nil
 }
 
 // fakeInstance records joins, leaves and inputs and lets the test push

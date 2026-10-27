@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 

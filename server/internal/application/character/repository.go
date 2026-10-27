@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/application/character/internal/db"
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/pkg/dbx"
 )

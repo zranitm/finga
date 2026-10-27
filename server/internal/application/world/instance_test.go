@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"finga/internal/application/character"
-	"finga/internal/application/gamedata"
 	"finga/internal/application/world"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 const tickInterval = 50 * time.Millisecond

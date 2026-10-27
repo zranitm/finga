@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"finga/internal/application/world/sim"
+	"finga/internal/sim"
 )
 
 // A flat floor 1000 px wide whose top is at y = 500, with a wall on the

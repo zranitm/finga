@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"finga/internal/application/character"
-	"finga/internal/application/gamedata"
 	"finga/internal/application/world"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 

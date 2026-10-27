@@ -19,8 +19,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"

@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 

@@ -8,9 +8,10 @@ import (
 
 	"finga/internal/application/character"
 	"finga/internal/application/combat"
-	"finga/internal/application/gamedata"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/internal/progression"
+	"finga/internal/sim"
 	"finga/pkg/tick"
 )
 
@@ -133,7 +134,7 @@ type player struct {
 	joined  bool
 
 	class         gamedata.Class
-	derived       character.Derived
+	derived       progression.Derived
 	attackQueued  bool
 	cooldownUntil uint64
 	invulnUntil   uint64
@@ -325,7 +326,7 @@ func (i *Instance) join(j *joinMsg) {
 		state:   sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
 		joined:  true,
 		class:   class,
-		derived: character.DeriveStats(formulas, j.player.Stats, j.player.Level, character.Equipment{}),
+		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, progression.Equipment{}),
 	}
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)
@@ -494,11 +495,11 @@ func (i *Instance) playerBox(p *player) combat.Rect {
 	return combat.Rect{X: p.state.X - i.params.Width/2, Y: p.state.Y - i.params.Height, W: i.params.Width, H: i.params.Height}
 }
 
-func attackerOf(d character.Derived) combat.Attacker {
+func attackerOf(d progression.Derived) combat.Attacker {
 	return combat.Attacker{AttackPower: d.AttackPower, Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration}
 }
 
-func defenderOf(d character.Derived) combat.Defender {
+func defenderOf(d progression.Derived) combat.Defender {
 	return combat.Defender{Defense: d.Defense, Evasion: d.Evasion}
 }
 

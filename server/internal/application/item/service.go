@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/pkg/outbox"
 )

@@ -8,11 +8,11 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
 	"finga/internal/application/world"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 // fakePickups stands in for the item service: idempotent by key, with a

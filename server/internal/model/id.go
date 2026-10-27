@@ -1,158 +1,55 @@
-// Package model holds the value types shared by the application modules and
-// the handlers: IDs, Class, and later Coins. It has no behaviour beyond
-// parsing and printing, and imports only pkg.
+// Package model holds the value types shared by every service: IDs, Class,
+// and later Coins. It has no behaviour beyond parsing and printing, and
+// imports only pkg.
 package model
 
-import (
-	"errors"
-	"fmt"
+import "finga/pkg/typedid"
 
-	"github.com/google/uuid"
+// The kinds behind the ID types. They are never used as values.
+type (
+	accountKind   struct{}
+	characterKind struct{}
+	itemKind      struct{}
+	sessionKind   struct{}
 )
 
-// The ID types are distinct, so passing a character ID where an item ID is
-// expected is a compile error. All are UUIDv7, generated in Go, and print
-// and parse as the canonical 36-character text.
+// The ID types are distinct (pkg/typedid), so passing a character ID where
+// an item ID is expected is a compile error. All are UUIDv7, generated in
+// Go, and print and parse as the canonical 36-character text.
 type (
 	// AccountID identifies an account.
-	AccountID uuid.UUID
+	AccountID = typedid.ID[accountKind]
 	// CharacterID identifies a character.
-	CharacterID uuid.UUID
+	CharacterID = typedid.ID[characterKind]
 	// ItemID identifies an item instance.
-	ItemID uuid.UUID
+	ItemID = typedid.ID[itemKind]
 	// SessionID identifies a login session.
-	SessionID uuid.UUID
+	SessionID = typedid.ID[sessionKind]
 )
 
 // ErrBadID is a malformed ID in a request.
-var ErrBadID = errors.New("model: malformed ID")
-
-func newID() uuid.UUID {
-	id, err := uuid.NewV7()
-	if err != nil {
-		// uuid.NewV7 only fails when the random source does, which is fatal
-		// for a server that mints IDs.
-		panic(err)
-	}
-	return id
-}
-
-func parseID(s string) (uuid.UUID, error) {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("%w: %w", ErrBadID, err)
-	}
-	return id, nil
-}
+var ErrBadID = typedid.ErrMalformed
 
 // NewAccountID mints a new ID.
-func NewAccountID() AccountID { return AccountID(newID()) }
+func NewAccountID() AccountID { return typedid.New[accountKind]() }
 
 // ParseAccountID parses the text form; bad text is ErrBadID.
-func ParseAccountID(s string) (AccountID, error) {
-	id, err := parseID(s)
-	return AccountID(id), err
-}
-
-// String is the canonical text form.
-func (id AccountID) String() string { return uuid.UUID(id).String() }
-
-// IsZero reports whether id is the zero value.
-func (id AccountID) IsZero() bool { return id == AccountID(uuid.Nil) }
-
-// MarshalText implements encoding.TextMarshaler.
-func (id AccountID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (id *AccountID) UnmarshalText(text []byte) error {
-	parsed, err := ParseAccountID(string(text))
-	if err != nil {
-		return err
-	}
-	*id = parsed
-	return nil
-}
+func ParseAccountID(s string) (AccountID, error) { return typedid.Parse[accountKind](s) }
 
 // NewCharacterID mints a new ID.
-func NewCharacterID() CharacterID { return CharacterID(newID()) }
+func NewCharacterID() CharacterID { return typedid.New[characterKind]() }
 
 // ParseCharacterID parses the text form; bad text is ErrBadID.
-func ParseCharacterID(s string) (CharacterID, error) {
-	id, err := parseID(s)
-	return CharacterID(id), err
-}
-
-// String is the canonical text form.
-func (id CharacterID) String() string { return uuid.UUID(id).String() }
-
-// IsZero reports whether id is the zero value.
-func (id CharacterID) IsZero() bool { return id == CharacterID(uuid.Nil) }
-
-// MarshalText implements encoding.TextMarshaler.
-func (id CharacterID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (id *CharacterID) UnmarshalText(text []byte) error {
-	parsed, err := ParseCharacterID(string(text))
-	if err != nil {
-		return err
-	}
-	*id = parsed
-	return nil
-}
+func ParseCharacterID(s string) (CharacterID, error) { return typedid.Parse[characterKind](s) }
 
 // NewItemID mints a new ID.
-func NewItemID() ItemID { return ItemID(newID()) }
+func NewItemID() ItemID { return typedid.New[itemKind]() }
 
 // ParseItemID parses the text form; bad text is ErrBadID.
-func ParseItemID(s string) (ItemID, error) {
-	id, err := parseID(s)
-	return ItemID(id), err
-}
-
-// String is the canonical text form.
-func (id ItemID) String() string { return uuid.UUID(id).String() }
-
-// IsZero reports whether id is the zero value.
-func (id ItemID) IsZero() bool { return id == ItemID(uuid.Nil) }
-
-// MarshalText implements encoding.TextMarshaler.
-func (id ItemID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (id *ItemID) UnmarshalText(text []byte) error {
-	parsed, err := ParseItemID(string(text))
-	if err != nil {
-		return err
-	}
-	*id = parsed
-	return nil
-}
+func ParseItemID(s string) (ItemID, error) { return typedid.Parse[itemKind](s) }
 
 // NewSessionID mints a new ID.
-func NewSessionID() SessionID { return SessionID(newID()) }
+func NewSessionID() SessionID { return typedid.New[sessionKind]() }
 
 // ParseSessionID parses the text form; bad text is ErrBadID.
-func ParseSessionID(s string) (SessionID, error) {
-	id, err := parseID(s)
-	return SessionID(id), err
-}
-
-// String is the canonical text form.
-func (id SessionID) String() string { return uuid.UUID(id).String() }
-
-// IsZero reports whether id is the zero value.
-func (id SessionID) IsZero() bool { return id == SessionID(uuid.Nil) }
-
-// MarshalText implements encoding.TextMarshaler.
-func (id SessionID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (id *SessionID) UnmarshalText(text []byte) error {
-	parsed, err := ParseSessionID(string(text))
-	if err != nil {
-		return err
-	}
-	*id = parsed
-	return nil
-}
+func ParseSessionID(s string) (SessionID, error) { return typedid.Parse[sessionKind](s) }

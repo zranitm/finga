@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/application/gamedata"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 // fixture is a minimal valid data folder, as file name to content. Each
@@ -457,7 +457,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 // The real content is checked on every run, so a content change that breaks
 // a reference fails CI.
 func TestRealDataLoads(t *testing.T) {
-	d, err := gamedata.Load("../../../data")
+	d, err := gamedata.Load("../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

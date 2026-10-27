@@ -9,7 +9,7 @@ import (
 	"errors"
 	"time"
 
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 
@@ -38,35 +38,6 @@ type Character struct {
 	MapID         string
 	X, Y          float64 // feet centre, map pixels
 	UpdatedAt     time.Time
-}
-
-// Progress is a level and the EXP within it.
-type Progress struct {
-	Level int
-	Exp   int64
-}
-
-// Derived are the stats computed from class, primary stats, level and
-// equipment (page 5). HP and MP are whole points; the rest stay fractional
-// for the damage formula. Rates are fractions.
-type Derived struct {
-	MaxHP       int
-	MaxMP       int
-	AttackPower float64
-	Accuracy    float64
-	Evasion     float64
-	Defense     float64
-	CritRate    float64
-	CritDamage  float64
-	Penetration float64
-}
-
-// Equipment is what worn items add. Stage 1 characters wear nothing, so
-// the world passes the zero value; step 12's starter items are inventory.
-type Equipment struct {
-	WeaponAttack float64
-	ArmorDefense float64
-	Penetration  float64
 }
 
 // CreateInput is a new character.

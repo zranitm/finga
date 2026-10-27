@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/application/character"
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 

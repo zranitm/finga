@@ -3,7 +3,7 @@ package character
 import (
 	"context"
 
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 
@@ -44,10 +44,4 @@ type Content interface {
 	Class(id model.Class) (gamedata.Class, bool)
 	Formulas(id model.Class) (gamedata.Formulas, bool)
 	Town() *gamedata.Map
-}
-
-// ExpCurve is what the EXP rules need from game data.
-type ExpCurve interface {
-	ExpToNext(level int) (int64, bool)
-	LevelCap() int
 }

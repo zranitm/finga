@@ -1,9 +1,9 @@
-package character
+package progression
 
 import (
 	"math"
 
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 )
 
 // deathPenaltyRate is OD-06's default: 5% of the current level's requirement.

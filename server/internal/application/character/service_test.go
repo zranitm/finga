@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"finga/internal/application/character"
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 )
 
@@ -275,4 +275,13 @@ func TestStarterItemsAreGrantedInTheCreateTransaction(t *testing.T) {
 			t.Fatal("the character survived the failed starter")
 		}
 	})
+}
+
+func loadData(t *testing.T) *gamedata.Data {
+	t.Helper()
+	d, err := gamedata.Load("../../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
 }

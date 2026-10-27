@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 )
 
 const (

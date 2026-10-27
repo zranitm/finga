@@ -18,7 +18,7 @@ import (
 
 	"finga/internal/application/account"
 	"finga/internal/application/character"
-	"finga/internal/application/gamedata"
+	"finga/internal/gamedata"
 	"finga/internal/handler/api"
 	"finga/internal/model"
 	"finga/pkg/auth"

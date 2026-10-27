@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 03. Movement simulation
 
+> **Changed by step 20 (2026-10-27):** the simulation lives in `internal/sim`, shared with game data and, after the split, the world service. A fix just before it rounds every product in `Step` so arm64 matches the vectors.
+
 **Goal:** the deterministic movement code that the server runs, and that the client mirrors in TypeScript.
 
 ## Scope

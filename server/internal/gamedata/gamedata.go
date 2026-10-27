@@ -9,8 +9,8 @@ package gamedata
 import (
 	"time"
 
-	"finga/internal/application/world/sim"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 // AttackKind is how a class's basic attack finds its target.

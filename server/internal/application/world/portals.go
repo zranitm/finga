@@ -3,8 +3,8 @@ package world
 import (
 	"slices"
 
-	"finga/internal/application/gamedata"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
+	"finga/internal/sim"
 )
 
 // enterPortal moves a player standing in one of this map's portals to the

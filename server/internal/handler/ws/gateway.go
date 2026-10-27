@@ -19,14 +19,15 @@ import (
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
+	"finga/internal/progression"
 	"finga/internal/protocol"
+	"finga/internal/sim"
 	"finga/pkg/auth"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
@@ -35,7 +36,7 @@ import (
 // CharacterSource is what the gateway needs from the character module.
 type CharacterSource interface {
 	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (character.Character, error)
-	Derived(c character.Character) (character.Derived, error)
+	Derived(c character.Character) (progression.Derived, error)
 }
 
 // ItemSource is what the gateway needs from the item module: the inventory
@@ -596,7 +597,7 @@ func (g *Gateway) send(c wsconn.Conn, m wsconn.Message) {
 	_ = c.Send(m) // a full queue closes the connection; OnClose cleans up
 }
 
-func characterView(c character.Character, d character.Derived) protocol.CharacterView {
+func characterView(c character.Character, d progression.Derived) protocol.CharacterView {
 	return protocol.CharacterView{
 		ID: c.ID.String(), Name: c.Name, Class: c.Class.String(), Level: c.Level, Exp: c.Exp,
 		Stats: protocol.Stats{STR: c.Stats.STR, DEX: c.Stats.DEX, INT: c.Stats.INT, AGI: c.Stats.AGI, VIT: c.Stats.VIT},

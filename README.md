@@ -121,7 +121,8 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
 
 One Go module in `server/`, laid out so that imports only point one way
 (depguard checks it): `cmd` → `internal/handler` → `internal/application`
-→ `internal/model` → `pkg`.
+→ the shared kernel (`internal/model`, `internal/gamedata`, `internal/sim`,
+`internal/progression`) → `pkg`.
 
 - **`cmd/gameserver/app`** is the game server's composition root: `Build`
   wires every module from configuration, and `Server` listens, runs the
@@ -156,7 +157,8 @@ One Go module in `server/`, laid out so that imports only point one way
   and three invariant checks tie quantities to events.
 - **`pkg/`** holds the generic parts: config loading, the transaction
   helper with retries, idempotency keys, the outbox, token
-  buckets, the tick loop, the WebSocket connection, Testcontainers glue.
+  buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps,
+  Testcontainers glue.
 - **Persistence**: character state checkpoints every 30 s and on level-up,
   map change and logout; items never wait for a checkpoint. Sessions are
   opaque tokens stored hashed, rotated on every Hello, with reuse detection

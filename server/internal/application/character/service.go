@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"finga/internal/model"
+	"finga/internal/progression"
 )
 
 // Options tune the service.
@@ -62,7 +63,7 @@ func (s *Service) Create(ctx context.Context, account model.AccountID, in Create
 		return Character{}, ErrSlotsFull
 	}
 	town := s.content.Town()
-	derived := DeriveStats(formulas, class.BaseStats, 1, Equipment{})
+	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{})
 	c := Character{
 		ID: model.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
@@ -107,10 +108,10 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu LevelUp) error {
 }
 
 // Derived computes a character's derived stats with no equipment.
-func (s *Service) Derived(c Character) (Derived, error) {
+func (s *Service) Derived(c Character) (progression.Derived, error) {
 	formulas, ok := s.content.Formulas(c.Class)
 	if !ok {
-		return Derived{}, ErrClassUnavailable
+		return progression.Derived{}, ErrClassUnavailable
 	}
-	return DeriveStats(formulas, c.Stats, c.Level, Equipment{}), nil
+	return progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{}), nil
 }

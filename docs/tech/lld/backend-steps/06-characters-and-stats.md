@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 06. Characters and stats
 
+> **Changed by step 20 (2026-10-27):** the pure rules (`DeriveStats`, `AwardExp`, `DeathPenalty`) live in `internal/progression`, where the character module and the world's tick both import them.
+
 **Goal:** create and load characters, and compute their stats, EXP, and levels.
 
 **Layers in this step:** repository, service, and pure rules. The REST handlers come in step 07.

@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 04. Game data
 
+> **Changed by step 20 (2026-10-27):** game data lives in `internal/gamedata` and reads maps with `pkg/tiled`.
+
 **Goal:** load and validate all static content. The server refuses to start on bad data.
 
 ## Scope

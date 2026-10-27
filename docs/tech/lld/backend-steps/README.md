@@ -22,7 +22,7 @@
 | [17. Packaging and proof session](./17-packaging-and-proof-session.md) | All earlier steps |  | M6. Proof session | 17 | Done |
 | [18. Client follow-up: one Input per tick](./18-client-follow-up-one-input-per-tick.md) | 09, 10 | B2 | M1. Walk together | 18 | Done |
 | [19. Client follow-up: EXP after death and invulnerability](./19-client-follow-up-exp-after-death-and-invulnerability.md) | 11 | C1, C2, C3, C4 | M2. Fight and grow | 19 | Done |
-| [20. Shared kernel](./20-shared-kernel.md) | 19 |  | Services | 20 | Ready for review |
+| [20. Shared kernel](./20-shared-kernel.md) | 19 |  | Services | 20 | Done |
 | [21. Migrations per service](./21-migrations-per-service.md) | 20 |  | Services | 21 | Ready for review |
 | [22. gRPC foundation](./22-grpc-foundation.md) | 20, 21 |  | Services | 22 | Ready for review |
 | [23. Item service](./23-item-service.md) | 22 | D2, D5 | Services | 23 | Ready for review |

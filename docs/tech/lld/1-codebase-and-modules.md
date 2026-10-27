@@ -22,7 +22,7 @@ server/                 the Go module: everything the server builds, reads and p
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     application/        business logic: the game's rules, one package per module
-      account/  character/  gamedata/  world/  combat/  item/
+      account/  character/  world/  combat/  item/
       party/  chat/
       economy/  market/  audit/        Stage 2
     handler/
@@ -31,7 +31,10 @@ server/                 the Go module: everything the server builds, reads and p
       errmap/           the error table: each service error's status, own code and player message
       router.go         the route table: /api, /ws, /metrics, /healthz, /readyz
     protocol/           WebSocket message types, registered with the codec
-    model/              value types shared by application and handlers: IDs, Class, Coins
+    model/              value types shared by every module and handler: IDs (on pkg/typedid), Class, Coins
+    gamedata/           game data: classes, stats, mobs, items, the EXP curve and the maps (on pkg/tiled), loaded and validated at startup
+    sim/                the movement simulation, shared with the client through testdata/movement
+    progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
     config/             the configuration schema
     telemetry/          metrics and logging; implements the application's observer interfaces
   migrations/           goose SQL files, embedded through embed.go
@@ -62,7 +65,7 @@ tools/                  developer tools; empty in Stage 1
 
 ## Dependency rules
 
-- Imports flow one way: `cmd` → `internal/handler` → `internal/application` → `internal/model` → `pkg`. Never the other way round: nothing in `internal` or `pkg` imports `cmd`.
+- Imports flow one way: `cmd` → `internal/handler` → `internal/application` → the shared kernel (`internal/model`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`. Never the other way round: nothing in `internal` or `pkg` imports `cmd`, and the shared kernel imports no module, handler, protocol, telemetry or configuration (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it).
 - `internal/application` holds only business logic. It never imports `handler`, `protocol`, `cmd`, `telemetry`, or `config`:
   - It returns its own result types, for example `world.Delta`, and the gateway turns them into protocol messages.
   - It reports metrics through small observer interfaces it declares, and `internal/telemetry` implements them.
@@ -240,14 +243,13 @@ internal/application/market/
 
 ## Modules
 
-Every module below lives in `internal/application/`, except the two handlers.
+Every module below lives in `internal/application/`, except the two handlers. The shared kernel beside them (`internal/gamedata`, `internal/sim`, `internal/progression`, `internal/model`) holds no state of its own: game data is static and read-only, the simulation and the progression rules are pure functions.
 
 | Module | Owns | Uses |
 | --- | --- | --- |
 | `account` | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
-| `character` | Characters, stats, levels, EXP | gamedata |
-| `gamedata` | Static data and maps, loaded and validated at startup, read-only | Nothing |
-| `world` | Map instances, movement, mobs, ground drops, portals | character, combat, item, economy, gamedata, `pkg/tick` |
+| `character` | Characters, stats, levels, EXP | gamedata, progression |
+| `world` | Map instances, movement, mobs, ground drops, portals | character, combat, item, economy, gamedata, sim, progression, `pkg/tick` |
 | `combat` | Hit and damage resolution, EXP awards; pure functions | gamedata |
 | `item` | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
 | `economy` (Stage 2) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
@@ -362,6 +364,20 @@ type Handler interface {
     OnMessage(Conn, Message)
     OnClose(Conn, error)
 }
+```
+
+```go
+// pkg/typedid: typed UUIDv7 identifiers, one Go type per kind (step 20)
+type ID[K any] uuid.UUID
+func New[K any]() ID[K]
+func Parse[K any](s string) (ID[K], error) // ErrMalformed
+// model.CharacterID is typedid.ID[characterKind]: an item ID where a character ID is expected does not compile.
+
+// pkg/tiled: Tiled's JSON map format, with no game's layer rules (step 20)
+func Load(path string) (*Map, error) // errors name the file
+func (m *Map) ObjectGroups() map[string]Layer
+func (ps Properties) String(name string) (string, bool)
+func (ps Properties) Int(name string) (int, bool)
 ```
 
 Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `observability` (structured logging and metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).

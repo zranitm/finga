@@ -3,7 +3,7 @@
 - **Depends on:** 19
 - **Milestone:** Services
 - **Order:** 20
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 20. Shared kernel
 
 **Goal:** everything more than one service needs sits where every service can import it, before any service leaves: generic code in `pkg/`, Finga's shared knowledge in the root `internal/` (page 10, Layout rules). One binary still; no behaviour changes.

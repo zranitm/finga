@@ -1,5 +1,5 @@
 // The movement simulation (page 5), a mirror of the Go package
-// internal/application/world/sim: the same order of operations, so the
+// server/internal/sim: the same order of operations, so the
 // vectors in testdata/movement replay exactly here and there. Coordinates
 // are pixels with y growing downward. A character is a width × height box
 // whose position (x, y) is the centre of its feet: the box spans

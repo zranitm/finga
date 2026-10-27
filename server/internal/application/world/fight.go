@@ -6,9 +6,10 @@ import (
 
 	"finga/internal/application/character"
 	"finga/internal/application/combat"
-	"finga/internal/application/gamedata"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/internal/progression"
+	"finga/internal/sim"
 )
 
 // mob is one live mob: its type, HP, position, and patrol state. Mobs
@@ -204,14 +205,14 @@ func (i *Instance) award(p *player, amount int64) {
 	if amount <= 0 {
 		return
 	}
-	a := character.AwardExp(i.data, character.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, character.PresetPlan(p.class))
+	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, progression.PresetPlan(p.class))
 	p.Level, p.Exp, p.Stats = a.Progress.Level, a.Progress.Exp, a.Stats
 	p.private = append(p.private, ExpGained{Tick: i.tick, Amount: amount, Exp: p.Exp})
 	if a.LevelsGained == 0 {
 		return
 	}
 	formulas, _ := i.data.Formulas(p.Class)
-	p.derived = character.DeriveStats(formulas, p.Stats, p.Level, character.Equipment{})
+	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, progression.Equipment{})
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
 	p.private = append(p.private, LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
@@ -274,7 +275,7 @@ func (i *Instance) kill(p *player) {
 	p.deadUntil = i.tick + i.ticksFor(respawnDelay)
 	p.held = sim.Input{}
 	p.pending = p.pending[:0]
-	progress := character.DeathPenalty(i.data, character.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
+	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		// The penalty is private to the dying player: a negative ExpGained with
 		// the new total, sent with Died (step 19). No penalty, no message.

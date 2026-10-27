@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/application/world/sim"
+	"finga/internal/sim"
 )
 
 // The vectors in testdata/movement are the contract between this package
@@ -19,7 +19,7 @@ import (
 // what keeps those states honest.
 var update = flag.Bool("update", false, "rewrite the expected states in testdata/movement")
 
-const vectorsDir = "../../../../testdata/movement"
+const vectorsDir = "../../testdata/movement"
 
 // vector is one file: a scenario with its inputs and the state after each sub-step.
 type vector struct {

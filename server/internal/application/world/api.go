@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"finga/internal/application/character"
-	"finga/internal/application/gamedata"
 	"finga/internal/application/item"
-	"finga/internal/application/world/sim"
+	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 // The module's errors.

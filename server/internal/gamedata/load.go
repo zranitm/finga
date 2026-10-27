@@ -10,8 +10,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/application/world/sim"
 	"finga/internal/model"
+	"finga/internal/sim"
 )
 
 // File names inside the data directory (page 2).

@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/gamedata"
 	"finga/internal/application/item/internal/db"
+	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
