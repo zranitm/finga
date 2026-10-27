@@ -1,15 +1,8 @@
 package e2e_test
 
 import (
-	"bytes"
 	"context"
 	"math"
-	"net"
-	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -19,11 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/item"
-	"finga/internal/gamedata"
-	"finga/internal/model"
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
+	"finga/services/item/invariants"
 )
 
 // looter wraps a player with what the loot rows need to know about the
@@ -322,7 +314,7 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 
 func (s *stack) checkInvariants(t *testing.T) {
 	t.Helper()
-	mismatches, err := item.CheckInvariants(context.Background(), s.db)
+	mismatches, err := invariants.CheckInvariants(context.Background(), s.db)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -457,34 +449,26 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("D5/a-retried-pickup-job-gives-one-item", func(t *testing.T) {
-		// The worker's exact call, twice with the drop's key, as a retry after
-		// a lost reply would make it.
+		// The worker's exact call to the item service, twice with the drop's
+		// key, as a retry after a lost reply would make it.
 		s := newStack(t)
 		_, id := s.createCharacter(t, "noah", "Noah", "warrior")
-		data, err := gamedata.Load("../data")
+		var account string
+		if err := s.db.QueryRow(context.Background(), `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
+			t.Fatal(err)
+		}
+		key := uuid.New().String()
+		in := &itemv1.AddRequest{Actor: &itemv1.Actor{AccountId: account, CharacterId: id}, IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2,
+			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}}
+		first, err := s.items.Add(context.Background(), in)
 		if err != nil {
 			t.Fatal(err)
 		}
-		items := item.NewService(item.NewPostgres(s.db), data, item.Options{})
-		charID, err := model.ParseCharacterID(id)
+		second, err := s.items.Add(context.Background(), in)
 		if err != nil {
 			t.Fatal(err)
 		}
-		actor := item.Actor{Character: charID}
-		if err := s.db.QueryRow(context.Background(), `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&actor.Account); err != nil {
-			t.Fatal(err)
-		}
-		key := uuid.New()
-		in := item.AddInput{Key: key.String(), TemplateID: "slime_gel", Quantity: 2, Cause: item.Cause{Type: item.CauseDrop, ID: key}}
-		first, err := items.Add(context.Background(), actor, in)
-		if err != nil {
-			t.Fatal(err)
-		}
-		second, err := items.Add(context.Background(), actor, in)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(first.Changed) != 1 || len(second.Changed) != 1 || first.Changed[0].Item.ID != second.Changed[0].Item.ID {
+		if len(first.GetChanged()) != 1 || len(second.GetChanged()) != 1 || first.GetChanged()[0].GetItem().GetId() != second.GetChanged()[0].GetItem().GetId() {
 			t.Fatalf("first %+v second %+v", first, second)
 		}
 		if rows, quantity, events := s.itemTotals(t, id, "slime_gel"); rows != 1 || quantity != 2 || events != 1 {
@@ -548,131 +532,14 @@ func TestLootAndKeep(t *testing.T) {
 	})
 }
 
-// process is cmd/gameserver running as its own process over the test
-// database, the way the crash test needs it: it can be killed without
-// warning and started again.
-type process struct {
-	t    *testing.T
-	bin  string
-	env  []string
-	url  string
-	cmd  *exec.Cmd
-	out  lockedBuffer // the process writes it from exec's copier goroutine while the test reads it
-	done chan struct{}
-}
-
-// lockedBuffer is a bytes.Buffer safe for one writer and one reader.
-type lockedBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-func buildGameserver(t *testing.T) string {
-	t.Helper()
-	bin := filepath.Join(t.TempDir(), "gameserver")
-	if runtime.GOOS == "windows" {
-		bin += ".exe"
-	}
-	build := exec.Command("go", "build", "-o", bin, "./cmd/gameserver")
-	build.Dir = ".."
-	if out, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("go build: %v\n%s", err, out)
-	}
-	return bin
-}
-
-func freePort(t *testing.T) string {
-	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := ln.Addr().String()
-	_ = ln.Close()
-	return addr
-}
-
-func startGameserver(t *testing.T, bin, dbURL, addr string) *process {
-	t.Helper()
-	root, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := &process{t: t, bin: bin, url: "http://" + addr}
-	p.env = append(os.Environ(),
-		"CONFIG_PATH="+filepath.Join(root, "configs", "config.yaml"),
-		"FINGA_SERVER_ADDR="+addr,
-		"FINGA_DATABASE_URL="+dbURL,
-		"FINGA_WORLD_DATA_DIR="+filepath.Join(root, "data"),
-		"FINGA_TELEMETRY_LOG_LEVEL=warn",
-	)
-	p.start()
-	return p
-}
-
-func (p *process) start() {
-	p.t.Helper()
-	p.cmd = exec.Command(p.bin)
-	p.cmd.Env = p.env
-	p.cmd.Stdout = &p.out
-	p.cmd.Stderr = &p.out
-	if err := p.cmd.Start(); err != nil {
-		p.t.Fatal(err)
-	}
-	p.done = make(chan struct{})
-	cmd, done := p.cmd, p.done
-	go func() { defer close(done); _ = cmd.Wait() }()
-	p.t.Cleanup(p.kill)
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
-		res, err := http.Get(p.url + "/healthz")
-		if err == nil {
-			res.Body.Close()
-			if res.StatusCode == http.StatusOK {
-				return
-			}
-		}
-		select {
-		case <-done:
-			p.t.Fatalf("gameserver exited before it was healthy:\n%s", p.out.String())
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-	p.t.Fatalf("gameserver not healthy within 20 s:\n%s", p.out.String())
-}
-
-// kill ends the process without warning (TerminateProcess on Windows, SIGKILL
-// elsewhere): no shutdown, no checkpoint, no flush.
-func (p *process) kill() {
-	select {
-	case <-p.done:
-		return
-	default:
-	}
-	_ = p.cmd.Process.Kill()
-	<-p.done
-}
-
 func TestCrashDuringPickups(t *testing.T) {
 	if testing.Short() {
-		t.Skip("builds and runs cmd/gameserver")
+		t.Skip("builds and runs the item service and the game server")
 	}
-	bin := buildGameserver(t)
+	bins := buildBinaries(t)
 	dbURL := cluster.URL(t)
-	addr := freePort(t)
-	proc := startGameserver(t, bin, dbURL, addr)
+	itemProc := startItem(t, bins["item"], dbURL)
+	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), itemProc.grpc)
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		t.Fatal(err)
@@ -696,9 +563,12 @@ func TestCrashDuringPickups(t *testing.T) {
 		wg.Add(1)
 		go func() { defer wg.Done(); picked[k] = h.loot(25 * time.Second) }()
 	}
-	// Hard kill in the middle of it, while pickups are in flight.
+	// Hard kill in the middle of it, while pickups are in flight: the game
+	// server (the world's workers mid-call) and the item service (its
+	// transactions mid-commit), one right after the other.
 	time.Sleep(12 * time.Second)
 	proc.kill()
+	itemProc.kill()
 	wg.Wait()
 	for _, h := range hunters {
 		if !h.closed(5 * time.Second) {
@@ -710,6 +580,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	// The database is consistent on its own and after a restart, and each
 	// hunter is welcomed back with exactly what the database holds.
 	s.checkInvariants(t)
+	itemProc.start()
 	proc.start()
 	s.checkInvariants(t)
 	for k, n := range names {
@@ -729,7 +600,9 @@ func TestCrashDuringPickups(t *testing.T) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	if out := proc.out.String(); strings.Contains(out, `"level":"ERROR"`) {
-		t.Fatalf("the server logged errors:\n%s", out)
+	for _, p := range []*process{proc, itemProc} {
+		if out := p.out.String(); strings.Contains(out, `"level":"ERROR"`) {
+			t.Fatalf("%s logged errors:\n%s", p.name, out)
+		}
 	}
 }

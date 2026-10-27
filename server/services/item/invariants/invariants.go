@@ -1,4 +1,9 @@
-package item
+// Package invariants holds the item service's Stage 1 invariant checks
+// (Low-level design, page 6: 5, 6 and 8) as plain functions over its
+// tables. It sits outside the service's internal/ on purpose: the item
+// module's tests, the end-to-end tests and the crash test run them, and the
+// Stage 2 auditor will.
+package invariants
 
 import (
 	"context"
@@ -8,10 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// The Stage 1 invariant checks (Low-level design, page 6: 5, 6 and 8).
-// Each returns the mismatches it found; any mismatch is a failure. The
-// property, race, retry and crash tests run them; Stage 2 moves them into
-// internal/application/audit, where the auditor runs them continuously.
+// Each check returns the mismatches it found; any mismatch is a failure.
 
 // CheckQuantityMatchesEvents is check 5: each item's quantity equals the
 // sum of its item events' quantity deltas.

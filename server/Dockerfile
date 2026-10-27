@@ -1,14 +1,21 @@
-# One Dockerfile for both binaries; CMD picks which (gameserver, migrate).
-# Build from server/ (infra/docker-compose.yml does):
-#   docker build --build-arg CMD=gameserver .
+# syntax=docker/dockerfile:1
+# One Dockerfile for every binary; the SERVICE build argument picks which:
+# a service under services/ (item, ...) or a command under cmd/
+# (gameserver, migrate). Build from server/ (infra/docker-compose.yml does):
+#   docker build --build-arg SERVICE=item .
+# Go's module and build caches are BuildKit cache mounts, so the images
+# Compose builds side by side share one compilation.
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-ARG CMD=gameserver
+ARG SERVICE=gameserver
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/app ./cmd/${CMD}
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    pkg=./cmd/${SERVICE}; \
+    if [ -d ./services/${SERVICE} ]; then pkg=./services/${SERVICE}/cmd/${SERVICE}; fi; \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/app ${pkg}
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app

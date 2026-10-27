@@ -1,11 +1,18 @@
 # make up / make down. Postgres with a health check, the migrations as a
-# one-shot job, and the game server once they succeeded, built from
-# ../server. Host ports come from .env next to this file (git-ignored; see
-# .env.example). The game server's overrides go in ../server/.env, passed in
+# one-shot job, then the services (Low-level design, page 10) and the game
+# server, each built from ../server with the one Dockerfile and its SERVICE
+# argument. Host ports come from .env next to this file (git-ignored; see
+# .env.example). The binaries' overrides go in ../server/.env, passed in
 # whole as env_file; the environment entries below win over it. The client
 # is served by Vite (make play) for now; a web container joins when it is
 # deployed.
 name: finga
+
+# Every Go process gets the database and where each service is dialled on
+# the Compose network.
+x-finga-env: &finga-env
+  FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+  FINGA_SERVICES_ITEM_ADDR: item:9003
 
 services:
   postgres:
@@ -29,24 +36,39 @@ services:
       context: ../server
       dockerfile: Dockerfile
       args:
-        CMD: migrate
-    environment:
-      FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+        SERVICE: migrate
+    environment: *finga-env
     depends_on:
       postgres:
         condition: service_healthy
+
+  # The item service: gRPC on 9003, /healthz /readyz /metrics on 9103.
+  item:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      args:
+        SERVICE: item
+        VERSION: ${VERSION:-dev}
+    environment: *finga-env
+    env_file:
+      - path: ../server/.env
+        required: false
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   gameserver:
     build:
       context: ../server
       dockerfile: Dockerfile
       args:
-        CMD: gameserver
+        SERVICE: gameserver
         VERSION: ${VERSION:-dev}
     ports:
       - "${FINGA_PORT:-8080}:8080"
     environment:
-      FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+      <<: *finga-env
       FINGA_SERVER_CORS_ORIGINS: http://localhost:5173
     env_file:
       - path: ../server/.env
@@ -54,6 +76,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      item:
+        condition: service_started
 
 volumes:
   pgdata:

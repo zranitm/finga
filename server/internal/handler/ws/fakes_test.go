@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"testing"
 
 	"github.com/google/uuid"
 
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/handler/ws"
@@ -18,6 +19,8 @@ import (
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/auth"
+	"finga/pkg/grpcx"
+	"finga/pkg/grpcx/grpctest"
 )
 
 type fakeSessions struct {
@@ -164,35 +167,49 @@ func (f *fakeInstance) PickUp(id model.CharacterID) bool {
 	return true
 }
 
-// fakeItems answers inventory commands with scripted results.
+// fakeItems is the item service, served over an in-memory gRPC connection
+// so the gateway's real client runs: it records the inventory commands and
+// answers them with changed, or err.
 type fakeItems struct {
+	itemv1.UnimplementedItemServiceServer
 	mu        sync.Mutex
-	inventory []item.Item
-	moves     []item.MoveInput
-	discards  []item.DiscardInput
-	actors    []item.Actor
-	result    item.Result
+	inventory []*itemv1.Item
+	moves     []*itemv1.MoveRequest
+	discards  []*itemv1.DiscardRequest
+	changed   []*itemv1.Slot
 	err       error
 }
 
-func (f *fakeItems) Inventory(context.Context, model.CharacterID) ([]item.Item, error) {
-	return f.inventory, nil
+// client serves the fake and returns the gateway's client to it.
+func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
+	t.Helper()
+	srv := grpcx.NewServer(grpcx.ServerOptions{})
+	itemv1.RegisterItemServiceServer(srv, f)
+	return itemv1.NewItemServiceClient(grpctest.Conn(t, srv))
 }
 
-func (f *fakeItems) Move(_ context.Context, actor item.Actor, in item.MoveInput) (item.Result, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.moves = append(f.moves, in)
-	f.actors = append(f.actors, actor)
-	return f.result, f.err
+func (f *fakeItems) Inventory(context.Context, *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
+	return &itemv1.InventoryResponse{Items: f.inventory}, nil
 }
 
-func (f *fakeItems) Discard(_ context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error) {
+func (f *fakeItems) Move(_ context.Context, req *itemv1.MoveRequest) (*itemv1.MoveResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.discards = append(f.discards, in)
-	f.actors = append(f.actors, actor)
-	return f.result, f.err
+	f.moves = append(f.moves, req)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &itemv1.MoveResponse{Changed: f.changed}, nil
+}
+
+func (f *fakeItems) Discard(_ context.Context, req *itemv1.DiscardRequest) (*itemv1.DiscardResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.discards = append(f.discards, req)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &itemv1.DiscardResponse{Changed: f.changed}, nil
 }
 
 func (f *fakeInstance) EnterPortal(id model.CharacterID) bool {

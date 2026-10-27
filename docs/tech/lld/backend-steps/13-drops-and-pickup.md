@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 13. Drops and pickup
 
+> **Changed by step 23 (2026-10-27):** the economy worker calls the item service's `Add` over gRPC; the crash test runs the item service and the game server as two processes and kills both.
+
 **Goal:** mobs drop items, players pick them up, and races, retries, and crashes never create or lose an item. This completes M3, Loot and keep.
 
 ## Scope

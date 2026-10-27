@@ -17,10 +17,12 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 
+	"google.golang.org/grpc/codes"
+
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
@@ -29,6 +31,7 @@ import (
 	"finga/internal/protocol"
 	"finga/internal/sim"
 	"finga/pkg/auth"
+	"finga/pkg/grpcx"
 	"finga/pkg/wsconn"
 )
 
@@ -530,13 +533,13 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 }
 
 func TestInventoryInWelcomeAndCommands(t *testing.T) {
-	potion := item.Item{ID: model.NewItemID(), TemplateID: "red_potion", Owner: aylaID, Tab: gamedata.Use, Slot: 0, Quantity: 5}
-	items := &fakeItems{inventory: []item.Item{potion}}
-	h := newHarness(t, func(d *ws.Dependencies) { d.Items = items })
+	potion := &itemv1.Item{Id: model.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
+	items := &fakeItems{inventory: []*itemv1.Item{potion}}
+	h := newHarness(t, func(d *ws.Dependencies) { d.Items = items.client(t) })
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	w := c.expect("Welcome").Data.(protocol.Welcome)
-	if len(w.Inventory) != 1 || w.Inventory[0].ItemID != potion.ID.String() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 {
+	if len(w.Inventory) != 1 || w.Inventory[0].ItemID != potion.GetId() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 {
 		t.Fatalf("welcome inventory %+v", w.Inventory)
 	}
 	c.expect("Snapshot")
@@ -552,10 +555,9 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		}
 	})
 	t.Run("InventoryMove answers ok and sends the changed slots, with the connection's identity", func(t *testing.T) {
-		moved := potion
-		moved.Slot = 3
-		items.result = item.Result{Changed: []item.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &moved}}}
-		c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryMove{IdempotencyKey: "k-1", ItemID: potion.ID.String(), Tab: "use", Slot: 3}})
+		moved := &itemv1.Item{Id: potion.GetId(), TemplateId: "red_potion", Tab: "use", Slot: 3, Quantity: 5}
+		items.changed = []*itemv1.Slot{{Tab: "use", Slot: 0}, {Tab: "use", Slot: 3, Item: moved}}
+		c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryMove{IdempotencyKey: "k-1", ItemID: potion.GetId(), Tab: "use", Slot: 3}})
 		r := c.expect("Response")
 		if r.ReqID != "r-1" || !r.Data.(protocol.Response).OK {
 			t.Fatalf("response %+v", r)
@@ -566,13 +568,15 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		}
 		items.mu.Lock()
 		defer items.mu.Unlock()
-		if len(items.moves) != 1 || items.moves[0].Key != "k-1" || items.moves[0].Slot != 3 || items.actors[0].Character != aylaID || items.actors[0].Account != alice {
-			t.Fatalf("moves %+v actors %+v", items.moves, items.actors)
+		mv := items.moves
+		if len(mv) != 1 || mv[0].GetIdempotencyKey() != "k-1" || mv[0].GetSlot() != 3 || mv[0].GetTab() != "use" || mv[0].GetItemId() != potion.GetId() ||
+			mv[0].GetActor().GetCharacterId() != aylaID.String() || mv[0].GetActor().GetAccountId() != alice.String() {
+			t.Fatalf("moves %+v", mv)
 		}
 	})
 	t.Run("InventoryDiscard maps a rule error to the Response code", func(t *testing.T) {
-		items.err = item.ErrBadQuantity
-		c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k-2", ItemID: potion.ID.String(), Quantity: 9}})
+		items.err = grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_QUANTITY)
+		c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k-2", ItemID: potion.GetId(), Quantity: 9}})
 		r := c.expect("Response").Data.(protocol.Response)
 		if r.OK || r.Code != "bad_quantity" || r.Message == "" {
 			t.Fatalf("response %+v", r)
@@ -596,12 +600,12 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
 			t.Fatalf("delta %+v", d)
 		}
-		h.town.push(aylaID, world.PickupFailed{Tick: 13, Err: item.ErrInventoryFull})
+		h.town.push(aylaID, world.PickupFailed{Tick: 13, Err: grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL)})
 		r := c.expect("Response").Data.(protocol.Response)
 		if r.OK || r.Code != "inventory_full" || r.Message != "your inventory is full" {
 			t.Fatalf("response %+v", r)
 		}
-		h.town.push(aylaID, world.InventoryChanged{Tick: 14, Slots: []item.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &item.Item{ID: model.NewItemID(), TemplateID: "slime_gel", Tab: gamedata.Etc, Slot: 1, Quantity: 2}}}})
+		h.town.push(aylaID, world.InventoryChanged{Tick: 14, Slots: []world.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &world.SlotItem{ID: model.NewItemID(), Template: "slime_gel", Quantity: 2}}}})
 		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
 		if len(ic.Slots) != 1 || ic.Slots[0].Item.Template != "slime_gel" {
 			t.Fatalf("inventory changed %+v", ic)
@@ -611,9 +615,11 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 
 func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	logs := &lockedBuffer{}
+	// The item service could not explain its failure: it logged the cause
+	// and sent Internal, which is all the gateway sees and logs.
 	items := &fakeItems{err: fmt.Errorf("discard: %w", errors.New("pq: connection reset"))}
 	h := newHarness(t, func(d *ws.Dependencies) {
-		d.Items = items
+		d.Items = items.client(t)
 		d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
 	})
 	c := h.dial(t)
@@ -626,8 +632,8 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 		t.Fatalf("response %+v; the cause must stay out of it", r)
 	}
 	got := logs.String()
-	if !strings.Contains(got, `"msg":"command failed"`) || !strings.Contains(got, `"err":"discard: pq: connection reset"`) || !strings.Contains(got, `"command":"inventory"`) {
-		t.Fatalf("log %s, want the command and its cause", got)
+	if !strings.Contains(got, `"msg":"command failed"`) || !strings.Contains(got, "code = Internal") || !strings.Contains(got, `"command":"inventory"`) || strings.Contains(got, "connection reset") {
+		t.Fatalf("log %s, want the command and the service's Internal, without the cause the service kept", got)
 	}
 }
 

@@ -15,12 +15,10 @@ import (
 // fakeStore is an in-memory Store with the one constraint the service
 // relies on: a unique name ignoring case.
 type fakeStore struct {
-	mu         sync.Mutex
-	chars      map[model.CharacterID]character.Character
-	order      []model.CharacterID
-	txCount    int
-	starterErr error
-	grants     []grant
+	mu      sync.Mutex
+	chars   map[model.CharacterID]character.Character
+	order   []model.CharacterID
+	txCount int
 }
 
 func newFakeStore() *fakeStore {
@@ -67,23 +65,41 @@ func (s *fakeStore) Load(_ context.Context, id model.CharacterID, account model.
 type fakeUOW struct{ s *fakeStore }
 
 func (u fakeUOW) Characters() character.Repository { return fakeRepo(u) }
-func (u fakeUOW) Starter() character.StarterItems  { return fakeStarter(u) }
 
-// fakeStarter records grants, or fails when the store says so.
-type fakeStarter struct{ s *fakeStore }
-
-func (f fakeStarter) GrantStarter(_ context.Context, owner model.CharacterID, class model.Class) error {
-	if f.s.starterErr != nil {
-		return f.s.starterErr
-	}
-	f.s.grants = append(f.s.grants, grant{owner, class})
-	return nil
+// fakeStarter records grants and fails the first failures calls with err.
+type fakeStarter struct {
+	mu             sync.Mutex
+	store          *fakeStore // when set, each call records whether the character had committed
+	calls          []grant
+	committedFirst []bool
+	failures       int
+	err            error
+	retryable      bool
 }
 
 type grant struct {
-	owner model.CharacterID
-	class model.Class
+	account   model.AccountID
+	character model.CharacterID
+	class     model.Class
 }
+
+func (f *fakeStarter) GrantStarter(_ context.Context, account model.AccountID, id model.CharacterID, class model.Class) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, grant{account, id, class})
+	if f.store != nil {
+		f.store.mu.Lock()
+		_, committed := f.store.chars[id]
+		f.store.mu.Unlock()
+		f.committedFirst = append(f.committedFirst, committed)
+	}
+	if len(f.calls) <= f.failures {
+		return f.err
+	}
+	return nil
+}
+
+func (f *fakeStarter) Retryable(error) bool { return f.retryable }
 
 type fakeRepo struct{ s *fakeStore }
 

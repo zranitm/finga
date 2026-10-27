@@ -6,10 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/character"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 )
@@ -26,7 +24,7 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	data, err := gamedata.Load("../../../data")
+	data, err := gamedata.Load("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,17 +380,15 @@ func TestIdempotency(t *testing.T) {
 	})
 }
 
-func TestStarterItemsJoinCharacterCreation(t *testing.T) {
+func TestGrantStarter(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	chars := character.NewService(character.NewPostgres(h.pool, func(tx pgx.Tx) character.StarterItems {
-		return h.svc.Within(h.store.UnitOfWork(tx))
-	}), h.data, character.Options{})
-	c, err := chars.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior})
+	warrior := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+	first, err := h.svc.GrantStarter(ctx, warrior, model.Warrior)
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := h.svc.Inventory(ctx, c.ID)
+	inv, err := h.svc.Inventory(ctx, warrior.Character)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,23 +396,50 @@ func TestStarterItemsJoinCharacterCreation(t *testing.T) {
 	for _, it := range inv {
 		got[it.TemplateID] += it.Quantity
 	}
-	if got["wooden_sword"] != 1 || got["red_potion"] != 5 || len(inv) != 2 {
-		t.Fatalf("starter inventory %+v", inv)
+	if got["wooden_sword"] != 1 || got["red_potion"] != 5 || len(inv) != 2 || len(first.Changed) != 2 {
+		t.Fatalf("starter inventory %+v, changed %+v", inv, first.Changed)
 	}
-	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, c.ID) != 2 {
+	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, warrior.Character) != 2 {
 		t.Fatal("starter events missing")
 	}
 	if h.count(t, `SELECT count(*) FROM outbox WHERE type = 'ItemGranted'`) != 2 {
 		t.Fatal("ItemGranted outbox events missing")
 	}
-	t.Run("a bowman gets a bow", func(t *testing.T) {
-		b, err := chars.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Robin", Class: model.Bowman})
+
+	t.Run("a second grant for the same character changes nothing and returns the first one's slots", func(t *testing.T) {
+		again, err := h.svc.GrantStarter(ctx, warrior, model.Warrior)
 		if err != nil {
 			t.Fatal(err)
 		}
-		inv, _ := h.svc.Inventory(ctx, b.ID)
+		if len(again.Changed) != len(first.Changed) || again.Changed[0].Item.ID != first.Changed[0].Item.ID {
+			t.Fatalf("replay %+v, first %+v", again.Changed, first.Changed)
+		}
+		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 2 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
+			t.Fatal("the second grant wrote again")
+		}
+	})
+	t.Run("another class for the same character reuses the key", func(t *testing.T) {
+		if _, err := h.svc.GrantStarter(ctx, warrior, model.Bowman); !errors.Is(err, ErrKeyReused) {
+			t.Fatalf("err = %v, want ErrKeyReused", err)
+		}
+	})
+	t.Run("a bowman gets a bow", func(t *testing.T) {
+		bowman := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+		if _, err := h.svc.GrantStarter(ctx, bowman, model.Bowman); err != nil {
+			t.Fatal(err)
+		}
+		inv, _ := h.svc.Inventory(ctx, bowman.Character)
 		if len(inv) != 2 || inv[0].TemplateID != "short_bow" {
 			t.Fatalf("bowman inventory %+v", inv)
+		}
+	})
+	t.Run("a class the game data does not have is unknown_item and writes nothing", func(t *testing.T) {
+		thief := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+		if _, err := h.svc.GrantStarter(ctx, thief, model.Thief); !errors.Is(err, ErrUnknownItem) {
+			t.Fatalf("err = %v, want ErrUnknownItem", err)
+		}
+		if h.count(t, `SELECT count(*) FROM items WHERE owner_id = $1`, thief.Character) != 0 {
+			t.Fatal("items written")
 		}
 	})
 }

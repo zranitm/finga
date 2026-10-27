@@ -6,13 +6,12 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/config"
@@ -22,6 +21,7 @@ import (
 	"finga/internal/model"
 	"finga/internal/telemetry"
 	"finga/pkg/dbx"
+	"finga/pkg/grpcx"
 	"finga/pkg/observability"
 )
 
@@ -33,9 +33,12 @@ type BuildOptions struct {
 }
 
 // Build wires the game server as production runs it: game data, the
-// database pool, each module's store and service with options filled from
-// configuration, the world, the REST handler and the gateway, metrics, and
-// the server. It fails fast on bad data or an unreachable database.
+// database pool, a client for each extracted service (page 10: the item
+// service so far), each remaining module's store and service with options
+// filled from configuration, the world, the REST handler and the gateway,
+// metrics, and the server. It fails fast on bad data or an unreachable
+// database; a service it dials is reached lazily, and a call fails while it
+// is down.
 func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	cfg := opts.Config
 	data, err := gamedata.Load(cfg.World.DataDir)
@@ -52,23 +55,26 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
 
+	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("item service: %w", err)
+	}
+	items := itemv1.NewItemServiceClient(itemConn)
+
 	var gateway *ws.Gateway // built below; the hooks only fire once connections exist
 	accounts := account.NewService(account.NewPostgres(pool), account.Options{
 		OnSessionRevoked: func(_ context.Context, id uuid.UUID, _ string) { gateway.KickSession(model.SessionID(id)) },
 		OnAccountRevoked: func(_ context.Context, id uuid.UUID, reason string) { gateway.KickAccount(model.AccountID(id), reason) },
 	})
-	itemStore := item.NewPostgres(pool)
-	items := item.NewService(itemStore, data, item.Options{})
-	characters := character.NewService(character.NewPostgres(pool, func(tx pgx.Tx) character.StarterItems {
-		return items.Within(itemStore.UnitOfWork(tx))
-	}), data, character.Options{})
+	characters := character.NewService(character.NewPostgres(pool), data, character.Options{Starter: starter{items}, Logger: opts.Logger})
 	parties := party.NewService(party.Options{})
 	chatSvc := chat.NewService(parties, chat.Options{})
 	maps := world.New(data, characters, opts.Logger, world.Options{
 		TickInterval:       cfg.World.TickInterval(),
 		CheckpointInterval: cfg.World.CheckpointInterval,
 		Observer:           metrics,
-		Items:              items,
+		Items:              pickups{items},
 		Workers:            world.NewWorkers(cfg.Economy.Workers, metrics),
 		Parties:            parties,
 	})
@@ -102,7 +108,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 			{Name: "sessions", Run: gateway.Run},
 		},
 	})
-	s.closers = append(s.closers, pool.Close)
+	s.closers = append(s.closers, pool.Close, func() { _ = itemConn.Close() })
 	opts.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "items", len(data.Items()), "mobs", len(data.Mobs()))
 	return s, nil
 }

@@ -12,10 +12,11 @@ import (
 	"time"
 
 	"finga/internal/application/character"
-	"finga/internal/application/item"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/sim"
+
+	"github.com/google/uuid"
 )
 
 // The module's errors.
@@ -210,12 +211,28 @@ type DropView struct {
 // InventoryChanged tells the player which slots a committed change touched.
 type InventoryChanged struct {
 	Tick  uint64
-	Slots []item.Slot
+	Slots []Slot
+}
+
+// Slot is one inventory slot a committed pickup touched; Item is nil when
+// the slot emptied.
+type Slot struct {
+	Tab  gamedata.Tab
+	Slot int
+	Item *SlotItem
+}
+
+// SlotItem is the item in a slot after the change.
+type SlotItem struct {
+	ID       model.ItemID
+	Template string
+	Quantity int
 }
 
 // PickupFailed tells the player why a pickup did not happen; the drop
-// stays on the ground. Err is item.ErrInventoryFull and the like, or one
-// of the world's own errors below; the gateway turns it into a Response.
+// stays on the ground. Err is the item service's refusal (a full
+// inventory) as Pickups returned it, or one of the world's own errors
+// below; the gateway turns it into a Response.
 type PickupFailed struct {
 	Tick uint64
 	Err  error
@@ -231,8 +248,26 @@ var (
 func (InventoryChanged) event() {}
 func (PickupFailed) event()     {}
 
-// Pickups is what the world needs from the item module; the item service
-// satisfies it. Called from economy workers, never inside a tick.
+// Pickup is one pickup for the item service: who picks up, and the drop's
+// contents. The drop's ID is the idempotency key and the cause, so a
+// retried pickup can only ever grant the drop once.
+type Pickup struct {
+	Account   model.AccountID // scopes the idempotency key
+	Character model.CharacterID
+	DropID    uuid.UUID
+	Template  string
+	Quantity  int
+}
+
+// Pickups is what the world needs from the item service; an adapter over
+// its client implements it. Called from economy workers, never inside a
+// tick.
 type Pickups interface {
-	Add(ctx context.Context, actor item.Actor, in item.AddInput) (item.Result, error)
+	// Add puts a drop in the character's inventory and returns the slots it
+	// changed.
+	Add(ctx context.Context, p Pickup) ([]Slot, error)
+	// Retryable reports whether a failed Add may succeed when tried again
+	// with the same drop: a transient failure, not a rule the pickup ran
+	// into (a full inventory).
+	Retryable(err error) bool
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/application/item"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 )
@@ -106,7 +105,7 @@ func (i *Instance) pickUp(p *player) {
 		return
 	}
 	best.reservedBy = p.ID
-	job := pickupJob{drop: *best, actor: item.Actor{Account: p.Account, Character: p.ID}}
+	job := pickupJob{drop: *best, account: p.Account, character: p.ID}
 	if !i.opts.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
 		best.reservedBy = model.CharacterID{}
 		p.private = append(p.private, PickupFailed{Tick: i.tick, Err: ErrPickupBusy})
@@ -114,26 +113,27 @@ func (i *Instance) pickUp(p *player) {
 }
 
 type pickupJob struct {
-	drop  drop
-	actor item.Actor
+	drop      drop
+	account   model.AccountID
+	character model.CharacterID
 }
 
 // runPickup is the worker's side: one transaction with the drop ID as the
 // idempotency key, retried once on a transient failure, then the result
 // goes back to the instance's inbox.
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
-	in := item.AddInput{Key: job.drop.key.String(), TemplateID: job.drop.template, Quantity: job.drop.quantity, Cause: item.Cause{Type: item.CauseDrop, ID: job.drop.key}}
-	res, err := i.opts.Items.Add(ctx, job.actor, in)
-	if err != nil && !item.IsRule(err) {
-		res, err = i.opts.Items.Add(ctx, job.actor, in) // the key makes a retry harmless
+	in := Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
+	slots, err := i.opts.Items.Add(ctx, in)
+	if err != nil && i.opts.Items.Retryable(err) {
+		slots, err = i.opts.Items.Add(ctx, in) // the key makes a retry harmless
 	}
-	i.inbox <- message{pickup: &pickupResult{dropID: job.drop.id, who: job.actor.Character, result: res, err: err}}
+	i.inbox <- message{pickup: &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}}
 }
 
 type pickupResult struct {
 	dropID uint64
 	who    model.CharacterID
-	result item.Result
+	slots  []Slot
 	err    error
 }
 
@@ -163,7 +163,7 @@ func (i *Instance) finishPickup(r *pickupResult) {
 		i.removedDrops = append(i.removedDrops, d.id)
 	}
 	if p != nil {
-		p.private = append(p.private, InventoryChanged{Tick: i.tick, Slots: r.result.Changed})
+		p.private = append(p.private, InventoryChanged{Tick: i.tick, Slots: r.slots})
 	}
 }
 

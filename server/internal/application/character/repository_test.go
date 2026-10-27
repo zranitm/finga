@@ -49,7 +49,7 @@ func insert(t *testing.T, store *Postgres, c Character) {
 
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t), nil)
+	store := NewPostgres(cluster.DB(t))
 	alice, bob := model.NewAccountID(), model.NewAccountID()
 	ayla := sample(alice, "Ayla")
 	insert(t, store, ayla)
@@ -176,38 +176,5 @@ func TestClassify(t *testing.T) {
 				t.Fatalf("got %v, want %v wrapping the cause", got, tt.want)
 			}
 		})
-	}
-}
-
-// failingStarter stands in for the item module's rules when they fail.
-type failingStarter struct{}
-
-func (failingStarter) GrantStarter(context.Context, model.CharacterID, model.Class) error {
-	return errors.New("starter: inventory unavailable")
-}
-
-func TestAFailedStarterRollsTheCharacterBack(t *testing.T) {
-	ctx := context.Background()
-	pool := cluster.DB(t)
-	data, err := gamedata.Load("../../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	store := NewPostgres(pool, func(pgx.Tx) StarterItems { return failingStarter{} })
-	svc := NewService(store, data, Options{})
-	owner := model.NewAccountID()
-	if _, err := svc.Create(ctx, owner, CreateInput{Name: "Ayla", Class: model.Warrior}); err == nil {
-		t.Fatal("create succeeded although the starter failed")
-	}
-	list, err := store.List(ctx, owner)
-	if err != nil || len(list) != 0 {
-		t.Fatalf("characters after the failed create: %v, %v", list, err)
-	}
-	var n int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM characters WHERE name = 'Ayla'`).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	if n != 0 {
-		t.Fatalf("%d character rows survived the rollback", n)
 	}
 }

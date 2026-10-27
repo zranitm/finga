@@ -13,12 +13,12 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/item/internal/db"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
 	"finga/pkg/outbox"
+	"finga/services/item/internal/item/internal/db"
 )
 
 // Postgres is the module's store: plain reads on the pool, InTx for writes,
@@ -40,14 +40,13 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 // transaction.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
-		return fn(p.UnitOfWork(tx))
+		return fn(p.unitOfWork(tx))
 	})
 	return classify(err)
 }
 
-// UnitOfWork builds this module's unit of work over another module's
-// transaction, so its rules can join that transaction.
-func (p *Postgres) UnitOfWork(tx pgx.Tx) UnitOfWork {
+// unitOfWork builds the module's unit of work over a transaction.
+func (p *Postgres) unitOfWork(tx pgx.Tx) UnitOfWork {
 	q := db.New(tx)
 	return unitOfWork{
 		items:  repo{q: q, now: p.now},

@@ -113,10 +113,10 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
   fight replays exactly;
 - end-to-end rows per Stage 1 feature in `server/test/`, each named after
   its feature, against the server built the way production builds it;
-- the crash test (`TestCrashDuringPickups`): `server/cmd/gameserver` built and run as
-  its own process, three test clients looting concurrently, the process
-  killed without warning, restarted, and the item invariants checked. CI runs
-  it with `make test`.
+- the crash test (`TestCrashDuringPickups`): the item service and
+  `server/cmd/gameserver` built and run as their own processes, three test
+  clients looting concurrently, both processes killed without warning,
+  restarted, and the item invariants checked. CI runs it with `make test`.
 
 ## Architecture at a glance
 
@@ -150,12 +150,17 @@ One Go module in `server/`, laid out so that imports only point one way
   applied in sequence order, movement in fixed sub-steps shared with the
   client as test vectors, mobs, combat, EXP, drops, portals, and a delta to
   every player each tick. A tick never waits on the database: pickups go to
-  the economy worker pool with the drop's ID as the idempotency key, and the
-  result comes back as an inbox message.
-- **`internal/application/{account,character,item,party,chat}`** are the
-  modules, each a service over a repository (sqlc, pgx) with no business
-  rules in SQL. Items are append-only history: every change is an item event,
-  and three invariant checks tie quantities to events.
+  the economy worker pool, which calls the item service with the drop's ID as
+  the idempotency key, and the result comes back as an inbox message.
+- **`internal/application/{account,character,party,chat}`** are the
+  modules still inside the game server, each a service over a repository
+  (sqlc, pgx) with no business rules in SQL.
+- **`services/item`** is the first service in its own process (Low-level
+  design, page 10): the item module in `internal/item`, its gRPC handler,
+  its migrations, and the invariant checks in `invariants`. Items are
+  append-only history: every change is an item event, and three invariant
+  checks tie quantities to events. The game server calls it through the
+  generated client in `api/gen/item/v1`.
 - **`pkg/`** holds the generic parts: config loading, the transaction
   helper with retries, idempotency keys, the outbox, token
   buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps,

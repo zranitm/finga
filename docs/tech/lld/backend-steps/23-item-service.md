@@ -4,7 +4,7 @@
 - **Features:** D2, D5
 - **Milestone:** Services
 - **Order:** 23
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 23. Item service
 
 **Goal:** items run as their own service. Pickups, inventory commands, Welcome's inventory and starter items reach it over gRPC, and no transaction spans two services.

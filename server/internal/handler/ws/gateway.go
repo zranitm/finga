@@ -16,13 +16,12 @@ import (
 
 	"github.com/google/uuid"
 
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
-	"finga/internal/gamedata"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/internal/progression"
@@ -37,14 +36,6 @@ import (
 type CharacterSource interface {
 	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (character.Character, error)
 	Derived(c character.Character) (progression.Derived, error)
-}
-
-// ItemSource is what the gateway needs from the item module: the inventory
-// for Welcome, and the two inventory commands.
-type ItemSource interface {
-	Inventory(ctx context.Context, owner model.CharacterID) ([]item.Item, error)
-	Move(ctx context.Context, actor item.Actor, in item.MoveInput) (item.Result, error)
-	Discard(ctx context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error)
 }
 
 // ChatSource cleans and limits chat lines and names the party recipients.
@@ -92,9 +83,9 @@ type Observer interface {
 type Dependencies struct {
 	Sessions    auth.Sessions
 	Characters  CharacterSource
-	Items       ItemSource  // nil: Welcome carries no items and inventory commands are unavailable
-	Chat        ChatSource  // nil: ChatSend is unavailable
-	Parties     PartySource // nil: party commands are unavailable; the gateway is its Notifier
+	Items       itemv1.ItemServiceClient // the item service; nil: Welcome carries no items and inventory commands are unavailable
+	Chat        ChatSource               // nil: ChatSend is unavailable
+	Parties     PartySource              // nil: party commands are unavailable; the gateway is its Notifier
 	World       World
 	Logger      *slog.Logger
 	Observer    Observer
@@ -273,20 +264,22 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	case protocol.PickUp:
 		s.inst().PickUp(s.character.ID)
 	case protocol.InventoryMove:
-		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor item.Actor) (item.Result, error) {
+		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
 			id, err := model.ParseItemID(d.ItemID)
 			if err != nil {
-				return item.Result{}, err
+				return nil, err
 			}
-			return g.deps.Items.Move(ctx, actor, item.MoveInput{Key: d.IdempotencyKey, ItemID: id, Tab: gamedata.Tab(d.Tab), Slot: d.Slot})
+			res, err := g.deps.Items.Move(ctx, &itemv1.MoveRequest{Actor: actor, IdempotencyKey: d.IdempotencyKey, ItemId: id.String(), Tab: d.Tab, Slot: int32(d.Slot)})
+			return res.GetChanged(), err
 		})
 	case protocol.InventoryDiscard:
-		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor item.Actor) (item.Result, error) {
+		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
 			id, err := model.ParseItemID(d.ItemID)
 			if err != nil {
-				return item.Result{}, err
+				return nil, err
 			}
-			return g.deps.Items.Discard(ctx, actor, item.DiscardInput{Key: d.IdempotencyKey, ItemID: id, Quantity: d.Quantity})
+			res, err := g.deps.Items.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: d.IdempotencyKey, ItemId: id.String(), Quantity: int32(d.Quantity)})
+			return res.GetChanged(), err
 		})
 	case protocol.ChatSend:
 		g.chat(s, d)
@@ -416,13 +409,13 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	}
 	inventory := []protocol.ItemView{}
 	if g.deps.Items != nil {
-		items, err := g.deps.Items.Inventory(ctx, c.ID)
+		res, err := g.deps.Items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: c.ID.String()})
 		if err != nil {
 			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", c.ID, "err", err)
 			s.conn.Close(wsconn.CloseInternal, "inventory")
 			return
 		}
-		inventory = itemViews(items)
+		inventory = itemViews(res.GetItems())
 	}
 
 	g.mu.Lock()
@@ -565,21 +558,21 @@ func partyView(p *party.Party) *protocol.PartyView {
 // inventoryCommand runs an inventory command on the connection's own
 // goroutine (it blocks on the database, never a tick), answers with a
 // Response, and sends the changed slots as InventoryChanged.
-func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, actor item.Actor) (item.Result, error)) {
+func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error)) {
 	if g.deps.Items == nil {
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.InventoryUnavailable)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
-	res, err := run(ctx, item.Actor{Account: s.account, Character: s.character.ID})
+	changed, err := run(ctx, &itemv1.Actor{AccountId: s.account.String(), CharacterId: s.character.ID.String()})
 	if err != nil {
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "inventory", err)})
 		return
 	}
 	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
-	if len(res.Changed) > 0 {
-		g.send(s.conn, wsconn.Message{Data: protocol.InventoryChanged{Slots: inventorySlots(res.Changed)}})
+	if len(changed) > 0 {
+		g.send(s.conn, wsconn.Message{Data: protocol.InventoryChanged{Slots: inventorySlots(changed)}})
 	}
 }
 
@@ -605,7 +598,7 @@ func characterView(c character.Character, d progression.Derived) protocol.Charac
 	}
 }
 
-func itemViews(items []item.Item) []protocol.ItemView {
+func itemViews(items []*itemv1.Item) []protocol.ItemView {
 	out := make([]protocol.ItemView, 0, len(items))
 	for _, it := range items {
 		out = append(out, itemView(it))
@@ -613,16 +606,18 @@ func itemViews(items []item.Item) []protocol.ItemView {
 	return out
 }
 
-func itemView(it item.Item) protocol.ItemView {
-	return protocol.ItemView{ItemID: it.ID.String(), Template: it.TemplateID, Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity}
+func itemView(it *itemv1.Item) protocol.ItemView {
+	return protocol.ItemView{ItemID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
 }
 
-func inventorySlots(slots []item.Slot) []protocol.InventorySlot {
+// inventorySlots are the item service's changed slots as the client sees
+// them.
+func inventorySlots(slots []*itemv1.Slot) []protocol.InventorySlot {
 	out := make([]protocol.InventorySlot, 0, len(slots))
 	for _, s := range slots {
-		slot := protocol.InventorySlot{Tab: string(s.Tab), Slot: s.Slot}
-		if s.Item != nil {
-			v := itemView(*s.Item)
+		slot := protocol.InventorySlot{Tab: s.GetTab(), Slot: int(s.GetSlot())}
+		if s.GetItem() != nil {
+			v := itemView(s.GetItem())
 			slot.Item = &v
 		}
 		out = append(out, slot)

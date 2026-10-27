@@ -9,13 +9,11 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/pkg/pgtest"
-	charactermigrations "finga/services/character/migrations"
-	itemmigrations "finga/services/item/migrations"
+	"finga/services/item/migrations"
 )
 
 var cluster *pgtest.Cluster
@@ -23,15 +21,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	// The item service's set, plus the character service's for the one test
-	// in which character creation grants the starter items in its own
-	// transaction (until step 23 makes the grant an item command).
-	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
-		if err := itemmigrations.Up(ctx, pool); err != nil {
-			return err
-		}
-		return charactermigrations.Up(ctx, pool)
-	})
+	cluster, err = pgtest.Start(ctx, migrations.Up) // the item service's set only
 	if err != nil {
 		panic(err)
 	}

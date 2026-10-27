@@ -57,7 +57,7 @@ func (s *sink) Send(e world.Event) bool {
 	case world.Chat:
 		m = wsconn.Message{Type: "ChatMessage", Tick: ev.Tick, Data: protocol.ChatMessage{Channel: protocol.ChatMap, Sender: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}
 	case world.InventoryChanged:
-		m = wsconn.Message{Type: "InventoryChanged", Tick: ev.Tick, Data: protocol.InventoryChanged{Slots: inventorySlots(ev.Slots)}}
+		m = wsconn.Message{Type: "InventoryChanged", Tick: ev.Tick, Data: protocol.InventoryChanged{Slots: worldSlots(ev.Slots)}}
 	case world.PickupFailed:
 		p := errmap.For(ev.Err)
 		if errmap.IsInternal(p) && s.logger != nil {
@@ -122,6 +122,20 @@ func dropViews(ds []world.DropView, always bool) []protocol.DropView {
 	out := make([]protocol.DropView, 0, len(ds))
 	for _, d := range ds {
 		out = append(out, protocol.DropView{ID: d.ID, Template: d.Template, Quantity: d.Quantity, X: d.X, Y: d.Y})
+	}
+	return out
+}
+
+// worldSlots are the slots a committed pickup changed, as the client sees
+// them.
+func worldSlots(slots []world.Slot) []protocol.InventorySlot {
+	out := make([]protocol.InventorySlot, 0, len(slots))
+	for _, s := range slots {
+		slot := protocol.InventorySlot{Tab: string(s.Tab), Slot: s.Slot}
+		if s.Item != nil {
+			slot.Item = &protocol.ItemView{ItemID: s.Item.ID.String(), Template: s.Item.Template, Tab: string(s.Tab), Slot: s.Slot, Quantity: s.Item.Quantity}
+		}
+		out = append(out, slot)
 	}
 	return out
 }

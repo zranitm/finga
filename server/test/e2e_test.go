@@ -1,7 +1,9 @@
-// Package e2e runs the game server as production builds it (app.Build, the
-// game server's composition root next to its main)
-// against a real Postgres, in process. Each Stage 1 acceptance criterion
-// that the REST API covers is a row named after its feature.
+// Package e2e runs the game as production builds it, in one test process
+// against a real Postgres: each extracted service from its composition root
+// (services/<name>/cmd/<name>/app) on loopback listeners, and the game
+// server (cmd/gameserver/app) dialling them, served by httptest. Each Stage
+// 1 acceptance criterion that the REST API covers is a row named after its
+// feature.
 package e2e_test
 
 import (
@@ -19,12 +21,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
+	itemv1 "finga/api/gen/item/v1"
 	"finga/cmd/gameserver/app"
 	migrateapp "finga/cmd/migrate/app"
 	"finga/internal/config"
+	"finga/internal/host"
 	"finga/internal/protocol"
+	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
+	itemapp "finga/services/item/cmd/item/app"
 )
 
 var cluster *pgtest.Cluster
@@ -41,12 +47,18 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// stack is one game server over a fresh database, served by httptest.
+// stack is the game over a fresh database: the extracted services and the
+// game server, whose handler httptest serves.
 type stack struct {
-	t   *testing.T
-	url string
-	db  *pgxpool.Pool
+	t     *testing.T
+	url   string
+	db    *pgxpool.Pool
+	items itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
 }
+
+// loopback is an endpoint on free loopback ports; Addr is filled once the
+// service listens.
+var loopback = config.Endpoint{Listen: "127.0.0.1:0", Ops: "127.0.0.1:0"}
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
@@ -58,7 +70,16 @@ func newStack(t *testing.T) *stack {
 		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
 		Economy:   config.Economy{Workers: 2},
 		Telemetry: config.Telemetry{LogLevel: "error"},
+		Services:  config.Services{Item: loopback},
 	}
+	cfg.Services.Item.Addr = startService(t, func(ctx context.Context) (*host.Host, error) {
+		return itemapp.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	})
+	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = itemConn.Close() })
 	srv, err := app.Build(ctx, app.BuildOptions{
 		Config:   cfg,
 		Logger:   slog.New(slog.DiscardHandler),
@@ -81,7 +102,39 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
-	return &stack{t: t, url: ts.URL, db: db}
+	return &stack{t: t, url: ts.URL, db: db, items: itemv1.NewItemServiceClient(itemConn)}
+}
+
+// startService builds a service as production does and runs it until the
+// test ends; it returns the address its gRPC listener bound.
+func startService(t *testing.T, build func(ctx context.Context) (*host.Host, error)) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	h, err := build(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runCtx, stop := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- h.Run(runCtx) }()
+	t.Cleanup(func() {
+		stop()
+		if err := <-done; err != nil {
+			t.Errorf("service stopped with %v", err)
+		}
+		h.Close()
+	})
+	for !h.Ready() {
+		select {
+		case err := <-done:
+			t.Fatalf("service stopped before it was ready: %v", err)
+		case <-ctx.Done():
+			t.Fatal("service not ready in time")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	return h.Addr(host.GRPC)
 }
 
 type response struct {

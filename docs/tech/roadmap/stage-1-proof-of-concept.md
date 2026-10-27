@@ -55,7 +55,7 @@ These are expensive to retrofit, so they're built to the target from day one:
 | Area | Stage 1 | Target | Seam that keeps the switch cheap |
 | --- | --- | --- | --- |
 | Event publishing | Events written to the outbox table; nothing publishes them yet | Outbox relay to Kafka (TD-14) | The outbox table and the `pkg/outbox` writer already exist |
-| Auditor | None. The item invariants are checked inside the property, race, retry, and crash tests | A Kafka consumer that checks continuously (HLD section 4) | The checks are plain functions in `internal/application/item/invariants_test.go`; Stage 2 moves them into `internal/application/audit` |
+| Auditor | None. The item invariants are checked inside the property, race, retry, and crash tests | A Kafka consumer that checks continuously (HLD section 4) | The checks are plain functions in `services/item/invariants`; Stage 2 moves them into `internal/application/audit` |
 | Message encoding | JSON over WebSocket | Protobuf (HLD section 8) | A codec interface in `pkg/wsconn` |
 | Edge | None. An nginx container serves the client on :5173, and the browser calls the game server on :8080 directly, allowed by `server.cors_origins` (as in docviewer) | nginx and Cloudflare in front of both, on one origin (TD-12, TD-13) | The client reads the API origin from build config, and paths are already `/api` and `/ws` |
 | Observability | A `/metrics` endpoint and structured logs | Prometheus and Grafana, or OpenTelemetry (TD-21) | Metric names stay the same |

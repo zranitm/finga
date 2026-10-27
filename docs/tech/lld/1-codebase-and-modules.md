@@ -24,8 +24,8 @@ server/                 the Go module: everything the server builds, reads and p
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     application/        business logic: the game's rules, one package per module
-      account/  character/  world/  combat/  item/
-      party/  chat/
+      account/  character/  world/  combat/
+      party/  chat/                    the modules still in the game server (page 10 moves each to its service)
       economy/  market/  audit/        Stage 2
     handler/
       api/              REST handlers, DTOs, middleware
@@ -37,11 +37,18 @@ server/                 the Go module: everything the server builds, reads and p
     gamedata/           game data: classes, stats, mobs, items, the EXP curve and the maps (on pkg/tiled), loaded and validated at startup
     sim/                the movement simulation, shared with the client through testdata/movement
     progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
-    config/             the configuration schema
+    config/             the configuration schema every binary shares
+    host/               how every service runs: its gRPC and ops listeners on pkg/runner, and the binaries' shared main
     telemetry/          metrics and logging; implements the application's observer interfaces
-  services/
-    account/  character/  item/
-      migrations/       each service's goose SQL files, embedded, with its own version table (step 21)
+  services/             one folder per service (page 10)
+    item/
+      cmd/item/         main.go and app/, its composition root
+      internal/item/    the module: api.go, service.go, deps.go, repository.go, queries/, internal/db/
+      internal/handler/ the ItemService gRPC server and its error table
+      invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
+      migrations/       its goose SQL files, embedded, with its own version table (step 21)
+    account/  character/
+      migrations/       (their code joins in steps 24 and 26)
   pkg/                  generic libraries with no game knowledge
   test/                 end-to-end tests: one row per acceptance criterion
   testdata/             the contracts the client's tests check too
@@ -134,7 +141,7 @@ Every request passes through three layers, and each has one job. Nothing skips a
 - **Validation by meaning.** The handler rejects input that is malformed whatever the rules are. The service enforces rules that must hold for every caller, such as username format, password policy, or not discarding more than a stack holds. A future admin tool or test calling the service gets the same rules.
 - **The service decides the transaction but never holds one.** Each module's store (`Postgres`, in `repository.go`) has `InTx(ctx, fn func(uow UnitOfWork) error)`. It opens the transaction with `pkg/dbx`, builds a unit of work whose repositories are bound to that transaction, runs `fn` with it, and classifies the error. The service declares `Store` and `UnitOfWork` in `deps.go`. Repository methods take only domain arguments.
 - **A write outside a transaction doesn't compile.** Writes exist only on the unit of work. Plain reads sit on `Store` and run on the pool, with no transaction.
-- **Another module joins the transaction through the unit of work.** Character creation's unit of work has `Starter()`: the item rules, bound to the same transaction. `cmd/gameserver/app` builds it from the item service's `Within(uow)` and the item store's `UnitOfWork(tx)`, so neither module imports the other.
+- **Another module joins the transaction through the unit of work, inside one service.** A module that must commit with another of the same service gets that module's rules bound to its unit of work (a `Within(uow)` on the other service, wired by the composition root), so neither module imports the other. Across services there is no shared transaction (page 10): character creation commits the character, then asks the item service for the starter items, keyed by the character ID (changed 2026-10-27, step 23; until then character creation used this pattern).
 - **The transaction function may run twice.** `InTx` runs all of it again on a deadlock or serialization failure, so it sends nothing and changes nothing in memory. Events leave through the outbox.
 - **Ownership is decided in the service and made atomic in the repository.** The service passes the actor; the repository method says so in its name and puts it in the `WHERE` clause, for example `LockOwned(ctx, itemID, owner)`.
 - **Database errors change shape once, at the module's boundary.** Repository methods return them as they are. The module's `classify` runs where its work hands a result back (`InTx`, plain reads, and work joined to another module's transaction) and turns them into the module's errors: `pgx.ErrNoRows` into `ErrNotFound`, a constraint violation into its domain error. Module errors are plain sentinel errors named for the failure (`ErrNotFound`, `ErrSlotTaken`, `ErrInventoryFull`), declared in `api.go`; `classify` wraps the database error behind one with `%w` for the logs, and the service returns them directly for rule violations. They carry no code and no player text: the handlers map each one to an HTTP status, a code of its own (`item_not_found`, `slot_taken`, `inventory_full`) and the player message through `internal/handler/errmap` (see Protocol, Error codes). No error's text ever reaches a client.
@@ -253,14 +260,14 @@ Every module below lives in `internal/application/`, except the two handlers. Th
 | --- | --- | --- |
 | `account` | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
 | `character` | Characters, stats, levels, EXP | gamedata, progression |
-| `world` | Map instances, movement, mobs, ground drops, portals | character, combat, item, economy, gamedata, sim, progression, `pkg/tick` |
+| `world` | Map instances, movement, mobs, ground drops, portals | character, combat, the item service (through a `Pickups` adapter), economy, gamedata, sim, progression, `pkg/tick` |
 | `combat` | Hit and damage resolution, EXP awards; pure functions | gamedata |
-| `item` | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
+| `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
 | `economy` (Stage 2) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
 | `market` (Stage 2) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
 | `party` | Parties and invites, in memory | A notifier interface |
 | `chat` | Message validation and routing | world, party |
-| `handler/ws` (the gateway) | WebSocket sessions, routing, fan-out to clients | `pkg/wsconn`, `pkg/auth`, `pkg/ratelimit`, every gameplay module |
+| `handler/ws` (the gateway) | WebSocket sessions, routing, fan-out to clients | `pkg/wsconn`, `pkg/auth`, `pkg/ratelimit`, every gameplay module, the extracted services' generated clients |
 | `handler/api` | REST endpoints: DTOs, validation, error responses through `handler/errmap` | account, character, `pkg/auth`, `pkg/ratelimit` |
 | `audit` (Stage 2) | Invariant checks, read-only | item, economy, market |
 
@@ -391,6 +398,8 @@ type ErrorTable []ErrorRow
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, panic as Internal, errors through the table
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID
 func ReasonOf(err error) (Reason, bool) // the ErrorInfo a failed call carries: the proto package and the value's name
+func Error(code codes.Code, reason protoreflect.Enum) error // a failure with a reason, for fakes and adapters
+func Reasons(d protoreflect.EnumDescriptor) []Reason      // every value of a reason enum but the zero one
 func IsRule(err error) bool             // a reason is present: retrying the same request cannot help
 func Follow[T any](ctx context.Context, open func(context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T), opts FollowOptions)
 // grpcx/grpctest.Conn serves a *grpc.Server over bufconn for a test.
@@ -405,6 +414,11 @@ func Probes(ready func() bool, metrics http.Handler) http.Handler // /healthz, /
 func New[T any](queue int) *Hub[T]
 func (h *Hub[T]) Subscribe(id string) *Sub[T] // replaces and ends an older one with the same ID
 func (s *Sub[T]) Send(v T) bool               // never blocks; a full queue ends the subscription
+
+// pkg/sentinels: reads Go source for the sentinel errors a package declares (step 23),
+// so each error table's guard test checks it maps every one
+func Declared(dirs ...string) ([]string, error)
+func Referenced(files ...string) (map[string]bool, error)
 ```
 
 Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `observability` (structured logging and metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).

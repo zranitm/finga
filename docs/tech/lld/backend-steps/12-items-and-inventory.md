@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 12. Items and inventory
 
+> **Changed by step 23 (2026-10-27):** the item module runs as its own service (`services/item`), reached over gRPC; `GrantStarter` is its own idempotent command, and the invariant checks live in `services/item/invariants`.
+
 > **Changed by step 21 (2026-10-27):** the item service's migrations create `outbox` and `idempotency_keys` too; they are no longer shared.
 
 **Goal:** items that are never duplicated or lost, with a full history, and inventory actions that are safe to retry.

@@ -65,7 +65,7 @@ Fee = floor(price × fee_bps / 10,000), with fee_bps 500 (5%, OD-10 default), st
 
 Each check returns a list of mismatches; any mismatch is a failure.
 
-- **Stage 1:** the checks are plain functions in `internal/application/item/invariants.go` (`CheckInvariants` and one function per check), run by the property, race, retry, and crash tests; the crash test lives in `test/`, which is why they are exported rather than test helpers. There is no auditor binary.
+- **Stage 1:** the checks are plain functions in `services/item/invariants` (`CheckInvariants` and one function per check), run by the property, race, retry, and crash tests. The package sits outside the item service's `internal/`, so the end-to-end and crash tests in `test/` can import it. There is no auditor binary.
 - **Stage 2:** they move into `internal/application/audit`, and the auditor runs them continuously as a Kafka consumer.
 
 1. All ledger balances sum to zero.

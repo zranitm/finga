@@ -49,10 +49,10 @@ Every 50 ms:
 ## Pickup: an economic action from inside a tick
 
 1. The player sends PickUp. The tick finds the nearest eligible drop in range, marks it reserved for that player, and hands a job to an economy worker: character, drop contents, and the drop ID as the idempotency key.
-2. The worker runs one transaction: add the item (new item or existing stack) with an item event, or, from Stage 2, move coins from `system:mint` to the wallet; write the outbox event; commit.
+2. The worker calls the item service's `Add` (gRPC, page 10), which runs one transaction: add the item (new item or existing stack) with an item event, or, from Stage 2, move coins from `system:mint` to the wallet; write the outbox event; commit.
 3. The result goes back to the map instance. On success the drop is removed and the player gets InventoryChanged or WalletChanged. On failure, such as a full inventory, the reservation is released and the drop stays.
 
-Only one player can hold a reservation, so two players can never both get a drop. Using the drop ID as the idempotency key makes a retried job harmless: a worker retries once on a transient error (never on a rule error such as a full inventory). The pool's queue holds 1,024 jobs and submitting never blocks the tick; when the queue is full the reservation is released at once and the player gets a Response asking them to try again. InventoryMove and InventoryDiscard do not pass through a tick at all: the gateway runs them on the connection's own goroutine, with a 5 s timeout, and answers with a Response plus InventoryChanged.
+Only one player can hold a reservation, so two players can never both get a drop. Using the drop ID as the idempotency key makes a retried job harmless: a worker retries once on a transient error, one that carries no reason across the call (never on a rule error such as a full inventory, which does). The pool's queue holds 1,024 jobs and submitting never blocks the tick; when the queue is full the reservation is released at once and the player gets a Response asking them to try again. InventoryMove and InventoryDiscard do not pass through a tick at all: the gateway calls the item service for them on the connection's own goroutine, with a 5 s timeout, and answers with a Response plus InventoryChanged.
 
 ## Character state and checkpoints
 

@@ -6,6 +6,8 @@
 - **Status:** Done
 - **Step:** 17. Packaging and proof session
 
+> **Changed by step 23 (2026-10-27):** Compose runs the item service beside the game server; the Dockerfile's build argument is `SERVICE`.
+
 **Goal:** `make up` runs the whole Stage 1 game from a clean clone, ready for the proof session.
 
 ## Scope

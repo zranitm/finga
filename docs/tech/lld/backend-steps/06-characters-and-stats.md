@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 06. Characters and stats
 
+> **Changed by step 23 (2026-10-27):** character creation commits the character first, then asks the item service for the starter items (idempotent, keyed by the character ID), retrying until it succeeds or 5 s pass; the unit of work no longer has `Starter()`.
+
 > **Changed by step 20 (2026-10-27):** the pure rules (`DeriveStats`, `AwardExp`, `DeathPenalty`) live in `internal/progression`, where the character module and the world's tick both import them.
 
 **Goal:** create and load characters, and compute their stats, EXP, and levels.

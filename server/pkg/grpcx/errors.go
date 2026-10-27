@@ -61,9 +61,8 @@ const internalMessage = "internal error"
 //   - An error that already carries a reason (a downstream call's, passed
 //     on): its code and details, unchanged.
 //   - A cancelled or expired context: Canceled or DeadlineExceeded.
-//   - A downstream status without a reason: Unavailable and
-//     DeadlineExceeded keep their code (a retry may help); anything else
-//     is Internal. The text is dropped either way.
+//   - Any other status (a downstream call's, or one gRPC itself made, such
+//     as Unimplemented from an older node): its code, without its text.
 //   - Anything else: Internal.
 func (t ErrorTable) Status(err error) (*status.Status, bool) {
 	if err == nil {
@@ -78,10 +77,7 @@ func (t ErrorTable) Status(err error) (*status.Status, bool) {
 		if _, has := reasonIn(st); has {
 			return st, true
 		}
-		switch st.Code() {
-		case codes.Unavailable, codes.DeadlineExceeded, codes.Canceled:
-			return status.New(st.Code(), st.Code().String()), false
-		}
+		return status.New(st.Code(), st.Code().String()), st.Code() == codes.Canceled
 	}
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -127,4 +123,32 @@ func reasonIn(st *status.Status) (Reason, bool) {
 func IsRule(err error) bool {
 	_, ok := ReasonOf(err)
 	return ok
+}
+
+// Error is a failure carrying a reason, as a table row would send it: for
+// a service raising a reason it has no sentinel for, for fakes in tests,
+// and for adapters that turn a downstream outcome into a reason.
+func Error(code codes.Code, reason protoreflect.Enum) error {
+	return ErrorFor(code, Key(reason))
+}
+
+// ErrorFor is Error from a Reason.
+func ErrorFor(code codes.Code, r Reason) error {
+	return withReason(code, r).Err()
+}
+
+// Reasons lists every value of a reason enum but the zero one (its
+// _UNSPECIFIED), in declaration order: what a table on the calling side
+// must cover.
+func Reasons(d protoreflect.EnumDescriptor) []Reason {
+	values := d.Values()
+	out := make([]Reason, 0, values.Len())
+	for i := range values.Len() {
+		v := values.Get(i)
+		if v.Number() == 0 {
+			continue
+		}
+		out = append(out, Reason{Domain: string(d.ParentFile().Package()), Name: string(v.Name())})
+	}
+	return out
 }

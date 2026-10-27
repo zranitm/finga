@@ -134,6 +134,22 @@ func TestAnUnavailableDownstreamStaysUnavailable(t *testing.T) {
 	}
 }
 
+func TestAStatusWithoutAReasonKeepsItsCodeAndLosesItsText(t *testing.T) {
+	// An unimplemented call (an old node during a rolling deploy) must say
+	// so, not hide behind Internal.
+	c := serve(t, &shop{})
+	if _, err := c.UnimplementedCall(context.Background(), &testpb.Empty{}); status.Code(err) != codes.Unimplemented {
+		t.Fatalf("got %v", err)
+	}
+	upstream := serve(t, &shop{err: func(context.Context) error {
+		return fmt.Errorf("asking downstream: %w", status.Error(codes.NotFound, "row 42 in table secrets"))
+	}})
+	_, err := upstream.EmptyCall(context.Background(), &testpb.Empty{})
+	if status.Code(err) != codes.NotFound || grpcx.IsRule(err) || strings.Contains(err.Error(), "secrets") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestAPanicIsInternalAndTheServerKeepsServing(t *testing.T) {
 	c := serve(t, &shop{})
 	if _, err := c.UnaryCall(context.Background(), &testpb.SimpleRequest{}); status.Code(err) != codes.Internal || strings.Contains(err.Error(), "boom") {
@@ -224,5 +240,29 @@ func TestFollow(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Follow did not stop with its context")
+	}
+}
+
+func TestErrorBuildsAFailureWithAReason(t *testing.T) {
+	err := grpcx.Error(codes.FailedPrecondition, testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND)
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v", err)
+	}
+	// It crosses a call like a table row does.
+	c := serve(t, &shop{err: func(context.Context) error { return err }})
+	_, got := c.EmptyCall(context.Background(), &testpb.Empty{})
+	if r, ok := grpcx.ReasonOf(got); !ok || r.Name != "GRPCLB_ROUTE_TYPE_BACKEND" {
+		t.Fatalf("after a call: %v", got)
+	}
+}
+
+func TestReasonsListsEveryValueButTheZeroOne(t *testing.T) {
+	got := grpcx.Reasons(testpb.GrpclbRouteType(0).Descriptor())
+	want := []grpcx.Reason{
+		{Domain: "grpc.testing", Name: "GRPCLB_ROUTE_TYPE_FALLBACK"},
+		{Domain: "grpc.testing", Name: "GRPCLB_ROUTE_TYPE_BACKEND"},
+	}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("got %v", got)
 	}
 }

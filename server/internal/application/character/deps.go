@@ -17,19 +17,20 @@ type Store interface {
 	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error)
 }
 
-// UnitOfWork is every repository bound to one transaction, plus the item
-// module's starter rules bound to the same transaction.
+// UnitOfWork is every repository bound to one transaction.
 type UnitOfWork interface {
 	Characters() Repository
-	Starter() StarterItems
 }
 
-// StarterItems grants a new character its class's starter items inside
-// character creation's transaction. The item module implements it;
-// the game server's composition root (cmd/gameserver/app) binds the two
-// without either importing the other.
+// StarterItems grants a new character its class's starter items, after the
+// character has committed: no transaction spans two services (page 10).
+// The item service implements it, through an adapter over its client; a
+// grant is idempotent, keyed by the character ID, so retrying it is safe.
 type StarterItems interface {
-	GrantStarter(ctx context.Context, owner model.CharacterID, class model.Class) error
+	GrantStarter(ctx context.Context, account model.AccountID, character model.CharacterID, class model.Class) error
+	// Retryable reports whether a failed grant may succeed when tried again:
+	// a transient failure, not a rule it ran into.
+	Retryable(err error) bool
 }
 
 // Repository writes the characters table.

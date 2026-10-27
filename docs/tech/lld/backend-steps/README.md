@@ -25,7 +25,7 @@
 | [20. Shared kernel](./20-shared-kernel.md) | 19 |  | Services | 20 | Done |
 | [21. Migrations per service](./21-migrations-per-service.md) | 20 |  | Services | 21 | Done |
 | [22. gRPC foundation](./22-grpc-foundation.md) | 20, 21 |  | Services | 22 | Done |
-| [23. Item service](./23-item-service.md) | 22 | D2, D5 | Services | 23 | Ready for review |
+| [23. Item service](./23-item-service.md) | 22 | D2, D5 | Services | 23 | Done |
 | [24. Account service](./24-account-service.md) | 22 | A1 | Services | 24 | Ready for review |
 | [25. Social service](./25-social-service.md) | 22 | E1, E3 | Services | 25 | Ready for review |
 | [26. Character service](./26-character-service.md) | 23 | A2, C4 | Services | 26 | Ready for review |

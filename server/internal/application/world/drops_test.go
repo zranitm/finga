@@ -8,52 +8,59 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/item"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/sim"
+
+	"github.com/google/uuid"
 )
 
-// fakePickups stands in for the item service: idempotent by key, with a
+// errFull is the item service's refusal in these tests: a rule, so the
+// world never retries it.
+var errFull = errors.New("inventory full")
+
+// fakePickups stands in for the item service: idempotent by drop, with a
 // scripted failure for the first call when set.
 type fakePickups struct {
 	mu        sync.Mutex
-	calls     []item.AddInput
-	byKey     map[string]item.Result
-	failFirst error // returned by the first call of each key
-	full      bool  // every add is inventory_full
-	seen      map[string]int
+	calls     []world.Pickup
+	byDrop    map[uuid.UUID][]world.Slot
+	failFirst error // returned by the first call of each drop
+	full      bool  // every add is refused with errFull
+	seen      map[uuid.UUID]int
 }
 
 func newFakePickups() *fakePickups {
-	return &fakePickups{byKey: map[string]item.Result{}, seen: map[string]int{}}
+	return &fakePickups{byDrop: map[uuid.UUID][]world.Slot{}, seen: map[uuid.UUID]int{}}
 }
 
-func (f *fakePickups) Add(_ context.Context, actor item.Actor, in item.AddInput) (item.Result, error) {
+func (f *fakePickups) Add(_ context.Context, in world.Pickup) ([]world.Slot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, in)
-	f.seen[in.Key]++
+	f.seen[in.DropID]++
 	if f.full {
-		return item.Result{}, item.ErrInventoryFull
+		return nil, errFull
 	}
-	if f.failFirst != nil && f.seen[in.Key] == 1 {
-		return item.Result{}, f.failFirst
+	if f.failFirst != nil && f.seen[in.DropID] == 1 {
+		return nil, f.failFirst
 	}
-	if res, ok := f.byKey[in.Key]; ok {
-		return res, nil
+	if slots, ok := f.byDrop[in.DropID]; ok {
+		return slots, nil
 	}
-	it := &item.Item{ID: model.NewItemID(), TemplateID: in.TemplateID, Owner: actor.Character, Tab: gamedata.Etc, Slot: len(f.byKey), Quantity: in.Quantity}
-	res := item.Result{Changed: []item.Slot{{Tab: it.Tab, Slot: it.Slot, Item: it}}}
-	f.byKey[in.Key] = res
-	return res, nil
+	slots := []world.Slot{{Tab: gamedata.Etc, Slot: len(f.byDrop), Item: &world.SlotItem{ID: model.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
+	f.byDrop[in.DropID] = slots
+	return slots, nil
 }
+
+// Retryable is everything but the refusal.
+func (f *fakePickups) Retryable(err error) bool { return !errors.Is(err, errFull) }
 
 func (f *fakePickups) items() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return len(f.byKey)
+	return len(f.byDrop)
 }
 
 func (f *fakePickups) callCount() int {
@@ -207,18 +214,15 @@ func TestPickUp(t *testing.T) {
 			inst.PickUp(p.ID)
 			time.Sleep(3 * tickInterval)
 			synctest.Wait()
-			if items.items() != 1 || items.calls[0].TemplateID != "slime_gel" || items.calls[0].Cause.Type != item.CauseDrop {
+			if items.items() != 1 || items.calls[0].Template != "slime_gel" || items.calls[0].DropID == uuid.Nil || items.calls[0].Character != p.ID {
 				t.Fatalf("items %d calls %+v", items.items(), items.calls)
 			}
 			if len(dropsIn(s)) != 0 {
 				t.Fatal("the drop is still on the ground")
 			}
 			ic := inventoryChanges(s)
-			if len(ic) != 1 || len(ic[0].Slots) != 1 || ic[0].Slots[0].Item.TemplateID != "slime_gel" {
+			if len(ic) != 1 || len(ic[0].Slots) != 1 || ic[0].Slots[0].Item.Template != "slime_gel" {
 				t.Fatalf("inventory changes %+v", ic)
-			}
-			if items.calls[0].Key != items.calls[0].Cause.ID.String() {
-				t.Fatal("the idempotency key is not the drop ID")
 			}
 		}
 		{ // a second PickUp with nothing in range does nothing
@@ -291,7 +295,7 @@ func TestRetriedPickupJobGivesOneItem(t *testing.T) {
 		if items.callCount() != 2 || items.items() != 1 {
 			t.Fatalf("%d calls, %d items; want a retry under the same key yielding one item", items.callCount(), items.items())
 		}
-		if items.calls[0].Key != items.calls[1].Key {
+		if items.calls[0].DropID != items.calls[1].DropID {
 			t.Fatal("the retry used another key")
 		}
 		if len(inventoryChanges(s)) != 1 || len(dropsIn(s)) != 0 {
@@ -318,7 +322,7 @@ func TestFullInventoryLeavesTheDrop(t *testing.T) {
 		time.Sleep(3 * tickInterval)
 		synctest.Wait()
 		fails := pickupFailures(s)
-		if len(fails) != 1 || !errors.Is(fails[0].Err, item.ErrInventoryFull) {
+		if len(fails) != 1 || !errors.Is(fails[0].Err, errFull) {
 			t.Fatalf("failures %+v", fails)
 		}
 		if len(dropsIn(s)) != 1 {
@@ -424,9 +428,6 @@ func TestPickupsUnavailableWithoutTheItemModule(t *testing.T) {
 		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, world.ErrPickupsUnavailable) {
 			v, _ := s.own(p.ID)
 			t.Fatalf("failures %+v; drops %+v; player %+v; damages %d", f, dropsIn(s), v.State, len(damages(s)))
-		}
-		if !errors.Is(item.ErrInventoryFull, item.ErrInventoryFull) {
-			t.Fatal("unreachable")
 		}
 	})
 }

@@ -12,13 +12,14 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/services/item/invariants"
 )
 
 // checkInvariants runs every Stage 1 check and fails the test on a mismatch.
 func checkInvariants(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
-	mismatches, err := CheckInvariants(ctx, pool)
+	mismatches, err := invariants.CheckInvariants(ctx, pool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,8 +54,8 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 	if _, err := h.pool.Exec(ctx, `UPDATE items SET quantity = 11 WHERE id = $1`, inv[0].ID); err != nil {
 		t.Fatal(err)
 	}
-	m5, _ := CheckQuantityMatchesEvents(ctx, h.pool)
-	m6, _ := CheckTemplateTotals(ctx, h.pool)
+	m5, _ := invariants.CheckQuantityMatchesEvents(ctx, h.pool)
+	m6, _ := invariants.CheckTemplateTotals(ctx, h.pool)
 	if len(m5) != 1 || len(m6) != 1 {
 		t.Fatalf("checks 5 and 6 found %v and %v, want one mismatch each", m5, m6)
 	}
@@ -63,7 +64,7 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 // TestInventoryProperties runs random sequences of adds, moves and
 // discards and checks the invariants after each sequence.
 func TestInventoryProperties(t *testing.T) {
-	data, err := gamedata.Load("../../../data")
+	data, err := gamedata.Load("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

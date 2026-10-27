@@ -17,10 +17,16 @@ func (c *clock) now() time.Time { return c.t }
 
 func newService(t *testing.T) (*character.Service, *fakeStore, *gamedata.Data) {
 	t.Helper()
+	return newServiceWith(t, character.Options{})
+}
+
+func newServiceWith(t *testing.T, opts character.Options) (*character.Service, *fakeStore, *gamedata.Data) {
+	t.Helper()
 	data := loadData(t)
 	store := newFakeStore()
 	c := &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)}
-	return character.NewService(store, data, character.Options{Now: c.now}), store, data
+	opts.Now = c.now
+	return character.NewService(store, data, opts), store, data
 }
 
 func TestCreate(t *testing.T) {
@@ -253,26 +259,60 @@ func TestCharacterSlots(t *testing.T) {
 	}
 }
 
-func TestStarterItemsAreGrantedInTheCreateTransaction(t *testing.T) {
+// No transaction spans two services (page 10): the character commits first,
+// then the item service is asked for its starter items, retried until it
+// succeeds or the deadline ends.
+func TestStarterItemsAfterTheCommit(t *testing.T) {
 	ctx := context.Background()
-	t.Run("the starter is asked once, for the new character and its class", func(t *testing.T) {
-		svc, store, _ := newService(t)
-		c, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Bowman})
+	t.Run("the starter is asked once, after the commit, for the character, its account and its class", func(t *testing.T) {
+		starter := &fakeStarter{}
+		svc, store, _ := newServiceWith(t, character.Options{Starter: starter})
+		starter.store = store
+		owner := model.NewAccountID()
+		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: model.Bowman})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(store.grants) != 1 || store.grants[0].owner != c.ID || store.grants[0].class != model.Bowman {
-			t.Fatalf("grants %+v", store.grants)
+		if len(starter.calls) != 1 || starter.calls[0] != (grant{owner, c.ID, model.Bowman}) || !starter.committedFirst[0] {
+			t.Fatalf("calls %+v, committed first %v", starter.calls, starter.committedFirst)
 		}
 	})
-	t.Run("a failing starter rolls the character back", func(t *testing.T) {
-		svc, store, _ := newService(t)
-		store.starterErr = errors.New("inventory unavailable")
-		if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior}); err == nil {
-			t.Fatal("create succeeded")
+	t.Run("a grant that fails twice is retried until it succeeds", func(t *testing.T) {
+		starter := &fakeStarter{failures: 2, err: errors.New("item service unavailable"), retryable: true}
+		svc, _, _ := newServiceWith(t, character.Options{Starter: starter, StarterBackoff: time.Millisecond})
+		if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior}); err != nil {
+			t.Fatal(err)
 		}
-		if len(store.chars) != 0 {
-			t.Fatal("the character survived the failed starter")
+		if len(starter.calls) != 3 {
+			t.Fatalf("%d calls, want 3", len(starter.calls))
+		}
+	})
+	t.Run("a grant that never succeeds before the deadline still returns the committed character", func(t *testing.T) {
+		starter := &fakeStarter{failures: 1 << 30, err: errors.New("item service unavailable"), retryable: true}
+		svc, store, _ := newServiceWith(t, character.Options{Starter: starter, StarterBackoff: time.Millisecond, StarterTimeout: 30 * time.Millisecond})
+		c, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior})
+		if err != nil {
+			t.Fatalf("create failed although the character committed: %v", err)
+		}
+		if _, ok := store.chars[c.ID]; !ok || len(starter.calls) < 2 {
+			t.Fatalf("character kept %v after %d calls", ok, len(starter.calls))
+		}
+	})
+	t.Run("a refusal by rule is not retried, and the character stays", func(t *testing.T) {
+		starter := &fakeStarter{failures: 1 << 30, err: errors.New("unknown item"), retryable: false}
+		svc, store, _ := newServiceWith(t, character.Options{Starter: starter, StarterBackoff: time.Millisecond})
+		c, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior})
+		if err != nil || len(starter.calls) != 1 {
+			t.Fatalf("err %v after %d calls", err, len(starter.calls))
+		}
+		if _, ok := store.chars[c.ID]; !ok {
+			t.Fatal("the character is gone")
+		}
+	})
+	t.Run("with no starter wired nothing is granted", func(t *testing.T) {
+		svc, _, _ := newService(t)
+		if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior}); err != nil {
+			t.Fatal(err)
 		}
 	})
 }

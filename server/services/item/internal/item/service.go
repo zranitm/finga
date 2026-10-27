@@ -20,6 +20,7 @@ const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
 	scopeDiscard = "item.discard"
+	scopeStarter = "item.starter"
 
 	topic = "item"
 )
@@ -66,8 +67,7 @@ func (s *Service) Add(ctx context.Context, actor Actor, in AddInput) (Result, er
 	return res, err
 }
 
-// add is the inventory rule, on a unit of work that may belong to another
-// module's transaction (starter items).
+// add is the inventory rule, on the command's unit of work.
 func (s *Service) add(ctx context.Context, uow UnitOfWork, owner model.CharacterID, tmpl gamedata.Item, quantity int, cause Cause) (Result, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
@@ -252,35 +252,41 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner model.Chara
 	return Result{Changed: []Slot{slotOf(it)}}, nil
 }
 
-// Scoped are the item rules bound to another module's unit of work, so a
-// character and its starter items commit or roll back together.
-type Scoped struct {
-	s   *Service
-	uow UnitOfWork
-}
-
-// Within binds the rules to a unit of work over another transaction.
-func (s *Service) Within(uow UnitOfWork) Scoped {
-	return Scoped{s: s, uow: uow}
-}
-
-// GrantStarter gives a new character its class's starter items. Errors
-// are this module's, classified as they would be from its own InTx.
-func (sc Scoped) GrantStarter(ctx context.Context, owner model.CharacterID, class model.Class) error {
-	c, ok := sc.s.content.Class(class)
+// GrantStarter gives a new character its class's starter items, once:
+// the character ID is the idempotency key, so a second call (the character
+// service retrying, or the world's safety net on join) returns the first
+// call's slots and writes nothing. A class the game data does not have is
+// ErrUnknownItem.
+func (s *Service) GrantStarter(ctx context.Context, actor Actor, class model.Class) (Result, error) {
+	c, ok := s.content.Class(class)
 	if !ok {
-		return ErrUnknownItem
+		return Result{}, ErrUnknownItem
 	}
+	tmpls := make([]gamedata.Item, 0, len(c.StarterItems))
 	for _, g := range c.StarterItems {
-		tmpl, ok := sc.s.content.Item(g.Item)
+		tmpl, ok := s.content.Item(g.Item)
 		if !ok {
-			return ErrUnknownItem
+			return Result{}, ErrUnknownItem
 		}
-		if _, err := sc.s.add(ctx, sc.uow, owner, tmpl, g.Quantity, Cause{Type: CauseStarter}); err != nil {
-			return classify(err)
-		}
+		tmpls = append(tmpls, tmpl)
 	}
-	return nil
+	var res Result
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		var err error
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeStarter, actor.Character.String(), class, func() (Result, error) {
+			var all Result
+			for k, g := range c.StarterItems {
+				r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, Cause{Type: CauseStarter})
+				if err != nil {
+					return Result{}, err
+				}
+				all.Changed = append(all.Changed, r.Changed...)
+			}
+			return all, nil
+		})
+		return err
+	})
+	return res, err
 }
 
 func slotOf(it Item) Slot {

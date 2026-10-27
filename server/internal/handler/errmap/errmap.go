@@ -1,12 +1,15 @@
 // Package errmap turns the errors services return into what a client sees.
 // Services return plain sentinel errors that name the exact failure
 // (party.ErrFull, character.ErrNameTaken) and wrap a cause with %w for the
-// logs. Handlers, HTTP and WebSocket alike, pass the error to For and get a
-// Public: an HTTP status, a stable code of its own for every failure
-// (party_full, name_taken), and a message safe to show a player. The
-// message is written here, never taken from the error, so a wrapped
-// cause's text cannot reach a client. An error the table does not know is
-// Internal; the handler logs it with its cause.
+// logs. A service that runs as its own process (Low-level design, page 10)
+// sends its failure across gRPC as a reason instead (item.v1's
+// REASON_INVENTORY_FULL), which pkg/grpcx reads back. Handlers, HTTP and
+// WebSocket alike, pass the error to For and get a Public: an HTTP status,
+// a stable code of its own for every failure (party_full, inventory_full),
+// and a message safe to show a player. The message is written here, never
+// taken from the error, so a wrapped cause's text cannot reach a client. An
+// error the tables do not know is Internal; the handler logs it with its
+// cause.
 package errmap
 
 import (
@@ -15,13 +18,14 @@ import (
 	"net/http"
 	"slices"
 
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/model"
+	"finga/pkg/grpcx"
 )
 
 // Public is an error as a client sees it. Status is for HTTP; the WebSocket
@@ -80,16 +84,6 @@ var table = []struct {
 	{chat.ErrRate, Public{"chat_rate_limited", http.StatusTooManyRequests, "slow down"}},
 	{chat.ErrNoParties, Public{"party_chat_unavailable", http.StatusServiceUnavailable, "party chat is not available"}},
 
-	{item.ErrNotFound, Public{"item_not_found", http.StatusNotFound, "item not found"}},
-	{item.ErrSlotTaken, Public{"slot_taken", http.StatusConflict, "that slot is taken"}},
-	{item.ErrDifferentItem, Public{"slot_holds_other_item", http.StatusConflict, "that slot holds a different item"}},
-	{item.ErrInventoryFull, Public{"inventory_full", http.StatusConflict, "your inventory is full"}},
-	{item.ErrKeyReused, Public{"idempotency_key_reused", http.StatusConflict, "that request was already made with other arguments"}},
-	{item.ErrBadQuantity, Public{"bad_quantity", http.StatusBadRequest, "quantity must be at least 1 and no more than the item holds"}},
-	{item.ErrBadSlot, Public{"bad_slot", http.StatusBadRequest, "slot must be within the tab"}},
-	{item.ErrWrongTab, Public{"wrong_tab", http.StatusBadRequest, "an item stays in its own tab"}},
-	{item.ErrUnknownItem, Public{"unknown_item", http.StatusBadRequest, "unknown item"}},
-
 	{party.ErrNotLeader, Public{"not_party_leader", http.StatusConflict, "only the party leader can do that"}},
 	{party.ErrFull, Public{"party_full", http.StatusConflict, "the party is full"}},
 	{party.ErrInParty, Public{"already_in_party", http.StatusConflict, "already in a party"}},
@@ -103,9 +97,33 @@ var table = []struct {
 	{world.ErrPickupsUnavailable, Public{"pickups_unavailable", http.StatusServiceUnavailable, "pickups are not available"}},
 	{world.ErrPickupBusy, Public{"pickup_busy", http.StatusServiceUnavailable, "try again in a moment"}},
 
-	{model.ErrBadID, Public{"bad_id", http.StatusBadRequest, "malformed ID"}},
-	{model.ErrUnknownClass, Public{"unknown_class", http.StatusBadRequest, "unknown class"}},
+	{model.ErrBadID, badID},
+	{model.ErrUnknownClass, unknownClass},
 }
+
+// reasons are the failures services in their own processes send across gRPC,
+// by reason (pkg/grpcx). TestEveryReasonIsMapped fails when a contract's
+// Reason enum has a value with no row here. A service's BAD_ID and
+// UNKNOWN_CLASS answer as the gateway's own would (bad_id, unknown_class).
+var reasons = map[grpcx.Reason]Public{
+	grpcx.Key(itemv1.Reason_REASON_ITEM_NOT_FOUND):         {"item_not_found", http.StatusNotFound, "item not found"},
+	grpcx.Key(itemv1.Reason_REASON_SLOT_TAKEN):             {"slot_taken", http.StatusConflict, "that slot is taken"},
+	grpcx.Key(itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM):  {"slot_holds_other_item", http.StatusConflict, "that slot holds a different item"},
+	grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL):         {"inventory_full", http.StatusConflict, "your inventory is full"},
+	grpcx.Key(itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED): {"idempotency_key_reused", http.StatusConflict, "that request was already made with other arguments"},
+	grpcx.Key(itemv1.Reason_REASON_BAD_QUANTITY):           {"bad_quantity", http.StatusBadRequest, "quantity must be at least 1 and no more than the item holds"},
+	grpcx.Key(itemv1.Reason_REASON_BAD_SLOT):               {"bad_slot", http.StatusBadRequest, "slot must be within the tab"},
+	grpcx.Key(itemv1.Reason_REASON_WRONG_TAB):              {"wrong_tab", http.StatusBadRequest, "an item stays in its own tab"},
+	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_ITEM):           {"unknown_item", http.StatusBadRequest, "unknown item"},
+	grpcx.Key(itemv1.Reason_REASON_BAD_ID):                 badID,
+	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_CLASS):          unknownClass,
+}
+
+// The two shared by the gateway's own parsing and the services'.
+var (
+	badID        = Public{"bad_id", http.StatusBadRequest, "malformed ID"}
+	unknownClass = Public{"unknown_class", http.StatusBadRequest, "unknown class"}
+)
 
 // internalOnly are service errors that never reach a client as a refusal:
 // the gateway closes the connection and logs them (a join into a full or
@@ -114,8 +132,9 @@ var table = []struct {
 var internalOnly = []error{world.ErrBusy, world.ErrNoMap, world.ErrStopped}
 
 // For is the Public form of err: the row of the first table error found in
-// err's chain, Internal for an error the table does not know (or one of
-// internalOnly), and the zero value for nil.
+// err's chain, or the row of the reason a remote failure carries; Internal
+// for an error neither knows (or one of internalOnly), and the zero value
+// for nil.
 func For(err error) Public {
 	if err == nil {
 		return Public{}
@@ -130,6 +149,11 @@ func For(err error) Public {
 			return row.pub
 		}
 	}
+	if r, ok := grpcx.ReasonOf(err); ok {
+		if pub, ok := reasons[r]; ok {
+			return pub
+		}
+	}
 	return Internal
 }
 
@@ -142,11 +166,15 @@ func IsInternal(p Public) bool {
 // Codes is every Public a client can receive, sorted by code; the golden
 // file testdata/errors/codes.json is written from it.
 func Codes() []Public {
-	out := make([]Public, 0, len(table)+len(handlerRaised))
+	out := make([]Public, 0, len(table)+len(reasons)+len(handlerRaised))
 	for _, row := range table {
 		out = append(out, row.pub)
 	}
+	for _, pub := range reasons {
+		out = append(out, pub)
+	}
 	out = append(out, handlerRaised...)
 	slices.SortFunc(out, func(a, b Public) int { return cmp.Compare(a.Code, b.Code) })
-	return out
+	// bad_id and unknown_class are both a sentinel's row and reasons' rows.
+	return slices.CompactFunc(out, func(a, b Public) bool { return a == b })
 }

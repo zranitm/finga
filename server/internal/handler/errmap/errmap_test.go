@@ -6,10 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -17,14 +13,20 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/reflect/protoreflect"
+
+	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
-	"finga/internal/application/item"
 	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
+	"finga/pkg/grpcx"
+	"finga/pkg/sentinels"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
@@ -48,9 +50,10 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		{character.ErrNotFound, http.StatusNotFound, "character_not_found"},
 		{chat.ErrRate, http.StatusTooManyRequests, "chat_rate_limited"},
 		{chat.ErrNoParties, http.StatusServiceUnavailable, "party_chat_unavailable"},
-		{item.ErrInventoryFull, http.StatusConflict, "inventory_full"},
-		{item.ErrKeyReused, http.StatusConflict, "idempotency_key_reused"},
-		{item.ErrDifferentItem, http.StatusConflict, "slot_holds_other_item"},
+		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), http.StatusConflict, "inventory_full"},
+		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED), http.StatusConflict, "idempotency_key_reused"},
+		{fmt.Errorf("pickup: %w", grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM)), http.StatusConflict, "slot_holds_other_item"},
+		{grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_ID), http.StatusBadRequest, "bad_id"},
 		{party.ErrFull, http.StatusConflict, "party_full"},
 		{party.ErrNotLeader, http.StatusConflict, "not_party_leader"},
 		{party.ErrInviteExpired, http.StatusNotFound, "invite_expired"},
@@ -91,20 +94,68 @@ func TestForTurnsAnUnknownErrorIntoInternalWithoutItsText(t *testing.T) {
 	if got := errmap.For(nil); got != (errmap.Public{}) {
 		t.Fatalf("For(nil) = %+v, want the zero value", got)
 	}
-	if errmap.IsInternal(errmap.For(item.ErrBadSlot)) || !errmap.IsInternal(errmap.For(errors.New("boom"))) {
+	if errmap.IsInternal(errmap.For(grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_SLOT))) || !errmap.IsInternal(errmap.For(errors.New("boom"))) {
 		t.Fatal("IsInternal disagrees with For")
 	}
 }
 
-// TestEveryServiceErrorIsMapped reads the source of every application module
-// and of model: an exported Err variable the table leaves out would reach a
-// player as "something went wrong" with code internal.
-func TestEveryServiceErrorIsMapped(t *testing.T) {
-	declared := exportedErrors(t, filepath.Join("..", "..", "application"), filepath.Join("..", "..", "model"))
-	if len(declared) < 40 {
-		t.Fatalf("found only %d errors (%v); is the walk broken?", len(declared), declared)
+func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{"no reason (the service could not explain it)", status.Error(codes.Internal, "internal error")},
+		{"unavailable", status.Error(codes.Unavailable, "connection refused")},
+		{"a reason no table maps", grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Reason{Domain: "internal.shop.v1", Name: "REASON_CLOSED"})},
 	}
-	mapped := referencedErrors(t, "errmap.go")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := errmap.For(tt.err); got != errmap.Internal {
+				t.Fatalf("For = %+v", got)
+			}
+		})
+	}
+}
+
+// contracts are the reason enums of the services that run in their own
+// processes; every value must have a row, or a client would see internal.
+var contracts = []protoreflect.EnumDescriptor{
+	itemv1.Reason(0).Descriptor(),
+}
+
+func TestEveryReasonIsMapped(t *testing.T) {
+	for _, d := range contracts {
+		for _, r := range grpcx.Reasons(d) {
+			if errmap.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r))) {
+				t.Errorf("%s has no row", r)
+			}
+		}
+	}
+}
+
+// TestEveryServiceErrorIsMapped reads the source of every application module
+// still inside the game server, and of model: an exported Err variable the
+// table leaves out would reach a player as "something went wrong" with code
+// internal. The modules of extracted services are checked by their own
+// handler's guard and TestEveryReasonIsMapped.
+func TestEveryServiceErrorIsMapped(t *testing.T) {
+	for _, root := range []string{filepath.Join("..", "..", "application"), filepath.Join("..", "..", "model")} {
+		found, err := sentinels.Declared(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(found) == 0 {
+			t.Fatalf("no errors under %s; is the walk broken?", root)
+		}
+	}
+	declared, err := sentinels.Declared(filepath.Join("..", "..", "application"), filepath.Join("..", "..", "model"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapped, err := sentinels.Referenced("errmap.go")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, name := range declared {
 		if !mapped[name] {
 			t.Errorf("%s has no row in the table", name)
@@ -148,62 +199,4 @@ func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
 	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), got) {
 		t.Fatalf("%s is stale; run go test ./internal/handler/errmap -update", codesFile)
 	}
-}
-
-// exportedErrors lists "pkg.ErrName" for every exported package-level
-// variable whose name starts with Err, outside tests and generated code.
-func exportedErrors(t *testing.T, roots ...string) []string {
-	t.Helper()
-	var out []string
-	for _, root := range roots {
-		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/internal/db/") {
-				return nil
-			}
-			f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.SkipObjectResolution)
-			if err != nil {
-				return err
-			}
-			for _, decl := range f.Decls {
-				g, ok := decl.(*ast.GenDecl)
-				if !ok || g.Tok != token.VAR {
-					continue
-				}
-				for _, spec := range g.Specs {
-					for _, name := range spec.(*ast.ValueSpec).Names {
-						if strings.HasPrefix(name.Name, "Err") {
-							out = append(out, f.Name.Name+"."+name.Name)
-						}
-					}
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	return out
-}
-
-// referencedErrors is the set of "pkg.ErrName" selectors in a source file.
-func referencedErrors(t *testing.T, file string) map[string]bool {
-	t.Helper()
-	f, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatal(err)
-	}
-	out := map[string]bool{}
-	ast.Inspect(f, func(n ast.Node) bool {
-		if sel, ok := n.(*ast.SelectorExpr); ok {
-			if x, ok := sel.X.(*ast.Ident); ok && strings.HasPrefix(sel.Sel.Name, "Err") {
-				out[x.Name+"."+sel.Sel.Name] = true
-			}
-		}
-		return true
-	})
-	return out
 }
