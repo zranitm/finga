@@ -11,7 +11,9 @@ Read in this order:
 5. **Gameplay rules in code:** maps, movement, stats, combat, mobs, EXP, drops.
 6. **Economy and integrity:** ledger, market transactions, idempotency, events, auditor.
 7. **Client:** structure, prediction, interpolation, and UI.
-8. **Backend implementation steps:** the Stage 1 backend in 18 reviewable steps, in build order.
+8. **Backend implementation steps:** the Stage 1 backend in reviewable steps, in build order.
+9. **Client implementation steps:** the browser client, step by step.
+10. **Gateway and services:** the split into six services behind a connection gateway (TD-25), and the steps that build it.
 
 Numbers in these pages (speeds, formulas, limits) are starting values. They live in game data so they can be tuned without code changes.
 
@@ -24,3 +26,4 @@ Numbers in these pages (speeds, formulas, limits) are starting values. They live
 - [7. Client](./7-client.md)
 - [8. Backend implementation steps](./8-backend-implementation-steps.md)
 - [9. Client implementation steps](./9-client-implementation-steps.md)
+- [10. Gateway and services](./10-gateway-and-services.md)

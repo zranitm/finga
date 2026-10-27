@@ -19,7 +19,7 @@ In order. Each step brings the system closer to the High-level design.
 3. **Protocol:** Protobuf with buf and breaking-change checks.
 4. **Observability:** Prometheus and Grafana dashboards.
 5. **Load and chaos:** the bot client, load tests to the TD-08 target, and chaos tests verified by the auditor.
-6. **Scale out:** channels (B4), then the gateway split, channel servers, NATS, and a separate market service (HLD section 15).
+6. **Scale out:** channels (B4), then more nodes per service: several gateways and world nodes, a registry of which node owns which map, NATS in place of the delivery streams, and economy and market inside the item service (HLD section 15). The split into services itself happened in Stage 1 (TD-25).
 
 ## Exit criteria
 

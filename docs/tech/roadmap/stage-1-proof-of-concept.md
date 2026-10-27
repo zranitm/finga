@@ -67,6 +67,7 @@ These are expensive to retrofit, so they're built to the target from day one:
 
 - **S1-Q1. Classes in Stage 1:** decided: two, Warrior and Bowman (one melee, one ranged). The final game has four (OD-03); Thief and Magician arrive in Stage 2.
 - **S1-Q2. Public link or local only:** decided: local only. nginx and Cloudflare arrive in Stage 2.
+- **S1-Q3. One binary or services:** decided by the user on 2026-10-27: services, one node each, behind a connection gateway (TD-25). Built in backend steps 20 to 28 (Low-level design, page 10); the tech scope above describes the single binary until step 28 lands.
 
 ## Milestones
 

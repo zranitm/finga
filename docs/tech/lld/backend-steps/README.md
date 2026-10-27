@@ -22,3 +22,12 @@
 | [17. Packaging and proof session](./17-packaging-and-proof-session.md) | All earlier steps |  | M6. Proof session | 17 | Done |
 | [18. Client follow-up: one Input per tick](./18-client-follow-up-one-input-per-tick.md) | 09, 10 | B2 | M1. Walk together | 18 | Done |
 | [19. Client follow-up: EXP after death and invulnerability](./19-client-follow-up-exp-after-death-and-invulnerability.md) | 11 | C1, C2, C3, C4 | M2. Fight and grow | 19 | Done |
+| [20. Shared kernel](./20-shared-kernel.md) | 19 |  | Services | 20 | Ready for review |
+| [21. Migrations per service](./21-migrations-per-service.md) | 20 |  | Services | 21 | Ready for review |
+| [22. gRPC foundation](./22-grpc-foundation.md) | 20, 21 |  | Services | 22 | Ready for review |
+| [23. Item service](./23-item-service.md) | 22 | D2, D5 | Services | 23 | Ready for review |
+| [24. Account service](./24-account-service.md) | 22 | A1 | Services | 24 | Ready for review |
+| [25. Social service](./25-social-service.md) | 22 | E1, E3 | Services | 25 | Ready for review |
+| [26. Character service](./26-character-service.md) | 23 | A2, C4 | Services | 26 | Ready for review |
+| [27. World service](./27-world-service.md) | 23, 25, 26 | B1, B2, B3, C1 to C4, D1 | Services | 27 | Ready for review |
+| [28. Gateway service](./28-gateway-service.md) | 24, 27 | A1, B2 | Services | 28 | Ready for review |

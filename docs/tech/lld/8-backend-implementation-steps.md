@@ -15,7 +15,7 @@ The Stage 1 backend, split into steps you review one at a time before any code i
 - **Bottom-up:** steps follow the dependency graph, so each one builds only on tested code.
 - **Small:** a step is one reviewable unit. If one grows past a day or two of work, it's split.
 - **The design wins:** if a step shows that a design page is wrong, that page is fixed in the same step, not only the step page.
-- **Stage 1 only:** nothing from Stage 2 (currency, market, Kafka, the auditor, Protobuf).
+- **Stage 1 only:** nothing from Stage 2 (currency, market, Kafka, the auditor, Protobuf on the client's WebSocket). The internal gRPC contracts of steps 20 to 28 are Protobuf, at the user's decision to split in Stage 1 (TD-25).
 - **Open decisions:** a step that depends on one builds the current default and names it.
 - **By layer:** each step says which layers it builds (page 1, Layers and responsibilities), and groups its scope and tests by layer. Repository tests run against real Postgres, service rule tests use fakes, and handler tests use fake services.
 
@@ -30,6 +30,7 @@ The Stage 1 backend, split into steps you review one at a time before any code i
 | M4. Travel | 14 |
 | M5. Play together | 15 |
 | M6. Proof session | 16, 17 |
+| Services (page 10, TD-25) | 20 to 28 |
 
 The frontend has its own steps against page 7: [9. Client implementation steps](./9-client-implementation-steps.md).
 

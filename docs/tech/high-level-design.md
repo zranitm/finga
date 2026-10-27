@@ -16,7 +16,7 @@
 ## Technical non-goals for the MVP
 
 - Kubernetes, service mesh, or multi-region.
-- One microservice per domain from day one.
+- One microservice per domain. Services follow runtime and transaction boundaries instead: six in Stage 1 behind a connection gateway (TD-25), with economy and market joining the item service because they share its transactions.
 - A custom proxy, custom networking stack, or 3D.
 - Real money or payment providers.
 
@@ -30,7 +30,7 @@
 | A market purchase settles exactly once | F3 | One database transaction with a row lock and an idempotency key |
 | Every change can be traced | D5, F1 | Append-only ledger entries and item events, published as domain events |
 | Progress survives logout and restarts | D2 | Economic state written synchronously; other progress checkpointed |
-| Party and chat work across maps | E1, E3 | In-process in the MVP; NATS once maps span nodes |
+| Party and chat work across maps | E1, E3 | A social service delivering through the gateway; NATS once there are several gateways |
 | Spam and brute-force protection | A1, E1 | nginx limits per IP; gateway token buckets per account |
 | Playable public demo | Project goal | Cloudflare, then nginx, then one VPS running Docker Compose |
 | 1,000 concurrent players on one node | Project goal | Each map instance owned by one goroutine; bot load tests |
@@ -42,7 +42,7 @@
 - **Latency:** input to visible result under 150 ms for players in the region, network included.
 - **Economic durability:** zero loss of committed economic state. Positions and HP may roll back a few seconds after a crash.
 - **Correctness:** the auditor reports zero mismatches after load and chaos tests.
-- **Availability:** best effort, single region. A server restart sends players back to log in; they reconnect and resume.
+- **Availability:** best effort, single region. A game service restarts without dropping a socket (a world restart is a short freeze); a gateway restart makes clients reconnect and resume.
 
 # 3. Architecture overview
 
@@ -52,14 +52,14 @@ flowchart LR
   CF --> NG["nginx"]
   NG -->|"/api"| API
   NG -->|"/ws"| GW
-  subgraph GS["Game server: Go modular monolith"]
-    API["REST API"]
-    GW["gateway"]
-    MODS["world, combat, character, item, economy, market, party, chat"]
-    GW --> MODS
+  subgraph GS["Game services: one Go module, gRPC between them"]
+    API["gateway: REST"]
+    GW["gateway: WebSocket"]
+    SVC["account, character, item with economy and market, world, social"]
+    API --> SVC
+    GW --> SVC
   end
-  API --> PG[("Postgres")]
-  MODS --> PG
+  SVC --> PG[("Postgres")]
   PG -->|outbox rows| RL["outbox-relay"]
   RL --> K[("Kafka")]
   K --> AU["auditor"]
@@ -79,7 +79,8 @@ nginx also serves the client's static files on `/`. Prometheus scrapes every Go 
 | **Client** | Rendering, input, own-movement prediction, interpolation, menus | Phaser 4, TypeScript, Vite; React overlay for menus and the HUD, sharing a Zustand store with the game; Tiled maps (TD-23) |
 | **Cloudflare** | Absorbs attacks, hides the origin IP, caches static files | Free plan, managed with Terraform |
 | **nginx** | TLS to the origin, static files, routing, per-IP limits, WebSocket upgrade | nginx with a Cloudflare origin certificate |
-| **Game server** | All gameplay and economy logic | Go modular monolith, `cmd/gameserver` |
+| **Gateway** | The only public entry: WebSocket connections, REST, routing, rate limits; no game rules, no database | Go, `services/gateway` |
+| **Game services** | All gameplay and economy logic: account, character, item (with economy and market), world, social | Go, one binary each under `services/`, gRPC between them (TD-25) |
 | **Outbox relay** | Publishes committed outbox rows to Kafka | Go, `cmd/outbox-relay`, generic |
 | **Kafka** | Durable, ordered, replayable domain events | Apache Kafka in KRaft mode; franz-go client |
 | **Consumers** | Audits and read models built from events | Go, one binary each |
@@ -87,9 +88,9 @@ nginx also serves the client's static files on `/`. Prometheus scrapes every Go 
 | **Observability** | Metrics, dashboards, logs | Prometheus, Grafana, structured JSON logs |
 | **Bot client** | Load and chaos testing over the real protocol | Go, `cmd/bot` |
 
-## Game server modules
+## Services and modules
 
-Each module owns its own tables and exposes a Go interface. No module reads or writes another module's tables.
+Each module owns its own tables. Modules live in services: the gateway, and account, character, item (items, economy, market), world (world, combat), and social (party, chat). A service reaches another only through its gRPC contract, and no service reads another's tables (Low-level design, page 10).
 
 - **gateway:** WebSocket sessions, auth handshake, protocol version check, one active session per account, per-account rate limits, routing to map instances, fan-out.
 - **account:** sign up, log in, sessions (REST).
@@ -123,7 +124,7 @@ Each module owns its own tables and exposes a Go interface. No module reads or w
 
 1. The client calls `POST /api/sessions` and receives an opaque session token.
 2. The client picks a character, then opens `/ws` with the token.
-3. The gateway validates the token, ends any older session for the account, loads the character from Postgres, and attaches the player to its map instance.
+3. The gateway has the account service validate the token, ends any older connection of the account, and joins the player to the world, which loads the character from the character service and attaches it to its map instance.
 4. The map instance sends a full snapshot, then deltas every tick.
 
 ## Kill, EXP, and loot
@@ -138,7 +139,7 @@ Each module owns its own tables and exposes a Go interface. No module reads or w
 sequenceDiagram
   participant C as Client
   participant G as Gateway
-  participant M as Market module
+  participant M as Item service: market
   participant DB as Postgres
   participant R as Outbox relay
   participant K as Kafka
@@ -162,8 +163,8 @@ sequenceDiagram
 
 ## Map change
 
-- **MVP:** the player moves between map goroutines in the same process, and progress is checkpointed.
-- **Later:** maps run on different nodes. The gateway keeps the client's WebSocket open and re-attaches it to the new node, so the player never sees a disconnect.
+- **Stage 1:** the player moves between map goroutines in the world service, and progress is checkpointed. The gateway already keeps the WebSocket open across a world restart and rejoins the player.
+- **Later:** maps run on different world nodes. The gateway keeps the client's WebSocket open and re-attaches it to the node that owns the target map, so the player never sees a disconnect.
 
 # 7. Data design
 
@@ -198,7 +199,7 @@ sequenceDiagram
   - Client to server: inputs with sequence numbers, and actions (attack, pickup, chat, party, market). Commands that change economic state carry an idempotency key.
   - Server to client: snapshots, deltas tagged with tick numbers, events (damage, death, level-up), and acknowledgements.
 - Schemas live in `api/proto` and are generated for Go and TypeScript with buf. `api/` also holds the REST contract (`openapi.yaml`) and the WebSocket message catalogue (`asyncapi.yaml`). Breaking-change checks in CI keep older clients working.
-- **Internal:** Go interfaces in the MVP, NATS between nodes after the split, Kafka for durable domain events.
+- **Internal:** gRPC between services from Stage 1 (TD-25): unary calls for commands and queries, server streams for delivery to players, versioned contracts in `api/proto/internal/` checked by `buf breaking`. NATS replaces the delivery streams once there are several gateways; Kafka carries durable domain events only.
 
 # 9. Correctness and failure handling
 
@@ -245,6 +246,11 @@ Non-domain code goes in `/pkg` as generic libraries with no knowledge of the gam
 - `pkg/wsconn`: WebSocket session handling (read and write loops, pings, backpressure).
 - `pkg/observability`: logging and metrics setup (TD-21).
 - `pkg/configload`: typed YAML configuration with environment overrides, validated at start. Copied from docviewer, without its .env loader: Compose and make inject server/.env into the environment.
+- `pkg/typedid`: typed UUIDv7 identifiers, one Go type per kind.
+- `pkg/tiled`: Tiled's JSON map format, without any game's layer rules.
+- `pkg/grpcx`: gRPC servers and clients with request IDs, and errors whose reason survives the call.
+- `pkg/runner`: runs a binary's listeners and background tasks, with readiness and graceful shutdown.
+- `pkg/hub`: subscribers with bounded queues, behind the delivery streams.
 
 # 13. Repository layout
 
@@ -252,12 +258,12 @@ Follows the layout of [zranitm/docviewer](https://github.com/zranitm/docviewer) 
 
 ```txt
 server/         the Go module, and everything the server builds, reads and publishes
-  api/          REST contract, WebSocket catalogue, Protobuf schemas
-  cmd/          gameserver and migrate; outbox-relay, auditor, other consumers, and bot in Stage 2; each binary wires its own dependencies next to its main
+  api/          REST contract, WebSocket catalogue, the internal gRPC contracts and their generated code
+  services/     gateway, account, character, item, world, social: each with its cmd/, internal/ and migrations/
+  cmd/          migrate and bot; outbox-relay, auditor and other consumers in Stage 2; each binary wires its own dependencies next to its main
   configs/      YAML defaults for each binary
   data/         game content and Tiled maps, which the client generates from
-  internal/     application (the game's business logic), handlers (REST, the gateway, the route table)
-  migrations/   goose migrations
+  internal/     what every service shares: IDs, game data, the movement simulation, progression rules, the client protocol, configuration
   pkg/          generic libraries (section 12)
   test/         end-to-end tests, one row per acceptance criterion
   testdata/     shared movement vectors, golden messages, error codes
@@ -274,7 +280,7 @@ Decision records live in `docs/tech/decisions/` (and `docs/product/decisions/`),
 
 # 14. Deployment and CI
 
-- **Local and demo:** Docker Compose with nginx, the game server, outbox relay, consumers, Postgres, Kafka (one KRaft broker), Prometheus, and Grafana.
+- **Local and demo:** Docker Compose with nginx, the gateway and the five game services, outbox relay, consumers, Postgres, Kafka (one KRaft broker), Prometheus, and Grafana.
 - **Demo host:** one VPS behind Cloudflare.
 - **CI (GitHub Actions):** Go tests with the race detector, golangci-lint, buf lint and breaking checks, the client build, integration tests against real Postgres and Kafka (Testcontainers), and container image builds.
 
@@ -282,10 +288,10 @@ Decision records live in `docs/tech/decisions/` (and `docs/product/decisions/`),
 
 Each step happens only when a metric shows it's needed.
 
-1. **MVP:** one game server process, one channel per map.
-2. **Channels (B4):** more map instances in the same process.
-3. **Split the gateway** into `cmd/gateway` and run several channel servers. The gateway routes each player by map and channel and handles handoff. NATS carries party, chat, and whispers between nodes.
-4. **Split economy and market** into their own service, add Postgres read replicas, and move Kafka to three brokers.
+1. **Stage 1:** the gateway and five game services, one node each, one channel per map (TD-25).
+2. **Channels (B4):** more map instances in the world service.
+3. **More nodes:** several gateways and world nodes. A registry says which world node owns which map and channel; the gateway routes each player by map and channel and handles handoff. NATS replaces the delivery streams and carries party, chat, and whispers between nodes.
+4. **Scale the item service** (items, economy, market): Postgres read replicas, Kafka on three brokers.
 
 # 16. Testing strategy
 
