@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 12. Items and inventory
 
+> **Changed by step 21 (2026-10-27):** the item service's migrations create `outbox` and `idempotency_keys` too; they are no longer shared.
+
 **Goal:** items that are never duplicated or lost, with a full history, and inventory actions that are safe to retry.
 
 **Layers in this step:** repository and service, plus two shared libraries. The WebSocket commands are handled in step 13.

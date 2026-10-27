@@ -12,8 +12,8 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/model"
-	"finga/migrations"
 	"finga/pkg/pgtest"
+	"finga/services/character/migrations"
 )
 
 var cluster *pgtest.Cluster
@@ -21,7 +21,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up)
+	cluster, err = pgtest.Start(ctx, migrations.Up) // the character service's set only
 	if err != nil {
 		panic(err)
 	}

@@ -1,6 +1,7 @@
-// Command migrate applies the pending goose migrations to the configured
-// database, then exits. It shares the game server's configuration schema and
-// reads the database and telemetry sections.
+// Command migrate applies every service's pending goose migrations to the
+// configured database, each set with its own version table, then exits
+// (Low-level design, page 10). It shares the configuration schema every
+// binary uses and reads the database and telemetry sections.
 package main
 
 import (
@@ -11,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"finga/cmd/migrate/app"
 	"finga/internal/config"
-	"finga/migrations"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
@@ -54,11 +55,13 @@ func run() int {
 	}
 	defer pool.Close()
 
-	n, err := migrations.Apply(ctx, pool)
+	applied, err := app.Apply(ctx, pool)
 	if err != nil {
 		log.Error("migration failed", "err", err)
 		return 1
 	}
-	log.Info("migrations applied", "count", n)
+	for _, s := range app.Sets() {
+		log.Info("migrations applied", "service", s.Service, "table", s.Table, "count", applied[s.Service])
+	}
 	return 0
 }

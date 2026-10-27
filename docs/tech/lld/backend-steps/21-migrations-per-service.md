@@ -3,7 +3,7 @@
 - **Depends on:** 20
 - **Milestone:** Services
 - **Order:** 21
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 21. Migrations per service
 
 **Goal:** each service with tables owns its migrations and its goose version table, so a service's schema can change on its own and no query can read another service's tables (page 10, Migrations).

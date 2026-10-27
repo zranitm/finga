@@ -13,7 +13,8 @@ server/                 the Go module: everything the server builds, reads and p
   cmd/                  one binary per job; each wires its own dependencies next to its main
     gameserver/         REST, WebSocket, map instances, background jobs
       app/              its composition root: Build wires every module; Server listens, runs the tasks, shuts down
-    migrate/            applies the goose migrations, then exits
+    migrate/            applies every service's goose migrations, then exits
+      app/              the sets in order and the guard against a database migrated before the split; the end-to-end tests use it
     auditor/            Stage 2: checks the invariants continuously, as a Kafka consumer
     outbox-relay/       Stage 2
     bot/                test players for the proof session (make bots); Stage 2 grows it into the load and chaos client
@@ -37,7 +38,9 @@ server/                 the Go module: everything the server builds, reads and p
     progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
     config/             the configuration schema
     telemetry/          metrics and logging; implements the application's observer interfaces
-  migrations/           goose SQL files, embedded through embed.go
+  services/
+    account/  character/  item/
+      migrations/       each service's goose SQL files, embedded, with its own version table (step 21)
   pkg/                  generic libraries with no game knowledge
   test/                 end-to-end tests: one row per acceptance criterion
   testdata/             the contracts the client's tests check too
@@ -57,10 +60,10 @@ tools/                  developer tools; empty in Stage 1
 .gitattributes  .gitignore  Makefile  README.md
 ```
 
-- The repository is `finga`, in three parts: `server/`, `web/` and `infra/` (split on 2026-10-23 at the user's request). The server is one Go module, in `server/`, also named `finga` (TD-15). Paths on these pages that start with `api/`, `cmd/`, `configs/`, `data/`, `internal/`, `migrations/`, `pkg/`, `test/` or `testdata/` are under `server/`.
+- The repository is `finga`, in three parts: `server/`, `web/` and `infra/` (split on 2026-10-23 at the user's request). The server is one Go module, in `server/`, also named `finga` (TD-15). Paths on these pages that start with `api/`, `cmd/`, `configs/`, `data/`, `internal/`, `pkg/`, `services/`, `test/` or `testdata/` are under `server/`.
 - The server is the reference for what the two sides share: the client generates its game data from `server/data/` and its tests check `server/testdata/`. The root `Makefile` drives all three parts.
 - `cmd/*/main.go` only loads configuration, builds the binary, and runs it until SIGINT or SIGTERM. Each binary wires its own dependencies next to its main, its Composition Root (one per process, as close to the entry point as possible). `migrate` and `bot` wire in `main.go`; the game server wires in `cmd/gameserver/app`, a package of its own because Go cannot import a `main` package and the end-to-end tests build the server in process exactly as production does. Stage 2 binaries follow the same rule (moved from `internal/server` on 2026-10-23 at the user's request).
-- Additions with no docviewer counterpart: `data/` (game content), `migrations/` (Postgres), `internal/application`, which keeps business logic apart from transport and infrastructure, and `internal/handler/router.go`, because there are two handlers (REST and WebSocket) to mount behind one router.
+- Additions with no docviewer counterpart: `data/` (game content), `services/*/migrations/` (Postgres, one set per service), `internal/application`, which keeps business logic apart from transport and infrastructure, and `internal/handler/router.go`, because there are two handlers (REST and WebSocket) to mount behind one router.
 - Each acceptance criterion in Features becomes a named row in `test/`, for example `F3/two-buyers-one-listing`.
 
 ## Dependency rules
@@ -416,7 +419,7 @@ telemetry:
 
 Carried over from docviewer:
 
-- **`make` targets:** `up` and `down` (Docker Compose), `run` (the migrations and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed).
+- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed).
 - **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys.
 - **Tests:** table-driven, with named cases. No test logic in production code: tests use the seams production already has (interfaces, constructors, `httptest`) and `testing/synctest` for time.
 - **`docs/ai-coding-log.md`:** one row per implementation step: what was produced, how it was verified, what changed, mistakes caught, and the commit.

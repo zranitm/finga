@@ -8,8 +8,8 @@
 - Coins are `bigint` whole units; no decimals.
 - Timestamps are `timestamptz`.
 - No foreign keys across modules: modules refer to each other by ID only, so a module's tables can later move to their own database.
-- Migrations: goose, one ordered directory `migrations/`, each file touching one module's tables, embedded through `migrations/embed.go` and applied by `cmd/migrate`.
-- Queries: sqlc generates typed code per module from `internal/<module>/queries`, under `internal/application/`.
+- Migrations: goose, one ordered set per service with tables, `services/<service>/migrations/` (account, character, item), embedded through its `embed.go` and recorded in the service's own version table (`goose_account_version`, `goose_character_version`, `goose_item_version`), so each service's schema changes on its own. `cmd/migrate` applies every set, account first, and refuses a database migrated before the split, which has goose's default `goose_db_version` (changed 2026-10-27, step 21; Low-level design, page 10).
+- Queries: sqlc generates typed code per module from `internal/<module>/queries`, under `internal/application/`, checked against its own service's migrations only, so a query cannot read another service's table.
 
 ## Table ownership
 
@@ -17,10 +17,11 @@
 | --- | --- |
 | `account` | `accounts`, `sessions` |
 | `character` | `characters` |
-| `item` | `items`, `item_events` |
+| `item` | `items`, `item_events`, and, through `pkg/outbox` and `pkg/idempotency`, `outbox` and `idempotency_keys` |
 | `economy`, through `pkg/ledger` (Stage 2) | `ledger_accounts`, `ledger_transfers`, `ledger_postings` |
 | `market` (Stage 2) | `listings` |
-| Shared, through `pkg/outbox` and `pkg/idempotency` | `outbox`, `idempotency_keys` |
+
+`outbox` and `idempotency_keys` were shared tables until step 21; only the item module uses them, so the item service owns them. A later service that needs an outbox gets its own table. `citext` is created by both the account and the character service, and dropped by neither.
 
 ## account
 
@@ -159,6 +160,8 @@ CREATE INDEX active_by_expiry
 Search by name or type: game data maps the text or type to template IDs in memory, then the query filters by `template_id`.
 
 ## platform
+
+The tables `pkg/outbox` and `pkg/idempotency` write, created by the item service's migrations. Each package also holds the same DDL as `Schema`, for its own tests; a test in the item service checks the two agree.
 
 ```sql
 -- pkg/outbox

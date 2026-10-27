@@ -11,7 +11,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/migrations"
 	"finga/pkg/dbx"
 	"finga/pkg/outbox"
 	"finga/pkg/pgtest"
@@ -22,7 +21,10 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up)
+	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
+		_, err := pool.Exec(ctx, outbox.Schema)
+		return err
+	})
 	if err != nil {
 		panic(err)
 	}

@@ -6,6 +6,8 @@
 - **Status:** Done
 - **Step:** 02. Database foundation
 
+> **Changed by step 21 (2026-10-27):** each service with tables owns its migrations in `services/<service>/migrations/`, with its own goose version table; `cmd/migrate` applies them all, and `pkg/dbx.Migrate` runs one set.
+
 **Goal:** talk to Postgres safely, migrate it, and test against a real one.
 
 ## Scope

@@ -10,7 +10,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"finga/migrations"
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
 )
@@ -20,7 +19,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up)
+	cluster, err = pgtest.Start(ctx, nil) // each test creates the tables it needs
 	if err != nil {
 		panic(err)
 	}

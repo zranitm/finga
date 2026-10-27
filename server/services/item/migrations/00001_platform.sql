@@ -1,6 +1,7 @@
 -- +goose Up
--- Shared tables (data model, page 2): the transactional outbox (pkg/outbox)
--- and the idempotency keys (pkg/idempotency).
+-- The transactional outbox (pkg/outbox) and the idempotency keys
+-- (pkg/idempotency), in the shape those packages write (data model, page 2).
+-- Only the item module uses them, so the item service owns them (page 10).
 CREATE TABLE outbox (
   id           bigserial PRIMARY KEY,
   event_id     uuid NOT NULL UNIQUE,

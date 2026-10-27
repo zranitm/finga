@@ -20,9 +20,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/cmd/gameserver/app"
+	migrateapp "finga/cmd/migrate/app"
 	"finga/internal/config"
 	"finga/internal/protocol"
-	"finga/migrations"
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
 )
@@ -32,7 +32,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up)
+	cluster, err = pgtest.Start(ctx, migrateapp.Up) // every service's set, as cmd/migrate applies them
 	if err != nil {
 		panic(err)
 	}

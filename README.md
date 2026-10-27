@@ -42,7 +42,7 @@ Postgres owns port 5432 on the host, set `FINGA_POSTGRES_PORT` in
 the binaries:
 
 ```bash
-make run                   # exports server/.env, applies migrations/ to FINGA_DATABASE_URL, starts the game server
+make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the game server
 ```
 
 The game server serves REST under /api, the gateway at /ws, /healthz,
@@ -96,7 +96,7 @@ committed is a secret.
 
 ```bash
 make test    # every test, with the race detector
-make cover   # coverage report over server/internal/ and server/pkg/; fails below 80%
+make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
 make lint    # golangci-lint: sloglint, depguard import directions, revive, staticcheck
 make smoke   # the packaging check, against a running stack
 make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed

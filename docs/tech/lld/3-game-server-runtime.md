@@ -5,7 +5,7 @@
 One binary per job, as in docviewer:
 
 - `cmd/gameserver` runs the game.
-- `cmd/migrate` applies the migrations and exits.
+- `cmd/migrate` applies every service's migrations, each set with its own version table, and exits.
 - `cmd/bot` drives test players against a running server for the proof session and prints the tick percentiles from `/metrics`.
 - `cmd/auditor` (Stage 2) checks the invariants continuously, as a Kafka consumer.
 

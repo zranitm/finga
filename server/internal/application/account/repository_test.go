@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"finga/internal/model"
-	"finga/migrations"
 	"finga/pkg/pgtest"
+	"finga/services/account/migrations"
 )
 
 // These run against real Postgres through the store, so errors arrive
@@ -21,7 +21,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up)
+	cluster, err = pgtest.Start(ctx, migrations.Up) // the account service's set only
 	if err != nil {
 		panic(err)
 	}

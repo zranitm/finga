@@ -1,13 +1,13 @@
 # sqlc: one entry per module. Each module's queries live in
 # internal/application/<module>/queries and generate into that module's
 # internal/db package, which Go lets only the module import. `make gen` runs it.
-# The schema for every entry is the whole migrations/ directory (goose files;
-# sqlc ignores the Down sections), so a query is checked against the real
-# tables.
+# Each entry's schema is its own service's migrations (goose files; sqlc
+# ignores the Down sections), so a query is checked against the real tables
+# and cannot read another service's (Low-level design, page 10).
 version: "2"
 sql:
   - engine: postgresql
-    schema: migrations
+    schema: services/account/migrations
     queries: internal/application/account/queries
     gen:
       go:
@@ -35,7 +35,7 @@ sql:
           - db_type: citext
             go_type: string
   - engine: postgresql
-    schema: migrations
+    schema: services/character/migrations
     queries: internal/application/character/queries
     gen:
       go:
@@ -45,7 +45,7 @@ sql:
         emit_pointers_for_null_types: true
         overrides: *overrides
   - engine: postgresql
-    schema: migrations
+    schema: services/item/migrations
     queries: internal/application/item/queries
     gen:
       go:

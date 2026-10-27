@@ -20,7 +20,7 @@ down:          ## stop everything and drop the database volume
 
 # The binaries read only their environment, so run exports server/.env (when
 # present) into it, the way Compose's env_file does for make up.
-run:           ## without Docker: server/.env exported, the migrations, then the game server
+run:           ## without Docker: server/.env exported, every service's migrations, then the game server
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && $(GO) run ./cmd/gameserver
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
@@ -31,15 +31,15 @@ test-go:
 test-web:
 	$(NPM) test
 
-# Go coverage counts statements in server/internal/, server/pkg/ and the game
-# server's composition root (server/cmd/gameserver/app/), from every test in
+# Go coverage counts statements in server/internal/, server/pkg/, server/services/
+# and the composition roots (server/cmd/*/app/), from every test in
 # the module (end-to-end tests under server/test/ included). The main.go files
 # are entry points, exercised end to end, and stringer output (*_string.go) is
 # generated, so both are excluded. The client enforces page 7's 80% floor on its tested layers itself.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 cover-go:
-	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./cmd/gameserver/app/... -coverprofile=coverage.out ./...
+	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/gameserver/app/...,./cmd/migrate/app/... -coverprofile=coverage.out ./...
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
@@ -60,7 +60,8 @@ smoke:         ## against a running stack (make up): a client signs up, enters t
 	cd $(SERVER) && FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
 
 # sqlc generates each module's queries into server/internal/application/<module>/internal/db.
-# The schema for every entry is server/migrations/; run it after a query or migration change.
+# Each entry's schema is its service's server/services/<service>/migrations/; run it after a
+# query or migration change.
 gen:           ## regenerate sqlc code
 	cd $(SERVER) && sqlc generate
 
