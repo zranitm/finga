@@ -35,8 +35,16 @@ type looter struct {
 	hp        int
 	drops     map[uint64]protocol.DropView
 	inventory int // InventoryChanged messages seen
-	failures  []protocol.Response
-	seq       uint32
+	// picked are the drops this looter's pickups took off the ground: the
+	// server removes a picked drop in the Delta of the tick whose
+	// InventoryChanged reports it, so a drop removed in a tick that brought
+	// this looter an InventoryChanged was picked by it. A drop that expired
+	// in another tick is not in it.
+	picked      map[uint64]protocol.DropView
+	removedTick uint64
+	removed     []protocol.DropView // the drops the Delta of removedTick took away
+	failures    []protocol.Response
+	seq         uint32
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
@@ -47,7 +55,7 @@ type looter struct {
 }
 
 func newLooter(p *player, snap protocol.Snapshot) *looter {
-	l := &looter{player: p, drops: map[uint64]protocol.DropView{}, seq: 2000}
+	l := &looter{player: p, drops: map[uint64]protocol.DropView{}, picked: map[uint64]protocol.DropView{}, seq: 2000}
 	for _, d := range snap.Drops {
 		l.drops[d.ID] = d
 	}
@@ -71,7 +79,11 @@ func (l *looter) observe(m wsconn.Message) {
 		for _, dv := range d.Drops {
 			l.drops[dv.ID] = dv
 		}
+		l.removedTick, l.removed = m.Tick, l.removed[:0]
 		for _, id := range d.RemovedDrops {
+			if dv, ok := l.drops[id]; ok {
+				l.removed = append(l.removed, dv)
+			}
 			delete(l.drops, id)
 		}
 	case protocol.Snapshot:
@@ -86,6 +98,11 @@ func (l *looter) observe(m wsconn.Message) {
 		}
 	case protocol.InventoryChanged:
 		l.inventory++
+		if m.Tick == l.removedTick {
+			for _, dv := range l.removed {
+				l.picked[dv.ID] = dv
+			}
+		}
 	case protocol.Response:
 		if !d.OK {
 			l.failures = append(l.failures, d)
@@ -357,10 +374,6 @@ func TestLootAndKeep(t *testing.T) {
 		// knocks the character back and up, out of range; so as a real
 		// client would, the pair is sent again when the character was
 		// bounced away before anything arrived.
-		before := map[uint64]protocol.DropView{}
-		for k, v := range killer.drops {
-			before[k] = v
-		}
 		got := false
 		for attempt := 0; attempt < 20 && !got; attempt++ {
 			if !killer.walkTo(drop.X, 15*time.Second) {
@@ -380,15 +393,8 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("no InventoryChanged after PickUp (failures %+v, at %.0f, drop %+v)", killer.failures, killer.x, drop)
 		}
 		killer.pump(time.Second, nil)
-		var takenDrops []protocol.DropView
-		for k, v := range before {
-			if _, still := killer.drops[k]; !still {
-				takenDrops = append(takenDrops, v)
-			}
-		}
-		taken := len(takenDrops)
-		if taken < 1 || killer.inventory != taken || len(killer.failures) != 0 {
-			t.Fatalf("%d drops taken, %d InventoryChanged, failures %+v", taken, killer.inventory, killer.failures)
+		if _, picked := killer.picked[drop.ID]; !picked || len(killer.picked) != killer.inventory || len(killer.failures) != 0 {
+			t.Fatalf("picked %v with %d InventoryChanged, failures %+v; want drop %d among them, one InventoryChanged each", killer.picked, killer.inventory, killer.failures, drop.ID)
 		}
 		if _, still := killer.drops[drop.ID]; still {
 			t.Fatal("the drop is still on the ground")
@@ -397,14 +403,19 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatal("the watcher still sees the drop")
 		}
 		// D5: the path a real client takes after a lost reply: it re-sends
-		// the same PickUp (same seq) and still ends with the same items.
+		// the same PickUp (same seq). PickUp has no request ID, so the re-send
+		// is a new pickup: it takes nothing already taken, and if another
+		// drop now lies in range (the second item of a slime, or one the
+		// character was knocked next to) it rightly takes that one. Either
+		// way every InventoryChanged is one drop leaving the ground.
 		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: protocol.PickUp{}}); err != nil {
 			t.Fatal(err)
 		}
 		killer.pump(time.Second, nil)
-		if killer.inventory != taken || len(killer.failures) != 0 {
-			t.Fatalf("after re-sending PickUp with seq %d: %d InventoryChanged for %d drops, failures %+v", killer.seq, killer.inventory, taken, killer.failures)
+		if len(killer.picked) != killer.inventory || len(killer.failures) != 0 {
+			t.Fatalf("after re-sending PickUp with seq %d: %d InventoryChanged for %d drops picked, failures %+v", killer.seq, killer.inventory, len(killer.picked), killer.failures)
 		}
+		taken := len(killer.picked)
 		// One item event per drop, each under its own drop ID, and the
 		// template's stack holds the starter stack plus the drop.
 		var lootEvents, distinctDrops int
@@ -417,7 +428,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("%d loot events under %d drop IDs for %d drops taken", lootEvents, distinctDrops, taken)
 		}
 		wantQty, sameTemplate := starterQuantity(drop.Template), 0
-		for _, d := range takenDrops {
+		for _, d := range killer.picked {
 			if d.Template == drop.Template {
 				wantQty += d.Quantity
 				sameTemplate++
