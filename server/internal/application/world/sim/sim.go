@@ -107,6 +107,13 @@ type State struct {
 //     solid stops the rise: head on its underside, VY 0. Solids are checked
 //     before platforms, each in slice order; the ignored platform is skipped.
 //  9. The drop-through timer counts down and releases its platform at 0.
+//
+// Every product added to a position or velocity is converted with
+// float64(...) on purpose: the conversion rounds it, which stops the
+// compiler fusing the multiply and the add into one FMA instruction (Go
+// allows that on arm64, and the result differs in the last bits). The
+// client's JavaScript never fuses, so without it an arm64 server would
+// drift from the vectors in testdata/movement and from every prediction.
 func Step(s State, in Input, g Geometry, p Params) State {
 	// 1. Facing.
 	switch {
@@ -140,9 +147,9 @@ func Step(s State, in Input, g Geometry, p Params) State {
 			s.VX, s.VY = 0, 0
 			switch {
 			case in.Up && !in.Down:
-				s.Y -= p.ClimbSpeed * p.Dt
+				s.Y -= float64(p.ClimbSpeed * p.Dt)
 			case in.Down && !in.Up:
-				s.Y += p.ClimbSpeed * p.Dt
+				s.Y += float64(p.ClimbSpeed * p.Dt)
 			}
 			if !onAnyRope(s, g, p) {
 				s.Climbing = false // past the top or the bottom: fall, or land on what is there
@@ -167,13 +174,13 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	}
 
 	// 6. Gravity.
-	s.VY += p.Gravity * p.Dt
+	s.VY += float64(p.Gravity * p.Dt)
 	if s.VY > p.MaxFallSpeed {
 		s.VY = p.MaxFallSpeed
 	}
 
 	// 7. X.
-	s.X += s.VX * p.Dt
+	s.X += float64(s.VX * p.Dt)
 	for _, solid := range g.Solids {
 		if !overlaps(box(s, p), solid) {
 			continue
@@ -189,7 +196,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 
 	// 8. Y.
 	prevFeet := s.Y
-	s.Y += s.VY * p.Dt
+	s.Y += float64(s.VY * p.Dt)
 	s.OnGround = false
 	s.Ground = NoPlatform
 	for _, solid := range g.Solids {
