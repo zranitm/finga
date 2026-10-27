@@ -24,7 +24,7 @@ server/                 the Go module: everything the server builds, reads and p
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     application/        business logic: the game's rules, one package per module
-      account/  character/  world/  combat/
+      character/  world/  combat/
       party/  chat/                    the modules still in the game server (page 10 moves each to its service)
       economy/  market/  audit/        Stage 2
     handler/
@@ -47,8 +47,9 @@ server/                 the Go module: everything the server builds, reads and p
       internal/handler/ the ItemService gRPC server and its error table
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
-    account/  character/
-      migrations/       (their code joins in steps 24 and 26)
+    account/            the same shape: cmd/account, internal/account, internal/handler (AccountService and WatchSessions), migrations/
+    character/
+      migrations/       (its code joins in step 26)
   pkg/                  generic libraries with no game knowledge
   test/                 end-to-end tests: one row per acceptance criterion
   testdata/             the contracts the client's tests check too
@@ -258,7 +259,7 @@ Every module below lives in `internal/application/`, except the two handlers. Th
 
 | Module | Owns | Uses |
 | --- | --- | --- |
-| `account` | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
+| `account` (the account service, `services/account`) | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
 | `character` | Characters, stats, levels, EXP | gamedata, progression |
 | `world` | Map instances, movement, mobs, ground drops, portals | character, combat, the item service (through a `Pickups` adapter), economy, gamedata, sim, progression, `pkg/tick` |
 | `combat` | Hit and damage resolution, EXP awards; pure functions | gamedata |
@@ -342,6 +343,9 @@ type Authenticator interface {
 }
 type Sessions interface {
     Issue(ctx context.Context, accountID uuid.UUID) (token string, err error) // revokes older sessions
+    Guard
+}
+type Guard interface { // what the REST handler and the gateway need; implemented over the account service's client (step 24)
     Validate(ctx context.Context, token string) (Principal, error)
     Revoke(ctx context.Context, sessionID uuid.UUID) error
     SessionLifecycle // step 16: Rotate(ctx, sessionID) (token, error), Check(ctx, sessionID) error, RevokeAll(ctx, accountID) error

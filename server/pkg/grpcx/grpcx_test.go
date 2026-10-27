@@ -18,6 +18,7 @@ import (
 
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/hub"
 )
 
 // The sentinels a pretend service returns, and its table.
@@ -265,4 +266,57 @@ func TestReasonsListsEveryValueButTheZeroOne(t *testing.T) {
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("got %v", got)
 	}
+}
+
+func TestServeSubscription(t *testing.T) {
+	events := hub.New[*testpb.StreamingOutputCallResponse](4)
+	c := serve(t, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
+		first := &testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: []byte("subscribed")}}
+		return grpcx.ServeSubscription(stream, events.Subscribe("gw-1"), first)
+	}})
+	body := func(m *testpb.StreamingOutputCallResponse) string { return string(m.GetPayload().GetBody()) }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stream, err := c.StreamingOutputCall(ctx, &testpb.StreamingOutputCallRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m, err := stream.Recv(); err != nil || body(m) != "subscribed" {
+		t.Fatalf("first %v %v", m, err)
+	}
+	t.Run("what the hub sends arrives in order", func(t *testing.T) {
+		for _, b := range []string{"a", "b"} {
+			sub, ok := events.Get("gw-1")
+			if !ok || !sub.Send(&testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: []byte(b)}}) {
+				t.Fatal("no subscription")
+			}
+		}
+		for _, want := range []string{"a", "b"} {
+			if m, err := stream.Recv(); err != nil || body(m) != want {
+				t.Fatalf("got %v %v, want %s", m, err, want)
+			}
+		}
+	})
+	t.Run("a replaced subscription ends the stream as Unavailable", func(t *testing.T) {
+		events.Subscribe("gw-1")
+		if _, err := stream.Recv(); status.Code(err) != codes.Unavailable {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("the caller going away ends the subscription", func(t *testing.T) {
+		stream, err := c.StreamingOutputCall(ctx, &testpb.StreamingOutputCallRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := stream.Recv(); err != nil {
+			t.Fatal(err)
+		}
+		sub, _ := events.Get("gw-1")
+		cancel()
+		select {
+		case <-sub.Done():
+		case <-time.After(5 * time.Second):
+			t.Fatal("the subscription outlived its caller")
+		}
+	})
 }

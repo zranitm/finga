@@ -15,13 +15,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"finga/internal/application/account"
+	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/application/character"
 	"finga/internal/gamedata"
 	"finga/internal/handler/api"
 	"finga/internal/model"
 	"finga/pkg/auth"
+	"finga/pkg/grpcx"
 )
 
 const goodToken = "tok-good-0123456789abcdef"
@@ -99,11 +103,12 @@ var errorRows = []struct {
 	status int
 	code   string
 }{
-	{"bad input is 400 with its own code", account.ErrBadPassword, http.StatusBadRequest, "bad_password"},
-	{"unauthenticated is 401", account.ErrUnauthenticated, http.StatusUnauthorized, "unauthenticated"},
+	{"bad input is 400 with its own code", grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
+	{"unauthenticated is 401", grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, "unauthenticated"},
 	{"a missing character is 404 character_not_found", character.ErrNotFound, http.StatusNotFound, "character_not_found"},
-	{"a taken username is 409 username_taken", account.ErrUsernameTaken, http.StatusConflict, "username_taken"},
-	{"too many logins is 429 login_rate_limited", account.ErrRateLimited, http.StatusTooManyRequests, "login_rate_limited"},
+	{"a taken username is 409 username_taken", grpcx.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
+	{"too many logins is 429 login_rate_limited", grpcx.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
+	{"a service that cannot be reached is 500 internal", status.Error(codes.Unavailable, "connection refused"), http.StatusInternalServerError, "internal"},
 	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", character.ErrNameTaken, errInternal)), http.StatusConflict, "name_taken"},
 	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, "internal"},
 }
@@ -111,16 +116,16 @@ var errorRows = []struct {
 func TestRegister(t *testing.T) {
 	t.Run("happy path", func(t *testing.T) {
 		h := newHarness()
-		var got account.RegisterInput
-		h.accounts.register = func(_ context.Context, in account.RegisterInput) (account.Account, error) {
+		var got *accountv1.RegisterRequest
+		h.accounts.register = func(_ context.Context, in *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
 			got = in
-			return account.Account{ID: accountID, Username: in.Username, CreatedAt: t0}, nil
+			return &accountv1.RegisterResponse{Account: &accountv1.Account{Id: accountID.String(), Username: in.GetUsername(), CreatedAt: timestamppb.New(t0)}}, nil
 		}
 		rec := h.do("POST", "/api/accounts", `{"username":"alice","password":"correct horse"}`, nil)
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got != (account.RegisterInput{Username: "alice", Password: "correct horse"}) {
+		if got.GetUsername() != "alice" || got.GetPassword() != "correct horse" {
 			t.Fatalf("service got %+v", got)
 		}
 		var body api.AccountResponse
@@ -162,8 +167,8 @@ func TestRegister(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.accounts.register = func(context.Context, account.RegisterInput) (account.Account, error) {
-					return account.Account{}, tt.err
+				h.accounts.register = func(context.Context, *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
+					return nil, tt.err
 				}
 				rec := h.do("POST", "/api/accounts", `{"username":"alice","password":"correct horse"}`, nil)
 				assertError(t, rec, tt.status, tt.code)
@@ -178,13 +183,16 @@ func TestRegister(t *testing.T) {
 func TestLogin(t *testing.T) {
 	t.Run("happy path passes the client IP and returns the token once", func(t *testing.T) {
 		h := newHarness()
-		var got account.LoginInput
-		h.accounts.login = func(_ context.Context, in account.LoginInput) (string, error) { got = in; return "secret-token", nil }
+		var got *accountv1.LoginRequest
+		h.accounts.login = func(_ context.Context, in *accountv1.LoginRequest) (*accountv1.LoginResponse, error) {
+			got = in
+			return &accountv1.LoginResponse{Token: "secret-token"}, nil
+		}
 		rec := h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, nil)
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got.Username != "alice" || got.Password != "correct horse" || got.IP == "" {
+		if got.GetUsername() != "alice" || got.GetPassword() != "correct horse" || got.GetIp() == "" {
 			t.Fatalf("service got %+v", got)
 		}
 		var body api.SessionResponse
@@ -204,7 +212,7 @@ func TestLogin(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.accounts.login = func(context.Context, account.LoginInput) (string, error) { return "", tt.err }
+				h.accounts.login = func(context.Context, *accountv1.LoginRequest) (*accountv1.LoginResponse, error) { return nil, tt.err }
 				assertError(t, h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, nil), tt.status, tt.code)
 			})
 		}
@@ -355,11 +363,11 @@ func TestCharacters(t *testing.T) {
 func TestSettings(t *testing.T) {
 	t.Run("read", func(t *testing.T) {
 		h := newHarness()
-		h.accounts.settings = func(_ context.Context, id model.AccountID) (account.Settings, error) {
-			if id != accountID {
-				t.Fatalf("id %s", id)
+		h.accounts.settings = func(_ context.Context, in *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error) {
+			if in.GetAccountId() != accountID.String() {
+				t.Fatalf("id %s", in.GetAccountId())
 			}
-			return account.Settings{ControlPreset: account.PresetWASD}, nil
+			return &accountv1.GetSettingsResponse{Settings: &accountv1.Settings{ControlPreset: "wasd"}}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -373,10 +381,13 @@ func TestSettings(t *testing.T) {
 	})
 	t.Run("write returns the saved settings", func(t *testing.T) {
 		h := newHarness()
-		var saved account.Settings
-		h.accounts.updateSettings = func(_ context.Context, _ model.AccountID, s account.Settings) error { saved = s; return nil }
+		var saved *accountv1.UpdateSettingsRequest
+		h.accounts.updateSettings = func(_ context.Context, in *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
+			saved = in
+			return &accountv1.UpdateSettingsResponse{}, nil
+		}
 		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed())
-		if rec.Code != http.StatusOK || saved.ControlPreset != account.PresetWASD {
+		if rec.Code != http.StatusOK || saved.GetSettings().GetControlPreset() != "wasd" || saved.GetAccountId() != accountID.String() {
 			t.Fatalf("status %d saved %+v", rec.Code, saved)
 		}
 		var body api.SettingsResponse
@@ -391,15 +402,21 @@ func TestSettings(t *testing.T) {
 	})
 	t.Run("an unknown preset is the service's rule", func(t *testing.T) {
 		h := newHarness()
-		h.accounts.updateSettings = func(context.Context, model.AccountID, account.Settings) error { return account.ErrBadPreset }
+		h.accounts.updateSettings = func(context.Context, *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
+			return nil, grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_CONTROL_PRESET)
+		}
 		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, "bad_control_preset")
 	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
 				h := newHarness()
-				h.accounts.settings = func(context.Context, model.AccountID) (account.Settings, error) { return account.Settings{}, tt.err }
-				h.accounts.updateSettings = func(context.Context, model.AccountID, account.Settings) error { return tt.err }
+				h.accounts.settings = func(context.Context, *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error) {
+					return nil, tt.err
+				}
+				h.accounts.updateSettings = func(context.Context, *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
+					return nil, tt.err
+				}
 				assertError(t, h.do("GET", "/api/settings", "", authed()), tt.status, tt.code)
 				assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed()), tt.status, tt.code)
 			})

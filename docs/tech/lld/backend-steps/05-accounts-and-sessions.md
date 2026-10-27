@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 05. Accounts and sessions
 
+> **Changed by step 24 (2026-10-27):** the account module runs as its own service (`services/account`), reached over gRPC; its revoke hooks feed the `WatchSessions` stream every gateway follows.
+
 **Goal:** sign up, log in, and sessions, with one active session per account.
 
 **Layers in this step:** repository and service. The REST handlers come in step 07.

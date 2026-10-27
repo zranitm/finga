@@ -18,8 +18,8 @@ import (
 	"net/http"
 	"slices"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/party"
@@ -48,12 +48,15 @@ var (
 	ChatUnavailable      = Public{"chat_unavailable", http.StatusServiceUnavailable, "chat is not available"}
 	PartiesUnavailable   = Public{"parties_unavailable", http.StatusServiceUnavailable, "parties are not available"}
 	InventoryUnavailable = Public{"inventory_unavailable", http.StatusServiceUnavailable, "the inventory is not available"}
-	Internal             = Public{"internal", http.StatusInternalServerError, "something went wrong"}
+	// Unauthenticated is a missing or malformed token, raised by the handler,
+	// and the account service's REASON_UNAUTHENTICATED, which For maps to it.
+	Unauthenticated = Public{"unauthenticated", http.StatusUnauthorized, "invalid credentials or session"}
+	Internal        = Public{"internal", http.StatusInternalServerError, "something went wrong"}
 )
 
 var handlerRaised = []Public{
 	MalformedBody, MissingField, BodyTooLarge, NoSuchEndpoint, MethodNotAllowed, RateLimited,
-	NotImplemented, ChatUnavailable, PartiesUnavailable, InventoryUnavailable, Internal,
+	NotImplemented, ChatUnavailable, PartiesUnavailable, InventoryUnavailable, Unauthenticated, Internal,
 }
 
 // table is every service error a client can meet. TestEveryServiceErrorIsMapped
@@ -62,15 +65,6 @@ var table = []struct {
 	err error
 	pub Public
 }{
-	{account.ErrNotFound, Public{"account_not_found", http.StatusNotFound, "account not found"}},
-	{account.ErrUsernameTaken, Public{"username_taken", http.StatusConflict, "that username is taken"}},
-	{account.ErrUnauthenticated, Public{"unauthenticated", http.StatusUnauthorized, "invalid credentials or session"}},
-	{account.ErrRateLimited, Public{"login_rate_limited", http.StatusTooManyRequests, "too many login attempts, try again in a minute"}},
-	{account.ErrBadUsername, Public{"bad_username", http.StatusBadRequest, "username must be 3 to 16 letters, digits or underscores"}},
-	{account.ErrBadPassword, Public{"bad_password", http.StatusBadRequest, "password must be 8 to 128 characters"}},
-	{account.ErrBadPreset, Public{"bad_control_preset", http.StatusBadRequest, "control preset must be classic or wasd"}},
-	{account.ErrSessionRace, Public{"session_race", http.StatusConflict, "another login is in progress, try again"}},
-
 	{character.ErrNotFound, Public{"character_not_found", http.StatusNotFound, "character not found"}},
 	{character.ErrNameTaken, Public{"name_taken", http.StatusConflict, "that name is taken"}},
 	{character.ErrBadName, Public{"bad_character_name", http.StatusBadRequest, "name must be 3 to 12 letters and digits, starting with a letter"}},
@@ -106,6 +100,15 @@ var table = []struct {
 // Reason enum has a value with no row here. A service's BAD_ID and
 // UNKNOWN_CLASS answer as the gateway's own would (bad_id, unknown_class).
 var reasons = map[grpcx.Reason]Public{
+	grpcx.Key(accountv1.Reason_REASON_ACCOUNT_NOT_FOUND):  {"account_not_found", http.StatusNotFound, "account not found"},
+	grpcx.Key(accountv1.Reason_REASON_USERNAME_TAKEN):     {"username_taken", http.StatusConflict, "that username is taken"},
+	grpcx.Key(accountv1.Reason_REASON_UNAUTHENTICATED):    Unauthenticated,
+	grpcx.Key(accountv1.Reason_REASON_LOGIN_RATE_LIMITED): {"login_rate_limited", http.StatusTooManyRequests, "too many login attempts, try again in a minute"},
+	grpcx.Key(accountv1.Reason_REASON_BAD_USERNAME):       {"bad_username", http.StatusBadRequest, "username must be 3 to 16 letters, digits or underscores"},
+	grpcx.Key(accountv1.Reason_REASON_BAD_PASSWORD):       {"bad_password", http.StatusBadRequest, "password must be 8 to 128 characters"},
+	grpcx.Key(accountv1.Reason_REASON_BAD_CONTROL_PRESET): {"bad_control_preset", http.StatusBadRequest, "control preset must be classic or wasd"},
+	grpcx.Key(accountv1.Reason_REASON_SESSION_RACE):       {"session_race", http.StatusConflict, "another login is in progress, try again"},
+
 	grpcx.Key(itemv1.Reason_REASON_ITEM_NOT_FOUND):         {"item_not_found", http.StatusNotFound, "item not found"},
 	grpcx.Key(itemv1.Reason_REASON_SLOT_TAKEN):             {"slot_taken", http.StatusConflict, "that slot is taken"},
 	grpcx.Key(itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM):  {"slot_holds_other_item", http.StatusConflict, "that slot holds a different item"},
@@ -175,6 +178,6 @@ func Codes() []Public {
 	}
 	out = append(out, handlerRaised...)
 	slices.SortFunc(out, func(a, b Public) int { return cmp.Compare(a.Code, b.Code) })
-	// bad_id and unknown_class are both a sentinel's row and reasons' rows.
+	// bad_id, unknown_class and unauthenticated each have more than one row.
 	return slices.CompactFunc(out, func(a, b Public) bool { return a == b })
 }

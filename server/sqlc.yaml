@@ -9,11 +9,11 @@ version: "2"
 sql:
   - engine: postgresql
     schema: services/account/migrations
-    queries: internal/application/account/queries
+    queries: services/account/internal/account/queries
     gen:
       go:
         package: db
-        out: internal/application/account/internal/db
+        out: services/account/internal/account/internal/db
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: &overrides

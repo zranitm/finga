@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 16. Session hardening
 
+> **Changed by step 24 (2026-10-27):** kicks for a revoked session, a logout everywhere and a new login elsewhere reach the gateway on the account service's `WatchSessions` stream instead of function hooks; the minute check stays.
+
 **Goal:** make a stolen session token stop working, and make theft visible. Builds TD-24's current default; if TD-24 changes, this step changes.
 
 **Layers in this step:** all three.

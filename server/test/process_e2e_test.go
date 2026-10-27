@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -52,13 +53,13 @@ func (b *lockedBuffer) String() string {
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
-	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item")
+	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item", "./services/account/cmd/account")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	bins := map[string]string{}
-	for _, name := range []string{"gameserver", "item"} {
+	for _, name := range []string{"gameserver", "item", "account"} {
 		bins[name] = filepath.Join(dir, name)
 		if runtime.GOOS == "windows" {
 			bins[name] += ".exe"
@@ -83,12 +84,13 @@ func baseEnv(t *testing.T, dbURL string) []string {
 	)
 }
 
-// startItem runs the item service on free ports.
-func startItem(t *testing.T, bin, dbURL string) *process {
+// startServiceProcess runs a service binary (item, account, ...) on free ports.
+func startServiceProcess(t *testing.T, name, bin, dbURL string) *process {
 	t.Helper()
 	grpc, ops := freePort(t), freePort(t)
-	p := &process{t: t, name: "item", bin: bin, grpc: grpc, health: "http://" + ops + "/healthz"}
-	p.env = append(baseEnv(t, dbURL), "FINGA_SERVICES_ITEM_LISTEN="+grpc, "FINGA_SERVICES_ITEM_OPS="+ops)
+	p := &process{t: t, name: name, bin: bin, grpc: grpc, health: "http://" + ops + "/healthz"}
+	key := "FINGA_SERVICES_" + strings.ToUpper(name)
+	p.env = append(baseEnv(t, dbURL), key+"_LISTEN="+grpc, key+"_OPS="+ops)
 	p.start()
 	return p
 }
@@ -104,11 +106,14 @@ func freePort(t *testing.T) string {
 	return addr
 }
 
-// startGameserver runs the game server on addr, dialling the item service.
-func startGameserver(t *testing.T, bin, dbURL, addr, itemAddr string) *process {
+// startGameserver runs the game server on addr, dialling the services.
+func startGameserver(t *testing.T, bin, dbURL, addr string, services map[string]*process) *process {
 	t.Helper()
 	p := &process{t: t, name: "gameserver", bin: bin, url: "http://" + addr, health: "http://" + addr + "/healthz"}
-	p.env = append(baseEnv(t, dbURL), "FINGA_SERVER_ADDR="+addr, "FINGA_SERVICES_ITEM_ADDR="+itemAddr)
+	p.env = append(baseEnv(t, dbURL), "FINGA_SERVER_ADDR="+addr)
+	for name, svc := range services {
+		p.env = append(p.env, "FINGA_SERVICES_"+strings.ToUpper(name)+"_ADDR="+svc.grpc)
+	}
 	p.start()
 	return p
 }

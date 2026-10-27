@@ -30,6 +30,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
+	accountapp "finga/services/account/cmd/account/app"
 	itemapp "finga/services/item/cmd/item/app"
 )
 
@@ -70,10 +71,13 @@ func newStack(t *testing.T) *stack {
 		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
 		Economy:   config.Economy{Workers: 2},
 		Telemetry: config.Telemetry{LogLevel: "error"},
-		Services:  config.Services{Item: loopback},
+		Services:  config.Services{Item: loopback, Account: loopback},
 	}
 	cfg.Services.Item.Addr = startService(t, func(ctx context.Context) (*host.Host, error) {
 		return itemapp.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	})
+	cfg.Services.Account.Addr = startService(t, func(ctx context.Context) (*host.Host, error) {
+		return accountapp.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	})
 	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
 	if err != nil {

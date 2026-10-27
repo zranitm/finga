@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/application/account"
 	"finga/internal/model"
+	"finga/services/account/internal/account"
 )
 
 // fakeStore is an in-memory Store whose InTx hands over a fake unit of

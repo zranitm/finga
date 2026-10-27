@@ -65,7 +65,7 @@ Only one player can hold a reservation, so two players can never both get a drop
 - **Join:** the gateway validates Hello, loads the character, and sends Join to the map instance for the character's saved map. The instance replies with Welcome and a Snapshot.
 - **Portal:** the instance removes the player, saves a checkpoint, sends Join to the target instance with the player's in-memory state, and sends the client MapChange.
 - **Disconnect:** the player is removed from the map and saved immediately. Reconnecting joins again at the saved position.
-- **Login elsewhere:** a new login revokes the old session in the database, and the gateway closes the old connection with Kicked.
+- **Login elsewhere:** a new login revokes the old session in the database; the account service reports it on its `WatchSessions` stream to every gateway, and the gateway holding the old connection closes it with Kicked (step 24; the minute check catches what a broken stream missed).
 - **Chat:** the chat service cleans and rate-limits a line; a map line is handed to the sender's map instance, which sends it to everyone on the map with the next tick's events; a party line is delivered by the gateway to each member's connection, on any map.
 
 ## Shutdown and crashes

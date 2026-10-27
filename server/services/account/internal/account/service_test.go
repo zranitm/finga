@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/application/account"
 	"finga/pkg/auth"
 	"finga/pkg/auth/password"
+	"finga/services/account/internal/account"
 )
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}

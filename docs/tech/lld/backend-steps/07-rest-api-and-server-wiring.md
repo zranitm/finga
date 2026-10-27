@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 07. REST API and server wiring
 
+> **Changed by step 24 (2026-10-27):** the REST handler calls the account service through its client and checks tokens through `auth.Guard`, an adapter over it.
+
 **Goal:** a running `cmd/gameserver` with the REST endpoints from page 4.
 
 **Layers in this step:** the REST handler layer, on top of the account and character services from steps 05 and 06, plus the server that wires them.

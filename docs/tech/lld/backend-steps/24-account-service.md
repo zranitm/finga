@@ -4,7 +4,7 @@
 - **Features:** A1
 - **Milestone:** Services
 - **Order:** 24
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 24. Account service
 
 **Goal:** accounts and sessions run as their own service. The REST handler and the gateway authenticate over gRPC, and the kicks the account service used to call directly arrive through a stream.

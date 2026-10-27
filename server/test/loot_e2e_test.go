@@ -538,8 +538,9 @@ func TestCrashDuringPickups(t *testing.T) {
 	}
 	bins := buildBinaries(t)
 	dbURL := cluster.URL(t)
-	itemProc := startItem(t, bins["item"], dbURL)
-	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), itemProc.grpc)
+	itemProc := startServiceProcess(t, "item", bins["item"], dbURL)
+	accountProc := startServiceProcess(t, "account", bins["account"], dbURL)
+	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), map[string]*process{"item": itemProc, "account": accountProc})
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		t.Fatal(err)
@@ -600,7 +601,7 @@ func TestCrashDuringPickups(t *testing.T) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	for _, p := range []*process{proc, itemProc} {
+	for _, p := range []*process{proc, itemProc, accountProc} {
 		if out := p.out.String(); strings.Contains(out, `"level":"ERROR"`) {
 			t.Fatalf("%s logged errors:\n%s", p.name, out)
 		}

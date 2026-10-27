@@ -28,6 +28,13 @@ type Sessions interface {
 	// Issue creates a session for the account and returns its token, the
 	// only time the token is visible; older sessions of the account end.
 	Issue(ctx context.Context, accountID uuid.UUID) (token string, err error)
+	Guard
+}
+
+// Guard checks and ends sessions: what the handlers in front of the game
+// need, without issuing (logging in issues). An implementation may sit
+// across a network, as the gateway's does in front of the account service.
+type Guard interface {
 	// Validate resolves a token to its principal, failing for unknown,
 	// expired and revoked tokens alike.
 	Validate(ctx context.Context, token string) (Principal, error)
@@ -37,7 +44,7 @@ type Sessions interface {
 }
 
 // SessionLifecycle is what step 16 added to Sessions; the gateway and the
-// REST handler need all of it, so Sessions embeds it.
+// REST handler need all of it, so Guard embeds it.
 type SessionLifecycle interface {
 	// Rotate gives the session a new token; the old one stays valid once
 	// within a short grace period, and any other use of it ends the session.

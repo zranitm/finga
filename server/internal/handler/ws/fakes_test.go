@@ -30,9 +30,6 @@ type fakeSessions struct {
 	expired   map[uuid.UUID]bool
 }
 
-func (f *fakeSessions) Issue(context.Context, uuid.UUID) (string, error) {
-	return "", errors.New("unused")
-}
 func (f *fakeSessions) Revoke(context.Context, uuid.UUID) error { return nil }
 func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal, error) {
 	p, ok := f.tokens[token]

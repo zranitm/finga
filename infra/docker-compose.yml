@@ -12,6 +12,7 @@ name: finga
 # the Compose network.
 x-finga-env: &finga-env
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+  FINGA_SERVICES_ACCOUNT_ADDR: account:9001
   FINGA_SERVICES_ITEM_ADDR: item:9003
 
 services:
@@ -41,6 +42,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # The account service: gRPC on 9001, /healthz /readyz /metrics on 9101.
+  account:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      args:
+        SERVICE: account
+        VERSION: ${VERSION:-dev}
+    environment: *finga-env
+    env_file:
+      - path: ../server/.env
+        required: false
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
   # The item service: gRPC on 9003, /healthz /readyz /metrics on 9103.
   item:
@@ -76,6 +93,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      account:
+        condition: service_started
       item:
         condition: service_started
 

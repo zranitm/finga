@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/account/internal/db"
 	"finga/internal/model"
 	"finga/pkg/dbx"
+	"finga/services/account/internal/account/internal/db"
 )
 
 // Postgres is the module's store: plain reads on the pool, InTx for writes,

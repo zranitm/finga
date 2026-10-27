@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -11,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"finga/internal/application/account"
 	"finga/internal/handler/errmap"
 	"finga/pkg/auth"
 )
@@ -37,20 +35,20 @@ func principalFrom(ctx context.Context) auth.Principal {
 }
 
 // requireAuth resolves the bearer token to a principal through the
-// Sessions interface. Missing, malformed, unknown, expired and revoked
-// tokens all give 401 unauthenticated; a store failure is 500.
-func requireAuth(sessions auth.Sessions, next http.Handler) http.Handler {
+// Guard interface. Missing, malformed, unknown, expired and revoked
+// tokens all give 401 unauthenticated; any other failure is 500.
+func requireAuth(sessions auth.Guard, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
 		token = strings.TrimSpace(token)
 		if !ok || !strings.EqualFold(scheme, bearerScheme) || token == "" {
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeError(w, account.ErrUnauthenticated)
+			writePublic(w, errmap.Unauthenticated)
 			return
 		}
 		p, err := sessions.Validate(r.Context(), token)
 		if err != nil {
-			if errors.Is(err, account.ErrUnauthenticated) {
+			if errmap.For(err) == errmap.Unauthenticated {
 				w.Header().Set("WWW-Authenticate", "Bearer")
 			}
 			writeError(w, err)

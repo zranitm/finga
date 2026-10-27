@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/party"
@@ -18,7 +18,6 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/handler/api"
 	"finga/internal/handler/ws"
-	"finga/internal/model"
 	"finga/internal/telemetry"
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
@@ -61,12 +60,14 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		return nil, fmt.Errorf("item service: %w", err)
 	}
 	items := itemv1.NewItemServiceClient(itemConn)
+	accountConn, err := grpcx.Dial(cfg.Services.Account.Addr)
+	if err != nil {
+		pool.Close()
+		_ = itemConn.Close()
+		return nil, fmt.Errorf("account service: %w", err)
+	}
+	accounts := accountv1.NewAccountServiceClient(accountConn)
 
-	var gateway *ws.Gateway // built below; the hooks only fire once connections exist
-	accounts := account.NewService(account.NewPostgres(pool), account.Options{
-		OnSessionRevoked: func(_ context.Context, id uuid.UUID, _ string) { gateway.KickSession(model.SessionID(id)) },
-		OnAccountRevoked: func(_ context.Context, id uuid.UUID, reason string) { gateway.KickAccount(model.AccountID(id), reason) },
-	})
 	characters := character.NewService(character.NewPostgres(pool), data, character.Options{Starter: starter{items}, Logger: opts.Logger})
 	parties := party.NewService(party.Options{})
 	chatSvc := chat.NewService(parties, chat.Options{})
@@ -82,12 +83,14 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	restAPI := api.NewHandler(api.Dependencies{
 		Accounts:    accounts,
 		Characters:  characters,
-		Sessions:    accounts,
+		Sessions:    guard{accounts},
 		Logger:      opts.Logger,
 		CORSOrigins: cfg.Server.CORSOrigins,
 	})
-	gateway = ws.New(ws.Dependencies{
-		Sessions:    accounts,
+	gateway := ws.New(ws.Dependencies{
+		ID:          uuid.NewString(),
+		Sessions:    guard{accounts},
+		Watcher:     accounts,
 		Characters:  characters,
 		Items:       items,
 		Chat:        chatSvc,
@@ -108,7 +111,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 			{Name: "sessions", Run: gateway.Run},
 		},
 	})
-	s.closers = append(s.closers, pool.Close, func() { _ = itemConn.Close() })
+	s.closers = append(s.closers, pool.Close, func() { _ = itemConn.Close() }, func() { _ = accountConn.Close() })
 	opts.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "items", len(data.Items()), "mobs", len(data.Mobs()))
 	return s, nil
 }

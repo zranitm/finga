@@ -14,7 +14,9 @@ import (
 	"net"
 	"net/http"
 
-	"finga/internal/application/account"
+	"google.golang.org/grpc"
+
+	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/application/character"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
@@ -25,12 +27,13 @@ import (
 // password of 128 characters.
 const maxBodyBytes = 64 << 10
 
-// AccountService is what the handler needs from the account module.
+// AccountService is what the handler needs from the account service
+// (page 10); its generated client satisfies it.
 type AccountService interface {
-	Register(ctx context.Context, in account.RegisterInput) (account.Account, error)
-	Login(ctx context.Context, in account.LoginInput) (string, error)
-	Settings(ctx context.Context, id model.AccountID) (account.Settings, error)
-	UpdateSettings(ctx context.Context, id model.AccountID, s account.Settings) error
+	Register(ctx context.Context, in *accountv1.RegisterRequest, opts ...grpc.CallOption) (*accountv1.RegisterResponse, error)
+	Login(ctx context.Context, in *accountv1.LoginRequest, opts ...grpc.CallOption) (*accountv1.LoginResponse, error)
+	GetSettings(ctx context.Context, in *accountv1.GetSettingsRequest, opts ...grpc.CallOption) (*accountv1.GetSettingsResponse, error)
+	UpdateSettings(ctx context.Context, in *accountv1.UpdateSettingsRequest, opts ...grpc.CallOption) (*accountv1.UpdateSettingsResponse, error)
 }
 
 // CharacterService is what the handler needs from the character module.
@@ -43,7 +46,7 @@ type CharacterService interface {
 type Dependencies struct {
 	Accounts    AccountService
 	Characters  CharacterService
-	Sessions    auth.Sessions
+	Sessions    auth.Guard
 	Logger      *slog.Logger
 	CORSOrigins []string
 }
@@ -71,7 +74,7 @@ func Routes() []Route {
 type handler struct {
 	accounts   AccountService
 	characters CharacterService
-	sessions   auth.Sessions
+	sessions   auth.Guard
 }
 
 // NewHandler builds the /api routes with their middleware: logging and
@@ -153,12 +156,12 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
 		return
 	}
-	acc, err := h.accounts.Register(r.Context(), account.RegisterInput{Username: req.Username, Password: req.Password})
+	res, err := h.accounts.Register(r.Context(), &accountv1.RegisterRequest{Username: req.Username, Password: req.Password})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toAccount(acc))
+	writeJSON(w, http.StatusCreated, toAccount(res.GetAccount()))
 }
 
 func (h *handler) login(w http.ResponseWriter, r *http.Request) {
@@ -166,12 +169,12 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
 		return
 	}
-	token, err := h.accounts.Login(r.Context(), account.LoginInput{Username: req.Username, Password: req.Password, IP: clientIP(r)})
+	res, err := h.accounts.Login(r.Context(), &accountv1.LoginRequest{Username: req.Username, Password: req.Password, Ip: clientIP(r)})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, SessionResponse{Token: token})
+	writeJSON(w, http.StatusCreated, SessionResponse{Token: res.GetToken()})
 }
 
 func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
@@ -205,12 +208,12 @@ func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) settings(w http.ResponseWriter, r *http.Request) {
-	s, err := h.accounts.Settings(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID))
+	res, err := h.accounts.GetSettings(r.Context(), &accountv1.GetSettingsRequest{AccountId: principalFrom(r.Context()).AccountID.String()})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toSettings(s))
+	writeJSON(w, http.StatusOK, toSettings(res.GetSettings()))
 }
 
 func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
@@ -218,8 +221,8 @@ func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.ControlPreset) {
 		return
 	}
-	s := account.Settings{ControlPreset: account.Preset(req.ControlPreset)}
-	if err := h.accounts.UpdateSettings(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID), s); err != nil {
+	s := &accountv1.Settings{ControlPreset: req.ControlPreset}
+	if _, err := h.accounts.UpdateSettings(r.Context(), &accountv1.UpdateSettingsRequest{AccountId: principalFrom(r.Context()).AccountID.String(), Settings: s}); err != nil {
 		writeError(w, err)
 		return
 	}

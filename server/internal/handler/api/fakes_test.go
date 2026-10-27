@@ -5,49 +5,52 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
-	"finga/internal/application/account"
+	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/application/character"
 	"finga/internal/model"
 	"finga/pkg/auth"
+	"finga/pkg/grpcx"
 )
 
 // The fakes return what the test tells them to; a nil function means the
 // endpoint under test must not have reached that method.
 
 type fakeAccounts struct {
-	register       func(ctx context.Context, in account.RegisterInput) (account.Account, error)
-	login          func(ctx context.Context, in account.LoginInput) (string, error)
-	settings       func(ctx context.Context, id model.AccountID) (account.Settings, error)
-	updateSettings func(ctx context.Context, id model.AccountID, s account.Settings) error
+	register       func(ctx context.Context, in *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error)
+	login          func(ctx context.Context, in *accountv1.LoginRequest) (*accountv1.LoginResponse, error)
+	settings       func(ctx context.Context, in *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error)
+	updateSettings func(ctx context.Context, in *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error)
 }
 
-func (f *fakeAccounts) Register(ctx context.Context, in account.RegisterInput) (account.Account, error) {
+func (f *fakeAccounts) Register(ctx context.Context, in *accountv1.RegisterRequest, _ ...grpc.CallOption) (*accountv1.RegisterResponse, error) {
 	if f.register == nil {
 		panic("unexpected Register")
 	}
 	return f.register(ctx, in)
 }
 
-func (f *fakeAccounts) Login(ctx context.Context, in account.LoginInput) (string, error) {
+func (f *fakeAccounts) Login(ctx context.Context, in *accountv1.LoginRequest, _ ...grpc.CallOption) (*accountv1.LoginResponse, error) {
 	if f.login == nil {
 		panic("unexpected Login")
 	}
 	return f.login(ctx, in)
 }
 
-func (f *fakeAccounts) Settings(ctx context.Context, id model.AccountID) (account.Settings, error) {
+func (f *fakeAccounts) GetSettings(ctx context.Context, in *accountv1.GetSettingsRequest, _ ...grpc.CallOption) (*accountv1.GetSettingsResponse, error) {
 	if f.settings == nil {
-		panic("unexpected Settings")
+		panic("unexpected GetSettings")
 	}
-	return f.settings(ctx, id)
+	return f.settings(ctx, in)
 }
 
-func (f *fakeAccounts) UpdateSettings(ctx context.Context, id model.AccountID, s account.Settings) error {
+func (f *fakeAccounts) UpdateSettings(ctx context.Context, in *accountv1.UpdateSettingsRequest, _ ...grpc.CallOption) (*accountv1.UpdateSettingsResponse, error) {
 	if f.updateSettings == nil {
 		panic("unexpected UpdateSettings")
 	}
-	return f.updateSettings(ctx, id, s)
+	return f.updateSettings(ctx, in)
 }
 
 type fakeCharacters struct {
@@ -69,6 +72,9 @@ func (f *fakeCharacters) List(ctx context.Context, owner model.AccountID) ([]cha
 	return f.list(ctx, owner)
 }
 
+// errUnauthenticated is what the account service answers for a bad token.
+var errUnauthenticated = grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED)
+
 // fakeSessions knows one good token.
 type fakeSessions struct {
 	token           string
@@ -78,10 +84,6 @@ type fakeSessions struct {
 	validate        func(token string) (auth.Principal, error) // overrides the default when set
 }
 
-func (f *fakeSessions) Issue(context.Context, uuid.UUID) (string, error) {
-	return "", errors.New("not used by the REST handler")
-}
-
 func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal, error) {
 	if f.validate != nil {
 		return f.validate(token)
@@ -89,7 +91,7 @@ func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal
 	if token == f.token {
 		return f.principal, nil
 	}
-	return auth.Principal{}, account.ErrUnauthenticated
+	return auth.Principal{}, errUnauthenticated
 }
 
 func (f *fakeSessions) Revoke(_ context.Context, id uuid.UUID) error {

@@ -3,7 +3,7 @@ package api
 import (
 	"time"
 
-	"finga/internal/application/account"
+	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/application/character"
 )
 
@@ -85,8 +85,8 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-func toAccount(a account.Account) AccountResponse {
-	return AccountResponse{ID: a.ID.String(), Username: a.Username, CreatedAt: a.CreatedAt}
+func toAccount(a *accountv1.Account) AccountResponse {
+	return AccountResponse{ID: a.GetId(), Username: a.GetUsername(), CreatedAt: a.GetCreatedAt().AsTime()}
 }
 
 func toCharacter(c character.Character) CharacterResponse {
@@ -105,6 +105,6 @@ func toCharacters(cs []character.Character) CharactersResponse {
 	return out
 }
 
-func toSettings(s account.Settings) SettingsResponse {
-	return SettingsResponse{ControlPreset: string(s.ControlPreset)}
+func toSettings(s *accountv1.Settings) SettingsResponse {
+	return SettingsResponse{ControlPreset: s.GetControlPreset()}
 }

@@ -8,16 +8,16 @@ package ws
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/party"
@@ -28,6 +28,7 @@ import (
 	"finga/internal/protocol"
 	"finga/internal/sim"
 	"finga/pkg/auth"
+	"finga/pkg/grpcx"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
 )
@@ -79,9 +80,19 @@ type Observer interface {
 	OnlineChanged(delta int)
 }
 
+// SessionWatcher streams the session ends the account service reports;
+// its generated client satisfies it.
+type SessionWatcher interface {
+	WatchSessions(ctx context.Context, in *accountv1.WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[accountv1.WatchSessionsResponse], error)
+}
+
 // Dependencies are the services and settings the gateway is built from.
 type Dependencies struct {
-	Sessions    auth.Sessions
+	// ID names this gateway node to the services that stream to it; random
+	// when empty.
+	ID          string
+	Sessions    auth.Guard
+	Watcher     SessionWatcher // the account service; nil: no session ends are streamed, the minute check still runs
 	Characters  CharacterSource
 	Items       itemv1.ItemServiceClient // the item service; nil: Welcome carries no items and inventory commands are unavailable
 	Chat        ChatSource               // nil: ChatSend is unavailable
@@ -134,6 +145,9 @@ func New(deps Dependencies) *Gateway {
 	if deps.SessionCheckInterval <= 0 {
 		deps.SessionCheckInterval = defaultSessionCheckInterval
 	}
+	if deps.ID == "" {
+		deps.ID = uuid.NewString()
+	}
 	return &Gateway{
 		deps:        deps,
 		codec:       protocol.NewCodec(),
@@ -147,10 +161,19 @@ func New(deps Dependencies) *Gateway {
 	}
 }
 
-// Run checks every connection's login session on an interval until ctx is
+// Run follows the account service's session ends (when a Watcher is set)
+// and checks every connection's login session on an interval, until ctx is
 // done, kicking the ones whose session ended (expired, logged out, reused
-// token) with session_expired. It never returns an error.
+// token) with session_expired. The minute check catches what a broken
+// stream missed. It never returns an error.
 func (g *Gateway) Run(ctx context.Context) error {
+	if g.deps.Watcher != nil {
+		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[accountv1.WatchSessionsResponse], error) {
+			return g.deps.Watcher.WatchSessions(ctx, &accountv1.WatchSessionsRequest{GatewayId: g.deps.ID})
+		}, g.sessionEnded, grpcx.FollowOptions{OnBreak: func(err error) {
+			g.deps.Logger.WarnContext(ctx, "session stream broke; subscribing again", "err", err)
+		}})
+	}
 	ticker := time.NewTicker(g.deps.SessionCheckInterval)
 	defer ticker.Stop()
 	for {
@@ -177,8 +200,25 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 	}
 }
 
-// KickSession closes every connection on a login session; the account
-// service calls it when a session ends by reuse or logout.
+// sessionEnded acts on one message of the account service's stream.
+func (g *Gateway) sessionEnded(m *accountv1.WatchSessionsResponse) {
+	switch {
+	case m.GetSessionRevoked() != nil:
+		id, err := model.ParseSessionID(m.GetSessionRevoked().GetSessionId())
+		if err == nil {
+			g.KickSession(id)
+		}
+	case m.GetAccountRevoked() != nil:
+		ev := m.GetAccountRevoked()
+		id, err := model.ParseAccountID(ev.GetAccountId())
+		if err == nil {
+			g.KickAccount(id, ev.GetReason() == accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN)
+		}
+	}
+}
+
+// KickSession closes every connection on a login session: the account
+// service reported it ended by reuse or logout.
 func (g *Gateway) KickSession(sessionID model.SessionID) {
 	g.mu.Lock()
 	s := g.bySession[sessionID]
@@ -189,9 +229,9 @@ func (g *Gateway) KickSession(sessionID model.SessionID) {
 }
 
 // KickAccount closes every connection of an account: a logout everywhere,
-// or a new login elsewhere (account.ReasonNewLogin), which the player sees
-// as logged_in_elsewhere; anything else is session_expired.
-func (g *Gateway) KickAccount(accountID model.AccountID, reason string) {
+// or a new login elsewhere (newLogin), which the player sees as
+// logged_in_elsewhere; anything else is session_expired.
+func (g *Gateway) KickAccount(accountID model.AccountID, newLogin bool) {
 	g.mu.Lock()
 	s := g.byAccount[accountID]
 	g.mu.Unlock()
@@ -199,7 +239,7 @@ func (g *Gateway) KickAccount(accountID model.AccountID, reason string) {
 		return
 	}
 	why := protocol.KickSessionExpired
-	if reason == account.ReasonNewLogin {
+	if newLogin {
 		why = protocol.KickLoggedInElsewhere
 	}
 	g.kick(s.conn, why)
@@ -376,7 +416,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	// Welcome; the one it sent works once more for a minute.
 	token, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
 	if err != nil {
-		if errors.Is(err, account.ErrUnauthenticated) {
+		if errmap.For(err) == errmap.Unauthenticated {
 			g.kick(s.conn, protocol.KickUnauthenticated)
 			return
 		}

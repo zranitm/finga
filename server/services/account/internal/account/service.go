@@ -55,12 +55,19 @@ const (
 	loginKeyIP      = "ip:"
 	loginMaxRetries = 1 // once more, when the one_active_session index catches a race
 
-	reasonReuse  = "token reuse"
-	reasonLogout = "logged out"
-	// ReasonNewLogin is the reason OnAccountRevoked gives when a new login
-	// ended the older session (one active session per account).
+	dummySecret = "finga-dummy-password-for-timing" // hashed once; verified for unknown usernames
+)
+
+// The reasons OnSessionRevoked and OnAccountRevoked give.
+const (
+	// ReasonTokenReuse: the session's previous token was used again after
+	// the grace, so the session ended (step 16).
+	ReasonTokenReuse = "token reuse"
+	// ReasonLogout: the player logged out, here or everywhere.
+	ReasonLogout = "logged out"
+	// ReasonNewLogin: a new login ended the older session (one active
+	// session per account).
 	ReasonNewLogin = "logged in elsewhere"
-	dummySecret    = "finga-dummy-password-for-timing" // hashed once; verified for unknown usernames
 )
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
@@ -241,7 +248,7 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 	if !bytes.Equal(session.TokenHash, hash[:]) {
 		// The previous token: once, inside the grace; otherwise reuse.
 		if session.RotatedAt == nil || !now.Before(session.RotatedAt.Add(s.opts.RotationGrace)) {
-			if err := s.revoke(ctx, session.ID, now, reasonReuse); err != nil {
+			if err := s.revoke(ctx, session.ID, now, ReasonTokenReuse); err != nil {
 				return auth.Principal{}, err
 			}
 			return auth.Principal{}, ErrUnauthenticated
@@ -296,7 +303,7 @@ func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
 
 // Revoke implements auth.Sessions: logging out of one session.
 func (s *Service) Revoke(ctx context.Context, sessionID uuid.UUID) error {
-	return s.revoke(ctx, model.SessionID(sessionID), s.now(), reasonLogout)
+	return s.revoke(ctx, model.SessionID(sessionID), s.now(), ReasonLogout)
 }
 
 // RevokeAll implements auth.Sessions: logging out everywhere.
@@ -309,7 +316,7 @@ func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
 		return err
 	}
 	if s.opts.OnAccountRevoked != nil {
-		s.opts.OnAccountRevoked(ctx, accountID, reasonLogout)
+		s.opts.OnAccountRevoked(ctx, accountID, ReasonLogout)
 	}
 	return nil
 }

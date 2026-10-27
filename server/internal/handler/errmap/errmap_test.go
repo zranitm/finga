@@ -17,8 +17,8 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/party"
@@ -40,11 +40,11 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		status int
 		code   string
 	}{
-		{account.ErrUsernameTaken, http.StatusConflict, "username_taken"},
-		{account.ErrUnauthenticated, http.StatusUnauthorized, "unauthenticated"},
-		{account.ErrRateLimited, http.StatusTooManyRequests, "login_rate_limited"},
-		{account.ErrBadPassword, http.StatusBadRequest, "bad_password"},
-		{account.ErrSessionRace, http.StatusConflict, "session_race"},
+		{grpcx.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
+		{grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, "unauthenticated"},
+		{grpcx.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
+		{grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
+		{grpcx.Error(codes.Aborted, accountv1.Reason_REASON_SESSION_RACE), http.StatusConflict, "session_race"},
 		{character.ErrNameTaken, http.StatusConflict, "name_taken"},
 		{character.ErrSlotsFull, http.StatusConflict, "character_slots_full"},
 		{character.ErrNotFound, http.StatusNotFound, "character_not_found"},
@@ -120,6 +120,7 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 // contracts are the reason enums of the services that run in their own
 // processes; every value must have a row, or a client would see internal.
 var contracts = []protoreflect.EnumDescriptor{
+	accountv1.Reason(0).Descriptor(),
 	itemv1.Reason(0).Descriptor(),
 }
 

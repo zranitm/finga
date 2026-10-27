@@ -17,10 +17,12 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
+	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/application/account"
 	"finga/internal/application/character"
 	"finga/internal/application/chat"
 	"finga/internal/application/party"
@@ -32,6 +34,7 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
+	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/wsconn"
 )
 
@@ -889,9 +892,9 @@ func TestRevokedSessionsAndAccountsAreKicked(t *testing.T) {
 		c := h.dial(t)
 		c.hello(tokenBob, brunoID)
 		c.expect("Snapshot")
-		h.gw.KickAccount(bob, "logged out")
+		h.gw.KickAccount(bob, false)
 		c.expectKick(protocol.KickSessionExpired)
-		h.gw.KickAccount(bob, "logged out") // nobody left: nothing happens
+		h.gw.KickAccount(bob, false) // nobody left: nothing happens
 	})
 }
 
@@ -900,6 +903,92 @@ func TestANewLoginElsewhereKicksAsLoggedInElsewhere(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	h.gw.KickAccount(alice, account.ReasonNewLogin)
+	h.gw.KickAccount(alice, true)
 	c.expectKick(protocol.KickLoggedInElsewhere)
+}
+
+// watcher is the account service's WatchSessions, served over an in-memory
+// gRPC connection: each subscription gets Subscribed, then whatever the
+// test pushes, and ends when the test says so.
+type watcher struct {
+	accountv1.UnimplementedAccountServiceServer
+	mu            sync.Mutex
+	subscriptions []string // the gateway IDs that subscribed, in order
+	events        chan *accountv1.WatchSessionsResponse
+	end           chan struct{}
+}
+
+func (w *watcher) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.ServerStreamingServer[accountv1.WatchSessionsResponse]) error {
+	w.mu.Lock()
+	w.subscriptions = append(w.subscriptions, req.GetGatewayId())
+	w.mu.Unlock()
+	if err := stream.Send(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_Subscribed{Subscribed: &accountv1.Subscribed{BootId: "boot"}}}); err != nil {
+		return err
+	}
+	for {
+		select {
+		case m := <-w.events:
+			if err := stream.Send(m); err != nil {
+				return err
+			}
+		case <-w.end:
+			return status.Error(codes.Unavailable, "restarting")
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
+}
+
+func (w *watcher) count() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return len(w.subscriptions)
+}
+
+func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
+	w := &watcher{events: make(chan *accountv1.WatchSessionsResponse), end: make(chan struct{})}
+	srv := grpcx.NewServer(grpcx.ServerOptions{})
+	accountv1.RegisterAccountServiceServer(srv, w)
+	h := newHarness(t, func(d *ws.Dependencies) {
+		d.ID = "gw-test"
+		d.Watcher = accountv1.NewAccountServiceClient(grpctest.Conn(t, srv))
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = h.gw.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+
+	t.Run("a new login elsewhere kicks as logged_in_elsewhere", func(t *testing.T) {
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		w.events <- &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{AccountRevoked: &accountv1.AccountRevoked{
+			AccountId: alice.String(), Reason: accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN,
+		}}}
+		c.expectKick(protocol.KickLoggedInElsewhere)
+	})
+	t.Run("a session ended by reuse kicks as session_expired", func(t *testing.T) {
+		c := h.dial(t)
+		c.hello(tokenBob, brunoID)
+		c.expect("Snapshot")
+		w.events <- &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{SessionRevoked: &accountv1.SessionRevoked{
+			SessionId: sessBob.String(), Reason: accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE,
+		}}}
+		c.expectKick(protocol.KickSessionExpired)
+	})
+	t.Run("after the stream breaks the gateway subscribes again, under its ID", func(t *testing.T) {
+		close(w.end)
+		deadline := time.Now().Add(5 * time.Second)
+		for w.count() < 2 {
+			if time.Now().After(deadline) {
+				t.Fatalf("subscriptions %v", w.subscriptions)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		if w.subscriptions[0] != "gw-test" || w.subscriptions[1] != "gw-test" {
+			t.Fatalf("subscriptions %v", w.subscriptions)
+		}
+	})
 }
