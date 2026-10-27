@@ -1,0 +1,311 @@
+syntax = "proto3";
+
+package internal.world.v1;
+
+import "internal/character/v1/character.proto";
+import "internal/item/v1/item.proto";
+
+option go_package = "finga/api/gen/world/v1;worldv1";
+
+// WorldService runs the map instances: one actor per map, ticking at 20 Hz
+// (Low-level design, pages 3 and 10). The gateway joins players, sends their
+// commands, and receives everything bound for them on Deliver. Commands
+// return as soon as the instance has them queued; their effects arrive on
+// Deliver. A failure carries a Reason in google.rpc.ErrorInfo.
+service WorldService {
+  // Deliver is a gateway node's stream: first Subscribed, then every event
+  // for every player who joined through that gateway, in order. Its queue
+  // is bounded; a gateway that falls behind loses the stream, and the
+  // world drops its players, so the gateway subscribes again and rejoins
+  // them.
+  rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
+  // Join loads the character from the character service (it must belong to
+  // the account), grants its starter items if creation never did, and
+  // joins it to its map's instance, which sends the Snapshot on Deliver.
+  rpc Join(JoinRequest) returns (JoinResponse);
+  // Leave removes a player and saves a checkpoint, only if the player
+  // joined through that connection.
+  rpc Leave(LeaveRequest) returns (LeaveResponse);
+  // Input queues held keys with their sequence number (one per tick).
+  rpc Input(InputRequest) returns (InputResponse);
+  // Attack queues a basic attack the way the character faces.
+  rpc Attack(AttackRequest) returns (AttackResponse);
+  // PickUp asks for the nearest eligible drop in reach.
+  rpc PickUp(PickUpRequest) returns (PickUpResponse);
+  // EnterPortal takes the portal the character stands in, if any.
+  rpc EnterPortal(EnterPortalRequest) returns (EnterPortalResponse);
+  // Say is a map chat line, already cleaned by the social service, for
+  // everyone on the map.
+  rpc Say(SayRequest) returns (SayResponse);
+}
+
+// Reason names a failure a caller can meet.
+enum Reason {
+  REASON_UNSPECIFIED = 0;
+  // The world cannot take the player now (an instance's inbox is full).
+  REASON_BUSY = 1;
+  // The character is on a map the world does not run.
+  REASON_NO_MAP = 2;
+  // The instance has stopped.
+  REASON_STOPPED = 3;
+  // No Deliver stream is open for the gateway.
+  REASON_NOT_SUBSCRIBED = 4;
+  REASON_PICKUPS_UNAVAILABLE = 5;
+  REASON_PICKUP_BUSY = 6;
+  REASON_BAD_ID = 7;
+}
+
+// Presence routes a command: the character, and the map the caller
+// believes it is on; an instance ignores a character it does not hold.
+message Presence {
+  string character_id = 1;
+  string map_id = 2;
+}
+
+// Keys are the held keys of one Input.
+message Keys {
+  bool left = 1;
+  bool right = 2;
+  bool up = 3;
+  bool down = 4;
+  bool jump = 5;
+}
+
+// CharacterView is the player's own character, for Welcome and LevelUp.
+message CharacterView {
+  string id = 1;
+  string name = 2;
+  string class = 3;
+  int32 level = 4;
+  int64 exp = 5;
+  internal.character.v1.Stats stats = 6;
+  int32 hp = 7;
+  int32 max_hp = 8;
+  int32 mp = 9;
+  int32 max_mp = 10;
+  string map_id = 11;
+  double x = 12;
+  double y = 13;
+}
+
+message DeliverRequest {
+  // The subscribing gateway node; a second subscription with the same ID
+  // replaces the first.
+  string gateway_id = 1;
+}
+
+// DeliverResponse is one event for one player.
+message DeliverResponse {
+  // Empty only for Subscribed.
+  string character_id = 1;
+  // The instance's tick when the event happened.
+  uint64 tick = 2;
+  oneof event {
+    Subscribed subscribed = 3;
+    Snapshot snapshot = 4;
+    Delta delta = 5;
+    Teleport teleport = 6;
+    Damage damage = 7;
+    Died died = 8;
+    Respawned respawned = 9;
+    ExpGained exp_gained = 10;
+    LevelUp level_up = 11;
+    Chat chat = 12;
+    InventoryChanged inventory_changed = 13;
+    PickupFailed pickup_failed = 14;
+  }
+}
+
+// Subscribed is a stream's first message.
+message Subscribed {
+  // Random per process start: a new value means the service restarted.
+  string boot_id = 1;
+}
+
+// PlayerView is a player as everyone on the map sees it.
+message PlayerView {
+  string id = 1;
+  string name = 2;
+  string class = 3;
+  int32 level = 4;
+  int32 hp = 5;
+  int32 max_hp = 6;
+  bool dead = 7;
+  bool invulnerable = 8;
+  double x = 9;
+  double y = 10;
+  double vx = 11;
+  double vy = 12;
+  int32 facing = 13;
+  bool on_ground = 14;
+  bool climbing = 15;
+}
+
+// MobView is a mob as everyone on the map sees it.
+message MobView {
+  uint64 id = 1;
+  string type = 2;
+  double x = 3;
+  double y = 4;
+  int32 facing = 5;
+  int32 hp = 6;
+  int32 max_hp = 7;
+}
+
+// DropView is an item on the ground.
+message DropView {
+  uint64 id = 1;
+  string template = 2;
+  int32 quantity = 3;
+  double x = 4;
+  double y = 5;
+}
+
+// Snapshot is the whole map, sent on join.
+message Snapshot {
+  string map_id = 1;
+  repeated PlayerView players = 2;
+  repeated MobView mobs = 3;
+  repeated DropView drops = 4;
+}
+
+// Delta is what changed in one tick, for one player.
+message Delta {
+  // The latest input sequence applied for this player.
+  uint32 ack_seq = 1;
+  repeated PlayerView players = 2;
+  repeated MobView mobs = 3;
+  repeated DropView drops = 4;
+  repeated string removed_players = 5;
+  repeated uint64 removed_mobs = 6;
+  repeated uint64 removed_drops = 7;
+}
+
+// Teleport moves the player to another map (a portal, or a respawn away
+// from the town); the target instance sends the Snapshot.
+message Teleport {
+  string map_id = 1;
+  double x = 2;
+  double y = 3;
+}
+
+// EntityRef names a player or a mob.
+message EntityRef {
+  oneof ref {
+    string character_id = 1;
+    uint64 mob_id = 2;
+  }
+}
+
+// Damage is one resolved hit.
+message Damage {
+  EntityRef source = 1;
+  EntityRef target = 2;
+  int32 amount = 3;
+  bool crit = 4;
+  bool miss = 5;
+}
+
+// Died says a character fell.
+message Died {
+  string character_id = 1;
+  double x = 2;
+  double y = 3;
+}
+
+// Respawned says a character is back.
+message Respawned {
+  string character_id = 1;
+  string map_id = 2;
+  double x = 3;
+  double y = 4;
+  int32 hp = 5;
+}
+
+// ExpGained is EXP awarded to the player (negative for the death penalty),
+// after the award.
+message ExpGained {
+  int64 amount = 1;
+  int64 exp = 2;
+}
+
+// LevelUp carries the player's new level, stats, and restored HP and MP.
+message LevelUp {
+  CharacterView character = 1;
+}
+
+// Chat is a map line.
+message Chat {
+  string sender_id = 1;
+  string sender_name = 2;
+  string text = 3;
+}
+
+// InventoryChanged is the slots a committed pickup changed.
+message InventoryChanged {
+  repeated internal.item.v1.Slot slots = 1;
+}
+
+// PickupFailed says why a pickup did not happen; the drop stays. The
+// reason is the failing service's: the item service's (inventory full) or
+// the world's own (pickups busy).
+message PickupFailed {
+  // The proto package of the service whose Reason this is.
+  string error_domain = 1;
+  // The Reason's value name, for example REASON_INVENTORY_FULL; empty for
+  // a failure nobody expected.
+  string error_reason = 2;
+}
+
+message JoinRequest {
+  string gateway_id = 1;
+  // The gateway's connection; a later Leave must name the same one.
+  string connection_id = 2;
+  string account_id = 3;
+  string character_id = 4;
+}
+
+message JoinResponse {
+  CharacterView character = 1;
+}
+
+message LeaveRequest {
+  Presence presence = 1;
+  string connection_id = 2;
+}
+
+message LeaveResponse {}
+
+message InputRequest {
+  Presence presence = 1;
+  uint32 seq = 2;
+  Keys keys = 3;
+}
+
+message InputResponse {}
+
+message AttackRequest {
+  Presence presence = 1;
+}
+
+message AttackResponse {}
+
+message PickUpRequest {
+  Presence presence = 1;
+}
+
+message PickUpResponse {}
+
+message EnterPortalRequest {
+  Presence presence = 1;
+}
+
+message EnterPortalResponse {}
+
+message SayRequest {
+  Presence presence = 1;
+  string sender_name = 2;
+  string text = 3;
+}
+
+message SayResponse {}

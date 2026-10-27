@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -33,8 +32,9 @@ func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 // ready from the moment it listens until shutdown starts, and it checks no
 // dependency: the database is shared by every instance, so failing on it
 // would pull them all out of rotation at once (Build already refuses to
-// start without it). The router (internal/handler) serves the probes; these
-// tests check that the process drives them.
+// start without it). The router (internal/handler) serves the probes and
+// pkg/runner drives readiness (its tests cover in-flight requests on
+// shutdown and a busy address); this test checks the two are wired.
 func TestReadinessFollowsTheProcess(t *testing.T) {
 	srv := newServer(t, http.NotFoundHandler())
 	h := srv.Handler()
@@ -75,79 +75,6 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 			t.Fatalf("status %d", rec.Code)
 		}
 	})
-}
-
-func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
-	entered := make(chan struct{})
-	release := make(chan struct{})
-	api := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		close(entered)
-		<-release
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("done"))
-	})
-	srv := newServer(t, api)
-	ctx, cancel := context.WithCancel(context.Background())
-	runDone := make(chan error, 1)
-	go func() { runDone <- srv.Run(ctx) }()
-	waitFor(t, func() bool { return srv.Addr() != "" })
-
-	type result struct {
-		status int
-		body   string
-		err    error
-	}
-	got := make(chan result, 1)
-	go func() {
-		res, err := http.Get("http://" + srv.Addr() + "/api/slow")
-		if err != nil {
-			got <- result{err: err}
-			return
-		}
-		defer res.Body.Close()
-		body, _ := io.ReadAll(res.Body)
-		got <- result{status: res.StatusCode, body: string(body)}
-	}()
-	<-entered
-	cancel() // shutdown starts while the request is in flight
-	// Draining: readiness drops first, so a load balancer stops sending new
-	// traffic while the in-flight request finishes.
-	waitFor(t, func() bool { return get(t, srv.Handler(), "/readyz").Code == http.StatusServiceUnavailable })
-	select {
-	case err := <-runDone:
-		t.Fatalf("Run returned %v before the in-flight request finished", err)
-	case <-time.After(100 * time.Millisecond):
-	}
-	close(release)
-	r := <-got
-	if r.err != nil || r.status != http.StatusOK || r.body != "done" {
-		t.Fatalf("in-flight request: %+v", r)
-	}
-	if err := <-runDone; err != nil {
-		t.Fatalf("Run returned %v", err)
-	}
-	t.Run("a new connection after shutdown is refused", func(t *testing.T) {
-		res, err := http.Get("http://" + srv.Addr() + "/healthz")
-		if err == nil {
-			res.Body.Close()
-			t.Fatal("connected after shutdown")
-		}
-	})
-}
-
-func TestRunFailsOnABusyAddress(t *testing.T) {
-	first := newServer(t, http.NotFoundHandler())
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() { _ = first.Run(ctx) }()
-	waitFor(t, func() bool { return first.Addr() != "" })
-	second := app.New(app.Options{
-		Config: config.Server{Addr: first.Addr(), ShutdownGrace: time.Second},
-		Logger: slog.New(slog.DiscardHandler),
-	}, app.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler()})
-	if err := second.Run(ctx); err == nil {
-		t.Fatal("second Run on the same address succeeded")
-	}
 }
 
 func waitFor(t *testing.T, cond func() bool) {

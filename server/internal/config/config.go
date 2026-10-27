@@ -1,8 +1,8 @@
-// Package config is the game server's configuration schema (Low-level
-// design, page 1): sections with tags, plus the cross-field rules tags
-// can't express. Defaults live in configs/config.yaml; every key can be
-// overridden as FINGA_ plus the key path in upper case. gameserver and
-// migrate share the schema and each reads the sections it needs.
+// Package config is the configuration schema every binary shares (Low-level
+// design, pages 1 and 10): sections with tags, plus the cross-field rules
+// tags can't express. Defaults live in configs/config.yaml; every key can be
+// overridden as FINGA_ plus the key path in upper case. Each binary reads
+// the sections it needs.
 package config
 
 import (
@@ -25,6 +25,7 @@ type Config struct {
 	World     World     `mapstructure:"world"`
 	Economy   Economy   `mapstructure:"economy"`
 	Telemetry Telemetry `mapstructure:"telemetry"`
+	Services  Services  `mapstructure:"services"`
 }
 
 // Server is the HTTP listener for /api, /ws, the probes, and /metrics.
@@ -55,6 +56,23 @@ func (w World) TickInterval() time.Duration {
 // Economy is the pool of workers that run economic transactions.
 type Economy struct {
 	Workers int `mapstructure:"workers" validate:"min=1"`
+}
+
+// Services are the internal services' addresses (Low-level design, page
+// 10). Stage 1 runs one node of each.
+type Services struct {
+	Account   Endpoint `mapstructure:"account"`
+	Character Endpoint `mapstructure:"character"`
+	Item      Endpoint `mapstructure:"item"`
+	World     Endpoint `mapstructure:"world"`
+	Social    Endpoint `mapstructure:"social"`
+}
+
+// Endpoint is where one service listens and is reached.
+type Endpoint struct {
+	Listen string `mapstructure:"listen" validate:"required"` // the service's gRPC listener
+	Addr   string `mapstructure:"addr" validate:"required"`   // where callers dial it; Compose names the service
+	Ops    string `mapstructure:"ops" validate:"required"`    // the service's /healthz, /readyz and /metrics
 }
 
 // Telemetry is logging.

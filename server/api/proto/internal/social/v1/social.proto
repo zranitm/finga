@@ -1,0 +1,238 @@
+syntax = "proto3";
+
+package internal.social.v1;
+
+option go_package = "finga/api/gen/social/v1;socialv1";
+
+// SocialService owns parties, invites and chat, in memory (TD-19; Low-level
+// design, page 10). The gateway registers who is online on which gateway,
+// sends party and chat commands with the caller's character ID, and
+// receives party state, invites and party chat on Deliver. The world keeps
+// a copy of party membership from WatchParties and reports members' map,
+// level and HP with UpdateMember. A failure carries a Reason in
+// google.rpc.ErrorInfo.
+service SocialService {
+  // Deliver is a gateway node's stream: first Subscribed, then every
+  // PartyState, PartyInvited and party chat line for a character who is
+  // online through that gateway.
+  rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
+  // Online records a character as connected through a gateway; a party
+  // member's row is refreshed and the party told.
+  rpc Online(OnlineRequest) returns (OnlineResponse);
+  // Offline marks a character as disconnected; their party keeps them.
+  rpc Offline(OfflineRequest) returns (OfflineResponse);
+  // PartyOf is a character's party, if any.
+  rpc PartyOf(PartyOfRequest) returns (PartyOfResponse);
+  // Invite asks a character on the inviter's map to join the inviter's
+  // party; a character with none becomes a leader when it is accepted.
+  rpc Invite(InviteRequest) returns (InviteResponse);
+  // Respond accepts or declines an invite addressed to the character.
+  rpc Respond(RespondRequest) returns (RespondResponse);
+  // LeaveParty removes the character from its party.
+  rpc LeaveParty(LeavePartyRequest) returns (LeavePartyResponse);
+  // Kick removes a member; only the leader may.
+  rpc Kick(KickRequest) returns (KickResponse);
+  // Promote hands leadership to another member.
+  rpc Promote(PromoteRequest) returns (PromoteResponse);
+  // Chat cleans a line and charges the sender's limit. A party line is
+  // delivered here, to every member on any map; a map line is returned for
+  // the caller to hand to the world.
+  rpc Chat(ChatRequest) returns (ChatResponse);
+  // WatchParties streams party membership to a world node: Subscribed,
+  // every current membership, then each change.
+  rpc WatchParties(WatchPartiesRequest) returns (stream WatchPartiesResponse);
+  // UpdateMember records what the world saw of a member: map, level, HP.
+  rpc UpdateMember(UpdateMemberRequest) returns (UpdateMemberResponse);
+}
+
+// Reason names a failure a caller can meet.
+enum Reason {
+  REASON_UNSPECIFIED = 0;
+  REASON_NOT_PARTY_LEADER = 1;
+  REASON_PARTY_FULL = 2;
+  REASON_ALREADY_IN_PARTY = 3;
+  REASON_NO_PARTY = 4;
+  REASON_NOT_PARTY_MEMBER = 5;
+  REASON_TARGET_NOT_ON_MAP = 6;
+  REASON_ALREADY_INVITED = 7;
+  REASON_INVITE_EXPIRED = 8;
+  REASON_INVITE_SELF = 9;
+  REASON_CHAT_EMPTY = 10;
+  REASON_CHAT_TOO_LONG = 11;
+  REASON_BAD_CHAT_CHANNEL = 12;
+  REASON_CHAT_NO_PARTY = 13;
+  REASON_CHAT_RATE_LIMITED = 14;
+  REASON_PARTY_CHAT_UNAVAILABLE = 15;
+  REASON_BAD_ID = 16;
+}
+
+// ChatChannel is where a line goes.
+enum ChatChannel {
+  CHAT_CHANNEL_UNSPECIFIED = 0;
+  CHAT_CHANNEL_MAP = 1;
+  CHAT_CHANNEL_PARTY = 2;
+}
+
+// Member is a party member as the others see them.
+message Member {
+  string id = 1;
+  string name = 2;
+  int32 level = 3;
+  int32 hp = 4;
+  int32 max_hp = 5;
+  string map_id = 6;
+  bool online = 7;
+}
+
+// Party is the leader and the members in join order.
+message Party {
+  string leader_id = 1;
+  repeated Member members = 2;
+}
+
+message DeliverRequest {
+  // The subscribing gateway node; a second subscription with the same ID
+  // replaces the first.
+  string gateway_id = 1;
+}
+
+// DeliverResponse is one event for one character.
+message DeliverResponse {
+  // Empty only for Subscribed.
+  string character_id = 1;
+  oneof event {
+    Subscribed subscribed = 2;
+    PartyState party_state = 3;
+    PartyInvited party_invited = 4;
+    ChatLine chat_line = 5;
+  }
+}
+
+// Subscribed is a stream's first message.
+message Subscribed {
+  // Random per process start: a new value means the service restarted and
+  // every party is gone.
+  string boot_id = 1;
+}
+
+// PartyState is the character's party after a change; unset when it has
+// none any more.
+message PartyState {
+  Party party = 1;
+}
+
+// PartyInvited is an invite for the character.
+message PartyInvited {
+  string invite_id = 1;
+  string from_id = 2;
+  string from_name = 3;
+}
+
+// ChatLine is a party chat line.
+message ChatLine {
+  string sender_id = 1;
+  string sender_name = 2;
+  string text = 3;
+}
+
+message OnlineRequest {
+  string gateway_id = 1;
+  Member member = 2;
+}
+
+message OnlineResponse {}
+
+message OfflineRequest {
+  string character_id = 1;
+}
+
+message OfflineResponse {}
+
+message PartyOfRequest {
+  string character_id = 1;
+}
+
+message PartyOfResponse {
+  // Unset when the character has no party.
+  Party party = 1;
+}
+
+message InviteRequest {
+  string character_id = 1;
+  string target_id = 2;
+}
+
+message InviteResponse {
+  string invite_id = 1;
+}
+
+message RespondRequest {
+  string character_id = 1;
+  string invite_id = 2;
+  bool accept = 3;
+}
+
+message RespondResponse {}
+
+message LeavePartyRequest {
+  string character_id = 1;
+}
+
+message LeavePartyResponse {}
+
+message KickRequest {
+  string character_id = 1;
+  string target_id = 2;
+}
+
+message KickResponse {}
+
+message PromoteRequest {
+  string character_id = 1;
+  string target_id = 2;
+}
+
+message PromoteResponse {}
+
+message ChatRequest {
+  string sender_id = 1;
+  string sender_name = 2;
+  ChatChannel channel = 3;
+  string text = 4;
+}
+
+message ChatResponse {
+  ChatChannel channel = 1;
+  // The cleaned line.
+  string text = 2;
+}
+
+message WatchPartiesRequest {
+  // The subscribing world node; a second subscription with the same ID
+  // replaces the first.
+  string world_id = 1;
+}
+
+message WatchPartiesResponse {
+  oneof event {
+    Subscribed subscribed = 1;
+    Membership membership = 2;
+  }
+}
+
+// Membership is the party of some characters after a change: each listed
+// character's party is now members (empty: none).
+message Membership {
+  repeated string character_ids = 1;
+  repeated string members = 2;
+}
+
+message UpdateMemberRequest {
+  string character_id = 1;
+  string map_id = 2;
+  int32 level = 3;
+  int32 hp = 4;
+  int32 max_hp = 5;
+}
+
+message UpdateMemberResponse {}

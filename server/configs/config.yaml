@@ -22,3 +22,13 @@ economy:
 
 telemetry:
   log_level: info
+
+# The internal services (Low-level design, page 10): where each serves gRPC
+# (listen), where callers dial it (addr; Compose sets the service's name),
+# and its /healthz, /readyz and /metrics (ops). Stage 1 runs one node each.
+services:
+  account:   { listen: ":9001", addr: "localhost:9001", ops: ":9101" }
+  character: { listen: ":9002", addr: "localhost:9002", ops: ":9102" }
+  item:      { listen: ":9003", addr: "localhost:9003", ops: ":9103" }
+  world:     { listen: ":9004", addr: "localhost:9004", ops: ":9104" }
+  social:    { listen: ":9005", addr: "localhost:9005", ops: ":9105" }

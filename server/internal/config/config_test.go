@@ -42,6 +42,11 @@ func TestDefaultsLoad(t *testing.T) {
 		{"economy.workers", cfg.Economy.Workers, 8},
 		{"telemetry.log_level", cfg.Telemetry.LogLevel, "info"},
 		{"the tick interval follows from the rate", cfg.World.TickInterval(), 50 * time.Millisecond},
+		{"services.account", cfg.Services.Account, config.Endpoint{Listen: ":9001", Addr: "localhost:9001", Ops: ":9101"}},
+		{"services.character", cfg.Services.Character, config.Endpoint{Listen: ":9002", Addr: "localhost:9002", Ops: ":9102"}},
+		{"services.item", cfg.Services.Item, config.Endpoint{Listen: ":9003", Addr: "localhost:9003", Ops: ":9103"}},
+		{"services.world", cfg.Services.World, config.Endpoint{Listen: ":9004", Addr: "localhost:9004", Ops: ":9104"}},
+		{"services.social", cfg.Services.Social, config.Endpoint{Listen: ":9005", Addr: "localhost:9005", Ops: ":9105"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -69,6 +74,12 @@ economy:
   workers: 8
 telemetry:
   log_level: info
+services:
+  account:   {listen: ":9001", addr: "localhost:9001", ops: ":9101"}
+  character: {listen: ":9002", addr: "localhost:9002", ops: ":9102"}
+  item:      {listen: ":9003", addr: "localhost:9003", ops: ":9103"}
+  world:     {listen: ":9004", addr: "world:9004", ops: ":9104"}
+  social:    {listen: ":9005", addr: "localhost:9005", ops: ":9105"}
 `
 
 func TestValidationNamesTheKey(t *testing.T) {
@@ -92,6 +103,10 @@ func TestValidationNamesTheKey(t *testing.T) {
 		{"economy.workers at least 1", `workers: 8`, `workers: 0`, "economy.workers"},
 		{"telemetry.log_level is one of the four", `log_level: info`, `log_level: verbose`, "telemetry.log_level"},
 		{"an unknown key is rejected", `log_level: info`, "log_level: info\n  colour: true", "colour"},
+		{"services.world.listen required", `listen: ":9004"`, `listen: ""`, "services.world.listen"},
+		{"services.world.addr required", `addr: "world:9004"`, `addr: ""`, "services.world.addr"},
+		{"services.world.ops required", `ops: ":9104"`, `ops: ""`, "services.world.ops"},
+		{"services.item must be there", `  item:      {listen: ":9003", addr: "localhost:9003", ops: ":9103"}` + "\n", ``, "services.item"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

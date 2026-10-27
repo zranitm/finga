@@ -1,0 +1,180 @@
+syntax = "proto3";
+
+package internal.account.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "finga/api/gen/account/v1;accountv1";
+
+// AccountService owns accounts, login sessions and their tokens, and
+// account settings (Low-level design, page 10). The gateway is its only
+// caller: it forwards REST with the caller's account ID and checks tokens
+// for the WebSocket. A failure carries a Reason in google.rpc.ErrorInfo.
+service AccountService {
+  // Register creates an account.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // Login checks the credentials (throttled per username and per IP) and
+  // issues a session, ending every older session of the account.
+  rpc Login(LoginRequest) returns (LoginResponse);
+  // Validate resolves a token to its session, extending it.
+  rpc Validate(ValidateRequest) returns (ValidateResponse);
+  // Rotate issues a session's next token; the one it replaces works once
+  // more within the grace period.
+  rpc Rotate(RotateRequest) returns (RotateResponse);
+  // Check reports whether a session is still active.
+  rpc Check(CheckRequest) returns (CheckResponse);
+  // Revoke ends one session (log out).
+  rpc Revoke(RevokeRequest) returns (RevokeResponse);
+  // RevokeAll ends every session of an account (log out everywhere).
+  rpc RevokeAll(RevokeAllRequest) returns (RevokeAllResponse);
+  // GetSettings reads an account's settings.
+  rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
+  // UpdateSettings saves an account's settings.
+  rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
+  // WatchSessions streams the session ends a gateway must act on: first
+  // Subscribed, then every revoked session and every account whose
+  // sessions all ended. A gateway that falls behind loses its stream and
+  // subscribes again; its minute check catches what it missed.
+  rpc WatchSessions(WatchSessionsRequest) returns (stream WatchSessionsResponse);
+}
+
+// Reason names a failure a caller can meet.
+enum Reason {
+  REASON_UNSPECIFIED = 0;
+  REASON_ACCOUNT_NOT_FOUND = 1;
+  REASON_USERNAME_TAKEN = 2;
+  REASON_UNAUTHENTICATED = 3;
+  REASON_LOGIN_RATE_LIMITED = 4;
+  REASON_BAD_USERNAME = 5;
+  REASON_BAD_PASSWORD = 6;
+  REASON_BAD_CONTROL_PRESET = 7;
+  REASON_SESSION_RACE = 8;
+}
+
+// RevokeReason says why sessions ended.
+enum RevokeReason {
+  REVOKE_REASON_UNSPECIFIED = 0;
+  // The session's previous token was used again after the grace: reuse.
+  REVOKE_REASON_TOKEN_REUSE = 1;
+  // The player logged out, here or everywhere.
+  REVOKE_REASON_LOGOUT = 2;
+  // A new login ended the account's older session.
+  REVOKE_REASON_NEW_LOGIN = 3;
+}
+
+// Account is what callers see of an account: never the password hash.
+message Account {
+  string id = 1;
+  string username = 2;
+  Settings settings = 3;
+  google.protobuf.Timestamp created_at = 4;
+}
+
+// Settings are an account's settings.
+message Settings {
+  // classic or wasd (B6).
+  string control_preset = 1;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message RegisterResponse {
+  Account account = 1;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  // The caller's address, for the per-IP throttle; empty skips it.
+  string ip = 3;
+}
+
+message LoginResponse {
+  // The opaque token: the only time it is visible.
+  string token = 1;
+}
+
+message ValidateRequest {
+  string token = 1;
+}
+
+message ValidateResponse {
+  string account_id = 1;
+  string session_id = 2;
+}
+
+message RotateRequest {
+  string session_id = 1;
+}
+
+message RotateResponse {
+  string token = 1;
+}
+
+message CheckRequest {
+  string session_id = 1;
+}
+
+message CheckResponse {}
+
+message RevokeRequest {
+  string session_id = 1;
+}
+
+message RevokeResponse {}
+
+message RevokeAllRequest {
+  string account_id = 1;
+}
+
+message RevokeAllResponse {}
+
+message GetSettingsRequest {
+  string account_id = 1;
+}
+
+message GetSettingsResponse {
+  Settings settings = 1;
+}
+
+message UpdateSettingsRequest {
+  string account_id = 1;
+  Settings settings = 2;
+}
+
+message UpdateSettingsResponse {}
+
+message WatchSessionsRequest {
+  // The subscribing gateway node; a second subscription with the same ID
+  // replaces the first.
+  string gateway_id = 1;
+}
+
+message WatchSessionsResponse {
+  oneof event {
+    Subscribed subscribed = 1;
+    SessionRevoked session_revoked = 2;
+    AccountRevoked account_revoked = 3;
+  }
+}
+
+// Subscribed is a stream's first message.
+message Subscribed {
+  // Random per process start: a new value means the service restarted.
+  string boot_id = 1;
+}
+
+// SessionRevoked is one session that ended.
+message SessionRevoked {
+  string session_id = 1;
+  RevokeReason reason = 2;
+}
+
+// AccountRevoked is every session of an account ending.
+message AccountRevoked {
+  string account_id = 1;
+  RevokeReason reason = 2;
+}

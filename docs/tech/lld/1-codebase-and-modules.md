@@ -9,7 +9,8 @@ server/                 the Go module: everything the server builds, reads and p
   api/
     openapi.yaml        REST contract: accounts, sessions, characters, settings
     asyncapi.yaml       WebSocket message catalogue
-    proto/              Protobuf schemas (Stage 2)
+    proto/internal/     the internal gRPC contracts, one package per service: internal/<service>/v1 (page 10)
+    gen/                their generated Go code, api/gen/<service>/v1, committed; make gen regenerates it
   cmd/                  one binary per job; each wires its own dependencies next to its main
     gameserver/         REST, WebSocket, map instances, background jobs
       app/              its composition root: Build wires every module; Server listens, runs the tasks, shuts down
@@ -48,7 +49,7 @@ server/                 the Go module: everything the server builds, reads and p
     contracts/          golden REST and WebSocket messages
     errors/             codes.json: every error code with its status and message, written from errmap
   Dockerfile            one file for every binary; the CMD build arg picks which
-  .env.example  .golangci.yml  go.mod  go.sum  sqlc.yaml
+  .env.example  .golangci.yml  buf.yaml  buf.gen.yaml  go.mod  go.sum  sqlc.yaml
 web/                    the client: Phaser 4, React, Vite, TypeScript; layout on page 7
 infra/                  how it runs
   docker-compose.yml    make up / make down; builds ../server
@@ -383,6 +384,29 @@ func (ps Properties) String(name string) (string, bool)
 func (ps Properties) Int(name string) (int, bool)
 ```
 
+```go
+// pkg/grpcx: gRPC servers and clients every service shares (step 22)
+type ErrorRow struct { Err error; Code codes.Code; Reason protoreflect.Enum } // a sentinel, its code, its proto reason
+type ErrorTable []ErrorRow
+func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, panic as Internal, errors through the table
+func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID
+func ReasonOf(err error) (Reason, bool) // the ErrorInfo a failed call carries: the proto package and the value's name
+func IsRule(err error) bool             // a reason is present: retrying the same request cannot help
+func Follow[T any](ctx context.Context, open func(context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T), opts FollowOptions)
+// grpcx/grpctest.Conn serves a *grpc.Server over bufconn for a test.
+
+// pkg/runner: one process's listeners and tasks (step 22)
+type Listener struct { Name, Addr string; Server Server } // runner.HTTP(handler) or runner.GRPC(server)
+func New(opts Options, listeners []Listener, tasks []Task) *Runner
+func (r *Runner) Run(ctx context.Context) error // ready while listening; on shutdown: not ready, Drain, listeners stop within the grace, tasks stop
+func Probes(ready func() bool, metrics http.Handler) http.Handler // /healthz, /readyz, /metrics
+
+// pkg/hub: subscribers with bounded queues, behind the delivery streams (step 22)
+func New[T any](queue int) *Hub[T]
+func (h *Hub[T]) Subscribe(id string) *Sub[T] // replaces and ends an older one with the same ID
+func (s *Sub[T]) Send(v T) bool               // never blocks; a full queue ends the subscription
+```
+
 Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `observability` (structured logging and metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
 
 ## Configuration
@@ -413,13 +437,19 @@ economy:
   workers: 8
 telemetry:
   log_level: info
+services:            # the internal services (page 10): gRPC listener, where callers dial, ops listener
+  account:   { listen: ":9001", addr: "localhost:9001", ops: ":9101" }
+  character: { listen: ":9002", addr: "localhost:9002", ops: ":9102" }
+  item:      { listen: ":9003", addr: "localhost:9003", ops: ":9103" }
+  world:     { listen: ":9004", addr: "localhost:9004", ops: ":9104" }
+  social:    { listen: ":9005", addr: "localhost:9005", ops: ":9105" }
 ```
 
 ## Tooling and conventions
 
 Carried over from docviewer:
 
-- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed).
+- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc, and `buf generate` for the gRPC code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed).
 - **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys.
 - **Tests:** table-driven, with named cases. No test logic in production code: tests use the seams production already has (interfaces, constructors, `httptest`) and `testing/synctest` for time.
 - **`docs/ai-coding-log.md`:** one row per implementation step: what was produced, how it was verified, what changed, mistakes caught, and the commit.

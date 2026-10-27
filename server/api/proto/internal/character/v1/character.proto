@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package internal.character.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "finga/api/gen/character/v1;characterv1";
+
+// CharacterService owns characters: creation, their stats, levels and EXP,
+// and the checkpoints the world saves (Low-level design, page 10). The
+// gateway lists and creates characters for REST; the world loads them on
+// join and saves checkpoints and level-ups from its persistence worker. A
+// failure carries a Reason in google.rpc.ErrorInfo.
+service CharacterService {
+  // Create makes a level 1 character in the town, commits it, then grants
+  // its starter items through the item service (idempotent, keyed by the
+  // character ID, retried until it succeeds or the deadline ends).
+  rpc Create(CreateRequest) returns (CreateResponse);
+  // List is an account's characters, oldest first.
+  rpc List(ListRequest) returns (ListResponse);
+  // Load is one character, only if it belongs to the account; someone
+  // else's is REASON_CHARACTER_NOT_FOUND, like a missing one.
+  rpc Load(LoadRequest) returns (LoadResponse);
+  // SaveCheckpoint saves position, HP, MP and EXP (TD-02).
+  rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
+  // SaveLevelUp saves a level-up right away.
+  rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse);
+}
+
+// Reason names a failure a caller can meet.
+enum Reason {
+  REASON_UNSPECIFIED = 0;
+  REASON_CHARACTER_NOT_FOUND = 1;
+  REASON_NAME_TAKEN = 2;
+  REASON_BAD_CHARACTER_NAME = 3;
+  REASON_CLASS_UNAVAILABLE = 4;
+  REASON_CHARACTER_SLOTS_FULL = 5;
+  REASON_BAD_ID = 6;
+  REASON_UNKNOWN_CLASS = 7;
+}
+
+// Stats are the five primary stats.
+message Stats {
+  int32 strength = 1;
+  int32 dexterity = 2;
+  int32 intelligence = 3;
+  int32 agility = 4;
+  int32 vitality = 5;
+}
+
+// Character is a character as stored, with its maximum HP and MP derived
+// from class, stats and level.
+message Character {
+  string id = 1;
+  string account_id = 2;
+  string name = 3;
+  // warrior, bowman, thief or magician.
+  string class = 4;
+  int32 level = 5;
+  // EXP within the current level.
+  int64 exp = 6;
+  Stats stats = 7;
+  int32 unspent_points = 8;
+  int32 hp = 9;
+  int32 max_hp = 10;
+  int32 mp = 11;
+  int32 max_mp = 12;
+  string map_id = 13;
+  // Feet centre, map pixels.
+  double x = 14;
+  double y = 15;
+  google.protobuf.Timestamp updated_at = 16;
+}
+
+message CreateRequest {
+  string account_id = 1;
+  string name = 2;
+  string class = 3;
+}
+
+message CreateResponse {
+  Character character = 1;
+}
+
+message ListRequest {
+  string account_id = 1;
+}
+
+message ListResponse {
+  repeated Character characters = 1;
+}
+
+message LoadRequest {
+  string character_id = 1;
+  // The owner the caller claims; the character must belong to it.
+  string account_id = 2;
+}
+
+message LoadResponse {
+  Character character = 1;
+}
+
+message SaveCheckpointRequest {
+  string character_id = 1;
+  // The map the character is on, or is moving to on a map change.
+  string map_id = 2;
+  double x = 3;
+  double y = 4;
+  int32 hp = 5;
+  int32 mp = 6;
+  int64 exp = 7;
+}
+
+message SaveCheckpointResponse {}
+
+message SaveLevelUpRequest {
+  string character_id = 1;
+  int32 level = 2;
+  int64 exp = 3;
+  Stats stats = 4;
+  int32 hp = 5;
+  int32 mp = 6;
+}
+
+message SaveLevelUpResponse {}

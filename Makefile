@@ -48,10 +48,10 @@ cover-go:
 cover-web:
 	$(NPM) run coverage
 
-lint: lint-go lint-web   ## golangci-lint, then the client: eslint, prettier, the layer-rule fixture
+lint: lint-go lint-web   ## golangci-lint and buf lint, then the client: eslint, prettier, the layer-rule fixture
 
 lint-go:
-	cd $(SERVER) && golangci-lint run ./...
+	cd $(SERVER) && golangci-lint run ./... && $(GO) tool buf lint
 
 lint-web:
 	$(NPM) run lint
@@ -59,11 +59,12 @@ lint-web:
 smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
 	cd $(SERVER) && FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
 
-# sqlc generates each module's queries into server/internal/application/<module>/internal/db.
-# Each entry's schema is its service's server/services/<service>/migrations/; run it after a
-# query or migration change.
-gen:           ## regenerate sqlc code
-	cd $(SERVER) && sqlc generate
+# sqlc generates each module's queries into server/internal/application/<module>/internal/db;
+# each entry's schema is its service's server/services/<service>/migrations/. buf generates the
+# Go code of the internal contracts (server/api/proto) into server/api/gen, with the generators
+# pinned as Go tools in server/go.mod. Run it after a query, migration or contract change.
+gen:           ## regenerate the sqlc queries and the gRPC code
+	cd $(SERVER) && sqlc generate && $(GO) tool buf generate
 
 bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99
 	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -bots 4 -duration 30m

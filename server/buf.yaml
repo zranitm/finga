@@ -1,0 +1,12 @@
+# buf: the internal gRPC contracts (Low-level design, page 10). One module,
+# api/proto, with one package per service under internal/. buf runs as a Go
+# tool pinned in go.mod: `go tool buf lint`, `go tool buf generate` (make gen).
+version: v2
+modules:
+  - path: api/proto
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

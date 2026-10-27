@@ -3,7 +3,7 @@
 - **Depends on:** 20, 21
 - **Milestone:** Services
 - **Order:** 22
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 22. gRPC foundation
 
 **Goal:** the internal contracts and the generic plumbing every service needs, before any service leaves: the five proto packages, code generation pinned as Go tools, errors that keep their reason across a call, a process runner, and a subscriber hub for the delivery streams.

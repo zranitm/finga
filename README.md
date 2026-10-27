@@ -51,7 +51,7 @@ The game server serves REST under /api, the gateway at /ws, /healthz,
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
 BrechtSanders.WinLibs.POSIX.UCRT`), make, golangci-lint v2 for `make lint`,
-sqlc for `make gen`, and Docker for the tests that run a real Postgres.
+sqlc for `make gen` (which also runs `buf generate` through the Go tools pinned in `server/go.mod`, so nothing else needs installing), and Docker for the tests that run a real Postgres.
 
 ## Client
 
@@ -91,13 +91,14 @@ committed is a secret.
 | `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `data_dir`    |
 | `economy`   | `workers` (8): the pool that runs pickups and inventory actions |
 | `telemetry` | `log_level`                                                     |
+| `services`  | `listen`, `addr`, `ops` for account, character, item, world, social: each internal service's gRPC listener, where callers dial it, and its `/healthz`, `/readyz`, `/metrics` |
 
 ## Tests
 
 ```bash
 make test    # every test, with the race detector
 make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
-make lint    # golangci-lint: sloglint, depguard import directions, revive, staticcheck
+make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
 make smoke   # the packaging check, against a running stack
 make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed
 make play    # the proof session with people: the server plus the client preview build on the LAN (:4173)

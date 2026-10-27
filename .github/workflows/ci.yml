@@ -18,6 +18,10 @@ jobs:
           version: v2.15.0   # built with Go 1.27, matching server/go.mod; an older build refuses the target version
           args: --help   # install only; `make lint` runs it below with the repo's settings
       - run: make lint-go
+      # The gRPC code in server/api/gen is committed; regenerating it with
+      # the generators pinned in go.mod must change nothing.
+      - name: generated gRPC code is current
+        run: cd server && go tool buf generate && git diff --exit-code -- api/gen
       # The Go half of make test, crash test included: it builds cmd/gameserver,
       # runs it as its own process over a Testcontainers Postgres, kills it
       # mid-pickup, restarts it, and checks the item invariants. The client

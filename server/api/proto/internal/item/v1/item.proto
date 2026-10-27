@@ -1,0 +1,136 @@
+syntax = "proto3";
+
+package internal.item.v1;
+
+option go_package = "finga/api/gen/item/v1;itemv1";
+
+// ItemService owns item instances, the inventory, the item events, and the
+// idempotency keys and outbox of its transactions (Low-level design, page
+// 10). Every change is one transaction under an idempotency key, so a
+// retried call changes nothing twice. A failure carries a Reason in
+// google.rpc.ErrorInfo.
+service ItemService {
+  // Inventory lists a character's items, by tab and slot.
+  rpc Inventory(InventoryRequest) returns (InventoryResponse);
+  // Add puts a quantity of a template in the inventory: the first stack
+  // with room, then the first free slot. A pickup's key is its drop ID.
+  rpc Add(AddRequest) returns (AddResponse);
+  // Move moves an item to a slot of its tab, or merges it into a stack of
+  // the same item there.
+  rpc Move(MoveRequest) returns (MoveResponse);
+  // Discard destroys an item or part of a stack.
+  rpc Discard(DiscardRequest) returns (DiscardResponse);
+  // GrantStarter gives a new character its class's starter items, once:
+  // the character ID is the idempotency key, so a second call returns the
+  // first one's slots and changes nothing.
+  rpc GrantStarter(GrantStarterRequest) returns (GrantStarterResponse);
+}
+
+// Reason names a failure a caller can meet. Every one is a rule the
+// request ran into, so retrying the same request cannot help.
+enum Reason {
+  REASON_UNSPECIFIED = 0;
+  REASON_ITEM_NOT_FOUND = 1;
+  REASON_SLOT_TAKEN = 2;
+  REASON_SLOT_HOLDS_OTHER_ITEM = 3;
+  REASON_INVENTORY_FULL = 4;
+  REASON_IDEMPOTENCY_KEY_REUSED = 5;
+  REASON_BAD_QUANTITY = 6;
+  REASON_BAD_SLOT = 7;
+  REASON_WRONG_TAB = 8;
+  REASON_UNKNOWN_ITEM = 9;
+  REASON_BAD_ID = 10;
+  REASON_UNKNOWN_CLASS = 11;
+}
+
+// CauseType says what caused a change.
+enum CauseType {
+  CAUSE_TYPE_UNSPECIFIED = 0;
+  CAUSE_TYPE_DROP = 1;
+  CAUSE_TYPE_PLAYER = 2;
+  CAUSE_TYPE_STARTER = 3;
+}
+
+// Actor is who acts: the account scopes the idempotency keys, the
+// character owns the items.
+message Actor {
+  string account_id = 1;
+  string character_id = 2;
+}
+
+// Cause is the origin of a change.
+message Cause {
+  CauseType type = 1;
+  // The drop or request, when there is one.
+  string id = 2;
+}
+
+// Item is an item instance in an inventory.
+message Item {
+  string id = 1;
+  string template_id = 2;
+  // equip, use or etc.
+  string tab = 3;
+  int32 slot = 4;
+  int32 quantity = 5;
+}
+
+// Slot is one changed inventory slot; item is unset when it emptied.
+message Slot {
+  string tab = 1;
+  int32 slot = 2;
+  Item item = 3;
+}
+
+message InventoryRequest {
+  string character_id = 1;
+}
+
+message InventoryResponse {
+  repeated Item items = 1;
+}
+
+message AddRequest {
+  Actor actor = 1;
+  string idempotency_key = 2;
+  string template_id = 3;
+  int32 quantity = 4;
+  Cause cause = 5;
+}
+
+message AddResponse {
+  repeated Slot changed = 1;
+}
+
+message MoveRequest {
+  Actor actor = 1;
+  string idempotency_key = 2;
+  string item_id = 3;
+  string tab = 4;
+  int32 slot = 5;
+}
+
+message MoveResponse {
+  repeated Slot changed = 1;
+}
+
+message DiscardRequest {
+  Actor actor = 1;
+  string idempotency_key = 2;
+  string item_id = 3;
+  int32 quantity = 4;
+}
+
+message DiscardResponse {
+  repeated Slot changed = 1;
+}
+
+message GrantStarterRequest {
+  Actor actor = 1;
+  // The character's class, whose starter items it gets.
+  string class = 2;
+}
+
+message GrantStarterResponse {
+  repeated Slot changed = 1;
+}
