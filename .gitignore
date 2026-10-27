@@ -2,8 +2,17 @@
 .env
 server/configs/config.local.yaml
 
-# build and test output
+# build and test output; go build in server/ leaves a binary named after its package
 bin/
+/server/migrate
+/server/gameserver
+/server/bot
+/server/account
+/server/character
+/server/item
+/server/world
+/server/social
+/server/gateway
 coverage.out
 coverage.html
 coverage.tmp
