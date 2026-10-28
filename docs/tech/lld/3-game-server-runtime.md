@@ -24,7 +24,8 @@ Shared state is owned by one goroutine (an actor) that receives commands on a bu
 | WebSocket connection | 2 per connection: read loop and write loop | Its send queue (bounded at 256 messages; a full queue closes the connection) |
 | Gateway session registry | A mutex-guarded map, not an actor: its critical sections are two map writes | Which account and character each connection belongs to |
 | Map instance | 1 per map and channel, ticking at 20 Hz | Players' positions and combat state, mobs, ground drops |
-| Party service | A mutex-guarded service, not a goroutine: each command is a few map operations, and a map tick asks it (members, same party) under the same lock for microseconds. PartyState and invites go out through the gateway's non-blocking sends, under that lock. | All parties and invites, plus what it knows of each member (map, level, HP, online) from the gateway and the map instances |
+| Party service (in the social service, step 25) | A mutex-guarded service, not a goroutine: each command is a few map operations. PartyState and invites go out on the social service's delivery stream to the member's gateway, under that lock, without blocking; each membership change goes to every world node on `WatchParties`. | All parties and invites, plus what it knows of each member (map, level, HP, online) from the gateway and the map instances |
+| Party copy (in the world) | A mutex-guarded table fed by `WatchParties` and cleared when that stream breaks; a map tick reads it (members, same party) for microseconds and never calls the social service. Member updates go to a bounded queue a worker sends from. | Each character's party members, as the social service last said |
 | Persistence worker | 1 | Batched character checkpoints |
 | Economy workers | Pool of 8 | Database transactions for pickups and inventory actions |
 | Market (Stage 2) | Runs on the caller's goroutine, request and response | Nothing in memory |
@@ -66,7 +67,7 @@ Only one player can hold a reservation, so two players can never both get a drop
 - **Portal:** the instance removes the player, saves a checkpoint, sends Join to the target instance with the player's in-memory state, and sends the client MapChange.
 - **Disconnect:** the player is removed from the map and saved immediately. Reconnecting joins again at the saved position.
 - **Login elsewhere:** a new login revokes the old session in the database; the account service reports it on its `WatchSessions` stream to every gateway, and the gateway holding the old connection closes it with Kicked (step 24; the minute check catches what a broken stream missed).
-- **Chat:** the chat service cleans and rate-limits a line; a map line is handed to the sender's map instance, which sends it to everyone on the map with the next tick's events; a party line is delivered by the gateway to each member's connection, on any map.
+- **Chat:** the social service cleans and rate-limits a line; a map line comes back to the gateway, which hands it to the sender's map instance, which sends it to everyone on the map with the next tick's events; a party line is delivered by the social service to each member's gateway, on any map (step 25).
 
 ## Shutdown and crashes
 

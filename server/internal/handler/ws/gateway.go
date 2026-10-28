@@ -18,9 +18,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
+	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/application/character"
-	"finga/internal/application/chat"
-	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
@@ -39,23 +38,6 @@ type CharacterSource interface {
 	Derived(c character.Character) (progression.Derived, error)
 }
 
-// ChatSource cleans and limits chat lines and names the party recipients.
-type ChatSource interface {
-	Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []model.CharacterID, error)
-}
-
-// PartySource is what the gateway needs from the party service.
-type PartySource interface {
-	Online(m party.Member)
-	Offline(id model.CharacterID)
-	Of(id model.CharacterID) (party.Party, bool)
-	Invite(from, to model.CharacterID) (party.Invite, error)
-	Respond(who model.CharacterID, inviteID string, accept bool) error
-	Leave(who model.CharacterID) error
-	Kick(leader, target model.CharacterID) error
-	Promote(leader, target model.CharacterID) error
-}
-
 // MapInstance is what the gateway needs from a map actor.
 type MapInstance interface {
 	Join(ctx context.Context, p world.Player, sink world.Sink) error
@@ -64,6 +46,7 @@ type MapInstance interface {
 	Attack(id model.CharacterID) bool
 	PickUp(id model.CharacterID) bool
 	EnterPortal(id model.CharacterID) bool
+	MapID() string
 	Chat(id model.CharacterID, name, text string) bool
 }
 
@@ -94,9 +77,8 @@ type Dependencies struct {
 	Sessions    auth.Guard
 	Watcher     SessionWatcher // the account service; nil: no session ends are streamed, the minute check still runs
 	Characters  CharacterSource
-	Items       itemv1.ItemServiceClient // the item service; nil: Welcome carries no items and inventory commands are unavailable
-	Chat        ChatSource               // nil: ChatSend is unavailable
-	Parties     PartySource              // nil: party commands are unavailable; the gateway is its Notifier
+	Items       itemv1.ItemServiceClient     // the item service; nil: Welcome carries no items and inventory commands are unavailable
+	Social      socialv1.SocialServiceClient // parties and chat; nil: both are unavailable
 	World       World
 	Logger      *slog.Logger
 	Observer    Observer
@@ -128,6 +110,7 @@ type Gateway struct {
 	byAccount   map[model.AccountID]*session
 	byCharacter map[model.CharacterID]*session // active sessions, for party and chat delivery
 	bySession   map[model.SessionID]*session   // active connections by login session
+	socialBoot  string                         // the social service's boot ID, from its stream
 	helloGrace  time.Duration
 }
 
@@ -167,6 +150,13 @@ func New(deps Dependencies) *Gateway {
 // token) with session_expired. The minute check catches what a broken
 // stream missed. It never returns an error.
 func (g *Gateway) Run(ctx context.Context) error {
+	if g.deps.Social != nil {
+		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.DeliverResponse], error) {
+			return g.deps.Social.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: g.deps.ID})
+		}, g.socialDelivered, grpcx.FollowOptions{OnBreak: func(err error) {
+			g.deps.Logger.WarnContext(ctx, "social stream broke; subscribing again", "err", err)
+		}})
+	}
 	if g.deps.Watcher != nil {
 		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[accountv1.WatchSessionsResponse], error) {
 			return g.deps.Watcher.WatchSessions(ctx, &accountv1.WatchSessionsRequest{GatewayId: g.deps.ID})
@@ -324,33 +314,41 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	case protocol.ChatSend:
 		g.chat(s, d)
 	case protocol.PartyInvite:
-		g.partyCommand(s, m.ReqID, func() error {
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
 			to, err := model.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
-			_, err = g.deps.Parties.Invite(s.character.ID, to)
+			_, err = g.deps.Social.Invite(ctx, &socialv1.InviteRequest{CharacterId: me, TargetId: to.String()})
 			return err
 		})
 	case protocol.PartyRespond:
-		g.partyCommand(s, m.ReqID, func() error { return g.deps.Parties.Respond(s.character.ID, d.InviteID, d.Accept) })
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
+			_, err := g.deps.Social.Respond(ctx, &socialv1.RespondRequest{CharacterId: me, InviteId: d.InviteID, Accept: d.Accept})
+			return err
+		})
 	case protocol.PartyLeave:
-		g.partyCommand(s, m.ReqID, func() error { return g.deps.Parties.Leave(s.character.ID) })
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
+			_, err := g.deps.Social.LeaveParty(ctx, &socialv1.LeavePartyRequest{CharacterId: me})
+			return err
+		})
 	case protocol.PartyKick:
-		g.partyCommand(s, m.ReqID, func() error {
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
 			target, err := model.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
-			return g.deps.Parties.Kick(s.character.ID, target)
+			_, err = g.deps.Social.Kick(ctx, &socialv1.KickRequest{CharacterId: me, TargetId: target.String()})
+			return err
 		})
 	case protocol.PartyPromote:
-		g.partyCommand(s, m.ReqID, func() error {
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
 			target, err := model.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
-			return g.deps.Parties.Promote(s.character.ID, target)
+			_, err = g.deps.Social.Promote(ctx, &socialv1.PromoteRequest{CharacterId: me, TargetId: target.String()})
+			return err
 		})
 	case protocol.Ping:
 		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
@@ -385,8 +383,12 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	s.helloTimer.Stop()
 	if s.active() {
 		s.inst().Leave(s.character.ID)
-		if g.deps.Parties != nil {
-			g.deps.Parties.Offline(s.character.ID)
+		if g.deps.Social != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+			if _, err := g.deps.Social.Offline(ctx, &socialv1.OfflineRequest{CharacterId: s.character.ID.String()}); err != nil {
+				g.deps.Logger.WarnContext(ctx, "social offline failed", "character_id", s.character.ID, "err", err)
+			}
+			cancel()
 		}
 		g.deps.Observer.OnlineChanged(-1)
 	}
@@ -467,6 +469,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	s.account = account
 	s.sessionID = model.SessionID(p.SessionID)
 	s.character = c
+	s.maxHP = derived.MaxHP
 	s.setInstance(inst)
 	g.mu.Unlock()
 	// An older connection of the account, or a second Hello on the same
@@ -485,10 +488,14 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		MapID:      c.MapID,
 		ServerTime: g.now().UnixMilli(),
 	}
-	if g.deps.Parties != nil {
-		if p, ok := g.deps.Parties.Of(c.ID); ok {
-			welcome.Party = partyView(&p)
+	if g.deps.Social != nil {
+		// Parties are optional: a social service that cannot be reached
+		// leaves Welcome without one rather than the player out of the game.
+		res, err := g.deps.Social.PartyOf(ctx, &socialv1.PartyOfRequest{CharacterId: c.ID.String()})
+		if err != nil {
+			g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", c.ID, "err", err)
 		}
+		welcome.Party = partyView(res.GetParty())
 	}
 	g.send(s.conn, wsconn.Message{Data: welcome})
 	player := world.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
@@ -503,68 +510,111 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		return
 	}
 	s.setActive()
-	if g.deps.Parties != nil {
-		g.deps.Parties.Online(party.Member{ID: c.ID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: derived.MaxHP, MapID: c.MapID})
-	}
+	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", c.ID, "map_id", c.MapID)
 }
 
-// chat cleans a line through the chat service, then hands a map line to
-// the sender's map instance (everyone there hears it, the sender too) or
-// delivers a party line to each member's connection, on any map. A
-// refused line answers a Response (ChatSend carries no request ID).
+// online tells the social service a player is connected through this
+// gateway, so party traffic finds it here. A failure is logged: parties are
+// optional, and the next registration (a social restart) tries again.
+func (g *Gateway) online(ctx context.Context, s *session) {
+	if g.deps.Social == nil {
+		return
+	}
+	c := s.character
+	member := &socialv1.Member{Id: c.ID.String(), Name: c.Name, Level: int32(c.Level), Hp: int32(c.HP), MaxHp: int32(s.maxHP), MapId: s.inst().MapID()}
+	if _, err := g.deps.Social.Online(ctx, &socialv1.OnlineRequest{GatewayId: g.deps.ID, Member: member}); err != nil {
+		g.deps.Logger.WarnContext(ctx, "social online failed", "character_id", c.ID, "err", err)
+	}
+}
+
+// chat cleans a line through the social service, then hands a map line to
+// the sender's map instance (everyone there hears it, the sender too); the
+// social service delivers a party line to each member itself, on any map
+// and through any gateway. A refused line answers a Response (ChatSend
+// carries no request ID).
 func (g *Gateway) chat(s *session, d protocol.ChatSend) {
-	if g.deps.Chat == nil {
+	if g.deps.Social == nil {
 		g.send(s.conn, wsconn.Message{Data: refusal(errmap.ChatUnavailable)})
 		return
 	}
-	msg, to, err := g.deps.Chat.Send(chat.Sender{ID: s.character.ID, Name: s.character.Name}, chat.Channel(d.Channel), d.Text)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	res, err := g.deps.Social.Chat(ctx, &socialv1.ChatRequest{SenderId: s.character.ID.String(), SenderName: s.character.Name, Channel: chatChannels[d.Channel], Text: d.Text})
 	if err != nil {
 		g.send(s.conn, wsconn.Message{Data: g.refuse(s, "ChatSend", err)})
 		return
 	}
-	if msg.Channel == chat.Map {
-		s.inst().Chat(msg.Sender, msg.SenderName, msg.Text)
-		return
-	}
-	line := protocol.ChatMessage{Channel: protocol.ChatParty, Sender: msg.Sender.String(), SenderName: msg.SenderName, Text: msg.Text}
-	for _, id := range to {
-		if t := g.sessionOf(id); t != nil {
-			g.send(t.conn, wsconn.Message{Data: line})
-		}
+	if res.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_MAP {
+		s.inst().Chat(s.character.ID, s.character.Name, res.GetText())
 	}
 }
 
+// chatChannels are the client's channels in the contract; anything else is
+// unspecified, which the social service refuses.
+var chatChannels = map[protocol.ChatChannel]socialv1.ChatChannel{
+	protocol.ChatMap:   socialv1.ChatChannel_CHAT_CHANNEL_MAP,
+	protocol.ChatParty: socialv1.ChatChannel_CHAT_CHANNEL_PARTY,
+}
+
 // partyCommand runs a party command with the connection's identity and
-// answers a Response; the party service pushes PartyState itself.
-func (g *Gateway) partyCommand(s *session, reqID string, run func() error) {
-	if g.deps.Parties == nil {
+// answers a Response; the social service pushes PartyState itself.
+func (g *Gateway) partyCommand(s *session, reqID string, run func(ctx context.Context, me string) error) {
+	if g.deps.Social == nil {
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.PartiesUnavailable)})
 		return
 	}
-	if err := run(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	if err := run(ctx, s.character.ID.String()); err != nil {
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "party", err)})
 		return
 	}
 	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
 }
 
-// PartyChanged implements party.Notifier: every listed member who is
-// connected gets the new PartyState (party null when they have none).
-func (g *Gateway) PartyChanged(members []model.CharacterID, p *party.Party) {
-	state := protocol.PartyState{Party: partyView(p)}
-	for _, id := range members {
-		if t := g.sessionOf(id); t != nil {
-			g.send(t.conn, wsconn.Message{Data: state})
+// socialDelivered turns one message of the social service's stream into
+// what the client sees. A new boot ID on Subscribed means the social
+// service restarted and every party is gone: each connected player gets
+// PartyState with no party and is registered again.
+func (g *Gateway) socialDelivered(m *socialv1.DeliverResponse) {
+	if sub := m.GetSubscribed(); sub != nil {
+		g.mu.Lock()
+		restarted := g.socialBoot != "" && g.socialBoot != sub.GetBootId()
+		g.socialBoot = sub.GetBootId()
+		active := make([]*session, 0, len(g.byCharacter))
+		for _, s := range g.byCharacter {
+			active = append(active, s)
 		}
+		g.mu.Unlock()
+		if restarted {
+			ctx, cancel := context.WithTimeout(context.Background(), joinTimeout)
+			defer cancel()
+			for _, s := range active {
+				g.send(s.conn, wsconn.Message{Data: protocol.PartyState{}})
+				g.online(ctx, s)
+			}
+		}
+		return
 	}
-}
-
-// Invited implements party.Notifier: the recipient gets PartyInvited.
-func (g *Gateway) Invited(to model.CharacterID, inv party.Invite) {
-	if t := g.sessionOf(to); t != nil {
-		g.send(t.conn, wsconn.Message{Data: protocol.PartyInvited{InviteID: inv.ID, From: inv.From.String(), FromName: inv.FromName}})
+	id, err := model.ParseCharacterID(m.GetCharacterId())
+	if err != nil {
+		return
+	}
+	t := g.sessionOf(id)
+	if t == nil {
+		return // gone from this gateway; the social service learns it from Offline
+	}
+	switch {
+	case m.GetPartyState() != nil:
+		g.send(t.conn, wsconn.Message{Data: protocol.PartyState{Party: partyView(m.GetPartyState().GetParty())}})
+	case m.GetPartyInvited() != nil:
+		inv := m.GetPartyInvited()
+		g.send(t.conn, wsconn.Message{Data: protocol.PartyInvited{InviteID: inv.GetInviteId(), From: inv.GetFromId(), FromName: inv.GetFromName()}})
+	case m.GetChatLine() != nil:
+		line := m.GetChatLine()
+		g.send(t.conn, wsconn.Message{Data: protocol.ChatMessage{Channel: protocol.ChatParty, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}})
 	}
 }
 
@@ -584,13 +634,13 @@ func (g *Gateway) refuse(s *session, command string, err error) protocol.Respons
 	return refusal(p)
 }
 
-func partyView(p *party.Party) *protocol.PartyView {
+func partyView(p *socialv1.Party) *protocol.PartyView {
 	if p == nil {
 		return nil
 	}
-	v := &protocol.PartyView{Leader: p.Leader.String(), Members: make([]protocol.PartyMember, 0, len(p.Members))}
-	for _, m := range p.Members {
-		v.Members = append(v.Members, protocol.PartyMember{CharacterID: m.ID.String(), Name: m.Name, Level: m.Level, HP: m.HP, MaxHP: m.MaxHP, MapID: m.MapID, Online: m.Online})
+	v := &protocol.PartyView{Leader: p.GetLeaderId(), Members: make([]protocol.PartyMember, 0, len(p.GetMembers()))}
+	for _, m := range p.GetMembers() {
+		v.Members = append(v.Members, protocol.PartyMember{CharacterID: m.GetId(), Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Online: m.GetOnline()})
 	}
 	return v
 }

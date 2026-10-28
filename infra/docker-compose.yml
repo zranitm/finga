@@ -14,6 +14,7 @@ x-finga-env: &finga-env
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
   FINGA_SERVICES_ACCOUNT_ADDR: account:9001
   FINGA_SERVICES_ITEM_ADDR: item:9003
+  FINGA_SERVICES_SOCIAL_ADDR: social:9005
 
 services:
   postgres:
@@ -75,6 +76,20 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  # The social service: gRPC on 9005, /healthz /readyz /metrics on 9105.
+  # Parties live in memory, so it needs no database and no migration.
+  social:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      args:
+        SERVICE: social
+        VERSION: ${VERSION:-dev}
+    environment: *finga-env
+    env_file:
+      - path: ../server/.env
+        required: false
+
   gameserver:
     build:
       context: ../server
@@ -96,6 +111,8 @@ services:
       account:
         condition: service_started
       item:
+        condition: service_started
+      social:
         condition: service_started
 
 volumes:

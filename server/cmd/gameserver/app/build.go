@@ -10,9 +10,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
+	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/application/character"
-	"finga/internal/application/chat"
-	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/config"
 	"finga/internal/gamedata"
@@ -67,10 +66,17 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		return nil, fmt.Errorf("account service: %w", err)
 	}
 	accounts := accountv1.NewAccountServiceClient(accountConn)
+	socialConn, err := grpcx.Dial(cfg.Services.Social.Addr)
+	if err != nil {
+		pool.Close()
+		_ = itemConn.Close()
+		_ = accountConn.Close()
+		return nil, fmt.Errorf("social service: %w", err)
+	}
+	social := socialv1.NewSocialServiceClient(socialConn)
 
 	characters := character.NewService(character.NewPostgres(pool), data, character.Options{Starter: starter{items}, Logger: opts.Logger})
-	parties := party.NewService(party.Options{})
-	chatSvc := chat.NewService(parties, chat.Options{})
+	parties := newPartyCopy(social, uuid.NewString(), opts.Logger)
 	maps := world.New(data, characters, opts.Logger, world.Options{
 		TickInterval:       cfg.World.TickInterval(),
 		CheckpointInterval: cfg.World.CheckpointInterval,
@@ -93,25 +99,24 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Watcher:     accounts,
 		Characters:  characters,
 		Items:       items,
-		Chat:        chatSvc,
-		Parties:     parties,
+		Social:      social,
 		World:       worldAdapter{maps},
 		Logger:      opts.Logger,
 		Observer:    metrics,
 		CORSOrigins: cfg.Server.CORSOrigins,
 	})
-	parties.Notify(gateway) // PartyState and invites go out through the gateway
 	s := New(Options{Config: cfg.Server, Logger: opts.Logger}, Deps{
 		API:     restAPI,
 		Gateway: gateway,
 		Metrics: observability.MetricsHandler(opts.Registry),
 		Tasks: []Task{
+			{Name: "parties", Run: parties.Run},
 			{Name: "world", Run: maps.Run},
 			{Name: "persistence", Run: func(ctx context.Context) error { maps.RunPersistence(ctx); return nil }},
 			{Name: "sessions", Run: gateway.Run},
 		},
 	})
-	s.closers = append(s.closers, pool.Close, func() { _ = itemConn.Close() }, func() { _ = accountConn.Close() })
+	s.closers = append(s.closers, pool.Close, func() { _ = itemConn.Close() }, func() { _ = accountConn.Close() }, func() { _ = socialConn.Close() })
 	opts.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "items", len(data.Items()), "mobs", len(data.Mobs()))
 	return s, nil
 }

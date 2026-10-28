@@ -239,3 +239,44 @@ func TestPlayTogether(t *testing.T) {
 		cat.partyState(t, 1)
 	})
 }
+
+// A social restart forgets every party (they live in memory, TD-19), but
+// keeps every socket: the gateway sees the new boot ID, tells each player
+// they have no party, and registers them again, so a new party can form.
+func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
+	s := newStack(t)
+	var ls []*looter
+	for _, n := range [][2]string{{"eve", "Eve"}, {"fin", "Fin"}} {
+		token, id := s.createCharacter(t, n[0], n[1], "warrior")
+		p, snap := s.join(t, token, id)
+		ls = append(ls, newLooter(p, snap))
+	}
+	eve, fin := ls[0], ls[1]
+	party := func(req string) {
+		t.Helper()
+		if r := eve.command(t, "inv-"+req, protocol.PartyInvite{CharacterID: fin.id}); !r.OK {
+			t.Fatalf("invite: %+v", r)
+		}
+		inv := take(t, fin, "PartyInvited", &fin.invites, 5*time.Second, nil)
+		if r := fin.command(t, "acc-"+req, protocol.PartyRespond{InviteID: inv.InviteID, Accept: true}); !r.OK {
+			t.Fatalf("accept: %+v", r)
+		}
+		for _, l := range ls {
+			l.partyState(t, 2)
+		}
+	}
+	party("1")
+
+	s.social.restart()
+	for _, l := range ls {
+		l.partyState(t, 0) // the parties are gone, and the players are told
+	}
+	if err := eve.trySend(wsconn.Message{Data: protocol.Ping{ClientTime: 1}}); err != nil {
+		t.Fatal(err)
+	}
+	if !eve.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {
+		t.Fatal("no Pong: the socket did not survive the restart")
+	}
+	time.Sleep(time.Second) // party commands are limited to 2 per second (page 4)
+	party("2")              // registered again on the new service: a party forms
+}
