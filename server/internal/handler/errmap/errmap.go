@@ -22,7 +22,7 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/world"
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
 )
@@ -64,10 +64,6 @@ var table = []struct {
 	err error
 	pub Public
 }{
-
-	{world.ErrPickupsUnavailable, Public{"pickups_unavailable", http.StatusServiceUnavailable, "pickups are not available"}},
-	{world.ErrPickupBusy, Public{"pickup_busy", http.StatusServiceUnavailable, "try again in a moment"}},
-
 	{model.ErrBadID, badID},
 	{model.ErrUnknownClass, unknownClass},
 }
@@ -122,6 +118,10 @@ var reasons = map[grpcx.Reason]Public{
 	grpcx.Key(socialv1.Reason_REASON_CHAT_RATE_LIMITED):      {"chat_rate_limited", http.StatusTooManyRequests, "slow down"},
 	grpcx.Key(socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE): {"party_chat_unavailable", http.StatusServiceUnavailable, "party chat is not available"},
 	grpcx.Key(socialv1.Reason_REASON_BAD_ID):                 badID,
+
+	grpcx.Key(worldv1.Reason_REASON_PICKUPS_UNAVAILABLE): {"pickups_unavailable", http.StatusServiceUnavailable, "pickups are not available"},
+	grpcx.Key(worldv1.Reason_REASON_PICKUP_BUSY):         {"pickup_busy", http.StatusServiceUnavailable, "try again in a moment"},
+	grpcx.Key(worldv1.Reason_REASON_BAD_ID):              badID,
 }
 
 // The two shared by the gateway's own parsing and the services'.
@@ -130,11 +130,22 @@ var (
 	unknownClass = Public{"unknown_class", http.StatusBadRequest, "unknown class"}
 )
 
-// internalOnly are service errors that never reach a client as a refusal:
-// the gateway closes the connection and logs them (a join into a full or
-// stopped instance, a character on a map that does not exist). Listing them
-// here keeps every exported error accounted for; For answers them Internal.
-var internalOnly = []error{world.ErrBusy, world.ErrNoMap, world.ErrStopped, world.ErrClassUnavailable}
+// internalOnly are reasons that never reach a client as a refusal: the
+// gateway closes the connection and logs them (a join into a full or
+// stopped instance, a character on a map or of a class the world does not
+// have, a join before the gateway's delivery stream is open). For answers
+// them Internal; listing them keeps every reason accounted for.
+var internalOnly = map[grpcx.Reason]bool{
+	grpcx.Key(worldv1.Reason_REASON_BUSY):              true,
+	grpcx.Key(worldv1.Reason_REASON_NO_MAP):            true,
+	grpcx.Key(worldv1.Reason_REASON_STOPPED):           true,
+	grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED):    true,
+	grpcx.Key(worldv1.Reason_REASON_CLASS_UNAVAILABLE): true,
+}
+
+// IsInternalOnly reports whether r is a reason the gateway handles itself
+// and never shows a client.
+func IsInternalOnly(r grpcx.Reason) bool { return internalOnly[r] }
 
 // For is the Public form of err: the row of the first table error found in
 // err's chain, or the row of the reason a remote failure carries; Internal
@@ -143,11 +154,6 @@ var internalOnly = []error{world.ErrBusy, world.ErrNoMap, world.ErrStopped, worl
 func For(err error) Public {
 	if err == nil {
 		return Public{}
-	}
-	for _, e := range internalOnly {
-		if errors.Is(err, e) {
-			return Internal
-		}
 	}
 	for _, row := range table {
 		if errors.Is(err, row.err) {

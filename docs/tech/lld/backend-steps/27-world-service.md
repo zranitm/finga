@@ -4,7 +4,7 @@
 - **Features:** B1, B2, B3, C1 to C4, D1
 - **Milestone:** Services
 - **Order:** 27
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 27. World service
 
 **Goal:** the map instances run as their own service. The gateway joins players through the world, receives their events on a delivery stream, and when the world restarts it keeps every socket open and rejoins its players.
@@ -42,7 +42,7 @@
 
 ## Done when
 
-- [ ] `make up`, `make smoke`, `make bots` (a short run), `make test`, `make lint`, `make cover` green.
+- [x] `make up`, `make smoke`, `make bots` (a short run), `make test`, `make lint`, `make cover` green.
 
 ## Review focus
 

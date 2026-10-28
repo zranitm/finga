@@ -7,9 +7,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/services/world/internal/world"
 )
 
 func portalNamed(t *testing.T, m *gamedata.Map, name string) gamedata.Portal {

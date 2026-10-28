@@ -6,12 +6,12 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/application/combat"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/tick"
+	"finga/services/world/internal/combat"
 )
 
 // Defaults for Options.
@@ -43,6 +43,8 @@ type Options struct {
 	Items              Pickups       // the item module; nil: pickups are unavailable
 	Workers            *Workers      // the economy worker pool; nil: pickups are unavailable
 	Parties            Parties       // the party service; nil: nobody has a party
+	Characters         Characters    // loads characters for World.Join
+	Starter            Starter       // grants starter items on World.Join; nil grants nothing
 	SaveRetryFor       time.Duration // how long a failing save is retried; a minute by default (World only)
 }
 
@@ -98,14 +100,15 @@ type Instance struct {
 
 // message is one inbox item.
 type message struct {
-	join   *joinMsg
-	leave  model.CharacterID
-	input  *inputMsg
-	attack model.CharacterID
-	pickup *pickupResult
-	pick   model.CharacterID
-	portal model.CharacterID // EnterPortal
-	chat   *chatMsg
+	join      *joinMsg
+	leave     model.CharacterID
+	leaveConn string // the connection the Leave came from; empty: any
+	input     *inputMsg
+	attack    model.CharacterID
+	pickup    *pickupResult
+	pick      model.CharacterID
+	portal    model.CharacterID // EnterPortal
+	chat      *chatMsg
 }
 
 type joinMsg struct {
@@ -208,6 +211,13 @@ func (i *Instance) Leave(id model.CharacterID) bool {
 	return i.post(message{leave: id})
 }
 
+// LeaveConnection removes a player only if it joined through conn, so a
+// Leave from an older connection, arriving after a newer one joined the same
+// character, removes nothing.
+func (i *Instance) LeaveConnection(id model.CharacterID, conn string) bool {
+	return i.post(message{leave: id, leaveConn: conn})
+}
+
 // Input queues held keys with their sequence number. It never blocks: a
 // full inbox drops the input, and the client's next one supersedes it.
 func (i *Instance) Input(id model.CharacterID, seq uint32, in sim.Input) bool {
@@ -302,6 +312,9 @@ func (i *Instance) drain() []model.CharacterID {
 				i.events = append(i.events, Chat{Tick: i.tick, Sender: m.chat.from, SenderName: m.chat.name, Text: m.chat.text})
 			}
 		case !m.leave.IsZero():
+			if p, ok := i.players[m.leave]; ok && m.leaveConn != "" && p.Connection != m.leaveConn {
+				continue // a newer connection holds the character now
+			}
 			if i.remove(m.leave) {
 				removed = append(removed, m.leave)
 			}

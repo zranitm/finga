@@ -21,7 +21,7 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/world"
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
@@ -57,8 +57,8 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), http.StatusConflict, "not_party_leader"},
 		{grpcx.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), http.StatusNotFound, "invite_expired"},
 		{model.ErrBadID, http.StatusBadRequest, "bad_id"},
-		{world.ErrPickupsUnavailable, http.StatusServiceUnavailable, "pickups_unavailable"},
-		{world.ErrPickupBusy, http.StatusServiceUnavailable, "pickup_busy"},
+		{grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), http.StatusServiceUnavailable, "pickups_unavailable"},
+		{grpcx.Error(codes.ResourceExhausted, worldv1.Reason_REASON_PICKUP_BUSY), http.StatusServiceUnavailable, "pickup_busy"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.code, func(t *testing.T) {
@@ -123,36 +123,31 @@ var contracts = []protoreflect.EnumDescriptor{
 	characterv1.Reason(0).Descriptor(),
 	itemv1.Reason(0).Descriptor(),
 	socialv1.Reason(0).Descriptor(),
+	worldv1.Reason(0).Descriptor(),
 }
 
+// TestEveryReasonIsMapped: every reason has a row, or is one the gateway
+// handles itself, which For answers Internal.
 func TestEveryReasonIsMapped(t *testing.T) {
 	for _, d := range contracts {
 		for _, r := range grpcx.Reasons(d) {
-			if errmap.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r))) {
-				t.Errorf("%s has no row", r)
+			internal := errmap.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r)))
+			if internal != errmap.IsInternalOnly(r) {
+				t.Errorf("%s: internal %v, listed as internal only %v", r, internal, errmap.IsInternalOnly(r))
 			}
 		}
 	}
 }
 
-// TestEveryServiceErrorIsMapped reads the source of every application module
-// still inside the game server, and of model: an exported Err variable the
-// table leaves out would reach a player as "something went wrong" with code
-// internal. The modules of extracted services are checked by their own
-// handler's guard and TestEveryReasonIsMapped.
+// TestEveryServiceErrorIsMapped reads the source of model, whose errors the
+// gateway's own parsing raises: an exported Err variable the table leaves
+// out would reach a player as "something went wrong" with code internal.
+// Every module runs in a service now; each is checked by its own handler's
+// guard and TestEveryReasonIsMapped.
 func TestEveryServiceErrorIsMapped(t *testing.T) {
-	for _, root := range []string{filepath.Join("..", "..", "application"), filepath.Join("..", "..", "model")} {
-		found, err := sentinels.Declared(root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(found) == 0 {
-			t.Fatalf("no errors under %s; is the walk broken?", root)
-		}
-	}
-	declared, err := sentinels.Declared(filepath.Join("..", "..", "application"), filepath.Join("..", "..", "model"))
-	if err != nil {
-		t.Fatal(err)
+	declared, err := sentinels.Declared(filepath.Join("..", "..", "model"))
+	if err != nil || len(declared) == 0 {
+		t.Fatalf("declared %v, err %v: is the walk broken?", declared, err)
 	}
 	mapped, err := sentinels.Referenced("errmap.go")
 	if err != nil {

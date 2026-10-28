@@ -7,8 +7,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/world"
 	"finga/internal/model"
+	"finga/services/world/internal/world"
 )
 
 // fakeParties is a party roster the instance asks about.

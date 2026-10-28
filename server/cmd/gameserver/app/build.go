@@ -13,9 +13,8 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/world"
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/config"
-	"finga/internal/gamedata"
 	"finga/internal/handler/api"
 	"finga/internal/handler/ws"
 	"finga/internal/telemetry"
@@ -30,18 +29,13 @@ type BuildOptions struct {
 	Registry *prometheus.Registry
 }
 
-// Build wires the game server as production runs it: game data, a client
-// for each extracted service (page 10: account, character, item and social
-// so far), the world with its adapters over them, the REST handler and the
-// gateway, metrics, and the server. It needs no database: every table
-// belongs to a service. It fails fast on bad data; a service it dials is
-// reached lazily, and a call fails while it is down.
+// Build wires the game server as production runs it: a client for each
+// service (page 10), the REST handler and the gateway, metrics, and the
+// server. It needs no database and no game data: every table belongs to a
+// service, and the world runs the maps. A service it dials is reached
+// lazily, and a call fails while it is down.
 func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	cfg := opts.Config
-	data, err := gamedata.Load(cfg.World.DataDir)
-	if err != nil {
-		return nil, err
-	}
 	metrics, err := telemetry.NewMetrics(opts.Registry)
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
@@ -50,20 +44,8 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	items := itemv1.NewItemServiceClient(conns.item)
 	accounts := accountv1.NewAccountServiceClient(conns.account)
-	social := socialv1.NewSocialServiceClient(conns.social)
 	characters := characterv1.NewCharacterServiceClient(conns.character)
-
-	parties := newPartyCopy(social, uuid.NewString(), opts.Logger)
-	maps := world.New(data, saver{characters}, opts.Logger, world.Options{
-		TickInterval:       cfg.World.TickInterval(),
-		CheckpointInterval: cfg.World.CheckpointInterval,
-		Observer:           metrics,
-		Items:              pickups{items},
-		Workers:            world.NewWorkers(cfg.Economy.Workers, metrics),
-		Parties:            parties,
-	})
 
 	restAPI := api.NewHandler(api.Dependencies{
 		Accounts:    accounts,
@@ -76,10 +58,9 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		ID:          uuid.NewString(),
 		Sessions:    guard{accounts},
 		Watcher:     accounts,
-		Characters:  characters,
-		Items:       items,
-		Social:      social,
-		World:       worldAdapter{maps},
+		World:       worldv1.NewWorldServiceClient(conns.world),
+		Items:       itemv1.NewItemServiceClient(conns.item),
+		Social:      socialv1.NewSocialServiceClient(conns.social),
 		Logger:      opts.Logger,
 		Observer:    metrics,
 		CORSOrigins: cfg.Server.CORSOrigins,
@@ -88,29 +69,16 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		API:     restAPI,
 		Gateway: gateway,
 		Metrics: observability.MetricsHandler(opts.Registry),
-		Tasks: []Task{
-			{Name: "parties", Run: parties.Run},
-			{Name: "world", Run: maps.Run},
-			{Name: "persistence", Run: func(ctx context.Context) error { maps.RunPersistence(ctx); return nil }},
-			{Name: "sessions", Run: gateway.Run},
-		},
+		Tasks:   []Task{{Name: "streams", Run: gateway.Run}},
 	})
 	s.closers = append(s.closers, conns.close)
-	opts.Logger.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "items", len(data.Items()), "mobs", len(data.Mobs()))
+	opts.Logger.InfoContext(ctx, "built")
 	return s, nil
 }
 
-// worldAdapter narrows *world.World to the gateway's World interface.
-type worldAdapter struct{ w *world.World }
-
-// Instance finds a map actor as a gateway MapInstance.
-func (a worldAdapter) Instance(mapID string) (ws.MapInstance, error) {
-	return a.w.Instance(mapID)
-}
-
-// conns are the game server's connections to the extracted services.
+// conns are the game server's connections to the services.
 type conns struct {
-	account, character, item, social *grpc.ClientConn
+	account, character, item, world, social *grpc.ClientConn
 }
 
 // dialAll makes a connection to each service; nothing connects until the
@@ -125,6 +93,7 @@ func dialAll(s config.Services) (conns, error) {
 		{"account", s.Account.Addr, &c.account},
 		{"character", s.Character.Addr, &c.character},
 		{"item", s.Item.Addr, &c.item},
+		{"world", s.World.Addr, &c.world},
 		{"social", s.Social.Addr, &c.social},
 	} {
 		conn, err := grpcx.Dial(d.addr)
@@ -138,7 +107,7 @@ func dialAll(s config.Services) (conns, error) {
 }
 
 func (c conns) close() {
-	for _, conn := range []*grpc.ClientConn{c.account, c.character, c.item, c.social} {
+	for _, conn := range []*grpc.ClientConn{c.account, c.character, c.item, c.world, c.social} {
 		if conn != nil {
 			_ = conn.Close()
 		}

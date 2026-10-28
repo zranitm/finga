@@ -30,7 +30,7 @@ vectors, the error codes). The root `Makefile` drives all three parts.
 ## Build and run
 
 ```bash
-make up      # build the images, start Postgres, run the migrations, start the game server on :8080
+make up      # build the images, start Postgres, run the migrations, start the services and the game server on :8080
 make smoke   # a client signs up, enters the world and moves, against the running stack
 make down    # stop everything and drop the database volume
 ```
@@ -100,7 +100,7 @@ make test    # every test, with the race detector
 make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
 make smoke   # the packaging check, against a running stack
-make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed
+make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed (read from the world service's ops port, 9104)
 make play    # the proof session with people: the server plus the client preview build on the LAN (:4173)
 ```
 
@@ -113,10 +113,12 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
   fight replays exactly;
 - end-to-end rows per Stage 1 feature in `server/test/`, each named after
   its feature, against the server built the way production builds it;
-- the crash test (`TestCrashDuringPickups`): the item service and
+- the crash test (`TestCrashDuringPickups`): every service and
   `server/cmd/gameserver` built and run as their own processes, three test
-  clients looting concurrently, both processes killed without warning,
-  restarted, and the item invariants checked. CI runs it with `make test`.
+  clients looting concurrently, the world and item services killed without
+  warning while the game server keeps the sockets, both restarted, every
+  client joined again, and the item invariants checked. CI runs it with
+  `make test`.
 
 ## Architecture at a glance
 
@@ -126,8 +128,8 @@ One Go module in `server/`, laid out so that imports only point one way
 `internal/progression`) → `pkg`.
 
 - **`cmd/gameserver/app`** is the game server's composition root: `Build`
-  wires every module from configuration, and `Server` listens, runs the
-  background tasks and shuts down gracefully. Each binary wires its own
+  dials every service and wires the REST handler and the gateway, and
+  `Server` listens, runs the background tasks and shuts down gracefully. Each binary wires its own
   dependencies next to its main; this one is a package of its own so the
   end-to-end tests can build the server exactly as production does.
 - **`internal/handler/router.go`** is the route table: REST under `/api`,
@@ -137,8 +139,11 @@ One Go module in `server/`, laid out so that imports only point one way
   settings; contract in `server/api/openapi.yaml`, checked for drift by a test).
 - **`internal/handler/ws`** is the WebSocket gateway: the Hello handshake, one
   connection per account, token rotation, per-account rate limits, and routing
-  of every message to the character's map instance with the identity taken
-  from the connection, never from the message. The message catalogue is
+  of every message to the service that owns it with the identity taken from
+  the connection, never from the message. Players join through the world
+  service, whose events arrive on one delivery stream per gateway; when the
+  world restarts, every socket stays open and each player is joined again.
+  The message catalogue is
   `internal/protocol`, with golden files in `server/testdata/contracts/` and
   `server/api/asyncapi.yaml`.
 - **`internal/handler/errmap`** turns the errors services return, plain
@@ -146,12 +151,6 @@ One Go module in `server/`, laid out so that imports only point one way
   client sees: an HTTP status, a code of its own (`party_full`) and the
   player message. An error it does not know answers `internal` and is
   logged with its cause.
-- **`internal/application/world`** runs one actor per map at 20 Hz: inputs
-  applied in sequence order, movement in fixed sub-steps shared with the
-  client as test vectors, mobs, combat, EXP, drops, portals, and a delta to
-  every player each tick. A tick never waits on the database: pickups go to
-  the economy worker pool, which calls the item service with the drop's ID as
-  the idempotency key, and the result comes back as an inbox message.
 - **`services/item`** is the first service in its own process (Low-level
   design, page 10): the item module in `internal/item`, its gRPC handler,
   its migrations, and the invariant checks in `invariants`. Items are
@@ -171,6 +170,14 @@ One Go module in `server/`, laid out so that imports only point one way
   saves checkpoints and level-ups to it. A new character's starter items
   are granted through the item service after the character commits.
   With it, the game server needs no database of its own.
+- **`services/world`** runs one actor per map at 20 Hz: inputs applied in
+  sequence order, movement in fixed sub-steps shared with the client as test
+  vectors, mobs, combat, EXP, drops, portals, and a delta to every player
+  each tick. A tick never waits on another service: pickups go to the
+  economy worker pool, which calls the item service with the drop's ID as
+  the idempotency key, and the result comes back as an inbox message;
+  checkpoints go to the character service from the persistence worker; party
+  membership is a local copy fed by the social service.
 - **`pkg/`** holds the generic parts: config loading, the transaction
   helper with retries, idempotency keys, the outbox, token
   buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps,

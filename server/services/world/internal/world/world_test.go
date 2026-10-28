@@ -9,9 +9,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/world"
 	"finga/internal/model"
 	"finga/internal/sim"
+	"finga/services/world/internal/world"
 )
 
 // errRefused is a save the character service refuses by rule: never retried.

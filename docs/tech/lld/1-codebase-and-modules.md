@@ -12,8 +12,8 @@ server/                 the Go module: everything the server builds, reads and p
     proto/internal/     the internal gRPC contracts, one package per service: internal/<service>/v1 (page 10)
     gen/                their generated Go code, api/gen/<service>/v1, committed; make gen regenerates it
   cmd/                  one binary per job; each wires its own dependencies next to its main
-    gameserver/         REST, WebSocket, map instances, background jobs
-      app/              its composition root: Build wires every module; Server listens, runs the tasks, shuts down
+    gameserver/         REST and the WebSocket gateway over the services (step 28 makes it services/gateway)
+      app/              its composition root: Build dials every service and wires the handlers; Server listens, runs the tasks, shuts down
     migrate/            applies every service's goose migrations, then exits
       app/              the sets in order and the guard against a database migrated before the split; the end-to-end tests use it
     auditor/            Stage 2: checks the invariants continuously, as a Kafka consumer
@@ -23,9 +23,7 @@ server/                 the Go module: everything the server builds, reads and p
     config.yaml         committed defaults; config.local.yaml is git-ignored
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
-    application/        business logic: the game's rules, one package per module
-      world/  combat/                  the modules still in the game server (page 10 moves them to the world service)
-      economy/  market/  audit/        Stage 2
+    application/        Stage 2's modules until each joins a service (economy/  market/  audit/); every Stage 1 module lives in its service
     handler/
       api/              REST handlers, DTOs, middleware
       ws/               the gateway: WebSocket sessions, routing, fan-out
@@ -49,6 +47,7 @@ server/                 the Go module: everything the server builds, reads and p
     account/            the same shape: cmd/account, internal/account, internal/handler (AccountService and WatchSessions), migrations/
     social/             party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
     character/          the same shape as item, and internal/clients/ for the item service (starter items)
+    world/              internal/world/ and internal/combat/ (the map instances and the hit rules), internal/clients/ (character, item, the party copy), its handler (WorldService, Deliver); no database
   pkg/                  generic libraries with no game knowledge
   test/                 end-to-end tests: one row per acceptance criterion
   testdata/             the contracts the client's tests check too
@@ -147,7 +146,7 @@ Every request passes through three layers, and each has one job. Nothing skips a
 - **Database errors change shape once, at the module's boundary.** Repository methods return them as they are. The module's `classify` runs where its work hands a result back (`InTx`, plain reads, and work joined to another module's transaction) and turns them into the module's errors: `pgx.ErrNoRows` into `ErrNotFound`, a constraint violation into its domain error. Module errors are plain sentinel errors named for the failure (`ErrNotFound`, `ErrSlotTaken`, `ErrInventoryFull`), declared in `api.go`; `classify` wraps the database error behind one with `%w` for the logs, and the service returns them directly for rule violations. They carry no code and no player text: the handlers map each one to an HTTP status, a code of its own (`item_not_found`, `slot_taken`, `inventory_full`) and the player message through `internal/handler/errmap` (see Protocol, Error codes). No error's text ever reaches a client.
 - **classify matches constraints by name and leaves the rest alone.** By name, so a unique violation from the items table, raised inside character creation's transaction, never becomes `ErrNameTaken`. Unknown errors pass through unchanged: retries still see `40001` and `40P01`, and the handler reports the rest as `internal`.
 - **A rule that branches on absence gets a boolean.** For "add to the stack if there is one, otherwise insert", the repository method returns `(Stack, bool, error)`, so the service never checks a database error.
-- **Real-time code is application code too.** Map instances live in `internal/application/world`. They reach the database only through services, from worker goroutines, never inside a tick.
+- **Real-time code is application code too.** Map instances live in the world service's module (`services/world/internal/world`). They reach the database only through services, from worker goroutines, never inside a tick.
 - **sqlc's generated code is private.** It generates into `internal/application/<module>/internal/db`, which Go lets only that module import.
 
 **One use case through the three layers: discarding an item**
@@ -260,8 +259,8 @@ Every module below lives in `internal/application/`, except the two handlers. Th
 | --- | --- | --- |
 | `account` (the account service, `services/account`) | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
 | `character` (the character service, `services/character`) | Characters, stats, levels, EXP | gamedata, progression, the item service (starter items) |
-| `world` | Map instances, movement, mobs, ground drops, portals | character, combat, the item service (through a `Pickups` adapter), economy, gamedata, sim, progression, `pkg/tick` |
-| `combat` | Hit and damage resolution, EXP awards; pure functions | gamedata |
+| `world` (the world service, `services/world`) | Map instances, movement, mobs, ground drops, portals | combat, the character service (load, checkpoints, level-ups), the item service (pickups, starter items), the social service (a party copy), gamedata, sim, progression, `pkg/tick` |
+| `combat` (in the world service) | Hit and damage resolution, EXP awards; pure functions | gamedata |
 | `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
 | `economy` (Stage 2) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
 | `market` (Stage 2) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
@@ -466,7 +465,7 @@ services:            # the internal services (page 10): gRPC listener, where cal
 
 Carried over from docviewer:
 
-- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc, and `buf generate` for the gRPC code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed).
+- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations, then the services and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc, and `buf generate` for the gRPC code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed, read from the world's ops address).
 - **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys.
 - **Tests:** table-driven, with named cases. No test logic in production code: tests use the seams production already has (interfaces, constructors, `httptest`) and `testing/synctest` for time.
 - **`docs/ai-coding-log.md`:** one row per implementation step: what was produced, how it was verified, what changed, mistakes caught, and the commit.

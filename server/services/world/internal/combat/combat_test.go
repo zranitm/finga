@@ -4,7 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"finga/internal/application/combat"
+	"finga/services/world/internal/combat"
 )
 
 // rolls hands out a fixed sequence, then repeats the last value.

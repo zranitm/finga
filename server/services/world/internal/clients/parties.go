@@ -1,4 +1,4 @@
-package app
+package clients
 
 import (
 	"context"
@@ -22,11 +22,11 @@ const partyUpdateQueue = 1024
 // updateTimeout bounds one UpdateMember call from the worker.
 const updateTimeout = 5 * time.Second
 
-// partyCopy is the world's Parties over the social service (page 10, rule
+// PartyCopy is the world's Parties over the social service (page 10, rule
 // 2: the tick never waits on another service). The tick reads a local copy
 // of party membership, fed by WatchParties and cleared when that stream
 // breaks; member updates go to a bounded queue a worker sends from.
-type partyCopy struct {
+type PartyCopy struct {
 	c       socialv1.SocialServiceClient
 	worldID string
 	log     *slog.Logger
@@ -36,26 +36,27 @@ type partyCopy struct {
 	table map[model.CharacterID][]model.CharacterID
 }
 
-func newPartyCopy(c socialv1.SocialServiceClient, worldID string, log *slog.Logger) *partyCopy {
-	return &partyCopy{c: c, worldID: worldID, log: log, updates: make(chan *socialv1.UpdateMemberRequest, partyUpdateQueue), table: map[model.CharacterID][]model.CharacterID{}}
+// NewPartyCopy adapts the social client; Run feeds the copy.
+func NewPartyCopy(c socialv1.SocialServiceClient, worldID string, log *slog.Logger) *PartyCopy {
+	return &PartyCopy{c: c, worldID: worldID, log: log, updates: make(chan *socialv1.UpdateMemberRequest, partyUpdateQueue), table: map[model.CharacterID][]model.CharacterID{}}
 }
 
 // Members lists the IDs of a character's party, nil without one.
-func (p *partyCopy) Members(id model.CharacterID) []model.CharacterID {
+func (p *PartyCopy) Members(id model.CharacterID) []model.CharacterID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Clone(p.table[id])
 }
 
 // SameParty reports whether two characters share a party.
-func (p *partyCopy) SameParty(a, b model.CharacterID) bool {
+func (p *PartyCopy) SameParty(a, b model.CharacterID) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Contains(p.table[a], b)
 }
 
 // Update queues what the world saw of a member; it never blocks.
-func (p *partyCopy) Update(id model.CharacterID, mapID string, level, hp, maxHP int) {
+func (p *PartyCopy) Update(id model.CharacterID, mapID string, level, hp, maxHP int) {
 	select {
 	case p.updates <- &socialv1.UpdateMemberRequest{CharacterId: id.String(), MapId: mapID, Level: int32(level), Hp: int32(hp), MaxHp: int32(maxHP)}:
 	default:
@@ -63,7 +64,7 @@ func (p *partyCopy) Update(id model.CharacterID, mapID string, level, hp, maxHP 
 }
 
 // Run follows WatchParties and sends the queued updates until ctx ends.
-func (p *partyCopy) Run(ctx context.Context) error {
+func (p *PartyCopy) Run(ctx context.Context) error {
 	go p.sendUpdates(ctx)
 	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.WatchPartiesResponse], error) {
 		return p.c.WatchParties(ctx, &socialv1.WatchPartiesRequest{WorldId: p.worldID})
@@ -74,7 +75,7 @@ func (p *partyCopy) Run(ctx context.Context) error {
 	return nil
 }
 
-func (p *partyCopy) apply(m *socialv1.WatchPartiesResponse) {
+func (p *PartyCopy) apply(m *socialv1.WatchPartiesResponse) {
 	if m.GetSubscribed() != nil {
 		p.clear() // the memberships that follow are the whole table
 		return
@@ -101,13 +102,13 @@ func (p *partyCopy) apply(m *socialv1.WatchPartiesResponse) {
 	}
 }
 
-func (p *partyCopy) clear() {
+func (p *PartyCopy) clear() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	clear(p.table)
 }
 
-func (p *partyCopy) sendUpdates(ctx context.Context) {
+func (p *PartyCopy) sendUpdates(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():

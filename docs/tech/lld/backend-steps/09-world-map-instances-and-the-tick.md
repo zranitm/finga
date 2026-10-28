@@ -9,6 +9,8 @@
 
 > **Changed by step 26 (2026-10-28):** checkpoints and level-ups go to the character service, with the world's own `Checkpoint` and `LevelUpSave` types; the persistence worker retries a transient failure, in order, for up to a minute.
 
+> **Changed by step 27 (2026-10-28):** the world runs as its own service (`services/world`). It joins a character by ID (loading it from the character service and granting its starter items first), and a presence remembers the gateway connection it joined through, so a `Leave` from another connection removes nothing.
+
 **Goal:** maps that tick at 20 Hz, accept players, simulate their movement, and send each player what changed.
 
 **Layer in this step:** application only. The world has no repository: it reaches the database only through other modules' services, from worker goroutines.

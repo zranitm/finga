@@ -1,11 +1,12 @@
 // Command bot drives test players against a running game server for the
 // proof session (step 17): each bot signs up, enters the world, walks from
 // the town to the forest, hunts, loots, chats, parties up with the others,
-// and goes back to the town now and then. At the end it reads /metrics and
+// and goes back to the town now and then. At the end it reads the world
+// service's /metrics (its ops address, -metrics) and the game server's, and
 // prints what happened, including the tick p99, so a session can be put in
 // the evidence log.
 //
-//	go run ./cmd/bot -url http://localhost:8080 -bots 4 -duration 30m
+//	go run ./cmd/bot -url http://localhost:8080 -metrics http://localhost:9104 -bots 4 -duration 30m
 package main
 
 import (
@@ -37,14 +38,15 @@ func main() {
 	n := flag.Int("bots", 4, "how many bots")
 	duration := flag.Duration("duration", 30*time.Minute, "how long they play")
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
+	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick metrics are")
 	flag.Parse()
-	if err := run(*url, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *n, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url string, n int, duration time.Duration, prefix string) error {
+func run(url, metrics string, n int, duration time.Duration, prefix string) error {
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -72,7 +74,7 @@ func run(url string, n int, duration time.Duration, prefix string) error {
 	}
 	fmt.Printf("%-14s kills %3d  pickups %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
 		"total", total.kills, total.pickups, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
-	return report(url)
+	return report(metrics, url)
 }
 
 // stats is what one bot saw.
@@ -467,17 +469,27 @@ func (b *bot) nearestDrop() (protocol.DropView, bool) {
 	return best, bestDist < math.Inf(1)
 }
 
-// report reads /metrics and prints the tick histogram's percentiles per
-// map and overall, the overruns, and the players online.
-func report(url string) error {
-	res, err := http.Get(url + "/metrics")
+// scrape reads one /metrics page.
+func scrape(url string) ([]byte, error) {
+	res, err := http.Get(url) //nolint:gosec // the operator names the address
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
-	raw, err := io.ReadAll(res.Body)
-	if err != nil {
-		return err
+	return io.ReadAll(res.Body)
+}
+
+// report reads /metrics from each address (the world's ticks, the game
+// server's players) and prints the tick histogram's percentiles per map and
+// overall, the overruns, and the players online.
+func report(urls ...string) error {
+	var raw []byte
+	for _, url := range urls {
+		body, err := scrape(url + "/metrics")
+		if err != nil {
+			return err
+		}
+		raw = append(append(raw, body...), '\n')
 	}
 	type hist struct {
 		buckets map[float64]float64 // le → cumulative count
@@ -485,6 +497,7 @@ func report(url string) error {
 	}
 	byMap := map[string]*hist{}
 	overruns := map[string]float64{}
+	online := ""
 	for _, line := range strings.Split(string(raw), "\n") {
 		switch {
 		case strings.HasPrefix(line, "tick_duration_seconds_bucket"):
@@ -505,8 +518,11 @@ func report(url string) error {
 			labels, value := parseLine(line)
 			overruns[labels["map"]] = value
 		case strings.HasPrefix(line, "players_online "):
-			fmt.Printf("players_online %s\n", strings.TrimSpace(strings.TrimPrefix(line, "players_online")))
+			online = strings.TrimSpace(strings.TrimPrefix(line, "players_online")) // the last page's: the game server's
 		}
+	}
+	if online != "" {
+		fmt.Printf("players_online %s\n", online)
 	}
 	all := &hist{buckets: map[float64]float64{}}
 	names := make([]string, 0, len(byMap))

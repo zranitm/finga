@@ -4,11 +4,11 @@ import (
 	"math"
 	"slices"
 
-	"finga/internal/application/combat"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/progression"
 	"finga/internal/sim"
+	"finga/services/world/internal/combat"
 )
 
 // mob is one live mob: its type, HP, position, and patrol state. Mobs

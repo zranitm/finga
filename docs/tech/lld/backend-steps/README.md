@@ -29,5 +29,5 @@
 | [24. Account service](./24-account-service.md) | 22 | A1 | Services | 24 | Done |
 | [25. Social service](./25-social-service.md) | 22 | E1, E3 | Services | 25 | Done |
 | [26. Character service](./26-character-service.md) | 23 | A2, C4 | Services | 26 | Done |
-| [27. World service](./27-world-service.md) | 23, 25, 26 | B1, B2, B3, C1 to C4, D1 | Services | 27 | Ready for review |
+| [27. World service](./27-world-service.md) | 23, 25, 26 | B1, B2, B3, C1 to C4, D1 | Services | 27 | Done |
 | [28. Gateway service](./28-gateway-service.md) | 24, 27 | A1, B2 | Services | 28 | Ready for review |

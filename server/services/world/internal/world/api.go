@@ -42,6 +42,57 @@ type Player struct {
 	HP      int
 	MP      int
 	X, Y    float64 // where to appear: feet centre
+	// Connection is the gateway connection the player joined through; a
+	// Leave naming another connection leaves the player on the map.
+	Connection string
+}
+
+// Character is a character as the world loads it to join: the state the
+// character service saved last.
+type Character struct {
+	ID      model.CharacterID
+	Account model.AccountID
+	Name    string
+	Class   model.Class
+	Level   int
+	Exp     int64
+	Stats   gamedata.Stats
+	HP      int
+	MP      int
+	MapID   string
+	X, Y    float64
+}
+
+// Characters loads a character for a join; an adapter over the character
+// service implements it. A character that is not the account's fails the
+// way the character service says (not found).
+type Characters interface {
+	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error)
+}
+
+// Starter grants a character its starter items once; an adapter over the
+// item service implements it. The world calls it on every join as the
+// safety net for a character created while the grant could not reach the
+// item service (page 10).
+type Starter interface {
+	GrantStarter(ctx context.Context, account model.AccountID, id model.CharacterID, class model.Class) error
+}
+
+// View is the character as the player sees it once joined: Welcome's
+// character, with the maximums derived from class, stats and level.
+type View struct {
+	ID    model.CharacterID
+	Name  string
+	Class model.Class
+	Level int
+	Exp   int64
+	Stats gamedata.Stats
+	HP    int
+	MaxHP int
+	MP    int
+	MaxMP int
+	MapID string
+	X, Y  float64
 }
 
 // PlayerView is a player as everyone on the map sees it.

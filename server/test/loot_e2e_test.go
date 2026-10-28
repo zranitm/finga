@@ -534,7 +534,7 @@ func TestLootAndKeep(t *testing.T) {
 
 func TestCrashDuringPickups(t *testing.T) {
 	if testing.Short() {
-		t.Skip("builds and runs the item service and the game server")
+		t.Skip("builds and runs the services and the game server")
 	}
 	bins := buildBinaries(t)
 	dbURL := cluster.URL(t)
@@ -542,7 +542,11 @@ func TestCrashDuringPickups(t *testing.T) {
 	accountProc := startServiceProcess(t, "account", bins["account"], dbURL)
 	socialProc := startServiceProcess(t, "social", bins["social"], dbURL)
 	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc)
-	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), map[string]*process{"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc})
+	worldProc := startServiceProcess(t, "world", bins["world"], dbURL,
+		"FINGA_SERVICES_CHARACTER_ADDR="+characterProc.grpc, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc, "FINGA_SERVICES_SOCIAL_ADDR="+socialProc.grpc)
+	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), map[string]*process{
+		"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc, "world": worldProc,
+	})
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		t.Fatal(err)
@@ -566,25 +570,28 @@ func TestCrashDuringPickups(t *testing.T) {
 		wg.Add(1)
 		go func() { defer wg.Done(); picked[k] = h.loot(25 * time.Second) }()
 	}
-	// Hard kill in the middle of it, while pickups are in flight: the game
-	// server (the world's workers mid-call) and the item service (its
-	// transactions mid-commit), one right after the other.
+	// Hard kill in the middle of it, while pickups are in flight: the world
+	// (its workers mid-call) and the item service (its transactions
+	// mid-commit), one right after the other. The game server stays up.
 	time.Sleep(12 * time.Second)
-	proc.kill()
+	worldProc.kill()
 	itemProc.kill()
 	wg.Wait()
+	t.Logf("pickups before the kill: %v", picked)
+	s.checkInvariants(t)
+
+	// Back up, the gateway joins every hunter again on the sockets they
+	// kept: each gets a Snapshot.
+	itemProc.start()
+	worldProc.start()
 	for _, h := range hunters {
-		if !h.closed(5 * time.Second) {
-			t.Fatal("a connection survived the kill")
+		if !h.pump(20*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
+			t.Fatalf("%s got no Snapshot after the world came back (closed: %v)", h.id, h.closed(0))
 		}
 	}
-	t.Logf("pickups before the kill: %v", picked)
 
-	// The database is consistent on its own and after a restart, and each
-	// hunter is welcomed back with exactly what the database holds.
-	s.checkInvariants(t)
-	itemProc.start()
-	proc.start()
+	// The database is consistent after the restart too, and each hunter is
+	// welcomed back with exactly what the database holds.
 	s.checkInvariants(t)
 	for k, n := range names {
 		_, w := s.welcome(t, n[0], hunters[k].id)
@@ -603,7 +610,7 @@ func TestCrashDuringPickups(t *testing.T) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	for _, p := range []*process{proc, itemProc, accountProc, socialProc, characterProc} {
+	for _, p := range []*process{proc, itemProc, accountProc, socialProc, characterProc, worldProc} {
 		if out := p.out.String(); strings.Contains(out, `"level":"ERROR"`) {
 			t.Fatalf("%s logged errors:\n%s", p.name, out)
 		}

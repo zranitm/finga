@@ -53,6 +53,8 @@ enum Reason {
   REASON_PICKUPS_UNAVAILABLE = 5;
   REASON_PICKUP_BUSY = 6;
   REASON_BAD_ID = 7;
+  // The character's class has no formulas in the game data.
+  REASON_CLASS_UNAVAILABLE = 8;
 }
 
 // Presence routes a command: the character, and the map the caller
