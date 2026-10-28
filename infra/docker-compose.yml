@@ -1,11 +1,11 @@
 # make up / make down. Postgres with a health check, the migrations as a
-# one-shot job, then the six services (Low-level design, page 10), each built
-# from ../server with the one Dockerfile and its SERVICE argument. The
-# gateway is the only public entry. Host ports come from .env next to this file (git-ignored; see
-# .env.example). The binaries' overrides go in ../server/.env, passed in
-# whole as env_file; the environment entries below win over it. The client
-# is served by Vite (make play) for now; a web container joins when it is
-# deployed.
+# one-shot job, the six services (Low-level design, page 10), each built
+# from ../server with the one Dockerfile and its SERVICE argument, and web:
+# nginx serving the built client on :4173 and passing /api and /ws to the
+# gateway, the only public entry of the game. Host ports come from .env next
+# to this file (git-ignored; see .env.example). The binaries' overrides go in
+# ../server/.env, passed in whole as env_file; the environment entries below
+# win over it.
 name: finga
 
 # Every Go process gets the database and where each service is dialled on
@@ -161,6 +161,21 @@ services:
       world:
         condition: service_started
       social:
+        condition: service_started
+
+  # The client: the production build served by nginx, with /api and /ws
+  # passed to the gateway, so the browser sees one origin (page 3). The game
+  # is at http://localhost:4173, or the machine's LAN address for testers.
+  web:
+    build:
+      context: ../web
+      additional_contexts:
+        gamedata: ../server/data
+        edge: ./nginx
+    ports:
+      - "${FINGA_WEB_PORT:-4173}:80"
+    depends_on:
+      gateway:
         condition: service_started
 
 volumes:

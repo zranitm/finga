@@ -1,6 +1,6 @@
 // Typed access to import.meta.env (page 7). VITE_API_ORIGIN names the game
 // server's origin; empty means same origin, which is the case behind the
-// Vite proxy in development and behind nginx in Stage 2. VITE_NET_DELAY_MS
+// Vite proxy in development and behind nginx under make up. VITE_NET_DELAY_MS
 // delays every frame the socket sends and receives, in development only,
 // for the latency check of client step C08.
 export interface Env {

@@ -159,7 +159,7 @@ The Tiled maps hold only object layers (solids, platforms, ropes, portals, spawn
 
 ## API origin
 
-The client reads the game server's origin from `VITE_API_ORIGIN`, through `config/env.ts`. Empty means same origin, which is the case behind the Vite proxy in development and behind nginx in Stage 2.
+The client reads the game server's origin from `VITE_API_ORIGIN`, through `config/env.ts`. Empty means same origin, which is the case behind the Vite proxy in development and behind nginx under `make up` (`infra/nginx/finga.conf`).
 
 ## Conventions
 

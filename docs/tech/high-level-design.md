@@ -269,7 +269,7 @@ server/         the Go module, and everything the server builds, reads and publi
   testdata/     shared movement vectors, golden messages, error codes
   Dockerfile    the image for every binary
 web/            Phaser client
-infra/          how it runs: docker-compose today; nginx config, Grafana dashboards, and Terraform for Cloudflare later
+infra/          how it runs: docker-compose and the nginx config today; Grafana dashboards and Terraform for Cloudflare later
 docs/           the design (product and tech), the AI coding log, the proof-session checklist
 tools/          developer tools; empty in Stage 1
 ```

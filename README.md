@@ -17,8 +17,8 @@ checklist in `docs/proof-session.md`.
 server/   the Go module: the six services (services/), their tools, configuration,
           the game content (data/), and the contracts (api/, testdata/)
 web/      the browser client: Phaser 4, React, Vite, TypeScript
-infra/    how it runs: Docker Compose today; infrastructure as code and the
-          Grafana dashboards join here
+infra/    how it runs: Docker Compose and the nginx config today; infrastructure
+          as code and the Grafana dashboards join here
 docs/     the design (product and tech), the AI coding log, the proof-session checklist
 ```
 
@@ -30,35 +30,41 @@ vectors, the error codes). The root `Makefile` drives all three parts.
 ## Build and run
 
 ```bash
-make up      # build the images, start Postgres, run the migrations, start the six services (the gateway on :8080)
+make up      # everything: Postgres, the migrations, the six services and the client; the game at http://localhost:4173
 make smoke   # a client signs up, enters the world and moves, against the running stack
 make down    # stop everything and drop the database volume
 ```
 
-`make up` works from a clean clone with Docker and Compose only. When another
-Postgres owns port 5432 on the host, set `FINGA_POSTGRES_PORT` in
-`infra/.env` (copy `infra/.env.example`); the server's own host port is
-`FINGA_PORT` (default 8080). Without Docker, run Postgres yourself and start
-the binaries:
+`make up` is the one command: it works from a clean clone with Docker and
+Compose only, the client included. The `web` image builds the client with
+Node and serves it with nginx, which passes `/api` and `/ws` to the gateway,
+so the browser sees one origin. Testers on the same network open
+`http://<this machine's LAN address>:4173`. When another program owns a port
+the stack publishes, set `FINGA_WEB_PORT` (4173), `FINGA_PORT` (8080) or
+`FINGA_POSTGRES_PORT` (5432) in `infra/.env` (copy `infra/.env.example`).
+Without Docker, run Postgres yourself, start the binaries, and serve the
+client with the Vite dev server (see Client):
 
 ```bash
 make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the six services
 ```
 
-The gateway serves REST under /api, the WebSocket at /ws, /healthz, /readyz
-and /metrics on :8080; every other service serves gRPC on one port and its
-own /healthz, /readyz and /metrics on another (its ops port):
+The browser talks to nginx, and nginx to the gateway. The gateway serves
+REST under /api, the WebSocket at /ws, /healthz, /readyz and /metrics on
+:8080; every other service serves gRPC on one port and its own /healthz,
+/readyz and /metrics on another (its ops port):
 
-| Process   | gRPC | HTTP / ops                          | On the host with `make up`          |
-|-----------|------|-------------------------------------|-------------------------------------|
-| gateway   |      | 8080: /api, /ws, probes, /metrics   | 8080 (`FINGA_PORT`)                 |
-| account   | 9001 | 9101                                |                                     |
-| character | 9002 | 9102                                |                                     |
-| item      | 9003 | 9103                                |                                     |
-| world     | 9004 | 9104                                | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots` |
-| social    | 9005 | 9105                                |                                     |
-| Postgres  |      | 5432                                | 5432 (`FINGA_POSTGRES_PORT`)        |
-| client    |      | 5173 (`npm run dev`), 4173 (`make play`) | served by Vite, not Compose    |
+| Process         | gRPC | HTTP / ops                                  | On the host with `make up`                            |
+|-----------------|------|---------------------------------------------|-------------------------------------------------------|
+| web (nginx)     |      | 80: the client; /api and /ws to the gateway | 4173 (`FINGA_WEB_PORT`): open this one                |
+| gateway         |      | 8080: /api, /ws, probes, /metrics           | 8080 (`FINGA_PORT`), for `make smoke` and `make bots` |
+| account         | 9001 | 9101                                        |                                                       |
+| character       | 9002 | 9102                                        |                                                       |
+| item            | 9003 | 9103                                        |                                                       |
+| world           | 9004 | 9104                                        | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots`        |
+| social          | 9005 | 9105                                        |                                                       |
+| Postgres        |      | 5432                                        | 5432 (`FINGA_POSTGRES_PORT`)                          |
+| Vite dev server |      | 5173 (`npm run dev`)                        | not in Compose; for working on the client             |
 
 Under `make up` the services reach each other on the Compose network by
 name (`world:9004`), and only the ports in the last column are published;
@@ -76,11 +82,12 @@ The browser client lives in `web/` (Phaser 4, React 19, Vite 8, TypeScript,
 Zustand, Vitest; page 7 of the design). It is built step by step after the
 backend, the same way, with its own rows in `docs/ai-coding-log.md`.
 
+`make up` already serves the client's production build on :4173. To work
+on the client with hot reload, run the dev server against the running stack:
+
 ```bash
-make up                         # the game on :8080
 npm --prefix web install        # once; Node 24 (web/.nvmrc)
-npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the server
-make play                       # for a play session on the LAN: make up, the production build, vite preview on :4173 (--host), same proxy
+npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the gateway on :8080 (make up or make run)
 ```
 
 `make test`, `make lint` and `make cover` run the client's scripts too
@@ -120,7 +127,6 @@ make lint    # golangci-lint (sloglint, depguard import directions, revive, stat
 make breaking   # buf breaking: the gRPC contracts against the previous commit
 make smoke   # the packaging check, against a running stack
 make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed (read from the world service's ops port, 9104)
-make play    # the proof session with people: the server plus the client preview build on the LAN (:4173)
 ```
 
 The tests that need a database start a Postgres container through
