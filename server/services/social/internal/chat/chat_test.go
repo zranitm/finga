@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/application/chat"
 	"finga/internal/model"
+	"finga/services/social/internal/chat"
 )
 
 type fakeParties struct {

@@ -19,9 +19,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
+	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/application/character"
-	"finga/internal/application/chat"
-	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
@@ -48,15 +47,15 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		{character.ErrNameTaken, http.StatusConflict, "name_taken"},
 		{character.ErrSlotsFull, http.StatusConflict, "character_slots_full"},
 		{character.ErrNotFound, http.StatusNotFound, "character_not_found"},
-		{chat.ErrRate, http.StatusTooManyRequests, "chat_rate_limited"},
-		{chat.ErrNoParties, http.StatusServiceUnavailable, "party_chat_unavailable"},
+		{grpcx.Error(codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED), http.StatusTooManyRequests, "chat_rate_limited"},
+		{grpcx.Error(codes.Unavailable, socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE), http.StatusServiceUnavailable, "party_chat_unavailable"},
 		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), http.StatusConflict, "inventory_full"},
 		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED), http.StatusConflict, "idempotency_key_reused"},
 		{fmt.Errorf("pickup: %w", grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM)), http.StatusConflict, "slot_holds_other_item"},
 		{grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_ID), http.StatusBadRequest, "bad_id"},
-		{party.ErrFull, http.StatusConflict, "party_full"},
-		{party.ErrNotLeader, http.StatusConflict, "not_party_leader"},
-		{party.ErrInviteExpired, http.StatusNotFound, "invite_expired"},
+		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), http.StatusConflict, "party_full"},
+		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), http.StatusConflict, "not_party_leader"},
+		{grpcx.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), http.StatusNotFound, "invite_expired"},
 		{model.ErrBadID, http.StatusBadRequest, "bad_id"},
 		{world.ErrPickupsUnavailable, http.StatusServiceUnavailable, "pickups_unavailable"},
 		{world.ErrPickupBusy, http.StatusServiceUnavailable, "pickup_busy"},
@@ -122,6 +121,7 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 var contracts = []protoreflect.EnumDescriptor{
 	accountv1.Reason(0).Descriptor(),
 	itemv1.Reason(0).Descriptor(),
+	socialv1.Reason(0).Descriptor(),
 }
 
 func TestEveryReasonIsMapped(t *testing.T) {

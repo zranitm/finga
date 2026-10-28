@@ -24,8 +24,7 @@ server/                 the Go module: everything the server builds, reads and p
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     application/        business logic: the game's rules, one package per module
-      character/  world/  combat/
-      party/  chat/                    the modules still in the game server (page 10 moves each to its service)
+      character/  world/  combat/      the modules still in the game server (page 10 moves each to its service)
       economy/  market/  audit/        Stage 2
     handler/
       api/              REST handlers, DTOs, middleware
@@ -48,6 +47,7 @@ server/                 the Go module: everything the server builds, reads and p
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
     account/            the same shape: cmd/account, internal/account, internal/handler (AccountService and WatchSessions), migrations/
+    social/             party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
     character/
       migrations/       (its code joins in step 26)
   pkg/                  generic libraries with no game knowledge
@@ -266,8 +266,8 @@ Every module below lives in `internal/application/`, except the two handlers. Th
 | `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
 | `economy` (Stage 2) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
 | `market` (Stage 2) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
-| `party` | Parties and invites, in memory | A notifier interface |
-| `chat` | Message validation and routing | world, party |
+| `party` (the social service, `services/social`) | Parties and invites, in memory | A notifier interface (the social handler) |
+| `chat` (the social service) | Message validation and routing | party |
 | `handler/ws` (the gateway) | WebSocket sessions, routing, fan-out to clients | `pkg/wsconn`, `pkg/auth`, `pkg/ratelimit`, every gameplay module, the extracted services' generated clients |
 | `handler/api` | REST endpoints: DTOs, validation, error responses through `handler/errmap` | account, character, `pkg/auth`, `pkg/ratelimit` |
 | `audit` (Stage 2) | Invariant checks, read-only | item, economy, market |

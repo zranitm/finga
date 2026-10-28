@@ -32,6 +32,7 @@ import (
 	"finga/pkg/wsconn"
 	accountapp "finga/services/account/cmd/account/app"
 	itemapp "finga/services/item/cmd/item/app"
+	socialapp "finga/services/social/cmd/social/app"
 )
 
 var cluster *pgtest.Cluster
@@ -51,10 +52,11 @@ func TestMain(m *testing.M) {
 // stack is the game over a fresh database: the extracted services and the
 // game server, whose handler httptest serves.
 type stack struct {
-	t     *testing.T
-	url   string
-	db    *pgxpool.Pool
-	items itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
+	t      *testing.T
+	url    string
+	db     *pgxpool.Pool
+	items  itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
+	social *service                 // restarted by the rows that check the gateway survives it
 }
 
 // loopback is an endpoint on free loopback ports; Addr is filled once the
@@ -71,14 +73,12 @@ func newStack(t *testing.T) *stack {
 		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
 		Economy:   config.Economy{Workers: 2},
 		Telemetry: config.Telemetry{LogLevel: "error"},
-		Services:  config.Services{Item: loopback, Account: loopback},
+		Services:  config.Services{Item: loopback, Account: loopback, Social: loopback},
 	}
-	cfg.Services.Item.Addr = startService(t, func(ctx context.Context) (*host.Host, error) {
-		return itemapp.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
-	})
-	cfg.Services.Account.Addr = startService(t, func(ctx context.Context) (*host.Host, error) {
-		return accountapp.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
-	})
+	cfg.Services.Item.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Item }, itemapp.Build).addr
+	cfg.Services.Account.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Account }, accountapp.Build).addr
+	social := runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Social }, socialapp.Build)
+	cfg.Services.Social.Addr = social.addr
 	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
 	if err != nil {
 		t.Fatal(err)
@@ -106,39 +106,69 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
-	return &stack{t: t, url: ts.URL, db: db, items: itemv1.NewItemServiceClient(itemConn)}
+	return &stack{t: t, url: ts.URL, db: db, items: itemv1.NewItemServiceClient(itemConn), social: social}
 }
 
-// startService builds a service as production does and runs it until the
-// test ends; it returns the address its gRPC listener bound.
-func startService(t *testing.T, build func(ctx context.Context) (*host.Host, error)) string {
+// service is one extracted service running in the test process, built
+// from its composition root as production builds it.
+type service struct {
+	t     *testing.T
+	build func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)
+	cfg   config.Config
+	at    func(*config.Services) *config.Endpoint // the service's own endpoint
+	addr  string                                  // where its gRPC listener bound
+	stop  func()
+}
+
+// runService starts a service on its endpoint in cfg and stops it when the
+// test ends.
+func runService(t *testing.T, cfg config.Config, at func(*config.Services) *config.Endpoint, build func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
 	t.Helper()
+	svc := &service{t: t, build: build, cfg: cfg, at: at}
+	svc.start(at(&cfg.Services).Listen)
+	t.Cleanup(func() { svc.stop() })
+	return svc
+}
+
+func (s *service) start(listen string) {
+	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	h, err := build(ctx)
+	cfg := s.cfg
+	*s.at(&cfg.Services) = config.Endpoint{Listen: listen, Ops: "127.0.0.1:0"}
+	h, err := s.build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	if err != nil {
-		t.Fatal(err)
+		s.t.Fatal(err)
 	}
 	runCtx, stop := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- h.Run(runCtx) }()
-	t.Cleanup(func() {
+	s.stop = func() {
 		stop()
 		if err := <-done; err != nil {
-			t.Errorf("service stopped with %v", err)
+			s.t.Errorf("service stopped with %v", err)
 		}
 		h.Close()
-	})
+		s.stop = func() {}
+	}
 	for !h.Ready() {
 		select {
 		case err := <-done:
-			t.Fatalf("service stopped before it was ready: %v", err)
+			s.t.Fatalf("service stopped before it was ready: %v", err)
 		case <-ctx.Done():
-			t.Fatal("service not ready in time")
+			s.t.Fatal("service not ready in time")
 		case <-time.After(5 * time.Millisecond):
 		}
 	}
-	return h.Addr(host.GRPC)
+	s.addr = h.Addr(host.GRPC)
+}
+
+// restart stops the service and starts a new process of it on the same
+// address, as a deploy or a crash would: whatever it held in memory is gone.
+func (s *service) restart() {
+	s.t.Helper()
+	s.stop()
+	s.start(s.addr)
 }
 
 type response struct {

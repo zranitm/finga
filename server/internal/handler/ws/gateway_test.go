@@ -23,9 +23,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
+	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/application/character"
-	"finga/internal/application/chat"
-	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/handler/ws"
@@ -684,9 +683,27 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	}
 }
 
+// social builds the gateway with a fake social service and runs its
+// streams, waiting for the first subscription.
+func social(t *testing.T, fs *fakeSocial) *harness {
+	t.Helper()
+	h := newHarness(t, func(d *ws.Dependencies) { d.Social = fs.client(t) })
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = h.gw.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	select {
+	case <-fs.subscribed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the gateway never subscribed to the social service")
+	}
+	return h
+}
+
 func TestChatRouting(t *testing.T) {
-	fc := &fakeChat{recipients: []model.CharacterID{aylaID, brunoID}}
-	h := newHarness(t, func(d *ws.Dependencies) { d.Chat = fc })
+	fs := newFakeSocial()
+	fs.recipients = []model.CharacterID{aylaID, brunoID}
+	h := social(t, fs)
 	ayla := h.dial(t)
 	ayla.hello(tokenAlice, aylaID)
 	ayla.expect("Snapshot")
@@ -711,31 +728,49 @@ func TestChatRouting(t *testing.T) {
 			t.Fatalf("chat message %+v", cm)
 		}
 	})
-	t.Run("a party line is delivered to every recipient's connection, the sender included", func(t *testing.T) {
+	t.Run("a party line the social service delivers reaches every recipient, the sender included", func(t *testing.T) {
 		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatParty, Text: "psst"}})
 		for _, c := range []*client{ayla, bruno} {
 			cm := c.expect("ChatMessage").Data.(protocol.ChatMessage)
-			if cm.Channel != protocol.ChatParty || cm.Sender != aylaID.String() || cm.Text != "psst" {
+			if cm.Channel != protocol.ChatParty || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "psst" {
 				t.Fatalf("party chat %+v", cm)
 			}
 		}
 	})
 	t.Run("a refused line answers a Response without a request ID", func(t *testing.T) {
-		fc.err = chat.ErrTooLong
+		fs.mu.Lock()
+		fs.chatErr = grpcx.Error(codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG)
+		fs.mu.Unlock()
 		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "..."}})
 		r := ayla.expect("Response")
 		if r.ReqID != "" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "chat_too_long" {
 			t.Fatalf("response %+v", r)
 		}
-		fc.err = nil
 	})
 }
 
+func TestChatAndPartiesAreUnavailableWithoutTheSocialService(t *testing.T) {
+	h := newHarness(t)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	c.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hi"}})
+	if r := c.expect("Response").Data.(protocol.Response); r.Code != "chat_unavailable" {
+		t.Fatalf("chat %+v", r)
+	}
+	c.send(wsconn.Message{ReqID: "p", Data: protocol.PartyLeave{}})
+	if r := c.expect("Response").Data.(protocol.Response); r.Code != "parties_unavailable" {
+		t.Fatalf("party %+v", r)
+	}
+}
+
 func TestPartyCommandsAndState(t *testing.T) {
-	fp := &fakeParties{of: map[model.CharacterID]party.Party{
-		aylaID: {Leader: aylaID, Members: []party.Member{{ID: aylaID, Name: "Ayla", Level: 1, HP: 204, MaxHP: 204, MapID: "town", Online: true}, {ID: brunoID, Name: "Bruno", Level: 1, MapID: "forest"}}},
+	fs := newFakeSocial()
+	fs.of[aylaID.String()] = &socialv1.Party{LeaderId: aylaID.String(), Members: []*socialv1.Member{
+		{Id: aylaID.String(), Name: "Ayla", Level: 1, Hp: 204, MaxHp: 204, MapId: "town", Online: true},
+		{Id: brunoID.String(), Name: "Bruno", Level: 1, MapId: "forest"},
 	}}
-	h := newHarness(t, func(d *ws.Dependencies) { d.Parties = fp })
+	h := social(t, fs)
 	ayla := h.dial(t)
 	ayla.hello(tokenAlice, aylaID)
 	w := ayla.expect("Welcome").Data.(protocol.Welcome)
@@ -749,11 +784,11 @@ func TestPartyCommandsAndState(t *testing.T) {
 		t.Fatalf("bruno has a party in Welcome: %+v", w.Party)
 	}
 	bruno.expect("Snapshot")
-	fp.mu.Lock()
-	if len(fp.online) != 2 || fp.online[0].ID != aylaID || fp.online[0].Name != "Ayla" || fp.online[0].MapID != "town" || fp.online[0].MaxHP != 204 || fp.online[0].Level != 1 {
-		t.Fatalf("online %+v", fp.online)
+	on := fs.onlineCalls()
+	if len(on) != 2 || on[0].GetMember().GetId() != aylaID.String() || on[0].GetMember().GetName() != "Ayla" || on[0].GetMember().GetMapId() != "town" ||
+		on[0].GetMember().GetMaxHp() != 204 || on[0].GetMember().GetLevel() != 1 || on[0].GetGatewayId() == "" {
+		t.Fatalf("online %+v", on)
 	}
-	fp.mu.Unlock()
 
 	t.Run("each command carries the connection's identity and answers its request", func(t *testing.T) {
 		for k, tt := range []struct {
@@ -772,10 +807,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 			if r.ReqID != req || !r.Data.(protocol.Response).OK {
 				t.Fatalf("%T: response %+v", tt.msg, r)
 			}
-			fp.mu.Lock()
-			got := fp.calls[len(fp.calls)-1]
-			fp.mu.Unlock()
-			if got != tt.want {
+			if got := fs.lastCall(); got != tt.want {
 				t.Fatalf("%T: call %q, want %q", tt.msg, got, tt.want)
 			}
 		}
@@ -785,37 +817,74 @@ func TestPartyCommandsAndState(t *testing.T) {
 		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_id" {
 			t.Fatalf("malformed id: %+v", r)
 		}
-		fp.err = party.ErrNotLeader
+		fs.mu.Lock()
+		fs.err = grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER)
+		fs.mu.Unlock()
 		ayla.send(wsconn.Message{ReqID: "p-y", Data: protocol.PartyKick{CharacterID: brunoID.String()}})
 		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "not_party_leader" || r.Message == "" {
 			t.Fatalf("not leader: %+v", r)
 		}
-		fp.err = nil
+		fs.mu.Lock()
+		fs.err = nil
+		fs.mu.Unlock()
 	})
-	t.Run("the gateway is the notifier: PartyState and PartyInvited reach the connections", func(t *testing.T) {
-		h.gw.PartyChanged([]model.CharacterID{aylaID, brunoID, robinID}, &party.Party{Leader: brunoID, Members: []party.Member{{ID: brunoID, Name: "Bruno", Online: true}, {ID: aylaID, Name: "Ayla", Online: true}}})
+	t.Run("PartyState and PartyInvited from the social service's stream reach the connections", func(t *testing.T) {
+		state := &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{Party: &socialv1.Party{LeaderId: brunoID.String(), Members: []*socialv1.Member{{Id: brunoID.String(), Name: "Bruno", Online: true}, {Id: aylaID.String(), Name: "Ayla", Online: true}}}}}
+		for _, id := range []model.CharacterID{aylaID, brunoID, robinID} { // robin is not connected here: dropped
+			fs.push(id, &socialv1.DeliverResponse{Event: state})
+		}
 		for _, c := range []*client{ayla, bruno} {
 			ps := c.expect("PartyState").Data.(protocol.PartyState)
 			if ps.Party == nil || ps.Party.Leader != brunoID.String() || len(ps.Party.Members) != 2 {
 				t.Fatalf("party state %+v", ps)
 			}
 		}
-		h.gw.Invited(brunoID, party.Invite{ID: "inv-2", From: aylaID, FromName: "Ayla", To: brunoID})
+		fs.push(brunoID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{InviteId: "inv-2", FromId: aylaID.String(), FromName: "Ayla"}}})
 		if inv := bruno.expect("PartyInvited").Data.(protocol.PartyInvited); inv.InviteID != "inv-2" || inv.From != aylaID.String() || inv.FromName != "Ayla" {
 			t.Fatalf("invited %+v", inv)
 		}
-		h.gw.PartyChanged([]model.CharacterID{aylaID}, nil)
+		fs.push(aylaID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{}}})
 		if ps := ayla.expect("PartyState").Data.(protocol.PartyState); ps.Party != nil {
 			t.Fatalf("party state after leaving %+v", ps)
 		}
 	})
-	t.Run("closing the connection tells the party service", func(t *testing.T) {
+	t.Run("a social restart clears every party and registers everyone again", func(t *testing.T) {
+		before := len(fs.onlineCalls())
+		fs.restart("boot-2")
+		for _, c := range []*client{ayla, bruno} {
+			if ps := c.expect("PartyState").Data.(protocol.PartyState); ps.Party != nil {
+				t.Fatalf("party state after the restart %+v", ps)
+			}
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for len(fs.onlineCalls()) < before+2 {
+			if time.Now().After(deadline) {
+				t.Fatalf("online calls %d, want %d", len(fs.onlineCalls()), before+2)
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 9}})
+		ayla.expect("Pong") // the socket stayed up
+	})
+	t.Run("a stream that breaks without a restart changes nothing", func(t *testing.T) {
+		fs.restart("boot-2")
+		select {
+		case <-fs.subscribed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("no new subscription")
+		}
+		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 10}})
+		if m := ayla.expect("Pong"); m.Type != "Pong" {
+			t.Fatalf("got %+v; a PartyState was sent although the parties survived", m)
+		}
+	})
+	t.Run("closing the connection tells the social service", func(t *testing.T) {
 		_ = bruno.c.Close(websocket.StatusNormalClosure, "bye")
 		deadline := time.Now().Add(2 * time.Second)
 		for time.Now().Before(deadline) {
-			fp.mu.Lock()
-			n := len(fp.offline)
-			fp.mu.Unlock()
+			fs.mu.Lock()
+			n := len(fs.offline)
+			fs.mu.Unlock()
 			if n == 1 {
 				return
 			}

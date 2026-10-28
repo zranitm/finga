@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/application/party"
 	"finga/internal/model"
+	"finga/services/social/internal/party"
 )
 
 // recorder keeps every notification in order.
@@ -323,4 +323,32 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	}
 	f.svc.Update(cass, "cave", 1, 1, 1) // unknown: ignored
 	f.svc.Offline(cass)
+}
+
+func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {
+	f := newFixture(t, "ann", "bo", "cy", "di", "ed")
+	f.invite(t, "ann", "bo")
+	f.invite(t, "cy", "di")
+	var seen [][]model.CharacterID
+	f.svc.Memberships(func(members []model.CharacterID) { seen = append(seen, members) })
+	if len(seen) != 2 {
+		t.Fatalf("visited %d parties, want 2", len(seen))
+	}
+	got := map[model.CharacterID]int{}
+	for _, members := range seen {
+		if len(members) != 2 {
+			t.Fatalf("members %v", members)
+		}
+		for _, id := range members {
+			got[id]++
+		}
+	}
+	for _, n := range []string{"ann", "bo", "cy", "di"} {
+		if got[f.id(n)] != 1 {
+			t.Fatalf("%s visited %d times", n, got[f.id(n)])
+		}
+	}
+	if got[f.id("ed")] != 0 {
+		t.Fatal("a character with no party was visited")
+	}
 }

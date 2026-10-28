@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 15. Chat and party
 
+> **Changed by step 25 (2026-10-28):** parties and chat run in the social service (`services/social`); it delivers PartyState, invites and party chat to each member's gateway on its stream, and the world reads a local copy of party membership fed by `WatchParties`.
+
 **Goal:** map chat, and parties of up to 4 that share EXP and loot. This completes M5, Play together.
 
 ## Scope

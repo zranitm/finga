@@ -23,6 +23,7 @@ type session struct {
 	account   model.AccountID
 	sessionID model.SessionID
 	character character.Character
+	maxHP     int // from Hello, for the social service
 	instMu    sync.Mutex
 	instance  MapInstance
 

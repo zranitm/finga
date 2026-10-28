@@ -312,6 +312,22 @@ func (s *Service) Of(id model.CharacterID) (Party, bool) {
 	return Party{Leader: p.Leader, Members: slices.Clone(p.Members)}, true
 }
 
+// Memberships calls visit with the member IDs of every party, under the
+// service's lock, so no change interleaves with the visit: a subscriber
+// that takes this snapshot and then hears every PartyChanged sees each
+// party's latest membership last. visit must not block or call back.
+func (s *Service) Memberships(visit func(members []model.CharacterID)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	seen := map[*Party]bool{}
+	for _, p := range s.parties {
+		if !seen[p] {
+			seen[p] = true
+			visit(ids(p))
+		}
+	}
+}
+
 // Members lists the IDs of a character's party, nil without one.
 func (s *Service) Members(id model.CharacterID) []model.CharacterID {
 	s.mu.Lock()

@@ -20,9 +20,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	itemv1 "finga/api/gen/item/v1"
+	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/application/character"
-	"finga/internal/application/chat"
-	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
@@ -71,23 +70,6 @@ var table = []struct {
 	{character.ErrClassUnavailable, Public{"class_unavailable", http.StatusBadRequest, "that class is not available"}},
 	{character.ErrSlotsFull, Public{"character_slots_full", http.StatusConflict, "this account already has the most characters allowed"}},
 
-	{chat.ErrEmpty, Public{"chat_empty", http.StatusBadRequest, "nothing to say"}},
-	{chat.ErrTooLong, Public{"chat_too_long", http.StatusBadRequest, "a chat line is at most 120 characters"}},
-	{chat.ErrChannel, Public{"bad_chat_channel", http.StatusBadRequest, "unknown chat channel"}},
-	{chat.ErrNoParty, Public{"chat_no_party", http.StatusNotFound, "you have no party"}},
-	{chat.ErrRate, Public{"chat_rate_limited", http.StatusTooManyRequests, "slow down"}},
-	{chat.ErrNoParties, Public{"party_chat_unavailable", http.StatusServiceUnavailable, "party chat is not available"}},
-
-	{party.ErrNotLeader, Public{"not_party_leader", http.StatusConflict, "only the party leader can do that"}},
-	{party.ErrFull, Public{"party_full", http.StatusConflict, "the party is full"}},
-	{party.ErrInParty, Public{"already_in_party", http.StatusConflict, "already in a party"}},
-	{party.ErrNoParty, Public{"no_party", http.StatusNotFound, "not in a party"}},
-	{party.ErrNotMember, Public{"not_party_member", http.StatusNotFound, "not a member of your party"}},
-	{party.ErrNotHere, Public{"target_not_on_map", http.StatusNotFound, "that character is not on your map"}},
-	{party.ErrAlreadyAsked, Public{"already_invited", http.StatusConflict, "already invited"}},
-	{party.ErrInviteExpired, Public{"invite_expired", http.StatusNotFound, "the invite has expired"}},
-	{party.ErrSelf, Public{"invite_self", http.StatusBadRequest, "you cannot invite yourself"}},
-
 	{world.ErrPickupsUnavailable, Public{"pickups_unavailable", http.StatusServiceUnavailable, "pickups are not available"}},
 	{world.ErrPickupBusy, Public{"pickup_busy", http.StatusServiceUnavailable, "try again in a moment"}},
 
@@ -120,6 +102,23 @@ var reasons = map[grpcx.Reason]Public{
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_ITEM):           {"unknown_item", http.StatusBadRequest, "unknown item"},
 	grpcx.Key(itemv1.Reason_REASON_BAD_ID):                 badID,
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_CLASS):          unknownClass,
+
+	grpcx.Key(socialv1.Reason_REASON_NOT_PARTY_LEADER):       {"not_party_leader", http.StatusConflict, "only the party leader can do that"},
+	grpcx.Key(socialv1.Reason_REASON_PARTY_FULL):             {"party_full", http.StatusConflict, "the party is full"},
+	grpcx.Key(socialv1.Reason_REASON_ALREADY_IN_PARTY):       {"already_in_party", http.StatusConflict, "already in a party"},
+	grpcx.Key(socialv1.Reason_REASON_NO_PARTY):               {"no_party", http.StatusNotFound, "not in a party"},
+	grpcx.Key(socialv1.Reason_REASON_NOT_PARTY_MEMBER):       {"not_party_member", http.StatusNotFound, "not a member of your party"},
+	grpcx.Key(socialv1.Reason_REASON_TARGET_NOT_ON_MAP):      {"target_not_on_map", http.StatusNotFound, "that character is not on your map"},
+	grpcx.Key(socialv1.Reason_REASON_ALREADY_INVITED):        {"already_invited", http.StatusConflict, "already invited"},
+	grpcx.Key(socialv1.Reason_REASON_INVITE_EXPIRED):         {"invite_expired", http.StatusNotFound, "the invite has expired"},
+	grpcx.Key(socialv1.Reason_REASON_INVITE_SELF):            {"invite_self", http.StatusBadRequest, "you cannot invite yourself"},
+	grpcx.Key(socialv1.Reason_REASON_CHAT_EMPTY):             {"chat_empty", http.StatusBadRequest, "nothing to say"},
+	grpcx.Key(socialv1.Reason_REASON_CHAT_TOO_LONG):          {"chat_too_long", http.StatusBadRequest, "a chat line is at most 120 characters"},
+	grpcx.Key(socialv1.Reason_REASON_BAD_CHAT_CHANNEL):       {"bad_chat_channel", http.StatusBadRequest, "unknown chat channel"},
+	grpcx.Key(socialv1.Reason_REASON_CHAT_NO_PARTY):          {"chat_no_party", http.StatusNotFound, "you have no party"},
+	grpcx.Key(socialv1.Reason_REASON_CHAT_RATE_LIMITED):      {"chat_rate_limited", http.StatusTooManyRequests, "slow down"},
+	grpcx.Key(socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE): {"party_chat_unavailable", http.StatusServiceUnavailable, "party chat is not available"},
+	grpcx.Key(socialv1.Reason_REASON_BAD_ID):                 badID,
 }
 
 // The two shared by the gateway's own parsing and the services'.

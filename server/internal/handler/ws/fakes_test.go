@@ -8,11 +8,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	itemv1 "finga/api/gen/item/v1"
+	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/application/character"
-	"finga/internal/application/chat"
-	"finga/internal/application/party"
 	"finga/internal/application/world"
 	"finga/internal/handler/ws"
 	"finga/internal/model"
@@ -58,6 +60,7 @@ func (f *fakeCharacters) Derived(c character.Character) (progression.Derived, er
 // fakeInstance records joins, leaves and inputs and lets the test push
 // events to a player's sink.
 type fakeInstance struct {
+	mapID   string
 	mu      sync.Mutex
 	joined  []world.Player
 	left    []model.CharacterID
@@ -76,7 +79,12 @@ type recordedInput struct {
 	in  sim.Input
 }
 
-func newFakeInstance() *fakeInstance { return &fakeInstance{sinks: map[model.CharacterID]world.Sink{}} }
+func newFakeInstance() *fakeInstance {
+	return &fakeInstance{mapID: "town", sinks: map[model.CharacterID]world.Sink{}}
+}
+
+// MapID is the map the fake runs.
+func (f *fakeInstance) MapID() string { return f.mapID }
 
 func (f *fakeInstance) Join(_ context.Context, p world.Player, s world.Sink) error {
 	f.mu.Lock()
@@ -228,81 +236,150 @@ type recordedChat struct {
 	name, text string
 }
 
-// fakeChat routes the way the chat service would, without cleaning.
-type fakeChat struct {
-	err        error
-	recipients []model.CharacterID // for the party channel
+// fakeSocial is the social service, served over an in-memory gRPC
+// connection: it records the calls the gateway makes, answers PartyOf from
+// a script, routes chat the way the service would (a party line is
+// delivered on the stream to each recipient), and streams whatever the
+// test pushes on events. Closing end ends the current stream; the next
+// subscription gets boot.
+type fakeSocial struct {
+	socialv1.UnimplementedSocialServiceServer
+	mu         sync.Mutex
+	boot       string
+	online     []*socialv1.OnlineRequest
+	offline    []string
+	calls      []string
+	of         map[string]*socialv1.Party
+	err        error // for party commands
+	chatErr    error
+	recipients []model.CharacterID // a party line goes to these
+	events     chan *socialv1.DeliverResponse
+	end        chan struct{}
+	subscribed chan struct{} // receives once per subscription
 }
 
-func (f *fakeChat) Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []model.CharacterID, error) {
-	if f.err != nil {
-		return chat.Message{}, nil, f.err
+func newFakeSocial() *fakeSocial {
+	return &fakeSocial{boot: "boot-1", of: map[string]*socialv1.Party{}, events: make(chan *socialv1.DeliverResponse, 64), end: make(chan struct{}), subscribed: make(chan struct{}, 8)}
+}
+
+func (f *fakeSocial) client(t *testing.T) socialv1.SocialServiceClient {
+	t.Helper()
+	srv := grpcx.NewServer(grpcx.ServerOptions{})
+	socialv1.RegisterSocialServiceServer(srv, f)
+	return socialv1.NewSocialServiceClient(grpctest.Conn(t, srv))
+}
+
+func (f *fakeSocial) Deliver(_ *socialv1.DeliverRequest, stream grpc.ServerStreamingServer[socialv1.DeliverResponse]) error {
+	f.mu.Lock()
+	boot, end := f.boot, f.end
+	f.mu.Unlock()
+	if err := stream.Send(&socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: boot}}}); err != nil {
+		return err
 	}
-	msg := chat.Message{Channel: channel, Sender: from.ID, SenderName: from.Name, Text: text}
-	if channel == chat.Party {
-		return msg, f.recipients, nil
+	f.subscribed <- struct{}{}
+	for {
+		select {
+		case m := <-f.events:
+			if err := stream.Send(m); err != nil {
+				return err
+			}
+		case <-end:
+			return status.Error(codes.Unavailable, "restarting")
+		case <-stream.Context().Done():
+			return nil
+		}
 	}
-	return msg, nil, nil
 }
 
-// fakeParties records calls and answers with scripted results.
-type fakeParties struct {
-	mu      sync.Mutex
-	online  []party.Member
-	offline []model.CharacterID
-	calls   []string
-	of      map[model.CharacterID]party.Party
-	err     error
+// restart ends the current stream; the next subscription carries boot.
+func (f *fakeSocial) restart(boot string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	close(f.end)
+	f.end = make(chan struct{})
+	f.boot = boot
 }
 
-func (f *fakeParties) record(s string) {
+func (f *fakeSocial) push(to model.CharacterID, m *socialv1.DeliverResponse) {
+	m.CharacterId = to.String()
+	f.events <- m
+}
+
+func (f *fakeSocial) record(s string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, s)
+	return f.err
 }
 
-func (f *fakeParties) Online(m party.Member) {
+func (f *fakeSocial) lastCall() string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.online = append(f.online, m)
+	return f.calls[len(f.calls)-1]
 }
 
-func (f *fakeParties) Offline(id model.CharacterID) {
+func (f *fakeSocial) Online(_ context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.offline = append(f.offline, id)
+	f.online = append(f.online, req)
+	return &socialv1.OnlineResponse{}, nil
 }
 
-func (f *fakeParties) Of(id model.CharacterID) (party.Party, bool) {
+func (f *fakeSocial) onlineCalls() []*socialv1.OnlineRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	p, ok := f.of[id]
-	return p, ok
+	return append([]*socialv1.OnlineRequest(nil), f.online...)
 }
 
-func (f *fakeParties) Invite(from, to model.CharacterID) (party.Invite, error) {
-	f.record("invite " + from.String() + " " + to.String())
-	return party.Invite{ID: "inv-1", From: from, To: to}, f.err
+func (f *fakeSocial) Offline(_ context.Context, req *socialv1.OfflineRequest) (*socialv1.OfflineResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.offline = append(f.offline, req.GetCharacterId())
+	return &socialv1.OfflineResponse{}, nil
 }
 
-func (f *fakeParties) Respond(who model.CharacterID, inviteID string, accept bool) error {
-	f.record("respond " + who.String() + " " + inviteID + " " + map[bool]string{true: "yes", false: "no"}[accept])
-	return f.err
+func (f *fakeSocial) PartyOf(_ context.Context, req *socialv1.PartyOfRequest) (*socialv1.PartyOfResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return &socialv1.PartyOfResponse{Party: f.of[req.GetCharacterId()]}, nil
 }
 
-func (f *fakeParties) Leave(who model.CharacterID) error {
-	f.record("leave " + who.String())
-	return f.err
+func (f *fakeSocial) Invite(_ context.Context, req *socialv1.InviteRequest) (*socialv1.InviteResponse, error) {
+	if err := f.record("invite " + req.GetCharacterId() + " " + req.GetTargetId()); err != nil {
+		return nil, err
+	}
+	return &socialv1.InviteResponse{InviteId: "inv-1"}, nil
 }
 
-func (f *fakeParties) Kick(leader, target model.CharacterID) error {
-	f.record("kick " + leader.String() + " " + target.String())
-	return f.err
+func (f *fakeSocial) Respond(_ context.Context, req *socialv1.RespondRequest) (*socialv1.RespondResponse, error) {
+	return &socialv1.RespondResponse{}, f.record("respond " + req.GetCharacterId() + " " + req.GetInviteId() + " " + map[bool]string{true: "yes", false: "no"}[req.GetAccept()])
 }
 
-func (f *fakeParties) Promote(leader, target model.CharacterID) error {
-	f.record("promote " + leader.String() + " " + target.String())
-	return f.err
+func (f *fakeSocial) LeaveParty(_ context.Context, req *socialv1.LeavePartyRequest) (*socialv1.LeavePartyResponse, error) {
+	return &socialv1.LeavePartyResponse{}, f.record("leave " + req.GetCharacterId())
+}
+
+func (f *fakeSocial) Kick(_ context.Context, req *socialv1.KickRequest) (*socialv1.KickResponse, error) {
+	return &socialv1.KickResponse{}, f.record("kick " + req.GetCharacterId() + " " + req.GetTargetId())
+}
+
+func (f *fakeSocial) Promote(_ context.Context, req *socialv1.PromoteRequest) (*socialv1.PromoteResponse, error) {
+	return &socialv1.PromoteResponse{}, f.record("promote " + req.GetCharacterId() + " " + req.GetTargetId())
+}
+
+func (f *fakeSocial) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.ChatResponse, error) {
+	f.mu.Lock()
+	err, recipients := f.chatErr, f.recipients
+	f.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	if req.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_PARTY {
+		for _, id := range recipients {
+			f.push(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: &socialv1.ChatLine{SenderId: req.GetSenderId(), SenderName: req.GetSenderName(), Text: req.GetText()}}})
+		}
+	}
+	return &socialv1.ChatResponse{Channel: req.GetChannel(), Text: req.GetText()}, nil
 }
 
 // Rotate hands out a fresh token per call; Check consults the expired set.

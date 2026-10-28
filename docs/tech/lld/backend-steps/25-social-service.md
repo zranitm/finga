@@ -4,7 +4,7 @@
 - **Features:** E1, E3
 - **Milestone:** Services
 - **Order:** 25
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 25. Social service
 
 **Goal:** parties and chat run as their own service. Social delivers party state, invites and party chat through its own stream, and the world reads a local copy of party membership, so the tick never waits on another service.

@@ -152,9 +152,9 @@ One Go module in `server/`, laid out so that imports only point one way
   every player each tick. A tick never waits on the database: pickups go to
   the economy worker pool, which calls the item service with the drop's ID as
   the idempotency key, and the result comes back as an inbox message.
-- **`internal/application/{character,party,chat}`** are the modules still
-  inside the game server, each a service over a repository (sqlc, pgx) with
-  no business rules in SQL.
+- **`internal/application/character`** is the module still inside the
+  game server besides the world, a service over a repository (sqlc, pgx)
+  with no business rules in SQL.
 - **`services/item`** is the first service in its own process (Low-level
   design, page 10): the item module in `internal/item`, its gRPC handler,
   its migrations, and the invariant checks in `invariants`. Items are
@@ -165,6 +165,10 @@ One Go module in `server/`, laid out so that imports only point one way
   REST handler and the gateway check tokens through `pkg/auth`'s `Guard`
   over its client, and its `WatchSessions` stream tells the gateway which
   connections to close when a session ends.
+- **`services/social`** holds the parties and chat, in memory: it delivers
+  party state, invites and party chat to each member's gateway on its own
+  stream, and the world's ticks read a local copy of party membership fed by
+  its `WatchParties` stream.
 - **`pkg/`** holds the generic parts: config loading, the transaction
   helper with retries, idempotency keys, the outbox, token
   buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps,
