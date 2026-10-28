@@ -13,6 +13,7 @@ name: finga
 x-finga-env: &finga-env
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
   FINGA_SERVICES_ACCOUNT_ADDR: account:9001
+  FINGA_SERVICES_CHARACTER_ADDR: character:9002
   FINGA_SERVICES_ITEM_ADDR: item:9003
   FINGA_SERVICES_SOCIAL_ADDR: social:9005
 
@@ -51,6 +52,23 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE: account
+        VERSION: ${VERSION:-dev}
+    environment: *finga-env
+    env_file:
+      - path: ../server/.env
+        required: false
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # The character service: gRPC on 9002, /healthz /readyz /metrics on 9102.
+  # It calls the item service for a new character's starter items.
+  character:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      args:
+        SERVICE: character
         VERSION: ${VERSION:-dev}
     environment: *finga-env
     env_file:
@@ -106,9 +124,9 @@ services:
       - path: ../server/.env
         required: false
     depends_on:
-      migrate:
-        condition: service_completed_successfully
       account:
+        condition: service_started
+      character:
         condition: service_started
       item:
         condition: service_started

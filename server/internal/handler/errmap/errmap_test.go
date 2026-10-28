@@ -18,9 +18,9 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	accountv1 "finga/api/gen/account/v1"
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
@@ -44,9 +44,9 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		{grpcx.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
 		{grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
 		{grpcx.Error(codes.Aborted, accountv1.Reason_REASON_SESSION_RACE), http.StatusConflict, "session_race"},
-		{character.ErrNameTaken, http.StatusConflict, "name_taken"},
-		{character.ErrSlotsFull, http.StatusConflict, "character_slots_full"},
-		{character.ErrNotFound, http.StatusNotFound, "character_not_found"},
+		{grpcx.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), http.StatusConflict, "name_taken"},
+		{grpcx.Error(codes.FailedPrecondition, characterv1.Reason_REASON_CHARACTER_SLOTS_FULL), http.StatusConflict, "character_slots_full"},
+		{grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, "character_not_found"},
 		{grpcx.Error(codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED), http.StatusTooManyRequests, "chat_rate_limited"},
 		{grpcx.Error(codes.Unavailable, socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE), http.StatusServiceUnavailable, "party_chat_unavailable"},
 		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), http.StatusConflict, "inventory_full"},
@@ -72,7 +72,7 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 
 func TestForFindsTheErrorThroughWrappingAndNeverShowsTheCause(t *testing.T) {
 	cause := errors.New(`duplicate key value violates unique constraint "characters_name_key"`)
-	err := fmt.Errorf("create character: %w", fmt.Errorf("%w: %w", character.ErrNameTaken, cause))
+	err := fmt.Errorf("create character: %w", fmt.Errorf("%w: %w", grpcx.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), cause))
 	got := errmap.For(err)
 	if got.Code != "name_taken" || got.Status != http.StatusConflict {
 		t.Fatalf("For = %+v, want name_taken 409", got)
@@ -120,6 +120,7 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 // processes; every value must have a row, or a client would see internal.
 var contracts = []protoreflect.EnumDescriptor{
 	accountv1.Reason(0).Descriptor(),
+	characterv1.Reason(0).Descriptor(),
 	itemv1.Reason(0).Descriptor(),
 	socialv1.Reason(0).Descriptor(),
 }

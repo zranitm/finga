@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	accountv1 "finga/api/gen/account/v1"
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
@@ -25,7 +26,6 @@ type items struct {
 	itemv1.UnimplementedItemServiceServer
 	mu      sync.Mutex
 	adds    []*itemv1.AddRequest
-	grants  []*itemv1.GrantStarterRequest
 	changed []*itemv1.Slot
 	err     error
 }
@@ -35,13 +35,6 @@ func (f *items) Add(_ context.Context, req *itemv1.AddRequest) (*itemv1.AddRespo
 	defer f.mu.Unlock()
 	f.adds = append(f.adds, req)
 	return &itemv1.AddResponse{Changed: f.changed}, f.err
-}
-
-func (f *items) GrantStarter(_ context.Context, req *itemv1.GrantStarterRequest) (*itemv1.GrantStarterResponse, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.grants = append(f.grants, req)
-	return &itemv1.GrantStarterResponse{}, f.err
 }
 
 func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
@@ -91,26 +84,6 @@ func TestPickupsRetryOnlyWhatMayPass(t *testing.T) {
 				t.Fatalf("Retryable = %v", got)
 			}
 		})
-	}
-}
-
-func TestStarterAsksForTheCharactersClass(t *testing.T) {
-	f := &items{}
-	s := starter{c: itemClient(t, f)}
-	account, id := model.NewAccountID(), model.NewCharacterID()
-	if err := s.GrantStarter(context.Background(), account, id, model.Bowman); err != nil {
-		t.Fatal(err)
-	}
-	if g := f.grants[0]; g.GetClass() != "bowman" || g.GetActor().GetAccountId() != account.String() || g.GetActor().GetCharacterId() != id.String() {
-		t.Fatalf("grant %+v", g)
-	}
-	f.err = grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_UNKNOWN_ITEM)
-	err := s.GrantStarter(context.Background(), account, id, model.Bowman)
-	if err == nil || s.Retryable(err) {
-		t.Fatalf("a refusal: %v, retryable %v", err, s.Retryable(err))
-	}
-	if !s.Retryable(status.Error(codes.Unavailable, "down")) {
-		t.Fatal("an unreachable service is not retried")
 	}
 }
 
@@ -185,4 +158,45 @@ func TestGuardOverTheAccountService(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+}
+
+// characters is the character service's saves, faked behind a real server.
+type characters struct {
+	characterv1.UnimplementedCharacterServiceServer
+	checkpoints []*characterv1.SaveCheckpointRequest
+	levelUps    []*characterv1.SaveLevelUpRequest
+}
+
+func (f *characters) SaveCheckpoint(_ context.Context, req *characterv1.SaveCheckpointRequest) (*characterv1.SaveCheckpointResponse, error) {
+	f.checkpoints = append(f.checkpoints, req)
+	return &characterv1.SaveCheckpointResponse{}, nil
+}
+
+func (f *characters) SaveLevelUp(_ context.Context, req *characterv1.SaveLevelUpRequest) (*characterv1.SaveLevelUpResponse, error) {
+	f.levelUps = append(f.levelUps, req)
+	return &characterv1.SaveLevelUpResponse{}, nil
+}
+
+func TestSaverOverTheCharacterService(t *testing.T) {
+	f := &characters{}
+	srv := grpcx.NewServer(grpcx.ServerOptions{})
+	characterv1.RegisterCharacterServiceServer(srv, f)
+	s := saver{c: characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv))}
+	id := model.NewCharacterID()
+	ctx := context.Background()
+	if err := s.SaveCheckpoint(ctx, world.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Exp: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 || cp.GetExp() != 5 {
+		t.Fatalf("checkpoint %+v", cp)
+	}
+	if err := s.SaveLevelUp(ctx, world.LevelUpSave{ID: id, Level: 4, Exp: 6, Stats: gamedata.Stats{STR: 21, VIT: 16}, HP: 280, MP: 31}); err != nil {
+		t.Fatal(err)
+	}
+	if lu := f.levelUps[0]; lu.GetLevel() != 4 || lu.GetExp() != 6 || lu.GetStats().GetStrength() != 21 || lu.GetStats().GetVitality() != 16 || lu.GetHp() != 280 || lu.GetMp() != 31 {
+		t.Fatalf("level-up %+v", lu)
+	}
+	if s.Retryable(grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || !s.Retryable(status.Error(codes.Unavailable, "down")) {
+		t.Fatal("only a failure without a reason is retried")
+	}
 }

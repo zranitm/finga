@@ -24,7 +24,7 @@ server/                 the Go module: everything the server builds, reads and p
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     application/        business logic: the game's rules, one package per module
-      character/  world/  combat/      the modules still in the game server (page 10 moves each to its service)
+      world/  combat/                  the modules still in the game server (page 10 moves them to the world service)
       economy/  market/  audit/        Stage 2
     handler/
       api/              REST handlers, DTOs, middleware
@@ -48,8 +48,7 @@ server/                 the Go module: everything the server builds, reads and p
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
     account/            the same shape: cmd/account, internal/account, internal/handler (AccountService and WatchSessions), migrations/
     social/             party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
-    character/
-      migrations/       (its code joins in step 26)
+    character/          the same shape as item, and internal/clients/ for the item service (starter items)
   pkg/                  generic libraries with no game knowledge
   test/                 end-to-end tests: one row per acceptance criterion
   testdata/             the contracts the client's tests check too
@@ -260,7 +259,7 @@ Every module below lives in `internal/application/`, except the two handlers. Th
 | Module | Owns | Uses |
 | --- | --- | --- |
 | `account` (the account service, `services/account`) | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
-| `character` | Characters, stats, levels, EXP | gamedata, progression |
+| `character` (the character service, `services/character`) | Characters, stats, levels, EXP | gamedata, progression, the item service (starter items) |
 | `world` | Map instances, movement, mobs, ground drops, portals | character, combat, the item service (through a `Pickups` adapter), economy, gamedata, sim, progression, `pkg/tick` |
 | `combat` | Hit and damage resolution, EXP awards; pure functions | gamedata |
 | `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |

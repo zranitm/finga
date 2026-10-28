@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 
 	accountv1 "finga/api/gen/account/v1"
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
@@ -54,21 +55,6 @@ func (p pickups) Add(ctx context.Context, in world.Pickup) ([]world.Slot, error)
 // reached, or could not explain it. A reason is a rule; retrying cannot help.
 func (pickups) Retryable(err error) bool { return !grpcx.IsRule(err) }
 
-// starter is character creation's StarterItems over the item service.
-type starter struct{ c itemv1.ItemServiceClient }
-
-// GrantStarter asks for the class's starter items, keyed by the character.
-func (s starter) GrantStarter(ctx context.Context, account model.AccountID, character model.CharacterID, class model.Class) error {
-	_, err := s.c.GrantStarter(ctx, &itemv1.GrantStarterRequest{
-		Actor: &itemv1.Actor{AccountId: account.String(), CharacterId: character.String()},
-		Class: class.String(),
-	})
-	return err
-}
-
-// Retryable is a failure that carries no reason.
-func (starter) Retryable(err error) bool { return !grpcx.IsRule(err) }
-
 // guard is the REST handler's and the gateway's auth.Guard over the account
 // service. Failures pass through as they came, with their reason.
 type guard struct {
@@ -115,3 +101,30 @@ func (g guard) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
 	_, err := g.c.RevokeAll(ctx, &accountv1.RevokeAllRequest{AccountId: accountID.String()})
 	return err
 }
+
+// saver is the world's Saver over the character service.
+type saver struct {
+	c characterv1.CharacterServiceClient
+}
+
+// SaveCheckpoint saves position, HP, MP and EXP.
+func (s saver) SaveCheckpoint(ctx context.Context, cp world.Checkpoint) error {
+	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
+		CharacterId: cp.ID.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp,
+	})
+	return err
+}
+
+// SaveLevelUp saves a level-up.
+func (s saver) SaveLevelUp(ctx context.Context, lu world.LevelUpSave) error {
+	st := lu.Stats
+	_, err := s.c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{
+		CharacterId: lu.ID.String(), Level: int32(lu.Level), Exp: lu.Exp,
+		Stats: &characterv1.Stats{Strength: int32(st.STR), Dexterity: int32(st.DEX), Intelligence: int32(st.INT), Agility: int32(st.AGI), Vitality: int32(st.VIT)},
+		Hp:    int32(lu.HP), Mp: int32(lu.MP),
+	})
+	return err
+}
+
+// Retryable is a failure that carries no reason.
+func (saver) Retryable(err error) bool { return !grpcx.IsRule(err) }

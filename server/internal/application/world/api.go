@@ -11,7 +11,6 @@ import (
 	"errors"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/sim"
@@ -24,6 +23,9 @@ var (
 	ErrBusy    = errors.New("world: map instance inbox is full")
 	ErrNoMap   = errors.New("world: no such map")
 	ErrStopped = errors.New("world: instance is not running")
+	// ErrClassUnavailable is a joining character whose class the game data
+	// does not have: a join that cannot happen, never a player's refusal.
+	ErrClassUnavailable = errors.New("world: class not available")
 )
 
 // Player is what an instance needs to know about a character when it
@@ -175,17 +177,42 @@ type Sink interface {
 	Send(Event) bool
 }
 
-// Saver persists checkpoints and level-ups; the character service
-// satisfies it. It is called from the persistence worker, never from a tick.
+// Checkpoint is a character's non-economic state, saved every 30 seconds
+// (TD-02) and on map change and logout.
+type Checkpoint struct {
+	ID    model.CharacterID
+	MapID string // the map it is on, or moving to
+	X, Y  float64
+	HP    int
+	MP    int
+	Exp   int64
+}
+
+// LevelUpSave is saved right away when a character gains a level.
+type LevelUpSave struct {
+	ID    model.CharacterID
+	Level int
+	Exp   int64
+	Stats gamedata.Stats
+	HP    int
+	MP    int
+}
+
+// Saver persists checkpoints and level-ups; an adapter over the character
+// service implements it. It is called from the persistence worker, never
+// from a tick.
 type Saver interface {
-	SaveCheckpoint(ctx context.Context, cp character.Checkpoint) error
-	SaveLevelUp(ctx context.Context, lu character.LevelUp) error
+	SaveCheckpoint(ctx context.Context, cp Checkpoint) error
+	SaveLevelUp(ctx context.Context, lu LevelUpSave) error
+	// Retryable reports whether a failed save may succeed when tried again:
+	// a transient failure, not a rule it ran into.
+	Retryable(err error) bool
 }
 
 // Job is one unit of work for the persistence worker: exactly one field set.
 type Job struct {
-	Checkpoint *character.Checkpoint
-	LevelUp    *character.LevelUp
+	Checkpoint *Checkpoint
+	LevelUp    *LevelUpSave
 }
 
 // Mover moves a player to another map's instance after a respawn or a

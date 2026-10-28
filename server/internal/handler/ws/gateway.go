@@ -17,13 +17,13 @@ import (
 	"google.golang.org/grpc"
 
 	accountv1 "finga/api/gen/account/v1"
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/character"
 	"finga/internal/application/world"
+	"finga/internal/gamedata"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
-	"finga/internal/progression"
 	"finga/internal/protocol"
 	"finga/internal/sim"
 	"finga/pkg/auth"
@@ -32,10 +32,10 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// CharacterSource is what the gateway needs from the character module.
+// CharacterSource is what the gateway needs from the character service
+// (page 10); its generated client satisfies it.
 type CharacterSource interface {
-	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (character.Character, error)
-	Derived(c character.Character) (progression.Derived, error)
+	Load(ctx context.Context, in *characterv1.LoadRequest, opts ...grpc.CallOption) (*characterv1.LoadResponse, error)
 }
 
 // MapInstance is what the gateway needs from a map actor.
@@ -432,28 +432,36 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		return
 	}
 	account := model.AccountID(p.AccountID)
-	c, err := g.deps.Characters.Load(ctx, charID, account)
+	res, err := g.deps.Characters.Load(ctx, &characterv1.LoadRequest{CharacterId: charID.String(), AccountId: account.String()})
 	if err != nil {
-		g.kick(s.conn, protocol.KickUnauthenticated)
+		// Someone else's character, or none, is a bad Hello; a character
+		// service that cannot answer is a server fault the client retries.
+		if errmap.For(err).Code == characterNotFound {
+			g.kick(s.conn, protocol.KickUnauthenticated)
+			return
+		}
+		g.deps.Logger.ErrorContext(ctx, "character load failed", "character_id", charID, "err", err)
+		s.conn.Close(wsconn.CloseInternal, "character")
 		return
 	}
-	derived, err := g.deps.Characters.Derived(c)
+	c := res.GetCharacter()
+	class, err := model.ParseClass(c.GetClass())
 	if err != nil {
-		g.deps.Logger.ErrorContext(ctx, "derived stats failed", "character_id", c.ID, "err", err)
-		s.conn.Close(wsconn.CloseInternal, "stats")
+		g.deps.Logger.ErrorContext(ctx, "character of an unknown class", "character_id", charID, "class", c.GetClass())
+		s.conn.Close(wsconn.CloseInternal, "class")
 		return
 	}
-	inst, err := g.deps.World.Instance(c.MapID)
+	inst, err := g.deps.World.Instance(c.GetMapId())
 	if err != nil {
-		g.deps.Logger.ErrorContext(ctx, "character on an unknown map", "character_id", c.ID, "map_id", c.MapID)
+		g.deps.Logger.ErrorContext(ctx, "character on an unknown map", "character_id", charID, "map_id", c.GetMapId())
 		s.conn.Close(wsconn.CloseInternal, "map")
 		return
 	}
 	inventory := []protocol.ItemView{}
 	if g.deps.Items != nil {
-		res, err := g.deps.Items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: c.ID.String()})
+		res, err := g.deps.Items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: charID.String()})
 		if err != nil {
-			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", c.ID, "err", err)
+			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
 			s.conn.Close(wsconn.CloseInternal, "inventory")
 			return
 		}
@@ -464,12 +472,11 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	old := g.byAccount[account]
 	sameSession := g.bySession[model.SessionID(p.SessionID)]
 	g.byAccount[account] = s
-	g.byCharacter[c.ID] = s
+	g.byCharacter[charID] = s
 	g.bySession[model.SessionID(p.SessionID)] = s
 	s.account = account
 	s.sessionID = model.SessionID(p.SessionID)
-	s.character = c
-	s.maxHP = derived.MaxHP
+	s.character = player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
 	s.setInstance(inst)
 	g.mu.Unlock()
 	// An older connection of the account, or a second Hello on the same
@@ -483,36 +490,41 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 
 	welcome := protocol.Welcome{
 		Token:      token,
-		Character:  characterView(c, derived),
+		Character:  characterView(c),
 		Inventory:  inventory,
-		MapID:      c.MapID,
+		MapID:      c.GetMapId(),
 		ServerTime: g.now().UnixMilli(),
 	}
 	if g.deps.Social != nil {
 		// Parties are optional: a social service that cannot be reached
 		// leaves Welcome without one rather than the player out of the game.
-		res, err := g.deps.Social.PartyOf(ctx, &socialv1.PartyOfRequest{CharacterId: c.ID.String()})
+		res, err := g.deps.Social.PartyOf(ctx, &socialv1.PartyOfRequest{CharacterId: charID.String()})
 		if err != nil {
-			g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", c.ID, "err", err)
+			g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", charID, "err", err)
 		}
 		welcome.Party = partyView(res.GetParty())
 	}
 	g.send(s.conn, wsconn.Message{Data: welcome})
-	player := world.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y}
+	st := c.GetStats()
+	joining := world.Player{
+		ID: charID, Account: account, Name: c.GetName(), Class: class, Level: int(c.GetLevel()), Exp: c.GetExp(),
+		Stats: gamedata.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
+		HP:    int(c.GetHp()), MP: int(c.GetMp()), X: c.GetX(), Y: c.GetY(),
+	}
 	snk := &sink{conn: s.conn, obs: g.deps.Observer, logger: g.deps.Logger, onTeleport: func(mapID string) {
 		if target, err := g.deps.World.Instance(mapID); err == nil {
 			s.setInstance(target)
 		}
 	}}
-	if err := inst.Join(ctx, player, snk); err != nil {
-		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", c.ID, "map_id", c.MapID, "err", err)
+	if err := inst.Join(ctx, joining, snk); err != nil {
+		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "map_id", c.GetMapId(), "err", err)
 		s.conn.Close(wsconn.CloseInternal, "join")
 		return
 	}
 	s.setActive()
 	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
-	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", c.ID, "map_id", c.MapID)
+	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", charID, "map_id", c.GetMapId())
 }
 
 // online tells the social service a player is connected through this
@@ -523,7 +535,7 @@ func (g *Gateway) online(ctx context.Context, s *session) {
 		return
 	}
 	c := s.character
-	member := &socialv1.Member{Id: c.ID.String(), Name: c.Name, Level: int32(c.Level), Hp: int32(c.HP), MaxHp: int32(s.maxHP), MapId: s.inst().MapID()}
+	member := &socialv1.Member{Id: c.ID.String(), Name: c.Name, Level: int32(c.Level), Hp: int32(c.HP), MaxHp: int32(c.MaxHP), MapId: s.inst().MapID()}
 	if _, err := g.deps.Social.Online(ctx, &socialv1.OnlineRequest{GatewayId: g.deps.ID, Member: member}); err != nil {
 		g.deps.Logger.WarnContext(ctx, "social online failed", "character_id", c.ID, "err", err)
 	}
@@ -680,11 +692,15 @@ func (g *Gateway) send(c wsconn.Conn, m wsconn.Message) {
 	_ = c.Send(m) // a full queue closes the connection; OnClose cleans up
 }
 
-func characterView(c character.Character, d progression.Derived) protocol.CharacterView {
+// characterNotFound is the code of a character that is not the account's.
+const characterNotFound = "character_not_found"
+
+func characterView(c *characterv1.Character) protocol.CharacterView {
+	st := c.GetStats()
 	return protocol.CharacterView{
-		ID: c.ID.String(), Name: c.Name, Class: c.Class.String(), Level: c.Level, Exp: c.Exp,
-		Stats: protocol.Stats{STR: c.Stats.STR, DEX: c.Stats.DEX, INT: c.Stats.INT, AGI: c.Stats.AGI, VIT: c.Stats.VIT},
-		HP:    c.HP, MaxHP: d.MaxHP, MP: c.MP, MaxMP: d.MaxMP,
+		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
+		Stats: protocol.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
+		HP:    int(c.GetHp()), MaxHP: int(c.GetMaxHp()), MP: int(c.GetMp()), MaxMP: int(c.GetMaxMp()),
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
@@ -540,8 +539,8 @@ func TestCheckpoints(t *testing.T) {
 		synctest.Wait()
 		inst.Input(p.ID, 1, sim.Input{Right: true})
 
-		collect := func() []character.Checkpoint {
-			var out []character.Checkpoint
+		collect := func() []world.Checkpoint {
+			var out []world.Checkpoint
 			for {
 				select {
 				case j := <-persist:

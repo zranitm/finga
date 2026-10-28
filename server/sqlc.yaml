@@ -37,11 +37,11 @@ sql:
             go_type: string
   - engine: postgresql
     schema: services/character/migrations
-    queries: internal/application/character/queries
+    queries: services/character/internal/character/queries
     gen:
       go:
         package: db
-        out: internal/application/character/internal/db
+        out: services/character/internal/character/internal/db
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: *overrides

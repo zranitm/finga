@@ -58,12 +58,12 @@ Only one player can hold a reservation, so two players can never both get a drop
 ## Character state and checkpoints
 
 - While a character is online, its position, HP, MP, and EXP live in the map instance.
-- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout.
+- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up; on shutdown the queue is flushed with one try each.
 - Items and coins never wait for a checkpoint: each change is its own transaction.
 
 ## Joining, leaving, and changing maps
 
-- **Join:** the gateway validates Hello, loads the character, and sends Join to the map instance for the character's saved map. The instance replies with Welcome and a Snapshot.
+- **Join:** the gateway validates Hello, loads the character from the character service, and sends Join to the map instance for the character's saved map. The instance replies with Welcome and a Snapshot. A character that is not the account's is a bad Hello (Kicked `unauthenticated`); a character service that cannot answer closes the connection as a server fault, and the client reconnects.
 - **Portal:** the instance removes the player, saves a checkpoint, sends Join to the target instance with the player's in-memory state, and sends the client MapChange.
 - **Disconnect:** the player is removed from the map and saved immediately. Reconnecting joins again at the saved position.
 - **Login elsewhere:** a new login revokes the old session in the database; the account service reports it on its `WatchSessions` stream to every gateway, and the gateway holding the old connection closes it with Kicked (step 24; the minute check catches what a broken stream missed).

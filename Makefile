@@ -19,9 +19,14 @@ down:          ## stop everything and drop the database volume
 	$(COMPOSE) down -v
 
 # The binaries read only their environment, so run exports server/.env (when
-# present) into it, the way Compose's env_file does for make up.
-run:           ## without Docker: server/.env exported, every service's migrations, then the game server
-	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && $(GO) run ./cmd/gameserver
+# present) into it, the way Compose's env_file does for make up. The services
+# run in the background on the defaults in configs/config.yaml (localhost
+# ports) and stop with the game server, on Ctrl-C.
+SERVICES ?= account character item social
+run:           ## without Docker: server/.env exported, every service's migrations, then the services and the game server
+	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
+	$(GO) build -o bin/ ./cmd/gameserver $(foreach s,$(SERVICES),./services/$(s)/cmd/$(s)) && \
+	trap 'kill 0' EXIT; for s in $(SERVICES); do ./bin/$$s & done; ./bin/gameserver
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
 

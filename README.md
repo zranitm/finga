@@ -42,7 +42,7 @@ Postgres owns port 5432 on the host, set `FINGA_POSTGRES_PORT` in
 the binaries:
 
 ```bash
-make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the game server
+make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the services and the game server
 ```
 
 The game server serves REST under /api, the gateway at /ws, /healthz,
@@ -152,9 +152,6 @@ One Go module in `server/`, laid out so that imports only point one way
   every player each tick. A tick never waits on the database: pickups go to
   the economy worker pool, which calls the item service with the drop's ID as
   the idempotency key, and the result comes back as an inbox message.
-- **`internal/application/character`** is the module still inside the
-  game server besides the world, a service over a repository (sqlc, pgx)
-  with no business rules in SQL.
 - **`services/item`** is the first service in its own process (Low-level
   design, page 10): the item module in `internal/item`, its gRPC handler,
   its migrations, and the invariant checks in `invariants`. Items are
@@ -169,6 +166,11 @@ One Go module in `server/`, laid out so that imports only point one way
   party state, invites and party chat to each member's gateway on its own
   stream, and the world's ticks read a local copy of party membership fed by
   its `WatchParties` stream.
+- **`services/character`** holds the characters: REST lists and creates
+  them through it, Hello loads them, and the world's persistence worker
+  saves checkpoints and level-ups to it. A new character's starter items
+  are granted through the item service after the character commits.
+  With it, the game server needs no database of its own.
 - **`pkg/`** holds the generic parts: config loading, the transaction
   helper with retries, idempotency keys, the outbox, token
   buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps,

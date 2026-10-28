@@ -4,7 +4,7 @@
 - **Features:** A2, C4
 - **Milestone:** Services
 - **Order:** 26
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 26. Character service
 
 **Goal:** characters run as their own service: REST lists and creates them, Hello loads them, and the world's checkpoints and level-ups save them, all over gRPC.

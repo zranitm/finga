@@ -6,7 +6,6 @@ import (
 	"slices"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/application/combat"
 	"finga/internal/gamedata"
 	"finga/internal/model"
@@ -44,6 +43,7 @@ type Options struct {
 	Items              Pickups       // the item module; nil: pickups are unavailable
 	Workers            *Workers      // the economy worker pool; nil: pickups are unavailable
 	Parties            Parties       // the party service; nil: nobody has a party
+	SaveRetryFor       time.Duration // how long a failing save is retried; a minute by default (World only)
 }
 
 func (o Options) withDefaults() Options {
@@ -317,7 +317,7 @@ func (i *Instance) join(j *joinMsg) {
 	class, ok := i.data.Class(j.player.Class)
 	formulas, ok2 := i.data.Formulas(j.player.Class)
 	if !ok || !ok2 {
-		j.done <- character.ErrClassUnavailable
+		j.done <- ErrClassUnavailable
 		return
 	}
 	p := &player{
@@ -515,7 +515,7 @@ func (i *Instance) checkpointOn(p *player, mapID string) {
 	if i.persist == nil {
 		return
 	}
-	cp := character.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
+	cp := Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
 	select {
 	case i.persist <- Job{Checkpoint: &cp}:
 	default:

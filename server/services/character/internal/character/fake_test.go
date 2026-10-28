@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"finga/internal/application/character"
 	"finga/internal/model"
+	"finga/services/character/internal/character"
 )
 
 // fakeStore is an in-memory Store with the one constraint the service

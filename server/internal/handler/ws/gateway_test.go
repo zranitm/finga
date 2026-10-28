@@ -22,9 +22,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	accountv1 "finga/api/gen/account/v1"
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/handler/ws"
@@ -68,10 +68,10 @@ func newHarness(t *testing.T, opts ...func(*ws.Dependencies)) *harness {
 			tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)},
 			tokenBob:   {AccountID: uuid.UUID(bob), SessionID: uuid.UUID(sessBob)},
 		}},
-		Characters: &fakeCharacters{chars: map[model.CharacterID]character.Character{
-			aylaID:  {ID: aylaID, AccountID: alice, Name: "Ayla", Class: model.Warrior, Level: 1, HP: 204, MP: 28, MapID: "town", X: 416, Y: 608, Stats: gamedata.Stats{STR: 12}},
-			robinID: {ID: robinID, AccountID: alice, Name: "Robin", Class: model.Bowman, Level: 1, HP: 105, MP: 33, MapID: "town", X: 400, Y: 608},
-			brunoID: {ID: brunoID, AccountID: bob, Name: "Bruno", Class: model.Warrior, Level: 1, HP: 204, MP: 28, MapID: "town", X: 500, Y: 608},
+		Characters: &fakeCharacters{chars: map[model.CharacterID]*characterv1.Character{
+			aylaID:  {Id: aylaID.String(), AccountId: alice.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &characterv1.Stats{Strength: 12}},
+			robinID: {Id: robinID.String(), AccountId: alice.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608},
+			brunoID: {Id: brunoID.String(), AccountId: bob.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608},
 		}},
 		World:        &fakeWorld{instances: map[string]ws.MapInstance{"town": town}},
 		Logger:       slog.New(slog.DiscardHandler),
@@ -262,7 +262,18 @@ func TestHelloFailures(t *testing.T) {
 	})
 	t.Run("a character on an unknown map", func(t *testing.T) {
 		h := newHarness(t, func(d *ws.Dependencies) {
-			d.Characters = &fakeCharacters{chars: map[model.CharacterID]character.Character{aylaID: {ID: aylaID, AccountID: alice, MapID: "limbo"}}}
+			d.Characters = &fakeCharacters{chars: map[model.CharacterID]*characterv1.Character{aylaID: {Id: aylaID.String(), AccountId: alice.String(), Class: "warrior", MapId: "limbo"}}}
+		})
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		if _, status := c.read(); status != websocket.StatusInternalError {
+			t.Fatalf("status %d", status)
+		}
+	})
+	t.Run("a character service that cannot answer closes as internal, not unauthenticated", func(t *testing.T) {
+		// Unauthenticated would log the client out; this way it reconnects.
+		h := newHarness(t, func(d *ws.Dependencies) {
+			d.Characters = &fakeCharacters{err: status.Error(codes.Unavailable, "connection refused")}
 		})
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)

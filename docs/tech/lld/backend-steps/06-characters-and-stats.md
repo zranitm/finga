@@ -11,6 +11,8 @@
 
 > **Changed by step 20 (2026-10-27):** the pure rules (`DeriveStats`, `AwardExp`, `DeathPenalty`) live in `internal/progression`, where the character module and the world's tick both import them.
 
+> **Changed by step 26 (2026-10-28):** the character module runs as its own service (`services/character`); `Load` over gRPC carries the maximum HP and MP, so callers never run the rules.
+
 **Goal:** create and load characters, and compute their stats, EXP, and levels.
 
 **Layers in this step:** repository, service, and pure rules. The REST handlers come in step 07.
