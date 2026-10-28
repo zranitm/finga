@@ -46,8 +46,24 @@ make run                   # exports server/.env, applies every service's migrat
 ```
 
 The gateway serves REST under /api, the WebSocket at /ws, /healthz, /readyz
-and /metrics on :8080; every other service serves gRPC and its own /healthz,
-/readyz and /metrics on its ops port (`services` in the configuration).
+and /metrics on :8080; every other service serves gRPC on one port and its
+own /healthz, /readyz and /metrics on another (its ops port):
+
+| Process   | gRPC | HTTP / ops                          | On the host with `make up`          |
+|-----------|------|-------------------------------------|-------------------------------------|
+| gateway   |      | 8080: /api, /ws, probes, /metrics   | 8080 (`FINGA_PORT`)                 |
+| account   | 9001 | 9101                                |                                     |
+| character | 9002 | 9102                                |                                     |
+| item      | 9003 | 9103                                |                                     |
+| world     | 9004 | 9104                                | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots` |
+| social    | 9005 | 9105                                |                                     |
+| Postgres  |      | 5432                                | 5432 (`FINGA_POSTGRES_PORT`)        |
+| client    |      | 5173 (`npm run dev`), 4173 (`make play`) | served by Vite, not Compose    |
+
+Under `make up` the services reach each other on the Compose network by
+name (`world:9004`), and only the ports in the last column are published;
+under `make run` every port is on localhost. The defaults live in
+`server/configs/config.yaml` under `server` and `services`.
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
