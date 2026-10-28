@@ -784,10 +784,24 @@ func TestPartyCommandsAndState(t *testing.T) {
 		t.Fatalf("bruno has a party in Welcome: %+v", w.Party)
 	}
 	bruno.expect("Snapshot")
-	on := fs.onlineCalls()
-	if len(on) != 2 || on[0].GetMember().GetId() != aylaID.String() || on[0].GetMember().GetName() != "Ayla" || on[0].GetMember().GetMapId() != "town" ||
-		on[0].GetMember().GetMaxHp() != 204 || on[0].GetMember().GetLevel() != 1 || on[0].GetGatewayId() == "" {
-		t.Fatalf("online %+v", on)
+	// A player is registered after their Snapshot goes out, so the two
+	// registrations can land in either order, and the second a moment after
+	// its Snapshot: wait for both, and find Ayla's by ID.
+	deadline := time.Now().Add(5 * time.Second)
+	for len(fs.onlineCalls()) < 2 {
+		if time.Now().After(deadline) {
+			t.Fatalf("online %+v", fs.onlineCalls())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	var mine *socialv1.OnlineRequest
+	for _, req := range fs.onlineCalls() {
+		if req.GetMember().GetId() == aylaID.String() {
+			mine = req
+		}
+	}
+	if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" {
+		t.Fatalf("online %+v", fs.onlineCalls())
 	}
 
 	t.Run("each command carries the connection's identity and answers its request", func(t *testing.T) {
