@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,13 +26,13 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
+	"finga/services/gateway/internal/handler/errmap"
 )
 
 // Observer counts traffic; internal/telemetry implements it. nil is fine.
@@ -67,6 +68,8 @@ type Dependencies struct {
 	// JoinTimeout bounds a join, waiting out a world that is starting or
 	// restarting; 5 s by default.
 	JoinTimeout time.Duration
+	// CommandQueue bounds each connection's command queue; 64 by default.
+	CommandQueue int
 	// SessionCheckInterval is how often Run checks each connection's session
 	// and kicks the expired ones; a minute by default.
 	SessionCheckInterval time.Duration
@@ -76,6 +79,7 @@ const (
 	defaultHelloTimeout         = 5 * time.Second
 	defaultSessionCheckInterval = time.Minute
 	defaultJoinTimeout          = 5 * time.Second
+	defaultCommandQueue         = 64
 	commandTimeout              = 5 * time.Second
 	joinRetryFirst              = 20 * time.Millisecond
 	joinRetryMax                = 500 * time.Millisecond
@@ -96,6 +100,7 @@ type Gateway struct {
 	socialBoot  string                         // the social service's boot ID, from its stream
 	worldSubs   uint64                         // subscriptions to the world's stream so far
 	helloGrace  time.Duration
+	draining    atomic.Bool // Drain has begun: no new connections
 }
 
 // New builds the gateway.
@@ -108,6 +113,9 @@ func New(deps Dependencies) *Gateway {
 	}
 	if deps.JoinTimeout <= 0 {
 		deps.JoinTimeout = defaultJoinTimeout
+	}
+	if deps.CommandQueue <= 0 {
+		deps.CommandQueue = defaultCommandQueue
 	}
 	if deps.Observer == nil {
 		deps.Observer = noopObserver{}
@@ -238,13 +246,57 @@ func (g *Gateway) sessionOf(id model.CharacterID) *session {
 }
 
 // ServeHTTP upgrades the request and runs the session until it closes.
+// While the gateway drains it refuses new connections with 503.
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if g.draining.Load() {
+		http.Error(w, "server restarting", http.StatusServiceUnavailable)
+		return
+	}
 	wsconn.Serve(w, r, g, wsconn.Options{Codec: g.codec, AllowedOrigins: g.deps.CORSOrigins})
 }
 
-// OnOpen starts the Hello timer: a connection that stays silent is closed.
+// drainPoll is how often Drain checks whether every connection has closed.
+const drainPoll = 10 * time.Millisecond
+
+// Drain is the gateway's part of a graceful shutdown, run once readiness
+// has turned 503 and before the listener closes: it refuses new
+// connections, tells every connection the server is restarting (Kicked
+// server_restart, after which the client reconnects with jitter) and
+// closes it, and returns once they have all closed or ctx ends.
+func (g *Gateway) Drain(ctx context.Context) {
+	g.draining.Store(true)
+	g.mu.Lock()
+	conns := make([]wsconn.Conn, 0, len(g.byConn))
+	for _, s := range g.byConn {
+		conns = append(conns, s.conn)
+	}
+	g.mu.Unlock()
+	for _, c := range conns {
+		g.kick(c, protocol.KickServerRestart)
+	}
+	t := time.NewTicker(drainPoll)
+	defer t.Stop()
+	for {
+		g.mu.Lock()
+		open := len(g.byConn)
+		g.mu.Unlock()
+		if open == 0 {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			g.deps.Logger.WarnContext(ctx, "drain ended with connections open", "open", open)
+			return
+		case <-t.C:
+		}
+	}
+}
+
+// OnOpen starts the Hello timer and the connection's command goroutine. A
+// connection that stays silent is closed.
 func (g *Gateway) OnOpen(c wsconn.Conn) {
-	s := &session{conn: c, limiters: map[string]*ratelimit.Buckets{}}
+	s := &session{conn: c, limiters: map[string]*ratelimit.Buckets{}, queue: make(chan wsconn.Message, g.deps.CommandQueue), drained: make(chan struct{})}
+	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.out.send = func(m wsconn.Message) { g.send(c, m) }
 	s.helloTimer = time.AfterFunc(g.helloGrace, func() {
 		if !s.active() {
@@ -253,10 +305,19 @@ func (g *Gateway) OnOpen(c wsconn.Conn) {
 	})
 	g.mu.Lock()
 	g.byConn[c.ID()] = s
+	draining := g.draining.Load() // read under the lock Drain collects connections with
 	g.mu.Unlock()
+	go g.commands(s)
+	if draining {
+		g.kick(c, protocol.KickServerRestart) // upgraded as Drain began
+	}
 }
 
-// OnMessage routes one message. Before Hello only Hello is accepted.
+// OnMessage is the read loop's part: it decodes (wsconn did), applies the
+// rate limits and queues the message for the connection's command
+// goroutine, never waiting on a service. Before Hello only Hello is
+// accepted; Ping is answered here. A full queue answers rate_limited to a
+// command with a request ID and drops the rest.
 func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	g.deps.Observer.MessageIn(m.Type)
 	g.mu.Lock()
@@ -265,13 +326,21 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	if s == nil {
 		return
 	}
-	if !s.active() {
-		hello, ok := m.Data.(protocol.Hello)
-		if !ok {
+	if !s.helloSeen {
+		if _, ok := m.Data.(protocol.Hello); !ok {
 			c.Close(wsconn.CloseKicked, "hello expected")
 			return
 		}
-		g.hello(s, hello)
+		s.helloSeen = true
+		s.queue <- m // the queue is empty: nothing came before Hello
+		return
+	}
+	switch d := m.Data.(type) {
+	case protocol.Ping:
+		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
+		return
+	case protocol.Hello:
+		c.Close(wsconn.CloseKicked, "hello twice")
 		return
 	}
 	if lim, limited := g.limits[m.Type]; limited && !s.allow(m.Type, lim, g.now) {
@@ -280,6 +349,43 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 		}
 		return
 	}
+	select {
+	case s.queue <- m:
+	default:
+		if m.ReqID != "" {
+			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: refusal(errmap.RateLimited)})
+		}
+	}
+}
+
+// commands drains a connection's queue in order, one message at a time,
+// until the connection closes; then it stops, and OnClose waits for it.
+func (g *Gateway) commands(s *session) {
+	defer close(s.drained)
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case m := <-s.queue:
+			if s.ctx.Err() != nil {
+				return
+			}
+			g.command(s, m)
+		}
+	}
+}
+
+// command runs one queued message: Hello first, then, once it has
+// succeeded, each command with the connection's identity.
+func (g *Gateway) command(s *session, m wsconn.Message) {
+	if hello, ok := m.Data.(protocol.Hello); ok {
+		g.hello(s, hello)
+		return
+	}
+	if !s.active() {
+		return // Hello failed, and the connection is closing
+	}
+	c := s.conn
 	switch d := m.Data.(type) {
 	case protocol.Input:
 		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
@@ -358,10 +464,6 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 			_, err = g.deps.Social.Promote(ctx, &socialv1.PromoteRequest{CharacterId: me, TargetId: target.String()})
 			return err
 		})
-	case protocol.Ping:
-		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
-	case protocol.Hello:
-		c.Close(wsconn.CloseKicked, "hello twice")
 	default:
 		// Market messages arrive in Stage 2.
 		if m.ReqID != "" {
@@ -370,10 +472,18 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 }
 
-// OnClose leaves the map and clears the registry.
+// OnClose cancels the connection's command in flight and waits for its
+// command goroutine, then leaves the map and clears the registry.
 func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	g.mu.Lock()
 	s := g.byConn[c.ID()]
+	g.mu.Unlock()
+	if s == nil {
+		return
+	}
+	s.cancel()
+	<-s.drained
+	g.mu.Lock()
 	delete(g.byConn, c.ID())
 	var joined bool
 	if s != nil {
@@ -390,9 +500,6 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 		}
 	}
 	g.mu.Unlock()
-	if s == nil {
-		return
-	}
 	s.helloTimer.Stop()
 	if joined {
 		// The world removes the player only if it joined through this
@@ -432,7 +539,7 @@ func (g *Gateway) leave(s *session) {
 // stream before the join answers, waits in the session and follows
 // Welcome. An older connection of the account loses once the join holds.
 func (g *Gateway) hello(s *session, h protocol.Hello) {
-	ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, g.deps.JoinTimeout)
 	defer cancel()
 	if h.ProtocolVersion != protocol.Version {
 		g.kick(s.conn, protocol.KickOutdatedProtocol)
@@ -605,13 +712,17 @@ func (g *Gateway) worldDelivered(m *worldv1.DeliverResponse) {
 func (g *Gateway) rejoin(s *session) {
 	s.rejoinMu.Lock()
 	defer s.rejoinMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, g.deps.JoinTimeout)
 	defer cancel()
 	before := s.mapID()
 	s.out.hold()
 	res, err := g.join(ctx, &worldv1.JoinRequest{GatewayId: g.deps.ID, ConnectionId: s.conn.ID(), AccountId: s.account.String(), CharacterId: s.character.ID.String()})
 	if err != nil {
 		s.out.abort()
+		if s.ctx.Err() != nil {
+			g.leave(s) // the connection closed mid-join; the world may have joined it anyway
+			return
+		}
 		if r, _ := grpcx.ReasonOf(err); r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED) {
 			// The stream broke again: the next subscription rejoins.
 			g.deps.Logger.WarnContext(ctx, "rejoin waits for the world's stream", "character_id", s.character.ID)
@@ -672,7 +783,7 @@ func waitable(err error) bool {
 // character and map. A failure is dropped: the client's next input
 // supersedes it, and a world that went away is handled by the rejoin.
 func (g *Gateway) worldCommand(s *session, call func(ctx context.Context, p *worldv1.Presence) error) {
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
 	_ = call(ctx, s.presence())
 }
@@ -701,7 +812,7 @@ func (g *Gateway) chat(s *session, d protocol.ChatSend) {
 		g.send(s.conn, wsconn.Message{Data: refusal(errmap.ChatUnavailable)})
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
 	res, err := g.deps.Social.Chat(ctx, &socialv1.ChatRequest{SenderId: s.character.ID.String(), SenderName: s.character.Name, Channel: chatChannels[d.Channel], Text: d.Text})
 	if err != nil {
@@ -730,7 +841,7 @@ func (g *Gateway) partyCommand(s *session, reqID string, run func(ctx context.Co
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.PartiesUnavailable)})
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
 	if err := run(ctx, s.character.ID.String()); err != nil {
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "party", err)})
@@ -818,7 +929,7 @@ func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx contex
 		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.InventoryUnavailable)})
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
 	changed, err := run(ctx, &itemv1.Actor{AccountId: s.account.String(), CharacterId: s.character.ID.String()})
 	if err != nil {

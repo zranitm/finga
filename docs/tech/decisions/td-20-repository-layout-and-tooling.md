@@ -19,6 +19,7 @@
 - `internal/application`: every business module in one place, apart from transport and infrastructure. It never imports handlers, protocol, telemetry, or config.
 - `internal/server`: wiring and the HTTP server, since there are two handlers (REST and WebSocket). Named `server` rather than `app`, so it can't be confused with `application`. **Superseded on 2026-10-23** at the user's request: each binary wires its own dependencies next to its main (the Composition Root), so the game server's wiring and process moved to `cmd/gameserver/app`, and the route table and probes to `internal/handler/router.go` (Low-level design, page 1).
 - A `gen` Make target for sqlc.
+- `services/`: **added on 2026-10-27 by TD-25** and built in backend steps 20 to 28: one folder per service (gateway, account, character, item, world, social), each with its `cmd/`, `internal/` and `migrations/`. `internal/application`, `internal/handler`, `cmd/gameserver` and the top-level `migrations/` moved into the services; `cmd/` keeps `migrate` and `bot` (Low-level design, pages 1 and 10).
 
 ## Consequences
 

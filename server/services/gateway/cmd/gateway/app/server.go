@@ -1,9 +1,10 @@
-// Package app is the game server's composition root and its process. Build
-// wires the gateway and the REST handler over a client for each service;
-// Server runs the HTTP listener on the router from internal/handler, with
-// the background tasks (the streams the gateway follows and its session
-// sweeper) and graceful shutdown, on pkg/runner. New takes ready-made
-// parts, for tests and for Build.
+// Package app is the gateway service's composition root and its process.
+// Build wires the WebSocket gateway and the REST handler over a client for
+// each service; Server runs the HTTP listener on the router from
+// internal/handler, with the background tasks (the streams the gateway
+// follows and its session sweeper) and a graceful shutdown that drains the
+// connections first, on pkg/runner. New takes ready-made parts, for tests
+// and for Build.
 //
 // Each binary wires its own dependencies next to its main. This one lives in
 // a package of its own, not in main, because Go cannot import a main package
@@ -16,8 +17,8 @@ import (
 	"net/http"
 
 	"finga/internal/config"
-	"finga/internal/handler"
 	"finga/pkg/runner"
+	"finga/services/gateway/internal/handler"
 )
 
 // Task is a background job that runs beside the listener and stops when
@@ -36,13 +37,17 @@ type Deps struct {
 	Gateway http.Handler // /ws; nil mounts nothing
 	Metrics http.Handler // /metrics
 	Tasks   []Task
+	// Drain runs on shutdown once readiness has turned 503 and before the
+	// listener closes, within the grace period: the gateway kicks its
+	// connections there. nil skips it.
+	Drain func(ctx context.Context)
 }
 
 // listener is the one listener's name in the runner.
 const listener = "http"
 
-// Server is the game server's process: one HTTP listener for the router,
-// and the background tasks, on pkg/runner (readiness, graceful shutdown).
+// Server is the gateway's process: one HTTP listener for the router, and
+// the background tasks, on pkg/runner (readiness, drain, graceful shutdown).
 type Server struct {
 	run     *runner.Runner
 	handler http.Handler
@@ -59,7 +64,7 @@ func New(opts Options, deps Deps) *Server {
 		Metrics: deps.Metrics,
 		Ready:   func() bool { return s.run.Ready() },
 	})
-	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.Config.ShutdownGrace},
+	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.Config.ShutdownGrace, Drain: deps.Drain},
 		[]runner.Listener{{Name: listener, Addr: opts.Config.Addr, Server: runner.HTTP(s.handler)}}, deps.Tasks)
 	return s
 }

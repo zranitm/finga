@@ -317,7 +317,8 @@ type PickupFailed struct {
 }
 
 // The pickup errors the world raises itself. Each names one failure; the
-// handlers give it a code and the words a player sees (internal/handler/errmap).
+// service's handler sends it as a reason, and the gateway gives it a code
+// and the words a player sees (its errmap).
 var (
 	ErrPickupsUnavailable = errors.New("world: pickups not wired")
 	ErrPickupBusy         = errors.New("world: pickup workers busy")

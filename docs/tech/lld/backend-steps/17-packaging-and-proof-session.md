@@ -10,6 +10,8 @@
 
 > **Changed by step 27 (2026-10-28):** Compose runs the world service and publishes its ops port (9104); `make bots` reads the tick percentiles there (`-metrics`).
 
+> **Changed by step 28 (2026-10-28):** Compose runs Postgres, migrate and the six services, the gateway on :8080; `make down` also removes containers of services the Compose file no longer has; CI tests each service on its own and runs `buf breaking`.
+
 **Goal:** `make up` runs the whole Stage 1 game from a clean clone, ready for the proof session.
 
 ## Scope

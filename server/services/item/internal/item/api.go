@@ -15,8 +15,9 @@ import (
 	"finga/internal/model"
 )
 
-// The module's errors. Each names one failure; the handlers give it a
-// code, a status and the words a player sees (internal/handler/errmap).
+// The module's errors. Each names one failure; the service's handler sends
+// it as a reason, and the gateway gives it a code, a status and the words a
+// player sees (its errmap).
 var (
 	ErrNotFound      = errors.New("item: not found")
 	ErrSlotTaken     = errors.New("item: slot taken")

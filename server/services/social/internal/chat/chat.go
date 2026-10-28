@@ -70,8 +70,9 @@ func NewService(parties Parties, opts Options) *Service {
 	return &Service{parties: parties, limiter: ratelimit.NewBuckets(RatePerSecond, Burst, lopts...)}
 }
 
-// The module's errors. Each names one failure; the handlers give it a
-// code, a status and the words a player sees (internal/handler/errmap).
+// The module's errors. Each names one failure; the service's handler sends
+// it as a reason, and the gateway gives it a code, a status and the words a
+// player sees (its errmap).
 var (
 	ErrEmpty     = errors.New("chat: empty line")
 	ErrTooLong   = errors.New("chat: line too long")

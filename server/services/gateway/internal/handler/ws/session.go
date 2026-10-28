@@ -1,6 +1,7 @@
 package ws
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"sync"
@@ -25,6 +26,15 @@ type session struct {
 	conn       wsconn.Conn
 	helloTimer *time.Timer
 	isActive   atomic.Bool
+
+	// The command queue: the read loop puts messages on it (helloSeen and
+	// limiters are the read loop's own), one goroutine drains it with ctx,
+	// which OnClose cancels, and closes drained when it stops.
+	helloSeen bool
+	queue     chan wsconn.Message
+	ctx       context.Context
+	cancel    context.CancelFunc
+	drained   chan struct{}
 
 	// Set by Hello under the gateway's lock, before the session is active.
 	account   model.AccountID

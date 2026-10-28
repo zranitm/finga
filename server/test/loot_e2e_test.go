@@ -534,7 +534,7 @@ func TestLootAndKeep(t *testing.T) {
 
 func TestCrashDuringPickups(t *testing.T) {
 	if testing.Short() {
-		t.Skip("builds and runs the services and the game server")
+		t.Skip("builds and runs every service as its own process")
 	}
 	bins := buildBinaries(t)
 	dbURL := cluster.URL(t)
@@ -544,7 +544,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc)
 	worldProc := startServiceProcess(t, "world", bins["world"], dbURL,
 		"FINGA_SERVICES_CHARACTER_ADDR="+characterProc.grpc, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc, "FINGA_SERVICES_SOCIAL_ADDR="+socialProc.grpc)
-	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), map[string]*process{
+	proc := startGateway(t, bins["gateway"], dbURL, freePort(t), map[string]*process{
 		"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc, "world": worldProc,
 	})
 	db, err := pgxpool.New(context.Background(), dbURL)
@@ -572,7 +572,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	}
 	// Hard kill in the middle of it, while pickups are in flight: the world
 	// (its workers mid-call) and the item service (its transactions
-	// mid-commit), one right after the other. The game server stays up.
+	// mid-commit), one right after the other. The gateway stays up.
 	time.Sleep(12 * time.Second)
 	worldProc.kill()
 	itemProc.kill()

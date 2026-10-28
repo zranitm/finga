@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/handler/api"
+	"finga/services/gateway/internal/handler/api"
 )
 
 // The REST contract in api/openapi.yaml must describe exactly the routes
@@ -28,7 +28,7 @@ type openAPI struct {
 
 func loadSpec(t *testing.T) openAPI {
 	t.Helper()
-	data, err := os.ReadFile("../../../api/openapi.yaml")
+	data, err := os.ReadFile("../../../../../api/openapi.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}

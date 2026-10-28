@@ -1,7 +1,7 @@
 # make up / make down. Postgres with a health check, the migrations as a
-# one-shot job, then the services (Low-level design, page 10) and the game
-# server, each built from ../server with the one Dockerfile and its SERVICE
-# argument. Host ports come from .env next to this file (git-ignored; see
+# one-shot job, then the six services (Low-level design, page 10), each built
+# from ../server with the one Dockerfile and its SERVICE argument. The
+# gateway is the only public entry. Host ports come from .env next to this file (git-ignored; see
 # .env.example). The binaries' overrides go in ../server/.env, passed in
 # whole as env_file; the environment entries below win over it. The client
 # is served by Vite (make play) for now; a web container joins when it is
@@ -133,12 +133,15 @@ services:
       social:
         condition: service_started
 
-  gameserver:
+  # The gateway: REST under /api and the WebSocket gateway at /ws, with
+  # /healthz, /readyz and /metrics, on 8080. It holds no database and no game
+  # rules; on SIGTERM it tells every connection to reconnect, then stops.
+  gateway:
     build:
       context: ../server
       dockerfile: Dockerfile
       args:
-        SERVICE: gameserver
+        SERVICE: gateway
         VERSION: ${VERSION:-dev}
     ports:
       - "${FINGA_PORT:-8080}:8080"

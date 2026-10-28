@@ -21,10 +21,10 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	characterv1 "finga/api/gen/character/v1"
-	"finga/internal/handler/api"
 	"finga/internal/model"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
+	"finga/services/gateway/internal/handler/api"
 )
 
 const goodToken = "tok-good-0123456789abcdef"

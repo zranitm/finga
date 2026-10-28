@@ -11,6 +11,8 @@
 
 > **Changed by step 26 (2026-10-28):** the REST handler lists and creates characters through the character service's client; the game server has no database pool any more.
 
+> **Changed by step 28 (2026-10-28):** the game server is the gateway service (`services/gateway`): `cmd/gameserver/app` became `services/gateway/cmd/gateway/app`, `internal/handler` became `services/gateway/internal/handler`, and the server drains its WebSocket connections on SIGTERM before its listener closes.
+
 **Goal:** a running `cmd/gameserver` with the REST endpoints from page 4.
 
 **Layers in this step:** the REST handler layer, on top of the account and character services from steps 05 and 06, plus the server that wires them.

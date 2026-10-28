@@ -13,3 +13,5 @@ WebSocket sessions, auth handshake, one active session per account, rate limits,
 ## Phases
 
 A package inside the game server in the MVP; its own service once channel servers split.
+
+> **Changed by TD-25 (2026-10-27):** the gateway became its own service already in Stage 1, `services/gateway`, in front of the game services (built in backend step 28, 2026-10-28).

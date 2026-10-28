@@ -26,13 +26,13 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/handler/ws"
 	"finga/internal/model"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/wsconn"
+	"finga/services/gateway/internal/handler/ws"
 )
 
 const (
@@ -307,8 +307,7 @@ func TestIdentityComesFromTheConnection(t *testing.T) {
 	// A raw Input that smuggles a character_id field: the field is ignored
 	// by the codec and the input is routed as Ayla's.
 	c.sendRaw(`{"t":"Input","seq":5,"d":{"right":true,"character_id":"` + brunoID.String() + `"}}`)
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 7}})
-	c.expect("Pong")
+	waitFor(t, "the input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	in := append([]*worldv1.InputRequest(nil), h.world.inputs...)
 	h.world.mu.Unlock()
@@ -355,8 +354,10 @@ func TestRateLimits(t *testing.T) {
 	for seq := uint32(1); seq <= 40; seq++ {
 		c.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
 	}
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
-	c.expect("Pong") // inputs before it have been handled
+	// Commands reach the world in order: once the Attack after them is in,
+	// every input before it has been handled.
+	c.send(wsconn.Message{Seq: 41, Data: protocol.Attack{}})
+	waitFor(t, "the attack", h.world.attackList, 1)
 	if got := h.world.inputCount(); got != 30 {
 		t.Fatalf("%d inputs forwarded of 40 in one instant, want 30 (the burst)", got)
 	}
@@ -483,8 +484,7 @@ func TestAttackIsRoutedAsTheSender(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	c.send(wsconn.Message{Seq: 3, Data: protocol.Attack{}})
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
-	c.expect("Pong")
+	waitFor(t, "the attack", h.world.attackList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
 	if len(h.world.attacks) != 1 || h.world.attacks[0].GetCharacterId() != aylaID.String() || h.world.attacks[0].GetMapId() != "town" {
@@ -545,8 +545,7 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
 	c.expect("MapChange")
 	c.send(wsconn.Message{Seq: 9, Data: protocol.Input{Left: true}})
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
-	c.expect("Pong")
+	waitFor(t, "the input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
 	if len(h.world.inputs) != 1 || h.world.inputs[0].GetPresence().GetMapId() != "forest" {
@@ -568,8 +567,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 
 	t.Run("PickUp is routed as the sender", func(t *testing.T) {
 		c.send(wsconn.Message{Seq: 4, Data: protocol.PickUp{}})
-		c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
-		c.expect("Pong")
+		waitFor(t, "the pickup", h.world.pickupList, 1)
 		h.world.mu.Lock()
 		defer h.world.mu.Unlock()
 		if len(h.world.pickups) != 1 || h.world.pickups[0].GetCharacterId() != aylaID.String() {
@@ -701,8 +699,7 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	c.send(wsconn.Message{Seq: 7, Data: protocol.EnterPortal{}})
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
-	c.expect("Pong")
+	waitFor(t, "the portal", h.world.portalList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
 	if len(h.world.portals) != 1 || h.world.portals[0].GetCharacterId() != aylaID.String() {
@@ -736,8 +733,7 @@ func TestChatRouting(t *testing.T) {
 
 	t.Run("a map line goes to the sender's map with the connection's identity", func(t *testing.T) {
 		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hello map"}})
-		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
-		ayla.expect("Pong")
+		waitFor(t, "the map line", h.world.sayList, 1)
 		h.world.mu.Lock()
 		defer h.world.mu.Unlock()
 		if len(h.world.says) != 1 || h.world.says[0].GetPresence().GetCharacterId() != aylaID.String() || h.world.says[0].GetPresence().GetMapId() != "town" || h.world.says[0].GetSenderName() != "Ayla" || h.world.says[0].GetText() != "hello map" {
@@ -1157,8 +1153,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		c.expect("Pong") // the socket stayed open
 	}
 	bruno.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}})
-	bruno.send(wsconn.Message{Data: protocol.Ping{ClientTime: 2}})
-	bruno.expect("Pong")
+	waitFor(t, "Bruno's input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
 	if in := h.world.inputs; len(in) != 1 || in[0].GetPresence().GetMapId() != "forest" {
@@ -1178,4 +1173,128 @@ func TestAHelloWhileTheWorldRestartsWaitsForIt(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Welcome")
 	c.expect("Snapshot")
+}
+
+// joined dials and says Hello as Ayla, and waits for her Snapshot.
+func (h *harness) joined(t *testing.T) *client {
+	t.Helper()
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Snapshot")
+	return c
+}
+
+func TestABlockedCommandDoesNotStopTheReadLoop(t *testing.T) {
+	h := newHarness(t)
+	c := h.joined(t)
+	h.world.mu.Lock()
+	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
+	h.world.mu.Unlock()
+	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}})
+	if err := <-h.world.blocked; err != nil { // the world holds the attack
+		t.Fatal(err)
+	}
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 5}})
+	if p := c.expect("Pong").Data.(protocol.Pong); p.ClientTime != 5 {
+		t.Fatalf("pong %+v", p)
+	}
+	close(h.world.block)
+	if err := <-h.world.blocked; err != nil {
+		t.Fatalf("the attack stopped with %v", err)
+	}
+}
+
+func TestCommandsReachTheServicesInTheOrderTheyArrived(t *testing.T) {
+	h := newHarness(t)
+	c := h.joined(t)
+	c.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}})
+	c.send(wsconn.Message{Seq: 2, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Seq: 3, Data: protocol.Input{}})
+	c.send(wsconn.Message{Seq: 4, Data: protocol.PickUp{}})
+	c.send(wsconn.Message{Seq: 5, Data: protocol.EnterPortal{}})
+	c.send(wsconn.Message{Seq: 6, Data: protocol.Input{Left: true}})
+	got := waitFor(t, "six commands", h.world.callList, 6)
+	want := []string{"input 1", "attack", "input 3", "pickup", "portal", "input 6"}
+	if strings.Join(got, ", ") != strings.Join(want, ", ") {
+		t.Fatalf("calls %v, want %v", got, want)
+	}
+}
+
+func TestAFullCommandQueueAnswersRateLimited(t *testing.T) {
+	h := newHarness(t, func(d *ws.Dependencies) { d.CommandQueue = 2 })
+	c := h.joined(t)
+	h.world.mu.Lock()
+	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
+	h.world.mu.Unlock()
+	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}})
+	if err := <-h.world.blocked; err != nil { // in flight; the queue behind it is empty
+		t.Fatal(err)
+	}
+	c.send(wsconn.Message{Seq: 2, Data: protocol.Input{Right: true}})
+	c.send(wsconn.Message{Seq: 3, Data: protocol.Input{}})
+	c.send(wsconn.Message{Seq: 4, Data: protocol.Input{Left: true}}) // dropped: no request ID to answer
+	c.send(wsconn.Message{ReqID: "p-1", Data: protocol.PartyLeave{}})
+	r := c.expect("Response")
+	if r.ReqID != "p-1" || r.Data.(protocol.Response).Code != "rate_limited" {
+		t.Fatalf("response %+v", r)
+	}
+	close(h.world.block)
+	if err := <-h.world.blocked; err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the queued inputs", h.world.inputList, 2)
+	time.Sleep(50 * time.Millisecond) // nothing else is coming
+	if got := h.world.inputList(); len(got) != 2 || got[0].GetSeq() != 2 || got[1].GetSeq() != 3 {
+		t.Fatalf("inputs %+v, want the two that fit", got)
+	}
+}
+
+func TestClosingTheConnectionCancelsItsCommandInFlight(t *testing.T) {
+	h := newHarness(t)
+	c := h.joined(t)
+	h.world.mu.Lock()
+	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
+	h.world.mu.Unlock()
+	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}})
+	if err := <-h.world.blocked; err != nil {
+		t.Fatal(err)
+	}
+	_ = c.c.Close(websocket.StatusNormalClosure, "bye")
+	select {
+	case err := <-h.world.blocked:
+		if status.Code(err) != codes.Canceled && !errors.Is(err, context.Canceled) {
+			t.Fatalf("the attack stopped with %v, want canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the attack in flight was never cancelled")
+	}
+	waitFor(t, "the leave", h.world.leaves, 1)
+}
+
+func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
+	h := newHarness(t)
+	ayla := h.joined(t)
+	bruno := h.dial(t)
+	bruno.hello(tokenBob, brunoID)
+	bruno.expect("Snapshot")
+	silent := h.dial(t) // connected, no Hello yet
+	drained := make(chan struct{})
+	go func() { defer close(drained); h.gw.Drain(context.Background()) }()
+	for _, c := range []*client{ayla, bruno, silent} {
+		c.expectKick(protocol.KickServerRestart)
+	}
+	select {
+	case <-drained:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Drain did not return once every connection closed")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, res, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), nil)
+	if err == nil || res == nil || res.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("a new connection while draining: err %v, response %v", err, res)
+	}
+	if left := waitFor(t, "the leaves", h.world.leaves, 2); len(left) != 2 {
+		t.Fatalf("left %+v", left)
+	}
 }

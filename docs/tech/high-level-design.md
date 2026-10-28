@@ -37,7 +37,7 @@
 
 ## Targets
 
-- **Capacity:** 1,000 concurrent players on one game server node.
+- **Capacity:** 1,000 concurrent players on one node of each service.
 - **Tick:** 20 Hz per map instance, with tick processing p99 under 25 ms (half of the 50 ms budget).
 - **Latency:** input to visible result under 150 ms for players in the region, network included.
 - **Economic durability:** zero loss of committed economic state. Positions and HP may roll back a few seconds after a crash.
@@ -92,7 +92,7 @@ nginx also serves the client's static files on `/`. Prometheus scrapes every Go 
 
 Each module owns its own tables. Modules live in services: the gateway, and account, character, item (items, economy, market), world (world, combat), and social (party, chat). A service reaches another only through its gRPC contract, and no service reads another's tables (Low-level design, page 10).
 
-- **gateway:** WebSocket sessions, auth handshake, protocol version check, one active session per account, per-account rate limits, routing to map instances, fan-out.
+- **gateway:** WebSocket sessions, auth handshake, protocol version check, one active session per account, per-account rate limits, a command queue per connection (so a slow service never stalls the read loop), routing each message to the service that owns it, fan-out of the services' delivery streams, and a drain on restart.
 - **account:** sign up, log in, sessions (REST).
 - **character:** creation, classes, stats, levels, EXP.
 - **gamedata:** loads static data at startup: classes, stat rules, mobs, items, drop lists, the EXP curve, and maps.
@@ -124,7 +124,7 @@ Each module owns its own tables. Modules live in services: the gateway, and acco
 
 1. The client calls `POST /api/sessions` and receives an opaque session token.
 2. The client picks a character, then opens `/ws` with the token.
-3. The gateway has the account service validate the token, ends any older connection of the account, and joins the player to the world, which loads the character from the character service and attaches it to its map instance.
+3. The gateway has the account service validate the token and joins the player to the world, which loads the character from the character service and attaches it to its map instance; then it ends any older connection of the account.
 4. The map instance sends a full snapshot, then deltas every tick.
 
 ## Kill, EXP, and loot

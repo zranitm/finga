@@ -101,8 +101,9 @@ func (s *Service) Notify(n Notifier) {
 	s.notifier = n
 }
 
-// The errors the commands return. Each names one failure; the handlers give
-// it a code and the words a player sees (internal/handler/errmap).
+// The errors the commands return. Each names one failure; the service's
+// handler sends it as a reason, and the gateway gives it a code and the
+// words a player sees (its errmap).
 var (
 	ErrNotLeader     = errors.New("party: not the leader")
 	ErrFull          = errors.New("party: full")

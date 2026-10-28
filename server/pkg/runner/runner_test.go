@@ -83,7 +83,7 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 		t.Fatal("ready or bound before Run")
 	}
 	// An address is published together with readiness: whoever sees one
-	// sees the other (the game server's readiness test waited on the
+	// sees the other (the gateway's readiness test waited on the
 	// address and once caught readyz still 503).
 	ctxEarly, cancelEarly := context.WithCancel(context.Background())
 	early := newRunner(t, runner.Options{}, []runner.Listener{{Name: "ops", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}})

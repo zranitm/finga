@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"finga/internal/handler/errmap"
+	"finga/services/gateway/internal/handler/errmap"
 )
 
 // writeError answers a service error with its own code, status and player
