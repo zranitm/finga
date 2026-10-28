@@ -71,8 +71,9 @@ jobs:
       - run: npm run build
 
   # The packaging step: the images build, `make up` brings the whole Stage 1
-  # game up from a clean clone (Postgres, migrate and the six services), and
-  # a test client signs up, enters the world and moves, through the gateway.
+  # game up from a clean clone (Postgres, migrate, the six services and the
+  # client on nginx), and a test client signs up, enters the world and moves,
+  # once against the gateway and once through nginx as a browser would.
   compose:
     runs-on: ubuntu-latest
     steps:
@@ -90,5 +91,9 @@ jobs:
           docker compose -f infra/docker-compose.yml logs
           exit 1
       - run: make smoke
+      - name: the client and the smoke test through nginx
+        run: |
+          curl -fsS http://localhost:4173/ | grep -q '<title>Finga</title>'
+          make smoke SMOKE_URL=http://localhost:4173
       - if: always()
         run: make down

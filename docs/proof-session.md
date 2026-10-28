@@ -18,7 +18,7 @@ the test clients; the bot that drives the session is `server/cmd/bot`
 Before the playtest with people:
 
 - [ ] `make up` from a clean clone, `make smoke` green
-- [ ] four accounts created, one per tester, on the same LAN (add the client origin to `FINGA_SERVER_CORS_ORIGINS`)
+- [ ] four accounts created, one per tester, on the same LAN: each opens `http://<the host's LAN address>:4173`, the client served by nginx under `make up` (same origin, so no CORS setting)
 - [ ] `/metrics` scraped or the bot's report run at the end for the tick p99
 - [ ] the crash test and the pickup rows green on the commit being played (`make test`)
 

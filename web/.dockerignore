@@ -1,0 +1,8 @@
+# The web image builds from the sources; dependencies are installed and the
+# generated files made inside it.
+node_modules
+dist
+coverage
+public/maps
+src/gamedata
+.env*

@@ -51,7 +51,11 @@ func (s *stack) connect(t *testing.T, id string) *player {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(s.url, "http")+"/ws", nil)
+	// The Origin a browser on the same page would send, so the gateway's
+	// origin check runs here as it does for players (and, in CI's smoke
+	// through nginx, checks that the proxy passes the browser's Host on).
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(s.url, "http")+"/ws",
+		&websocket.DialOptions{HTTPHeader: http.Header{"Origin": {s.url}}})
 	if err != nil {
 		t.Fatal(err)
 	}

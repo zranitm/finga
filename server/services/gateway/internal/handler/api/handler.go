@@ -229,8 +229,10 @@ func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toSettings(s))
 }
 
-// clientIP is the peer's address. Stage 1 has no proxy in front, so the
-// socket address is the client; Stage 2's nginx will set X-Forwarded-For.
+// clientIP is the peer's address. Under make up the browser's requests come
+// through nginx, which sets X-Forwarded-For, but the gateway does not trust
+// the header yet (Stage 2, with the edge's TLS and limits), so every browser
+// behind nginx shares its address for the login throttle.
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

@@ -1,4 +1,4 @@
-# Targets the README documents: up, down, run, test, test-service, cover, lint, breaking, gen, smoke, bots, play.
+# Targets the README documents: up, down, run, test, test-service, cover, lint, breaking, gen, smoke, bots.
 # The repository has three parts: server/ (the Go module), web/ (the client)
 # and infra/ (how it is run). test, lint and cover run both halves (Go inside
 # server/, then the client through npm --prefix web); the -go and -web
@@ -11,10 +11,11 @@ SMOKE_URL ?= http://localhost:8080
 METRICS_URL ?= http://localhost:9104
 NPM       ?= npm --prefix web
 
-.PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke bots play
+.PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke bots
 
-up:            ## build the images and start Postgres, the migrations and the six services (the gateway on :8080)
+up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway)
 	$(COMPOSE) up --build -d
+	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); the gateway: http://localhost:$$($(COMPOSE) port gateway 8080 | sed 's|.*:||')"
 
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
 	$(COMPOSE) down -v --remove-orphans
@@ -88,8 +89,3 @@ gen:           ## regenerate the sqlc queries and the gRPC code
 
 bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99 from the world (METRICS_URL)
 	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -bots 4 -duration 30m
-
-play:          ## the proof session with people: make up, the client production build, and vite preview on the LAN (:4173)
-	$(MAKE) up
-	npm --prefix web run build
-	npm --prefix web run preview -- --host --port 4173 --strictPort
