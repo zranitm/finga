@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -60,6 +61,9 @@ type fakeWorld struct {
 	pickups    []*worldv1.Presence
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
+	calls      []string      // every command, in the order it arrived
+	block      chan struct{} // when set, Attack waits for it (or its context)
+	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
 	tick       uint64
 	boot       string
 	live       bool
@@ -186,7 +190,38 @@ func (f *fakeWorld) Input(_ context.Context, req *worldv1.InputRequest) (*worldv
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.inputs = append(f.inputs, req)
+	f.calls = append(f.calls, "input "+strconv.FormatUint(uint64(req.GetSeq()), 10))
 	return &worldv1.InputResponse{}, nil
+}
+
+func (f *fakeWorld) inputList() []*worldv1.InputRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.InputRequest(nil), f.inputs...)
+}
+
+func (f *fakeWorld) attackList() []*worldv1.Presence {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.Presence(nil), f.attacks...)
+}
+
+func (f *fakeWorld) pickupList() []*worldv1.Presence {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.Presence(nil), f.pickups...)
+}
+
+func (f *fakeWorld) portalList() []*worldv1.Presence {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.Presence(nil), f.portals...)
+}
+
+func (f *fakeWorld) sayList() []*worldv1.SayRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.SayRequest(nil), f.says...)
 }
 
 func (f *fakeWorld) inputCount() int {
@@ -195,17 +230,36 @@ func (f *fakeWorld) inputCount() int {
 	return len(f.inputs)
 }
 
-func (f *fakeWorld) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
+func (f *fakeWorld) Attack(ctx context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
+	f.mu.Lock()
+	f.attacks = append(f.attacks, req.GetPresence())
+	f.calls = append(f.calls, "attack")
+	block, blocked := f.block, f.blocked
+	f.mu.Unlock()
+	if block != nil {
+		blocked <- nil
+		select {
+		case <-block:
+			blocked <- nil
+		case <-ctx.Done():
+			blocked <- ctx.Err()
+			return nil, ctx.Err()
+		}
+	}
+	return &worldv1.AttackResponse{}, nil
+}
+
+func (f *fakeWorld) callList() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.attacks = append(f.attacks, req.GetPresence())
-	return &worldv1.AttackResponse{}, nil
+	return append([]string(nil), f.calls...)
 }
 
 func (f *fakeWorld) PickUp(_ context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pickups = append(f.pickups, req.GetPresence())
+	f.calls = append(f.calls, "pickup")
 	return &worldv1.PickUpResponse{}, nil
 }
 
@@ -213,6 +267,7 @@ func (f *fakeWorld) EnterPortal(_ context.Context, req *worldv1.EnterPortalReque
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.portals = append(f.portals, req.GetPresence())
+	f.calls = append(f.calls, "portal")
 	return &worldv1.EnterPortalResponse{}, nil
 }
 

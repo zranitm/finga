@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"finga/internal/handler"
+	"finga/services/gateway/internal/handler"
 )
 
 // named answers with its own name, so a test sees which handler a path reached.

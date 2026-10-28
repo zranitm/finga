@@ -22,16 +22,16 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
 	"finga/pkg/sentinels"
+	"finga/services/gateway/internal/handler/errmap"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
 
 // codesFile is the list the client checks its own code list against.
-var codesFile = filepath.Join("..", "..", "..", "testdata", "errors", "codes.json")
+var codesFile = filepath.Join("..", "..", "..", "..", "..", "testdata", "errors", "codes.json")
 
 func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 	tests := []struct {
@@ -145,7 +145,7 @@ func TestEveryReasonIsMapped(t *testing.T) {
 // Every module runs in a service now; each is checked by its own handler's
 // guard and TestEveryReasonIsMapped.
 func TestEveryServiceErrorIsMapped(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "..", "model"))
+	declared, err := sentinels.Declared(filepath.Join("..", "..", "..", "..", "..", "internal", "model"))
 	if err != nil || len(declared) == 0 {
 		t.Fatalf("declared %v, err %v: is the walk broken?", declared, err)
 	}
@@ -191,9 +191,9 @@ func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
 	}
 	want, err := os.ReadFile(codesFile)
 	if err != nil {
-		t.Fatalf("%v (run go test ./internal/handler/errmap -update)", err)
+		t.Fatalf("%v (run go test ./services/gateway/internal/handler/errmap -update)", err)
 	}
 	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), got) {
-		t.Fatalf("%s is stale; run go test ./internal/handler/errmap -update", codesFile)
+		t.Fatalf("%s is stale; run go test ./services/gateway/internal/handler/errmap -update", codesFile)
 	}
 }

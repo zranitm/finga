@@ -1,4 +1,4 @@
-// Package telemetry defines the game server's metrics (Low-level design,
+// Package telemetry defines the game's metrics (Low-level design,
 // page 3) and, from later steps, implements the observer interfaces the
 // application modules declare, so application code never imports it.
 package telemetry

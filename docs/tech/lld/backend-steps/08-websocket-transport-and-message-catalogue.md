@@ -6,6 +6,8 @@
 - **Status:** Done
 - **Step:** 08. WebSocket transport and message catalogue
 
+> **Changed by step 28 (2026-10-28):** the gateway answers Ping on the read loop and queues every other message on the connection's command queue (64 deep), drained in order by one goroutine per connection; a full queue answers `rate_limited` to a command with a request ID.
+
 **Goal:** a generic, well-behaved WebSocket layer, and the Go side of the message catalogue.
 
 ## Scope

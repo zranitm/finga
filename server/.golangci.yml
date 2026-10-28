@@ -4,7 +4,7 @@ version: "2"
 linters:
   default: standard
   enable:
-    - depguard     # import direction (LLD page 1): cmd -> handler -> application -> the shared kernel -> pkg
+    - depguard     # import direction (LLD pages 1 and 10): composition roots -> services -> the shared kernel -> pkg
     - errorlint    # errors.Is/As and %w, never == or type switches on errors
     - gocritic
     - misspell
@@ -16,72 +16,166 @@ linters:
   settings:
     depguard:
       rules:
-        # cmd is the top: each binary's main and its composition root
-        # (cmd/gameserver/app). Nothing below imports it.
+        # A composition root (services/<name>/cmd/<name>/app, cmd/migrate/app)
+        # is the top: only its main and the end-to-end tests import it.
         below-cmd:
           files: ["**/internal/**", "**/pkg/**"]
           deny:
             - pkg: finga/cmd
               desc: only a binary and the tests import its composition root
+            - pkg: finga/services/*/cmd
+              desc: only a binary and the tests import a service's composition root
         # pkg is generic: it never knows the game exists.
         pkg:
           files: ["**/pkg/**"]
           deny:
             - pkg: finga/internal
               desc: pkg never imports internal
+            - pkg: finga/services
+              desc: pkg never imports a service
         # The shared kernel: model's value types, and the game data, movement
         # simulation and progression rules more than one service runs. It sits
-        # below every module and transport.
+        # below every service, and is never sent between them.
         kernel:
           files: ["**/internal/model/**", "**/internal/gamedata/**", "**/internal/sim/**", "**/internal/progression/**"]
           deny:
-            - pkg: finga/internal/application
-              desc: the shared kernel is below every module
-            - pkg: finga/internal/handler
-              desc: the shared kernel is below the handlers
+            - pkg: finga/services
+              desc: the shared kernel is below every service
+            - pkg: finga/api/gen
+              desc: the shared kernel is code both sides run, never a contract type
             - pkg: finga/internal/protocol
               desc: the shared kernel is below protocol
             - pkg: finga/internal/telemetry
               desc: the shared kernel is below telemetry
             - pkg: finga/internal/config
               desc: the shared kernel takes plain values, never configuration
-        # application is business logic: no transport, wiring, telemetry or configuration.
-        application:
-          files: ["**/internal/application/**"]
+        # A service's modules are business logic: no transport, contract,
+        # wiring, telemetry or configuration. Its handler and clients speak
+        # the contracts.
+        modules:
+          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
           deny:
-            - pkg: finga/internal/handler
-              desc: application never imports handler
+            - pkg: finga/api/gen
+              desc: a module returns its own types; its handler turns them into the contract's
+            - pkg: google.golang.org/grpc
+              desc: a module knows no transport; its handler and clients do
             - pkg: finga/internal/protocol
-              desc: application returns its own result types; the gateway maps them to protocol messages
+              desc: a module returns its own result types; the gateway maps them to protocol messages
             - pkg: finga/internal/telemetry
-              desc: application declares observer interfaces; telemetry implements them
+              desc: a module declares observer interfaces; telemetry implements them
             - pkg: finga/internal/config
-              desc: application takes option structs; the composition root fills them from configuration
-        # services never see a transaction: pgx and pkg/dbx are for repository.go, sqlc output, the composition root, and tests.
-        # invariants.go (page 6) is SQL by nature: whole-table checks that the tests and, later, the auditor run.
-        application-no-sql:
-          files: ["**/internal/application/**", "!**/repository.go", "!**/invariants.go", "!**/internal/db/**", "!$test"]
+              desc: a module takes option structs; the composition root fills them from configuration
+        # Inside a service only repository.go and sqlc's output talk to the
+        # database: modules never see a transaction, handlers and clients never
+        # touch the database.
+        services-no-sql:
+          files: ["**/services/*/internal/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only repository.go talks to the database
             - pkg: finga/pkg/dbx
               desc: only the module store (repository.go) opens transactions
-        # handlers speak the transport and call services; never a repository or its generated code.
-        handler:
-          files: ["**/internal/handler/**"]
+        # The gateway is the public entry and holds no database: every table
+        # belongs to a service (page 10).
+        gateway-no-database:
+          files: ["**/services/gateway/**"]
           deny:
-            - pkg: finga/internal/application/*/internal/db
-              desc: a handler never calls a repository or its generated code
             - pkg: github.com/jackc/pgx
-              desc: a handler never talks to the database
+              desc: the gateway holds no database
             - pkg: finga/pkg/dbx
-              desc: a handler never opens a transaction
-        # telemetry, protocol and config sit beside application; they never reach up into handlers.
+              desc: the gateway holds no database
+            - pkg: finga/pkg/outbox
+              desc: the gateway holds no database
+            - pkg: finga/pkg/idempotency
+              desc: the gateway holds no database
+            - pkg: finga/pkg/pgtest
+              desc: the gateway's tests need no database
+        # Go's internal/ rule keeps one service out of another's internals;
+        # these keep it out of the rest (its migrations, its composition root).
+        gateway-alone:
+          files: ["**/services/gateway/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/character
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/item
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/social
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/world
+              desc: a service reaches another only through its generated client
+        account-alone:
+          files: ["**/services/account/**"]
+          deny:
+            - pkg: finga/services/character
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/gateway
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/item
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/social
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/world
+              desc: a service reaches another only through its generated client
+        character-alone:
+          files: ["**/services/character/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/gateway
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/item
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/social
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/world
+              desc: a service reaches another only through its generated client
+        item-alone:
+          files: ["**/services/item/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/character
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/gateway
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/social
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/world
+              desc: a service reaches another only through its generated client
+        world-alone:
+          files: ["**/services/world/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/character
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/gateway
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/item
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/social
+              desc: a service reaches another only through its generated client
+        social-alone:
+          files: ["**/services/social/**"]
+          deny:
+            - pkg: finga/services/account
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/character
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/gateway
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/item
+              desc: a service reaches another only through its generated client
+            - pkg: finga/services/world
+              desc: a service reaches another only through its generated client
+        # telemetry, protocol and config sit beside the services; they never reach up into one.
         support:
           files: ["**/internal/telemetry/**", "**/internal/protocol/**", "**/internal/config/**"]
           deny:
-            - pkg: finga/internal/handler
-              desc: support packages never import handler
+            - pkg: finga/services
+              desc: support packages never import a service
     sloglint:
       static-msg: true
       kv-only: true

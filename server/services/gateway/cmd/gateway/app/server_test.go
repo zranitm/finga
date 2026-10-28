@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"finga/cmd/gameserver/app"
 	"finga/internal/config"
+	"finga/services/gateway/cmd/gateway/app"
 )
 
 func newServer(t *testing.T, api http.Handler) *app.Server {
@@ -85,5 +85,36 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("condition not met in time")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// On shutdown the drain runs once readiness has turned 503, so a load
+// balancer has stopped sending new connections before the gateway tells
+// the ones it holds to go, and before the listener closes.
+func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
+	var srv *app.Server
+	drained := make(chan int, 1)
+	srv = app.New(app.Options{
+		Config: config.Server{Addr: "127.0.0.1:0", ShutdownGrace: 2 * time.Second},
+		Logger: slog.New(slog.DiscardHandler),
+	}, app.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler(), Drain: func(context.Context) {
+		res, err := http.Get("http://" + srv.Addr() + "/readyz") // the listener still serves while draining
+		if err != nil {
+			drained <- 0
+			return
+		}
+		res.Body.Close()
+		drained <- res.StatusCode
+	}})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- srv.Run(ctx) }()
+	waitFor(t, func() bool { return srv.Addr() != "" })
+	cancel()
+	if code := <-drained; code != http.StatusServiceUnavailable {
+		t.Fatalf("readyz answered %d while draining, want 503", code)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }

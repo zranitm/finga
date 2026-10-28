@@ -1,7 +1,8 @@
 // Package e2e runs the game as production builds it, in one test process
 // against a real Postgres: each service from its composition root
-// (services/<name>/cmd/<name>/app) on loopback listeners, and the game
-// server (cmd/gameserver/app) dialling them, served by httptest. Each Stage
+// (services/<name>/cmd/<name>/app) on loopback listeners, and the gateway's
+// handler (services/gateway/cmd/gateway/app) dialling them, served by
+// httptest. Each Stage
 // 1 acceptance criterion that the REST API covers is a row named after its
 // feature.
 package e2e_test
@@ -22,7 +23,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	itemv1 "finga/api/gen/item/v1"
-	"finga/cmd/gameserver/app"
 	migrateapp "finga/cmd/migrate/app"
 	"finga/internal/config"
 	"finga/internal/host"
@@ -32,6 +32,7 @@ import (
 	"finga/pkg/wsconn"
 	accountapp "finga/services/account/cmd/account/app"
 	characterapp "finga/services/character/cmd/character/app"
+	"finga/services/gateway/cmd/gateway/app"
 	itemapp "finga/services/item/cmd/item/app"
 	socialapp "finga/services/social/cmd/social/app"
 	worldapp "finga/services/world/cmd/world/app"

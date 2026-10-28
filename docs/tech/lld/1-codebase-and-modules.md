@@ -11,9 +11,7 @@ server/                 the Go module: everything the server builds, reads and p
     asyncapi.yaml       WebSocket message catalogue
     proto/internal/     the internal gRPC contracts, one package per service: internal/<service>/v1 (page 10)
     gen/                their generated Go code, api/gen/<service>/v1, committed; make gen regenerates it
-  cmd/                  one binary per job; each wires its own dependencies next to its main
-    gameserver/         REST and the WebSocket gateway over the services (step 28 makes it services/gateway)
-      app/              its composition root: Build dials every service and wires the handlers; Server listens, runs the tasks, shuts down
+  cmd/                  the binaries that are not services; each wires its own dependencies next to its main
     migrate/            applies every service's goose migrations, then exits
       app/              the sets in order and the guard against a database migrated before the split; the end-to-end tests use it
     auditor/            Stage 2: checks the invariants continuously, as a Kafka consumer
@@ -23,21 +21,23 @@ server/                 the Go module: everything the server builds, reads and p
     config.yaml         committed defaults; config.local.yaml is git-ignored
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
-    application/        Stage 2's modules until each joins a service (economy/  market/  audit/); every Stage 1 module lives in its service
-    handler/
-      api/              REST handlers, DTOs, middleware
-      ws/               the gateway: WebSocket sessions, routing, fan-out
-      errmap/           the error table: each service error's status, own code and player message
-      router.go         the route table: /api, /ws, /metrics, /healthz, /readyz
-    protocol/           WebSocket message types, registered with the codec
+    protocol/           WebSocket message types, registered with the codec: the gateway, the bot and the end-to-end tests
     model/              value types shared by every module and handler: IDs (on pkg/typedid), Class, Coins
     gamedata/           game data: classes, stats, mobs, items, the EXP curve and the maps (on pkg/tiled), loaded and validated at startup
     sim/                the movement simulation, shared with the client through testdata/movement
     progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
     config/             the configuration schema every binary shares
     host/               how every service runs: its gRPC and ops listeners on pkg/runner, and the binaries' shared main
-    telemetry/          metrics and logging; implements the application's observer interfaces
-  services/             one folder per service (page 10)
+    telemetry/          metrics and logging; implements the services' observer interfaces
+  services/             one folder per service (page 10); each module lives in its service
+    gateway/            the only public entry; no database, no game rules
+      cmd/gateway/      main.go and app/: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
+      internal/handler/
+        api/            REST handlers, DTOs, middleware
+        ws/             WebSocket sessions, the per-connection command queue, routing, the delivery streams
+        errmap/         each service failure's reason to its status, own code and player message
+        router.go       the route table: /api, /ws, /metrics, /healthz, /readyz
+      internal/clients/ the account service as pkg/auth's Guard
     item/
       cmd/item/         main.go and app/, its composition root
       internal/item/    the module: api.go, service.go, deps.go, repository.go, queries/, internal/db/
@@ -69,17 +69,19 @@ tools/                  developer tools; empty in Stage 1
 
 - The repository is `finga`, in three parts: `server/`, `web/` and `infra/` (split on 2026-10-23 at the user's request). The server is one Go module, in `server/`, also named `finga` (TD-15). Paths on these pages that start with `api/`, `cmd/`, `configs/`, `data/`, `internal/`, `pkg/`, `services/`, `test/` or `testdata/` are under `server/`.
 - The server is the reference for what the two sides share: the client generates its game data from `server/data/` and its tests check `server/testdata/`. The root `Makefile` drives all three parts.
-- `cmd/*/main.go` only loads configuration, builds the binary, and runs it until SIGINT or SIGTERM. Each binary wires its own dependencies next to its main, its Composition Root (one per process, as close to the entry point as possible). `migrate` and `bot` wire in `main.go`; the game server wires in `cmd/gameserver/app`, a package of its own because Go cannot import a `main` package and the end-to-end tests build the server in process exactly as production does. Stage 2 binaries follow the same rule (moved from `internal/server` on 2026-10-23 at the user's request).
-- Additions with no docviewer counterpart: `data/` (game content), `services/*/migrations/` (Postgres, one set per service), `internal/application`, which keeps business logic apart from transport and infrastructure, and `internal/handler/router.go`, because there are two handlers (REST and WebSocket) to mount behind one router.
+- Every `main.go` only loads configuration, builds the binary, and runs it until SIGINT or SIGTERM. Each binary wires its own dependencies next to its main, its Composition Root (one per process, as close to the entry point as possible). `migrate` and `bot` wire in `main.go`; each service wires in `services/<name>/cmd/<name>/app`, a package of its own because Go cannot import a `main` package and the end-to-end tests build the whole game in process exactly as production does. Stage 2 binaries follow the same rule (moved from `internal/server` on 2026-10-23 at the user's request; the game server became the services of page 10 in steps 20 to 28).
+- Additions with no docviewer counterpart: `data/` (game content), `services/` (one folder per service, each module inside its service, with its migrations in `services/*/migrations/`), and the gateway's `internal/handler/router.go`, because there are two handlers (REST and WebSocket) to mount behind one router.
 - Each acceptance criterion in Features becomes a named row in `test/`, for example `F3/two-buyers-one-listing`.
 
 ## Dependency rules
 
-- Imports flow one way: `cmd` → `internal/handler` → `internal/application` → the shared kernel (`internal/model`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`. Never the other way round: nothing in `internal` or `pkg` imports `cmd`, and the shared kernel imports no module, handler, protocol, telemetry or configuration (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it).
-- `internal/application` holds only business logic. It never imports `handler`, `protocol`, `cmd`, `telemetry`, or `config`:
-  - It returns its own result types, for example `world.Delta`, and the gateway turns them into protocol messages.
+- Imports flow one way: composition roots (`services/*/cmd/*/app`, `cmd/migrate/app`) → each service's handler and clients → its modules → the shared kernel (`internal/model`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`. Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry or configuration (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it).
+- A service never imports another: Go's `internal/` rule keeps it out of the other's internals, and depguard out of the rest (its migrations, its composition root). It reaches another only through the client generated from `api/proto/internal/` (page 10).
+- A module (`services/<name>/internal/<module>`) holds only business logic. It never imports the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, or `config`:
+  - It returns its own result types, for example `world.Delta`; its service's handler turns them into the contract's messages, and the gateway turns those into protocol messages.
   - It reports metrics through small observer interfaces it declares, and `internal/telemetry` implements them.
-  - It takes plain option structs, and the binary's composition root (`cmd/gameserver/app`) fills them from configuration.
+  - It takes plain option structs, and its service's composition root fills them from configuration.
+- The gateway holds no database: no pgx, `pkg/dbx`, `pkg/outbox` or `pkg/idempotency` under `services/gateway` (step 28).
 - `pkg` imports only the standard library and infrastructure libraries (pgx, websocket, uuid). It never imports `internal`.
 - When a module needs another module, it declares a small interface for exactly what it needs (Go's consumer-side interfaces). The composition root wires in the real implementation. This keeps modules free of import cycles and easy to test with fakes. When it needs the other module inside its own transaction, that interface hangs off its unit of work instead (see Rules at the boundaries).
 - No module reads or writes another module's tables or sqlc queries.
@@ -99,13 +101,13 @@ Every request passes through three layers, and each has one job. Nothing skips a
 </tr>
 <tr>
 <th>Lives in</th>
-<td><code>internal/handler/api</code> and <code>internal/handler/ws</code></td>
-<td><code>internal/application/&lt;module&gt;/service.go</code></td>
-<td><code>internal/application/&lt;module&gt;/repository.go</code> and <code>queries/</code></td>
+<td>Each service's <code>internal/handler</code> (gRPC); the gateway's <code>internal/handler/api</code> and <code>internal/handler/ws</code></td>
+<td><code>services/&lt;name&gt;/internal/&lt;module&gt;/service.go</code></td>
+<td><code>services/&lt;name&gt;/internal/&lt;module&gt;/repository.go</code> and <code>queries/</code></td>
 </tr>
 <tr>
 <th>Job</th>
-<td>Speak the transport: REST or WebSocket</td>
+<td>Speak the transport: gRPC, or REST and WebSocket at the gateway</td>
 <td>Run a use case: the game's rules</td>
 <td>Store and load the module's own tables</td>
 </tr>
@@ -143,24 +145,35 @@ Every request passes through three layers, and each has one job. Nothing skips a
 - **Another module joins the transaction through the unit of work, inside one service.** A module that must commit with another of the same service gets that module's rules bound to its unit of work (a `Within(uow)` on the other service, wired by the composition root), so neither module imports the other. Across services there is no shared transaction (page 10): character creation commits the character, then asks the item service for the starter items, keyed by the character ID (changed 2026-10-27, step 23; until then character creation used this pattern).
 - **The transaction function may run twice.** `InTx` runs all of it again on a deadlock or serialization failure, so it sends nothing and changes nothing in memory. Events leave through the outbox.
 - **Ownership is decided in the service and made atomic in the repository.** The service passes the actor; the repository method says so in its name and puts it in the `WHERE` clause, for example `LockOwned(ctx, itemID, owner)`.
-- **Database errors change shape once, at the module's boundary.** Repository methods return them as they are. The module's `classify` runs where its work hands a result back (`InTx`, plain reads, and work joined to another module's transaction) and turns them into the module's errors: `pgx.ErrNoRows` into `ErrNotFound`, a constraint violation into its domain error. Module errors are plain sentinel errors named for the failure (`ErrNotFound`, `ErrSlotTaken`, `ErrInventoryFull`), declared in `api.go`; `classify` wraps the database error behind one with `%w` for the logs, and the service returns them directly for rule violations. They carry no code and no player text: the handlers map each one to an HTTP status, a code of its own (`item_not_found`, `slot_taken`, `inventory_full`) and the player message through `internal/handler/errmap` (see Protocol, Error codes). No error's text ever reaches a client.
+- **Database errors change shape once, at the module's boundary.** Repository methods return them as they are. The module's `classify` runs where its work hands a result back (`InTx`, plain reads, and work joined to another module's transaction) and turns them into the module's errors: `pgx.ErrNoRows` into `ErrNotFound`, a constraint violation into its domain error. Module errors are plain sentinel errors named for the failure (`ErrNotFound`, `ErrSlotTaken`, `ErrInventoryFull`), declared in `api.go`; `classify` wraps the database error behind one with `%w` for the logs, and the service returns them directly for rule violations. They carry no code and no player text: the service's gRPC handler sends each as a reason in its contract (`REASON_INVENTORY_FULL`), and the gateway maps the reason to an HTTP status, a code of its own (`item_not_found`, `slot_taken`, `inventory_full`) and the player message through its `errmap` (see Protocol, Error codes; page 10). No error's text ever reaches a client.
 - **classify matches constraints by name and leaves the rest alone.** By name, so a unique violation from the items table, raised inside character creation's transaction, never becomes `ErrNameTaken`. Unknown errors pass through unchanged: retries still see `40001` and `40P01`, and the handler reports the rest as `internal`.
 - **A rule that branches on absence gets a boolean.** For "add to the stack if there is one, otherwise insert", the repository method returns `(Stack, bool, error)`, so the service never checks a database error.
 - **Real-time code is application code too.** Map instances live in the world service's module (`services/world/internal/world`). They reach the database only through services, from worker goroutines, never inside a tick.
-- **sqlc's generated code is private.** It generates into `internal/application/<module>/internal/db`, which Go lets only that module import.
+- **sqlc's generated code is private.** It generates into `services/<name>/internal/<module>/internal/db`, which Go lets only that module import.
 
 **One use case through the three layers: discarding an item**
 
 ```go
-// handler/ws: transport only
-func (h *Handler) onDiscard(ctx context.Context, s Session, m protocol.InventoryDiscard) protocol.Response {
-    err := h.items.Discard(ctx, s.CharacterID, item.DiscardInput{
-        ItemID: m.ItemID, Quantity: m.Quantity, Key: m.IdempotencyKey,
-    })
-    return responseFor(m.ReqID, err) // errmap: the error's own code and player message
+// services/item/internal/handler: transport only. The gateway sent the
+// actor from the connection, never from the message, and maps a failure's
+// reason to the client's code and player message (errmap).
+func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*itemv1.DiscardResponse, error) {
+    actor, err := actorOf(req.GetActor())
+    if err != nil {
+        return nil, err
+    }
+    id, err := model.ParseItemID(req.GetItemId())
+    if err != nil {
+        return nil, err
+    }
+    res, err := s.svc.Discard(ctx, actor, item.DiscardInput{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
+    if err != nil {
+        return nil, err // the error table sends it with its reason
+    }
+    return &itemv1.DiscardResponse{Changed: slots(res)}, nil
 }
 
-// application/item/deps.go: what the service sees
+// services/item/internal/item/deps.go: what the service sees
 type Store interface {
     InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
     Find(ctx context.Context, id model.ItemID, owner model.CharacterID) (Item, error) // on the pool
@@ -173,7 +186,7 @@ type UnitOfWork interface { // everything bound to one transaction
     Idempotency() Idempotency // pkg/idempotency, plus hashing the input and storing the response
 }
 
-// application/item/service.go: rules, and where the transaction starts
+// services/item/internal/item/service.go: rules, and where the transaction starts
 func (s *Service) Discard(ctx context.Context, actor model.CharacterID, in DiscardInput) error {
     return s.store.InTx(ctx, func(uow UnitOfWork) error {
         return uow.Idempotency().Run(ctx, actor, "discard", in.Key, in, func() error {
@@ -195,7 +208,7 @@ func (s *Service) Discard(ctx context.Context, actor model.CharacterID, in Disca
     })
 }
 
-// application/item/repository.go: the store, its unit of work, classify, and SQL
+// services/item/internal/item/repository.go: the store, its unit of work, classify, and SQL
 func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) error {
     err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
         return fn(p.newUnitOfWork(tx))
@@ -240,7 +253,7 @@ func (r itemRepo) LockOwned(ctx context.Context, id model.ItemID, owner model.Ch
 ## Module anatomy
 
 ```txt
-internal/application/market/
+services/item/internal/market/     a Stage 2 module, in the service it shares transactions with (page 10)
   api.go          the module's public types, inputs, and errors
   service.go      application layer: use cases, rules, where transactions start
   deps.go         interfaces the service needs: its Store and UnitOfWork, other modules, observers
@@ -253,7 +266,7 @@ internal/application/market/
 
 ## Modules
 
-Every module below lives in `internal/application/`, except the two handlers. The shared kernel beside them (`internal/gamedata`, `internal/sim`, `internal/progression`, `internal/model`) holds no state of its own: game data is static and read-only, the simulation and the progression rules are pure functions.
+Every module below lives in its service, `services/<name>/internal/<module>`; the gateway's two handlers hold no game rules. The shared kernel beside them (`internal/gamedata`, `internal/sim`, `internal/progression`, `internal/model`) holds no state of its own: game data is static and read-only, the simulation and the progression rules are pure functions.
 
 | Module | Owns | Uses |
 | --- | --- | --- |
@@ -262,12 +275,12 @@ Every module below lives in `internal/application/`, except the two handlers. Th
 | `world` (the world service, `services/world`) | Map instances, movement, mobs, ground drops, portals | combat, the character service (load, checkpoints, level-ups), the item service (pickups, starter items), the social service (a party copy), gamedata, sim, progression, `pkg/tick` |
 | `combat` (in the world service) | Hit and damage resolution, EXP awards; pure functions | gamedata |
 | `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
-| `economy` (Stage 2) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
-| `market` (Stage 2) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
+| `economy` (Stage 2, in the item service) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
+| `market` (Stage 2, in the item service) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
 | `party` (the social service, `services/social`) | Parties and invites, in memory | A notifier interface (the social handler) |
 | `chat` (the social service) | Message validation and routing | party |
-| `handler/ws` (the gateway) | WebSocket sessions, routing, fan-out to clients | `pkg/wsconn`, `pkg/auth`, `pkg/ratelimit`, every gameplay module, the extracted services' generated clients |
-| `handler/api` | REST endpoints: DTOs, validation, error responses through `handler/errmap` | account, character, `pkg/auth`, `pkg/ratelimit` |
+| `handler/ws` (the gateway service) | WebSocket sessions, a command queue per connection, routing, the delivery streams, fan-out to clients | `pkg/wsconn`, `pkg/auth`, `pkg/ratelimit`, the services' generated clients |
+| `handler/api` (the gateway service) | REST endpoints: DTOs, validation, error responses through `handler/errmap` | the account and character services' clients, `pkg/auth`, `pkg/ratelimit` |
 | `audit` (Stage 2) | Invariant checks, read-only | item, economy, market |
 
 ## Generic libraries in /pkg
@@ -433,7 +446,7 @@ The same scheme as docviewer, using its `pkg/configload`:
 - **Overrides:** any key can be set from the environment as `FINGA_` plus its path in upper case, for example `FINGA_SERVER_ADDR=:9090` or `FINGA_WORLD_TICK_RATE_HZ=30`.
 - **`.env`:** the binaries never read it; they read the YAML file and their environment, nothing else. Whoever starts them injects the git-ignored `server/.env`: `make up` through Compose's `env_file`, where the Compose file's own `environment` entries (the database URL, the CORS origins) win over it, and `make run` by exporting it before starting the binaries without Docker. `server/.env.example` lists every override, commented out. The host ports Compose publishes are Compose's own settings, read from `infra/.env` (changed 2026-10-23 at the user's request: environment injection belongs to Docker and the tooling, not the code).
 - **Validated at start:** the schema is `internal/config`. An unknown key or an invalid value stops the binary with a message naming the key.
-- `gameserver` and `migrate` share the schema, and each reads the sections it needs. Stage 2 binaries get their own file, for example `configs/outbox-relay.yaml` and `configs/auditor.yaml`.
+- Every binary (the six services and `migrate`) shares the schema, and each reads the sections it needs. Stage 2 binaries get their own file, for example `configs/outbox-relay.yaml` and `configs/auditor.yaml`.
 
 Starting `configs/config.yaml`:
 
@@ -465,7 +478,7 @@ services:            # the internal services (page 10): gRPC listener, where cal
 
 Carried over from docviewer:
 
-- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations, then the services and the game server without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `cover` (fails below 80% of statements in `internal/`, `pkg/` and `cmd/gameserver/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), and `gen` (sqlc, and `buf generate` for the gRPC code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed, read from the world's ops address).
+- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations, then the six services without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `test-service SERVICE=<name>` (one service built and tested on its own, as CI's matrix does), `cover` (fails below 80% of statements in `internal/`, `pkg/`, `services/` and `cmd/migrate/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), `breaking` (`buf breaking` against the previous commit), and `gen` (sqlc, and `buf generate` for the gRPC code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed, read from the world's ops address).
 - **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys.
 - **Tests:** table-driven, with named cases. No test logic in production code: tests use the seams production already has (interfaces, constructors, `httptest`) and `testing/synctest` for time.
 - **`docs/ai-coding-log.md`:** one row per implementation step: what was produced, how it was verified, what changed, mistakes caught, and the commit.

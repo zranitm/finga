@@ -1,4 +1,4 @@
-package app
+package clients_test
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/services/gateway/internal/clients"
 )
 
 // accounts is the account service, faked behind a real gRPC server.
@@ -55,7 +56,7 @@ func TestGuardOverTheAccountService(t *testing.T) {
 	f := &accounts{}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	accountv1.RegisterAccountServiceServer(srv, f)
-	g := guard{c: accountv1.NewAccountServiceClient(grpctest.Conn(t, srv))}
+	g := clients.NewGuard(accountv1.NewAccountServiceClient(grpctest.Conn(t, srv)))
 
 	p, err := g.Validate(ctx, "tok")
 	if err != nil || p.AccountID != guardAccount || p.SessionID != guardSession {

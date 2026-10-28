@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"finga/internal/handler/errmap"
 	"finga/pkg/auth"
+	"finga/services/gateway/internal/handler/errmap"
 )
 
 type ctxKey int

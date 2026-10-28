@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # One Dockerfile for every binary; the SERVICE build argument picks which:
-# a service under services/ (item, ...) or a command under cmd/
-# (gameserver, migrate). Build from server/ (infra/docker-compose.yml does):
+# a service under services/ (gateway, item, ...) or a command under cmd/
+# (migrate). Build from server/ (infra/docker-compose.yml does):
 #   docker build --build-arg SERVICE=item .
 # Go's module and build caches are BuildKit cache mounts, so the images
 # Compose builds side by side share one compilation.
@@ -10,7 +10,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-ARG SERVICE=gameserver
+ARG SERVICE=gateway
 ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     pkg=./cmd/${SERVICE}; \

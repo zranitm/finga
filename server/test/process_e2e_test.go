@@ -22,7 +22,7 @@ type process struct {
 	name   string
 	bin    string
 	env    []string
-	url    string // the game server's base URL
+	url    string // the gateway's base URL
 	grpc   string // a service's gRPC address
 	health string // the /healthz URL that says it is up
 	cmd    *exec.Cmd
@@ -53,13 +53,13 @@ func (b *lockedBuffer) String() string {
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
-	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social", "./services/character/cmd/character", "./services/world/cmd/world")
+	build := exec.Command("go", "build", "-o", dir, "./services/gateway/cmd/gateway", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social", "./services/character/cmd/character", "./services/world/cmd/world")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	bins := map[string]string{}
-	for _, name := range []string{"gameserver", "item", "account", "social", "character", "world"} {
+	for _, name := range []string{"gateway", "item", "account", "social", "character", "world"} {
 		bins[name] = filepath.Join(dir, name)
 		if runtime.GOOS == "windows" {
 			bins[name] += ".exe"
@@ -107,10 +107,10 @@ func freePort(t *testing.T) string {
 	return addr
 }
 
-// startGameserver runs the game server on addr, dialling the services.
-func startGameserver(t *testing.T, bin, dbURL, addr string, services map[string]*process) *process {
+// startGateway runs the gateway on addr, dialling the services.
+func startGateway(t *testing.T, bin, dbURL, addr string, services map[string]*process) *process {
 	t.Helper()
-	p := &process{t: t, name: "gameserver", bin: bin, url: "http://" + addr, health: "http://" + addr + "/healthz"}
+	p := &process{t: t, name: "gateway", bin: bin, url: "http://" + addr, health: "http://" + addr + "/healthz"}
 	p.env = append(baseEnv(t, dbURL), "FINGA_SERVER_ADDR="+addr)
 	for name, svc := range services {
 		p.env = append(p.env, "FINGA_SERVICES_"+strings.ToUpper(name)+"_ADDR="+svc.grpc)

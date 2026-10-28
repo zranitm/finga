@@ -6,10 +6,10 @@ import (
 	"google.golang.org/grpc/codes"
 
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/handler/errmap"
 	"finga/internal/protocol"
 	"finga/pkg/grpcx"
 	"finga/pkg/wsconn"
+	"finga/services/gateway/internal/handler/errmap"
 )
 
 // delivery turns one event of the world's stream into the protocol message

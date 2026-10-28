@@ -1,7 +1,7 @@
 # Finga
 
 A browser-based 2D side-scrolling MMORPG-lite: pick a class, hunt mobs, level
-up, team up in parties of up to 4, and loot. Go game server, Postgres, and a
+up, team up in parties of up to 4, and loot. Go services, Postgres, and a
 Phaser client. The design lives in `docs/`: the product (what the game is) and
 the tech design (how it is built), starting at `docs/README.md`.
 
@@ -14,7 +14,7 @@ checklist in `docs/proof-session.md`.
 ## Repository layout
 
 ```txt
-server/   the Go module: the game server and its tools, migrations, configuration,
+server/   the Go module: the six services (services/), their tools, configuration,
           the game content (data/), and the contracts (api/, testdata/)
 web/      the browser client: Phaser 4, React, Vite, TypeScript
 infra/    how it runs: Docker Compose today; infrastructure as code and the
@@ -30,7 +30,7 @@ vectors, the error codes). The root `Makefile` drives all three parts.
 ## Build and run
 
 ```bash
-make up      # build the images, start Postgres, run the migrations, start the services and the game server on :8080
+make up      # build the images, start Postgres, run the migrations, start the six services (the gateway on :8080)
 make smoke   # a client signs up, enters the world and moves, against the running stack
 make down    # stop everything and drop the database volume
 ```
@@ -42,11 +42,12 @@ Postgres owns port 5432 on the host, set `FINGA_POSTGRES_PORT` in
 the binaries:
 
 ```bash
-make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the services and the game server
+make run                   # exports server/.env, applies every service's migrations to FINGA_DATABASE_URL, starts the six services
 ```
 
-The game server serves REST under /api, the gateway at /ws, /healthz,
-/readyz and /metrics.
+The gateway serves REST under /api, the WebSocket at /ws, /healthz, /readyz
+and /metrics on :8080; every other service serves gRPC and its own /healthz,
+/readyz and /metrics on its ops port (`services` in the configuration).
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
@@ -60,7 +61,7 @@ Zustand, Vitest; page 7 of the design). It is built step by step after the
 backend, the same way, with its own rows in `docs/ai-coding-log.md`.
 
 ```bash
-make up                         # the server on :8080
+make up                         # the game on :8080
 npm --prefix web install        # once; Node 24 (web/.nvmrc)
 npm --prefix web run dev        # the client on :5173, /api and /ws proxied to the server
 make play                       # for a play session on the LAN: make up, the production build, vite preview on :4173 (--host), same proxy
@@ -78,7 +79,7 @@ paths from where they run, `server/`. Any key can be overridden by an
 environment variable named `FINGA_` plus its path in upper case, for example
 `FINGA_SERVER_ADDR=:9090`. The binaries read the YAML file and their
 environment, nothing else. For local overrides, copy `server/.env.example`
-to `server/.env` (git-ignored): `make up` passes it to the game server
+to `server/.env` (git-ignored): `make up` passes it to every service's
 container (Compose's `env_file`) and `make run` exports it before starting the
 binaries. A `server/configs/config.local.yaml` (git-ignored) replaces the
 defaults file when present, and `CONFIG_PATH` names any file. Nothing
@@ -97,8 +98,10 @@ committed is a secret.
 
 ```bash
 make test    # every test, with the race detector
+make test-service SERVICE=item   # one service built and tested on its own, as CI's matrix does
 make cover   # coverage report over server/internal/, server/pkg/, server/services/ and the composition roots; fails below 80%
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
+make breaking   # buf breaking: the gRPC contracts against the previous commit
 make smoke   # the packaging check, against a running stack
 make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed (read from the world service's ops port, 9104)
 make play    # the proof session with people: the server plus the client preview build on the LAN (:4173)
@@ -113,75 +116,72 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
   fight replays exactly;
 - end-to-end rows per Stage 1 feature in `server/test/`, each named after
   its feature, against the server built the way production builds it;
-- the crash test (`TestCrashDuringPickups`): every service and
-  `server/cmd/gameserver` built and run as their own processes, three test
-  clients looting concurrently, the world and item services killed without
-  warning while the game server keeps the sockets, both restarted, every
-  client joined again, and the item invariants checked. CI runs it with
+- the crash test (`TestCrashDuringPickups`): every service built and run as
+  its own process, three test clients looting concurrently, the world and
+  item services killed without warning while the gateway keeps the sockets,
+  both restarted, every client joined again, and the item invariants
+  checked. CI runs it with
   `make test`.
 
 ## Architecture at a glance
 
-One Go module in `server/`, laid out so that imports only point one way
-(depguard checks it): `cmd` → `internal/handler` → `internal/application`
-→ the shared kernel (`internal/model`, `internal/gamedata`, `internal/sim`,
-`internal/progression`) → `pkg`.
+Six services in one Go module in `server/` (Low-level design, page 10), each
+a binary of its own (`server/services/<name>/cmd/<name>`), calling each
+other over gRPC with the contracts in `server/api/proto/internal/` and the
+generated code committed in `server/api/gen/`:
 
-- **`cmd/gameserver/app`** is the game server's composition root: `Build`
-  dials every service and wires the REST handler and the gateway, and
-  `Server` listens, runs the background tasks and shuts down gracefully. Each binary wires its own
-  dependencies next to its main; this one is a package of its own so the
-  end-to-end tests can build the server exactly as production does.
-- **`internal/handler/router.go`** is the route table: REST under `/api`,
-  the gateway at `/ws`, `/metrics`, `/healthz`, and `/readyz`, which
-  says whether the process can take traffic and checks no dependency.
-- **`internal/handler/api`** is the REST API (sign up, log in, characters,
-  settings; contract in `server/api/openapi.yaml`, checked for drift by a test).
-- **`internal/handler/ws`** is the WebSocket gateway: the Hello handshake, one
-  connection per account, token rotation, per-account rate limits, and routing
-  of every message to the service that owns it with the identity taken from
-  the connection, never from the message. Players join through the world
-  service, whose events arrive on one delivery stream per gateway; when the
+- **`gateway`** is the only public entry: REST under `/api` (contract in
+  `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket
+  gateway at `/ws` (the message catalogue is `internal/protocol`, with golden
+  files in `server/testdata/contracts/` and `server/api/asyncapi.yaml`). It
+  holds no database and no game rules: the Hello handshake, one connection
+  per account, token rotation, per-account rate limits, and a command queue
+  per connection whose goroutine calls the service that owns each message,
+  with the identity taken from the connection, never from the message; the
+  read loop only decodes, limits and routes. Players join through the
+  world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.
-  The message catalogue is
-  `internal/protocol`, with golden files in `server/testdata/contracts/` and
-  `server/api/asyncapi.yaml`.
-- **`internal/handler/errmap`** turns the errors services return, plain
-  sentinels named for the failure such as `party.ErrFull`, into what a
-  client sees: an HTTP status, a code of its own (`party_full`) and the
-  player message. An error it does not know answers `internal` and is
-  logged with its cause.
-- **`services/item`** is the first service in its own process (Low-level
-  design, page 10): the item module in `internal/item`, its gRPC handler,
-  its migrations, and the invariant checks in `invariants`. Items are
-  append-only history: every change is an item event, and three invariant
-  checks tie quantities to events. The game server calls it through the
-  generated client in `api/gen/item/v1`.
-- **`services/account`** runs accounts and sessions the same way; the
-  REST handler and the gateway check tokens through `pkg/auth`'s `Guard`
-  over its client, and its `WatchSessions` stream tells the gateway which
-  connections to close when a session ends.
-- **`services/social`** holds the parties and chat, in memory: it delivers
-  party state, invites and party chat to each member's gateway on its own
-  stream, and the world's ticks read a local copy of party membership fed by
-  its `WatchParties` stream.
-- **`services/character`** holds the characters: REST lists and creates
-  them through it, Hello loads them, and the world's persistence worker
-  saves checkpoints and level-ups to it. A new character's starter items
-  are granted through the item service after the character commits.
-  With it, the game server needs no database of its own.
-- **`services/world`** runs one actor per map at 20 Hz: inputs applied in
-  sequence order, movement in fixed sub-steps shared with the client as test
+  `errmap` turns the reason a service's failure carries into what a client
+  sees: an HTTP status, a code of its own (`party_full`) and the player
+  message; a failure it does not know answers `internal` and is logged. On
+  SIGTERM the gateway turns unready, tells every connection to reconnect
+  (Kicked `server_restart`), then stops.
+- **`account`** holds accounts and sessions. The gateway checks tokens
+  through `pkg/auth`'s `Guard` over its client, and its `WatchSessions`
+  stream tells the gateway which connections to close when a session ends.
+- **`character`** holds the characters: REST lists and creates them through
+  it, and the world loads them on join and saves checkpoints and level-ups
+  to it. A new character's starter items are granted through the item
+  service after the character commits.
+- **`item`** holds the items: append-only history, where every change is an
+  item event and three invariant checks (`services/item/invariants`) tie
+  quantities to events.
+- **`world`** runs one actor per map at 20 Hz: inputs applied in sequence
+  order, movement in fixed sub-steps shared with the client as test
   vectors, mobs, combat, EXP, drops, portals, and a delta to every player
   each tick. A tick never waits on another service: pickups go to the
   economy worker pool, which calls the item service with the drop's ID as
   the idempotency key, and the result comes back as an inbox message;
-  checkpoints go to the character service from the persistence worker; party
-  membership is a local copy fed by the social service.
-- **`pkg/`** holds the generic parts: config loading, the transaction
-  helper with retries, idempotency keys, the outbox, token
-  buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps,
-  Testcontainers glue.
+  checkpoints go to the character service from the persistence worker;
+  party membership is a local copy fed by the social service.
+- **`social`** holds the parties and chat, in memory: it delivers party
+  state, invites and party chat to each member's gateway on its own stream,
+  and feeds the world's party copy on `WatchParties`.
+
+Inside a service, `cmd/<name>/app` is its composition root (the end-to-end
+tests build the whole game from these, exactly as production does),
+`internal/<module>` its business logic (a service over a repository, sqlc
+and pgx, no business rules in SQL), `internal/handler` its gRPC server and
+error table, `internal/clients` its adapters for the services it calls, and
+`migrations/` its own goose files with its own version table. Go's
+`internal/` rule keeps services out of each other, and depguard checks the
+rest of the import direction: composition roots → services → the shared
+kernel (`internal/model`, `internal/gamedata`, `internal/sim`,
+`internal/progression`) → `pkg/`, the generic parts (config loading, the
+transaction helper with retries, idempotency keys, the outbox, token
+buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps, the
+gRPC plumbing, Testcontainers glue).
+
 - **Persistence**: character state checkpoints every 30 s and on level-up,
   map change and logout; items never wait for a checkpoint. Sessions are
   opaque tokens stored hashed, rotated on every Hello, with reuse detection

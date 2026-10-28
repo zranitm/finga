@@ -1,8 +1,8 @@
-// Command bot drives test players against a running game server for the
+// Command bot drives test players against a running game for the
 // proof session (step 17): each bot signs up, enters the world, walks from
 // the town to the forest, hunts, loots, chats, parties up with the others,
 // and goes back to the town now and then. At the end it reads the world
-// service's /metrics (its ops address, -metrics) and the game server's, and
+// service's /metrics (its ops address, -metrics) and the gateway's, and
 // prints what happened, including the tick p99, so a session can be put in
 // the evidence log.
 //
@@ -34,7 +34,7 @@ import (
 )
 
 func main() {
-	url := flag.String("url", "http://localhost:8080", "the game server")
+	url := flag.String("url", "http://localhost:8080", "the gateway")
 	n := flag.Int("bots", 4, "how many bots")
 	duration := flag.Duration("duration", 30*time.Minute, "how long they play")
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
@@ -518,7 +518,7 @@ func report(urls ...string) error {
 			labels, value := parseLine(line)
 			overruns[labels["map"]] = value
 		case strings.HasPrefix(line, "players_online "):
-			online = strings.TrimSpace(strings.TrimPrefix(line, "players_online")) // the last page's: the game server's
+			online = strings.TrimSpace(strings.TrimPrefix(line, "players_online")) // the last page's: the gateway's
 		}
 	}
 	if online != "" {

@@ -218,7 +218,7 @@ No transaction spans two services (rule 1 below). The character service commits 
 | world | A short freeze, then play resumes at the last checkpoint; sockets stay up | The gateway's `Deliver` stream breaks. It keeps every socket, re-subscribes with backoff, and calls `world.Join` again for each connected player; the world reloads them from the character service. A player whose saved map differs from the one they were on gets MapChange, then the Snapshot. Mobs and ground drops reset, as after a crash today. The gateway shifts the restarted world's ticks so they never go back on a connection (decision 224). |
 | social | Parties are gone (in memory, as after a crash today); sockets stay up | A new boot ID on Subscribed tells the gateway the parties are gone: each player gets PartyState with no party, and the gateway registers its players with `Online` again. The world's `WatchParties` copy is rebuilt from the new, empty table. |
 | account, character, item | Calls fail while it is down (the client sees `internal` for a command, or a Hello fails and the client retries) | gRPC clients reconnect on their own. Session ends missed during an account restart are caught by the gateway's minute check. |
-| gateway | Each client reconnects | Rolling, one node at a time, draining first: readiness turns 503, every connection gets Kicked `server_restart` (the client reconnects with jitter), then the listener closes. |
+| gateway | Each client reconnects | Rolling, one node at a time, draining first: readiness turns 503, a new WebSocket upgrade is refused with 503, every connection gets Kicked `server_restart` (the client reconnects with jitter), then the listener closes (step 28). |
 | Postgres | As today | |
 
 After a world restart the HUD's EXP can show more than the reloaded checkpoint until the next EXP event: Snapshot carries no EXP, and a fresh Welcome on the same socket would be a protocol change (open question 2).
@@ -260,7 +260,7 @@ services:            # Stage 1: one node each; Compose sets addr to the service'
 ```
 
 - **Compose:** Postgres, `migrate`, and the six services, each built from the one Dockerfile with `SERVICE` set; the gateway publishes :8080 and the world its ops port for the bots. Builds share Go's caches through BuildKit cache mounts.
-- **Make:** `up`, `down`, `test`, `cover`, `lint` and `smoke` keep their meaning for the whole game; `make test-service SERVICE=item` tests one service; `make run` starts the migrations and the six binaries without Docker; `make gen` runs sqlc and `buf generate`.
+- **Make:** `up`, `down`, `test`, `cover`, `lint` and `smoke` keep their meaning for the whole game; `make test-service SERVICE=item` builds and tests one service; `make breaking` runs `buf breaking` against the previous commit; `make run` starts the migrations and the six binaries without Docker; `make gen` runs sqlc and `buf generate`.
 - **CI:** the go job runs lint (golangci-lint and `buf lint`), every test and coverage, and checks the generated code is current; a matrix job tests each service on its own; the compose job runs `make up` and the smoke test against the gateway; `buf breaking` against the previous commit from step 28.
 - **Tools:** `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` are pinned as Go tools in `server/go.mod` (`go get -tool`), so a laptop and CI generate with the same versions (decision 175).
 

@@ -4,7 +4,7 @@
 - **Features:** A1, B2
 - **Milestone:** Services
 - **Order:** 28
-- **Status:** Ready for review
+- **Status:** Done
 - **Step:** 28. Gateway service
 
 **Goal:** what is left of the game server becomes the gateway: the only public entry, with no game rules and no database, whose read loop never blocks. CI builds and tests each service on its own, and the contracts are checked for breaking changes.
@@ -41,7 +41,7 @@
 
 ## Done when
 
-- [ ] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; CI green, including the matrix and `buf breaking`.
+- [x] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; CI green, including the matrix and `buf breaking`.
 
 ## Review focus
 

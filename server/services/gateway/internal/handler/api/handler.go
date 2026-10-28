@@ -18,8 +18,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	characterv1 "finga/api/gen/character/v1"
-	"finga/internal/handler/errmap"
 	"finga/pkg/auth"
+	"finga/services/gateway/internal/handler/errmap"
 )
 
 // maxBodyBytes caps a request body; the biggest legitimate body is a

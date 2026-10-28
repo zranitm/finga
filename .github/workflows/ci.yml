@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # the previous commit, for buf breaking
       - uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
@@ -22,12 +24,32 @@ jobs:
       # the generators pinned in go.mod must change nothing.
       - name: generated gRPC code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen
-      # The Go half of make test, crash test included: it builds cmd/gameserver,
-      # runs it as its own process over a Testcontainers Postgres, kills it
-      # mid-pickup, restarts it, and checks the item invariants. The client
-      # half of test, lint and cover runs in the node job.
+      # The internal contracts against the previous commit: a change that
+      # breaks a caller (a field's number or type, a removed RPC) fails here.
+      - name: no breaking change to the gRPC contracts
+        run: make breaking BREAKING_AGAINST=HEAD~1
+      # The Go half of make test, crash test included: it builds every
+      # service, runs each as its own process over a Testcontainers Postgres,
+      # kills the world and the item service mid-pickup while the gateway
+      # keeps the sockets, restarts them, and checks the item invariants. The
+      # client half of test, lint and cover runs in the node job.
       - run: make test-go
       - run: make cover-go
+
+  # Each service builds and passes its own tests on its own, without the
+  # rest of the module's tests (Low-level design, page 10).
+  service:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, account, character, item, world, social]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - run: make test-service SERVICE=${{ matrix.service }}
 
   # The client: page 7's toolchain, with the lockfile as the cache key.
   node:
@@ -49,8 +71,8 @@ jobs:
       - run: npm run build
 
   # The packaging step: the images build, `make up` brings the whole Stage 1
-  # game up from a clean clone, and a test client signs up, enters the world
-  # and moves.
+  # game up from a clean clone (Postgres, migrate and the six services), and
+  # a test client signs up, enters the world and moves, through the gateway.
   compose:
     runs-on: ubuntu-latest
     steps:
@@ -59,7 +81,7 @@ jobs:
         with:
           go-version-file: server/go.mod
       - run: make up
-      - name: wait for the game server
+      - name: wait for the gateway
         run: |
           for i in $(seq 1 60); do
             if curl -fsS http://localhost:8080/readyz >/dev/null; then exit 0; fi

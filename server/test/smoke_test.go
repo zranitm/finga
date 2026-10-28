@@ -12,7 +12,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// TestSmoke runs against a game server that is already up (make up), named
+// TestSmoke runs against a gateway that is already up (make up), named
 // by FINGA_SMOKE_URL; without it the test is skipped. It is the CI check of
 // the packaging step: a client signs up, enters the world, and moves.
 func TestSmoke(t *testing.T) {
