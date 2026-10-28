@@ -238,7 +238,10 @@ func TestBadFramesCloseTheConnection(t *testing.T) {
 func TestSlowConsumerIsDropped(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()
-	var sendErr atomic.Value
+	// The sender reports Send's first error, or nil if every send fitted.
+	// OnClose can run before the sender sees its error, so the test waits
+	// for this rather than reading a shared value at close time.
+	sendErr := make(chan error, 1)
 	big := blob{Data: strings.Repeat("x", 8<<10)}
 	rec.onOpen = func(c wsconn.Conn) {
 		go func() {
@@ -246,10 +249,11 @@ func TestSlowConsumerIsDropped(t *testing.T) {
 			// queue, then Send fails and the connection is closed.
 			for range 4000 {
 				if err := c.Send(wsconn.Message{Type: "Blob", Data: big}); err != nil {
-					sendErr.Store(err)
+					sendErr <- err
 					return
 				}
 			}
+			sendErr <- nil
 		}()
 	}
 	s := start(t, rec, wsconn.Options{SendQueue: 8})
@@ -260,8 +264,13 @@ func TestSlowConsumerIsDropped(t *testing.T) {
 	if !errors.As(err, &ce) || ce.Code != wsconn.CloseSlowConsumer {
 		t.Fatalf("OnClose got %v, want CloseError %d", err, wsconn.CloseSlowConsumer)
 	}
-	if got, _ := sendErr.Load().(error); !errors.Is(got, wsconn.ErrQueueFull) {
-		t.Fatalf("Send returned %v, want ErrQueueFull", got)
+	select {
+	case got := <-sendErr:
+		if !errors.Is(got, wsconn.ErrQueueFull) {
+			t.Fatalf("Send returned %v, want ErrQueueFull", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the sender never finished")
 	}
 }
 
