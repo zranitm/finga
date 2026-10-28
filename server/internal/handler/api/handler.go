@@ -17,9 +17,8 @@ import (
 	"google.golang.org/grpc"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/application/character"
+	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/handler/errmap"
-	"finga/internal/model"
 	"finga/pkg/auth"
 )
 
@@ -36,10 +35,11 @@ type AccountService interface {
 	UpdateSettings(ctx context.Context, in *accountv1.UpdateSettingsRequest, opts ...grpc.CallOption) (*accountv1.UpdateSettingsResponse, error)
 }
 
-// CharacterService is what the handler needs from the character module.
+// CharacterService is what the handler needs from the character service
+// (page 10); its generated client satisfies it.
 type CharacterService interface {
-	Create(ctx context.Context, owner model.AccountID, in character.CreateInput) (character.Character, error)
-	List(ctx context.Context, owner model.AccountID) ([]character.Character, error)
+	Create(ctx context.Context, in *characterv1.CreateRequest, opts ...grpc.CallOption) (*characterv1.CreateResponse, error)
+	List(ctx context.Context, in *characterv1.ListRequest, opts ...grpc.CallOption) (*characterv1.ListResponse, error)
 }
 
 // Dependencies are the services and settings the handler is built from.
@@ -186,12 +186,12 @@ func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) listCharacters(w http.ResponseWriter, r *http.Request) {
-	cs, err := h.characters.List(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID))
+	res, err := h.characters.List(r.Context(), &characterv1.ListRequest{AccountId: principalFrom(r.Context()).AccountID.String()})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toCharacters(cs))
+	writeJSON(w, http.StatusOK, toCharacters(res.GetCharacters()))
 }
 
 func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
@@ -199,12 +199,12 @@ func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.Name, req.Class) {
 		return
 	}
-	c, err := h.characters.Create(r.Context(), model.AccountID(principalFrom(r.Context()).AccountID), character.CreateInput{Name: req.Name, Class: model.Class(req.Class)})
+	res, err := h.characters.Create(r.Context(), &characterv1.CreateRequest{AccountId: principalFrom(r.Context()).AccountID.String(), Name: req.Name, Class: req.Class})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toCharacter(c))
+	writeJSON(w, http.StatusCreated, toCharacter(res.GetCharacter()))
 }
 
 func (h *handler) settings(w http.ResponseWriter, r *http.Request) {

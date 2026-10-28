@@ -12,13 +12,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/handler/ws"
 	"finga/internal/model"
-	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
@@ -41,20 +40,23 @@ func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal
 	return p, nil
 }
 
+// fakeCharacters is the character service's Load: a character of
+// another account, or none, is not found; err, when set, is the answer.
 type fakeCharacters struct {
-	chars map[model.CharacterID]character.Character
+	chars map[model.CharacterID]*characterv1.Character
+	err   error
 }
 
-func (f *fakeCharacters) Load(_ context.Context, id model.CharacterID, account model.AccountID) (character.Character, error) {
-	c, ok := f.chars[id]
-	if !ok || c.AccountID != account {
-		return character.Character{}, character.ErrNotFound
+func (f *fakeCharacters) Load(_ context.Context, in *characterv1.LoadRequest, _ ...grpc.CallOption) (*characterv1.LoadResponse, error) {
+	if f.err != nil {
+		return nil, f.err
 	}
-	return c, nil
-}
-
-func (f *fakeCharacters) Derived(c character.Character) (progression.Derived, error) {
-	return progression.Derived{MaxHP: c.HP, MaxMP: c.MP}, nil
+	id, _ := model.ParseCharacterID(in.GetCharacterId())
+	c, ok := f.chars[id]
+	if !ok || c.GetAccountId() != in.GetAccountId() {
+		return nil, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+	}
+	return &characterv1.LoadResponse{Character: c}, nil
 }
 
 // fakeInstance records joins, leaves and inputs and lets the test push

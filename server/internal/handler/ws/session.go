@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/model"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
@@ -22,8 +21,7 @@ type session struct {
 
 	account   model.AccountID
 	sessionID model.SessionID
-	character character.Character
-	maxHP     int // from Hello, for the social service
+	character player
 	instMu    sync.Mutex
 	instance  MapInstance
 
@@ -32,6 +30,16 @@ type session struct {
 
 func (s *session) active() bool { return s.isActive.Load() }
 func (s *session) setActive()   { s.isActive.Store(true) }
+
+// player is who the session plays, as Hello loaded it: what routing,
+// chat and the social service need.
+type player struct {
+	ID    model.CharacterID
+	Name  string
+	Level int
+	HP    int
+	MaxHP int
+}
 
 // limit is a per-message-type token bucket setting (page 4).
 type limit struct {

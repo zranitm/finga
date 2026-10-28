@@ -4,7 +4,7 @@ import (
 	"time"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/application/character"
+	characterv1 "finga/api/gen/character/v1"
 )
 
 // The request and response bodies of api/openapi.yaml. A drift test keeps
@@ -89,15 +89,16 @@ func toAccount(a *accountv1.Account) AccountResponse {
 	return AccountResponse{ID: a.GetId(), Username: a.GetUsername(), CreatedAt: a.GetCreatedAt().AsTime()}
 }
 
-func toCharacter(c character.Character) CharacterResponse {
+func toCharacter(c *characterv1.Character) CharacterResponse {
+	s := c.GetStats()
 	return CharacterResponse{
-		ID: c.ID.String(), Name: c.Name, Class: c.Class.String(), Level: c.Level, Exp: c.Exp,
-		Stats: StatsResponse{STR: c.Stats.STR, DEX: c.Stats.DEX, INT: c.Stats.INT, AGI: c.Stats.AGI, VIT: c.Stats.VIT},
-		HP:    c.HP, MP: c.MP, MapID: c.MapID,
+		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
+		Stats: StatsResponse{STR: int(s.GetStrength()), DEX: int(s.GetDexterity()), INT: int(s.GetIntelligence()), AGI: int(s.GetAgility()), VIT: int(s.GetVitality())},
+		HP:    int(c.GetHp()), MP: int(c.GetMp()), MapID: c.GetMapId(),
 	}
 }
 
-func toCharacters(cs []character.Character) CharactersResponse {
+func toCharacters(cs []*characterv1.Character) CharactersResponse {
 	out := CharactersResponse{Characters: make([]CharacterResponse, 0, len(cs))}
 	for _, c := range cs {
 		out.Characters = append(out.Characters, toCharacter(c))

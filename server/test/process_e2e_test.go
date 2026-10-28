@@ -53,13 +53,13 @@ func (b *lockedBuffer) String() string {
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
-	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social")
+	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social", "./services/character/cmd/character")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	bins := map[string]string{}
-	for _, name := range []string{"gameserver", "item", "account", "social"} {
+	for _, name := range []string{"gameserver", "item", "account", "social", "character"} {
 		bins[name] = filepath.Join(dir, name)
 		if runtime.GOOS == "windows" {
 			bins[name] += ".exe"
@@ -84,13 +84,14 @@ func baseEnv(t *testing.T, dbURL string) []string {
 	)
 }
 
-// startServiceProcess runs a service binary (item, account, ...) on free ports.
-func startServiceProcess(t *testing.T, name, bin, dbURL string) *process {
+// startServiceProcess runs a service binary (item, account, ...) on free
+// ports, with extra environment entries (the services it dials).
+func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string) *process {
 	t.Helper()
 	grpc, ops := freePort(t), freePort(t)
 	p := &process{t: t, name: name, bin: bin, grpc: grpc, health: "http://" + ops + "/healthz"}
 	key := "FINGA_SERVICES_" + strings.ToUpper(name)
-	p.env = append(baseEnv(t, dbURL), key+"_LISTEN="+grpc, key+"_OPS="+ops)
+	p.env = append(append(baseEnv(t, dbURL), key+"_LISTEN="+grpc, key+"_OPS="+ops), extra...)
 	p.start()
 	return p
 }

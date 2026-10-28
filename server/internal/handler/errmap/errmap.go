@@ -1,6 +1,6 @@
 // Package errmap turns the errors services return into what a client sees.
 // Services return plain sentinel errors that name the exact failure
-// (party.ErrFull, character.ErrNameTaken) and wrap a cause with %w for the
+// (party.ErrFull, item.ErrInventoryFull) and wrap a cause with %w for the
 // logs. A service that runs as its own process (Low-level design, page 10)
 // sends its failure across gRPC as a reason instead (item.v1's
 // REASON_INVENTORY_FULL), which pkg/grpcx reads back. Handlers, HTTP and
@@ -19,9 +19,9 @@ import (
 	"slices"
 
 	accountv1 "finga/api/gen/account/v1"
+	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
@@ -64,11 +64,6 @@ var table = []struct {
 	err error
 	pub Public
 }{
-	{character.ErrNotFound, Public{"character_not_found", http.StatusNotFound, "character not found"}},
-	{character.ErrNameTaken, Public{"name_taken", http.StatusConflict, "that name is taken"}},
-	{character.ErrBadName, Public{"bad_character_name", http.StatusBadRequest, "name must be 3 to 12 letters and digits, starting with a letter"}},
-	{character.ErrClassUnavailable, Public{"class_unavailable", http.StatusBadRequest, "that class is not available"}},
-	{character.ErrSlotsFull, Public{"character_slots_full", http.StatusConflict, "this account already has the most characters allowed"}},
 
 	{world.ErrPickupsUnavailable, Public{"pickups_unavailable", http.StatusServiceUnavailable, "pickups are not available"}},
 	{world.ErrPickupBusy, Public{"pickup_busy", http.StatusServiceUnavailable, "try again in a moment"}},
@@ -82,6 +77,14 @@ var table = []struct {
 // Reason enum has a value with no row here. A service's BAD_ID and
 // UNKNOWN_CLASS answer as the gateway's own would (bad_id, unknown_class).
 var reasons = map[grpcx.Reason]Public{
+	grpcx.Key(characterv1.Reason_REASON_CHARACTER_NOT_FOUND):  {"character_not_found", http.StatusNotFound, "character not found"},
+	grpcx.Key(characterv1.Reason_REASON_NAME_TAKEN):           {"name_taken", http.StatusConflict, "that name is taken"},
+	grpcx.Key(characterv1.Reason_REASON_BAD_CHARACTER_NAME):   {"bad_character_name", http.StatusBadRequest, "name must be 3 to 12 letters and digits, starting with a letter"},
+	grpcx.Key(characterv1.Reason_REASON_CLASS_UNAVAILABLE):    {"class_unavailable", http.StatusBadRequest, "that class is not available"},
+	grpcx.Key(characterv1.Reason_REASON_CHARACTER_SLOTS_FULL): {"character_slots_full", http.StatusConflict, "this account already has the most characters allowed"},
+	grpcx.Key(characterv1.Reason_REASON_BAD_ID):               badID,
+	grpcx.Key(characterv1.Reason_REASON_UNKNOWN_CLASS):        unknownClass,
+
 	grpcx.Key(accountv1.Reason_REASON_ACCOUNT_NOT_FOUND):  {"account_not_found", http.StatusNotFound, "account not found"},
 	grpcx.Key(accountv1.Reason_REASON_USERNAME_TAKEN):     {"username_taken", http.StatusConflict, "that username is taken"},
 	grpcx.Key(accountv1.Reason_REASON_UNAUTHENTICATED):    Unauthenticated,
@@ -131,7 +134,7 @@ var (
 // the gateway closes the connection and logs them (a join into a full or
 // stopped instance, a character on a map that does not exist). Listing them
 // here keeps every exported error accounted for; For answers them Internal.
-var internalOnly = []error{world.ErrBusy, world.ErrNoMap, world.ErrStopped}
+var internalOnly = []error{world.ErrBusy, world.ErrNoMap, world.ErrStopped, world.ErrClassUnavailable}
 
 // For is the Public form of err: the row of the first table error found in
 // err's chain, or the row of the reason a remote failure carries; Internal

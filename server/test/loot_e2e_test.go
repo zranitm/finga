@@ -541,7 +541,8 @@ func TestCrashDuringPickups(t *testing.T) {
 	itemProc := startServiceProcess(t, "item", bins["item"], dbURL)
 	accountProc := startServiceProcess(t, "account", bins["account"], dbURL)
 	socialProc := startServiceProcess(t, "social", bins["social"], dbURL)
-	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), map[string]*process{"item": itemProc, "account": accountProc, "social": socialProc})
+	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc)
+	proc := startGameserver(t, bins["gameserver"], dbURL, freePort(t), map[string]*process{"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc})
 	db, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
 		t.Fatal(err)
@@ -602,7 +603,7 @@ func TestCrashDuringPickups(t *testing.T) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	for _, p := range []*process{proc, itemProc, accountProc, socialProc} {
+	for _, p := range []*process{proc, itemProc, accountProc, socialProc, characterProc} {
 		if out := p.out.String(); strings.Contains(out, `"level":"ERROR"`) {
 			t.Fatalf("%s logged errors:\n%s", p.name, out)
 		}

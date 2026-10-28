@@ -4,7 +4,6 @@ import (
 	"math"
 	"slices"
 
-	"finga/internal/application/character"
 	"finga/internal/application/combat"
 	"finga/internal/gamedata"
 	"finga/internal/model"
@@ -218,7 +217,7 @@ func (i *Instance) award(p *player, amount int64) {
 	p.private = append(p.private, LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 	i.tellParty(p, i.m.ID)
 	if i.persist != nil {
-		lu := character.LevelUp{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
+		lu := LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
 		select {
 		case i.persist <- Job{LevelUp: &lu}:
 		default:

@@ -7,7 +7,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
@@ -141,7 +140,7 @@ func TestPortals(t *testing.T) {
 			// The town checkpointed her as already in the forest.
 			synctest.Wait()
 			saver.mu.Lock()
-			var cp *character.Checkpoint
+			var cp *world.Checkpoint
 			for k := range saver.saved {
 				if saver.saved[k].ID == ayla.ID {
 					cp = &saver.saved[k]

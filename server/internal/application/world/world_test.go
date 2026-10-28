@@ -9,32 +9,53 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/application/world"
 	"finga/internal/model"
 	"finga/internal/sim"
 )
 
-// fakeSaver records checkpoints, as the character service would.
+// errRefused is a save the character service refuses by rule: never retried.
+var errRefused = errors.New("refused")
+
+// fakeSaver records checkpoints and level-ups, as the character service
+// would; failures fail the first that many attempts with err.
 type fakeSaver struct {
 	mu       sync.Mutex
-	saved    []character.Checkpoint
-	levelUps []character.LevelUp
+	saved    []world.Checkpoint
+	levelUps []world.LevelUpSave
+	attempts []string // "cp <map>" or "lu <level>", one per attempt
 	err      error
+	failures int
 }
 
-func (f *fakeSaver) SaveCheckpoint(_ context.Context, cp character.Checkpoint) error {
+func (f *fakeSaver) attempt(what string) error {
+	f.attempts = append(f.attempts, what)
+	if f.err != nil && (f.failures == 0 || len(f.attempts) <= f.failures) {
+		return f.err
+	}
+	return nil
+}
+
+func (f *fakeSaver) SaveCheckpoint(_ context.Context, cp world.Checkpoint) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.saved = append(f.saved, cp)
-	return f.err
+	return f.attempt("cp " + cp.MapID)
 }
 
-func (f *fakeSaver) SaveLevelUp(_ context.Context, lu character.LevelUp) error {
+func (f *fakeSaver) SaveLevelUp(_ context.Context, lu world.LevelUpSave) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.levelUps = append(f.levelUps, lu)
-	return f.err
+	return f.attempt("lu " + string(rune('0'+lu.Level)))
+}
+
+func (f *fakeSaver) Retryable(err error) bool { return !errors.Is(err, errRefused) }
+
+func (f *fakeSaver) attemptsSoFar() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.attempts...)
 }
 
 func (f *fakeSaver) count() int {
@@ -106,6 +127,84 @@ func TestWorld(t *testing.T) {
 			if got := saver.count() - before; got != 2 {
 				t.Fatalf("%d checkpoints flushed on shutdown, want 2 (one per player)", got)
 			}
+		}
+	})
+}
+
+// The persistence worker retries a failed save with backoff, in order, for
+// up to a minute (page 10, decision 182): a character service restart must
+// not lose a level-up, which no later checkpoint carries.
+func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
+	run := func(t *testing.T, saver *fakeSaver, jobs ...world.Job) {
+		t.Helper()
+		data := loadData(t)
+		w := world.New(data, saver, slog.New(slog.DiscardHandler), world.Options{TickInterval: tickInterval, SaveRetryFor: time.Minute})
+		for _, j := range jobs {
+			if !w.Persist(j) {
+				t.Fatal("queue refused a job")
+			}
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go w.RunPersistence(ctx)
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+	}
+	levelUp := world.Job{LevelUp: &world.LevelUpSave{ID: model.NewCharacterID(), Level: 3}}
+	checkpoint := world.Job{Checkpoint: &world.Checkpoint{ID: model.NewCharacterID(), MapID: "forest"}}
+	t.Run("a save that fails twice is retried, and the next job waits for it", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			saver := &fakeSaver{err: errors.New("unavailable"), failures: 2}
+			run(t, saver, levelUp, checkpoint)
+			if got := saver.attemptsSoFar(); len(got) != 4 || got[0] != "lu 3" || got[2] != "lu 3" || got[3] != "cp forest" {
+				t.Fatalf("attempts %v", got)
+			}
+		})
+	})
+	t.Run("one that keeps failing is given up after the limit, and the worker goes on", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			saver := &fakeSaver{err: errors.New("unavailable")}
+			run(t, saver, levelUp, checkpoint)
+			got := saver.attemptsSoFar()
+			levelUps := 0
+			for _, a := range got {
+				if a == "lu 3" {
+					levelUps++
+				}
+			}
+			// Backoff from 100 ms doubling to 5 s fits about fifteen tries in a
+			// minute; then the worker gives the level-up up and saves the
+			// checkpoint, which keeps failing for its own minute.
+			if levelUps < 3 || levelUps > 20 || got[levelUps] != "cp forest" {
+				t.Fatalf("%d level-up attempts, then %v", levelUps, got[levelUps:])
+			}
+		})
+	})
+	t.Run("a refused save is not retried", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			saver := &fakeSaver{err: errRefused}
+			run(t, saver, levelUp, checkpoint)
+			if got := saver.attemptsSoFar(); len(got) != 2 {
+				t.Fatalf("attempts %v", got)
+			}
+		})
+	})
+}
+
+func TestShutdownFlushesWithoutRetrying(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		saver := &fakeSaver{err: errors.New("unavailable")}
+		w := world.New(data, saver, slog.New(slog.DiscardHandler), world.Options{TickInterval: tickInterval, SaveRetryFor: time.Minute})
+		w.Persist(world.Job{Checkpoint: &world.Checkpoint{ID: model.NewCharacterID(), MapID: "town"}})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		start := time.Now()
+		if err := w.Run(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if time.Since(start) > time.Second || len(saver.attemptsSoFar()) != 1 {
+			t.Fatalf("flush took %s with %d attempts", time.Since(start), len(saver.attemptsSoFar()))
 		}
 	})
 }

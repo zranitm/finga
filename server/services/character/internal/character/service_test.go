@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/application/character"
 	"finga/internal/gamedata"
 	"finga/internal/model"
+	"finga/services/character/internal/character"
 )
 
 type clock struct{ t time.Time }
@@ -319,7 +319,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 
 func loadData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	d, err := gamedata.Load("../../../data")
+	d, err := gamedata.Load("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

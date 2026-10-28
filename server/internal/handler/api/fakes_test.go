@@ -9,8 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/application/character"
-	"finga/internal/model"
+	characterv1 "finga/api/gen/character/v1"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 )
@@ -54,22 +53,22 @@ func (f *fakeAccounts) UpdateSettings(ctx context.Context, in *accountv1.UpdateS
 }
 
 type fakeCharacters struct {
-	create func(ctx context.Context, owner model.AccountID, in character.CreateInput) (character.Character, error)
-	list   func(ctx context.Context, owner model.AccountID) ([]character.Character, error)
+	create func(ctx context.Context, in *characterv1.CreateRequest) (*characterv1.CreateResponse, error)
+	list   func(ctx context.Context, in *characterv1.ListRequest) (*characterv1.ListResponse, error)
 }
 
-func (f *fakeCharacters) Create(ctx context.Context, owner model.AccountID, in character.CreateInput) (character.Character, error) {
+func (f *fakeCharacters) Create(ctx context.Context, in *characterv1.CreateRequest, _ ...grpc.CallOption) (*characterv1.CreateResponse, error) {
 	if f.create == nil {
 		panic("unexpected Create")
 	}
-	return f.create(ctx, owner, in)
+	return f.create(ctx, in)
 }
 
-func (f *fakeCharacters) List(ctx context.Context, owner model.AccountID) ([]character.Character, error) {
+func (f *fakeCharacters) List(ctx context.Context, in *characterv1.ListRequest, _ ...grpc.CallOption) (*characterv1.ListResponse, error) {
 	if f.list == nil {
 		panic("unexpected List")
 	}
-	return f.list(ctx, owner)
+	return f.list(ctx, in)
 }
 
 // errUnauthenticated is what the account service answers for a bad token.

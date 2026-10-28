@@ -10,10 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/application/character/internal/db"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/pkg/dbx"
+	"finga/services/character/internal/character/internal/db"
 )
 
 // Postgres is the module's store.

@@ -31,6 +31,7 @@ import (
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
 	accountapp "finga/services/account/cmd/account/app"
+	characterapp "finga/services/character/cmd/character/app"
 	itemapp "finga/services/item/cmd/item/app"
 	socialapp "finga/services/social/cmd/social/app"
 )
@@ -73,10 +74,11 @@ func newStack(t *testing.T) *stack {
 		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
 		Economy:   config.Economy{Workers: 2},
 		Telemetry: config.Telemetry{LogLevel: "error"},
-		Services:  config.Services{Item: loopback, Account: loopback, Social: loopback},
+		Services:  config.Services{Item: loopback, Account: loopback, Social: loopback, Character: loopback},
 	}
 	cfg.Services.Item.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Item }, itemapp.Build).addr
 	cfg.Services.Account.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Account }, accountapp.Build).addr
+	cfg.Services.Character.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Character }, characterapp.Build).addr
 	social := runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Social }, socialapp.Build)
 	cfg.Services.Social.Addr = social.addr
 	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
