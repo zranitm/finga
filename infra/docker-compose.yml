@@ -15,6 +15,7 @@ x-finga-env: &finga-env
   FINGA_SERVICES_ACCOUNT_ADDR: account:9001
   FINGA_SERVICES_CHARACTER_ADDR: character:9002
   FINGA_SERVICES_ITEM_ADDR: item:9003
+  FINGA_SERVICES_WORLD_ADDR: world:9004
   FINGA_SERVICES_SOCIAL_ADDR: social:9005
 
 services:
@@ -108,6 +109,30 @@ services:
       - path: ../server/.env
         required: false
 
+  # The world service: gRPC on 9004, /healthz /readyz /metrics on 9104,
+  # published so make bots can read the tick percentiles. It saves through
+  # the character and item services, so it needs no database.
+  world:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+      args:
+        SERVICE: world
+        VERSION: ${VERSION:-dev}
+    ports:
+      - "${FINGA_WORLD_OPS_PORT:-9104}:9104"
+    environment: *finga-env
+    env_file:
+      - path: ../server/.env
+        required: false
+    depends_on:
+      character:
+        condition: service_started
+      item:
+        condition: service_started
+      social:
+        condition: service_started
+
   gameserver:
     build:
       context: ../server
@@ -129,6 +154,8 @@ services:
       character:
         condition: service_started
       item:
+        condition: service_started
+      world:
         condition: service_started
       social:
         condition: service_started

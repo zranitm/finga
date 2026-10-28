@@ -1,4 +1,4 @@
-package app
+package clients
 
 import (
 	"context"
@@ -81,7 +81,7 @@ func TestThePartyCopy(t *testing.T) {
 	w := &watched{events: make(chan *socialv1.WatchPartiesResponse, 16), end: make(chan struct{})}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	socialv1.RegisterSocialServiceServer(srv, w)
-	copy := newPartyCopy(socialv1.NewSocialServiceClient(grpctest.Conn(t, srv)), "world-1", slog.New(slog.DiscardHandler))
+	copy := NewPartyCopy(socialv1.NewSocialServiceClient(grpctest.Conn(t, srv)), "world-1", slog.New(slog.DiscardHandler))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- copy.Run(ctx) }()
@@ -140,7 +140,7 @@ func TestThePartyCopy(t *testing.T) {
 }
 
 func TestAFullUpdateQueueDropsWithoutBlocking(t *testing.T) {
-	copy := newPartyCopy(nil, "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
+	copy := NewPartyCopy(nil, "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
 	start := time.Now()
 	for range partyUpdateQueue + 10 {
 		copy.Update(model.NewCharacterID(), "town", 1, 1, 1)

@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 14. Portals and towns
 
+> **Changed by step 27 (2026-10-28):** a Teleport reaches the gateway on the world's delivery stream and moves the session to the target map, so later commands carry the new map ID.
+
 **Goal:** a connected world: a safe town and two hunting maps joined by portals. This completes M4, Travel.
 
 ## Scope

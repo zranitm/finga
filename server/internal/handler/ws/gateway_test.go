@@ -25,12 +25,10 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/world"
-	"finga/internal/gamedata"
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/handler/ws"
 	"finga/internal/model"
 	"finga/internal/protocol"
-	"finga/internal/sim"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
@@ -53,30 +51,29 @@ var (
 )
 
 type harness struct {
-	ts   *httptest.Server
-	town *fakeInstance
-	obs  *fakeObserver
-	gw   *ws.Gateway
+	ts    *httptest.Server
+	world *fakeWorld
+	obs   *fakeObserver
+	gw    *ws.Gateway
 }
 
+// newHarness builds the gateway over a fake world service, runs it, and
+// waits until it follows the world's stream.
 func newHarness(t *testing.T, opts ...func(*ws.Dependencies)) *harness {
 	t.Helper()
-	town := newFakeInstance()
+	fw := newFakeWorld()
 	obs := newFakeObserver()
 	deps := ws.Dependencies{
+		ID: "gw-test",
 		Sessions: &fakeSessions{tokens: map[string]auth.Principal{
 			tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)},
 			tokenBob:   {AccountID: uuid.UUID(bob), SessionID: uuid.UUID(sessBob)},
 		}},
-		Characters: &fakeCharacters{chars: map[model.CharacterID]*characterv1.Character{
-			aylaID:  {Id: aylaID.String(), AccountId: alice.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &characterv1.Stats{Strength: 12}},
-			robinID: {Id: robinID.String(), AccountId: alice.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608},
-			brunoID: {Id: brunoID.String(), AccountId: bob.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608},
-		}},
-		World:        &fakeWorld{instances: map[string]ws.MapInstance{"town": town}},
+		World:        fw.client(t),
 		Logger:       slog.New(slog.DiscardHandler),
 		Observer:     obs,
 		HelloTimeout: 200 * time.Millisecond,
+		JoinTimeout:  300 * time.Millisecond,
 	}
 	for _, o := range opts {
 		o(&deps)
@@ -84,7 +81,16 @@ func newHarness(t *testing.T, opts ...func(*ws.Dependencies)) *harness {
 	gw := ws.New(deps)
 	ts := httptest.NewServer(gw)
 	t.Cleanup(ts.Close)
-	return &harness{ts: ts, town: town, obs: obs, gw: gw}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { defer close(done); _ = gw.Run(ctx) }()
+	t.Cleanup(func() { cancel(); <-done })
+	select {
+	case <-fw.subscribed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the gateway never subscribed to the world")
+	}
+	return &harness{ts: ts, world: fw, obs: obs, gw: gw}
 }
 
 // client is a test WebSocket client speaking the envelope.
@@ -188,11 +194,12 @@ func TestHelloHappyPath(t *testing.T) {
 	if s.Tick != 1 || len(snap.Players) != 1 || snap.Players[0].ID != aylaID.String() || snap.Players[0].X != 416 || snap.Mobs == nil || snap.Drops == nil {
 		t.Fatalf("snapshot %+v (tick %d)", snap, s.Tick)
 	}
-	h.town.mu.Lock()
-	joined := h.town.joined
-	h.town.mu.Unlock()
-	if len(joined) != 1 || joined[0].ID != aylaID || joined[0].HP != 204 || joined[0].Stats.STR != 12 || joined[0].X != 416 {
+	joined := h.world.joins()
+	if len(joined) != 1 || joined[0].GetCharacterId() != aylaID.String() || joined[0].GetAccountId() != alice.String() || joined[0].GetGatewayId() != "gw-test" || joined[0].GetConnectionId() == "" {
 		t.Fatalf("joined %+v", joined)
+	}
+	if welcome.Character.Stats.STR != 12 {
+		t.Fatalf("welcome character %+v", welcome.Character)
 	}
 	h.obs.mu.Lock()
 	defer h.obs.mu.Unlock()
@@ -212,9 +219,7 @@ func TestNoHelloInTimeClosesTheConnection(t *testing.T) {
 	if time.Since(start) > 2*time.Second {
 		t.Fatal("took too long: the Hello timeout is 200 ms here")
 	}
-	h.town.mu.Lock()
-	defer h.town.mu.Unlock()
-	if len(h.town.joined) != 0 {
+	if len(h.world.joins()) != 0 {
 		t.Fatal("joined without Hello")
 	}
 }
@@ -238,9 +243,7 @@ func TestHelloFailures(t *testing.T) {
 			c := h.dial(t)
 			c.send(wsconn.Message{Data: tt.hello})
 			c.expectKick(tt.reason)
-			h.town.mu.Lock()
-			defer h.town.mu.Unlock()
-			if len(h.town.joined) != 0 {
+			if len(h.world.joins()) != 0 {
 				t.Fatal("joined after a failed Hello")
 			}
 			h.obs.mu.Lock()
@@ -250,37 +253,26 @@ func TestHelloFailures(t *testing.T) {
 			}
 		})
 	}
-	t.Run("a join failure closes without a kick reason", func(t *testing.T) {
-		h := newHarness(t)
-		h.town.joinErr = world.ErrBusy
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		c.expect("Welcome")
-		if _, status := c.read(); status != websocket.StatusInternalError {
-			t.Fatalf("status %d", status)
-		}
-	})
-	t.Run("a character on an unknown map", func(t *testing.T) {
-		h := newHarness(t, func(d *ws.Dependencies) {
-			d.Characters = &fakeCharacters{chars: map[model.CharacterID]*characterv1.Character{aylaID: {Id: aylaID.String(), AccountId: alice.String(), Class: "warrior", MapId: "limbo"}}}
+	for _, tt := range []struct {
+		name string
+		err  error
+	}{
+		// Internal, not unauthenticated, which would log the client out: this
+		// way it reconnects.
+		{"a full instance", grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY)},
+		{"a character on a map the world does not run", grpcx.Error(codes.NotFound, worldv1.Reason_REASON_NO_MAP)},
+		{"a world that cannot answer", status.Error(codes.Unavailable, "connection refused")},
+	} {
+		t.Run(tt.name+" closes as internal without a Welcome", func(t *testing.T) {
+			h := newHarness(t)
+			h.world.joinErr = tt.err
+			c := h.dial(t)
+			c.hello(tokenAlice, aylaID)
+			if m, status := c.read(); status != websocket.StatusInternalError {
+				t.Fatalf("got %+v, status %d", m, status)
+			}
 		})
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		if _, status := c.read(); status != websocket.StatusInternalError {
-			t.Fatalf("status %d", status)
-		}
-	})
-	t.Run("a character service that cannot answer closes as internal, not unauthenticated", func(t *testing.T) {
-		// Unauthenticated would log the client out; this way it reconnects.
-		h := newHarness(t, func(d *ws.Dependencies) {
-			d.Characters = &fakeCharacters{err: status.Error(codes.Unavailable, "connection refused")}
-		})
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		if _, status := c.read(); status != websocket.StatusInternalError {
-			t.Fatalf("status %d", status)
-		}
-	})
+	}
 }
 
 func TestMessagesBeforeHelloAreRejected(t *testing.T) {
@@ -300,7 +292,7 @@ func TestMessagesBeforeHelloAreRejected(t *testing.T) {
 			if _, status := c.read(); status != websocket.StatusCode(wsconn.CloseKicked) {
 				t.Fatalf("status %d", status)
 			}
-			if h.town.inputCount() != 0 {
+			if h.world.inputCount() != 0 {
 				t.Fatal("an input before Hello reached the world")
 			}
 		})
@@ -317,10 +309,11 @@ func TestIdentityComesFromTheConnection(t *testing.T) {
 	c.sendRaw(`{"t":"Input","seq":5,"d":{"right":true,"character_id":"` + brunoID.String() + `"}}`)
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 7}})
 	c.expect("Pong")
-	h.town.mu.Lock()
-	defer h.town.mu.Unlock()
-	if len(h.town.inputs) != 1 || h.town.inputs[0].id != aylaID || h.town.inputs[0].seq != 5 || !h.town.inputs[0].in.Right {
-		t.Fatalf("inputs %+v", h.town.inputs)
+	h.world.mu.Lock()
+	in := append([]*worldv1.InputRequest(nil), h.world.inputs...)
+	h.world.mu.Unlock()
+	if len(in) != 1 || in[0].GetPresence().GetCharacterId() != aylaID.String() || in[0].GetPresence().GetMapId() != "town" || in[0].GetSeq() != 5 || !in[0].GetKeys().GetRight() {
+		t.Fatalf("inputs %+v", in)
 	}
 	t.Run("a second Hello on an active session is refused", func(t *testing.T) {
 		c.hello(tokenAlice, robinID)
@@ -339,12 +332,9 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 	second.hello(tokenAlice, robinID) // same account, another character
 	second.expect("Snapshot")
 	first.expectKick(protocol.KickLoggedInElsewhere)
-	time.Sleep(50 * time.Millisecond)
-	h.town.mu.Lock()
-	left := append([]model.CharacterID(nil), h.town.left...)
-	h.town.mu.Unlock()
-	if len(left) != 1 || left[0] != aylaID {
-		t.Fatalf("left %v, want Ayla only", left)
+	left := waitFor(t, "Ayla's leave", h.world.leaves, 1)
+	if left[0].GetPresence().GetCharacterId() != aylaID.String() || left[0].GetConnectionId() != h.world.joins()[0].GetConnectionId() {
+		t.Fatalf("left %+v, want Ayla's, through her connection", left)
 	}
 	// The second session keeps working.
 	second.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
@@ -367,7 +357,7 @@ func TestRateLimits(t *testing.T) {
 	}
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	c.expect("Pong") // inputs before it have been handled
-	if got := h.town.inputCount(); got != 30 {
+	if got := h.world.inputCount(); got != 30 {
 		t.Fatalf("%d inputs forwarded of 40 in one instant, want 30 (the burst)", got)
 	}
 	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
@@ -390,13 +380,16 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	h.town.push(aylaID, world.Delta{Tick: 9, AckSeq: 3, Players: []world.PlayerView{{ID: robinID, Name: "Robin", Class: model.Bowman, Level: 2, HP: 100, MaxHP: 105, State: sim.State{X: 10, Y: 20, VX: 200, Facing: -1, OnGround: true}}}, Removed: []model.CharacterID{brunoID}})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{
+		AckSeq: 3, Players: []*worldv1.PlayerView{{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 2, Hp: 100, MaxHp: 105, X: 10, Y: 20, Vx: 200, Facing: -1, OnGround: true}},
+		RemovedPlayers: []string{brunoID.String()},
+	}}})
 	m := c.expect("Delta")
 	d := m.Data.(protocol.Delta)
 	if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].ID != robinID.String() || d.Players[0].VX != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
 		t.Fatalf("delta %+v (tick %d)", d, m.Tick)
 	}
-	h.town.push(aylaID, world.Teleport{Tick: 10, MapID: "forest", X: 64, Y: 608})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
 	mc := c.expect("MapChange")
 	if mc.Data.(protocol.MapChange).MapID != "forest" {
 		t.Fatalf("map change %+v", mc.Data)
@@ -409,25 +402,38 @@ func TestCloseLeavesTheMap(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	_ = c.c.Close(websocket.StatusNormalClosure, "bye")
+	left := waitFor(t, "the leave", h.world.leaves, 1)
+	if p := left[0].GetPresence(); p.GetCharacterId() != aylaID.String() || p.GetMapId() != "town" || left[0].GetConnectionId() != h.world.joins()[0].GetConnectionId() {
+		t.Fatalf("left %+v", left)
+	}
 	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		h.town.mu.Lock()
-		n := len(h.town.left)
-		h.town.mu.Unlock()
-		if n == 1 {
-			break
+	for {
+		h.obs.mu.Lock()
+		online := h.obs.online
+		h.obs.mu.Unlock()
+		if online == 0 {
+			return
 		}
-		time.Sleep(10 * time.Millisecond)
+		if time.Now().After(deadline) {
+			t.Fatalf("players online %d after close", online)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	h.town.mu.Lock()
-	defer h.town.mu.Unlock()
-	if len(h.town.left) != 1 || h.town.left[0] != aylaID {
-		t.Fatalf("left %v", h.town.left)
-	}
-	h.obs.mu.Lock()
-	defer h.obs.mu.Unlock()
-	if h.obs.online != 0 {
-		t.Fatalf("players online %d after close", h.obs.online)
+}
+
+// waitFor polls get until it has n items.
+func waitFor[T any](t *testing.T, what string, get func() []T, n int) []T {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		got := get()
+		if len(got) >= n {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("waiting for %s: have %d of %d", what, len(got), n)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
@@ -479,10 +485,10 @@ func TestAttackIsRoutedAsTheSender(t *testing.T) {
 	c.send(wsconn.Message{Seq: 3, Data: protocol.Attack{}})
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	c.expect("Pong")
-	h.town.mu.Lock()
-	defer h.town.mu.Unlock()
-	if len(h.town.attacks) != 1 || h.town.attacks[0] != aylaID {
-		t.Fatalf("attacks %v", h.town.attacks)
+	h.world.mu.Lock()
+	defer h.world.mu.Unlock()
+	if len(h.world.attacks) != 1 || h.world.attacks[0].GetCharacterId() != aylaID.String() || h.world.attacks[0].GetMapId() != "town" {
+		t.Fatalf("attacks %v", h.world.attacks)
 	}
 }
 
@@ -491,34 +497,40 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	h.town.push(aylaID, world.Damage{Tick: 5, Source: world.EntityRef{Player: aylaID}, Target: world.EntityRef{Mob: 7}, Amount: 21, Crit: true})
+	me := &worldv1.EntityRef{Ref: &worldv1.EntityRef_CharacterId{CharacterId: aylaID.String()}}
+	mob := &worldv1.EntityRef{Ref: &worldv1.EntityRef_MobId{MobId: 7}}
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{Source: me, Target: mob, Amount: 21, Crit: true}}})
 	m := c.expect("Damage")
 	d := m.Data.(protocol.Damage)
 	if d.Source != "p:"+aylaID.String() || d.Target != "m:7" || d.Amount != 21 || !d.Crit || m.Tick != 5 {
 		t.Fatalf("damage %+v", d)
 	}
-	h.town.push(aylaID, world.Damage{Tick: 6, Source: world.EntityRef{Mob: 7}, Target: world.EntityRef{Player: aylaID}, Miss: true})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 6, Event: &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{Source: mob, Target: me, Miss: true}}})
 	if d := c.expect("Damage").Data.(protocol.Damage); d.Source != "m:7" || !d.Miss {
 		t.Fatalf("damage %+v", d)
 	}
-	h.town.push(aylaID, world.Died{Tick: 7, ID: aylaID, X: 1, Y: 2})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: aylaID.String(), X: 1, Y: 2}}})
 	if d := c.expect("Died").Data.(protocol.Died); d.CharacterID != aylaID.String() || d.X != 1 {
 		t.Fatalf("died %+v", d)
 	}
-	h.town.push(aylaID, world.Respawned{Tick: 8, ID: aylaID, MapID: "town", X: 416, Y: 608, HP: 102})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 8, Event: &worldv1.DeliverResponse_Respawned{Respawned: &worldv1.Respawned{CharacterId: aylaID.String(), MapId: "town", X: 416, Y: 608, Hp: 102}}})
 	if r := c.expect("Respawned").Data.(protocol.Respawned); r.MapID != "town" || r.HP != 102 {
 		t.Fatalf("respawned %+v", r)
 	}
-	h.town.push(aylaID, world.ExpGained{Tick: 9, Amount: 5, Exp: 15})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_ExpGained{ExpGained: &worldv1.ExpGained{Amount: 5, Exp: 15}}})
 	if e := c.expect("ExpGained").Data.(protocol.ExpGained); e.Amount != 5 || e.Exp != 15 {
 		t.Fatalf("exp %+v", e)
 	}
-	h.town.push(aylaID, world.LevelUp{Tick: 10, ID: aylaID, Name: "Ayla", Class: model.Warrior, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, VIT: 12}, HP: 252, MaxHP: 252, MP: 32, MaxMP: 32})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
+		Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 2, Exp: 3, Stats: &characterv1.Stats{Strength: 15, Vitality: 12}, Hp: 252, MaxHp: 252, Mp: 32, MaxMp: 32,
+	}}}})
 	lu := c.expect("LevelUp").Data.(protocol.LevelUp)
 	if lu.Character.Level != 2 || lu.Character.MaxHP != 252 || lu.Character.Stats.STR != 15 || lu.Character.Name != "Ayla" {
 		t.Fatalf("level-up %+v", lu)
 	}
-	h.town.push(aylaID, world.Delta{Tick: 11, Mobs: []world.MobView{{ID: 7, Type: "green_slime", X: 300, Y: 608, Facing: -1, HP: 9, MaxHP: 30}}, RemovedMobs: []uint64{6}})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 11, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{
+		Mobs: []*worldv1.MobView{{Id: 7, Type: "green_slime", X: 300, Y: 608, Facing: -1, Hp: 9, MaxHp: 30}}, RemovedMobs: []uint64{6},
+	}}})
 	dl := c.expect("Delta").Data.(protocol.Delta)
 	if len(dl.Mobs) != 1 || dl.Mobs[0].Type != "green_slime" || dl.Mobs[0].HP != 9 || len(dl.RemovedMobs) != 1 || dl.RemovedMobs[0] != 6 {
 		t.Fatalf("delta %+v", dl)
@@ -526,22 +538,19 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 }
 
 func TestTeleportRepointsTheSession(t *testing.T) {
-	forest := newFakeInstance()
-	h := newHarness(t, func(d *ws.Dependencies) {
-		d.World = &fakeWorld{instances: map[string]ws.MapInstance{"town": d.World.(*fakeWorld).instances["town"], "forest": forest}}
-	})
+	h := newHarness(t)
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	h.town.push(aylaID, world.Teleport{Tick: 3, MapID: "forest", X: 64, Y: 608})
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
 	c.expect("MapChange")
 	c.send(wsconn.Message{Seq: 9, Data: protocol.Input{Left: true}})
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	c.expect("Pong")
-	forest.mu.Lock()
-	defer forest.mu.Unlock()
-	if len(forest.inputs) != 1 || forest.inputs[0].id != aylaID {
-		t.Fatalf("forest inputs %+v; the session still points at the town", forest.inputs)
+	h.world.mu.Lock()
+	defer h.world.mu.Unlock()
+	if len(h.world.inputs) != 1 || h.world.inputs[0].GetPresence().GetMapId() != "forest" {
+		t.Fatalf("inputs %+v; the session still points at the town", h.world.inputs)
 	}
 }
 
@@ -561,10 +570,10 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		c.send(wsconn.Message{Seq: 4, Data: protocol.PickUp{}})
 		c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 		c.expect("Pong")
-		h.town.mu.Lock()
-		defer h.town.mu.Unlock()
-		if len(h.town.pickups) != 1 || h.town.pickups[0] != aylaID {
-			t.Fatalf("pickups %v", h.town.pickups)
+		h.world.mu.Lock()
+		defer h.world.mu.Unlock()
+		if len(h.world.pickups) != 1 || h.world.pickups[0].GetCharacterId() != aylaID.String() {
+			t.Fatalf("pickups %v", h.world.pickups)
 		}
 	})
 	t.Run("InventoryMove answers ok and sends the changed slots, with the connection's identity", func(t *testing.T) {
@@ -608,20 +617,27 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		}
 	})
 	t.Run("drops and pickup results reach the client", func(t *testing.T) {
-		h.town.push(aylaID, world.Delta{Tick: 12, Drops: []world.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}})
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 12, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}}}})
 		d := c.expect("Delta").Data.(protocol.Delta)
 		if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
 			t.Fatalf("delta %+v", d)
 		}
-		h.town.push(aylaID, world.PickupFailed{Tick: 13, Err: grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL)})
+		full := grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 13, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{ErrorDomain: full.Domain, ErrorReason: full.Name}}})
 		r := c.expect("Response").Data.(protocol.Response)
 		if r.OK || r.Code != "inventory_full" || r.Message != "your inventory is full" {
 			t.Fatalf("response %+v", r)
 		}
-		h.town.push(aylaID, world.InventoryChanged{Tick: 14, Slots: []world.Slot{{Tab: gamedata.Etc, Slot: 1, Item: &world.SlotItem{ID: model.NewItemID(), Template: "slime_gel", Quantity: 2}}}})
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: []*itemv1.Slot{
+			{Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: model.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
+		}}}})
 		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
 		if len(ic.Slots) != 1 || ic.Slots[0].Item.Template != "slime_gel" {
 			t.Fatalf("inventory changed %+v", ic)
+		}
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 15, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{}}})
+		if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "internal" {
+			t.Fatalf("a failure the world could not name: %+v", r)
 		}
 	})
 }
@@ -687,22 +703,18 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	c.send(wsconn.Message{Seq: 7, Data: protocol.EnterPortal{}})
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	c.expect("Pong")
-	h.town.mu.Lock()
-	defer h.town.mu.Unlock()
-	if len(h.town.portals) != 1 || h.town.portals[0] != aylaID {
-		t.Fatalf("portals %v", h.town.portals)
+	h.world.mu.Lock()
+	defer h.world.mu.Unlock()
+	if len(h.world.portals) != 1 || h.world.portals[0].GetCharacterId() != aylaID.String() {
+		t.Fatalf("portals %v", h.world.portals)
 	}
 }
 
-// social builds the gateway with a fake social service and runs its
-// streams, waiting for the first subscription.
+// social builds the gateway with a fake social service, waiting for the
+// first subscription to it.
 func social(t *testing.T, fs *fakeSocial) *harness {
 	t.Helper()
 	h := newHarness(t, func(d *ws.Dependencies) { d.Social = fs.client(t) })
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { defer close(done); _ = h.gw.Run(ctx) }()
-	t.Cleanup(func() { cancel(); <-done })
 	select {
 	case <-fs.subscribed:
 	case <-time.After(5 * time.Second):
@@ -722,18 +734,18 @@ func TestChatRouting(t *testing.T) {
 	bruno.hello(tokenBob, brunoID)
 	bruno.expect("Snapshot")
 
-	t.Run("a map line goes to the sender's map instance with the connection's identity", func(t *testing.T) {
+	t.Run("a map line goes to the sender's map with the connection's identity", func(t *testing.T) {
 		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hello map"}})
 		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 		ayla.expect("Pong")
-		h.town.mu.Lock()
-		defer h.town.mu.Unlock()
-		if len(h.town.chats) != 1 || h.town.chats[0].id != aylaID || h.town.chats[0].name != "Ayla" || h.town.chats[0].text != "hello map" {
-			t.Fatalf("chats %+v", h.town.chats)
+		h.world.mu.Lock()
+		defer h.world.mu.Unlock()
+		if len(h.world.says) != 1 || h.world.says[0].GetPresence().GetCharacterId() != aylaID.String() || h.world.says[0].GetPresence().GetMapId() != "town" || h.world.says[0].GetSenderName() != "Ayla" || h.world.says[0].GetText() != "hello map" {
+			t.Fatalf("says %+v", h.world.says)
 		}
 	})
-	t.Run("a map line from the instance reaches the client as ChatMessage", func(t *testing.T) {
-		h.town.push(brunoID, world.Chat{Tick: 3, Sender: aylaID, SenderName: "Ayla", Text: "hello map"})
+	t.Run("a map line from the world reaches the client as ChatMessage", func(t *testing.T) {
+		h.world.push(brunoID, &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: aylaID.String(), SenderName: "Ayla", Text: "hello map"}}})
 		cm := bruno.expect("ChatMessage").Data.(protocol.ChatMessage)
 		if cm.Channel != protocol.ChatMap || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "hello map" {
 			t.Fatalf("chat message %+v", cm)
@@ -961,10 +973,6 @@ func TestExpiredSessionIsKicked(t *testing.T) {
 		d.Sessions = sessions
 		d.SessionCheckInterval = 20 * time.Millisecond
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { defer close(done); _ = h.gw.Run(ctx) }()
-	t.Cleanup(func() { cancel(); <-done })
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
@@ -1044,13 +1052,8 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	accountv1.RegisterAccountServiceServer(srv, w)
 	h := newHarness(t, func(d *ws.Dependencies) {
-		d.ID = "gw-test"
 		d.Watcher = accountv1.NewAccountServiceClient(grpctest.Conn(t, srv))
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { defer close(done); _ = h.gw.Run(ctx) }()
-	t.Cleanup(func() { cancel(); <-done })
 
 	t.Run("a new login elsewhere kicks as logged_in_elsewhere", func(t *testing.T) {
 		c := h.dial(t)
@@ -1085,4 +1088,94 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 			t.Fatalf("subscriptions %v", w.subscriptions)
 		}
 	})
+}
+
+func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
+	h := newHarness(t)
+	// The world sends an older presence's Delta, then the Snapshot, then a
+	// Delta, all before Join answers: the old Delta is dropped, the rest
+	// follow Welcome in order.
+	h.world.before = []*worldv1.DeliverResponse{{Tick: 1, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 99}}}}
+	h.world.mu.Lock()
+	h.world.tick = 40
+	h.world.mu.Unlock()
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	var got []string
+	for len(got) < 2 {
+		m, status := c.read()
+		if status != -1 {
+			t.Fatalf("closed with %d after %v", status, got)
+		}
+		got = append(got, m.Type)
+		if m.Type == "Snapshot" && m.Tick != 41 {
+			t.Fatalf("snapshot tick %d", m.Tick)
+		}
+	}
+	if got[0] != "Welcome" || got[1] != "Snapshot" {
+		t.Fatalf("order %v, want Welcome then the Snapshot", got)
+	}
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 42, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 1}}})
+	if d := c.expect("Delta"); d.Data.(protocol.Delta).AckSeq != 1 {
+		t.Fatalf("delta %+v: the older presence's came through", d)
+	}
+}
+
+func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
+	h := newHarness(t)
+	ayla := h.dial(t)
+	ayla.hello(tokenAlice, aylaID)
+	ayla.expect("Snapshot")
+	bruno := h.dial(t)
+	bruno.hello(tokenBob, brunoID)
+	bruno.expect("Snapshot")
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 500, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}})
+	if d := ayla.expect("Delta"); d.Tick != 500 {
+		t.Fatalf("delta tick %d", d.Tick)
+	}
+	// Bruno's last checkpoint is in the forest; Ayla's is where she was.
+	h.world.save(brunoID, "forest", 64, 608)
+	h.world.restart("boot-2")
+
+	snap := ayla.expect("Snapshot")
+	if snap.Tick <= 500 {
+		t.Fatalf("snapshot tick %d after 500: the ticks went back on the connection", snap.Tick)
+	}
+	m, status := bruno.read()
+	if status != -1 || m.Type != "MapChange" || m.Data.(protocol.MapChange).MapID != "forest" || m.Data.(protocol.MapChange).X != 64 {
+		t.Fatalf("bruno got %+v (status %d), want MapChange to the forest first", m, status)
+	}
+	if m, _ := bruno.read(); m.Type != "Snapshot" {
+		t.Fatalf("bruno got %s after MapChange, want the Snapshot", m.Type)
+	}
+	joins := h.world.joins()
+	if len(joins) != 4 || joins[2].GetConnectionId() == "" {
+		t.Fatalf("joins %+v", joins)
+	}
+	for _, c := range []*client{ayla, bruno} {
+		c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+		c.expect("Pong") // the socket stayed open
+	}
+	bruno.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}})
+	bruno.send(wsconn.Message{Data: protocol.Ping{ClientTime: 2}})
+	bruno.expect("Pong")
+	h.world.mu.Lock()
+	defer h.world.mu.Unlock()
+	if in := h.world.inputs; len(in) != 1 || in[0].GetPresence().GetMapId() != "forest" {
+		t.Fatalf("inputs %+v: commands must follow the rejoined map", in)
+	}
+	h.obs.mu.Lock()
+	defer h.obs.mu.Unlock()
+	if h.obs.online != 2 {
+		t.Fatalf("players online %d; a rejoin is not a new player", h.obs.online)
+	}
+}
+
+func TestAHelloWhileTheWorldRestartsWaitsForIt(t *testing.T) {
+	h := newHarness(t)
+	h.world.restart("boot-2") // the stream is down until the gateway subscribes again
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Welcome")
+	c.expect("Snapshot")
 }

@@ -8,6 +8,8 @@
 
 > **Changed by step 23 (2026-10-27):** Compose runs the item service beside the game server; the Dockerfile's build argument is `SERVICE`.
 
+> **Changed by step 27 (2026-10-28):** Compose runs the world service and publishes its ops port (9104); `make bots` reads the tick percentiles there (`-metrics`).
+
 **Goal:** `make up` runs the whole Stage 1 game from a clean clone, ready for the proof session.
 
 ## Scope

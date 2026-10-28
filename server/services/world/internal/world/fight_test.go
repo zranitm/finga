@@ -7,10 +7,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/sim"
+	"finga/services/world/internal/world"
 )
 
 // fixedRoll always returns the same value: every attack hits for average

@@ -8,6 +8,7 @@ SERVER    ?= server
 COVER_MIN ?= 80
 COMPOSE   ?= docker compose -f infra/docker-compose.yml
 SMOKE_URL ?= http://localhost:8080
+METRICS_URL ?= http://localhost:9104
 NPM       ?= npm --prefix web
 
 .PHONY: up down run test test-go test-web cover cover-go cover-web lint lint-go lint-web gen smoke bots play
@@ -22,7 +23,7 @@ down:          ## stop everything and drop the database volume
 # present) into it, the way Compose's env_file does for make up. The services
 # run in the background on the defaults in configs/config.yaml (localhost
 # ports) and stop with the game server, on Ctrl-C.
-SERVICES ?= account character item social
+SERVICES ?= account character item social world
 run:           ## without Docker: server/.env exported, every service's migrations, then the services and the game server
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
 	$(GO) build -o bin/ ./cmd/gameserver $(foreach s,$(SERVICES),./services/$(s)/cmd/$(s)) && \
@@ -71,8 +72,8 @@ smoke:         ## against a running stack (make up): a client signs up, enters t
 gen:           ## regenerate the sqlc queries and the gRPC code
 	cd $(SERVER) && sqlc generate && $(GO) tool buf generate
 
-bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99
-	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -bots 4 -duration 30m
+bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99 from the world (METRICS_URL)
+	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -bots 4 -duration 30m
 
 play:          ## the proof session with people: make up, the client production build, and vite preview on the LAN (:4173)
 	$(MAKE) up

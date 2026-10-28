@@ -4,12 +4,12 @@
 
 One binary per job, as in docviewer:
 
-- `cmd/gameserver` runs the game.
+- `cmd/gameserver` runs REST and the WebSocket gateway; each service of page 10 is a binary of its own, and `services/world/cmd/world` runs the map instances, the persistence worker and the economy workers (step 27).
 - `cmd/migrate` applies every service's migrations, each set with its own version table, and exits.
-- `cmd/bot` drives test players against a running server for the proof session and prints the tick percentiles from `/metrics`.
+- `cmd/bot` drives test players against a running server for the proof session and prints the tick percentiles from the world's `/metrics` (its ops address, `-metrics`).
 - `cmd/auditor` (Stage 2) checks the invariants continuously, as a Kafka consumer.
 
-The game server starts one HTTP server, the world's map instances, and the background workers. Routes: REST under `/api`, WebSocket at `/ws`, `/healthz` for liveness, `/readyz` for readiness, and metrics at `/metrics`.
+The game server starts one HTTP server and follows the services' streams; the world service runs the map instances and the workers. Routes: REST under `/api`, WebSocket at `/ws`, `/healthz` for liveness, `/readyz` for readiness, and metrics at `/metrics`.
 
 **Readiness** means this process can take traffic: `/readyz` is 200 from the moment it listens (game data loaded, everything wired) until shutdown starts, and 503 before and after, so a load balancer stops sending new connections while in-flight requests drain. It checks no dependency. The database is shared by every instance, so failing readiness on it would pull them all out of rotation at once and turn a database blip into a full outage; startup already fails without the database, and a later outage shows in the logs, the request errors and `db_tx_duration_seconds` instead (changed 2026-10-23 at the user's request; until then `/readyz` also pinged the database).
 
@@ -24,6 +24,7 @@ Shared state is owned by one goroutine (an actor) that receives commands on a bu
 | WebSocket connection | 2 per connection: read loop and write loop | Its send queue (bounded at 256 messages; a full queue closes the connection) |
 | Gateway session registry | A mutex-guarded map, not an actor: its critical sections are two map writes | Which account and character each connection belongs to |
 | Map instance | 1 per map and channel, ticking at 20 Hz | Players' positions and combat state, mobs, ground drops |
+| World delivery stream (step 27) | One `Deliver` stream per gateway, served from a bounded queue (8,192 events); a player's sink queues on its gateway's stream and never blocks the tick. A full queue ends the stream, the instances drop that gateway's players at their next event, and the gateway subscribes again and rejoins them. | The events bound for every player who joined through that gateway, in order |
 | Party service (in the social service, step 25) | A mutex-guarded service, not a goroutine: each command is a few map operations. PartyState and invites go out on the social service's delivery stream to the member's gateway, under that lock, without blocking; each membership change goes to every world node on `WatchParties`. | All parties and invites, plus what it knows of each member (map, level, HP, online) from the gateway and the map instances |
 | Party copy (in the world) | A mutex-guarded table fed by `WatchParties` and cleared when that stream breaks; a map tick reads it (members, same party) for microseconds and never calls the social service. Member updates go to a bounded queue a worker sends from. | Each character's party members, as the social service last said |
 | Persistence worker | 1 | Batched character checkpoints |
@@ -63,20 +64,21 @@ Only one player can hold a reservation, so two players can never both get a drop
 
 ## Joining, leaving, and changing maps
 
-- **Join:** the gateway validates Hello, loads the character from the character service, and sends Join to the map instance for the character's saved map. The instance replies with Welcome and a Snapshot. A character that is not the account's is a bad Hello (Kicked `unauthenticated`); a character service that cannot answer closes the connection as a server fault, and the client reconnects.
+- **Join:** the gateway validates Hello and asks the world service to join the character (step 27). The world loads it from the character service (which checks it is the account's), grants its starter items if creation never did, and joins it to its saved map's instance, which sends the Snapshot on the gateway's delivery stream. The gateway sends Welcome, with the inventory and the party, and then the Snapshot: deliveries that arrive before Welcome wait in the session, and anything that arrives before the join's Snapshot belongs to an older presence of the character and is dropped. A character that is not the account's is a bad Hello (Kicked `unauthenticated`); a world that cannot answer is waited for up to the join timeout (5 s), then the connection closes as a server fault and the client reconnects.
 - **Portal:** the instance removes the player, saves a checkpoint, sends Join to the target instance with the player's in-memory state, and sends the client MapChange.
-- **Disconnect:** the player is removed from the map and saved immediately. Reconnecting joins again at the saved position.
+- **Disconnect:** the gateway sends Leave with its connection ID; the world removes the player only if it joined through that connection, and saves it immediately. Reconnecting joins again at the saved position.
+- **World restart:** the gateway's delivery stream breaks and every socket stays open. When the stream is back, the gateway joins each player again from their last checkpoint: MapChange first when that is another map, then the Snapshot. Ticks on a connection never go back: the gateway shifts a restarted world's ticks past the last one it sent.
 - **Login elsewhere:** a new login revokes the old session in the database; the account service reports it on its `WatchSessions` stream to every gateway, and the gateway holding the old connection closes it with Kicked (step 24; the minute check catches what a broken stream missed).
-- **Chat:** the social service cleans and rate-limits a line; a map line comes back to the gateway, which hands it to the sender's map instance, which sends it to everyone on the map with the next tick's events; a party line is delivered by the social service to each member's gateway, on any map (step 25).
+- **Chat:** the social service cleans and rate-limits a line; a map line comes back to the gateway, which sends it to the world (`Say`) for the sender's map, whose instance sends it to everyone there with the next tick's events; a party line is delivered by the social service to each member's gateway, on any map (step 25).
 
 ## Shutdown and crashes
 
 - **Graceful (SIGTERM):** stop accepting connections, tell clients the server is restarting, flush all checkpoints, close.
-- **Crash:** in-memory state since the last checkpoint is lost (positions, mobs, ground drops, parties). Committed items and coins are unaffected.
+- **Crash:** in-memory state since the last checkpoint is lost (positions, mobs, ground drops, parties). Committed items and coins are unaffected. A world crash keeps the sockets: the gateway rejoins its players when the world is back.
 
 ## Metrics
 
-- `tick_duration_seconds` histogram per map; `tick_overruns_total`
+- `tick_duration_seconds` histogram per map; `tick_overruns_total` (on the world's ops `/metrics`)
 - `players_online`
 - `ws_messages_total` by direction and type; `ws_slow_consumer_disconnects_total`
 - `db_tx_duration_seconds` by operation; `db_tx_retries_total`

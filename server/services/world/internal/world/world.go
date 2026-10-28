@@ -2,11 +2,15 @@ package world
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
 	"finga/internal/gamedata"
+	"finga/internal/model"
+	"finga/internal/progression"
 )
 
 const (
@@ -24,6 +28,8 @@ const (
 // more channels), the persistence worker they share, and the transfers
 // between them.
 type World struct {
+	data      *gamedata.Data
+	opts      Options
 	instances map[string]*Instance
 	order     []string
 	persist   chan Job
@@ -38,7 +44,7 @@ func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *Worl
 	if opts.SaveRetryFor <= 0 {
 		opts.SaveRetryFor = DefaultSaveRetryFor
 	}
-	w := &World{instances: map[string]*Instance{}, persist: make(chan Job, persistQueue), saver: saver, log: log, workers: opts.Workers, retryFor: opts.SaveRetryFor}
+	w := &World{data: data, opts: opts, instances: map[string]*Instance{}, persist: make(chan Job, persistQueue), saver: saver, log: log, workers: opts.Workers, retryFor: opts.SaveRetryFor}
 	opts.Transfer = w
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = NewInstance(m, data, w.persist, opts)
@@ -54,6 +60,48 @@ func (w *World) Instance(mapID string) (*Instance, error) {
 		return nil, ErrNoMap
 	}
 	return i, nil
+}
+
+// errNoCharacters is a World built without Options.Characters asked to join
+// by ID: a wiring bug, internal to whoever meets it.
+var errNoCharacters = errors.New("world: characters not wired")
+
+// Join joins a character by ID (page 10): it loads it from the character
+// service (which checks it is the account's), grants its starter items
+// (idempotent: the safety net for a creation that could not reach the item
+// service), and joins it to its saved map's instance, which sends the
+// Snapshot to sink. A failure at any step leaves nobody joined.
+func (w *World) Join(ctx context.Context, account model.AccountID, id model.CharacterID, conn string, sink Sink) (View, error) {
+	if w.opts.Characters == nil {
+		return View{}, errNoCharacters
+	}
+	c, err := w.opts.Characters.Load(ctx, id, account)
+	if err != nil {
+		return View{}, err
+	}
+	if w.opts.Starter != nil {
+		if err := w.opts.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
+			return View{}, fmt.Errorf("starter items: %w", err)
+		}
+	}
+	inst, err := w.Instance(c.MapID)
+	if err != nil {
+		return View{}, err
+	}
+	formulas, ok := w.data.Formulas(c.Class)
+	if !ok {
+		return View{}, ErrClassUnavailable
+	}
+	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{})
+	p := Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
+	if err := inst.Join(ctx, p, sink); err != nil {
+		return View{}, err
+	}
+	return View{
+		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats,
+		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
+		MapID: c.MapID, X: c.X, Y: c.Y,
+	}, nil
 }
 
 // Transfer joins the player to another map's instance from its own

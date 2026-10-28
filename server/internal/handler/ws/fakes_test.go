@@ -11,14 +11,13 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/world"
-	"finga/internal/handler/ws"
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/model"
-	"finga/internal/sim"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
@@ -40,114 +39,194 @@ func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal
 	return p, nil
 }
 
-// fakeCharacters is the character service's Load: a character of
-// another account, or none, is not found; err, when set, is the answer.
-type fakeCharacters struct {
-	chars map[model.CharacterID]*characterv1.Character
-	err   error
+// fakeWorld is the world service, served over an in-memory gRPC
+// connection so the gateway's real client and stream run. Join checks the
+// character is the account's (the character service's not-found reason
+// otherwise), records the join, and sends before, then the character's
+// Snapshot, on the stream before it answers, as the real world may.
+// Commands and leaves are recorded; the test pushes events to a player.
+// restart ends the current stream and starts the ticks again; the next
+// subscription carries boot.
+type fakeWorld struct {
+	worldv1.UnimplementedWorldServiceServer
+	mu         sync.Mutex
+	chars      map[model.CharacterID]fakeCharacter
+	joinErr    error
+	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot
+	joined     []*worldv1.JoinRequest
+	left       []*worldv1.LeaveRequest
+	inputs     []*worldv1.InputRequest
+	attacks    []*worldv1.Presence
+	pickups    []*worldv1.Presence
+	portals    []*worldv1.Presence
+	says       []*worldv1.SayRequest
+	tick       uint64
+	boot       string
+	live       bool
+	events     chan *worldv1.DeliverResponse
+	end        chan struct{}
+	subscribed chan struct{} // receives once per subscription
 }
 
-func (f *fakeCharacters) Load(_ context.Context, in *characterv1.LoadRequest, _ ...grpc.CallOption) (*characterv1.LoadResponse, error) {
-	if f.err != nil {
-		return nil, f.err
+// fakeCharacter is a character as the character service has it saved.
+type fakeCharacter struct {
+	account model.AccountID
+	view    *worldv1.CharacterView
+}
+
+func newFakeWorld() *fakeWorld {
+	return &fakeWorld{
+		chars: map[model.CharacterID]fakeCharacter{
+			aylaID:  {alice, &worldv1.CharacterView{Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &characterv1.Stats{Strength: 12}}},
+			robinID: {alice, &worldv1.CharacterView{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608}},
+			brunoID: {bob, &worldv1.CharacterView{Id: brunoID.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608}},
+		},
+		boot: "boot-1", events: make(chan *worldv1.DeliverResponse, 256), end: make(chan struct{}), subscribed: make(chan struct{}, 8),
 	}
-	id, _ := model.ParseCharacterID(in.GetCharacterId())
-	c, ok := f.chars[id]
-	if !ok || c.GetAccountId() != in.GetAccountId() {
-		return nil, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+}
+
+func (f *fakeWorld) client(t *testing.T) worldv1.WorldServiceClient {
+	t.Helper()
+	srv := grpcx.NewServer(grpcx.ServerOptions{})
+	worldv1.RegisterWorldServiceServer(srv, f)
+	return worldv1.NewWorldServiceClient(grpctest.Conn(t, srv))
+}
+
+func (f *fakeWorld) Deliver(_ *worldv1.DeliverRequest, stream grpc.ServerStreamingServer[worldv1.DeliverResponse]) error {
+	f.mu.Lock()
+	boot, end := f.boot, f.end
+	f.live = true
+	f.mu.Unlock()
+	if err := stream.Send(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Subscribed{Subscribed: &worldv1.Subscribed{BootId: boot}}}); err != nil {
+		return err
 	}
-	return &characterv1.LoadResponse{Character: c}, nil
+	f.subscribed <- struct{}{}
+	for {
+		select {
+		case m := <-f.events:
+			if err := stream.Send(m); err != nil {
+				return err
+			}
+		case <-end:
+			return status.Error(codes.Unavailable, "restarting")
+		case <-stream.Context().Done():
+			return nil
+		}
+	}
 }
 
-// fakeInstance records joins, leaves and inputs and lets the test push
-// events to a player's sink.
-type fakeInstance struct {
-	mapID   string
-	mu      sync.Mutex
-	joined  []world.Player
-	left    []model.CharacterID
-	inputs  []recordedInput
-	attacks []model.CharacterID
-	pickups []model.CharacterID
-	portals []model.CharacterID
-	chats   []recordedChat
-	sinks   map[model.CharacterID]world.Sink
-	joinErr error
+// restart ends the current stream, as a world that went away would: the
+// next subscription carries boot, and the ticks count from one again.
+func (f *fakeWorld) restart(boot string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	close(f.end)
+	f.end = make(chan struct{})
+	f.boot, f.live, f.tick = boot, false, 0
 }
 
-type recordedInput struct {
-	id  model.CharacterID
-	seq uint32
-	in  sim.Input
-}
-
-func newFakeInstance() *fakeInstance {
-	return &fakeInstance{mapID: "town", sinks: map[model.CharacterID]world.Sink{}}
-}
-
-// MapID is the map the fake runs.
-func (f *fakeInstance) MapID() string { return f.mapID }
-
-func (f *fakeInstance) Join(_ context.Context, p world.Player, s world.Sink) error {
+func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.joinErr != nil {
-		return f.joinErr
+		return nil, f.joinErr
 	}
-	f.joined = append(f.joined, p)
-	f.sinks[p.ID] = s
-	s.Send(world.Snapshot{Tick: 1, MapID: "town", Players: []world.PlayerView{{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.HP, State: sim.State{X: p.X, Y: p.Y, Facing: 1}}}})
-	return nil
+	if !f.live {
+		return nil, grpcx.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED)
+	}
+	id, _ := model.ParseCharacterID(req.GetCharacterId())
+	c, ok := f.chars[id]
+	if !ok || c.account.String() != req.GetAccountId() {
+		return nil, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+	}
+	f.joined = append(f.joined, req)
+	for _, m := range f.before {
+		m.CharacterId = id.String()
+		f.events <- m
+	}
+	f.tick++
+	v := c.view
+	f.events <- &worldv1.DeliverResponse{CharacterId: id.String(), Tick: f.tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
+		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
+	}}}
+	return &worldv1.JoinResponse{Character: v}, nil
 }
 
-func (f *fakeInstance) Leave(id model.CharacterID) bool {
+// save is the character's checkpoint, which the next join loads.
+func (f *fakeWorld) save(id model.CharacterID, mapID string, x, y float64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.left = append(f.left, id)
-	delete(f.sinks, id)
-	return true
+	c := f.chars[id]
+	v := proto.Clone(c.view).(*worldv1.CharacterView)
+	v.MapId, v.X, v.Y = mapID, x, y
+	c.view = v
+	f.chars[id] = c
 }
 
-func (f *fakeInstance) Input(id model.CharacterID, seq uint32, in sim.Input) bool {
+func (f *fakeWorld) joins() []*worldv1.JoinRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.inputs = append(f.inputs, recordedInput{id, seq, in})
-	return true
+	return append([]*worldv1.JoinRequest(nil), f.joined...)
 }
 
-func (f *fakeInstance) Attack(id model.CharacterID) bool {
+func (f *fakeWorld) leaves() []*worldv1.LeaveRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.attacks = append(f.attacks, id)
-	return true
+	return append([]*worldv1.LeaveRequest(nil), f.left...)
 }
 
-func (f *fakeInstance) inputCount() int {
+func (f *fakeWorld) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.left = append(f.left, req)
+	return &worldv1.LeaveResponse{}, nil
+}
+
+func (f *fakeWorld) Input(_ context.Context, req *worldv1.InputRequest) (*worldv1.InputResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.inputs = append(f.inputs, req)
+	return &worldv1.InputResponse{}, nil
+}
+
+func (f *fakeWorld) inputCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.inputs)
 }
 
-func (f *fakeInstance) push(id model.CharacterID, e world.Event) bool {
+func (f *fakeWorld) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
 	f.mu.Lock()
-	s := f.sinks[id]
-	f.mu.Unlock()
-	if s == nil {
-		return false
-	}
-	return s.Send(e)
+	defer f.mu.Unlock()
+	f.attacks = append(f.attacks, req.GetPresence())
+	return &worldv1.AttackResponse{}, nil
 }
 
-type fakeWorld struct {
-	instances map[string]ws.MapInstance
+func (f *fakeWorld) PickUp(_ context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pickups = append(f.pickups, req.GetPresence())
+	return &worldv1.PickUpResponse{}, nil
 }
 
-func (f *fakeWorld) Instance(mapID string) (ws.MapInstance, error) {
-	i, ok := f.instances[mapID]
-	if !ok {
-		return nil, world.ErrNoMap
-	}
-	return i, nil
+func (f *fakeWorld) EnterPortal(_ context.Context, req *worldv1.EnterPortalRequest) (*worldv1.EnterPortalResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.portals = append(f.portals, req.GetPresence())
+	return &worldv1.EnterPortalResponse{}, nil
+}
+
+func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.says = append(f.says, req)
+	return &worldv1.SayResponse{}, nil
+}
+
+// push sends an event to a player on the stream.
+func (f *fakeWorld) push(to model.CharacterID, m *worldv1.DeliverResponse) {
+	m.CharacterId = to.String()
+	f.events <- m
 }
 
 type fakeObserver struct {
@@ -166,13 +245,6 @@ func (o *fakeObserver) MessageIn(t string)  { o.mu.Lock(); o.in[t]++; o.mu.Unloc
 func (o *fakeObserver) MessageOut(t string) { o.mu.Lock(); o.out[t]++; o.mu.Unlock() }
 func (o *fakeObserver) SlowConsumer()       { o.mu.Lock(); o.slow++; o.mu.Unlock() }
 func (o *fakeObserver) OnlineChanged(d int) { o.mu.Lock(); o.online += d; o.mu.Unlock() }
-
-func (f *fakeInstance) PickUp(id model.CharacterID) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.pickups = append(f.pickups, id)
-	return true
-}
 
 // fakeItems is the item service, served over an in-memory gRPC connection
 // so the gateway's real client runs: it records the inventory commands and
@@ -217,25 +289,6 @@ func (f *fakeItems) Discard(_ context.Context, req *itemv1.DiscardRequest) (*ite
 		return nil, f.err
 	}
 	return &itemv1.DiscardResponse{Changed: f.changed}, nil
-}
-
-func (f *fakeInstance) EnterPortal(id model.CharacterID) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.portals = append(f.portals, id)
-	return true
-}
-
-func (f *fakeInstance) Chat(id model.CharacterID, name, text string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.chats = append(f.chats, recordedChat{id, name, text})
-	return true
-}
-
-type recordedChat struct {
-	id         model.CharacterID
-	name, text string
 }
 
 // fakeSocial is the social service, served over an in-memory gRPC

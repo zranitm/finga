@@ -1,9 +1,12 @@
-// Package ws is the gateway (Low-level design, pages 3 and 4): WebSocket
-// sessions, the Hello handshake, one connection per account, per-account
-// rate limits, and routing of each message to the character's map
-// instance with the identity taken from the connection, never from the
-// message. It is the only package that turns the world's result types into
-// protocol messages.
+// Package ws is the gateway (Low-level design, pages 3, 4 and 10):
+// WebSocket sessions, the Hello handshake, one connection per account,
+// per-account rate limits, and routing of each message to the service that
+// owns it, with the identity taken from the connection, never from the
+// message. Players join through the world service, and everything the
+// world sends them arrives on one delivery stream per gateway, which this
+// package turns into protocol messages. When that stream breaks (the world
+// restarted, or this gateway fell behind) every socket stays open and each
+// player is joined again once the stream is back.
 package ws
 
 import (
@@ -15,45 +18,21 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/application/world"
-	"finga/internal/gamedata"
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/handler/errmap"
 	"finga/internal/model"
 	"finga/internal/protocol"
-	"finga/internal/sim"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
 )
-
-// CharacterSource is what the gateway needs from the character service
-// (page 10); its generated client satisfies it.
-type CharacterSource interface {
-	Load(ctx context.Context, in *characterv1.LoadRequest, opts ...grpc.CallOption) (*characterv1.LoadResponse, error)
-}
-
-// MapInstance is what the gateway needs from a map actor.
-type MapInstance interface {
-	Join(ctx context.Context, p world.Player, sink world.Sink) error
-	Leave(id model.CharacterID) bool
-	Input(id model.CharacterID, seq uint32, in sim.Input) bool
-	Attack(id model.CharacterID) bool
-	PickUp(id model.CharacterID) bool
-	EnterPortal(id model.CharacterID) bool
-	MapID() string
-	Chat(id model.CharacterID, name, text string) bool
-}
-
-// World finds map instances.
-type World interface {
-	Instance(mapID string) (MapInstance, error)
-}
 
 // Observer counts traffic; internal/telemetry implements it. nil is fine.
 type Observer interface {
@@ -75,17 +54,19 @@ type Dependencies struct {
 	// when empty.
 	ID          string
 	Sessions    auth.Guard
-	Watcher     SessionWatcher // the account service; nil: no session ends are streamed, the minute check still runs
-	Characters  CharacterSource
+	Watcher     SessionWatcher               // the account service; nil: no session ends are streamed, the minute check still runs
+	World       worldv1.WorldServiceClient   // joins, commands, and the delivery stream Run follows
 	Items       itemv1.ItemServiceClient     // the item service; nil: Welcome carries no items and inventory commands are unavailable
 	Social      socialv1.SocialServiceClient // parties and chat; nil: both are unavailable
-	World       World
 	Logger      *slog.Logger
 	Observer    Observer
 	CORSOrigins []string
 	Clock       func() time.Time
 	// HelloTimeout is how long a connection has to send Hello; 5 s by default.
 	HelloTimeout time.Duration
+	// JoinTimeout bounds a join, waiting out a world that is starting or
+	// restarting; 5 s by default.
+	JoinTimeout time.Duration
 	// SessionCheckInterval is how often Run checks each connection's session
 	// and kicks the expired ones; a minute by default.
 	SessionCheckInterval time.Duration
@@ -94,8 +75,10 @@ type Dependencies struct {
 const (
 	defaultHelloTimeout         = 5 * time.Second
 	defaultSessionCheckInterval = time.Minute
-	joinTimeout                 = 5 * time.Second
+	defaultJoinTimeout          = 5 * time.Second
 	commandTimeout              = 5 * time.Second
+	joinRetryFirst              = 20 * time.Millisecond
+	joinRetryMax                = 500 * time.Millisecond
 )
 
 // Gateway serves /ws.
@@ -111,6 +94,7 @@ type Gateway struct {
 	byCharacter map[model.CharacterID]*session // active sessions, for party and chat delivery
 	bySession   map[model.SessionID]*session   // active connections by login session
 	socialBoot  string                         // the social service's boot ID, from its stream
+	worldSubs   uint64                         // subscriptions to the world's stream so far
 	helloGrace  time.Duration
 }
 
@@ -121,6 +105,9 @@ func New(deps Dependencies) *Gateway {
 	}
 	if deps.HelloTimeout <= 0 {
 		deps.HelloTimeout = defaultHelloTimeout
+	}
+	if deps.JoinTimeout <= 0 {
+		deps.JoinTimeout = defaultJoinTimeout
 	}
 	if deps.Observer == nil {
 		deps.Observer = noopObserver{}
@@ -144,12 +131,20 @@ func New(deps Dependencies) *Gateway {
 	}
 }
 
-// Run follows the account service's session ends (when a Watcher is set)
-// and checks every connection's login session on an interval, until ctx is
-// done, kicking the ones whose session ended (expired, logged out, reused
-// token) with session_expired. The minute check catches what a broken
-// stream missed. It never returns an error.
+// Run follows the world's delivery stream, the social service's and the
+// account service's session ends (each when set), and checks every
+// connection's login session on an interval, until ctx is done, kicking the
+// ones whose session ended (expired, logged out, reused token) with
+// session_expired. The minute check catches what a broken stream missed.
+// It never returns an error.
 func (g *Gateway) Run(ctx context.Context) error {
+	if g.deps.World != nil {
+		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[worldv1.DeliverResponse], error) {
+			return g.deps.World.Deliver(ctx, &worldv1.DeliverRequest{GatewayId: g.deps.ID})
+		}, g.worldDelivered, grpcx.FollowOptions{OnBreak: func(err error) {
+			g.deps.Logger.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
+		}})
+	}
 	if g.deps.Social != nil {
 		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.DeliverResponse], error) {
 			return g.deps.Social.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: g.deps.ID})
@@ -250,6 +245,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // OnOpen starts the Hello timer: a connection that stays silent is closed.
 func (g *Gateway) OnOpen(c wsconn.Conn) {
 	s := &session{conn: c, limiters: map[string]*ratelimit.Buckets{}}
+	s.out.send = func(m wsconn.Message) { g.send(c, m) }
 	s.helloTimer = time.AfterFunc(g.helloGrace, func() {
 		if !s.active() {
 			c.Close(wsconn.CloseKicked, "no hello")
@@ -286,13 +282,25 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 	switch d := m.Data.(type) {
 	case protocol.Input:
-		s.inst().Input(s.character.ID, m.Seq, sim.Input{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump})
+		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
+			_, err := g.deps.World.Input(ctx, &worldv1.InputRequest{Presence: p, Seq: m.Seq, Keys: &worldv1.Keys{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump}})
+			return err
+		})
 	case protocol.Attack:
-		s.inst().Attack(s.character.ID)
+		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
+			_, err := g.deps.World.Attack(ctx, &worldv1.AttackRequest{Presence: p})
+			return err
+		})
 	case protocol.EnterPortal:
-		s.inst().EnterPortal(s.character.ID)
+		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
+			_, err := g.deps.World.EnterPortal(ctx, &worldv1.EnterPortalRequest{Presence: p})
+			return err
+		})
 	case protocol.PickUp:
-		s.inst().PickUp(s.character.ID)
+		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
+			_, err := g.deps.World.PickUp(ctx, &worldv1.PickUpRequest{Presence: p})
+			return err
+		})
 	case protocol.InventoryMove:
 		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
 			id, err := model.ParseItemID(d.ItemID)
@@ -367,22 +375,31 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	g.mu.Lock()
 	s := g.byConn[c.ID()]
 	delete(g.byConn, c.ID())
-	if s != nil && s.active() && g.byAccount[s.account] == s {
-		delete(g.byAccount, s.account)
-	}
-	if s != nil && s.active() && g.byCharacter[s.character.ID] == s {
-		delete(g.byCharacter, s.character.ID)
-	}
-	if s != nil && s.active() && g.bySession[s.sessionID] == s {
-		delete(g.bySession, s.sessionID)
+	var joined bool
+	if s != nil {
+		s.closed = true
+		joined = !s.character.ID.IsZero()
+		if g.byAccount[s.account] == s {
+			delete(g.byAccount, s.account)
+		}
+		if g.byCharacter[s.character.ID] == s {
+			delete(g.byCharacter, s.character.ID)
+		}
+		if g.bySession[s.sessionID] == s {
+			delete(g.bySession, s.sessionID)
+		}
 	}
 	g.mu.Unlock()
 	if s == nil {
 		return
 	}
 	s.helloTimer.Stop()
+	if joined {
+		// The world removes the player only if it joined through this
+		// connection; a rejoin that finishes after this leaves again.
+		g.leave(s)
+	}
 	if s.active() {
-		s.inst().Leave(s.character.ID)
 		if g.deps.Social != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 			if _, err := g.deps.Social.Offline(ctx, &socialv1.OfflineRequest{CharacterId: s.character.ID.String()}); err != nil {
@@ -399,11 +416,23 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	g.deps.Logger.Info("ws closed", "conn", c.ID(), "reason", errText(err))
 }
 
-// hello runs the handshake: version, token, character ownership, then the
-// registry (kicking an older connection of the account), Welcome, and the
-// join to the character's map instance.
+// leave tells the world the connection's player is gone.
+func (g *Gateway) leave(s *session) {
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	if _, err := g.deps.World.Leave(ctx, &worldv1.LeaveRequest{Presence: s.presence(), ConnectionId: s.conn.ID()}); err != nil {
+		g.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.character.ID, "err", err)
+	}
+}
+
+// hello runs the handshake: version, token, then the join through the
+// world (which checks the character is the account's), the inventory and
+// the party, then Welcome. The session is registered for its character
+// before the join, so the Snapshot, which may come back on the world's
+// stream before the join answers, waits in the session and follows
+// Welcome. An older connection of the account loses once the join holds.
 func (g *Gateway) hello(s *session, h protocol.Hello) {
-	ctx, cancel := context.WithTimeout(context.Background(), joinTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
 	defer cancel()
 	if h.ProtocolVersion != protocol.Version {
 		g.kick(s.conn, protocol.KickOutdatedProtocol)
@@ -431,32 +460,45 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		g.kick(s.conn, protocol.KickUnauthenticated)
 		return
 	}
-	account := model.AccountID(p.AccountID)
-	res, err := g.deps.Characters.Load(ctx, &characterv1.LoadRequest{CharacterId: charID.String(), AccountId: account.String()})
+	account, sessionID := model.AccountID(p.AccountID), model.SessionID(p.SessionID)
+
+	// A rejoin (the world's stream broke) waits until this join is out.
+	s.rejoinMu.Lock()
+	defer s.rejoinMu.Unlock()
+	s.out.hold()
+	g.mu.Lock()
+	previous := g.byCharacter[charID]
+	g.byCharacter[charID] = s
+	s.account, s.sessionID, s.character.ID = account, sessionID, charID
+	subs := g.worldSubs
+	g.mu.Unlock()
+	s.helloTimer.Stop()
+
+	res, err := g.join(ctx, &worldv1.JoinRequest{GatewayId: g.deps.ID, ConnectionId: s.conn.ID(), AccountId: account.String(), CharacterId: charID.String()})
 	if err != nil {
-		// Someone else's character, or none, is a bad Hello; a character
-		// service that cannot answer is a server fault the client retries.
+		s.out.abort()
+		g.mu.Lock()
+		if g.byCharacter[charID] == s {
+			if previous != nil {
+				g.byCharacter[charID] = previous
+			} else {
+				delete(g.byCharacter, charID)
+			}
+		}
+		s.character.ID = model.CharacterID{}
+		g.mu.Unlock()
+		// Someone else's character, or none, is a bad Hello; a world or
+		// character service that cannot answer is a server fault the client
+		// retries.
 		if errmap.For(err).Code == characterNotFound {
 			g.kick(s.conn, protocol.KickUnauthenticated)
 			return
 		}
-		g.deps.Logger.ErrorContext(ctx, "character load failed", "character_id", charID, "err", err)
-		s.conn.Close(wsconn.CloseInternal, "character")
+		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "err", err)
+		s.conn.Close(wsconn.CloseInternal, "join")
 		return
 	}
 	c := res.GetCharacter()
-	class, err := model.ParseClass(c.GetClass())
-	if err != nil {
-		g.deps.Logger.ErrorContext(ctx, "character of an unknown class", "character_id", charID, "class", c.GetClass())
-		s.conn.Close(wsconn.CloseInternal, "class")
-		return
-	}
-	inst, err := g.deps.World.Instance(c.GetMapId())
-	if err != nil {
-		g.deps.Logger.ErrorContext(ctx, "character on an unknown map", "character_id", charID, "map_id", c.GetMapId())
-		s.conn.Close(wsconn.CloseInternal, "map")
-		return
-	}
 	inventory := []protocol.ItemView{}
 	if g.deps.Items != nil {
 		res, err := g.deps.Items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: charID.String()})
@@ -467,27 +509,6 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		}
 		inventory = itemViews(res.GetItems())
 	}
-
-	g.mu.Lock()
-	old := g.byAccount[account]
-	sameSession := g.bySession[model.SessionID(p.SessionID)]
-	g.byAccount[account] = s
-	g.byCharacter[charID] = s
-	g.bySession[model.SessionID(p.SessionID)] = s
-	s.account = account
-	s.sessionID = model.SessionID(p.SessionID)
-	s.character = player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
-	s.setInstance(inst)
-	g.mu.Unlock()
-	// An older connection of the account, or a second Hello on the same
-	// session, loses: the newest connection wins.
-	for _, prev := range []*session{old, sameSession} {
-		if prev != nil && prev != s {
-			g.kick(prev.conn, protocol.KickLoggedInElsewhere)
-		}
-	}
-	s.helloTimer.Stop()
-
 	welcome := protocol.Welcome{
 		Token:      token,
 		Character:  characterView(c),
@@ -504,27 +525,156 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		}
 		welcome.Party = partyView(res.GetParty())
 	}
-	g.send(s.conn, wsconn.Message{Data: welcome})
-	st := c.GetStats()
-	joining := world.Player{
-		ID: charID, Account: account, Name: c.GetName(), Class: class, Level: int(c.GetLevel()), Exp: c.GetExp(),
-		Stats: gamedata.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
-		HP:    int(c.GetHp()), MP: int(c.GetMp()), X: c.GetX(), Y: c.GetY(),
-	}
-	snk := &sink{conn: s.conn, obs: g.deps.Observer, logger: g.deps.Logger, onTeleport: func(mapID string) {
-		if target, err := g.deps.World.Instance(mapID); err == nil {
-			s.setInstance(target)
-		}
-	}}
-	if err := inst.Join(ctx, joining, snk); err != nil {
-		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "map_id", c.GetMapId(), "err", err)
-		s.conn.Close(wsconn.CloseInternal, "join")
-		return
-	}
+
+	g.mu.Lock()
+	old := g.byAccount[account]
+	sameSession := g.bySession[sessionID]
+	g.byAccount[account] = s
+	g.bySession[sessionID] = s
+	s.character = player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
 	s.setActive()
+	missed := g.worldSubs != subs // the stream broke during the join
+	g.mu.Unlock()
+	s.out.release(c.GetMapId(), wsconn.Message{Data: welcome})
+	// An older connection of the account, or a second Hello on the same
+	// session, loses: the newest connection wins.
+	for _, prev := range []*session{old, sameSession, previous} {
+		if prev != nil && prev != s {
+			g.kick(prev.conn, protocol.KickLoggedInElsewhere)
+		}
+	}
+	if missed {
+		go g.rejoin(s)
+	}
 	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", charID, "map_id", c.GetMapId())
+}
+
+// worldDelivered acts on one message of the world's stream: a delivery
+// goes to its player's session; Subscribed after the first means the
+// stream broke and every player this gateway had joined is gone from the
+// world, so each is joined again. Nothing here waits on the world: the
+// joins' Snapshots come back on this same stream.
+func (g *Gateway) worldDelivered(m *worldv1.DeliverResponse) {
+	if m.GetSubscribed() != nil {
+		g.mu.Lock()
+		again := g.worldSubs > 0
+		g.worldSubs++
+		var active []*session
+		for _, s := range g.byCharacter {
+			if s.active() {
+				active = append(active, s)
+			}
+		}
+		g.mu.Unlock()
+		if again {
+			for _, s := range active {
+				go g.rejoin(s)
+			}
+		}
+		return
+	}
+	id, err := model.ParseCharacterID(m.GetCharacterId())
+	if err != nil {
+		return
+	}
+	s := g.sessionOf(id)
+	if s == nil {
+		return // gone from this gateway; the world learns it from Leave
+	}
+	msg, ok := delivery(m)
+	if !ok {
+		return
+	}
+	if p, isRefusal := msg.Data.(protocol.Response); isRefusal && p.Code == errmap.Internal.Code {
+		g.deps.Logger.Warn("pickup failed for a reason the world could not name", "conn", s.conn.ID(), "character_id", id)
+	}
+	if !s.out.deliver(msg) {
+		s.conn.Close(wsconn.CloseInternal, "join")
+	}
+}
+
+// rejoin joins a connected player again after the world's stream broke,
+// from the character's last checkpoint: MapChange first when that is
+// another map than the session's, then the Snapshot. The socket stays
+// open; a join that fails because the stream broke again waits for the
+// next subscription, which rejoins, and any other failure (the world still
+// unreachable when the join gives up, say) closes the connection so the
+// client reconnects.
+func (g *Gateway) rejoin(s *session) {
+	s.rejoinMu.Lock()
+	defer s.rejoinMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
+	defer cancel()
+	before := s.mapID()
+	s.out.hold()
+	res, err := g.join(ctx, &worldv1.JoinRequest{GatewayId: g.deps.ID, ConnectionId: s.conn.ID(), AccountId: s.account.String(), CharacterId: s.character.ID.String()})
+	if err != nil {
+		s.out.abort()
+		if r, _ := grpcx.ReasonOf(err); r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED) {
+			// The stream broke again: the next subscription rejoins.
+			g.deps.Logger.WarnContext(ctx, "rejoin waits for the world's stream", "character_id", s.character.ID)
+			return
+		}
+		g.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.character.ID, "err", err)
+		s.conn.Close(wsconn.CloseInternal, "rejoin")
+		return
+	}
+	c := res.GetCharacter()
+	var first []wsconn.Message
+	if c.GetMapId() != before {
+		first = append(first, wsconn.Message{Data: protocol.MapChange{MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY()}})
+	}
+	s.out.release(c.GetMapId(), first...)
+	g.mu.Lock()
+	closed := s.closed
+	g.mu.Unlock()
+	if closed {
+		g.leave(s)
+		return
+	}
+	g.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.conn.ID(), "character_id", s.character.ID, "map_id", c.GetMapId())
+}
+
+// join asks the world to join a player, waiting out a world that is not
+// reachable yet (starting, restarting) or has not seen this gateway's
+// stream yet, until ctx ends. A join is safe to repeat: the world replaces
+// a presence that joined through the same connection.
+func (g *Gateway) join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
+	wait := joinRetryFirst
+	for {
+		res, err := g.deps.World.Join(ctx, req)
+		if err == nil || !waitable(err) {
+			return res, err
+		}
+		t := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return nil, err
+		case <-t.C:
+		}
+		wait = min(wait*2, joinRetryMax)
+	}
+}
+
+// waitable is a join failure that time may cure: the world is unreachable,
+// or its stream to this gateway is not open yet.
+func waitable(err error) bool {
+	if r, ok := grpcx.ReasonOf(err); ok {
+		return r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED)
+	}
+	return status.Code(err) == codes.Unavailable
+}
+
+// worldCommand sends a command to the world with the connection's
+// character and map. A failure is dropped: the client's next input
+// supersedes it, and a world that went away is handled by the rejoin.
+func (g *Gateway) worldCommand(s *session, call func(ctx context.Context, p *worldv1.Presence) error) {
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+	_ = call(ctx, s.presence())
 }
 
 // online tells the social service a player is connected through this
@@ -535,7 +685,7 @@ func (g *Gateway) online(ctx context.Context, s *session) {
 		return
 	}
 	c := s.character
-	member := &socialv1.Member{Id: c.ID.String(), Name: c.Name, Level: int32(c.Level), Hp: int32(c.HP), MaxHp: int32(c.MaxHP), MapId: s.inst().MapID()}
+	member := &socialv1.Member{Id: c.ID.String(), Name: c.Name, Level: int32(c.Level), Hp: int32(c.HP), MaxHp: int32(c.MaxHP), MapId: s.mapID()}
 	if _, err := g.deps.Social.Online(ctx, &socialv1.OnlineRequest{GatewayId: g.deps.ID, Member: member}); err != nil {
 		g.deps.Logger.WarnContext(ctx, "social online failed", "character_id", c.ID, "err", err)
 	}
@@ -559,7 +709,10 @@ func (g *Gateway) chat(s *session, d protocol.ChatSend) {
 		return
 	}
 	if res.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_MAP {
-		s.inst().Chat(s.character.ID, s.character.Name, res.GetText())
+		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
+			_, err := g.deps.World.Say(ctx, &worldv1.SayRequest{Presence: p, SenderName: s.character.Name, Text: res.GetText()})
+			return err
+		})
 	}
 }
 
@@ -601,7 +754,7 @@ func (g *Gateway) socialDelivered(m *socialv1.DeliverResponse) {
 		}
 		g.mu.Unlock()
 		if restarted {
-			ctx, cancel := context.WithTimeout(context.Background(), joinTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
 			defer cancel()
 			for _, s := range active {
 				g.send(s.conn, wsconn.Message{Data: protocol.PartyState{}})
@@ -694,15 +847,6 @@ func (g *Gateway) send(c wsconn.Conn, m wsconn.Message) {
 
 // characterNotFound is the code of a character that is not the account's.
 const characterNotFound = "character_not_found"
-
-func characterView(c *characterv1.Character) protocol.CharacterView {
-	st := c.GetStats()
-	return protocol.CharacterView{
-		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
-		Stats: protocol.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
-		HP:    int(c.GetHp()), MaxHP: int(c.GetMaxHp()), MP: int(c.GetMp()), MaxMP: int(c.GetMaxMp()),
-	}
-}
 
 func itemViews(items []*itemv1.Item) []protocol.ItemView {
 	out := make([]protocol.ItemView, 0, len(items))

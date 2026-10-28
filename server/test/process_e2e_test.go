@@ -53,13 +53,13 @@ func (b *lockedBuffer) String() string {
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
-	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social", "./services/character/cmd/character")
+	build := exec.Command("go", "build", "-o", dir, "./cmd/gameserver", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social", "./services/character/cmd/character", "./services/world/cmd/world")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 	bins := map[string]string{}
-	for _, name := range []string{"gameserver", "item", "account", "social", "character"} {
+	for _, name := range []string{"gameserver", "item", "account", "social", "character", "world"} {
 		bins[name] = filepath.Join(dir, name)
 		if runtime.GOOS == "windows" {
 			bins[name] += ".exe"

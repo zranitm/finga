@@ -39,6 +39,8 @@ const (
 	Reason_REASON_PICKUPS_UNAVAILABLE Reason = 5
 	Reason_REASON_PICKUP_BUSY         Reason = 6
 	Reason_REASON_BAD_ID              Reason = 7
+	// The character's class has no formulas in the game data.
+	Reason_REASON_CLASS_UNAVAILABLE Reason = 8
 )
 
 // Enum value maps for Reason.
@@ -52,6 +54,7 @@ var (
 		5: "REASON_PICKUPS_UNAVAILABLE",
 		6: "REASON_PICKUP_BUSY",
 		7: "REASON_BAD_ID",
+		8: "REASON_CLASS_UNAVAILABLE",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":         0,
@@ -62,6 +65,7 @@ var (
 		"REASON_PICKUPS_UNAVAILABLE": 5,
 		"REASON_PICKUP_BUSY":         6,
 		"REASON_BAD_ID":              7,
+		"REASON_CLASS_UNAVAILABLE":   8,
 	}
 )
 
@@ -2635,7 +2639,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\vsender_name\x18\x02 \x01(\tR\n" +
 	"senderName\x12\x12\n" +
 	"\x04text\x18\x03 \x01(\tR\x04text\"\r\n" +
-	"\vSayResponse*\xbe\x01\n" +
+	"\vSayResponse*\xdc\x01\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vREASON_BUSY\x10\x01\x12\x11\n" +
@@ -2644,7 +2648,8 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x15REASON_NOT_SUBSCRIBED\x10\x04\x12\x1e\n" +
 	"\x1aREASON_PICKUPS_UNAVAILABLE\x10\x05\x12\x16\n" +
 	"\x12REASON_PICKUP_BUSY\x10\x06\x12\x11\n" +
-	"\rREASON_BAD_ID\x10\a2\x85\x05\n" +
+	"\rREASON_BAD_ID\x10\a\x12\x1c\n" +
+	"\x18REASON_CLASS_UNAVAILABLE\x10\b2\x85\x05\n" +
 	"\fWorldService\x12R\n" +
 	"\aDeliver\x12!.internal.world.v1.DeliverRequest\x1a\".internal.world.v1.DeliverResponse0\x01\x12G\n" +
 	"\x04Join\x12\x1e.internal.world.v1.JoinRequest\x1a\x1f.internal.world.v1.JoinResponse\x12J\n" +

@@ -1,5 +1,5 @@
 // Package e2e runs the game as production builds it, in one test process
-// against a real Postgres: each extracted service from its composition root
+// against a real Postgres: each service from its composition root
 // (services/<name>/cmd/<name>/app) on loopback listeners, and the game
 // server (cmd/gameserver/app) dialling them, served by httptest. Each Stage
 // 1 acceptance criterion that the REST API covers is a row named after its
@@ -34,6 +34,7 @@ import (
 	characterapp "finga/services/character/cmd/character/app"
 	itemapp "finga/services/item/cmd/item/app"
 	socialapp "finga/services/social/cmd/social/app"
+	worldapp "finga/services/world/cmd/world/app"
 )
 
 var cluster *pgtest.Cluster
@@ -50,14 +51,15 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// stack is the game over a fresh database: the extracted services and the
-// game server, whose handler httptest serves.
+// stack is the game over a fresh database: the services and the game
+// server, whose handler httptest serves.
 type stack struct {
 	t      *testing.T
 	url    string
 	db     *pgxpool.Pool
 	items  itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
 	social *service                 // restarted by the rows that check the gateway survives it
+	world  *service                 // likewise
 }
 
 // loopback is an endpoint on free loopback ports; Addr is filled once the
@@ -74,13 +76,15 @@ func newStack(t *testing.T) *stack {
 		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
 		Economy:   config.Economy{Workers: 2},
 		Telemetry: config.Telemetry{LogLevel: "error"},
-		Services:  config.Services{Item: loopback, Account: loopback, Social: loopback, Character: loopback},
+		Services:  config.Services{Item: loopback, Account: loopback, Social: loopback, Character: loopback, World: loopback},
 	}
 	cfg.Services.Item.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Item }, itemapp.Build).addr
 	cfg.Services.Account.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Account }, accountapp.Build).addr
 	cfg.Services.Character.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Character }, characterapp.Build).addr
 	social := runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Social }, socialapp.Build)
 	cfg.Services.Social.Addr = social.addr
+	world := runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.World }, worldapp.Build)
+	cfg.Services.World.Addr = world.addr
 	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
 	if err != nil {
 		t.Fatal(err)
@@ -95,8 +99,8 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	// The handler is served by httptest; the world and persistence tasks
-	// run beside it as Run would start them.
+	// The handler is served by httptest; the gateway's streams run beside it
+	// as Run would start them.
 	taskCtx, stopTasks := context.WithCancel(context.Background())
 	tasksDone := make(chan struct{})
 	go func() { defer close(tasksDone); srv.RunTasks(taskCtx) }()
@@ -108,11 +112,11 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
-	return &stack{t: t, url: ts.URL, db: db, items: itemv1.NewItemServiceClient(itemConn), social: social}
+	return &stack{t: t, url: ts.URL, db: db, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
 }
 
-// service is one extracted service running in the test process, built
-// from its composition root as production builds it.
+// service is one service running in the test process, built from its
+// composition root as production builds it.
 type service struct {
 	t     *testing.T
 	build func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)

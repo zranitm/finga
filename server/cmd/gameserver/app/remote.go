@@ -6,54 +6,8 @@ import (
 	"github.com/google/uuid"
 
 	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
-	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/application/world"
-	"finga/internal/gamedata"
-	"finga/internal/model"
 	"finga/pkg/auth"
-	"finga/pkg/grpcx"
 )
-
-// The adapters below let the modules still inside the game server call the
-// services already extracted (page 10, decision 185), in the modules' own
-// terms. Each moves into its caller's service when that one leaves too.
-
-// pickups is the world's Pickups over the item service.
-type pickups struct{ c itemv1.ItemServiceClient }
-
-// Add puts a drop in the inventory, keyed and caused by the drop's ID, so a
-// retry or a replay grants it once.
-func (p pickups) Add(ctx context.Context, in world.Pickup) ([]world.Slot, error) {
-	drop := in.DropID.String()
-	res, err := p.c.Add(ctx, &itemv1.AddRequest{
-		Actor:          &itemv1.Actor{AccountId: in.Account.String(), CharacterId: in.Character.String()},
-		IdempotencyKey: drop,
-		TemplateId:     in.Template,
-		Quantity:       int32(in.Quantity),
-		Cause:          &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: drop},
-	})
-	if err != nil {
-		return nil, err
-	}
-	out := make([]world.Slot, 0, len(res.GetChanged()))
-	for _, s := range res.GetChanged() {
-		slot := world.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
-		if it := s.GetItem(); it != nil {
-			id, err := model.ParseItemID(it.GetId())
-			if err != nil {
-				return nil, err
-			}
-			slot.Item = &world.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity())}
-		}
-		out = append(out, slot)
-	}
-	return out, nil
-}
-
-// Retryable is a failure that carries no reason: the item service was not
-// reached, or could not explain it. A reason is a rule; retrying cannot help.
-func (pickups) Retryable(err error) bool { return !grpcx.IsRule(err) }
 
 // guard is the REST handler's and the gateway's auth.Guard over the account
 // service. Failures pass through as they came, with their reason.
@@ -101,30 +55,3 @@ func (g guard) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
 	_, err := g.c.RevokeAll(ctx, &accountv1.RevokeAllRequest{AccountId: accountID.String()})
 	return err
 }
-
-// saver is the world's Saver over the character service.
-type saver struct {
-	c characterv1.CharacterServiceClient
-}
-
-// SaveCheckpoint saves position, HP, MP and EXP.
-func (s saver) SaveCheckpoint(ctx context.Context, cp world.Checkpoint) error {
-	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
-		CharacterId: cp.ID.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp,
-	})
-	return err
-}
-
-// SaveLevelUp saves a level-up.
-func (s saver) SaveLevelUp(ctx context.Context, lu world.LevelUpSave) error {
-	st := lu.Stats
-	_, err := s.c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{
-		CharacterId: lu.ID.String(), Level: int32(lu.Level), Exp: lu.Exp,
-		Stats: &characterv1.Stats{Strength: int32(st.STR), Dexterity: int32(st.DEX), Intelligence: int32(st.INT), Agility: int32(st.AGI), Vitality: int32(st.VIT)},
-		Hp:    int32(lu.HP), Mp: int32(lu.MP),
-	})
-	return err
-}
-
-// Retryable is a failure that carries no reason.
-func (saver) Retryable(err error) bool { return !grpcx.IsRule(err) }

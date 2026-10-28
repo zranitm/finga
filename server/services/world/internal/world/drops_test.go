@@ -8,10 +8,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/sim"
+	"finga/services/world/internal/world"
 
 	"github.com/google/uuid"
 )

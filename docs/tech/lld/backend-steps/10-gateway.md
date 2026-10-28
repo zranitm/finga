@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 10. Gateway
 
+> **Changed by step 27 (2026-10-28):** Hello joins through the world service, and the world's events reach the gateway on one delivery stream per gateway, translated to protocol messages there. Deliveries that arrive before Welcome wait in the session; when the stream breaks, every socket stays open and each player is joined again.
+
 **Goal:** players connect, authenticate once, and move together on a map. This completes M1, Walk together.
 
 **Layer in this step:** handler. The gateway calls the account service, the world, and later other services. It never touches a repository.

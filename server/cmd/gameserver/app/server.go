@@ -1,9 +1,9 @@
 // Package app is the game server's composition root and its process. Build
-// wires every module from configuration, the one place that knows them all;
+// wires the gateway and the REST handler over a client for each service;
 // Server runs the HTTP listener on the router from internal/handler, with
-// the background tasks (the world's instances, the persistence worker, the
-// session sweeper) and graceful shutdown, on pkg/runner. New takes
-// ready-made parts, for tests and for Build.
+// the background tasks (the streams the gateway follows and its session
+// sweeper) and graceful shutdown, on pkg/runner. New takes ready-made
+// parts, for tests and for Build.
 //
 // Each binary wires its own dependencies next to its main. This one lives in
 // a package of its own, not in main, because Go cannot import a main package

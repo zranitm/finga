@@ -171,7 +171,7 @@ The gateway serves no gRPC.
 1. The gateway's per-player queue runs Hello (the read loop only decodes and routes). Version check as today.
 2. `account.Validate`, then `account.Rotate`: the token in Welcome is the rotated one (step 16).
 3. `world.Join(gateway_id, connection_id, account_id, character_id)`. The world loads the character from the character service (ownership checked there: someone else's character is `not found`, and the gateway kicks `unauthenticated` as today), asks the item service for the starter items (idempotent, keyed by the character ID: a no-op unless character creation crashed before granting them), and joins the map instance, which sends the Snapshot through the delivery stream. The reply is the character as the player sees it.
-4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order (decision 176).
+4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order (decision 176). The join's answer and its Snapshot travel on different calls, so the Snapshot can also come after Welcome; until it does, anything else for the character belongs to an older presence and is dropped (decision 223).
 5. `social.Online` with the gateway's ID, so party traffic finds this gateway.
 
 A failure after the join leaves the world (`world.Leave`) before the connection closes. A newer connection of the same account still kicks the older one with `logged_in_elsewhere`; the older one's `Leave` carries its own connection ID, so it can never remove the newer presence (decision 178).
@@ -185,9 +185,9 @@ A failure after the join leaves the world (`world.Leave`) before the connection 
 
 ### Deliveries
 
-- At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process) and waits for each Subscribed.
+- At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process). It does not hold its listener for them: a Hello that comes before the world's stream is open (or while the world restarts) retries the join with backoff until the join timeout (decision 225).
 - The world's sink for a player is the gateway's stream plus the character ID. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players (decision 180). A slow player is still the gateway's to close (4001), as today.
-- The gateway turns each delivery into the protocol message it was before (the translation in `sink.go` today, from proto instead of world types) and enqueues it on the player's connection.
+- The gateway turns each delivery into the protocol message it was before (`delivery.go`, from proto; it was `sink.go` over world types) and enqueues it on the player's connection.
 - A Teleport moves the session to the target map, so later commands carry the new map ID.
 
 ### REST
@@ -215,7 +215,7 @@ No transaction spans two services (rule 1 below). The character service commits 
 
 | What restarts | What players see | How |
 | --- | --- | --- |
-| world | A short freeze, then play resumes at the last checkpoint; sockets stay up | The gateway's `Deliver` stream breaks. It keeps every socket, re-subscribes with backoff, and calls `world.Join` again for each connected player; the world reloads them from the character service. A player whose saved map differs from the one they were on gets MapChange, then the Snapshot. Mobs and ground drops reset, as after a crash today. |
+| world | A short freeze, then play resumes at the last checkpoint; sockets stay up | The gateway's `Deliver` stream breaks. It keeps every socket, re-subscribes with backoff, and calls `world.Join` again for each connected player; the world reloads them from the character service. A player whose saved map differs from the one they were on gets MapChange, then the Snapshot. Mobs and ground drops reset, as after a crash today. The gateway shifts the restarted world's ticks so they never go back on a connection (decision 224). |
 | social | Parties are gone (in memory, as after a crash today); sockets stay up | A new boot ID on Subscribed tells the gateway the parties are gone: each player gets PartyState with no party, and the gateway registers its players with `Online` again. The world's `WatchParties` copy is rebuilt from the new, empty table. |
 | account, character, item | Calls fail while it is down (the client sees `internal` for a command, or a Hello fails and the client retries) | gRPC clients reconnect on their own. Session ends missed during an account restart are caught by the gateway's minute check. |
 | gateway | Each client reconnects | Rolling, one node at a time, draining first: readiness turns 503, every connection gets Kicked `server_restart` (the client reconnects with jitter), then the listener closes. |

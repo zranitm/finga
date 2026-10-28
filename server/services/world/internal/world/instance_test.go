@@ -8,10 +8,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/application/world"
 	"finga/internal/gamedata"
 	"finga/internal/model"
 	"finga/internal/sim"
+	"finga/services/world/internal/world"
 )
 
 const tickInterval = 50 * time.Millisecond
@@ -83,7 +83,7 @@ func (o *observer) ObserveTick(_ string, took, _ time.Duration) {
 
 func loadData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	d, err := gamedata.Load("../../../data")
+	d, err := gamedata.Load("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
