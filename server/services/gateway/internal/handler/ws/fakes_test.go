@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -62,6 +63,7 @@ type fakeWorld struct {
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
 	calls      []string      // every command, in the order it arrived
+	hold       chan struct{} // when set, Deliver takes joins at once but sends Subscribed only during the first one
 	block      chan struct{} // when set, Attack waits for it (or its context)
 	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
 	tick       uint64
@@ -98,13 +100,19 @@ func (f *fakeWorld) client(t *testing.T) worldv1.WorldServiceClient {
 
 func (f *fakeWorld) Deliver(_ *worldv1.DeliverRequest, stream grpc.ServerStreamingServer[worldv1.DeliverResponse]) error {
 	f.mu.Lock()
-	boot, end := f.boot, f.end
+	boot, end, hold := f.boot, f.end, f.hold
 	f.live = true
 	f.mu.Unlock()
+	if hold != nil {
+		f.subscribed <- struct{}{} // joins work already; the gateway has not read Subscribed yet
+		<-hold
+	}
 	if err := stream.Send(&worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Subscribed{Subscribed: &worldv1.Subscribed{BootId: boot}}}); err != nil {
 		return err
 	}
-	f.subscribed <- struct{}{}
+	if hold == nil {
+		f.subscribed <- struct{}{}
+	}
 	for {
 		select {
 		case m := <-f.events:
@@ -130,6 +138,16 @@ func (f *fakeWorld) restart(boot string) {
 }
 
 func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
+	f.mu.Lock()
+	hold := f.hold
+	f.hold = nil
+	f.mu.Unlock()
+	if hold != nil {
+		// Subscribed goes out now, and the gateway reads it while this join
+		// is still in flight.
+		close(hold)
+		time.Sleep(100 * time.Millisecond)
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.joinErr != nil {

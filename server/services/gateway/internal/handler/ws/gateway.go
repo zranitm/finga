@@ -577,7 +577,10 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	previous := g.byCharacter[charID]
 	g.byCharacter[charID] = s
 	s.account, s.sessionID, s.character.ID = account, sessionID, charID
-	subs := g.worldSubs
+	// A join only succeeds once the world holds this gateway's stream, so
+	// the first subscription is never a break, even before the gateway has
+	// read its Subscribed.
+	subs := max(g.worldSubs, 1)
 	g.mu.Unlock()
 	s.helloTimer.Stop()
 
@@ -640,7 +643,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	g.bySession[sessionID] = s
 	s.character = player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
 	s.setActive()
-	missed := g.worldSubs != subs // the stream broke during the join
+	missed := g.worldSubs > subs // the stream broke during the join
 	g.mu.Unlock()
 	s.out.release(c.GetMapId(), wsconn.Message{Data: welcome})
 	// An older connection of the account, or a second Hello on the same

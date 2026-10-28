@@ -61,7 +61,12 @@ type harness struct {
 // waits until it follows the world's stream.
 func newHarness(t *testing.T, opts ...func(*ws.Dependencies)) *harness {
 	t.Helper()
-	fw := newFakeWorld()
+	return newHarnessOn(t, newFakeWorld(), opts...)
+}
+
+// newHarnessOn is newHarness over a fake world the test has set up.
+func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*ws.Dependencies)) *harness {
+	t.Helper()
 	obs := newFakeObserver()
 	deps := ws.Dependencies{
 		ID: "gw-test",
@@ -363,14 +368,16 @@ func TestRateLimits(t *testing.T) {
 	}
 	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
 		for i := range 6 {
-			c.send(wsconn.Message{ReqID: "r", Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: "x", Tab: "use", Slot: i}})
+			c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: "x", Tab: "use", Slot: i}})
 		}
-		var codes []string
+		// The read loop answers the refused one at once, while the five
+		// before it wait on the command queue: match answers by request ID.
+		codes := map[string]string{}
 		for range 6 {
 			m := c.expect("Response")
-			codes = append(codes, m.Data.(protocol.Response).Code)
+			codes[m.ReqID] = m.Data.(protocol.Response).Code
 		}
-		if codes[5] != "rate_limited" || codes[0] == "rate_limited" {
+		if codes["r-5"] != "rate_limited" || codes["r-0"] != "inventory_unavailable" || len(codes) != 6 {
 			t.Fatalf("codes %v", codes)
 		}
 	})
@@ -1296,5 +1303,24 @@ func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
 	}
 	if left := waitFor(t, "the leaves", h.world.leaves, 2); len(left) != 2 {
 		t.Fatalf("left %+v", left)
+	}
+}
+
+func TestTheFirstSubscriptionIsNotABreak(t *testing.T) {
+	// The world takes joins as soon as it holds the gateway's stream, which
+	// can be before the gateway has read Subscribed; here Subscribed arrives
+	// while the first join is in flight. One join, one Snapshot.
+	fw := newFakeWorld()
+	fw.hold = make(chan struct{})
+	h := newHarnessOn(t, fw)
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Welcome")
+	c.expect("Snapshot")
+	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.expect("Pong")
+	time.Sleep(50 * time.Millisecond) // a rejoin would follow at once
+	if n := len(h.world.joins()); n != 1 {
+		t.Fatalf("%d joins: the first subscription was taken for a break", n)
 	}
 }
