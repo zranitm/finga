@@ -3,8 +3,7 @@ package api
 import (
 	"time"
 
-	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
+	"finga/services/gateway/internal/model"
 )
 
 // The request and response bodies of api/openapi.yaml. A drift test keeps
@@ -85,20 +84,20 @@ type ErrorResponse struct {
 	Message string `json:"message"`
 }
 
-func toAccount(a *accountv1.Account) AccountResponse {
-	return AccountResponse{ID: a.GetId(), Username: a.GetUsername(), CreatedAt: a.GetCreatedAt().AsTime()}
+func toAccount(a model.Account) AccountResponse {
+	return AccountResponse{ID: a.ID.String(), Username: a.Username, CreatedAt: a.CreatedAt}
 }
 
-func toCharacter(c *characterv1.Character) CharacterResponse {
-	s := c.GetStats()
+func toCharacter(c model.Character) CharacterResponse {
+	s := c.Stats
 	return CharacterResponse{
-		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
-		Stats: StatsResponse{STR: int(s.GetStrength()), DEX: int(s.GetDexterity()), INT: int(s.GetIntelligence()), AGI: int(s.GetAgility()), VIT: int(s.GetVitality())},
-		HP:    int(c.GetHp()), MP: int(c.GetMp()), MapID: c.GetMapId(),
+		ID: c.ID.String(), Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp,
+		Stats: StatsResponse{STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT},
+		HP:    c.HP, MP: c.MP, MapID: c.MapID,
 	}
 }
 
-func toCharacters(cs []*characterv1.Character) CharactersResponse {
+func toCharacters(cs []model.Character) CharactersResponse {
 	out := CharactersResponse{Characters: make([]CharacterResponse, 0, len(cs))}
 	for _, c := range cs {
 		out.Characters = append(out.Characters, toCharacter(c))
@@ -106,6 +105,6 @@ func toCharacters(cs []*characterv1.Character) CharactersResponse {
 	return out
 }
 
-func toSettings(s *accountv1.Settings) SettingsResponse {
-	return SettingsResponse{ControlPreset: s.GetControlPreset()}
+func toSettings(s model.Settings) SettingsResponse {
+	return SettingsResponse{ControlPreset: s.ControlPreset}
 }

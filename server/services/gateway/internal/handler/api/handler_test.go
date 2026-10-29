@@ -24,6 +24,8 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
+	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/api"
 )
 
@@ -53,8 +55,10 @@ func newHarness(origins ...string) *harness {
 		sessions:   &fakeSessions{token: goodToken, principal: principal},
 		logs:       &bytes.Buffer{},
 	}
+	// The handler over the real use cases and adapters, the services faked
+	// at their generated clients, as the composition root wires them.
 	h.handler = api.NewHandler(api.Dependencies{
-		Accounts: h.accounts, Characters: h.characters, Sessions: h.sessions,
+		Lobby:  application.NewLobby(clients.NewAccounts(h.accounts), clients.NewCharacters(h.characters), h.sessions),
 		Logger: slog.New(slog.NewJSONHandler(h.logs, nil)), CORSOrigins: origins,
 	})
 	return h

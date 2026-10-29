@@ -18,6 +18,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
 	"finga/services/gateway/config"
+	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
@@ -30,9 +31,10 @@ type BuildOptions struct {
 	Registry *prometheus.Registry
 }
 
-// Build wires the gateway as production runs it: a client for each
-// service (page 10), the REST handler and the gateway, metrics, and the
-// server. It needs no database and no game data: every table belongs to a
+// Build wires the gateway as production runs it (page 11): an adapter for
+// each service it calls (page 10), the use cases over them (the REST API's
+// Lobby, the connections' Gateway), the REST and WebSocket handlers,
+// metrics, and the server. It needs no database and no game data: every table belongs to a
 // service, and the world runs the maps. A service it dials is reached
 // lazily, and a call fails while it is down.
 func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
@@ -46,29 +48,22 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		return nil, err
 	}
 	accounts := accountv1.NewAccountServiceClient(conns.account)
-	characters := characterv1.NewCharacterServiceClient(conns.character)
+	guard := clients.NewGuard(accounts)
 
-	restAPI := api.NewHandler(api.Dependencies{
-		Accounts:    accounts,
-		Characters:  characters,
-		Sessions:    clients.NewGuard(accounts),
-		Logger:      opts.Logger,
-		CORSOrigins: cfg.HTTP.CORSOrigins,
-	})
-	gateway := ws.New(ws.Dependencies{
+	lobby := application.NewLobby(clients.NewAccounts(accounts), clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)), guard)
+	gateway := application.NewGateway(application.Dependencies{
 		ID:          uuid.NewString(),
-		Sessions:    clients.NewGuard(accounts),
-		Watcher:     accounts,
-		World:       worldv1.NewWorldServiceClient(conns.world),
-		Items:       itemv1.NewItemServiceClient(conns.item),
-		Social:      socialv1.NewSocialServiceClient(conns.social),
+		Sessions:    guard,
+		SessionEnds: clients.NewSessionEnds(accounts, opts.Logger),
+		World:       clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger),
+		Items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
+		Social:      clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger),
 		Logger:      opts.Logger,
 		Observer:    metrics,
-		CORSOrigins: cfg.HTTP.CORSOrigins,
 	})
 	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger}, Deps{
-		API:     restAPI,
-		Gateway: gateway,
+		API:     api.NewHandler(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins}),
+		Gateway: ws.New(gateway, cfg.HTTP.CORSOrigins),
 		Metrics: observability.MetricsHandler(opts.Registry),
 		Tasks:   []Task{{Name: "streams", Run: gateway.Run}},
 		Drain:   gateway.Drain,

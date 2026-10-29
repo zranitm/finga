@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"finga/pkg/auth"
-	"finga/services/gateway/internal/handler/errmap"
+	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/model"
 )
 
 type ctxKey int
@@ -34,21 +35,21 @@ func principalFrom(ctx context.Context) auth.Principal {
 	return p
 }
 
-// requireAuth resolves the bearer token to a principal through the
-// Guard interface. Missing, malformed, unknown, expired and revoked
-// tokens all give 401 unauthenticated; any other failure is 500.
-func requireAuth(sessions auth.Guard, next http.Handler) http.Handler {
+// requireAuth resolves the bearer token to a principal through the Lobby.
+// Missing, malformed, unknown, expired and revoked tokens all give 401
+// unauthenticated; any other failure is 500.
+func requireAuth(lobby *application.Lobby, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
 		token = strings.TrimSpace(token)
 		if !ok || !strings.EqualFold(scheme, bearerScheme) || token == "" {
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			writePublic(w, errmap.Unauthenticated)
+			writePublic(w, model.Unauthenticated)
 			return
 		}
-		p, err := sessions.Validate(r.Context(), token)
+		p, err := lobby.Authenticate(r.Context(), token)
 		if err != nil {
-			if errmap.For(err) == errmap.Unauthenticated {
+			if model.PublicOf(err) == model.Unauthenticated {
 				w.Header().Set("WWW-Authenticate", "Bearer")
 			}
 			writeError(w, err)
@@ -120,7 +121,7 @@ func withLogging(log *slog.Logger, next http.Handler) http.Handler {
 		defer func() {
 			if p := recover(); p != nil {
 				if sw.status == 0 {
-					writePublic(sw, errmap.Internal)
+					writePublic(sw, model.Internal)
 				}
 				log.ErrorContext(r.Context(), "panic in request", "method", r.Method, "path", r.URL.Path, "panic", p, "stack", string(debug.Stack()))
 			}

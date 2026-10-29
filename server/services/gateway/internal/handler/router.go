@@ -1,6 +1,6 @@
-// Package handler holds the gateway's transports: api (REST), ws (the
-// gateway) and errmap (the error table both share). This file is the route
-// table, the one place that lists every path the gateway answers.
+// Package handler holds the gateway's transports: api (REST) and ws (the
+// WebSocket). This file is the route table, the one place that lists every
+// path the gateway answers.
 package handler
 
 import (

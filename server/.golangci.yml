@@ -71,8 +71,6 @@ linters:
               desc: a module returns its own types; its handler turns them into the contract's
             - pkg: google.golang.org/grpc
               desc: a module knows no transport; its handler and clients do
-            - pkg: finga/internal/protocol
-              desc: a module returns its own result types; the gateway maps them to protocol messages
             - pkg: finga/internal/telemetry
               desc: a module declares observer interfaces; telemetry implements them
             - pkg: finga/services/account/config
@@ -89,6 +87,28 @@ linters:
               desc: a module takes option structs; the composition root fills them from configuration
             - pkg: finga/internal/host
               desc: a module knows nothing of how its process runs
+        # The client protocol is the gateway's: its model and use cases speak
+        # it (page 11: the protocol is the gateway's model vocabulary). Every
+        # other service's inner layers return their own types.
+        services-no-protocol:
+          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/gateway/internal/model/**", "!**/services/gateway/internal/application/**"]
+          deny:
+            - pkg: finga/internal/protocol
+              desc: a service returns its own types; only the gateway speaks the client protocol
+        # The gateway's model and use cases know no socket and no HTTP: the
+        # handler adapts both to the application's Conn and Lobby.
+        gateway-application:
+          files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
+          deny:
+            - pkg: finga/pkg/wsconn
+              desc: the WebSocket handler adapts the socket to the application's Conn
+            - pkg: finga/services/gateway/internal/handler
+              desc: the handler calls the application, never the reverse
+        gateway-application-no-http:
+          files: ["**/services/gateway/internal/application/**"]
+          deny:
+            - pkg: net/http
+              desc: the REST handler speaks HTTP; the Lobby takes plain values
         # Inside a service only its repository layer (and, until each service
         # moves, a module's repository.go) and sqlc's output talk to the
         # database: model and application never see a transaction, handlers
@@ -226,8 +246,11 @@ linters:
               desc: the repository maps rows to model's types, never to the contract's
             - pkg: google.golang.org/grpc
               desc: the repository knows no transport
+        # A handler's tests may wire the real application and clients over
+        # fake services, as the composition root does (the gateway's run its
+        # whole path that way).
         layer-handler:
-          files: ["**/services/*/internal/handler/**"]
+          files: ["**/services/*/internal/handler/**", "!$test"]
           deny:
             - pkg: finga/services/account/internal/repository
               desc: the handler calls application; storage is behind its ports

@@ -38,4 +38,4 @@
 | [33. Character in layers](./33-character-in-layers.md) | 32 |  | Layers | 33 | Done |
 | [34. Social in layers](./34-social-in-layers.md) | 33 |  | Layers | 34 | Done |
 | [35. World in layers](./35-world-in-layers.md) | 34 |  | Layers | 35 | Done |
-| [36. Gateway in layers](./36-gateway-in-layers.md) | 35 |  | Layers | 36 | Ready |
+| [36. Gateway in layers](./36-gateway-in-layers.md) | 35 |  | Layers | 36 | Done |

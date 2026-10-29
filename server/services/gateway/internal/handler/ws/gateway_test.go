@@ -32,6 +32,8 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/wsconn"
+	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/ws"
 )
 
@@ -54,21 +56,64 @@ type harness struct {
 	ts    *httptest.Server
 	world *fakeWorld
 	obs   *fakeObserver
-	gw    *ws.Gateway
+	gw    *application.Gateway
+}
+
+// deps are a test's gateway: its settings, and the services as their
+// generated clients, which the harness wires through the real adapters,
+// the application and the handler, as the composition root does.
+type deps struct {
+	ID                   string
+	Sessions             auth.Guard
+	Watcher              clients.SessionWatcher
+	World                worldv1.WorldServiceClient
+	Items                itemv1.ItemServiceClient
+	Social               socialv1.SocialServiceClient
+	Logger               *slog.Logger
+	Observer             application.Observer
+	CORSOrigins          []string
+	Clock                func() time.Time
+	HelloTimeout         time.Duration
+	JoinTimeout          time.Duration
+	CommandQueue         int
+	SessionCheckInterval time.Duration
+}
+
+// build wires d: an adapter for each service that is set (an unset one
+// stays nil, as the gateway expects), the gateway, and its handler.
+func (d deps) build() (*application.Gateway, http.Handler) {
+	app := application.Dependencies{
+		ID: d.ID, Sessions: d.Sessions, Logger: d.Logger, Observer: d.Observer, Clock: d.Clock,
+		HelloTimeout: d.HelloTimeout, JoinTimeout: d.JoinTimeout, CommandQueue: d.CommandQueue, SessionCheckInterval: d.SessionCheckInterval,
+	}
+	if d.World != nil {
+		app.World = clients.NewWorld(d.World, d.Logger)
+	}
+	if d.Items != nil {
+		app.Items = clients.NewItems(d.Items)
+	}
+	if d.Social != nil {
+		app.Social = clients.NewSocial(d.Social, d.Logger)
+	}
+	if d.Watcher != nil {
+		app.SessionEnds = clients.NewSessionEnds(d.Watcher, d.Logger)
+	}
+	gw := application.NewGateway(app)
+	return gw, ws.New(gw, d.CORSOrigins)
 }
 
 // newHarness builds the gateway over a fake world service, runs it, and
 // waits until it follows the world's stream.
-func newHarness(t *testing.T, opts ...func(*ws.Dependencies)) *harness {
+func newHarness(t *testing.T, opts ...func(*deps)) *harness {
 	t.Helper()
 	return newHarnessOn(t, newFakeWorld(), opts...)
 }
 
 // newHarnessOn is newHarness over a fake world the test has set up.
-func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*ws.Dependencies)) *harness {
+func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	t.Helper()
 	obs := newFakeObserver()
-	deps := ws.Dependencies{
+	d := deps{
 		ID: "gw-test",
 		Sessions: &fakeSessions{tokens: map[string]auth.Principal{
 			tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)},
@@ -81,10 +126,10 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*ws.Dependencies)) *
 		JoinTimeout:  300 * time.Millisecond,
 	}
 	for _, o := range opts {
-		o(&deps)
+		o(&d)
 	}
-	gw := ws.New(deps)
-	ts := httptest.NewServer(gw)
+	gw, handler := d.build()
+	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -352,7 +397,7 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 
 func TestRateLimits(t *testing.T) {
 	frozen := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, func(d *ws.Dependencies) { d.Clock = func() time.Time { return frozen } })
+	h := newHarness(t, func(d *deps) { d.Clock = func() time.Time { return frozen } })
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
@@ -461,7 +506,7 @@ func TestUnavailableCommandsAnswerWithAResponse(t *testing.T) {
 }
 
 func TestOriginCheckAppliesToTheGateway(t *testing.T) {
-	h := newHarness(t, func(d *ws.Dependencies) { d.CORSOrigins = []string{"http://localhost:5173"} })
+	h := newHarness(t, func(d *deps) { d.CORSOrigins = []string{"http://localhost:5173"} })
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, res, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), &websocket.DialOptions{HTTPHeader: http.Header{"Origin": []string{"http://evil.example"}}})
@@ -563,7 +608,7 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	potion := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
 	items := &fakeItems{inventory: []*itemv1.Item{potion}}
-	h := newHarness(t, func(d *ws.Dependencies) { d.Items = items.client(t) })
+	h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	w := c.expect("Welcome").Data.(protocol.Welcome)
@@ -652,7 +697,7 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	// The item service could not explain its failure: it logged the cause
 	// and sent Internal, which is all the gateway sees and logs.
 	items := &fakeItems{err: fmt.Errorf("discard: %w", errors.New("pq: connection reset"))}
-	h := newHarness(t, func(d *ws.Dependencies) {
+	h := newHarness(t, func(d *deps) {
 		d.Items = items.client(t)
 		d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
 	})
@@ -718,7 +763,7 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 // first subscription to it.
 func social(t *testing.T, fs *fakeSocial) *harness {
 	t.Helper()
-	h := newHarness(t, func(d *ws.Dependencies) { d.Social = fs.client(t) })
+	h := newHarness(t, func(d *deps) { d.Social = fs.client(t) })
 	select {
 	case <-fs.subscribed:
 	case <-time.After(5 * time.Second):
@@ -972,7 +1017,7 @@ func TestSecondHelloOnTheSameSessionKicksTheFirst(t *testing.T) {
 
 func TestExpiredSessionIsKicked(t *testing.T) {
 	sessions := &fakeSessions{tokens: map[string]auth.Principal{tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)}}}
-	h := newHarness(t, func(d *ws.Dependencies) {
+	h := newHarness(t, func(d *deps) {
 		d.Sessions = sessions
 		d.SessionCheckInterval = 20 * time.Millisecond
 	})
@@ -1054,7 +1099,7 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 	w := &watcher{events: make(chan *accountv1.WatchSessionsResponse), end: make(chan struct{})}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	accountv1.RegisterAccountServiceServer(srv, w)
-	h := newHarness(t, func(d *ws.Dependencies) {
+	h := newHarness(t, func(d *deps) {
 		d.Watcher = accountv1.NewAccountServiceClient(grpctest.Conn(t, srv))
 	})
 
@@ -1226,7 +1271,7 @@ func TestCommandsReachTheServicesInTheOrderTheyArrived(t *testing.T) {
 }
 
 func TestAFullCommandQueueAnswersRateLimited(t *testing.T) {
-	h := newHarness(t, func(d *ws.Dependencies) { d.CommandQueue = 2 })
+	h := newHarness(t, func(d *deps) { d.CommandQueue = 2 })
 	c := h.joined(t)
 	h.world.mu.Lock()
 	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
