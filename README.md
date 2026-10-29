@@ -68,8 +68,8 @@ REST under /api, the WebSocket at /ws, /healthz, /readyz and /metrics on
 
 Under `make up` the services reach each other on the Compose network by
 name (`world:9004`), and only the ports in the last column are published;
-under `make run` every port is on localhost. The defaults live in
-`server/configs/config.yaml` under `server` and `services`.
+under `make run` every port is on localhost. The defaults live in each
+service's own configuration (see Configuration).
 
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
@@ -97,25 +97,32 @@ layer rule (page 7's five layers, enforced with `import-x/no-restricted-paths`).
 
 ## Configuration
 
-Defaults live in `server/configs/config.yaml`, and the binaries read their
-paths from where they run, `server/`. Any key can be overridden by an
-environment variable named `FINGA_` plus its path in upper case, for example
-`FINGA_SERVER_ADDR=:9090`. The binaries read the YAML file and their
-environment, nothing else. For local overrides, copy `server/.env.example`
-to `server/.env` (git-ignored): `make up` passes it to every service's
-container (Compose's `env_file`) and `make run` exports it before starting the
-binaries. A `server/configs/config.local.yaml` (git-ignored) replaces the
-defaults file when present, and `CONFIG_PATH` names any file. Nothing
-committed is a secret.
+Each binary has its own configuration, inside it: the defaults in
+`server/services/<name>/config/config.yaml` (`server/cmd/migrate/config/`
+for migrate), with only the keys that binary uses, and the Go type that
+checks them beside it. The binaries read their paths from where they run,
+`server/`. Any key can be overridden by an environment variable named
+`FINGA_` plus its path in upper case, read by each binary that has the key:
+`FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM`, `FINGA_HTTP_ADDR`. The
+binaries read their file and their environment, nothing else. For local
+overrides, copy `server/.env.example` to `server/.env` (git-ignored): `make
+up` passes it to every service's container (Compose's `env_file`) and `make
+run` exports it before starting the binaries. To change one service only, a
+git-ignored `config.local.yaml` beside its `config.yaml` replaces it, and
+`CONFIG_PATH` names any file. Nothing committed is a secret.
 
-| Section     | Keys                                                            |
-|-------------|-----------------------------------------------------------------|
-| `server`    | `addr`, `cors_origins`, `shutdown_grace`                        |
-| `database`  | `url`, `max_conns`                                              |
-| `world`     | `tick_rate_hz` (20), `checkpoint_interval` (30s), `data_dir`    |
-| `economy`   | `workers` (8): the pool that runs pickups and inventory actions |
-| `telemetry` | `log_level`                                                     |
-| `services`  | `listen`, `addr`, `ops` for account, character, item, world, social: each internal service's gRPC listener, where callers dial it, and its `/healthz`, `/readyz`, `/metrics` |
+Every service has `shutdown_grace` and `log_level`, and each internal
+service `grpc.listen` and `ops.addr` (the ports table above). Besides those:
+
+| Binary      | Keys                                                                              |
+|-------------|-----------------------------------------------------------------------------------|
+| `gateway`   | `http.addr`, `http.cors_origins`; `dependencies` on the five services             |
+| `account`   | `database.url`, `database.max_conns`                                              |
+| `character` | `database`, `data_dir`, `dependencies.item`                                       |
+| `item`      | `database`, `data_dir`                                                            |
+| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `economy.workers` (8), `dependencies` on character, item and social |
+| `social`    | none                                                                              |
+| `migrate`   | `database`, `log_level` only                                                      |
 
 ## Tests
 

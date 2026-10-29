@@ -9,11 +9,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
 	"finga/services/social/cmd/social/app"
+	"finga/services/social/config"
 )
 
 // The service as production builds it: an invite between two characters
@@ -21,10 +21,7 @@ import (
 func TestAnInviteReachesTheGatewayOverTheRealListener(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	cfg := config.Config{
-		Server:   config.Server{ShutdownGrace: time.Second},
-		Services: config.Services{Social: config.Endpoint{Listen: "127.0.0.1:0", Ops: "127.0.0.1:0"}},
-	}
+	cfg := config.Config{GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"}, ShutdownGrace: time.Second}
 	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)

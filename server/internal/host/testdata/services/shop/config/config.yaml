@@ -1,0 +1,8 @@
+# A made-up service's own file, where Start looks for it: services/shop/config.
+grpc:
+  listen: "127.0.0.1:0"
+ops:
+  addr: "127.0.0.1:0"
+shutdown_grace: 1s
+log_level: info
+stock: 3

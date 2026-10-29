@@ -18,11 +18,11 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/internal/model"
 	"finga/pkg/grpcx"
 	"finga/services/world/cmd/world/app"
+	"finga/services/world/config"
 )
 
 // characters is the character service: one character to load.
@@ -89,14 +89,16 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	}}
 	itemSvc := &items{}
 	cfg := config.Config{
-		Server:  config.Server{ShutdownGrace: time.Second},
-		World:   config.World{DataDir: "../../../../../data", TickRateHz: 20, CheckpointInterval: 30 * time.Second},
-		Economy: config.Economy{Workers: 2},
-		Services: config.Services{
-			World:     config.Endpoint{Listen: "127.0.0.1:0", Ops: "127.0.0.1:0"},
-			Character: config.Endpoint{Addr: serve(t, func(s *grpc.Server) { characterv1.RegisterCharacterServiceServer(s, chars) })},
-			Item:      config.Endpoint{Addr: serve(t, func(s *grpc.Server) { itemv1.RegisterItemServiceServer(s, itemSvc) })},
-			Social:    config.Endpoint{Addr: serve(t, func(s *grpc.Server) { socialv1.RegisterSocialServiceServer(s, social{}) })},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+		ShutdownGrace:      time.Second,
+		DataDir:            "../../../../../data",
+		TickRateHz:         20,
+		CheckpointInterval: 30 * time.Second,
+		Economy:            config.Economy{Workers: 2},
+		Dependencies: config.Dependencies{
+			Character: serve(t, func(s *grpc.Server) { characterv1.RegisterCharacterServiceServer(s, chars) }),
+			Item:      serve(t, func(s *grpc.Server) { itemv1.RegisterItemServiceServer(s, itemSvc) }),
+			Social:    serve(t, func(s *grpc.Server) { socialv1.RegisterSocialServiceServer(s, social{}) }),
 		},
 	}
 	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())

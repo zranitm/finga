@@ -4,7 +4,7 @@
 - **Features:** none (structure only)
 - **Milestone:** Layers
 - **Order:** 29
-- **Status:** Ready
+- **Status:** Done
 - **Step:** 29. Configuration per service
 
 **Goal:** each binary reads its own configuration file, with only its keys, and its own configuration type; the shared file and type are gone (page 11, Configuration per service).
@@ -13,8 +13,8 @@
 
 ## Scope
 
-- `services/<name>/configs/config.yaml` and `services/<name>/internal/config` for the six services, and `cmd/migrate/configs/config.yaml` with its type in `cmd/migrate`.
-- `internal/host`: the sections every service has (`grpc`, `ops`, `shutdown_grace`, `log_level`) as types the services' `Config` embed; `host.Main` and `host.Start` load the service's own file, from `services/<name>/configs` relative to where the binary runs.
+- `services/<name>/config/`: `config.yaml` and the `Config` type beside it, for the six services, and `cmd/migrate/config/` the same way. Outside `internal/`, so the end-to-end tests build each service with its own (decision 259).
+- `internal/host`: the types of the sections every service has (`GRPCSection`, `OpsSection`) and `Settings`, which each `Config` hands it through `Host()`; `host.Main` and `host.Start` are generic over the service's `Config` and load its own file, `services/<name>/config` relative to where the binary runs. `pkg/dbx` gets the database section's type, `dbx.Config`.
 - Each composition root takes its own `Config`; the end-to-end and process tests build each service's.
 - `server/configs/` and `internal/config` removed.
 - Dockerfile: the image holds the binary's own file at the same path under `/app`. Compose sets each service's own environment (`FINGA_DEPENDENCIES_*`, `FINGA_DATABASE_URL`, `FINGA_HTTP_ADDR`). `make run` starts each binary with its file. `server/.env.example`, the README's Configuration section and page 1 follow.
@@ -28,7 +28,7 @@
 
 ## Done when
 
-- [ ] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; CI green.
+- [x] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; CI green.
 
 ## Review focus
 

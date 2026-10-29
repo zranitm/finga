@@ -1,6 +1,7 @@
 # local overrides, never committed
 .env
-server/configs/config.local.yaml
+server/services/*/config/config.local.yaml
+server/cmd/migrate/config/config.local.yaml
 
 # build and test output; go build in server/ leaves a binary named after its package
 bin/

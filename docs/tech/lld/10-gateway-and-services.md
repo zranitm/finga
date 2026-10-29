@@ -44,13 +44,12 @@ server/
     sim/          the movement simulation: map geometry for gamedata, the world's movement, the client's vectors
     progression/  derived stats, EXP awards and the death penalty: the character service and the world's tick
     protocol/     the client's WebSocket messages: the gateway, the bot and the end-to-end tests
-    config/       the configuration schema every binary shares
     telemetry/    metrics; implements the services' observer interfaces
   pkg/            generic libraries with no game knowledge: configload, dbx, idempotency, outbox, ratelimit, auth,
                   tick, wsconn, observability, pgtest, and new: typedid, tiled, grpcx, runner, hub
   cmd/migrate/    applies every service's migrations, each with its own goose version table
   cmd/bot/        the proof-session bots
-  configs/  data/  test/  testdata/
+  data/  test/  testdata/
   Dockerfile      one file; the SERVICE build argument picks the binary
 infra/docker-compose.yml   Postgres, migrate, and every service
 web/  docs/                unchanged
@@ -60,7 +59,8 @@ Inside a service:
 
 ```txt
 services/item/
-  cmd/item/main.go        loads configuration, builds the service, runs it until SIGINT or SIGTERM
+  cmd/item/main.go        loads its configuration, builds the service, runs it until SIGINT or SIGTERM
+  config/                 its own configuration: config.yaml and its type (page 11, step 29)
   cmd/item/app/           the composition root: Build wires the module, the gRPC server and the runner
   internal/item/          the module, moved as it is: api.go, service.go, deps.go, repository.go, queries/, internal/db/
   internal/handler/       the gRPC server: proto in, one service call, proto or a status with a reason out
@@ -248,15 +248,16 @@ After a world restart the HUD's EXP can show more than the reloaded checkpoint u
 - **Binaries:** `services/<service>/cmd/<service>` for the six services; `cmd/migrate` and `cmd/bot` stay. `cmd/gameserver` is gone after step 28.
 - **Composition roots:** each in `services/<service>/cmd/<service>/app` (R5's rule), which the end-to-end tests import to build the whole game in one test process.
 - **Listeners:** the gateway serves `/api`, `/ws`, `/healthz`, `/readyz` and `/metrics` on `server.addr` (:8080). Every other service serves gRPC on its `listen` address and `/healthz`, `/readyz` and `/metrics` on its `ops` address, so Prometheus scrapes every process and the bot reads the tick percentiles from the world (decision 174). `pkg/runner` runs a binary's listeners and background tasks with readiness and graceful shutdown (today's `app.Server`, made generic).
-- **Configuration:** one schema (`internal/config`) and one `configs/config.yaml` for every binary, each reading the sections it needs (decision 173). A new `services` section gives each internal service its `listen`, `addr` (where callers dial it) and `ops` addresses:
+- **Configuration:** each binary has its own file and type inside it, `services/<name>/config/` (page 11, step 29; until then one schema, `internal/config`, and one `configs/config.yaml` served every binary, decision 173). An internal service's file has its gRPC listener (`grpc.listen`, :9001 to :9005) and its ops listener (`ops.addr`, :9101 to :9105); a service that calls others has their addresses under `dependencies`, which Compose sets to the services' names:
 
 ```yaml
-services:            # Stage 1: one node each; Compose sets addr to the service's name
-  account:   { listen: ":9001", addr: "localhost:9001", ops: ":9101" }
-  character: { listen: ":9002", addr: "localhost:9002", ops: ":9102" }
-  item:      { listen: ":9003", addr: "localhost:9003", ops: ":9103" }
-  world:     { listen: ":9004", addr: "localhost:9004", ops: ":9104" }
-  social:    { listen: ":9005", addr: "localhost:9005", ops: ":9105" }
+# services/character/config/config.yaml, besides the database and data_dir
+grpc:
+  listen: ":9002"
+ops:
+  addr: ":9102"
+dependencies:
+  item: localhost:9003     # Stage 1: one node each
 ```
 
 - **Compose:** Postgres, `migrate`, and the six services, each built from the one Dockerfile with `SERVICE` set; the gateway publishes :8080 and the world its ops port for the bots. Builds share Go's caches through BuildKit cache mounts.

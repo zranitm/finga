@@ -15,9 +15,10 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
-	"finga/internal/config"
 	"finga/pkg/runner"
+	"finga/services/gateway/config"
 	"finga/services/gateway/internal/handler"
 )
 
@@ -27,8 +28,9 @@ type Task = runner.Task
 
 // Options are the listener's settings.
 type Options struct {
-	Config config.Server
-	Logger *slog.Logger
+	HTTP          config.HTTP
+	ShutdownGrace time.Duration
+	Logger        *slog.Logger
 }
 
 // Deps are the handlers the router mounts and the tasks the server runs.
@@ -64,8 +66,8 @@ func New(opts Options, deps Deps) *Server {
 		Metrics: deps.Metrics,
 		Ready:   func() bool { return s.run.Ready() },
 	})
-	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.Config.ShutdownGrace, Drain: deps.Drain},
-		[]runner.Listener{{Name: listener, Addr: opts.Config.Addr, Server: runner.HTTP(s.handler)}}, deps.Tasks)
+	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.ShutdownGrace, Drain: deps.Drain},
+		[]runner.Listener{{Name: listener, Addr: opts.HTTP.Addr, Server: runner.HTTP(s.handler)}}, deps.Tasks)
 	return s
 }
 

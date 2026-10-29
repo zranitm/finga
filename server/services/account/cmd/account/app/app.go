@@ -13,9 +13,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/pkg/dbx"
+	"finga/services/account/config"
 	"finga/services/account/internal/account"
 	"finga/services/account/internal/handler"
 )
@@ -34,12 +34,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	})
 	srv = handler.New(accounts, uuid.NewString())
 	h := host.New(host.Options{
-		Name:          "account",
-		Endpoint:      cfg.Services.Account,
-		ShutdownGrace: cfg.Server.ShutdownGrace,
-		Logger:        log,
-		Registry:      reg,
-		Errors:        handler.Errors,
+		Name:     "account",
+		Settings: cfg.Host(),
+		Logger:   log,
+		Registry: reg,
+		Errors:   handler.Errors,
 	})
 	accountv1.RegisterAccountServiceServer(h.GRPC, srv)
 	h.OnClose(pool.Close)

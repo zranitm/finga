@@ -24,18 +24,24 @@ import (
 
 	itemv1 "finga/api/gen/item/v1"
 	migrateapp "finga/cmd/migrate/app"
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/internal/protocol"
+	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
 	accountapp "finga/services/account/cmd/account/app"
+	accountconfig "finga/services/account/config"
 	characterapp "finga/services/character/cmd/character/app"
+	characterconfig "finga/services/character/config"
 	"finga/services/gateway/cmd/gateway/app"
+	gatewayconfig "finga/services/gateway/config"
 	itemapp "finga/services/item/cmd/item/app"
+	itemconfig "finga/services/item/config"
 	socialapp "finga/services/social/cmd/social/app"
+	socialconfig "finga/services/social/config"
 	worldapp "finga/services/world/cmd/world/app"
+	worldconfig "finga/services/world/config"
 )
 
 var cluster *pgtest.Cluster
@@ -63,36 +69,49 @@ type stack struct {
 	world  *service                 // likewise
 }
 
-// loopback is an endpoint on free loopback ports; Addr is filled once the
-// service listens.
-var loopback = config.Endpoint{Listen: "127.0.0.1:0", Ops: "127.0.0.1:0"}
+// The services listen on free loopback ports; a service's own address is
+// known once it listens.
+var (
+	loopbackGRPC = host.GRPCSection{Listen: "127.0.0.1:0"}
+	loopbackOps  = host.OpsSection{Addr: "127.0.0.1:0"}
+)
+
+const grace = time.Second
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cfg := config.Config{
-		Server:    config.Server{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}, ShutdownGrace: time.Second},
-		Database:  config.Database{URL: cluster.URL(t), MaxConns: 4},
-		World:     config.World{TickRateHz: 20, CheckpointInterval: 30 * time.Second, DataDir: "../data"},
-		Economy:   config.Economy{Workers: 2},
-		Telemetry: config.Telemetry{LogLevel: "error"},
-		Services:  config.Services{Item: loopback, Account: loopback, Social: loopback, Character: loopback, World: loopback},
-	}
-	cfg.Services.Item.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Item }, itemapp.Build).addr
-	cfg.Services.Account.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Account }, accountapp.Build).addr
-	cfg.Services.Character.Addr = runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Character }, characterapp.Build).addr
-	social := runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.Social }, socialapp.Build)
-	cfg.Services.Social.Addr = social.addr
-	world := runService(t, cfg, func(s *config.Services) *config.Endpoint { return &s.World }, worldapp.Build)
-	cfg.Services.World.Addr = world.addr
-	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
+	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
+	// Each service is built from its own configuration, as its binary reads
+	// it, dialling the ones started before it.
+	item := runService(t, itemconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data", Database: db},
+		func(c itemconfig.Config, at string) itemconfig.Config { c.GRPC.Listen = at; return c }, itemapp.Build)
+	account := runService(t, accountconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", Database: db},
+		func(c accountconfig.Config, at string) accountconfig.Config { c.GRPC.Listen = at; return c }, accountapp.Build)
+	character := runService(t, characterconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data", Database: db,
+		Dependencies: characterconfig.Dependencies{Item: item.addr}},
+		func(c characterconfig.Config, at string) characterconfig.Config { c.GRPC.Listen = at; return c }, characterapp.Build)
+	social := runService(t, socialconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error"},
+		func(c socialconfig.Config, at string) socialconfig.Config { c.GRPC.Listen = at; return c }, socialapp.Build)
+	world := runService(t, worldconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data",
+		TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: worldconfig.Economy{Workers: 2},
+		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}},
+		func(c worldconfig.Config, at string) worldconfig.Config { c.GRPC.Listen = at; return c }, worldapp.Build)
+	itemConn, err := grpcx.Dial(item.addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = itemConn.Close() })
 	srv, err := app.Build(ctx, app.BuildOptions{
-		Config:   cfg,
+		Config: gatewayconfig.Config{
+			HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
+			ShutdownGrace: grace,
+			LogLevel:      "error",
+			Dependencies: gatewayconfig.Dependencies{
+				Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
+			},
+		},
 		Logger:   slog.New(slog.DiscardHandler),
 		Registry: prometheus.NewRegistry(),
 	})
@@ -108,31 +127,32 @@ func newStack(t *testing.T) *stack {
 	t.Cleanup(func() { stopTasks(); <-tasksDone })
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
-	db, err := pgxpool.New(ctx, cfg.Database.URL)
+	pool, err := pgxpool.New(ctx, db.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(db.Close)
-	return &stack{t: t, url: ts.URL, db: db, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
+	t.Cleanup(pool.Close)
+	return &stack{t: t, url: ts.URL, db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
 }
 
 // service is one service running in the test process, built from its
-// composition root as production builds it.
+// composition root and its own configuration as production builds it.
 type service struct {
 	t     *testing.T
-	build func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)
-	cfg   config.Config
-	at    func(*config.Services) *config.Endpoint // the service's own endpoint
-	addr  string                                  // where its gRPC listener bound
+	build func(ctx context.Context, listen string) (*host.Host, error) // on that gRPC address
+	addr  string                                                       // where its gRPC listener bound
 	stop  func()
 }
 
-// runService starts a service on its endpoint in cfg and stops it when the
-// test ends.
-func runService(t *testing.T, cfg config.Config, at func(*config.Services) *config.Endpoint, build func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
+// runService starts a service from cfg, on a free port, and stops it when
+// the test ends. listen returns cfg with the gRPC listener moved, so a
+// restart comes back on the same address.
+func runService[C any](t *testing.T, cfg C, listen func(C, string) C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
 	t.Helper()
-	svc := &service{t: t, build: build, cfg: cfg, at: at}
-	svc.start(at(&cfg.Services).Listen)
+	svc := &service{t: t, build: func(ctx context.Context, at string) (*host.Host, error) {
+		return build(ctx, listen(cfg, at), slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	}}
+	svc.start(loopbackGRPC.Listen)
 	t.Cleanup(func() { svc.stop() })
 	return svc
 }
@@ -141,9 +161,7 @@ func (s *service) start(listen string) {
 	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cfg := s.cfg
-	*s.at(&cfg.Services) = config.Endpoint{Listen: listen, Ops: "127.0.0.1:0"}
-	h, err := s.build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	h, err := s.build(ctx, listen)
 	if err != nil {
 		s.t.Fatal(err)
 	}

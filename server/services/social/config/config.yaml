@@ -1,0 +1,12 @@
+# services/social/config/config.yaml: the social service's committed defaults, for local
+# runs and Compose, with only the keys it uses (Low-level design, page 11).
+# Any key can be overridden as FINGA_<KEY_PATH> (FINGA_LOG_LEVEL);
+# CONFIG_PATH, or a git-ignored config.local.yaml beside this file, replaces
+# it. Nothing here is secret.
+
+grpc:
+  listen: ":9005"
+ops:
+  addr: ":9105"         # /healthz, /readyz, /metrics
+shutdown_grace: 10s
+log_level: info

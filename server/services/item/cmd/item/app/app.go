@@ -11,10 +11,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/config"
 	"finga/internal/gamedata"
 	"finga/internal/host"
 	"finga/pkg/dbx"
+	"finga/services/item/config"
 	"finga/services/item/internal/handler"
 	"finga/services/item/internal/item"
 )
@@ -22,7 +22,7 @@ import (
 // Build wires the item service from configuration. It fails fast on bad
 // game data or an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.World.DataDir)
+	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -32,12 +32,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	}
 	items := item.NewService(item.NewPostgres(pool), data, item.Options{})
 	h := host.New(host.Options{
-		Name:          "item",
-		Endpoint:      cfg.Services.Item,
-		ShutdownGrace: cfg.Server.ShutdownGrace,
-		Logger:        log,
-		Registry:      reg,
-		Errors:        handler.Errors,
+		Name:     "item",
+		Settings: cfg.Host(),
+		Logger:   log,
+		Registry: reg,
+		Errors:   handler.Errors,
 	})
 	itemv1.RegisterItemServiceServer(h.GRPC, handler.New(items))
 	h.OnClose(pool.Close)

@@ -1,0 +1,21 @@
+# services/world/config/config.yaml: the world service's committed defaults, for local
+# runs and Compose, with only the keys it uses (Low-level design, page 11).
+# Any key can be overridden as FINGA_<KEY_PATH> (FINGA_DEPENDENCIES_ITEM);
+# CONFIG_PATH, or a git-ignored config.local.yaml beside this file, replaces
+# it. Nothing here is secret.
+
+grpc:
+  listen: ":9004"
+ops:
+  addr: ":9104"         # /healthz, /readyz, /metrics
+shutdown_grace: 10s
+log_level: info
+data_dir: data           # the game data, relative to server/
+tick_rate_hz: 20
+checkpoint_interval: 30s # TD-02
+economy:
+  workers: 8             # the pool that runs pickups and inventory actions
+dependencies:            # where this service dials the ones it calls
+  character: localhost:9002
+  item: localhost:9003
+  social: localhost:9005

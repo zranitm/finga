@@ -9,12 +9,10 @@ package host
 import (
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
-	"finga/internal/config"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
 	"finga/pkg/runner"
@@ -28,13 +26,12 @@ const (
 
 // Options describe one service.
 type Options struct {
-	Name          string          // for logs
-	Endpoint      config.Endpoint // Listen and Ops are used; Addr is for callers
-	ShutdownGrace time.Duration
-	Logger        *slog.Logger
-	Registry      *prometheus.Registry // served on /metrics
-	Errors        grpcx.ErrorTable     // the service's errors and their reasons
-	Tasks         []runner.Task
+	Name     string   // for logs
+	Settings Settings // the listeners and the grace period, from the service's configuration
+	Logger   *slog.Logger
+	Registry *prometheus.Registry // served on /metrics
+	Errors   grpcx.ErrorTable     // the service's errors and their reasons
+	Tasks    []runner.Task
 }
 
 // Host is one service's process.
@@ -50,9 +47,9 @@ func New(opts Options) *Host {
 	logger := opts.Logger.With("service", opts.Name)
 	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger})}
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
-	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.ShutdownGrace}, []runner.Listener{
-		{Name: GRPC, Addr: opts.Endpoint.Listen, Server: runner.GRPC(h.GRPC)},
-		{Name: Ops, Addr: opts.Endpoint.Ops, Server: runner.HTTP(ops)},
+	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace}, []runner.Listener{
+		{Name: GRPC, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},
+		{Name: Ops, Addr: opts.Settings.Ops, Server: runner.HTTP(ops)},
 	}, opts.Tasks)
 	return h
 }

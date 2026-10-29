@@ -10,11 +10,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/config"
 	"finga/internal/host"
+	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/services/account/cmd/account/app"
+	"finga/services/account/config"
 	"finga/services/account/migrations"
 )
 
@@ -38,9 +39,9 @@ func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cfg := config.Config{
-		Server:   config.Server{ShutdownGrace: time.Second},
-		Database: config.Database{URL: cluster.URL(t), MaxConns: 2},
-		Services: config.Services{Account: config.Endpoint{Listen: "127.0.0.1:0", Ops: "127.0.0.1:0"}},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+		ShutdownGrace: time.Second,
+		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
 	}
 	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	if err != nil {
@@ -93,7 +94,7 @@ func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 func TestBuildFailsFastWithoutADatabase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cfg := config.Config{Database: config.Database{URL: "postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1", MaxConns: 1}}
+	cfg := config.Config{Database: dbx.Config{URL: "postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1", MaxConns: 1}}
 	if _, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry()); err == nil {
 		t.Fatal("built without a database")
 	}

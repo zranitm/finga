@@ -11,9 +11,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/services/world/cmd/world/app"
+	"finga/services/world/config"
 )
 
 // version is set at build time (-ldflags "-X main.version=...").

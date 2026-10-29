@@ -14,11 +14,10 @@ server/                 the Go module: everything the server builds, reads and p
   cmd/                  the binaries that are not services; each wires its own dependencies next to its main
     migrate/            applies every service's goose migrations, then exits
       app/              the sets in order and the guard against a database migrated before the split; the end-to-end tests use it
+      config/           its own configuration: config.yaml (the database, the log level) and its type
     auditor/            Stage 2: checks the invariants continuously, as a Kafka consumer
     outbox-relay/       Stage 2
     bot/                test players for the proof session (make bots); Stage 2 grows it into the load and chaos client
-  configs/
-    config.yaml         committed defaults; config.local.yaml is git-ignored
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     protocol/           WebSocket message types, registered with the codec: the gateway, the bot and the end-to-end tests
@@ -26,12 +25,12 @@ server/                 the Go module: everything the server builds, reads and p
     gamedata/           game data: classes, stats, mobs, items, the EXP curve and the maps (on pkg/tiled), loaded and validated at startup
     sim/                the movement simulation, shared with the client through testdata/movement
     progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
-    config/             the configuration schema every binary shares
-    host/               how every service runs: its gRPC and ops listeners on pkg/runner, and the binaries' shared main
+    host/               how every service runs: its gRPC and ops listeners on pkg/runner, the binaries' shared main that loads each one's own configuration, and the sections every service's configuration has
     telemetry/          metrics and logging; implements the services' observer interfaces
   services/             one folder per service (page 10); each module lives in its service
     gateway/            the only public entry; no database, no game rules
       cmd/gateway/      main.go and app/: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
+      config/           its own configuration: config.yaml (http, the five dependencies) and its type
       internal/handler/
         api/            REST handlers, DTOs, middleware
         ws/             WebSocket sessions, the per-connection command queue, routing, the delivery streams
@@ -40,12 +39,13 @@ server/                 the Go module: everything the server builds, reads and p
       internal/clients/ the account service as pkg/auth's Guard
     item/
       cmd/item/         main.go and app/, its composition root
+      config/           its own configuration: config.yaml, with only its keys (page 11), and its type
       internal/item/    the module: api.go, service.go, deps.go, repository.go, queries/, internal/db/
       internal/handler/ the ItemService gRPC server and its error table
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
-    account/            the same shape: cmd/account, internal/account, internal/handler (AccountService and WatchSessions), migrations/
-    social/             party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
+    account/            the same shape: cmd/account, config/, internal/account, internal/handler (AccountService and WatchSessions), migrations/
+    social/             config/; party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
     character/          the same shape as item, and internal/clients/ for the item service (starter items)
     world/              internal/world/ and internal/combat/ (the map instances and the hit rules), internal/clients/ (character, item, the party copy), its handler (WorldService, Deliver); no database
   pkg/                  generic libraries with no game knowledge
@@ -442,37 +442,32 @@ Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `observ
 
 The same scheme as docviewer, using its `pkg/configload`:
 
-- **Defaults** live in `configs/config.yaml`, committed and never secret. A git-ignored `configs/config.local.yaml` replaces it when present, or `CONFIG_PATH` points at another file.
-- **Overrides:** any key can be set from the environment as `FINGA_` plus its path in upper case, for example `FINGA_SERVER_ADDR=:9090` or `FINGA_WORLD_TICK_RATE_HZ=30`.
-- **`.env`:** the binaries never read it; they read the YAML file and their environment, nothing else. Whoever starts them injects the git-ignored `server/.env`: `make up` through Compose's `env_file`, where the Compose file's own `environment` entries (the database URL, the CORS origins) win over it, and `make run` by exporting it before starting the binaries without Docker. `server/.env.example` lists every override, commented out. The host ports Compose publishes are Compose's own settings, read from `infra/.env` (changed 2026-10-23 at the user's request: environment injection belongs to Docker and the tooling, not the code).
-- **Validated at start:** the schema is `internal/config`. An unknown key or an invalid value stops the binary with a message naming the key.
-- Every binary (the six services and `migrate`) shares the schema, and each reads the sections it needs. Stage 2 binaries get their own file, for example `configs/outbox-relay.yaml` and `configs/auditor.yaml`.
+- **One file per binary, inside it** (page 11, step 29): the defaults are `services/<name>/config/config.yaml` (`cmd/migrate/config/config.yaml` for migrate), committed and never secret, with only the keys that binary uses. A git-ignored `config.local.yaml` beside it replaces it when present, or `CONFIG_PATH` points at another file. The binaries run from `server/` (and `/app` in an image, which holds the binary's own file at the same path), so the paths are relative to it, as `data/` is.
+- **Overrides:** any key can be set from the environment as `FINGA_` plus its path in upper case, read by each binary that has the key, for example `FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM=item:9003` or `FINGA_TICK_RATE_HZ=30`.
+- **`.env`:** the binaries never read it; they read the YAML file and their environment, nothing else. Whoever starts them injects the git-ignored `server/.env`: `make up` through Compose's `env_file`, where the Compose file's own `environment` entries (each service's database and the addresses it dials) win over it, and `make run` by exporting it before starting the binaries without Docker. `server/.env.example` lists every override, commented out. The host ports Compose publishes are Compose's own settings, read from `infra/.env` (changed 2026-10-23 at the user's request: environment injection belongs to Docker and the tooling, not the code).
+- **Validated at start:** each binary's type sits beside its file (`services/<name>/config`, package `config`), and `internal/host` loads it with the strict loader: an unknown key (another service's, too) or an invalid value stops the binary with a message naming the key and the file. The sections every service has are `internal/host`'s types (`GRPCSection`, `OpsSection`), and the database section is `pkg/dbx`'s `Config`. Stage 2 binaries get their own the same way (the outbox relay, the auditor).
 
-Starting `configs/config.yaml`:
+The world service's `services/world/config/config.yaml`:
 
 ```yaml
-server:
-  addr: ":8080"
-  cors_origins: []          # browser origins allowed for REST and WebSocket; empty: same origin only
-  shutdown_grace: 10s
-database:
-  url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
-  max_conns: 20
-world:
-  tick_rate_hz: 20
-  checkpoint_interval: 30s  # TD-02
-  data_dir: data
+grpc:
+  listen: ":9004"
+ops:
+  addr: ":9104"            # /healthz, /readyz, /metrics
+shutdown_grace: 10s
+log_level: info
+data_dir: data             # the game data, relative to server/
+tick_rate_hz: 20
+checkpoint_interval: 30s   # TD-02
 economy:
-  workers: 8
-telemetry:
-  log_level: info
-services:            # the internal services (page 10): gRPC listener, where callers dial, ops listener
-  account:   { listen: ":9001", addr: "localhost:9001", ops: ":9101" }
-  character: { listen: ":9002", addr: "localhost:9002", ops: ":9102" }
-  item:      { listen: ":9003", addr: "localhost:9003", ops: ":9103" }
-  world:     { listen: ":9004", addr: "localhost:9004", ops: ":9104" }
-  social:    { listen: ":9005", addr: "localhost:9005", ops: ":9105" }
+  workers: 8               # the pool that runs pickups and inventory actions
+dependencies:              # where this service dials the ones it calls
+  character: localhost:9002
+  item: localhost:9003
+  social: localhost:9005
 ```
+
+The other services' files have the same shape with their own keys (README, Configuration); the gateway's has `http` (`addr`, `cors_origins`) in place of `grpc` and `ops`.
 
 ## Tooling and conventions
 

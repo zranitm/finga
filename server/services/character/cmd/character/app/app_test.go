@@ -13,12 +13,13 @@ import (
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/internal/model"
+	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/services/character/cmd/character/app"
+	"finga/services/character/config"
 	"finga/services/character/migrations"
 )
 
@@ -64,13 +65,11 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	defer itemSrv.Stop()
 
 	cfg := config.Config{
-		Server:   config.Server{ShutdownGrace: time.Second},
-		Database: config.Database{URL: cluster.URL(t), MaxConns: 2},
-		World:    config.World{DataDir: "../../../../../data"},
-		Services: config.Services{
-			Character: config.Endpoint{Listen: "127.0.0.1:0", Ops: "127.0.0.1:0"},
-			Item:      config.Endpoint{Addr: ln.Addr().String()},
-		},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+		ShutdownGrace: time.Second,
+		DataDir:       "../../../../../data",
+		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
+		Dependencies:  config.Dependencies{Item: ln.Addr().String()},
 	}
 	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	if err != nil {

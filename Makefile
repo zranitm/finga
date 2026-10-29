@@ -20,10 +20,11 @@ up:            ## everything in Docker: Postgres, the migrations, the six servic
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
 	$(COMPOSE) down -v --remove-orphans
 
-# The binaries read only their environment, so run exports server/.env (when
-# present) into it, the way Compose's env_file does for make up. The services
-# run in the background on the defaults in configs/config.yaml (localhost
-# ports) and stop with the gateway, on Ctrl-C.
+# The binaries read their own file and their environment, so run exports
+# server/.env (when present) into it, the way Compose's env_file does for
+# make up. Each runs from server/, on the defaults in its own
+# services/<name>/config/config.yaml (localhost ports), in the background,
+# and stops with the gateway, on Ctrl-C.
 SERVICES ?= account character item social world
 run:           ## without Docker: server/.env exported, every service's migrations, then the six services
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
