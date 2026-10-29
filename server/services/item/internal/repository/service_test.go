@@ -1,4 +1,4 @@
-package item
+package repository
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/services/item/internal/application"
+	"finga/services/item/internal/model"
 )
 
 // These rules are about transactions, so they run against real Postgres.
@@ -17,9 +19,9 @@ import (
 type harness struct {
 	pool  *pgxpool.Pool
 	store *Postgres
-	svc   *Service
+	svc   *application.Service
 	data  *gamedata.Data
-	actor Actor
+	actor model.Actor
 }
 
 func newHarness(t *testing.T) *harness {
@@ -30,19 +32,19 @@ func newHarness(t *testing.T) *harness {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool)
-	return &harness{pool: pool, store: store, svc: NewService(store, data, Options{}), data: data, actor: Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
+	return &harness{pool: pool, store: store, svc: application.NewService(store, data, application.Options{}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 
-func (h *harness) add(t *testing.T, key, template string, qty int) Result {
+func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
 	t.Helper()
-	res, err := h.svc.Add(context.Background(), h.actor, AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: Cause{Type: CauseDrop, ID: uuid.New()}})
+	res, err := h.svc.Add(context.Background(), h.actor, application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
 	if err != nil {
 		t.Fatalf("add %s x%d: %v", template, qty, err)
 	}
 	return res
 }
 
-func (h *harness) inventory(t *testing.T) []Item {
+func (h *harness) inventory(t *testing.T) []model.Item {
 	t.Helper()
 	inv, err := h.svc.Inventory(context.Background(), h.actor.Character)
 	if err != nil {
@@ -105,14 +107,14 @@ func TestAdd(t *testing.T) {
 		}
 	})
 	t.Run("a full inventory gives inventory_full and writes nothing", func(t *testing.T) {
-		for i := range SlotsPerTab - 2 { // the etc tab fills with 22 more gels
+		for i := range model.SlotsPerTab - 2 { // the etc tab fills with 22 more gels
 			h.add(t, "fill-"+string(rune('a'+i)), "slime_gel", 100)
 		}
 		h.add(t, "fill-x", "slime_gel", 100)
 		h.add(t, "fill-y", "slime_gel", 100)
 		items, events, outbox := h.count(t, `SELECT count(*) FROM items`), h.count(t, `SELECT count(*) FROM item_events`), h.count(t, `SELECT count(*) FROM outbox`)
-		_, err := h.svc.Add(ctx, h.actor, AddInput{Key: "full", TemplateID: "slime_gel", Quantity: 1, Cause: Cause{Type: CauseDrop}})
-		if !errors.Is(err, ErrInventoryFull) {
+		_, err := h.svc.Add(ctx, h.actor, application.AddInput{Key: "full", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
+		if !errors.Is(err, model.ErrInventoryFull) {
 			t.Fatalf("err = %v", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items`) != items || h.count(t, `SELECT count(*) FROM item_events`) != events || h.count(t, `SELECT count(*) FROM outbox`) != outbox {
@@ -125,13 +127,13 @@ func TestAdd(t *testing.T) {
 	t.Run("bad input", func(t *testing.T) {
 		tests := []struct {
 			name string
-			in   AddInput
+			in   application.AddInput
 			want error
 		}{
-			{"unknown template", AddInput{Key: "b1", TemplateID: "excalibur", Quantity: 1}, ErrUnknownItem},
-			{"zero quantity", AddInput{Key: "b2", TemplateID: "red_potion", Quantity: 0}, ErrBadQuantity},
-			{"more than a stack", AddInput{Key: "b3", TemplateID: "red_potion", Quantity: 101}, ErrBadQuantity},
-			{"two swords at once", AddInput{Key: "b4", TemplateID: "wooden_sword", Quantity: 2}, ErrBadQuantity},
+			{"unknown template", application.AddInput{Key: "b1", TemplateID: "excalibur", Quantity: 1}, model.ErrUnknownItem},
+			{"zero quantity", application.AddInput{Key: "b2", TemplateID: "red_potion", Quantity: 0}, model.ErrBadQuantity},
+			{"more than a stack", application.AddInput{Key: "b3", TemplateID: "red_potion", Quantity: 101}, model.ErrBadQuantity},
+			{"two swords at once", application.AddInput{Key: "b4", TemplateID: "wooden_sword", Quantity: 2}, model.ErrBadQuantity},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -150,8 +152,8 @@ func TestMove(t *testing.T) {
 	h.add(t, "a2", "blue_potion", 10)
 	inv := h.inventory(t)
 	red, blue := inv[0], inv[1]
-	move := func(key string, id kernel.ItemID, slot int) (Result, error) {
-		return h.svc.Move(ctx, h.actor, MoveInput{Key: key, ItemID: id, Tab: gamedata.Use, Slot: slot})
+	move := func(key string, id kernel.ItemID, slot int) (application.Result, error) {
+		return h.svc.Move(ctx, h.actor, application.MoveInput{Key: key, ItemID: id, Tab: gamedata.Use, Slot: slot})
 	}
 
 	t.Run("to an empty slot", func(t *testing.T) {
@@ -168,14 +170,14 @@ func TestMove(t *testing.T) {
 	})
 	t.Run("onto a different item is a conflict", func(t *testing.T) {
 		_, err := move("m2", red.ID, 1) // blue is in slot 1
-		if !errors.Is(err, ErrDifferentItem) {
+		if !errors.Is(err, model.ErrDifferentItem) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("merging into a matching stack", func(t *testing.T) {
 		h.add(t, "a3", "red_potion", 50) // red at 5 has 60: 40 fit, 10 open slot 0
 		inv := h.inventory(t)
-		var second Item
+		var second model.Item
 		for _, it := range inv {
 			if it.TemplateID == "red_potion" && it.ID != red.ID {
 				second = it
@@ -185,7 +187,7 @@ func TestMove(t *testing.T) {
 			t.Fatalf("second red stack %+v", second)
 		}
 		// Make room: discard 20 from the big one (100 → 80), then merge the 10 in.
-		if _, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d0", ItemID: red.ID, Quantity: 20}); err != nil {
+		if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d0", ItemID: red.ID, Quantity: 20}); err != nil {
 			t.Fatal(err)
 		}
 		res, err := move("m3", second.ID, 5)
@@ -212,7 +214,7 @@ func TestMove(t *testing.T) {
 	t.Run("a partial merge leaves the rest in place", func(t *testing.T) {
 		h.add(t, "a4", "red_potion", 30) // 10 fit into the 90, 20 open a slot
 		inv := h.inventory(t)
-		var rest Item
+		var rest model.Item
 		for _, it := range inv {
 			if it.TemplateID == "red_potion" && it.Quantity == 20 {
 				rest = it
@@ -221,7 +223,7 @@ func TestMove(t *testing.T) {
 		if rest.ID.IsZero() {
 			t.Fatalf("inventory %+v", inv)
 		}
-		if _, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d1", ItemID: red.ID, Quantity: 5}); err != nil { // 100 → 95: room for 5
+		if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d1", ItemID: red.ID, Quantity: 5}); err != nil { // 100 → 95: room for 5
 			t.Fatal(err)
 		}
 		if _, err := move("m4", rest.ID, 5); err != nil {
@@ -240,13 +242,13 @@ func TestMove(t *testing.T) {
 	t.Run("bad moves", func(t *testing.T) {
 		tests := []struct {
 			name string
-			in   MoveInput
+			in   application.MoveInput
 			want error
 		}{
-			{"another tab", MoveInput{Key: "mb1", ItemID: blue.ID, Tab: gamedata.Etc, Slot: 2}, ErrWrongTab},
-			{"slot out of range", MoveInput{Key: "mb2", ItemID: blue.ID, Tab: gamedata.Use, Slot: 24}, ErrBadSlot},
-			{"negative slot", MoveInput{Key: "mb3", ItemID: blue.ID, Tab: gamedata.Use, Slot: -1}, ErrBadSlot},
-			{"someone else's item", MoveInput{Key: "mb4", ItemID: kernel.NewItemID(), Tab: gamedata.Use, Slot: 2}, ErrNotFound},
+			{"another tab", application.MoveInput{Key: "mb1", ItemID: blue.ID, Tab: gamedata.Etc, Slot: 2}, model.ErrWrongTab},
+			{"slot out of range", application.MoveInput{Key: "mb2", ItemID: blue.ID, Tab: gamedata.Use, Slot: 24}, model.ErrBadSlot},
+			{"negative slot", application.MoveInput{Key: "mb3", ItemID: blue.ID, Tab: gamedata.Use, Slot: -1}, model.ErrBadSlot},
+			{"someone else's item", application.MoveInput{Key: "mb4", ItemID: kernel.NewItemID(), Tab: gamedata.Use, Slot: 2}, model.ErrNotFound},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -257,9 +259,9 @@ func TestMove(t *testing.T) {
 		}
 	})
 	t.Run("someone else's item cannot be moved by another character", func(t *testing.T) {
-		other := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		_, err := h.svc.Move(ctx, other, MoveInput{Key: "x", ItemID: blue.ID, Tab: gamedata.Use, Slot: 9})
-		if !errors.Is(err, ErrNotFound) {
+		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		_, err := h.svc.Move(ctx, other, application.MoveInput{Key: "x", ItemID: blue.ID, Tab: gamedata.Use, Slot: 9})
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -271,7 +273,7 @@ func TestDiscard(t *testing.T) {
 	h.add(t, "a1", "red_potion", 40)
 	h.add(t, "a2", "wooden_sword", 1)
 	inv := h.inventory(t)
-	var potion, sword Item
+	var potion, sword model.Item
 	for _, it := range inv {
 		switch it.TemplateID {
 		case "red_potion":
@@ -281,13 +283,13 @@ func TestDiscard(t *testing.T) {
 		}
 	}
 	t.Run("part of a stack", func(t *testing.T) {
-		res, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d1", ItemID: potion.ID, Quantity: 15})
+		res, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d1", ItemID: potion.ID, Quantity: 15})
 		if err != nil || len(res.Changed) != 1 || res.Changed[0].Item.Quantity != 25 {
 			t.Fatalf("result %+v err %v", res, err)
 		}
 	})
 	t.Run("a whole item", func(t *testing.T) {
-		res, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d2", ItemID: sword.ID, Quantity: 1})
+		res, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d2", ItemID: sword.ID, Quantity: 1})
 		if err != nil || len(res.Changed) != 1 || res.Changed[0].Item != nil || res.Changed[0].Tab != gamedata.Equip {
 			t.Fatalf("result %+v err %v", res, err)
 		}
@@ -299,17 +301,17 @@ func TestDiscard(t *testing.T) {
 		}
 	})
 	t.Run("more than held, zero, and someone else's", func(t *testing.T) {
-		if _, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d3", ItemID: potion.ID, Quantity: 26}); !errors.Is(err, ErrBadQuantity) {
+		if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d3", ItemID: potion.ID, Quantity: 26}); !errors.Is(err, model.ErrBadQuantity) {
 			t.Fatalf("err = %v", err)
 		}
-		if _, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d4", ItemID: potion.ID, Quantity: 0}); !errors.Is(err, ErrBadQuantity) {
+		if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d4", ItemID: potion.ID, Quantity: 0}); !errors.Is(err, model.ErrBadQuantity) {
 			t.Fatalf("err = %v", err)
 		}
-		other := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		if _, err := h.svc.Discard(ctx, other, DiscardInput{Key: "d5", ItemID: potion.ID, Quantity: 1}); !errors.Is(err, ErrNotFound) {
+		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		if _, err := h.svc.Discard(ctx, other, application.DiscardInput{Key: "d5", ItemID: potion.ID, Quantity: 1}); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
-		if _, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d6", ItemID: sword.ID, Quantity: 1}); !errors.Is(err, ErrNotFound) {
+		if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "d6", ItemID: sword.ID, Quantity: 1}); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("a destroyed item: %v", err)
 		}
 	})
@@ -318,7 +320,7 @@ func TestDiscard(t *testing.T) {
 func TestIdempotency(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	in := AddInput{Key: "pickup-1", TemplateID: "red_potion", Quantity: 3, Cause: Cause{Type: CauseDrop, ID: uuid.New()}}
+	in := application.AddInput{Key: "pickup-1", TemplateID: "red_potion", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}}
 	first, err := h.svc.Add(ctx, h.actor, in)
 	if err != nil {
 		t.Fatal(err)
@@ -343,19 +345,19 @@ func TestIdempotency(t *testing.T) {
 		other := in
 		other.Quantity = 4
 		_, err := h.svc.Add(ctx, h.actor, other)
-		if !errors.Is(err, ErrKeyReused) {
+		if !errors.Is(err, model.ErrKeyReused) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("keys are scoped to the account", func(t *testing.T) {
-		other := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		other := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		if _, err := h.svc.Add(ctx, other, in); err != nil {
 			t.Fatalf("another account with the same key: %v", err)
 		}
 	})
 	t.Run("move and discard are idempotent too", func(t *testing.T) {
 		inv := h.inventory(t)
-		mv := MoveInput{Key: "mv", ItemID: inv[0].ID, Tab: gamedata.Use, Slot: 9}
+		mv := application.MoveInput{Key: "mv", ItemID: inv[0].ID, Tab: gamedata.Use, Slot: 9}
 		a, err := h.svc.Move(ctx, h.actor, mv)
 		if err != nil {
 			t.Fatal(err)
@@ -367,7 +369,7 @@ func TestIdempotency(t *testing.T) {
 		if h.inventory(t)[0].Slot != 9 {
 			t.Fatal("the replayed move changed the slot again")
 		}
-		d := DiscardInput{Key: "dc", ItemID: inv[0].ID, Quantity: 1}
+		d := application.DiscardInput{Key: "dc", ItemID: inv[0].ID, Quantity: 1}
 		if _, err := h.svc.Discard(ctx, h.actor, d); err != nil {
 			t.Fatal(err)
 		}
@@ -383,7 +385,7 @@ func TestIdempotency(t *testing.T) {
 func TestGrantStarter(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	warrior := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+	warrior := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 	first, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
 	if err != nil {
 		t.Fatal(err)
@@ -419,12 +421,12 @@ func TestGrantStarter(t *testing.T) {
 		}
 	})
 	t.Run("another class for the same character reuses the key", func(t *testing.T) {
-		if _, err := h.svc.GrantStarter(ctx, warrior, kernel.Bowman); !errors.Is(err, ErrKeyReused) {
+		if _, err := h.svc.GrantStarter(ctx, warrior, kernel.Bowman); !errors.Is(err, model.ErrKeyReused) {
 			t.Fatalf("err = %v, want ErrKeyReused", err)
 		}
 	})
 	t.Run("a bowman gets a bow", func(t *testing.T) {
-		bowman := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		bowman := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		if _, err := h.svc.GrantStarter(ctx, bowman, kernel.Bowman); err != nil {
 			t.Fatal(err)
 		}
@@ -434,8 +436,8 @@ func TestGrantStarter(t *testing.T) {
 		}
 	})
 	t.Run("a class the game data does not have is unknown_item and writes nothing", func(t *testing.T) {
-		thief := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		if _, err := h.svc.GrantStarter(ctx, thief, kernel.Thief); !errors.Is(err, ErrUnknownItem) {
+		thief := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		if _, err := h.svc.GrantStarter(ctx, thief, kernel.Thief); !errors.Is(err, model.ErrUnknownItem) {
 			t.Fatalf("err = %v, want ErrUnknownItem", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items WHERE owner_id = $1`, thief.Character) != 0 {
@@ -452,15 +454,10 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	if h.count(t, `SELECT count(*) FROM outbox WHERE type = 'ItemLooted'`) != before+1 {
 		t.Fatal("no ItemLooted row after a committed add")
 	}
-	// A rolled-back transaction leaves no row: run the rule on a unit of
-	// work and fail the transaction afterwards.
-	err := h.store.InTx(ctx, func(uow UnitOfWork) error {
-		tmpl, _ := h.data.Item("slime_gel")
-		if _, err := h.svc.add(ctx, uow, h.actor.Character, tmpl, 1, Cause{Type: CauseDrop}); err != nil {
-			return err
-		}
-		return errors.New("roll it back")
-	})
+	// A rolled-back transaction leaves no row: the add runs whole on the
+	// unit of work, and the transaction fails afterwards.
+	svc := application.NewService(rollingBack{h.store}, h.data, application.Options{})
+	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
 	if err == nil {
 		t.Fatal("no error")
 	}
@@ -470,4 +467,17 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	if h.inventory(t)[0].Quantity != 2 {
 		t.Fatal("a rolled-back change changed the inventory")
 	}
+}
+
+// rollingBack is the real store, whose transactions fail once the work in
+// them has succeeded, so they roll back.
+type rollingBack struct{ *Postgres }
+
+func (r rollingBack) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
+	return r.Postgres.InTx(ctx, func(uow application.UnitOfWork) error {
+		if err := fn(uow); err != nil {
+			return err
+		}
+		return errors.New("roll it back")
+	})
 }

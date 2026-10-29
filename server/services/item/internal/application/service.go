@@ -1,14 +1,50 @@
-package item
+// Package application is the item service's use cases (Low-level design,
+// page 11): add, move, discard, the starter grant and the inventory. Every
+// change is one transaction through the store's unit of work: the
+// idempotency check first, then the rows, the events, and an outbox event,
+// so a change can be retried safely and is never half-applied. ports.go
+// declares what it needs; the repository layer implements it.
+package application
 
 import (
 	"context"
-	"sort"
 	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/outbox"
+	"finga/services/item/internal/model"
 )
+
+// AddInput puts a quantity of a template into the inventory: the first
+// stack with room, then the first free slot.
+type AddInput struct {
+	Key        string // idempotency key
+	TemplateID string
+	Quantity   int
+	Cause      model.Cause
+}
+
+// MoveInput moves an item to a slot of its tab, or merges it into a stack
+// of the same item there.
+type MoveInput struct {
+	Key    string
+	ItemID kernel.ItemID
+	Tab    gamedata.Tab
+	Slot   int
+}
+
+// DiscardInput destroys a whole item or part of a stack.
+type DiscardInput struct {
+	Key      string
+	ItemID   kernel.ItemID
+	Quantity int
+}
+
+// Result is what a command changed; it is stored for idempotent replays.
+type Result struct {
+	Changed []model.Slot `json:"changed"`
+}
 
 // Options tune the service.
 type Options struct {
@@ -25,7 +61,7 @@ const (
 	topic = "item"
 )
 
-// Service is the item module's use cases.
+// Service is the item service's use cases.
 type Service struct {
 	store   Store
 	content Content
@@ -41,20 +77,20 @@ func NewService(store Store, content Content, opts Options) *Service {
 }
 
 // Inventory lists the character's items.
-func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) ([]Item, error) {
+func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) {
 	return s.store.Inventory(ctx, owner)
 }
 
 // Add puts a quantity of a template into the inventory: the first stack
 // with room, overflow into the first free slot of the tab, otherwise
 // inventory_full with nothing written.
-func (s *Service) Add(ctx context.Context, actor Actor, in AddInput) (Result, error) {
+func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Result, error) {
 	tmpl, ok := s.content.Item(in.TemplateID)
 	if !ok {
-		return Result{}, ErrUnknownItem
+		return Result{}, model.ErrUnknownItem
 	}
 	if in.Quantity < 1 || in.Quantity > tmpl.MaxStack {
-		return Result{}, ErrBadQuantity
+		return Result{}, model.ErrBadQuantity
 	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
@@ -68,7 +104,7 @@ func (s *Service) Add(ctx context.Context, actor Actor, in AddInput) (Result, er
 }
 
 // add is the inventory rule, on the command's unit of work.
-func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, cause Cause) (Result, error) {
+func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, cause model.Cause) (Result, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
 		return Result{}, err
@@ -88,7 +124,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 			if err := uow.Items().SetQuantity(ctx, it.ID, it.Quantity); err != nil {
 				return Result{}, err
 			}
-			if err := uow.Events().Append(ctx, Event{ItemID: it.ID, Kind: EventStacked, QuantityDelta: take, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+			if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventStacked, QuantityDelta: take, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
 				return Result{}, err
 			}
 			res.Changed = append(res.Changed, slotOf(*it))
@@ -101,23 +137,23 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 	if left > 0 {
 		slot, ok := freeSlot(inv, tmpl.Tab)
 		if !ok {
-			return Result{}, ErrInventoryFull
+			return Result{}, model.ErrInventoryFull
 		}
-		it := Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, UpdatedAt: now}
+		it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, UpdatedAt: now}
 		if err := uow.Items().Insert(ctx, it); err != nil {
 			return Result{}, err
 		}
-		if err := uow.Events().Append(ctx, Event{ItemID: it.ID, Kind: EventCreated, QuantityDelta: left, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+		if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventCreated, QuantityDelta: left, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
 			return Result{}, err
 		}
 		res.Changed = append(res.Changed, slotOf(it))
 	}
 	eventType := "ItemGranted"
-	if cause.Type == CauseDrop {
+	if cause.Type == model.CauseDrop {
 		eventType = "ItemLooted"
 	}
 	for _, c := range res.Changed {
-		if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: c.Item.ID.String(), Type: eventType, Payload: payload(c.Item, quantity, cause), OccurredAt: now}); err != nil {
+		if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: c.Item.ID.String(), Type: eventType, Payload: model.OutboxPayload(c.Item, quantity, cause), OccurredAt: now}); err != nil {
 			return Result{}, err
 		}
 	}
@@ -127,9 +163,9 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 // Move puts an item in a slot of its tab, or merges it into a stack of the
 // same item there. Moving onto a different item is a conflict (Stage 1
 // has no swap).
-func (s *Service) Move(ctx context.Context, actor Actor, in MoveInput) (Result, error) {
-	if in.Slot < 0 || in.Slot >= SlotsPerTab {
-		return Result{}, ErrBadSlot
+func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Result, error) {
+	if in.Slot < 0 || in.Slot >= model.SlotsPerTab {
+		return Result{}, model.ErrBadSlot
 	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
@@ -147,39 +183,39 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	if err != nil {
 		return Result{}, err
 	}
-	src := find(inv, func(it Item) bool { return it.ID == in.ItemID })
+	src := find(inv, func(it model.Item) bool { return it.ID == in.ItemID })
 	if src == nil {
-		return Result{}, ErrNotFound
+		return Result{}, model.ErrNotFound
 	}
 	if in.Tab != src.Tab {
-		return Result{}, ErrWrongTab
+		return Result{}, model.ErrWrongTab
 	}
 	if src.Slot == in.Slot {
 		return Result{}, nil
 	}
 	now := s.now()
-	from := Slot{Tab: src.Tab, Slot: src.Slot}
-	dst := find(inv, func(it Item) bool { return it.Tab == in.Tab && it.Slot == in.Slot })
+	from := model.Slot{Tab: src.Tab, Slot: src.Slot}
+	dst := find(inv, func(it model.Item) bool { return it.Tab == in.Tab && it.Slot == in.Slot })
 	switch {
 	case dst == nil:
 		src.Slot, src.UpdatedAt = in.Slot, now
 		if err := uow.Items().SetSlot(ctx, src.ID, in.Tab, in.Slot); err != nil {
 			return Result{}, err
 		}
-		if err := uow.Events().Append(ctx, Event{ItemID: src.ID, Kind: EventMoved, FromOwner: &owner, ToOwner: &owner, Cause: Cause{Type: CausePlayer}, OccurredAt: now}); err != nil {
+		if err := uow.Events().Append(ctx, model.Event{ItemID: src.ID, Kind: model.EventMoved, FromOwner: &owner, ToOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 			return Result{}, err
 		}
-		return Result{Changed: []Slot{from, slotOf(*src)}}, nil
+		return Result{Changed: []model.Slot{from, slotOf(*src)}}, nil
 	case dst.TemplateID != src.TemplateID:
-		return Result{}, ErrDifferentItem
+		return Result{}, model.ErrDifferentItem
 	}
 	tmpl, ok := s.content.Item(src.TemplateID)
 	if !ok {
-		return Result{}, ErrUnknownItem
+		return Result{}, model.ErrUnknownItem
 	}
 	room := tmpl.MaxStack - dst.Quantity
 	if room <= 0 {
-		return Result{}, ErrDifferentItem
+		return Result{}, model.ErrDifferentItem
 	}
 	take := min(room, src.Quantity)
 	dst.Quantity += take
@@ -187,10 +223,10 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	if err := uow.Items().SetQuantity(ctx, dst.ID, dst.Quantity); err != nil {
 		return Result{}, err
 	}
-	if err := uow.Events().Append(ctx, Event{ItemID: dst.ID, Kind: EventStacked, QuantityDelta: take, FromOwner: &owner, ToOwner: &owner, Cause: Cause{Type: CausePlayer}, OccurredAt: now}); err != nil {
+	if err := uow.Events().Append(ctx, model.Event{ItemID: dst.ID, Kind: model.EventStacked, QuantityDelta: take, FromOwner: &owner, ToOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
-	if err := uow.Events().Append(ctx, Event{ItemID: src.ID, Kind: EventSplit, QuantityDelta: -take, FromOwner: &owner, ToOwner: &owner, Cause: Cause{Type: CausePlayer}, OccurredAt: now}); err != nil {
+	if err := uow.Events().Append(ctx, model.Event{ItemID: src.ID, Kind: model.EventSplit, QuantityDelta: -take, FromOwner: &owner, ToOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
 	src.Quantity -= take
@@ -199,18 +235,18 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 		if err := uow.Items().Destroy(ctx, src.ID); err != nil {
 			return Result{}, err
 		}
-		return Result{Changed: []Slot{from, slotOf(*dst)}}, nil
+		return Result{Changed: []model.Slot{from, slotOf(*dst)}}, nil
 	}
 	if err := uow.Items().SetQuantity(ctx, src.ID, src.Quantity); err != nil {
 		return Result{}, err
 	}
-	return Result{Changed: []Slot{slotOf(*src), slotOf(*dst)}}, nil
+	return Result{Changed: []model.Slot{slotOf(*src), slotOf(*dst)}}, nil
 }
 
 // Discard destroys a whole item or part of a stack.
-func (s *Service) Discard(ctx context.Context, actor Actor, in DiscardInput) (Result, error) {
+func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInput) (Result, error) {
 	if in.Quantity < 1 {
-		return Result{}, ErrBadQuantity
+		return Result{}, model.ErrBadQuantity
 	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
@@ -229,13 +265,13 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 		return Result{}, err // no row, also when it isn't yours: ErrNotFound after classify
 	}
 	if in.Quantity > it.Quantity {
-		return Result{}, ErrBadQuantity
+		return Result{}, model.ErrBadQuantity
 	}
 	now := s.now()
-	if err := uow.Events().Append(ctx, Event{ItemID: it.ID, Kind: EventDiscarded, QuantityDelta: -in.Quantity, FromOwner: &owner, Cause: Cause{Type: CausePlayer}, OccurredAt: now}); err != nil {
+	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -in.Quantity, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
-	if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: "ItemDiscarded", Payload: payload(&it, in.Quantity, Cause{Type: CausePlayer}), OccurredAt: now}); err != nil {
+	if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: "ItemDiscarded", Payload: model.OutboxPayload(&it, in.Quantity, model.Cause{Type: model.CausePlayer}), OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
 	it.Quantity -= in.Quantity
@@ -244,12 +280,12 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 		if err := uow.Items().Destroy(ctx, it.ID); err != nil {
 			return Result{}, err
 		}
-		return Result{Changed: []Slot{{Tab: it.Tab, Slot: it.Slot}}}, nil
+		return Result{Changed: []model.Slot{{Tab: it.Tab, Slot: it.Slot}}}, nil
 	}
 	if err := uow.Items().SetQuantity(ctx, it.ID, it.Quantity); err != nil {
 		return Result{}, err
 	}
-	return Result{Changed: []Slot{slotOf(it)}}, nil
+	return Result{Changed: []model.Slot{slotOf(it)}}, nil
 }
 
 // GrantStarter gives a new character its class's starter items, once:
@@ -257,16 +293,16 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 // service retrying, or the world's safety net on join) returns the first
 // call's slots and writes nothing. A class the game data does not have is
 // ErrUnknownItem.
-func (s *Service) GrantStarter(ctx context.Context, actor Actor, class kernel.Class) (Result, error) {
+func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (Result, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
-		return Result{}, ErrUnknownItem
+		return Result{}, model.ErrUnknownItem
 	}
 	tmpls := make([]gamedata.Item, 0, len(c.StarterItems))
 	for _, g := range c.StarterItems {
 		tmpl, ok := s.content.Item(g.Item)
 		if !ok {
-			return Result{}, ErrUnknownItem
+			return Result{}, model.ErrUnknownItem
 		}
 		tmpls = append(tmpls, tmpl)
 	}
@@ -276,7 +312,7 @@ func (s *Service) GrantStarter(ctx context.Context, actor Actor, class kernel.Cl
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeStarter, actor.Character.String(), class, func() (Result, error) {
 			var all Result
 			for k, g := range c.StarterItems {
-				r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, Cause{Type: CauseStarter})
+				r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, model.Cause{Type: model.CauseStarter})
 				if err != nil {
 					return Result{}, err
 				}
@@ -289,12 +325,12 @@ func (s *Service) GrantStarter(ctx context.Context, actor Actor, class kernel.Cl
 	return res, err
 }
 
-func slotOf(it Item) Slot {
+func slotOf(it model.Item) model.Slot {
 	copied := it
-	return Slot{Tab: it.Tab, Slot: it.Slot, Item: &copied}
+	return model.Slot{Tab: it.Tab, Slot: it.Slot, Item: &copied}
 }
 
-func find(inv []Item, pred func(Item) bool) *Item {
+func find(inv []model.Item, pred func(model.Item) bool) *model.Item {
 	for k := range inv {
 		if pred(inv[k]) {
 			return &inv[k]
@@ -304,10 +340,10 @@ func find(inv []Item, pred func(Item) bool) *Item {
 }
 
 // freeSlot is the lowest unoccupied slot of the tab.
-func freeSlot(inv []Item, tab gamedata.Tab) (int, bool) {
-	used := make([]bool, SlotsPerTab)
+func freeSlot(inv []model.Item, tab gamedata.Tab) (int, bool) {
+	used := make([]bool, model.SlotsPerTab)
 	for _, it := range inv {
-		if it.Tab == tab && it.Slot >= 0 && it.Slot < SlotsPerTab {
+		if it.Tab == tab && it.Slot >= 0 && it.Slot < model.SlotsPerTab {
 			used[it.Slot] = true
 		}
 	}
@@ -317,14 +353,4 @@ func freeSlot(inv []Item, tab gamedata.Tab) (int, bool) {
 		}
 	}
 	return 0, false
-}
-
-// sortInventory orders by tab then slot, the order Inventory returns.
-func sortInventory(inv []Item) {
-	sort.Slice(inv, func(a, b int) bool {
-		if inv[a].Tab != inv[b].Tab {
-			return inv[a].Tab < inv[b].Tab
-		}
-		return inv[a].Slot < inv[b].Slot
-	})
 }

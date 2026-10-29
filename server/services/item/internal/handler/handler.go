@@ -13,16 +13,17 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/item/internal/item"
+	"finga/services/item/internal/application"
+	"finga/services/item/internal/model"
 )
 
 // Service is what the handler needs from the item module.
 type Service interface {
-	Inventory(ctx context.Context, owner kernel.CharacterID) ([]item.Item, error)
-	Add(ctx context.Context, actor item.Actor, in item.AddInput) (item.Result, error)
-	Move(ctx context.Context, actor item.Actor, in item.MoveInput) (item.Result, error)
-	Discard(ctx context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error)
-	GrantStarter(ctx context.Context, actor item.Actor, class kernel.Class) (item.Result, error)
+	Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
+	Add(ctx context.Context, actor model.Actor, in application.AddInput) (application.Result, error)
+	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
+	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
+	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
 }
 
 // Server serves ItemService over the module.
@@ -61,7 +62,7 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Add(ctx, actor, item.AddInput{Key: req.GetIdempotencyKey(), TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause})
+	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: req.GetIdempotencyKey(), TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause})
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func (s *Server) Move(ctx context.Context, req *itemv1.MoveRequest) (*itemv1.Mov
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Move(ctx, actor, item.MoveInput{Key: req.GetIdempotencyKey(), ItemID: id, Tab: gamedata.Tab(req.GetTab()), Slot: int(req.GetSlot())})
+	res, err := s.svc.Move(ctx, actor, application.MoveInput{Key: req.GetIdempotencyKey(), ItemID: id, Tab: gamedata.Tab(req.GetTab()), Slot: int(req.GetSlot())})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +96,7 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Discard(ctx, actor, item.DiscardInput{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
+	res, err := s.svc.Discard(ctx, actor, application.DiscardInput{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
 	if err != nil {
 		return nil, err
 	}
@@ -119,41 +120,41 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 	return &itemv1.GrantStarterResponse{Changed: slots(res)}, nil
 }
 
-func actorOf(a *itemv1.Actor) (item.Actor, error) {
+func actorOf(a *itemv1.Actor) (model.Actor, error) {
 	account, err := kernel.ParseAccountID(a.GetAccountId())
 	if err != nil {
-		return item.Actor{}, err
+		return model.Actor{}, err
 	}
 	character, err := kernel.ParseCharacterID(a.GetCharacterId())
 	if err != nil {
-		return item.Actor{}, err
+		return model.Actor{}, err
 	}
-	return item.Actor{Account: account, Character: character}, nil
+	return model.Actor{Account: account, Character: character}, nil
 }
 
-var causeTypes = map[itemv1.CauseType]item.CauseType{
-	itemv1.CauseType_CAUSE_TYPE_DROP:    item.CauseDrop,
-	itemv1.CauseType_CAUSE_TYPE_PLAYER:  item.CausePlayer,
-	itemv1.CauseType_CAUSE_TYPE_STARTER: item.CauseStarter,
+var causeTypes = map[itemv1.CauseType]model.CauseType{
+	itemv1.CauseType_CAUSE_TYPE_DROP:    model.CauseDrop,
+	itemv1.CauseType_CAUSE_TYPE_PLAYER:  model.CausePlayer,
+	itemv1.CauseType_CAUSE_TYPE_STARTER: model.CauseStarter,
 }
 
-func causeOf(c *itemv1.Cause) (item.Cause, error) {
-	out := item.Cause{Type: causeTypes[c.GetType()]}
+func causeOf(c *itemv1.Cause) (model.Cause, error) {
+	out := model.Cause{Type: causeTypes[c.GetType()]}
 	if c.GetId() != "" {
 		id, err := uuid.Parse(c.GetId())
 		if err != nil {
-			return item.Cause{}, kernel.ErrBadID
+			return model.Cause{}, kernel.ErrBadID
 		}
 		out.ID = id
 	}
 	return out, nil
 }
 
-func itemOf(it item.Item) *itemv1.Item {
+func itemOf(it model.Item) *itemv1.Item {
 	return &itemv1.Item{Id: it.ID.String(), TemplateId: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
 }
 
-func slots(res item.Result) []*itemv1.Slot {
+func slots(res application.Result) []*itemv1.Slot {
 	out := make([]*itemv1.Slot, 0, len(res.Changed))
 	for _, s := range res.Changed {
 		slot := &itemv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}

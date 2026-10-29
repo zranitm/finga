@@ -1,12 +1,12 @@
-// Package item is the item module: item instances, the inventory, and the
-// append-only item events (D2, D5). Every change is one transaction through
-// the module's unit of work: the idempotency check first, then the rows,
-// the events, and an outbox event, so a change can be retried safely and is
-// never half-applied. It owns the items and item_events tables.
-package item
+// Package model is the item service's model (Low-level design, page 11):
+// item instances, the inventory's slots and order, the append-only item
+// events and their outbox payloads (D2, D5), and the errors its use cases
+// return. It needs nothing but data.
+package model
 
 import (
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +15,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The module's errors. Each names one failure; the service's handler sends
+// The service's errors. Each names one failure; the service's handler sends
 // it as a reason, and the gateway gives it a code, a status and the words a
 // player sees (its errmap).
 var (
@@ -37,7 +37,7 @@ var rules = []error{
 	ErrBadQuantity, ErrBadSlot, ErrWrongTab, ErrUnknownItem,
 }
 
-// IsRule reports whether err is one of the module's rule errors, as opposed
+// IsRule reports whether err is one of the service's rule errors, as opposed
 // to a transient failure worth one retry.
 func IsRule(err error) bool {
 	for _, rule := range rules {
@@ -109,31 +109,6 @@ type Event struct {
 	OccurredAt    time.Time
 }
 
-// AddInput puts a quantity of a template into the inventory: the first
-// stack with room, then the first free slot.
-type AddInput struct {
-	Key        string // idempotency key
-	TemplateID string
-	Quantity   int
-	Cause      Cause
-}
-
-// MoveInput moves an item to a slot of its tab, or merges it into a stack
-// of the same item there.
-type MoveInput struct {
-	Key    string
-	ItemID kernel.ItemID
-	Tab    gamedata.Tab
-	Slot   int
-}
-
-// DiscardInput destroys a whole item or part of a stack.
-type DiscardInput struct {
-	Key      string
-	ItemID   kernel.ItemID
-	Quantity int
-}
-
 // Slot is one changed inventory slot: Item is nil when it emptied.
 type Slot struct {
 	Tab  gamedata.Tab `json:"tab"`
@@ -141,10 +116,16 @@ type Slot struct {
 	Item *Item        `json:"item,omitempty"`
 }
 
-// Result is what a command changed; it is stored for idempotent replays.
-type Result struct {
-	Changed []Slot `json:"changed"`
-}
-
 // Grant is a starter item for a class (classes.yaml).
 type Grant = gamedata.Grant
+
+// SortInventory orders an inventory by tab then slot, the order it is
+// listed in.
+func SortInventory(inv []Item) {
+	sort.Slice(inv, func(a, b int) bool {
+		if inv[a].Tab != inv[b].Tab {
+			return inv[a].Tab < inv[b].Tab
+		}
+		return inv[a].Slot < inv[b].Slot
+	})
+}

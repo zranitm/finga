@@ -40,7 +40,9 @@ server/                 the Go module: everything the server builds, reads and p
     item/
       cmd/item/         main.go and app/, its composition root
       config/           its own configuration: config.yaml, with only its keys (page 11), and its type
-      internal/item/    the module: api.go, service.go, deps.go, repository.go, queries/, internal/db/
+      internal/model/   Item, Event, Cause, Slot, the errors, the outbox payloads (step 32)
+      internal/application/  add, move, discard, the starter grant, the inventory; ports.go
+      internal/repository/   the Postgres store, its unit of work, classify; queries/, internal/db/
       internal/handler/ the ItemService gRPC server and its error table
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
@@ -143,16 +145,16 @@ Each layer is a package of the service (page 11). The model below them holds the
 **Rules at the boundaries**
 
 - **Validation by meaning.** The handler rejects input that is malformed whatever the rules are. The service enforces rules that must hold for every caller, such as username format, password policy, or not discarding more than a stack holds. A future admin tool or test calling the service gets the same rules.
-- **The service decides the transaction but never holds one.** Each module's store (`Postgres`, in `repository.go`) has `InTx(ctx, fn func(uow UnitOfWork) error)`. It opens the transaction with `pkg/dbx`, builds a unit of work whose repositories are bound to that transaction, runs `fn` with it, and classifies the error. The service declares `Store` and `UnitOfWork` in `deps.go`. Repository methods take only domain arguments.
+- **The service decides the transaction but never holds one.** Each service's store (`Postgres`, in `repository/postgres.go`) has `InTx(ctx, fn func(uow application.UnitOfWork) error)`. It opens the transaction with `pkg/dbx`, builds a unit of work whose repositories are bound to that transaction, runs `fn` with it, and classifies the error. The application declares `Store` and `UnitOfWork` in `application/ports.go`. Repository methods take only domain arguments.
 - **A write outside a transaction doesn't compile.** Writes exist only on the unit of work. Plain reads sit on `Store` and run on the pool, with no transaction.
 - **Another module joins the transaction through the unit of work, inside one service.** A module that must commit with another of the same service gets that module's rules bound to its unit of work (a `Within(uow)` on the other service, wired by the composition root), so neither module imports the other. Across services there is no shared transaction (page 10): character creation commits the character, then asks the item service for the starter items, keyed by the character ID (changed 2026-10-27, step 23; until then character creation used this pattern).
 - **The transaction function may run twice.** `InTx` runs all of it again on a deadlock or serialization failure, so it sends nothing and changes nothing in memory. Events leave through the outbox.
 - **Ownership is decided in the service and made atomic in the repository.** The service passes the actor; the repository method says so in its name and puts it in the `WHERE` clause, for example `LockOwned(ctx, itemID, owner)`.
-- **Database errors change shape once, at the module's boundary.** Repository methods return them as they are. The module's `classify` runs where its work hands a result back (`InTx`, plain reads, and work joined to another module's transaction) and turns them into the module's errors: `pgx.ErrNoRows` into `ErrNotFound`, a constraint violation into its domain error. Module errors are plain sentinel errors named for the failure (`ErrNotFound`, `ErrSlotTaken`, `ErrInventoryFull`), declared in `api.go`; `classify` wraps the database error behind one with `%w` for the logs, and the service returns them directly for rule violations. They carry no code and no player text: the service's gRPC handler sends each as a reason in its contract (`REASON_INVENTORY_FULL`), and the gateway maps the reason to an HTTP status, a code of its own (`item_not_found`, `slot_taken`, `inventory_full`) and the player message through its `errmap` (see Protocol, Error codes; page 10). No error's text ever reaches a client.
+- **Database errors change shape once, at the module's boundary.** Repository methods return them as they are. The module's `classify` runs where its work hands a result back (`InTx`, plain reads, and work joined to another module's transaction) and turns them into the module's errors: `pgx.ErrNoRows` into `ErrNotFound`, a constraint violation into its domain error. A service's errors are plain sentinel errors named for the failure (`ErrNotFound`, `ErrSlotTaken`, `ErrInventoryFull`), declared in its `model`; `classify` wraps the database error behind one with `%w` for the logs, and the service returns them directly for rule violations. They carry no code and no player text: the service's gRPC handler sends each as a reason in its contract (`REASON_INVENTORY_FULL`), and the gateway maps the reason to an HTTP status, a code of its own (`item_not_found`, `slot_taken`, `inventory_full`) and the player message through its `errmap` (see Protocol, Error codes; page 10). No error's text ever reaches a client.
 - **classify matches constraints by name and leaves the rest alone.** By name, so a unique violation from the items table, raised inside character creation's transaction, never becomes `ErrNameTaken`. Unknown errors pass through unchanged: retries still see `40001` and `40P01`, and the handler reports the rest as `internal`.
 - **A rule that branches on absence gets a boolean.** For "add to the stack if there is one, otherwise insert", the repository method returns `(Stack, bool, error)`, so the service never checks a database error.
-- **Real-time code is application code too.** Map instances live in the world service's module (`services/world/internal/world`). They reach the database only through services, from worker goroutines, never inside a tick.
-- **sqlc's generated code is private.** It generates into `services/<name>/internal/<module>/internal/db`, which Go lets only that module import.
+- **Real-time code is application code too.** Map instances live in the world service's application (`services/world/internal/world` until step 35). They reach the database only through services, from worker goroutines, never inside a tick.
+- **sqlc's generated code is private.** It generates into `services/<name>/internal/repository/internal/db`, which Go lets only the repository import.
 
 **One use case through the three layers: discarding an item**
 
@@ -165,21 +167,21 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
     if err != nil {
         return nil, err
     }
-    id, err := model.ParseItemID(req.GetItemId())
+    id, err := kernel.ParseItemID(req.GetItemId())
     if err != nil {
         return nil, err
     }
-    res, err := s.svc.Discard(ctx, actor, item.DiscardInput{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
+    res, err := s.svc.Discard(ctx, actor, application.DiscardInput{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
     if err != nil {
         return nil, err // the error table sends it with its reason
     }
     return &itemv1.DiscardResponse{Changed: slots(res)}, nil
 }
 
-// services/item/internal/item/deps.go: what the service sees
+// services/item/internal/application/ports.go: what the use cases see
 type Store interface {
     InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
-    Find(ctx context.Context, id model.ItemID, owner model.CharacterID) (Item, error) // on the pool
+    Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) // on the pool
 }
 
 type UnitOfWork interface { // everything bound to one transaction
@@ -189,8 +191,8 @@ type UnitOfWork interface { // everything bound to one transaction
     Idempotency() Idempotency // pkg/idempotency, plus hashing the input and storing the response
 }
 
-// services/item/internal/item/service.go: rules, and where the transaction starts
-func (s *Service) Discard(ctx context.Context, actor model.CharacterID, in DiscardInput) error {
+// services/item/internal/application/service.go: rules, and where the transaction starts
+func (s *Service) Discard(ctx context.Context, actor kernel.CharacterID, in DiscardInput) error {
     return s.store.InTx(ctx, func(uow UnitOfWork) error {
         return uow.Idempotency().Run(ctx, actor, "discard", in.Key, in, func() error {
             it, err := uow.Items().LockOwned(ctx, in.ItemID, actor)
@@ -198,7 +200,7 @@ func (s *Service) Discard(ctx context.Context, actor model.CharacterID, in Disca
                 return err // no row, also when it isn't yours: ErrNotFound after classify
             }
             if in.Quantity < 1 || in.Quantity > it.Quantity {
-                return ErrBadQuantity // a sentinel from api.go; errmap answers it bad_quantity
+                return model.ErrBadQuantity // a sentinel from the model; errmap answers it bad_quantity
             }
             if err := uow.Items().Reduce(ctx, it.ID, in.Quantity); err != nil {
                 return err
@@ -211,8 +213,8 @@ func (s *Service) Discard(ctx context.Context, actor model.CharacterID, in Disca
     })
 }
 
-// services/item/internal/item/repository.go: the store, its unit of work, classify, and SQL
-func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) error {
+// services/item/internal/repository/postgres.go: the store, its unit of work, classify, and SQL
+func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
     err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
         return fn(p.newUnitOfWork(tx))
     })
@@ -229,25 +231,25 @@ func (p *Postgres) newUnitOfWork(tx pgx.Tx) *unitOfWork {
     }
 }
 
-// classify turns database errors into this module's errors. Unknown ones pass
+// classify turns database errors into the model's errors. Unknown ones pass
 // through: retries still see 40001, and handlers report the rest as internal.
 func classify(err error) error {
     var pgErr *pgconn.PgError
     switch {
     case errors.Is(err, pgx.ErrNoRows):
-        return ErrNotFound
+        return model.ErrNotFound
     case errors.As(err, &pgErr) && pgErr.ConstraintName == "one_item_per_slot":
-        return ErrSlotTaken
+        return model.ErrSlotTaken
     default:
         return err
     }
 }
 
 // SQL only, on whatever connection the repository was built with
-func (r itemRepo) LockOwned(ctx context.Context, id model.ItemID, owner model.CharacterID) (Item, error) {
+func (r itemRepo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error) {
     row, err := r.q.LockOwnedItem(ctx, id, owner) // ... WHERE id = $1 AND owner_id = $2 FOR UPDATE
     if err != nil {
-        return Item{}, err
+        return model.Item{}, err
     }
     return toItem(row), nil
 }
@@ -401,7 +403,7 @@ type Handler interface {
 type ID[K any] uuid.UUID
 func New[K any]() ID[K]
 func Parse[K any](s string) (ID[K], error) // ErrMalformed
-// model.CharacterID is typedid.ID[characterKind]: an item ID where a character ID is expected does not compile.
+// kernel.CharacterID is typedid.ID[characterKind]: an item ID where a character ID is expected does not compile.
 
 // pkg/tiled: Tiled's JSON map format, with no game's layer rules (step 20)
 func Load(path string) (*Map, error) // errors name the file
