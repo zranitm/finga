@@ -36,6 +36,6 @@
 | [31. Account in layers](./31-account-in-layers.md) | 30 |  | Layers | 31 | Done |
 | [32. Item in layers](./32-item-in-layers.md) | 31 |  | Layers | 32 | Done |
 | [33. Character in layers](./33-character-in-layers.md) | 32 |  | Layers | 33 | Done |
-| [34. Social in layers](./34-social-in-layers.md) | 33 |  | Layers | 34 | Ready |
+| [34. Social in layers](./34-social-in-layers.md) | 33 |  | Layers | 34 | Done |
 | [35. World in layers](./35-world-in-layers.md) | 34 |  | Layers | 35 | Ready |
 | [36. Gateway in layers](./36-gateway-in-layers.md) | 35 |  | Layers | 36 | Ready |

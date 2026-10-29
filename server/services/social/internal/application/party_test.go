@@ -1,4 +1,4 @@
-package party_test
+package application_test
 
 import (
 	"errors"
@@ -7,28 +7,29 @@ import (
 	"time"
 
 	"finga/internal/kernel"
-	"finga/services/social/internal/party"
+	"finga/services/social/internal/application"
+	"finga/services/social/internal/model"
 )
 
 // recorder keeps every notification in order.
 type recorder struct {
 	mu      sync.Mutex
 	states  []stateCall
-	invites []party.Invite
+	invites []model.Invite
 }
 
 type stateCall struct {
 	to    []kernel.CharacterID
-	party *party.Party
+	party *model.Party
 }
 
-func (r *recorder) PartyChanged(members []kernel.CharacterID, p *party.Party) {
+func (r *recorder) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.states = append(r.states, stateCall{to: members, party: p})
 }
 
-func (r *recorder) Invited(_ kernel.CharacterID, inv party.Invite) {
+func (r *recorder) Invited(_ kernel.CharacterID, inv model.Invite) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.invites = append(r.invites, inv)
@@ -47,7 +48,7 @@ func (r *recorder) reset() {
 }
 
 type fixture struct {
-	svc  *party.Service
+	svc  *application.PartyService
 	rec  *recorder
 	now  time.Time
 	ids  map[string]kernel.CharacterID
@@ -57,13 +58,13 @@ type fixture struct {
 func newFixture(t *testing.T, names ...string) *fixture {
 	t.Helper()
 	f := &fixture{rec: &recorder{}, now: time.Unix(1_700_000_000, 0), ids: map[string]kernel.CharacterID{}, name: map[kernel.CharacterID]string{}}
-	f.svc = party.NewService(party.Options{Clock: func() time.Time { return f.now }})
+	f.svc = application.NewPartyService(application.PartyOptions{Clock: func() time.Time { return f.now }})
 	f.svc.Notify(f.rec)
 	for k, n := range names {
 		id := kernel.NewCharacterID()
 		f.ids[n] = id
 		f.name[id] = n
-		f.svc.Online(party.Member{ID: id, Name: n, Level: 1 + k, HP: 100, MaxHP: 100, MapID: "forest"})
+		f.svc.Online(model.Member{ID: id, Name: n, Level: 1 + k, HP: 100, MaxHP: 100, MapID: "forest"})
 	}
 	return f
 }
@@ -128,14 +129,14 @@ func TestPartyLifecycle(t *testing.T) {
 		if _, ok := f.svc.Of(f.id("Ayla")); ok {
 			t.Fatal("a party exists before anyone accepted")
 		}
-		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Robin")); !errors.Is(err, party.ErrAlreadyAsked) {
+		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Robin")); !errors.Is(err, model.ErrAlreadyAsked) {
 			t.Fatalf("second invite: %v", err)
 		}
 		// Declining removes the invite; a later response finds nothing.
 		if err := f.svc.Respond(f.id("Robin"), inv.ID, false); err != nil {
 			t.Fatal(err)
 		}
-		if err := f.svc.Respond(f.id("Robin"), inv.ID, true); !errors.Is(err, party.ErrInviteExpired) {
+		if err := f.svc.Respond(f.id("Robin"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
 			t.Fatalf("responding twice: %v", err)
 		}
 	})
@@ -152,14 +153,14 @@ func TestPartyLifecycle(t *testing.T) {
 		}
 	})
 	t.Run("only the leader invites; a member of another party cannot be invited", func(t *testing.T) {
-		if _, err := f.svc.Invite(f.id("Robin"), f.id("Cass")); !errors.Is(err, party.ErrNotLeader) {
+		if _, err := f.svc.Invite(f.id("Robin"), f.id("Cass")); !errors.Is(err, model.ErrNotLeader) {
 			t.Fatalf("member invites: %v", err)
 		}
 		f.invite(t, "Cass", "Dinh")
-		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Dinh")); !errors.Is(err, party.ErrInParty) {
+		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Dinh")); !errors.Is(err, model.ErrInParty) {
 			t.Fatalf("inviting a member of another party: %v", err)
 		}
-		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Ayla")); !errors.Is(err, party.ErrSelf) {
+		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Ayla")); !errors.Is(err, model.ErrSelf) {
 			t.Fatalf("self invite: %v", err)
 		}
 	})
@@ -172,18 +173,18 @@ func TestPartyLifecycle(t *testing.T) {
 		}
 		f.invite(t, "Ayla", "Cass")
 		f.invite(t, "Ayla", "Dinh")
-		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Eve")); !errors.Is(err, party.ErrFull) {
+		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Eve")); !errors.Is(err, model.ErrFull) {
 			t.Fatalf("fifth: %v", err)
 		}
 	})
 	t.Run("kick: leader only, not themselves, only members", func(t *testing.T) {
-		if err := f.svc.Kick(f.id("Robin"), f.id("Cass")); !errors.Is(err, party.ErrNotLeader) {
+		if err := f.svc.Kick(f.id("Robin"), f.id("Cass")); !errors.Is(err, model.ErrNotLeader) {
 			t.Fatalf("member kicks: %v", err)
 		}
-		if err := f.svc.Kick(f.id("Ayla"), f.id("Ayla")); !errors.Is(err, party.ErrNotMember) {
+		if err := f.svc.Kick(f.id("Ayla"), f.id("Ayla")); !errors.Is(err, model.ErrNotMember) {
 			t.Fatalf("self kick: %v", err)
 		}
-		if err := f.svc.Kick(f.id("Ayla"), f.id("Eve")); !errors.Is(err, party.ErrNotMember) {
+		if err := f.svc.Kick(f.id("Ayla"), f.id("Eve")); !errors.Is(err, model.ErrNotMember) {
 			t.Fatalf("kicking a stranger: %v", err)
 		}
 		f.rec.reset()
@@ -198,7 +199,7 @@ func TestPartyLifecycle(t *testing.T) {
 		}
 	})
 	t.Run("promote hands the lead over", func(t *testing.T) {
-		if err := f.svc.Promote(f.id("Robin"), f.id("Cass")); !errors.Is(err, party.ErrNotLeader) {
+		if err := f.svc.Promote(f.id("Robin"), f.id("Cass")); !errors.Is(err, model.ErrNotLeader) {
 			t.Fatalf("member promotes: %v", err)
 		}
 		if err := f.svc.Promote(f.id("Ayla"), f.id("Cass")); err != nil {
@@ -207,7 +208,7 @@ func TestPartyLifecycle(t *testing.T) {
 		if leader, _ := f.members(t, "Ayla"); leader != "Cass" {
 			t.Fatalf("leader %s", leader)
 		}
-		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Eve")); !errors.Is(err, party.ErrNotLeader) {
+		if _, err := f.svc.Invite(f.id("Ayla"), f.id("Eve")); !errors.Is(err, model.ErrNotLeader) {
 			t.Fatal("the old leader can still invite")
 		}
 	})
@@ -243,7 +244,7 @@ func TestPartyLifecycle(t *testing.T) {
 		if _, ok := f.svc.Of(f.id("Cass")); ok {
 			t.Fatal("a party of nobody")
 		}
-		if err := f.svc.Leave(f.id("Cass")); !errors.Is(err, party.ErrNoParty) {
+		if err := f.svc.Leave(f.id("Cass")); !errors.Is(err, model.ErrNoParty) {
 			t.Fatalf("leaving twice: %v", err)
 		}
 		if len(f.rec.states) != 1 || f.rec.states[0].party != nil {
@@ -259,14 +260,14 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.now = f.now.Add(30 * time.Second)
-	if err := f.svc.Respond(f.id("Robin"), inv.ID, true); !errors.Is(err, party.ErrInviteExpired) {
+	if err := f.svc.Respond(f.id("Robin"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
 		t.Fatalf("after 30 s: %v", err)
 	}
 	inv, err = f.svc.Invite(f.id("Ayla"), f.id("Robin"))
 	if err != nil {
 		t.Fatalf("a new invite after the old one expired: %v", err)
 	}
-	if err := f.svc.Respond(f.id("Cass"), inv.ID, true); !errors.Is(err, party.ErrInviteExpired) {
+	if err := f.svc.Respond(f.id("Cass"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
 		t.Fatalf("someone else's invite: %v", err)
 	}
 	f.now = f.now.Add(29 * time.Second)
@@ -275,7 +276,7 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 	}
 	// Cass is on another map: not invitable; back on the forest she is.
 	f.svc.Update(f.id("Cass"), "town", 3, 50, 100)
-	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); !errors.Is(err, party.ErrNotHere) {
+	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
 		t.Fatalf("another map: %v", err)
 	}
 	f.svc.Update(f.id("Cass"), "forest", 3, 50, 100)
@@ -285,10 +286,10 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 	// Offline characters cannot be invited either.
 	f.svc.Offline(f.id("Cass"))
 	f.now = f.now.Add(time.Minute)
-	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); !errors.Is(err, party.ErrNotHere) {
+	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
 		t.Fatalf("offline: %v", err)
 	}
-	if _, err := f.svc.Invite(f.id("Ayla"), kernel.NewCharacterID()); !errors.Is(err, party.ErrNotHere) {
+	if _, err := f.svc.Invite(f.id("Ayla"), kernel.NewCharacterID()); !errors.Is(err, model.ErrNotHere) {
 		t.Fatalf("unknown: %v", err)
 	}
 }
@@ -306,7 +307,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 		t.Fatal("Robin left the party by disconnecting")
 	}
 	// Reconnecting on another map at a new level: the row follows.
-	f.svc.Online(party.Member{ID: f.id("Robin"), Name: "Robin", Level: 5, HP: 10, MaxHP: 300, MapID: "cave"})
+	f.svc.Online(model.Member{ID: f.id("Robin"), Name: "Robin", Level: 5, HP: 10, MaxHP: 300, MapID: "cave"})
 	last = f.rec.last()
 	if m := last.party.Members[1]; !m.Online || m.Level != 5 || m.MapID != "cave" || m.HP != 10 || m.MaxHP != 300 {
 		t.Fatalf("after Robin came back: %+v", m)
