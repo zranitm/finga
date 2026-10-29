@@ -303,11 +303,12 @@ func (f *fakeWorld) push(to kernel.CharacterID, m *worldv1.DeliverResponse) {
 }
 
 type fakeObserver struct {
-	mu     sync.Mutex
-	in     map[string]int
-	out    map[string]int
-	online int
-	slow   int
+	mu      sync.Mutex
+	in      map[string]int
+	out     map[string]int
+	online  int
+	changes int // OnlineChanged calls
+	slow    int
 }
 
 func newFakeObserver() *fakeObserver {
@@ -317,7 +318,36 @@ func newFakeObserver() *fakeObserver {
 func (o *fakeObserver) MessageIn(t string)  { o.mu.Lock(); o.in[t]++; o.mu.Unlock() }
 func (o *fakeObserver) MessageOut(t string) { o.mu.Lock(); o.out[t]++; o.mu.Unlock() }
 func (o *fakeObserver) SlowConsumer()       { o.mu.Lock(); o.slow++; o.mu.Unlock() }
-func (o *fakeObserver) OnlineChanged(d int) { o.mu.Lock(); o.online += d; o.mu.Unlock() }
+func (o *fakeObserver) OnlineChanged(d int) {
+	o.mu.Lock()
+	o.online += d
+	o.changes++
+	o.mu.Unlock()
+}
+
+// onlineAfter waits for the n-th change of the online count and returns the
+// count then. The gateway counts a player after Welcome and the Snapshot
+// are sent and the social service has heard of them, so a client can read
+// both before the count moves.
+func (o *fakeObserver) onlineAfter(t *testing.T, n int) int {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		o.mu.Lock()
+		changes, online := o.changes, o.online
+		o.mu.Unlock()
+		if changes >= n {
+			if changes > n {
+				t.Fatalf("%d changes of the online count, want %d", changes, n)
+			}
+			return online
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%d changes of the online count after 2s, want %d", changes, n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
 
 // fakeItems is the item service, served over an in-memory gRPC connection
 // so the gateway's real client runs: it records the inventory commands and
