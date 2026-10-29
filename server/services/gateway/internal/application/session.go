@@ -1,18 +1,16 @@
-package ws
+package application
 
 import (
 	"context"
-	"errors"
 	"reflect"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/ratelimit"
-	"finga/pkg/wsconn"
+	"finga/services/gateway/internal/model"
 )
 
 // pendingMax bounds what may wait in a session for its Welcome (or for a
@@ -23,15 +21,15 @@ const pendingMax = 128
 // session is one connection's state. Identity is set once by Hello and
 // never changed by a message.
 type session struct {
-	conn       wsconn.Conn
+	conn       Conn
 	helloTimer *time.Timer
 	isActive   atomic.Bool
 
 	// The command queue: the read loop puts messages on it (helloSeen and
 	// limiters are the read loop's own), one goroutine drains it with ctx,
-	// which OnClose cancels, and closes drained when it stops.
+	// which Closed cancels, and closes drained when it stops.
 	helloSeen bool
-	queue     chan wsconn.Message
+	queue     chan model.Message
 	ctx       context.Context
 	cancel    context.CancelFunc
 	drained   chan struct{}
@@ -39,8 +37,8 @@ type session struct {
 	// Set by Hello under the gateway's lock, before the session is active.
 	account   kernel.AccountID
 	sessionID kernel.SessionID
-	character player
-	closed    bool // OnClose ran; a rejoin that finishes after it leaves again
+	character model.Player
+	closed    bool // Closed ran; a rejoin that finishes after it leaves again
 
 	rejoinMu sync.Mutex // one join at a time: Hello's, then each rejoin
 
@@ -63,13 +61,13 @@ func (s *session) setActive()   { s.isActive.Store(true) }
 type out struct {
 	mu       sync.Mutex
 	mapID    string
-	holding  bool             // a join is in flight: deliveries wait
-	awaiting bool             // the join's Snapshot has not arrived yet
-	pending  []wsconn.Message // held deliveries, in order
-	lastTick uint64           // the last tick sent on the connection
-	offset   uint64           // added to the world's ticks
-	rebase   bool             // the next Snapshot may start the ticks again
-	send     func(wsconn.Message)
+	holding  bool            // a join is in flight: deliveries wait
+	awaiting bool            // the join's Snapshot has not arrived yet
+	pending  []model.Message // held deliveries, in order
+	lastTick uint64          // the last tick sent on the connection
+	offset   uint64          // added to the world's ticks
+	rebase   bool            // the next Snapshot may start the ticks again
+	send     func(model.Message)
 }
 
 // hold starts a join.
@@ -82,7 +80,7 @@ func (o *out) hold() {
 // deliver sends a delivery, holds it while a join is in flight, or drops
 // it while the join's Snapshot is still to come. It reports false when too
 // much is waiting.
-func (o *out) deliver(m wsconn.Message) bool {
+func (o *out) deliver(m model.Message) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.awaiting {
@@ -105,7 +103,7 @@ func (o *out) deliver(m wsconn.Message) bool {
 // release ends a join that held: first goes out (Welcome, or a rejoin's
 // MapChange), then what was held, in order; the Snapshot may still be on
 // its way.
-func (o *out) release(mapID string, first ...wsconn.Message) {
+func (o *out) release(mapID string, first ...model.Message) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.mapID = mapID
@@ -127,7 +125,7 @@ func (o *out) abort() {
 
 // emit sends a delivery with its tick shifted, and follows a MapChange.
 // Called with mu held.
-func (o *out) emit(m wsconn.Message) {
+func (o *out) emit(m model.Message) {
 	if o.rebase && m.Type == "Snapshot" {
 		if m.Tick+o.offset <= o.lastTick {
 			o.offset = o.lastTick + 1 - m.Tick
@@ -143,10 +141,10 @@ func (o *out) emit(m wsconn.Message) {
 }
 
 // presence routes a command: the character and the map it is on.
-func (s *session) presence() *worldv1.Presence {
+func (s *session) presence() model.Presence {
 	s.out.mu.Lock()
 	defer s.out.mu.Unlock()
-	return &worldv1.Presence{CharacterId: s.character.ID.String(), MapId: s.out.mapID}
+	return model.Presence{Character: s.character.ID, MapID: s.out.mapID}
 }
 
 func (s *session) mapID() string {
@@ -155,47 +153,12 @@ func (s *session) mapID() string {
 	return s.out.mapID
 }
 
-// player is who the session plays, as Hello joined it: what routing, chat
-// and the social service need.
-type player struct {
-	ID    kernel.CharacterID
-	Name  string
-	Level int
-	HP    int
-	MaxHP int
-}
-
-// limit is a per-message-type token bucket setting (page 4).
-type limit struct {
-	perSecond float64
-	burst     float64
-}
-
-// rateLimits are page 4's per-account limits, keyed by message type.
-// ChatSend is missing on purpose: the chat service limits it (1 per
-// second, burst 3) and answers rate_limited, which a silent drop here
-// would hide.
-func rateLimits() map[string]limit {
-	l := map[string]limit{
-		"Input":  {30, 30}, // one per tick is 20 a second; the headroom absorbs a burst after a stall
-		"Attack": {10, 10},
-		"PickUp": {10, 10},
-	}
-	for _, t := range []string{"PartyInvite", "PartyRespond", "PartyLeave", "PartyKick", "PartyPromote"} {
-		l[t] = limit{2, 2}
-	}
-	for _, t := range []string{"InventoryMove", "InventoryDiscard"} {
-		l[t] = limit{5, 5}
-	}
-	return l
-}
-
 // allow charges one token from the bucket for this message type. The
 // buckets live on the session, so limits are per account and connection.
-func (s *session) allow(msgType string, lim limit, now func() time.Time) bool {
+func (s *session) allow(msgType string, lim model.Limit, now func() time.Time) bool {
 	b, ok := s.limiters[msgType]
 	if !ok {
-		b = ratelimit.NewBuckets(lim.perSecond, lim.burst, ratelimit.WithClock(now))
+		b = ratelimit.NewBuckets(lim.PerSecond, lim.Burst, ratelimit.WithClock(now))
 		s.limiters[msgType] = b
 	}
 	return b.Allow(msgType, 1)
@@ -210,15 +173,4 @@ func typeName(v any) string {
 		t = t.Elem()
 	}
 	return t.Name()
-}
-
-func isCloseError(err error, target **wsconn.CloseError) bool {
-	return errors.As(err, target)
-}
-
-func errText(err error) string {
-	if err == nil {
-		return "peer closed"
-	}
-	return err.Error()
 }

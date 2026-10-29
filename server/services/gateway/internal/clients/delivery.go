@@ -1,4 +1,4 @@
-package ws
+package clients
 
 import (
 	"strconv"
@@ -8,62 +8,62 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/protocol"
 	"finga/pkg/grpcx"
-	"finga/pkg/wsconn"
-	"finga/services/gateway/internal/handler/errmap"
+	"finga/services/gateway/internal/clients/errmap"
+	"finga/services/gateway/internal/model"
 )
 
 // delivery turns one event of the world's stream into the protocol message
 // the player sees; false for an event this gateway does not know yet.
-func delivery(m *worldv1.DeliverResponse) (wsconn.Message, bool) {
+func delivery(m *worldv1.DeliverResponse) (model.Message, bool) {
 	tick := m.GetTick()
 	switch {
 	case m.GetSnapshot() != nil:
 		ev := m.GetSnapshot()
-		return wsconn.Message{Type: "Snapshot", Tick: tick, Data: protocol.Snapshot{
+		return model.Message{Type: "Snapshot", Tick: tick, Data: protocol.Snapshot{
 			Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs(), true), Drops: dropViews(ev.GetDrops(), true),
 		}}, true
 	case m.GetDelta() != nil:
 		ev := m.GetDelta()
-		return wsconn.Message{Type: "Delta", Tick: tick, Data: protocol.Delta{
+		return model.Message{Type: "Delta", Tick: tick, Data: protocol.Delta{
 			AckSeq: ev.GetAckSeq(), Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs(), false), Drops: dropViews(ev.GetDrops(), false),
 			RemovedPlayers: ev.GetRemovedPlayers(), RemovedMobs: ev.GetRemovedMobs(), RemovedDrops: ev.GetRemovedDrops(),
 		}}, true
 	case m.GetTeleport() != nil:
 		ev := m.GetTeleport()
-		return wsconn.Message{Type: "MapChange", Tick: tick, Data: protocol.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}}, true
+		return model.Message{Type: "MapChange", Tick: tick, Data: protocol.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}}, true
 	case m.GetDamage() != nil:
 		ev := m.GetDamage()
-		return wsconn.Message{Type: "Damage", Tick: tick, Data: protocol.Damage{
+		return model.Message{Type: "Damage", Tick: tick, Data: protocol.Damage{
 			Source: entityRef(ev.GetSource()), Target: entityRef(ev.GetTarget()), Amount: int(ev.GetAmount()), Crit: ev.GetCrit(), Miss: ev.GetMiss(),
 		}}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
-		return wsconn.Message{Type: "Died", Tick: tick, Data: protocol.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}}, true
+		return model.Message{Type: "Died", Tick: tick, Data: protocol.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}}, true
 	case m.GetRespawned() != nil:
 		ev := m.GetRespawned()
-		return wsconn.Message{Type: "Respawned", Tick: tick, Data: protocol.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: int(ev.GetHp())}}, true
+		return model.Message{Type: "Respawned", Tick: tick, Data: protocol.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: int(ev.GetHp())}}, true
 	case m.GetExpGained() != nil:
 		ev := m.GetExpGained()
-		return wsconn.Message{Type: "ExpGained", Tick: tick, Data: protocol.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}}, true
+		return model.Message{Type: "ExpGained", Tick: tick, Data: protocol.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}}, true
 	case m.GetLevelUp() != nil:
-		return wsconn.Message{Type: "LevelUp", Tick: tick, Data: protocol.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}}, true
+		return model.Message{Type: "LevelUp", Tick: tick, Data: protocol.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}}, true
 	case m.GetChat() != nil:
 		ev := m.GetChat()
-		return wsconn.Message{Type: "ChatMessage", Tick: tick, Data: protocol.ChatMessage{Channel: protocol.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}}, true
+		return model.Message{Type: "ChatMessage", Tick: tick, Data: protocol.ChatMessage{Channel: protocol.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}}, true
 	case m.GetInventoryChanged() != nil:
-		return wsconn.Message{Type: "InventoryChanged", Tick: tick, Data: protocol.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}}, true
+		return model.Message{Type: "InventoryChanged", Tick: tick, Data: protocol.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}}, true
 	case m.GetPickupFailed() != nil:
-		return wsconn.Message{Type: "Response", Tick: tick, Data: refusal(pickupFailure(m.GetPickupFailed()))}, true
+		return model.Message{Type: "Response", Tick: tick, Data: refusal(pickupFailure(m.GetPickupFailed()))}, true
 	}
-	return wsconn.Message{}, false
+	return model.Message{}, false
 }
 
 // pickupFailure is a failed pickup as the player sees it, by the reason
 // the world named; one without a reason was logged by the world, where its
 // cause is known, and is internal here.
-func pickupFailure(f *worldv1.PickupFailed) errmap.Public {
+func pickupFailure(f *worldv1.PickupFailed) model.Public {
 	if f.GetErrorReason() == "" {
-		return errmap.Internal
+		return model.Internal
 	}
 	return errmap.For(grpcx.ErrorFor(codes.Unknown, grpcx.Reason{Domain: f.GetErrorDomain(), Name: f.GetErrorReason()}))
 }
@@ -130,4 +130,9 @@ func dropViews(ds []*worldv1.DropView, always bool) []protocol.DropView {
 		out = append(out, protocol.DropView{ID: d.GetId(), Template: d.GetTemplate(), Quantity: int(d.GetQuantity()), X: d.GetX(), Y: d.GetY()})
 	}
 	return out
+}
+
+// refusal is a failure as a Response.
+func refusal(p model.Public) protocol.Response {
+	return protocol.Response{OK: false, Code: p.Code, Message: p.Message}
 }

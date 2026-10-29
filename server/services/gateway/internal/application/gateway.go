@@ -1,53 +1,21 @@
-// Package ws is the gateway (Low-level design, pages 3, 4 and 10):
-// WebSocket sessions, the Hello handshake, one connection per account,
-// per-account rate limits, and routing of each message to the service that
-// owns it, with the identity taken from the connection, never from the
-// message. Players join through the world service, and everything the
-// world sends them arrives on one delivery stream per gateway, which this
-// package turns into protocol messages. When that stream breaks (the world
-// restarted, or this gateway fell behind) every socket stays open and each
-// player is joined again once the stream is back.
-package ws
+package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
-	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
-	accountv1 "finga/api/gen/account/v1"
-	itemv1 "finga/api/gen/item/v1"
-	socialv1 "finga/api/gen/social/v1"
-	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
-	"finga/pkg/grpcx"
 	"finga/pkg/ratelimit"
-	"finga/pkg/wsconn"
-	"finga/services/gateway/internal/handler/errmap"
+	"finga/services/gateway/internal/model"
 )
-
-// Observer counts traffic; internal/telemetry implements it. nil is fine.
-type Observer interface {
-	MessageIn(msgType string)
-	MessageOut(msgType string)
-	SlowConsumer()
-	OnlineChanged(delta int)
-}
-
-// SessionWatcher streams the session ends the account service reports;
-// its generated client satisfies it.
-type SessionWatcher interface {
-	WatchSessions(ctx context.Context, in *accountv1.WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[accountv1.WatchSessionsResponse], error)
-}
 
 // Dependencies are the services and settings the gateway is built from.
 type Dependencies struct {
@@ -55,13 +23,12 @@ type Dependencies struct {
 	// when empty.
 	ID          string
 	Sessions    auth.Guard
-	Watcher     SessionWatcher               // the account service; nil: no session ends are streamed, the minute check still runs
-	World       worldv1.WorldServiceClient   // joins, commands, and the delivery stream Run follows
-	Items       itemv1.ItemServiceClient     // the item service; nil: Welcome carries no items and inventory commands are unavailable
-	Social      socialv1.SocialServiceClient // parties and chat; nil: both are unavailable
+	SessionEnds SessionEnds // the account service's stream; nil: none is followed, the minute check still runs
+	World       World       // joins, commands, and the delivery stream Run follows
+	Items       Items       // nil: Welcome carries no items and inventory commands are unavailable
+	Social      Social      // parties and chat; nil: both are unavailable
 	Logger      *slog.Logger
 	Observer    Observer
-	CORSOrigins []string
 	Clock       func() time.Time
 	// HelloTimeout is how long a connection has to send Hello; 5 s by default.
 	HelloTimeout time.Duration
@@ -85,11 +52,11 @@ const (
 	joinRetryMax                = 500 * time.Millisecond
 )
 
-// Gateway serves /ws.
+// Gateway is the connections' use cases; the WebSocket handler feeds it
+// each connection's open, messages and close.
 type Gateway struct {
 	deps   Dependencies
-	codec  *wsconn.JSONCodec
-	limits map[string]limit
+	limits map[string]model.Limit
 	now    func() time.Time
 
 	mu          sync.Mutex
@@ -103,8 +70,8 @@ type Gateway struct {
 	draining    atomic.Bool // Drain has begun: no new connections
 }
 
-// New builds the gateway.
-func New(deps Dependencies) *Gateway {
+// NewGateway builds the connections' use cases.
+func NewGateway(deps Dependencies) *Gateway {
 	if deps.Clock == nil {
 		deps.Clock = time.Now
 	}
@@ -128,8 +95,7 @@ func New(deps Dependencies) *Gateway {
 	}
 	return &Gateway{
 		deps:        deps,
-		codec:       protocol.NewCodec(),
-		limits:      rateLimits(),
+		limits:      model.RateLimits(),
 		now:         deps.Clock,
 		byConn:      map[string]*session{},
 		byAccount:   map[kernel.AccountID]*session{},
@@ -147,25 +113,13 @@ func New(deps Dependencies) *Gateway {
 // It never returns an error.
 func (g *Gateway) Run(ctx context.Context) error {
 	if g.deps.World != nil {
-		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[worldv1.DeliverResponse], error) {
-			return g.deps.World.Deliver(ctx, &worldv1.DeliverRequest{GatewayId: g.deps.ID})
-		}, g.worldDelivered, grpcx.FollowOptions{OnBreak: func(err error) {
-			g.deps.Logger.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
-		}})
+		go g.deps.World.FollowDeliveries(ctx, g.deps.ID, g.worldDelivered)
 	}
 	if g.deps.Social != nil {
-		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.DeliverResponse], error) {
-			return g.deps.Social.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: g.deps.ID})
-		}, g.socialDelivered, grpcx.FollowOptions{OnBreak: func(err error) {
-			g.deps.Logger.WarnContext(ctx, "social stream broke; subscribing again", "err", err)
-		}})
+		go g.deps.Social.FollowDeliveries(ctx, g.deps.ID, g.socialDelivered)
 	}
-	if g.deps.Watcher != nil {
-		go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[accountv1.WatchSessionsResponse], error) {
-			return g.deps.Watcher.WatchSessions(ctx, &accountv1.WatchSessionsRequest{GatewayId: g.deps.ID})
-		}, g.sessionEnded, grpcx.FollowOptions{OnBreak: func(err error) {
-			g.deps.Logger.WarnContext(ctx, "session stream broke; subscribing again", "err", err)
-		}})
+	if g.deps.SessionEnds != nil {
+		go g.deps.SessionEnds.FollowSessionEnds(ctx, g.deps.ID, g.sessionEnded)
 	}
 	ticker := time.NewTicker(g.deps.SessionCheckInterval)
 	defer ticker.Stop()
@@ -194,19 +148,12 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 }
 
 // sessionEnded acts on one message of the account service's stream.
-func (g *Gateway) sessionEnded(m *accountv1.WatchSessionsResponse) {
+func (g *Gateway) sessionEnded(ev model.SessionEnd) {
 	switch {
-	case m.GetSessionRevoked() != nil:
-		id, err := kernel.ParseSessionID(m.GetSessionRevoked().GetSessionId())
-		if err == nil {
-			g.KickSession(id)
-		}
-	case m.GetAccountRevoked() != nil:
-		ev := m.GetAccountRevoked()
-		id, err := kernel.ParseAccountID(ev.GetAccountId())
-		if err == nil {
-			g.KickAccount(id, ev.GetReason() == accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN)
-		}
+	case !ev.Session.IsZero():
+		g.KickSession(ev.Session)
+	case !ev.Account.IsZero():
+		g.KickAccount(ev.Account, ev.NewLogin)
 	}
 }
 
@@ -245,15 +192,9 @@ func (g *Gateway) sessionOf(id kernel.CharacterID) *session {
 	return g.byCharacter[id]
 }
 
-// ServeHTTP upgrades the request and runs the session until it closes.
-// While the gateway drains it refuses new connections with 503.
-func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if g.draining.Load() {
-		http.Error(w, "server restarting", http.StatusServiceUnavailable)
-		return
-	}
-	wsconn.Serve(w, r, g, wsconn.Options{Codec: g.codec, AllowedOrigins: g.deps.CORSOrigins})
-}
+// Draining reports whether Drain has begun: the handler refuses new
+// connections from then on.
+func (g *Gateway) Draining() bool { return g.draining.Load() }
 
 // drainPoll is how often Drain checks whether every connection has closed.
 const drainPoll = 10 * time.Millisecond
@@ -266,7 +207,7 @@ const drainPoll = 10 * time.Millisecond
 func (g *Gateway) Drain(ctx context.Context) {
 	g.draining.Store(true)
 	g.mu.Lock()
-	conns := make([]wsconn.Conn, 0, len(g.byConn))
+	conns := make([]Conn, 0, len(g.byConn))
 	for _, s := range g.byConn {
 		conns = append(conns, s.conn)
 	}
@@ -292,15 +233,15 @@ func (g *Gateway) Drain(ctx context.Context) {
 	}
 }
 
-// OnOpen starts the Hello timer and the connection's command goroutine. A
+// Open starts a connection: the Hello timer and its command goroutine. A
 // connection that stays silent is closed.
-func (g *Gateway) OnOpen(c wsconn.Conn) {
-	s := &session{conn: c, limiters: map[string]*ratelimit.Buckets{}, queue: make(chan wsconn.Message, g.deps.CommandQueue), drained: make(chan struct{})}
+func (g *Gateway) Open(c Conn) {
+	s := &session{conn: c, limiters: map[string]*ratelimit.Buckets{}, queue: make(chan model.Message, g.deps.CommandQueue), drained: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	s.out.send = func(m wsconn.Message) { g.send(c, m) }
+	s.out.send = func(m model.Message) { g.send(c, m) }
 	s.helloTimer = time.AfterFunc(g.helloGrace, func() {
 		if !s.active() {
-			c.Close(wsconn.CloseKicked, "no hello")
+			c.Close(model.CloseKicked, "no hello")
 		}
 	})
 	g.mu.Lock()
@@ -313,12 +254,12 @@ func (g *Gateway) OnOpen(c wsconn.Conn) {
 	}
 }
 
-// OnMessage is the read loop's part: it decodes (wsconn did), applies the
-// rate limits and queues the message for the connection's command
-// goroutine, never waiting on a service. Before Hello only Hello is
+// Receive takes one decoded message on the connection's read loop: it
+// applies the rate limits and queues the message for the connection's
+// command goroutine, never waiting on a service. Before Hello only Hello is
 // accepted; Ping is answered here. A full queue answers rate_limited to a
 // command with a request ID and drops the rest.
-func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
+func (g *Gateway) Receive(c Conn, m model.Message) {
 	g.deps.Observer.MessageIn(m.Type)
 	g.mu.Lock()
 	s := g.byConn[c.ID()]
@@ -328,7 +269,7 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 	if !s.helloSeen {
 		if _, ok := m.Data.(protocol.Hello); !ok {
-			c.Close(wsconn.CloseKicked, "hello expected")
+			c.Close(model.CloseKicked, "hello expected")
 			return
 		}
 		s.helloSeen = true
@@ -337,15 +278,15 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 	switch d := m.Data.(type) {
 	case protocol.Ping:
-		g.send(c, wsconn.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
+		g.send(c, model.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
 		return
 	case protocol.Hello:
-		c.Close(wsconn.CloseKicked, "hello twice")
+		c.Close(model.CloseKicked, "hello twice")
 		return
 	}
 	if lim, limited := g.limits[m.Type]; limited && !s.allow(m.Type, lim, g.now) {
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: refusal(errmap.RateLimited)})
+			g.send(c, model.Message{ReqID: m.ReqID, Data: refusal(model.RateLimited)})
 		}
 		return
 	}
@@ -353,13 +294,13 @@ func (g *Gateway) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	case s.queue <- m:
 	default:
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: refusal(errmap.RateLimited)})
+			g.send(c, model.Message{ReqID: m.ReqID, Data: refusal(model.RateLimited)})
 		}
 	}
 }
 
 // commands drains a connection's queue in order, one message at a time,
-// until the connection closes; then it stops, and OnClose waits for it.
+// until the connection closes; then it stops, and Closed waits for it.
 func (g *Gateway) commands(s *session) {
 	defer close(s.drained)
 	for {
@@ -377,7 +318,7 @@ func (g *Gateway) commands(s *session) {
 
 // command runs one queued message: Hello first, then, once it has
 // succeeded, each command with the connection's identity.
-func (g *Gateway) command(s *session, m wsconn.Message) {
+func (g *Gateway) command(s *session, m model.Message) {
 	if hello, ok := m.Data.(protocol.Hello); ok {
 		g.hello(s, hello)
 		return
@@ -388,93 +329,79 @@ func (g *Gateway) command(s *session, m wsconn.Message) {
 	c := s.conn
 	switch d := m.Data.(type) {
 	case protocol.Input:
-		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
-			_, err := g.deps.World.Input(ctx, &worldv1.InputRequest{Presence: p, Seq: m.Seq, Keys: &worldv1.Keys{Left: d.Left, Right: d.Right, Up: d.Up, Down: d.Down, Jump: d.Jump}})
-			return err
+		g.worldCommand(s, func(ctx context.Context, p model.Presence) error {
+			return g.deps.World.Input(ctx, p, m.Seq, d)
 		})
 	case protocol.Attack:
-		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
-			_, err := g.deps.World.Attack(ctx, &worldv1.AttackRequest{Presence: p})
-			return err
-		})
+		g.worldCommand(s, g.deps.World.Attack)
 	case protocol.EnterPortal:
-		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
-			_, err := g.deps.World.EnterPortal(ctx, &worldv1.EnterPortalRequest{Presence: p})
-			return err
-		})
+		g.worldCommand(s, g.deps.World.EnterPortal)
 	case protocol.PickUp:
-		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
-			_, err := g.deps.World.PickUp(ctx, &worldv1.PickUpRequest{Presence: p})
-			return err
-		})
+		g.worldCommand(s, g.deps.World.PickUp)
 	case protocol.InventoryMove:
-		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
+		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, a model.Actor) ([]protocol.InventorySlot, error) {
 			id, err := kernel.ParseItemID(d.ItemID)
 			if err != nil {
 				return nil, err
 			}
-			res, err := g.deps.Items.Move(ctx, &itemv1.MoveRequest{Actor: actor, IdempotencyKey: d.IdempotencyKey, ItemId: id.String(), Tab: d.Tab, Slot: int32(d.Slot)})
-			return res.GetChanged(), err
+			d.ItemID = id.String()
+			return g.deps.Items.Move(ctx, a, d)
 		})
 	case protocol.InventoryDiscard:
-		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
+		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, a model.Actor) ([]protocol.InventorySlot, error) {
 			id, err := kernel.ParseItemID(d.ItemID)
 			if err != nil {
 				return nil, err
 			}
-			res, err := g.deps.Items.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: d.IdempotencyKey, ItemId: id.String(), Quantity: int32(d.Quantity)})
-			return res.GetChanged(), err
+			d.ItemID = id.String()
+			return g.deps.Items.Discard(ctx, a, d)
 		})
 	case protocol.ChatSend:
 		g.chat(s, d)
 	case protocol.PartyInvite:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
 			to, err := kernel.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
-			_, err = g.deps.Social.Invite(ctx, &socialv1.InviteRequest{CharacterId: me, TargetId: to.String()})
-			return err
+			return g.deps.Social.Invite(ctx, me, to)
 		})
 	case protocol.PartyRespond:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
-			_, err := g.deps.Social.Respond(ctx, &socialv1.RespondRequest{CharacterId: me, InviteId: d.InviteID, Accept: d.Accept})
-			return err
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
+			return g.deps.Social.Respond(ctx, me, d.InviteID, d.Accept)
 		})
 	case protocol.PartyLeave:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
-			_, err := g.deps.Social.LeaveParty(ctx, &socialv1.LeavePartyRequest{CharacterId: me})
-			return err
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
+			return g.deps.Social.Leave(ctx, me) // Social is read once partyCommand has checked it is set
 		})
 	case protocol.PartyKick:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
 			target, err := kernel.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
-			_, err = g.deps.Social.Kick(ctx, &socialv1.KickRequest{CharacterId: me, TargetId: target.String()})
-			return err
+			return g.deps.Social.Kick(ctx, me, target)
 		})
 	case protocol.PartyPromote:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
+		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
 			target, err := kernel.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
-			_, err = g.deps.Social.Promote(ctx, &socialv1.PromoteRequest{CharacterId: me, TargetId: target.String()})
-			return err
+			return g.deps.Social.Promote(ctx, me, target)
 		})
 	default:
 		// Market messages arrive in Stage 2.
 		if m.ReqID != "" {
-			g.send(c, wsconn.Message{ReqID: m.ReqID, Data: refusal(errmap.NotImplemented)})
+			g.send(c, model.Message{ReqID: m.ReqID, Data: refusal(model.NotImplemented)})
 		}
 	}
 }
 
-// OnClose cancels the connection's command in flight and waits for its
-// command goroutine, then leaves the map and clears the registry.
-func (g *Gateway) OnClose(c wsconn.Conn, err error) {
+// Closed ends a connection the transport closed (slow when it fell too far
+// behind; reason for the log): it cancels the command in flight, waits for
+// the command goroutine, then leaves the map and clears the registry.
+func (g *Gateway) Closed(c Conn, slow bool, reason string) {
 	g.mu.Lock()
 	s := g.byConn[c.ID()]
 	g.mu.Unlock()
@@ -509,25 +436,24 @@ func (g *Gateway) OnClose(c wsconn.Conn, err error) {
 	if s.active() {
 		if g.deps.Social != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
-			if _, err := g.deps.Social.Offline(ctx, &socialv1.OfflineRequest{CharacterId: s.character.ID.String()}); err != nil {
+			if err := g.deps.Social.Offline(ctx, s.character.ID); err != nil {
 				g.deps.Logger.WarnContext(ctx, "social offline failed", "character_id", s.character.ID, "err", err)
 			}
 			cancel()
 		}
 		g.deps.Observer.OnlineChanged(-1)
 	}
-	var ce *wsconn.CloseError
-	if isCloseError(err, &ce) && ce.Code == wsconn.CloseSlowConsumer {
+	if slow {
 		g.deps.Observer.SlowConsumer()
 	}
-	g.deps.Logger.Info("ws closed", "conn", c.ID(), "reason", errText(err))
+	g.deps.Logger.Info("ws closed", "conn", c.ID(), "reason", reason)
 }
 
 // leave tells the world the connection's player is gone.
 func (g *Gateway) leave(s *session) {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
-	if _, err := g.deps.World.Leave(ctx, &worldv1.LeaveRequest{Presence: s.presence(), ConnectionId: s.conn.ID()}); err != nil {
+	if err := g.deps.World.Leave(ctx, s.presence(), s.conn.ID()); err != nil {
 		g.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.character.ID, "err", err)
 	}
 }
@@ -554,12 +480,12 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	// Welcome; the one it sent works once more for a minute.
 	token, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
 	if err != nil {
-		if errmap.For(err) == errmap.Unauthenticated {
+		if model.PublicOf(err) == model.Unauthenticated {
 			g.kick(s.conn, protocol.KickUnauthenticated)
 			return
 		}
 		g.deps.Logger.ErrorContext(ctx, "token rotation failed", "session_id", p.SessionID, "err", err)
-		s.conn.Close(wsconn.CloseInternal, "session")
+		s.conn.Close(model.CloseInternal, "session")
 		return
 	}
 	charID, err := kernel.ParseCharacterID(h.CharacterID)
@@ -584,7 +510,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	g.mu.Unlock()
 	s.helloTimer.Stop()
 
-	res, err := g.join(ctx, &worldv1.JoinRequest{GatewayId: g.deps.ID, ConnectionId: s.conn.ID(), AccountId: account.String(), CharacterId: charID.String()})
+	joined, err := g.join(ctx, s.conn.ID(), account, charID)
 	if err != nil {
 		s.out.abort()
 		g.mu.Lock()
@@ -600,40 +526,40 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		// Someone else's character, or none, is a bad Hello; a world or
 		// character service that cannot answer is a server fault the client
 		// retries.
-		if errmap.For(err).Code == characterNotFound {
+		if model.PublicOf(err).Code == model.CharacterNotFound {
 			g.kick(s.conn, protocol.KickUnauthenticated)
 			return
 		}
 		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "err", err)
-		s.conn.Close(wsconn.CloseInternal, "join")
+		s.conn.Close(model.CloseInternal, "join")
 		return
 	}
-	c := res.GetCharacter()
+	c := joined.Character
 	inventory := []protocol.ItemView{}
 	if g.deps.Items != nil {
-		res, err := g.deps.Items.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: charID.String()})
+		items, err := g.deps.Items.Inventory(ctx, charID)
 		if err != nil {
 			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
-			s.conn.Close(wsconn.CloseInternal, "inventory")
+			s.conn.Close(model.CloseInternal, "inventory")
 			return
 		}
-		inventory = itemViews(res.GetItems())
+		inventory = items
 	}
 	welcome := protocol.Welcome{
 		Token:      token,
-		Character:  characterView(c),
+		Character:  c,
 		Inventory:  inventory,
-		MapID:      c.GetMapId(),
+		MapID:      joined.MapID,
 		ServerTime: g.now().UnixMilli(),
 	}
 	if g.deps.Social != nil {
 		// Parties are optional: a social service that cannot be reached
 		// leaves Welcome without one rather than the player out of the game.
-		res, err := g.deps.Social.PartyOf(ctx, &socialv1.PartyOfRequest{CharacterId: charID.String()})
+		party, err := g.deps.Social.PartyOf(ctx, charID)
 		if err != nil {
 			g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", charID, "err", err)
 		}
-		welcome.Party = partyView(res.GetParty())
+		welcome.Party = party
 	}
 
 	g.mu.Lock()
@@ -641,11 +567,11 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	sameSession := g.bySession[sessionID]
 	g.byAccount[account] = s
 	g.bySession[sessionID] = s
-	s.character = player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
+	s.character = model.Player{ID: charID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
 	s.setActive()
 	missed := g.worldSubs > subs // the stream broke during the join
 	g.mu.Unlock()
-	s.out.release(c.GetMapId(), wsconn.Message{Data: welcome})
+	s.out.release(joined.MapID, model.Message{Data: welcome})
 	// An older connection of the account, or a second Hello on the same
 	// session, loses: the newest connection wins.
 	for _, prev := range []*session{old, sameSession, previous} {
@@ -658,7 +584,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	}
 	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
-	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", charID, "map_id", c.GetMapId())
+	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", charID, "map_id", joined.MapID)
 }
 
 // worldDelivered acts on one message of the world's stream: a delivery
@@ -666,8 +592,8 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 // stream broke and every player this gateway had joined is gone from the
 // world, so each is joined again. Nothing here waits on the world: the
 // joins' Snapshots come back on this same stream.
-func (g *Gateway) worldDelivered(m *worldv1.DeliverResponse) {
-	if m.GetSubscribed() != nil {
+func (g *Gateway) worldDelivered(ev model.WorldEvent) {
+	if ev.Subscribed {
 		g.mu.Lock()
 		again := g.worldSubs > 0
 		g.worldSubs++
@@ -685,23 +611,15 @@ func (g *Gateway) worldDelivered(m *worldv1.DeliverResponse) {
 		}
 		return
 	}
-	id, err := kernel.ParseCharacterID(m.GetCharacterId())
-	if err != nil {
-		return
-	}
-	s := g.sessionOf(id)
+	s := g.sessionOf(ev.Character)
 	if s == nil {
 		return // gone from this gateway; the world learns it from Leave
 	}
-	msg, ok := delivery(m)
-	if !ok {
-		return
+	if p, isRefusal := ev.Message.Data.(protocol.Response); isRefusal && p.Code == model.Internal.Code {
+		g.deps.Logger.Warn("pickup failed for a reason the world could not name", "conn", s.conn.ID(), "character_id", ev.Character)
 	}
-	if p, isRefusal := msg.Data.(protocol.Response); isRefusal && p.Code == errmap.Internal.Code {
-		g.deps.Logger.Warn("pickup failed for a reason the world could not name", "conn", s.conn.ID(), "character_id", id)
-	}
-	if !s.out.deliver(msg) {
-		s.conn.Close(wsconn.CloseInternal, "join")
+	if !s.out.deliver(ev.Message) {
+		s.conn.Close(model.CloseInternal, "join")
 	}
 }
 
@@ -719,28 +637,27 @@ func (g *Gateway) rejoin(s *session) {
 	defer cancel()
 	before := s.mapID()
 	s.out.hold()
-	res, err := g.join(ctx, &worldv1.JoinRequest{GatewayId: g.deps.ID, ConnectionId: s.conn.ID(), AccountId: s.account.String(), CharacterId: s.character.ID.String()})
+	joined, err := g.join(ctx, s.conn.ID(), s.account, s.character.ID)
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
 			g.leave(s) // the connection closed mid-join; the world may have joined it anyway
 			return
 		}
-		if r, _ := grpcx.ReasonOf(err); r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED) {
+		if errors.Is(err, model.ErrNotSubscribed) {
 			// The stream broke again: the next subscription rejoins.
 			g.deps.Logger.WarnContext(ctx, "rejoin waits for the world's stream", "character_id", s.character.ID)
 			return
 		}
 		g.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.character.ID, "err", err)
-		s.conn.Close(wsconn.CloseInternal, "rejoin")
+		s.conn.Close(model.CloseInternal, "rejoin")
 		return
 	}
-	c := res.GetCharacter()
-	var first []wsconn.Message
-	if c.GetMapId() != before {
-		first = append(first, wsconn.Message{Data: protocol.MapChange{MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY()}})
+	var first []model.Message
+	if joined.MapID != before {
+		first = append(first, model.Message{Data: protocol.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}})
 	}
-	s.out.release(c.GetMapId(), first...)
+	s.out.release(joined.MapID, first...)
 	g.mu.Lock()
 	closed := s.closed
 	g.mu.Unlock()
@@ -748,25 +665,25 @@ func (g *Gateway) rejoin(s *session) {
 		g.leave(s)
 		return
 	}
-	g.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.conn.ID(), "character_id", s.character.ID, "map_id", c.GetMapId())
+	g.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.conn.ID(), "character_id", s.character.ID, "map_id", joined.MapID)
 }
 
 // join asks the world to join a player, waiting out a world that is not
 // reachable yet (starting, restarting) or has not seen this gateway's
 // stream yet, until ctx ends. A join is safe to repeat: the world replaces
 // a presence that joined through the same connection.
-func (g *Gateway) join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
+func (g *Gateway) join(ctx context.Context, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
 	wait := joinRetryFirst
 	for {
-		res, err := g.deps.World.Join(ctx, req)
+		joined, err := g.deps.World.Join(ctx, g.deps.ID, conn, account, character)
 		if err == nil || !waitable(err) {
-			return res, err
+			return joined, err
 		}
 		t := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
 			t.Stop()
-			return nil, err
+			return model.Joined{}, err
 		case <-t.C:
 		}
 		wait = min(wait*2, joinRetryMax)
@@ -776,16 +693,13 @@ func (g *Gateway) join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.
 // waitable is a join failure that time may cure: the world is unreachable,
 // or its stream to this gateway is not open yet.
 func waitable(err error) bool {
-	if r, ok := grpcx.ReasonOf(err); ok {
-		return r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED)
-	}
-	return status.Code(err) == codes.Unavailable
+	return errors.Is(err, model.ErrNotSubscribed) || errors.Is(err, model.ErrUnavailable)
 }
 
 // worldCommand sends a command to the world with the connection's
 // character and map. A failure is dropped: the client's next input
 // supersedes it, and a world that went away is handled by the rejoin.
-func (g *Gateway) worldCommand(s *session, call func(ctx context.Context, p *worldv1.Presence) error) {
+func (g *Gateway) worldCommand(s *session, call func(ctx context.Context, p model.Presence) error) {
 	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
 	_ = call(ctx, s.presence())
@@ -798,10 +712,8 @@ func (g *Gateway) online(ctx context.Context, s *session) {
 	if g.deps.Social == nil {
 		return
 	}
-	c := s.character
-	member := &socialv1.Member{Id: c.ID.String(), Name: c.Name, Level: int32(c.Level), Hp: int32(c.HP), MaxHp: int32(c.MaxHP), MapId: s.mapID()}
-	if _, err := g.deps.Social.Online(ctx, &socialv1.OnlineRequest{GatewayId: g.deps.ID, Member: member}); err != nil {
-		g.deps.Logger.WarnContext(ctx, "social online failed", "character_id", c.ID, "err", err)
+	if err := g.deps.Social.Online(ctx, g.deps.ID, s.character, s.mapID()); err != nil {
+		g.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.character.ID, "err", err)
 	}
 }
 
@@ -812,56 +724,48 @@ func (g *Gateway) online(ctx context.Context, s *session) {
 // carries no request ID).
 func (g *Gateway) chat(s *session, d protocol.ChatSend) {
 	if g.deps.Social == nil {
-		g.send(s.conn, wsconn.Message{Data: refusal(errmap.ChatUnavailable)})
+		g.send(s.conn, model.Message{Data: refusal(model.ChatUnavailable)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
-	res, err := g.deps.Social.Chat(ctx, &socialv1.ChatRequest{SenderId: s.character.ID.String(), SenderName: s.character.Name, Channel: chatChannels[d.Channel], Text: d.Text})
+	line, err := g.deps.Social.Chat(ctx, s.character, d.Channel, d.Text)
 	if err != nil {
-		g.send(s.conn, wsconn.Message{Data: g.refuse(s, "ChatSend", err)})
+		g.send(s.conn, model.Message{Data: g.refuse(s, "ChatSend", err)})
 		return
 	}
-	if res.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_MAP {
-		g.worldCommand(s, func(ctx context.Context, p *worldv1.Presence) error {
-			_, err := g.deps.World.Say(ctx, &worldv1.SayRequest{Presence: p, SenderName: s.character.Name, Text: res.GetText()})
-			return err
+	if line.Channel == protocol.ChatMap {
+		g.worldCommand(s, func(ctx context.Context, p model.Presence) error {
+			return g.deps.World.Say(ctx, p, s.character.Name, line.Text)
 		})
 	}
 }
 
-// chatChannels are the client's channels in the contract; anything else is
-// unspecified, which the social service refuses.
-var chatChannels = map[protocol.ChatChannel]socialv1.ChatChannel{
-	protocol.ChatMap:   socialv1.ChatChannel_CHAT_CHANNEL_MAP,
-	protocol.ChatParty: socialv1.ChatChannel_CHAT_CHANNEL_PARTY,
-}
-
 // partyCommand runs a party command with the connection's identity and
 // answers a Response; the social service pushes PartyState itself.
-func (g *Gateway) partyCommand(s *session, reqID string, run func(ctx context.Context, me string) error) {
+func (g *Gateway) partyCommand(s *session, reqID string, run func(ctx context.Context, me kernel.CharacterID) error) {
 	if g.deps.Social == nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.PartiesUnavailable)})
+		g.send(s.conn, model.Message{ReqID: reqID, Data: refusal(model.PartiesUnavailable)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
-	if err := run(ctx, s.character.ID.String()); err != nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "party", err)})
+	if err := run(ctx, s.character.ID); err != nil {
+		g.send(s.conn, model.Message{ReqID: reqID, Data: g.refuse(s, "party", err)})
 		return
 	}
-	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
+	g.send(s.conn, model.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
 }
 
 // socialDelivered turns one message of the social service's stream into
 // what the client sees. A new boot ID on Subscribed means the social
 // service restarted and every party is gone: each connected player gets
 // PartyState with no party and is registered again.
-func (g *Gateway) socialDelivered(m *socialv1.DeliverResponse) {
-	if sub := m.GetSubscribed(); sub != nil {
+func (g *Gateway) socialDelivered(ev model.SocialEvent) {
+	if ev.Subscribed {
 		g.mu.Lock()
-		restarted := g.socialBoot != "" && g.socialBoot != sub.GetBootId()
-		g.socialBoot = sub.GetBootId()
+		restarted := g.socialBoot != "" && g.socialBoot != ev.BootID
+		g.socialBoot = ev.BootID
 		active := make([]*session, 0, len(g.byCharacter))
 		for _, s := range g.byCharacter {
 			active = append(active, s)
@@ -871,34 +775,21 @@ func (g *Gateway) socialDelivered(m *socialv1.DeliverResponse) {
 			ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
 			defer cancel()
 			for _, s := range active {
-				g.send(s.conn, wsconn.Message{Data: protocol.PartyState{}})
+				g.send(s.conn, model.Message{Data: protocol.PartyState{}})
 				g.online(ctx, s)
 			}
 		}
 		return
 	}
-	id, err := kernel.ParseCharacterID(m.GetCharacterId())
-	if err != nil {
-		return
-	}
-	t := g.sessionOf(id)
+	t := g.sessionOf(ev.Character)
 	if t == nil {
 		return // gone from this gateway; the social service learns it from Offline
 	}
-	switch {
-	case m.GetPartyState() != nil:
-		g.send(t.conn, wsconn.Message{Data: protocol.PartyState{Party: partyView(m.GetPartyState().GetParty())}})
-	case m.GetPartyInvited() != nil:
-		inv := m.GetPartyInvited()
-		g.send(t.conn, wsconn.Message{Data: protocol.PartyInvited{InviteID: inv.GetInviteId(), From: inv.GetFromId(), FromName: inv.GetFromName()}})
-	case m.GetChatLine() != nil:
-		line := m.GetChatLine()
-		g.send(t.conn, wsconn.Message{Data: protocol.ChatMessage{Channel: protocol.ChatParty, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}})
-	}
+	g.send(t.conn, ev.Message)
 }
 
 // refusal is a failure as a Response.
-func refusal(p errmap.Public) protocol.Response {
+func refusal(p model.Public) protocol.Response {
 	return protocol.Response{OK: false, Code: p.Code, Message: p.Message}
 }
 
@@ -906,87 +797,46 @@ func refusal(p errmap.Public) protocol.Response {
 // the cause of an error nobody expected (a database failure), which the
 // player only sees as internal.
 func (g *Gateway) refuse(s *session, command string, err error) protocol.Response {
-	p := errmap.For(err)
-	if errmap.IsInternal(p) {
+	p := model.PublicOf(err)
+	if model.IsInternal(p) {
 		g.deps.Logger.Error("command failed", "conn", s.conn.ID(), "character_id", s.character.ID, "command", command, "err", err)
 	}
 	return refusal(p)
 }
 
-func partyView(p *socialv1.Party) *protocol.PartyView {
-	if p == nil {
-		return nil
-	}
-	v := &protocol.PartyView{Leader: p.GetLeaderId(), Members: make([]protocol.PartyMember, 0, len(p.GetMembers()))}
-	for _, m := range p.GetMembers() {
-		v.Members = append(v.Members, protocol.PartyMember{CharacterID: m.GetId(), Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Online: m.GetOnline()})
-	}
-	return v
-}
-
 // inventoryCommand runs an inventory command on the connection's own
 // goroutine (it blocks on the database, never a tick), answers with a
 // Response, and sends the changed slots as InventoryChanged.
-func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error)) {
+func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, a model.Actor) ([]protocol.InventorySlot, error)) {
 	if g.deps.Items == nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: refusal(errmap.InventoryUnavailable)})
+		g.send(s.conn, model.Message{ReqID: reqID, Data: refusal(model.InventoryUnavailable)})
 		return
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
 	defer cancel()
-	changed, err := run(ctx, &itemv1.Actor{AccountId: s.account.String(), CharacterId: s.character.ID.String()})
+	changed, err := run(ctx, model.Actor{Account: s.account, Character: s.character.ID})
 	if err != nil {
-		g.send(s.conn, wsconn.Message{ReqID: reqID, Data: g.refuse(s, "inventory", err)})
+		g.send(s.conn, model.Message{ReqID: reqID, Data: g.refuse(s, "inventory", err)})
 		return
 	}
-	g.send(s.conn, wsconn.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
+	g.send(s.conn, model.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
 	if len(changed) > 0 {
-		g.send(s.conn, wsconn.Message{Data: protocol.InventoryChanged{Slots: inventorySlots(changed)}})
+		g.send(s.conn, model.Message{Data: protocol.InventoryChanged{Slots: changed}})
 	}
 }
 
 // kick tells the peer why and closes.
-func (g *Gateway) kick(c wsconn.Conn, reason protocol.KickReason) {
-	g.send(c, wsconn.Message{Data: protocol.Kicked{Reason: reason}})
-	c.Close(wsconn.CloseKicked, string(reason))
+func (g *Gateway) kick(c Conn, reason protocol.KickReason) {
+	g.send(c, model.Message{Data: protocol.Kicked{Reason: reason}})
+	c.Close(model.CloseKicked, string(reason))
 }
 
-func (g *Gateway) send(c wsconn.Conn, m wsconn.Message) {
+func (g *Gateway) send(c Conn, m model.Message) {
 	if m.Type == "" {
 		m.Type = typeName(m.Data)
 	}
 	g.deps.Observer.MessageOut(m.Type)
-	_ = c.Send(m) // a full queue closes the connection; OnClose cleans up
-}
-
-// characterNotFound is the code of a character that is not the account's.
-const characterNotFound = "character_not_found"
-
-func itemViews(items []*itemv1.Item) []protocol.ItemView {
-	out := make([]protocol.ItemView, 0, len(items))
-	for _, it := range items {
-		out = append(out, itemView(it))
-	}
-	return out
-}
-
-func itemView(it *itemv1.Item) protocol.ItemView {
-	return protocol.ItemView{ItemID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
-}
-
-// inventorySlots are the item service's changed slots as the client sees
-// them.
-func inventorySlots(slots []*itemv1.Slot) []protocol.InventorySlot {
-	out := make([]protocol.InventorySlot, 0, len(slots))
-	for _, s := range slots {
-		slot := protocol.InventorySlot{Tab: s.GetTab(), Slot: int(s.GetSlot())}
-		if s.GetItem() != nil {
-			v := itemView(s.GetItem())
-			slot.Item = &v
-		}
-		out = append(out, slot)
-	}
-	return out
+	c.Send(m) // a full queue closes the connection; Closed cleans up
 }
 
 // noopObserver is the Observer when none is given.

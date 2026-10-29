@@ -4,16 +4,16 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"finga/services/gateway/internal/handler/errmap"
+	"finga/services/gateway/internal/model"
 )
 
-// writeError answers a service error with its own code, status and player
-// message from errmap. Nothing of the error's text reaches the body. The
-// request log carries the code, and the cause too when the error is not
-// one the table knows.
+// writeError answers a failure with its own code, status and player
+// message (model.PublicOf). Nothing of the error's text reaches the body.
+// The request log carries the code, and the cause too when the failure is
+// not one the gateway knows.
 func writeError(w http.ResponseWriter, err error) {
-	p := errmap.For(err)
-	if sw, ok := w.(*statusWriter); ok && errmap.IsInternal(p) {
+	p := model.PublicOf(err)
+	if sw, ok := w.(*statusWriter); ok && model.IsInternal(p) {
 		sw.err = err
 	}
 	writePublic(w, p)
@@ -21,7 +21,7 @@ func writeError(w http.ResponseWriter, err error) {
 
 // writePublic sends a failure as the client sees it and notes its code
 // for the request log.
-func writePublic(w http.ResponseWriter, p errmap.Public) {
+func writePublic(w http.ResponseWriter, p model.Public) {
 	if sw, ok := w.(*statusWriter); ok {
 		sw.code = p.Code
 	}

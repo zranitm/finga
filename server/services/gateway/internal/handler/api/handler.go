@@ -1,12 +1,11 @@
-// Package api is the REST handler layer (Low-level design, page 4): it
-// decodes requests, resolves the caller from the bearer token, calls
-// exactly one service method per endpoint, and maps results and errors to
-// HTTP. Business rules live in the services; this package only rejects
-// input that is malformed whatever the rules are.
+// Package api is the REST handler layer (Low-level design, pages 4 and
+// 11): it decodes requests, resolves the caller from the bearer token,
+// calls exactly one of the application's Lobby use cases per endpoint, and
+// maps results and errors to HTTP. Business rules live in the services;
+// this package only rejects input that is malformed whatever the rules are.
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,39 +13,17 @@ import (
 	"net"
 	"net/http"
 
-	"google.golang.org/grpc"
-
-	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
-	"finga/pkg/auth"
-	"finga/services/gateway/internal/handler/errmap"
+	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/model"
 )
 
 // maxBodyBytes caps a request body; the biggest legitimate body is a
 // password of 128 characters.
 const maxBodyBytes = 64 << 10
 
-// AccountService is what the handler needs from the account service
-// (page 10); its generated client satisfies it.
-type AccountService interface {
-	Register(ctx context.Context, in *accountv1.RegisterRequest, opts ...grpc.CallOption) (*accountv1.RegisterResponse, error)
-	Login(ctx context.Context, in *accountv1.LoginRequest, opts ...grpc.CallOption) (*accountv1.LoginResponse, error)
-	GetSettings(ctx context.Context, in *accountv1.GetSettingsRequest, opts ...grpc.CallOption) (*accountv1.GetSettingsResponse, error)
-	UpdateSettings(ctx context.Context, in *accountv1.UpdateSettingsRequest, opts ...grpc.CallOption) (*accountv1.UpdateSettingsResponse, error)
-}
-
-// CharacterService is what the handler needs from the character service
-// (page 10); its generated client satisfies it.
-type CharacterService interface {
-	Create(ctx context.Context, in *characterv1.CreateRequest, opts ...grpc.CallOption) (*characterv1.CreateResponse, error)
-	List(ctx context.Context, in *characterv1.ListRequest, opts ...grpc.CallOption) (*characterv1.ListResponse, error)
-}
-
-// Dependencies are the services and settings the handler is built from.
+// Dependencies are the use cases and settings the handler is built from.
 type Dependencies struct {
-	Accounts    AccountService
-	Characters  CharacterService
-	Sessions    auth.Guard
+	Lobby       *application.Lobby
 	Logger      *slog.Logger
 	CORSOrigins []string
 }
@@ -72,18 +49,16 @@ func Routes() []Route {
 }
 
 type handler struct {
-	accounts   AccountService
-	characters CharacterService
-	sessions   auth.Guard
+	lobby *application.Lobby
 }
 
 // NewHandler builds the /api routes with their middleware: logging and
 // panic recovery outermost, then CORS, then authentication where needed.
 func NewHandler(d Dependencies) http.Handler {
-	h := &handler{accounts: d.Accounts, characters: d.Characters, sessions: d.Sessions}
+	h := &handler{lobby: d.Lobby}
 	mux := http.NewServeMux()
 	public := func(fn http.HandlerFunc) http.Handler { return fn }
-	authed := func(fn http.HandlerFunc) http.Handler { return requireAuth(d.Sessions, fn) }
+	authed := func(fn http.HandlerFunc) http.Handler { return requireAuth(d.Lobby, fn) }
 
 	mux.Handle("POST /api/accounts", public(h.register))
 	mux.Handle("POST /api/sessions", public(h.login))
@@ -103,11 +78,11 @@ func NewHandler(d Dependencies) http.Handler {
 func notFound(w http.ResponseWriter, r *http.Request) {
 	for _, route := range Routes() {
 		if route.Path == r.URL.Path {
-			writePublic(w, errmap.MethodNotAllowed)
+			writePublic(w, model.MethodNotAllowed)
 			return
 		}
 	}
-	writePublic(w, errmap.NoSuchEndpoint)
+	writePublic(w, model.NoSuchEndpoint)
 }
 
 // errMalformed tells decode's caller the request was refused.
@@ -122,18 +97,18 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	if err := dec.Decode(v); err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writePublic(w, errmap.BodyTooLarge)
+			writePublic(w, model.BodyTooLarge)
 			return err
 		}
-		writePublic(w, errmap.MalformedBody)
+		writePublic(w, model.MalformedBody)
 		return err
 	}
 	if dec.More() {
-		writePublic(w, errmap.MalformedBody)
+		writePublic(w, model.MalformedBody)
 		return errMalformed
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		writePublic(w, errmap.MalformedBody)
+		writePublic(w, model.MalformedBody)
 		return errMalformed
 	}
 	return nil
@@ -144,7 +119,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 func missing(w http.ResponseWriter, fields ...string) bool {
 	for _, f := range fields {
 		if f == "" {
-			writePublic(w, errmap.MissingField)
+			writePublic(w, model.MissingField)
 			return true
 		}
 	}
@@ -156,12 +131,12 @@ func (h *handler) register(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
 		return
 	}
-	res, err := h.accounts.Register(r.Context(), &accountv1.RegisterRequest{Username: req.Username, Password: req.Password})
+	acc, err := h.lobby.Register(r.Context(), req.Username, req.Password)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toAccount(res.GetAccount()))
+	writeJSON(w, http.StatusCreated, toAccount(acc))
 }
 
 func (h *handler) login(w http.ResponseWriter, r *http.Request) {
@@ -169,16 +144,16 @@ func (h *handler) login(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
 		return
 	}
-	res, err := h.accounts.Login(r.Context(), &accountv1.LoginRequest{Username: req.Username, Password: req.Password, Ip: clientIP(r)})
+	token, err := h.lobby.Login(r.Context(), req.Username, req.Password, clientIP(r))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, SessionResponse{Token: res.GetToken()})
+	writeJSON(w, http.StatusCreated, SessionResponse{Token: token})
 }
 
 func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
-	if err := h.sessions.Revoke(r.Context(), principalFrom(r.Context()).SessionID); err != nil {
+	if err := h.lobby.Logout(r.Context(), principalFrom(r.Context())); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -186,12 +161,12 @@ func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) listCharacters(w http.ResponseWriter, r *http.Request) {
-	res, err := h.characters.List(r.Context(), &characterv1.ListRequest{AccountId: principalFrom(r.Context()).AccountID.String()})
+	cs, err := h.lobby.Characters(r.Context(), principalFrom(r.Context()))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toCharacters(res.GetCharacters()))
+	writeJSON(w, http.StatusOK, toCharacters(cs))
 }
 
 func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
@@ -199,21 +174,21 @@ func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.Name, req.Class) {
 		return
 	}
-	res, err := h.characters.Create(r.Context(), &characterv1.CreateRequest{AccountId: principalFrom(r.Context()).AccountID.String(), Name: req.Name, Class: req.Class})
+	c, err := h.lobby.CreateCharacter(r.Context(), principalFrom(r.Context()), req.Name, req.Class)
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toCharacter(res.GetCharacter()))
+	writeJSON(w, http.StatusCreated, toCharacter(c))
 }
 
 func (h *handler) settings(w http.ResponseWriter, r *http.Request) {
-	res, err := h.accounts.GetSettings(r.Context(), &accountv1.GetSettingsRequest{AccountId: principalFrom(r.Context()).AccountID.String()})
+	s, err := h.lobby.Settings(r.Context(), principalFrom(r.Context()))
 	if err != nil {
 		writeError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toSettings(res.GetSettings()))
+	writeJSON(w, http.StatusOK, toSettings(s))
 }
 
 func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
@@ -221,8 +196,8 @@ func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	if decode(w, r, &req) != nil || missing(w, req.ControlPreset) {
 		return
 	}
-	s := &accountv1.Settings{ControlPreset: req.ControlPreset}
-	if _, err := h.accounts.UpdateSettings(r.Context(), &accountv1.UpdateSettingsRequest{AccountId: principalFrom(r.Context()).AccountID.String(), Settings: s}); err != nil {
+	s := model.Settings{ControlPreset: req.ControlPreset}
+	if err := h.lobby.UpdateSettings(r.Context(), principalFrom(r.Context()), s); err != nil {
 		writeError(w, err)
 		return
 	}
@@ -244,7 +219,7 @@ func clientIP(r *http.Request) string {
 // logoutEverywhere ends every session of the account; the account service
 // tells the gateway, which closes the account's connections.
 func (h *handler) logoutEverywhere(w http.ResponseWriter, r *http.Request) {
-	if err := h.sessions.RevokeAll(r.Context(), principalFrom(r.Context()).AccountID); err != nil {
+	if err := h.lobby.LogoutEverywhere(r.Context(), principalFrom(r.Context())); err != nil {
 		writeError(w, err)
 		return
 	}

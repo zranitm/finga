@@ -31,12 +31,14 @@ server/                 the Go module: everything the server builds, reads and p
     gateway/            the only public entry; no database, no game rules
       main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
       config/           its own configuration: config.yaml (http, the five dependencies) and its type
+      internal/model/   in layers (step 36): a failure as a client sees it (Public), the message envelope, a connection's player, presence and limits, the REST API's accounts and characters, the services' stream events; the client protocol is its vocabulary
+      internal/application/  the Lobby (the REST API's use cases) and the Gateway (Hello, join and rejoin, the command queue and routing, kicks, the drain); ports.go
+      internal/clients/ the ports over the services' generated clients, the deliveries turned into protocol messages, the account service as pkg/auth's Guard
+        errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
       internal/handler/
-        api/            REST handlers, DTOs, middleware
-        ws/             WebSocket sessions, the per-connection command queue, routing, the delivery streams
-        errmap/         each service failure's reason to its status, own code and player message
+        api/            REST: DTOs, validation, HTTP over the Lobby
+        ws/             the socket: wsconn's read and write loops, the codec, the Conn the Gateway sends through
         router.go       the route table: /api, /ws, /metrics, /healthz, /readyz
-      internal/clients/ the account service as pkg/auth's Guard
     item/
       main.go, app/     the entry point and its composition root
       config/           its own configuration: config.yaml, with only its keys (page 11), and its type
@@ -106,7 +108,7 @@ Each layer is a package of the service (page 11). The model below them holds the
 </tr>
 <tr>
 <th>Lives in</th>
-<td>Each service's <code>internal/handler</code> (gRPC); the gateway's <code>internal/handler/api</code> and <code>internal/handler/ws</code></td>
+<td>Each service's <code>internal/handler</code> (gRPC); the gateway's <code>internal/handler/api</code> and <code>internal/handler/ws</code>, over its application</td>
 <td><code>services/&lt;name&gt;/internal/application</code>: the use cases, and in <code>ports.go</code> the interfaces they need</td>
 <td><code>services/&lt;name&gt;/internal/repository</code>, with <code>queries/</code> and sqlc's <code>internal/db/</code></td>
 </tr>
@@ -285,8 +287,8 @@ Every module below lives in its service, `services/<name>/internal/<module>`; th
 | `market` (Stage 2, in the item service) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
 | `party` (the social service, `services/social`) | Parties and invites, in memory | A notifier interface (the social handler) |
 | `chat` (the social service) | Message validation and routing | party |
-| `handler/ws` (the gateway service) | WebSocket sessions, a command queue per connection, routing, the delivery streams, fan-out to clients | `pkg/wsconn`, `pkg/auth`, `pkg/ratelimit`, the services' generated clients |
-| `handler/api` (the gateway service) | REST endpoints: DTOs, validation, error responses through `handler/errmap` | the account and character services' clients, `pkg/auth`, `pkg/ratelimit` |
+| the gateway's `application` (the gateway service) | The connections (sessions, a command queue per connection, routing, the delivery streams, fan-out to clients) and the REST API's use cases | its ports for the five services, `pkg/auth`, `pkg/ratelimit` |
+| the gateway's `handler/ws` and `handler/api` | The socket and HTTP: decoding, validation, error responses (`model.PublicOf`) | the application, `pkg/wsconn` |
 | `audit` (Stage 2) | Invariant checks, read-only | item, economy, market |
 
 ## Generic libraries in /pkg

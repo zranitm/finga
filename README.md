@@ -171,9 +171,12 @@ generated code committed in `server/api/gen/`:
   read loop only decodes, limits and routes. Players join through the
   world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.
-  `errmap` turns the reason a service's failure carries into what a client
-  sees: an HTTP status, a code of its own (`party_full`) and the player
-  message; a failure it does not know answers `internal` and is logged. On
+  Its adapters' `errmap` turns the reason a service's failure carries into
+  what a client sees: an HTTP status, a code of its own (`party_full`) and
+  the player message; a failure it does not know answers `internal` and is
+  logged. In layers, the client protocol is its model's vocabulary: its use
+  cases (the REST API's Lobby, the connections' Gateway) know neither gRPC
+  nor HTTP nor the socket. On
   SIGTERM the gateway turns unready, tells every connection to reconnect
   (Kicked `server_restart`), then stops.
 - **`account`** holds accounts and sessions. The gateway checks tokens
@@ -205,9 +208,7 @@ each (Low-level design, page 11): `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),
 `handler` (its gRPC server and error table) and `clients` (its adapters for
-the services it calls); imports point inward, to `model`. Every service
-but the gateway is in layers so far; the gateway keeps its handlers'
-packages until step 36. `migrations/` holds its
+the services it calls); imports point inward, to `model`. `migrations/` holds its
 own goose files with its own version table. Go's
 `internal/` rule keeps services out of each other, and depguard checks the
 rest of the import direction: composition roots → services → the shared

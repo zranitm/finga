@@ -22,10 +22,9 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/pkg/sentinels"
-	"finga/services/gateway/internal/handler/errmap"
+	"finga/services/gateway/internal/clients/errmap"
+	"finga/services/gateway/internal/model"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
@@ -56,7 +55,6 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), http.StatusConflict, "party_full"},
 		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), http.StatusConflict, "not_party_leader"},
 		{grpcx.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), http.StatusNotFound, "invite_expired"},
-		{kernel.ErrBadID, http.StatusBadRequest, "bad_id"},
 		{grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), http.StatusServiceUnavailable, "pickups_unavailable"},
 		{grpcx.Error(codes.ResourceExhausted, worldv1.Reason_REASON_PICKUP_BUSY), http.StatusServiceUnavailable, "pickup_busy"},
 	}
@@ -84,8 +82,8 @@ func TestForFindsTheErrorThroughWrappingAndNeverShowsTheCause(t *testing.T) {
 
 func TestForTurnsAnUnknownErrorIntoInternalWithoutItsText(t *testing.T) {
 	got := errmap.For(errors.New("dial tcp 10.0.0.5:5432: connection refused"))
-	if got != errmap.Internal {
-		t.Fatalf("For(unknown) = %+v, want %+v", got, errmap.Internal)
+	if got != model.Internal {
+		t.Fatalf("For(unknown) = %+v, want %+v", got, model.Internal)
 	}
 	if got.Status != http.StatusInternalServerError || strings.Contains(got.Message, "10.0.0.5") {
 		t.Fatalf("Internal = %+v", got)
@@ -93,7 +91,7 @@ func TestForTurnsAnUnknownErrorIntoInternalWithoutItsText(t *testing.T) {
 	if got := errmap.For(nil); got != (errmap.Public{}) {
 		t.Fatalf("For(nil) = %+v, want the zero value", got)
 	}
-	if errmap.IsInternal(errmap.For(grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_SLOT))) || !errmap.IsInternal(errmap.For(errors.New("boom"))) {
+	if model.IsInternal(errmap.For(grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_SLOT))) || !model.IsInternal(errmap.For(errors.New("boom"))) {
 		t.Fatal("IsInternal disagrees with For")
 	}
 }
@@ -109,7 +107,7 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := errmap.For(tt.err); got != errmap.Internal {
+			if got := errmap.For(tt.err); got != model.Internal {
 				t.Fatalf("For = %+v", got)
 			}
 		})
@@ -131,7 +129,7 @@ var contracts = []protoreflect.EnumDescriptor{
 func TestEveryReasonIsMapped(t *testing.T) {
 	for _, d := range contracts {
 		for _, r := range grpcx.Reasons(d) {
-			internal := errmap.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r)))
+			internal := model.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r)))
 			if internal != errmap.IsInternalOnly(r) {
 				t.Errorf("%s: internal %v, listed as internal only %v", r, internal, errmap.IsInternalOnly(r))
 			}
@@ -139,24 +137,42 @@ func TestEveryReasonIsMapped(t *testing.T) {
 	}
 }
 
-// TestEveryServiceErrorIsMapped reads the source of model, whose errors the
-// gateway's own parsing raises: an exported Err variable the table leaves
-// out would reach a player as "something went wrong" with code internal.
-// Every module runs in a service now; each is checked by its own handler's
-// guard and TestEveryReasonIsMapped.
-func TestEveryServiceErrorIsMapped(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "..", "..", "..", "..", "internal", "kernel"))
-	if err != nil || len(declared) == 0 {
-		t.Fatalf("declared %v, err %v: is the walk broken?", declared, err)
+// Wrap hands a failed call to the use cases with what the client sees and
+// the kinds they act on, and leaves nil and an already wrapped failure alone.
+func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		kind error // nil: none
+		code string
+	}{
+		{"a reason is its Public", grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, "party_full"},
+		{"the world not holding the stream", grpcx.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, "internal"},
+		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "internal"},
+		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, "internal"},
 	}
-	mapped, err := sentinels.Referenced("errmap.go")
-	if err != nil {
-		t.Fatal(err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := errmap.Wrap(tt.err)
+			if got := model.PublicOf(err); got.Code != tt.code {
+				t.Fatalf("PublicOf = %+v, want %s", got, tt.code)
+			}
+			for _, kind := range []error{model.ErrNotSubscribed, model.ErrUnavailable} {
+				if errors.Is(err, kind) != errors.Is(tt.kind, kind) {
+					t.Fatalf("errors.Is(%v) = %v", kind, errors.Is(err, kind))
+				}
+			}
+			if !errors.Is(err, tt.err) {
+				t.Fatal("the cause is lost")
+			}
+			var first, again *model.ServiceError
+			if !errors.As(err, &first) || !errors.As(errmap.Wrap(err), &again) || first != again {
+				t.Fatal("a wrapped failure was wrapped again")
+			}
+		})
 	}
-	for _, name := range declared {
-		if !mapped[name] {
-			t.Errorf("%s has no row in the table", name)
-		}
+	if errmap.Wrap(nil) != nil {
+		t.Fatal("Wrap(nil) is not nil")
 	}
 }
 
@@ -191,9 +207,9 @@ func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
 	}
 	want, err := os.ReadFile(codesFile)
 	if err != nil {
-		t.Fatalf("%v (run go test ./services/gateway/internal/handler/errmap -update)", err)
+		t.Fatalf("%v (run go test ./services/gateway/internal/clients/errmap -update)", err)
 	}
 	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), got) {
-		t.Fatalf("%s is stale; run go test ./services/gateway/internal/handler/errmap -update", codesFile)
+		t.Fatalf("%s is stale; run go test ./services/gateway/internal/clients/errmap -update", codesFile)
 	}
 }
