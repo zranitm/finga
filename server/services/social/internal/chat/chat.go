@@ -11,7 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/ratelimit"
 )
 
@@ -33,21 +33,21 @@ const (
 
 // Sender is who speaks.
 type Sender struct {
-	ID   model.CharacterID
+	ID   kernel.CharacterID
 	Name string
 }
 
 // Message is a cleaned line ready to deliver.
 type Message struct {
 	Channel    Channel
-	Sender     model.CharacterID
+	Sender     kernel.CharacterID
 	SenderName string
 	Text       string
 }
 
 // Parties answers who is in the sender's party.
 type Parties interface {
-	Members(id model.CharacterID) []model.CharacterID
+	Members(id kernel.CharacterID) []kernel.CharacterID
 }
 
 // Options tune the service. Zero values take the defaults.
@@ -85,7 +85,7 @@ var (
 // Send cleans the text and charges the sender's limit. For the map channel
 // the recipients are nil (the map instance delivers to everyone on it);
 // for the party channel they are the party's members, sender included.
-func (s *Service) Send(from Sender, channel Channel, text string) (Message, []model.CharacterID, error) {
+func (s *Service) Send(from Sender, channel Channel, text string) (Message, []kernel.CharacterID, error) {
 	if channel != Map && channel != Party {
 		return Message{}, nil, ErrChannel
 	}

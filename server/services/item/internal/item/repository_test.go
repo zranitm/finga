@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/pgtest"
 	"finga/services/item/migrations"
 )
@@ -43,9 +43,9 @@ func insertItem(t *testing.T, store *Postgres, it Item) {
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t))
-	alice, bob := model.NewCharacterID(), model.NewCharacterID()
-	sword := Item{ID: model.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0}
-	potions := Item{ID: model.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40, UpdatedAt: t0}
+	alice, bob := kernel.NewCharacterID(), kernel.NewCharacterID()
+	sword := Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0}
+	potions := Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40, UpdatedAt: t0}
 	insertItem(t, store, sword)
 	insertItem(t, store, potions)
 
@@ -96,9 +96,9 @@ func TestRepository(t *testing.T) {
 		}
 	})
 	t.Run("a full tab", func(t *testing.T) {
-		full := model.NewCharacterID()
+		full := kernel.NewCharacterID()
 		for slot := range SlotsPerTab {
-			insertItem(t, store, Item{ID: model.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100, UpdatedAt: t0})
+			insertItem(t, store, Item{ID: kernel.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100, UpdatedAt: t0})
 		}
 		err := store.InTx(ctx, func(uow UnitOfWork) error {
 			inv, err := uow.Items().LockInventory(ctx, full)
@@ -119,7 +119,7 @@ func TestRepository(t *testing.T) {
 	})
 	t.Run("two items in one slot are rejected as ErrSlotTaken", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Items().Insert(ctx, Item{ID: model.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0})
+			return uow.Items().Insert(ctx, Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0})
 		})
 		if !errors.Is(err, ErrSlotTaken) {
 			t.Fatalf("err = %v", err)
@@ -160,9 +160,9 @@ func TestRepository(t *testing.T) {
 	})
 	t.Run("updates of an unknown item give ErrNotFound", func(t *testing.T) {
 		for name, fn := range map[string]func(uow UnitOfWork) error{
-			"SetQuantity": func(uow UnitOfWork) error { return uow.Items().SetQuantity(ctx, model.NewItemID(), 1) },
-			"SetSlot":     func(uow UnitOfWork) error { return uow.Items().SetSlot(ctx, model.NewItemID(), gamedata.Use, 1) },
-			"Destroy":     func(uow UnitOfWork) error { return uow.Items().Destroy(ctx, model.NewItemID()) },
+			"SetQuantity": func(uow UnitOfWork) error { return uow.Items().SetQuantity(ctx, kernel.NewItemID(), 1) },
+			"SetSlot":     func(uow UnitOfWork) error { return uow.Items().SetSlot(ctx, kernel.NewItemID(), gamedata.Use, 1) },
+			"Destroy":     func(uow UnitOfWork) error { return uow.Items().Destroy(ctx, kernel.NewItemID()) },
 		} {
 			if err := store.InTx(ctx, fn); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("%s: %v", name, err)

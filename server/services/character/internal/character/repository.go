@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/dbx"
 	"finga/services/character/internal/character/internal/db"
 )
@@ -38,7 +38,7 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) erro
 }
 
 // List is the account's characters, oldest first.
-func (p *Postgres) List(ctx context.Context, account model.AccountID) ([]Character, error) {
+func (p *Postgres) List(ctx context.Context, account kernel.AccountID) ([]Character, error) {
 	rows, err := p.q.ListCharactersByAccount(ctx, uuid.UUID(account))
 	if err != nil {
 		return nil, classify(err)
@@ -51,7 +51,7 @@ func (p *Postgres) List(ctx context.Context, account model.AccountID) ([]Charact
 }
 
 // Load is one character, only if the account owns it; otherwise ErrNotFound.
-func (p *Postgres) Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error) {
+func (p *Postgres) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error) {
 	row, err := p.q.GetOwnedCharacter(ctx, db.GetOwnedCharacterParams{ID: uuid.UUID(id), AccountID: uuid.UUID(account)})
 	if err != nil {
 		return Character{}, classify(err)
@@ -61,7 +61,7 @@ func (p *Postgres) Load(ctx context.Context, id model.CharacterID, account model
 
 func toCharacter(r db.Character) Character {
 	return Character{
-		ID: model.CharacterID(r.ID), AccountID: model.AccountID(r.AccountID), Name: r.Name, Class: model.Class(r.Class),
+		ID: kernel.CharacterID(r.ID), AccountID: kernel.AccountID(r.AccountID), Name: r.Name, Class: kernel.Class(r.Class),
 		Level: int(r.Level), Exp: r.Exp,
 		Stats:         gamedata.Stats{STR: int(r.Strength), DEX: int(r.Dexterity), INT: int(r.Intelligence), AGI: int(r.Agility), VIT: int(r.Vitality)},
 		UnspentPoints: int(r.UnspentPoints), HP: int(r.Hp), MP: int(r.Mp),

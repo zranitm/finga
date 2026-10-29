@@ -11,7 +11,7 @@ import (
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/item/invariants"
 )
 
@@ -76,7 +76,7 @@ func TestInventoryProperties(t *testing.T) {
 	ctx := context.Background()
 
 	rapid.Check(t, func(rt *rapid.T) {
-		actor := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+		actor := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		steps := rapid.IntRange(1, 25).Draw(rt, "steps")
 		for i := range steps {
 			key := fmt.Sprintf("k%d", i)

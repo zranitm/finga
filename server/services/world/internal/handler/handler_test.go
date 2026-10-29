@@ -17,7 +17,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
@@ -31,10 +31,10 @@ const tick = 10 * time.Millisecond
 // fails with its not-found reason.
 type characters struct {
 	mu    sync.Mutex
-	chars map[model.CharacterID]world.Character
+	chars map[kernel.CharacterID]world.Character
 }
 
-func (c *characters) Load(_ context.Context, id model.CharacterID, account model.AccountID) (world.Character, error) {
+func (c *characters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (world.Character, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	ch, ok := c.chars[id]
@@ -63,7 +63,7 @@ type capturing struct {
 	sinks chan world.Sink
 }
 
-func (c capturing) Join(ctx context.Context, account model.AccountID, id model.CharacterID, conn string, sink world.Sink) (world.View, error) {
+func (c capturing) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink world.Sink) (world.View, error) {
 	select {
 	case c.sinks <- sink:
 	default:
@@ -76,7 +76,7 @@ type stack struct {
 	ctx     context.Context
 	chars   *characters
 	sinks   chan world.Sink
-	account model.AccountID
+	account kernel.AccountID
 	data    *gamedata.Data
 }
 
@@ -86,7 +86,7 @@ func newStack(t *testing.T, queue int) *stack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chars := &characters{chars: map[model.CharacterID]world.Character{}}
+	chars := &characters{chars: map[kernel.CharacterID]world.Character{}}
 	w := world.New(data, saver{}, slog.New(slog.DiscardHandler), world.Options{TickInterval: tick, Characters: chars})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})
@@ -97,7 +97,7 @@ func newStack(t *testing.T, queue int) *stack {
 	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", Queue: queue})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)
-	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: model.NewAccountID(), data: data}
+	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: kernel.NewAccountID(), data: data}
 }
 
 // character is a warrior of the stack's account standing on the town's
@@ -105,7 +105,7 @@ func newStack(t *testing.T, queue int) *stack {
 func (s *stack) character(name string) world.Character {
 	town := s.data.Town()
 	ch := world.Character{
-		ID: model.NewCharacterID(), Account: s.account, Name: name, Class: model.Warrior, Level: 1,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Warrior, Level: 1,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
@@ -271,7 +271,7 @@ func TestJoinFailures(t *testing.T) {
 	})
 	s.gateway(t, "gw-1")
 	t.Run("someone else's character fails as the character service said", func(t *testing.T) {
-		_, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: "gw-1", ConnectionId: "c", AccountId: model.NewAccountID().String(), CharacterId: ayla.ID.String()})
+		_, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: "gw-1", ConnectionId: "c", AccountId: kernel.NewAccountID().String(), CharacterId: ayla.ID.String()})
 		if r, _ := grpcx.ReasonOf(err); r != grpcx.Key(characterv1.Reason_REASON_CHARACTER_NOT_FOUND) || status.Code(err) != codes.NotFound {
 			t.Fatalf("err = %v", err)
 		}

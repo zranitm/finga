@@ -19,7 +19,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
@@ -52,7 +52,7 @@ func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal
 type fakeWorld struct {
 	worldv1.UnimplementedWorldServiceServer
 	mu         sync.Mutex
-	chars      map[model.CharacterID]fakeCharacter
+	chars      map[kernel.CharacterID]fakeCharacter
 	joinErr    error
 	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot
 	joined     []*worldv1.JoinRequest
@@ -76,13 +76,13 @@ type fakeWorld struct {
 
 // fakeCharacter is a character as the character service has it saved.
 type fakeCharacter struct {
-	account model.AccountID
+	account kernel.AccountID
 	view    *worldv1.CharacterView
 }
 
 func newFakeWorld() *fakeWorld {
 	return &fakeWorld{
-		chars: map[model.CharacterID]fakeCharacter{
+		chars: map[kernel.CharacterID]fakeCharacter{
 			aylaID:  {alice, &worldv1.CharacterView{Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &characterv1.Stats{Strength: 12}}},
 			robinID: {alice, &worldv1.CharacterView{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608}},
 			brunoID: {bob, &worldv1.CharacterView{Id: brunoID.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608}},
@@ -156,7 +156,7 @@ func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.
 	if !f.live {
 		return nil, grpcx.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED)
 	}
-	id, _ := model.ParseCharacterID(req.GetCharacterId())
+	id, _ := kernel.ParseCharacterID(req.GetCharacterId())
 	c, ok := f.chars[id]
 	if !ok || c.account.String() != req.GetAccountId() {
 		return nil, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
@@ -175,7 +175,7 @@ func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.
 }
 
 // save is the character's checkpoint, which the next join loads.
-func (f *fakeWorld) save(id model.CharacterID, mapID string, x, y float64) {
+func (f *fakeWorld) save(id kernel.CharacterID, mapID string, x, y float64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	c := f.chars[id]
@@ -297,7 +297,7 @@ func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.Sa
 }
 
 // push sends an event to a player on the stream.
-func (f *fakeWorld) push(to model.CharacterID, m *worldv1.DeliverResponse) {
+func (f *fakeWorld) push(to kernel.CharacterID, m *worldv1.DeliverResponse) {
 	m.CharacterId = to.String()
 	f.events <- m
 }
@@ -380,7 +380,7 @@ type fakeSocial struct {
 	of         map[string]*socialv1.Party
 	err        error // for party commands
 	chatErr    error
-	recipients []model.CharacterID // a party line goes to these
+	recipients []kernel.CharacterID // a party line goes to these
 	events     chan *socialv1.DeliverResponse
 	end        chan struct{}
 	subscribed chan struct{} // receives once per subscription
@@ -428,7 +428,7 @@ func (f *fakeSocial) restart(boot string) {
 	f.boot = boot
 }
 
-func (f *fakeSocial) push(to model.CharacterID, m *socialv1.DeliverResponse) {
+func (f *fakeSocial) push(to kernel.CharacterID, m *socialv1.DeliverResponse) {
 	m.CharacterId = to.String()
 	f.events <- m
 }

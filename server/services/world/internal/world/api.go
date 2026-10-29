@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 
 	"github.com/google/uuid"
@@ -32,10 +32,10 @@ var (
 // joins; movement and combat state are the instance's own from then on.
 // Derived stats are computed by the instance from Class, Stats and Level.
 type Player struct {
-	ID      model.CharacterID
-	Account model.AccountID // scopes the idempotency keys of its actions
+	ID      kernel.CharacterID
+	Account kernel.AccountID // scopes the idempotency keys of its actions
 	Name    string
-	Class   model.Class
+	Class   kernel.Class
 	Level   int
 	Exp     int64
 	Stats   gamedata.Stats
@@ -50,10 +50,10 @@ type Player struct {
 // Character is a character as the world loads it to join: the state the
 // character service saved last.
 type Character struct {
-	ID      model.CharacterID
-	Account model.AccountID
+	ID      kernel.CharacterID
+	Account kernel.AccountID
 	Name    string
-	Class   model.Class
+	Class   kernel.Class
 	Level   int
 	Exp     int64
 	Stats   gamedata.Stats
@@ -67,7 +67,7 @@ type Character struct {
 // service implements it. A character that is not the account's fails the
 // way the character service says (not found).
 type Characters interface {
-	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error)
+	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error)
 }
 
 // Starter grants a character its starter items once; an adapter over the
@@ -75,15 +75,15 @@ type Characters interface {
 // safety net for a character created while the grant could not reach the
 // item service (page 10).
 type Starter interface {
-	GrantStarter(ctx context.Context, account model.AccountID, id model.CharacterID, class model.Class) error
+	GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error
 }
 
 // View is the character as the player sees it once joined: Welcome's
 // character, with the maximums derived from class, stats and level.
 type View struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	Name  string
-	Class model.Class
+	Class kernel.Class
 	Level int
 	Exp   int64
 	Stats gamedata.Stats
@@ -97,9 +97,9 @@ type View struct {
 
 // PlayerView is a player as everyone on the map sees it.
 type PlayerView struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	Name  string
-	Class model.Class
+	Class kernel.Class
 	Level int
 	HP    int
 	MaxHP int
@@ -122,7 +122,7 @@ type MobView struct {
 
 // EntityRef names a player or a mob in a combat event.
 type EntityRef struct {
-	Player model.CharacterID // zero when the entity is a mob
+	Player kernel.CharacterID // zero when the entity is a mob
 	Mob    uint64
 }
 
@@ -150,7 +150,7 @@ type Delta struct {
 	Players      []PlayerView
 	Mobs         []MobView
 	Drops        []DropView // new on the ground
-	Removed      []model.CharacterID
+	Removed      []kernel.CharacterID
 	RemovedMobs  []uint64
 	RemovedDrops []uint64
 }
@@ -176,7 +176,7 @@ type Damage struct {
 // Died says a character fell, to everyone on the map.
 type Died struct {
 	Tick uint64
-	ID   model.CharacterID
+	ID   kernel.CharacterID
 	X, Y float64
 }
 
@@ -184,7 +184,7 @@ type Died struct {
 // to the character.
 type Respawned struct {
 	Tick  uint64
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	MapID string
 	X, Y  float64
 	HP    int
@@ -200,9 +200,9 @@ type ExpGained struct {
 // LevelUp carries the player's new level, stats and restored HP and MP.
 type LevelUp struct {
 	Tick  uint64
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	Name  string
-	Class model.Class
+	Class kernel.Class
 	Level int
 	Exp   int64
 	Stats gamedata.Stats
@@ -231,7 +231,7 @@ type Sink interface {
 // Checkpoint is a character's non-economic state, saved every 30 seconds
 // (TD-02) and on map change and logout.
 type Checkpoint struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	MapID string // the map it is on, or moving to
 	X, Y  float64
 	HP    int
@@ -241,7 +241,7 @@ type Checkpoint struct {
 
 // LevelUpSave is saved right away when a character gains a level.
 type LevelUpSave struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	Level int
 	Exp   int64
 	Stats gamedata.Stats
@@ -302,7 +302,7 @@ type Slot struct {
 
 // SlotItem is the item in a slot after the change.
 type SlotItem struct {
-	ID       model.ItemID
+	ID       kernel.ItemID
 	Template string
 	Quantity int
 }
@@ -331,8 +331,8 @@ func (PickupFailed) event()     {}
 // contents. The drop's ID is the idempotency key and the cause, so a
 // retried pickup can only ever grant the drop once.
 type Pickup struct {
-	Account   model.AccountID // scopes the idempotency key
-	Character model.CharacterID
+	Account   kernel.AccountID // scopes the idempotency key
+	Character kernel.CharacterID
 	DropID    uuid.UUID
 	Template  string
 	Quantity  int

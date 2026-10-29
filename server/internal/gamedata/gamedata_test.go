@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 )
 
@@ -206,7 +206,7 @@ func TestValidDataLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("classes with every derived stat", func(t *testing.T) {
-		for _, class := range []model.Class{model.Warrior, model.Bowman} {
+		for _, class := range []kernel.Class{kernel.Warrior, kernel.Bowman} {
 			c, ok := d.Class(class)
 			if !ok || c.ID != class {
 				t.Fatalf("class %s missing", class)
@@ -219,17 +219,17 @@ func TestValidDataLoads(t *testing.T) {
 				t.Fatalf("formulas for %s not loaded: %+v", class, f)
 			}
 		}
-		if _, ok := d.Class(model.Thief); ok {
+		if _, ok := d.Class(kernel.Thief); ok {
 			t.Fatal("thief is not in the fixture but was found")
 		}
-		w, _ := d.Class(model.Warrior)
+		w, _ := d.Class(kernel.Warrior)
 		if w.Attack.Kind != gamedata.Melee || w.Attack.Width != 64 || w.Attack.Cooldown != 600*time.Millisecond {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
 		if w.LevelUpPoints != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats.STR != 12 {
 			t.Fatalf("warrior stats = %+v / %+v", w.BaseStats, w.LevelUpPoints)
 		}
-		b, _ := d.Class(model.Bowman)
+		b, _ := d.Class(kernel.Bowman)
 		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 {
 			t.Fatalf("bowman attack = %+v", b.Attack)
 		}
@@ -253,7 +253,7 @@ func TestValidDataLoads(t *testing.T) {
 	})
 	t.Run("items and mobs", func(t *testing.T) {
 		it, ok := d.Item("wooden_sword")
-		if !ok || it.Tab != gamedata.Equip || it.Slot != gamedata.Weapon || it.Attack != 10 || it.Class != model.Warrior || it.MaxStack != 1 {
+		if !ok || it.Tab != gamedata.Equip || it.Slot != gamedata.Weapon || it.Attack != 10 || it.Class != kernel.Warrior || it.MaxStack != 1 {
 			t.Fatalf("wooden_sword = %+v", it)
 		}
 		potion, _ := d.Item("red_potion")

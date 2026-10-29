@@ -22,7 +22,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/sentinels"
 	"finga/services/gateway/internal/handler/errmap"
@@ -56,7 +56,7 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), http.StatusConflict, "party_full"},
 		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), http.StatusConflict, "not_party_leader"},
 		{grpcx.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), http.StatusNotFound, "invite_expired"},
-		{model.ErrBadID, http.StatusBadRequest, "bad_id"},
+		{kernel.ErrBadID, http.StatusBadRequest, "bad_id"},
 		{grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), http.StatusServiceUnavailable, "pickups_unavailable"},
 		{grpcx.Error(codes.ResourceExhausted, worldv1.Reason_REASON_PICKUP_BUSY), http.StatusServiceUnavailable, "pickup_busy"},
 	}
@@ -145,7 +145,7 @@ func TestEveryReasonIsMapped(t *testing.T) {
 // Every module runs in a service now; each is checked by its own handler's
 // guard and TestEveryReasonIsMapped.
 func TestEveryServiceErrorIsMapped(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "..", "..", "..", "..", "internal", "model"))
+	declared, err := sentinels.Declared(filepath.Join("..", "..", "..", "..", "..", "internal", "kernel"))
 	if err != nil || len(declared) == 0 {
 		t.Fatalf("declared %v, err %v: is the walk broken?", declared, err)
 	}

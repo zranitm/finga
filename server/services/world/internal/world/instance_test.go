@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/services/world/internal/world"
 )
@@ -58,7 +58,7 @@ func (s *sink) last() world.Delta {
 }
 
 // own finds the player's own view in the latest delta that carries it.
-func (s *sink) own(id model.CharacterID) (world.PlayerView, bool) {
+func (s *sink) own(id kernel.CharacterID) (world.PlayerView, bool) {
 	ds := s.deltas()
 	for i := len(ds) - 1; i >= 0; i-- {
 		for _, p := range ds[i].Players {
@@ -97,7 +97,7 @@ func townSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 }
 
 func newPlayer(name string, x, y float64) world.Player {
-	return world.Player{ID: model.NewCharacterID(), Name: name, Class: model.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
+	return world.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
 }
 
 // run starts an instance for the town inside the synctest bubble. The
@@ -275,7 +275,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 		}
 
 		{ // inputs for an unknown player are ignored
-			if !inst.Input(model.NewCharacterID(), 1, sim.Input{Right: true}) {
+			if !inst.Input(kernel.NewCharacterID(), 1, sim.Input{Right: true}) {
 				t.Fatal("the inbox refused")
 			}
 			time.Sleep(tickInterval)
@@ -690,7 +690,7 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 // walk sends the same Input once per tick for n ticks, as a client does
 // (step 18: a player with no queued Input waits), with sequence numbers
 // after seq; it returns the last one used.
-func walk(inst *world.Instance, id model.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
+func walk(inst *world.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
 	for range ticks {
 		seq++
 		inst.Input(id, seq, in)

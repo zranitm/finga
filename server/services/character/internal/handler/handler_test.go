@@ -12,7 +12,7 @@ import (
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
@@ -22,9 +22,9 @@ import (
 )
 
 var (
-	owner = model.NewAccountID()
+	owner = kernel.NewAccountID()
 	ayla  = character.Character{
-		ID: model.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: model.Warrior, Level: 3, Exp: 40,
+		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Warrior, Level: 3, Exp: 40,
 		Stats: gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 14}, UnspentPoints: 1, HP: 150, MP: 20,
 		MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC),
 	}
@@ -33,8 +33,8 @@ var (
 // fakeCharacters records what the handler asked and answers err when set.
 type fakeCharacters struct {
 	created    character.CreateInput
-	account    model.AccountID
-	loaded     model.CharacterID
+	account    kernel.AccountID
+	loaded     kernel.CharacterID
 	checkpoint character.Checkpoint
 	levelUp    character.LevelUp
 	derivedErr error
@@ -42,19 +42,19 @@ type fakeCharacters struct {
 	calls      int
 }
 
-func (f *fakeCharacters) Create(_ context.Context, account model.AccountID, in character.CreateInput) (character.Character, error) {
+func (f *fakeCharacters) Create(_ context.Context, account kernel.AccountID, in character.CreateInput) (character.Character, error) {
 	f.calls++
 	f.account, f.created = account, in
 	return ayla, f.err
 }
 
-func (f *fakeCharacters) List(_ context.Context, account model.AccountID) ([]character.Character, error) {
+func (f *fakeCharacters) List(_ context.Context, account kernel.AccountID) ([]character.Character, error) {
 	f.calls++
 	f.account = account
 	return []character.Character{ayla}, f.err
 }
 
-func (f *fakeCharacters) Load(_ context.Context, id model.CharacterID, account model.AccountID) (character.Character, error) {
+func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (character.Character, error) {
 	f.calls++
 	f.loaded, f.account = id, account
 	return ayla, f.err
@@ -102,7 +102,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 	c := client(t, f)
 	t.Run("Create", func(t *testing.T) {
 		res, err := c.Create(ctx, &characterv1.CreateRequest{AccountId: owner.String(), Name: "Ayla", Class: "warrior"})
-		if err != nil || f.account != owner || f.created != (character.CreateInput{Name: "Ayla", Class: model.Warrior}) {
+		if err != nil || f.account != owner || f.created != (character.CreateInput{Name: "Ayla", Class: kernel.Warrior}) {
 			t.Fatalf("input %+v %v, err %v", f.created, f.account, err)
 		}
 		wantAyla(t, res.GetCharacter(), true)
@@ -194,7 +194,7 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 	}
 	t.Run("someone else's character is not found", func(t *testing.T) {
 		c := client(t, &fakeCharacters{err: character.ErrNotFound})
-		_, err := c.Load(context.Background(), &characterv1.LoadRequest{CharacterId: ayla.ID.String(), AccountId: model.NewAccountID().String()})
+		_, err := c.Load(context.Background(), &characterv1.LoadRequest{CharacterId: ayla.ID.String(), AccountId: kernel.NewAccountID().String()})
 		if status.Code(err) != codes.NotFound {
 			t.Fatalf("got %v", err)
 		}

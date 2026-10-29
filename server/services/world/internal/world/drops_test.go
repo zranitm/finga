@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/services/world/internal/world"
 
@@ -49,7 +49,7 @@ func (f *fakePickups) Add(_ context.Context, in world.Pickup) ([]world.Slot, err
 	if slots, ok := f.byDrop[in.DropID]; ok {
 		return slots, nil
 	}
-	slots := []world.Slot{{Tab: gamedata.Etc, Slot: len(f.byDrop), Item: &world.SlotItem{ID: model.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
+	slots := []world.Slot{{Tab: gamedata.Etc, Slot: len(f.byDrop), Item: &world.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
 	f.byDrop[in.DropID] = slots
 	return slots, nil
 }
@@ -132,7 +132,7 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll fl
 }
 
 // killSlime attacks until the arena slime is dead (two average hits).
-func killSlime(t *testing.T, inst *world.Instance, id model.CharacterID) {
+func killSlime(t *testing.T, inst *world.Instance, id kernel.CharacterID) {
 	t.Helper()
 	inst.Attack(id)
 	time.Sleep(13 * tickInterval)
@@ -195,7 +195,7 @@ func TestPickUp(t *testing.T) {
 		time.Sleep(tickInterval)
 		synctest.Wait()
 		p := warriorAt(250)
-		p.Account = model.NewAccountID()
+		p.Account = kernel.NewAccountID()
 		s := join(t, inst, p)
 		killSlime(t, inst, p.ID)
 		drops := dropsIn(s)
@@ -246,14 +246,14 @@ func TestTwoPlayersOneDrop(t *testing.T) {
 		time.Sleep(tickInterval)
 		synctest.Wait()
 		ayla := warriorAt(250)
-		ayla.Account = model.NewAccountID()
+		ayla.Account = kernel.NewAccountID()
 		sa := join(t, inst, ayla)
 		killSlime(t, inst, ayla.ID)
 		// The loot window: only the killer for 10 s. Wait it out so both may try.
 		time.Sleep(11 * time.Second)
 		synctest.Wait()
 		robin := warriorAt(300)
-		robin.Account = model.NewAccountID()
+		robin.Account = kernel.NewAccountID()
 		sr := join(t, inst, robin)
 		seq := walk(inst, ayla.ID, 0, sim.Input{Right: true}, 5)
 		inst.Input(ayla.ID, seq+1, sim.Input{})

@@ -8,7 +8,7 @@ import (
 	"errors"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // The module's errors. Each names one failure; the service's handler sends
@@ -48,7 +48,7 @@ func DefaultSettings() Settings { return Settings{ControlPreset: PresetClassic} 
 
 // Account is what callers see of an account: never the password hash.
 type Account struct {
-	ID        model.AccountID
+	ID        kernel.AccountID
 	Username  string
 	Settings  Settings
 	CreatedAt time.Time
@@ -56,7 +56,7 @@ type Account struct {
 
 // NewAccount is a row to insert.
 type NewAccount struct {
-	ID           model.AccountID
+	ID           kernel.AccountID
 	Username     string
 	PasswordHash string
 	Settings     Settings
@@ -71,8 +71,8 @@ type Credentials struct {
 
 // Session is a login session. The token itself is never stored.
 type Session struct {
-	ID        model.SessionID
-	AccountID model.AccountID
+	ID        kernel.SessionID
+	AccountID kernel.AccountID
 	TokenHash []byte // SHA-256 of the token
 	// PreviousTokenHash is the token retired by the last rotation; RotatedAt is
 	// when, cleared once that token has been used (step 16).

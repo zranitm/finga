@@ -9,7 +9,7 @@ import (
 	"time"
 
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/ratelimit"
 	"finga/pkg/wsconn"
@@ -37,8 +37,8 @@ type session struct {
 	drained   chan struct{}
 
 	// Set by Hello under the gateway's lock, before the session is active.
-	account   model.AccountID
-	sessionID model.SessionID
+	account   kernel.AccountID
+	sessionID kernel.SessionID
 	character player
 	closed    bool // OnClose ran; a rejoin that finishes after it leaves again
 
@@ -158,7 +158,7 @@ func (s *session) mapID() string {
 // player is who the session plays, as Hello joined it: what routing, chat
 // and the social service need.
 type player struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	Name  string
 	Level int
 	HP    int

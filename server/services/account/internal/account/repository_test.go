@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/pgtest"
 	"finga/services/account/migrations"
 )
@@ -33,10 +33,10 @@ func TestMain(m *testing.M) {
 var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
 func newAccount(name string) NewAccount {
-	return NewAccount{ID: model.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: DefaultSettings(), CreatedAt: t0}
+	return NewAccount{ID: kernel.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: DefaultSettings(), CreatedAt: t0}
 }
 
-func insertAccount(t *testing.T, store *Postgres, name string) model.AccountID {
+func insertAccount(t *testing.T, store *Postgres, name string) kernel.AccountID {
 	t.Helper()
 	acc := newAccount(name)
 	if err := store.InTx(context.Background(), func(uow UnitOfWork) error { return uow.Accounts().Insert(context.Background(), acc) }); err != nil {
@@ -87,10 +87,10 @@ func TestAccounts(t *testing.T) {
 		if err != nil || got != want {
 			t.Fatalf("settings = %+v, %v", got, err)
 		}
-		if _, err := store.Settings(ctx, model.NewAccountID()); !errors.Is(err, ErrNotFound) {
+		if _, err := store.Settings(ctx, kernel.NewAccountID()); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("unknown account: %v", err)
 		}
-		err = store.InTx(ctx, func(uow UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, model.NewAccountID(), want) })
+		err = store.InTx(ctx, func(uow UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, kernel.NewAccountID(), want) })
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("update of an unknown account: %v", err)
 		}
@@ -101,7 +101,7 @@ func TestAccounts(t *testing.T) {
 		if err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Accounts().Lock(ctx, id) }); err != nil {
 			t.Fatal(err)
 		}
-		err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Accounts().Lock(ctx, model.NewAccountID()) })
+		err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Accounts().Lock(ctx, kernel.NewAccountID()) })
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("lock of an unknown account: %v", err)
 		}
@@ -113,7 +113,7 @@ func TestSessions(t *testing.T) {
 	store := NewPostgres(cluster.DB(t))
 	acc := insertAccount(t, store, "dave")
 	session := func(token string) Session {
-		return Session{ID: model.NewSessionID(), AccountID: acc, TokenHash: hashOf(token), CreatedAt: t0, ExpiresAt: t0.Add(time.Hour)}
+		return Session{ID: kernel.NewSessionID(), AccountID: acc, TokenHash: hashOf(token), CreatedAt: t0, ExpiresAt: t0.Add(time.Hour)}
 	}
 
 	t.Run("insert and find an active session by token hash", func(t *testing.T) {

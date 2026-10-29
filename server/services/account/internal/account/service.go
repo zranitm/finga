@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/auth/password"
 	"finga/pkg/ratelimit"
@@ -145,7 +145,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (Account, erro
 	if err != nil {
 		return Account{}, err
 	}
-	a := NewAccount{ID: model.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: DefaultSettings(), CreatedAt: s.now()}
+	a := NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: DefaultSettings(), CreatedAt: s.now()}
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Accounts().Insert(ctx, a)
 	})
@@ -204,7 +204,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 		return "", err
 	}
 	now := s.now()
-	session := Session{ID: model.NewSessionID(), AccountID: model.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
+	session := Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
 	for attempt := 0; ; attempt++ {
 		err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 			if err := uow.Accounts().Lock(ctx, session.AccountID); err != nil {
@@ -275,7 +275,7 @@ func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 	}
 	now := s.now()
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Sessions().Rotate(ctx, model.SessionID(sessionID), hash, now)
+		return uow.Sessions().Rotate(ctx, kernel.SessionID(sessionID), hash, now)
 	})
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
@@ -288,7 +288,7 @@ func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 
 // Check implements auth.Sessions: the session is active and not expired.
 func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
-	session, err := s.store.FindSession(ctx, model.SessionID(sessionID))
+	session, err := s.store.FindSession(ctx, kernel.SessionID(sessionID))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return ErrUnauthenticated
@@ -303,14 +303,14 @@ func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
 
 // Revoke implements auth.Sessions: logging out of one session.
 func (s *Service) Revoke(ctx context.Context, sessionID uuid.UUID) error {
-	return s.revoke(ctx, model.SessionID(sessionID), s.now(), ReasonLogout)
+	return s.revoke(ctx, kernel.SessionID(sessionID), s.now(), ReasonLogout)
 }
 
 // RevokeAll implements auth.Sessions: logging out everywhere.
 func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
 	now := s.now()
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Sessions().RevokeAll(ctx, model.AccountID(accountID), now)
+		return uow.Sessions().RevokeAll(ctx, kernel.AccountID(accountID), now)
 	})
 	if err != nil {
 		return err
@@ -321,7 +321,7 @@ func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
 	return nil
 }
 
-func (s *Service) revoke(ctx context.Context, id model.SessionID, now time.Time, reason string) error {
+func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time, reason string) error {
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Sessions().Revoke(ctx, id, now)
 	})
@@ -361,12 +361,12 @@ func (s *Service) extend(ctx context.Context, session Session, now time.Time) er
 }
 
 // Settings reads an account's settings.
-func (s *Service) Settings(ctx context.Context, id model.AccountID) (Settings, error) {
+func (s *Service) Settings(ctx context.Context, id kernel.AccountID) (Settings, error) {
 	return s.store.Settings(ctx, id)
 }
 
 // UpdateSettings saves an account's settings; the preset must be known.
-func (s *Service) UpdateSettings(ctx context.Context, id model.AccountID, st Settings) error {
+func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st Settings) error {
 	known := false
 	for _, p := range s.presetList {
 		known = known || p == st.ControlPreset

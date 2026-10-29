@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // Loot rules (page 5, OD-05 default).
@@ -28,10 +28,10 @@ type drop struct {
 	template   string
 	quantity   int
 	x, y       float64
-	killer     model.CharacterID
+	killer     kernel.CharacterID
 	windowEnd  uint64 // tick until which only the killer may take it
 	expiresAt  uint64
-	reservedBy model.CharacterID // zero when free
+	reservedBy kernel.CharacterID // zero when free
 }
 
 func (d *drop) view() DropView {
@@ -107,15 +107,15 @@ func (i *Instance) pickUp(p *player) {
 	best.reservedBy = p.ID
 	job := pickupJob{drop: *best, account: p.Account, character: p.ID}
 	if !i.opts.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
-		best.reservedBy = model.CharacterID{}
+		best.reservedBy = kernel.CharacterID{}
 		p.private = append(p.private, PickupFailed{Tick: i.tick, Err: ErrPickupBusy})
 	}
 }
 
 type pickupJob struct {
 	drop      drop
-	account   model.AccountID
-	character model.CharacterID
+	account   kernel.AccountID
+	character kernel.CharacterID
 }
 
 // runPickup is the worker's side: one transaction with the drop ID as the
@@ -132,7 +132,7 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 
 type pickupResult struct {
 	dropID uint64
-	who    model.CharacterID
+	who    kernel.CharacterID
 	slots  []Slot
 	err    error
 }
@@ -151,7 +151,7 @@ func (i *Instance) finishPickup(r *pickupResult) {
 	p := i.players[r.who]
 	if r.err != nil {
 		if d != nil && d.reservedBy == r.who {
-			d.reservedBy = model.CharacterID{}
+			d.reservedBy = kernel.CharacterID{}
 		}
 		if p != nil {
 			p.private = append(p.private, PickupFailed{Tick: i.tick, Err: r.err})

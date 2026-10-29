@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
@@ -52,7 +52,7 @@ func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[soci
 	return stream
 }
 
-func (s *stack) online(t *testing.T, gateway string, id model.CharacterID, name string) {
+func (s *stack) online(t *testing.T, gateway string, id kernel.CharacterID, name string) {
 	t.Helper()
 	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: gateway, Member: &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}}); err != nil {
 		t.Fatal(err)
@@ -60,7 +60,7 @@ func (s *stack) online(t *testing.T, gateway string, id model.CharacterID, name 
 }
 
 // party makes leader and member a party through an invite and its acceptance.
-func (s *stack) party(t *testing.T, leader, member model.CharacterID) {
+func (s *stack) party(t *testing.T, leader, member kernel.CharacterID) {
 	t.Helper()
 	inv, err := s.c.Invite(s.ctx, &socialv1.InviteRequest{CharacterId: leader.String(), TargetId: member.String()})
 	if err != nil {
@@ -83,7 +83,7 @@ func recv[T any](t *testing.T, stream grpc.ServerStreamingClient[T]) *T {
 func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 	s := newStack(t)
 	gwA, gwB := s.gateway(t, "gw-a"), s.gateway(t, "gw-b")
-	ann, bo := model.NewCharacterID(), model.NewCharacterID()
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 	s.online(t, "gw-a", ann, "Ann")
 	s.online(t, "gw-b", bo, "Bo")
 
@@ -98,7 +98,7 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 	if _, err := s.c.Respond(s.ctx, &socialv1.RespondRequest{CharacterId: bo.String(), InviteId: inv.GetInviteId(), Accept: true}); err != nil {
 		t.Fatal(err)
 	}
-	for stream, who := range map[grpc.ServerStreamingClient[socialv1.DeliverResponse]]model.CharacterID{gwA: ann, gwB: bo} {
+	for stream, who := range map[grpc.ServerStreamingClient[socialv1.DeliverResponse]]kernel.CharacterID{gwA: ann, gwB: bo} {
 		m := recv(t, stream)
 		p := m.GetPartyState().GetParty()
 		if m.GetCharacterId() != who.String() || p.GetLeaderId() != ann.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bo" || p.GetMembers()[1].GetMapId() != "forest" {
@@ -121,7 +121,7 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 		if err != nil || res.GetParty().GetLeaderId() != ann.String() {
 			t.Fatalf("party %+v %v", res, err)
 		}
-		alone := model.NewCharacterID()
+		alone := kernel.NewCharacterID()
 		if res, err := s.c.PartyOf(s.ctx, &socialv1.PartyOfRequest{CharacterId: alone.String()}); err != nil || res.GetParty() != nil {
 			t.Fatalf("no party: %+v %v", res, err)
 		}
@@ -162,7 +162,7 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 
 func TestCommandsAnswerWithTheirReasons(t *testing.T) {
 	s := newStack(t)
-	ann, bo := model.NewCharacterID(), model.NewCharacterID()
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 	s.online(t, "gw", ann, "Ann")
 	s.online(t, "gw", bo, "Bo")
 	s.party(t, ann, bo)
@@ -184,11 +184,11 @@ func TestCommandsAnswerWithTheirReasons(t *testing.T) {
 			return err
 		}, socialv1.Reason_REASON_NOT_PARTY_LEADER},
 		{"promoting a stranger", func() error {
-			_, err := s.c.Promote(s.ctx, &socialv1.PromoteRequest{CharacterId: ann.String(), TargetId: model.NewCharacterID().String()})
+			_, err := s.c.Promote(s.ctx, &socialv1.PromoteRequest{CharacterId: ann.String(), TargetId: kernel.NewCharacterID().String()})
 			return err
 		}, socialv1.Reason_REASON_NOT_PARTY_MEMBER},
 		{"leaving with no party", func() error {
-			_, err := s.c.LeaveParty(s.ctx, &socialv1.LeavePartyRequest{CharacterId: model.NewCharacterID().String()})
+			_, err := s.c.LeaveParty(s.ctx, &socialv1.LeavePartyRequest{CharacterId: kernel.NewCharacterID().String()})
 			return err
 		}, socialv1.Reason_REASON_NO_PARTY},
 		{"a malformed target", func() error {
@@ -204,7 +204,7 @@ func TestCommandsAnswerWithTheirReasons(t *testing.T) {
 			return err
 		}, socialv1.Reason_REASON_BAD_CHAT_CHANNEL},
 		{"a party line with no party", func() error {
-			_, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: model.NewCharacterID().String(), Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "hi"})
+			_, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: kernel.NewCharacterID().String(), Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "hi"})
 			return err
 		}, socialv1.Reason_REASON_CHAT_NO_PARTY},
 	}
@@ -236,8 +236,8 @@ func reasonOf(err error) grpcx.Reason {
 
 func TestWatchParties(t *testing.T) {
 	s := newStack(t)
-	ann, bo, cy, di := model.NewCharacterID(), model.NewCharacterID(), model.NewCharacterID(), model.NewCharacterID()
-	for _, id := range []model.CharacterID{ann, bo, cy, di} {
+	ann, bo, cy, di := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
+	for _, id := range []kernel.CharacterID{ann, bo, cy, di} {
 		s.online(t, "gw", id, "X")
 	}
 	s.party(t, ann, bo)
@@ -296,7 +296,7 @@ func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 	if _, err := w.Recv(); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("watch: %v", err)
 	}
-	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{Member: &socialv1.Member{Id: model.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("online without a gateway: %v", err)
 	}
 }

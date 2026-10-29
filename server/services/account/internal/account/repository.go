@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/dbx"
 	"finga/services/account/internal/account/internal/db"
 )
@@ -51,7 +51,7 @@ func (p *Postgres) FindByUsername(ctx context.Context, username string) (Credent
 		return Credentials{}, fmt.Errorf("account %s: settings: %w", row.ID, err)
 	}
 	return Credentials{
-		Account:      Account{ID: model.AccountID(row.ID), Username: row.Username, Settings: settings, CreatedAt: row.CreatedAt},
+		Account:      Account{ID: kernel.AccountID(row.ID), Username: row.Username, Settings: settings, CreatedAt: row.CreatedAt},
 		PasswordHash: row.PasswordHash,
 	}, nil
 }
@@ -63,14 +63,14 @@ func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (Ses
 		return Session{}, classify(err)
 	}
 	return Session{
-		ID: model.SessionID(row.ID), AccountID: model.AccountID(row.AccountID), TokenHash: row.TokenHash,
+		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
 	}, nil
 }
 
 // Settings reads an account's settings.
-func (p *Postgres) Settings(ctx context.Context, id model.AccountID) (Settings, error) {
+func (p *Postgres) Settings(ctx context.Context, id kernel.AccountID) (Settings, error) {
 	raw, err := p.q.GetSettings(ctx, uuid.UUID(id))
 	if err != nil {
 		return Settings{}, classify(err)
@@ -104,13 +104,13 @@ func (r accountRepo) Insert(ctx context.Context, a NewAccount) error {
 }
 
 // Lock takes the account row lock; no row is pgx.ErrNoRows.
-func (r accountRepo) Lock(ctx context.Context, id model.AccountID) error {
+func (r accountRepo) Lock(ctx context.Context, id kernel.AccountID) error {
 	_, err := r.q.LockAccount(ctx, uuid.UUID(id))
 	return err
 }
 
 // UpdateSettings replaces the settings JSON; no row is pgx.ErrNoRows.
-func (r accountRepo) UpdateSettings(ctx context.Context, id model.AccountID, s Settings) error {
+func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s Settings) error {
 	settings, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -135,14 +135,14 @@ func (r sessionRepo) Insert(ctx context.Context, s Session) error {
 }
 
 // RevokeAll ends every active session of the account.
-func (r sessionRepo) RevokeAll(ctx context.Context, accountID model.AccountID, at time.Time) error {
+func (r sessionRepo) RevokeAll(ctx context.Context, accountID kernel.AccountID, at time.Time) error {
 	_, err := r.q.RevokeAccountSessions(ctx, db.RevokeAccountSessionsParams{AccountID: uuid.UUID(accountID), RevokedAt: &at})
 	return err
 }
 
 // Revoke ends one session. Zero rows is not an error: the session is ended
 // either way.
-func (r sessionRepo) Revoke(ctx context.Context, id model.SessionID, at time.Time) error {
+func (r sessionRepo) Revoke(ctx context.Context, id kernel.SessionID, at time.Time) error {
 	_, err := r.q.RevokeSession(ctx, db.RevokeSessionParams{ID: uuid.UUID(id), RevokedAt: &at})
 	return err
 }
@@ -173,20 +173,20 @@ func classify(err error) error {
 }
 
 // FindSession loads a session by ID, revoked or not.
-func (p *Postgres) FindSession(ctx context.Context, id model.SessionID) (Session, error) {
+func (p *Postgres) FindSession(ctx context.Context, id kernel.SessionID) (Session, error) {
 	row, err := p.q.FindSessionByID(ctx, uuid.UUID(id))
 	if err != nil {
 		return Session{}, classify(err)
 	}
 	return Session{
-		ID: model.SessionID(row.ID), AccountID: model.AccountID(row.AccountID), TokenHash: row.TokenHash,
+		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
 	}, nil
 }
 
 // Rotate retires the current token and installs a new hash.
-func (r sessionRepo) Rotate(ctx context.Context, id model.SessionID, newHash []byte, at time.Time) error {
+func (r sessionRepo) Rotate(ctx context.Context, id kernel.SessionID, newHash []byte, at time.Time) error {
 	n, err := r.q.RotateSessionToken(ctx, db.RotateSessionTokenParams{ID: uuid.UUID(id), TokenHash: newHash, RotatedAt: &at})
 	if err != nil {
 		return classify(err)
@@ -198,13 +198,13 @@ func (r sessionRepo) Rotate(ctx context.Context, id model.SessionID, newHash []b
 }
 
 // ConsumePrevious ends the grace for the previous token.
-func (r sessionRepo) ConsumePrevious(ctx context.Context, id model.SessionID) error {
+func (r sessionRepo) ConsumePrevious(ctx context.Context, id kernel.SessionID) error {
 	_, err := r.q.ConsumePreviousToken(ctx, uuid.UUID(id))
 	return classify(err)
 }
 
 // Extend moves the expiry.
-func (r sessionRepo) Extend(ctx context.Context, id model.SessionID, until time.Time) error {
+func (r sessionRepo) Extend(ctx context.Context, id kernel.SessionID, until time.Time) error {
 	_, err := r.q.ExtendSession(ctx, db.ExtendSessionParams{ID: uuid.UUID(id), ExpiresAt: until})
 	return classify(err)
 }

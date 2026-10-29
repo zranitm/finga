@@ -11,7 +11,7 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/services/world/internal/world"
 )
@@ -40,7 +40,7 @@ func (p Pickups) Add(ctx context.Context, in world.Pickup) ([]world.Slot, error)
 	for _, s := range res.GetChanged() {
 		slot := world.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
 		if it := s.GetItem(); it != nil {
-			id, err := model.ParseItemID(it.GetId())
+			id, err := kernel.ParseItemID(it.GetId())
 			if err != nil {
 				return nil, err
 			}
@@ -95,13 +95,13 @@ func NewCharacters(c characterv1.CharacterServiceClient) Characters { return Cha
 
 // Load is a character of the account, as last saved; someone else's fails
 // with the character service's not-found reason, passed through.
-func (c Characters) Load(ctx context.Context, id model.CharacterID, account model.AccountID) (world.Character, error) {
+func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (world.Character, error) {
 	res, err := c.c.Load(ctx, &characterv1.LoadRequest{CharacterId: id.String(), AccountId: account.String()})
 	if err != nil {
 		return world.Character{}, err
 	}
 	ch := res.GetCharacter()
-	class, err := model.ParseClass(ch.GetClass())
+	class, err := kernel.ParseClass(ch.GetClass())
 	if err != nil {
 		return world.Character{}, err
 	}
@@ -121,7 +121,7 @@ func NewStarter(c itemv1.ItemServiceClient) Starter { return Starter{c: c} }
 
 // GrantStarter asks for the class's starter items, keyed by the character:
 // a no-op unless creation never granted them.
-func (s Starter) GrantStarter(ctx context.Context, account model.AccountID, id model.CharacterID, class model.Class) error {
+func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error {
 	_, err := s.c.GrantStarter(ctx, &itemv1.GrantStarterRequest{
 		Actor: &itemv1.Actor{AccountId: account.String(), CharacterId: id.String()},
 		Class: class.String(),

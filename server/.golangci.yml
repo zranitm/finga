@@ -23,7 +23,17 @@ linters:
           deny:
             - pkg: finga/cmd
               desc: only a binary and the tests import its composition root
-            - pkg: finga/services/*/cmd
+            - pkg: finga/services/account/cmd
+              desc: only a binary and the tests import a service's composition root
+            - pkg: finga/services/character/cmd
+              desc: only a binary and the tests import a service's composition root
+            - pkg: finga/services/gateway/cmd
+              desc: only a binary and the tests import a service's composition root
+            - pkg: finga/services/item/cmd
+              desc: only a binary and the tests import a service's composition root
+            - pkg: finga/services/social/cmd
+              desc: only a binary and the tests import a service's composition root
+            - pkg: finga/services/world/cmd
               desc: only a binary and the tests import a service's composition root
         # pkg is generic: it never knows the game exists.
         pkg:
@@ -33,11 +43,12 @@ linters:
               desc: pkg never imports internal
             - pkg: finga/services
               desc: pkg never imports a service
-        # The shared kernel: model's value types, and the game data, movement
-        # simulation and progression rules more than one service runs. It sits
-        # below every service, and is never sent between them.
+        # The shared kernel: kernel's value types (IDs, Class), and the game
+        # data, movement simulation and progression rules more than one
+        # service runs. It sits below every service, and is never sent
+        # between them.
         kernel:
-          files: ["**/internal/model/**", "**/internal/gamedata/**", "**/internal/sim/**", "**/internal/progression/**"]
+          files: ["**/internal/kernel/**", "**/internal/gamedata/**", "**/internal/sim/**", "**/internal/progression/**"]
           deny:
             - pkg: finga/services
               desc: the shared kernel is below every service
@@ -49,9 +60,10 @@ linters:
               desc: the shared kernel is below telemetry
             - pkg: finga/internal/host
               desc: the shared kernel takes plain values, never configuration or the host
-        # A service's modules are business logic: no transport, contract,
-        # wiring, telemetry or configuration. Its handler and clients speak
-        # the contracts.
+        # A service's inner layers (model, application, repository; until each
+        # service moves, its modules) are business logic: no transport,
+        # contract, wiring, telemetry or configuration. Its handler and
+        # clients speak the contracts.
         modules:
           files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
           deny:
@@ -63,20 +75,219 @@ linters:
               desc: a module returns its own result types; the gateway maps them to protocol messages
             - pkg: finga/internal/telemetry
               desc: a module declares observer interfaces; telemetry implements them
-            - pkg: finga/services/*/config
+            - pkg: finga/services/account/config
+              desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/services/character/config
+              desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/services/gateway/config
+              desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/services/item/config
+              desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/services/social/config
+              desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/services/world/config
               desc: a module takes option structs; the composition root fills them from configuration
             - pkg: finga/internal/host
               desc: a module knows nothing of how its process runs
-        # Inside a service only repository.go and sqlc's output talk to the
-        # database: modules never see a transaction, handlers and clients never
-        # touch the database.
+        # Inside a service only its repository layer (and, until each service
+        # moves, a module's repository.go) and sqlc's output talk to the
+        # database: model and application never see a transaction, handlers
+        # and clients never touch the database.
         services-no-sql:
-          files: ["**/services/*/internal/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
+          files: ["**/services/*/internal/**", "!**/internal/repository/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
           deny:
             - pkg: github.com/jackc/pgx
-              desc: only repository.go talks to the database
+              desc: only the repository layer talks to the database
             - pkg: finga/pkg/dbx
-              desc: only the module store (repository.go) opens transactions
+              desc: only the repository layer opens transactions
+        # The layers of a service (page 11): imports point inward, to model.
+        # depguard matches a denied package by prefix, with no wildcard, so
+        # each rule names every service's layer.
+        # model needs nothing but data; application declares the ports that
+        # repository, handler and clients implement or call.
+        layer-model:
+          files: ["**/services/*/internal/model/**"]
+          deny:
+            - pkg: finga/services/account/internal/application
+              desc: model is the innermost layer; application uses it, never the reverse
+            - pkg: finga/services/character/internal/application
+              desc: model is the innermost layer; application uses it, never the reverse
+            - pkg: finga/services/gateway/internal/application
+              desc: model is the innermost layer; application uses it, never the reverse
+            - pkg: finga/services/item/internal/application
+              desc: model is the innermost layer; application uses it, never the reverse
+            - pkg: finga/services/social/internal/application
+              desc: model is the innermost layer; application uses it, never the reverse
+            - pkg: finga/services/world/internal/application
+              desc: model is the innermost layer; application uses it, never the reverse
+            - pkg: finga/services/account/internal/repository
+              desc: model knows no storage
+            - pkg: finga/services/character/internal/repository
+              desc: model knows no storage
+            - pkg: finga/services/gateway/internal/repository
+              desc: model knows no storage
+            - pkg: finga/services/item/internal/repository
+              desc: model knows no storage
+            - pkg: finga/services/social/internal/repository
+              desc: model knows no storage
+            - pkg: finga/services/world/internal/repository
+              desc: model knows no storage
+            - pkg: finga/services/account/internal/handler
+              desc: model knows no transport
+            - pkg: finga/services/character/internal/handler
+              desc: model knows no transport
+            - pkg: finga/services/gateway/internal/handler
+              desc: model knows no transport
+            - pkg: finga/services/item/internal/handler
+              desc: model knows no transport
+            - pkg: finga/services/social/internal/handler
+              desc: model knows no transport
+            - pkg: finga/services/world/internal/handler
+              desc: model knows no transport
+            - pkg: finga/services/account/internal/clients
+              desc: model knows no other service
+            - pkg: finga/services/character/internal/clients
+              desc: model knows no other service
+            - pkg: finga/services/gateway/internal/clients
+              desc: model knows no other service
+            - pkg: finga/services/item/internal/clients
+              desc: model knows no other service
+            - pkg: finga/services/social/internal/clients
+              desc: model knows no other service
+            - pkg: finga/services/world/internal/clients
+              desc: model knows no other service
+        layer-application:
+          files: ["**/services/*/internal/application/**"]
+          deny:
+            - pkg: finga/services/account/internal/repository
+              desc: application declares its Store; the repository implements it, and the composition root wires it in
+            - pkg: finga/services/character/internal/repository
+              desc: application declares its Store; the repository implements it, and the composition root wires it in
+            - pkg: finga/services/gateway/internal/repository
+              desc: application declares its Store; the repository implements it, and the composition root wires it in
+            - pkg: finga/services/item/internal/repository
+              desc: application declares its Store; the repository implements it, and the composition root wires it in
+            - pkg: finga/services/social/internal/repository
+              desc: application declares its Store; the repository implements it, and the composition root wires it in
+            - pkg: finga/services/world/internal/repository
+              desc: application declares its Store; the repository implements it, and the composition root wires it in
+            - pkg: finga/services/account/internal/handler
+              desc: the handler calls application, never the reverse
+            - pkg: finga/services/character/internal/handler
+              desc: the handler calls application, never the reverse
+            - pkg: finga/services/gateway/internal/handler
+              desc: the handler calls application, never the reverse
+            - pkg: finga/services/item/internal/handler
+              desc: the handler calls application, never the reverse
+            - pkg: finga/services/social/internal/handler
+              desc: the handler calls application, never the reverse
+            - pkg: finga/services/world/internal/handler
+              desc: the handler calls application, never the reverse
+            - pkg: finga/services/account/internal/clients
+              desc: application declares a port for each service it calls; clients implement it
+            - pkg: finga/services/character/internal/clients
+              desc: application declares a port for each service it calls; clients implement it
+            - pkg: finga/services/gateway/internal/clients
+              desc: application declares a port for each service it calls; clients implement it
+            - pkg: finga/services/item/internal/clients
+              desc: application declares a port for each service it calls; clients implement it
+            - pkg: finga/services/social/internal/clients
+              desc: application declares a port for each service it calls; clients implement it
+            - pkg: finga/services/world/internal/clients
+              desc: application declares a port for each service it calls; clients implement it
+        layer-repository:
+          files: ["**/services/*/internal/repository/**"]
+          deny:
+            - pkg: finga/services/account/internal/handler
+              desc: the repository implements application's ports and knows no transport
+            - pkg: finga/services/character/internal/handler
+              desc: the repository implements application's ports and knows no transport
+            - pkg: finga/services/gateway/internal/handler
+              desc: the repository implements application's ports and knows no transport
+            - pkg: finga/services/item/internal/handler
+              desc: the repository implements application's ports and knows no transport
+            - pkg: finga/services/social/internal/handler
+              desc: the repository implements application's ports and knows no transport
+            - pkg: finga/services/world/internal/handler
+              desc: the repository implements application's ports and knows no transport
+            - pkg: finga/services/account/internal/clients
+              desc: the repository implements application's ports and calls no service
+            - pkg: finga/services/character/internal/clients
+              desc: the repository implements application's ports and calls no service
+            - pkg: finga/services/gateway/internal/clients
+              desc: the repository implements application's ports and calls no service
+            - pkg: finga/services/item/internal/clients
+              desc: the repository implements application's ports and calls no service
+            - pkg: finga/services/social/internal/clients
+              desc: the repository implements application's ports and calls no service
+            - pkg: finga/services/world/internal/clients
+              desc: the repository implements application's ports and calls no service
+            - pkg: finga/api/gen
+              desc: the repository maps rows to model's types, never to the contract's
+            - pkg: google.golang.org/grpc
+              desc: the repository knows no transport
+        layer-handler:
+          files: ["**/services/*/internal/handler/**"]
+          deny:
+            - pkg: finga/services/account/internal/repository
+              desc: the handler calls application; storage is behind its ports
+            - pkg: finga/services/character/internal/repository
+              desc: the handler calls application; storage is behind its ports
+            - pkg: finga/services/gateway/internal/repository
+              desc: the handler calls application; storage is behind its ports
+            - pkg: finga/services/item/internal/repository
+              desc: the handler calls application; storage is behind its ports
+            - pkg: finga/services/social/internal/repository
+              desc: the handler calls application; storage is behind its ports
+            - pkg: finga/services/world/internal/repository
+              desc: the handler calls application; storage is behind its ports
+            - pkg: finga/services/account/internal/clients
+              desc: the handler calls application; other services are behind its ports
+            - pkg: finga/services/character/internal/clients
+              desc: the handler calls application; other services are behind its ports
+            - pkg: finga/services/gateway/internal/clients
+              desc: the handler calls application; other services are behind its ports
+            - pkg: finga/services/item/internal/clients
+              desc: the handler calls application; other services are behind its ports
+            - pkg: finga/services/social/internal/clients
+              desc: the handler calls application; other services are behind its ports
+            - pkg: finga/services/world/internal/clients
+              desc: the handler calls application; other services are behind its ports
+            - pkg: github.com/jackc/pgx
+              desc: the handler never touches the database
+            - pkg: finga/pkg/dbx
+              desc: the handler never touches the database
+        layer-clients:
+          files: ["**/services/*/internal/clients/**"]
+          deny:
+            - pkg: finga/services/account/internal/repository
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/character/internal/repository
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/gateway/internal/repository
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/item/internal/repository
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/social/internal/repository
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/world/internal/repository
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/account/internal/handler
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/character/internal/handler
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/gateway/internal/handler
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/item/internal/handler
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/social/internal/handler
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: finga/services/world/internal/handler
+              desc: clients implement application's ports over gRPC, nothing else
+            - pkg: github.com/jackc/pgx
+              desc: clients never touch the database
+            - pkg: finga/pkg/dbx
+              desc: clients never touch the database
         # The gateway is the public entry and holds no database: every table
         # belongs to a service (page 10).
         gateway-no-database:

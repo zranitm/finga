@@ -3,20 +3,20 @@ package item
 import (
 	"encoding/json"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // itemEvent is the JSON payload of the module's outbox events (page 6:
 // ItemLooted, ItemDiscarded; ItemGranted for starter items).
 type itemEvent struct {
-	ItemID     model.ItemID      `json:"item_id"`
-	TemplateID string            `json:"template_id"`
-	Owner      model.CharacterID `json:"owner_id"`
-	Quantity   int               `json:"quantity"` // the quantity the command moved
-	Tab        string            `json:"tab"`
-	Slot       int               `json:"slot"`
-	Cause      string            `json:"cause"`
-	CauseID    string            `json:"cause_id,omitempty"`
+	ItemID     kernel.ItemID      `json:"item_id"`
+	TemplateID string             `json:"template_id"`
+	Owner      kernel.CharacterID `json:"owner_id"`
+	Quantity   int                `json:"quantity"` // the quantity the command moved
+	Tab        string             `json:"tab"`
+	Slot       int                `json:"slot"`
+	Cause      string             `json:"cause"`
+	CauseID    string             `json:"cause_id,omitempty"`
 }
 
 func payload(it *Item, quantity int, cause Cause) []byte {

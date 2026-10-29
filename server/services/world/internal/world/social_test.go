@@ -7,26 +7,26 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/world/internal/world"
 )
 
 // fakeParties is a party roster the instance asks about.
 type fakeParties struct {
 	mu      sync.Mutex
-	parties [][]model.CharacterID
+	parties [][]kernel.CharacterID
 	updates []partyUpdate
 }
 
 type partyUpdate struct {
-	id    model.CharacterID
+	id    kernel.CharacterID
 	mapID string
 	level int
 	hp    int
 	maxHP int
 }
 
-func (f *fakeParties) Members(id model.CharacterID) []model.CharacterID {
+func (f *fakeParties) Members(id kernel.CharacterID) []kernel.CharacterID {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, p := range f.parties {
@@ -37,11 +37,11 @@ func (f *fakeParties) Members(id model.CharacterID) []model.CharacterID {
 	return nil
 }
 
-func (f *fakeParties) SameParty(a, b model.CharacterID) bool {
+func (f *fakeParties) SameParty(a, b kernel.CharacterID) bool {
 	return slices.Contains(f.Members(a), b)
 }
 
-func (f *fakeParties) Update(id model.CharacterID, mapID string, level, hp, maxHP int) {
+func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.updates = append(f.updates, partyUpdate{id, mapID, level, hp, maxHP})
@@ -84,7 +84,7 @@ func TestExpSharing(t *testing.T) {
 				time.Sleep(tickInterval)
 				synctest.Wait()
 				killer := warriorAt(250)
-				party := []model.CharacterID{killer.ID}
+				party := []kernel.CharacterID{killer.ID}
 				sk := join(t, inst, killer)
 				var others []*sink
 				for k := range tt.members {
@@ -97,10 +97,10 @@ func TestExpSharing(t *testing.T) {
 					others = append(others, join(t, inst, m))
 				}
 				for range tt.elsewhere {
-					party = append(party, model.NewCharacterID())
+					party = append(party, kernel.NewCharacterID())
 				}
 				parties.mu.Lock()
-				parties.parties = [][]model.CharacterID{party}
+				parties.parties = [][]kernel.CharacterID{party}
 				parties.mu.Unlock()
 				killSlime(t, inst, killer.ID)
 				if got := expGained(sk); len(got) != 1 || got[0] != tt.wantKiller {
@@ -128,7 +128,7 @@ func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 		data := loadData(t)
 		items := newFakePickups()
 		killer, member, stranger := warriorAt(250), warriorAt(300), warriorAt(300)
-		parties := &fakeParties{parties: [][]model.CharacterID{{killer.ID, member.ID}}}
+		parties := &fakeParties{parties: [][]kernel.CharacterID{{killer.ID, member.ID}}}
 		inst, stop := runLootArena(t, data, items, 0.3, world.Options{Parties: parties})
 		defer stop()
 		time.Sleep(tickInterval)

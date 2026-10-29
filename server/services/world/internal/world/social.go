@@ -1,20 +1,20 @@
 package world
 
-import "finga/internal/model"
+import "finga/internal/kernel"
 
 // Parties answers party questions from inside a tick and hears what the
 // world learns about members; the party service implements it. nil means
 // nobody has a party.
 type Parties interface {
-	Members(id model.CharacterID) []model.CharacterID
-	SameParty(a, b model.CharacterID) bool
-	Update(id model.CharacterID, mapID string, level, hp, maxHP int)
+	Members(id kernel.CharacterID) []kernel.CharacterID
+	SameParty(a, b kernel.CharacterID) bool
+	Update(id kernel.CharacterID, mapID string, level, hp, maxHP int)
 }
 
 // Chat is a map-channel line, sent to everyone on the map.
 type Chat struct {
 	Tick       uint64
-	Sender     model.CharacterID
+	Sender     kernel.CharacterID
 	SenderName string
 	Text       string
 }
@@ -22,14 +22,14 @@ type Chat struct {
 func (Chat) event() {}
 
 type chatMsg struct {
-	from model.CharacterID
+	from kernel.CharacterID
 	name string
 	text string
 }
 
 // Chat says an already cleaned line to everyone on the map, the sender
 // included. A sender who is not on the map is ignored.
-func (i *Instance) Chat(from model.CharacterID, name, text string) bool {
+func (i *Instance) Chat(from kernel.CharacterID, name, text string) bool {
 	return i.post(message{chat: &chatMsg{from: from, name: name, text: text}})
 }
 

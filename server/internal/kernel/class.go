@@ -1,4 +1,4 @@
-package model
+package kernel
 
 import "errors"
 
@@ -16,7 +16,7 @@ const (
 )
 
 // ErrUnknownClass is a class name that is not one of the four.
-var ErrUnknownClass = errors.New("model: unknown class")
+var ErrUnknownClass = errors.New("kernel: unknown class")
 
 // Classes lists every class, in display order.
 func Classes() []Class {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/character/internal/character"
 )
 
@@ -16,13 +16,13 @@ import (
 // relies on: a unique name ignoring case.
 type fakeStore struct {
 	mu      sync.Mutex
-	chars   map[model.CharacterID]character.Character
-	order   []model.CharacterID
+	chars   map[kernel.CharacterID]character.Character
+	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[model.CharacterID]character.Character{}}
+	return &fakeStore{chars: map[kernel.CharacterID]character.Character{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow character.UnitOfWork) error) error {
@@ -39,7 +39,7 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow character.UnitOfWork) er
 	return nil
 }
 
-func (s *fakeStore) List(_ context.Context, account model.AccountID) ([]character.Character, error) {
+func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]character.Character, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []character.Character
@@ -52,7 +52,7 @@ func (s *fakeStore) List(_ context.Context, account model.AccountID) ([]characte
 	return out, nil
 }
 
-func (s *fakeStore) Load(_ context.Context, id model.CharacterID, account model.AccountID) (character.Character, error) {
+func (s *fakeStore) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (character.Character, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, ok := s.chars[id]
@@ -78,12 +78,12 @@ type fakeStarter struct {
 }
 
 type grant struct {
-	account   model.AccountID
-	character model.CharacterID
-	class     model.Class
+	account   kernel.AccountID
+	character kernel.CharacterID
+	class     kernel.Class
 }
 
-func (f *fakeStarter) GrantStarter(_ context.Context, account model.AccountID, id model.CharacterID, class model.Class) error {
+func (f *fakeStarter) GrantStarter(_ context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, grant{account, id, class})

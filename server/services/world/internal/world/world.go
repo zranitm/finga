@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 )
 
@@ -71,7 +71,7 @@ var errNoCharacters = errors.New("world: characters not wired")
 // (idempotent: the safety net for a creation that could not reach the item
 // service), and joins it to its saved map's instance, which sends the
 // Snapshot to sink. A failure at any step leaves nobody joined.
-func (w *World) Join(ctx context.Context, account model.AccountID, id model.CharacterID, conn string, sink Sink) (View, error) {
+func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (View, error) {
 	if w.opts.Characters == nil {
 		return View{}, errNoCharacters
 	}

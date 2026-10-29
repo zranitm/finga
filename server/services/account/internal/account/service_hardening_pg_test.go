@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/auth/password"
 )
 
@@ -154,7 +154,7 @@ func TestSlidingExpiry(t *testing.T) {
 	}
 	expiresAt := func() time.Time {
 		t.Helper()
-		s, err := store.FindSession(ctx, model.SessionID(p.SessionID))
+		s, err := store.FindSession(ctx, kernel.SessionID(p.SessionID))
 		if err != nil {
 			t.Fatal(err)
 		}

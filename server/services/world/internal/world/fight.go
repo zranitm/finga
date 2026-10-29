@@ -5,7 +5,7 @@ import (
 	"slices"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/services/world/internal/combat"
@@ -289,8 +289,8 @@ func (i *Instance) kill(p *player) {
 // town's player spawn with half their HP. Away from that town the player
 // is handed to its instance; the IDs of players who left are returned. A
 // map with no reachable town (or no mover) respawns in place.
-func (i *Instance) deathsAndRespawns() []model.CharacterID {
-	var left []model.CharacterID
+func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
+	var left []kernel.CharacterID
 	town, hasTown := i.data.Map(i.m.Town)
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/character/internal/character"
 )
 
@@ -31,16 +31,16 @@ func newServiceWith(t *testing.T, opts character.Options) (*character.Service, *
 
 func TestCreate(t *testing.T) {
 	ctx := context.Background()
-	owner := model.NewAccountID()
+	owner := kernel.NewAccountID()
 
 	t.Run("valid", func(t *testing.T) {
 		svc, store, data := newService(t)
-		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: model.Warrior})
+		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 		if err != nil {
 			t.Fatal(err)
 		}
 		town := data.Town()
-		warrior, _ := data.Class(model.Warrior)
+		warrior, _ := data.Class(kernel.Warrior)
 		checks := []struct {
 			name string
 			ok   bool
@@ -63,7 +63,7 @@ func TestCreate(t *testing.T) {
 
 	t.Run("a bowman gets its own base stats and HP", func(t *testing.T) {
 		svc, _, _ := newService(t)
-		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Robin", Class: model.Bowman})
+		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Robin", Class: kernel.Bowman})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -88,7 +88,7 @@ func TestCreate(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				svc, store, _ := newService(t)
-				_, err := svc.Create(ctx, owner, character.CreateInput{Name: tt.input, Class: model.Warrior})
+				_, err := svc.Create(ctx, owner, character.CreateInput{Name: tt.input, Class: kernel.Warrior})
 				if !errors.Is(err, character.ErrBadName) {
 					t.Fatalf("err = %v", err)
 				}
@@ -102,14 +102,14 @@ func TestCreate(t *testing.T) {
 	t.Run("boundary names are accepted", func(t *testing.T) {
 		svc, _, _ := newService(t)
 		for _, name := range []string{"Ayl", "Aylaaylaayla", "A1b2"} {
-			if _, err := svc.Create(ctx, owner, character.CreateInput{Name: name, Class: model.Warrior}); err != nil {
+			if _, err := svc.Create(ctx, owner, character.CreateInput{Name: name, Class: kernel.Warrior}); err != nil {
 				t.Fatalf("%q: %v", name, err)
 			}
 		}
 	})
 
 	t.Run("classes not in Stage 1 are rejected", func(t *testing.T) {
-		for _, class := range []model.Class{model.Thief, model.Magician, "paladin"} {
+		for _, class := range []kernel.Class{kernel.Thief, kernel.Magician, "paladin"} {
 			t.Run(string(class), func(t *testing.T) {
 				svc, _, _ := newService(t)
 				_, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: class})
@@ -122,10 +122,10 @@ func TestCreate(t *testing.T) {
 
 	t.Run("a duplicate name becomes conflict", func(t *testing.T) {
 		svc, _, _ := newService(t)
-		if _, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: model.Warrior}); err != nil {
+		if _, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: kernel.Warrior}); err != nil {
 			t.Fatal(err)
 		}
-		_, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "AYLA", Class: model.Bowman})
+		_, err := svc.Create(ctx, kernel.NewAccountID(), character.CreateInput{Name: "AYLA", Class: kernel.Bowman})
 		if !errors.Is(err, character.ErrNameTaken) {
 			t.Fatalf("err = %v", err)
 		}
@@ -135,10 +135,10 @@ func TestCreate(t *testing.T) {
 func TestListAndLoad(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _ := newService(t)
-	alice, bob := model.NewAccountID(), model.NewAccountID()
-	a1, _ := svc.Create(ctx, alice, character.CreateInput{Name: "Ayla", Class: model.Warrior})
-	a2, _ := svc.Create(ctx, alice, character.CreateInput{Name: "Robin", Class: model.Bowman})
-	if _, err := svc.Create(ctx, bob, character.CreateInput{Name: "Bruno", Class: model.Warrior}); err != nil {
+	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
+	a1, _ := svc.Create(ctx, alice, character.CreateInput{Name: "Ayla", Class: kernel.Warrior})
+	a2, _ := svc.Create(ctx, alice, character.CreateInput{Name: "Robin", Class: kernel.Bowman})
+	if _, err := svc.Create(ctx, bob, character.CreateInput{Name: "Bruno", Class: kernel.Warrior}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,7 +150,7 @@ func TestListAndLoad(t *testing.T) {
 		if len(list) != 2 || list[0].ID != a1.ID || list[1].ID != a2.ID {
 			t.Fatalf("list = %+v", list)
 		}
-		empty, err := svc.List(ctx, model.NewAccountID())
+		empty, err := svc.List(ctx, kernel.NewAccountID())
 		if err != nil || len(empty) != 0 {
 			t.Fatalf("unknown account: %v, %v", empty, err)
 		}
@@ -171,7 +171,7 @@ func TestListAndLoad(t *testing.T) {
 	})
 
 	t.Run("an unknown ID gives not_found", func(t *testing.T) {
-		_, err := svc.Load(ctx, model.NewCharacterID(), alice)
+		_, err := svc.Load(ctx, kernel.NewCharacterID(), alice)
 		if !errors.Is(err, character.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
@@ -181,8 +181,8 @@ func TestListAndLoad(t *testing.T) {
 func TestSaves(t *testing.T) {
 	ctx := context.Background()
 	svc, store, _ := newService(t)
-	owner := model.NewAccountID()
-	c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: model.Warrior})
+	owner := kernel.NewAccountID()
+	c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,11 +213,11 @@ func TestSaves(t *testing.T) {
 	})
 
 	t.Run("saving an unknown character is not_found", func(t *testing.T) {
-		err := svc.SaveCheckpoint(ctx, character.Checkpoint{ID: model.NewCharacterID()})
+		err := svc.SaveCheckpoint(ctx, character.Checkpoint{ID: kernel.NewCharacterID()})
 		if !errors.Is(err, character.ErrNotFound) {
 			t.Fatalf("checkpoint: %v", err)
 		}
-		err = svc.SaveLevelUp(ctx, character.LevelUp{ID: model.NewCharacterID(), Level: 2})
+		err = svc.SaveLevelUp(ctx, character.LevelUp{ID: kernel.NewCharacterID(), Level: 2})
 		if !errors.Is(err, character.ErrNotFound) {
 			t.Fatalf("level-up: %v", err)
 		}
@@ -226,7 +226,7 @@ func TestSaves(t *testing.T) {
 
 func TestDerivedForACharacter(t *testing.T) {
 	svc, _, _ := newService(t)
-	c, err := svc.Create(context.Background(), model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior})
+	c, err := svc.Create(context.Background(), kernel.NewAccountID(), character.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +234,7 @@ func TestDerivedForACharacter(t *testing.T) {
 	if err != nil || d.MaxHP != 204 || d.AttackPower != 21 {
 		t.Fatalf("derived = %+v, %v", d, err)
 	}
-	c.Class = model.Thief
+	c.Class = kernel.Thief
 	if _, err := svc.Derived(c); !errors.Is(err, character.ErrClassUnavailable) {
 		t.Fatalf("thief: %v", err)
 	}
@@ -243,18 +243,18 @@ func TestDerivedForACharacter(t *testing.T) {
 func TestCharacterSlots(t *testing.T) {
 	ctx := context.Background()
 	svc, _, _ := newService(t)
-	owner := model.NewAccountID()
+	owner := kernel.NewAccountID()
 	for _, name := range []string{"Ayla", "Robin", "Cass"} {
-		if _, err := svc.Create(ctx, owner, character.CreateInput{Name: name, Class: model.Warrior}); err != nil {
+		if _, err := svc.Create(ctx, owner, character.CreateInput{Name: name, Class: kernel.Warrior}); err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
 	}
-	_, err := svc.Create(ctx, owner, character.CreateInput{Name: "Dori", Class: model.Warrior})
+	_, err := svc.Create(ctx, owner, character.CreateInput{Name: "Dori", Class: kernel.Warrior})
 	if !errors.Is(err, character.ErrSlotsFull) {
 		t.Fatalf("fourth character: %v, want ErrSlotsFull (conflict)", err)
 	}
 	// Another account is not affected.
-	if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Dori", Class: model.Warrior}); err != nil {
+	if _, err := svc.Create(ctx, kernel.NewAccountID(), character.CreateInput{Name: "Dori", Class: kernel.Warrior}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -268,19 +268,19 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 		starter := &fakeStarter{}
 		svc, store, _ := newServiceWith(t, character.Options{Starter: starter})
 		starter.store = store
-		owner := model.NewAccountID()
-		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: model.Bowman})
+		owner := kernel.NewAccountID()
+		c, err := svc.Create(ctx, owner, character.CreateInput{Name: "Ayla", Class: kernel.Bowman})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(starter.calls) != 1 || starter.calls[0] != (grant{owner, c.ID, model.Bowman}) || !starter.committedFirst[0] {
+		if len(starter.calls) != 1 || starter.calls[0] != (grant{owner, c.ID, kernel.Bowman}) || !starter.committedFirst[0] {
 			t.Fatalf("calls %+v, committed first %v", starter.calls, starter.committedFirst)
 		}
 	})
 	t.Run("a grant that fails twice is retried until it succeeds", func(t *testing.T) {
 		starter := &fakeStarter{failures: 2, err: errors.New("item service unavailable"), retryable: true}
 		svc, _, _ := newServiceWith(t, character.Options{Starter: starter, StarterBackoff: time.Millisecond})
-		if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior}); err != nil {
+		if _, err := svc.Create(ctx, kernel.NewAccountID(), character.CreateInput{Name: "Ayla", Class: kernel.Warrior}); err != nil {
 			t.Fatal(err)
 		}
 		if len(starter.calls) != 3 {
@@ -290,7 +290,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	t.Run("a grant that never succeeds before the deadline still returns the committed character", func(t *testing.T) {
 		starter := &fakeStarter{failures: 1 << 30, err: errors.New("item service unavailable"), retryable: true}
 		svc, store, _ := newServiceWith(t, character.Options{Starter: starter, StarterBackoff: time.Millisecond, StarterTimeout: 30 * time.Millisecond})
-		c, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior})
+		c, err := svc.Create(ctx, kernel.NewAccountID(), character.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 		if err != nil {
 			t.Fatalf("create failed although the character committed: %v", err)
 		}
@@ -301,7 +301,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	t.Run("a refusal by rule is not retried, and the character stays", func(t *testing.T) {
 		starter := &fakeStarter{failures: 1 << 30, err: errors.New("unknown item"), retryable: false}
 		svc, store, _ := newServiceWith(t, character.Options{Starter: starter, StarterBackoff: time.Millisecond})
-		c, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior})
+		c, err := svc.Create(ctx, kernel.NewAccountID(), character.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 		if err != nil || len(starter.calls) != 1 {
 			t.Fatalf("err %v after %d calls", err, len(starter.calls))
 		}
@@ -311,7 +311,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	})
 	t.Run("with no starter wired nothing is granted", func(t *testing.T) {
 		svc, _, _ := newService(t)
-		if _, err := svc.Create(ctx, model.NewAccountID(), character.CreateInput{Name: "Ayla", Class: model.Warrior}); err != nil {
+		if _, err := svc.Create(ctx, kernel.NewAccountID(), character.CreateInput{Name: "Ayla", Class: kernel.Warrior}); err != nil {
 			t.Fatal(err)
 		}
 	})

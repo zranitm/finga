@@ -13,7 +13,7 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/services/world/internal/clients"
@@ -52,10 +52,10 @@ func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
 }
 
 func TestPickupsAddTheDropUnderItsOwnKey(t *testing.T) {
-	gel := model.NewItemID()
+	gel := kernel.NewItemID()
 	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 2, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7}}, {Tab: "etc", Slot: 4}}}
 	p := clients.NewPickups(itemClient(t, f))
-	in := world.Pickup{Account: model.NewAccountID(), Character: model.NewCharacterID(), DropID: uuid.New(), Template: "slime_gel", Quantity: 2}
+	in := world.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuid.New(), Template: "slime_gel", Quantity: 2}
 	slots, err := p.Add(context.Background(), in)
 	if err != nil {
 		t.Fatal(err)
@@ -116,7 +116,7 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	characterv1.RegisterCharacterServiceServer(srv, f)
 	s := clients.NewSaver(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
-	id := model.NewCharacterID()
+	id := kernel.NewCharacterID()
 	ctx := context.Background()
 	if err := s.SaveCheckpoint(ctx, world.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Exp: 5}); err != nil {
 		t.Fatal(err)
@@ -151,7 +151,7 @@ func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characte
 }
 
 func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
-	id, account := model.NewCharacterID(), model.NewAccountID()
+	id, account := kernel.NewCharacterID(), kernel.NewAccountID()
 	f := &loads{char: &characterv1.Character{Id: id.String(), Name: "Ayla", Class: "bowman", Level: 3, Exp: 40,
 		Stats: &characterv1.Stats{Strength: 5, Dexterity: 18, Intelligence: 4, Agility: 14, Vitality: 5}, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600}}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
@@ -161,7 +161,7 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := world.Character{ID: id, Account: account, Name: "Ayla", Class: model.Bowman, Level: 3, Exp: 40,
+	want := world.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Bowman, Level: 3, Exp: 40,
 		Stats: gamedata.Stats{STR: 5, DEX: 18, INT: 4, AGI: 14, VIT: 5}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600}
 	if got != want || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
 		t.Fatalf("got %+v from %+v", got, f.req)
@@ -176,8 +176,8 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 func TestStarterAsksForTheClassOnJoin(t *testing.T) {
 	f := &items{}
 	s := clients.NewStarter(itemClient(t, f))
-	account, id := model.NewAccountID(), model.NewCharacterID()
-	if err := s.GrantStarter(context.Background(), account, id, model.Warrior); err != nil {
+	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
+	if err := s.GrantStarter(context.Background(), account, id, kernel.Warrior); err != nil {
 		t.Fatal(err)
 	}
 	if g := f.grants[0]; g.GetClass() != "warrior" || g.GetActor().GetCharacterId() != id.String() || g.GetActor().GetAccountId() != account.String() {

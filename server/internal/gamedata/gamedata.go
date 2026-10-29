@@ -9,7 +9,7 @@ package gamedata
 import (
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 )
 
@@ -99,7 +99,7 @@ type Grant struct {
 
 // Class is a playable class.
 type Class struct {
-	ID            model.Class
+	ID            kernel.Class
 	Name          string
 	Attack        Attack
 	BaseStats     Stats   // primary stats at level 1
@@ -112,8 +112,8 @@ type Item struct {
 	ID       string
 	Name     string
 	Tab      Tab
-	Slot     Slot        // equipment only
-	Class    model.Class // equipment only; empty: any class
+	Slot     Slot         // equipment only
+	Class    kernel.Class // equipment only; empty: any class
 	MinLevel int
 	Attack   int // weapons
 	Defense  int // armor
@@ -193,8 +193,8 @@ type Map struct {
 type Data struct {
 	movement  sim.Params
 	classes   []Class
-	classIdx  map[model.Class]int
-	formulas  map[model.Class]Formulas
+	classIdx  map[kernel.Class]int
+	formulas  map[kernel.Class]Formulas
 	items     []Item
 	itemIdx   map[string]int
 	mobs      []Mob
@@ -212,7 +212,7 @@ func (d *Data) Movement() sim.Params { return d.movement }
 func (d *Data) Classes() []Class { return d.classes }
 
 // Class finds a playable class.
-func (d *Data) Class(id model.Class) (Class, bool) {
+func (d *Data) Class(id kernel.Class) (Class, bool) {
 	i, ok := d.classIdx[id]
 	if !ok {
 		return Class{}, false
@@ -221,7 +221,7 @@ func (d *Data) Class(id model.Class) (Class, bool) {
 }
 
 // Formulas are a class's derived-stat formulas.
-func (d *Data) Formulas(id model.Class) (Formulas, bool) {
+func (d *Data) Formulas(id kernel.Class) (Formulas, bool) {
 	f, ok := d.formulas[id]
 	return f, ok
 }

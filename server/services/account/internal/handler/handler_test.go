@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
@@ -32,7 +32,7 @@ type fakeAccounts struct {
 	session   uuid.UUID
 	accountID uuid.UUID
 	updated   account.Settings
-	settingOf model.AccountID
+	settingOf kernel.AccountID
 	err       error
 	calls     int
 }
@@ -47,7 +47,7 @@ func (f *fakeAccounts) call() error { f.mu.Lock(); defer f.mu.Unlock(); f.calls+
 
 func (f *fakeAccounts) Register(_ context.Context, in account.RegisterInput) (account.Account, error) {
 	f.register = in
-	return account.Account{ID: model.AccountID(accountID), Username: in.Username, Settings: account.DefaultSettings(), CreatedAt: created}, f.call()
+	return account.Account{ID: kernel.AccountID(accountID), Username: in.Username, Settings: account.DefaultSettings(), CreatedAt: created}, f.call()
 }
 
 func (f *fakeAccounts) Login(_ context.Context, in account.LoginInput) (string, error) {
@@ -74,12 +74,12 @@ func (f *fakeAccounts) RevokeAll(_ context.Context, id uuid.UUID) error {
 	return f.call()
 }
 
-func (f *fakeAccounts) Settings(_ context.Context, id model.AccountID) (account.Settings, error) {
+func (f *fakeAccounts) Settings(_ context.Context, id kernel.AccountID) (account.Settings, error) {
 	f.settingOf = id
 	return account.Settings{ControlPreset: account.PresetWASD}, f.call()
 }
 
-func (f *fakeAccounts) UpdateSettings(_ context.Context, id model.AccountID, s account.Settings) error {
+func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s account.Settings) error {
 	f.settingOf, f.updated = id, s
 	return f.call()
 }
@@ -143,7 +143,7 @@ func TestEachCallMapsItsFields(t *testing.T) {
 	})
 	t.Run("GetSettings", func(t *testing.T) {
 		res, err := c.GetSettings(ctx, &accountv1.GetSettingsRequest{AccountId: accountID.String()})
-		if err != nil || res.GetSettings().GetControlPreset() != "wasd" || f.settingOf != model.AccountID(accountID) {
+		if err != nil || res.GetSettings().GetControlPreset() != "wasd" || f.settingOf != kernel.AccountID(accountID) {
 			t.Fatalf("res %+v err %v", res, err)
 		}
 	})
@@ -151,7 +151,7 @@ func TestEachCallMapsItsFields(t *testing.T) {
 		if _, err := c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: accountID.String(), Settings: &accountv1.Settings{ControlPreset: "wasd"}}); err != nil {
 			t.Fatal(err)
 		}
-		if f.updated.ControlPreset != account.PresetWASD || f.settingOf != model.AccountID(accountID) {
+		if f.updated.ControlPreset != account.PresetWASD || f.settingOf != kernel.AccountID(accountID) {
 			t.Fatalf("updated %+v for %v", f.updated, f.settingOf)
 		}
 	})

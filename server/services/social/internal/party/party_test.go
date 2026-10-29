@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/social/internal/party"
 )
 
@@ -18,17 +18,17 @@ type recorder struct {
 }
 
 type stateCall struct {
-	to    []model.CharacterID
+	to    []kernel.CharacterID
 	party *party.Party
 }
 
-func (r *recorder) PartyChanged(members []model.CharacterID, p *party.Party) {
+func (r *recorder) PartyChanged(members []kernel.CharacterID, p *party.Party) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.states = append(r.states, stateCall{to: members, party: p})
 }
 
-func (r *recorder) Invited(_ model.CharacterID, inv party.Invite) {
+func (r *recorder) Invited(_ kernel.CharacterID, inv party.Invite) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.invites = append(r.invites, inv)
@@ -50,17 +50,17 @@ type fixture struct {
 	svc  *party.Service
 	rec  *recorder
 	now  time.Time
-	ids  map[string]model.CharacterID
-	name map[model.CharacterID]string
+	ids  map[string]kernel.CharacterID
+	name map[kernel.CharacterID]string
 }
 
 func newFixture(t *testing.T, names ...string) *fixture {
 	t.Helper()
-	f := &fixture{rec: &recorder{}, now: time.Unix(1_700_000_000, 0), ids: map[string]model.CharacterID{}, name: map[model.CharacterID]string{}}
+	f := &fixture{rec: &recorder{}, now: time.Unix(1_700_000_000, 0), ids: map[string]kernel.CharacterID{}, name: map[kernel.CharacterID]string{}}
 	f.svc = party.NewService(party.Options{Clock: func() time.Time { return f.now }})
 	f.svc.Notify(f.rec)
 	for k, n := range names {
-		id := model.NewCharacterID()
+		id := kernel.NewCharacterID()
 		f.ids[n] = id
 		f.name[id] = n
 		f.svc.Online(party.Member{ID: id, Name: n, Level: 1 + k, HP: 100, MaxHP: 100, MapID: "forest"})
@@ -68,7 +68,7 @@ func newFixture(t *testing.T, names ...string) *fixture {
 	return f
 }
 
-func (f *fixture) id(n string) model.CharacterID { return f.ids[n] }
+func (f *fixture) id(n string) kernel.CharacterID { return f.ids[n] }
 
 // invite sends and accepts in one go.
 func (f *fixture) invite(t *testing.T, from, to string) {
@@ -82,7 +82,7 @@ func (f *fixture) invite(t *testing.T, from, to string) {
 	}
 }
 
-func (f *fixture) names(ids []model.CharacterID) []string {
+func (f *fixture) names(ids []kernel.CharacterID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, f.name[id])
@@ -288,7 +288,7 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); !errors.Is(err, party.ErrNotHere) {
 		t.Fatalf("offline: %v", err)
 	}
-	if _, err := f.svc.Invite(f.id("Ayla"), model.NewCharacterID()); !errors.Is(err, party.ErrNotHere) {
+	if _, err := f.svc.Invite(f.id("Ayla"), kernel.NewCharacterID()); !errors.Is(err, party.ErrNotHere) {
 		t.Fatalf("unknown: %v", err)
 	}
 }
@@ -317,7 +317,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 		t.Fatalf("after Ayla's update: %+v", m)
 	}
 	// Strangers: no party, no members, not the same party.
-	cass := model.NewCharacterID()
+	cass := kernel.NewCharacterID()
 	if f.svc.Members(cass) != nil || f.svc.SameParty(f.id("Ayla"), cass) {
 		t.Fatal("a stranger has a party")
 	}
@@ -329,12 +329,12 @@ func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {
 	f := newFixture(t, "ann", "bo", "cy", "di", "ed")
 	f.invite(t, "ann", "bo")
 	f.invite(t, "cy", "di")
-	var seen [][]model.CharacterID
-	f.svc.Memberships(func(members []model.CharacterID) { seen = append(seen, members) })
+	var seen [][]kernel.CharacterID
+	f.svc.Memberships(func(members []kernel.CharacterID) { seen = append(seen, members) })
 	if len(seen) != 2 {
 		t.Fatalf("visited %d parties, want 2", len(seen))
 	}
-	got := map[model.CharacterID]int{}
+	got := map[kernel.CharacterID]int{}
 	for _, members := range seen {
 		if len(members) != 2 {
 			t.Fatalf("members %v", members)

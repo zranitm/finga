@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
 	"finga/pkg/outbox"
@@ -57,7 +57,7 @@ func (p *Postgres) unitOfWork(tx pgx.Tx) UnitOfWork {
 }
 
 // Inventory lists the owner's inventory, by tab and slot.
-func (p *Postgres) Inventory(ctx context.Context, owner model.CharacterID) ([]Item, error) {
+func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) ([]Item, error) {
 	rows, err := p.q.ListInventory(ctx, uuid.UUID(owner))
 	if err != nil {
 		return nil, classify(err)
@@ -90,7 +90,7 @@ type repo struct {
 }
 
 // LockInventory locks the owner's inventory rows in ID order.
-func (r repo) LockInventory(ctx context.Context, owner model.CharacterID) ([]Item, error) {
+func (r repo) LockInventory(ctx context.Context, owner kernel.CharacterID) ([]Item, error) {
 	rows, err := r.q.LockInventory(ctx, uuid.UUID(owner))
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func (r repo) LockInventory(ctx context.Context, owner model.CharacterID) ([]Ite
 }
 
 // LockOwned locks one item that belongs to owner; no row otherwise.
-func (r repo) LockOwned(ctx context.Context, id model.ItemID, owner model.CharacterID) (Item, error) {
+func (r repo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (Item, error) {
 	row, err := r.q.LockOwnedItem(ctx, db.LockOwnedItemParams{ID: uuid.UUID(id), OwnerID: uuid.UUID(owner)})
 	if err != nil {
 		return Item{}, err
@@ -122,20 +122,20 @@ func (r repo) Insert(ctx context.Context, it Item) error {
 }
 
 // SetQuantity changes a quantity; no row is pgx.ErrNoRows.
-func (r repo) SetQuantity(ctx context.Context, id model.ItemID, quantity int) error {
+func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error {
 	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity), UpdatedAt: r.now()}) //nolint:gosec // quantities are small
 	return rowsOrNotFound(n, err)
 }
 
 // SetSlot moves an item to a slot; no row is pgx.ErrNoRows.
-func (r repo) SetSlot(ctx context.Context, id model.ItemID, tab gamedata.Tab, slot int) error {
+func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
 	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, UpdatedAt: r.now()})
 	return rowsOrNotFound(n, err)
 }
 
 // Destroy marks an item destroyed with quantity 0; no row is pgx.ErrNoRows.
-func (r repo) Destroy(ctx context.Context, id model.ItemID) error {
+func (r repo) Destroy(ctx context.Context, id kernel.ItemID) error {
 	n, err := r.q.DestroyItem(ctx, db.DestroyItemParams{ID: uuid.UUID(id), UpdatedAt: r.now()})
 	return rowsOrNotFound(n, err)
 }
@@ -168,7 +168,7 @@ func (r eventRepo) Append(ctx context.Context, e Event) error {
 type idem struct{ store idempotency.Store }
 
 // Run runs fn once per key for the account.
-func (i idem) Run(ctx context.Context, owner model.AccountID, scope, key string, request any, fn func() (Result, error)) (Result, error) {
+func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string, request any, fn func() (Result, error)) (Result, error) {
 	reqJSON, err := json.Marshal(request)
 	if err != nil {
 		return Result{}, err
@@ -205,7 +205,7 @@ func toItems(rows []db.Item) []Item {
 }
 
 func toItem(r db.Item) Item {
-	it := Item{ID: model.ItemID(r.ID), TemplateID: r.TemplateID, Owner: model.CharacterID(r.OwnerID), Quantity: int(r.Quantity), UpdatedAt: r.UpdatedAt}
+	it := Item{ID: kernel.ItemID(r.ID), TemplateID: r.TemplateID, Owner: kernel.CharacterID(r.OwnerID), Quantity: int(r.Quantity), UpdatedAt: r.UpdatedAt}
 	if r.Tab != nil {
 		it.Tab = gamedata.Tab(*r.Tab)
 	}

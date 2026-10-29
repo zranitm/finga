@@ -1,4 +1,4 @@
-package model_test
+package kernel_test
 
 import (
 	"encoding/json"
@@ -7,32 +7,32 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 func TestParseClass(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      string
-		want    model.Class
+		want    kernel.Class
 		wantErr bool
 	}{
-		{"warrior", "warrior", model.Warrior, false},
-		{"bowman", "bowman", model.Bowman, false},
-		{"thief", "thief", model.Thief, false},
-		{"magician", "magician", model.Magician, false},
+		{"warrior", "warrior", kernel.Warrior, false},
+		{"bowman", "bowman", kernel.Bowman, false},
+		{"thief", "thief", kernel.Thief, false},
+		{"magician", "magician", kernel.Magician, false},
 		{"case matters", "Warrior", "", true},
 		{"unknown", "paladin", "", true},
 		{"empty", "", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := model.ParseClass(tt.in)
+			got, err := kernel.ParseClass(tt.in)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}
 			if err != nil {
-				if !errors.Is(err, model.ErrUnknownClass) {
+				if !errors.Is(err, kernel.ErrUnknownClass) {
 					t.Fatalf("err = %v, want ErrUnknownClass", err)
 				}
 				return
@@ -48,14 +48,14 @@ func TestParseClass(t *testing.T) {
 }
 
 func TestClassesRoundTrip(t *testing.T) {
-	seen := map[model.Class]bool{}
-	for _, c := range model.Classes() {
+	seen := map[kernel.Class]bool{}
+	for _, c := range kernel.Classes() {
 		t.Run(c.String(), func(t *testing.T) {
 			if seen[c] {
 				t.Fatal("listed twice")
 			}
 			seen[c] = true
-			got, err := model.ParseClass(c.String())
+			got, err := kernel.ParseClass(c.String())
 			if err != nil || got != c {
 				t.Fatalf("ParseClass(%q) = %q, %v", c, got, err)
 			}
@@ -67,7 +67,7 @@ func TestClassesRoundTrip(t *testing.T) {
 }
 
 func TestNewIDs(t *testing.T) {
-	a, b := model.NewAccountID(), model.NewAccountID()
+	a, b := kernel.NewAccountID(), kernel.NewAccountID()
 	if a == b {
 		t.Fatal("two new IDs are equal")
 	}
@@ -77,12 +77,12 @@ func TestNewIDs(t *testing.T) {
 	if a.IsZero() {
 		t.Fatal("a new ID is zero")
 	}
-	var zero model.AccountID
+	var zero kernel.AccountID
 	if !zero.IsZero() {
 		t.Fatal("the zero value is not zero")
 	}
 	// Each type has its own constructor; mixing them is a compile error.
-	if model.NewCharacterID().IsZero() || model.NewItemID().IsZero() || model.NewSessionID().IsZero() {
+	if kernel.NewCharacterID().IsZero() || kernel.NewItemID().IsZero() || kernel.NewSessionID().IsZero() {
 		t.Fatal("a new ID is zero")
 	}
 }
@@ -94,10 +94,10 @@ func TestParseIDs(t *testing.T) {
 		name  string
 		parse func(string) (string, error)
 	}{
-		{"account", func(s string) (string, error) { id, err := model.ParseAccountID(s); return id.String(), err }},
-		{"character", func(s string) (string, error) { id, err := model.ParseCharacterID(s); return id.String(), err }},
-		{"item", func(s string) (string, error) { id, err := model.ParseItemID(s); return id.String(), err }},
-		{"session", func(s string) (string, error) { id, err := model.ParseSessionID(s); return id.String(), err }},
+		{"account", func(s string) (string, error) { id, err := kernel.ParseAccountID(s); return id.String(), err }},
+		{"character", func(s string) (string, error) { id, err := kernel.ParseCharacterID(s); return id.String(), err }},
+		{"item", func(s string) (string, error) { id, err := kernel.ParseItemID(s); return id.String(), err }},
+		{"session", func(s string) (string, error) { id, err := kernel.ParseSessionID(s); return id.String(), err }},
 	}
 	for _, p := range parsers {
 		t.Run(p.name+" parses and prints back", func(t *testing.T) {
@@ -107,7 +107,7 @@ func TestParseIDs(t *testing.T) {
 			}
 		})
 		t.Run(p.name+" rejects bad text as ErrBadID", func(t *testing.T) {
-			if _, err := p.parse(bad); !errors.Is(err, model.ErrBadID) {
+			if _, err := p.parse(bad); !errors.Is(err, kernel.ErrBadID) {
 				t.Fatalf("err = %v, want ErrBadID", err)
 			}
 		})
@@ -116,9 +116,9 @@ func TestParseIDs(t *testing.T) {
 
 func TestIDJSON(t *testing.T) {
 	type doc struct {
-		ID model.CharacterID `json:"id"`
+		ID kernel.CharacterID `json:"id"`
 	}
-	in := model.NewCharacterID()
+	in := kernel.NewCharacterID()
 	data, err := json.Marshal(doc{in})
 	if err != nil {
 		t.Fatal(err)

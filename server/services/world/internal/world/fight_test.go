@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/services/world/internal/world"
 )
@@ -86,7 +86,7 @@ func warriorAt(x float64) world.Player {
 }
 
 func bowmanAt(x float64) world.Player {
-	return world.Player{ID: model.NewCharacterID(), Name: "Robin", Class: model.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
+	return world.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
 }
 
 func join(t *testing.T, inst *world.Instance, p world.Player) *sink {
@@ -177,7 +177,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 }
 
 // id finds the joining player's ID from the snapshot.
-func (s *sink) id(t *testing.T, _ *world.Instance) model.CharacterID {
+func (s *sink) id(t *testing.T, _ *world.Instance) kernel.CharacterID {
 	t.Helper()
 	snap := s.all()[0].(world.Snapshot)
 	return snap.Players[len(snap.Players)-1].ID

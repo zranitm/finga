@@ -19,7 +19,7 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/host"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/services/world/cmd/world/app"
 	"finga/services/world/config"
@@ -82,7 +82,7 @@ func serve(t *testing.T, register func(*grpc.Server)) string {
 func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	account, id := model.NewAccountID(), model.NewCharacterID()
+	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	chars := &characters{c: &characterv1.Character{
 		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10},
 		Hp: 204, Mp: 28, MapId: "town", X: 416, Y: 608,

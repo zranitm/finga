@@ -13,16 +13,16 @@ import (
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/services/character/internal/character"
 )
 
 // Service is what the handler needs from the character module.
 type Service interface {
-	Create(ctx context.Context, account model.AccountID, in character.CreateInput) (character.Character, error)
-	List(ctx context.Context, account model.AccountID) ([]character.Character, error)
-	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (character.Character, error)
+	Create(ctx context.Context, account kernel.AccountID, in character.CreateInput) (character.Character, error)
+	List(ctx context.Context, account kernel.AccountID) ([]character.Character, error)
+	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (character.Character, error)
 	Derived(c character.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp character.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu character.LevelUp) error
@@ -39,13 +39,13 @@ func New(svc Service) *Server { return &Server{svc: svc} }
 
 // Create makes a character and grants its starter items.
 func (s *Server) Create(ctx context.Context, req *characterv1.CreateRequest) (*characterv1.CreateResponse, error) {
-	account, err := model.ParseAccountID(req.GetAccountId())
+	account, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
 	// The class is passed as it came: one the game data lacks is the
 	// module's class_unavailable, as it was before the split.
-	c, err := s.svc.Create(ctx, account, character.CreateInput{Name: req.GetName(), Class: model.Class(req.GetClass())})
+	c, err := s.svc.Create(ctx, account, character.CreateInput{Name: req.GetName(), Class: kernel.Class(req.GetClass())})
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (s *Server) Create(ctx context.Context, req *characterv1.CreateRequest) (*c
 
 // List is an account's characters.
 func (s *Server) List(ctx context.Context, req *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-	account, err := model.ParseAccountID(req.GetAccountId())
+	account, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +71,11 @@ func (s *Server) List(ctx context.Context, req *characterv1.ListRequest) (*chara
 
 // Load is one character of the account, with its maximum HP and MP.
 func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*characterv1.LoadResponse, error) {
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	account, err := model.ParseAccountID(req.GetAccountId())
+	account, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*chara
 
 // SaveCheckpoint saves position, HP, MP and EXP.
 func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckpointRequest) (*characterv1.SaveCheckpointResponse, error) {
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 
 // SaveLevelUp saves a level-up.
 func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRequest) (*characterv1.SaveLevelUpResponse, error) {
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}

@@ -21,7 +21,7 @@ server/                 the Go module: everything the server builds, reads and p
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
     protocol/           WebSocket message types, registered with the codec: the gateway, the bot and the end-to-end tests
-    model/              value types shared by every module and handler: IDs (on pkg/typedid), Class, Coins
+    kernel/             value types shared by every service: IDs (on pkg/typedid), Class, Coins (internal/model until step 30)
     gamedata/           game data: classes, stats, mobs, items, the EXP curve and the maps (on pkg/tiled), loaded and validated at startup
     sim/                the movement simulation, shared with the client through testdata/movement
     progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
@@ -75,9 +75,10 @@ tools/                  developer tools; empty in Stage 1
 
 ## Dependency rules
 
-- Imports flow one way: composition roots (`services/*/cmd/*/app`, `cmd/migrate/app`) → each service's handler and clients → its modules → the shared kernel (`internal/model`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`. Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry or configuration (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it).
+- Imports flow one way: composition roots (`services/*/cmd/*/app`, `cmd/migrate/app`) → each service's handler and clients → its application → its model → the shared kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`; a service's repository implements its application's ports and imports application and model (page 11, Layers). Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry, configuration or `internal/host` (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it; `internal/model` became `internal/kernel` in step 30, so every service's own layer can be called `model`).
 - A service never imports another: Go's `internal/` rule keeps it out of the other's internals, and depguard out of the rest (its migrations, its composition root). It reaches another only through the client generated from `api/proto/internal/` (page 10).
-- A module (`services/<name>/internal/<module>`) holds only business logic. It never imports the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, or `config`:
+- A service's layers are packages (page 11; each service moves into them in steps 31 to 36, and until its step keeps them as files of one module package, `services/<name>/internal/<module>`): `model` imports none of the others; `application` imports `model`; `repository` imports `application` and `model`; `handler` and `clients` import `application` and `model`, never `repository` or each other. depguard has one rule per layer (`layer-model`, ..., `layer-clients`), naming every service's packages, since it matches a denied path by prefix with no wildcard; a new service is added to each list.
+- The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, a configuration package or `internal/host`:
   - It returns its own result types, for example `world.Delta`; its service's handler turns them into the contract's messages, and the gateway turns those into protocol messages.
   - It reports metrics through small observer interfaces it declares, and `internal/telemetry` implements them.
   - It takes plain option structs, and its service's composition root fills them from configuration.
@@ -92,6 +93,8 @@ tools/                  developer tools; empty in Stage 1
 
 Every request passes through three layers, and each has one job. Nothing skips a layer: a handler never calls a repository, and a repository never makes a business decision.
 
+Each layer is a package of the service (page 11). The model below them holds the entities, value types and domain errors every layer uses. Steps 31 to 36 move each service into these packages; until its step, a service keeps the same layers as files of one module package (`internal/<module>/service.go`, `repository.go`, with the model in `api.go` and the ports in `deps.go`).
+
 <table>
 <tr>
 <th></th>
@@ -102,8 +105,8 @@ Every request passes through three layers, and each has one job. Nothing skips a
 <tr>
 <th>Lives in</th>
 <td>Each service's <code>internal/handler</code> (gRPC); the gateway's <code>internal/handler/api</code> and <code>internal/handler/ws</code></td>
-<td><code>services/&lt;name&gt;/internal/&lt;module&gt;/service.go</code></td>
-<td><code>services/&lt;name&gt;/internal/&lt;module&gt;/repository.go</code> and <code>queries/</code></td>
+<td><code>services/&lt;name&gt;/internal/application</code>: the use cases, and in <code>ports.go</code> the interfaces they need</td>
+<td><code>services/&lt;name&gt;/internal/repository</code>, with <code>queries/</code> and sqlc's <code>internal/db/</code></td>
 </tr>
 <tr>
 <th>Job</th>
@@ -126,7 +129,7 @@ Every request passes through three layers, and each has one job. Nothing skips a
 <tr>
 <th>Types it uses</th>
 <td>DTOs and <code>internal/protocol</code> messages</td>
-<td><code>internal/model</code> and the module's own types in <code>api.go</code></td>
+<td><code>internal/kernel</code>, the service's <code>model</code>, and its own inputs and results</td>
 <td>sqlc rows, which never leave the repository</td>
 </tr>
 <tr>
@@ -252,21 +255,22 @@ func (r itemRepo) LockOwned(ctx context.Context, id model.ItemID, owner model.Ch
 
 ## Module anatomy
 
+A service's layers are packages (page 11); a module is a set of files across them, named for it. The item service with the Stage 2 market module beside its items, which it shares transactions with (page 10):
+
 ```txt
-services/item/internal/market/     a Stage 2 module, in the service it shares transactions with (page 10)
-  api.go          the module's public types, inputs, and errors
-  service.go      application layer: use cases, rules, where transactions start
-  deps.go         interfaces the service needs: its Store and UnitOfWork, other modules, observers
-  repository.go   repository layer: the Postgres store (InTx, unit of work, classify) and the queries
-  queries/*.sql   sqlc input
-  internal/db/    sqlc output; only this module can import it
-  events.go       domain events this module emits
-  *_test.go
+services/item/internal/
+  model/           item.go, market.go: entities, value types, the errors (ErrInventoryFull, ...); events.go: the domain events
+  application/     item.go, market.go: the use cases, their inputs and results; ports.go: Store, UnitOfWork, repositories, other modules, observers
+  repository/      postgres.go: the store (InTx, the unit of work, classify); items.go, listings.go: the queries' adapters
+    queries/*.sql  sqlc input
+    internal/db/   sqlc output; only the repository can import it
+  handler/         the gRPC server and its error table
+  *_test.go        beside the code they test
 ```
 
 ## Modules
 
-Every module below lives in its service, `services/<name>/internal/<module>`; the gateway's two handlers hold no game rules. The shared kernel beside them (`internal/gamedata`, `internal/sim`, `internal/progression`, `internal/model`) holds no state of its own: game data is static and read-only, the simulation and the progression rules are pure functions.
+Every module below lives in its service, `services/<name>/internal/<module>`; the gateway's two handlers hold no game rules. The shared kernel beside them (`internal/gamedata`, `internal/sim`, `internal/progression`, `internal/kernel`) holds no state of its own: game data is static and read-only, the simulation and the progression rules are pure functions.
 
 | Module | Owns | Uses |
 | --- | --- | --- |

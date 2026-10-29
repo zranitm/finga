@@ -15,7 +15,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accountv1 "finga/api/gen/account/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
@@ -31,8 +31,8 @@ type Service interface {
 	Check(ctx context.Context, sessionID uuid.UUID) error
 	Revoke(ctx context.Context, sessionID uuid.UUID) error
 	RevokeAll(ctx context.Context, accountID uuid.UUID) error
-	Settings(ctx context.Context, id model.AccountID) (account.Settings, error)
-	UpdateSettings(ctx context.Context, id model.AccountID, s account.Settings) error
+	Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error)
+	UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error
 }
 
 // watchQueue is how many session ends may wait for a slow gateway before
@@ -128,7 +128,7 @@ func (s *Server) GetSettings(ctx context.Context, req *accountv1.GetSettingsRequ
 	if err != nil {
 		return nil, err
 	}
-	st, err := s.svc.Settings(ctx, model.AccountID(id))
+	st, err := s.svc.Settings(ctx, kernel.AccountID(id))
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (s *Server) UpdateSettings(ctx context.Context, req *accountv1.UpdateSettin
 		return nil, err
 	}
 	st := account.Settings{ControlPreset: account.Preset(req.GetSettings().GetControlPreset())}
-	return &accountv1.UpdateSettingsResponse{}, s.svc.UpdateSettings(ctx, model.AccountID(id), st)
+	return &accountv1.UpdateSettingsResponse{}, s.svc.UpdateSettings(ctx, kernel.AccountID(id), st)
 }
 
 // WatchSessions streams session ends to one gateway.

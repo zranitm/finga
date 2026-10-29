@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // The module's errors. Each names one failure; the service's handler sends
@@ -26,10 +26,10 @@ var (
 
 // Character is a character as stored.
 type Character struct {
-	ID            model.CharacterID
-	AccountID     model.AccountID
+	ID            kernel.CharacterID
+	AccountID     kernel.AccountID
 	Name          string
-	Class         model.Class
+	Class         kernel.Class
 	Level         int
 	Exp           int64 // within the current level
 	Stats         gamedata.Stats
@@ -44,13 +44,13 @@ type Character struct {
 // CreateInput is a new character.
 type CreateInput struct {
 	Name  string
-	Class model.Class
+	Class kernel.Class
 }
 
 // Checkpoint is the non-economic state saved every 30 seconds (TD-02) and
 // on map change and logout.
 type Checkpoint struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	MapID string
 	X, Y  float64
 	HP    int
@@ -61,7 +61,7 @@ type Checkpoint struct {
 
 // LevelUp is saved right away when a character gains a level.
 type LevelUp struct {
-	ID    model.CharacterID
+	ID    kernel.CharacterID
 	Level int
 	Exp   int64
 	Stats gamedata.Stats

@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // The module's errors. Each names one failure; the service's handler sends
@@ -54,15 +54,15 @@ const SlotsPerTab = 24
 // Actor is who acts: the account scopes idempotency keys, the character
 // owns the items.
 type Actor struct {
-	Account   model.AccountID
-	Character model.CharacterID
+	Account   kernel.AccountID
+	Character kernel.CharacterID
 }
 
 // Item is an item instance in an inventory.
 type Item struct {
-	ID         model.ItemID
+	ID         kernel.ItemID
 	TemplateID string
-	Owner      model.CharacterID
+	Owner      kernel.CharacterID
 	Tab        gamedata.Tab
 	Slot       int
 	Quantity   int
@@ -100,11 +100,11 @@ const (
 
 // Event is one line of an item's history.
 type Event struct {
-	ItemID        model.ItemID
+	ItemID        kernel.ItemID
 	Kind          EventKind
 	QuantityDelta int
-	FromOwner     *model.CharacterID
-	ToOwner       *model.CharacterID
+	FromOwner     *kernel.CharacterID
+	ToOwner       *kernel.CharacterID
 	Cause         Cause
 	OccurredAt    time.Time
 }
@@ -122,7 +122,7 @@ type AddInput struct {
 // of the same item there.
 type MoveInput struct {
 	Key    string
-	ItemID model.ItemID
+	ItemID kernel.ItemID
 	Tab    gamedata.Tab
 	Slot   int
 }
@@ -130,7 +130,7 @@ type MoveInput struct {
 // DiscardInput destroys a whole item or part of a stack.
 type DiscardInput struct {
 	Key      string
-	ItemID   model.ItemID
+	ItemID   kernel.ItemID
 	Quantity int
 }
 

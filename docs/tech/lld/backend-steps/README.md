@@ -32,7 +32,7 @@
 | [27. World service](./27-world-service.md) | 23, 25, 26 | B1, B2, B3, C1 to C4, D1 | Services | 27 | Done |
 | [28. Gateway service](./28-gateway-service.md) | 24, 27 | A1, B2 | Services | 28 | Done |
 | [29. Configuration per service](./29-configuration-per-service.md) | 28 |  | Layers | 29 | Done |
-| [30. Shared kernel rename and layer rules](./30-shared-kernel-rename-and-layer-rules.md) | 29 |  | Layers | 30 | Ready |
+| [30. Shared kernel rename and layer rules](./30-shared-kernel-rename-and-layer-rules.md) | 29 |  | Layers | 30 | Done |
 | [31. Account in layers](./31-account-in-layers.md) | 30 |  | Layers | 31 | Ready |
 | [32. Item in layers](./32-item-in-layers.md) | 31 |  | Layers | 32 | Ready |
 | [33. Character in layers](./33-character-in-layers.md) | 32 |  | Layers | 33 | Ready |

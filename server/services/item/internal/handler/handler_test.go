@@ -13,7 +13,7 @@ import (
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
@@ -24,12 +24,12 @@ import (
 // fakeItems records what the handler asked and answers with result, or err.
 type fakeItems struct {
 	mu        sync.Mutex
-	owner     model.CharacterID
+	owner     kernel.CharacterID
 	actor     item.Actor
 	add       item.AddInput
 	move      item.MoveInput
 	discard   item.DiscardInput
-	class     model.Class
+	class     kernel.Class
 	inventory []item.Item
 	result    item.Result
 	err       error
@@ -38,7 +38,7 @@ type fakeItems struct {
 
 func (f *fakeItems) record() { f.calls++ }
 
-func (f *fakeItems) Inventory(_ context.Context, owner model.CharacterID) ([]item.Item, error) {
+func (f *fakeItems) Inventory(_ context.Context, owner kernel.CharacterID) ([]item.Item, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -70,7 +70,7 @@ func (f *fakeItems) Discard(_ context.Context, actor item.Actor, in item.Discard
 	return f.result, f.err
 }
 
-func (f *fakeItems) GrantStarter(_ context.Context, actor item.Actor, class model.Class) (item.Result, error) {
+func (f *fakeItems) GrantStarter(_ context.Context, actor item.Actor, class kernel.Class) (item.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -86,10 +86,10 @@ func client(t *testing.T, f *fakeItems) itemv1.ItemServiceClient {
 }
 
 var (
-	account   = model.NewAccountID()
-	character = model.NewCharacterID()
+	account   = kernel.NewAccountID()
+	character = kernel.NewCharacterID()
 	actor     = &itemv1.Actor{AccountId: account.String(), CharacterId: character.String()}
-	potion    = item.Item{ID: model.NewItemID(), TemplateID: "red_potion", Owner: character, Tab: gamedata.Use, Slot: 3, Quantity: 5}
+	potion    = item.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: character, Tab: gamedata.Use, Slot: 3, Quantity: 5}
 	// changed is a move's result: slot 0 emptied, slot 3 holds the potion.
 	changed = item.Result{Changed: []item.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &potion}}}
 )
@@ -166,7 +166,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.class != model.Bowman || f.actor.Character != character {
+		if f.class != kernel.Bowman || f.actor.Character != character {
 			t.Fatalf("class %v actor %+v", f.class, f.actor)
 		}
 		wantChanged(t, res.GetChanged())
