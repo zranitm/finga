@@ -31,6 +31,7 @@ The Stage 1 backend, split into steps you review one at a time before any code i
 | M5. Play together | 15 |
 | M6. Proof session | 16, 17 |
 | Services (page 10, TD-25) | 20 to 28 |
+| Layers (page 11) | 29 to 36 |
 
 The frontend has its own steps against page 7: [9. Client implementation steps](./9-client-implementation-steps.md).
 

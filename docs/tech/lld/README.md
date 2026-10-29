@@ -14,6 +14,7 @@ Read in this order:
 8. **Backend implementation steps:** the Stage 1 backend in reviewable steps, in build order.
 9. **Client implementation steps:** the browser client, step by step.
 10. **Gateway and services:** the split into six services behind a connection gateway (TD-25), and the steps that build it.
+11. **Service layers and configuration:** each service's layers as packages (model, application, repository, handler, clients) and its own configuration, and the steps that build them.
 
 Numbers in these pages (speeds, formulas, limits) are starting values. They live in game data so they can be tuned without code changes.
 
@@ -27,3 +28,4 @@ Numbers in these pages (speeds, formulas, limits) are starting values. They live
 - [8. Backend implementation steps](./8-backend-implementation-steps.md)
 - [9. Client implementation steps](./9-client-implementation-steps.md)
 - [10. Gateway and services](./10-gateway-and-services.md)
+- [11. Service layers and configuration](./11-service-layers-and-configuration.md)
