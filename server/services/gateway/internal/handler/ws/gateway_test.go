@@ -206,10 +206,11 @@ func TestHelloHappyPath(t *testing.T) {
 	if welcome.Character.Stats.STR != 12 {
 		t.Fatalf("welcome character %+v", welcome.Character)
 	}
+	online := h.obs.onlineAfter(t, 1)
 	h.obs.mu.Lock()
 	defer h.obs.mu.Unlock()
-	if h.obs.online != 1 || h.obs.in["Hello"] != 1 || h.obs.out["Welcome"] != 1 || h.obs.out["Snapshot"] != 1 {
-		t.Fatalf("observer %+v", h.obs)
+	if online != 1 || h.obs.in["Hello"] != 1 || h.obs.out["Welcome"] != 1 || h.obs.out["Snapshot"] != 1 {
+		t.Fatalf("online %d, in %v, out %v", online, h.obs.in, h.obs.out)
 	}
 }
 
@@ -343,10 +344,9 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 	// The second session keeps working.
 	second.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	second.expect("Pong")
-	h.obs.mu.Lock()
-	defer h.obs.mu.Unlock()
-	if h.obs.online != 1 {
-		t.Fatalf("players online %d, want 1", h.obs.online)
+	// Ayla counted, Robin counted, Ayla's connection closed.
+	if online := h.obs.onlineAfter(t, 3); online != 1 {
+		t.Fatalf("players online %d, want 1", online)
 	}
 }
 
@@ -1166,10 +1166,8 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 	if in := h.world.inputs; len(in) != 1 || in[0].GetPresence().GetMapId() != "forest" {
 		t.Fatalf("inputs %+v: commands must follow the rejoined map", in)
 	}
-	h.obs.mu.Lock()
-	defer h.obs.mu.Unlock()
-	if h.obs.online != 2 {
-		t.Fatalf("players online %d; a rejoin is not a new player", h.obs.online)
+	if online := h.obs.onlineAfter(t, 2); online != 2 {
+		t.Fatalf("players online %d; a rejoin is not a new player", online)
 	}
 }
 
