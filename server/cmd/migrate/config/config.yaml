@@ -1,0 +1,10 @@
+# cmd/migrate/config/config.yaml: the migrate command's committed defaults,
+# for local runs and Compose (Low-level design, page 11): the database it
+# migrates and the log level. Any key can be overridden as FINGA_<KEY_PATH>
+# (FINGA_DATABASE_URL); CONFIG_PATH, or a git-ignored config.local.yaml
+# beside this file, replaces it. Nothing here is secret.
+
+log_level: info
+database:
+  url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
+  max_conns: 2

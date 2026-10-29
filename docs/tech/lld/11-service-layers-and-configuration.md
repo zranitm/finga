@@ -18,7 +18,7 @@ Dependencies point inward, toward `model`. Outer layers implement what inner lay
 | `internal/repository` | The Postgres store that implements the application's `Store`: `InTx`, the unit of work, `classify`, the queries (`queries/`) and sqlc's output (`internal/db/`, private to it) | `application` (the ports it implements), `model`, `pkg/dbx`, pgx | `handler`, `clients`, gRPC, `api/gen`, `protocol` |
 | `internal/handler` | The gRPC server: proto in, one use case, proto or a status with a reason out; the error table from `model`'s errors to the contract's reasons | `application`, `model`, `api/gen`, `pkg/grpcx` | `repository`, `clients`, pgx, `pkg/dbx` |
 | `internal/clients` | gRPC adapters that implement the application's ports for the services this one calls | `application`, `model`, `api/gen`, `pkg/grpcx` | `repository`, `handler`, pgx |
-| `internal/config` | The service's configuration type and its checks | `pkg/configload`, `internal/host` | everything else |
+| `config` | The service's configuration file (`config.yaml`) and the type that checks it. Outside `internal/`, so the end-to-end tests can build each service with its own (decision 259) | `internal/host`, `pkg/dbx` | everything else |
 | `cmd/<name>/app` | The composition root: reads the configuration, builds each layer, wires them | everything in the service | |
 
 The rules are checked by depguard (`.golangci.yml`), one rule per layer, as page 1's import direction is today.
@@ -35,11 +35,10 @@ The root `internal/model` (Finga's ID types and `Class`) clashes with the name e
 services/item/
   cmd/item/main.go          reads the configuration, builds the service, runs it until SIGINT or SIGTERM
   cmd/item/app/             the composition root
-  configs/config.yaml       the item service's defaults, and only its keys
+  config/                   config.yaml, the item service's defaults with only its keys, and Config, the type that checks them
   migrations/               its goose files, embedded; its own version table
   invariants/               the item invariant checks (unchanged; the tests and a Stage 2 auditor run them)
   internal/
-    config/                 Config, its checks, and Load
     model/                  Item, Event, Cause, Slot, the errors (ErrInventoryFull, ...), the outbox payloads
     application/            Service (Add, Move, Discard, Grant, Inventory), its inputs and results, ports.go
     repository/             Postgres, the unit of work, classify; queries/ and internal/db/
@@ -71,10 +70,10 @@ Tests move with the code they test: rule tests with fakes go to `application`, t
 
 ## Configuration per service
 
-Each service reads one file, its own: `services/<name>/configs/config.yaml`, with only the keys it uses. The type and its checks live in the service, `services/<name>/internal/config`. `cmd/migrate` has its own file the same way (`cmd/migrate/configs/config.yaml`: the database and the log level). The root `server/configs/config.yaml` and `internal/config` are removed.
+Each service reads one file, its own: `services/<name>/config/config.yaml`, with only the keys it uses. The type and its checks live beside it, in the same package (`services/<name>/config`). `cmd/migrate` has its own file the same way (`cmd/migrate/config/config.yaml`: the database and the log level). The root `server/configs/config.yaml` and `internal/config` are removed.
 
 ```yaml
-# services/world/configs/config.yaml
+# services/world/config/config.yaml
 grpc:
   listen: ":9004"
 ops:
@@ -103,14 +102,14 @@ dependencies:              # where this service dials the ones it calls
 | `migrate` | `database` and `log_level` only |
 
 - **Overrides keep their form:** `FINGA_` and the key's path in upper case, read by the one binary that has the key: `FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM`, `FINGA_HTTP_ADDR` (was `FINGA_SERVER_ADDR`). Compose sets each service's own.
-- **Paths stay relative to `server/`,** as `data/` is: a binary run from `server/` (`make run`, the process tests) reads `services/<name>/configs/config.yaml`, and the image puts the file at the same path under `/app`. `CONFIG_PATH` still names any file, and a git-ignored `config.local.yaml` next to the defaults still replaces them.
-- **Shared parts are types, not a shared file:** `internal/host` keeps the sections every service has (`grpc`, `ops`, `shutdown_grace`, `log_level`) as types each service's `Config` embeds, and loads a service's file for it.
+- **Paths stay relative to `server/`,** as `data/` is: a binary run from `server/` (`make run`, the process tests) reads `services/<name>/config/config.yaml`, and the image puts the file at the same path under `/app`. `CONFIG_PATH` still names any file, and a git-ignored `config.local.yaml` next to the defaults still replaces them.
+- **Shared parts are types, not a shared file:** `internal/host` has the types of the sections every service has (`GRPCSection`, `OpsSection`), and `pkg/dbx` the database section's (`dbx.Config`); each service's `Config` lists its keys with them and hands the host its part (`Host()`), and `host.Main` loads the service's own file for it.
 
 ## Steps
 
 | Step | What | Commit type |
 | --- | --- | --- |
-| 29 | Configuration per service: every binary's own file and type; the root file and `internal/config` removed; Compose, `make run`, the Dockerfile and the README follow | `refactor(config)` |
+| 29 | Configuration per service: every binary's own file and type in `config/`; the root file and `internal/config` removed; Compose, `make run`, the Dockerfile and the README follow | `refactor(config)` |
 | 30 | The shared kernel's `internal/model` becomes `internal/kernel`; the depguard rules for the layers | `refactor` |
 | 31 | account in layers | `refactor(account)` |
 | 32 | item in layers | `refactor(item)` |

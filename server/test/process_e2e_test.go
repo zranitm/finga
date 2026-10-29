@@ -68,20 +68,12 @@ func buildBinaries(t *testing.T) map[string]string {
 	return bins
 }
 
-// baseEnv is what every process gets: the committed defaults, the test
-// database and the game data, overridden as Compose would.
-func baseEnv(t *testing.T, dbURL string) []string {
-	t.Helper()
-	root, err := filepath.Abs("..")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return append(os.Environ(),
-		"CONFIG_PATH="+filepath.Join(root, "configs", "config.yaml"),
-		"FINGA_DATABASE_URL="+dbURL,
-		"FINGA_WORLD_DATA_DIR="+filepath.Join(root, "data"),
-		"FINGA_TELEMETRY_LOG_LEVEL=warn",
-	)
+// baseEnv is what every process gets over its own committed file (each
+// runs from server/, so it reads services/<name>/config/config.yaml and
+// data/ as make run does): the test database, for the services that have
+// one, and a quieter log.
+func baseEnv(dbURL string) []string {
+	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_LOG_LEVEL=warn")
 }
 
 // startServiceProcess runs a service binary (item, account, ...) on free
@@ -90,10 +82,15 @@ func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string)
 	t.Helper()
 	grpc, ops := freePort(t), freePort(t)
 	p := &process{t: t, name: name, bin: bin, grpc: grpc, health: "http://" + ops + "/healthz"}
-	key := "FINGA_SERVICES_" + strings.ToUpper(name)
-	p.env = append(append(baseEnv(t, dbURL), key+"_LISTEN="+grpc, key+"_OPS="+ops), extra...)
+	p.env = append(append(baseEnv(dbURL), "FINGA_GRPC_LISTEN="+grpc, "FINGA_OPS_ADDR="+ops), extra...)
 	p.start()
 	return p
+}
+
+// dependency is the override that points a binary at svc: the address it
+// dials name at.
+func dependency(name string, svc *process) string {
+	return "FINGA_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
 }
 
 func freePort(t *testing.T) string {
@@ -111,9 +108,9 @@ func freePort(t *testing.T) string {
 func startGateway(t *testing.T, bin, dbURL, addr string, services map[string]*process) *process {
 	t.Helper()
 	p := &process{t: t, name: "gateway", bin: bin, url: "http://" + addr, health: "http://" + addr + "/healthz"}
-	p.env = append(baseEnv(t, dbURL), "FINGA_SERVER_ADDR="+addr)
+	p.env = append(baseEnv(dbURL), "FINGA_HTTP_ADDR="+addr)
 	for name, svc := range services {
-		p.env = append(p.env, "FINGA_SERVICES_"+strings.ToUpper(name)+"_ADDR="+svc.grpc)
+		p.env = append(p.env, dependency(name, svc))
 	}
 	p.start()
 	return p
@@ -122,6 +119,7 @@ func startGateway(t *testing.T, bin, dbURL, addr string, services map[string]*pr
 func (p *process) start() {
 	p.t.Helper()
 	p.cmd = exec.Command(p.bin)
+	p.cmd.Dir = ".." // server/, where the binaries run
 	p.cmd.Env = p.env
 	p.cmd.Stdout = &p.out
 	p.cmd.Stderr = &p.out

@@ -1,0 +1,17 @@
+# services/gateway/config/config.yaml: the gateway service's committed defaults, for local
+# runs and Compose, with only the keys it uses (Low-level design, page 11).
+# Any key can be overridden as FINGA_<KEY_PATH> (FINGA_HTTP_ADDR);
+# CONFIG_PATH, or a git-ignored config.local.yaml beside this file, replaces
+# it. Nothing here is secret.
+
+http:
+  addr: ":8080"
+  cors_origins: []      # browser origins allowed for REST and WebSocket; empty: same origin only
+shutdown_grace: 10s
+log_level: info
+dependencies:            # where this service dials the ones it calls
+  account: localhost:9001
+  character: localhost:9002
+  item: localhost:9003
+  world: localhost:9004
+  social: localhost:9005

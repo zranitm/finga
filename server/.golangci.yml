@@ -47,8 +47,8 @@ linters:
               desc: the shared kernel is below protocol
             - pkg: finga/internal/telemetry
               desc: the shared kernel is below telemetry
-            - pkg: finga/internal/config
-              desc: the shared kernel takes plain values, never configuration
+            - pkg: finga/internal/host
+              desc: the shared kernel takes plain values, never configuration or the host
         # A service's modules are business logic: no transport, contract,
         # wiring, telemetry or configuration. Its handler and clients speak
         # the contracts.
@@ -63,8 +63,10 @@ linters:
               desc: a module returns its own result types; the gateway maps them to protocol messages
             - pkg: finga/internal/telemetry
               desc: a module declares observer interfaces; telemetry implements them
-            - pkg: finga/internal/config
+            - pkg: finga/services/*/config
               desc: a module takes option structs; the composition root fills them from configuration
+            - pkg: finga/internal/host
+              desc: a module knows nothing of how its process runs
         # Inside a service only repository.go and sqlc's output talk to the
         # database: modules never see a transaction, handlers and clients never
         # touch the database.
@@ -170,12 +172,21 @@ linters:
               desc: a service reaches another only through its generated client
             - pkg: finga/services/world
               desc: a service reaches another only through its generated client
-        # telemetry, protocol and config sit beside the services; they never reach up into one.
+        # telemetry, protocol and host sit beside the services; they never reach up into one.
         support:
-          files: ["**/internal/telemetry/**", "**/internal/protocol/**", "**/internal/config/**"]
+          files: ["**/internal/telemetry/**", "**/internal/protocol/**", "**/internal/host/**"]
           deny:
             - pkg: finga/services
               desc: support packages never import a service
+        # A binary's configuration (page 11) is its keys and their checks:
+        # the host's sections and the database section, nothing else.
+        config:
+          list-mode: strict
+          files: ["**/services/*/config/**", "**/cmd/migrate/config/**", "!$test"]
+          allow:
+            - $gostd
+            - finga/internal/host
+            - finga/pkg/dbx
     sloglint:
       static-msg: true
       kv-only: true

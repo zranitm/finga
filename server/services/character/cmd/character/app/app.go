@@ -14,11 +14,11 @@ import (
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/config"
 	"finga/internal/gamedata"
 	"finga/internal/host"
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
+	"finga/services/character/config"
 	"finga/services/character/internal/character"
 	"finga/services/character/internal/clients"
 	"finga/services/character/internal/handler"
@@ -28,7 +28,7 @@ import (
 // bad game data or an unreachable database; the item service is dialled
 // lazily, and creation retries a grant it cannot reach.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.World.DataDir)
+	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	itemConn, err := grpcx.Dial(cfg.Services.Item.Addr)
+	itemConn, err := grpcx.Dial(cfg.Dependencies.Item)
 	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("item service: %w", err)
@@ -46,12 +46,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Logger:  log,
 	})
 	h := host.New(host.Options{
-		Name:          "character",
-		Endpoint:      cfg.Services.Character,
-		ShutdownGrace: cfg.Server.ShutdownGrace,
-		Logger:        log,
-		Registry:      reg,
-		Errors:        handler.Errors,
+		Name:     "character",
+		Settings: cfg.Host(),
+		Logger:   log,
+		Registry: reg,
+		Errors:   handler.Errors,
 	})
 	characterv1.RegisterCharacterServiceServer(h.GRPC, handler.New(characters))
 	h.OnClose(pool.Close)

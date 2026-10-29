@@ -541,9 +541,9 @@ func TestCrashDuringPickups(t *testing.T) {
 	itemProc := startServiceProcess(t, "item", bins["item"], dbURL)
 	accountProc := startServiceProcess(t, "account", bins["account"], dbURL)
 	socialProc := startServiceProcess(t, "social", bins["social"], dbURL)
-	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc)
+	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, dependency("item", itemProc))
 	worldProc := startServiceProcess(t, "world", bins["world"], dbURL,
-		"FINGA_SERVICES_CHARACTER_ADDR="+characterProc.grpc, "FINGA_SERVICES_ITEM_ADDR="+itemProc.grpc, "FINGA_SERVICES_SOCIAL_ADDR="+socialProc.grpc)
+		dependency("character", characterProc), dependency("item", itemProc), dependency("social", socialProc))
 	proc := startGateway(t, bins["gateway"], dbURL, freePort(t), map[string]*process{
 		"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc, "world": worldProc,
 	})

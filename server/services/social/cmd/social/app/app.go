@@ -13,8 +13,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/config"
 	"finga/internal/host"
+	"finga/services/social/config"
 	"finga/services/social/internal/chat"
 	"finga/services/social/internal/handler"
 	"finga/services/social/internal/party"
@@ -27,12 +27,11 @@ func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *promethe
 	srv := handler.New(parties, chat.NewService(parties, chat.Options{}), uuid.NewString())
 	parties.Notify(srv)
 	h := host.New(host.Options{
-		Name:          "social",
-		Endpoint:      cfg.Services.Social,
-		ShutdownGrace: cfg.Server.ShutdownGrace,
-		Logger:        log,
-		Registry:      reg,
-		Errors:        handler.Errors,
+		Name:     "social",
+		Settings: cfg.Host(),
+		Logger:   log,
+		Registry: reg,
+		Errors:   handler.Errors,
 	})
 	socialv1.RegisterSocialServiceServer(h.GRPC, srv)
 	return h, nil

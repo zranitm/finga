@@ -1,0 +1,15 @@
+# services/account/config/config.yaml: the account service's committed defaults, for local
+# runs and Compose, with only the keys it uses (Low-level design, page 11).
+# Any key can be overridden as FINGA_<KEY_PATH> (FINGA_DATABASE_URL);
+# CONFIG_PATH, or a git-ignored config.local.yaml beside this file, replaces
+# it. Nothing here is secret.
+
+grpc:
+  listen: ":9001"
+ops:
+  addr: ":9101"         # /healthz, /readyz, /metrics
+shutdown_grace: 10s
+log_level: info
+database:
+  url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
+  max_conns: 20

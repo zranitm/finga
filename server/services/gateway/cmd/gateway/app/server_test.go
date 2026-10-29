@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/config"
 	"finga/services/gateway/cmd/gateway/app"
+	"finga/services/gateway/config"
 )
 
 func newServer(t *testing.T, api http.Handler) *app.Server {
 	t.Helper()
 	return app.New(app.Options{
-		Config: config.Server{Addr: "127.0.0.1:0", ShutdownGrace: 2 * time.Second},
-		Logger: slog.New(slog.DiscardHandler),
+		HTTP:          config.HTTP{Addr: "127.0.0.1:0"},
+		ShutdownGrace: 2 * time.Second,
+		Logger:        slog.New(slog.DiscardHandler),
 	}, app.Deps{API: api, Metrics: http.NotFoundHandler()})
 }
 
@@ -95,8 +96,9 @@ func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
 	var srv *app.Server
 	drained := make(chan int, 1)
 	srv = app.New(app.Options{
-		Config: config.Server{Addr: "127.0.0.1:0", ShutdownGrace: 2 * time.Second},
-		Logger: slog.New(slog.DiscardHandler),
+		HTTP:          config.HTTP{Addr: "127.0.0.1:0"},
+		ShutdownGrace: 2 * time.Second,
+		Logger:        slog.New(slog.DiscardHandler),
 	}, app.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler(), Drain: func(context.Context) {
 		res, err := http.Get("http://" + srv.Addr() + "/readyz") // the listener still serves while draining
 		if err != nil {

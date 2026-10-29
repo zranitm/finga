@@ -14,10 +14,10 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/config"
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
+	"finga/services/gateway/config"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
@@ -41,7 +41,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
-	conns, err := dialAll(cfg.Services)
+	conns, err := dialAll(cfg.Dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Characters:  characters,
 		Sessions:    clients.NewGuard(accounts),
 		Logger:      opts.Logger,
-		CORSOrigins: cfg.Server.CORSOrigins,
+		CORSOrigins: cfg.HTTP.CORSOrigins,
 	})
 	gateway := ws.New(ws.Dependencies{
 		ID:          uuid.NewString(),
@@ -64,9 +64,9 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Social:      socialv1.NewSocialServiceClient(conns.social),
 		Logger:      opts.Logger,
 		Observer:    metrics,
-		CORSOrigins: cfg.Server.CORSOrigins,
+		CORSOrigins: cfg.HTTP.CORSOrigins,
 	})
-	s := New(Options{Config: cfg.Server, Logger: opts.Logger}, Deps{
+	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger}, Deps{
 		API:     restAPI,
 		Gateway: gateway,
 		Metrics: observability.MetricsHandler(opts.Registry),
@@ -85,18 +85,18 @@ type conns struct {
 
 // dialAll makes a connection to each service; nothing connects until the
 // first call.
-func dialAll(s config.Services) (conns, error) {
+func dialAll(s config.Dependencies) (conns, error) {
 	var c conns
 	for _, d := range []struct {
 		name string
 		addr string
 		conn **grpc.ClientConn
 	}{
-		{"account", s.Account.Addr, &c.account},
-		{"character", s.Character.Addr, &c.character},
-		{"item", s.Item.Addr, &c.item},
-		{"world", s.World.Addr, &c.world},
-		{"social", s.Social.Addr, &c.social},
+		{"account", s.Account, &c.account},
+		{"character", s.Character, &c.character},
+		{"item", s.Item, &c.item},
+		{"world", s.World, &c.world},
+		{"social", s.Social, &c.social},
 	} {
 		conn, err := grpcx.Dial(d.addr)
 		if err != nil {

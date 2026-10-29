@@ -20,12 +20,12 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/config"
 	"finga/internal/gamedata"
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
 	"finga/pkg/runner"
+	"finga/services/world/config"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/handler"
 	"finga/services/world/internal/world"
@@ -36,7 +36,7 @@ import (
 // item service, from workers, never inside a tick. It fails fast on bad game
 // data; the services it calls are dialled lazily.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.World.DataDir)
+	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -59,15 +59,15 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		conns = append(conns, c)
 		return c, nil
 	}
-	characterConn, err := dial("character", cfg.Services.Character.Addr)
+	characterConn, err := dial("character", cfg.Dependencies.Character)
 	if err != nil {
 		return nil, err
 	}
-	itemConn, err := dial("item", cfg.Services.Item.Addr)
+	itemConn, err := dial("item", cfg.Dependencies.Item)
 	if err != nil {
 		return nil, err
 	}
-	socialConn, err := dial("social", cfg.Services.Social.Addr)
+	socialConn, err := dial("social", cfg.Dependencies.Social)
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +77,8 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	nodeID := uuid.NewString()
 	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log)
 	maps := world.New(data, clients.NewSaver(characters), log, world.Options{
-		TickInterval:       cfg.World.TickInterval(),
-		CheckpointInterval: cfg.World.CheckpointInterval,
+		TickInterval:       cfg.TickInterval(),
+		CheckpointInterval: cfg.CheckpointInterval,
 		Observer:           metrics,
 		Items:              clients.NewPickups(items),
 		Workers:            world.NewWorkers(cfg.Economy.Workers, metrics),
@@ -87,12 +87,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Starter:            clients.NewStarter(items),
 	})
 	h := host.New(host.Options{
-		Name:          "world",
-		Endpoint:      cfg.Services.World,
-		ShutdownGrace: cfg.Server.ShutdownGrace,
-		Logger:        log,
-		Registry:      reg,
-		Errors:        handler.Errors,
+		Name:     "world",
+		Settings: cfg.Host(),
+		Logger:   log,
+		Registry: reg,
+		Errors:   handler.Errors,
 		Tasks: []runner.Task{
 			{Name: "parties", Run: parties.Run},
 			{Name: "world", Run: maps.Run},

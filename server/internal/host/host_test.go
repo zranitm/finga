@@ -13,7 +13,6 @@ import (
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 	"google.golang.org/grpc/status"
 
-	"finga/internal/config"
 	"finga/internal/host"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
@@ -32,12 +31,11 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	ran := make(chan struct{})
 	closed := false
 	h := host.New(host.Options{
-		Name:          "shop",
-		Endpoint:      config.Endpoint{Listen: "127.0.0.1:0", Addr: "unused", Ops: "127.0.0.1:0"},
-		ShutdownGrace: time.Second,
-		Logger:        slog.New(slog.DiscardHandler),
-		Registry:      observability.NewRegistry(), // with the Go collectors, as every binary builds it
-		Tasks:         []runner.Task{{Name: "worker", Run: func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil }}},
+		Name:     "shop",
+		Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second},
+		Logger:   slog.New(slog.DiscardHandler),
+		Registry: observability.NewRegistry(), // with the Go collectors, as every binary builds it
+		Tasks:    []runner.Task{{Name: "worker", Run: func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil }}},
 	})
 	testpb.RegisterTestServiceServer(h.GRPC, empty{})
 	h.OnClose(func() { closed = true })

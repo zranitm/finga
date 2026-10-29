@@ -5,18 +5,13 @@
 # gateway, the only public entry of the game. Host ports come from .env next
 # to this file (git-ignored; see .env.example). The binaries' overrides go in
 # ../server/.env, passed in whole as env_file; the environment entries below
-# win over it.
+# win over it. Each binary reads only its own file and keys (page 11), so
+# each service below sets only its own: the database for the ones that have
+# one, and where it dials the services it calls on the Compose network.
 name: finga
 
-# Every Go process gets the database and where each service is dialled on
-# the Compose network.
-x-finga-env: &finga-env
+x-database: &database
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
-  FINGA_SERVICES_ACCOUNT_ADDR: account:9001
-  FINGA_SERVICES_CHARACTER_ADDR: character:9002
-  FINGA_SERVICES_ITEM_ADDR: item:9003
-  FINGA_SERVICES_WORLD_ADDR: world:9004
-  FINGA_SERVICES_SOCIAL_ADDR: social:9005
 
 services:
   postgres:
@@ -41,7 +36,7 @@ services:
       dockerfile: Dockerfile
       args:
         SERVICE: migrate
-    environment: *finga-env
+    environment: *database
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,7 +49,7 @@ services:
       args:
         SERVICE: account
         VERSION: ${VERSION:-dev}
-    environment: *finga-env
+    environment: *database
     env_file:
       - path: ../server/.env
         required: false
@@ -71,7 +66,9 @@ services:
       args:
         SERVICE: character
         VERSION: ${VERSION:-dev}
-    environment: *finga-env
+    environment:
+      <<: *database
+      FINGA_DEPENDENCIES_ITEM: item:9003
     env_file:
       - path: ../server/.env
         required: false
@@ -87,7 +84,7 @@ services:
       args:
         SERVICE: item
         VERSION: ${VERSION:-dev}
-    environment: *finga-env
+    environment: *database
     env_file:
       - path: ../server/.env
         required: false
@@ -104,7 +101,6 @@ services:
       args:
         SERVICE: social
         VERSION: ${VERSION:-dev}
-    environment: *finga-env
     env_file:
       - path: ../server/.env
         required: false
@@ -121,7 +117,10 @@ services:
         VERSION: ${VERSION:-dev}
     ports:
       - "${FINGA_WORLD_OPS_PORT:-9104}:9104"
-    environment: *finga-env
+    environment:
+      FINGA_DEPENDENCIES_CHARACTER: character:9002
+      FINGA_DEPENDENCIES_ITEM: item:9003
+      FINGA_DEPENDENCIES_SOCIAL: social:9005
     env_file:
       - path: ../server/.env
         required: false
@@ -146,8 +145,12 @@ services:
     ports:
       - "${FINGA_PORT:-8080}:8080"
     environment:
-      <<: *finga-env
-      FINGA_SERVER_CORS_ORIGINS: http://localhost:5173
+      FINGA_HTTP_CORS_ORIGINS: http://localhost:5173
+      FINGA_DEPENDENCIES_ACCOUNT: account:9001
+      FINGA_DEPENDENCIES_CHARACTER: character:9002
+      FINGA_DEPENDENCIES_ITEM: item:9003
+      FINGA_DEPENDENCIES_WORLD: world:9004
+      FINGA_DEPENDENCIES_SOCIAL: social:9005
     env_file:
       - path: ../server/.env
         required: false
