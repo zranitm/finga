@@ -1,9 +1,9 @@
-// Package character is the character module: creation, loading, stats,
-// EXP and levels. The rules (derived stats, EXP awards, the death penalty)
-// are plain functions over values, so the world can run them inside a tick;
-// the service persists checkpoints and level-ups from worker goroutines.
-// It owns the characters table.
-package character
+// Package model is the character service's model (Low-level design, page
+// 11): a character as stored, the checkpoint and level-up it saves, and
+// the errors its use cases return. The progression rules it follows
+// (derived stats, EXP awards, the death penalty) are the shared kernel's
+// internal/progression, so the world runs them inside a tick.
+package model
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The module's errors. Each names one failure; the service's handler sends
+// The service's errors. Each names one failure; the service's handler sends
 // it as a reason, and the gateway gives it a code, a status and the words a
 // player sees (its errmap).
 var (
@@ -39,12 +39,6 @@ type Character struct {
 	MapID         string
 	X, Y          float64 // feet centre, map pixels
 	UpdatedAt     time.Time
-}
-
-// CreateInput is a new character.
-type CreateInput struct {
-	Name  string
-	Class kernel.Class
 }
 
 // Checkpoint is the non-economic state saved every 30 seconds (TD-02) and

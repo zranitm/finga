@@ -1,20 +1,21 @@
-package character
+package application
 
 import (
 	"context"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/services/character/internal/model"
 )
 
 // Store is what the service sees of persistence: plain reads on the pool,
 // and InTx for anything that writes.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
-	List(ctx context.Context, account kernel.AccountID) ([]Character, error)
+	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	// Load returns the character only if it belongs to the account;
 	// otherwise ErrNotFound, so ownership and existence look the same.
-	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error)
+	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.
@@ -35,12 +36,12 @@ type StarterItems interface {
 
 // Repository writes the characters table.
 type Repository interface {
-	Insert(ctx context.Context, c Character) error
-	SaveCheckpoint(ctx context.Context, cp Checkpoint) error
-	SaveLevelUp(ctx context.Context, lu LevelUp) error
+	Insert(ctx context.Context, c model.Character) error
+	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
+	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
 }
 
-// Content is what the module needs from game data.
+// Content is what the use cases need from game data.
 type Content interface {
 	Class(id kernel.Class) (gamedata.Class, bool)
 	Formulas(id kernel.Class) (gamedata.Formulas, bool)

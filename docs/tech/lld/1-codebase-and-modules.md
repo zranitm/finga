@@ -48,7 +48,7 @@ server/                 the Go module: everything the server builds, reads and p
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
     account/            in layers (step 31): cmd/account, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
     social/             config/; party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
-    character/          the same shape as item, and internal/clients/ for the item service (starter items)
+    character/          the same shape as item, in layers (step 33), and internal/clients/ for the item service (starter items): the application's StarterItems port over gRPC
     world/              internal/world/ and internal/combat/ (the map instances and the hit rules), internal/clients/ (character, item, the party copy), its handler (WorldService, Deliver); no database
   pkg/                  generic libraries with no game knowledge
   test/                 end-to-end tests: one row per acceptance criterion

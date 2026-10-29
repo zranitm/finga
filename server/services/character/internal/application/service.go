@@ -1,4 +1,9 @@
-package character
+// Package application is the character service's use cases (Low-level
+// design, page 11): creation (with the starter items granted through the
+// item service after the commit), listing and loading, checkpoints and
+// level-ups, which the world saves from its workers. ports.go declares what
+// they need; the repository and the item client implement it.
+package application
 
 import (
 	"context"
@@ -8,7 +13,14 @@ import (
 
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/services/character/internal/model"
 )
+
+// CreateInput is a new character.
+type CreateInput struct {
+	Name  string
+	Class kernel.Class
+}
 
 // Options tune the service. Zero values take the defaults.
 type Options struct {
@@ -45,7 +57,7 @@ const (
 // A name starts with a letter and continues with letters and digits.
 var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
 
-// Service is the character module's use cases.
+// Service is the character service's use cases.
 type Service struct {
 	store   Store
 	content Content
@@ -76,28 +88,28 @@ func NewService(store Store, content Content, opts Options) *Service {
 // item service (grantStarter); Create answers success either way, since the
 // character exists and a client that saw an error would retry and meet
 // name_taken.
-func (s *Service) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (Character, error) {
+func (s *Service) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	if len(in.Name) < nameMin || len(in.Name) > nameMax || !nameRe.MatchString(in.Name) {
-		return Character{}, ErrBadName
+		return model.Character{}, model.ErrBadName
 	}
 	class, ok := s.content.Class(in.Class)
 	if !ok {
-		return Character{}, ErrClassUnavailable
+		return model.Character{}, model.ErrClassUnavailable
 	}
 	formulas, ok := s.content.Formulas(in.Class)
 	if !ok {
-		return Character{}, ErrClassUnavailable
+		return model.Character{}, model.ErrClassUnavailable
 	}
 	existing, err := s.store.List(ctx, account)
 	if err != nil {
-		return Character{}, err
+		return model.Character{}, err
 	}
 	if len(existing) >= maxCharacters {
-		return Character{}, ErrSlotsFull
+		return model.Character{}, model.ErrSlotsFull
 	}
 	town := s.content.Town()
 	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{})
-	c := Character{
+	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: s.now(),
@@ -106,7 +118,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 		return uow.Characters().Insert(ctx, c)
 	})
 	if err != nil {
-		return Character{}, err
+		return model.Character{}, err
 	}
 	s.grantStarter(ctx, c)
 	return c, nil
@@ -116,7 +128,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 // retrying a transient failure with backoff until it succeeds or
 // StarterTimeout ends. The grant is keyed by the character ID, so a retry,
 // or the world's grant on join, never grants twice.
-func (s *Service) grantStarter(ctx context.Context, c Character) {
+func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	if s.opts.Starter == nil {
 		return
 	}
@@ -145,17 +157,17 @@ func (s *Service) grantStarter(ctx context.Context, c Character) {
 }
 
 // List is the account's characters, oldest first.
-func (s *Service) List(ctx context.Context, account kernel.AccountID) ([]Character, error) {
+func (s *Service) List(ctx context.Context, account kernel.AccountID) ([]model.Character, error) {
 	return s.store.List(ctx, account)
 }
 
 // Load is one character, only if it belongs to the account.
-func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error) {
+func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	return s.store.Load(ctx, id, account)
 }
 
 // SaveCheckpoint persists position, HP, MP and EXP. At is set here.
-func (s *Service) SaveCheckpoint(ctx context.Context, cp Checkpoint) error {
+func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	cp.At = s.now()
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)
@@ -163,7 +175,7 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp Checkpoint) error {
 }
 
 // SaveLevelUp persists a level-up right away. At is set here.
-func (s *Service) SaveLevelUp(ctx context.Context, lu LevelUp) error {
+func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	lu.At = s.now()
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveLevelUp(ctx, lu)
@@ -171,10 +183,10 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu LevelUp) error {
 }
 
 // Derived computes a character's derived stats with no equipment.
-func (s *Service) Derived(c Character) (progression.Derived, error) {
+func (s *Service) Derived(c model.Character) (progression.Derived, error) {
 	formulas, ok := s.content.Formulas(c.Class)
 	if !ok {
-		return progression.Derived{}, ErrClassUnavailable
+		return progression.Derived{}, model.ErrClassUnavailable
 	}
 	return progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{}), nil
 }

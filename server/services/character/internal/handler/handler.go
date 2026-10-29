@@ -15,17 +15,18 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
-	"finga/services/character/internal/character"
+	"finga/services/character/internal/application"
+	"finga/services/character/internal/model"
 )
 
 // Service is what the handler needs from the character module.
 type Service interface {
-	Create(ctx context.Context, account kernel.AccountID, in character.CreateInput) (character.Character, error)
-	List(ctx context.Context, account kernel.AccountID) ([]character.Character, error)
-	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (character.Character, error)
-	Derived(c character.Character) (progression.Derived, error)
-	SaveCheckpoint(ctx context.Context, cp character.Checkpoint) error
-	SaveLevelUp(ctx context.Context, lu character.LevelUp) error
+	Create(ctx context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error)
+	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
+	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
+	Derived(c model.Character) (progression.Derived, error)
+	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
+	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
 }
 
 // Server serves CharacterService over the module.
@@ -45,7 +46,7 @@ func (s *Server) Create(ctx context.Context, req *characterv1.CreateRequest) (*c
 	}
 	// The class is passed as it came: one the game data lacks is the
 	// module's class_unavailable, as it was before the split.
-	c, err := s.svc.Create(ctx, account, character.CreateInput{Name: req.GetName(), Class: kernel.Class(req.GetClass())})
+	c, err := s.svc.Create(ctx, account, application.CreateInput{Name: req.GetName(), Class: kernel.Class(req.GetClass())})
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +96,7 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 	if err != nil {
 		return nil, err
 	}
-	cp := character.Checkpoint{ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()), Exp: req.GetExp()}
+	cp := model.Checkpoint{ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()), Exp: req.GetExp()}
 	return &characterv1.SaveCheckpointResponse{}, s.svc.SaveCheckpoint(ctx, cp)
 }
 
@@ -105,13 +106,13 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 	if err != nil {
 		return nil, err
 	}
-	lu := character.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Stats: statsOf(req.GetStats()), HP: int(req.GetHp()), MP: int(req.GetMp())}
+	lu := model.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Stats: statsOf(req.GetStats()), HP: int(req.GetHp()), MP: int(req.GetMp())}
 	return &characterv1.SaveLevelUpResponse{}, s.svc.SaveLevelUp(ctx, lu)
 }
 
 // view is a character as it crosses the call; the maximums are left 0 when
 // the class has no formulas any more (Load refuses that case itself).
-func (s *Server) view(c character.Character) *characterv1.Character {
+func (s *Server) view(c model.Character) *characterv1.Character {
 	d, _ := s.svc.Derived(c)
 	return &characterv1.Character{
 		Id: c.ID.String(), AccountId: c.AccountID.String(), Name: c.Name, Class: c.Class.String(),

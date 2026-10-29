@@ -4,7 +4,7 @@
 - **Features:** none (structure only)
 - **Milestone:** Layers
 - **Order:** 33
-- **Status:** Ready
+- **Status:** Done
 - **Step:** 33. Character in layers
 
 **Goal:** the character service in the layers of page 11, with its behaviour unchanged.
@@ -23,7 +23,7 @@
 
 ## Done when
 
-- [ ] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; `make test-service SERVICE=character` green; CI green.
+- [x] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; `make test-service SERVICE=character` green; CI green.
 
 ## Review focus
 
