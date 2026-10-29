@@ -205,9 +205,8 @@ errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),
 `handler` (its gRPC server and error table) and `clients` (its adapters for
 the services it calls); imports point inward, to `model`. Every service
-but the world and the gateway is in layers so far; those two keep their
-packages (`internal/world`, `internal/combat`, the gateway's handlers)
-until their steps (35 and 36). `migrations/` holds its
+but the gateway is in layers so far; the gateway keeps its handlers'
+packages until step 36. `migrations/` holds its
 own goose files with its own version table. Go's
 `internal/` rule keeps services out of each other, and depguard checks the
 rest of the import direction: composition roots → services → the shared

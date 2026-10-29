@@ -9,7 +9,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/model"
 )
 
 // streamSink is one player's sink: it queues the player's events on the
@@ -23,7 +23,7 @@ type streamSink struct {
 }
 
 // Send turns one world event into a delivery and queues it.
-func (s *streamSink) Send(e world.Event) bool {
+func (s *streamSink) Send(e model.Event) bool {
 	m := s.delivery(e)
 	if m == nil {
 		return true // nothing the contract carries; not a reason to drop the player
@@ -32,13 +32,13 @@ func (s *streamSink) Send(e world.Event) bool {
 	return s.sub.Send(m)
 }
 
-func (s *streamSink) delivery(e world.Event) *worldv1.DeliverResponse {
+func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 	switch ev := e.(type) {
-	case world.Snapshot:
+	case model.Snapshot:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
 			MapId: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops),
 		}}}
-	case world.Delta:
+	case model.Delta:
 		d := &worldv1.Delta{
 			AckSeq: ev.AckSeq, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops),
 			RemovedMobs: ev.RemovedMobs, RemovedDrops: ev.RemovedDrops,
@@ -47,30 +47,30 @@ func (s *streamSink) delivery(e world.Event) *worldv1.DeliverResponse {
 			d.RemovedPlayers = append(d.RemovedPlayers, id.String())
 		}
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Delta{Delta: d}}
-	case world.Teleport:
+	case model.Teleport:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: ev.MapID, X: ev.X, Y: ev.Y}}}
-	case world.Damage:
+	case model.Damage:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{
 			Source: entityRef(ev.Source), Target: entityRef(ev.Target), Amount: int32(ev.Amount), Crit: ev.Crit, Miss: ev.Miss,
 		}}}
-	case world.Died:
+	case model.Died:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: ev.ID.String(), X: ev.X, Y: ev.Y}}}
-	case world.Respawned:
+	case model.Respawned:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Respawned{Respawned: &worldv1.Respawned{
 			CharacterId: ev.ID.String(), MapId: ev.MapID, X: ev.X, Y: ev.Y, Hp: int32(ev.HP),
 		}}}
-	case world.ExpGained:
+	case model.ExpGained:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_ExpGained{ExpGained: &worldv1.ExpGained{Amount: ev.Amount, Exp: ev.Exp}}}
-	case world.LevelUp:
+	case model.LevelUp:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
 			Id: ev.ID.String(), Name: ev.Name, Class: ev.Class.String(), Level: int32(ev.Level), Exp: ev.Exp, Stats: stats(ev.Stats),
 			Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP),
 		}}}}
-	case world.Chat:
+	case model.Chat:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}}
-	case world.InventoryChanged:
+	case model.InventoryChanged:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: slots(ev.Slots)}}}
-	case world.PickupFailed:
+	case model.PickupFailed:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: s.pickupFailed(ev.Err)}}
 	}
 	return nil
@@ -91,7 +91,7 @@ func (s *streamSink) pickupFailed(err error) *worldv1.PickupFailed {
 	return &worldv1.PickupFailed{ErrorDomain: r.Domain, ErrorReason: r.Name}
 }
 
-func entityRef(r world.EntityRef) *worldv1.EntityRef {
+func entityRef(r model.EntityRef) *worldv1.EntityRef {
 	if r.IsMob() {
 		return &worldv1.EntityRef{Ref: &worldv1.EntityRef_MobId{MobId: r.Mob}}
 	}
@@ -102,7 +102,7 @@ func stats(s gamedata.Stats) *characterv1.Stats {
 	return &characterv1.Stats{Strength: int32(s.STR), Dexterity: int32(s.DEX), Intelligence: int32(s.INT), Agility: int32(s.AGI), Vitality: int32(s.VIT)}
 }
 
-func playerViews(ps []world.PlayerView) []*worldv1.PlayerView {
+func playerViews(ps []model.PlayerView) []*worldv1.PlayerView {
 	if len(ps) == 0 {
 		return nil
 	}
@@ -118,7 +118,7 @@ func playerViews(ps []world.PlayerView) []*worldv1.PlayerView {
 	return out
 }
 
-func mobViews(ms []world.MobView) []*worldv1.MobView {
+func mobViews(ms []model.MobView) []*worldv1.MobView {
 	if len(ms) == 0 {
 		return nil
 	}
@@ -129,7 +129,7 @@ func mobViews(ms []world.MobView) []*worldv1.MobView {
 	return out
 }
 
-func dropViews(ds []world.DropView) []*worldv1.DropView {
+func dropViews(ds []model.DropView) []*worldv1.DropView {
 	if len(ds) == 0 {
 		return nil
 	}
@@ -142,7 +142,7 @@ func dropViews(ds []world.DropView) []*worldv1.DropView {
 
 // slots are the slots a committed pickup changed, in the item service's
 // terms, which the gateway already reads.
-func slots(in []world.Slot) []*itemv1.Slot {
+func slots(in []model.Slot) []*itemv1.Slot {
 	out := make([]*itemv1.Slot, 0, len(in))
 	for _, s := range in {
 		slot := &itemv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}

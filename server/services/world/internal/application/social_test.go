@@ -1,4 +1,4 @@
-package world_test
+package application_test
 
 import (
 	"slices"
@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"finga/internal/kernel"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 )
 
 // fakeParties is a party roster the instance asks about.
@@ -50,7 +51,7 @@ func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, max
 func expGained(s *sink) []int64 {
 	var out []int64
 	for _, e := range s.all() {
-		if g, ok := e.(world.ExpGained); ok {
+		if g, ok := e.(model.ExpGained); ok {
 			out = append(out, g.Amount)
 		}
 	}
@@ -79,7 +80,7 @@ func TestExpSharing(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := loadData(t)
 				parties := &fakeParties{}
-				inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{Parties: parties})
+				inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{Parties: parties})
 				defer stop()
 				time.Sleep(tickInterval)
 				synctest.Wait()
@@ -129,7 +130,7 @@ func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 		items := newFakePickups()
 		killer, member, stranger := warriorAt(250), warriorAt(300), warriorAt(300)
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{killer.ID, member.ID}}}
-		inst, stop := runLootArena(t, data, items, 0.3, world.Options{Parties: parties})
+		inst, stop := runLootArena(t, data, items, 0.3, application.Options{Parties: parties})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -152,10 +153,10 @@ func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 	})
 }
 
-func chats(s *sink) []world.Chat {
-	var out []world.Chat
+func chats(s *sink) []model.Chat {
+	var out []model.Chat
 	for _, e := range s.all() {
-		if c, ok := e.(world.Chat); ok {
+		if c, ok := e.(model.Chat); ok {
 			out = append(out, c)
 		}
 	}
@@ -165,11 +166,11 @@ func chats(s *sink) []world.Chat {
 func TestMapChatReachesOnlyTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		here, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		here, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		other := arena(time.Hour)
 		other.ID = "arena2"
-		there, stop2 := runArena(t, data, other, nil, world.Options{})
+		there, stop2 := runArena(t, data, other, nil, application.Options{})
 		defer stop2()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -196,7 +197,7 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		data := loadData(t)
 		parties := &fakeParties{}
 		tr := &transferRecorder{}
-		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{Parties: parties, Transfer: tr})
+		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{Parties: parties, Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()

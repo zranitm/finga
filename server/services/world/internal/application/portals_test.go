@@ -1,4 +1,4 @@
-package world_test
+package application_test
 
 import (
 	"context"
@@ -9,7 +9,8 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 )
 
 func portalNamed(t *testing.T, m *gamedata.Map, name string) gamedata.Portal {
@@ -23,20 +24,20 @@ func portalNamed(t *testing.T, m *gamedata.Map, name string) gamedata.Portal {
 	return gamedata.Portal{}
 }
 
-func teleports(s *sink) []world.Teleport {
-	var out []world.Teleport
+func teleports(s *sink) []model.Teleport {
+	var out []model.Teleport
 	for _, e := range s.all() {
-		if tp, ok := e.(world.Teleport); ok {
+		if tp, ok := e.(model.Teleport); ok {
 			out = append(out, tp)
 		}
 	}
 	return out
 }
 
-func snapshots(s *sink) []world.Snapshot {
-	var out []world.Snapshot
+func snapshots(s *sink) []model.Snapshot {
+	var out []model.Snapshot
 	for _, e := range s.all() {
-		if sn, ok := e.(world.Snapshot); ok {
+		if sn, ok := e.(model.Snapshot); ok {
 			out = append(out, sn)
 		}
 	}
@@ -48,13 +49,13 @@ func snapshots(s *sink) []world.Snapshot {
 func seenIn(s *sink, id kernel.CharacterID) (present, removed int) {
 	for _, e := range s.all() {
 		switch ev := e.(type) {
-		case world.Snapshot:
+		case model.Snapshot:
 			for _, v := range ev.Players {
 				if v.ID == id {
 					present++
 				}
 			}
-		case world.Delta:
+		case model.Delta:
 			for _, v := range ev.Players {
 				if v.ID == id {
 					present++
@@ -74,7 +75,7 @@ func TestPortals(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{}
-		w := world.New(data, saver, slog.New(slog.DiscardHandler), world.Options{TickInterval: tickInterval, CheckpointInterval: time.Hour})
+		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, CheckpointInterval: time.Hour})
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
@@ -123,7 +124,7 @@ func TestPortals(t *testing.T) {
 			if len(snaps) != 2 || snaps[1].MapID != "forest" {
 				t.Fatalf("snapshots %+v", snaps)
 			}
-			var me world.PlayerView
+			var me model.PlayerView
 			for _, v := range snaps[1].Players {
 				if v.ID == ayla.ID {
 					me = v
@@ -140,7 +141,7 @@ func TestPortals(t *testing.T) {
 			// The town checkpointed her as already in the forest.
 			synctest.Wait()
 			saver.mu.Lock()
-			var cp *world.Checkpoint
+			var cp *model.Checkpoint
 			for k := range saver.saved {
 				if saver.saved[k].ID == ayla.ID {
 					cp = &saver.saved[k]
@@ -206,7 +207,7 @@ func TestPortals(t *testing.T) {
 			// Every delta after the teleport came from the forest only: the
 			// town never sent her another one.
 			for _, e := range sc.all() {
-				if d, ok := e.(world.Delta); ok && d.Tick > tel[0].Tick+1 {
+				if d, ok := e.(model.Delta); ok && d.Tick > tel[0].Tick+1 {
 					for _, r := range d.Removed {
 						if r == cass.ID {
 							t.Fatal("cass was removed from a map she was on")

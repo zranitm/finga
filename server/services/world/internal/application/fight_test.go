@@ -1,4 +1,4 @@
-package world_test
+package application_test
 
 import (
 	"context"
@@ -10,7 +10,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 )
 
 // fixedRoll always returns the same value: every attack hits for average
@@ -36,19 +37,19 @@ func arena(respawn time.Duration) *gamedata.Map {
 
 type transferRecorder struct {
 	mu    sync.Mutex
-	moved []world.Player
+	moved []model.Player
 	to    []string
 }
 
-func (r *transferRecorder) Transfer(p world.Player, _ world.Sink, mapID string) {
+func (r *transferRecorder) Transfer(p model.Player, _ application.Sink, mapID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.moved = append(r.moved, p)
 	r.to = append(r.to, mapID)
 }
 
-func (s *sink) ofType(want func(world.Event) bool) []world.Event {
-	var out []world.Event
+func (s *sink) ofType(want func(model.Event) bool) []model.Event {
+	var out []model.Event
 	for _, e := range s.all() {
 		if want(e) {
 			out = append(out, e)
@@ -57,22 +58,22 @@ func (s *sink) ofType(want func(world.Event) bool) []world.Event {
 	return out
 }
 
-func damages(s *sink) []world.Damage {
-	var out []world.Damage
-	for _, e := range s.ofType(func(e world.Event) bool { _, ok := e.(world.Damage); return ok }) {
-		out = append(out, e.(world.Damage))
+func damages(s *sink) []model.Damage {
+	var out []model.Damage
+	for _, e := range s.ofType(func(e model.Event) bool { _, ok := e.(model.Damage); return ok }) {
+		out = append(out, e.(model.Damage))
 	}
 	return out
 }
 
 // runArena starts an arena instance in the bubble with a fixed roll.
-func runArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- world.Job, opts world.Options) (*world.Instance, func()) {
+func runArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
 	t.Helper()
 	opts.TickInterval = tickInterval
 	if opts.Roll == nil {
 		opts.Roll = fixedRoll{0.5}
 	}
-	inst := world.NewInstance(m, data, persist, opts)
+	inst := application.NewInstance(m, data, persist, opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = inst.Run(ctx) }()
@@ -80,16 +81,16 @@ func runArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<-
 	return inst, func() { once.Do(func() { cancel(); <-done }) }
 }
 
-func warriorAt(x float64) world.Player {
+func warriorAt(x float64) model.Player {
 	p := newPlayer("Ayla", x, 608)
 	return p
 }
 
-func bowmanAt(x float64) world.Player {
-	return world.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
+func bowmanAt(x float64) model.Player {
+	return model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
 }
 
-func join(t *testing.T, inst *world.Instance, p world.Player) *sink {
+func join(t *testing.T, inst *application.Instance, p model.Player) *sink {
 	t.Helper()
 	s := &sink{}
 	if err := inst.Join(context.Background(), p, s); err != nil {
@@ -100,15 +101,15 @@ func join(t *testing.T, inst *world.Instance, p world.Player) *sink {
 	return s
 }
 
-func mobsIn(s *sink) map[uint64]world.MobView {
-	seen := map[uint64]world.MobView{}
+func mobsIn(s *sink) map[uint64]model.MobView {
+	seen := map[uint64]model.MobView{}
 	for _, e := range s.all() {
 		switch ev := e.(type) {
-		case world.Snapshot:
+		case model.Snapshot:
 			for _, m := range ev.Mobs {
 				seen[m.ID] = m
 			}
-		case world.Delta:
+		case model.Delta:
 			for _, m := range ev.Mobs {
 				seen[m.ID] = m
 			}
@@ -123,7 +124,7 @@ func mobsIn(s *sink) map[uint64]world.MobView {
 func TestMobsSpawnAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(2*time.Second), nil, world.Options{})
+		inst, stop := runArena(t, data, arena(2*time.Second), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval) // tick 1: the area fills
 		synctest.Wait()
@@ -177,16 +178,16 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 }
 
 // id finds the joining player's ID from the snapshot.
-func (s *sink) id(t *testing.T, _ *world.Instance) kernel.CharacterID {
+func (s *sink) id(t *testing.T, _ *application.Instance) kernel.CharacterID {
 	t.Helper()
-	snap := s.all()[0].(world.Snapshot)
+	snap := s.all()[0].(model.Snapshot)
 	return snap.Players[len(snap.Players)-1].ID
 }
 
 func TestAttacks(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Second), nil, world.Options{})
+		inst, stop := runArena(t, data, arena(time.Second), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -268,7 +269,7 @@ func TestAttacks(t *testing.T) {
 func TestContactDamageAndInvulnerability(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -323,9 +324,9 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 func TestDeathAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		persist := make(chan world.Job, 100)
+		persist := make(chan model.Job, 100)
 		tr := &transferRecorder{}
-		inst, stop := runArena(t, data, arena(time.Hour), persist, world.Options{Transfer: tr})
+		inst, stop := runArena(t, data, arena(time.Hour), persist, application.Options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -335,16 +336,16 @@ func TestDeathAndRespawn(t *testing.T) {
 		s := join(t, inst, p)
 		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
 		{ // the touch kills: Died to everyone, the player is marked dead and frozen
-			died := s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok })
-			if len(died) != 1 || died[0].(world.Died).ID != p.ID {
+			died := s.ofType(func(e model.Event) bool { _, ok := e.(model.Died); return ok })
+			if len(died) != 1 || died[0].(model.Died).ID != p.ID {
 				t.Fatalf("died events %+v", died)
 			}
 			v, _ := s.own(p.ID)
 			if !v.Dead || v.HP != 0 {
 				t.Fatalf("view after death %+v", v)
 			}
-			lost := s.ofType(func(e world.Event) bool { _, ok := e.(world.ExpGained); return ok })
-			if len(lost) != 1 || lost[0].(world.ExpGained).Amount != -1 || lost[0].(world.ExpGained).Exp != 9 {
+			lost := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok })
+			if len(lost) != 1 || lost[0].(model.ExpGained).Amount != -1 || lost[0].(model.ExpGained).Exp != 9 {
 				t.Fatalf("the death penalty as ExpGained: %+v, want amount -1 and exp 9", lost)
 			}
 			x := v.State.X
@@ -362,17 +363,17 @@ func TestDeathAndRespawn(t *testing.T) {
 		{ // after 3 seconds: Respawned at the town spawn with 50% HP, the penalty applied, handed to the town
 			time.Sleep(3 * time.Second)
 			synctest.Wait()
-			resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
+			resp := s.ofType(func(e model.Event) bool { _, ok := e.(model.Respawned); return ok })
 			if len(resp) != 1 {
 				t.Fatalf("respawned events %+v", resp)
 			}
-			r := resp[0].(world.Respawned)
+			r := resp[0].(model.Respawned)
 			town := data.Town()
 			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 102 {
 				t.Fatalf("respawned %+v", r)
 			}
-			tel := s.ofType(func(e world.Event) bool { _, ok := e.(world.Teleport); return ok })
-			if len(tel) != 1 || tel[0].(world.Teleport).MapID != town.ID {
+			tel := s.ofType(func(e model.Event) bool { _, ok := e.(model.Teleport); return ok })
+			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID {
 				t.Fatalf("teleport events %+v", tel)
 			}
 			tr.mu.Lock()
@@ -382,7 +383,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 		}
 		{ // the arena checkpointed the player on the way out, with the penalized EXP
-			var cps []world.Job
+			var cps []model.Job
 			for len(persist) > 0 {
 				cps = append(cps, <-persist)
 			}
@@ -402,8 +403,8 @@ func TestDeathAndRespawn(t *testing.T) {
 func TestKillGivesExpAndLevelsUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		persist := make(chan world.Job, 100)
-		inst, stop := runArena(t, data, arena(time.Hour), persist, world.Options{})
+		persist := make(chan model.Job, 100)
+		inst, stop := runArena(t, data, arena(time.Hour), persist, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -416,15 +417,15 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		inst.Attack(p.ID)
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		exp := s.ofType(func(e world.Event) bool { _, ok := e.(world.ExpGained); return ok })
-		if len(exp) != 1 || exp[0].(world.ExpGained).Amount != 5 || exp[0].(world.ExpGained).Exp != 3 {
+		exp := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok })
+		if len(exp) != 1 || exp[0].(model.ExpGained).Amount != 5 || exp[0].(model.ExpGained).Exp != 3 {
 			t.Fatalf("exp events %+v", exp)
 		}
-		lus := s.ofType(func(e world.Event) bool { _, ok := e.(world.LevelUp); return ok })
+		lus := s.ofType(func(e model.Event) bool { _, ok := e.(model.LevelUp); return ok })
 		if len(lus) != 1 {
 			t.Fatalf("level-up events %+v", lus)
 		}
-		lu := lus[0].(world.LevelUp)
+		lu := lus[0].(model.LevelUp)
 		// STR 15, VIT 12 after the preset; max HP 60+144+30+18 = 252, max MP 20+8+4 = 32.
 		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}) || lu.HP != 252 || lu.MaxHP != 252 || lu.MP != 32 || lu.MaxMP != 32 {
 			t.Fatalf("level-up %+v", lu)
@@ -433,7 +434,7 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		if v.Level != 2 || v.HP != 252 || v.MaxHP != 252 {
 			t.Fatalf("view after level-up %+v", v)
 		}
-		var saved []world.Job
+		var saved []model.Job
 		for len(persist) > 0 {
 			saved = append(saved, <-persist)
 		}
@@ -450,11 +451,11 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 }
 
 func TestReplayingASeedGivesTheSameFight(t *testing.T) {
-	fight := func() []world.Damage {
-		var out []world.Damage
+	fight := func() []model.Damage {
+		var out []model.Damage
 		synctest.Test(t, func(t *testing.T) {
 			data := loadData(t)
-			inst, stop := runArena(t, data, arena(time.Second), nil, world.Options{Seed: 42, Roll: nil})
+			inst, stop := runArena(t, data, arena(time.Second), nil, application.Options{Seed: 42, Roll: nil})
 			defer stop()
 			time.Sleep(tickInterval)
 			synctest.Wait()
@@ -473,7 +474,7 @@ func TestReplayingASeedGivesTheSameFight(t *testing.T) {
 		t.Fatalf("%d and %d damage events", len(a), len(b))
 	}
 	for i := range a {
-		a[i].Source, b[i].Source = world.EntityRef{}, world.EntityRef{} // the players' random IDs differ between runs
+		a[i].Source, b[i].Source = model.EntityRef{}, model.EntityRef{} // the players' random IDs differ between runs
 		if a[i] != b[i] {
 			t.Fatalf("event %d differs: %+v vs %+v", i, a[i], b[i])
 		}
@@ -496,7 +497,7 @@ func TestNoCombatInTown(t *testing.T) {
 		m := arena(time.Hour)
 		m.ID, m.Kind, m.Town = "town", gamedata.Town, "town" // a town with a mob, for the test only
 		tr := &transferRecorder{}
-		inst, stop := runArena(t, data, m, nil, world.Options{Transfer: tr})
+		inst, stop := runArena(t, data, m, nil, application.Options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -521,7 +522,7 @@ func TestNoCombatInTown(t *testing.T) {
 				t.Fatalf("a mob was hurt in a town: %+v", mb)
 			}
 		}
-		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok })) != 0 {
+		if len(s.ofType(func(e model.Event) bool { _, ok := e.(model.Died); return ok })) != 0 {
 			t.Fatal("died in a town")
 		}
 	})
@@ -530,7 +531,7 @@ func TestNoCombatInTown(t *testing.T) {
 func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -538,10 +539,10 @@ func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 		p.HP, p.Exp = 1, 0 // at the start of the level: the penalty takes nothing
 		s := join(t, inst, p)
 		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
-		if died := s.ofType(func(e world.Event) bool { _, ok := e.(world.Died); return ok }); len(died) != 1 {
+		if died := s.ofType(func(e model.Event) bool { _, ok := e.(model.Died); return ok }); len(died) != 1 {
 			t.Fatalf("died events %+v", died)
 		}
-		if lost := s.ofType(func(e world.Event) bool { _, ok := e.(world.ExpGained); return ok }); len(lost) != 0 {
+		if lost := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok }); len(lost) != 0 {
 			t.Fatalf("an ExpGained with nothing lost: %+v", lost)
 		}
 	})
@@ -550,7 +551,7 @@ func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 func TestRespawnInPlaceWithoutAMover(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{})
+		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -560,15 +561,15 @@ func TestRespawnInPlaceWithoutAMover(t *testing.T) {
 		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
-		resp := s.ofType(func(e world.Event) bool { _, ok := e.(world.Respawned); return ok })
-		if len(resp) != 1 || resp[0].(world.Respawned).MapID != "arena" {
+		resp := s.ofType(func(e model.Event) bool { _, ok := e.(model.Respawned); return ok })
+		if len(resp) != 1 || resp[0].(model.Respawned).MapID != "arena" {
 			t.Fatalf("respawned %+v", resp)
 		}
 		v, _ := s.own(p.ID)
 		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
-		if len(s.ofType(func(e world.Event) bool { _, ok := e.(world.Teleport); return ok })) != 0 {
+		if len(s.ofType(func(e model.Event) bool { _, ok := e.(model.Teleport); return ok })) != 0 {
 			t.Fatal("a respawn without a mover teleported")
 		}
 	})

@@ -1,15 +1,13 @@
-// Package world runs the map instances: one actor per map that ticks at
-// 20 Hz, accepts players, simulates their movement from inputs (TD-18),
-// runs the mobs and resolves combat, and sends each player what changed.
-// It has no repository; it reaches the database only through other
-// modules' services, from worker goroutines, never inside a tick. Its
-// result types are its own; the gateway turns them into protocol messages.
-package world
+// Package model is the world service's model (Low-level design, page 11):
+// what a joining player and a loaded character carry, what the player sees
+// (views and the events delivered each tick), the checkpoints and level-ups
+// it saves, pickups and their outcomes, the combat rules (combat.go), and
+// the errors its use cases return. It needs nothing but data; the map
+// instance's own state while it ticks belongs to the application.
+package model
 
 import (
-	"context"
 	"errors"
-	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -18,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// The module's errors.
+// The world's errors.
 var (
 	ErrBusy    = errors.New("world: map instance inbox is full")
 	ErrNoMap   = errors.New("world: no such map")
@@ -61,21 +59,6 @@ type Character struct {
 	MP      int
 	MapID   string
 	X, Y    float64
-}
-
-// Characters loads a character for a join; an adapter over the character
-// service implements it. A character that is not the account's fails the
-// way the character service says (not found).
-type Characters interface {
-	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error)
-}
-
-// Starter grants a character its starter items once; an adapter over the
-// item service implements it. The world calls it on every join as the
-// safety net for a character created while the grant could not reach the
-// item service (page 10).
-type Starter interface {
-	GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error
 }
 
 // View is the character as the player sees it once joined: Welcome's
@@ -212,21 +195,21 @@ type LevelUp struct {
 	MaxMP int
 }
 
-func (Snapshot) event()  {}
-func (Delta) event()     {}
-func (Teleport) event()  {}
-func (Damage) event()    {}
-func (Died) event()      {}
-func (Respawned) event() {}
-func (ExpGained) event() {}
-func (LevelUp) event()   {}
+func (Snapshot) event() {}
 
-// Sink is where an instance sends a player's events. Send never blocks: the
-// gateway enqueues on the connection and returns false when the queue is
-// full, and the instance then drops that player, never the tick.
-type Sink interface {
-	Send(Event) bool
-}
+func (Delta) event() {}
+
+func (Teleport) event() {}
+
+func (Damage) event() {}
+
+func (Died) event() {}
+
+func (Respawned) event() {}
+
+func (ExpGained) event() {}
+
+func (LevelUp) event() {}
 
 // Checkpoint is a character's non-economic state, saved every 30 seconds
 // (TD-02) and on map change and logout.
@@ -249,33 +232,10 @@ type LevelUpSave struct {
 	MP    int
 }
 
-// Saver persists checkpoints and level-ups; an adapter over the character
-// service implements it. It is called from the persistence worker, never
-// from a tick.
-type Saver interface {
-	SaveCheckpoint(ctx context.Context, cp Checkpoint) error
-	SaveLevelUp(ctx context.Context, lu LevelUpSave) error
-	// Retryable reports whether a failed save may succeed when tried again:
-	// a transient failure, not a rule it ran into.
-	Retryable(err error) bool
-}
-
 // Job is one unit of work for the persistence worker: exactly one field set.
 type Job struct {
 	Checkpoint *Checkpoint
 	LevelUp    *LevelUpSave
-}
-
-// Mover moves a player to another map's instance after a respawn or a
-// portal; the World implements it. It must not block the calling tick.
-type Mover interface {
-	Transfer(p Player, sink Sink, mapID string)
-}
-
-// TickObserver sees each tick's duration against its budget;
-// internal/telemetry implements it.
-type TickObserver interface {
-	ObserveTick(mapID string, took, budget time.Duration)
 }
 
 // DropView is an item on the ground as everyone sees it.
@@ -325,7 +285,8 @@ var (
 )
 
 func (InventoryChanged) event() {}
-func (PickupFailed) event()     {}
+
+func (PickupFailed) event() {}
 
 // Pickup is one pickup for the item service: who picks up, and the drop's
 // contents. The drop's ID is the idempotency key and the cause, so a
@@ -336,17 +297,4 @@ type Pickup struct {
 	DropID    uuid.UUID
 	Template  string
 	Quantity  int
-}
-
-// Pickups is what the world needs from the item service; an adapter over
-// its client implements it. Called from economy workers, never inside a
-// tick.
-type Pickups interface {
-	// Add puts a drop in the character's inventory and returns the slots it
-	// changed.
-	Add(ctx context.Context, p Pickup) ([]Slot, error)
-	// Retryable reports whether a failed Add may succeed when tried again
-	// with the same drop: a transient failure, not a rule the pickup ran
-	// into (a full inventory).
-	Retryable(err error) bool
 }

@@ -1,4 +1,4 @@
-package world
+package application
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/tick"
-	"finga/services/world/internal/combat"
+	"finga/services/world/internal/model"
 )
 
 // Defaults for Options.
@@ -38,7 +38,7 @@ type Options struct {
 	CheckpointInterval time.Duration // TD-02
 	Observer           TickObserver  // nil: no metrics
 	Seed               uint64        // the random seed; 0 picks one
-	Roll               combat.Roll   // overrides the seeded generator, for tests
+	Roll               model.Roll    // overrides the seeded generator, for tests
 	Transfer           Mover         // moves players between maps; nil respawns in place
 	Items              Pickups       // the item module; nil: pickups are unavailable
 	Workers            *Workers      // the economy worker pool; nil: pickups are unavailable
@@ -77,9 +77,9 @@ type Instance struct {
 	data    *gamedata.Data
 	params  sim.Params
 	opts    Options
-	roll    combat.Roll
+	roll    model.Roll
 	inbox   chan message
-	persist chan<- Job
+	persist chan<- model.Job
 
 	tick     uint64
 	players  map[kernel.CharacterID]*player
@@ -93,9 +93,9 @@ type Instance struct {
 
 	dropped      []kernel.CharacterID // removed during the last broadcast, reported next tick
 	removedMobs  []uint64
-	newDrops     []DropView
+	newDrops     []model.DropView
 	removedDrops []uint64
-	events       []Event // map-wide events of the current tick
+	events       []model.Event // map-wide events of the current tick
 }
 
 // message is one inbox item.
@@ -112,7 +112,7 @@ type message struct {
 }
 
 type joinMsg struct {
-	player Player
+	player model.Player
 	sink   Sink
 	done   chan error
 }
@@ -126,7 +126,7 @@ type inputMsg struct {
 // player is an instance's view of a character: identity, the movement
 // state, the input queue, and combat state.
 type player struct {
-	Player
+	model.Player
 	sink    Sink
 	state   sim.State
 	held    sim.Input
@@ -143,12 +143,12 @@ type player struct {
 	invulnUntil   uint64
 	dead          bool
 	deadUntil     uint64
-	changed       bool    // HP, level or death changed this tick
-	private       []Event // events for this player only
+	changed       bool          // HP, level or death changed this tick
+	private       []model.Event // events for this player only
 }
 
 // NewInstance builds the actor for m. Run starts it.
-func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- Job, opts Options) *Instance {
+func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, opts Options) *Instance {
 	opts = opts.withDefaults()
 	ticksPer := uint64(opts.CheckpointInterval / opts.TickInterval)
 	if ticksPer == 0 {
@@ -193,10 +193,10 @@ func (i *Instance) Run(ctx context.Context) error {
 
 // Join adds a player. It returns once the instance has accepted the join
 // and sent the Snapshot, or ErrBusy when the inbox is full.
-func (i *Instance) Join(ctx context.Context, p Player, sink Sink) error {
+func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 	done := make(chan error, 1)
 	if !i.post(message{join: &joinMsg{player: p, sink: sink, done: done}}) {
-		return ErrBusy
+		return model.ErrBusy
 	}
 	select {
 	case err := <-done:
@@ -309,7 +309,7 @@ func (i *Instance) drain() []kernel.CharacterID {
 			}
 		case m.chat != nil:
 			if _, ok := i.players[m.chat.from]; ok {
-				i.events = append(i.events, Chat{Tick: i.tick, Sender: m.chat.from, SenderName: m.chat.name, Text: m.chat.text})
+				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.chat.from, SenderName: m.chat.name, Text: m.chat.text})
 			}
 		case !m.leave.IsZero():
 			if p, ok := i.players[m.leave]; ok && m.leaveConn != "" && p.Connection != m.leaveConn {
@@ -330,7 +330,7 @@ func (i *Instance) join(j *joinMsg) {
 	class, ok := i.data.Class(j.player.Class)
 	formulas, ok2 := i.data.Formulas(j.player.Class)
 	if !ok || !ok2 {
-		j.done <- ErrClassUnavailable
+		j.done <- model.ErrClassUnavailable
 		return
 	}
 	p := &player{
@@ -345,7 +345,7 @@ func (i *Instance) join(j *joinMsg) {
 	p.MP = min(p.MP, p.derived.MaxMP)
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
-	snap := Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]PlayerView, 0, len(i.order)), Mobs: make([]MobView, 0, len(i.mobs)), Drops: i.dropViews()}
+	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]model.PlayerView, 0, len(i.order)), Mobs: make([]model.MobView, 0, len(i.mobs)), Drops: i.dropViews()}
 	for _, id := range i.order {
 		snap.Players = append(snap.Players, i.view(i.players[id]))
 	}
@@ -354,7 +354,7 @@ func (i *Instance) join(j *joinMsg) {
 	}
 	if !j.sink.Send(snap) {
 		i.remove(p.ID)
-		j.done <- ErrBusy
+		j.done <- model.ErrBusy
 		return
 	}
 	j.done <- nil
@@ -452,13 +452,13 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 			changed = append(changed, id)
 		}
 	}
-	views := make([]PlayerView, 0, len(changed))
+	views := make([]model.PlayerView, 0, len(changed))
 	for _, id := range changed {
 		if p, ok := i.players[id]; ok {
 			views = append(views, i.view(p))
 		}
 	}
-	var mobViews []MobView
+	var mobViews []model.MobView
 	for _, mb := range i.mobs {
 		if mb.changed {
 			mobViews = append(mobViews, mb.view())
@@ -468,7 +468,7 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 	var dropped []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		d := Delta{Tick: i.tick, AckSeq: p.lastSeq, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
+		d := model.Delta{Tick: i.tick, AckSeq: p.lastSeq, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
 		ok := p.sink.Send(d)
 		for _, e := range i.events {
 			ok = ok && p.sink.Send(e)
@@ -487,8 +487,8 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 	return dropped
 }
 
-func (i *Instance) view(p *player) PlayerView {
-	return PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state}
+func (i *Instance) view(p *player) model.PlayerView {
+	return model.PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state}
 }
 
 // checkpoint hands the player's state to the persistence worker without
@@ -504,16 +504,16 @@ func (i *Instance) ticksFor(d time.Duration) uint64 {
 }
 
 // playerBox is the character's box in sim coordinates.
-func (i *Instance) playerBox(p *player) combat.Rect {
-	return combat.Rect{X: p.state.X - i.params.Width/2, Y: p.state.Y - i.params.Height, W: i.params.Width, H: i.params.Height}
+func (i *Instance) playerBox(p *player) model.Rect {
+	return model.Rect{X: p.state.X - i.params.Width/2, Y: p.state.Y - i.params.Height, W: i.params.Width, H: i.params.Height}
 }
 
-func attackerOf(d progression.Derived) combat.Attacker {
-	return combat.Attacker{AttackPower: d.AttackPower, Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration}
+func attackerOf(d progression.Derived) model.Attacker {
+	return model.Attacker{AttackPower: d.AttackPower, Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration}
 }
 
-func defenderOf(d progression.Derived) combat.Defender {
-	return combat.Defender{Defense: d.Defense, Evasion: d.Evasion}
+func defenderOf(d progression.Derived) model.Defender {
+	return model.Defender{Defense: d.Defense, Evasion: d.Evasion}
 }
 
 // detach drops a player without a checkpoint; the caller has saved one
@@ -528,9 +528,9 @@ func (i *Instance) checkpointOn(p *player, mapID string) {
 	if i.persist == nil {
 		return
 	}
-	cp := Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
+	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
 	select {
-	case i.persist <- Job{Checkpoint: &cp}:
+	case i.persist <- model.Job{Checkpoint: &cp}:
 	default:
 	}
 }

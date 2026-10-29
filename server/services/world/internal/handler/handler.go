@@ -21,13 +21,14 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 )
 
 // World is what the handler needs from the world module.
 type World interface {
-	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink world.Sink) (world.View, error)
-	Instance(mapID string) (*world.Instance, error)
+	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error)
+	Instance(mapID string) (*application.Instance, error)
 }
 
 // DefaultQueue is what may wait for one gateway before its stream ends:
@@ -109,7 +110,7 @@ func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.L
 	if req.GetConnectionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
 	}
-	return &worldv1.LeaveResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id kernel.CharacterID) bool {
+	return &worldv1.LeaveResponse{}, s.command(req.GetPresence(), func(i *application.Instance, id kernel.CharacterID) bool {
 		return i.LeaveConnection(id, req.GetConnectionId())
 	})
 }
@@ -118,29 +119,29 @@ func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.L
 func (s *Server) Input(_ context.Context, req *worldv1.InputRequest) (*worldv1.InputResponse, error) {
 	k := req.GetKeys()
 	in := sim.Input{Left: k.GetLeft(), Right: k.GetRight(), Up: k.GetUp(), Down: k.GetDown(), Jump: k.GetJump()}
-	return &worldv1.InputResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id kernel.CharacterID) bool {
+	return &worldv1.InputResponse{}, s.command(req.GetPresence(), func(i *application.Instance, id kernel.CharacterID) bool {
 		return i.Input(id, req.GetSeq(), in)
 	})
 }
 
 // Attack queues a basic attack.
 func (s *Server) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
-	return &worldv1.AttackResponse{}, s.command(req.GetPresence(), (*world.Instance).Attack)
+	return &worldv1.AttackResponse{}, s.command(req.GetPresence(), (*application.Instance).Attack)
 }
 
 // PickUp asks for the nearest eligible drop.
 func (s *Server) PickUp(_ context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
-	return &worldv1.PickUpResponse{}, s.command(req.GetPresence(), (*world.Instance).PickUp)
+	return &worldv1.PickUpResponse{}, s.command(req.GetPresence(), (*application.Instance).PickUp)
 }
 
 // EnterPortal takes the portal the character stands in.
 func (s *Server) EnterPortal(_ context.Context, req *worldv1.EnterPortalRequest) (*worldv1.EnterPortalResponse, error) {
-	return &worldv1.EnterPortalResponse{}, s.command(req.GetPresence(), (*world.Instance).EnterPortal)
+	return &worldv1.EnterPortalResponse{}, s.command(req.GetPresence(), (*application.Instance).EnterPortal)
 }
 
 // Say is a map chat line for everyone on the map.
 func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayResponse, error) {
-	return &worldv1.SayResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id kernel.CharacterID) bool {
+	return &worldv1.SayResponse{}, s.command(req.GetPresence(), func(i *application.Instance, id kernel.CharacterID) bool {
 		return i.Chat(id, req.GetSenderName(), req.GetText())
 	})
 }
@@ -148,7 +149,7 @@ func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayRe
 // command posts one command to the instance of the presence's map; a full
 // inbox is ErrBusy (the gateway drops the command: the next one supersedes
 // it).
-func (s *Server) command(p *worldv1.Presence, post func(*world.Instance, kernel.CharacterID) bool) error {
+func (s *Server) command(p *worldv1.Presence, post func(*application.Instance, kernel.CharacterID) bool) error {
 	id, err := kernel.ParseCharacterID(p.GetCharacterId())
 	if err != nil {
 		return err
@@ -158,12 +159,12 @@ func (s *Server) command(p *worldv1.Presence, post func(*world.Instance, kernel.
 		return err
 	}
 	if !post(inst, id) {
-		return world.ErrBusy
+		return model.ErrBusy
 	}
 	return nil
 }
 
-func characterView(v world.View) *worldv1.CharacterView {
+func characterView(v model.View) *worldv1.CharacterView {
 	return &worldv1.CharacterView{
 		Id: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: int32(v.Level), Exp: v.Exp,
 		Stats: stats(v.Stats),

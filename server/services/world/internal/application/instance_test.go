@@ -1,4 +1,4 @@
-package world_test
+package application_test
 
 import (
 	"context"
@@ -11,7 +11,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 )
 
 const tickInterval = 50 * time.Millisecond
@@ -19,11 +20,11 @@ const tickInterval = 50 * time.Millisecond
 // sink collects a player's events.
 type sink struct {
 	mu     sync.Mutex
-	events []world.Event
+	events []model.Event
 	full   bool // when set, Send refuses: a slow consumer
 }
 
-func (s *sink) Send(e world.Event) bool {
+func (s *sink) Send(e model.Event) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.full {
@@ -33,32 +34,32 @@ func (s *sink) Send(e world.Event) bool {
 	return true
 }
 
-func (s *sink) all() []world.Event {
+func (s *sink) all() []model.Event {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]world.Event(nil), s.events...)
+	return append([]model.Event(nil), s.events...)
 }
 
-func (s *sink) deltas() []world.Delta {
-	var out []world.Delta
+func (s *sink) deltas() []model.Delta {
+	var out []model.Delta
 	for _, e := range s.all() {
-		if d, ok := e.(world.Delta); ok {
+		if d, ok := e.(model.Delta); ok {
 			out = append(out, d)
 		}
 	}
 	return out
 }
 
-func (s *sink) last() world.Delta {
+func (s *sink) last() model.Delta {
 	ds := s.deltas()
 	if len(ds) == 0 {
-		return world.Delta{}
+		return model.Delta{}
 	}
 	return ds[len(ds)-1]
 }
 
 // own finds the player's own view in the latest delta that carries it.
-func (s *sink) own(id kernel.CharacterID) (world.PlayerView, bool) {
+func (s *sink) own(id kernel.CharacterID) (model.PlayerView, bool) {
 	ds := s.deltas()
 	for i := len(ds) - 1; i >= 0; i-- {
 		for _, p := range ds[i].Players {
@@ -67,7 +68,7 @@ func (s *sink) own(id kernel.CharacterID) (world.PlayerView, bool) {
 			}
 		}
 	}
-	return world.PlayerView{}, false
+	return model.PlayerView{}, false
 }
 
 type observer struct {
@@ -96,17 +97,17 @@ func townSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 	return town.PlayerSpawn.X, town.PlayerSpawn.Y
 }
 
-func newPlayer(name string, x, y float64) world.Player {
-	return world.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
+func newPlayer(name string, x, y float64) model.Player {
+	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
 }
 
 // run starts an instance for the town inside the synctest bubble. The
 // returned function stops it and waits for Run to return, so no goroutine
 // outlives the bubble.
-func run(t *testing.T, data *gamedata.Data, persist chan<- world.Job, opts world.Options) (*world.Instance, func()) {
+func run(t *testing.T, data *gamedata.Data, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
 	t.Helper()
 	opts.TickInterval = tickInterval
-	inst := world.NewInstance(data.Town(), data, persist, opts)
+	inst := application.NewInstance(data.Town(), data, persist, opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = inst.Run(ctx) }()
@@ -118,7 +119,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 
 		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x+100, y)
@@ -134,11 +135,11 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 			if len(events) == 0 {
 				t.Fatal("no events")
 			}
-			snap, ok := events[0].(world.Snapshot)
+			snap, ok := events[0].(model.Snapshot)
 			if !ok || snap.MapID != "town" || len(snap.Players) != 1 || snap.Players[0].ID != ayla.ID || snap.Players[0].State.X != x {
 				t.Fatalf("first event %+v", events[0])
 			}
-			if _, ok := events[1].(world.Delta); !ok {
+			if _, ok := events[1].(model.Delta); !ok {
 				t.Fatalf("second event %T", events[1])
 			}
 		}
@@ -167,7 +168,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 			if !found {
 				t.Fatalf("no delta of Ayla's carries Robin: %+v", sa.last())
 			}
-			snap := sr.all()[0].(world.Snapshot)
+			snap := sr.all()[0].(model.Snapshot)
 			if len(snap.Players) != 2 {
 				t.Fatalf("Robin's snapshot has %d players", len(snap.Players))
 			}
@@ -203,7 +204,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -288,7 +289,7 @@ func TestInputFloodCarriesOverToTheNextTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{DrainLimit: 2})
+		inst, cancel := run(t, data, nil, application.Options{DrainLimit: 2})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -319,7 +320,7 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -384,7 +385,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -397,7 +398,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 		state := start.State
 		geom := data.Town().Geometry
 		params := data.Movement()
-		tick := func(in *sim.Input, seq uint32) world.PlayerView {
+		tick := func(in *sim.Input, seq uint32) model.PlayerView {
 			if in != nil {
 				inst.Input(p.ID, seq, *in)
 			}
@@ -469,7 +470,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -510,7 +511,7 @@ func TestTickObserver(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		obs := &observer{}
-		_, cancel := run(t, data, nil, world.Options{Observer: obs})
+		_, cancel := run(t, data, nil, application.Options{Observer: obs})
 		defer cancel()
 		time.Sleep(5 * tickInterval)
 		synctest.Wait()
@@ -526,8 +527,8 @@ func TestCheckpoints(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		persist := make(chan world.Job, 100)
-		inst, cancel := run(t, data, persist, world.Options{CheckpointInterval: 30 * time.Second})
+		persist := make(chan model.Job, 100)
+		inst, cancel := run(t, data, persist, application.Options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		p.Exp = 12
@@ -539,8 +540,8 @@ func TestCheckpoints(t *testing.T) {
 		synctest.Wait()
 		inst.Input(p.ID, 1, sim.Input{Right: true})
 
-		collect := func() []world.Checkpoint {
-			var out []world.Checkpoint
+		collect := func() []model.Checkpoint {
+			var out []model.Checkpoint
 			for {
 				select {
 				case j := <-persist:
@@ -609,7 +610,7 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x, y)
 		sa, sr := &sink{}, &sink{}
@@ -645,7 +646,7 @@ func TestReplayMatchesSim(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, world.Options{})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -655,7 +656,7 @@ func TestReplayMatchesSim(t *testing.T) {
 		time.Sleep(tickInterval)
 		synctest.Wait()
 		// The state the instance started from, after the join tick.
-		snap := s.all()[0].(world.Snapshot)
+		snap := s.all()[0].(model.Snapshot)
 		state := snap.Players[0].State
 		for range 3 { // the join tick itself ran 3 sub-steps with no input
 			state = sim.Step(state, sim.Input{}, data.Town().Geometry, data.Movement())
@@ -690,7 +691,7 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 // walk sends the same Input once per tick for n ticks, as a client does
 // (step 18: a player with no queued Input waits), with sequence numbers
 // after seq; it returns the last one used.
-func walk(inst *world.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
+func walk(inst *application.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
 	for range ticks {
 		seq++
 		inst.Input(id, seq, in)

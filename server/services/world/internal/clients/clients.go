@@ -13,7 +13,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/model"
 )
 
 // Pickups is the world's Pickups over the item service.
@@ -24,7 +24,7 @@ func NewPickups(c itemv1.ItemServiceClient) Pickups { return Pickups{c: c} }
 
 // Add puts a drop in the inventory, keyed and caused by the drop's ID, so a
 // retry or a replay grants it once.
-func (p Pickups) Add(ctx context.Context, in world.Pickup) ([]world.Slot, error) {
+func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
 	drop := in.DropID.String()
 	res, err := p.c.Add(ctx, &itemv1.AddRequest{
 		Actor:          &itemv1.Actor{AccountId: in.Account.String(), CharacterId: in.Character.String()},
@@ -36,15 +36,15 @@ func (p Pickups) Add(ctx context.Context, in world.Pickup) ([]world.Slot, error)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]world.Slot, 0, len(res.GetChanged()))
+	out := make([]model.Slot, 0, len(res.GetChanged()))
 	for _, s := range res.GetChanged() {
-		slot := world.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
+		slot := model.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
 		if it := s.GetItem(); it != nil {
 			id, err := kernel.ParseItemID(it.GetId())
 			if err != nil {
 				return nil, err
 			}
-			slot.Item = &world.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity())}
+			slot.Item = &model.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity())}
 		}
 		out = append(out, slot)
 	}
@@ -64,7 +64,7 @@ type Saver struct {
 func NewSaver(c characterv1.CharacterServiceClient) Saver { return Saver{c: c} }
 
 // SaveCheckpoint saves position, HP, MP and EXP.
-func (s Saver) SaveCheckpoint(ctx context.Context, cp world.Checkpoint) error {
+func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
 		CharacterId: cp.ID.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp,
 	})
@@ -72,7 +72,7 @@ func (s Saver) SaveCheckpoint(ctx context.Context, cp world.Checkpoint) error {
 }
 
 // SaveLevelUp saves a level-up.
-func (s Saver) SaveLevelUp(ctx context.Context, lu world.LevelUpSave) error {
+func (s Saver) SaveLevelUp(ctx context.Context, lu model.LevelUpSave) error {
 	st := lu.Stats
 	_, err := s.c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{
 		CharacterId: lu.ID.String(), Level: int32(lu.Level), Exp: lu.Exp,
@@ -95,18 +95,18 @@ func NewCharacters(c characterv1.CharacterServiceClient) Characters { return Cha
 
 // Load is a character of the account, as last saved; someone else's fails
 // with the character service's not-found reason, passed through.
-func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (world.Character, error) {
+func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	res, err := c.c.Load(ctx, &characterv1.LoadRequest{CharacterId: id.String(), AccountId: account.String()})
 	if err != nil {
-		return world.Character{}, err
+		return model.Character{}, err
 	}
 	ch := res.GetCharacter()
 	class, err := kernel.ParseClass(ch.GetClass())
 	if err != nil {
-		return world.Character{}, err
+		return model.Character{}, err
 	}
 	st := ch.GetStats()
-	return world.Character{
+	return model.Character{
 		ID: id, Account: account, Name: ch.GetName(), Class: class, Level: int(ch.GetLevel()), Exp: ch.GetExp(),
 		Stats: gamedata.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
 		HP:    int(ch.GetHp()), MP: int(ch.GetMp()), MapID: ch.GetMapId(), X: ch.GetX(), Y: ch.GetY(),

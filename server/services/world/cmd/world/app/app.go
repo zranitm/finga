@@ -26,9 +26,9 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/runner"
 	"finga/services/world/config"
+	"finga/services/world/internal/application"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/handler"
-	"finga/services/world/internal/world"
 )
 
 // Build wires the world service from configuration. It needs no database:
@@ -76,12 +76,12 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 
 	nodeID := uuid.NewString()
 	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log)
-	maps := world.New(data, clients.NewSaver(characters), log, world.Options{
+	maps := application.New(data, clients.NewSaver(characters), log, application.Options{
 		TickInterval:       cfg.TickInterval(),
 		CheckpointInterval: cfg.CheckpointInterval,
 		Observer:           metrics,
 		Items:              clients.NewPickups(items),
-		Workers:            world.NewWorkers(cfg.Economy.Workers, metrics),
+		Workers:            application.NewWorkers(cfg.Economy.Workers, metrics),
 		Parties:            parties,
 		Characters:         clients.NewCharacters(characters),
 		Starter:            clients.NewStarter(items),

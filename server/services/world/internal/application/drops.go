@@ -1,4 +1,4 @@
-package world
+package application
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/services/world/internal/model"
 )
 
 // Loot rules (page 5, OD-05 default).
@@ -34,8 +35,8 @@ type drop struct {
 	reservedBy kernel.CharacterID // zero when free
 }
 
-func (d *drop) view() DropView {
-	return DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y}
+func (d *drop) view() model.DropView {
+	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y}
 }
 
 // rollDrops rolls a mob's drop table (each entry independently) and puts
@@ -101,14 +102,14 @@ func (i *Instance) pickUp(p *player) {
 		return
 	}
 	if i.opts.Items == nil || i.opts.Workers == nil {
-		p.private = append(p.private, PickupFailed{Tick: i.tick, Err: ErrPickupsUnavailable})
+		p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: model.ErrPickupsUnavailable})
 		return
 	}
 	best.reservedBy = p.ID
 	job := pickupJob{drop: *best, account: p.Account, character: p.ID}
 	if !i.opts.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
 		best.reservedBy = kernel.CharacterID{}
-		p.private = append(p.private, PickupFailed{Tick: i.tick, Err: ErrPickupBusy})
+		p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: model.ErrPickupBusy})
 	}
 }
 
@@ -122,7 +123,7 @@ type pickupJob struct {
 // idempotency key, retried once on a transient failure, then the result
 // goes back to the instance's inbox.
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
-	in := Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
+	in := model.Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
 	slots, err := i.opts.Items.Add(ctx, in)
 	if err != nil && i.opts.Items.Retryable(err) {
 		slots, err = i.opts.Items.Add(ctx, in) // the key makes a retry harmless
@@ -133,7 +134,7 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 type pickupResult struct {
 	dropID uint64
 	who    kernel.CharacterID
-	slots  []Slot
+	slots  []model.Slot
 	err    error
 }
 
@@ -154,7 +155,7 @@ func (i *Instance) finishPickup(r *pickupResult) {
 			d.reservedBy = kernel.CharacterID{}
 		}
 		if p != nil {
-			p.private = append(p.private, PickupFailed{Tick: i.tick, Err: r.err})
+			p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: r.err})
 		}
 		return
 	}
@@ -163,7 +164,7 @@ func (i *Instance) finishPickup(r *pickupResult) {
 		i.removedDrops = append(i.removedDrops, d.id)
 	}
 	if p != nil {
-		p.private = append(p.private, InventoryChanged{Tick: i.tick, Slots: r.slots})
+		p.private = append(p.private, model.InventoryChanged{Tick: i.tick, Slots: r.slots})
 	}
 }
 
@@ -177,8 +178,8 @@ func removeDrop(drops []*drop, id uint64) []*drop {
 }
 
 // dropsFor is what a joining player sees on the ground.
-func (i *Instance) dropViews() []DropView {
-	out := make([]DropView, 0, len(i.drops))
+func (i *Instance) dropViews() []model.DropView {
+	out := make([]model.DropView, 0, len(i.drops))
 	for _, d := range i.drops {
 		out = append(out, d.view())
 	}

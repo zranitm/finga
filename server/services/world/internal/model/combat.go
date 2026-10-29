@@ -1,7 +1,8 @@
-// Package combat is hit and damage resolution (Low-level design, page 5)
-// as pure functions over values: no state, no clock, randomness from a
-// Roll the caller passes in, so a fight replays exactly from a seed.
-package combat
+package model
+
+// Combat: hit and damage resolution (Low-level design, page 5) as pure
+// functions over values: no state, no clock, randomness from a Roll the
+// caller passes in, so a fight replays exactly from a seed.
 
 import "math"
 

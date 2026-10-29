@@ -1,4 +1,4 @@
-package world_test
+package application_test
 
 import (
 	"context"
@@ -11,20 +11,21 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 )
 
 var errNotYours = errors.New("not found")
 
 // fakeCharacters is the character service's Load.
 type fakeCharacters struct {
-	chars map[kernel.CharacterID]world.Character
+	chars map[kernel.CharacterID]model.Character
 }
 
-func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (world.Character, error) {
+func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	c, ok := f.chars[id]
 	if !ok || c.Account != account {
-		return world.Character{}, errNotYours
+		return model.Character{}, errNotYours
 	}
 	return c, nil
 }
@@ -43,10 +44,10 @@ func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id ker
 	return f.err
 }
 
-func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter) (*world.World, func()) {
+func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter) (*application.World, func()) {
 	t.Helper()
 	data := loadData(t)
-	w := world.New(data, &fakeSaver{}, slog.New(slog.DiscardHandler), world.Options{TickInterval: tickInterval, Characters: chars, Starter: starter})
+	w := application.New(data, &fakeSaver{}, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, Characters: chars, Starter: starter})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
@@ -55,13 +56,13 @@ func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter) (*worl
 
 func TestJoinByID(t *testing.T) {
 	account := kernel.NewAccountID()
-	ayla := world.Character{
+	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 	lost := ayla
 	lost.ID, lost.MapID = kernel.NewCharacterID(), "limbo"
-	chars := &fakeCharacters{chars: map[kernel.CharacterID]world.Character{ayla.ID: ayla, lost.ID: lost}}
+	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: ayla, lost.ID: lost}}
 
 	t.Run("loads, grants the starter items, joins, and returns the view", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
@@ -82,7 +83,7 @@ func TestJoinByID(t *testing.T) {
 			}
 			time.Sleep(tickInterval)
 			synctest.Wait()
-			if snap, ok := s.all()[0].(world.Snapshot); !ok || snap.MapID != "town" || len(snap.Players) != 1 {
+			if snap, ok := s.all()[0].(model.Snapshot); !ok || snap.MapID != "town" || len(snap.Players) != 1 {
 				t.Fatalf("first event %+v", s.all())
 			}
 		})
@@ -120,7 +121,7 @@ func TestJoinByID(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			w, stop := joinWorld(t, chars, &fakeStarter{})
 			defer stop()
-			if _, err := w.Join(context.Background(), account, lost.ID, "conn-1", &sink{}); !errors.Is(err, world.ErrNoMap) {
+			if _, err := w.Join(context.Background(), account, lost.ID, "conn-1", &sink{}); !errors.Is(err, model.ErrNoMap) {
 				t.Fatalf("err = %v", err)
 			}
 		})
@@ -132,7 +133,7 @@ func TestJoinByID(t *testing.T) {
 func TestLeaveNamesItsConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := run(t, data, nil, world.Options{})
+		inst, stop := run(t, data, nil, application.Options{})
 		defer stop()
 		x, y := townSpawn(t, data)
 		p := newPlayer("Ayla", x, y)

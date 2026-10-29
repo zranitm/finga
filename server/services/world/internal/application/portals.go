@@ -1,10 +1,11 @@
-package world
+package application
 
 import (
 	"slices"
 
 	"finga/internal/gamedata"
 	"finga/internal/sim"
+	"finga/services/world/internal/model"
 )
 
 // enterPortal moves a player standing in one of this map's portals to the
@@ -47,7 +48,7 @@ func standsIn(r sim.Rect, x, y float64) bool {
 // World join them to the target from its own goroutine. The player's
 // in-memory state (HP, MP, EXP, level) travels with them untouched.
 func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
-	p.sink.Send(Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
+	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
 	moved := p.Player
 	moved.X, moved.Y = x, y
 	sink := p.sink
