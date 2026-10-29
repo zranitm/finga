@@ -1,4 +1,4 @@
-package account_test
+package application_test
 
 import (
 	"context"
@@ -13,7 +13,8 @@ import (
 
 	"finga/pkg/auth"
 	"finga/pkg/auth/password"
-	"finga/services/account/internal/account"
+	"finga/services/account/internal/application"
+	"finga/services/account/internal/model"
 )
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
@@ -22,14 +23,14 @@ type clock struct{ t time.Time }
 
 func (c *clock) now() time.Time { return c.t }
 
-func newService(store account.Store) (*account.Service, *clock) {
+func newService(store application.Store) (*application.Service, *clock) {
 	c := &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)}
-	return account.NewService(store, account.Options{IdleTTL: time.Hour, Now: c.now, Hash: cheapHash}), c
+	return application.NewService(store, application.Options{IdleTTL: time.Hour, Now: c.now, Hash: cheapHash}), c
 }
 
-func register(t *testing.T, svc *account.Service, username, pw string) account.Account {
+func register(t *testing.T, svc *application.Service, username, pw string) model.Account {
 	t.Helper()
-	acc, err := svc.Register(context.Background(), account.RegisterInput{Username: username, Password: pw})
+	acc, err := svc.Register(context.Background(), application.RegisterInput{Username: username, Password: pw})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +43,7 @@ func TestRegister(t *testing.T) {
 		store := newFakeStore()
 		svc, c := newService(store)
 		acc := register(t, svc, "Alice_01", "correct horse")
-		if acc.Username != "Alice_01" || acc.ID.IsZero() || !acc.CreatedAt.Equal(c.t) || acc.Settings != account.DefaultSettings() {
+		if acc.Username != "Alice_01" || acc.ID.IsZero() || !acc.CreatedAt.Equal(c.t) || acc.Settings != model.DefaultSettings() {
 			t.Fatalf("account = %+v", acc)
 		}
 		stored := store.accounts[acc.ID]
@@ -61,21 +62,21 @@ func TestRegister(t *testing.T) {
 			password string
 			want     error
 		}{
-			{"username too short", "ab", "longenough", account.ErrBadUsername},
-			{"username too long", strings.Repeat("a", 17), "longenough", account.ErrBadUsername},
-			{"username with a space", "al ice", "longenough", account.ErrBadUsername},
-			{"username with a dash", "al-ice", "longenough", account.ErrBadUsername},
-			{"username with unicode letters", "alicé", "longenough", account.ErrBadUsername},
-			{"empty username", "", "longenough", account.ErrBadUsername},
-			{"password too short", "alice", "1234567", account.ErrBadPassword},
-			{"password too long", "alice", strings.Repeat("p", 129), account.ErrBadPassword},
-			{"empty password", "alice", "", account.ErrBadPassword},
+			{"username too short", "ab", "longenough", model.ErrBadUsername},
+			{"username too long", strings.Repeat("a", 17), "longenough", model.ErrBadUsername},
+			{"username with a space", "al ice", "longenough", model.ErrBadUsername},
+			{"username with a dash", "al-ice", "longenough", model.ErrBadUsername},
+			{"username with unicode letters", "alicé", "longenough", model.ErrBadUsername},
+			{"empty username", "", "longenough", model.ErrBadUsername},
+			{"password too short", "alice", "1234567", model.ErrBadPassword},
+			{"password too long", "alice", strings.Repeat("p", 129), model.ErrBadPassword},
+			{"empty password", "alice", "", model.ErrBadPassword},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				store := newFakeStore()
 				svc, _ := newService(store)
-				_, err := svc.Register(ctx, account.RegisterInput{Username: tt.username, Password: tt.password})
+				_, err := svc.Register(ctx, application.RegisterInput{Username: tt.username, Password: tt.password})
 				if !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
 				}
@@ -95,8 +96,8 @@ func TestRegister(t *testing.T) {
 	t.Run("a duplicate becomes conflict", func(t *testing.T) {
 		svc, _ := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
-		_, err := svc.Register(ctx, account.RegisterInput{Username: "ALICE", Password: "correct horse"})
-		if !errors.Is(err, account.ErrUsernameTaken) {
+		_, err := svc.Register(ctx, application.RegisterInput{Username: "ALICE", Password: "correct horse"})
+		if !errors.Is(err, model.ErrUsernameTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -121,7 +122,7 @@ func TestVerify(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			id, err := svc.Verify(ctx, tt.username, tt.password)
 			if tt.wantErr {
-				if !errors.Is(err, account.ErrUnauthenticated) {
+				if !errors.Is(err, model.ErrUnauthenticated) {
 					t.Fatalf("err = %v, want ErrUnauthenticated", err)
 				}
 				return
@@ -138,7 +139,7 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 	store := newFakeStore()
 	svc, c := newService(store)
 	acc := register(t, svc, "alice", "correct horse")
-	token, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.1"})
+	token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.1"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,14 +166,14 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 		t.Fatalf("validate = %+v, %v", p, err)
 	}
 	t.Run("a second login revokes the first session", func(t *testing.T) {
-		token2, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "correct horse"})
+		token2, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if token2 == token {
 			t.Fatal("same token twice")
 		}
-		if _, err := svc.Validate(ctx, token); !errors.Is(err, account.ErrUnauthenticated) {
+		if _, err := svc.Validate(ctx, token); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("first token still validates: %v", err)
 		}
 		if store.activeSessions(acc.ID) != 1 {
@@ -188,7 +189,7 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	register(t, svc, "alice", "correct horse")
 	login := func(t *testing.T) string {
 		t.Helper()
-		token, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "correct horse"})
+		token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -220,7 +221,7 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := svc.Validate(ctx, tt.token(t))
-			if !errors.Is(err, account.ErrUnauthenticated) {
+			if !errors.Is(err, model.ErrUnauthenticated) {
 				t.Fatalf("err = %v, want ErrUnauthenticated", err)
 			}
 		})
@@ -240,16 +241,16 @@ func TestLoginThrottling(t *testing.T) {
 		svc, c := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for i := range 5 {
-			if _, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "wrong", IP: fmt.Sprintf("10.0.0.%d", i)}); !errors.Is(err, account.ErrUnauthenticated) {
+			if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong", IP: fmt.Sprintf("10.0.0.%d", i)}); !errors.Is(err, model.ErrUnauthenticated) {
 				t.Fatalf("attempt %d: %v", i, err)
 			}
 		}
-		_, err := svc.Login(ctx, account.LoginInput{Username: "ALICE", Password: "correct horse", IP: "10.0.0.9"})
-		if !errors.Is(err, account.ErrRateLimited) {
+		_, err := svc.Login(ctx, application.LoginInput{Username: "ALICE", Password: "correct horse", IP: "10.0.0.9"})
+		if !errors.Is(err, model.ErrRateLimited) {
 			t.Fatalf("sixth attempt: %v, want rate_limited even with the right password", err)
 		}
 		c.t = c.t.Add(time.Minute)
-		if _, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.9"}); err != nil {
+		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.9"}); err != nil {
 			t.Fatalf("after the window: %v", err)
 		}
 	})
@@ -257,13 +258,13 @@ func TestLoginThrottling(t *testing.T) {
 		svc, _ := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for i := range 5 {
-			_, _ = svc.Login(ctx, account.LoginInput{Username: fmt.Sprintf("user%d", i), Password: "wrong", IP: "10.0.0.1"})
+			_, _ = svc.Login(ctx, application.LoginInput{Username: fmt.Sprintf("user%d", i), Password: "wrong", IP: "10.0.0.1"})
 		}
-		_, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.1"})
-		if !errors.Is(err, account.ErrRateLimited) {
+		_, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.1"})
+		if !errors.Is(err, model.ErrRateLimited) {
 			t.Fatalf("err = %v", err)
 		}
-		if _, err := svc.Login(ctx, account.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.2"}); err != nil {
+		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.2"}); err != nil {
 			t.Fatalf("another IP: %v", err)
 		}
 	})
@@ -284,17 +285,17 @@ func TestSettings(t *testing.T) {
 	acc := register(t, svc, "alice", "correct horse")
 	tests := []struct {
 		name    string
-		preset  account.Preset
+		preset  model.Preset
 		wantErr error
 	}{
-		{"classic", account.PresetClassic, nil},
-		{"wasd", account.PresetWASD, nil},
-		{"unknown preset is rejected", "vim", account.ErrBadPreset},
-		{"empty preset is rejected", "", account.ErrBadPreset},
+		{"classic", model.PresetClassic, nil},
+		{"wasd", model.PresetWASD, nil},
+		{"unknown preset is rejected", "vim", model.ErrBadPreset},
+		{"empty preset is rejected", "", model.ErrBadPreset},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := svc.UpdateSettings(ctx, acc.ID, account.Settings{ControlPreset: tt.preset})
+			err := svc.UpdateSettings(ctx, acc.ID, model.Settings{ControlPreset: tt.preset})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v, want %v", err, tt.wantErr)
 			}
@@ -310,11 +311,11 @@ func TestSettings(t *testing.T) {
 }
 
 func TestServiceImplementsPkgAuth(t *testing.T) {
-	var _ auth.Authenticator = (*account.Service)(nil)
-	var _ auth.Sessions = (*account.Service)(nil)
+	var _ auth.Authenticator = (*application.Service)(nil)
+	var _ auth.Sessions = (*application.Service)(nil)
 	t.Run("Issue for an unknown account fails", func(t *testing.T) {
 		svc, _ := newService(newFakeStore())
-		if _, err := svc.Issue(context.Background(), uuid.New()); !errors.Is(err, account.ErrNotFound) {
+		if _, err := svc.Issue(context.Background(), uuid.New()); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -322,7 +323,7 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 		store := newFakeStore()
 		svc, _ := newService(store)
 		store.failInTx = errors.New("db down")
-		if _, err := svc.Register(context.Background(), account.RegisterInput{Username: "alice", Password: "correct horse"}); err == nil || !strings.Contains(err.Error(), "db down") {
+		if _, err := svc.Register(context.Background(), application.RegisterInput{Username: "alice", Password: "correct horse"}); err == nil || !strings.Contains(err.Error(), "db down") {
 			t.Fatalf("err = %v", err)
 		}
 	})

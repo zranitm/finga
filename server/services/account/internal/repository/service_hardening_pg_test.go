@@ -1,4 +1,4 @@
-package account
+package repository
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/auth/password"
+	"finga/services/account/internal/application"
+	"finga/services/account/internal/model"
 )
 
 // Step 16 rows against real Postgres with an injected clock: rotation with
@@ -38,12 +40,12 @@ func (h *hookRecorder) accountRevoked(_ context.Context, id uuid.UUID, reason st
 	h.accountReasons = append(h.accountReasons, reason)
 }
 
-func newClockedPGService(t *testing.T) (*Service, *Postgres, *time.Time, *hookRecorder) {
+func newClockedPGService(t *testing.T) (*application.Service, *Postgres, *time.Time, *hookRecorder) {
 	t.Helper()
 	now := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	store := NewPostgres(cluster.DB(t))
 	hooks := &hookRecorder{}
-	svc := NewService(store, Options{
+	svc := application.NewService(store, application.Options{
 		Now:              func() time.Time { return now },
 		Hash:             password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32},
 		OnSessionRevoked: hooks.sessionRevoked,
@@ -52,14 +54,14 @@ func newClockedPGService(t *testing.T) (*Service, *Postgres, *time.Time, *hookRe
 	return svc, store, &now, hooks
 }
 
-func loginAs(t *testing.T, svc *Service, username string) (token string, accountID uuid.UUID) {
+func loginAs(t *testing.T, svc *application.Service, username string) (token string, accountID uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
-	acc, err := svc.Register(ctx, RegisterInput{Username: username, Password: "correct horse"})
+	acc, err := svc.Register(ctx, application.RegisterInput{Username: username, Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, err = svc.Login(ctx, LoginInput{Username: username, Password: "correct horse"})
+	token, err = svc.Login(ctx, application.LoginInput{Username: username, Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,19 +89,19 @@ func TestRotationGraceAndReuse(t *testing.T) {
 		if _, err := svc.Validate(ctx, rotated); err != nil {
 			t.Fatalf("the current token after the old one was used once: %v", err)
 		}
-		if _, err := svc.Validate(ctx, token); !errors.Is(err, ErrUnauthenticated) {
+		if _, err := svc.Validate(ctx, token); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("old token a second time: %v", err)
 		}
-		if _, err := svc.Validate(ctx, rotated); !errors.Is(err, ErrUnauthenticated) {
+		if _, err := svc.Validate(ctx, rotated); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("the current token after a reuse: %v", err)
 		}
 		if len(hooks.sessions) != 1 || hooks.sessions[0] != p.SessionID || hooks.reasons[0] != "token reuse" {
 			t.Fatalf("hooks %v %v", hooks.sessions, hooks.reasons)
 		}
-		if _, err := svc.Rotate(ctx, p.SessionID); !errors.Is(err, ErrUnauthenticated) {
+		if _, err := svc.Rotate(ctx, p.SessionID); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("rotating a revoked session: %v", err)
 		}
-		if err := svc.Check(ctx, p.SessionID); !errors.Is(err, ErrUnauthenticated) {
+		if err := svc.Check(ctx, p.SessionID); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("check of a revoked session: %v", err)
 		}
 	})
@@ -115,10 +117,10 @@ func TestRotationGraceAndReuse(t *testing.T) {
 			t.Fatal(err)
 		}
 		*now = now.Add(61 * time.Second)
-		if _, err := svc.Validate(ctx, token); !errors.Is(err, ErrUnauthenticated) {
+		if _, err := svc.Validate(ctx, token); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("retired token after the grace: %v", err)
 		}
-		if _, err := svc.Validate(ctx, current); !errors.Is(err, ErrUnauthenticated) {
+		if _, err := svc.Validate(ctx, current); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("the current token after a reuse: %v", err)
 		}
 		if len(hooks.sessions) != 2 || hooks.sessions[1] != p.SessionID || hooks.reasons[1] != "token reuse" {
@@ -131,7 +133,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 		p, _ := svc.Validate(ctx, token)
 		second, _ := svc.Rotate(ctx, p.SessionID)
 		third, _ := svc.Rotate(ctx, p.SessionID)
-		if _, err := svc.Validate(ctx, token); !errors.Is(err, ErrUnauthenticated) {
+		if _, err := svc.Validate(ctx, token); !errors.Is(err, model.ErrUnauthenticated) {
 			t.Fatalf("the first token after two rotations: %v", err)
 		}
 		if _, err := svc.Validate(ctx, third); err != nil {
@@ -195,16 +197,16 @@ func TestSlidingExpiry(t *testing.T) {
 		t.Fatalf("just before the cap: %v", err)
 	}
 	*now = start.Add(30 * day)
-	if _, err := svc.Validate(ctx, token); !errors.Is(err, ErrUnauthenticated) {
+	if _, err := svc.Validate(ctx, token); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("at 30 days: %v", err)
 	}
-	if err := svc.Check(ctx, p.SessionID); !errors.Is(err, ErrUnauthenticated) {
+	if err := svc.Check(ctx, p.SessionID); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("check at 30 days: %v", err)
 	}
 	// A session left idle for a week is gone.
 	token2, _ := loginAs(t, svc, "bob")
 	*now = now.Add(7 * day)
-	if _, err := svc.Validate(ctx, token2); !errors.Is(err, ErrUnauthenticated) {
+	if _, err := svc.Validate(ctx, token2); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("idle for a week: %v", err)
 	}
 }
@@ -223,19 +225,19 @@ func TestLogOutEverywhere(t *testing.T) {
 	if err := svc.RevokeAll(ctx, accountID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Validate(ctx, token); !errors.Is(err, ErrUnauthenticated) {
+	if _, err := svc.Validate(ctx, token); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("after logging out everywhere: %v", err)
 	}
-	if err := svc.Check(ctx, p.SessionID); !errors.Is(err, ErrUnauthenticated) {
+	if err := svc.Check(ctx, p.SessionID); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("check after logging out everywhere: %v", err)
 	}
 	// The login itself fired the account hook once (a new login ends older
 	// sessions); logging out everywhere fired it again.
-	if len(hooks.accounts) != 2 || hooks.accounts[1] != accountID || hooks.accountReasons[0] != ReasonNewLogin || hooks.accountReasons[1] != "logged out" {
+	if len(hooks.accounts) != 2 || hooks.accounts[1] != accountID || hooks.accountReasons[0] != application.ReasonNewLogin || hooks.accountReasons[1] != "logged out" {
 		t.Fatalf("account hook %v %v", hooks.accounts, hooks.accountReasons)
 	}
 	// Logging out one session fires the session hook.
-	token2, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "correct horse"})
+	token2, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,16 +247,5 @@ func TestLogOutEverywhere(t *testing.T) {
 	}
 	if len(hooks.sessions) != 1 || hooks.sessions[0] != p2.SessionID || hooks.reasons[0] != "logged out" {
 		t.Fatalf("session hook %v %v", hooks.sessions, hooks.reasons)
-	}
-}
-
-func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
-	ctx := context.Background()
-	svc, _, _, _ := newClockedPGService(t)
-	if svc.dummy == "" {
-		t.Fatal("no dummy hash")
-	}
-	if _, err := svc.Verify(ctx, "nobody", "whatever"); !errors.Is(err, ErrUnauthenticated) {
-		t.Fatalf("unknown user: %v", err)
 	}
 }

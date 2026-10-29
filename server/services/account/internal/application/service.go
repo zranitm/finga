@@ -1,4 +1,10 @@
-package account
+// Package application is the account service's use cases (Low-level
+// design, page 11): sign up, log in, sessions with one active session per
+// account (OD-08), and account settings. Its Service implements pkg/auth,
+// so the handler and the gateway depend on the interface (TD-17). ports.go
+// declares what it needs: its Store and the repositories bound to one
+// transaction, which the repository layer implements.
+package application
 
 import (
 	"bytes"
@@ -18,7 +24,22 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/auth/password"
 	"finga/pkg/ratelimit"
+	"finga/services/account/internal/model"
 )
+
+// RegisterInput is a sign-up.
+type RegisterInput struct {
+	Username string
+	Password string
+}
+
+// LoginInput is a login. IP is the caller's address for throttling; empty
+// skips the per-IP limit.
+type LoginInput struct {
+	Username string
+	Password string
+	IP       string
+}
 
 // Options tune the service. Zero values take the defaults below.
 type Options struct {
@@ -72,7 +93,7 @@ const (
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
-// Service is the account module's use cases. It implements pkg/auth.
+// Service is the account service's use cases. It implements pkg/auth.
 type Service struct {
 	store      Store
 	opts       Options
@@ -81,7 +102,7 @@ type Service struct {
 	dummy      string // an argon2id hash verified for unknown usernames, so they take as long
 	byUser     ratelimit.Limiter
 	byIP       ratelimit.Limiter
-	presetList []Preset
+	presetList []model.Preset
 }
 
 var (
@@ -128,41 +149,41 @@ func NewService(store Store, opts Options) *Service {
 		dummy:      dummy,
 		byUser:     ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
 		byIP:       ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
-		presetList: []Preset{PresetClassic, PresetWASD},
+		presetList: []model.Preset{model.PresetClassic, model.PresetWASD},
 	}
 }
 
 // Register creates an account. The password is hashed here; the
 // repository never sees it.
-func (s *Service) Register(ctx context.Context, in RegisterInput) (Account, error) {
+func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account, error) {
 	if len(in.Username) < usernameMin || len(in.Username) > usernameMax || !usernameRe.MatchString(in.Username) {
-		return Account{}, ErrBadUsername
+		return model.Account{}, model.ErrBadUsername
 	}
 	if len(in.Password) < passwordMin || len(in.Password) > passwordMax {
-		return Account{}, ErrBadPassword
+		return model.Account{}, model.ErrBadPassword
 	}
 	hash, err := password.Hash(in.Password, s.hash)
 	if err != nil {
-		return Account{}, err
+		return model.Account{}, err
 	}
-	a := NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: DefaultSettings(), CreatedAt: s.now()}
+	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings(), CreatedAt: s.now()}
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Accounts().Insert(ctx, a)
 	})
 	if err != nil {
-		return Account{}, err
+		return model.Account{}, err
 	}
-	return Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: a.CreatedAt}, nil
+	return model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: a.CreatedAt}, nil
 }
 
 // Login throttles per username and per IP, verifies the credentials, and
 // issues a session. The token is returned once and never stored.
 func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 	if !s.byUser.Allow(loginKeyUser+strings.ToLower(in.Username), 1) {
-		return "", ErrRateLimited
+		return "", model.ErrRateLimited
 	}
 	if in.IP != "" && !s.byIP.Allow(loginKeyIP+in.IP, 1) {
-		return "", ErrRateLimited
+		return "", model.ErrRateLimited
 	}
 	id, err := s.Verify(ctx, in.Username, in.Password)
 	if err != nil {
@@ -178,9 +199,9 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, error) {
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
+		if errors.Is(err, model.ErrNotFound) {
 			_, _ = password.Verify(s.dummy, pw)
-			return uuid.Nil, ErrUnauthenticated
+			return uuid.Nil, model.ErrUnauthenticated
 		}
 		return uuid.Nil, err
 	}
@@ -189,7 +210,7 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 		return uuid.Nil, fmt.Errorf("account %s: %w", creds.Account.ID, err)
 	}
 	if !ok {
-		return uuid.Nil, ErrUnauthenticated
+		return uuid.Nil, model.ErrUnauthenticated
 	}
 	return uuid.UUID(creds.Account.ID), nil
 }
@@ -204,7 +225,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 		return "", err
 	}
 	now := s.now()
-	session := Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
+	session := model.Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
 	for attempt := 0; ; attempt++ {
 		err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 			if err := uow.Accounts().Lock(ctx, session.AccountID); err != nil {
@@ -215,7 +236,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 			}
 			return uow.Sessions().Insert(ctx, session)
 		})
-		if errors.Is(err, ErrSessionRace) && attempt < loginMaxRetries {
+		if errors.Is(err, model.ErrSessionRace) && attempt < loginMaxRetries {
 			continue
 		}
 		if err != nil {
@@ -236,14 +257,14 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 	hash := sha256.Sum256([]byte(token))
 	session, err := s.store.FindActiveSession(ctx, hash[:])
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return auth.Principal{}, ErrUnauthenticated
+		if errors.Is(err, model.ErrNotFound) {
+			return auth.Principal{}, model.ErrUnauthenticated
 		}
 		return auth.Principal{}, err
 	}
 	now := s.now()
 	if !now.Before(session.ExpiresAt) {
-		return auth.Principal{}, ErrUnauthenticated
+		return auth.Principal{}, model.ErrUnauthenticated
 	}
 	if !bytes.Equal(session.TokenHash, hash[:]) {
 		// The previous token: once, inside the grace; otherwise reuse.
@@ -251,7 +272,7 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 			if err := s.revoke(ctx, session.ID, now, ReasonTokenReuse); err != nil {
 				return auth.Principal{}, err
 			}
-			return auth.Principal{}, ErrUnauthenticated
+			return auth.Principal{}, model.ErrUnauthenticated
 		}
 		err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 			return uow.Sessions().ConsumePrevious(ctx, session.ID)
@@ -278,8 +299,8 @@ func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 		return uow.Sessions().Rotate(ctx, kernel.SessionID(sessionID), hash, now)
 	})
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return "", ErrUnauthenticated
+		if errors.Is(err, model.ErrNotFound) {
+			return "", model.ErrUnauthenticated
 		}
 		return "", err
 	}
@@ -290,13 +311,13 @@ func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
 	session, err := s.store.FindSession(ctx, kernel.SessionID(sessionID))
 	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return ErrUnauthenticated
+		if errors.Is(err, model.ErrNotFound) {
+			return model.ErrUnauthenticated
 		}
 		return err
 	}
 	if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) {
-		return ErrUnauthenticated
+		return model.ErrUnauthenticated
 	}
 	return nil
 }
@@ -346,7 +367,7 @@ func (s *Service) expiry(createdAt, now time.Time) time.Time {
 
 // extend slides the expiry, at most once every ExtendEvery and only when
 // it moves it later.
-func (s *Service) extend(ctx context.Context, session Session, now time.Time) error {
+func (s *Service) extend(ctx context.Context, session model.Session, now time.Time) error {
 	lastExtended := session.ExpiresAt.Add(-s.opts.IdleTTL)
 	if now.Sub(lastExtended) < s.opts.ExtendEvery {
 		return nil
@@ -361,18 +382,18 @@ func (s *Service) extend(ctx context.Context, session Session, now time.Time) er
 }
 
 // Settings reads an account's settings.
-func (s *Service) Settings(ctx context.Context, id kernel.AccountID) (Settings, error) {
+func (s *Service) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
 	return s.store.Settings(ctx, id)
 }
 
 // UpdateSettings saves an account's settings; the preset must be known.
-func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st Settings) error {
+func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st model.Settings) error {
 	known := false
 	for _, p := range s.presetList {
 		known = known || p == st.ControlPreset
 	}
 	if !known {
-		return ErrBadPreset
+		return model.ErrBadPreset
 	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Accounts().UpdateSettings(ctx, id, st)

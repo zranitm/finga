@@ -1,4 +1,7 @@
-package account
+// Package repository is the account service's storage (Low-level design,
+// page 11): the Postgres store behind application.Store, its unit of work,
+// and classify, over the accounts and sessions tables the service owns.
+package repository
 
 import (
 	"context"
@@ -14,11 +17,13 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/dbx"
-	"finga/services/account/internal/account/internal/db"
+	"finga/services/account/internal/application"
+	"finga/services/account/internal/model"
+	"finga/services/account/internal/repository/internal/db"
 )
 
-// Postgres is the module's store: plain reads on the pool, InTx for writes,
-// and classify at every boundary so callers see the module's errors.
+// Postgres is the service's store: plain reads on the pool, InTx for writes,
+// and classify at every boundary so callers see the model's errors.
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -32,7 +37,7 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 // InTx runs fn inside one transaction with a unit of work bound to it.
 // fn may run more than once (dbx.InTx retries), so it must have no side
 // effects outside the transaction.
-func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) error {
+func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(unitOfWork{q: db.New(tx)})
 	})
@@ -41,28 +46,28 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow UnitOfWork) error) erro
 
 // FindByUsername loads an account and its password hash; username is
 // matched ignoring letter case (citext).
-func (p *Postgres) FindByUsername(ctx context.Context, username string) (Credentials, error) {
+func (p *Postgres) FindByUsername(ctx context.Context, username string) (model.Credentials, error) {
 	row, err := p.q.FindAccountByUsername(ctx, username)
 	if err != nil {
-		return Credentials{}, classify(err)
+		return model.Credentials{}, classify(err)
 	}
-	var settings Settings
+	var settings model.Settings
 	if err := json.Unmarshal(row.Settings, &settings); err != nil {
-		return Credentials{}, fmt.Errorf("account %s: settings: %w", row.ID, err)
+		return model.Credentials{}, fmt.Errorf("account %s: settings: %w", row.ID, err)
 	}
-	return Credentials{
-		Account:      Account{ID: kernel.AccountID(row.ID), Username: row.Username, Settings: settings, CreatedAt: row.CreatedAt},
+	return model.Credentials{
+		Account:      model.Account{ID: kernel.AccountID(row.ID), Username: row.Username, Settings: settings, CreatedAt: row.CreatedAt},
 		PasswordHash: row.PasswordHash,
 	}, nil
 }
 
 // FindActiveSession loads the unrevoked session with this token hash.
-func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (Session, error) {
+func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (model.Session, error) {
 	row, err := p.q.FindActiveSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return Session{}, classify(err)
+		return model.Session{}, classify(err)
 	}
-	return Session{
+	return model.Session{
 		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
@@ -70,14 +75,14 @@ func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (Ses
 }
 
 // Settings reads an account's settings.
-func (p *Postgres) Settings(ctx context.Context, id kernel.AccountID) (Settings, error) {
+func (p *Postgres) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
 	raw, err := p.q.GetSettings(ctx, uuid.UUID(id))
 	if err != nil {
-		return Settings{}, classify(err)
+		return model.Settings{}, classify(err)
 	}
-	var s Settings
+	var s model.Settings
 	if err := json.Unmarshal(raw, &s); err != nil {
-		return Settings{}, fmt.Errorf("account %s: settings: %w", id, err)
+		return model.Settings{}, fmt.Errorf("account %s: settings: %w", id, err)
 	}
 	return s, nil
 }
@@ -85,15 +90,15 @@ func (p *Postgres) Settings(ctx context.Context, id kernel.AccountID) (Settings,
 type unitOfWork struct{ q *db.Queries }
 
 // Accounts is the account repository bound to the transaction.
-func (u unitOfWork) Accounts() Repository { return accountRepo(u) }
+func (u unitOfWork) Accounts() application.Repository { return accountRepo(u) }
 
 // Sessions is the session repository bound to the transaction.
-func (u unitOfWork) Sessions() SessionRepository { return sessionRepo(u) }
+func (u unitOfWork) Sessions() application.SessionRepository { return sessionRepo(u) }
 
 type accountRepo struct{ q *db.Queries }
 
 // Insert adds an account row.
-func (r accountRepo) Insert(ctx context.Context, a NewAccount) error {
+func (r accountRepo) Insert(ctx context.Context, a model.NewAccount) error {
 	settings, err := json.Marshal(a.Settings)
 	if err != nil {
 		return err
@@ -110,7 +115,7 @@ func (r accountRepo) Lock(ctx context.Context, id kernel.AccountID) error {
 }
 
 // UpdateSettings replaces the settings JSON; no row is pgx.ErrNoRows.
-func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s Settings) error {
+func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error {
 	settings, err := json.Marshal(s)
 	if err != nil {
 		return err
@@ -128,7 +133,7 @@ func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s 
 type sessionRepo struct{ q *db.Queries }
 
 // Insert adds a session row.
-func (r sessionRepo) Insert(ctx context.Context, s Session) error {
+func (r sessionRepo) Insert(ctx context.Context, s model.Session) error {
 	return r.q.InsertSession(ctx, db.InsertSessionParams{
 		ID: uuid.UUID(s.ID), AccountID: uuid.UUID(s.AccountID), TokenHash: s.TokenHash, CreatedAt: s.CreatedAt, ExpiresAt: s.ExpiresAt,
 	})
@@ -153,7 +158,7 @@ const (
 	constraintActiveSession = "one_active_session"
 )
 
-// classify turns database errors into this module's errors, by constraint
+// classify turns database errors into the model's errors, by constraint
 // name. Unknown errors pass through: retries still see 40001, and handlers
 // report the rest as internal.
 func classify(err error) error {
@@ -162,23 +167,23 @@ func classify(err error) error {
 	case err == nil:
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
-		return fmt.Errorf("%w: %w", ErrNotFound, err)
+		return fmt.Errorf("%w: %w", model.ErrNotFound, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintUsername:
-		return fmt.Errorf("%w: %w", ErrUsernameTaken, err)
+		return fmt.Errorf("%w: %w", model.ErrUsernameTaken, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintActiveSession:
-		return fmt.Errorf("%w: %w", ErrSessionRace, err)
+		return fmt.Errorf("%w: %w", model.ErrSessionRace, err)
 	default:
 		return err
 	}
 }
 
 // FindSession loads a session by ID, revoked or not.
-func (p *Postgres) FindSession(ctx context.Context, id kernel.SessionID) (Session, error) {
+func (p *Postgres) FindSession(ctx context.Context, id kernel.SessionID) (model.Session, error) {
 	row, err := p.q.FindSessionByID(ctx, uuid.UUID(id))
 	if err != nil {
-		return Session{}, classify(err)
+		return model.Session{}, classify(err)
 	}
-	return Session{
+	return model.Session{
 		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
@@ -192,7 +197,7 @@ func (r sessionRepo) Rotate(ctx context.Context, id kernel.SessionID, newHash []
 		return classify(err)
 	}
 	if n == 0 {
-		return ErrNotFound
+		return model.ErrNotFound
 	}
 	return nil
 }

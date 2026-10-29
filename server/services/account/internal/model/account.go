@@ -1,8 +1,7 @@
-// Package account is the account module: sign up, log in, sessions with one
-// active session per account (OD-08), and account settings. Its service
-// implements pkg/auth, so handlers and the gateway depend on the interface
-// (TD-17). It owns the accounts and sessions tables.
-package account
+// Package model is the account service's model (Low-level design, page
+// 11): accounts, sessions (one active per account, OD-08), settings, and
+// the errors its use cases return. It needs nothing but data.
+package model
 
 import (
 	"errors"
@@ -11,7 +10,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The module's errors. Each names one failure; the service's handler sends
+// The service's errors. Each names one failure; the service's handler sends
 // it as a reason, and the gateway gives it a code, a status and the words a
 // player sees (its errmap).
 var (
@@ -81,18 +80,4 @@ type Session struct {
 	CreatedAt         time.Time
 	ExpiresAt         time.Time
 	RevokedAt         *time.Time
-}
-
-// RegisterInput is a sign-up.
-type RegisterInput struct {
-	Username string
-	Password string
-}
-
-// LoginInput is a login. IP is the caller's address for throttling; empty
-// skips the per-IP limit.
-type LoginInput struct {
-	Username string
-	Password string
-	IP       string
 }

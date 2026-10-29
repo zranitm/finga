@@ -1,4 +1,4 @@
-package account
+package repository
 
 import (
 	"context"
@@ -10,15 +10,17 @@ import (
 	"github.com/google/uuid"
 
 	"finga/pkg/auth/password"
+	"finga/services/account/internal/application"
+	"finga/services/account/internal/model"
 )
 
 // The rows the step page wants against real Postgres: the partial unique
 // index is the backstop for one active session.
 
-func newPGService(t *testing.T) (*Service, *Postgres) {
+func newPGService(t *testing.T) (*application.Service, *Postgres) {
 	t.Helper()
 	store := NewPostgres(cluster.DB(t))
-	svc := NewService(store, Options{
+	svc := application.NewService(store, application.Options{
 		IdleTTL: time.Hour,
 		Hash:    password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32},
 	})
@@ -28,21 +30,21 @@ func newPGService(t *testing.T) (*Service, *Postgres) {
 func TestLoggingInTwiceStopsTheFirstSession(t *testing.T) {
 	ctx := context.Background()
 	svc, _ := newPGService(t)
-	if _, err := svc.Register(ctx, RegisterInput{Username: "alice", Password: "correct horse"}); err != nil {
+	if _, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"}); err != nil {
 		t.Fatal(err)
 	}
-	first, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "correct horse"})
+	first, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := svc.Validate(ctx, first); err != nil {
 		t.Fatal(err)
 	}
-	second, err := svc.Login(ctx, LoginInput{Username: "alice", Password: "correct horse"})
+	second, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Validate(ctx, first); !errors.Is(err, ErrUnauthenticated) {
+	if _, err := svc.Validate(ctx, first); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("first session still validates: %v", err)
 	}
 	if _, err := svc.Validate(ctx, second); err != nil {
@@ -53,7 +55,7 @@ func TestLoggingInTwiceStopsTheFirstSession(t *testing.T) {
 func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 	ctx := context.Background()
 	svc, store := newPGService(t)
-	acc, err := svc.Register(ctx, RegisterInput{Username: "alice", Password: "correct horse"})
+	acc, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}

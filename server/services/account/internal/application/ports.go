@@ -1,21 +1,22 @@
-package account
+package application
 
 import (
 	"context"
 	"time"
 
 	"finga/internal/kernel"
+	"finga/services/account/internal/model"
 )
 
 // Store is what the service sees of persistence: plain reads on the pool,
 // and InTx for anything that writes. The service never holds a transaction.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
-	FindByUsername(ctx context.Context, username string) (Credentials, error)
+	FindByUsername(ctx context.Context, username string) (model.Credentials, error)
 	// FindActiveSession finds the unrevoked session whose current or previous token has this hash.
-	FindActiveSession(ctx context.Context, tokenHash []byte) (Session, error)
-	FindSession(ctx context.Context, id kernel.SessionID) (Session, error)
-	Settings(ctx context.Context, id kernel.AccountID) (Settings, error)
+	FindActiveSession(ctx context.Context, tokenHash []byte) (model.Session, error)
+	FindSession(ctx context.Context, id kernel.SessionID) (model.Session, error)
+	Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.
@@ -26,15 +27,15 @@ type UnitOfWork interface {
 
 // Repository writes the accounts table.
 type Repository interface {
-	Insert(ctx context.Context, a NewAccount) error
+	Insert(ctx context.Context, a model.NewAccount) error
 	// Lock takes the account's row lock, serialising logins per account.
 	Lock(ctx context.Context, id kernel.AccountID) error
-	UpdateSettings(ctx context.Context, id kernel.AccountID, s Settings) error
+	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
 }
 
 // SessionRepository writes the sessions table.
 type SessionRepository interface {
-	Insert(ctx context.Context, s Session) error
+	Insert(ctx context.Context, s model.Session) error
 	RevokeAll(ctx context.Context, accountID kernel.AccountID, at time.Time) error
 	Revoke(ctx context.Context, id kernel.SessionID, at time.Time) error
 	// Rotate retires the current token as the previous one and sets a new hash; ErrNotFound when the session is not active.
