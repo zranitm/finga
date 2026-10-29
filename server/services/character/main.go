@@ -11,7 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/internal/host"
-	"finga/services/character/cmd/character/app"
+	"finga/services/character/app"
 	"finga/services/character/config"
 )
 

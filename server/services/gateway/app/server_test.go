@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/services/gateway/cmd/gateway/app"
+	"finga/services/gateway/app"
 	"finga/services/gateway/config"
 )
 

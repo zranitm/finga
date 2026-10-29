@@ -15,7 +15,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
-	"finga/services/item/cmd/item/app"
+	"finga/services/item/app"
 	"finga/services/item/config"
 	"finga/services/item/migrations"
 )
@@ -40,7 +40,7 @@ func cfgFor(t *testing.T) config.Config {
 		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace: time.Second,
 		LogLevel:      "error",
-		DataDir:       "../../../../../data",
+		DataDir:       "../../../data",
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
 	}
 }

@@ -14,7 +14,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
-	"finga/services/account/cmd/account/app"
+	"finga/services/account/app"
 	"finga/services/account/config"
 	"finga/services/account/migrations"
 )

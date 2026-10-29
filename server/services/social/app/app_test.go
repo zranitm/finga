@@ -12,7 +12,7 @@ import (
 	"finga/internal/host"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/services/social/cmd/social/app"
+	"finga/services/social/app"
 	"finga/services/social/config"
 )
 
