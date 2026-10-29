@@ -19,9 +19,10 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/services/character/config"
-	"finga/services/character/internal/character"
+	"finga/services/character/internal/application"
 	"finga/services/character/internal/clients"
 	"finga/services/character/internal/handler"
+	"finga/services/character/internal/repository"
 )
 
 // Build wires the character service from configuration. It fails fast on
@@ -41,7 +42,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		pool.Close()
 		return nil, fmt.Errorf("item service: %w", err)
 	}
-	characters := character.NewService(character.NewPostgres(pool), data, character.Options{
+	characters := application.NewService(repository.NewPostgres(pool), data, application.Options{
 		Starter: clients.NewStarter(itemv1.NewItemServiceClient(itemConn)),
 		Logger:  log,
 	})

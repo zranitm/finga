@@ -1,4 +1,4 @@
-package character_test
+package application_test
 
 import (
 	"context"
@@ -9,23 +9,24 @@ import (
 	"sync"
 
 	"finga/internal/kernel"
-	"finga/services/character/internal/character"
+	"finga/services/character/internal/application"
+	"finga/services/character/internal/model"
 )
 
 // fakeStore is an in-memory Store with the one constraint the service
 // relies on: a unique name ignoring case.
 type fakeStore struct {
 	mu      sync.Mutex
-	chars   map[kernel.CharacterID]character.Character
+	chars   map[kernel.CharacterID]model.Character
 	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[kernel.CharacterID]character.Character{}}
+	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}}
 }
 
-func (s *fakeStore) InTx(_ context.Context, fn func(uow character.UnitOfWork) error) error {
+func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.txCount++
@@ -39,10 +40,10 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow character.UnitOfWork) er
 	return nil
 }
 
-func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]character.Character, error) {
+func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]model.Character, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var out []character.Character
+	var out []model.Character
 	for _, id := range s.order {
 		if c := s.chars[id]; c.AccountID == account {
 			out = append(out, c)
@@ -52,19 +53,19 @@ func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]charact
 	return out, nil
 }
 
-func (s *fakeStore) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (character.Character, error) {
+func (s *fakeStore) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	c, ok := s.chars[id]
 	if !ok || c.AccountID != account {
-		return character.Character{}, character.ErrNotFound
+		return model.Character{}, model.ErrNotFound
 	}
 	return c, nil
 }
 
 type fakeUOW struct{ s *fakeStore }
 
-func (u fakeUOW) Characters() character.Repository { return fakeRepo(u) }
+func (u fakeUOW) Characters() application.Repository { return fakeRepo(u) }
 
 // fakeStarter records grants and fails the first failures calls with err.
 type fakeStarter struct {
@@ -103,10 +104,10 @@ func (f *fakeStarter) Retryable(error) bool { return f.retryable }
 
 type fakeRepo struct{ s *fakeStore }
 
-func (r fakeRepo) Insert(_ context.Context, c character.Character) error {
+func (r fakeRepo) Insert(_ context.Context, c model.Character) error {
 	for _, existing := range r.s.chars {
 		if strings.EqualFold(existing.Name, c.Name) {
-			return character.ErrNameTaken
+			return model.ErrNameTaken
 		}
 	}
 	r.s.chars[c.ID] = c
@@ -114,20 +115,20 @@ func (r fakeRepo) Insert(_ context.Context, c character.Character) error {
 	return nil
 }
 
-func (r fakeRepo) SaveCheckpoint(_ context.Context, cp character.Checkpoint) error {
+func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	c, ok := r.s.chars[cp.ID]
 	if !ok {
-		return character.ErrNotFound
+		return model.ErrNotFound
 	}
 	c.MapID, c.X, c.Y, c.HP, c.MP, c.Exp, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Exp, cp.At
 	r.s.chars[cp.ID] = c
 	return nil
 }
 
-func (r fakeRepo) SaveLevelUp(_ context.Context, lu character.LevelUp) error {
+func (r fakeRepo) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
 	c, ok := r.s.chars[lu.ID]
 	if !ok {
-		return character.ErrNotFound
+		return model.ErrNotFound
 	}
 	c.Level, c.Exp, c.Stats, c.HP, c.MP, c.UpdatedAt = lu.Level, lu.Exp, lu.Stats, lu.HP, lu.MP, lu.At
 	r.s.chars[lu.ID] = c

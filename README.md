@@ -204,9 +204,9 @@ each (Low-level design, page 11): `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),
 `handler` (its gRPC server and error table) and `clients` (its adapters for
-the services it calls); imports point inward, to `model`. The account and
-item services are in layers so far; the others keep one module package
-(`internal/<module>`) until their steps (33 to 36). `migrations/` holds its
+the services it calls); imports point inward, to `model`. The account,
+item and character services are in layers so far; the others keep their
+module packages (`internal/<module>`) until their steps (34 to 36). `migrations/` holds its
 own goose files with its own version table. Go's
 `internal/` rule keeps services out of each other, and depguard checks the
 rest of the import direction: composition roots → services → the shared

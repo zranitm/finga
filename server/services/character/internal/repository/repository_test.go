@@ -1,4 +1,4 @@
-package character
+package repository
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/pgtest"
+	"finga/services/character/internal/application"
+	"finga/services/character/internal/model"
 	"finga/services/character/migrations"
 )
 
@@ -32,17 +34,17 @@ func TestMain(m *testing.M) {
 
 var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
-func sample(account kernel.AccountID, name string) Character {
-	return Character{
+func sample(account kernel.AccountID, name string) model.Character {
+	return model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Warrior, Level: 1, Exp: 0,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
 		MapID: "town", X: 416, Y: 608, UpdatedAt: t0,
 	}
 }
 
-func insert(t *testing.T, store *Postgres, c Character) {
+func insert(t *testing.T, store *Postgres, c model.Character) {
 	t.Helper()
-	if err := store.InTx(context.Background(), func(uow UnitOfWork) error { return uow.Characters().Insert(context.Background(), c) }); err != nil {
+	if err := store.InTx(context.Background(), func(uow application.UnitOfWork) error { return uow.Characters().Insert(context.Background(), c) }); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -55,8 +57,8 @@ func TestRepository(t *testing.T) {
 	insert(t, store, ayla)
 
 	t.Run("a duplicate name in different letter case gives ErrNameTaken", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Characters().Insert(ctx, sample(bob, "AYLA")) })
-		if !errors.Is(err, ErrNameTaken) {
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().Insert(ctx, sample(bob, "AYLA")) })
+		if !errors.Is(err, model.ErrNameTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -77,7 +79,7 @@ func TestRepository(t *testing.T) {
 
 	t.Run("loading another account's character gives ErrNotFound", func(t *testing.T) {
 		_, err := store.Load(ctx, ayla.ID, bob)
-		if !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -102,8 +104,8 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("a checkpoint saved, then loaded, matches", func(t *testing.T) {
-		cp := Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Exp: 12, At: t0.Add(time.Hour)}
-		if err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
+		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Exp: 12, At: t0.Add(time.Hour)}
+		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
 			t.Fatal(err)
 		}
 		got, err := store.Load(ctx, ayla.ID, alice)
@@ -119,8 +121,8 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("a level-up saved, then loaded, matches", func(t *testing.T) {
-		lu := LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MP: 32, At: t0.Add(2 * time.Hour)}
-		if err := store.InTx(ctx, func(uow UnitOfWork) error { return uow.Characters().SaveLevelUp(ctx, lu) }); err != nil {
+		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MP: 32, At: t0.Add(2 * time.Hour)}
+		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveLevelUp(ctx, lu) }); err != nil {
 			t.Fatal(err)
 		}
 		got, err := store.Load(ctx, ayla.ID, alice)
@@ -136,16 +138,16 @@ func TestRepository(t *testing.T) {
 	})
 
 	t.Run("saves for an unknown character give ErrNotFound", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Characters().SaveCheckpoint(ctx, Checkpoint{ID: kernel.NewCharacterID(), MapID: "town", At: t0})
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			return uow.Characters().SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), MapID: "town", At: t0})
 		})
-		if !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("checkpoint: %v", err)
 		}
-		err = store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Characters().SaveLevelUp(ctx, LevelUp{ID: kernel.NewCharacterID(), Level: 2, At: t0})
+		err = store.InTx(ctx, func(uow application.UnitOfWork) error {
+			return uow.Characters().SaveLevelUp(ctx, model.LevelUp{ID: kernel.NewCharacterID(), Level: 2, At: t0})
 		})
-		if !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("level-up: %v", err)
 		}
 	})
@@ -158,8 +160,8 @@ func TestClassify(t *testing.T) {
 		want error
 	}{
 		{"nil", nil, nil},
-		{"no rows", pgx.ErrNoRows, ErrNotFound},
-		{"name unique constraint", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, ErrNameTaken},
+		{"no rows", pgx.ErrNoRows, model.ErrNotFound},
+		{"name unique constraint", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, model.ErrNameTaken},
 		{"another constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "accounts_username_key"}, nil},
 		{"a deadlock passes through", &pgconn.PgError{Code: "40P01"}, nil},
 	}

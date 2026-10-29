@@ -1,5 +1,5 @@
 // Package clients are the character service's adapters for the services it
-// calls, in the character module's own terms: the item service, for a new
+// calls, implementing its application's ports: the item service, for a new
 // character's starter items.
 package clients
 
