@@ -10,7 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 )
 
@@ -32,8 +32,8 @@ const (
 // Load reads and validates every file under dir.
 func Load(dir string) (*Data, error) {
 	d := &Data{
-		classIdx: map[model.Class]int{},
-		formulas: map[model.Class]Formulas{},
+		classIdx: map[kernel.Class]int{},
+		formulas: map[kernel.Class]Formulas{},
 		itemIdx:  map[string]int{},
 		mobIdx:   map[string]int{},
 		mapIdx:   map[string]int{},
@@ -128,7 +128,7 @@ func (d *Data) loadClasses(dir string) error {
 		return fmt.Errorf("%s: no classes", classesFile)
 	}
 	for _, c := range file.Classes {
-		id, err := model.ParseClass(c.ID)
+		id, err := kernel.ParseClass(c.ID)
 		if err != nil {
 			return fmt.Errorf("%s: class %q: not a class", classesFile, c.ID)
 		}
@@ -182,7 +182,7 @@ func (d *Data) loadStats(dir string) error {
 		return err
 	}
 	for _, className := range slices.Sorted(sortedKeys(file)) {
-		id, err := model.ParseClass(className)
+		id, err := kernel.ParseClass(className)
 		if err != nil {
 			return fmt.Errorf("%s: class %q: not a class", statsFile, className)
 		}
@@ -343,7 +343,7 @@ func (d *Data) loadItems(dir string) error {
 				return fmt.Errorf("%s: item %s: equipment needs a slot (weapon or armor), got %q", itemsFile, it.ID, raw.Slot)
 			}
 			if raw.Class != "" {
-				class, err := model.ParseClass(raw.Class)
+				class, err := kernel.ParseClass(raw.Class)
 				if err != nil {
 					return fmt.Errorf("%s: item %s: unknown class %q", itemsFile, it.ID, raw.Class)
 				}

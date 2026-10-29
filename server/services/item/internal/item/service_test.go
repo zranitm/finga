@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // These rules are about transactions, so they run against real Postgres.
@@ -30,7 +30,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool)
-	return &harness{pool: pool, store: store, svc: NewService(store, data, Options{}), data: data, actor: Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}}
+	return &harness{pool: pool, store: store, svc: NewService(store, data, Options{}), data: data, actor: Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 
 func (h *harness) add(t *testing.T, key, template string, qty int) Result {
@@ -150,7 +150,7 @@ func TestMove(t *testing.T) {
 	h.add(t, "a2", "blue_potion", 10)
 	inv := h.inventory(t)
 	red, blue := inv[0], inv[1]
-	move := func(key string, id model.ItemID, slot int) (Result, error) {
+	move := func(key string, id kernel.ItemID, slot int) (Result, error) {
 		return h.svc.Move(ctx, h.actor, MoveInput{Key: key, ItemID: id, Tab: gamedata.Use, Slot: slot})
 	}
 
@@ -246,7 +246,7 @@ func TestMove(t *testing.T) {
 			{"another tab", MoveInput{Key: "mb1", ItemID: blue.ID, Tab: gamedata.Etc, Slot: 2}, ErrWrongTab},
 			{"slot out of range", MoveInput{Key: "mb2", ItemID: blue.ID, Tab: gamedata.Use, Slot: 24}, ErrBadSlot},
 			{"negative slot", MoveInput{Key: "mb3", ItemID: blue.ID, Tab: gamedata.Use, Slot: -1}, ErrBadSlot},
-			{"someone else's item", MoveInput{Key: "mb4", ItemID: model.NewItemID(), Tab: gamedata.Use, Slot: 2}, ErrNotFound},
+			{"someone else's item", MoveInput{Key: "mb4", ItemID: kernel.NewItemID(), Tab: gamedata.Use, Slot: 2}, ErrNotFound},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -257,7 +257,7 @@ func TestMove(t *testing.T) {
 		}
 	})
 	t.Run("someone else's item cannot be moved by another character", func(t *testing.T) {
-		other := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+		other := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		_, err := h.svc.Move(ctx, other, MoveInput{Key: "x", ItemID: blue.ID, Tab: gamedata.Use, Slot: 9})
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v", err)
@@ -305,7 +305,7 @@ func TestDiscard(t *testing.T) {
 		if _, err := h.svc.Discard(ctx, h.actor, DiscardInput{Key: "d4", ItemID: potion.ID, Quantity: 0}); !errors.Is(err, ErrBadQuantity) {
 			t.Fatalf("err = %v", err)
 		}
-		other := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+		other := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		if _, err := h.svc.Discard(ctx, other, DiscardInput{Key: "d5", ItemID: potion.ID, Quantity: 1}); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
@@ -348,7 +348,7 @@ func TestIdempotency(t *testing.T) {
 		}
 	})
 	t.Run("keys are scoped to the account", func(t *testing.T) {
-		other := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
+		other := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		if _, err := h.svc.Add(ctx, other, in); err != nil {
 			t.Fatalf("another account with the same key: %v", err)
 		}
@@ -383,8 +383,8 @@ func TestIdempotency(t *testing.T) {
 func TestGrantStarter(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	warrior := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
-	first, err := h.svc.GrantStarter(ctx, warrior, model.Warrior)
+	warrior := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+	first, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestGrantStarter(t *testing.T) {
 	}
 
 	t.Run("a second grant for the same character changes nothing and returns the first one's slots", func(t *testing.T) {
-		again, err := h.svc.GrantStarter(ctx, warrior, model.Warrior)
+		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -419,13 +419,13 @@ func TestGrantStarter(t *testing.T) {
 		}
 	})
 	t.Run("another class for the same character reuses the key", func(t *testing.T) {
-		if _, err := h.svc.GrantStarter(ctx, warrior, model.Bowman); !errors.Is(err, ErrKeyReused) {
+		if _, err := h.svc.GrantStarter(ctx, warrior, kernel.Bowman); !errors.Is(err, ErrKeyReused) {
 			t.Fatalf("err = %v, want ErrKeyReused", err)
 		}
 	})
 	t.Run("a bowman gets a bow", func(t *testing.T) {
-		bowman := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
-		if _, err := h.svc.GrantStarter(ctx, bowman, model.Bowman); err != nil {
+		bowman := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		if _, err := h.svc.GrantStarter(ctx, bowman, kernel.Bowman); err != nil {
 			t.Fatal(err)
 		}
 		inv, _ := h.svc.Inventory(ctx, bowman.Character)
@@ -434,8 +434,8 @@ func TestGrantStarter(t *testing.T) {
 		}
 	})
 	t.Run("a class the game data does not have is unknown_item and writes nothing", func(t *testing.T) {
-		thief := Actor{Account: model.NewAccountID(), Character: model.NewCharacterID()}
-		if _, err := h.svc.GrantStarter(ctx, thief, model.Thief); !errors.Is(err, ErrUnknownItem) {
+		thief := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		if _, err := h.svc.GrantStarter(ctx, thief, kernel.Thief); !errors.Is(err, ErrUnknownItem) {
 			t.Fatalf("err = %v, want ErrUnknownItem", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items WHERE owner_id = $1`, thief.Character) != 0 {

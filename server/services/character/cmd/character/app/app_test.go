@@ -14,7 +14,7 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/host"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
@@ -88,7 +88,7 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer conn.Close()
-	owner := model.NewAccountID()
+	owner := kernel.NewAccountID()
 	res, err := characterv1.NewCharacterServiceClient(conn).Create(ctx, &characterv1.CreateRequest{AccountId: owner.String(), Name: "Ayla", Class: "warrior"})
 	if err != nil {
 		t.Fatal(err)

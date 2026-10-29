@@ -11,7 +11,7 @@ import (
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/host"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
@@ -66,7 +66,7 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	}
 	defer conn.Close()
 	c := itemv1.NewItemServiceClient(conn)
-	actor := &itemv1.Actor{AccountId: model.NewAccountID().String(), CharacterId: model.NewCharacterID().String()}
+	actor := &itemv1.Actor{AccountId: kernel.NewAccountID().String(), CharacterId: kernel.NewCharacterID().String()}
 	if _, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "warrior"}); err != nil {
 		t.Fatal(err)
 	}

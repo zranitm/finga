@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/world/internal/world"
 )
 
@@ -45,7 +45,7 @@ func snapshots(s *sink) []world.Snapshot {
 
 // seenIn counts the deltas and snapshots of s that carry id, and the
 // deltas that remove it.
-func seenIn(s *sink, id model.CharacterID) (present, removed int) {
+func seenIn(s *sink, id kernel.CharacterID) (present, removed int) {
 	for _, e := range s.all() {
 		switch ev := e.(type) {
 		case world.Snapshot:

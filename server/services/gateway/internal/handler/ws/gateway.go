@@ -26,7 +26,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
@@ -94,11 +94,11 @@ type Gateway struct {
 
 	mu          sync.Mutex
 	byConn      map[string]*session
-	byAccount   map[model.AccountID]*session
-	byCharacter map[model.CharacterID]*session // active sessions, for party and chat delivery
-	bySession   map[model.SessionID]*session   // active connections by login session
-	socialBoot  string                         // the social service's boot ID, from its stream
-	worldSubs   uint64                         // subscriptions to the world's stream so far
+	byAccount   map[kernel.AccountID]*session
+	byCharacter map[kernel.CharacterID]*session // active sessions, for party and chat delivery
+	bySession   map[kernel.SessionID]*session   // active connections by login session
+	socialBoot  string                          // the social service's boot ID, from its stream
+	worldSubs   uint64                          // subscriptions to the world's stream so far
 	helloGrace  time.Duration
 	draining    atomic.Bool // Drain has begun: no new connections
 }
@@ -132,9 +132,9 @@ func New(deps Dependencies) *Gateway {
 		limits:      rateLimits(),
 		now:         deps.Clock,
 		byConn:      map[string]*session{},
-		byAccount:   map[model.AccountID]*session{},
-		byCharacter: map[model.CharacterID]*session{},
-		bySession:   map[model.SessionID]*session{},
+		byAccount:   map[kernel.AccountID]*session{},
+		byCharacter: map[kernel.CharacterID]*session{},
+		bySession:   map[kernel.SessionID]*session{},
 		helloGrace:  deps.HelloTimeout,
 	}
 }
@@ -197,13 +197,13 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 func (g *Gateway) sessionEnded(m *accountv1.WatchSessionsResponse) {
 	switch {
 	case m.GetSessionRevoked() != nil:
-		id, err := model.ParseSessionID(m.GetSessionRevoked().GetSessionId())
+		id, err := kernel.ParseSessionID(m.GetSessionRevoked().GetSessionId())
 		if err == nil {
 			g.KickSession(id)
 		}
 	case m.GetAccountRevoked() != nil:
 		ev := m.GetAccountRevoked()
-		id, err := model.ParseAccountID(ev.GetAccountId())
+		id, err := kernel.ParseAccountID(ev.GetAccountId())
 		if err == nil {
 			g.KickAccount(id, ev.GetReason() == accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN)
 		}
@@ -212,7 +212,7 @@ func (g *Gateway) sessionEnded(m *accountv1.WatchSessionsResponse) {
 
 // KickSession closes every connection on a login session: the account
 // service reported it ended by reuse or logout.
-func (g *Gateway) KickSession(sessionID model.SessionID) {
+func (g *Gateway) KickSession(sessionID kernel.SessionID) {
 	g.mu.Lock()
 	s := g.bySession[sessionID]
 	g.mu.Unlock()
@@ -224,7 +224,7 @@ func (g *Gateway) KickSession(sessionID model.SessionID) {
 // KickAccount closes every connection of an account: a logout everywhere,
 // or a new login elsewhere (newLogin), which the player sees as
 // logged_in_elsewhere; anything else is session_expired.
-func (g *Gateway) KickAccount(accountID model.AccountID, newLogin bool) {
+func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	g.mu.Lock()
 	s := g.byAccount[accountID]
 	g.mu.Unlock()
@@ -239,7 +239,7 @@ func (g *Gateway) KickAccount(accountID model.AccountID, newLogin bool) {
 }
 
 // sessionOf finds the active session of a character, if any.
-func (g *Gateway) sessionOf(id model.CharacterID) *session {
+func (g *Gateway) sessionOf(id kernel.CharacterID) *session {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.byCharacter[id]
@@ -409,7 +409,7 @@ func (g *Gateway) command(s *session, m wsconn.Message) {
 		})
 	case protocol.InventoryMove:
 		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
-			id, err := model.ParseItemID(d.ItemID)
+			id, err := kernel.ParseItemID(d.ItemID)
 			if err != nil {
 				return nil, err
 			}
@@ -418,7 +418,7 @@ func (g *Gateway) command(s *session, m wsconn.Message) {
 		})
 	case protocol.InventoryDiscard:
 		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, actor *itemv1.Actor) ([]*itemv1.Slot, error) {
-			id, err := model.ParseItemID(d.ItemID)
+			id, err := kernel.ParseItemID(d.ItemID)
 			if err != nil {
 				return nil, err
 			}
@@ -429,7 +429,7 @@ func (g *Gateway) command(s *session, m wsconn.Message) {
 		g.chat(s, d)
 	case protocol.PartyInvite:
 		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
-			to, err := model.ParseCharacterID(d.CharacterID)
+			to, err := kernel.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
@@ -448,7 +448,7 @@ func (g *Gateway) command(s *session, m wsconn.Message) {
 		})
 	case protocol.PartyKick:
 		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
-			target, err := model.ParseCharacterID(d.CharacterID)
+			target, err := kernel.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
@@ -457,7 +457,7 @@ func (g *Gateway) command(s *session, m wsconn.Message) {
 		})
 	case protocol.PartyPromote:
 		g.partyCommand(s, m.ReqID, func(ctx context.Context, me string) error {
-			target, err := model.ParseCharacterID(d.CharacterID)
+			target, err := kernel.ParseCharacterID(d.CharacterID)
 			if err != nil {
 				return err
 			}
@@ -562,12 +562,12 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		s.conn.Close(wsconn.CloseInternal, "session")
 		return
 	}
-	charID, err := model.ParseCharacterID(h.CharacterID)
+	charID, err := kernel.ParseCharacterID(h.CharacterID)
 	if err != nil {
 		g.kick(s.conn, protocol.KickUnauthenticated)
 		return
 	}
-	account, sessionID := model.AccountID(p.AccountID), model.SessionID(p.SessionID)
+	account, sessionID := kernel.AccountID(p.AccountID), kernel.SessionID(p.SessionID)
 
 	// A rejoin (the world's stream broke) waits until this join is out.
 	s.rejoinMu.Lock()
@@ -595,7 +595,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 				delete(g.byCharacter, charID)
 			}
 		}
-		s.character.ID = model.CharacterID{}
+		s.character.ID = kernel.CharacterID{}
 		g.mu.Unlock()
 		// Someone else's character, or none, is a bad Hello; a world or
 		// character service that cannot answer is a server fault the client
@@ -685,7 +685,7 @@ func (g *Gateway) worldDelivered(m *worldv1.DeliverResponse) {
 		}
 		return
 	}
-	id, err := model.ParseCharacterID(m.GetCharacterId())
+	id, err := kernel.ParseCharacterID(m.GetCharacterId())
 	if err != nil {
 		return
 	}
@@ -877,7 +877,7 @@ func (g *Gateway) socialDelivered(m *socialv1.DeliverResponse) {
 		}
 		return
 	}
-	id, err := model.ParseCharacterID(m.GetCharacterId())
+	id, err := kernel.ParseCharacterID(m.GetCharacterId())
 	if err != nil {
 		return
 	}

@@ -12,17 +12,17 @@ import (
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/item/internal/item"
 )
 
 // Service is what the handler needs from the item module.
 type Service interface {
-	Inventory(ctx context.Context, owner model.CharacterID) ([]item.Item, error)
+	Inventory(ctx context.Context, owner kernel.CharacterID) ([]item.Item, error)
 	Add(ctx context.Context, actor item.Actor, in item.AddInput) (item.Result, error)
 	Move(ctx context.Context, actor item.Actor, in item.MoveInput) (item.Result, error)
 	Discard(ctx context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error)
-	GrantStarter(ctx context.Context, actor item.Actor, class model.Class) (item.Result, error)
+	GrantStarter(ctx context.Context, actor item.Actor, class kernel.Class) (item.Result, error)
 }
 
 // Server serves ItemService over the module.
@@ -36,7 +36,7 @@ func New(svc Service) *Server { return &Server{svc: svc} }
 
 // Inventory lists a character's items.
 func (s *Server) Inventory(ctx context.Context, req *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
-	owner, err := model.ParseCharacterID(req.GetCharacterId())
+	owner, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (s *Server) Move(ctx context.Context, req *itemv1.MoveRequest) (*itemv1.Mov
 	if err != nil {
 		return nil, err
 	}
-	id, err := model.ParseItemID(req.GetItemId())
+	id, err := kernel.ParseItemID(req.GetItemId())
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 	if err != nil {
 		return nil, err
 	}
-	id, err := model.ParseItemID(req.GetItemId())
+	id, err := kernel.ParseItemID(req.GetItemId())
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 	if err != nil {
 		return nil, err
 	}
-	class, err := model.ParseClass(req.GetClass())
+	class, err := kernel.ParseClass(req.GetClass())
 	if err != nil {
 		return nil, err
 	}
@@ -120,11 +120,11 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 }
 
 func actorOf(a *itemv1.Actor) (item.Actor, error) {
-	account, err := model.ParseAccountID(a.GetAccountId())
+	account, err := kernel.ParseAccountID(a.GetAccountId())
 	if err != nil {
 		return item.Actor{}, err
 	}
-	character, err := model.ParseCharacterID(a.GetCharacterId())
+	character, err := kernel.ParseCharacterID(a.GetCharacterId())
 	if err != nil {
 		return item.Actor{}, err
 	}
@@ -142,7 +142,7 @@ func causeOf(c *itemv1.Cause) (item.Cause, error) {
 	if c.GetId() != "" {
 		id, err := uuid.Parse(c.GetId())
 		if err != nil {
-			return item.Cause{}, model.ErrBadID
+			return item.Cause{}, kernel.ErrBadID
 		}
 		out.ID = id
 	}

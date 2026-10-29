@@ -4,17 +4,17 @@ import (
 	"context"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // Store is what the service sees of persistence: plain reads on the pool,
 // and InTx for anything that writes.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
-	List(ctx context.Context, account model.AccountID) ([]Character, error)
+	List(ctx context.Context, account kernel.AccountID) ([]Character, error)
 	// Load returns the character only if it belongs to the account;
 	// otherwise ErrNotFound, so ownership and existence look the same.
-	Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error)
+	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.
@@ -27,7 +27,7 @@ type UnitOfWork interface {
 // The item service implements it, through an adapter over its client; a
 // grant is idempotent, keyed by the character ID, so retrying it is safe.
 type StarterItems interface {
-	GrantStarter(ctx context.Context, account model.AccountID, character model.CharacterID, class model.Class) error
+	GrantStarter(ctx context.Context, account kernel.AccountID, character kernel.CharacterID, class kernel.Class) error
 	// Retryable reports whether a failed grant may succeed when tried again:
 	// a transient failure, not a rule it ran into.
 	Retryable(err error) bool
@@ -42,7 +42,7 @@ type Repository interface {
 
 // Content is what the module needs from game data.
 type Content interface {
-	Class(id model.Class) (gamedata.Class, bool)
-	Formulas(id model.Class) (gamedata.Formulas, bool)
+	Class(id kernel.Class) (gamedata.Class, bool)
+	Formulas(id kernel.Class) (gamedata.Formulas, bool)
 	Town() *gamedata.Map
 }

@@ -1,7 +1,7 @@
-// Package model holds the value types shared by every service: IDs, Class,
+// Package kernel holds the value types shared by every service: IDs, Class,
 // and later Coins. It has no behaviour beyond parsing and printing, and
 // imports only pkg.
-package model
+package kernel
 
 import "finga/pkg/typedid"
 

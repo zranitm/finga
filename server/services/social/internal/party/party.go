@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 )
 
 // Defaults (page 5).
@@ -24,7 +24,7 @@ const (
 // Member is a party member as the others see them. The service learns
 // these from the gateway (online, offline) and the world (map, level, HP).
 type Member struct {
-	ID     model.CharacterID
+	ID     kernel.CharacterID
 	Name   string
 	Level  int
 	HP     int
@@ -36,16 +36,16 @@ type Member struct {
 
 // Party is one party: the leader and the members in join order.
 type Party struct {
-	Leader  model.CharacterID
+	Leader  kernel.CharacterID
 	Members []Member
 }
 
 // Invite is a pending invitation.
 type Invite struct {
 	ID       string
-	From     model.CharacterID
+	From     kernel.CharacterID
 	FromName string
-	To       model.CharacterID
+	To       kernel.CharacterID
 	Expires  time.Time
 }
 
@@ -54,9 +54,9 @@ type Invite struct {
 type Notifier interface {
 	// PartyChanged sends the new state to each listed member; p is nil for a
 	// member who no longer has a party.
-	PartyChanged(members []model.CharacterID, p *Party)
+	PartyChanged(members []kernel.CharacterID, p *Party)
 	// Invited delivers an invite to its recipient.
-	Invited(to model.CharacterID, inv Invite)
+	Invited(to kernel.CharacterID, inv Invite)
 }
 
 // Options tune the service. Zero values take the defaults.
@@ -74,8 +74,8 @@ type Service struct {
 	notifier Notifier
 
 	mu      sync.Mutex
-	known   map[model.CharacterID]Member // everyone seen online, for invites and member rows
-	parties map[model.CharacterID]*Party // by member
+	known   map[kernel.CharacterID]Member // everyone seen online, for invites and member rows
+	parties map[kernel.CharacterID]*Party // by member
 	invites map[string]Invite
 	seq     uint64
 }
@@ -91,7 +91,7 @@ func NewService(opts Options) *Service {
 	if opts.Clock == nil {
 		opts.Clock = time.Now
 	}
-	return &Service{opts: opts, known: map[model.CharacterID]Member{}, parties: map[model.CharacterID]*Party{}, invites: map[string]Invite{}}
+	return &Service{opts: opts, known: map[kernel.CharacterID]Member{}, parties: map[kernel.CharacterID]*Party{}, invites: map[string]Invite{}}
 }
 
 // Notify sets the notifier; nil means nobody is told.
@@ -124,7 +124,7 @@ func (s *Service) Online(m Member) {
 }
 
 // Offline marks a character as disconnected; their party keeps them.
-func (s *Service) Offline(id model.CharacterID) {
+func (s *Service) Offline(id kernel.CharacterID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, ok := s.known[id]
@@ -137,7 +137,7 @@ func (s *Service) Offline(id model.CharacterID) {
 }
 
 // Update records a change the world saw: the map, level or HP of a member.
-func (s *Service) Update(id model.CharacterID, mapID string, level, hp, maxHP int) {
+func (s *Service) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	m, ok := s.known[id]
@@ -160,7 +160,7 @@ func (s *Service) upsert(m Member) {
 }
 
 // refresh copies a member's row into their party and tells the party.
-func (s *Service) refresh(id model.CharacterID, m Member) {
+func (s *Service) refresh(id kernel.CharacterID, m Member) {
 	p, ok := s.parties[id]
 	if !ok {
 		return
@@ -176,7 +176,7 @@ func (s *Service) refresh(id model.CharacterID, m Member) {
 
 // Invite asks a character on the inviter's map to join. A character with
 // no party becomes a leader when the invite is accepted.
-func (s *Service) Invite(from, to model.CharacterID) (Invite, error) {
+func (s *Service) Invite(from, to kernel.CharacterID) (Invite, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.expire()
@@ -216,7 +216,7 @@ func (s *Service) Invite(from, to model.CharacterID) (Invite, error) {
 }
 
 // Respond accepts or declines an invite addressed to who.
-func (s *Service) Respond(who model.CharacterID, inviteID string, accept bool) error {
+func (s *Service) Respond(who kernel.CharacterID, inviteID string, accept bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.expire()
@@ -254,7 +254,7 @@ func (s *Service) Respond(who model.CharacterID, inviteID string, accept bool) e
 
 // Leave removes who from their party. The longest-standing member leads
 // when the leader leaves; an empty party is gone.
-func (s *Service) Leave(who model.CharacterID) error {
+func (s *Service) Leave(who kernel.CharacterID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.parties[who]
@@ -266,7 +266,7 @@ func (s *Service) Leave(who model.CharacterID) error {
 }
 
 // Kick removes a member; only the leader may, and not themselves.
-func (s *Service) Kick(leader, target model.CharacterID) error {
+func (s *Service) Kick(leader, target kernel.CharacterID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.parties[leader]
@@ -284,7 +284,7 @@ func (s *Service) Kick(leader, target model.CharacterID) error {
 }
 
 // Promote hands leadership to another member.
-func (s *Service) Promote(leader, target model.CharacterID) error {
+func (s *Service) Promote(leader, target kernel.CharacterID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.parties[leader]
@@ -303,7 +303,7 @@ func (s *Service) Promote(leader, target model.CharacterID) error {
 }
 
 // Of is the party of a character, copied, or false.
-func (s *Service) Of(id model.CharacterID) (Party, bool) {
+func (s *Service) Of(id kernel.CharacterID) (Party, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.parties[id]
@@ -317,7 +317,7 @@ func (s *Service) Of(id model.CharacterID) (Party, bool) {
 // service's lock, so no change interleaves with the visit: a subscriber
 // that takes this snapshot and then hears every PartyChanged sees each
 // party's latest membership last. visit must not block or call back.
-func (s *Service) Memberships(visit func(members []model.CharacterID)) {
+func (s *Service) Memberships(visit func(members []kernel.CharacterID)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	seen := map[*Party]bool{}
@@ -330,7 +330,7 @@ func (s *Service) Memberships(visit func(members []model.CharacterID)) {
 }
 
 // Members lists the IDs of a character's party, nil without one.
-func (s *Service) Members(id model.CharacterID) []model.CharacterID {
+func (s *Service) Members(id kernel.CharacterID) []kernel.CharacterID {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.parties[id]
@@ -341,7 +341,7 @@ func (s *Service) Members(id model.CharacterID) []model.CharacterID {
 }
 
 // SameParty reports whether two characters share a party.
-func (s *Service) SameParty(a, b model.CharacterID) bool {
+func (s *Service) SameParty(a, b kernel.CharacterID) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, ok := s.parties[a]
@@ -355,11 +355,11 @@ func (s *Service) add(p *Party, m Member) {
 	s.parties[m.ID] = p
 }
 
-func (s *Service) remove(p *Party, id model.CharacterID) {
+func (s *Service) remove(p *Party, id kernel.CharacterID) {
 	p.Members = slices.DeleteFunc(p.Members, func(m Member) bool { return m.ID == id })
 	delete(s.parties, id)
 	if s.notifier != nil {
-		s.notifier.PartyChanged([]model.CharacterID{id}, nil)
+		s.notifier.PartyChanged([]kernel.CharacterID{id}, nil)
 	}
 	if len(p.Members) == 0 {
 		return
@@ -387,8 +387,8 @@ func (s *Service) expire() {
 	}
 }
 
-func ids(p *Party) []model.CharacterID {
-	out := make([]model.CharacterID, 0, len(p.Members))
+func ids(p *Party) []kernel.CharacterID {
+	out := make([]kernel.CharacterID, 0, len(p.Members))
 	for _, m := range p.Members {
 		out = append(out, m.ID)
 	}

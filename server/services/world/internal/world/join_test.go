@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/world/internal/world"
 )
 
@@ -18,10 +18,10 @@ var errNotYours = errors.New("not found")
 
 // fakeCharacters is the character service's Load.
 type fakeCharacters struct {
-	chars map[model.CharacterID]world.Character
+	chars map[kernel.CharacterID]world.Character
 }
 
-func (f *fakeCharacters) Load(_ context.Context, id model.CharacterID, account model.AccountID) (world.Character, error) {
+func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (world.Character, error) {
 	c, ok := f.chars[id]
 	if !ok || c.Account != account {
 		return world.Character{}, errNotYours
@@ -32,11 +32,11 @@ func (f *fakeCharacters) Load(_ context.Context, id model.CharacterID, account m
 // fakeStarter records grants, or fails with err.
 type fakeStarter struct {
 	mu     sync.Mutex
-	grants []model.CharacterID
+	grants []kernel.CharacterID
 	err    error
 }
 
-func (f *fakeStarter) GrantStarter(_ context.Context, _ model.AccountID, id model.CharacterID, _ model.Class) error {
+func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id kernel.CharacterID, _ kernel.Class) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.grants = append(f.grants, id)
@@ -54,14 +54,14 @@ func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter) (*worl
 }
 
 func TestJoinByID(t *testing.T) {
-	account := model.NewAccountID()
+	account := kernel.NewAccountID()
 	ayla := world.Character{
-		ID: model.NewCharacterID(), Account: account, Name: "Ayla", Class: model.Warrior, Level: 1,
+		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 	lost := ayla
-	lost.ID, lost.MapID = model.NewCharacterID(), "limbo"
-	chars := &fakeCharacters{chars: map[model.CharacterID]world.Character{ayla.ID: ayla, lost.ID: lost}}
+	lost.ID, lost.MapID = kernel.NewCharacterID(), "limbo"
+	chars := &fakeCharacters{chars: map[kernel.CharacterID]world.Character{ayla.ID: ayla, lost.ID: lost}}
 
 	t.Run("loads, grants the starter items, joins, and returns the view", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
@@ -108,7 +108,7 @@ func TestJoinByID(t *testing.T) {
 			starter := &fakeStarter{}
 			w, stop := joinWorld(t, chars, starter)
 			defer stop()
-			if _, err := w.Join(context.Background(), model.NewAccountID(), ayla.ID, "conn-1", &sink{}); !errors.Is(err, errNotYours) {
+			if _, err := w.Join(context.Background(), kernel.NewAccountID(), ayla.ID, "conn-1", &sink{}); !errors.Is(err, errNotYours) {
 				t.Fatalf("err = %v", err)
 			}
 			if len(starter.grants) != 0 {

@@ -10,7 +10,7 @@ import (
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/host"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/services/social/cmd/social/app"
 	"finga/services/social/config"
@@ -47,8 +47,8 @@ func TestAnInviteReachesTheGatewayOverTheRealListener(t *testing.T) {
 	if m, err := stream.Recv(); err != nil || m.GetSubscribed().GetBootId() == "" {
 		t.Fatalf("first %+v %v", m, err)
 	}
-	ann, bo := model.NewCharacterID(), model.NewCharacterID()
-	for _, id := range []model.CharacterID{ann, bo} {
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+	for _, id := range []kernel.CharacterID{ann, bo} {
 		if _, err := c.Online(ctx, &socialv1.OnlineRequest{GatewayId: "gw", Member: &socialv1.Member{Id: id.String(), Name: "X", MapId: "town"}}); err != nil {
 			t.Fatal(err)
 		}

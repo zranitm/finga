@@ -26,7 +26,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
@@ -41,13 +41,13 @@ const (
 )
 
 var (
-	alice     = model.NewAccountID()
-	bob       = model.NewAccountID()
-	aylaID    = model.NewCharacterID()
-	robinID   = model.NewCharacterID()
-	brunoID   = model.NewCharacterID()
-	sessAlice = model.NewSessionID()
-	sessBob   = model.NewSessionID()
+	alice     = kernel.NewAccountID()
+	bob       = kernel.NewAccountID()
+	aylaID    = kernel.NewCharacterID()
+	robinID   = kernel.NewCharacterID()
+	brunoID   = kernel.NewCharacterID()
+	sessAlice = kernel.NewSessionID()
+	sessBob   = kernel.NewSessionID()
 )
 
 type harness struct {
@@ -165,7 +165,7 @@ func (c *client) expect(msgType string) wsconn.Message {
 	}
 }
 
-func (c *client) hello(token string, charID model.CharacterID) {
+func (c *client) hello(token string, charID kernel.CharacterID) {
 	c.t.Helper()
 	c.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: charID.String()}})
 }
@@ -237,7 +237,7 @@ func TestHelloFailures(t *testing.T) {
 	}{
 		{"a bad token", protocol.Hello{Token: "nope", ProtocolVersion: protocol.Version, CharacterID: aylaID.String()}, protocol.KickUnauthenticated},
 		{"someone else's character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: brunoID.String()}, protocol.KickUnauthenticated},
-		{"an unknown character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: model.NewCharacterID().String()}, protocol.KickUnauthenticated},
+		{"an unknown character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: kernel.NewCharacterID().String()}, protocol.KickUnauthenticated},
 		{"a malformed character ID", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: "ayla"}, protocol.KickUnauthenticated},
 		{"an old protocol version", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version - 1, CharacterID: aylaID.String()}, protocol.KickOutdatedProtocol},
 		{"a future protocol version", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version + 1, CharacterID: aylaID.String()}, protocol.KickOutdatedProtocol},
@@ -561,7 +561,7 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 }
 
 func TestInventoryInWelcomeAndCommands(t *testing.T) {
-	potion := &itemv1.Item{Id: model.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
+	potion := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
 	items := &fakeItems{inventory: []*itemv1.Item{potion}}
 	h := newHarness(t, func(d *ws.Dependencies) { d.Items = items.client(t) })
 	c := h.dial(t)
@@ -634,7 +634,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			t.Fatalf("response %+v", r)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: []*itemv1.Slot{
-			{Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: model.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
+			{Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
 		}}}})
 		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
 		if len(ic.Slots) != 1 || ic.Slots[0].Item.Template != "slime_gel" {
@@ -660,7 +660,7 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Welcome")
 	c.expect("Snapshot")
-	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: model.NewItemID().String(), Quantity: 1}})
+	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Quantity: 1}})
 	r := c.expect("Response").Data.(protocol.Response)
 	if r.OK || r.Code != "internal" || strings.Contains(r.Message, "connection reset") {
 		t.Fatalf("response %+v; the cause must stay out of it", r)
@@ -694,7 +694,7 @@ func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: model.NewItemID().String(), Quantity: 1}})
+	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Quantity: 1}})
 	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "inventory_unavailable" {
 		t.Fatalf("response %+v", r)
 	}
@@ -729,7 +729,7 @@ func social(t *testing.T, fs *fakeSocial) *harness {
 
 func TestChatRouting(t *testing.T) {
 	fs := newFakeSocial()
-	fs.recipients = []model.CharacterID{aylaID, brunoID}
+	fs.recipients = []kernel.CharacterID{aylaID, brunoID}
 	h := social(t, fs)
 	ayla := h.dial(t)
 	ayla.hello(tokenAlice, aylaID)
@@ -870,7 +870,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 	})
 	t.Run("PartyState and PartyInvited from the social service's stream reach the connections", func(t *testing.T) {
 		state := &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{Party: &socialv1.Party{LeaderId: brunoID.String(), Members: []*socialv1.Member{{Id: brunoID.String(), Name: "Bruno", Online: true}, {Id: aylaID.String(), Name: "Ayla", Online: true}}}}}
-		for _, id := range []model.CharacterID{aylaID, brunoID, robinID} { // robin is not connected here: dropped
+		for _, id := range []kernel.CharacterID{aylaID, brunoID, robinID} { // robin is not connected here: dropped
 			fs.push(id, &socialv1.DeliverResponse{Event: state})
 		}
 		for _, c := range []*client{ayla, bruno} {

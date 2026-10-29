@@ -205,7 +205,7 @@ error table, `internal/clients` its adapters for the services it calls, and
 `migrations/` its own goose files with its own version table. Go's
 `internal/` rule keeps services out of each other, and depguard checks the
 rest of the import direction: composition roots → services → the shared
-kernel (`internal/model`, `internal/gamedata`, `internal/sim`,
+kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries, idempotency keys, the outbox, token
 buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps, the

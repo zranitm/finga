@@ -16,7 +16,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
 	"finga/services/social/internal/chat"
@@ -26,20 +26,20 @@ import (
 // Parties is what the handler needs from the party module.
 type Parties interface {
 	Online(m party.Member)
-	Offline(id model.CharacterID)
-	Of(id model.CharacterID) (party.Party, bool)
-	Invite(from, to model.CharacterID) (party.Invite, error)
-	Respond(who model.CharacterID, inviteID string, accept bool) error
-	Leave(who model.CharacterID) error
-	Kick(leader, target model.CharacterID) error
-	Promote(leader, target model.CharacterID) error
-	Update(id model.CharacterID, mapID string, level, hp, maxHP int)
-	Memberships(visit func(members []model.CharacterID))
+	Offline(id kernel.CharacterID)
+	Of(id kernel.CharacterID) (party.Party, bool)
+	Invite(from, to kernel.CharacterID) (party.Invite, error)
+	Respond(who kernel.CharacterID, inviteID string, accept bool) error
+	Leave(who kernel.CharacterID) error
+	Kick(leader, target kernel.CharacterID) error
+	Promote(leader, target kernel.CharacterID) error
+	Update(id kernel.CharacterID, mapID string, level, hp, maxHP int)
+	Memberships(visit func(members []kernel.CharacterID))
 }
 
 // Chat is what the handler needs from the chat module.
 type Chat interface {
-	Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []model.CharacterID, error)
+	Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []kernel.CharacterID, error)
 }
 
 // Queue sizes: what may wait for a slow gateway or world node before its
@@ -59,7 +59,7 @@ type Server struct {
 	watchers *hub.Hub[*socialv1.WatchPartiesResponse]
 
 	mu       sync.Mutex
-	presence map[model.CharacterID]string // the gateway each online character is on
+	presence map[kernel.CharacterID]string // the gateway each online character is on
 }
 
 // New builds the server; call the party module's Notify with it. bootID is
@@ -70,7 +70,7 @@ func New(parties Parties, chat Chat, bootID string) *Server {
 		parties: parties, chat: chat, bootID: bootID,
 		deliver:  hub.New[*socialv1.DeliverResponse](deliverQueue),
 		watchers: hub.New[*socialv1.WatchPartiesResponse](watchQueue),
-		presence: map[model.CharacterID]string{},
+		presence: map[kernel.CharacterID]string{},
 	}
 }
 
@@ -92,7 +92,7 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 		return status.Error(codes.InvalidArgument, "world_id is required")
 	}
 	sub := s.watchers.Subscribe(req.GetWorldId())
-	s.parties.Memberships(func(members []model.CharacterID) {
+	s.parties.Memberships(func(members []kernel.CharacterID) {
 		sub.Send(membership(members, members))
 	})
 	first := &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}
@@ -105,7 +105,7 @@ func (s *Server) Online(_ context.Context, req *socialv1.OnlineRequest) (*social
 		return nil, status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
 	m := req.GetMember()
-	id, err := model.ParseCharacterID(m.GetId())
+	id, err := kernel.ParseCharacterID(m.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (s *Server) Online(_ context.Context, req *socialv1.OnlineRequest) (*social
 
 // Offline marks a character as disconnected.
 func (s *Server) Offline(_ context.Context, req *socialv1.OfflineRequest) (*socialv1.OfflineResponse, error) {
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (s *Server) Offline(_ context.Context, req *socialv1.OfflineRequest) (*soci
 
 // PartyOf is a character's party, if any.
 func (s *Server) PartyOf(_ context.Context, req *socialv1.PartyOfRequest) (*socialv1.PartyOfResponse, error) {
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (s *Server) Invite(_ context.Context, req *socialv1.InviteRequest) (*social
 
 // Respond accepts or declines an invite.
 func (s *Server) Respond(_ context.Context, req *socialv1.RespondRequest) (*socialv1.RespondResponse, error) {
-	who, err := model.ParseCharacterID(req.GetCharacterId())
+	who, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (s *Server) Respond(_ context.Context, req *socialv1.RespondRequest) (*soci
 
 // LeaveParty removes the caller from its party.
 func (s *Server) LeaveParty(_ context.Context, req *socialv1.LeavePartyRequest) (*socialv1.LeavePartyResponse, error) {
-	who, err := model.ParseCharacterID(req.GetCharacterId())
+	who, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ var channels = map[socialv1.ChatChannel]chat.Channel{
 // Chat cleans and limits a line; a party line is delivered to every member,
 // a map line goes back to the caller.
 func (s *Server) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.ChatResponse, error) {
-	from, err := model.ParseCharacterID(req.GetSenderId())
+	from, err := kernel.ParseCharacterID(req.GetSenderId())
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (s *Server) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.C
 
 // UpdateMember records what the world saw of a member.
 func (s *Server) UpdateMember(_ context.Context, req *socialv1.UpdateMemberRequest) (*socialv1.UpdateMemberResponse, error) {
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -229,12 +229,12 @@ func (s *Server) UpdateMember(_ context.Context, req *socialv1.UpdateMemberReque
 // PartyChanged implements party.Notifier: each listed member's gateway gets
 // the new state, and every world node the new membership. It runs under
 // the party module's lock and never blocks.
-func (s *Server) PartyChanged(members []model.CharacterID, p *party.Party) {
+func (s *Server) PartyChanged(members []kernel.CharacterID, p *party.Party) {
 	state := &socialv1.PartyState{Party: partyOf(p)}
 	for _, id := range members {
 		s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: state}})
 	}
-	var now []model.CharacterID
+	var now []kernel.CharacterID
 	if p != nil {
 		for _, m := range p.Members {
 			now = append(now, m.ID)
@@ -244,7 +244,7 @@ func (s *Server) PartyChanged(members []model.CharacterID, p *party.Party) {
 }
 
 // Invited implements party.Notifier: the invitee's gateway gets it.
-func (s *Server) Invited(to model.CharacterID, inv party.Invite) {
+func (s *Server) Invited(to kernel.CharacterID, inv party.Invite) {
 	s.send(to, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{
 		InviteId: inv.ID, FromId: inv.From.String(), FromName: inv.FromName,
 	}}})
@@ -252,7 +252,7 @@ func (s *Server) Invited(to model.CharacterID, inv party.Invite) {
 
 // send delivers to the gateway a character is online through, if any; a
 // character offline, or whose gateway has no stream, misses it.
-func (s *Server) send(to model.CharacterID, ev *socialv1.DeliverResponse) {
+func (s *Server) send(to kernel.CharacterID, ev *socialv1.DeliverResponse) {
 	s.mu.Lock()
 	gateway, ok := s.presence[to]
 	s.mu.Unlock()
@@ -265,13 +265,13 @@ func (s *Server) send(to model.CharacterID, ev *socialv1.DeliverResponse) {
 	}
 }
 
-func membership(characters, members []model.CharacterID) *socialv1.WatchPartiesResponse {
+func membership(characters, members []kernel.CharacterID) *socialv1.WatchPartiesResponse {
 	return &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Membership{Membership: &socialv1.Membership{
 		CharacterIds: strings(characters), Members: strings(members),
 	}}}
 }
 
-func strings(ids []model.CharacterID) []string {
+func strings(ids []kernel.CharacterID) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, id.String())
@@ -290,11 +290,11 @@ func partyOf(p *party.Party) *socialv1.Party {
 	return out
 }
 
-func pair(a, b string) (model.CharacterID, model.CharacterID, error) {
-	first, err := model.ParseCharacterID(a)
+func pair(a, b string) (kernel.CharacterID, kernel.CharacterID, error) {
+	first, err := kernel.ParseCharacterID(a)
 	if err != nil {
 		return first, first, err
 	}
-	second, err := model.ParseCharacterID(b)
+	second, err := kernel.ParseCharacterID(b)
 	return first, second, err
 }

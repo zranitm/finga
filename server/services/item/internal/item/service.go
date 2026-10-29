@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/outbox"
 )
 
@@ -41,7 +41,7 @@ func NewService(store Store, content Content, opts Options) *Service {
 }
 
 // Inventory lists the character's items.
-func (s *Service) Inventory(ctx context.Context, owner model.CharacterID) ([]Item, error) {
+func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) ([]Item, error) {
 	return s.store.Inventory(ctx, owner)
 }
 
@@ -68,7 +68,7 @@ func (s *Service) Add(ctx context.Context, actor Actor, in AddInput) (Result, er
 }
 
 // add is the inventory rule, on the command's unit of work.
-func (s *Service) add(ctx context.Context, uow UnitOfWork, owner model.CharacterID, tmpl gamedata.Item, quantity int, cause Cause) (Result, error) {
+func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, cause Cause) (Result, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
 		return Result{}, err
@@ -103,7 +103,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner model.Character
 		if !ok {
 			return Result{}, ErrInventoryFull
 		}
-		it := Item{ID: model.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, UpdatedAt: now}
+		it := Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, UpdatedAt: now}
 		if err := uow.Items().Insert(ctx, it); err != nil {
 			return Result{}, err
 		}
@@ -142,7 +142,7 @@ func (s *Service) Move(ctx context.Context, actor Actor, in MoveInput) (Result, 
 	return res, err
 }
 
-func (s *Service) move(ctx context.Context, uow UnitOfWork, owner model.CharacterID, in MoveInput) (Result, error) {
+func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in MoveInput) (Result, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
 		return Result{}, err
@@ -223,7 +223,7 @@ func (s *Service) Discard(ctx context.Context, actor Actor, in DiscardInput) (Re
 	return res, err
 }
 
-func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner model.CharacterID, in DiscardInput) (Result, error) {
+func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in DiscardInput) (Result, error) {
 	it, err := uow.Items().LockOwned(ctx, in.ItemID, owner)
 	if err != nil {
 		return Result{}, err // no row, also when it isn't yours: ErrNotFound after classify
@@ -257,7 +257,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner model.Chara
 // service retrying, or the world's safety net on join) returns the first
 // call's slots and writes nothing. A class the game data does not have is
 // ErrUnknownItem.
-func (s *Service) GrantStarter(ctx context.Context, actor Actor, class model.Class) (Result, error) {
+func (s *Service) GrantStarter(ctx context.Context, actor Actor, class kernel.Class) (Result, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
 		return Result{}, ErrUnknownItem

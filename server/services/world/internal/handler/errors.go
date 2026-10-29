@@ -4,7 +4,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/services/world/internal/world"
 )
@@ -20,5 +20,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: world.ErrPickupsUnavailable, Code: codes.Unavailable, Reason: worldv1.Reason_REASON_PICKUPS_UNAVAILABLE},
 	{Err: world.ErrPickupBusy, Code: codes.ResourceExhausted, Reason: worldv1.Reason_REASON_PICKUP_BUSY},
 	{Err: ErrNotSubscribed, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NOT_SUBSCRIBED},
-	{Err: model.ErrBadID, Code: codes.InvalidArgument, Reason: worldv1.Reason_REASON_BAD_ID},
+	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: worldv1.Reason_REASON_BAD_ID},
 }

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/tick"
@@ -82,16 +82,16 @@ type Instance struct {
 	persist chan<- Job
 
 	tick     uint64
-	players  map[model.CharacterID]*player
-	order    []model.CharacterID // join order, so iteration is deterministic
-	mobs     []*mob              // spawn order; removed on death
+	players  map[kernel.CharacterID]*player
+	order    []kernel.CharacterID // join order, so iteration is deterministic
+	mobs     []*mob               // spawn order; removed on death
 	spawns   []spawnState
 	nextMob  uint64
 	drops    []*drop
 	nextDrop uint64
 	ticksPer uint64 // ticks between checkpoint sweeps
 
-	dropped      []model.CharacterID // removed during the last broadcast, reported next tick
+	dropped      []kernel.CharacterID // removed during the last broadcast, reported next tick
 	removedMobs  []uint64
 	newDrops     []DropView
 	removedDrops []uint64
@@ -101,13 +101,13 @@ type Instance struct {
 // message is one inbox item.
 type message struct {
 	join      *joinMsg
-	leave     model.CharacterID
+	leave     kernel.CharacterID
 	leaveConn string // the connection the Leave came from; empty: any
 	input     *inputMsg
-	attack    model.CharacterID
+	attack    kernel.CharacterID
 	pickup    *pickupResult
-	pick      model.CharacterID
-	portal    model.CharacterID // EnterPortal
+	pick      kernel.CharacterID
+	portal    kernel.CharacterID // EnterPortal
 	chat      *chatMsg
 }
 
@@ -118,7 +118,7 @@ type joinMsg struct {
 }
 
 type inputMsg struct {
-	id  model.CharacterID
+	id  kernel.CharacterID
 	seq uint32
 	in  sim.Input
 }
@@ -162,7 +162,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- Job, opts 
 		m: m, data: data, params: data.Movement(), opts: opts, roll: roll,
 		inbox:    make(chan message, opts.InboxSize),
 		persist:  persist,
-		players:  map[model.CharacterID]*player{},
+		players:  map[kernel.CharacterID]*player{},
 		spawns:   make([]spawnState, len(m.Spawns)),
 		ticksPer: ticksPer,
 	}
@@ -207,37 +207,37 @@ func (i *Instance) Join(ctx context.Context, p Player, sink Sink) error {
 }
 
 // Leave removes a player; its checkpoint is saved. Unknown IDs are ignored.
-func (i *Instance) Leave(id model.CharacterID) bool {
+func (i *Instance) Leave(id kernel.CharacterID) bool {
 	return i.post(message{leave: id})
 }
 
 // LeaveConnection removes a player only if it joined through conn, so a
 // Leave from an older connection, arriving after a newer one joined the same
 // character, removes nothing.
-func (i *Instance) LeaveConnection(id model.CharacterID, conn string) bool {
+func (i *Instance) LeaveConnection(id kernel.CharacterID, conn string) bool {
 	return i.post(message{leave: id, leaveConn: conn})
 }
 
 // Input queues held keys with their sequence number. It never blocks: a
 // full inbox drops the input, and the client's next one supersedes it.
-func (i *Instance) Input(id model.CharacterID, seq uint32, in sim.Input) bool {
+func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) bool {
 	return i.post(message{input: &inputMsg{id: id, seq: seq, in: in}})
 }
 
 // Attack queues a basic attack the way the character faces. The cooldown
 // is enforced in the tick, so spamming it changes nothing.
-func (i *Instance) Attack(id model.CharacterID) bool {
+func (i *Instance) Attack(id kernel.CharacterID) bool {
 	return i.post(message{attack: id})
 }
 
 // PickUp asks for the nearest eligible drop within reach.
-func (i *Instance) PickUp(id model.CharacterID) bool {
+func (i *Instance) PickUp(id kernel.CharacterID) bool {
 	return i.post(message{pick: id})
 }
 
 // EnterPortal takes the portal the character stands in, if any. The
 // handoff to the target map happens inside the tick.
-func (i *Instance) EnterPortal(id model.CharacterID) bool {
+func (i *Instance) EnterPortal(id kernel.CharacterID) bool {
 	return i.post(message{portal: id})
 }
 
@@ -277,8 +277,8 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 
 // drain handles up to DrainLimit inbox messages; the rest wait for the
 // next tick. It returns the players that left.
-func (i *Instance) drain() []model.CharacterID {
-	var removed []model.CharacterID
+func (i *Instance) drain() []kernel.CharacterID {
+	var removed []kernel.CharacterID
 	for handled := 0; handled < i.opts.DrainLimit; handled++ {
 		var m message
 		select {
@@ -360,14 +360,14 @@ func (i *Instance) join(j *joinMsg) {
 	j.done <- nil
 }
 
-func (i *Instance) remove(id model.CharacterID) bool {
+func (i *Instance) remove(id kernel.CharacterID) bool {
 	p, ok := i.players[id]
 	if !ok {
 		return false
 	}
 	i.checkpoint(p)
 	delete(i.players, id)
-	i.order = slices.DeleteFunc(i.order, func(x model.CharacterID) bool { return x == id })
+	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
 	return true
 }
 
@@ -412,7 +412,7 @@ func cutInputs(q []inputMsg) []inputMsg {
 // inputHoldTicks, so the state for each sequence number equals what the
 // client predicted; past that the last held keys are simulated each tick
 // until an Input arrives. A dead player stays where they fell.
-func (i *Instance) simulate() (changed []model.CharacterID) {
+func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
 		if p.invulnUntil == i.tick {
@@ -446,7 +446,7 @@ func (i *Instance) simulate() (changed []model.CharacterID) {
 
 // broadcast sends each player its Delta and the tick's events. A player
 // whose sink refuses an event is removed; those removals are returned.
-func (i *Instance) broadcast(changed, removed []model.CharacterID) []model.CharacterID {
+func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.CharacterID {
 	for _, id := range i.order {
 		if p := i.players[id]; (p.changed || p.moved) && !slices.Contains(changed, id) {
 			changed = append(changed, id)
@@ -465,7 +465,7 @@ func (i *Instance) broadcast(changed, removed []model.CharacterID) []model.Chara
 			mb.changed = false
 		}
 	}
-	var dropped []model.CharacterID
+	var dropped []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
 		d := Delta{Tick: i.tick, AckSeq: p.lastSeq, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
@@ -518,9 +518,9 @@ func defenderOf(d progression.Derived) combat.Defender {
 
 // detach drops a player without a checkpoint; the caller has saved one
 // that names where the player went.
-func (i *Instance) detach(id model.CharacterID) {
+func (i *Instance) detach(id kernel.CharacterID) {
 	delete(i.players, id)
-	i.order = slices.DeleteFunc(i.order, func(x model.CharacterID) bool { return x == id })
+	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
 }
 
 // checkpointOn is checkpoint with the map the player will be on.

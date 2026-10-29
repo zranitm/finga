@@ -4,7 +4,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/services/social/internal/chat"
 	"finga/services/social/internal/party"
@@ -29,5 +29,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: chat.ErrNoParty, Code: codes.NotFound, Reason: socialv1.Reason_REASON_CHAT_NO_PARTY},
 	{Err: chat.ErrRate, Code: codes.ResourceExhausted, Reason: socialv1.Reason_REASON_CHAT_RATE_LIMITED},
 	{Err: chat.ErrNoParties, Code: codes.Unavailable, Reason: socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE},
-	{Err: model.ErrBadID, Code: codes.InvalidArgument, Reason: socialv1.Reason_REASON_BAD_ID},
+	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: socialv1.Reason_REASON_BAD_ID},
 }

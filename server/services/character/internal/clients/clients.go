@@ -7,7 +7,7 @@ import (
 	"context"
 
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 )
 
@@ -18,7 +18,7 @@ type Starter struct{ c itemv1.ItemServiceClient }
 func NewStarter(c itemv1.ItemServiceClient) Starter { return Starter{c: c} }
 
 // GrantStarter asks for the class's starter items, keyed by the character.
-func (s Starter) GrantStarter(ctx context.Context, account model.AccountID, character model.CharacterID, class model.Class) error {
+func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, character kernel.CharacterID, class kernel.Class) error {
 	_, err := s.c.GrantStarter(ctx, &itemv1.GrantStarterRequest{
 		Actor: &itemv1.Actor{AccountId: account.String(), CharacterId: character.String()},
 		Class: class.String(),

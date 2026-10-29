@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/pgtest"
 	"finga/services/character/migrations"
 )
@@ -32,9 +32,9 @@ func TestMain(m *testing.M) {
 
 var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
-func sample(account model.AccountID, name string) Character {
+func sample(account kernel.AccountID, name string) Character {
 	return Character{
-		ID: model.NewCharacterID(), AccountID: account, Name: name, Class: model.Warrior, Level: 1, Exp: 0,
+		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Warrior, Level: 1, Exp: 0,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
 		MapID: "town", X: 416, Y: 608, UpdatedAt: t0,
 	}
@@ -50,7 +50,7 @@ func insert(t *testing.T, store *Postgres, c Character) {
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t))
-	alice, bob := model.NewAccountID(), model.NewAccountID()
+	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
 	ayla := sample(alice, "Ayla")
 	insert(t, store, ayla)
 
@@ -84,7 +84,7 @@ func TestRepository(t *testing.T) {
 
 	t.Run("list by account, oldest first", func(t *testing.T) {
 		robin := sample(alice, "Robin")
-		robin.Class = model.Bowman
+		robin.Class = kernel.Bowman
 		robin.UpdatedAt = t0.Add(time.Minute)
 		insert(t, store, robin)
 		insert(t, store, sample(bob, "Bruno"))
@@ -92,10 +92,10 @@ func TestRepository(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(list) != 2 || list[0].Name != "Ayla" || list[1].Name != "Robin" || list[1].Class != model.Bowman {
+		if len(list) != 2 || list[0].Name != "Ayla" || list[1].Name != "Robin" || list[1].Class != kernel.Bowman {
 			t.Fatalf("list = %+v", list)
 		}
-		none, err := store.List(ctx, model.NewAccountID())
+		none, err := store.List(ctx, kernel.NewAccountID())
 		if err != nil || len(none) != 0 {
 			t.Fatalf("empty list: %v, %v", none, err)
 		}
@@ -137,13 +137,13 @@ func TestRepository(t *testing.T) {
 
 	t.Run("saves for an unknown character give ErrNotFound", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Characters().SaveCheckpoint(ctx, Checkpoint{ID: model.NewCharacterID(), MapID: "town", At: t0})
+			return uow.Characters().SaveCheckpoint(ctx, Checkpoint{ID: kernel.NewCharacterID(), MapID: "town", At: t0})
 		})
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("checkpoint: %v", err)
 		}
 		err = store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Characters().SaveLevelUp(ctx, LevelUp{ID: model.NewCharacterID(), Level: 2, At: t0})
+			return uow.Characters().SaveLevelUp(ctx, LevelUp{ID: kernel.NewCharacterID(), Level: 2, At: t0})
 		})
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("level-up: %v", err)

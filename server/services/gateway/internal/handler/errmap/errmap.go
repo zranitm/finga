@@ -23,7 +23,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 )
 
@@ -64,8 +64,8 @@ var table = []struct {
 	err error
 	pub Public
 }{
-	{model.ErrBadID, badID},
-	{model.ErrUnknownClass, unknownClass},
+	{kernel.ErrBadID, badID},
+	{kernel.ErrUnknownClass, unknownClass},
 }
 
 // reasons are the failures services in their own processes send across gRPC,

@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"finga/internal/gamedata"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 )
 
@@ -17,7 +17,7 @@ func TestDeriveStats(t *testing.T) {
 	data := loadData(t)
 	tests := []struct {
 		name  string
-		class model.Class
+		class kernel.Class
 		level int
 		want  progression.Derived
 	}{
@@ -25,37 +25,37 @@ func TestDeriveStats(t *testing.T) {
 			// MaxHP 60+12·10+2·12 = 204; MaxMP 20+2·4 = 28; AP 1.5·12+0.3·10 = 21;
 			// Acc 10+5+0.5·12 = 21; Eva 5+0.8·5 = 9; Crit 0.05+0.002·5 = 0.06;
 			// CritDmg 0.5+0.005·5 = 0.525; Def 5+10 = 15.
-			"warrior level 1", model.Warrior, 1,
+			"warrior level 1", kernel.Warrior, 1,
 			progression.Derived{MaxHP: 204, MaxMP: 28, AttackPower: 21, Accuracy: 21, Evasion: 9, Defense: 15, CritRate: 0.06, CritDamage: 0.525},
 		},
 		{
 			// 9 level-ups: STR 39, VIT 28. MaxHP 60+336+78+18·9 = 636; MaxMP 20+8+4·9 = 64;
 			// AP 58.5+8.4 = 66.9; Acc 10+5+19.5 = 34.5; Def 5+28 = 33.
-			"warrior level 10", model.Warrior, 10,
+			"warrior level 10", kernel.Warrior, 10,
 			progression.Derived{MaxHP: 636, MaxMP: 64, AttackPower: 66.9, Accuracy: 34.5, Evasion: 9, Defense: 33, CritRate: 0.06, CritDamage: 0.525},
 		},
 		{
 			// 29 level-ups: STR 99, VIT 68. MaxHP 60+816+198+522 = 1596; MaxMP 20+8+116 = 144;
 			// AP 148.5+20.4 = 168.9; Acc 10+5+49.5 = 64.5; Def 73.
-			"warrior level 30", model.Warrior, 30,
+			"warrior level 30", kernel.Warrior, 30,
 			progression.Derived{MaxHP: 1596, MaxMP: 144, AttackPower: 168.9, Accuracy: 64.5, Evasion: 9, Defense: 73, CritRate: 0.06, CritDamage: 0.525},
 		},
 		{
 			// MaxHP 50+9·5+1·10 = 105; MaxMP 25+8 = 33; AP 1.5·12+0.3·10 = 21; Acc 15+1.2·12 = 29.4;
 			// Eva 8+10 = 18; Crit 0.05+0.003·10 = 0.08; CritDmg 0.5+0.008·12 = 0.596; Def 3+0.6·5 = 6.
-			"bowman level 1", model.Bowman, 1,
+			"bowman level 1", kernel.Bowman, 1,
 			progression.Derived{MaxHP: 105, MaxMP: 33, AttackPower: 21, Accuracy: 29.4, Evasion: 18, Defense: 6, CritRate: 0.08, CritDamage: 0.596},
 		},
 		{
 			// DEX 39, AGI 28. MaxHP 50+45+28+108 = 231; MaxMP 25+8+45 = 78; AP 58.5+8.4 = 66.9;
 			// Acc 15+46.8 = 61.8; Eva 36; Crit 0.05+0.084 = 0.134; CritDmg 0.5+0.312 = 0.812.
-			"bowman level 10", model.Bowman, 10,
+			"bowman level 10", kernel.Bowman, 10,
 			progression.Derived{MaxHP: 231, MaxMP: 78, AttackPower: 66.9, Accuracy: 61.8, Evasion: 36, Defense: 6, CritRate: 0.134, CritDamage: 0.812},
 		},
 		{
 			// DEX 99, AGI 68. MaxHP 50+45+68+348 = 511; MaxMP 25+8+145 = 178; AP 168.9;
 			// Acc 15+118.8 = 133.8; Eva 76; Crit 0.254; CritDmg 1.292.
-			"bowman level 30", model.Bowman, 30,
+			"bowman level 30", kernel.Bowman, 30,
 			progression.Derived{MaxHP: 511, MaxMP: 178, AttackPower: 168.9, Accuracy: 133.8, Evasion: 76, Defense: 6, CritRate: 0.254, CritDamage: 1.292},
 		},
 	}
@@ -73,8 +73,8 @@ func TestDeriveStats(t *testing.T) {
 	}
 
 	t.Run("equipment adds to attack power and defense", func(t *testing.T) {
-		class, _ := data.Class(model.Warrior)
-		formulas, _ := data.Formulas(model.Warrior)
+		class, _ := data.Class(kernel.Warrior)
+		formulas, _ := data.Formulas(kernel.Warrior)
 		got := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{WeaponAttack: 10, ArmorDefense: 3})
 		if got.AttackPower != 31 || got.Defense != 18 {
 			t.Fatalf("attack %v defense %v, want 31 and 18", got.AttackPower, got.Defense)
@@ -82,7 +82,7 @@ func TestDeriveStats(t *testing.T) {
 	})
 
 	t.Run("crit rate stops at the 60% cap", func(t *testing.T) {
-		formulas, _ := data.Formulas(model.Bowman)
+		formulas, _ := data.Formulas(kernel.Bowman)
 		got := progression.DeriveStats(formulas, gamedata.Stats{AGI: 200}, 1, progression.Equipment{}) // 0.05 + 0.6 = 0.65 uncapped
 		if got.CritRate != 0.6 {
 			t.Fatalf("crit rate %v, want 0.6", got.CritRate)
@@ -90,7 +90,7 @@ func TestDeriveStats(t *testing.T) {
 	})
 
 	t.Run("penetration is equipment only and capped at 50%", func(t *testing.T) {
-		formulas, _ := data.Formulas(model.Warrior)
+		formulas, _ := data.Formulas(kernel.Warrior)
 		got := progression.DeriveStats(formulas, gamedata.Stats{STR: 999}, 30, progression.Equipment{Penetration: 0.7})
 		if got.Penetration != 0.5 {
 			t.Fatalf("penetration %v, want 0.5", got.Penetration)
@@ -126,7 +126,7 @@ func assertDerived(t *testing.T, got, want progression.Derived) {
 
 func TestAwardExp(t *testing.T) {
 	data := loadData(t) // exp_to_next: 1→20, 2→65, 3→129, 4→211 ... cap 30
-	warrior, _ := data.Class(model.Warrior)
+	warrior, _ := data.Class(kernel.Warrior)
 	preset := func(int) gamedata.Stats { return warrior.LevelUpPoints }
 	base := warrior.BaseStats
 	tests := []struct {

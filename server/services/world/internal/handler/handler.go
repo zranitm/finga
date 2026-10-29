@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
@@ -26,7 +26,7 @@ import (
 
 // World is what the handler needs from the world module.
 type World interface {
-	Join(ctx context.Context, account model.AccountID, id model.CharacterID, conn string, sink world.Sink) (world.View, error)
+	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink world.Sink) (world.View, error)
 	Instance(mapID string) (*world.Instance, error)
 }
 
@@ -86,11 +86,11 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	if !ok {
 		return nil, ErrNotSubscribed
 	}
-	account, err := model.ParseAccountID(req.GetAccountId())
+	account, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
-	id, err := model.ParseCharacterID(req.GetCharacterId())
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.L
 	if req.GetConnectionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
 	}
-	return &worldv1.LeaveResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id model.CharacterID) bool {
+	return &worldv1.LeaveResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id kernel.CharacterID) bool {
 		return i.LeaveConnection(id, req.GetConnectionId())
 	})
 }
@@ -118,7 +118,7 @@ func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.L
 func (s *Server) Input(_ context.Context, req *worldv1.InputRequest) (*worldv1.InputResponse, error) {
 	k := req.GetKeys()
 	in := sim.Input{Left: k.GetLeft(), Right: k.GetRight(), Up: k.GetUp(), Down: k.GetDown(), Jump: k.GetJump()}
-	return &worldv1.InputResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id model.CharacterID) bool {
+	return &worldv1.InputResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id kernel.CharacterID) bool {
 		return i.Input(id, req.GetSeq(), in)
 	})
 }
@@ -140,7 +140,7 @@ func (s *Server) EnterPortal(_ context.Context, req *worldv1.EnterPortalRequest)
 
 // Say is a map chat line for everyone on the map.
 func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayResponse, error) {
-	return &worldv1.SayResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id model.CharacterID) bool {
+	return &worldv1.SayResponse{}, s.command(req.GetPresence(), func(i *world.Instance, id kernel.CharacterID) bool {
 		return i.Chat(id, req.GetSenderName(), req.GetText())
 	})
 }
@@ -148,8 +148,8 @@ func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayRe
 // command posts one command to the instance of the presence's map; a full
 // inbox is ErrBusy (the gateway drops the command: the next one supersedes
 // it).
-func (s *Server) command(p *worldv1.Presence, post func(*world.Instance, model.CharacterID) bool) error {
-	id, err := model.ParseCharacterID(p.GetCharacterId())
+func (s *Server) command(p *worldv1.Presence, post func(*world.Instance, kernel.CharacterID) bool) error {
+	id, err := kernel.ParseCharacterID(p.GetCharacterId())
 	if err != nil {
 		return err
 	}

@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/internal/progression"
 )
 
@@ -76,7 +76,7 @@ func NewService(store Store, content Content, opts Options) *Service {
 // item service (grantStarter); Create answers success either way, since the
 // character exists and a client that saw an error would retry and meet
 // name_taken.
-func (s *Service) Create(ctx context.Context, account model.AccountID, in CreateInput) (Character, error) {
+func (s *Service) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (Character, error) {
 	if len(in.Name) < nameMin || len(in.Name) > nameMax || !nameRe.MatchString(in.Name) {
 		return Character{}, ErrBadName
 	}
@@ -98,7 +98,7 @@ func (s *Service) Create(ctx context.Context, account model.AccountID, in Create
 	town := s.content.Town()
 	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{})
 	c := Character{
-		ID: model.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
+		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: s.now(),
 	}
@@ -145,12 +145,12 @@ func (s *Service) grantStarter(ctx context.Context, c Character) {
 }
 
 // List is the account's characters, oldest first.
-func (s *Service) List(ctx context.Context, account model.AccountID) ([]Character, error) {
+func (s *Service) List(ctx context.Context, account kernel.AccountID) ([]Character, error) {
 	return s.store.List(ctx, account)
 }
 
 // Load is one character, only if it belongs to the account.
-func (s *Service) Load(ctx context.Context, id model.CharacterID, account model.AccountID) (Character, error) {
+func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (Character, error) {
 	return s.store.Load(ctx, id, account)
 }
 

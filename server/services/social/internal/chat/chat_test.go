@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/social/internal/chat"
 )
 
 type fakeParties struct {
-	members map[model.CharacterID][]model.CharacterID
+	members map[kernel.CharacterID][]kernel.CharacterID
 }
 
-func (f fakeParties) Members(id model.CharacterID) []model.CharacterID { return f.members[id] }
+func (f fakeParties) Members(id kernel.CharacterID) []kernel.CharacterID { return f.members[id] }
 
 func TestClean(t *testing.T) {
 	for _, tt := range []struct{ in, want string }{
@@ -32,8 +32,8 @@ func TestClean(t *testing.T) {
 }
 
 func TestSend(t *testing.T) {
-	ayla, robin, cass := model.NewCharacterID(), model.NewCharacterID(), model.NewCharacterID()
-	parties := fakeParties{members: map[model.CharacterID][]model.CharacterID{ayla: {ayla, robin}, robin: {ayla, robin}}}
+	ayla, robin, cass := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
+	parties := fakeParties{members: map[kernel.CharacterID][]kernel.CharacterID{ayla: {ayla, robin}, robin: {ayla, robin}}}
 	now := time.Unix(1_700_000_000, 0)
 	svc := chat.NewService(parties, chat.Options{Clock: func() time.Time { return now }})
 	from := chat.Sender{ID: ayla, Name: "Ayla"}

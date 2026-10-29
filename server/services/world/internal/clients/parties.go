@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 )
 
@@ -33,30 +33,30 @@ type PartyCopy struct {
 	updates chan *socialv1.UpdateMemberRequest
 
 	mu    sync.Mutex
-	table map[model.CharacterID][]model.CharacterID
+	table map[kernel.CharacterID][]kernel.CharacterID
 }
 
 // NewPartyCopy adapts the social client; Run feeds the copy.
 func NewPartyCopy(c socialv1.SocialServiceClient, worldID string, log *slog.Logger) *PartyCopy {
-	return &PartyCopy{c: c, worldID: worldID, log: log, updates: make(chan *socialv1.UpdateMemberRequest, partyUpdateQueue), table: map[model.CharacterID][]model.CharacterID{}}
+	return &PartyCopy{c: c, worldID: worldID, log: log, updates: make(chan *socialv1.UpdateMemberRequest, partyUpdateQueue), table: map[kernel.CharacterID][]kernel.CharacterID{}}
 }
 
 // Members lists the IDs of a character's party, nil without one.
-func (p *PartyCopy) Members(id model.CharacterID) []model.CharacterID {
+func (p *PartyCopy) Members(id kernel.CharacterID) []kernel.CharacterID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Clone(p.table[id])
 }
 
 // SameParty reports whether two characters share a party.
-func (p *PartyCopy) SameParty(a, b model.CharacterID) bool {
+func (p *PartyCopy) SameParty(a, b kernel.CharacterID) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Contains(p.table[a], b)
 }
 
 // Update queues what the world saw of a member; it never blocks.
-func (p *PartyCopy) Update(id model.CharacterID, mapID string, level, hp, maxHP int) {
+func (p *PartyCopy) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
 	select {
 	case p.updates <- &socialv1.UpdateMemberRequest{CharacterId: id.String(), MapId: mapID, Level: int32(level), Hp: int32(hp), MaxHp: int32(maxHP)}:
 	default:
@@ -81,16 +81,16 @@ func (p *PartyCopy) apply(m *socialv1.WatchPartiesResponse) {
 		return
 	}
 	ms := m.GetMembership()
-	members := make([]model.CharacterID, 0, len(ms.GetMembers()))
+	members := make([]kernel.CharacterID, 0, len(ms.GetMembers()))
 	for _, s := range ms.GetMembers() {
-		if id, err := model.ParseCharacterID(s); err == nil {
+		if id, err := kernel.ParseCharacterID(s); err == nil {
 			members = append(members, id)
 		}
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, s := range ms.GetCharacterIds() {
-		id, err := model.ParseCharacterID(s)
+		id, err := kernel.ParseCharacterID(s)
 		if err != nil {
 			continue
 		}

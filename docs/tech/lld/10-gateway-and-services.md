@@ -39,7 +39,7 @@ server/
     world/      cmd/world/  internal/      map instances, sim, combat, drops, portals
     social/     cmd/social/  internal/     parties, invites, chat (in memory)
   internal/
-    model/        Finga's ID types (AccountID, CharacterID, ItemID, SessionID) on pkg/typedid, and Class
+    kernel/       Finga's ID types (AccountID, CharacterID, ItemID, SessionID) on pkg/typedid, and Class
     gamedata/     Finga's game-data schema and validation (classes, mobs, items, maps) on pkg/tiled
     sim/          the movement simulation: map geometry for gamedata, the world's movement, the client's vectors
     progression/  derived stats, EXP awards and the death penalty: the character service and the world's tick
@@ -72,7 +72,7 @@ services/item/
 
 - Code that could ship in another project unchanged goes in `pkg/`. Code that knows about Finga but more than one service needs goes in the root `internal/`. Everything else lives inside its service.
 - Go's `internal/` rule is the service boundary: `services/X/internal/` is importable only from `services/X/`. A service reaches another only through the client generated from `api/proto/internal/`. depguard also stops one service importing another's `cmd/` (its composition root), which only the end-to-end tests may import.
-- Anything crossing services goes through proto messages, not shared Go types. The ID types in `internal/model` are shared, and so are the root packages above (game data, the movement simulation, the progression rules), which are code both sides run, never a type sent between them.
+- Anything crossing services goes through proto messages, not shared Go types. The ID types in `internal/kernel` (`internal/model` until step 30) are shared, and so are the root packages above (game data, the movement simulation, the progression rules), which are code both sides run, never a type sent between them.
 - Each service owns its migrations in `services/X/migrations/`, applied with its own goose version table (`goose_account_version`, ...), all on the one Stage 1 Postgres. No service reads another's tables, and sqlc generates each module's queries against its own service's migrations only, so a query that reads another service's table does not compile.
 - Existing modules move as they are: `internal/application/item` becomes `services/item/internal/item`, with the same layers inside (handler, service, repository). Layout, not a rewrite.
 - The Makefile and CI build and test each service on its own (`go test ./services/item/...`) and all of them together.

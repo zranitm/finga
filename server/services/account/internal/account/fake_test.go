@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/services/account/internal/account"
 )
 
@@ -17,7 +17,7 @@ import (
 // real Postgres.
 type fakeStore struct {
 	mu       sync.Mutex
-	accounts map[model.AccountID]account.NewAccount
+	accounts map[kernel.AccountID]account.NewAccount
 	sessions []account.Session
 	// what reached the repository, for assertions
 	insertedTokenHashes [][]byte
@@ -26,7 +26,7 @@ type fakeStore struct {
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{accounts: map[model.AccountID]account.NewAccount{}}
+	return &fakeStore{accounts: map[kernel.AccountID]account.NewAccount{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow account.UnitOfWork) error) error {
@@ -61,7 +61,7 @@ func (s *fakeStore) FindActiveSession(_ context.Context, tokenHash []byte) (acco
 	return account.Session{}, account.ErrNotFound
 }
 
-func (s *fakeStore) Settings(_ context.Context, id model.AccountID) (account.Settings, error) {
+func (s *fakeStore) Settings(_ context.Context, id kernel.AccountID) (account.Settings, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.accounts[id]
@@ -71,7 +71,7 @@ func (s *fakeStore) Settings(_ context.Context, id model.AccountID) (account.Set
 	return a.Settings, nil
 }
 
-func (s *fakeStore) activeSessions(id model.AccountID) int {
+func (s *fakeStore) activeSessions(id kernel.AccountID) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	n := 0
@@ -104,14 +104,14 @@ func (r fakeAccounts) Insert(_ context.Context, a account.NewAccount) error {
 	return nil
 }
 
-func (r fakeAccounts) Lock(_ context.Context, id model.AccountID) error {
+func (r fakeAccounts) Lock(_ context.Context, id kernel.AccountID) error {
 	if _, ok := r.s.accounts[id]; !ok {
 		return account.ErrNotFound
 	}
 	return nil
 }
 
-func (r fakeAccounts) UpdateSettings(_ context.Context, id model.AccountID, st account.Settings) error {
+func (r fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, st account.Settings) error {
 	a, ok := r.s.accounts[id]
 	if !ok {
 		return account.ErrNotFound
@@ -129,7 +129,7 @@ func (r fakeSessions) Insert(_ context.Context, se account.Session) error {
 	return nil
 }
 
-func (r fakeSessions) RevokeAll(_ context.Context, id model.AccountID, at time.Time) error {
+func (r fakeSessions) RevokeAll(_ context.Context, id kernel.AccountID, at time.Time) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].AccountID == id && r.s.sessions[i].RevokedAt == nil {
 			t := at
@@ -139,7 +139,7 @@ func (r fakeSessions) RevokeAll(_ context.Context, id model.AccountID, at time.T
 	return nil
 }
 
-func (r fakeSessions) Revoke(_ context.Context, id model.SessionID, at time.Time) error {
+func (r fakeSessions) Revoke(_ context.Context, id kernel.SessionID, at time.Time) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].ID == id && r.s.sessions[i].RevokedAt == nil {
 			t := at
@@ -149,7 +149,7 @@ func (r fakeSessions) Revoke(_ context.Context, id model.SessionID, at time.Time
 	return nil
 }
 
-func (s *fakeStore) FindSession(_ context.Context, id model.SessionID) (account.Session, error) {
+func (s *fakeStore) FindSession(_ context.Context, id kernel.SessionID) (account.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, se := range s.sessions {
@@ -160,7 +160,7 @@ func (s *fakeStore) FindSession(_ context.Context, id model.SessionID) (account.
 	return account.Session{}, account.ErrNotFound
 }
 
-func (r fakeSessions) Rotate(_ context.Context, id model.SessionID, newHash []byte, at time.Time) error {
+func (r fakeSessions) Rotate(_ context.Context, id kernel.SessionID, newHash []byte, at time.Time) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].ID == id && r.s.sessions[i].RevokedAt == nil {
 			t := at
@@ -173,7 +173,7 @@ func (r fakeSessions) Rotate(_ context.Context, id model.SessionID, newHash []by
 	return account.ErrNotFound
 }
 
-func (r fakeSessions) ConsumePrevious(_ context.Context, id model.SessionID) error {
+func (r fakeSessions) ConsumePrevious(_ context.Context, id kernel.SessionID) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].ID == id {
 			r.s.sessions[i].RotatedAt = nil
@@ -182,7 +182,7 @@ func (r fakeSessions) ConsumePrevious(_ context.Context, id model.SessionID) err
 	return nil
 }
 
-func (r fakeSessions) Extend(_ context.Context, id model.SessionID, until time.Time) error {
+func (r fakeSessions) Extend(_ context.Context, id kernel.SessionID, until time.Time) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].ID == id {
 			r.s.sessions[i].ExpiresAt = until

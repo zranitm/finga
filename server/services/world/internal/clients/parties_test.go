@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/model"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 )
@@ -57,8 +57,8 @@ func subscribed(boot string) *socialv1.WatchPartiesResponse {
 	return &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: boot}}}
 }
 
-func membership(of []model.CharacterID, members ...model.CharacterID) *socialv1.WatchPartiesResponse {
-	str := func(ids []model.CharacterID) []string {
+func membership(of []kernel.CharacterID, members ...kernel.CharacterID) *socialv1.WatchPartiesResponse {
+	str := func(ids []kernel.CharacterID) []string {
 		out := []string{}
 		for _, id := range ids {
 			out = append(out, id.String())
@@ -92,9 +92,9 @@ func TestThePartyCopy(t *testing.T) {
 		}
 	})
 
-	ann, bo, cy := model.NewCharacterID(), model.NewCharacterID(), model.NewCharacterID()
+	ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
 	w.events <- subscribed("boot-1")
-	w.events <- membership([]model.CharacterID{ann, bo}, ann, bo)
+	w.events <- membership([]kernel.CharacterID{ann, bo}, ann, bo)
 
 	t.Run("memberships are read from the copy", func(t *testing.T) {
 		eventually(t, func() bool { return copy.SameParty(ann, bo) })
@@ -106,15 +106,15 @@ func TestThePartyCopy(t *testing.T) {
 		}
 	})
 	t.Run("a leaver has none, the others keep theirs", func(t *testing.T) {
-		w.events <- membership([]model.CharacterID{bo})
-		w.events <- membership([]model.CharacterID{ann}, ann)
+		w.events <- membership([]kernel.CharacterID{bo})
+		w.events <- membership([]kernel.CharacterID{ann}, ann)
 		eventually(t, func() bool { return !copy.SameParty(ann, bo) && copy.Members(bo) == nil })
 		if got := copy.Members(ann); len(got) != 1 {
 			t.Fatalf("members %v", got)
 		}
 	})
 	t.Run("a broken stream clears the copy, and the next subscription rebuilds it", func(t *testing.T) {
-		w.events <- membership([]model.CharacterID{ann, cy}, ann, cy)
+		w.events <- membership([]kernel.CharacterID{ann, cy}, ann, cy)
 		eventually(t, func() bool { return copy.SameParty(ann, cy) })
 		w.mu.Lock()
 		close(w.end)
@@ -123,7 +123,7 @@ func TestThePartyCopy(t *testing.T) {
 		eventually(t, func() bool { return copy.Members(ann) == nil })
 		eventually(t, func() bool { w.mu.Lock(); defer w.mu.Unlock(); return len(w.worlds) == 2 })
 		w.events <- subscribed("boot-2")
-		w.events <- membership([]model.CharacterID{bo, cy}, bo, cy)
+		w.events <- membership([]kernel.CharacterID{bo, cy}, bo, cy)
 		eventually(t, func() bool { return copy.SameParty(bo, cy) })
 		if w.worlds[0] != "world-1" || w.worlds[1] != "world-1" {
 			t.Fatalf("worlds %v", w.worlds)
@@ -143,7 +143,7 @@ func TestAFullUpdateQueueDropsWithoutBlocking(t *testing.T) {
 	copy := NewPartyCopy(nil, "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
 	start := time.Now()
 	for range partyUpdateQueue + 10 {
-		copy.Update(model.NewCharacterID(), "town", 1, 1, 1)
+		copy.Update(kernel.NewCharacterID(), "town", 1, 1, 1)
 	}
 	if time.Since(start) > time.Second {
 		t.Fatal("Update blocked")
