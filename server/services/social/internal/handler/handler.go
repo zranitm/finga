@@ -19,16 +19,15 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
-	"finga/services/social/internal/chat"
-	"finga/services/social/internal/party"
+	"finga/services/social/internal/model"
 )
 
 // Parties is what the handler needs from the party module.
 type Parties interface {
-	Online(m party.Member)
+	Online(m model.Member)
 	Offline(id kernel.CharacterID)
-	Of(id kernel.CharacterID) (party.Party, bool)
-	Invite(from, to kernel.CharacterID) (party.Invite, error)
+	Of(id kernel.CharacterID) (model.Party, bool)
+	Invite(from, to kernel.CharacterID) (model.Invite, error)
 	Respond(who kernel.CharacterID, inviteID string, accept bool) error
 	Leave(who kernel.CharacterID) error
 	Kick(leader, target kernel.CharacterID) error
@@ -39,7 +38,7 @@ type Parties interface {
 
 // Chat is what the handler needs from the chat module.
 type Chat interface {
-	Send(from chat.Sender, channel chat.Channel, text string) (chat.Message, []kernel.CharacterID, error)
+	Send(from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
 }
 
 // Queue sizes: what may wait for a slow gateway or world node before its
@@ -112,7 +111,7 @@ func (s *Server) Online(_ context.Context, req *socialv1.OnlineRequest) (*social
 	s.mu.Lock()
 	s.presence[id] = req.GetGatewayId()
 	s.mu.Unlock()
-	s.parties.Online(party.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()})
+	s.parties.Online(model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()})
 	return &socialv1.OnlineResponse{}, nil
 }
 
@@ -191,9 +190,9 @@ func (s *Server) Promote(_ context.Context, req *socialv1.PromoteRequest) (*soci
 	return &socialv1.PromoteResponse{}, s.parties.Promote(leader, target)
 }
 
-var channels = map[socialv1.ChatChannel]chat.Channel{
-	socialv1.ChatChannel_CHAT_CHANNEL_MAP:   chat.Map,
-	socialv1.ChatChannel_CHAT_CHANNEL_PARTY: chat.Party,
+var channels = map[socialv1.ChatChannel]model.Channel{
+	socialv1.ChatChannel_CHAT_CHANNEL_MAP:   model.ChannelMap,
+	socialv1.ChatChannel_CHAT_CHANNEL_PARTY: model.ChannelParty,
 }
 
 // Chat cleans and limits a line; a party line is delivered to every member,
@@ -203,11 +202,11 @@ func (s *Server) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.C
 	if err != nil {
 		return nil, err
 	}
-	msg, to, err := s.chat.Send(chat.Sender{ID: from, Name: req.GetSenderName()}, channels[req.GetChannel()], req.GetText())
+	msg, to, err := s.chat.Send(model.Sender{ID: from, Name: req.GetSenderName()}, channels[req.GetChannel()], req.GetText())
 	if err != nil {
 		return nil, err
 	}
-	if msg.Channel == chat.Party {
+	if msg.Channel == model.ChannelParty {
 		line := &socialv1.ChatLine{SenderId: msg.Sender.String(), SenderName: msg.SenderName, Text: msg.Text}
 		for _, id := range to {
 			s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: line}})
@@ -229,7 +228,7 @@ func (s *Server) UpdateMember(_ context.Context, req *socialv1.UpdateMemberReque
 // PartyChanged implements party.Notifier: each listed member's gateway gets
 // the new state, and every world node the new membership. It runs under
 // the party module's lock and never blocks.
-func (s *Server) PartyChanged(members []kernel.CharacterID, p *party.Party) {
+func (s *Server) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 	state := &socialv1.PartyState{Party: partyOf(p)}
 	for _, id := range members {
 		s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: state}})
@@ -244,7 +243,7 @@ func (s *Server) PartyChanged(members []kernel.CharacterID, p *party.Party) {
 }
 
 // Invited implements party.Notifier: the invitee's gateway gets it.
-func (s *Server) Invited(to kernel.CharacterID, inv party.Invite) {
+func (s *Server) Invited(to kernel.CharacterID, inv model.Invite) {
 	s.send(to, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{
 		InviteId: inv.ID, FromId: inv.From.String(), FromName: inv.FromName,
 	}}})
@@ -279,7 +278,7 @@ func strings(ids []kernel.CharacterID) []string {
 	return out
 }
 
-func partyOf(p *party.Party) *socialv1.Party {
+func partyOf(p *model.Party) *socialv1.Party {
 	if p == nil {
 		return nil
 	}

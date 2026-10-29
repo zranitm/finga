@@ -16,9 +16,8 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
-	"finga/services/social/internal/chat"
+	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
-	"finga/services/social/internal/party"
 )
 
 type stack struct {
@@ -29,8 +28,8 @@ type stack struct {
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	now := time.Unix(1_700_000_000, 0)
-	parties := party.NewService(party.Options{Clock: func() time.Time { return now }})
-	srv := handler.New(parties, chat.NewService(parties, chat.Options{Clock: func() time.Time { return now }}), "boot-1")
+	parties := application.NewPartyService(application.PartyOptions{Clock: func() time.Time { return now }})
+	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{Clock: func() time.Time { return now }}), "boot-1")
 	parties.Notify(srv)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
@@ -302,7 +301,7 @@ func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 }
 
 func TestTheTableCoversTheModulesAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "party"), filepath.Join("..", "chat"))
+	declared, err := sentinels.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) < 2 {
 		t.Fatalf("declared %v, err %v", declared, err)
 	}

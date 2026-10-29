@@ -4,7 +4,7 @@
 - **Features:** none (structure only)
 - **Milestone:** Layers
 - **Order:** 34
-- **Status:** Ready
+- **Status:** Done
 - **Step:** 34. Social in layers
 
 **Goal:** the social service in the layers of page 11, with its behaviour unchanged.
@@ -13,7 +13,7 @@
 
 ## Scope
 
-- `internal/party` and `internal/chat` become `model` (Party, Invite, the chat line, the errors) and `application` (`party.go`, `chat.go`: the use cases, their in-memory state, and the delivery port the handler's streams implement). No repository: parties stay in memory (TD-19).
+- `internal/party` and `internal/chat` become `model` (`party.go`: Member, Party, Invite, the party errors; `chat.go`: Channel, Sender, Message, the line limits and `CleanLine`, the chat errors) and `application` (`party.go`: `PartyService` and its `Notifier` port, which the handler's streams implement; `chat.go`: `ChatService` and its `Parties` port). The names the two packages shared take their module's name (`PartyService`, `ChatService`, `ChannelMap`, `ErrChatNoParty`; decision 263). No repository: parties stay in memory (TD-19).
 - Tests move with the code they test: rule tests with fakes to `application`, Postgres tests to `repository`, the error table's tests stay in `handler`.
 - Page 10's tree and the README's architecture section show the social service's layers.
 
@@ -23,7 +23,7 @@
 
 ## Done when
 
-- [ ] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; `make test-service SERVICE=social` green; CI green.
+- [x] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; `make test-service SERVICE=social` green; CI green.
 
 ## Review focus
 

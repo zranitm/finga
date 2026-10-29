@@ -15,16 +15,15 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/host"
 	"finga/services/social/config"
-	"finga/services/social/internal/chat"
+	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
-	"finga/services/social/internal/party"
 )
 
 // Build wires the social service from configuration. It needs no database:
 // parties live in memory (TD-19), and a restart forgets them.
 func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	parties := party.NewService(party.Options{})
-	srv := handler.New(parties, chat.NewService(parties, chat.Options{}), uuid.NewString())
+	parties := application.NewPartyService(application.PartyOptions{})
+	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{}), uuid.NewString())
 	parties.Notify(srv)
 	h := host.New(host.Options{
 		Name:     "social",
