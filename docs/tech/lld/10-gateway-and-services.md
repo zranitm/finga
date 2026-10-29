@@ -62,7 +62,9 @@ services/item/
   cmd/item/main.go        loads its configuration, builds the service, runs it until SIGINT or SIGTERM
   config/                 its own configuration: config.yaml and its type (page 11, step 29)
   cmd/item/app/           the composition root: Build wires the module, the gRPC server and the runner
-  internal/item/          the module, moved as it is: api.go, service.go, deps.go, repository.go, queries/, internal/db/
+  internal/model/         the item service's model: Item, Event, Cause, Slot, the errors (page 11, step 32)
+  internal/application/   its use cases and, in ports.go, what they need
+  internal/repository/    the Postgres store, its unit of work and classify; queries/, internal/db/
   internal/handler/       the gRPC server: proto in, one service call, proto or a status with a reason out
   internal/clients/       gRPC adapters for the services this one calls (character's item client, the world's three)
   migrations/             this service's goose files, embedded; its own version table

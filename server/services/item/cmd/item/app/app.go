@@ -15,8 +15,9 @@ import (
 	"finga/internal/host"
 	"finga/pkg/dbx"
 	"finga/services/item/config"
+	"finga/services/item/internal/application"
 	"finga/services/item/internal/handler"
-	"finga/services/item/internal/item"
+	"finga/services/item/internal/repository"
 )
 
 // Build wires the item service from configuration. It fails fast on bad
@@ -30,7 +31,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	items := item.NewService(item.NewPostgres(pool), data, item.Options{})
+	items := application.NewService(repository.NewPostgres(pool), data, application.Options{})
 	h := host.New(host.Options{
 		Name:     "item",
 		Settings: cfg.Host(),

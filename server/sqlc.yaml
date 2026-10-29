@@ -48,11 +48,11 @@ sql:
         overrides: *overrides
   - engine: postgresql
     schema: services/item/migrations
-    queries: services/item/internal/item/queries
+    queries: services/item/internal/repository/queries
     gen:
       go:
         package: db
-        out: services/item/internal/item/internal/db
+        out: services/item/internal/repository/internal/db
         sql_package: pgx/v5
         emit_pointers_for_null_types: true
         overrides: *overrides

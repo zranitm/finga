@@ -17,28 +17,29 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
+	"finga/services/item/internal/application"
 	"finga/services/item/internal/handler"
-	"finga/services/item/internal/item"
+	"finga/services/item/internal/model"
 )
 
 // fakeItems records what the handler asked and answers with result, or err.
 type fakeItems struct {
 	mu        sync.Mutex
 	owner     kernel.CharacterID
-	actor     item.Actor
-	add       item.AddInput
-	move      item.MoveInput
-	discard   item.DiscardInput
+	actor     model.Actor
+	add       application.AddInput
+	move      application.MoveInput
+	discard   application.DiscardInput
 	class     kernel.Class
-	inventory []item.Item
-	result    item.Result
+	inventory []model.Item
+	result    application.Result
 	err       error
 	calls     int
 }
 
 func (f *fakeItems) record() { f.calls++ }
 
-func (f *fakeItems) Inventory(_ context.Context, owner kernel.CharacterID) ([]item.Item, error) {
+func (f *fakeItems) Inventory(_ context.Context, owner kernel.CharacterID) ([]model.Item, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -46,7 +47,7 @@ func (f *fakeItems) Inventory(_ context.Context, owner kernel.CharacterID) ([]it
 	return f.inventory, f.err
 }
 
-func (f *fakeItems) Add(_ context.Context, actor item.Actor, in item.AddInput) (item.Result, error) {
+func (f *fakeItems) Add(_ context.Context, actor model.Actor, in application.AddInput) (application.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -54,7 +55,7 @@ func (f *fakeItems) Add(_ context.Context, actor item.Actor, in item.AddInput) (
 	return f.result, f.err
 }
 
-func (f *fakeItems) Move(_ context.Context, actor item.Actor, in item.MoveInput) (item.Result, error) {
+func (f *fakeItems) Move(_ context.Context, actor model.Actor, in application.MoveInput) (application.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -62,7 +63,7 @@ func (f *fakeItems) Move(_ context.Context, actor item.Actor, in item.MoveInput)
 	return f.result, f.err
 }
 
-func (f *fakeItems) Discard(_ context.Context, actor item.Actor, in item.DiscardInput) (item.Result, error) {
+func (f *fakeItems) Discard(_ context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -70,7 +71,7 @@ func (f *fakeItems) Discard(_ context.Context, actor item.Actor, in item.Discard
 	return f.result, f.err
 }
 
-func (f *fakeItems) GrantStarter(_ context.Context, actor item.Actor, class kernel.Class) (item.Result, error) {
+func (f *fakeItems) GrantStarter(_ context.Context, actor model.Actor, class kernel.Class) (application.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -89,9 +90,9 @@ var (
 	account   = kernel.NewAccountID()
 	character = kernel.NewCharacterID()
 	actor     = &itemv1.Actor{AccountId: account.String(), CharacterId: character.String()}
-	potion    = item.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: character, Tab: gamedata.Use, Slot: 3, Quantity: 5}
+	potion    = model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: character, Tab: gamedata.Use, Slot: 3, Quantity: 5}
 	// changed is a move's result: slot 0 emptied, slot 3 holds the potion.
-	changed = item.Result{Changed: []item.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &potion}}}
+	changed = application.Result{Changed: []model.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &potion}}}
 )
 
 func wantChanged(t *testing.T, got []*itemv1.Slot) {
@@ -107,7 +108,7 @@ func wantChanged(t *testing.T, got []*itemv1.Slot) {
 
 func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 	ctx := context.Background()
-	f := &fakeItems{inventory: []item.Item{potion}, result: changed}
+	f := &fakeItems{inventory: []model.Item{potion}, result: changed}
 	c := client(t, f)
 
 	t.Run("Inventory", func(t *testing.T) {
@@ -126,8 +127,8 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := item.AddInput{Key: drop.String(), TemplateID: "slime_gel", Quantity: 2, Cause: item.Cause{Type: item.CauseDrop, ID: drop}}
-		if f.add != want || f.actor != (item.Actor{Account: account, Character: character}) {
+		want := application.AddInput{Key: drop.String(), TemplateID: "slime_gel", Quantity: 2, Cause: model.Cause{Type: model.CauseDrop, ID: drop}}
+		if f.add != want || f.actor != (model.Actor{Account: account, Character: character}) {
 			t.Fatalf("add %+v actor %+v", f.add, f.actor)
 		}
 		wantChanged(t, res.GetChanged())
@@ -137,7 +138,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PLAYER}}); err != nil {
 			t.Fatal(err)
 		}
-		if f.add.Cause != (item.Cause{Type: item.CausePlayer}) {
+		if f.add.Cause != (model.Cause{Type: model.CausePlayer}) {
 			t.Fatalf("cause %+v", f.add.Cause)
 		}
 	})
@@ -146,7 +147,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.move != (item.MoveInput{Key: "k-1", ItemID: potion.ID, Tab: gamedata.Use, Slot: 3}) {
+		if f.move != (application.MoveInput{Key: "k-1", ItemID: potion.ID, Tab: gamedata.Use, Slot: 3}) {
 			t.Fatalf("move %+v", f.move)
 		}
 		wantChanged(t, res.GetChanged())
@@ -156,7 +157,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.discard != (item.DiscardInput{Key: "k-2", ItemID: potion.ID, Quantity: 2}) {
+		if f.discard != (application.DiscardInput{Key: "k-2", ItemID: potion.ID, Quantity: 2}) {
 			t.Fatalf("discard %+v", f.discard)
 		}
 		wantChanged(t, res.GetChanged())
@@ -237,7 +238,7 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 // in the contract has one, so nothing the module returns reaches a caller
 // as Internal and no reason is promised that the service never sends.
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "item"))
+	declared, err := sentinels.Declared(filepath.Join("..", "model"))
 	if err != nil {
 		t.Fatal(err)
 	}

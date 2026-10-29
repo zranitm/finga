@@ -1,4 +1,4 @@
-package item
+package repository
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/pgtest"
+	"finga/services/item/internal/application"
+	"finga/services/item/internal/model"
 	"finga/services/item/migrations"
 )
 
@@ -32,9 +34,9 @@ func TestMain(m *testing.M) {
 
 var t0 = time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 
-func insertItem(t *testing.T, store *Postgres, it Item) {
+func insertItem(t *testing.T, store *Postgres, it model.Item) {
 	t.Helper()
-	err := store.InTx(context.Background(), func(uow UnitOfWork) error { return uow.Items().Insert(context.Background(), it) })
+	err := store.InTx(context.Background(), func(uow application.UnitOfWork) error { return uow.Items().Insert(context.Background(), it) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,13 +46,13 @@ func TestRepository(t *testing.T) {
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t))
 	alice, bob := kernel.NewCharacterID(), kernel.NewCharacterID()
-	sword := Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0}
-	potions := Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40, UpdatedAt: t0}
+	sword := model.Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0}
+	potions := model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40, UpdatedAt: t0}
 	insertItem(t, store, sword)
 	insertItem(t, store, potions)
 
 	t.Run("LockOwned on your own item", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			it, err := uow.Items().LockOwned(ctx, sword.ID, alice)
 			if err != nil {
 				return err
@@ -65,16 +67,16 @@ func TestRepository(t *testing.T) {
 		}
 	})
 	t.Run("LockOwned on someone else's item gives ErrNotFound", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			_, err := uow.Items().LockOwned(ctx, sword.ID, bob)
 			return err
 		})
-		if !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("occupied slots and stack quantities", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			inv, err := uow.Items().LockInventory(ctx, alice)
 			if err != nil {
 				return err
@@ -97,19 +99,24 @@ func TestRepository(t *testing.T) {
 	})
 	t.Run("a full tab", func(t *testing.T) {
 		full := kernel.NewCharacterID()
-		for slot := range SlotsPerTab {
-			insertItem(t, store, Item{ID: kernel.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100, UpdatedAt: t0})
+		for slot := range model.SlotsPerTab {
+			insertItem(t, store, model.Item{ID: kernel.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100, UpdatedAt: t0})
 		}
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
+		// The lock returns every row of the full tab, in slot order, which
+		// is what the service's free-slot search reads (its own test is in
+		// application).
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			inv, err := uow.Items().LockInventory(ctx, full)
 			if err != nil {
 				return err
 			}
-			if _, ok := freeSlot(inv, gamedata.Etc); ok {
-				t.Fatal("a full tab reported a free slot")
+			if len(inv) != model.SlotsPerTab {
+				t.Fatalf("%d rows for a full tab", len(inv))
 			}
-			if slot, ok := freeSlot(inv, gamedata.Use); !ok || slot != 0 {
-				t.Fatalf("another tab: %d, %v", slot, ok)
+			for slot, it := range inv {
+				if it.Tab != gamedata.Etc || it.Slot != slot {
+					t.Fatalf("row %d is %s/%d", slot, it.Tab, it.Slot)
+				}
 			}
 			return nil
 		})
@@ -118,22 +125,22 @@ func TestRepository(t *testing.T) {
 		}
 	})
 	t.Run("two items in one slot are rejected as ErrSlotTaken", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Items().Insert(ctx, Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0})
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			return uow.Items().Insert(ctx, model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0})
 		})
-		if !errors.Is(err, ErrSlotTaken) {
+		if !errors.Is(err, model.ErrSlotTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("quantity, slot, destroy and events", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow UnitOfWork) error {
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			if err := uow.Items().SetQuantity(ctx, potions.ID, 35); err != nil {
 				return err
 			}
 			if err := uow.Items().SetSlot(ctx, potions.ID, gamedata.Use, 7); err != nil {
 				return err
 			}
-			if err := uow.Events().Append(ctx, Event{ItemID: potions.ID, Kind: EventDiscarded, QuantityDelta: -5, FromOwner: &alice, Cause: Cause{Type: CausePlayer}, OccurredAt: t0}); err != nil {
+			if err := uow.Events().Append(ctx, model.Event{ItemID: potions.ID, Kind: model.EventDiscarded, QuantityDelta: -5, FromOwner: &alice, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: t0}); err != nil {
 				return err
 			}
 			return uow.Items().Destroy(ctx, sword.ID)
@@ -145,8 +152,11 @@ func TestRepository(t *testing.T) {
 		if len(list) != 1 || list[0].ID != potions.ID || list[0].Quantity != 35 || list[0].Slot != 7 {
 			t.Fatalf("inventory %+v", list)
 		}
-		err = store.InTx(ctx, func(uow UnitOfWork) error { _, err := uow.Items().LockOwned(ctx, sword.ID, alice); return err })
-		if !errors.Is(err, ErrNotFound) {
+		err = store.InTx(ctx, func(uow application.UnitOfWork) error {
+			_, err := uow.Items().LockOwned(ctx, sword.ID, alice)
+			return err
+		})
+		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("a destroyed item is still lockable: %v", err)
 		}
 		var kind string
@@ -159,12 +169,14 @@ func TestRepository(t *testing.T) {
 		}
 	})
 	t.Run("updates of an unknown item give ErrNotFound", func(t *testing.T) {
-		for name, fn := range map[string]func(uow UnitOfWork) error{
-			"SetQuantity": func(uow UnitOfWork) error { return uow.Items().SetQuantity(ctx, kernel.NewItemID(), 1) },
-			"SetSlot":     func(uow UnitOfWork) error { return uow.Items().SetSlot(ctx, kernel.NewItemID(), gamedata.Use, 1) },
-			"Destroy":     func(uow UnitOfWork) error { return uow.Items().Destroy(ctx, kernel.NewItemID()) },
+		for name, fn := range map[string]func(uow application.UnitOfWork) error{
+			"SetQuantity": func(uow application.UnitOfWork) error { return uow.Items().SetQuantity(ctx, kernel.NewItemID(), 1) },
+			"SetSlot": func(uow application.UnitOfWork) error {
+				return uow.Items().SetSlot(ctx, kernel.NewItemID(), gamedata.Use, 1)
+			},
+			"Destroy": func(uow application.UnitOfWork) error { return uow.Items().Destroy(ctx, kernel.NewItemID()) },
 		} {
-			if err := store.InTx(ctx, fn); !errors.Is(err, ErrNotFound) {
+			if err := store.InTx(ctx, fn); !errors.Is(err, model.ErrNotFound) {
 				t.Fatalf("%s: %v", name, err)
 			}
 		}
@@ -178,9 +190,9 @@ func TestClassify(t *testing.T) {
 		want error
 	}{
 		{"nil", nil, nil},
-		{"no rows", pgx.ErrNoRows, ErrNotFound},
-		{"one item per slot", &pgconn.PgError{Code: "23505", ConstraintName: "one_item_per_slot"}, ErrSlotTaken},
-		{"quantity check", &pgconn.PgError{Code: "23514", ConstraintName: "items_quantity_check"}, ErrBadQuantity},
+		{"no rows", pgx.ErrNoRows, model.ErrNotFound},
+		{"one item per slot", &pgconn.PgError{Code: "23505", ConstraintName: "one_item_per_slot"}, model.ErrSlotTaken},
+		{"quantity check", &pgconn.PgError{Code: "23514", ConstraintName: "items_quantity_check"}, model.ErrBadQuantity},
 		{"another module's constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, nil},
 		{"a serialization failure passes through for the retry", &pgconn.PgError{Code: "40001"}, nil},
 	}

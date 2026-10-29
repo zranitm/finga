@@ -1,4 +1,4 @@
-package item
+package repository
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/services/item/internal/application"
+	"finga/services/item/internal/model"
 	"finga/services/item/invariants"
 )
 
@@ -33,13 +35,13 @@ func TestInvariantsHoldAfterTheServiceTests(t *testing.T) {
 	h.add(t, "i1", "red_potion", 70)
 	h.add(t, "i2", "red_potion", 70)
 	h.add(t, "i3", "wooden_sword", 1)
-	var stack Item
+	var stack model.Item
 	for _, it := range h.inventory(t) {
 		if it.TemplateID == "red_potion" && it.Quantity == 100 {
 			stack = it
 		}
 	}
-	if _, err := h.svc.Discard(context.Background(), h.actor, DiscardInput{Key: "i4", ItemID: stack.ID, Quantity: 10}); err != nil {
+	if _, err := h.svc.Discard(context.Background(), h.actor, application.DiscardInput{Key: "i4", ItemID: stack.ID, Quantity: 10}); err != nil {
 		t.Fatal(err)
 	}
 	checkInvariants(t, h.pool)
@@ -70,13 +72,13 @@ func TestInventoryProperties(t *testing.T) {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool)
-	svc := NewService(store, data, Options{})
+	svc := application.NewService(store, data, application.Options{})
 	templates := []string{"red_potion", "blue_potion", "slime_gel", "wooden_sword", "leather_cap"}
 	tabs := []gamedata.Tab{gamedata.Equip, gamedata.Use, gamedata.Etc}
 	ctx := context.Background()
 
 	rapid.Check(t, func(rt *rapid.T) {
-		actor := Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		actor := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		steps := rapid.IntRange(1, 25).Draw(rt, "steps")
 		for i := range steps {
 			key := fmt.Sprintf("k%d", i)
@@ -85,7 +87,7 @@ func TestInventoryProperties(t *testing.T) {
 				tmpl := rapid.SampledFrom(templates).Draw(rt, "template")
 				it, _ := data.Item(tmpl)
 				qty := rapid.IntRange(1, it.MaxStack).Draw(rt, "qty")
-				_, err := svc.Add(ctx, actor, AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: Cause{Type: CauseDrop, ID: uuid.New()}})
+				_, err := svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("add: %v", err)
 				}
@@ -99,8 +101,8 @@ func TestInventoryProperties(t *testing.T) {
 				if rapid.Bool().Draw(rt, "wrong tab") {
 					tab = rapid.SampledFrom(tabs).Draw(rt, "tab")
 				}
-				slot := rapid.IntRange(0, SlotsPerTab-1).Draw(rt, "slot")
-				_, err := svc.Move(ctx, actor, MoveInput{Key: key, ItemID: src.ID, Tab: tab, Slot: slot})
+				slot := rapid.IntRange(0, model.SlotsPerTab-1).Draw(rt, "slot")
+				_, err := svc.Move(ctx, actor, application.MoveInput{Key: key, ItemID: src.ID, Tab: tab, Slot: slot})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("move: %v", err)
 				}
@@ -111,7 +113,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 				src := rapid.SampledFrom(inv).Draw(rt, "item")
 				qty := rapid.IntRange(1, src.Quantity+1).Draw(rt, "qty")
-				_, err := svc.Discard(ctx, actor, DiscardInput{Key: key, ItemID: src.ID, Quantity: qty})
+				_, err := svc.Discard(ctx, actor, application.DiscardInput{Key: key, ItemID: src.ID, Quantity: qty})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("discard: %v", err)
 				}
@@ -137,7 +139,7 @@ func TestInventoryProperties(t *testing.T) {
 // isRule reports whether err is one of the module's rule errors, which a
 // random sequence is expected to hit.
 func isRule(err error) bool {
-	for _, rule := range []error{ErrInventoryFull, ErrBadQuantity, ErrBadSlot, ErrWrongTab, ErrDifferentItem, ErrNotFound} {
+	for _, rule := range []error{model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrNotFound} {
 		if errorsIs(err, rule) {
 			return true
 		}
