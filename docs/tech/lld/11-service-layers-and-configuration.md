@@ -19,7 +19,7 @@ Dependencies point inward, toward `model`. Outer layers implement what inner lay
 | `internal/handler` | The gRPC server: proto in, one use case, proto or a status with a reason out; the error table from `model`'s errors to the contract's reasons | `application`, `model`, `api/gen`, `pkg/grpcx` | `repository`, `clients`, pgx, `pkg/dbx` |
 | `internal/clients` | gRPC adapters that implement the application's ports for the services this one calls | `application`, `model`, `api/gen`, `pkg/grpcx` | `repository`, `handler`, pgx |
 | `config` | The service's configuration file (`config.yaml`) and the type that checks it. Outside `internal/`, so the end-to-end tests can build each service with its own (decision 259) | `internal/host`, `pkg/dbx` | everything else |
-| `cmd/<name>/app` | The composition root: reads the configuration, builds each layer, wires them | everything in the service | |
+| `app` | The composition root (with `main.go` beside it at the service's root): reads the configuration, builds each layer, wires them | everything in the service | |
 
 The rules are checked by depguard (`.golangci.yml`), one rule per layer, as page 1's import direction is today.
 
@@ -33,8 +33,8 @@ The root `internal/model` (Finga's ID types and `Class`) clashes with the name e
 
 ```txt
 services/item/
-  cmd/item/main.go          reads the configuration, builds the service, runs it until SIGINT or SIGTERM
-  cmd/item/app/             the composition root
+  main.go                   reads the configuration, builds the service, runs it until SIGINT or SIGTERM
+  app/                      the composition root
   config/                   config.yaml, the item service's defaults with only its keys, and Config, the type that checks them
   migrations/               its goose files, embedded; its own version table
   invariants/               the item invariant checks (unchanged; the tests and a Stage 2 auditor run them)

@@ -155,7 +155,8 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
 ## Architecture at a glance
 
 Six services in one Go module in `server/` (Low-level design, page 10), each
-a binary of its own (`server/services/<name>/cmd/<name>`), calling each
+a binary of its own (`server/services/<name>`, its `main.go` at the
+service's root), calling each
 other over gRPC with the contracts in `server/api/proto/internal/` and the
 generated code committed in `server/api/gen/`:
 
@@ -197,7 +198,7 @@ generated code committed in `server/api/gen/`:
   state, invites and party chat to each member's gateway on its own stream,
   and feeds the world's party copy on `WatchParties`.
 
-Inside a service, `cmd/<name>/app` is its composition root (the end-to-end
+Inside a service, `main.go` starts it and `app/` is its composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
 `config/` its own configuration, and `internal/` its layers, one package
 each (Low-level design, page 11): `model` (entities, value types and the

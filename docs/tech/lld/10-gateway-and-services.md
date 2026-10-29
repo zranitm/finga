@@ -32,12 +32,12 @@ server/
     proto/internal/<service>/v1/      the internal gRPC contracts, one package per service
     gen/<service>/v1/                 generated Go code (committed; make gen)
   services/
-    gateway/    cmd/gateway/  internal/   WebSocket connections, REST entry, routing, per-player command queues
-    account/    cmd/account/  internal/  migrations/
-    character/  cmd/character/  internal/  migrations/
-    item/       cmd/item/  internal/  migrations/
-    world/      cmd/world/  internal/      map instances, sim, combat, drops, portals
-    social/     cmd/social/  internal/     parties, invites, chat (in memory)
+    gateway/    main.go  app/  internal/   WebSocket connections, REST entry, routing, per-player command queues
+    account/    main.go  app/  internal/  migrations/
+    character/  main.go  app/  internal/  migrations/
+    item/       main.go  app/  internal/  migrations/
+    world/      main.go  app/  internal/      map instances, sim, combat, drops, portals
+    social/     main.go  app/  internal/     parties, invites, chat (in memory)
   internal/
     kernel/       Finga's ID types (AccountID, CharacterID, ItemID, SessionID) on pkg/typedid, and Class
     gamedata/     Finga's game-data schema and validation (classes, mobs, items, maps) on pkg/tiled
@@ -59,9 +59,9 @@ Inside a service:
 
 ```txt
 services/item/
-  cmd/item/main.go        loads its configuration, builds the service, runs it until SIGINT or SIGTERM
+  main.go                 loads its configuration, builds the service, runs it until SIGINT or SIGTERM
   config/                 its own configuration: config.yaml and its type (page 11, step 29)
-  cmd/item/app/           the composition root: Build wires the module, the gRPC server and the runner
+  app/                    the composition root: Build wires the layers, the gRPC server and the runner
   internal/model/         the item service's model: Item, Event, Cause, Slot, the errors (page 11, step 32)
   internal/application/   its use cases and, in ports.go, what they need
   internal/repository/    the Postgres store, its unit of work and classify; queries/, internal/db/
@@ -247,8 +247,8 @@ After a world restart the HUD's EXP can show more than the reloaded checkpoint u
 
 ## Binaries, configuration and deployment
 
-- **Binaries:** `services/<service>/cmd/<service>` for the six services; `cmd/migrate` and `cmd/bot` stay. `cmd/gameserver` is gone after step 28.
-- **Composition roots:** each in `services/<service>/cmd/<service>/app` (R5's rule), which the end-to-end tests import to build the whole game in one test process.
+- **Binaries:** `services/<service>` for the six services, with `main.go` at the service's root (until 2026-10-29, `services/<service>/cmd/<service>`, decision 266); `cmd/migrate` and `cmd/bot` stay. `cmd/gameserver` is gone after step 28.
+- **Composition roots:** each in `services/<service>/app` (R5's rule), which the end-to-end tests import to build the whole game in one test process.
 - **Listeners:** the gateway serves `/api`, `/ws`, `/healthz`, `/readyz` and `/metrics` on `server.addr` (:8080). Every other service serves gRPC on its `listen` address and `/healthz`, `/readyz` and `/metrics` on its `ops` address, so Prometheus scrapes every process and the bot reads the tick percentiles from the world (decision 174). `pkg/runner` runs a binary's listeners and background tasks with readiness and graceful shutdown (today's `app.Server`, made generic).
 - **Configuration:** each binary has its own file and type inside it, `services/<name>/config/` (page 11, step 29; until then one schema, `internal/config`, and one `configs/config.yaml` served every binary, decision 173). An internal service's file has its gRPC listener (`grpc.listen`, :9001 to :9005) and its ops listener (`ops.addr`, :9101 to :9105); a service that calls others has their addresses under `dependencies`, which Compose sets to the services' names:
 

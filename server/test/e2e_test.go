@@ -1,7 +1,7 @@
 // Package e2e runs the game as production builds it, in one test process
 // against a real Postgres: each service from its composition root
-// (services/<name>/cmd/<name>/app) on loopback listeners, and the gateway's
-// handler (services/gateway/cmd/gateway/app) dialling them, served by
+// (services/<name>/app) on loopback listeners, and the gateway's
+// handler (services/gateway/app) dialling them, served by
 // httptest. Each Stage
 // 1 acceptance criterion that the REST API covers is a row named after its
 // feature.
@@ -30,17 +30,17 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
 	"finga/pkg/wsconn"
-	accountapp "finga/services/account/cmd/account/app"
+	accountapp "finga/services/account/app"
 	accountconfig "finga/services/account/config"
-	characterapp "finga/services/character/cmd/character/app"
+	characterapp "finga/services/character/app"
 	characterconfig "finga/services/character/config"
-	"finga/services/gateway/cmd/gateway/app"
+	"finga/services/gateway/app"
 	gatewayconfig "finga/services/gateway/config"
-	itemapp "finga/services/item/cmd/item/app"
+	itemapp "finga/services/item/app"
 	itemconfig "finga/services/item/config"
-	socialapp "finga/services/social/cmd/social/app"
+	socialapp "finga/services/social/app"
 	socialconfig "finga/services/social/config"
-	worldapp "finga/services/world/cmd/world/app"
+	worldapp "finga/services/world/app"
 	worldconfig "finga/services/world/config"
 )
 

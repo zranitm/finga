@@ -53,7 +53,7 @@ func (b *lockedBuffer) String() string {
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
-	build := exec.Command("go", "build", "-o", dir, "./services/gateway/cmd/gateway", "./services/item/cmd/item", "./services/account/cmd/account", "./services/social/cmd/social", "./services/character/cmd/character", "./services/world/cmd/world")
+	build := exec.Command("go", "build", "-o", dir, "./services/gateway", "./services/item", "./services/account", "./services/social", "./services/character", "./services/world")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)

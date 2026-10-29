@@ -16,24 +16,24 @@ linters:
   settings:
     depguard:
       rules:
-        # A composition root (services/<name>/cmd/<name>/app, cmd/migrate/app)
+        # A composition root (services/<name>/app, cmd/migrate/app)
         # is the top: only its main and the end-to-end tests import it.
         below-cmd:
           files: ["**/internal/**", "**/pkg/**"]
           deny:
             - pkg: finga/cmd
               desc: only a binary and the tests import its composition root
-            - pkg: finga/services/account/cmd
+            - pkg: finga/services/account/app
               desc: only a binary and the tests import a service's composition root
-            - pkg: finga/services/character/cmd
+            - pkg: finga/services/character/app
               desc: only a binary and the tests import a service's composition root
-            - pkg: finga/services/gateway/cmd
+            - pkg: finga/services/gateway/app
               desc: only a binary and the tests import a service's composition root
-            - pkg: finga/services/item/cmd
+            - pkg: finga/services/item/app
               desc: only a binary and the tests import a service's composition root
-            - pkg: finga/services/social/cmd
+            - pkg: finga/services/social/app
               desc: only a binary and the tests import a service's composition root
-            - pkg: finga/services/world/cmd
+            - pkg: finga/services/world/app
               desc: only a binary and the tests import a service's composition root
         # pkg is generic: it never knows the game exists.
         pkg:

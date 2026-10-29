@@ -29,7 +29,7 @@ server/                 the Go module: everything the server builds, reads and p
     telemetry/          metrics and logging; implements the services' observer interfaces
   services/             one folder per service (page 10); each module lives in its service
     gateway/            the only public entry; no database, no game rules
-      cmd/gateway/      main.go and app/: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
+      main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
       config/           its own configuration: config.yaml (http, the five dependencies) and its type
       internal/handler/
         api/            REST handlers, DTOs, middleware
@@ -38,7 +38,7 @@ server/                 the Go module: everything the server builds, reads and p
         router.go       the route table: /api, /ws, /metrics, /healthz, /readyz
       internal/clients/ the account service as pkg/auth's Guard
     item/
-      cmd/item/         main.go and app/, its composition root
+      main.go, app/     the entry point and its composition root
       config/           its own configuration: config.yaml, with only its keys (page 11), and its type
       internal/model/   Item, Event, Cause, Slot, the errors, the outbox payloads (step 32)
       internal/application/  add, move, discard, the starter grant, the inventory; ports.go
@@ -46,7 +46,7 @@ server/                 the Go module: everything the server builds, reads and p
       internal/handler/ the ItemService gRPC server and its error table
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
-    account/            in layers (step 31): cmd/account, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
+    account/            in layers (step 31): main.go, app/, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
     social/             in layers (step 34): config/, internal/model (parties, chat lines, the errors), internal/application (PartyService, ChatService), its handler (SocialService, Deliver, WatchParties); no database, no repository
     character/          the same shape as item, in layers (step 33), and internal/clients/ for the item service (starter items): the application's StarterItems port over gRPC
     world/              in layers (step 35): internal/model (what a player and a character carry, views and events, saves, pickups, the combat rules, the errors), internal/application (the World, the map instances' actors and their tick, the workers, the ports), internal/clients (character, item, the party copy), its handler (WorldService, Deliver; the Sink port); no database, no repository
@@ -71,13 +71,13 @@ tools/                  developer tools; empty in Stage 1
 
 - The repository is `finga`, in three parts: `server/`, `web/` and `infra/` (split on 2026-10-23 at the user's request). The server is one Go module, in `server/`, also named `finga` (TD-15). Paths on these pages that start with `api/`, `cmd/`, `configs/`, `data/`, `internal/`, `pkg/`, `services/`, `test/` or `testdata/` are under `server/`.
 - The server is the reference for what the two sides share: the client generates its game data from `server/data/` and its tests check `server/testdata/`. The root `Makefile` drives all three parts.
-- Every `main.go` only loads configuration, builds the binary, and runs it until SIGINT or SIGTERM. Each binary wires its own dependencies next to its main, its Composition Root (one per process, as close to the entry point as possible). `migrate` and `bot` wire in `main.go`; each service wires in `services/<name>/cmd/<name>/app`, a package of its own because Go cannot import a `main` package and the end-to-end tests build the whole game in process exactly as production does. Stage 2 binaries follow the same rule (moved from `internal/server` on 2026-10-23 at the user's request; the game server became the services of page 10 in steps 20 to 28).
+- Every `main.go` only loads configuration, builds the binary, and runs it until SIGINT or SIGTERM. Each binary wires its own dependencies next to its main, its Composition Root (one per process, as close to the entry point as possible). `migrate` and `bot` wire in `main.go`; each service wires in `services/<name>/app`, beside its `main.go` at the service's root, a package of its own because Go cannot import a `main` package and the end-to-end tests build the whole game in process exactly as production does. Stage 2 binaries follow the same rule (moved from `internal/server` on 2026-10-23 at the user's request; the game server became the services of page 10 in steps 20 to 28).
 - Additions with no docviewer counterpart: `data/` (game content), `services/` (one folder per service, each module inside its service, with its migrations in `services/*/migrations/`), and the gateway's `internal/handler/router.go`, because there are two handlers (REST and WebSocket) to mount behind one router.
 - Each acceptance criterion in Features becomes a named row in `test/`, for example `F3/two-buyers-one-listing`.
 
 ## Dependency rules
 
-- Imports flow one way: composition roots (`services/*/cmd/*/app`, `cmd/migrate/app`) → each service's handler and clients → its application → its model → the shared kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`; a service's repository implements its application's ports and imports application and model (page 11, Layers). Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry, configuration or `internal/host` (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it; `internal/model` became `internal/kernel` in step 30, so every service's own layer can be called `model`).
+- Imports flow one way: composition roots (`services/*/app`, `cmd/migrate/app`) → each service's handler and clients → its application → its model → the shared kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`; a service's repository implements its application's ports and imports application and model (page 11, Layers). Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry, configuration or `internal/host` (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it; `internal/model` became `internal/kernel` in step 30, so every service's own layer can be called `model`).
 - A service never imports another: Go's `internal/` rule keeps it out of the other's internals, and depguard out of the rest (its migrations, its composition root). It reaches another only through the client generated from `api/proto/internal/` (page 10).
 - A service's layers are packages (page 11; each service moves into them in steps 31 to 36, and until its step keeps them as files of one module package, `services/<name>/internal/<module>`): `model` imports none of the others; `application` imports `model`; `repository` imports `application` and `model`; `handler` and `clients` import `application` and `model`, never `repository` or each other. depguard has one rule per layer (`layer-model`, ..., `layer-clients`), naming every service's packages, since it matches a denied path by prefix with no wildcard; a new service is added to each list.
 - The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, a configuration package or `internal/host`:

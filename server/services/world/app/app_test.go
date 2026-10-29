@@ -21,7 +21,7 @@ import (
 	"finga/internal/host"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/services/world/cmd/world/app"
+	"finga/services/world/app"
 	"finga/services/world/config"
 )
 
@@ -91,7 +91,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	cfg := config.Config{
 		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace:      time.Second,
-		DataDir:            "../../../../../data",
+		DataDir:            "../../../data",
 		TickRateHz:         20,
 		CheckpointInterval: 30 * time.Second,
 		Economy:            config.Economy{Workers: 2},

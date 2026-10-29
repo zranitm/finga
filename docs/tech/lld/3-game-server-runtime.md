@@ -2,7 +2,7 @@
 
 ## Process
 
-One binary per job, as in docviewer. The game runs as six services (page 10), each a binary of its own, `services/<name>/cmd/<name>`:
+One binary per job, as in docviewer. The game runs as six services (page 10), each a binary of its own, `services/<name>` (its `main.go` at the service's root):
 
 - `gateway` is the only public entry: REST and the WebSocket gateway, with no database and no game rules (step 28).
 - `world` runs the map instances, the persistence worker and the economy workers (step 27).
