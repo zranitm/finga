@@ -17,7 +17,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/services/world/internal/clients"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/model"
 )
 
 // items is the item service, faked behind a real gRPC server.
@@ -55,7 +55,7 @@ func TestPickupsAddTheDropUnderItsOwnKey(t *testing.T) {
 	gel := kernel.NewItemID()
 	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 2, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7}}, {Tab: "etc", Slot: 4}}}
 	p := clients.NewPickups(itemClient(t, f))
-	in := world.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuid.New(), Template: "slime_gel", Quantity: 2}
+	in := model.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuid.New(), Template: "slime_gel", Quantity: 2}
 	slots, err := p.Add(context.Background(), in)
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +67,7 @@ func TestPickupsAddTheDropUnderItsOwnKey(t *testing.T) {
 	if req.GetActor().GetAccountId() != in.Account.String() || req.GetActor().GetCharacterId() != in.Character.String() || req.GetTemplateId() != "slime_gel" || req.GetQuantity() != 2 {
 		t.Fatalf("request %+v", req)
 	}
-	want := []world.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &world.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}}
+	want := []model.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}}
 	if len(slots) != 2 || slots[0].Tab != want[0].Tab || *slots[0].Item != *want[0].Item || slots[1].Item != nil || slots[1].Slot != 4 {
 		t.Fatalf("slots %+v", slots)
 	}
@@ -118,13 +118,13 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	s := clients.NewSaver(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
 	id := kernel.NewCharacterID()
 	ctx := context.Background()
-	if err := s.SaveCheckpoint(ctx, world.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Exp: 5}); err != nil {
+	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Exp: 5}); err != nil {
 		t.Fatal(err)
 	}
 	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 || cp.GetExp() != 5 {
 		t.Fatalf("checkpoint %+v", cp)
 	}
-	if err := s.SaveLevelUp(ctx, world.LevelUpSave{ID: id, Level: 4, Exp: 6, Stats: gamedata.Stats{STR: 21, VIT: 16}, HP: 280, MP: 31}); err != nil {
+	if err := s.SaveLevelUp(ctx, model.LevelUpSave{ID: id, Level: 4, Exp: 6, Stats: gamedata.Stats{STR: 21, VIT: 16}, HP: 280, MP: 31}); err != nil {
 		t.Fatal(err)
 	}
 	if lu := f.levelUps[0]; lu.GetLevel() != 4 || lu.GetExp() != 6 || lu.GetStats().GetStrength() != 21 || lu.GetStats().GetVitality() != 16 || lu.GetHp() != 280 || lu.GetMp() != 31 {
@@ -161,7 +161,7 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := world.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Bowman, Level: 3, Exp: 40,
+	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Bowman, Level: 3, Exp: 40,
 		Stats: gamedata.Stats{STR: 5, DEX: 18, INT: 4, AGI: 14, VIT: 5}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600}
 	if got != want || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
 		t.Fatalf("got %+v from %+v", got, f.req)

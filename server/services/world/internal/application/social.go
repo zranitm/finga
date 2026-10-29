@@ -1,4 +1,4 @@
-package world
+package application
 
 import "finga/internal/kernel"
 
@@ -10,16 +10,6 @@ type Parties interface {
 	SameParty(a, b kernel.CharacterID) bool
 	Update(id kernel.CharacterID, mapID string, level, hp, maxHP int)
 }
-
-// Chat is a map-channel line, sent to everyone on the map.
-type Chat struct {
-	Tick       uint64
-	Sender     kernel.CharacterID
-	SenderName string
-	Text       string
-}
-
-func (Chat) event() {}
 
 type chatMsg struct {
 	from kernel.CharacterID

@@ -21,8 +21,9 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
+	"finga/services/world/internal/application"
 	"finga/services/world/internal/handler"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/model"
 )
 
 const tick = 10 * time.Millisecond
@@ -31,20 +32,20 @@ const tick = 10 * time.Millisecond
 // fails with its not-found reason.
 type characters struct {
 	mu    sync.Mutex
-	chars map[kernel.CharacterID]world.Character
+	chars map[kernel.CharacterID]model.Character
 }
 
-func (c *characters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (world.Character, error) {
+func (c *characters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	ch, ok := c.chars[id]
 	if !ok || ch.Account != account {
-		return world.Character{}, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+		return model.Character{}, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
 	return ch, nil
 }
 
-func (c *characters) add(ch world.Character) {
+func (c *characters) add(ch model.Character) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.chars[ch.ID] = ch
@@ -52,18 +53,18 @@ func (c *characters) add(ch world.Character) {
 
 type saver struct{}
 
-func (saver) SaveCheckpoint(context.Context, world.Checkpoint) error { return nil }
-func (saver) SaveLevelUp(context.Context, world.LevelUpSave) error   { return nil }
+func (saver) SaveCheckpoint(context.Context, model.Checkpoint) error { return nil }
+func (saver) SaveLevelUp(context.Context, model.LevelUpSave) error   { return nil }
 func (saver) Retryable(error) bool                                   { return false }
 
 // capturing hands the test each sink the server joins with, so it can send
 // events the world would only send in a long game.
 type capturing struct {
-	*world.World
-	sinks chan world.Sink
+	*application.World
+	sinks chan application.Sink
 }
 
-func (c capturing) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink world.Sink) (world.View, error) {
+func (c capturing) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error) {
 	select {
 	case c.sinks <- sink:
 	default:
@@ -75,7 +76,7 @@ type stack struct {
 	c       worldv1.WorldServiceClient
 	ctx     context.Context
 	chars   *characters
-	sinks   chan world.Sink
+	sinks   chan application.Sink
 	account kernel.AccountID
 	data    *gamedata.Data
 }
@@ -86,14 +87,14 @@ func newStack(t *testing.T, queue int) *stack {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chars := &characters{chars: map[kernel.CharacterID]world.Character{}}
-	w := world.New(data, saver{}, slog.New(slog.DiscardHandler), world.Options{TickInterval: tick, Characters: chars})
+	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
+	w := application.New(data, saver{}, slog.New(slog.DiscardHandler), application.Options{TickInterval: tick, Characters: chars})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
 
-	sinks := make(chan world.Sink, 1)
+	sinks := make(chan application.Sink, 1)
 	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", Queue: queue})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)
@@ -102,9 +103,9 @@ func newStack(t *testing.T, queue int) *stack {
 
 // character is a warrior of the stack's account standing on the town's
 // spawn.
-func (s *stack) character(name string) world.Character {
+func (s *stack) character(name string) model.Character {
 	town := s.data.Town()
-	ch := world.Character{
+	ch := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Warrior, Level: 1,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
@@ -125,7 +126,7 @@ func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[worl
 	return stream
 }
 
-func (s *stack) join(t *testing.T, gateway, conn string, ch world.Character) *worldv1.CharacterView {
+func (s *stack) join(t *testing.T, gateway, conn string, ch model.Character) *worldv1.CharacterView {
 	t.Helper()
 	res, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: gateway, ConnectionId: conn, AccountId: s.account.String(), CharacterId: ch.ID.String()})
 	if err != nil {
@@ -297,7 +298,7 @@ func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
 	// the sink refuses, which drops the player.
 	refused := false
 	for range 2_000_000 {
-		if !sink.Send(world.Chat{Sender: ayla.ID, SenderName: "Ayla", Text: "spam"}) {
+		if !sink.Send(model.Chat{Sender: ayla.ID, SenderName: "Ayla", Text: "spam"}) {
 			refused = true
 			break
 		}
@@ -315,7 +316,7 @@ func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
 		}
 		break
 	}
-	if sink.Send(world.Chat{Sender: ayla.ID, Text: "after"}) {
+	if sink.Send(model.Chat{Sender: ayla.ID, Text: "after"}) {
 		t.Fatal("a sink on an ended stream still accepts")
 	}
 	t.Run("a new subscription takes joins again", func(t *testing.T) {
@@ -338,12 +339,12 @@ func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
 		want grpcx.Reason
 	}{
 		{"the item service's, passed through", grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)},
-		{"the world's own", world.ErrPickupBusy, grpcx.Key(worldv1.Reason_REASON_PICKUP_BUSY)},
+		{"the world's own", model.ErrPickupBusy, grpcx.Key(worldv1.Reason_REASON_PICKUP_BUSY)},
 		{"one nobody expected crosses empty", errors.New("disk on fire"), grpcx.Reason{}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			sink.Send(world.PickupFailed{Tick: 7, Err: c.err})
+			sink.Send(model.PickupFailed{Tick: 7, Err: c.err})
 			m := until(t, gw, "the failure", func(m *worldv1.DeliverResponse) bool { return m.GetPickupFailed() != nil })
 			f := m.GetPickupFailed()
 			if m.GetTick() != 7 || f.GetErrorDomain() != c.want.Domain || f.GetErrorReason() != c.want.Name {
@@ -354,7 +355,7 @@ func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
 }
 
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "world"))
+	declared, err := sentinels.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) < 2 {
 		t.Fatalf("declared %v, err %v", declared, err)
 	}

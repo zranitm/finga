@@ -1,4 +1,4 @@
-package world_test
+package application_test
 
 import (
 	"context"
@@ -11,7 +11,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/world"
+	"finga/services/world/internal/application"
+	"finga/services/world/internal/model"
 
 	"github.com/google/uuid"
 )
@@ -24,18 +25,18 @@ var errFull = errors.New("inventory full")
 // scripted failure for the first call when set.
 type fakePickups struct {
 	mu        sync.Mutex
-	calls     []world.Pickup
-	byDrop    map[uuid.UUID][]world.Slot
+	calls     []model.Pickup
+	byDrop    map[uuid.UUID][]model.Slot
 	failFirst error // returned by the first call of each drop
 	full      bool  // every add is refused with errFull
 	seen      map[uuid.UUID]int
 }
 
 func newFakePickups() *fakePickups {
-	return &fakePickups{byDrop: map[uuid.UUID][]world.Slot{}, seen: map[uuid.UUID]int{}}
+	return &fakePickups{byDrop: map[uuid.UUID][]model.Slot{}, seen: map[uuid.UUID]int{}}
 }
 
-func (f *fakePickups) Add(_ context.Context, in world.Pickup) ([]world.Slot, error) {
+func (f *fakePickups) Add(_ context.Context, in model.Pickup) ([]model.Slot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, in)
@@ -49,7 +50,7 @@ func (f *fakePickups) Add(_ context.Context, in world.Pickup) ([]world.Slot, err
 	if slots, ok := f.byDrop[in.DropID]; ok {
 		return slots, nil
 	}
-	slots := []world.Slot{{Tab: gamedata.Etc, Slot: len(f.byDrop), Item: &world.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
+	slots := []model.Slot{{Tab: gamedata.Etc, Slot: len(f.byDrop), Item: &model.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
 	f.byDrop[in.DropID] = slots
 	return slots, nil
 }
@@ -75,15 +76,15 @@ type scriptedRoll struct{ v float64 }
 
 func (r scriptedRoll) Float64() float64 { return r.v }
 
-func dropsIn(s *sink) map[uint64]world.DropView {
-	seen := map[uint64]world.DropView{}
+func dropsIn(s *sink) map[uint64]model.DropView {
+	seen := map[uint64]model.DropView{}
 	for _, e := range s.all() {
 		switch ev := e.(type) {
-		case world.Snapshot:
+		case model.Snapshot:
 			for _, d := range ev.Drops {
 				seen[d.ID] = d
 			}
-		case world.Delta:
+		case model.Delta:
 			for _, d := range ev.Drops {
 				seen[d.ID] = d
 			}
@@ -95,20 +96,20 @@ func dropsIn(s *sink) map[uint64]world.DropView {
 	return seen
 }
 
-func inventoryChanges(s *sink) []world.InventoryChanged {
-	var out []world.InventoryChanged
+func inventoryChanges(s *sink) []model.InventoryChanged {
+	var out []model.InventoryChanged
 	for _, e := range s.all() {
-		if ic, ok := e.(world.InventoryChanged); ok {
+		if ic, ok := e.(model.InventoryChanged); ok {
 			out = append(out, ic)
 		}
 	}
 	return out
 }
 
-func pickupFailures(s *sink) []world.PickupFailed {
-	var out []world.PickupFailed
+func pickupFailures(s *sink) []model.PickupFailed {
+	var out []model.PickupFailed
 	for _, e := range s.all() {
-		if pf, ok := e.(world.PickupFailed); ok {
+		if pf, ok := e.(model.PickupFailed); ok {
 			out = append(out, pf)
 		}
 	}
@@ -117,13 +118,13 @@ func pickupFailures(s *sink) []world.PickupFailed {
 
 // runLootArena starts the arena with pickups wired to a fake item service
 // and a worker pool inside the bubble.
-func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...world.Options) (*world.Instance, func()) {
+func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...application.Options) (*application.Instance, func()) {
 	t.Helper()
-	workers := world.NewWorkers(2, nil)
+	workers := application.NewWorkers(2, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); workers.Run(ctx) }()
-	opts := world.Options{Roll: scriptedRoll{roll}, Items: items, Workers: workers}
+	opts := application.Options{Roll: scriptedRoll{roll}, Items: items, Workers: workers}
 	if len(extra) > 0 {
 		opts.Parties = extra[0].Parties
 	}
@@ -132,7 +133,7 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll fl
 }
 
 // killSlime attacks until the arena slime is dead (two average hits).
-func killSlime(t *testing.T, inst *world.Instance, id kernel.CharacterID) {
+func killSlime(t *testing.T, inst *application.Instance, id kernel.CharacterID) {
 	t.Helper()
 	inst.Attack(id)
 	time.Sleep(13 * tickInterval)
@@ -202,7 +203,7 @@ func TestPickUp(t *testing.T) {
 		if len(drops) != 1 {
 			t.Fatalf("drops %v", drops)
 		}
-		var theDrop world.DropView
+		var theDrop model.DropView
 		for _, d := range drops {
 			theDrop = d
 		}
@@ -413,7 +414,7 @@ func TestDropsVanishAfterAMinute(t *testing.T) {
 func TestPickupsUnavailableWithoutTheItemModule(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, world.Options{Roll: scriptedRoll{0.3}})
+		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{Roll: scriptedRoll{0.3}})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -425,7 +426,7 @@ func TestPickupsUnavailableWithoutTheItemModule(t *testing.T) {
 		inst.PickUp(p.ID)
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
-		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, world.ErrPickupsUnavailable) {
+		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) {
 			v, _ := s.own(p.ID)
 			t.Fatalf("failures %+v; drops %+v; player %+v; damages %d", f, dropsIn(s), v.State, len(damages(s)))
 		}

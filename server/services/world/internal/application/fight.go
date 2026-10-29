@@ -1,4 +1,4 @@
-package world
+package application
 
 import (
 	"math"
@@ -8,7 +8,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
-	"finga/services/world/internal/combat"
+	"finga/services/world/internal/model"
 )
 
 // mob is one live mob: its type, HP, position, and patrol state. Mobs
@@ -34,20 +34,20 @@ type spawnState struct {
 
 const mobPause = 20 // ticks a mob pauses at an edge (1 s at 20 Hz)
 
-func (mb *mob) box() combat.Rect {
-	return combat.Rect{X: mb.x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
+func (mb *mob) box() model.Rect {
+	return model.Rect{X: mb.x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
 }
 
-func (mb *mob) view() MobView {
-	return MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP}
+func (mb *mob) view() model.MobView {
+	return model.MobView{ID: mb.id, Type: mb.def.ID, X: mb.x, Y: mb.y, Facing: mb.facing, HP: mb.hp, MaxHP: mb.def.HP}
 }
 
-func (mb *mob) attacker() combat.Attacker {
-	return combat.Attacker{AttackPower: float64(mb.def.Attack), Accuracy: float64(mb.def.Accuracy)}
+func (mb *mob) attacker() model.Attacker {
+	return model.Attacker{AttackPower: float64(mb.def.Attack), Accuracy: float64(mb.def.Accuracy)}
 }
 
-func (mb *mob) defender() combat.Defender {
-	return combat.Defender{Defense: float64(mb.def.Defense), Evasion: float64(mb.def.Evasion)}
+func (mb *mob) defender() model.Defender {
+	return model.Defender{Defense: float64(mb.def.Defense), Evasion: float64(mb.def.Evasion)}
 }
 
 // stepMobs spawns what is due and moves every mob one tick.
@@ -112,7 +112,7 @@ func (i *Instance) spawnMob(s int) {
 // area alone when no ground
 // is found right under it.
 func (i *Instance) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, maxX float64) {
-	ground := append(append([]combat.Rect(nil), rects(i.m.Geometry.Solids)...), rects(i.m.Geometry.Platforms)...)
+	ground := append(append([]model.Rect(nil), rects(i.m.Geometry.Solids)...), rects(i.m.Geometry.Platforms)...)
 	for _, r := range ground {
 		if math.Abs(r.Y-y) < 1 && x >= r.X && x <= r.X+r.W {
 			return max(r.X, area.Area.X) + half, min(r.X+r.W, area.Area.X+area.Area.W) - half
@@ -121,10 +121,10 @@ func (i *Instance) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, 
 	return area.Area.X + half, area.Area.X + area.Area.W - half
 }
 
-func rects(in []sim.Rect) []combat.Rect {
-	out := make([]combat.Rect, 0, len(in))
+func rects(in []sim.Rect) []model.Rect {
+	out := make([]model.Rect, 0, len(in))
 	for _, r := range in {
-		out = append(out, combat.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H})
+		out = append(out, model.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H})
 	}
 	return out
 }
@@ -147,25 +147,25 @@ func (i *Instance) resolveAttacks() {
 			continue
 		}
 		p.cooldownUntil = i.tick + i.ticksFor(p.class.Attack.Cooldown)
-		targets := make([]combat.Target, 0, len(i.mobs))
+		targets := make([]model.Target, 0, len(i.mobs))
 		for _, mb := range i.mobs {
-			targets = append(targets, combat.Target{Box: mb.box()})
+			targets = append(targets, model.Target{Box: mb.box()})
 		}
 		var idx int
 		var ok bool
 		switch p.class.Attack.Kind {
 		case gamedata.Melee:
-			box := combat.MeleeBox(p.state.X, p.state.Y, p.state.Facing, p.class.Attack.Width, p.class.Attack.Height)
-			idx, ok = combat.NearestInBox(p.state.X, p.state.Y, box, targets)
+			box := model.MeleeBox(p.state.X, p.state.Y, p.state.Facing, p.class.Attack.Width, p.class.Attack.Height)
+			idx, ok = model.NearestInBox(p.state.X, p.state.Y, box, targets)
 		case gamedata.Ranged:
-			idx, ok = combat.FirstInLine(p.state.X, p.state.Y-i.params.Height/2, p.state.Facing, p.class.Attack.Range, targets)
+			idx, ok = model.FirstInLine(p.state.X, p.state.Y-i.params.Height/2, p.state.Facing, p.class.Attack.Range, targets)
 		}
 		if !ok {
 			continue
 		}
 		mb := i.mobs[idx]
-		hit := combat.Resolve(attackerOf(p.derived), mb.defender(), i.roll)
-		i.events = append(i.events, Damage{Tick: i.tick, Source: EntityRef{Player: p.ID}, Target: EntityRef{Mob: mb.id}, Amount: hit.Damage, Crit: hit.Crit, Miss: hit.Miss})
+		hit := model.Resolve(attackerOf(p.derived), mb.defender(), i.roll)
+		i.events = append(i.events, model.Damage{Tick: i.tick, Source: model.EntityRef{Player: p.ID}, Target: model.EntityRef{Mob: mb.id}, Amount: hit.Damage, Crit: hit.Crit, Miss: hit.Miss})
 		if hit.Miss {
 			continue
 		}
@@ -206,7 +206,7 @@ func (i *Instance) award(p *player, amount int64) {
 	}
 	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, progression.PresetPlan(p.class))
 	p.Level, p.Exp, p.Stats = a.Progress.Level, a.Progress.Exp, a.Stats
-	p.private = append(p.private, ExpGained{Tick: i.tick, Amount: amount, Exp: p.Exp})
+	p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: amount, Exp: p.Exp})
 	if a.LevelsGained == 0 {
 		return
 	}
@@ -214,12 +214,12 @@ func (i *Instance) award(p *player, amount int64) {
 	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, progression.Equipment{})
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
-	p.private = append(p.private, LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	p.private = append(p.private, model.LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 	i.tellParty(p, i.m.ID)
 	if i.persist != nil {
-		lu := LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
+		lu := model.LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
 		select {
-		case i.persist <- Job{LevelUp: &lu}:
+		case i.persist <- model.Job{LevelUp: &lu}:
 		default:
 		}
 	}
@@ -241,8 +241,8 @@ func (i *Instance) contactDamage() {
 			if !overlaps(box, mb.box()) {
 				continue
 			}
-			hit := combat.Resolve(mb.attacker(), defenderOf(p.derived), i.roll)
-			i.events = append(i.events, Damage{Tick: i.tick, Source: EntityRef{Mob: mb.id}, Target: EntityRef{Player: p.ID}, Amount: hit.Damage, Crit: hit.Crit, Miss: hit.Miss})
+			hit := model.Resolve(mb.attacker(), defenderOf(p.derived), i.roll)
+			i.events = append(i.events, model.Damage{Tick: i.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: p.ID}, Amount: hit.Damage, Crit: hit.Crit, Miss: hit.Miss})
 			p.invulnUntil = i.tick + i.ticksFor(invulnerability)
 			p.changed = true // the invulnerability starts: the Delta carries the edge (step 19)
 			dir := 1.0
@@ -278,11 +278,11 @@ func (i *Instance) kill(p *player) {
 	if progress.Exp != p.Exp {
 		// The penalty is private to the dying player: a negative ExpGained with
 		// the new total, sent with Died (step 19). No penalty, no message.
-		p.private = append(p.private, ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})
+		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})
 	}
 	p.Exp = progress.Exp
 	p.changed = true
-	i.events = append(i.events, Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y})
+	i.events = append(i.events, model.Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y})
 }
 
 // deathsAndRespawns brings dead players back after the delay at the linked
@@ -303,7 +303,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		if !hasTown || town.ID == i.m.ID || i.opts.Transfer == nil {
 			// Back on this very map: stand at its own player spawn.
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
-			i.events = append(i.events, Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
+			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
 			p.state = sim.State{X: x, Y: y, Facing: 1, Ground: -1, DropPlatform: -1}
 			i.tellParty(p, i.m.ID)
 			p.moved = true
@@ -312,7 +312,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		// The player hears it directly (they leave this map before the
 		// broadcast), everyone else through the tick's events.
 		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
-		respawned := Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
+		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
 		i.events = append(i.events, respawned)
 		p.sink.Send(respawned)
 		i.handOff(p, town, x, y)
@@ -321,6 +321,6 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 	return left
 }
 
-func overlaps(a, b combat.Rect) bool {
+func overlaps(a, b model.Rect) bool {
 	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
 }
