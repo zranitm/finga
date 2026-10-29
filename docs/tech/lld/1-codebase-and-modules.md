@@ -44,7 +44,7 @@ server/                 the Go module: everything the server builds, reads and p
       internal/handler/ the ItemService gRPC server and its error table
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
-    account/            the same shape: cmd/account, config/, internal/account, internal/handler (AccountService and WatchSessions), migrations/
+    account/            in layers (step 31): cmd/account, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
     social/             config/; party/ and chat/ in internal/, its handler (SocialService, Deliver, WatchParties); no database
     character/          the same shape as item, and internal/clients/ for the item service (starter items)
     world/              internal/world/ and internal/combat/ (the map instances and the hit rules), internal/clients/ (character, item, the party copy), its handler (WorldService, Deliver); no database

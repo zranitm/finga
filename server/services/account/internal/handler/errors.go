@@ -5,7 +5,7 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/pkg/grpcx"
-	"finga/services/account/internal/account"
+	"finga/services/account/internal/model"
 )
 
 // Errors is every error the account module can return, with its gRPC code
@@ -14,12 +14,12 @@ import (
 // leaves as InvalidArgument without a reason.
 // TestTheTableCoversTheModuleAndTheContract keeps it complete both ways.
 var Errors = grpcx.ErrorTable{
-	{Err: account.ErrNotFound, Code: codes.NotFound, Reason: accountv1.Reason_REASON_ACCOUNT_NOT_FOUND},
-	{Err: account.ErrUsernameTaken, Code: codes.AlreadyExists, Reason: accountv1.Reason_REASON_USERNAME_TAKEN},
-	{Err: account.ErrUnauthenticated, Code: codes.Unauthenticated, Reason: accountv1.Reason_REASON_UNAUTHENTICATED},
-	{Err: account.ErrRateLimited, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_LOGIN_RATE_LIMITED},
-	{Err: account.ErrBadUsername, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_USERNAME},
-	{Err: account.ErrBadPassword, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_PASSWORD},
-	{Err: account.ErrBadPreset, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_CONTROL_PRESET},
-	{Err: account.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
+	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: accountv1.Reason_REASON_ACCOUNT_NOT_FOUND},
+	{Err: model.ErrUsernameTaken, Code: codes.AlreadyExists, Reason: accountv1.Reason_REASON_USERNAME_TAKEN},
+	{Err: model.ErrUnauthenticated, Code: codes.Unauthenticated, Reason: accountv1.Reason_REASON_UNAUTHENTICATED},
+	{Err: model.ErrRateLimited, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_LOGIN_RATE_LIMITED},
+	{Err: model.ErrBadUsername, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_USERNAME},
+	{Err: model.ErrBadPassword, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_PASSWORD},
+	{Err: model.ErrBadPreset, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_CONTROL_PRESET},
+	{Err: model.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
 }

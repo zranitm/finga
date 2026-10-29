@@ -16,8 +16,9 @@ import (
 	"finga/internal/host"
 	"finga/pkg/dbx"
 	"finga/services/account/config"
-	"finga/services/account/internal/account"
+	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
+	"finga/services/account/internal/repository"
 )
 
 // Build wires the account service from configuration. It fails fast on an
@@ -28,7 +29,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	var srv *handler.Server // built below; the hooks only fire once requests arrive
-	accounts := account.NewService(account.NewPostgres(pool), account.Options{
+	accounts := application.NewService(repository.NewPostgres(pool), application.Options{
 		OnSessionRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.SessionRevoked(ctx, id, reason) },
 		OnAccountRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.AccountRevoked(ctx, id, reason) },
 	})

@@ -4,7 +4,7 @@
 - **Features:** none (structure only)
 - **Milestone:** Layers
 - **Order:** 31
-- **Status:** Ready
+- **Status:** Done
 - **Step:** 31. Account in layers
 
 **Goal:** the account service in the layers of page 11, with its behaviour unchanged.
@@ -23,7 +23,7 @@
 
 ## Done when
 
-- [ ] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; `make test-service SERVICE=account` green; CI green.
+- [x] `make up`, `make smoke`, `make test`, `make lint`, `make cover` green; `make test-service SERVICE=account` green; CI green.
 
 ## Review focus
 

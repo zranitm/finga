@@ -19,19 +19,20 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
-	"finga/services/account/internal/account"
+	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
+	"finga/services/account/internal/model"
 )
 
 // fakeAccounts records what the handler asked and answers err when set.
 type fakeAccounts struct {
 	mu        sync.Mutex
-	register  account.RegisterInput
-	login     account.LoginInput
+	register  application.RegisterInput
+	login     application.LoginInput
 	token     string
 	session   uuid.UUID
 	accountID uuid.UUID
-	updated   account.Settings
+	updated   model.Settings
 	settingOf kernel.AccountID
 	err       error
 	calls     int
@@ -45,12 +46,12 @@ var (
 
 func (f *fakeAccounts) call() error { f.mu.Lock(); defer f.mu.Unlock(); f.calls++; return f.err }
 
-func (f *fakeAccounts) Register(_ context.Context, in account.RegisterInput) (account.Account, error) {
+func (f *fakeAccounts) Register(_ context.Context, in application.RegisterInput) (model.Account, error) {
 	f.register = in
-	return account.Account{ID: kernel.AccountID(accountID), Username: in.Username, Settings: account.DefaultSettings(), CreatedAt: created}, f.call()
+	return model.Account{ID: kernel.AccountID(accountID), Username: in.Username, Settings: model.DefaultSettings(), CreatedAt: created}, f.call()
 }
 
-func (f *fakeAccounts) Login(_ context.Context, in account.LoginInput) (string, error) {
+func (f *fakeAccounts) Login(_ context.Context, in application.LoginInput) (string, error) {
 	f.login = in
 	return "tok-1", f.call()
 }
@@ -74,12 +75,12 @@ func (f *fakeAccounts) RevokeAll(_ context.Context, id uuid.UUID) error {
 	return f.call()
 }
 
-func (f *fakeAccounts) Settings(_ context.Context, id kernel.AccountID) (account.Settings, error) {
+func (f *fakeAccounts) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
 	f.settingOf = id
-	return account.Settings{ControlPreset: account.PresetWASD}, f.call()
+	return model.Settings{ControlPreset: model.PresetWASD}, f.call()
 }
 
-func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s account.Settings) error {
+func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
 	f.settingOf, f.updated = id, s
 	return f.call()
 }
@@ -103,14 +104,14 @@ func TestEachCallMapsItsFields(t *testing.T) {
 			t.Fatal(err)
 		}
 		a := res.GetAccount()
-		if f.register != (account.RegisterInput{Username: "alice", Password: "correct horse"}) || a.GetId() != accountID.String() || a.GetUsername() != "alice" ||
+		if f.register != (application.RegisterInput{Username: "alice", Password: "correct horse"}) || a.GetId() != accountID.String() || a.GetUsername() != "alice" ||
 			a.GetSettings().GetControlPreset() != "classic" || !a.GetCreatedAt().AsTime().Equal(created) {
 			t.Fatalf("input %+v account %+v", f.register, a)
 		}
 	})
 	t.Run("Login carries the caller's IP for the throttle", func(t *testing.T) {
 		res, err := c.Login(ctx, &accountv1.LoginRequest{Username: "alice", Password: "pw", Ip: "10.0.0.9"})
-		if err != nil || res.GetToken() != "tok-1" || f.login != (account.LoginInput{Username: "alice", Password: "pw", IP: "10.0.0.9"}) {
+		if err != nil || res.GetToken() != "tok-1" || f.login != (application.LoginInput{Username: "alice", Password: "pw", IP: "10.0.0.9"}) {
 			t.Fatalf("token %q input %+v err %v", res.GetToken(), f.login, err)
 		}
 	})
@@ -151,7 +152,7 @@ func TestEachCallMapsItsFields(t *testing.T) {
 		if _, err := c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: accountID.String(), Settings: &accountv1.Settings{ControlPreset: "wasd"}}); err != nil {
 			t.Fatal(err)
 		}
-		if f.updated.ControlPreset != account.PresetWASD || f.settingOf != kernel.AccountID(accountID) {
+		if f.updated.ControlPreset != model.PresetWASD || f.settingOf != kernel.AccountID(accountID) {
 			t.Fatalf("updated %+v for %v", f.updated, f.settingOf)
 		}
 	})
@@ -195,7 +196,7 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 }
 
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "account"))
+	declared, err := sentinels.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) == 0 {
 		t.Fatalf("declared %v, err %v", declared, err)
 	}
@@ -246,7 +247,7 @@ func TestWatchSessions(t *testing.T) {
 	a, b := watch("gw-a"), watch("gw-b")
 
 	t.Run("a session ended by token reuse reaches every gateway", func(t *testing.T) {
-		h.SessionRevoked(ctx, sessionID, account.ReasonTokenReuse)
+		h.SessionRevoked(ctx, sessionID, application.ReasonTokenReuse)
 		for _, s := range []grpc.ServerStreamingClient[accountv1.WatchSessionsResponse]{a, b} {
 			ev := recv(s).GetSessionRevoked()
 			if ev.GetSessionId() != sessionID.String() || ev.GetReason() != accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE {
@@ -255,7 +256,7 @@ func TestWatchSessions(t *testing.T) {
 		}
 	})
 	t.Run("a new login reaches every gateway with its reason", func(t *testing.T) {
-		h.AccountRevoked(ctx, accountID, account.ReasonNewLogin)
+		h.AccountRevoked(ctx, accountID, application.ReasonNewLogin)
 		for _, s := range []grpc.ServerStreamingClient[accountv1.WatchSessionsResponse]{a, b} {
 			ev := recv(s).GetAccountRevoked()
 			if ev.GetAccountId() != accountID.String() || ev.GetReason() != accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN {
@@ -264,7 +265,7 @@ func TestWatchSessions(t *testing.T) {
 		}
 	})
 	t.Run("a logout says so", func(t *testing.T) {
-		h.AccountRevoked(ctx, accountID, account.ReasonLogout)
+		h.AccountRevoked(ctx, accountID, application.ReasonLogout)
 		if got := recv(a).GetAccountRevoked().GetReason(); got != accountv1.RevokeReason_REVOKE_REASON_LOGOUT {
 			t.Fatalf("reason %v", got)
 		}
@@ -277,7 +278,7 @@ func TestWatchSessions(t *testing.T) {
 		if _, err := a.Recv(); status.Code(err) != codes.Unavailable {
 			t.Fatalf("the older stream got %v", err)
 		}
-		h.SessionRevoked(ctx, sessionID, account.ReasonLogout)
+		h.SessionRevoked(ctx, sessionID, application.ReasonLogout)
 		if recv(fresh).GetSessionRevoked() == nil {
 			t.Fatal("the new stream missed the event")
 		}

@@ -199,10 +199,15 @@ generated code committed in `server/api/gen/`:
 
 Inside a service, `cmd/<name>/app` is its composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
-`internal/<module>` its business logic (a service over a repository, sqlc
-and pgx, no business rules in SQL), `internal/handler` its gRPC server and
-error table, `internal/clients` its adapters for the services it calls, and
-`migrations/` its own goose files with its own version table. Go's
+`config/` its own configuration, and `internal/` its layers, one package
+each (Low-level design, page 11): `model` (entities, value types and the
+errors), `application` (the use cases, and the ports they need),
+`repository` (Postgres through sqlc and pgx, no business rules in SQL),
+`handler` (its gRPC server and error table) and `clients` (its adapters for
+the services it calls); imports point inward, to `model`. The account
+service is in layers so far; the others keep one module package
+(`internal/<module>`) until their steps (32 to 36). `migrations/` holds its
+own goose files with its own version table. Go's
 `internal/` rule keeps services out of each other, and depguard checks the
 rest of the import direction: composition roots → services → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,

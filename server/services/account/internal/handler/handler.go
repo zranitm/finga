@@ -19,20 +19,21 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
-	"finga/services/account/internal/account"
+	"finga/services/account/internal/application"
+	"finga/services/account/internal/model"
 )
 
 // Service is what the handler needs from the account module.
 type Service interface {
-	Register(ctx context.Context, in account.RegisterInput) (account.Account, error)
-	Login(ctx context.Context, in account.LoginInput) (string, error)
+	Register(ctx context.Context, in application.RegisterInput) (model.Account, error)
+	Login(ctx context.Context, in application.LoginInput) (string, error)
 	Validate(ctx context.Context, token string) (auth.Principal, error)
 	Rotate(ctx context.Context, sessionID uuid.UUID) (string, error)
 	Check(ctx context.Context, sessionID uuid.UUID) error
 	Revoke(ctx context.Context, sessionID uuid.UUID) error
 	RevokeAll(ctx context.Context, accountID uuid.UUID) error
-	Settings(ctx context.Context, id kernel.AccountID) (account.Settings, error)
-	UpdateSettings(ctx context.Context, id kernel.AccountID, s account.Settings) error
+	Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error)
+	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
 }
 
 // watchQueue is how many session ends may wait for a slow gateway before
@@ -55,7 +56,7 @@ func New(svc Service, bootID string) *Server {
 
 // Register creates an account.
 func (s *Server) Register(ctx context.Context, req *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error) {
-	a, err := s.svc.Register(ctx, account.RegisterInput{Username: req.GetUsername(), Password: req.GetPassword()})
+	a, err := s.svc.Register(ctx, application.RegisterInput{Username: req.GetUsername(), Password: req.GetPassword()})
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +67,7 @@ func (s *Server) Register(ctx context.Context, req *accountv1.RegisterRequest) (
 
 // Login issues a session.
 func (s *Server) Login(ctx context.Context, req *accountv1.LoginRequest) (*accountv1.LoginResponse, error) {
-	token, err := s.svc.Login(ctx, account.LoginInput{Username: req.GetUsername(), Password: req.GetPassword(), IP: req.GetIp()})
+	token, err := s.svc.Login(ctx, application.LoginInput{Username: req.GetUsername(), Password: req.GetPassword(), IP: req.GetIp()})
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +142,7 @@ func (s *Server) UpdateSettings(ctx context.Context, req *accountv1.UpdateSettin
 	if err != nil {
 		return nil, err
 	}
-	st := account.Settings{ControlPreset: account.Preset(req.GetSettings().GetControlPreset())}
+	st := model.Settings{ControlPreset: model.Preset(req.GetSettings().GetControlPreset())}
 	return &accountv1.UpdateSettingsResponse{}, s.svc.UpdateSettings(ctx, kernel.AccountID(id), st)
 }
 
@@ -172,17 +173,17 @@ func (s *Server) AccountRevoked(_ context.Context, id uuid.UUID, reason string) 
 
 func revokeReason(reason string) accountv1.RevokeReason {
 	switch reason {
-	case account.ReasonTokenReuse:
+	case application.ReasonTokenReuse:
 		return accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE
-	case account.ReasonLogout:
+	case application.ReasonLogout:
 		return accountv1.RevokeReason_REVOKE_REASON_LOGOUT
-	case account.ReasonNewLogin:
+	case application.ReasonNewLogin:
 		return accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN
 	}
 	return accountv1.RevokeReason_REVOKE_REASON_UNSPECIFIED
 }
 
-func settingsOf(s account.Settings) *accountv1.Settings {
+func settingsOf(s model.Settings) *accountv1.Settings {
 	return &accountv1.Settings{ControlPreset: string(s.ControlPreset)}
 }
 
