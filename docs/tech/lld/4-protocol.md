@@ -1,6 +1,6 @@
 # 4. Protocol
 
-Both are served by the gateway service (page 10), the only public entry, on one address (`server.addr`, :8080): REST under `/api` and the WebSocket at `/ws`. The services behind it speak gRPC to each other and never to a client.
+Both are served by the gateway service (page 10), the only public entry, on one address (`http.addr`, :8080), by one Gin engine (TD-26): REST under `/api` and the WebSocket at `/ws`. The services behind it speak gRPC to each other and never to a client.
 
 ## REST
 

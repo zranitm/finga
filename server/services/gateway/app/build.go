@@ -62,7 +62,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Observer:    metrics,
 	})
 	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger}, Deps{
-		API:     api.NewHandler(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins}),
+		API:     api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins}),
 		Gateway: ws.New(gateway, cfg.HTTP.CORSOrigins),
 		Metrics: observability.MetricsHandler(opts.Registry),
 		Tasks:   []Task{{Name: "streams", Run: gateway.Run}},

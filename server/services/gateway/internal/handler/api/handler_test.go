@@ -440,6 +440,7 @@ func TestUnknownRoutes(t *testing.T) {
 		{"GET", "/api/nope", http.StatusNotFound},
 		{"GET", "/api/accounts", http.StatusMethodNotAllowed},
 		{"PATCH", "/api/settings", http.StatusMethodNotAllowed},
+		{"POST", "/api/accounts/", http.StatusNotFound}, // Gin would redirect a trailing slash; the gateway does not
 	}
 	for _, tt := range tests {
 		t.Run(tt.method+" "+tt.path, func(t *testing.T) {

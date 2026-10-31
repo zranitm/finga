@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -10,14 +9,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"finga/pkg/auth"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
 )
 
-type ctxKey int
-
-const principalKey ctxKey = iota
+// principalKey is the request context's key for the session the auth
+// middleware resolved.
+const principalKey = "finga.principal"
 
 const (
 	bearerScheme   = "bearer"
@@ -30,112 +31,94 @@ const (
 )
 
 // principalFrom is the session the auth middleware resolved.
-func principalFrom(ctx context.Context) auth.Principal {
-	p, _ := ctx.Value(principalKey).(auth.Principal)
+func principalFrom(c *gin.Context) auth.Principal {
+	v, _ := c.Get(principalKey)
+	p, _ := v.(auth.Principal)
 	return p
 }
 
 // requireAuth resolves the bearer token to a principal through the Lobby.
 // Missing, malformed, unknown, expired and revoked tokens all give 401
 // unauthenticated; any other failure is 500.
-func requireAuth(lobby *application.Lobby, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		scheme, token, ok := strings.Cut(c.GetHeader("Authorization"), " ")
 		token = strings.TrimSpace(token)
 		if !ok || !strings.EqualFold(scheme, bearerScheme) || token == "" {
-			w.Header().Set("WWW-Authenticate", "Bearer")
-			writePublic(w, model.Unauthenticated)
+			c.Header("WWW-Authenticate", "Bearer")
+			writePublic(c, model.Unauthenticated)
+			c.Abort()
 			return
 		}
-		p, err := lobby.Authenticate(r.Context(), token)
+		p, err := lobby.Authenticate(c.Request.Context(), token)
 		if err != nil {
 			if model.PublicOf(err) == model.Unauthenticated {
-				w.Header().Set("WWW-Authenticate", "Bearer")
+				c.Header("WWW-Authenticate", "Bearer")
 			}
-			writeError(w, err)
+			writeError(c, err)
+			c.Abort()
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
-	})
+		c.Set(principalKey, p)
+		c.Next()
+	}
 }
 
-// withCORS answers browsers from the allowed origins and refuses preflights
+// cors answers browsers from the allowed origins and refuses preflights
 // from anywhere else. With no allowed origins, same-origin only.
-func withCORS(origins []string, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get(headerOrigin)
+func cors(origins []string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader(headerOrigin)
 		allowed := origin != "" && slices.Contains(origins, origin)
 		if allowed {
-			w.Header().Set(headerAllowOrg, origin)
-			w.Header().Add(headerVary, headerOrigin)
+			c.Header(headerAllowOrg, origin)
+			c.Writer.Header().Add(headerVary, headerOrigin)
 		}
-		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+		if c.Request.Method == http.MethodOptions && c.GetHeader("Access-Control-Request-Method") != "" {
 			if !allowed {
-				w.WriteHeader(http.StatusForbidden)
+				c.AbortWithStatus(http.StatusForbidden)
 				return
 			}
-			w.Header().Set("Access-Control-Allow-Methods", corsMethods)
-			w.Header().Set("Access-Control-Allow-Headers", corsHeaders)
-			w.Header().Set("Access-Control-Max-Age", strconv.Itoa(corsMaxAge))
-			w.WriteHeader(http.StatusNoContent)
+			c.Header("Access-Control-Allow-Methods", corsMethods)
+			c.Header("Access-Control-Allow-Headers", corsHeaders)
+			c.Header("Access-Control-Max-Age", strconv.Itoa(corsMaxAge))
+			c.AbortWithStatus(http.StatusNoContent)
 			return
 		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-// statusWriter remembers what the request log needs: the status, the code
-// of a refusal, and the error behind an internal one.
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-	code   string
-	err    error
-}
-
-// WriteHeader records the first status written.
-func (w *statusWriter) WriteHeader(status int) {
-	if w.status == 0 {
-		w.status = status
+		c.Next()
 	}
-	w.ResponseWriter.WriteHeader(status)
 }
 
-// Write counts an implicit 200 when nothing was written before.
-func (w *statusWriter) Write(b []byte) (int, error) {
-	if w.status == 0 {
-		w.status = http.StatusOK
-	}
-	return w.ResponseWriter.Write(b)
-}
-
-// withLogging logs one line per request: method, path, status and
+// requestLog logs one line per request: method, path, status and
 // duration, the error code of a refusal, and the cause of an internal
 // error at level ERROR. Never headers or bodies, so tokens and passwords
 // stay out. A panic is logged with its stack and answered with 500
-// internal.
-func withLogging(log *slog.Logger, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// internal; it is the API's recovery, in place of Gin's own.
+func requestLog(log *slog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
 		start := time.Now()
-		sw := &statusWriter{ResponseWriter: w}
 		defer func() {
+			r := c.Request
 			if p := recover(); p != nil {
-				if sw.status == 0 {
-					writePublic(sw, model.Internal)
+				if !c.Writer.Written() {
+					writePublic(c, model.Internal)
 				}
+				c.Abort()
 				log.ErrorContext(r.Context(), "panic in request", "method", r.Method, "path", r.URL.Path, "panic", p, "stack", string(debug.Stack()))
 			}
-			args := []any{"method", r.Method, "path", r.URL.Path, "status", sw.status, "duration_ms", float64(time.Since(start).Microseconds()) / 1000}
+			args := []any{"method", r.Method, "path", r.URL.Path, "status", c.Writer.Status(), "duration_ms", float64(time.Since(start).Microseconds()) / 1000}
 			level := slog.LevelInfo
-			if sw.code != "" {
-				args = append(args, "code", sw.code)
+			if code := c.GetString(codeKey); code != "" {
+				args = append(args, "code", code)
 			}
-			if sw.err != nil {
-				args = append(args, "err", sw.err.Error())
-				level = slog.LevelError
+			if v, ok := c.Get(causeKey); ok {
+				if err, ok := v.(error); ok {
+					args = append(args, "err", err.Error())
+					level = slog.LevelError
+				}
 			}
 			log.Log(r.Context(), level, "request", args...)
 		}()
-		next.ServeHTTP(sw, r)
-	})
+		c.Next()
+	}
 }

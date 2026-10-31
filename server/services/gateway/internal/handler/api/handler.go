@@ -1,8 +1,9 @@
 // Package api is the REST handler layer (Low-level design, pages 4 and
-// 11): it decodes requests, resolves the caller from the bearer token,
-// calls exactly one of the application's Lobby use cases per endpoint, and
-// maps results and errors to HTTP. Business rules live in the services;
-// this package only rejects input that is malformed whatever the rules are.
+// 11) on Gin (TD-26): it decodes requests, resolves the caller from the
+// bearer token, calls exactly one of the application's Lobby use cases per
+// endpoint, and maps results and errors to HTTP. Business rules live in
+// the services; this package only rejects input that is malformed whatever
+// the rules are.
 package api
 
 import (
@@ -13,7 +14,10 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+
 	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/model"
 )
 
@@ -48,67 +52,74 @@ func Routes() []Route {
 	}
 }
 
-type handler struct {
+type api struct {
 	lobby *application.Lobby
 }
 
-// NewHandler builds the /api routes with their middleware: logging and
-// panic recovery outermost, then CORS, then authentication where needed.
-func NewHandler(d Dependencies) http.Handler {
-	h := &handler{lobby: d.Lobby}
-	mux := http.NewServeMux()
-	public := func(fn http.HandlerFunc) http.Handler { return fn }
-	authed := func(fn http.HandlerFunc) http.Handler { return requireAuth(d.Lobby, fn) }
+// Mount puts the REST API on e under /api: the request log with panic
+// recovery outermost, then CORS, then authentication on the routes that
+// need a session. A path the engine does not route gets the API's JSON
+// answer (no_such_endpoint, or method_not_allowed for a known path asked
+// with another method) through the same log and CORS, so a preflight for
+// any path is answered too.
+func Mount(d Dependencies) func(e *gin.Engine) {
+	return func(e *gin.Engine) {
+		h := &api{lobby: d.Lobby}
+		edge := func(last gin.HandlerFunc) []gin.HandlerFunc {
+			return []gin.HandlerFunc{requestLog(d.Logger), cors(d.CORSOrigins), last}
+		}
 
-	mux.Handle("POST /api/accounts", public(h.register))
-	mux.Handle("POST /api/sessions", public(h.login))
-	mux.Handle("DELETE /api/sessions/current", authed(h.logout))
-	mux.Handle("DELETE /api/sessions", authed(h.logoutEverywhere))
-	mux.Handle("GET /api/characters", authed(h.listCharacters))
-	mux.Handle("POST /api/characters", authed(h.createCharacter))
-	mux.Handle("GET /api/settings", authed(h.settings))
-	mux.Handle("PUT /api/settings", authed(h.updateSettings))
-	mux.HandleFunc("/", notFound)
+		rest := e.Group("/api", requestLog(d.Logger), cors(d.CORSOrigins))
+		rest.POST("/accounts", h.register)
+		rest.POST("/sessions", h.login)
 
-	return withLogging(d.Logger, withCORS(d.CORSOrigins, mux))
+		authed := rest.Group("", requireAuth(d.Lobby))
+		authed.DELETE("/sessions/current", h.logout)
+		authed.DELETE("/sessions", h.logoutEverywhere)
+		authed.GET("/characters", h.listCharacters)
+		authed.POST("/characters", h.createCharacter)
+		authed.GET("/settings", h.settings)
+		authed.PUT("/settings", h.updateSettings)
+
+		e.NoRoute(edge(func(c *gin.Context) { writePublic(c, model.NoSuchEndpoint) })...)
+		e.NoMethod(edge(func(c *gin.Context) { writePublic(c, model.MethodNotAllowed) })...)
+	}
 }
 
-// notFound answers unknown paths and wrong methods with a JSON error, so
-// clients never see the mux's plain-text defaults.
-func notFound(w http.ResponseWriter, r *http.Request) {
-	for _, route := range Routes() {
-		if route.Path == r.URL.Path {
-			writePublic(w, model.MethodNotAllowed)
-			return
-		}
-	}
-	writePublic(w, model.NoSuchEndpoint)
+// NewHandler is the REST API alone, on an engine of its own as the gateway
+// builds it: what the handler's tests serve.
+func NewHandler(d Dependencies) http.Handler {
+	e := handler.NewEngine()
+	Mount(d)(e)
+	return e
 }
 
 // errMalformed tells decode's caller the request was refused.
 var errMalformed = errors.New("api: malformed request body")
 
 // decode reads one JSON document into v, rejecting unknown fields, trailing
-// data, and bodies over the limit.
-func decode(w http.ResponseWriter, r *http.Request, v any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
-	dec := json.NewDecoder(r.Body)
+// data, and bodies over the limit. It is stricter than Gin's binding, which
+// accepts trailing data and switches unknown-field checks on for every
+// engine at once.
+func decode(c *gin.Context, v any) error {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
+	dec := json.NewDecoder(c.Request.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			writePublic(w, model.BodyTooLarge)
+			writePublic(c, model.BodyTooLarge)
 			return err
 		}
-		writePublic(w, model.MalformedBody)
+		writePublic(c, model.MalformedBody)
 		return err
 	}
 	if dec.More() {
-		writePublic(w, model.MalformedBody)
+		writePublic(c, model.MalformedBody)
 		return errMalformed
 	}
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		writePublic(w, model.MalformedBody)
+		writePublic(c, model.MalformedBody)
 		return errMalformed
 	}
 	return nil
@@ -116,112 +127,113 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 
 // missing rejects a structurally incomplete request: a required field left
 // out. Whether the value is acceptable is the service's rule.
-func missing(w http.ResponseWriter, fields ...string) bool {
+func missing(c *gin.Context, fields ...string) bool {
 	for _, f := range fields {
 		if f == "" {
-			writePublic(w, model.MissingField)
+			writePublic(c, model.MissingField)
 			return true
 		}
 	}
 	return false
 }
 
-func (h *handler) register(w http.ResponseWriter, r *http.Request) {
+func (h *api) register(c *gin.Context) {
 	var req RegisterRequest
-	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
+	if decode(c, &req) != nil || missing(c, req.Username, req.Password) {
 		return
 	}
-	acc, err := h.lobby.Register(r.Context(), req.Username, req.Password)
+	acc, err := h.lobby.Register(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toAccount(acc))
+	writeJSON(c, http.StatusCreated, toAccount(acc))
 }
 
-func (h *handler) login(w http.ResponseWriter, r *http.Request) {
+func (h *api) login(c *gin.Context) {
 	var req LoginRequest
-	if decode(w, r, &req) != nil || missing(w, req.Username, req.Password) {
+	if decode(c, &req) != nil || missing(c, req.Username, req.Password) {
 		return
 	}
-	token, err := h.lobby.Login(r.Context(), req.Username, req.Password, clientIP(r))
+	token, err := h.lobby.Login(c.Request.Context(), req.Username, req.Password, clientIP(c.Request))
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, SessionResponse{Token: token})
+	writeJSON(c, http.StatusCreated, SessionResponse{Token: token})
 }
 
-func (h *handler) logout(w http.ResponseWriter, r *http.Request) {
-	if err := h.lobby.Logout(r.Context(), principalFrom(r.Context())); err != nil {
-		writeError(w, err)
+func (h *api) logout(c *gin.Context) {
+	if err := h.lobby.Logout(c.Request.Context(), principalFrom(c)); err != nil {
+		writeError(c, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
-func (h *handler) listCharacters(w http.ResponseWriter, r *http.Request) {
-	cs, err := h.lobby.Characters(r.Context(), principalFrom(r.Context()))
+// logoutEverywhere ends every session of the account; the account service
+// tells the gateway, which closes the account's connections.
+func (h *api) logoutEverywhere(c *gin.Context) {
+	if err := h.lobby.LogoutEverywhere(c.Request.Context(), principalFrom(c)); err != nil {
+		writeError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *api) listCharacters(c *gin.Context) {
+	cs, err := h.lobby.Characters(c.Request.Context(), principalFrom(c))
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toCharacters(cs))
+	writeJSON(c, http.StatusOK, toCharacters(cs))
 }
 
-func (h *handler) createCharacter(w http.ResponseWriter, r *http.Request) {
+func (h *api) createCharacter(c *gin.Context) {
 	var req CreateCharacterRequest
-	if decode(w, r, &req) != nil || missing(w, req.Name, req.Class) {
+	if decode(c, &req) != nil || missing(c, req.Name, req.Class) {
 		return
 	}
-	c, err := h.lobby.CreateCharacter(r.Context(), principalFrom(r.Context()), req.Name, req.Class)
+	ch, err := h.lobby.CreateCharacter(c.Request.Context(), principalFrom(c), req.Name, req.Class)
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toCharacter(c))
+	writeJSON(c, http.StatusCreated, toCharacter(ch))
 }
 
-func (h *handler) settings(w http.ResponseWriter, r *http.Request) {
-	s, err := h.lobby.Settings(r.Context(), principalFrom(r.Context()))
+func (h *api) settings(c *gin.Context) {
+	s, err := h.lobby.Settings(c.Request.Context(), principalFrom(c))
 	if err != nil {
-		writeError(w, err)
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toSettings(s))
+	writeJSON(c, http.StatusOK, toSettings(s))
 }
 
-func (h *handler) updateSettings(w http.ResponseWriter, r *http.Request) {
+func (h *api) updateSettings(c *gin.Context) {
 	var req SettingsRequest
-	if decode(w, r, &req) != nil || missing(w, req.ControlPreset) {
+	if decode(c, &req) != nil || missing(c, req.ControlPreset) {
 		return
 	}
 	s := model.Settings{ControlPreset: req.ControlPreset}
-	if err := h.lobby.UpdateSettings(r.Context(), principalFrom(r.Context()), s); err != nil {
-		writeError(w, err)
+	if err := h.lobby.UpdateSettings(c.Request.Context(), principalFrom(c), s); err != nil {
+		writeError(c, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toSettings(s))
+	writeJSON(c, http.StatusOK, toSettings(s))
 }
 
 // clientIP is the peer's address. Under make up the browser's requests come
 // through nginx, which sets X-Forwarded-For, but the gateway does not trust
 // the header yet (Stage 2, with the edge's TLS and limits), so every browser
-// behind nginx shares its address for the login throttle.
+// behind nginx shares its address for the login throttle. Gin's ClientIP
+// is not used, and the engine trusts no proxy (handler.NewEngine).
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
-}
-
-// logoutEverywhere ends every session of the account; the account service
-// tells the gateway, which closes the account's connections.
-func (h *handler) logoutEverywhere(w http.ResponseWriter, r *http.Request) {
-	if err := h.lobby.LogoutEverywhere(r.Context(), principalFrom(r.Context())); err != nil {
-		writeError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
