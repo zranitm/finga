@@ -244,26 +244,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 	})
 
 	h.OnOpen(c)
-	var readErr error
-loop:
-	for {
-		select {
-		case <-c.closed:
-			break loop
-		case f := <-frames:
-			if f.err != nil {
-				readErr = f.err
-				c.closedByPeer()
-				break loop
-			}
-			m, err := c.codec.Decode(f.data)
-			if err != nil {
-				c.Close(CloseBadMessage, "bad message")
-				break loop
-			}
-			h.OnMessage(c, m)
-		}
-	}
+	readErr := c.dispatch(h, frames)
 
 	// Tell the peer why, when it was our decision, then tear down. A peer
 	// that stopped reading (slow consumer, missed pong) would never answer
@@ -285,6 +266,30 @@ loop:
 	_ = c.ws.CloseNow()
 	wg.Wait()
 	h.OnClose(c, closeReason(c.closeErr, readErr))
+}
+
+// dispatch hands each frame the reader receives to h, decoded, one at a
+// time, until the connection ends: closed by us (nil), by the peer (the
+// read error, returned for OnClose), or by a frame that does not decode
+// (nil; Close records why).
+func (c *conn) dispatch(h Handler, frames <-chan frame) error {
+	for {
+		select {
+		case <-c.closed:
+			return nil
+		case f := <-frames:
+			if f.err != nil {
+				c.closedByPeer()
+				return f.err
+			}
+			m, err := c.codec.Decode(f.data)
+			if err != nil {
+				c.Close(CloseBadMessage, "bad message")
+				return nil
+			}
+			h.OnMessage(c, m)
+		}
+	}
 }
 
 // closeReason is what OnClose gets: our CloseError when we closed, nil for
