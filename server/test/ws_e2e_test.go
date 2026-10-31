@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -265,10 +266,8 @@ func TestWalkTogether(t *testing.T) {
 				t.Fatal("Ayla's connection closed")
 			}
 			if m.Type == "Delta" {
-				for _, id := range m.Data.(protocol.Delta).RemovedPlayers {
-					if id == robin.id {
-						return
-					}
+				if slices.Contains(m.Data.(protocol.Delta).RemovedPlayers, robin.id) {
+					return
 				}
 			}
 		}

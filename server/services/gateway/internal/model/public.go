@@ -107,8 +107,7 @@ func PublicOf(err error) Public {
 	if err == nil {
 		return Public{}
 	}
-	var se *ServiceError
-	if errors.As(err, &se) {
+	if se, ok := errors.AsType[*ServiceError](err); ok {
 		return se.Public
 	}
 	for _, row := range kernelErrors {

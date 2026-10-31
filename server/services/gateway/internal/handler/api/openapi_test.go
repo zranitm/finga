@@ -97,8 +97,8 @@ func TestDTOsMatchOpenAPISchemas(t *testing.T) {
 
 func jsonFields(t reflect.Type) []string {
 	var out []string
-	for i := range t.NumField() {
-		tag := t.Field(i).Tag.Get("json")
+	for field := range t.Fields() {
+		tag := field.Tag.Get("json")
 		name, _, _ := strings.Cut(tag, ",")
 		if name != "" && name != "-" {
 			out = append(out, name)

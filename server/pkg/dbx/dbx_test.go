@@ -198,8 +198,7 @@ func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
-	var pe *pgconn.PgError
-	if !errors.As(err, &pe) {
+	if _, ok := errors.AsType[*pgconn.PgError](err); !ok {
 		t.Fatalf("the last database error is not reachable: %v", err)
 	}
 }

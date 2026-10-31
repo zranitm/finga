@@ -527,7 +527,7 @@ func TestRequestLog(t *testing.T) {
 	h.do("GET", "/api/characters", "", authed())
 	h.do("GET", "/api/characters", "", nil)
 	var lines []map[string]any
-	for _, raw := range strings.Split(strings.TrimSpace(h.logs.String()), "\n") {
+	for raw := range strings.SplitSeq(strings.TrimSpace(h.logs.String()), "\n") {
 		var rec map[string]any
 		if err := json.Unmarshal([]byte(raw), &rec); err != nil {
 			t.Fatalf("log line %q: %v", raw, err)

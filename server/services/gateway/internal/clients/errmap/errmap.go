@@ -127,8 +127,7 @@ func Wrap(err error) error {
 	if err == nil {
 		return nil
 	}
-	var se *model.ServiceError
-	if errors.As(err, &se) {
+	if _, ok := errors.AsType[*model.ServiceError](err); ok {
 		return err
 	}
 	e := &model.ServiceError{Public: For(err), Err: err}

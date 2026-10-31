@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"math"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -61,8 +62,8 @@ func (s *sink) last() model.Delta {
 // own finds the player's own view in the latest delta that carries it.
 func (s *sink) own(id kernel.CharacterID) (model.PlayerView, bool) {
 	ds := s.deltas()
-	for i := len(ds) - 1; i >= 0; i-- {
-		for _, p := range ds[i].Players {
+	for _, d := range slices.Backward(ds) {
+		for _, p := range d.Players {
 			if p.ID == id {
 				return p, true
 			}

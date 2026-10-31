@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 
@@ -106,8 +107,7 @@ func decode(c *gin.Context, v any) error {
 	dec := json.NewDecoder(c.Request.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writePublic(c, model.BodyTooLarge)
 			return err
 		}
@@ -128,11 +128,9 @@ func decode(c *gin.Context, v any) error {
 // missing rejects a structurally incomplete request: a required field left
 // out. Whether the value is acceptable is the service's rule.
 func missing(c *gin.Context, fields ...string) bool {
-	for _, f := range fields {
-		if f == "" {
-			writePublic(c, model.MissingField)
-			return true
-		}
+	if slices.Contains(fields, "") {
+		writePublic(c, model.MissingField)
+		return true
 	}
 	return false
 }
