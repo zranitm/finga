@@ -160,8 +160,8 @@ service's root), calling each
 other over gRPC with the contracts in `server/api/proto/internal/` and the
 generated code committed in `server/api/gen/`:
 
-- **`gateway`** is the only public entry: REST under `/api` (contract in
-  `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket
+- **`gateway`** is the only public entry, on Gin (TD-26): REST under `/api`
+  (contract in `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket
   gateway at `/ws` (the message catalogue is `internal/protocol`, with golden
   files in `server/testdata/contracts/` and `server/api/asyncapi.yaml`). It
   holds no database and no game rules: the Hello handshake, one connection

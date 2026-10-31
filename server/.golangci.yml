@@ -412,6 +412,13 @@ linters:
           deny:
             - pkg: finga/services
               desc: support packages never import a service
+        # Gin is the gateway's HTTP edge (TD-26): its handlers and its
+        # composition root use it, nothing else.
+        gin-at-the-edge:
+          files: ["$all", "!**/services/gateway/internal/handler/**", "!**/services/gateway/app/**"]
+          deny:
+            - pkg: github.com/gin-gonic/gin
+              desc: Gin stays in the gateway's handlers and composition root (TD-26)
         # A binary's configuration (page 11) is its keys and their checks:
         # the host's sections and the database section, nothing else.
         config:

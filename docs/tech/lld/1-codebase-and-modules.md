@@ -36,9 +36,10 @@ server/                 the Go module: everything the server builds, reads and p
       internal/clients/ the ports over the services' generated clients, the deliveries turned into protocol messages, the account service as pkg/auth's Guard
         errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
       internal/handler/
-        api/            REST: DTOs, validation, HTTP over the Lobby
+        api/            REST on Gin (TD-26): the /api group and its middleware (request log with recovery, CORS, bearer auth), DTOs, validation, over the Lobby
         ws/             the socket: wsconn's read and write loops, the codec, the Conn the Gateway sends through
-        router.go       the route table: /api, /ws, /metrics, /healthz, /readyz
+        engine.go       the Gin engine as the gateway runs it: release mode, no redirects, 405 for another method, no trusted proxy
+        router.go       the route table on that engine: /api, /ws, /metrics, /healthz, /readyz
     item/
       main.go, app/     the entry point and its composition root
       config/           its own configuration: config.yaml, with only its keys (page 11), and its type

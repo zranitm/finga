@@ -17,6 +17,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	"finga/pkg/runner"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/handler"
@@ -35,9 +37,9 @@ type Options struct {
 
 // Deps are the handlers the router mounts and the tasks the server runs.
 type Deps struct {
-	API     http.Handler // /api/
-	Gateway http.Handler // /ws; nil mounts nothing
-	Metrics http.Handler // /metrics
+	API     func(e *gin.Engine) // mounts the REST API under /api/; nil mounts nothing
+	Gateway http.Handler        // /ws; nil mounts nothing
+	Metrics http.Handler        // /metrics
 	Tasks   []Task
 	// Drain runs on shutdown once readiness has turned 503 and before the
 	// listener closes, within the grace period: the gateway kicks its

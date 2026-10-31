@@ -13,13 +13,13 @@ import (
 	"finga/services/gateway/config"
 )
 
-func newServer(t *testing.T, api http.Handler) *app.Server {
+func newServer(t *testing.T) *app.Server {
 	t.Helper()
 	return app.New(app.Options{
 		HTTP:          config.HTTP{Addr: "127.0.0.1:0"},
 		ShutdownGrace: 2 * time.Second,
 		Logger:        slog.New(slog.DiscardHandler),
-	}, app.Deps{API: api, Metrics: http.NotFoundHandler()})
+	}, app.Deps{Metrics: http.NotFoundHandler()})
 }
 
 func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
@@ -37,7 +37,7 @@ func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 // pkg/runner drives readiness (its tests cover in-flight requests on
 // shutdown and a busy address); this test checks the two are wired.
 func TestReadinessFollowsTheProcess(t *testing.T) {
-	srv := newServer(t, http.NotFoundHandler())
+	srv := newServer(t)
 	h := srv.Handler()
 
 	t.Run("readyz is 503 before the server runs", func(t *testing.T) {
@@ -99,7 +99,7 @@ func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
 		HTTP:          config.HTTP{Addr: "127.0.0.1:0"},
 		ShutdownGrace: 2 * time.Second,
 		Logger:        slog.New(slog.DiscardHandler),
-	}, app.Deps{API: http.NotFoundHandler(), Metrics: http.NotFoundHandler(), Drain: func(context.Context) {
+	}, app.Deps{Metrics: http.NotFoundHandler(), Drain: func(context.Context) {
 		res, err := http.Get("http://" + srv.Addr() + "/readyz") // the listener still serves while draining
 		if err != nil {
 			drained <- 0

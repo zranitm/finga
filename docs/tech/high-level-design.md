@@ -79,7 +79,7 @@ nginx also serves the client's static files on `/`. Prometheus scrapes every Go 
 | **Client** | Rendering, input, own-movement prediction, interpolation, menus | Phaser 4, TypeScript, Vite; React overlay for menus and the HUD, sharing a Zustand store with the game; Tiled maps (TD-23) |
 | **Cloudflare** | Absorbs attacks, hides the origin IP, caches static files | Free plan, managed with Terraform |
 | **nginx** | TLS to the origin, static files, routing, per-IP limits, WebSocket upgrade | nginx with a Cloudflare origin certificate |
-| **Gateway** | The only public entry: WebSocket connections, REST, routing, rate limits; no game rules, no database | Go, `services/gateway` |
+| **Gateway** | The only public entry: WebSocket connections, REST, routing, rate limits; no game rules, no database | Go, `services/gateway`; Gin for its HTTP edge (TD-26) |
 | **Game services** | All gameplay and economy logic: account, character, item (with economy and market), world, social | Go, one binary each under `services/`, gRPC between them (TD-25) |
 | **Outbox relay** | Publishes committed outbox rows to Kafka | Go, `cmd/outbox-relay`, generic |
 | **Kafka** | Durable, ordered, replayable domain events | Apache Kafka in KRaft mode; franz-go client |
