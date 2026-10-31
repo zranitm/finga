@@ -28,7 +28,7 @@ down:          ## stop everything and drop the database volume (and containers o
 SERVICES ?= account character item social world
 run:           ## without Docker: server/.env exported, every service's migrations, then the six services
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
-	$(GO) build -o bin/ ./services/gateway/cmd/gateway $(foreach s,$(SERVICES),./services/$(s)/cmd/$(s)) && \
+	$(GO) build -o bin/ ./services/gateway $(foreach s,$(SERVICES),./services/$(s)) && \
 	trap 'kill 0' EXIT; for s in $(SERVICES); do ./bin/$$s & done; ./bin/gateway
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
