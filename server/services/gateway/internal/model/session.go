@@ -26,10 +26,10 @@ type Actor struct {
 	Character kernel.CharacterID
 }
 
-// Limit is a per-message-type token bucket (page 4).
+// Limit is a per-message-type token bucket (page 4): a rate and a burst.
 type Limit struct {
 	PerSecond float64
-	Burst     float64
+	Burst     int
 }
 
 // RateLimits are page 4's per-account limits, by message type. ChatSend

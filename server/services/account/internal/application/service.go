@@ -48,7 +48,7 @@ type Options struct {
 	ExtendEvery        time.Duration    // the idle expiry is pushed at most this often (10 minutes)
 	RotationGrace      time.Duration    // the token retired by a rotation works once within this (60 s)
 	LoginRatePerMinute float64          // per username and per IP (page 4: 5 per minute)
-	LoginBurst         float64          // attempts allowed at once
+	LoginBurst         int              // attempts allowed at once
 	Now                func() time.Time // the clock; tests inject one
 	Hash               password.Params  // argon2id parameters
 
@@ -179,10 +179,10 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 // Login throttles per username and per IP, verifies the credentials, and
 // issues a session. The token is returned once and never stored.
 func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
-	if !s.byUser.Allow(loginKeyUser+strings.ToLower(in.Username), 1) {
+	if !s.byUser.Allow(loginKeyUser + strings.ToLower(in.Username)) {
 		return "", model.ErrRateLimited
 	}
-	if in.IP != "" && !s.byIP.Allow(loginKeyIP+in.IP, 1) {
+	if in.IP != "" && !s.byIP.Allow(loginKeyIP+in.IP) {
 		return "", model.ErrRateLimited
 	}
 	id, err := s.Verify(ctx, in.Username, in.Password)

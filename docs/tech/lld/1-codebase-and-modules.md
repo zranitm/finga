@@ -351,9 +351,10 @@ type Store interface {
 }
 func NewStore(db dbx.DBTX) Store
 
-// pkg/ratelimit: keyed token buckets
+// pkg/ratelimit: a token bucket per key on golang.org/x/time/rate (the
+// bucket is the library's; the package adds the keys and evicts idle ones)
 type Limiter interface {
-    Allow(key string, cost float64) bool
+    Allow(key string) bool
 }
 
 // pkg/auth: authentication behind an interface (TD-17)

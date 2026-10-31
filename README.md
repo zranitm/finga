@@ -214,8 +214,8 @@ own goose files with its own version table. Go's
 rest of the import direction: composition roots → services → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
-transaction helper with retries, idempotency keys, the outbox, token
-buckets, the tick loop, the WebSocket connection, typed IDs, Tiled maps, the
+transaction helper with retries, idempotency keys, the outbox, keyed rate
+limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection, typed IDs, Tiled maps, the
 gRPC plumbing, Testcontainers glue).
 
 - **Persistence**: character state checkpoints every 30 s and on level-up,

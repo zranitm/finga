@@ -95,7 +95,7 @@ Every failure has its own code, so a client and a log line both say exactly what
 
 ## Rate limits
 
-Token buckets per account in the gateway (`pkg/ratelimit`), enforced on the connection, which equals the account while one active session per account holds. An over-limit Input is dropped; an over-limit command with a request ID is answered `rate_limited`.
+Token buckets per account in the gateway (a `golang.org/x/time/rate` limiter per message type on each connection), enforced on the connection, which equals the account while one active session per account holds. An over-limit Input is dropped; an over-limit command with a request ID is answered `rate_limited`.
 
 - Input: 30 per second: one per tick, plus room for a burst after a stall (backend step 18).
 - Attack and PickUp: 10 per second. Attack cooldowns are also enforced in the simulation.

@@ -7,9 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"finga/internal/kernel"
 	"finga/internal/protocol"
-	"finga/pkg/ratelimit"
 	"finga/services/gateway/internal/model"
 )
 
@@ -44,7 +45,7 @@ type session struct {
 
 	out out
 
-	limiters map[string]*ratelimit.Buckets
+	limiters map[string]*rate.Limiter // by message type; the read loop's own
 }
 
 func (s *session) active() bool { return s.isActive.Load() }
@@ -153,15 +154,16 @@ func (s *session) mapID() string {
 	return s.out.mapID
 }
 
-// allow charges one token from the bucket for this message type. The
-// buckets live on the session, so limits are per account and connection.
+// allow takes one token from the bucket for this message type (a
+// golang.org/x/time/rate limiter, created full). The buckets live on the
+// session, so limits are per account and connection.
 func (s *session) allow(msgType string, lim model.Limit, now func() time.Time) bool {
-	b, ok := s.limiters[msgType]
+	l, ok := s.limiters[msgType]
 	if !ok {
-		b = ratelimit.NewBuckets(lim.PerSecond, lim.Burst, ratelimit.WithClock(now))
-		s.limiters[msgType] = b
+		l = rate.NewLimiter(rate.Limit(lim.PerSecond), lim.Burst)
+		s.limiters[msgType] = l
 	}
-	return b.Allow(msgType, 1)
+	return l.AllowN(now(), 1)
 }
 
 func typeName(v any) string {
