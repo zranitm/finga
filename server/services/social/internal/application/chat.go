@@ -48,7 +48,7 @@ func (s *ChatService) Send(from model.Sender, channel model.Channel, text string
 	if utf8.RuneCountInString(text) > model.LineMaxLen {
 		return model.Message{}, nil, model.ErrTooLong
 	}
-	if !s.limiter.Allow(from.ID.String(), 1) {
+	if !s.limiter.Allow(from.ID.String()) {
 		return model.Message{}, nil, model.ErrRate
 	}
 	msg := model.Message{Channel: channel, Sender: from.ID, SenderName: from.Name, Text: text}

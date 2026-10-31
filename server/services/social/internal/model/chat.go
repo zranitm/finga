@@ -22,7 +22,7 @@ const (
 const (
 	LineMaxLen        = 120 // characters, after cleaning
 	LineRatePerSecond = 1.0
-	LineBurst         = 3.0
+	LineBurst         = 3
 )
 
 // Sender is who speaks.

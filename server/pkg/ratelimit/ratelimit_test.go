@@ -15,7 +15,7 @@ func (c *clock) advance(d time.Duration) { c.t = c.t.Add(d) }
 func newClock() *clock                   { return &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)} }
 func allowN(b *ratelimit.Buckets, key string, n int) (allowed int) {
 	for range n {
-		if b.Allow(key, 1) {
+		if b.Allow(key) {
 			allowed++
 		}
 	}
@@ -26,7 +26,7 @@ func TestBurstAndRefill(t *testing.T) {
 	tests := []struct {
 		name  string
 		rate  float64 // per second
-		burst float64
+		burst int
 		steps []struct {
 			wait  time.Duration
 			tries int
@@ -82,59 +82,28 @@ func TestKeysAreIndependent(t *testing.T) {
 	}
 }
 
-func TestCost(t *testing.T) {
-	c := newClock()
-	b := ratelimit.NewBuckets(1, 5, ratelimit.WithClock(c.now))
-	tests := []struct {
-		name string
-		cost float64
-		want bool
-	}{
-		{"a cost within the balance", 3, true},
-		{"the remaining balance exactly", 2, true},
-		{"nothing left", 1, false},
-		{"zero cost always passes", 0, true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := b.Allow("k", tt.cost); got != tt.want {
-				t.Fatalf("got %v, want %v", got, tt.want)
-			}
-		})
-	}
-	t.Run("a cost above the burst is never allowed and never charged", func(t *testing.T) {
-		c.advance(time.Hour)
-		if b.Allow("k", 6) {
-			t.Fatal("allowed")
-		}
-		if got := allowN(b, "k", 5); got != 5 {
-			t.Fatalf("the refused call charged the bucket: %d of 5", got)
-		}
-	})
-}
-
 func TestIdleKeysAreEvicted(t *testing.T) {
 	c := newClock()
 	b := ratelimit.NewBuckets(1, 1, ratelimit.WithClock(c.now), ratelimit.WithIdleTTL(time.Minute))
-	b.Allow("old", 1)
+	b.Allow("old")
 	c.advance(30 * time.Second)
-	b.Allow("fresh", 1)
+	b.Allow("fresh")
 	c.advance(31 * time.Second) // old idle 61 s, fresh idle 31 s
 	b.Sweep()
 	if b.Len() != 1 {
 		t.Fatalf("Len = %d after the sweep, want 1 (fresh only)", b.Len())
 	}
 	// An evicted key starts over with a full bucket.
-	if !b.Allow("old", 1) {
+	if !b.Allow("old") {
 		t.Fatal("old should have a fresh bucket")
 	}
 	t.Run("Allow sweeps by itself as keys pile up", func(t *testing.T) {
 		for i := range 5000 {
-			b.Allow(fmt.Sprintf("k%d", i), 1)
+			b.Allow(fmt.Sprintf("k%d", i))
 		}
 		c.advance(2 * time.Minute)
 		for i := range 5000 {
-			b.Allow(fmt.Sprintf("j%d", i), 1) // crosses the automatic sweep threshold
+			b.Allow(fmt.Sprintf("j%d", i)) // crosses the automatic sweep threshold
 		}
 		if n := b.Len(); n >= 10000 {
 			t.Fatalf("Len = %d: idle keys were never swept", n)

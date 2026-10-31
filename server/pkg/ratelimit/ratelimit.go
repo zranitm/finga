@@ -1,17 +1,22 @@
-// Package ratelimit is keyed token buckets: each key (an account, an IP, a
-// username) has its own bucket that refills at a fixed rate up to a burst.
-// Idle keys are evicted, so the map doesn't grow with every visitor ever.
+// Package ratelimit is a token bucket per key (an account, an IP, a
+// username) on golang.org/x/time/rate, the Go team's limiter. The bucket
+// is the library's; this package adds what it leaves to the caller: a
+// limiter per key, each created full, and the eviction of keys left
+// untouched, so the map does not grow with every visitor ever.
 package ratelimit
 
 import (
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // Limiter is what callers depend on.
 type Limiter interface {
-	// Allow charges cost from key's bucket and reports whether it fit.
-	Allow(key string, cost float64) bool
+	// Allow takes one token from key's bucket and reports whether there
+	// was one.
+	Allow(key string) bool
 }
 
 // Option tunes NewBuckets.
@@ -34,61 +39,56 @@ const (
 
 // Buckets is a Limiter over a map of keys. Safe for concurrent use.
 type Buckets struct {
-	rate    float64 // tokens per second
-	burst   float64
+	limit   rate.Limit
+	burst   int
 	idleTTL time.Duration
 	now     func() time.Time
 
-	mu      sync.Mutex
-	buckets map[string]*bucket
-	calls   int
+	mu    sync.Mutex
+	keys  map[string]*entry
+	calls int
 }
 
-type bucket struct {
-	tokens float64
-	last   time.Time
+type entry struct {
+	limiter *rate.Limiter
+	last    time.Time // when the key was last asked, for eviction
 }
 
-// NewBuckets makes buckets that refill at ratePerSecond up to burst.
-func NewBuckets(ratePerSecond, burst float64, opts ...Option) *Buckets {
-	b := &Buckets{rate: ratePerSecond, burst: burst, idleTTL: defaultIdleTTL, now: time.Now, buckets: map[string]*bucket{}}
+// NewBuckets makes buckets that refill at perSecond tokens a second up to
+// burst.
+func NewBuckets(perSecond float64, burst int, opts ...Option) *Buckets {
+	b := &Buckets{limit: rate.Limit(perSecond), burst: burst, idleTTL: defaultIdleTTL, now: time.Now, keys: map[string]*entry{}}
 	for _, opt := range opts {
 		opt(b)
 	}
 	return b
 }
 
-// Allow charges cost from key's bucket and reports whether it fit. A cost
-// above the burst never fits and is never charged.
-func (b *Buckets) Allow(key string, cost float64) bool {
+// Allow takes one token from key's bucket and reports whether there was
+// one.
+func (b *Buckets) Allow(key string) bool {
+	now := b.now()
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.calls++
 	if b.calls >= sweepEvery {
 		b.calls = 0
-		b.sweep()
+		b.sweep(now)
 	}
-	now := b.now()
-	bk, ok := b.buckets[key]
+	e, ok := b.keys[key]
 	if !ok {
-		bk = &bucket{tokens: b.burst, last: now}
-		b.buckets[key] = bk
-	} else {
-		bk.tokens = min(b.burst, bk.tokens+now.Sub(bk.last).Seconds()*b.rate)
-		bk.last = now
+		e = &entry{limiter: rate.NewLimiter(b.limit, b.burst)}
+		b.keys[key] = e
 	}
-	if cost > bk.tokens {
-		return false
-	}
-	bk.tokens -= cost
-	return true
+	e.last = now
+	b.mu.Unlock()
+	return e.limiter.AllowN(now, 1)
 }
 
 // Len is the number of keys held.
 func (b *Buckets) Len() int {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return len(b.buckets)
+	return len(b.keys)
 }
 
 // Sweep evicts keys untouched for longer than the idle TTL. Allow also
@@ -96,14 +96,14 @@ func (b *Buckets) Len() int {
 func (b *Buckets) Sweep() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.sweep()
+	b.sweep(b.now())
 }
 
-func (b *Buckets) sweep() {
-	cutoff := b.now().Add(-b.idleTTL)
-	for key, bk := range b.buckets {
-		if bk.last.Before(cutoff) {
-			delete(b.buckets, key)
+func (b *Buckets) sweep(now time.Time) {
+	cutoff := now.Add(-b.idleTTL)
+	for key, e := range b.keys {
+		if e.last.Before(cutoff) {
+			delete(b.keys, key)
 		}
 	}
 }

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/time/rate"
 
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
-	"finga/pkg/ratelimit"
 	"finga/services/gateway/internal/model"
 )
 
@@ -236,7 +236,7 @@ func (g *Gateway) Drain(ctx context.Context) {
 // Open starts a connection: the Hello timer and its command goroutine. A
 // connection that stays silent is closed.
 func (g *Gateway) Open(c Conn) {
-	s := &session{conn: c, limiters: map[string]*ratelimit.Buckets{}, queue: make(chan model.Message, g.deps.CommandQueue), drained: make(chan struct{})}
+	s := &session{conn: c, limiters: map[string]*rate.Limiter{}, queue: make(chan model.Message, g.deps.CommandQueue), drained: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.out.send = func(m model.Message) { g.send(c, m) }
 	s.helloTimer = time.AfterFunc(g.helloGrace, func() {
