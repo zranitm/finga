@@ -112,15 +112,13 @@ func TestConcurrentSameKeyRunsOnce(t *testing.T) {
 	outs := make([]string, 8)
 	errs := make([]error, 8)
 	for i := range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			out, err := run(ctx, pool, "acc-9", "pickup", "drop-1", []byte("h"), func() ([]byte, error) {
 				effects.Add(1)
 				return []byte("got it"), nil
 			})
 			outs[i], errs[i] = string(out), err
-		}()
+		})
 	}
 	wg.Wait()
 	if effects.Load() != 1 {

@@ -91,13 +91,11 @@ func (r *Runner) Addr(name string) string {
 func (r *Runner) RunTasks(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
-		wg.Add(1)
-		go func(t Task) {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := t.Run(ctx); err != nil {
 				r.opts.Logger.ErrorContext(ctx, "task stopped with an error", "task", t.Name, "err", err)
 			}
-		}(t)
+		})
 	}
 	wg.Wait()
 }
@@ -116,13 +114,14 @@ func (r *Runner) Run(ctx context.Context) error {
 
 	served := make(chan error, len(lns))
 	for i, ln := range lns {
-		go func(l Listener, ln net.Listener) {
+		l := r.listeners[i]
+		go func() {
 			if err := l.Server.Serve(ln); err != nil {
 				served <- fmt.Errorf("%s: %w", l.Name, err)
 				return
 			}
 			served <- nil
-		}(r.listeners[i], ln)
+		}()
 	}
 	r.mu.Lock()
 	for i, l := range r.listeners {
@@ -149,13 +148,11 @@ func (r *Runner) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errs := make(chan error, len(r.listeners))
 	for _, l := range r.listeners {
-		wg.Add(1)
-		go func(l Listener) {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := l.Server.Shutdown(graceCtx); err != nil {
 				errs <- fmt.Errorf("%s: %w", l.Name, err)
 			}
-		}(l)
+		})
 	}
 	wg.Wait()
 	close(errs)

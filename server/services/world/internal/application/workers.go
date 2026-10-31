@@ -49,9 +49,7 @@ func (w *Workers) Submit(job func(ctx context.Context)) bool {
 func (w *Workers) Run(ctx context.Context) {
 	var wg sync.WaitGroup
 	for range w.n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-ctx.Done():
@@ -61,7 +59,7 @@ func (w *Workers) Run(ctx context.Context) {
 					w.obs.JobFinished()
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

@@ -64,11 +64,9 @@ func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 	errs := make([]error, n)
 	var wg sync.WaitGroup
 	for i := range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			tokens[i], errs[i] = svc.Issue(ctx, uuid.UUID(acc.ID)) // Login would be throttled; the race is in Issue
-		}()
+		})
 	}
 	wg.Wait()
 	for i, err := range errs {

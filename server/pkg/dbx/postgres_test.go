@@ -79,9 +79,7 @@ func TestInTxAgainstPostgres(t *testing.T) {
 		errs := make([]error, 2)
 		order := [2][2]int{{10, 11}, {11, 10}}
 		for i := range 2 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				errs[i] = dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
 					mu.Lock()
 					runs[i]++
@@ -97,7 +95,7 @@ func TestInTxAgainstPostgres(t *testing.T) {
 					_, err := tx.Exec(ctx, `UPDATE t SET n = n + 1 WHERE id = $1`, order[i][1])
 					return err
 				}, dbx.OnRetry(func(error) { mu.Lock(); retries[i]++; mu.Unlock() }))
-			}()
+			})
 		}
 		<-started
 		<-started

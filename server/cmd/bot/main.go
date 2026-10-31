@@ -60,8 +60,7 @@ func run(url, metrics string, n int, duration time.Duration, prefix string) erro
 		}
 		b := newBot(url, fmt.Sprintf("%s%s%d", prefix, stamp, k), strings.ToUpper(short[:1])+short[1:]+stamp+strconv.Itoa(k), k)
 		bots = append(bots, b)
-		wg.Add(1)
-		go func() { defer wg.Done(); b.play(ctx, bots) }()
+		wg.Go(func() { b.play(ctx, bots) })
 	}
 	wg.Wait()
 	fmt.Printf("proof session: %d bots for %s against %s\n\n", n, time.Since(start).Round(time.Second), url)
@@ -498,7 +497,7 @@ func report(urls ...string) error {
 	byMap := map[string]*hist{}
 	overruns := map[string]float64{}
 	online := ""
-	for _, line := range strings.Split(string(raw), "\n") {
+	for line := range strings.SplitSeq(string(raw), "\n") {
 		switch {
 		case strings.HasPrefix(line, "tick_duration_seconds_bucket"):
 			labels, value := parseLine(line)
@@ -580,7 +579,7 @@ func parseLine(line string) (map[string]string, float64) {
 	rest := line
 	if k := strings.Index(line, "{"); k >= 0 {
 		end := strings.Index(line, "}")
-		for _, kv := range strings.Split(line[k+1:end], ",") {
+		for kv := range strings.SplitSeq(line[k+1:end], ",") {
 			name, val, _ := strings.Cut(kv, "=")
 			labels[name] = strings.Trim(val, `"`)
 		}

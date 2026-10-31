@@ -125,8 +125,7 @@ func applyEnv(m map[string]any, t reflect.Type, envBase string) {
 	if t.Kind() != reflect.Struct {
 		return
 	}
-	for i := range t.NumField() {
-		f := t.Field(i)
+	for f := range t.Fields() {
 		key := fieldKey(f)
 		if key == "" {
 			continue
@@ -194,7 +193,7 @@ func stringToMapHook(from, to reflect.Type, data any) (any, error) {
 		return m, nil
 	}
 	m := map[string]any{}
-	for _, pair := range strings.Split(s, listSep) {
+	for pair := range strings.SplitSeq(s, listSep) {
 		k, val, ok := strings.Cut(pair, pairSep)
 		if !ok {
 			return nil, fmt.Errorf("map entry %q: want key%svalue", k, pairSep)

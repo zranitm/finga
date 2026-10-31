@@ -8,6 +8,7 @@ linters:
     - errorlint    # errors.Is/As and %w, never == or type switches on errors
     - gocritic
     - misspell
+    - modernize    # the language and library as they are now: WaitGroup.Go, errors.AsType, range over integers and iterators
     - nolintlint
     - revive
     - sloglint     # constant log messages, data in attributes, no global logger

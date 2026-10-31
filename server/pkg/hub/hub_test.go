@@ -118,14 +118,12 @@ func TestCloseIsIdempotentAndSafeUnderSends(t *testing.T) {
 	s := h.Subscribe("a")
 	var wg sync.WaitGroup
 	for range 4 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range 100 {
 				s.Send(i)
 				h.Broadcast(i)
 			}
-		}()
+		})
 	}
 	s.Close()
 	s.Close()

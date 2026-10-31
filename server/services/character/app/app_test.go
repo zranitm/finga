@@ -52,8 +52,7 @@ func (f *items) GrantStarter(_ context.Context, req *itemv1.GrantStarterRequest)
 }
 
 func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	fake := &items{}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

@@ -138,18 +138,13 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 func (w *World) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	if w.workers != nil {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			w.workers.Run(ctx)
-		}()
+		})
 	}
 	for _, id := range w.order {
-		wg.Add(1)
-		go func(i *Instance) {
-			defer wg.Done()
-			_ = i.Run(ctx)
-		}(w.instances[id])
+		inst := w.instances[id]
+		wg.Go(func() { _ = inst.Run(ctx) })
 	}
 	wg.Wait()
 	// The instances are done, so no more jobs arrive; drain what is queued

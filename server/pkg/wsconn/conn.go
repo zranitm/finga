@@ -184,9 +184,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 
 	// Reader: the only goroutine that reads from the socket.
 	frames := make(chan frame)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			_, data, err := c.ws.Read(ctx)
 			select {
@@ -198,14 +196,12 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 				return
 			}
 		}
-	}()
+	})
 
 	// Writer: the only goroutine that writes to the socket while the
 	// connection is open.
 	writerDone := make(chan struct{})
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer close(writerDone)
 		for {
 			select {
@@ -221,12 +217,10 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 				return
 			}
 		}
-	}()
+	})
 
 	// Pinger: a missed pong ends the connection.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		t := time.NewTicker(opts.PingInterval)
 		defer t.Stop()
 		for {
@@ -247,7 +241,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 				return
 			}
 		}
-	}()
+	})
 
 	h.OnOpen(c)
 	var readErr error

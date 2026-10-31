@@ -221,8 +221,7 @@ func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 }
 
 func TestWatchSessions(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	c, h := serve(t, &fakeAccounts{})
 	watch := func(gateway string) grpc.ServerStreamingClient[accountv1.WatchSessionsResponse] {
 		t.Helper()

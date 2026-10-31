@@ -9,6 +9,7 @@ package host
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
@@ -68,7 +69,7 @@ func (h *Host) OnClose(f func()) { h.closers = append(h.closers, f) }
 
 // Close releases what the composition root opened, last first.
 func (h *Host) Close() {
-	for i := len(h.closers) - 1; i >= 0; i-- {
-		h.closers[i]()
+	for _, closer := range slices.Backward(h.closers) {
+		closer()
 	}
 }

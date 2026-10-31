@@ -567,8 +567,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	var wg sync.WaitGroup
 	picked := make([]int, len(hunters))
 	for k, h := range hunters {
-		wg.Add(1)
-		go func() { defer wg.Done(); picked[k] = h.loot(25 * time.Second) }()
+		wg.Go(func() { ; picked[k] = h.loot(25 * time.Second) })
 	}
 	// Hard kill in the middle of it, while pickups are in flight: the world
 	// (its workers mid-call) and the item service (its transactions
