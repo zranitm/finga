@@ -466,7 +466,7 @@ func Declared(dirs ...string) ([]string, error)
 func Referenced(files ...string) (map[string]bool, error)
 ```
 
-Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `observability` (structured logging and metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
+Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28), `observability` (structured logging and metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
 
 ## Configuration
 

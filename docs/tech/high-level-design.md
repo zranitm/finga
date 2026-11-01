@@ -244,6 +244,7 @@ Non-domain code goes in `/pkg` as generic libraries with no knowledge of the gam
 - `pkg/auth`: authentication interface (verify credentials, issue, validate, and revoke sessions). The built-in account module implements it today; an identity provider such as Keycloak can replace it later (TD-17).
 - `pkg/tick`: fixed-timestep loop runner.
 - `pkg/wsconn`: WebSocket session handling (read and write loops, pings, backpressure).
+- `pkg/logger`: the `*slog.Logger` every binary logs through, with zapcore writing it: JSON or console lines, sampling (TD-28).
 - `pkg/observability`: logging and metrics setup (TD-21).
 - `pkg/configload`: typed YAML configuration with environment overrides, validated at start. Copied from docviewer, without its .env loader: Compose and make inject server/.env into the environment.
 - `pkg/typedid`: typed UUIDv7 identifiers, one Go type per kind.
