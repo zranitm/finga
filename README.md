@@ -167,8 +167,10 @@ generated code committed in `server/api/gen/`:
   holds no database and no game rules: the Hello handshake, one connection
   per account, token rotation, per-account rate limits, and a command queue
   per connection whose goroutine calls the service that owns each message,
-  with the identity taken from the connection, never from the message; the
-  read loop only decodes, limits and routes. Players join through the
+  with the identity taken from the connection, never from the message. Each
+  message type is one route with its middleware (rate limit, Hello first,
+  the queue, the reply) on `pkg/wsrouter`, a router for WebSocket messages
+  as Gin is for HTTP; the read loop only decodes, limits and routes. Players join through the
   world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.
   Its adapters' `errmap` turns the reason a service's failure carries into
@@ -215,7 +217,7 @@ rest of the import direction: composition roots → services → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
 transaction helper with retries, idempotency keys, the outbox, keyed rate
-limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection, typed IDs, Tiled maps, the
+limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection and its message router, typed IDs, Tiled maps, the
 gRPC plumbing, Testcontainers glue).
 
 - **Persistence**: character state checkpoints every 30 s and on level-up,

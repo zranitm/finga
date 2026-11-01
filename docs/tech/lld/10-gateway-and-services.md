@@ -46,7 +46,7 @@ server/
     protocol/     the client's WebSocket messages: the gateway, the bot and the end-to-end tests
     telemetry/    metrics; implements the services' observer interfaces
   pkg/            generic libraries with no game knowledge: configload, dbx, idempotency, outbox, ratelimit, auth,
-                  tick, wsconn, observability, pgtest, and new: typedid, tiled, grpcx, runner, hub
+                  tick, wsconn, observability, pgtest, and new: typedid, tiled, grpcx, runner, hub, wsrouter
   cmd/migrate/    applies every service's migrations, each with its own goose version table
   cmd/bot/        the proof-session bots
   data/  test/  testdata/

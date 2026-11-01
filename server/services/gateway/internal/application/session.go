@@ -26,11 +26,12 @@ type session struct {
 	helloTimer *time.Timer
 	isActive   atomic.Bool
 
-	// The command queue: the read loop puts messages on it (helloSeen and
-	// limiters are the read loop's own), one goroutine drains it with ctx,
-	// which Closed cancels, and closes drained when it stops.
+	// The command queue: the read loop puts the rest of each message's
+	// chain on it (helloSeen and limiters are the read loop's own), one
+	// goroutine runs them in order with ctx, which Closed cancels, and
+	// closes drained when it stops.
 	helloSeen bool
-	queue     chan model.Message
+	queue     chan func()
 	ctx       context.Context
 	cancel    context.CancelFunc
 	drained   chan struct{}
@@ -146,6 +147,11 @@ func (s *session) presence() model.Presence {
 	s.out.mu.Lock()
 	defer s.out.mu.Unlock()
 	return model.Presence{Character: s.character.ID, MapID: s.out.mapID}
+}
+
+// actor is who acts on items: the account and its joined character.
+func (s *session) actor() model.Actor {
+	return model.Actor{Account: s.account, Character: s.character.ID}
 }
 
 func (s *session) mapID() string {

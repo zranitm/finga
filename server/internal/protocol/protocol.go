@@ -5,7 +5,12 @@
 // maps them to these.
 package protocol
 
-import "finga/pkg/wsconn"
+import (
+	"maps"
+	"slices"
+
+	"finga/pkg/wsconn"
+)
 
 // Version is the protocol version Hello must carry. It changes when a
 // message changes shape; an old client is kicked with KickOutdatedProtocol.
@@ -345,17 +350,32 @@ func NewCodec() *wsconn.JSONCodec {
 	return c
 }
 
-// catalogue maps names to zero values; iteration order does not matter
-// because Register is order-independent.
-func catalogue() map[string]any {
+// ClientMessages are the names of the messages a client may send, sorted:
+// every one has a route in the gateway.
+func ClientMessages() []string {
+	return slices.Sorted(maps.Keys(clientMessages()))
+}
+
+// clientMessages maps the names of the client's messages to zero values.
+func clientMessages() map[string]any {
 	return map[string]any{
 		"Hello": Hello{}, "Input": Input{}, "Attack": Attack{}, "PickUp": PickUp{}, "EnterPortal": EnterPortal{},
 		"ChatSend": ChatSend{}, "PartyInvite": PartyInvite{}, "PartyRespond": PartyRespond{}, "PartyLeave": PartyLeave{},
 		"PartyKick": PartyKick{}, "PartyPromote": PartyPromote{}, "InventoryMove": InventoryMove{},
 		"InventoryDiscard": InventoryDiscard{}, "Ping": Ping{},
+	}
+}
+
+// catalogue maps every message's name to its zero value, the client's and
+// the server's; iteration order does not matter because Register is
+// order-independent.
+func catalogue() map[string]any {
+	all := map[string]any{
 		"Welcome": Welcome{}, "Snapshot": Snapshot{}, "Delta": Delta{}, "Correction": Correction{}, "Damage": Damage{},
 		"Died": Died{}, "Respawned": Respawned{}, "ExpGained": ExpGained{}, "LevelUp": LevelUp{},
 		"InventoryChanged": InventoryChanged{}, "MapChange": MapChange{}, "ChatMessage": ChatMessage{},
 		"PartyState": PartyState{}, "PartyInvited": PartyInvited{}, "Response": Response{}, "Kicked": Kicked{}, "Pong": Pong{},
 	}
+	maps.Copy(all, clientMessages())
+	return all
 }

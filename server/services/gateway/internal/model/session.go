@@ -31,21 +31,3 @@ type Limit struct {
 	PerSecond float64
 	Burst     int
 }
-
-// RateLimits are page 4's per-account limits, by message type. ChatSend
-// is missing on purpose: the social service limits it (1 per second, burst
-// 3) and answers chat_rate_limited, which a silent drop here would hide.
-func RateLimits() map[string]Limit {
-	l := map[string]Limit{
-		"Input":  {30, 30}, // one per tick is 20 a second; the headroom absorbs a burst after a stall
-		"Attack": {10, 10},
-		"PickUp": {10, 10},
-	}
-	for _, t := range []string{"PartyInvite", "PartyRespond", "PartyLeave", "PartyKick", "PartyPromote"} {
-		l[t] = Limit{2, 2}
-	}
-	for _, t := range []string{"InventoryMove", "InventoryDiscard"} {
-		l[t] = Limit{5, 5}
-	}
-	return l
-}

@@ -14,6 +14,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
+	"finga/pkg/wsrouter"
 	"finga/services/gateway/internal/model"
 )
 
@@ -56,7 +57,7 @@ const (
 // each connection's open, messages and close.
 type Gateway struct {
 	deps   Dependencies
-	limits map[string]model.Limit
+	router *wsrouter.Router[*session] // every message a client may send (routes.go)
 	now    func() time.Time
 
 	mu          sync.Mutex
@@ -93,9 +94,8 @@ func NewGateway(deps Dependencies) *Gateway {
 	if deps.ID == "" {
 		deps.ID = uuid.NewString()
 	}
-	return &Gateway{
+	g := &Gateway{
 		deps:        deps,
-		limits:      model.RateLimits(),
 		now:         deps.Clock,
 		byConn:      map[string]*session{},
 		byAccount:   map[kernel.AccountID]*session{},
@@ -103,6 +103,8 @@ func NewGateway(deps Dependencies) *Gateway {
 		bySession:   map[kernel.SessionID]*session{},
 		helloGrace:  deps.HelloTimeout,
 	}
+	g.router = g.routes()
+	return g
 }
 
 // Run follows the world's delivery stream, the social service's and the
@@ -236,7 +238,7 @@ func (g *Gateway) Drain(ctx context.Context) {
 // Open starts a connection: the Hello timer and its command goroutine. A
 // connection that stays silent is closed.
 func (g *Gateway) Open(c Conn) {
-	s := &session{conn: c, limiters: map[string]*rate.Limiter{}, queue: make(chan model.Message, g.deps.CommandQueue), drained: make(chan struct{})}
+	s := &session{conn: c, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), g.deps.CommandQueue), drained: make(chan struct{})}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	s.out.send = func(m model.Message) { g.send(c, m) }
 	s.helloTimer = time.AfterFunc(g.helloGrace, func() {
@@ -254,11 +256,10 @@ func (g *Gateway) Open(c Conn) {
 	}
 }
 
-// Receive takes one decoded message on the connection's read loop: it
-// applies the rate limits and queues the message for the connection's
-// command goroutine, never waiting on a service. Before Hello only Hello is
-// accepted; Ping is answered here. A full queue answers rate_limited to a
-// command with a request ID and drops the rest.
+// Receive takes one decoded message on the connection's read loop and
+// runs it through its route (routes.go): the checks of the read loop, then
+// the connection's command queue for the rest, never waiting on a service
+// here.
 func (g *Gateway) Receive(c Conn, m model.Message) {
 	g.deps.Observer.MessageIn(m.Type)
 	g.mu.Lock()
@@ -267,133 +268,23 @@ func (g *Gateway) Receive(c Conn, m model.Message) {
 	if s == nil {
 		return
 	}
-	if !s.helloSeen {
-		if _, ok := m.Data.(protocol.Hello); !ok {
-			c.Close(model.CloseKicked, "hello expected")
-			return
-		}
-		s.helloSeen = true
-		s.queue <- m // the queue is empty: nothing came before Hello
-		return
-	}
-	switch d := m.Data.(type) {
-	case protocol.Ping:
-		g.send(c, model.Message{Data: protocol.Pong{ClientTime: d.ClientTime, ServerTime: g.now().UnixMilli()}})
-		return
-	case protocol.Hello:
-		c.Close(model.CloseKicked, "hello twice")
-		return
-	}
-	if lim, limited := g.limits[m.Type]; limited && !s.allow(m.Type, lim, g.now) {
-		if m.ReqID != "" {
-			g.send(c, model.Message{ReqID: m.ReqID, Data: refusal(model.RateLimited)})
-		}
-		return
-	}
-	select {
-	case s.queue <- m:
-	default:
-		if m.ReqID != "" {
-			g.send(c, model.Message{ReqID: m.ReqID, Data: refusal(model.RateLimited)})
-		}
-	}
+	g.router.Dispatch(s, wsrouter.Message{Type: m.Type, ReqID: m.ReqID, Seq: m.Seq, Data: m.Data})
 }
 
-// commands drains a connection's queue in order, one message at a time,
-// until the connection closes; then it stops, and Closed waits for it.
+// commands runs a connection's queue in order, one message's chain at a
+// time, until the connection closes; then it stops, and Closed waits for
+// it.
 func (g *Gateway) commands(s *session) {
 	defer close(s.drained)
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
-		case m := <-s.queue:
+		case rest := <-s.queue:
 			if s.ctx.Err() != nil {
 				return
 			}
-			g.command(s, m)
-		}
-	}
-}
-
-// command runs one queued message: Hello first, then, once it has
-// succeeded, each command with the connection's identity.
-func (g *Gateway) command(s *session, m model.Message) {
-	if hello, ok := m.Data.(protocol.Hello); ok {
-		g.hello(s, hello)
-		return
-	}
-	if !s.active() {
-		return // Hello failed, and the connection is closing
-	}
-	c := s.conn
-	switch d := m.Data.(type) {
-	case protocol.Input:
-		g.worldCommand(s, func(ctx context.Context, p model.Presence) error {
-			return g.deps.World.Input(ctx, p, m.Seq, d)
-		})
-	case protocol.Attack:
-		g.worldCommand(s, g.deps.World.Attack)
-	case protocol.EnterPortal:
-		g.worldCommand(s, g.deps.World.EnterPortal)
-	case protocol.PickUp:
-		g.worldCommand(s, g.deps.World.PickUp)
-	case protocol.InventoryMove:
-		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, a model.Actor) ([]protocol.InventorySlot, error) {
-			id, err := kernel.ParseItemID(d.ItemID)
-			if err != nil {
-				return nil, err
-			}
-			d.ItemID = id.String()
-			return g.deps.Items.Move(ctx, a, d)
-		})
-	case protocol.InventoryDiscard:
-		g.inventoryCommand(s, m.ReqID, func(ctx context.Context, a model.Actor) ([]protocol.InventorySlot, error) {
-			id, err := kernel.ParseItemID(d.ItemID)
-			if err != nil {
-				return nil, err
-			}
-			d.ItemID = id.String()
-			return g.deps.Items.Discard(ctx, a, d)
-		})
-	case protocol.ChatSend:
-		g.chat(s, d)
-	case protocol.PartyInvite:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
-			to, err := kernel.ParseCharacterID(d.CharacterID)
-			if err != nil {
-				return err
-			}
-			return g.deps.Social.Invite(ctx, me, to)
-		})
-	case protocol.PartyRespond:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
-			return g.deps.Social.Respond(ctx, me, d.InviteID, d.Accept)
-		})
-	case protocol.PartyLeave:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
-			return g.deps.Social.Leave(ctx, me) // Social is read once partyCommand has checked it is set
-		})
-	case protocol.PartyKick:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
-			target, err := kernel.ParseCharacterID(d.CharacterID)
-			if err != nil {
-				return err
-			}
-			return g.deps.Social.Kick(ctx, me, target)
-		})
-	case protocol.PartyPromote:
-		g.partyCommand(s, m.ReqID, func(ctx context.Context, me kernel.CharacterID) error {
-			target, err := kernel.ParseCharacterID(d.CharacterID)
-			if err != nil {
-				return err
-			}
-			return g.deps.Social.Promote(ctx, me, target)
-		})
-	default:
-		// Market messages arrive in Stage 2.
-		if m.ReqID != "" {
-			g.send(c, model.Message{ReqID: m.ReqID, Data: refusal(model.NotImplemented)})
+			rest()
 		}
 	}
 }
@@ -696,15 +587,6 @@ func waitable(err error) bool {
 	return errors.Is(err, model.ErrNotSubscribed) || errors.Is(err, model.ErrUnavailable)
 }
 
-// worldCommand sends a command to the world with the connection's
-// character and map. A failure is dropped: the client's next input
-// supersedes it, and a world that went away is handled by the rejoin.
-func (g *Gateway) worldCommand(s *session, call func(ctx context.Context, p model.Presence) error) {
-	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
-	defer cancel()
-	_ = call(ctx, s.presence())
-}
-
 // online tells the social service a player is connected through this
 // gateway, so party traffic finds it here. A failure is logged: parties are
 // optional, and the next registration (a social restart) tries again.
@@ -715,46 +597,6 @@ func (g *Gateway) online(ctx context.Context, s *session) {
 	if err := g.deps.Social.Online(ctx, g.deps.ID, s.character, s.mapID()); err != nil {
 		g.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.character.ID, "err", err)
 	}
-}
-
-// chat cleans a line through the social service, then hands a map line to
-// the sender's map instance (everyone there hears it, the sender too); the
-// social service delivers a party line to each member itself, on any map
-// and through any gateway. A refused line answers a Response (ChatSend
-// carries no request ID).
-func (g *Gateway) chat(s *session, d protocol.ChatSend) {
-	if g.deps.Social == nil {
-		g.send(s.conn, model.Message{Data: refusal(model.ChatUnavailable)})
-		return
-	}
-	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
-	defer cancel()
-	line, err := g.deps.Social.Chat(ctx, s.character, d.Channel, d.Text)
-	if err != nil {
-		g.send(s.conn, model.Message{Data: g.refuse(s, "ChatSend", err)})
-		return
-	}
-	if line.Channel == protocol.ChatMap {
-		g.worldCommand(s, func(ctx context.Context, p model.Presence) error {
-			return g.deps.World.Say(ctx, p, s.character.Name, line.Text)
-		})
-	}
-}
-
-// partyCommand runs a party command with the connection's identity and
-// answers a Response; the social service pushes PartyState itself.
-func (g *Gateway) partyCommand(s *session, reqID string, run func(ctx context.Context, me kernel.CharacterID) error) {
-	if g.deps.Social == nil {
-		g.send(s.conn, model.Message{ReqID: reqID, Data: refusal(model.PartiesUnavailable)})
-		return
-	}
-	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
-	defer cancel()
-	if err := run(ctx, s.character.ID); err != nil {
-		g.send(s.conn, model.Message{ReqID: reqID, Data: g.refuse(s, "party", err)})
-		return
-	}
-	g.send(s.conn, model.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
 }
 
 // socialDelivered turns one message of the social service's stream into
@@ -802,27 +644,6 @@ func (g *Gateway) refuse(s *session, command string, err error) protocol.Respons
 		g.deps.Logger.Error("command failed", "conn", s.conn.ID(), "character_id", s.character.ID, "command", command, "err", err)
 	}
 	return refusal(p)
-}
-
-// inventoryCommand runs an inventory command on the connection's own
-// goroutine (it blocks on the database, never a tick), answers with a
-// Response, and sends the changed slots as InventoryChanged.
-func (g *Gateway) inventoryCommand(s *session, reqID string, run func(ctx context.Context, a model.Actor) ([]protocol.InventorySlot, error)) {
-	if g.deps.Items == nil {
-		g.send(s.conn, model.Message{ReqID: reqID, Data: refusal(model.InventoryUnavailable)})
-		return
-	}
-	ctx, cancel := context.WithTimeout(s.ctx, commandTimeout)
-	defer cancel()
-	changed, err := run(ctx, model.Actor{Account: s.account, Character: s.character.ID})
-	if err != nil {
-		g.send(s.conn, model.Message{ReqID: reqID, Data: g.refuse(s, "inventory", err)})
-		return
-	}
-	g.send(s.conn, model.Message{ReqID: reqID, Data: protocol.Response{OK: true}})
-	if len(changed) > 0 {
-		g.send(s.conn, model.Message{Data: protocol.InventoryChanged{Slots: changed}})
-	}
 }
 
 // kick tells the peer why and closes.

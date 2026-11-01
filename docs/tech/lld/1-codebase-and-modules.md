@@ -32,7 +32,7 @@ server/                 the Go module: everything the server builds, reads and p
       main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
       config/           its own configuration: config.yaml (http, the five dependencies) and its type
       internal/model/   in layers (step 36): a failure as a client sees it (Public), the message envelope, a connection's player, presence and limits, the REST API's accounts and characters, the services' stream events; the client protocol is its vocabulary
-      internal/application/  the Lobby (the REST API's use cases) and the Gateway (Hello, join and rejoin, the command queue and routing, kicks, the drain); ports.go
+      internal/application/  the Lobby (the REST API's use cases) and the Gateway (Hello, join and rejoin, the command queue, kicks, the drain); routes.go: every client message with its middleware on pkg/wsrouter; ports.go
       internal/clients/ the ports over the services' generated clients, the deliveries turned into protocol messages, the account service as pkg/auth's Guard
         errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
       internal/handler/
@@ -400,6 +400,16 @@ type Handler interface {
     OnMessage(Conn, Message)
     OnClose(Conn, error)
 }
+
+// pkg/wsrouter: decoded messages routed by type through middleware chains,
+// as an HTTP router routes requests; S is the connection's state
+func New[S any](middleware ...HandlerFunc[S]) *Router[S]
+func Handle[S, T any](r *Router[S], msgType string, h func(c *Context[S], in T) (any, error), middleware ...HandlerFunc[S])
+func (r *Router[S]) NoRoute(handlers ...HandlerFunc[S])
+func (r *Router[S]) Dispatch(session S, m Message)
+// A middleware calls c.Next() to run the rest of the chain, possibly later
+// from another goroutine (the gateway's command queue); not calling it
+// stops the chain. c.Result and c.Err carry what the handler returned.
 ```
 
 ```go
