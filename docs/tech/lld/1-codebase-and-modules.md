@@ -385,11 +385,21 @@ type Message struct {
     Seq   uint32 // client input sequence, optional
     ReqID string // request/response correlation, optional
     Tick  uint64 // server tick, optional
-    Data  any    // concrete message struct, resolved through a type registry
+    Data  any    // the message itself
 }
 type Codec interface {
     Encode(Message) ([]byte, error)
     Decode([]byte) (Message, error)
+    Binary() bool // binary frames, else text
+}
+// ProtoCodec reads one envelope and writes another, each with a oneof named body:
+// the body's message name is the Message's Type. Binary or protojson.
+func NewProtoCodec(in, out proto.Message, f Format) *ProtoCodec
+// Options.Subprotocols: the codecs a client asks for by name when it connects (Sec-WebSocket-Protocol),
+// in the server's order of preference; a client asking for none is closed with 1008.
+type Subprotocol struct {
+    Name  string
+    Codec Codec
 }
 type Conn interface {
     ID() string

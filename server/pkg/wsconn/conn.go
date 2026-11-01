@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,14 +17,15 @@ import (
 
 // Close codes; the 4000s are the layer's own.
 const (
-	CloseNormal       = int(websocket.StatusNormalClosure)
-	CloseGoingAway    = int(websocket.StatusGoingAway)
-	CloseTooBig       = int(websocket.StatusMessageTooBig)
-	CloseInternal     = int(websocket.StatusInternalError)
-	CloseSlowConsumer = 4001
-	CloseTimeout      = 4002
-	CloseKicked       = 4003 // the handler ended the session
-	CloseBadMessage   = 4004
+	CloseNormal        = int(websocket.StatusNormalClosure)
+	CloseGoingAway     = int(websocket.StatusGoingAway)
+	CloseTooBig        = int(websocket.StatusMessageTooBig)
+	CloseInternal      = int(websocket.StatusInternalError)
+	CloseNoSubprotocol = int(websocket.StatusPolicyViolation) // the client asked for none of the server's subprotocols
+	CloseSlowConsumer  = 4001
+	CloseTimeout       = 4002
+	CloseKicked        = 4003 // the handler ended the session
+	CloseBadMessage    = 4004
 )
 
 // Defaults for Options.
@@ -65,9 +67,18 @@ type Handler interface {
 	OnClose(Conn, error)
 }
 
+// Subprotocol is a codec a client asks for by name when it connects.
+type Subprotocol struct {
+	Name  string
+	Codec Codec
+}
+
 // Options tune Serve. Zero values take the defaults.
 type Options struct {
-	Codec          Codec
+	// Codec serves every connection when Subprotocols is empty.
+	Codec Codec
+	// Subprotocols are the codecs a client picks from, in the server's order of preference.
+	Subprotocols   []Subprotocol
 	AllowedOrigins []string // full origins, like http://localhost:5173; empty: same host only
 	ReadLimit      int64
 	SendQueue      int
@@ -94,13 +105,38 @@ func (o Options) withDefaults() Options {
 // Serve upgrades the request and runs the connection until it closes.
 func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	opts = opts.withDefaults()
-	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: originPatterns(opts.AllowedOrigins)})
+	names := make([]string, 0, len(opts.Subprotocols))
+	for _, sp := range opts.Subprotocols {
+		names = append(names, sp.Name)
+	}
+	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: originPatterns(opts.AllowedOrigins), Subprotocols: names})
 	if err != nil {
 		return // Accept has written the HTTP error
 	}
+	codec := opts.Codec
+	if len(names) > 0 {
+		codec = chosen(opts.Subprotocols, ws.Subprotocol())
+		if codec == nil {
+			_ = ws.Close(websocket.StatusCode(CloseNoSubprotocol), "ask for a subprotocol: "+strings.Join(names, ", "))
+			return
+		}
+	}
 	ws.SetReadLimit(opts.ReadLimit)
-	c := &conn{id: newID(), ws: ws, codec: opts.Codec, send: make(chan []byte, opts.SendQueue), closed: make(chan struct{})}
+	frame := websocket.MessageText
+	if codec.Binary() {
+		frame = websocket.MessageBinary
+	}
+	c := &conn{id: newID(), ws: ws, codec: codec, frame: frame, send: make(chan []byte, opts.SendQueue), closed: make(chan struct{})}
 	c.run(r.Context(), h, opts)
+}
+
+func chosen(subprotocols []Subprotocol, name string) Codec {
+	for _, sp := range subprotocols {
+		if name != "" && strings.EqualFold(sp.Name, name) {
+			return sp.Codec
+		}
+	}
+	return nil
 }
 
 // originPatterns keeps the scheme so coder/websocket matches scheme://host, not just the host.
@@ -118,6 +154,7 @@ type conn struct {
 	id    string
 	ws    *websocket.Conn
 	codec Codec
+	frame websocket.MessageType
 	send  chan []byte
 
 	once     sync.Once
@@ -195,7 +232,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 			select {
 			case b := <-c.send:
 				wctx, wcancel := context.WithTimeout(ctx, writeTimeout)
-				err := c.ws.Write(wctx, websocket.MessageText, b)
+				err := c.ws.Write(wctx, c.frame, b)
 				wcancel()
 				if err != nil {
 					c.Close(CloseInternal, "write failed")
@@ -300,7 +337,7 @@ func (c *conn) flush(ctx context.Context) {
 		select {
 		case b := <-c.send:
 			wctx, wcancel := context.WithTimeout(ctx, writeTimeout)
-			err := c.ws.Write(wctx, websocket.MessageText, b)
+			err := c.ws.Write(wctx, c.frame, b)
 			wcancel()
 			if err != nil {
 				return

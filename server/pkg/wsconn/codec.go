@@ -22,6 +22,8 @@ type Message struct {
 type Codec interface {
 	Encode(Message) ([]byte, error)
 	Decode([]byte) (Message, error)
+	// Binary reports whether frames are binary, else text.
+	Binary() bool
 }
 
 // The codec's errors.
@@ -64,6 +66,9 @@ func (c *JSONCodec) Register(name string, zero any) {
 	c.types[name] = t
 	c.names[t] = name
 }
+
+// Binary is false: JSON goes in text frames.
+func (c *JSONCodec) Binary() bool { return false }
 
 // Types lists the registered names, sorted.
 func (c *JSONCodec) Types() []string {

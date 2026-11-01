@@ -3,6 +3,7 @@ package wsconn_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/websocket"
 	"go.uber.org/goleak"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 )
 
@@ -385,4 +387,85 @@ func checkLeaks(t *testing.T) {
 	t.Helper()
 	opt := goleak.IgnoreCurrent()
 	t.Cleanup(func() { goleak.VerifyNone(t, opt) })
+}
+
+func TestSubprotocols(t *testing.T) {
+	checkLeaks(t)
+	opts := wsconn.Options{Subprotocols: []wsconn.Subprotocol{
+		{Name: "finga.v1.proto", Codec: serverCodec(wsconn.Binary)},
+		{Name: "finga.v1.json", Codec: serverCodec(wsconn.JSON)},
+	}}
+	echo := func(c wsconn.Conn, m wsconn.Message) {
+		if err := c.Send(wsconn.Message{ReqID: m.ReqID, Data: &clientv1.Pong{ClientTime: m.Data.(*clientv1.Ping).GetClientTime()}}); err != nil {
+			t.Errorf("send: %v", err)
+		}
+	}
+	tests := []struct {
+		name       string
+		ask        []string
+		wantChosen string
+		wantFrame  websocket.MessageType
+	}{
+		{"the client's only choice", []string{"finga.v1.json"}, "finga.v1.json", websocket.MessageText},
+		{"the server's preference among the client's", []string{"finga.v1.json", "finga.v1.proto"}, "finga.v1.proto", websocket.MessageBinary},
+		{"names match regardless of case", []string{"FINGA.v1.JSON"}, "FINGA.v1.JSON", websocket.MessageText},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := newRecorder()
+			rec.onMsg = echo
+			s := start(t, rec, opts)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			c, _, err := websocket.Dial(ctx, s.wsURL(), &websocket.DialOptions{Subprotocols: tt.ask})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Subprotocol() != tt.wantChosen {
+				t.Fatalf("negotiated %q, want %q", c.Subprotocol(), tt.wantChosen)
+			}
+			codec := clientCodec(wsconn.JSON)
+			if tt.wantFrame == websocket.MessageBinary {
+				codec = clientCodec(wsconn.Binary)
+			}
+			b, err := codec.Encode(wsconn.Message{ReqID: "r-1", Data: &clientv1.Ping{ClientTime: 7}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := c.Write(ctx, tt.wantFrame, b); err != nil {
+				t.Fatal(err)
+			}
+			typ, data, err := c.Read(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := codec.Decode(data)
+			if typ != tt.wantFrame || err != nil || got.ReqID != "r-1" || got.Data.(*clientv1.Pong).GetClientTime() != 7 {
+				t.Fatalf("frame %v %+v %v", typ, got, err)
+			}
+			c.Close(websocket.StatusNormalClosure, "")
+			_ = rec.waitClosed(t)
+		})
+	}
+	for _, ask := range [][]string{nil, {"finga.v0.json"}} {
+		t.Run(fmt.Sprintf("a client asking for %v is closed before OnOpen", ask), func(t *testing.T) {
+			rec := newRecorder()
+			s := start(t, rec, opts)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			c, _, err := websocket.Dial(ctx, s.wsURL(), &websocket.DialOptions{Subprotocols: ask})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = c.Read(ctx)
+			if websocket.CloseStatus(err) != websocket.StatusCode(wsconn.CloseNoSubprotocol) || !strings.Contains(err.Error(), "finga.v1.proto, finga.v1.json") {
+				t.Fatalf("read %v, want close %d naming the subprotocols", err, wsconn.CloseNoSubprotocol)
+			}
+			rec.mu.Lock()
+			defer rec.mu.Unlock()
+			if rec.opened != 0 {
+				t.Fatal("OnOpen ran")
+			}
+		})
+	}
 }
