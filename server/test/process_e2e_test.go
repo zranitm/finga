@@ -2,12 +2,14 @@ package e2e_test
 
 import (
 	"bytes"
-	"net"
+	"encoding/json"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,17 +18,25 @@ import (
 
 // process is a binary in its own process, so it can be killed and restarted on the same addresses.
 type process struct {
-	t      *testing.T
-	name   string
-	bin    string
-	env    []string
-	url    string // the gateway's base URL
-	grpc   string // a service's gRPC address
-	health string // the /healthz URL that says it is up
-	cmd    *exec.Cmd
-	out    lockedBuffer // written by exec's copier goroutine while the test reads it
-	done   chan struct{}
+	t         *testing.T
+	name      string
+	bin       string
+	env       []string
+	listeners map[string]string // listener name → the setting of its address
+	healthOn  string            // the listener that serves /healthz
+	addrs     map[string]string // bound on the first start, kept for restarts
+	url       string            // the gateway's base URL
+	grpc      string            // a service's gRPC address
+	cmd       *exec.Cmd
+	out       lockedBuffer // written by exec's copier goroutine while the test reads it
+	done      chan struct{}
 }
+
+// The binaries' listeners, each with the setting of its address.
+var (
+	serviceListeners = map[string]string{"grpc": "FINGA_GRPC_LISTEN", "ops": "FINGA_OPS_ADDR"}
+	gatewayListeners = map[string]string{"http": "FINGA_HTTP_ADDR"}
+)
 
 // lockedBuffer is a bytes.Buffer safe for one writer and one reader.
 type lockedBuffer struct {
@@ -44,6 +54,24 @@ func (b *lockedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+func (b *lockedBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Len()
+}
+
+// listening is the address each listener logged it bound, in the output after from.
+func (b *lockedBuffer) listening(from int) map[string]string {
+	addrs := map[string]string{}
+	for line := range strings.Lines(b.String()[from:]) {
+		var e struct{ Msg, Listener, Addr string }
+		if json.Unmarshal([]byte(line), &e) == nil && e.Msg == "listening" {
+			addrs[e.Listener] = e.Addr
+		}
+	}
+	return addrs
 }
 
 func buildBinaries(t *testing.T) map[string]string {
@@ -64,18 +92,17 @@ func buildBinaries(t *testing.T) map[string]string {
 	return bins
 }
 
-// baseEnv points every process at the test database, with a quieter log.
+// baseEnv points every process at the test database; info level logs the "listening" lines start reads.
 func baseEnv(dbURL string) []string {
-	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_LOG_LEVEL=warn")
+	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_LOG_LEVEL=info")
 }
 
-// startServiceProcess runs a service binary on free ports; extra names the services it dials.
+// startServiceProcess runs a service binary on ports it picks; extra names the services it dials.
 func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string) *process {
 	t.Helper()
-	grpc, ops := freePort(t), freePort(t)
-	p := &process{t: t, name: name, bin: bin, grpc: grpc, health: "http://" + ops + "/healthz"}
-	p.env = append(append(baseEnv(dbURL), "FINGA_GRPC_LISTEN="+grpc, "FINGA_OPS_ADDR="+ops), extra...)
+	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL), extra...), listeners: serviceListeners, healthOn: "ops"}
 	p.start()
+	p.grpc = p.addrs["grpc"]
 	return p
 }
 
@@ -84,33 +111,32 @@ func dependency(name string, svc *process) string {
 	return "FINGA_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
 }
 
-func freePort(t *testing.T) string {
+func startGateway(t *testing.T, bin, dbURL string, services map[string]*process) *process {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	addr := ln.Addr().String()
-	_ = ln.Close()
-	return addr
-}
-
-func startGateway(t *testing.T, bin, dbURL, addr string, services map[string]*process) *process {
-	t.Helper()
-	p := &process{t: t, name: "gateway", bin: bin, url: "http://" + addr, health: "http://" + addr + "/healthz"}
-	p.env = append(baseEnv(dbURL), "FINGA_HTTP_ADDR="+addr)
+	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL), listeners: gatewayListeners, healthOn: "http"}
 	for name, svc := range services {
 		p.env = append(p.env, dependency(name, svc))
 	}
 	p.start()
+	p.url = "http://" + p.addrs["http"]
 	return p
 }
 
+// start runs the binary until healthy: on port 0 the first time, then on the addresses it got.
 func (p *process) start() {
 	p.t.Helper()
+	env := slices.Clone(p.env)
+	for _, name := range slices.Sorted(maps.Keys(p.listeners)) {
+		addr := p.addrs[name]
+		if addr == "" {
+			addr = "127.0.0.1:0"
+		}
+		env = append(env, p.listeners[name]+"="+addr)
+	}
+	from := p.out.Len()
 	p.cmd = exec.Command(p.bin)
 	p.cmd.Dir = ".." // server/, where the binaries run
-	p.cmd.Env = p.env
+	p.cmd.Env = env
 	p.cmd.Stdout = &p.out
 	p.cmd.Stderr = &p.out
 	if err := p.cmd.Start(); err != nil {
@@ -122,12 +148,13 @@ func (p *process) start() {
 	p.t.Cleanup(p.kill)
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
-		res, err := http.Get(p.health)
-		if err == nil {
-			res.Body.Close()
-			if res.StatusCode == http.StatusOK {
-				return
+		if p.addrs == nil {
+			if addrs := p.out.listening(from); len(addrs) == len(p.listeners) {
+				p.addrs = addrs
 			}
+		}
+		if p.addrs != nil && p.healthy() {
+			return
 		}
 		select {
 		case <-done:
@@ -136,6 +163,15 @@ func (p *process) start() {
 		}
 	}
 	p.t.Fatalf("%s not healthy within 20 s:\n%s", p.name, p.out.String())
+}
+
+func (p *process) healthy() bool {
+	res, err := http.Get("http://" + p.addrs[p.healthOn] + "/healthz")
+	if err != nil {
+		return false
+	}
+	res.Body.Close()
+	return res.StatusCode == http.StatusOK
 }
 
 // kill ends the process without warning: no shutdown, no checkpoint, no flush.

@@ -196,16 +196,21 @@ func (l *looter) hunt(d time.Duration, template string) (protocol.DropView, bool
 	return protocol.DropView{}, false
 }
 
-// walkTo walks to within 12 px of x, re-aiming each tick against knockback and jumping when stuck.
+// walkTo walks to within 12 px of x and stops there, re-aiming after knockback and jumping when stuck.
 func (l *looter) walkTo(x float64, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	lastX, stuck := l.x, 0
 	for time.Now().Before(deadline) {
 		dx := x - l.x
 		if math.Abs(dx) < 12 {
-			_ = l.input(protocol.Input{})
+			if err := l.input(protocol.Input{}); err != nil {
+				return false
+			}
 			l.pump(100*time.Millisecond, nil)
-			return math.Abs(x-l.x) < 24
+			if math.Abs(x-l.x) < 24 {
+				return true
+			}
+			continue // knocked back while stopping
 		}
 		if math.Abs(l.x-lastX) < 1 {
 			stuck++
@@ -507,7 +512,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, dependency("item", itemProc))
 	worldProc := startServiceProcess(t, "world", bins["world"], dbURL,
 		dependency("character", characterProc), dependency("item", itemProc), dependency("social", socialProc))
-	proc := startGateway(t, bins["gateway"], dbURL, freePort(t), map[string]*process{
+	proc := startGateway(t, bins["gateway"], dbURL, map[string]*process{
 		"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc, "world": worldProc,
 	})
 	db, err := pgxpool.New(context.Background(), dbURL)
@@ -529,7 +534,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	var wg sync.WaitGroup
 	picked := make([]int, len(hunters))
 	for k, h := range hunters {
-		wg.Go(func() { ; picked[k] = h.loot(25 * time.Second) })
+		wg.Go(func() { picked[k] = h.loot(25 * time.Second) })
 	}
 	// Hard-kill the world and the item service while pickups are in flight; the gateway stays up.
 	time.Sleep(12 * time.Second)
