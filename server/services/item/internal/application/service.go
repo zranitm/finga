@@ -1,9 +1,4 @@
-// Package application is the item service's use cases (Low-level design,
-// page 11): add, move, discard, the starter grant and the inventory. Every
-// change is one transaction through the store's unit of work: the
-// idempotency check first, then the rows, the events, and an outbox event,
-// so a change can be retried safely and is never half-applied. ports.go
-// declares what it needs; the repository layer implements it.
+// Package application is the item service's use cases; each change is one idempotent transaction.
 package application
 
 import (
@@ -16,8 +11,7 @@ import (
 	"finga/services/item/internal/model"
 )
 
-// AddInput puts a quantity of a template into the inventory: the first
-// stack with room, then the first free slot.
+// AddInput puts a quantity of a template into the inventory.
 type AddInput struct {
 	Key        string // idempotency key
 	TemplateID string
@@ -25,8 +19,7 @@ type AddInput struct {
 	Cause      model.Cause
 }
 
-// MoveInput moves an item to a slot of its tab, or merges it into a stack
-// of the same item there.
+// MoveInput moves an item to a slot of its tab.
 type MoveInput struct {
 	Key    string
 	ItemID kernel.ItemID
@@ -51,7 +44,6 @@ type Options struct {
 	Now func() time.Time
 }
 
-// Idempotency scopes, one per command.
 const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
@@ -81,9 +73,7 @@ func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) ([]mo
 	return s.store.Inventory(ctx, owner)
 }
 
-// Add puts a quantity of a template into the inventory: the first stack
-// with room, overflow into the first free slot of the tab, otherwise
-// inventory_full with nothing written.
+// Add fills stacks with room, then the first free slot; a full inventory writes nothing.
 func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Result, error) {
 	tmpl, ok := s.content.Item(in.TemplateID)
 	if !ok {
@@ -103,7 +93,6 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 	return res, err
 }
 
-// add is the inventory rule, on the command's unit of work.
 func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, cause model.Cause) (Result, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
@@ -160,9 +149,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 	return res, nil
 }
 
-// Move puts an item in a slot of its tab, or merges it into a stack of the
-// same item there. Moving onto a different item is a conflict (Stage 1
-// has no swap).
+// Move puts an item in a slot of its tab, merging into a matching stack; there is no swap.
 func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Result, error) {
 	if in.Slot < 0 || in.Slot >= model.SlotsPerTab {
 		return Result{}, model.ErrBadSlot
@@ -262,7 +249,7 @@ func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInpu
 func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in DiscardInput) (Result, error) {
 	it, err := uow.Items().LockOwned(ctx, in.ItemID, owner)
 	if err != nil {
-		return Result{}, err // no row, also when it isn't yours: ErrNotFound after classify
+		return Result{}, err // someone else's item is ErrNotFound too
 	}
 	if in.Quantity > it.Quantity {
 		return Result{}, model.ErrBadQuantity
@@ -288,11 +275,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 	return Result{Changed: []model.Slot{slotOf(it)}}, nil
 }
 
-// GrantStarter gives a new character its class's starter items, once:
-// the character ID is the idempotency key, so a second call (the character
-// service retrying, or the world's safety net on join) returns the first
-// call's slots and writes nothing. A class the game data does not have is
-// ErrUnknownItem.
+// GrantStarter gives a new character its starter items once, keyed by the character ID.
 func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (Result, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
@@ -339,7 +322,6 @@ func find(inv []model.Item, pred func(model.Item) bool) *model.Item {
 	return nil
 }
 
-// freeSlot is the lowest unoccupied slot of the tab.
 func freeSlot(inv []model.Item, tab gamedata.Tab) (int, bool) {
 	used := make([]bool, model.SlotsPerTab)
 	for _, it := range inv {

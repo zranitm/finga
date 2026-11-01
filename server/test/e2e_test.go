@@ -1,10 +1,4 @@
-// Package e2e runs the game as production builds it, in one test process
-// against a real Postgres: each service from its composition root
-// (services/<name>/app) on loopback listeners, and the gateway's
-// handler (services/gateway/app) dialling them, served by
-// httptest. Each Stage
-// 1 acceptance criterion that the REST API covers is a row named after its
-// feature.
+// Package e2e runs the whole game, built as production builds it, against a real Postgres.
 package e2e_test
 
 import (
@@ -58,8 +52,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// stack is the game over a fresh database: the services and the game
-// server, whose handler httptest serves.
+// stack is the game over a fresh database, its gateway handler served by httptest.
 type stack struct {
 	t      *testing.T
 	url    string
@@ -69,8 +62,6 @@ type stack struct {
 	world  *service                 // likewise
 }
 
-// The services listen on free loopback ports; a service's own address is
-// known once it listens.
 var (
 	loopbackGRPC = host.GRPCSection{Listen: "127.0.0.1:0"}
 	loopbackOps  = host.OpsSection{Addr: "127.0.0.1:0"}
@@ -83,8 +74,6 @@ func newStack(t *testing.T) *stack {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
-	// Each service is built from its own configuration, as its binary reads
-	// it, dialling the ones started before it.
 	item := runService(t, itemconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data", Database: db},
 		func(c itemconfig.Config, at string) itemconfig.Config { c.GRPC.Listen = at; return c }, itemapp.Build)
 	account := runService(t, accountconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", Database: db},
@@ -119,8 +108,7 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	// The handler is served by httptest; the gateway's streams run beside it
-	// as Run would start them.
+	// The gateway's streams run beside the httptest handler, as Run would start them.
 	taskCtx, stopTasks := context.WithCancel(context.Background())
 	tasksDone := make(chan struct{})
 	go func() { defer close(tasksDone); srv.RunTasks(taskCtx) }()
@@ -135,8 +123,6 @@ func newStack(t *testing.T) *stack {
 	return &stack{t: t, url: ts.URL, db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
 }
 
-// service is one service running in the test process, built from its
-// composition root and its own configuration as production builds it.
 type service struct {
 	t     *testing.T
 	build func(ctx context.Context, listen string) (*host.Host, error) // on that gRPC address
@@ -144,9 +130,7 @@ type service struct {
 	stop  func()
 }
 
-// runService starts a service from cfg, on a free port, and stops it when
-// the test ends. listen returns cfg with the gRPC listener moved, so a
-// restart comes back on the same address.
+// runService starts a service on a free port until the test ends; listen lets a restart reuse the address.
 func runService[C any](t *testing.T, cfg C, listen func(C, string) C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
 	t.Helper()
 	svc := &service{t: t, build: func(ctx context.Context, at string) (*host.Host, error) {
@@ -188,8 +172,7 @@ func (s *service) start(listen string) {
 	s.addr = h.Addr(host.GRPC)
 }
 
-// restart stops the service and starts a new process of it on the same
-// address, as a deploy or a crash would: whatever it held in memory is gone.
+// restart replaces the service with a fresh process on the same address, losing its memory.
 func (s *service) restart() {
 	s.t.Helper()
 	s.stop()
@@ -259,8 +242,7 @@ func TestAcceptance(t *testing.T) {
 		s := newStack(t)
 		p := s.enter(t, "erin", "Erin", "warrior")
 		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "erin", "password": "correct horse"})
-		// The login above is a second session for Erin: it kicked the first
-		// connection and revoked its session, as one active session demands.
+		// The second login kicked the first connection and revoked its session.
 		p.expect("Kicked")
 		token := login.body["token"].(string)
 		q := s.connect(t, p.id)
@@ -273,15 +255,13 @@ func TestAcceptance(t *testing.T) {
 		// The rotated token works; the one sent in Hello works once more.
 		s.mustStatus(s.call("GET", "/api/characters", w.Token, nil), http.StatusOK)
 		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusOK)
-		// A second use of the retired token is reuse: the session ends, the
-		// connection is kicked, and the rotated token is dead too.
+		// Reusing the retired token ends the session and kills the rotated token too.
 		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusUnauthorized)
 		if k := q.expect("Kicked").Data.(protocol.Kicked); k.Reason != protocol.KickSessionExpired {
 			t.Fatalf("kicked for %s", k.Reason)
 		}
 		s.mustStatus(s.call("GET", "/api/characters", w.Token, nil), http.StatusUnauthorized)
 
-		// Log out everywhere: the connection is kicked and the token is dead.
 		r := s.enter(t, "fay", "Fay", "bowman")
 		s.mustStatus(s.call("DELETE", "/api/sessions", r.token, nil), http.StatusNoContent)
 		if k := r.expect("Kicked").Data.(protocol.Kicked); k.Reason != protocol.KickSessionExpired {
@@ -338,7 +318,6 @@ func TestAcceptance(t *testing.T) {
 		if after.body["control_preset"] != "wasd" {
 			t.Fatalf("settings after save %v", after.body)
 		}
-		// A new login still sees the saved preset.
 		token2 := s.call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).body["token"].(string)
 		if s.call("GET", "/api/settings", token2, nil).body["control_preset"] != "wasd" {
 			t.Fatal("settings did not survive a new session")
@@ -348,9 +327,7 @@ func TestAcceptance(t *testing.T) {
 	t.Run("probes/healthz-readyz-metrics", func(t *testing.T) {
 		s := newStack(t)
 		s.mustStatus(s.call("GET", "/healthz", "", nil), http.StatusOK)
-		// No /readyz here: this stack serves the handler through httptest
-		// and never calls Run, so it is rightly not ready. The server tests
-		// cover readiness, and CI's compose job polls it on the real binary.
+		// No /readyz: this stack never calls Run, so it is rightly not ready.
 		res, err := http.Get(s.url + "/metrics")
 		if err != nil {
 			t.Fatal(err)

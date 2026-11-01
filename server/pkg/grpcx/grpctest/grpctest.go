@@ -1,6 +1,4 @@
-// Package grpctest serves a gRPC server over an in-memory connection for a
-// test, so handlers and clients are exercised through the real gRPC stack
-// without a port. Imported by tests only.
+// Package grpctest serves a gRPC server over an in-memory connection for tests.
 package grpctest
 
 import (
@@ -16,8 +14,7 @@ import (
 
 const bufSize = 1 << 20
 
-// Conn serves srv until the test ends and returns a client connection to
-// it, made the way grpcx.Dial makes one.
+// Conn serves srv until the test ends and returns a grpcx.Dial client connection to it.
 func Conn(t testing.TB, srv *grpc.Server) *grpc.ClientConn {
 	t.Helper()
 	lis := bufconn.Listen(bufSize)

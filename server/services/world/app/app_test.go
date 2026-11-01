@@ -25,7 +25,6 @@ import (
 	"finga/services/world/config"
 )
 
-// characters is the character service: one character to load.
 type characters struct {
 	characterv1.UnimplementedCharacterServiceServer
 	c *characterv1.Character
@@ -39,7 +38,6 @@ func (f *characters) SaveCheckpoint(context.Context, *characterv1.SaveCheckpoint
 	return &characterv1.SaveCheckpointResponse{}, nil
 }
 
-// items is the item service: it records starter grants.
 type items struct {
 	itemv1.UnimplementedItemServiceServer
 	mu     sync.Mutex

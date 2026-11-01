@@ -12,8 +12,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// delivery turns one event of the world's stream into the protocol message
-// the player sees; false for an event this gateway does not know yet.
+// delivery turns a world stream event into its protocol message; false for an unknown event.
 func delivery(m *worldv1.DeliverResponse) (model.Delivery, bool) {
 	tick := m.GetTick()
 	switch {
@@ -58,9 +57,7 @@ func delivery(m *worldv1.DeliverResponse) (model.Delivery, bool) {
 	return model.Delivery{}, false
 }
 
-// pickupFailure is a failed pickup as the player sees it, by the reason
-// the world named; one without a reason was logged by the world, where its
-// cause is known, and is internal here.
+// pickupFailure is a failed pickup as the player sees it; one without a reason is internal.
 func pickupFailure(f *worldv1.PickupFailed) model.Public {
 	if f.GetErrorReason() == "" {
 		return model.Internal
@@ -68,7 +65,7 @@ func pickupFailure(f *worldv1.PickupFailed) model.Public {
 	return errmap.For(grpcx.ErrorFor(codes.Unknown, grpcx.Reason{Domain: f.GetErrorDomain(), Name: f.GetErrorReason()}))
 }
 
-// entityRef is page 4's wire form: p:<character id> or m:<mob id>.
+// entityRef is the wire form p:<character id> or m:<mob id>.
 func entityRef(r *worldv1.EntityRef) string {
 	if id := r.GetCharacterId(); id != "" {
 		return "p:" + id
@@ -101,8 +98,7 @@ func playerViews(ps []*worldv1.PlayerView) []protocol.PlayerView {
 	return out
 }
 
-// mobViews converts mobs; a snapshot always carries an array, a delta
-// omits an empty one.
+// mobViews converts mobs; a snapshot always carries an array, a delta omits an empty one.
 func mobViews(ms []*worldv1.MobView, always bool) []protocol.MobView {
 	if len(ms) == 0 {
 		if always {
@@ -132,7 +128,6 @@ func dropViews(ds []*worldv1.DropView, always bool) []protocol.DropView {
 	return out
 }
 
-// refusal is a failure as a Response.
 func refusal(p model.Public) protocol.Response {
 	return protocol.Response{OK: false, Code: p.Code, Message: p.Message}
 }

@@ -12,17 +12,15 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Loot rules (page 5, OD-05 default).
 const (
-	lootWindow  = 10 * time.Second // only the killer (and party, step 15) may take it
-	dropLife    = 60 * time.Second // then it vanishes
-	pickupRange = 40.0             // px from the character's centre
-	dropSpread  = 24.0             // px either side of the mob
-	dropSpacing = 20.0             // px between several drops of one mob
+	lootWindow  = 10 * time.Second // only the killer and their party may take it
+	dropLife    = 60 * time.Second
+	pickupRange = 40.0 // px from the character's centre
+	dropSpread  = 24.0 // px either side of the mob
+	dropSpacing = 20.0 // px between several drops of one mob
 )
 
-// drop is an item on the ground, in memory only (TD-06). It becomes a real
-// item when a pickup commits.
+// drop is an item on the ground, in memory only until a pickup commits.
 type drop struct {
 	id         uint64    // the wire ID
 	key        uuid.UUID // the idempotency key of its pickup
@@ -39,8 +37,6 @@ func (d *drop) view() model.DropView {
 	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y}
 }
 
-// rollDrops rolls a mob's drop table (each entry independently) and puts
-// the drops on the ground beside it.
 func (i *Instance) rollDrops(mb *mob, killer *player) {
 	n := 0
 	for _, entry := range mb.def.Drops {
@@ -64,7 +60,6 @@ func (i *Instance) rollDrops(mb *mob, killer *player) {
 	}
 }
 
-// expireDrops removes drops past their life.
 func (i *Instance) expireDrops() {
 	kept := i.drops[:0]
 	for _, d := range i.drops {
@@ -77,8 +72,7 @@ func (i *Instance) expireDrops() {
 	i.drops = kept
 }
 
-// pickUp finds the nearest eligible drop in range, reserves it, and hands
-// the economic action to a worker. The tick never waits on the database.
+// pickUp reserves the nearest eligible drop and hands it to a worker.
 func (i *Instance) pickUp(p *player) {
 	if p.dead {
 		return
@@ -119,9 +113,7 @@ type pickupJob struct {
 	character kernel.CharacterID
 }
 
-// runPickup is the worker's side: one transaction with the drop ID as the
-// idempotency key, retried once on a transient failure, then the result
-// goes back to the instance's inbox.
+// runPickup runs on a worker and posts the result back to the inbox.
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	in := model.Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
 	slots, err := i.opts.Items.Add(ctx, in)
@@ -138,9 +130,6 @@ type pickupResult struct {
 	err    error
 }
 
-// finishPickup applies a worker's result inside the tick: success removes
-// the drop and tells the player what changed; failure releases the
-// reservation and the drop stays.
 func (i *Instance) finishPickup(r *pickupResult) {
 	var d *drop
 	for _, cand := range i.drops {
@@ -177,7 +166,6 @@ func removeDrop(drops []*drop, id uint64) []*drop {
 	return drops
 }
 
-// dropsFor is what a joining player sees on the ground.
 func (i *Instance) dropViews() []model.DropView {
 	out := make([]model.DropView, 0, len(i.drops))
 	for _, d := range i.drops {

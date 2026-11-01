@@ -6,7 +6,7 @@ import (
 	"finga/internal/gamedata"
 )
 
-// deathPenaltyRate is OD-06's default: 5% of the current level's requirement.
+// deathPenaltyRate is the share of the current level's requirement lost on death.
 const deathPenaltyRate = 0.05
 
 // AddStats adds b to a, stat by stat.
@@ -14,9 +14,7 @@ func AddStats(a, b gamedata.Stats) gamedata.Stats {
 	return gamedata.Stats{STR: a.STR + b.STR, DEX: a.DEX + b.DEX, INT: a.INT + b.INT, AGI: a.AGI + b.AGI, VIT: a.VIT + b.VIT}
 }
 
-// DeriveStats applies page 5's formulas:
-// derived = base + Σ coef × stat + per_level × (level − 1) + equipment,
-// then rates are capped. HP and MP round down to whole points.
+// DeriveStats computes the derived stats; rates are capped and HP and MP round down.
 func DeriveStats(f gamedata.Formulas, s gamedata.Stats, level int, eq Equipment) Derived {
 	return Derived{
 		MaxHP:       int(math.Floor(eval(f.MaxHP, s, level))),
@@ -45,11 +43,10 @@ func capped(f gamedata.Formula, v float64) float64 {
 	return v
 }
 
-// AllocationPlan says where a new level's points go. Stage 1 passes the
-// class preset; Stage 2 passes the player's choice (OD-16) unchanged here.
+// AllocationPlan says where a new level's points go.
 type AllocationPlan func(newLevel int) gamedata.Stats
 
-// PresetPlan is the Stage 1 allocation: the class's level-up preset.
+// PresetPlan allocates the class's level-up preset.
 func PresetPlan(class gamedata.Class) AllocationPlan {
 	return func(int) gamedata.Stats { return class.LevelUpPoints }
 }
@@ -61,10 +58,7 @@ type Award struct {
 	LevelsGained int
 }
 
-// AwardExp adds amount to the character's EXP and resolves every level-up:
-// extra EXP carries over, each new level's points come from plan, and at
-// the cap EXP stops accumulating. HP and MP restore on a level-up; the
-// caller does that from the new derived stats.
+// AwardExp adds EXP and resolves level-ups; the caller restores HP and MP after one.
 func AwardExp(curve ExpCurve, p Progress, amount int64, stats gamedata.Stats, plan AllocationPlan) Award {
 	a := Award{Progress: p, Stats: stats}
 	if p.Level >= curve.LevelCap() {
@@ -88,9 +82,7 @@ func AwardExp(curve ExpCurve, p Progress, amount int64, stats gamedata.Stats, pl
 	}
 }
 
-// DeathPenalty applies OD-06's default: outside towns, lose 5% of the
-// EXP needed for the current level, rounded down, never below the start of
-// the level. At the cap there is nothing to lose.
+// DeathPenalty takes 5% of the level's requirement outside towns, never below the level's start.
 func DeathPenalty(curve ExpCurve, p Progress, inTown bool) Progress {
 	if inTown {
 		return p

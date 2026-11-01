@@ -52,7 +52,6 @@ var (
 	sessBob   = kernel.NewSessionID()
 )
 
-// observer is what the gateway and its handler count, together.
 type observer interface {
 	application.Observer
 	ws.Observer
@@ -65,9 +64,6 @@ type harness struct {
 	gw    *application.Gateway
 }
 
-// deps are a test's gateway: its settings, and the services as their
-// generated clients, which the harness wires through the real adapters,
-// the application and the handler, as the composition root does.
 type deps struct {
 	ID                   string
 	Sessions             auth.Guard
@@ -85,8 +81,7 @@ type deps struct {
 	SessionCheckInterval time.Duration
 }
 
-// build wires d: an adapter for each service that is set (an unset one
-// stays nil, as the gateway expects), the gateway, and its handler.
+// build wires d; an unset service stays nil, as the gateway expects.
 func (d deps) build() (*application.Gateway, http.Handler) {
 	app := application.Dependencies{
 		ID: d.ID, Sessions: d.Sessions, Logger: d.Logger, Observer: d.Observer, Clock: d.Clock,
@@ -110,14 +105,12 @@ func (d deps) build() (*application.Gateway, http.Handler) {
 	})
 }
 
-// newHarness builds the gateway over a fake world service, runs it, and
-// waits until it follows the world's stream.
+// newHarness runs the gateway over a fake world and waits until it follows the world's stream.
 func newHarness(t *testing.T, opts ...func(*deps)) *harness {
 	t.Helper()
 	return newHarnessOn(t, newFakeWorld(), opts...)
 }
 
-// newHarnessOn is newHarness over a fake world the test has set up.
 func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	t.Helper()
 	obs := newFakeObserver()
@@ -151,7 +144,6 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	return &harness{ts: ts, world: fw, obs: obs, gw: gw}
 }
 
-// client is a test WebSocket client speaking the envelope.
 type client struct {
 	t     *testing.T
 	c     *websocket.Conn
@@ -204,7 +196,6 @@ func (c *client) read() (wsconn.Message, websocket.StatusCode) {
 	return m, -1
 }
 
-// expect reads until a message of the given type, failing on close.
 func (c *client) expect(msgType string) wsconn.Message {
 	c.t.Helper()
 	for {
@@ -223,7 +214,6 @@ func (c *client) hello(token string, charID kernel.CharacterID) {
 	c.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: charID.String()}})
 }
 
-// expectKick reads a Kicked message with the reason, then the close.
 func (c *client) expectKick(reason protocol.KickReason) {
 	c.t.Helper()
 	m := c.expect("Kicked")
@@ -316,8 +306,7 @@ func TestHelloFailures(t *testing.T) {
 		name string
 		err  error
 	}{
-		// Internal, not unauthenticated, which would log the client out: this
-		// way it reconnects.
+		// Internal, not unauthenticated (which would log the client out), so it reconnects.
 		{"a full instance", grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY)},
 		{"a character on a map the world does not run", grpcx.Error(codes.NotFound, worldv1.Reason_REASON_NO_MAP)},
 		{"a world that cannot answer", status.Error(codes.Unavailable, "connection refused")},
@@ -363,8 +352,7 @@ func TestIdentityComesFromTheConnection(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	// A raw Input that smuggles a character_id field: the field is ignored
-	// by the codec and the input is routed as Ayla's.
+	// A smuggled character_id is ignored; the input is routed as Ayla's.
 	c.sendRaw(`{"t":"Input","seq":5,"d":{"right":true,"character_id":"` + brunoID.String() + `"}}`)
 	waitFor(t, "the input", h.world.inputList, 1)
 	h.world.mu.Lock()
@@ -394,7 +382,6 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 	if left[0].GetPresence().GetCharacterId() != aylaID.String() || left[0].GetConnectionId() != h.world.joins()[0].GetConnectionId() {
 		t.Fatalf("left %+v, want Ayla's, through her connection", left)
 	}
-	// The second session keeps working.
 	second.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	second.expect("Pong")
 	// Ayla counted, Robin counted, Ayla's connection closed.
@@ -412,8 +399,7 @@ func TestRateLimits(t *testing.T) {
 	for seq := uint32(1); seq <= 40; seq++ {
 		c.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
 	}
-	// Commands reach the world in order: once the Attack after them is in,
-	// every input before it has been handled.
+	// Commands reach the world in order: once the Attack is in, every input before it was handled.
 	c.send(wsconn.Message{Seq: 41, Data: protocol.Attack{}})
 	waitFor(t, "the attack", h.world.attackList, 1)
 	if got := h.world.inputCount(); got != 30 {
@@ -423,8 +409,7 @@ func TestRateLimits(t *testing.T) {
 		for i := range 6 {
 			c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Tab: "use", Slot: i}})
 		}
-		// The read loop answers the refused one at once, while the five
-		// before it wait on the command queue: match answers by request ID.
+		// The refused one is answered at once on the read loop, ahead of the queue: match by request ID.
 		codes := map[string]string{}
 		for range 6 {
 			m := c.expect("Response")
@@ -482,7 +467,6 @@ func TestCloseLeavesTheMap(t *testing.T) {
 	}
 }
 
-// waitFor polls get until it has n items.
 func waitFor[T any](t *testing.T, what string, get func() []T, n int) []T {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -508,7 +492,7 @@ func TestUnavailableCommandsAnswerWithAResponse(t *testing.T) {
 	if m.ReqID != "r-1" || m.Data.(protocol.Response).OK || m.Data.(protocol.Response).Code != "parties_unavailable" {
 		t.Fatalf("response %+v", m)
 	}
-	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}}) // no req: silently ignored for now
+	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}}) // no request ID: silently ignored
 	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
 	c.expect("Pong")
 }
@@ -702,8 +686,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 
 func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	logs := &lockedBuffer{}
-	// The item service could not explain its failure: it logged the cause
-	// and sent Internal, which is all the gateway sees and logs.
+	// The item service sent Internal without a cause; that is all the gateway sees and logs.
 	items := &fakeItems{err: fmt.Errorf("discard: %w", errors.New("pq: connection reset"))}
 	h := newHarness(t, func(d *deps) {
 		d.Items = items.client(t)
@@ -751,8 +734,7 @@ func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
 	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "inventory_unavailable" {
 		t.Fatalf("response %+v", r)
 	}
-	// The handler checks the message before any use case runs, as the REST
-	// handler answers a malformed request before calling a service.
+	// The handler rejects a malformed message before any use case runs.
 	c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: "x", Quantity: 1}})
 	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_id" {
 		t.Fatalf("a malformed item ID: %+v", r)
@@ -773,8 +755,7 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	}
 }
 
-// social builds the gateway with a fake social service, waiting for the
-// first subscription to it.
+// social builds the gateway with a fake social service and waits for its first subscription.
 func social(t *testing.T, fs *fakeSocial) *harness {
 	t.Helper()
 	h := newHarness(t, func(d *deps) { d.Social = fs.client(t) })
@@ -869,9 +850,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		t.Fatalf("bruno has a party in Welcome: %+v", w.Party)
 	}
 	bruno.expect("Snapshot")
-	// A player is registered after their Snapshot goes out, so the two
-	// registrations can land in either order, and the second a moment after
-	// its Snapshot: wait for both, and find Ayla's by ID.
+	// Registrations land in either order, slightly after their Snapshots: wait for both, find Ayla's by ID.
 	deadline := time.Now().Add(5 * time.Second)
 	for len(fs.onlineCalls()) < 2 {
 		if time.Now().After(deadline) {
@@ -1071,9 +1050,6 @@ func TestANewLoginElsewhereKicksAsLoggedInElsewhere(t *testing.T) {
 	c.expectKick(protocol.KickLoggedInElsewhere)
 }
 
-// watcher is the account service's WatchSessions, served over an in-memory
-// gRPC connection: each subscription gets Subscribed, then whatever the
-// test pushes, and ends when the test says so.
 type watcher struct {
 	accountv1.UnimplementedAccountServiceServer
 	mu            sync.Mutex
@@ -1154,9 +1130,7 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 
 func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 	h := newHarness(t)
-	// The world sends an older presence's Delta, then the Snapshot, then a
-	// Delta, all before Join answers: the old Delta is dropped, the rest
-	// follow Welcome in order.
+	// Before Join answers: an older presence's Delta (dropped), the Snapshot, a Delta; the rest follow Welcome.
 	h.world.before = []*worldv1.DeliverResponse{{Tick: 1, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 99}}}}
 	h.world.mu.Lock()
 	h.world.tick = 40
@@ -1364,9 +1338,7 @@ func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
 }
 
 func TestTheFirstSubscriptionIsNotABreak(t *testing.T) {
-	// The world takes joins as soon as it holds the gateway's stream, which
-	// can be before the gateway has read Subscribed; here Subscribed arrives
-	// while the first join is in flight. One join, one Snapshot.
+	// Subscribed arrives while the first join is in flight: one join, one Snapshot.
 	fw := newFakeWorld()
 	fw.hold = make(chan struct{})
 	h := newHarnessOn(t, fw)

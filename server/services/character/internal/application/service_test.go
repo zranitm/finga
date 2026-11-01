@@ -254,15 +254,12 @@ func TestCharacterSlots(t *testing.T) {
 	if !errors.Is(err, model.ErrSlotsFull) {
 		t.Fatalf("fourth character: %v, want ErrSlotsFull (conflict)", err)
 	}
-	// Another account is not affected.
 	if _, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Dori", Class: kernel.Warrior}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// No transaction spans two services (page 10): the character commits first,
-// then the item service is asked for its starter items, retried until it
-// succeeds or the deadline ends.
+// The character commits first; only then are its starter items granted, with retries.
 func TestStarterItemsAfterTheCommit(t *testing.T) {
 	ctx := context.Background()
 	t.Run("the starter is asked once, after the commit, for the character, its account and its class", func(t *testing.T) {

@@ -10,11 +10,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// Migrate applies every pending goose migration in fsys (NNNNN_name.sql
-// files at its root) to pool's database and reports how many it applied.
-// The versions are recorded in table, so several independent sets (one per
-// service, say) can share one database without seeing each other's
-// versions. A second run applies nothing and returns 0.
+// Migrate applies fsys's pending goose migrations, versioned in table, and reports how many ran.
 func Migrate(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, table string) (int, error) {
 	db := stdlib.OpenDBFromPool(pool)
 	defer db.Close()
@@ -29,8 +25,7 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, table string) 
 	return len(results), nil
 }
 
-// TableExists reports whether a table of that name is visible on the
-// connection's search path.
+// TableExists reports whether name is a table on the search path.
 func TableExists(ctx context.Context, db DBTX, name string) (bool, error) {
 	var found bool
 	err := db.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, name).Scan(&found)

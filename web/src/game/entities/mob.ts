@@ -1,6 +1,3 @@
-// A mob view (C10): the Kenney enemy for the type, tinted where the shape
-// is only near, with an HP bar above. It draws the state it
-// is given and owns no rules.
 import type Phaser from 'phaser';
 
 import { ANIM, ART_SCALE, TEX } from '../keys';
@@ -33,14 +30,13 @@ const art: Readonly<Record<string, MobArt>> = {
   cave_bat: { stand: TEX.flyStand, move: ANIM.flyMove, dead: TEX.flyDead, tint: 0x9a9ab0 },
 };
 
-/** The art for a mob type; an unknown type gets the slime's rather than nothing. */
 export function mobArt(type: string): MobArt {
   return art[type] ?? slime;
 }
 
 const BAR_W = 32;
 const BAR_H = 4;
-const BAR_ABOVE = 40; // above the feet
+const BAR_ABOVE = 40;
 
 export class MobView {
   readonly sprite: Phaser.GameObjects.Sprite;

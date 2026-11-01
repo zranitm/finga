@@ -1,22 +1,17 @@
-// Interpolation for other players (page 7, Frame loop): their Snapshot and
-// Delta states are buffered on the server's tick clock and rendered 100 ms
-// in the past, blended between the two nearest states. Plain data, tested
-// without Phaser; nothing here goes through a store.
+// Remote players are drawn RENDER_DELAY_MS behind the newest server state, blended between buffered states.
 import type { WireState } from './prediction';
 
 export const TICK_MS = 50;
-/** How far behind the newest server state remote players are drawn. */
 export const RENDER_DELAY_MS = 100;
-/** States older than this behind the newest are dropped. */
 const KEEP_MS = 1000;
 
 export interface Timed {
-  /** Milliseconds on the server's tick clock: tick * TICK_MS. */
+  /** Server tick clock: tick * TICK_MS. */
   readonly t: number;
   readonly state: WireState;
 }
 
-/** The linear blend of two states at a fraction between them; flags come from the nearer one. */
+/** Flags come from the nearer state. */
 export function blend(a: WireState, b: WireState, f: number): WireState {
   const near = f < 0.5 ? a : b;
   return {
@@ -30,11 +25,7 @@ export function blend(a: WireState, b: WireState, f: number): WireState {
   };
 }
 
-/**
- * The state to draw at renderTime: the first state before the buffer
- * starts, the blend between the two nearest states inside it, and past the
- * last state an extrapolation along its velocity of at most one tick.
- */
+/** Past the last state, extrapolates along its velocity for at most one tick. */
 export function sample(buffer: readonly Timed[], renderTime: number): WireState | undefined {
   const first = buffer[0];
   if (!first) {
@@ -59,13 +50,11 @@ export function sample(buffer: readonly Timed[], renderTime: number): WireState 
   return last.state;
 }
 
-/** One remote player's recent states, and the tick it was removed on if any. */
 export class RemoteBuffer {
   private items: Timed[] = [];
   private removedAt: number | null = null;
 
   push(t: number, state: WireState): void {
-    // Delivered in order; a repeat for the same tick replaces.
     const last = this.items[this.items.length - 1];
     if (last && t <= last.t) {
       if (t === last.t) {
@@ -74,14 +63,14 @@ export class RemoteBuffer {
       return;
     }
     this.items.push({ t, state });
-    // Keep one state at or before the cutoff as the floor, drop the rest.
+    // Keep one state at or before the cutoff as the floor.
     const cutoff = t - KEEP_MS;
     while (this.items.length > 1 && this.items[1]!.t <= cutoff) {
       this.items.shift();
     }
   }
 
-  /** The server said the player left on this tick; it stays drawn until renderTime passes it. */
+  /** The player stays drawn until renderTime passes t. */
   remove(t: number): void {
     this.removedAt = t;
   }
@@ -90,7 +79,6 @@ export class RemoteBuffer {
     return this.removedAt !== null;
   }
 
-  /** True once the render clock has passed the removal tick: nothing left to show. */
   drained(renderTime: number): boolean {
     return this.removedAt !== null && renderTime >= this.removedAt;
   }
@@ -110,14 +98,13 @@ export interface RemoteWire extends WireState {
   readonly class: string;
 }
 
-/** Everyone but the local player, keyed by character id. */
 export class RemotePlayers {
   private readonly buffers = new Map<string, RemoteBuffer>();
   private readonly info = new Map<string, { name: string; cls: string }>();
 
   constructor(private readonly localId: string) {}
 
-  /** A Snapshot is the whole map: players not in it are gone at once. */
+  /** Players missing from a Snapshot are gone at once. */
   applySnapshot(t: number, players: readonly RemoteWire[]): void {
     const seen = new Set<string>();
     for (const p of players) {
@@ -156,7 +143,6 @@ export class RemotePlayers {
     b.push(t, p);
   }
 
-  /** The states to draw now; a player whose removal has drained is dropped and reported. */
   render(renderTime: number): { shown: Map<string, WireState>; gone: string[] } {
     const shown = new Map<string, WireState>();
     const gone: string[] = [];
@@ -193,17 +179,12 @@ export class RemotePlayers {
   }
 }
 
-/**
- * The render clock: the newest server tick seen and when it arrived, so
- * the render time advances smoothly between messages and sits
- * RENDER_DELAY_MS behind the server.
- */
+/** Advances smoothly between messages, RENDER_DELAY_MS behind the newest tick seen. */
 export class RenderClock {
   private latestTick = 0;
   private latestAt = 0;
   private started = false;
 
-  /** A Snapshot or Delta for this tick arrived at local time now. */
   update(tick: number, now: number): void {
     if (!this.started || tick > this.latestTick) {
       this.latestTick = tick;
@@ -212,7 +193,6 @@ export class RenderClock {
     }
   }
 
-  /** The server-clock time to draw at local time now, or null before the first message. */
   renderTime(now: number): number | null {
     if (!this.started) {
       return null;

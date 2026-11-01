@@ -5,15 +5,13 @@ import (
 	"sync"
 )
 
-// EconomyObserver counts jobs in flight; internal/telemetry implements it.
+// EconomyObserver counts jobs in flight.
 type EconomyObserver interface {
 	JobStarted()
 	JobFinished()
 }
 
-// Workers is the economy worker pool (page 3): a fixed number of goroutines
-// that run database transactions for pickups and inventory actions, so a
-// tick never waits on the database. Submit never blocks.
+// Workers is the economy worker pool, so a tick never waits on the database.
 type Workers struct {
 	jobs chan func(ctx context.Context)
 	n    int

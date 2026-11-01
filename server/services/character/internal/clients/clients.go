@@ -1,6 +1,4 @@
-// Package clients are the character service's adapters for the services it
-// calls, implementing its application's ports: the item service, for a new
-// character's starter items.
+// Package clients adapts the item service to the character service's ports.
 package clients
 
 import (
@@ -26,6 +24,5 @@ func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, cha
 	return err
 }
 
-// Retryable is a failure that carries no reason: the item service was not
-// reached, or could not explain it. A reason is a rule; retrying cannot help.
+// Retryable is a failure without a reason; a rule never passes on retry.
 func (Starter) Retryable(err error) bool { return !grpcx.IsRule(err) }

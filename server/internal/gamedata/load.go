@@ -14,7 +14,6 @@ import (
 	"finga/internal/sim"
 )
 
-// File names inside the data directory (page 2).
 const (
 	movementFile = "movement.yaml"
 	classesFile  = "classes.yaml"
@@ -25,7 +24,7 @@ const (
 	mapsDir      = "maps"
 	mapExt       = ".tmj"
 
-	levelUpPoints   = 5 // the Stage 1 preset adds 5 points per level-up
+	levelUpPoints   = 5
 	defaultMaxStack = 100
 )
 
@@ -173,7 +172,6 @@ type formulaYAML struct {
 	Cap      float64            `yaml:"cap"`
 }
 
-// derivedStats are the nine formula names, in page 5's order.
 var derivedStats = []string{"max_hp", "max_mp", "attack_power", "accuracy", "evasion", "crit_rate", "crit_damage", "defense", "penetration"}
 
 func (d *Data) loadStats(dir string) error {
@@ -499,8 +497,7 @@ func sortedKeys[V any](m map[string]V) func(func(string) bool) {
 	}
 }
 
-// validateStarters checks each class's starter items once the items are
-// loaded: known templates, positive quantities, one of a piece of equipment.
+// validateStarters checks starter items: known templates, positive quantities, one of each equipment piece.
 func (d *Data) validateStarters(string) error {
 	for _, c := range d.classes {
 		for _, g := range c.StarterItems {

@@ -1,8 +1,4 @@
-// Package application is the character service's use cases (Low-level
-// design, page 11): creation (with the starter items granted through the
-// item service after the commit), listing and loading, checkpoints and
-// level-ups, which the world saves from its workers. ports.go declares what
-// they need; the repository and the item client implement it.
+// Package application is the character service's use cases: creation, loading and saves.
 package application
 
 import (
@@ -25,19 +21,13 @@ type CreateInput struct {
 // Options tune the service. Zero values take the defaults.
 type Options struct {
 	Now func() time.Time
-	// Starter grants a new character its starter items after it commits;
-	// nil grants nothing (tests, and binaries that create no characters).
+	// Starter grants a new character its starter items after it commits; nil grants nothing.
 	Starter StarterItems
-	// StarterTimeout bounds the retries of a grant: 5 s by default. A
-	// character whose grant did not succeed in time still exists, and the
-	// world grants its items when it next joins (its safety net).
+	// StarterTimeout bounds a grant's retries (5 s); the world grants missed items on join.
 	StarterTimeout time.Duration
-	// StarterBackoff is the first wait between retries, doubling up to a
-	// second: 50 ms by default.
+	// StarterBackoff is the first retry wait (50 ms), doubling up to a second.
 	StarterBackoff time.Duration
-	// Logger records a grant that ran out of time or was refused; nil
-	// discards it.
-	Logger *slog.Logger
+	Logger         *slog.Logger
 }
 
 const (
@@ -47,14 +37,11 @@ const (
 )
 
 const (
-	nameMin = 3
-	nameMax = 12
-	// maxCharacters is the Stage 1 cap per account (OD-09 default), so the
-	// character-select screen stays bounded before A3 arrives.
+	nameMin       = 3
+	nameMax       = 12
 	maxCharacters = 3
 )
 
-// A name starts with a letter and continues with letters and digits.
 var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
 
 // Service is the character service's use cases.
@@ -82,12 +69,8 @@ func NewService(store Store, content Content, opts Options) *Service {
 	return &Service{store: store, content: content, now: opts.Now, opts: opts}
 }
 
-// Create makes a level 1 character of a class available in this stage,
-// with its base stats, full HP and MP, standing at the town's player
-// spawn. Once it has committed, the starter items are granted through the
-// item service (grantStarter); Create answers success either way, since the
-// character exists and a client that saw an error would retry and meet
-// name_taken.
+// Create makes a level 1 character at the town spawn, then grants its starter items.
+// It succeeds even if the grant fails: a client retry would only meet name_taken.
 func (s *Service) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	if len(in.Name) < nameMin || len(in.Name) > nameMax || !nameRe.MatchString(in.Name) {
 		return model.Character{}, model.ErrBadName
@@ -124,10 +107,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	return c, nil
 }
 
-// grantStarter asks the item service for the character's starter items,
-// retrying a transient failure with backoff until it succeeds or
-// StarterTimeout ends. The grant is keyed by the character ID, so a retry,
-// or the world's grant on join, never grants twice.
+// grantStarter retries until StarterTimeout; keyed by character ID, a retry never grants twice.
 func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	if s.opts.Starter == nil {
 		return

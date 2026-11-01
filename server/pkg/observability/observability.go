@@ -1,7 +1,4 @@
-// Package observability sets up structured logging and Prometheus metrics
-// (TD-21 default): a JSON slog logger at a configurable level, a registry
-// with the runtime collectors, and the /metrics handler. It knows nothing
-// about what is logged or measured.
+// Package observability sets up JSON slog logging and Prometheus metrics.
 package observability
 
 import (
@@ -31,8 +28,7 @@ func ParseLevel(s string) (slog.Level, error) {
 	return 0, fmt.Errorf("unknown log level %q", s)
 }
 
-// NewLogger writes one JSON record per line to w, dropping records below
-// level. Callers pass it down; there is no global logger.
+// NewLogger writes JSON lines to w at level and above.
 func NewLogger(w io.Writer, level slog.Level) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{Level: level}))
 }

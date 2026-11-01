@@ -59,7 +59,7 @@ interface Request {
   d: Record<string, unknown>;
 }
 
-/** A socket double whose requests resolve or reject as the test decides, in order. */
+/** Requests resolve or reject with the given answers, in order. */
 function fakeSocket(answers: readonly (Data<'Response'> | Error)[]) {
   const calls: Request[] = [];
   const request = vi.fn((t: string, d: Record<string, unknown>) => {

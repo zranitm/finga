@@ -1,5 +1,3 @@
-// Back to the initial state of every store between test cases, so state
-// never leaks from one to the next. Imported by tests only.
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { connection } from '@/state/connection';

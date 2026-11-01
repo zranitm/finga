@@ -1,13 +1,5 @@
-# make up / make down. Postgres with a health check, the migrations as a
-# one-shot job, the six services (Low-level design, page 10), each built
-# from ../server with the one Dockerfile and its SERVICE argument, and web:
-# nginx serving the built client on :4173 and passing /api and /ws to the
-# gateway, the only public entry of the game. Host ports come from .env next
-# to this file (git-ignored; see .env.example). The binaries' overrides go in
-# ../server/.env, passed in whole as env_file; the environment entries below
-# win over it. Each binary reads only its own file and keys (page 11), so
-# each service below sets only its own: the database for the ones that have
-# one, and where it dials the services it calls on the Compose network.
+# make up / make down. Host ports come from .env here (see .env.example); ../server/.env holds
+# the binaries' overrides, and the environment entries below win over it.
 name: finga
 
 x-database: &database
@@ -41,7 +33,7 @@ services:
       postgres:
         condition: service_healthy
 
-  # The account service: gRPC on 9001, /healthz /readyz /metrics on 9101.
+  # gRPC on 9001, ops on 9101.
   account:
     build:
       context: ../server
@@ -57,8 +49,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # The character service: gRPC on 9002, /healthz /readyz /metrics on 9102.
-  # It calls the item service for a new character's starter items.
+  # gRPC on 9002, ops on 9102.
   character:
     build:
       context: ../server
@@ -76,7 +67,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # The item service: gRPC on 9003, /healthz /readyz /metrics on 9103.
+  # gRPC on 9003, ops on 9103.
   item:
     build:
       context: ../server
@@ -92,8 +83,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # The social service: gRPC on 9005, /healthz /readyz /metrics on 9105.
-  # Parties live in memory, so it needs no database and no migration.
+  # gRPC on 9005, ops on 9105; parties live in memory, so no database.
   social:
     build:
       context: ../server
@@ -105,9 +95,7 @@ services:
       - path: ../server/.env
         required: false
 
-  # The world service: gRPC on 9004, /healthz /readyz /metrics on 9104,
-  # published so make bots can read the tick percentiles. It saves through
-  # the character and item services, so it needs no database.
+  # gRPC on 9004, ops on 9104 (published for make bots); it saves through character and item.
   world:
     build:
       context: ../server
@@ -132,9 +120,7 @@ services:
       social:
         condition: service_started
 
-  # The gateway: REST under /api and the WebSocket gateway at /ws, with
-  # /healthz, /readyz and /metrics, on 8080. It holds no database and no game
-  # rules; on SIGTERM it tells every connection to reconnect, then stops.
+  # REST under /api, the WebSocket at /ws and ops, all on 8080.
   gateway:
     build:
       context: ../server
@@ -166,9 +152,7 @@ services:
       social:
         condition: service_started
 
-  # The client: the production build served by nginx, with /api and /ws
-  # passed to the gateway, so the browser sees one origin (page 3). The game
-  # is at http://localhost:4173, or the machine's LAN address for testers.
+  # The client on nginx, passing /api and /ws to the gateway so the browser sees one origin.
   web:
     build:
       context: ../web

@@ -1,14 +1,5 @@
-// Package grpcx is the gRPC plumbing every service shares: a server whose
-// errors keep a reason across the call and never their text, a client
-// connection, the request ID in metadata, and a loop that keeps a server
-// stream open. It knows nothing of any service: a service brings its own
-// error table and proto enum of reasons.
-//
-// A failure crosses a call as a status with a google.rpc.ErrorInfo detail:
-// its Reason is the name of a value of the service's reason enum, and its
-// Domain is that enum's proto package. The caller reads it back with
-// ReasonOf; nothing else of the original error, not even its message,
-// leaves the service.
+// Package grpcx is the shared gRPC plumbing: server, client, request IDs and error reasons.
+// Errors cross calls as a status with an ErrorInfo reason; their text never leaves the service.
 package grpcx
 
 import (
@@ -30,8 +21,7 @@ type Reason struct {
 // String is domain/name.
 func (r Reason) String() string { return r.Domain + "/" + r.Name }
 
-// Key is the Reason a table row with this enum value produces, and what
-// ReasonOf then reports.
+// Key is the Reason for enum value e, as ReasonOf reports it.
 func Key(e protoreflect.Enum) Reason {
 	d := e.Descriptor()
 	name := ""
@@ -51,19 +41,10 @@ type ErrorRow struct {
 // ErrorTable is a service's errors, each with its code and reason.
 type ErrorTable []ErrorRow
 
-// internalMessage is the only text an unexpected failure carries.
 const internalMessage = "internal error"
 
-// Status is err as it leaves the service, and whether the table (or a
-// reason from a downstream call) explained it; an unexplained error is the
-// handler's to log with its cause.
-//   - A sentinel in the table, also wrapped: its code, with ErrorInfo.
-//   - An error that already carries a reason (a downstream call's, passed
-//     on): its code and details, unchanged.
-//   - A cancelled or expired context: Canceled or DeadlineExceeded.
-//   - Any other status (a downstream call's, or one gRPC itself made, such
-//     as Unimplemented from an older node): its code, without its text.
-//   - Anything else: Internal.
+// Status is err as it leaves the service, and whether it was explained (else log it).
+// A status without a reason keeps only its code; an unknown error is Internal.
 func (t ErrorTable) Status(err error) (*status.Status, bool) {
 	if err == nil {
 		return status.New(codes.OK, ""), true
@@ -117,17 +98,13 @@ func reasonIn(st *status.Status) (Reason, bool) {
 	return Reason{}, false
 }
 
-// IsRule reports whether a failed call ran into a rule of the service
-// (it carries a reason), so retrying the same request cannot help. Any
-// other failure (unreachable, timed out, internal) may pass on a retry.
+// IsRule reports whether a failed call carries a reason, so a retry cannot help.
 func IsRule(err error) bool {
 	_, ok := ReasonOf(err)
 	return ok
 }
 
-// Error is a failure carrying a reason, as a table row would send it: for
-// a service raising a reason it has no sentinel for, for fakes in tests,
-// and for adapters that turn a downstream outcome into a reason.
+// Error is a failure carrying a reason, as a table row would send it.
 func Error(code codes.Code, reason protoreflect.Enum) error {
 	return ErrorFor(code, Key(reason))
 }
@@ -137,9 +114,7 @@ func ErrorFor(code codes.Code, r Reason) error {
 	return withReason(code, r).Err()
 }
 
-// Reasons lists every value of a reason enum but the zero one (its
-// _UNSPECIFIED), in declaration order: what a table on the calling side
-// must cover.
+// Reasons lists a reason enum's non-zero values in order: what a calling side's table must cover.
 func Reasons(d protoreflect.EnumDescriptor) []Reason {
 	values := d.Values()
 	out := make([]Reason, 0, values.Len())

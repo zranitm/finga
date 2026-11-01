@@ -1,13 +1,10 @@
 package model
 
-// Combat: hit and damage resolution (Low-level design, page 5) as pure
-// functions over values: no state, no clock, randomness from a Roll the
-// caller passes in, so a fight replays exactly from a seed.
+// Combat is pure: randomness comes from the caller's Roll, so a fight replays from a seed.
 
 import "math"
 
-// Roll is a source of uniform numbers in [0, 1). A map instance passes its
-// seeded generator; tests pass a fixed sequence.
+// Roll is a source of uniform numbers in [0, 1).
 type Roll interface {
 	Float64() float64
 }
@@ -34,7 +31,6 @@ type Hit struct {
 	Damage int // 0 on a miss
 }
 
-// Constants of the formula (page 5).
 const (
 	baseHitChance  = 0.80
 	hitPerAccuracy = 0.02
@@ -45,15 +41,7 @@ const (
 	minDamage      = 1
 )
 
-// Resolve applies page 5's formula, drawing from r in a fixed order: the
-// hit roll, the damage variation, then the crit roll. A miss stops after
-// the first draw, so a replay with the same rolls gives the same fight.
-//
-//	hit_chance = clamp(0.80 + 0.02 × (accuracy − evasion), 0.20, 0.99)
-//	raw        = attack_power × uniform(0.90, 1.10)
-//	defense    = target.defense × (1 − penetration)
-//	damage     = max(1, round(raw × 100 / (100 + defense)))
-//	on crit (roll below crit_rate): damage = round(damage × (1 + crit_damage))
+// Resolve draws from r in a fixed order (hit, variation, crit), so replays match.
 func Resolve(a Attacker, d Defender, r Roll) Hit {
 	chance := math.Min(maxHitChance, math.Max(minHitChance, baseHitChance+hitPerAccuracy*(a.Accuracy-d.Evasion)))
 	if r.Float64() >= chance {
@@ -80,9 +68,7 @@ type Target struct {
 	Box Rect
 }
 
-// MeleeBox is the Warrior's hit area: a box of the given size in front of
-// the attacker, whose feet centre is (x, y) and who faces facing (1 or -1).
-// The box stands on the attacker's feet line.
+// MeleeBox is the Warrior's hit box in front of an attacker whose feet centre is (x, y).
 func MeleeBox(x, y float64, facing int, width, height float64) Rect {
 	if facing < 0 {
 		return Rect{X: x - width, Y: y - height, W: width, H: height}
@@ -90,8 +76,7 @@ func MeleeBox(x, y float64, facing int, width, height float64) Rect {
 	return Rect{X: x, Y: y - height, W: width, H: height}
 }
 
-// NearestInBox is the target overlapping box whose centre is closest to
-// (x, y); ok is false when none overlaps.
+// NearestInBox is the target overlapping box whose centre is closest to (x, y).
 func NearestInBox(x, y float64, box Rect, targets []Target) (index int, ok bool) {
 	best := math.Inf(1)
 	for i, t := range targets {
@@ -106,10 +91,7 @@ func NearestInBox(x, y float64, box Rect, targets []Target) (index int, ok bool)
 	return index, ok
 }
 
-// FirstInLine is the Bowman's target: the first box crossed by a
-// horizontal shot from (x, y) in the facing direction, within reach. The
-// shot starts at the attacker's edge, so a box behind the attacker is not
-// hit.
+// FirstInLine is the first target a horizontal shot from (x, y) crosses within reach.
 func FirstInLine(x, y float64, facing int, reach float64, targets []Target) (index int, ok bool) {
 	best := math.Inf(1)
 	for i, t := range targets {

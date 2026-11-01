@@ -12,8 +12,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// AccountService is what the REST API needs of the account service's
-// generated client.
+// AccountService is the part of the account client the REST API needs.
 type AccountService interface {
 	Register(ctx context.Context, in *accountv1.RegisterRequest, opts ...grpc.CallOption) (*accountv1.RegisterResponse, error)
 	Login(ctx context.Context, in *accountv1.LoginRequest, opts ...grpc.CallOption) (*accountv1.LoginResponse, error)
@@ -62,8 +61,7 @@ func (a Accounts) UpdateSettings(ctx context.Context, account kernel.AccountID, 
 	return errmap.Wrap(err)
 }
 
-// CharacterService is what the REST API needs of the character service's
-// generated client.
+// CharacterService is the part of the character client the REST API needs.
 type CharacterService interface {
 	Create(ctx context.Context, in *characterv1.CreateRequest, opts ...grpc.CallOption) (*characterv1.CreateResponse, error)
 	List(ctx context.Context, in *characterv1.ListRequest, opts ...grpc.CallOption) (*characterv1.ListResponse, error)

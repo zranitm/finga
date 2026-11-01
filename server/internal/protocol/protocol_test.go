@@ -14,10 +14,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// The golden files in testdata/contracts are the message catalogue's
-// contract with the client: one file per message type, read by the
-// client's tests too. Run with -update to rewrite them from the samples
-// below after a deliberate change to a message.
+// The golden files are the wire contract with the client; -update rewrites them after a deliberate change.
 var update = flag.Bool("update", false, "rewrite testdata/contracts from the samples")
 
 const contractsDir = "../../testdata/contracts"
@@ -62,7 +59,6 @@ func TestGoldenFiles(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%v; run with -update after a deliberate change", err)
 			}
-			// The golden decodes into its type...
 			decoded, err := codec.Decode(golden)
 			if err != nil {
 				t.Fatalf("golden does not decode: %v", err)
@@ -70,7 +66,6 @@ func TestGoldenFiles(t *testing.T) {
 			if !reflect.DeepEqual(decoded, m) {
 				t.Fatalf("golden decodes to\n%+v\nwant the sample\n%+v", decoded, m)
 			}
-			// ...and re-encodes to the same JSON.
 			if canon(t, encoded) != canon(t, golden) {
 				t.Fatalf("re-encoded\n%s\ngolden\n%s", encoded, golden)
 			}
@@ -133,7 +128,7 @@ func TestKickReasons(t *testing.T) {
 }
 
 func TestEnvelopeOnTheWire(t *testing.T) {
-	// The exact envelope keys from page 4, so the client can rely on them.
+	// The client relies on these exact envelope keys.
 	codec := protocol.NewCodec()
 	b, err := codec.Encode(wsconn.Message{Type: "Delta", Tick: 81234, Data: protocol.Delta{AckSeq: 117}})
 	if err != nil {

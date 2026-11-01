@@ -13,8 +13,7 @@ import (
 	"finga/services/character/internal/model"
 )
 
-// fakeStore is an in-memory Store with the one constraint the service
-// relies on: a unique name ignoring case.
+// fakeStore is an in-memory Store whose names are unique ignoring case.
 type fakeStore struct {
 	mu      sync.Mutex
 	chars   map[kernel.CharacterID]model.Character
@@ -30,7 +29,6 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.txCount++
-	// A failing function rolls back: the maps are restored.
 	chars := maps.Clone(s.chars)
 	order := slices.Clone(s.order)
 	if err := fn(fakeUOW{s}); err != nil {

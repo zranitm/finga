@@ -4,7 +4,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly variant?: 'primary' | 'quiet' | 'danger';
 }
 
-/** A button with the game's look; pointer events are on so it works over the canvas. */
+/** Pointer events are on so it works over the canvas. */
 export function Button({
   variant = 'primary',
   className = '',

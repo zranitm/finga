@@ -1,8 +1,4 @@
-// Package protocol is the Go side of the WebSocket message catalogue
-// (Low-level design, page 4; api/asyncapi.yaml): the Stage 1 message
-// structs, registered with pkg/wsconn's codec. Only the gateway imports
-// it; application modules return their own result types and the gateway
-// maps them to these.
+// Package protocol holds the WebSocket messages (api/asyncapi.yaml); only the gateway imports it.
 package protocol
 
 import (
@@ -12,14 +8,13 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// Version is the protocol version Hello must carry. It changes when a
-// message changes shape; an old client is kicked with KickOutdatedProtocol.
+// Version is the protocol version Hello must carry; bump it when a message changes shape.
 const Version = 1
 
 // KickReason says why the server is about to close a connection.
 type KickReason string
 
-// The kick reasons (page 4).
+// The kick reasons.
 const (
 	KickLoggedInElsewhere KickReason = "logged_in_elsewhere"
 	KickOutdatedProtocol  KickReason = "outdated_protocol"
@@ -38,7 +33,7 @@ const (
 	ChatParty ChatChannel = "party"
 )
 
-// --- Client to server ---
+// Client to server.
 
 // Hello is the first message, within 5 seconds of connecting.
 type Hello struct {
@@ -115,7 +110,7 @@ type Ping struct {
 	ClientTime int64 `json:"client_time"` // Unix milliseconds
 }
 
-// --- Server to client ---
+// Server to client.
 
 // Stats are the five primary stats.
 type Stats struct {
@@ -166,9 +161,9 @@ type PartyView struct {
 	Members []PartyMember `json:"members"`
 }
 
-// Welcome answers Hello. The wallet joins in Stage 2.
+// Welcome answers Hello.
 type Welcome struct {
-	Token      string        `json:"token"` // the rotated session token; the client uses it from now on (step 16)
+	Token      string        `json:"token"` // the rotated session token, used from now on
 	Character  CharacterView `json:"character"`
 	Inventory  []ItemView    `json:"inventory"`
 	Party      *PartyView    `json:"party,omitempty"`
@@ -193,7 +188,7 @@ type PlayerView struct {
 	HP       int     `json:"hp"`
 	MaxHP    int     `json:"max_hp"`
 	Dead     bool    `json:"dead,omitempty"`
-	// Invulnerable is set while the second after contact damage lasts (step 19).
+	// Invulnerable is set for a second after contact damage.
 	Invulnerable bool `json:"invulnerable,omitempty"`
 }
 
@@ -224,8 +219,7 @@ type Snapshot struct {
 	Drops   []DropView   `json:"drops"`
 }
 
-// Delta is what changed this tick (tick in the envelope). Lists hold the
-// changed or new entities; the removed lists hold IDs that left.
+// Delta is what changed this tick: new or changed entities, and the IDs that left.
 type Delta struct {
 	AckSeq         uint32       `json:"ack_seq"`
 	Players        []PlayerView `json:"players,omitempty"`
@@ -247,8 +241,7 @@ type Correction struct {
 	Climbing bool    `json:"climbing"`
 }
 
-// Damage is one resolved hit. Source and target are player IDs or mob IDs
-// as strings ("p:<uuid>" or "m:<id>").
+// Damage is one resolved hit; source and target are "p:<uuid>" or "m:<id>".
 type Damage struct {
 	Source string `json:"source"`
 	Target string `json:"target"`
@@ -341,7 +334,7 @@ type Pong struct {
 	ServerTime int64 `json:"server_time"`
 }
 
-// NewCodec is the JSON codec with every Stage 1 message registered.
+// NewCodec is the JSON codec with every message registered.
 func NewCodec() *wsconn.JSONCodec {
 	c := wsconn.NewJSONCodec()
 	for name, zero := range catalogue() {
@@ -350,13 +343,11 @@ func NewCodec() *wsconn.JSONCodec {
 	return c
 }
 
-// ClientMessages are the names of the messages a client may send, sorted:
-// every one has a route in the gateway.
+// ClientMessages are the sorted names of the client's messages; each has a gateway route.
 func ClientMessages() []string {
 	return slices.Sorted(maps.Keys(clientMessages()))
 }
 
-// clientMessages maps the names of the client's messages to zero values.
 func clientMessages() map[string]any {
 	return map[string]any{
 		"Hello": Hello{}, "Input": Input{}, "Attack": Attack{}, "PickUp": PickUp{}, "EnterPortal": EnterPortal{},
@@ -366,9 +357,6 @@ func clientMessages() map[string]any {
 	}
 }
 
-// catalogue maps every message's name to its zero value, the client's and
-// the server's; iteration order does not matter because Register is
-// order-independent.
 func catalogue() map[string]any {
 	all := map[string]any{
 		"Welcome": Welcome{}, "Snapshot": Snapshot{}, "Delta": Delta{}, "Correction": Correction{}, "Damage": Damage{},

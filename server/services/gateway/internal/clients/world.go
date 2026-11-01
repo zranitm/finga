@@ -68,8 +68,7 @@ func (w World) Say(ctx context.Context, p model.Presence, name, text string) err
 	return errmap.Wrap(err)
 }
 
-// FollowDeliveries follows this gateway's delivery stream until ctx ends,
-// turning each event into what its player sees.
+// FollowDeliveries follows this gateway's delivery stream until ctx ends.
 func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent)) {
 	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[worldv1.DeliverResponse], error) {
 		return w.c.Deliver(ctx, &worldv1.DeliverRequest{GatewayId: gateway})

@@ -1,6 +1,4 @@
-// Copies the Tiled maps the server reads (../server/data/maps) into public/maps
-// before dev and build, so the client draws exactly what the server
-// simulates (page 7). public/maps is git-ignored.
+// The client draws exactly the maps the server simulates; public/maps is git-ignored.
 import { cpSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

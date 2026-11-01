@@ -1,10 +1,4 @@
-// Package tiled reads maps saved by the Tiled editor in its JSON format
-// (.tmj): the map's size, its layers, the objects in object groups, and
-// custom properties with typed lookups. It checks the format only. Which
-// layers and properties a map must have is the reader's business.
-//
-// Tiled puts the origin top-left with y growing downward, and object
-// rectangles are its X, Y, Width and Height, passed through unchanged.
+// Package tiled reads Tiled JSON maps (.tmj), checking the format only.
 package tiled
 
 import (
@@ -47,8 +41,7 @@ type Object struct {
 	Properties Properties `json:"properties"`
 }
 
-// Property is a custom property. Value holds what JSON decoding gives:
-// a string, a float64 for numbers, or a bool.
+// Property is a custom property; Value is a JSON-decoded string, float64 or bool.
 type Property struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
@@ -83,7 +76,6 @@ func (ps Properties) Int(name string) (int, bool) {
 	return 0, false
 }
 
-// errNotMap is a file that parses but is not a map with a size.
 var errNotMap = errors.New("not a Tiled map with a tile size")
 
 // Parse reads one map.
@@ -118,8 +110,7 @@ func (m *Map) PixelWidth() float64 { return float64(m.Width * m.TileWidth) }
 // PixelHeight is the map's height in pixels.
 func (m *Map) PixelHeight() float64 { return float64(m.Height * m.TileHeight) }
 
-// ObjectGroups are the map's object groups by name; a later group with the
-// same name wins.
+// ObjectGroups are the map's object groups by name; a later duplicate wins.
 func (m *Map) ObjectGroups() map[string]Layer {
 	out := map[string]Layer{}
 	for _, l := range m.Layers {

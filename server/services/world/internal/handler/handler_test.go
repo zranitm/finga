@@ -28,8 +28,7 @@ import (
 
 const tick = 10 * time.Millisecond
 
-// characters is the character service's Load: someone else's character
-// fails with its not-found reason.
+// characters is the character service's Load; another account's character is not found.
 type characters struct {
 	mu    sync.Mutex
 	chars map[kernel.CharacterID]model.Character
@@ -57,8 +56,7 @@ func (saver) SaveCheckpoint(context.Context, model.Checkpoint) error { return ni
 func (saver) SaveLevelUp(context.Context, model.LevelUpSave) error   { return nil }
 func (saver) Retryable(error) bool                                   { return false }
 
-// capturing hands the test each sink the server joins with, so it can send
-// events the world would only send in a long game.
+// capturing hands the test each joined sink, to send events the world rarely sends.
 type capturing struct {
 	*application.World
 	sinks chan application.Sink
@@ -101,8 +99,6 @@ func newStack(t *testing.T, queue int) *stack {
 	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: kernel.NewAccountID(), data: data}
 }
 
-// character is a warrior of the stack's account standing on the town's
-// spawn.
 func (s *stack) character(name string) model.Character {
 	town := s.data.Town()
 	ch := model.Character{
@@ -135,7 +131,6 @@ func (s *stack) join(t *testing.T, gateway, conn string, ch model.Character) *wo
 	return res.GetCharacter()
 }
 
-// until reads the stream until match accepts a message.
 func until(t *testing.T, stream grpc.ServerStreamingClient[worldv1.DeliverResponse], what string, match func(*worldv1.DeliverResponse) bool) *worldv1.DeliverResponse {
 	t.Helper()
 	for {
@@ -202,8 +197,7 @@ func TestACommandGoesToTheMapItNames(t *testing.T) {
 	s.join(t, "gw-1", "conn-1", ayla)
 	until(t, gw, "the snapshot", func(m *worldv1.DeliverResponse) bool { return m.GetSnapshot() != nil })
 
-	// The forest does not hold her: right with seq 1 is ignored there, so the
-	// town's left with the same seq is the one applied.
+	// The forest ignores her seq 1, so the town's input with the same seq applies.
 	if _, err := s.c.Input(s.ctx, &worldv1.InputRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), MapId: "forest"}, Seq: 1, Keys: &worldv1.Keys{Right: true}}); err != nil {
 		t.Fatal(err)
 	}
@@ -248,8 +242,7 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: presence, ConnectionId: "conn-a"}); err != nil {
 		t.Fatal(err)
 	}
-	// Both leaves are drained in order in one tick at most: the first changed
-	// nothing, the second removed her, and Bo sees her go once.
+	// The first Leave changes nothing, the second removes her, and Bo sees her go once.
 	m := until(t, gw, "her removal", func(m *worldv1.DeliverResponse) bool {
 		return m.GetCharacterId() == bo.ID.String() && len(m.GetDelta().GetRemovedPlayers()) > 0
 	})
@@ -294,8 +287,7 @@ func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
 	sink := <-s.sinks
-	// The gateway reads nothing: the queue and the transport fill, and then
-	// the sink refuses, which drops the player.
+	// The gateway reads nothing, so the sink eventually refuses and drops the player.
 	refused := false
 	for range 2_000_000 {
 		if !sink.Send(model.Chat{Sender: ayla.ID, SenderName: "Ayla", Text: "spam"}) {

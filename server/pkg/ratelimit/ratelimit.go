@@ -1,8 +1,4 @@
-// Package ratelimit is a token bucket per key (an account, an IP, a
-// username) on golang.org/x/time/rate, the Go team's limiter. The bucket
-// is the library's; this package adds what it leaves to the caller: a
-// limiter per key, each created full, and the eviction of keys left
-// untouched, so the map does not grow with every visitor ever.
+// Package ratelimit keeps a golang.org/x/time/rate token bucket per key and evicts idle keys.
 package ratelimit
 
 import (
@@ -14,8 +10,7 @@ import (
 
 // Limiter is what callers depend on.
 type Limiter interface {
-	// Allow takes one token from key's bucket and reports whether there
-	// was one.
+	// Allow takes a token from key's bucket and reports whether there was one.
 	Allow(key string) bool
 }
 
@@ -51,11 +46,10 @@ type Buckets struct {
 
 type entry struct {
 	limiter *rate.Limiter
-	last    time.Time // when the key was last asked, for eviction
+	last    time.Time
 }
 
-// NewBuckets makes buckets that refill at perSecond tokens a second up to
-// burst.
+// NewBuckets makes buckets refilling at perSecond tokens a second, up to burst.
 func NewBuckets(perSecond float64, burst int, opts ...Option) *Buckets {
 	b := &Buckets{limit: rate.Limit(perSecond), burst: burst, idleTTL: defaultIdleTTL, now: time.Now, keys: map[string]*entry{}}
 	for _, opt := range opts {
@@ -64,8 +58,7 @@ func NewBuckets(perSecond float64, burst int, opts ...Option) *Buckets {
 	return b
 }
 
-// Allow takes one token from key's bucket and reports whether there was
-// one.
+// Allow takes a token from key's bucket, creating it full.
 func (b *Buckets) Allow(key string) bool {
 	now := b.now()
 	b.mu.Lock()
@@ -91,8 +84,7 @@ func (b *Buckets) Len() int {
 	return len(b.keys)
 }
 
-// Sweep evicts keys untouched for longer than the idle TTL. Allow also
-// sweeps on its own every few thousand calls.
+// Sweep evicts keys idle longer than the TTL; Allow also sweeps every few thousand calls.
 func (b *Buckets) Sweep() {
 	b.mu.Lock()
 	defer b.mu.Unlock()

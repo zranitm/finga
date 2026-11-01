@@ -21,7 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Reason names a failure a caller can meet.
 type Reason int32
 
 const (
@@ -113,7 +112,6 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{0}
 }
 
-// ChatChannel is where a line goes.
 type ChatChannel int32
 
 const (
@@ -163,7 +161,6 @@ func (ChatChannel) EnumDescriptor() ([]byte, []int) {
 	return file_internal_social_v1_social_proto_rawDescGZIP(), []int{1}
 }
 
-// Member is a party member as the others see them.
 type Member struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -311,8 +308,7 @@ func (x *Party) GetMembers() []*Member {
 
 type DeliverRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The subscribing gateway node; a second subscription with the same ID
-	// replaces the first.
+	// The subscribing gateway node; a second subscription with the same ID replaces the first.
 	GatewayId     string `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -482,8 +478,7 @@ func (*DeliverResponse_ChatLine) isDeliverResponse_Event() {}
 // Subscribed is a stream's first message.
 type Subscribed struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Random per process start: a new value means the service restarted and
-	// every party is gone.
+	// Random per process start: a new value means the service restarted and every party is gone.
 	BootId        string `protobuf:"bytes,1,opt,name=boot_id,json=bootId,proto3" json:"boot_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -526,8 +521,7 @@ func (x *Subscribed) GetBootId() string {
 	return ""
 }
 
-// PartyState is the character's party after a change; unset when it has
-// none any more.
+// PartyState is the character's party after a change; unset when it has none.
 type PartyState struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Party         *Party                 `protobuf:"bytes,1,opt,name=party,proto3" json:"party,omitempty"`
@@ -572,7 +566,6 @@ func (x *PartyState) GetParty() *Party {
 	return nil
 }
 
-// PartyInvited is an invite for the character.
 type PartyInvited struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	InviteId      string                 `protobuf:"bytes,1,opt,name=invite_id,json=inviteId,proto3" json:"invite_id,omitempty"`
@@ -1522,8 +1515,7 @@ func (x *ChatResponse) GetText() string {
 
 type WatchPartiesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The subscribing world node; a second subscription with the same ID
-	// replaces the first.
+	// The subscribing world node; a second subscription with the same ID replaces the first.
 	WorldId       string `protobuf:"bytes,1,opt,name=world_id,json=worldId,proto3" json:"world_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1648,8 +1640,7 @@ func (*WatchPartiesResponse_Subscribed) isWatchPartiesResponse_Event() {}
 
 func (*WatchPartiesResponse_Membership) isWatchPartiesResponse_Event() {}
 
-// Membership is the party of some characters after a change: each listed
-// character's party is now members (empty: none).
+// Membership sets each listed character's party to members (empty: none).
 type Membership struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CharacterIds  []string               `protobuf:"bytes,1,rep,name=character_ids,json=characterIds,proto3" json:"character_ids,omitempty"`

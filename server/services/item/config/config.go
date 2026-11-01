@@ -1,7 +1,4 @@
-// Package config is the item service's configuration (items, the inventory and item events):
-// config.yaml beside this file, with only the keys the service uses
-// (Low-level design, page 11). Every key can be overridden by FINGA_ and
-// its path in upper case.
+// Package config loads the item service's config.yaml; FINGA_<KEY_PATH> overrides any key.
 package config
 
 import (

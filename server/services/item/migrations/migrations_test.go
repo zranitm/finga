@@ -29,9 +29,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// The item service creates the tables pkg/outbox and pkg/idempotency write,
-// and those packages test against their own Schema: the two must agree,
-// column for column and index for index.
+// The outbox and idempotency tables here must match those packages' own Schema.
 func TestTheLibraryTablesMatchTheirSchemas(t *testing.T) {
 	ctx := context.Background()
 	migrated := cluster.DB(t)
@@ -53,8 +51,7 @@ func TestTheLibraryTablesMatchTheirSchemas(t *testing.T) {
 	}
 }
 
-// shape lists a table's columns (name, type, nullability, in order) and
-// its index definitions.
+// shape lists a table's columns, in order, and its index definitions.
 func shape(t *testing.T, pool *pgxpool.Pool, table string) []string {
 	t.Helper()
 	ctx := context.Background()

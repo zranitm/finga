@@ -41,7 +41,6 @@ function newSocket(
   });
 }
 
-/** Opens the fake server side and welcomes the client; returns the socket pair. */
 async function connected(socket: GameSocket, token = 'tok-login'): Promise<FakeWebSocket> {
   setToken(token);
   const p = socket.connect('c1');

@@ -9,9 +9,7 @@ import (
 	"finga/services/social/internal/model"
 )
 
-// Errors is every error the party and chat modules (and parsing a request)
-// can return, with its gRPC code and its reason in the contract.
-// TestTheTableCoversTheModulesAndTheContract keeps it complete both ways.
+// Errors maps every party, chat and request-parsing error to its gRPC code and contract reason.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotLeader, Code: codes.FailedPrecondition, Reason: socialv1.Reason_REASON_NOT_PARTY_LEADER},
 	{Err: model.ErrFull, Code: codes.FailedPrecondition, Reason: socialv1.Reason_REASON_PARTY_FULL},

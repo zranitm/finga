@@ -12,8 +12,7 @@ import (
 	"finga/pkg/configload"
 )
 
-// schema is a made-up configuration, so these tests know nothing about the
-// service: one field of every kind the loader must handle.
+// schema has one field of every kind the loader must handle.
 type schema struct {
 	Server server                   `mapstructure:"server"`
 	Tags   []string                 `mapstructure:"tags"`
@@ -55,8 +54,7 @@ func (s *schema) Validate() error {
 
 const prefix = "APP"
 
-// baseYAML sets every key except server.origin, which stays for the
-// "set from the environment only" case.
+// baseYAML omits server.origin, for the environment-only case.
 const baseYAML = `
 server:
   name: svc
@@ -76,7 +74,6 @@ shared:
 token: leaf-from-yaml
 `
 
-// base is what baseYAML decodes to with no overrides.
 func base() schema {
 	return schema{
 		Server: server{Name: "svc", Addr: ":8080", Port: 8080, Timeout: 3 * time.Second},
@@ -91,14 +88,14 @@ func base() schema {
 func TestLoadFrom(t *testing.T) {
 	tests := []struct {
 		name    string
-		yaml    string            // empty means baseYAML
-		env     map[string]string // set for this case only
+		yaml    string // empty means baseYAML
+		env     map[string]string
 		strict  bool
 		mutate  func(*schema) // the expected differences from base()
 		wantErr bool
-		errIs   error    // the error must wrap this
-		errHas  []string // substrings the error must contain
-		errNot  []string // substrings the error must never contain
+		errIs   error
+		errHas  []string
+		errNot  []string
 	}{
 		{
 			name: "yaml_only",
@@ -308,9 +305,9 @@ func TestLoad(t *testing.T) {
 func TestResolvePath(t *testing.T) {
 	tests := []struct {
 		name       string
-		configPath string   // CONFIG_PATH; empty means unset
-		files      []string // present in dir
-		want       string   // relative to dir, unless configPath is set
+		configPath string // CONFIG_PATH; empty means unset
+		files      []string
+		want       string // relative to dir, unless configPath is set
 	}{
 		{
 			name:       "config_path_wins",

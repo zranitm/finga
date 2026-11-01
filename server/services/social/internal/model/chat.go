@@ -18,7 +18,7 @@ const (
 	ChannelParty Channel = "party"
 )
 
-// Limits (page 4 and page 5).
+// Limits.
 const (
 	LineMaxLen        = 120 // characters, after cleaning
 	LineRatePerSecond = 1.0
@@ -39,9 +39,7 @@ type Message struct {
 	Text       string
 }
 
-// The chat errors. Each names one failure; the service's handler sends
-// it as a reason, and the gateway gives it a code, a status and the words a
-// player sees (its errmap).
+// The chat errors; the handler sends each as a contract reason.
 var (
 	ErrEmpty       = errors.New("chat: empty line")
 	ErrTooLong     = errors.New("chat: line too long")
@@ -51,8 +49,7 @@ var (
 	ErrNoParties   = errors.New("chat: party chat not wired")
 )
 
-// CleanLine strips control characters (newlines, tabs, escapes) and trims the
-// ends; the client renders the result as plain text, never as HTML.
+// CleanLine strips control characters and trims the ends; the client renders it as plain text.
 func CleanLine(text string) string {
 	var b strings.Builder
 	b.Grow(len(text))

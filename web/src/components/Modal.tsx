@@ -3,11 +3,10 @@ import type { KeyboardEvent, ReactNode } from 'react';
 
 export interface ModalProps {
   readonly title: string;
-  readonly onClose?: () => void; // absent: the modal cannot be dismissed (a blocking notice)
+  readonly onClose?: () => void; // absent: cannot be dismissed
   readonly children: ReactNode;
 }
 
-/** A centred dialog over a dimmed backdrop; Escape and a backdrop click close it when allowed. */
 export function Modal({ title, onClose, children }: ModalProps) {
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {

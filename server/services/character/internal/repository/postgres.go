@@ -1,6 +1,4 @@
-// Package repository is the character service's storage (Low-level design,
-// page 11): the Postgres store behind application.Store, its unit of work,
-// and classify, over the characters table the service owns.
+// Package repository is the character service's Postgres store.
 package repository
 
 import (
@@ -32,9 +30,7 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 	return &Postgres{pool: pool, q: db.New(pool)}
 }
 
-// InTx runs fn inside one transaction with a unit of work bound to it.
-// fn may run more than once, so it must have no side effects outside the
-// transaction.
+// InTx runs fn in one transaction; fn may run more than once, so it must have no outside effects.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(unitOfWork{q: db.New(tx)})
@@ -126,8 +122,6 @@ func rowsOrNotFound(n int64, err error) error {
 
 const constraintName = "characters_name_key"
 
-// classify turns database errors into the model's errors, by constraint
-// name. Unknown errors pass through.
 func classify(err error) error {
 	var pgErr *pgconn.PgError
 	switch {

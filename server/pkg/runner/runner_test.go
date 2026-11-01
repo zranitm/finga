@@ -72,8 +72,6 @@ func TestProbes(t *testing.T) {
 	}
 }
 
-// Readiness answers one question: can this process take traffic now? It is
-// ready from the moment it listens until shutdown starts.
 func TestReadinessFollowsTheProcess(t *testing.T) {
 	var r *runner.Runner
 	ops := runner.Probes(func() bool { return r.Ready() }, http.NotFoundHandler())
@@ -82,9 +80,7 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 	if r.Ready() || r.Addr("ops") != "" {
 		t.Fatal("ready or bound before Run")
 	}
-	// An address is published together with readiness: whoever sees one
-	// sees the other (the gateway's readiness test waited on the
-	// address and once caught readyz still 503).
+	// Addr and Ready are published together: whoever sees one sees the other.
 	ctxEarly, cancelEarly := context.WithCancel(context.Background())
 	early := newRunner(t, runner.Options{}, []runner.Listener{{Name: "ops", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}})
 	earlyDone := make(chan error, 1)

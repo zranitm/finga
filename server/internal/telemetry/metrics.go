@@ -1,6 +1,4 @@
-// Package telemetry defines the game's metrics (Low-level design,
-// page 3) and, from later steps, implements the observer interfaces the
-// application modules declare, so application code never imports it.
+// Package telemetry defines the game's metrics and implements the application modules' observers.
 package telemetry
 
 import (
@@ -9,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Metrics holds every metric named on page 3, registered on one registry.
+// Metrics holds the game's metrics, registered on one registry.
 type Metrics struct {
 	TickDuration              *prometheus.HistogramVec // by map
 	TickOverruns              *prometheus.CounterVec   // by map
@@ -28,8 +26,7 @@ var tickBuckets = []float64{.0005, .001, .002, .005, .01, .015, .025, .05, .1, .
 // Transaction buckets cover a local Postgres (sub-millisecond) to a slow one.
 var txBuckets = []float64{.0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1}
 
-// NewMetrics defines the metrics and registers them on reg. Registering
-// twice on one registry fails, so each process builds one Metrics.
+// NewMetrics registers the metrics on reg; registering twice on one registry fails.
 func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 	m := &Metrics{
 		TickDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -71,8 +68,7 @@ func NewMetrics(reg prometheus.Registerer) (*Metrics, error) {
 	return m, nil
 }
 
-// ObserveTick records one tick of mapID that took took, counting an overrun
-// when it exceeded budget (the tick interval).
+// ObserveTick records one tick of mapID, counting an overrun when took exceeds budget.
 func (m *Metrics) ObserveTick(mapID string, took, budget time.Duration) {
 	m.TickDuration.WithLabelValues(mapID).Observe(took.Seconds())
 	if took > budget {

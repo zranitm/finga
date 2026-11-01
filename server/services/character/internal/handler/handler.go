@@ -1,9 +1,4 @@
-// Package handler is the character service's transport layer: the
-// CharacterService gRPC server (api/proto/internal/character/v1). Each
-// method decodes the request (a malformed ID never reaches the module),
-// calls the module, and encodes the result; errors leave through Errors.
-// Characters carry their maximum HP and MP, derived from class, stats and
-// level, so callers never run the rules themselves.
+// Package handler is the character service's gRPC server.
 package handler
 
 import (
@@ -44,8 +39,7 @@ func (s *Server) Create(ctx context.Context, req *characterv1.CreateRequest) (*c
 	if err != nil {
 		return nil, err
 	}
-	// The class is passed as it came: one the game data lacks is the
-	// module's class_unavailable, as it was before the split.
+	// The class passes unchecked; the module answers class_unavailable.
 	c, err := s.svc.Create(ctx, account, application.CreateInput{Name: req.GetName(), Class: kernel.Class(req.GetClass())})
 	if err != nil {
 		return nil, err
@@ -110,8 +104,7 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 	return &characterv1.SaveLevelUpResponse{}, s.svc.SaveLevelUp(ctx, lu)
 }
 
-// view is a character as it crosses the call; the maximums are left 0 when
-// the class has no formulas any more (Load refuses that case itself).
+// view leaves the maximums 0 when the class has no formulas (Load refuses that case).
 func (s *Server) view(c model.Character) *characterv1.Character {
 	d, _ := s.svc.Derived(c)
 	return &characterv1.Character{
@@ -122,7 +115,6 @@ func (s *Server) view(c model.Character) *characterv1.Character {
 	}
 }
 
-// statsView is the five primary stats as they cross a call.
 func statsView(s gamedata.Stats) *characterv1.Stats {
 	return &characterv1.Stats{Strength: int32(s.STR), Dexterity: int32(s.DEX), Intelligence: int32(s.INT), Agility: int32(s.AGI), Vitality: int32(s.VIT)}
 }

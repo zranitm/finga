@@ -1,13 +1,4 @@
-// Package typedid makes typed identifiers over UUIDv7. ID is generic over a
-// kind, an otherwise unused type, so each kind of ID is its own Go type:
-// passing an order ID where a customer ID is expected does not compile.
-//
-//	type orderKind struct{}
-//	type OrderID = typedid.ID[orderKind]
-//
-// IDs are minted in Go (version 7, so they sort in creation order), print
-// as the canonical 36-character text, and marshal as that text.
-// They convert to and from uuid.UUID with a plain conversion.
+// Package typedid makes UUIDv7 IDs typed by kind, so mixing kinds does not compile.
 package typedid
 
 import (
@@ -23,8 +14,7 @@ type ID[K any] uuid.UUID
 // ErrMalformed is text that is not an ID.
 var ErrMalformed = errors.New("typedid: malformed ID")
 
-// New mints an ID. It panics only when the system's random source fails,
-// which no program that mints IDs can recover from.
+// New mints an ID; it panics only if the system's random source fails.
 func New[K any]() ID[K] {
 	u, err := uuid.NewV7()
 	if err != nil {
@@ -33,8 +23,7 @@ func New[K any]() ID[K] {
 	return ID[K](u)
 }
 
-// Parse reads the text form (the canonical one, and the other forms
-// google/uuid accepts); anything else is ErrMalformed.
+// Parse reads any text form google/uuid accepts; anything else is ErrMalformed.
 func Parse[K any](s string) (ID[K], error) {
 	u, err := uuid.Parse(s)
 	if err != nil {
@@ -62,7 +51,6 @@ func (id *ID[K]) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// truncate keeps an error message short whatever a caller sent.
 func truncate(s string) string {
 	const limit = 40
 	if len(s) > limit {

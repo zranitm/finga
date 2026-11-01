@@ -7,24 +7,15 @@ import "internal/item/v1/item.proto";
 
 option go_package = "finga/api/gen/world/v1;worldv1";
 
-// WorldService runs the map instances: one actor per map, ticking at 20 Hz
-// (Low-level design, pages 3 and 10). The gateway joins players, sends their
-// commands, and receives everything bound for them on Deliver. Commands
-// return as soon as the instance has them queued; their effects arrive on
-// Deliver. A failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at 20 Hz; commands return once queued and their effects arrive on Deliver.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 service WorldService {
-  // Deliver is a gateway node's stream: first Subscribed, then every event
-  // for every player who joined through that gateway, in order. Its queue
-  // is bounded; a gateway that falls behind loses the stream, and the
-  // world drops its players, so the gateway subscribes again and rejoins
-  // them.
+  // Deliver streams Subscribed, then every event for the players who joined through that gateway.
+  // A gateway that falls behind loses the stream and its players, so it resubscribes and rejoins them.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
-  // Join loads the character from the character service (it must belong to
-  // the account), grants its starter items if creation never did, and
-  // joins it to its map's instance, which sends the Snapshot on Deliver.
+  // Join loads the account's character, grants missing starter items, and joins it to its map.
   rpc Join(JoinRequest) returns (JoinResponse);
-  // Leave removes a player and saves a checkpoint, only if the player
-  // joined through that connection.
+  // Leave removes a player who joined through that connection and saves a checkpoint.
   rpc Leave(LeaveRequest) returns (LeaveResponse);
   // Input queues held keys with their sequence number (one per tick).
   rpc Input(InputRequest) returns (InputResponse);
@@ -34,19 +25,16 @@ service WorldService {
   rpc PickUp(PickUpRequest) returns (PickUpResponse);
   // EnterPortal takes the portal the character stands in, if any.
   rpc EnterPortal(EnterPortalRequest) returns (EnterPortalResponse);
-  // Say is a map chat line, already cleaned by the social service, for
-  // everyone on the map.
+  // Say is a map chat line, already cleaned by the social service.
   rpc Say(SayRequest) returns (SayResponse);
 }
 
-// Reason names a failure a caller can meet.
 enum Reason {
   REASON_UNSPECIFIED = 0;
   // The world cannot take the player now (an instance's inbox is full).
   REASON_BUSY = 1;
   // The character is on a map the world does not run.
   REASON_NO_MAP = 2;
-  // The instance has stopped.
   REASON_STOPPED = 3;
   // No Deliver stream is open for the gateway.
   REASON_NOT_SUBSCRIBED = 4;
@@ -57,14 +45,12 @@ enum Reason {
   REASON_CLASS_UNAVAILABLE = 8;
 }
 
-// Presence routes a command: the character, and the map the caller
-// believes it is on; an instance ignores a character it does not hold.
+// Presence routes a command to the map the caller believes the character is on.
 message Presence {
   string character_id = 1;
   string map_id = 2;
 }
 
-// Keys are the held keys of one Input.
 message Keys {
   bool left = 1;
   bool right = 2;
@@ -91,8 +77,7 @@ message CharacterView {
 }
 
 message DeliverRequest {
-  // The subscribing gateway node; a second subscription with the same ID
-  // replaces the first.
+  // The subscribing gateway node; a second subscription with the same ID replaces the first.
   string gateway_id = 1;
 }
 
@@ -183,15 +168,13 @@ message Delta {
   repeated uint64 removed_drops = 7;
 }
 
-// Teleport moves the player to another map (a portal, or a respawn away
-// from the town); the target instance sends the Snapshot.
+// Teleport moves the player to another map; the target instance sends the Snapshot.
 message Teleport {
   string map_id = 1;
   double x = 2;
   double y = 3;
 }
 
-// EntityRef names a player or a mob.
 message EntityRef {
   oneof ref {
     string character_id = 1;
@@ -208,14 +191,12 @@ message Damage {
   bool miss = 5;
 }
 
-// Died says a character fell.
 message Died {
   string character_id = 1;
   double x = 2;
   double y = 3;
 }
 
-// Respawned says a character is back.
 message Respawned {
   string character_id = 1;
   string map_id = 2;
@@ -224,8 +205,7 @@ message Respawned {
   int32 hp = 5;
 }
 
-// ExpGained is EXP awarded to the player (negative for the death penalty),
-// after the award.
+// ExpGained is EXP awarded (negative for the death penalty) and the total after it.
 message ExpGained {
   int64 amount = 1;
   int64 exp = 2;
@@ -248,14 +228,11 @@ message InventoryChanged {
   repeated internal.item.v1.Slot slots = 1;
 }
 
-// PickupFailed says why a pickup did not happen; the drop stays. The
-// reason is the failing service's: the item service's (inventory full) or
-// the world's own (pickups busy).
+// PickupFailed says why a pickup did not happen; the drop stays.
 message PickupFailed {
   // The proto package of the service whose Reason this is.
   string error_domain = 1;
-  // The Reason's value name, for example REASON_INVENTORY_FULL; empty for
-  // a failure nobody expected.
+  // The Reason's value name, such as REASON_INVENTORY_FULL; empty when unexpected.
   string error_reason = 2;
 }
 

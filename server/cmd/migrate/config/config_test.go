@@ -12,7 +12,6 @@ import (
 	"finga/pkg/dbx"
 )
 
-// load reads the command's committed file, as the binary does from server/.
 func load() (*config.Config, error) {
 	return configload.Load[config.Config](configload.Options{Path: "config.yaml", EnvPrefix: host.EnvPrefix, Strict: true})
 }
@@ -28,7 +27,6 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 }
 
-// The strict loader refuses a service's key: migrate has no listener.
 func TestAKeyOfAServiceIsRefused(t *testing.T) {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {

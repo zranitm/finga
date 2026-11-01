@@ -1,17 +1,11 @@
-// Drops and the pickup key (C11) over plain data: the drops on the map
-// from Snapshot and Delta, which one is within reach, and one PickUp per
-// tick when the key is pressed in range. The inventory itself changes only
-// on InventoryChanged; the server ignores an out-of-range pickup, which is
-// what the range hint is for.
 import type { Data } from '@/protocol/messages';
 import { params } from '@/sim/step';
 
 export type DropWire = Data<'Snapshot'>['drops'][number];
 
-/** The player's box centre must be within this of the drop (page 5). */
+/** From the player's box centre. */
 export const PICKUP_RANGE = 40;
 
-/** The centre of the player's box from the feet position (sim/step's x, y). */
 export function boxCentre(x: number, y: number): { x: number; y: number } {
   return { x, y: y - params.height / 2 };
 }
@@ -47,7 +41,6 @@ export class DropTracker {
     return { added, removed: gone };
   }
 
-  /** The closest drop within PICKUP_RANGE of a point, or undefined. */
   nearest(cx: number, cy: number): DropWire | undefined {
     let best: DropWire | undefined;
     let bestD = PICKUP_RANGE;
@@ -74,13 +67,12 @@ export class DropTracker {
   }
 }
 
-/** The pickup key: one PickUp per tick, only with a drop in range. */
+/** One PickUp per tick, only with a drop in range. */
 export class PickupSystem {
   private sentTick = -1;
 
   constructor(private readonly send: () => boolean) {}
 
-  /** True when a PickUp went out for this press. */
   press(inRange: boolean, tick: number): boolean {
     if (!inRange || tick === this.sentTick) {
       return false;

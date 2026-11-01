@@ -6,10 +6,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-// Page 7's layers, top (generic) to bottom (specific). A folder imports only
-// from the layers above it, and folders in the same layer never import each
-// other; app composes everything. ESLint enforces it with
-// import-x/no-restricted-paths, so a wrong import fails `make lint`.
+// Top (generic) to bottom (specific): a folder imports only from layers above it, never its own layer.
 const layers = [
   ['lib', 'config', 'gamedata'],
   ['protocol', 'sim'],
@@ -23,7 +20,6 @@ function forbiddenImports() {
   const zones = [];
   layers.forEach((layer, depth) => {
     for (const folder of layer) {
-      // Every folder in the same layer or below is off limits.
       const banned = layers
         .slice(depth)
         .flat()

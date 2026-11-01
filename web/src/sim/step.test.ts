@@ -8,8 +8,7 @@ import type { Input } from './input';
 import { NO_PLATFORM, overlaps, params, standing, step } from './step';
 import type { Geometry, State } from './step';
 
-// The vectors are the contract with the Go sim: every intermediate state
-// must equal the recorded one exactly (the Go test compares with ==).
+// The vectors are the contract with the Go sim: every intermediate state must match exactly.
 interface Vector {
   readonly name: string;
   readonly geometry: Geometry;
@@ -26,7 +25,6 @@ const vectors = readdirSync(vectorsDir)
     vector: JSON.parse(readFileSync(path.join(vectorsDir, name), 'utf8')) as Vector,
   }));
 
-// The scenarios the step page lists; every one must have a file.
 const required = [
   'ceiling',
   'climb-rope',
@@ -41,8 +39,7 @@ const required = [
   'wall',
 ];
 
-// -0 and 0 are the same state (Go compares floats with ==; JSON spells
-// both as 0 or -0), so states are normalised before the exact comparison.
+// Go treats -0 and 0 as equal but JSON keeps the sign, so normalise before comparing.
 function normalise(s: State): State {
   const n = (x: number): number => (x === 0 ? 0 : x);
   return { ...s, x: n(s.x), y: n(s.y), vx: n(s.vx), vy: n(s.vy), drop_timer: n(s.drop_timer) };

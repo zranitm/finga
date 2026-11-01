@@ -22,7 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Reason names a failure a caller can meet.
 type Reason int32
 
 const (
@@ -95,7 +94,7 @@ type RevokeReason int32
 
 const (
 	RevokeReason_REVOKE_REASON_UNSPECIFIED RevokeReason = 0
-	// The session's previous token was used again after the grace: reuse.
+	// The previous token was reused after the grace period.
 	RevokeReason_REVOKE_REASON_TOKEN_REUSE RevokeReason = 1
 	// The player logged out, here or everywhere.
 	RevokeReason_REVOKE_REASON_LOGOUT RevokeReason = 2
@@ -215,10 +214,9 @@ func (x *Account) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-// Settings are an account's settings.
 type Settings struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// classic or wasd (B6).
+	// classic or wasd.
 	ControlPreset string `protobuf:"bytes,1,opt,name=control_preset,json=controlPreset,proto3" json:"control_preset,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -361,9 +359,7 @@ type LoginRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Password string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	// The caller's address, for a per-IP throttle that moved to the edge
-	// (nginx limits per IP): ignored, and no caller sends it. buf's FILE
-	// rules keep a field in v1 once published, so it stays deprecated.
+	// Ignored: nginx limits per IP now; buf's FILE rules keep a published field.
 	//
 	// Deprecated: Marked as deprecated in internal/account/v1/account.proto.
 	Ip            string `protobuf:"bytes,3,opt,name=ip,proto3" json:"ip,omitempty"`
@@ -1070,8 +1066,7 @@ func (*UpdateSettingsResponse) Descriptor() ([]byte, []int) {
 
 type WatchSessionsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The subscribing gateway node; a second subscription with the same ID
-	// replaces the first.
+	// The subscribing gateway node; a second subscription with the same ID replaces the first.
 	GatewayId     string `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1258,7 +1253,6 @@ func (x *Subscribed) GetBootId() string {
 	return ""
 }
 
-// SessionRevoked is one session that ended.
 type SessionRevoked struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`

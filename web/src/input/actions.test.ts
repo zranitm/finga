@@ -4,7 +4,6 @@ import { actionFor, actions, heldInput, isMovement } from './actions';
 import { keyLabel, presets } from './presets';
 import type { Preset } from './presets';
 
-// The table from Screens and controls.
 const table: Record<Preset, Record<string, string>> = {
   classic: {
     left: 'ArrowLeft',

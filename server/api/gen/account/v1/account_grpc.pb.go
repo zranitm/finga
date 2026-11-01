@@ -35,20 +35,15 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AccountService owns accounts, login sessions and their tokens, and
-// account settings (Low-level design, page 10). The gateway is its only
-// caller: it forwards REST with the caller's account ID and checks tokens
-// for the WebSocket. A failure carries a Reason in google.rpc.ErrorInfo.
+// AccountService owns accounts, sessions and settings; the gateway is its only caller.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type AccountServiceClient interface {
-	// Register creates an account.
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
-	// Login checks the credentials (throttled per username and per IP) and
-	// issues a session, ending every older session of the account.
+	// Login checks the credentials and issues a session, ending the account's older ones.
 	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*LoginResponse, error)
 	// Validate resolves a token to its session, extending it.
 	Validate(ctx context.Context, in *ValidateRequest, opts ...grpc.CallOption) (*ValidateResponse, error)
-	// Rotate issues a session's next token; the one it replaces works once
-	// more within the grace period.
+	// Rotate issues a session's next token; the replaced one works once more within the grace period.
 	Rotate(ctx context.Context, in *RotateRequest, opts ...grpc.CallOption) (*RotateResponse, error)
 	// Check reports whether a session is still active.
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
@@ -56,14 +51,10 @@ type AccountServiceClient interface {
 	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
 	// RevokeAll ends every session of an account (log out everywhere).
 	RevokeAll(ctx context.Context, in *RevokeAllRequest, opts ...grpc.CallOption) (*RevokeAllResponse, error)
-	// GetSettings reads an account's settings.
 	GetSettings(ctx context.Context, in *GetSettingsRequest, opts ...grpc.CallOption) (*GetSettingsResponse, error)
-	// UpdateSettings saves an account's settings.
 	UpdateSettings(ctx context.Context, in *UpdateSettingsRequest, opts ...grpc.CallOption) (*UpdateSettingsResponse, error)
-	// WatchSessions streams the session ends a gateway must act on: first
-	// Subscribed, then every revoked session and every account whose
-	// sessions all ended. A gateway that falls behind loses its stream and
-	// subscribes again; its minute check catches what it missed.
+	// WatchSessions streams Subscribed, then every revoked session and account.
+	// A gateway that falls behind loses its stream and resubscribes; its minute check covers the gap.
 	WatchSessions(ctx context.Context, in *WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchSessionsResponse], error)
 }
 
@@ -188,20 +179,15 @@ type AccountService_WatchSessionsClient = grpc.ServerStreamingClient[WatchSessio
 // All implementations must embed UnimplementedAccountServiceServer
 // for forward compatibility.
 //
-// AccountService owns accounts, login sessions and their tokens, and
-// account settings (Low-level design, page 10). The gateway is its only
-// caller: it forwards REST with the caller's account ID and checks tokens
-// for the WebSocket. A failure carries a Reason in google.rpc.ErrorInfo.
+// AccountService owns accounts, sessions and settings; the gateway is its only caller.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type AccountServiceServer interface {
-	// Register creates an account.
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
-	// Login checks the credentials (throttled per username and per IP) and
-	// issues a session, ending every older session of the account.
+	// Login checks the credentials and issues a session, ending the account's older ones.
 	Login(context.Context, *LoginRequest) (*LoginResponse, error)
 	// Validate resolves a token to its session, extending it.
 	Validate(context.Context, *ValidateRequest) (*ValidateResponse, error)
-	// Rotate issues a session's next token; the one it replaces works once
-	// more within the grace period.
+	// Rotate issues a session's next token; the replaced one works once more within the grace period.
 	Rotate(context.Context, *RotateRequest) (*RotateResponse, error)
 	// Check reports whether a session is still active.
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
@@ -209,14 +195,10 @@ type AccountServiceServer interface {
 	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
 	// RevokeAll ends every session of an account (log out everywhere).
 	RevokeAll(context.Context, *RevokeAllRequest) (*RevokeAllResponse, error)
-	// GetSettings reads an account's settings.
 	GetSettings(context.Context, *GetSettingsRequest) (*GetSettingsResponse, error)
-	// UpdateSettings saves an account's settings.
 	UpdateSettings(context.Context, *UpdateSettingsRequest) (*UpdateSettingsResponse, error)
-	// WatchSessions streams the session ends a gateway must act on: first
-	// Subscribed, then every revoked session and every account whose
-	// sessions all ended. A gateway that falls behind loses its stream and
-	// subscribes again; its minute check catches what it missed.
+	// WatchSessions streams Subscribed, then every revoked session and account.
+	// A gateway that falls behind loses its stream and resubscribes; its minute check covers the gap.
 	WatchSessions(*WatchSessionsRequest, grpc.ServerStreamingServer[WatchSessionsResponse]) error
 	mustEmbedUnimplementedAccountServiceServer()
 }

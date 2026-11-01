@@ -106,9 +106,7 @@ func TestTextRoundTripsThroughJSON(t *testing.T) {
 	}
 }
 
-// Two kinds are two types: `var c customerID = orderID{}` does not compile,
-// which is the point of the package. A type switch tells them apart at run
-// time too.
+// `var c customerID = orderID{}` does not compile; a type switch tells kinds apart at run time too.
 func TestKindsAreDistinctTypes(t *testing.T) {
 	var v any = typedid.New[orderKind]()
 	switch v.(type) {

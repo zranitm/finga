@@ -9,9 +9,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// hop walks to x on the current map, enters the portal there, and returns
-// the target map's snapshot once MapChange named the expected map and
-// arrival point.
+// hop walks to x, enters the portal there and returns the snapshot once MapChange names wantMap at wantX.
 func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) protocol.Snapshot {
 	t.Helper()
 	if !l.walkTo(x, 25*time.Second) {
@@ -87,9 +85,8 @@ func TestTravel(t *testing.T) {
 	})
 
 	t.Run("B3-B5/walk-from-the-town-to-the-cave-and-back", func(t *testing.T) {
-		// Portal rectangles from the maps: the town's to_forest at x 1200..1232,
-		// the forest's from_town at 48..80 and to_cave at 1840..1872, the
-		// cave's from_forest at 48..80; arrivals are their bottom centres.
+		// Portals: town to_forest x 1200..1232, forest from_town 48..80 and to_cave 1840..1872,
+		// cave from_forest 48..80; arrivals are their bottom centres.
 		forest := l.hop(t, 1216, "forest", 64)
 		if len(forest.Mobs) == 0 {
 			t.Fatal("no mobs in the forest snapshot")
@@ -110,8 +107,7 @@ func TestTravel(t *testing.T) {
 		if len(town.Mobs) != 0 {
 			t.Fatal("mobs in the town")
 		}
-		// Each hop checkpointed the character as already on the target
-		// map, so the database and a fresh login both say town.
+		// Each hop checkpointed the target map, so the database and a fresh login both say town.
 		var mapID string
 		var x float64
 		deadline := time.Now().Add(5 * time.Second)

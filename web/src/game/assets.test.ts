@@ -1,6 +1,3 @@
-// A Node test over the filesystem (C07 page): every key in TEX is in the
-// manifest, every manifest file exists, and the maps are where the
-// Preloader looks for them.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 

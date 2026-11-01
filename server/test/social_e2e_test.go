@@ -9,8 +9,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// take removes and returns the first recorded element matching ok, waiting
-// up to d for one to arrive. Messages of other kinds are kept for later.
+// take removes and returns the first recorded element matching ok, waiting up to d; others are kept.
 func take[T any](t *testing.T, l *looter, what string, recorded *[]T, d time.Duration, ok func(T) bool) T {
 	t.Helper()
 	var got T
@@ -80,8 +79,7 @@ func (l *looter) doesNotHear(text string, d time.Duration) bool {
 
 func TestPlayTogether(t *testing.T) {
 	s := newStack(t)
-	// Four hunters in the forest: three in the slime field, Dan on the
-	// portal back to the town (x 64) so he can leave the map later.
+	// Three hunters in the slime field; Dan stands on the town portal (x 64) to leave later.
 	names := [][2]string{{"ann", "Ann"}, {"ben", "Ben"}, {"cat", "Cat"}, {"dan", "Dan"}}
 	xs := []float64{300, 330, 360, 64}
 	var ls []*looter
@@ -96,7 +94,7 @@ func TestPlayTogether(t *testing.T) {
 	t.Run("E3/invite-accept-and-everyone-sees-the-party", func(t *testing.T) {
 		for k, m := range []*looter{ben, cat, dan} {
 			if k > 0 {
-				time.Sleep(600 * time.Millisecond) // party commands are limited to 2 per second (page 4)
+				time.Sleep(600 * time.Millisecond) // party commands are limited to 2 per second
 			}
 			if r := ann.command(t, "inv-"+m.id, protocol.PartyInvite{CharacterID: m.id}); !r.OK {
 				t.Fatalf("invite %s: %+v", m.id, r)
@@ -115,10 +113,7 @@ func TestPlayTogether(t *testing.T) {
 				}
 			}
 		}
-		// A member cannot invite; the leader of a full party (four of four)
-		// cannot invite anyone, a member included: the party is full is the
-		// first rule that answers. Inviting a member of a party with room is
-		// already_in_party, covered by the party service tests.
+		// A member cannot invite, and a full party's leader cannot invite anyone: party_full answers first.
 		if r := ben.command(t, "inv-x", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "not_party_leader" {
 			t.Fatalf("member invites: %+v", r)
 		}
@@ -139,7 +134,6 @@ func TestPlayTogether(t *testing.T) {
 		if r := ann.response(t); r.OK || r.Code != "chat_too_long" {
 			t.Fatalf("121 characters: %+v", r)
 		}
-		// Burst of three, then the fourth within the second is refused.
 		for k := range 3 {
 			ben.say(t, protocol.ChatMap, "spam "+string(rune('a'+k)))
 		}
@@ -179,8 +173,7 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E3/a-kill-shares-exp-with-the-members-alive-on-the-map", func(t *testing.T) {
-		// Ann, Ben and Cat share: total floor(5 × 1.2) = 6, 2 each; Dan is
-		// in the town and gets nothing.
+		// Ann, Ben and Cat share floor(5 × 1.2) = 6, 2 each; Dan, in the town, gets nothing.
 		ann.face(true)
 		deadline := time.Now().Add(90 * time.Second)
 		next := time.Now()
@@ -240,9 +233,7 @@ func TestPlayTogether(t *testing.T) {
 	})
 }
 
-// A social restart forgets every party (they live in memory, TD-19), but
-// keeps every socket: the gateway sees the new boot ID, tells each player
-// they have no party, and registers them again, so a new party can form.
+// The gateway sees the new boot ID, tells each player they have no party, and registers them again.
 func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 	s := newStack(t)
 	var ls []*looter
@@ -277,6 +268,6 @@ func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 	if !eve.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {
 		t.Fatal("no Pong: the socket did not survive the restart")
 	}
-	time.Sleep(time.Second) // party commands are limited to 2 per second (page 4)
+	time.Sleep(time.Second) // party commands are limited to 2 per second
 	party("2")              // registered again on the new service: a party forms
 }

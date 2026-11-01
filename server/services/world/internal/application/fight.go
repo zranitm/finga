@@ -11,8 +11,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// mob is one live mob: its type, HP, position, and patrol state. Mobs
-// patrol the platform they spawned on: walk, pause at an edge, turn.
+// mob patrols the platform it spawned on: walk, pause at an edge, turn.
 type mob struct {
 	id         uint64
 	spawn      int // index into the map's spawn areas
@@ -25,8 +24,6 @@ type mob struct {
 	changed    bool
 }
 
-// spawnState is a spawn area's bookkeeping: how many are alive and when
-// the missing ones return.
 type spawnState struct {
 	alive   int
 	returns []uint64 // ticks at which a replacement spawns
@@ -50,14 +47,13 @@ func (mb *mob) defender() model.Defender {
 	return model.Defender{Defense: float64(mb.def.Defense), Evasion: float64(mb.def.Evasion)}
 }
 
-// stepMobs spawns what is due and moves every mob one tick.
 func (i *Instance) stepMobs() {
 	for s := range i.m.Spawns {
 		i.fillSpawn(s)
 	}
 	dt := i.opts.TickInterval.Seconds()
 	for _, mb := range i.mobs {
-		if mb.pauseUntil > i.tick || mb.maxX <= mb.minX { // paused, or nowhere to walk
+		if mb.pauseUntil > i.tick || mb.maxX <= mb.minX {
 			continue
 		}
 		mb.x += float64(mb.facing) * mb.def.Speed * dt
@@ -71,8 +67,6 @@ func (i *Instance) stepMobs() {
 	}
 }
 
-// fillSpawn brings a spawn area up to its maximum: on the first tick all at
-// once, later one per respawn timer that has run out.
 func (i *Instance) fillSpawn(s int) {
 	area := i.m.Spawns[s]
 	st := &i.spawns[s]
@@ -107,10 +101,7 @@ func (i *Instance) spawnMob(s int) {
 	i.spawns[s].alive++
 }
 
-// patrolBounds is the x range a mob at (x, y) can walk: the ground it
-// stands on within its spawn area, trimmed by half its width, or the spawn
-// area alone when no ground
-// is found right under it.
+// patrolBounds is the walkable x range: the ground under the mob within its area, else the area.
 func (i *Instance) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, maxX float64) {
 	ground := append(append([]model.Rect(nil), rects(i.m.Geometry.Solids)...), rects(i.m.Geometry.Platforms)...)
 	for _, r := range ground {
@@ -129,9 +120,8 @@ func rects(in []sim.Rect) []model.Rect {
 	return out
 }
 
-// resolveAttacks runs every attack queued this tick, in join order.
 func (i *Instance) resolveAttacks() {
-	if i.m.Kind == gamedata.Town { // no combat in a town (page 5)
+	if i.m.Kind == gamedata.Town {
 		for _, id := range i.order {
 			i.players[id].attackQueued = false
 		}
@@ -177,8 +167,6 @@ func (i *Instance) resolveAttacks() {
 	}
 }
 
-// killMob removes the mob, schedules its replacement, and awards EXP to
-// the killer. Party sharing joins in step 15, drops in step 13.
 func (i *Instance) killMob(mb *mob, killer *player) {
 	i.mobs = removeMob(i.mobs, mb.id)
 	i.removedMobs = append(i.removedMobs, mb.id)
@@ -198,8 +186,6 @@ func removeMob(mobs []*mob, id uint64) []*mob {
 	return mobs
 }
 
-// award adds EXP and resolves level-ups: stats by the class preset, HP and
-// MP restored, the level saved right away through the persistence worker.
 func (i *Instance) award(p *player, amount int64) {
 	if amount <= 0 {
 		return
@@ -225,10 +211,9 @@ func (i *Instance) award(p *player, amount int64) {
 	}
 }
 
-// contactDamage hurts a player touching a mob, then knocks the player back
-// and makes them invulnerable for a second.
+// contactDamage hurts, knocks back and briefly protects a player touching a mob.
 func (i *Instance) contactDamage() {
-	if i.m.Kind == gamedata.Town { // mobs in a town (none in the data) are harmless
+	if i.m.Kind == gamedata.Town {
 		return
 	}
 	for _, id := range i.order {
@@ -244,7 +229,7 @@ func (i *Instance) contactDamage() {
 			hit := model.Resolve(mb.attacker(), defenderOf(p.derived), i.roll)
 			i.events = append(i.events, model.Damage{Tick: i.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: p.ID}, Amount: hit.Damage, Crit: hit.Crit, Miss: hit.Miss})
 			p.invulnUntil = i.tick + i.ticksFor(invulnerability)
-			p.changed = true // the invulnerability starts: the Delta carries the edge (step 19)
+			p.changed = true // the Delta carries the invulnerability's start
 			dir := 1.0
 			if p.state.X < mb.x {
 				dir = -1
@@ -266,8 +251,6 @@ func (i *Instance) contactDamage() {
 	}
 }
 
-// kill applies the death penalty (none in a town) and starts the respawn
-// timer; the character can't act meanwhile.
 func (i *Instance) kill(p *player) {
 	p.HP = 0
 	p.dead = true
@@ -276,8 +259,6 @@ func (i *Instance) kill(p *player) {
 	p.pending = p.pending[:0]
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
-		// The penalty is private to the dying player: a negative ExpGained with
-		// the new total, sent with Died (step 19). No penalty, no message.
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})
 	}
 	p.Exp = progress.Exp
@@ -285,10 +266,7 @@ func (i *Instance) kill(p *player) {
 	i.events = append(i.events, model.Died{Tick: i.tick, ID: p.ID, X: p.state.X, Y: p.state.Y})
 }
 
-// deathsAndRespawns brings dead players back after the delay at the linked
-// town's player spawn with half their HP. Away from that town the player
-// is handed to its instance; the IDs of players who left are returned. A
-// map with no reachable town (or no mover) respawns in place.
+// deathsAndRespawns revives the dead at the town spawn and returns those handed off.
 func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 	var left []kernel.CharacterID
 	town, hasTown := i.data.Map(i.m.Town)
@@ -301,7 +279,6 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		p.HP = max(1, p.derived.MaxHP*respawnHPPercent/100)
 		p.changed = true
 		if !hasTown || town.ID == i.m.ID || i.opts.Transfer == nil {
-			// Back on this very map: stand at its own player spawn.
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
 			p.state = sim.State{X: x, Y: y, Facing: 1, Ground: -1, DropPlatform: -1}
@@ -309,8 +286,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 			p.moved = true
 			continue
 		}
-		// The player hears it directly (they leave this map before the
-		// broadcast), everyone else through the tick's events.
+		// The player leaves before the broadcast, so tell them directly.
 		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
 		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
 		i.events = append(i.events, respawned)

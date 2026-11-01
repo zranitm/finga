@@ -29,8 +29,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 }
 
-// The strict loader refuses the world service's tick rate: each file holds only its
-// own service's keys.
+// Each file holds only its own service's keys.
 func TestAKeyOfAnotherServiceIsRefused(t *testing.T) {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {

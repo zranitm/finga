@@ -9,9 +9,7 @@ import (
 	"finga/services/character/internal/model"
 )
 
-// Errors is every error the character module (and parsing a request) can
-// return, with its gRPC code and its reason in the contract.
-// TestTheTableCoversTheModuleAndTheContract keeps it complete both ways.
+// Errors maps every module and parsing error to its gRPC code and reason.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: characterv1.Reason_REASON_CHARACTER_NOT_FOUND},
 	{Err: model.ErrNameTaken, Code: codes.AlreadyExists, Reason: characterv1.Reason_REASON_NAME_TAKEN},

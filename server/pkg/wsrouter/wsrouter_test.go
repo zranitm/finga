@@ -30,8 +30,7 @@ func (c *conn) got() []string {
 
 type move struct{ To int }
 
-// mark is a middleware that records its name before and after the rest of
-// the chain.
+// mark records its name before and after the rest of the chain.
 func mark(name string) wsrouter.HandlerFunc[*conn] {
 	return func(c *wsrouter.Context[*conn]) {
 		c.Session.add(name)
@@ -124,8 +123,7 @@ func TestAnUnroutedTypeGoesToNoRoute(t *testing.T) {
 	}
 }
 
-// A middleware may hand the rest of the chain to another goroutine, as a
-// connection's command queue does: the chain continues there, in order.
+// A middleware may continue the chain on another goroutine, as a command queue does.
 func TestTheRestOfTheChainCanRunElsewhere(t *testing.T) {
 	queue := make(chan func(), 1)
 	r := wsrouter.New[*conn]()

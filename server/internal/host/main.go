@@ -18,30 +18,23 @@ import (
 
 const buildTimeout = 30 * time.Second
 
-// Process is a built binary: it runs until its context ends, then Close
-// releases what the build opened.
+// Process is a built binary: Run until ctx ends, then Close.
 type Process interface {
 	Run(ctx context.Context) error
 	Close()
 }
 
-// Build is a binary's composition root: it wires the process from the
-// service's own configuration, with a logger and a metrics registry.
+// Build is a binary's composition root.
 type Build[C Config] func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (Process, error)
 
-// Main is a service binary's main: it runs Start until SIGINT or SIGTERM
-// and returns the exit code.
+// Main runs Start until SIGINT or SIGTERM and returns the exit code.
 func Main[C Config](name, version string, build Build[C]) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return Start(ctx, os.Stdout, os.Stderr, name, version, build)
 }
 
-// Start loads the service's own configuration (its file, ConfigDir(name),
-// and the environment, nothing else; whoever starts the process sets the
-// environment), builds the process, and runs it until ctx ends.
-// Configuration errors go to stderr, since there is no logger until the
-// level is known; the loader never echoes secrets.
+// Start loads the configuration, builds the process and runs it until ctx ends; config errors go to stderr.
 func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name, version string, build Build[C]) int {
 	cfg, err := configload.Load[C](configload.Options{Path: configload.ResolvePath(ConfigDir(name)), EnvPrefix: EnvPrefix, Strict: true})
 	if err != nil {

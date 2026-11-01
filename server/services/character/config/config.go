@@ -1,7 +1,4 @@
-// Package config is the character service's configuration (characters, their stats and checkpoints):
-// config.yaml beside this file, with only the keys the service uses
-// (Low-level design, page 11). Every key can be overridden by FINGA_ and
-// its path in upper case.
+// Package config is the character service's configuration; any key can be overridden by FINGA_<PATH>.
 package config
 
 import (
@@ -22,8 +19,7 @@ type Config struct {
 	Dependencies  Dependencies     `mapstructure:"dependencies"`
 }
 
-// Dependencies are the addresses this service dials the services it calls
-// at (Compose sets the services' names).
+// Dependencies are the addresses of the services this one calls.
 type Dependencies struct {
 	Item string `mapstructure:"item" validate:"required"`
 }

@@ -20,8 +20,6 @@ func (r *rolls) Float64() float64 {
 }
 
 func TestResolve(t *testing.T) {
-	// A level 1 Warrior (page 5: attack 21, accuracy 21, crit 6%, crit
-	// damage +52.5%) against a green slime (defense 2, evasion 2).
 	warrior := model.Attacker{AttackPower: 21, Accuracy: 21, CritRate: 0.06, CritDamage: 0.525}
 	slime := model.Defender{Defense: 2, Evasion: 2}
 	tests := []struct {
@@ -127,7 +125,7 @@ func TestNearestInBox(t *testing.T) {
 
 func TestFirstInLine(t *testing.T) {
 	mob := func(x float64) model.Target { return model.Target{Box: model.Rect{X: x - 16, Y: 572, W: 32, H: 28}} }
-	// The shot leaves at chest height: feet 600, so y 572 (inside a 28 px tall mob standing on the same floor).
+	// The shot leaves at chest height: y 572, inside a 28 px mob on the same floor.
 	tests := []struct {
 		name    string
 		facing  int

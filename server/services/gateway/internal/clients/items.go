@@ -34,8 +34,7 @@ func (i Items) Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]pr
 	return inventorySlots(res.GetChanged()), nil
 }
 
-// Discard discards an item, or part of a stack, and returns the slots it
-// changed.
+// Discard discards an item, or part of a stack, and returns the slots it changed.
 func (i Items) Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]protocol.InventorySlot, error) {
 	res, err := i.c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor(a), IdempotencyKey: in.IdempotencyKey, ItemId: in.Item.String(), Quantity: int32(in.Quantity)})
 	if err != nil {
@@ -60,8 +59,6 @@ func itemView(it *itemv1.Item) protocol.ItemView {
 	return protocol.ItemView{ItemID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
 }
 
-// inventorySlots are the item service's changed slots as the client sees
-// them.
 func inventorySlots(slots []*itemv1.Slot) []protocol.InventorySlot {
 	out := make([]protocol.InventorySlot, 0, len(slots))
 	for _, s := range slots {

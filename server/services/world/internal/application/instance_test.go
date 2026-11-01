@@ -18,7 +18,6 @@ import (
 
 const tickInterval = 50 * time.Millisecond
 
-// sink collects a player's events.
 type sink struct {
 	mu     sync.Mutex
 	events []model.Event
@@ -102,9 +101,7 @@ func newPlayer(name string, x, y float64) model.Player {
 	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
 }
 
-// run starts an instance for the town inside the synctest bubble. The
-// returned function stops it and waits for Run to return, so no goroutine
-// outlives the bubble.
+// run starts a town instance in the synctest bubble; stop waits for Run so nothing outlives it.
 func run(t *testing.T, data *gamedata.Data, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
 	t.Helper()
 	opts.TickInterval = tickInterval
@@ -264,7 +261,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			}
 		}
 
-		{ // one input moves one tick; with none queued the player waits (step 18)
+		{ // one input moves one tick; with none queued the player waits
 			before, _ := s.own(p.ID)
 			inst.Input(p.ID, 4, sim.Input{Left: true})
 			time.Sleep(3 * tickInterval)
@@ -656,7 +653,6 @@ func TestReplayMatchesSim(t *testing.T) {
 		}
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		// The state the instance started from, after the join tick.
 		snap := s.all()[0].(model.Snapshot)
 		state := snap.Players[0].State
 		for range 3 { // the join tick itself ran 3 sub-steps with no input
@@ -689,9 +685,7 @@ func TestReplayMatchesSim(t *testing.T) {
 
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
-// walk sends the same Input once per tick for n ticks, as a client does
-// (step 18: a player with no queued Input waits), with sequence numbers
-// after seq; it returns the last one used.
+// walk sends the same Input once per tick for n ticks after seq, returning the last seq used.
 func walk(inst *application.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
 	for range ticks {
 		seq++

@@ -1,6 +1,4 @@
-// Item templates with no Kenney match get a 32 px shape drawn at runtime
-// (public/assets/LICENSES.md, "Original placeholders"). Palette picked from
-// the Kenney art so they sit beside it.
+// Item templates with no Kenney match get a 32 px shape drawn at runtime.
 import type Phaser from 'phaser';
 
 import { ITEM_PLACEHOLDERS, TILE } from '../keys';
@@ -64,7 +62,6 @@ const draws: Readonly<Record<(typeof ITEM_PLACEHOLDERS)[number], Draw>> = {
   },
 };
 
-/** Draws every placeholder into the scene's texture manager, once. */
 export function drawPlaceholders(scene: Phaser.Scene): void {
   for (const template of ITEM_PLACEHOLDERS) {
     if (scene.textures.exists(template)) {

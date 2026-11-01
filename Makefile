@@ -1,8 +1,4 @@
-# Targets the README documents: up, down, run, test, test-service, cover, lint, breaking, gen, smoke, bots.
-# The repository has three parts: server/ (the Go module), web/ (the client)
-# and infra/ (how it is run). test, lint and cover run both halves (Go inside
-# server/, then the client through npm --prefix web); the -go and -web
-# targets run one half, which CI uses.
+# test, lint and cover run server/ then web/; CI runs the -go and -web halves separately.
 GO        ?= go
 SERVER    ?= server
 COVER_MIN ?= 80
@@ -21,11 +17,7 @@ up:            ## everything in Docker: Postgres, the migrations, the six servic
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
 	$(COMPOSE) down -v --remove-orphans
 
-# The binaries read their own file and their environment, so run exports
-# server/.env (when present) into it, the way Compose's env_file does for
-# make up. Each runs from server/, on the defaults in its own
-# services/<name>/config/config.yaml (localhost ports), in the background,
-# and stops with the gateway, on Ctrl-C.
+# run exports server/.env as Compose's env_file does; the services stop with the gateway on Ctrl-C.
 SERVICES ?= account character item social world
 run:           ## without Docker: server/.env exported, every service's migrations, then the six services
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
@@ -40,18 +32,13 @@ test-go:
 test-web:
 	$(NPM) test
 
-# One service on its own, as CI's matrix runs it: it must build and pass its
-# tests without the rest of the module's tests (make test-service SERVICE=item).
+# One service on its own, as CI's matrix runs it.
 test-service:  ## build and test one service: make test-service SERVICE=<gateway|account|character|item|world|social>
 	@test -n "$(SERVICE)" || { echo "usage: make test-service SERVICE=<name>"; exit 1; }
 	@test -d $(SERVER)/services/$(SERVICE) || { echo "no service $(SERVICE) under $(SERVER)/services"; exit 1; }
 	cd $(SERVER) && $(GO) build ./services/$(SERVICE)/... && $(GO) test -race ./services/$(SERVICE)/...
 
-# Go coverage counts statements in server/internal/, server/pkg/, server/services/
-# (each service's composition root included) and server/cmd/migrate/app/, from every test in
-# the module (end-to-end tests under server/test/ included). The main.go files
-# are entry points, exercised end to end, and stringer output (*_string.go) is
-# generated, so both are excluded. The client enforces page 7's 80% floor on its tested layers itself.
+# Go coverage counts every test in the module, end-to-end ones included, minus generated stringer output.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
 cover-go:
@@ -72,9 +59,7 @@ lint-go:
 lint-web:
 	$(NPM) run lint
 
-# The internal contracts must not break their callers: buf compares
-# server/api/proto with the same files at BREAKING_AGAINST (the previous
-# commit by default; CI fetches it).
+# buf compares server/api/proto with the same files at BREAKING_AGAINST (CI fetches it).
 BREAKING_AGAINST ?= HEAD~1
 breaking:      ## buf breaking: the gRPC contracts against BREAKING_AGAINST (default HEAD~1)
 	cd $(SERVER) && $(GO) tool buf breaking --against '../.git#ref=$(BREAKING_AGAINST),subdir=server'
@@ -86,10 +71,7 @@ smoke:         ## against a running stack (make up): a client signs up, enters t
 edge:          ## against a running stack (make up): nginx limits per client address, the gateway does not
 	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
 
-# sqlc generates each module's queries into server/services/<service>/internal/<module>/internal/db;
-# each entry's schema is its service's server/services/<service>/migrations/. buf generates the
-# Go code of the internal contracts (server/api/proto) into server/api/gen, with the generators
-# pinned as Go tools in server/go.mod. Run it after a query, migration or contract change.
+# Run after a query, migration or contract change.
 gen:           ## regenerate the sqlc queries and the gRPC code
 	cd $(SERVER) && sqlc generate && $(GO) tool buf generate
 

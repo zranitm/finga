@@ -12,7 +12,6 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// fakeParties is a party roster the instance asks about.
 type fakeParties struct {
 	mu      sync.Mutex
 	parties [][]kernel.CharacterID
@@ -59,15 +58,14 @@ func expGained(s *sink) []int64 {
 }
 
 func TestExpSharing(t *testing.T) {
-	// The arena slime gives 5 EXP. Total = floor(5 × (1 + 0.1 × (n − 1))),
-	// split equally rounded down, the remainder to the killer.
+	// The slime gives 5 EXP, plus 10% per extra member; the remainder goes to the killer.
 	for _, tt := range []struct {
 		name       string
-		members    int   // party members joined on the arena besides the killer
-		dead       bool  // one of them is dead
-		elsewhere  int   // party members not on this map
-		wantKiller int64 // the killer's share
-		wantOthers int64 // each living member's share
+		members    int  // party members joined on the arena besides the killer
+		dead       bool // one of them is dead
+		elsewhere  int  // party members not on this map
+		wantKiller int64
+		wantOthers int64
 	}{
 		{"alone", 0, false, 0, 5, 0},
 		{"two: total 5, 2 each, 1 over to the killer", 1, false, 0, 3, 2},

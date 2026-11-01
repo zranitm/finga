@@ -8,9 +8,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// Lobby is the REST API's use cases (page 4): what a player does before
-// entering the world. Each is one call to the service that owns it; the
-// rules are the services'.
+// Lobby is the REST API's use cases, before a player enters the world.
 type Lobby struct {
 	accounts   Accounts
 	characters Characters
@@ -32,8 +30,7 @@ func (l *Lobby) Register(ctx context.Context, username, password string) (model.
 	return l.accounts.Register(ctx, username, password)
 }
 
-// Login opens a login session and returns its token. The account service
-// throttles per username; per-IP limits are the edge's (nginx).
+// Login returns a new session token; it is throttled per username here and per IP at the edge.
 func (l *Lobby) Login(ctx context.Context, username, password string) (string, error) {
 	return l.accounts.Login(ctx, username, password)
 }
@@ -43,8 +40,7 @@ func (l *Lobby) Logout(ctx context.Context, p auth.Principal) error {
 	return l.sessions.Revoke(ctx, p.SessionID)
 }
 
-// LogoutEverywhere ends every session of the caller's account; the account
-// service tells the gateways, which close the account's connections.
+// LogoutEverywhere ends every session of the caller's account, closing its connections.
 func (l *Lobby) LogoutEverywhere(ctx context.Context, p auth.Principal) error {
 	return l.sessions.RevokeAll(ctx, p.AccountID)
 }

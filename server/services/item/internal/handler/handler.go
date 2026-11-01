@@ -1,8 +1,4 @@
-// Package handler is the item service's transport layer: the ItemService
-// gRPC server (api/proto/internal/item/v1). Each method decodes the
-// request into the module's input (a malformed ID never reaches the
-// module), calls exactly one service method, and encodes the result.
-// Errors leave through Errors, with their reason and never their text.
+// Package handler is the item service's ItemService gRPC server.
 package handler
 
 import (

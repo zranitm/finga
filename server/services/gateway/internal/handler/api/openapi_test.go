@@ -12,9 +12,7 @@ import (
 	"finga/services/gateway/internal/handler/api"
 )
 
-// The REST contract in api/openapi.yaml must describe exactly the routes
-// the handler serves, and the schemas must carry exactly the JSON fields of
-// the DTOs, so the two can't drift apart.
+// api/openapi.yaml must match the handler's routes and the DTOs' JSON fields exactly.
 
 type openAPI struct {
 	Paths      map[string]map[string]any `yaml:"paths"`

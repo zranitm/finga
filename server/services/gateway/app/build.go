@@ -31,12 +31,7 @@ type BuildOptions struct {
 	Registry *prometheus.Registry
 }
 
-// Build wires the gateway as production runs it (page 11): an adapter for
-// each service it calls (page 10), the use cases over them (the REST API's
-// Lobby, the connections' Gateway), the REST and WebSocket handlers,
-// metrics, and the server. It needs no database and no game data: every table belongs to a
-// service, and the world runs the maps. A service it dials is reached
-// lazily, and a call fails while it is down.
+// Build wires the gateway as production runs it; services are dialed lazily, so a call fails while one is down.
 func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	cfg := opts.Config
 	metrics, err := telemetry.NewMetrics(opts.Registry)
@@ -73,13 +68,11 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	return s, nil
 }
 
-// conns are the gateway's connections to the services.
 type conns struct {
 	account, character, item, world, social *grpc.ClientConn
 }
 
-// dialAll makes a connection to each service; nothing connects until the
-// first call.
+// dialAll makes a connection to each service; nothing connects until the first call.
 func dialAll(s config.Dependencies) (conns, error) {
 	var c conns
 	for _, d := range []struct {

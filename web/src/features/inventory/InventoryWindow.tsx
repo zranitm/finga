@@ -1,9 +1,4 @@
-// The inventory window (C11): three tabs of 24 slots from the inventory
-// store. A drag within a tab sends InventoryMove with one idempotency key
-// per drag; the item stays in its slot, marked pending, until the
-// Response, and only InventoryChanged moves it. A timed-out request offers
-// Retry with the same key. Discard asks first. Cross-tab drags are refused
-// here, matching the server's rule.
+// Only InventoryChanged moves an item; a timed-out move retries with the same idempotency key.
 import { useState } from 'react';
 import type { DragEvent } from 'react';
 
@@ -24,12 +19,10 @@ export interface InventoryWindowProps {
 
 const tabLabels: Readonly<Record<Tab, string>> = { equip: 'Equip', use: 'Use', etc: 'Etc' };
 
-/** The template's display name, or the id when the data has none. */
 export function itemName(template: string): string {
   return templates.find((t) => t.id === template)?.name ?? template;
 }
 
-/** Two letters for the slot tile, from the template name. */
 function initials(template: string): string {
   const words = itemName(template).split(' ');
   return words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : itemName(template).slice(0, 2);

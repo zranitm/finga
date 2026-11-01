@@ -1,9 +1,5 @@
-# Generates Go code for the internal contracts into api/gen/<service>/v1
-# (each file's go_package, with module=finga/api/gen stripped). clean
-# empties api/gen first, so a removed contract leaves no stale code; it
-# never touches anything else. The generators are Go tools pinned in
-# go.mod, so a laptop and CI produce the same bytes. The output is
-# committed; make gen regenerates it.
+# The output in api/gen is committed; clean empties it first, so a removed contract leaves no stale code.
+# The generators are Go tools pinned in go.mod, so a laptop and CI produce the same bytes.
 version: v2
 clean: true
 plugins:

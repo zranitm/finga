@@ -11,12 +11,8 @@ import (
 	"time"
 )
 
-// TestEdge runs against a stack that is already up (make up): nginx named
-// by FINGA_EDGE_URL and the gateway by FINGA_GATEWAY_URL; without both the
-// test is skipped. It checks that limits per client address are the edge's
-// alone (TD-12): the gateway and the services never read the address. It
-// uses up its address's login allowance for a minute, so CI runs it after
-// the smoke tests.
+// TestEdge checks per-address limits are nginx's alone, against FINGA_EDGE_URL and FINGA_GATEWAY_URL.
+// It uses up its address's login allowance for a minute, so CI runs it after the smoke tests.
 func TestEdge(t *testing.T) {
 	url, gateway := os.Getenv("FINGA_EDGE_URL"), os.Getenv("FINGA_GATEWAY_URL")
 	if url == "" || gateway == "" {
@@ -34,8 +30,7 @@ func TestEdge(t *testing.T) {
 	})
 
 	t.Run("logins from one address are limited to 5 a minute, refused as the gateway refuses", func(t *testing.T) {
-		// Each attempt names a fresh username, so the account service's own
-		// throttle (per username) never answers; its 401 is what passes.
+		// Fresh usernames dodge the per-username throttle, so a 401 means the edge let it pass.
 		passed := 0
 		for i := range 10 {
 			body := fmt.Sprintf(`{"username":"edge%s%d","password":"wrong password"}`, run, i)

@@ -1,11 +1,9 @@
-// Package kernel holds the value types shared by every service: IDs, Class,
-// and later Coins. It has no behaviour beyond parsing and printing, and
-// imports only pkg.
+// Package kernel holds the value types shared by every service. It imports only pkg.
 package kernel
 
 import "finga/pkg/typedid"
 
-// The kinds behind the ID types. They are never used as values.
+// Phantom kinds for the ID types.
 type (
 	accountKind   struct{}
 	characterKind struct{}
@@ -13,9 +11,7 @@ type (
 	sessionKind   struct{}
 )
 
-// The ID types are distinct (pkg/typedid), so passing a character ID where
-// an item ID is expected is a compile error. All are UUIDv7, generated in
-// Go, and print and parse as the canonical 36-character text.
+// Distinct UUIDv7 ID types: passing one kind where another is expected does not compile.
 type (
 	// AccountID identifies an account.
 	AccountID = typedid.ID[accountKind]

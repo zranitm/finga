@@ -11,8 +11,7 @@ import (
 	"finga/pkg/dbx"
 )
 
-// fakeTx is a pgx.Tx that only knows how to commit and roll back; every
-// other method is the embedded nil interface and would panic if called.
+// fakeTx is a pgx.Tx that only commits and rolls back; any other method panics.
 type fakeTx struct {
 	pgx.Tx
 	commitErr  error
@@ -23,8 +22,7 @@ type fakeTx struct {
 func (t *fakeTx) Commit(context.Context) error   { t.committed = true; return t.commitErr }
 func (t *fakeTx) Rollback(context.Context) error { t.rolledBack = true; return nil }
 
-// fakeBeginner hands out one fakeTx per Begin, so a test can see what
-// happened to each attempt.
+// fakeBeginner hands out one fakeTx per attempt.
 type fakeBeginner struct {
 	beginErr  error
 	commitErr []error // per attempt; nil beyond the slice

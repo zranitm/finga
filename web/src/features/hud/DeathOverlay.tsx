@@ -1,5 +1,4 @@
-// Shown while the local player is dead (C10): the server respawns them
-// three seconds later, and the overlay goes when Respawned arrives.
+// The server respawns the player three seconds later; the overlay goes on Respawned.
 import { character } from '@/state/character';
 
 export function DeathOverlay() {

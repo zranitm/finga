@@ -1,9 +1,4 @@
-// Package dbx is the thin layer under every module's store: a connection
-// pool from a URL, the DBTX interface that a pool and a transaction both
-// satisfy, and InTx, which runs a function inside a transaction and re-runs
-// the whole of it on a deadlock or serialization failure. Only module stores
-// call InTx; services depend on their module's Store and never see a
-// transaction.
+// Package dbx is the thin layer under module stores: a pool, the DBTX interface and InTx.
 package dbx
 
 import (
@@ -18,8 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// DBTX is what a repository runs its queries on. *pgxpool.Pool and pgx.Tx
-// both satisfy it, as does sqlc's generated DBTX.
+// DBTX is what queries run on; *pgxpool.Pool, pgx.Tx and sqlc's DBTX satisfy it.
 type DBTX interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -60,8 +54,7 @@ func MaxAttempts(n int) Option {
 	}
 }
 
-// OnRetry is called with the error of each attempt that is about to be
-// retried, for a retry counter.
+// OnRetry is called with each error about to be retried.
 func OnRetry(fn func(error)) Option {
 	return func(o *options) { o.onRetry = fn }
 }
@@ -84,16 +77,8 @@ func NewPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, er
 	return pool, nil
 }
 
-// InTx runs fn inside a READ COMMITTED transaction and commits it when fn
-// returns nil. An error from fn rolls back and is returned as it is, so
-// errors.As still finds the *pgconn.PgError underneath; a panic rolls back
-// and is re-raised. On a deadlock or serialization failure, from fn or from
-// commit, the whole of fn runs again after a short jittered wait, up to 3
-// times in all, unless ctx is done first.
-//
-// Because fn may run more than once, it must have no side effects outside
-// the transaction: it sends nothing and changes nothing in memory. Events
-// leave through the outbox.
+// InTx runs fn in a READ COMMITTED transaction and reruns it on deadlock or serialization failure,
+// so fn must have no side effects outside the transaction.
 func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Option) error {
 	o := options{maxAttempts: defaultMaxAttempts}
 	for _, opt := range opts {
@@ -118,8 +103,7 @@ func runOnce(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error) (err er
 	if err != nil {
 		return fmt.Errorf("dbx: begin: %w", err)
 	}
-	// Rollback must run even when ctx is already cancelled, or the
-	// connection goes back to the pool with an open transaction.
+	// Rollback must run even when ctx is cancelled, or the connection returns to the pool mid-transaction.
 	rollbackCtx := context.WithoutCancel(ctx)
 	defer func() {
 		if p := recover(); p != nil {

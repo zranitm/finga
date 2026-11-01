@@ -9,15 +9,10 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// pendingMax bounds what may wait in a session for its Welcome (or for a
-// rejoin to finish): a join takes milliseconds, so this many deliveries
-// only pile up when something is wrong, and the connection closes.
+// pendingMax bounds deliveries held during a join; more means something is wrong.
 const pendingMax = 128
 
-// Session is one connection as the use cases keep it, from Open to Closed:
-// who plays on it and what reaches it. Identity is set once by Hello and
-// never changed by a command. The WebSocket handler holds it for its
-// connection and passes it to every use case.
+// Session is one connection's state from Open to Closed; Hello sets its identity once.
 type Session struct {
 	conn Conn
 	// ctx ends at Closed, so a rejoin in flight stops.
@@ -29,9 +24,9 @@ type Session struct {
 	account   kernel.AccountID
 	sessionID kernel.SessionID
 	character model.Player
-	closed    bool // Closed ran; a rejoin that finishes after it leaves again
+	closed    bool // a rejoin finishing after Closed leaves again
 
-	rejoinMu sync.Mutex // one join at a time: Hello's, then each rejoin
+	rejoinMu sync.Mutex // one join at a time
 
 	out out
 }
@@ -42,36 +37,27 @@ func (s *Session) Character() kernel.CharacterID { return s.character.ID }
 func (s *Session) active() bool { return s.isActive.Load() }
 func (s *Session) setActive()   { s.isActive.Store(true) }
 
-// out is the session's side of the world's delivery stream: the map the
-// player is on (commands carry it), and the order of what reaches the
-// connection while a join is in flight. A join's Snapshot comes back on the
-// stream, and its answer on another call, in either order: deliveries wait
-// until the join's first message (Welcome, or MapChange on a rejoin) is
-// out, and anything before the join's Snapshot belongs to an older
-// presence of the character and is dropped. Ticks are shifted so they never
-// go back on the connection when a restarted world counts from zero again.
+// out holds deliveries until a join's Welcome or MapChange is out, drops those before its Snapshot
+// (an older presence's), and shifts ticks so they never go back after a world restart.
 type out struct {
 	mu       sync.Mutex
 	mapID    string
-	holding  bool             // a join is in flight: deliveries wait
-	awaiting bool             // the join's Snapshot has not arrived yet
-	pending  []model.Delivery // held deliveries, in order
-	lastTick uint64           // the last tick sent on the connection
-	offset   uint64           // added to the world's ticks
-	rebase   bool             // the next Snapshot may start the ticks again
+	holding  bool
+	awaiting bool // the join's Snapshot has not arrived yet
+	pending  []model.Delivery
+	lastTick uint64
+	offset   uint64
+	rebase   bool // the next Snapshot may start the ticks again
 	conn     Conn
 }
 
-// hold starts a join.
 func (o *out) hold() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.holding, o.awaiting, o.pending, o.rebase = true, true, nil, true
 }
 
-// deliver forwards a delivery, holds it while a join is in flight, or
-// drops it while the join's Snapshot is still to come. It reports false
-// when too much is waiting.
+// deliver emits, holds or drops a delivery; false means too much is waiting.
 func (o *out) deliver(d model.Delivery) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -92,9 +78,7 @@ func (o *out) deliver(d model.Delivery) bool {
 	return true
 }
 
-// release ends a join that held: first tells the player first (Welcome,
-// or a rejoin's MapChange; nil: nothing), then what was held goes out, in
-// order; the Snapshot may still be on its way.
+// release sends first (if set), then the held deliveries in order.
 func (o *out) release(mapID string, first func()) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -115,8 +99,7 @@ func (o *out) abort() {
 	o.holding, o.awaiting, o.pending, o.rebase = false, false, nil, false
 }
 
-// emit forwards a delivery with its tick shifted, and follows a move to
-// another map. Called with mu held.
+// emit forwards a delivery with its tick shifted. Called with mu held.
 func (o *out) emit(d model.Delivery) {
 	if o.rebase && d.Type == model.DeliverySnapshot {
 		if d.Tick+o.offset <= o.lastTick {
@@ -132,14 +115,12 @@ func (o *out) emit(d model.Delivery) {
 	o.conn.Deliver(d)
 }
 
-// presence routes a command: the character and the map it is on.
 func (s *Session) presence() model.Presence {
 	s.out.mu.Lock()
 	defer s.out.mu.Unlock()
 	return model.Presence{Character: s.character.ID, MapID: s.out.mapID}
 }
 
-// actor is who acts on items: the account and its joined character.
 func (s *Session) actor() model.Actor {
 	return model.Actor{Account: s.account, Character: s.character.ID}
 }

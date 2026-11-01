@@ -1,13 +1,4 @@
-// Package pgtest gives tests a real Postgres: one server per test run,
-// started with Testcontainers (or an existing server named by PGTEST_URL),
-// a template database prepared once by a migrate function, and a fresh copy
-// of the template for every test. Imported by tests only.
-//
-// Typical use, in a package's TestMain:
-//
-//	cluster, err := pgtest.Start(ctx, migrations.Up)
-//	...
-//	pool := cluster.DB(t) // in each test; closed and dropped by t.Cleanup
+// Package pgtest gives each test a fresh Postgres database cloned from a migrated template.
 package pgtest
 
 import (
@@ -28,9 +19,7 @@ import (
 )
 
 const (
-	// EnvURL names an existing server to use instead of a container, for
-	// example the Compose Postgres: postgres://finga:finga@localhost:5432/finga?sslmode=disable.
-	// The user must be allowed to create databases.
+	// EnvURL names a server to use instead of a container; its user needs CREATEDB.
 	EnvURL = "PGTEST_URL"
 
 	image        = "postgres:17-alpine"
@@ -39,21 +28,19 @@ const (
 	poolConns    = 4
 )
 
-// MigrateFunc prepares the template database, typically migrations.Apply.
-// nil leaves it empty.
+// MigrateFunc prepares the template database; nil leaves it empty.
 type MigrateFunc func(ctx context.Context, pool *pgxpool.Pool) error
 
 // Cluster is one Postgres server with a prepared template database.
 type Cluster struct {
 	container *postgres.PostgresContainer // nil when PGTEST_URL is used
-	base      *url.URL                    // server URL; the path is replaced per database
-	admin     *pgxpool.Pool               // connected to the postgres database
+	base      *url.URL
+	admin     *pgxpool.Pool
 	seq       atomic.Int64
 	run       string // random per Start, so parallel packages never collide
 }
 
-// Start brings up the server, creates the template database and runs
-// migrate on it. Close releases everything.
+// Start brings up the server and migrates the template database; Close releases everything.
 func Start(ctx context.Context, migrate MigrateFunc) (*Cluster, error) {
 	c := &Cluster{run: randomHex(4)}
 	if err := c.connect(ctx); err != nil {
@@ -117,8 +104,7 @@ func (c *Cluster) prepareTemplate(ctx context.Context, migrate MigrateFunc) erro
 	return nil
 }
 
-// DB creates a fresh database from the template and returns a pool on it.
-// The pool is closed and the database dropped when t ends.
+// DB returns a pool on a fresh copy of the template, closed and dropped when t ends.
 func (c *Cluster) DB(t testing.TB) *pgxpool.Pool {
 	t.Helper()
 	ctx := context.Background()
@@ -142,8 +128,7 @@ func (c *Cluster) DB(t testing.TB) *pgxpool.Pool {
 	return pool
 }
 
-// URL is the connection URL of a fresh database from the template, for code
-// that opens its own pool (dbx.NewPool, cmd/migrate). Dropped when t ends.
+// URL is a fresh database's connection URL, dropped when t ends.
 func (c *Cluster) URL(t testing.TB) string {
 	t.Helper()
 	pool := c.DB(t)
@@ -195,10 +180,7 @@ const (
 	startBackoff  = 500 * time.Millisecond
 )
 
-// startContainer runs Postgres, retrying a few times: when several test
-// packages start containers at once, Testcontainers' Docker provider
-// detection fails transiently on Windows ("rootless Docker is not
-// supported"), and a second attempt succeeds.
+// startContainer retries because concurrent Testcontainers starts fail transiently on Windows.
 func startContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
 	var err error
 	for attempt := 1; attempt <= startAttempts; attempt++ {

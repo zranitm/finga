@@ -1,6 +1,4 @@
-// The control preset (B6). Saved to the account by the settings feature and
-// cached in localStorage so the first frame uses it before GET /api/settings
-// answers; a bad or missing cache falls back to Classic.
+// Cached in localStorage so the first frame uses it before GET /api/settings answers.
 import { defineStore } from './store';
 
 export type Preset = 'classic' | 'wasd';
@@ -18,7 +16,7 @@ export function isPreset(value: unknown): value is Preset {
   return typeof value === 'string' && (presets as readonly string[]).includes(value);
 }
 
-/** The cached preset, or Classic when there is none or it is not a preset. */
+/** Classic when the cache is missing or bad. */
 export function loadCachedPreset(storage: Pick<Storage, 'getItem'> | null = safeStorage()): Preset {
   try {
     const value = storage?.getItem(PRESET_KEY);

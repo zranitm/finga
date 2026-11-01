@@ -20,8 +20,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	// The template gets no migrations: each test starts from an empty
-	// database and applies what it needs.
+	// No template migrations: each test applies what it needs.
 	cluster, err = pgtest.Start(ctx, nil)
 	if err != nil {
 		panic(err)
@@ -94,8 +93,6 @@ func TestALegacyDatabaseIsRefused(t *testing.T) {
 	}
 }
 
-// A service's set alone creates only that service's tables, so a query
-// that reads another service's table has nothing to read.
 func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
 	tests := []struct {
 		service string
@@ -128,8 +125,7 @@ func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
 	}
 }
 
-// citext belongs to two services: rolling either one back to nothing must
-// leave it for the other.
+// citext belongs to two services, so rolling either back must leave it for the other.
 func TestCitextSurvivesEitherRollback(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
@@ -139,7 +135,6 @@ func TestCitextSurvivesEitherRollback(t *testing.T) {
 	if _, err := pool.Exec(ctx, `DROP TABLE sessions; DROP TABLE accounts; DELETE FROM goose_account_version WHERE version_id > 0`); err != nil {
 		t.Fatal(err)
 	}
-	// What the citext migration's Down runs.
 	down := downSection(t, find(t, "account").FS, "00001_citext.sql")
 	if _, err := pool.Exec(ctx, down); err != nil {
 		t.Fatal(err)

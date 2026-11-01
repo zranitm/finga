@@ -1,6 +1,4 @@
-// Package password hashes passwords with argon2id and stores them in the
-// PHC string format, so the parameters travel with the hash and can be
-// raised later without invalidating old ones.
+// Package password hashes passwords with argon2id in PHC format.
 package password
 
 import (
@@ -23,8 +21,7 @@ type Params struct {
 	KeyLen  uint32
 }
 
-// Default is the production setting: 64 MiB, one pass, four lanes, as
-// recommended for interactive logins.
+// Default is the production setting for interactive logins: 64 MiB, one pass, four lanes.
 var Default = Params{Time: 1, Memory: 64 * 1024, Threads: 4, SaltLen: 16, KeyLen: 32}
 
 const (
@@ -37,8 +34,7 @@ var (
 	enc          = base64.RawStdEncoding
 )
 
-// Hash derives a fresh salted hash of password in PHC format:
-// $argon2id$v=19$m=65536,t=1,p=4$<salt>$<hash>.
+// Hash derives a salted hash: $argon2id$v=19$m=65536,t=1,p=4$<salt>$<hash>.
 func Hash(password string, p Params) (string, error) {
 	salt := make([]byte, p.SaltLen)
 	if _, err := rand.Read(salt); err != nil {
@@ -48,8 +44,7 @@ func Hash(password string, p Params) (string, error) {
 	return fmt.Sprintf("$%s$v=%d$m=%d,t=%d,p=%d$%s$%s", algorithm, argon2.Version, p.Memory, p.Time, p.Threads, enc.EncodeToString(salt), enc.EncodeToString(key)), nil
 }
 
-// Verify reports whether password matches the PHC hash, comparing in
-// constant time. An error means the hash itself is unreadable.
+// Verify reports in constant time whether password matches; an error means a bad hash.
 func Verify(hash, password string) (bool, error) {
 	parts := strings.Split(hash, "$")
 	if len(parts) != phcFields || parts[0] != "" || parts[1] != algorithm {

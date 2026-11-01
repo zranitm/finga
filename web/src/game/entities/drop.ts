@@ -1,6 +1,3 @@
-// A drop on the ground (C11): the item's texture (a tinted flask for
-// potions, a placeholder for the rest), a bounce when it appears, and a
-// hint when the player is close enough to pick it up.
 import type Phaser from 'phaser';
 
 import { ART_SCALE, ITEM_TINTS, itemTexture } from '../keys';
@@ -25,7 +22,6 @@ export class DropView {
     scene.tweens.add({ targets: this.sprite, y, duration: BOUNCE_MS, ease: 'Bounce.easeOut' });
   }
 
-  /** Within pickup range: a little larger and brighter. */
   setHint(on: boolean): void {
     if (on === this.hinted) {
       return;

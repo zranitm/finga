@@ -1,6 +1,4 @@
-// Package model is the account service's model (Low-level design, page
-// 11): accounts, sessions (one active per account, OD-08), settings, and
-// the errors its use cases return. It needs nothing but data.
+// Package model holds the account service's accounts, sessions, settings and errors.
 package model
 
 import (
@@ -10,9 +8,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The service's errors. Each names one failure; the service's handler sends
-// it as a reason, and the gateway gives it a code, a status and the words a
-// player sees (its errmap).
+// The service's errors; the handler sends each as a contract reason.
 var (
 	ErrNotFound        = errors.New("account: not found")
 	ErrUsernameTaken   = errors.New("account: username taken")
@@ -22,13 +18,11 @@ var (
 	ErrBadPassword     = errors.New("account: bad password")
 	ErrBadPreset       = errors.New("account: bad control preset")
 
-	// ErrSessionRace is the partial unique index speaking: the service
-	// revokes first, so this only shows up when two logins race, and the
-	// login runs again; it leaves the service only when the retries run out.
+	// ErrSessionRace means two logins raced; it escapes only once the login retries run out.
 	ErrSessionRace = errors.New("account: another session became active during login")
 )
 
-// Preset is a control preset (B6, OD-20).
+// Preset is a control preset.
 type Preset string
 
 // The two presets.
@@ -73,8 +67,7 @@ type Session struct {
 	ID        kernel.SessionID
 	AccountID kernel.AccountID
 	TokenHash []byte // SHA-256 of the token
-	// PreviousTokenHash is the token retired by the last rotation; RotatedAt is
-	// when, cleared once that token has been used (step 16).
+	// PreviousTokenHash is the token retired at RotatedAt; RotatedAt clears once it is used.
 	PreviousTokenHash []byte
 	RotatedAt         *time.Time
 	CreatedAt         time.Time

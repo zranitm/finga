@@ -38,7 +38,6 @@ func newStack(t *testing.T) *stack {
 	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx}
 }
 
-// gateway subscribes to Deliver as one gateway node.
 func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[socialv1.DeliverResponse] {
 	t.Helper()
 	stream, err := s.c.Deliver(s.ctx, &socialv1.DeliverRequest{GatewayId: id})
@@ -58,7 +57,6 @@ func (s *stack) online(t *testing.T, gateway string, id kernel.CharacterID, name
 	}
 }
 
-// party makes leader and member a party through an invite and its acceptance.
 func (s *stack) party(t *testing.T, leader, member kernel.CharacterID) {
 	t.Helper()
 	inv, err := s.c.Invite(s.ctx, &socialv1.InviteRequest{CharacterId: leader.String(), TargetId: member.String()})
@@ -147,8 +145,7 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 		if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String()}); err != nil {
 			t.Fatal(err)
 		}
-		// The next message is this PartyState, not a chat line: the map line
-		// above delivered nothing.
+		// The map line above delivered nothing, so this is the PartyState.
 		m := recv(t, gwA)
 		if m.GetPartyState() == nil {
 			t.Fatalf("next message %+v", m)

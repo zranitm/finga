@@ -8,11 +8,8 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// Errors is every error the account module can return, with its gRPC code
-// and its reason in the contract. A malformed ID is not here: only the
-// gateway calls this service, with IDs it got from it, so one is a bug and
-// leaves as InvalidArgument without a reason.
-// TestTheTableCoversTheModuleAndTheContract keeps it complete both ways.
+// Errors maps every module error to its gRPC code and contract reason.
+// A malformed ID is a gateway bug, so it stays InvalidArgument with no reason.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: accountv1.Reason_REASON_ACCOUNT_NOT_FOUND},
 	{Err: model.ErrUsernameTaken, Code: codes.AlreadyExists, Reason: accountv1.Reason_REASON_USERNAME_TAKEN},

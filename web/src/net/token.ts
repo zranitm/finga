@@ -1,9 +1,4 @@
-// The one holder of the session token (page 7, Session token; page 4,
-// Trust model). Set from the login response, replaced only when a Welcome
-// arrives, cleared on logout or a Kicked that ends the session. Memory
-// only: a reload means logging in again. Nothing else keeps a copy, because
-// a REST call with the token from before the last Hello works once within
-// 60 seconds and then revokes the whole session.
+// Memory only, and the only copy: a REST call with a token older than the last Hello revokes the session.
 let current: string | null = null;
 
 export function getToken(): string | null {

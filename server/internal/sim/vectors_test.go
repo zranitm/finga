@@ -12,11 +12,8 @@ import (
 	"finga/internal/sim"
 )
 
-// The vectors in testdata/movement are the contract between this package
-// and the TypeScript port: both must reproduce every expected state exactly.
-// Run with -update to regenerate the expected states from this package after
-// a deliberate change to the rules; the scenario tests in sim_test.go are
-// what keeps those states honest.
+// The vectors in testdata/movement must be reproduced exactly here and in the TypeScript port.
+// -update regenerates them after a deliberate rule change; sim_test.go keeps them honest.
 var update = flag.Bool("update", false, "rewrite the expected states in testdata/movement")
 
 const vectorsDir = "../../testdata/movement"
@@ -37,7 +34,7 @@ type inputRun struct {
 	Repeat int       `json:"repeat"`
 }
 
-// The scenarios the step page lists; every one must have a file.
+// Every scenario must have a file.
 var requiredVectors = []string{
 	"walk-flat", "jump", "ledge", "land-on-platform", "jump-through-platform",
 	"drop-through", "climb-rope", "wall", "ceiling", "platform-edge", "fall-clamp",
@@ -120,9 +117,7 @@ func save(t *testing.T, file string, v vector) {
 	}
 }
 
-// TestVectorsRoundTripThroughJSON guards the contract's encoding: every
-// state field survives JSON, and a float prints in the shortest form that
-// parses back exactly, which is also what JavaScript's JSON.stringify does.
+// TestVectorsRoundTripThroughJSON checks floats print in the shortest exact form, as JSON.stringify does.
 func TestVectorsRoundTripThroughJSON(t *testing.T) {
 	s := sim.State{X: 200 + 200.0/60, Y: 419.99999999999994, VX: 200, VY: -588.3333333333334, OnGround: false, Climbing: true, Facing: -1, Ground: 1, DropPlatform: 0, DropTimer: 0.25 - 1.0/60}
 	data, err := json.Marshal(s)

@@ -1,18 +1,5 @@
-// Package wsrouter routes decoded WebSocket messages by type through
-// middleware chains, as an HTTP router routes requests by path: each
-// message type is registered once, with its middleware and a typed
-// handler, and every message runs the router's global middleware, then its
-// route's, then the handler. It knows nothing of the transport or the
-// encoding (pkg/wsconn decodes; the caller passes the decoded message in)
-// and nothing of the application: S is the caller's connection state,
-// which every handler gets.
-//
-// A middleware is a HandlerFunc that calls c.Next to run the rest of the
-// chain and returns when it is done; code after Next runs once the rest
-// has. A middleware that does not call Next stops the chain there. Next
-// may also be called later, from another goroutine: a middleware can hand
-// the rest of a chain to a connection's command queue, so a message is
-// checked on the read loop and handled on the queue.
+// Package wsrouter routes decoded WebSocket messages by type through middleware chains.
+// A middleware calls c.Next to continue, possibly later on another goroutine, or skips it to stop.
 package wsrouter
 
 import (
@@ -24,25 +11,21 @@ import (
 // Message is the part of a decoded message the router reads.
 type Message struct {
 	Type  string
-	ReqID string // request and response correlation, optional
-	Seq   uint32 // the client's sequence number, optional
-	Data  any    // the decoded payload, of the type its route was registered with
+	ReqID string
+	Seq   uint32
+	Data  any
 }
 
 // HandlerFunc is one step of a chain: a middleware, or the end of one.
 type HandlerFunc[S any] func(c *Context[S])
 
-// Context is one message on its way through its chain. A context is used
-// by one chain only and never reused, so a step may keep it after
-// returning (to call Next later).
+// Context is one message on its way through its chain; a step may keep it to call Next later.
 type Context[S any] struct {
-	Session S       // the connection's state
-	Message Message // the message being handled
-	// Ctx is the context the handler's calls run under: Background until a
-	// middleware sets one (a deadline, the connection's cancellation).
+	Session S
+	Message Message
+	// Ctx is what the handler's calls run under: Background unless a middleware sets one.
 	Ctx context.Context
-	// Result and Err are what the typed handler returned, for the
-	// middleware around it (to answer the client, to log).
+	// Result and Err are the typed handler's return values, for the middleware around it.
 	Result any
 	Err    error
 
@@ -70,10 +53,7 @@ func New[S any](middleware ...HandlerFunc[S]) *Router[S] {
 	return &Router[S]{global: middleware, routes: map[string][]HandlerFunc[S]{}}
 }
 
-// Handle routes msgType through middleware to h, which gets the payload
-// as a T. What h returns lands in the context's Result and Err. A message
-// whose payload is not a T never reaches h: Err says so. Routing a type
-// twice panics, as registering a path twice does in net/http.
+// Handle routes msgType to h; a payload that isn't a T sets c.Err, and routing twice panics.
 func Handle[S, T any](r *Router[S], msgType string, h func(c *Context[S], in T) (any, error), middleware ...HandlerFunc[S]) {
 	if _, taken := r.routes[msgType]; taken {
 		panic("wsrouter: " + msgType + " is routed twice")
@@ -90,9 +70,7 @@ func Handle[S, T any](r *Router[S], msgType string, h func(c *Context[S], in T) 
 	r.routes[msgType] = append(slices.Clone(middleware), end)
 }
 
-// NoRoute sets the chain a message of an unrouted type runs after the
-// global middleware; without one, such a message runs only the global
-// middleware.
+// NoRoute sets the chain unrouted types run after the global middleware.
 func (r *Router[S]) NoRoute(handlers ...HandlerFunc[S]) { r.noRoute = handlers }
 
 // Dispatch runs m through its chain for the connection session.

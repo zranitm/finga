@@ -15,9 +15,6 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// Step 16 rows against real Postgres with an injected clock: rotation with
-// its grace, reuse detection, the sliding expiry, logging out everywhere.
-
 type hookRecorder struct {
 	mu             sync.Mutex
 	sessions       []uuid.UUID
@@ -166,8 +163,7 @@ func TestSlidingExpiry(t *testing.T) {
 	if got := expiresAt(); !got.Equal(start.Add(7 * day)) {
 		t.Fatalf("after login expires at %v", got)
 	}
-	// Used again after 5 minutes: nothing moves; after 10: the idle week
-	// restarts from then.
+	// After 5 minutes nothing moves; after 10 the idle week restarts.
 	*now = start.Add(5 * time.Minute)
 	if _, err := svc.Validate(ctx, token); err != nil {
 		t.Fatal(err)
@@ -203,7 +199,6 @@ func TestSlidingExpiry(t *testing.T) {
 	if err := svc.Check(ctx, p.SessionID); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("check at 30 days: %v", err)
 	}
-	// A session left idle for a week is gone.
 	token2, _ := loginAs(t, svc, "bob")
 	*now = now.Add(7 * day)
 	if _, err := svc.Validate(ctx, token2); !errors.Is(err, model.ErrUnauthenticated) {
@@ -231,12 +226,10 @@ func TestLogOutEverywhere(t *testing.T) {
 	if err := svc.Check(ctx, p.SessionID); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("check after logging out everywhere: %v", err)
 	}
-	// The login itself fired the account hook once (a new login ends older
-	// sessions); logging out everywhere fired it again.
+	// The login fired the account hook once; logging out everywhere fired it again.
 	if len(hooks.accounts) != 2 || hooks.accounts[1] != accountID || hooks.accountReasons[0] != application.ReasonNewLogin || hooks.accountReasons[1] != "logged out" {
 		t.Fatalf("account hook %v %v", hooks.accounts, hooks.accountReasons)
 	}
-	// Logging out one session fires the session hook.
 	token2, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)

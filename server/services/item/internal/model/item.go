@@ -1,7 +1,4 @@
-// Package model is the item service's model (Low-level design, page 11):
-// item instances, the inventory's slots and order, the append-only item
-// events and their outbox payloads (D2, D5), and the errors its use cases
-// return. It needs nothing but data.
+// Package model holds the item service's items, inventory slots, item events and errors.
 package model
 
 import (
@@ -15,9 +12,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The service's errors. Each names one failure; the service's handler sends
-// it as a reason, and the gateway gives it a code, a status and the words a
-// player sees (its errmap).
+// The service's errors; the handler sends each as a contract reason.
 var (
 	ErrNotFound      = errors.New("item: not found")
 	ErrSlotTaken     = errors.New("item: slot taken")
@@ -30,15 +25,12 @@ var (
 	ErrUnknownItem   = errors.New("item: unknown item template")
 )
 
-// rules are the errors above: a player ran into a rule, so retrying the
-// same request cannot help. Anything else (a database failure) may pass.
 var rules = []error{
 	ErrNotFound, ErrSlotTaken, ErrDifferentItem, ErrInventoryFull, ErrKeyReused,
 	ErrBadQuantity, ErrBadSlot, ErrWrongTab, ErrUnknownItem,
 }
 
-// IsRule reports whether err is one of the service's rule errors, as opposed
-// to a transient failure worth one retry.
+// IsRule reports whether err is a rule error rather than a transient failure worth a retry.
 func IsRule(err error) bool {
 	for _, rule := range rules {
 		if errors.Is(err, rule) {
@@ -48,11 +40,10 @@ func IsRule(err error) bool {
 	return false
 }
 
-// SlotsPerTab is the inventory size of each tab (page 5).
+// SlotsPerTab is the inventory size of each tab.
 const SlotsPerTab = 24
 
-// Actor is who acts: the account scopes idempotency keys, the character
-// owns the items.
+// Actor is who acts: the account scopes idempotency keys, the character owns the items.
 type Actor struct {
 	Account   kernel.AccountID
 	Character kernel.CharacterID
@@ -72,15 +63,14 @@ type Item struct {
 // CauseType says what caused an item change.
 type CauseType string
 
-// The cause types (page 2).
+// The cause types.
 const (
 	CauseDrop    CauseType = "drop"
 	CausePlayer  CauseType = "player"
 	CauseStarter CauseType = "starter"
 )
 
-// Cause is the origin of a change: a drop (its ID), a player action, or
-// character creation.
+// Cause is the origin of a change: a drop, a player action, or character creation.
 type Cause struct {
 	Type CauseType
 	ID   uuid.UUID // optional: the drop or request
@@ -89,7 +79,7 @@ type Cause struct {
 // EventKind is an item event's kind.
 type EventKind string
 
-// The event kinds used in Stage 1 (page 2 lists the market ones too).
+// The event kinds.
 const (
 	EventCreated   EventKind = "created"
 	EventStacked   EventKind = "stacked"
@@ -119,8 +109,7 @@ type Slot struct {
 // Grant is a starter item for a class (classes.yaml).
 type Grant = gamedata.Grant
 
-// SortInventory orders an inventory by tab then slot, the order it is
-// listed in.
+// SortInventory orders an inventory by tab then slot.
 func SortInventory(inv []Item) {
 	sort.Slice(inv, func(a, b int) bool {
 		if inv[a].Tab != inv[b].Tab {

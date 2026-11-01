@@ -2,9 +2,7 @@ package protocol
 
 import "finga/pkg/wsconn"
 
-// Samples is one representative message per type, with every field set.
-// They produce the golden files in testdata/contracts, which the client's
-// tests read too, so the two sides agree on the wire format.
+// Samples is one full message per type: the source of the golden files the client's tests also read.
 func Samples() []wsconn.Message {
 	const (
 		charA = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b"
@@ -14,7 +12,7 @@ func Samples() []wsconn.Message {
 	)
 	view := CharacterView{ID: charA, Name: "Ayla", Class: "warrior", Level: 2, Exp: 15, Stats: Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MaxHP: 250, MP: 32, MaxMP: 32}
 	player := PlayerView{ID: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 416, Y: 608, VX: 200, VY: 0, Facing: 1, OnGround: true, HP: 250, MaxHP: 250}
-	// A second player a second after contact damage: invulnerable (step 19).
+	// A player just hit by contact damage: invulnerable.
 	hurt := PlayerView{ID: charB, Name: "Robin", Class: "bowman", Level: 1, X: 540, Y: 596, VX: 0, VY: -300, Facing: -1, OnGround: false, HP: 90, MaxHP: 105, Invulnerable: true}
 	mob := MobView{ID: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, HP: 30, MaxHP: 30}
 	drop := DropView{ID: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608}

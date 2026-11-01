@@ -234,9 +234,6 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 	}
 }
 
-// The guard: every error the module declares has a row, and every reason
-// in the contract has one, so nothing the module returns reaches a caller
-// as Internal and no reason is promised that the service never sends.
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 	declared, err := sentinels.Declared(filepath.Join("..", "model"))
 	if err != nil {

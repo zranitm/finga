@@ -8,15 +8,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// One handler per client message: each turns the message into its use
-// case's arguments (IDs parsed, the model's types), calls the Gateway, and
-// turns the result into what the client gets back, as handler/api does
-// for a REST request. A handler's error is answered by its route's
-// respond or refusals.
-
-// hello checks the protocol version and the character ID, then joins.
-// A Hello the gateway turns away kicks as unauthenticated; any other
-// failure closes as internal, and the client reconnects.
+// hello checks the protocol version and character ID, then joins; a rejected Hello is kicked.
 func (h *Handler) hello(c *msgContext, in protocol.Hello) (any, error) {
 	cl := c.Session
 	if in.ProtocolVersion != protocol.Version {
@@ -78,8 +70,7 @@ func (h *Handler) inventoryDiscard(c *msgContext, in protocol.InventoryDiscard) 
 	return changed(h.gw.DiscardItem(c.Ctx, c.Session.session, model.ItemDiscard{IdempotencyKey: in.IdempotencyKey, Item: id, Quantity: in.Quantity}))
 }
 
-// changed is an inventory command's follow-up for the client: the slots
-// it changed, when there are any.
+// changed is an inventory command's follow-up: the changed slots, if any.
 func changed(slots []protocol.InventorySlot, err error) (any, error) {
 	if err != nil || len(slots) == 0 {
 		return nil, err

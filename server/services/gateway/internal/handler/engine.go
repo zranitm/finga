@@ -8,20 +8,14 @@ import (
 
 var releaseMode sync.Once
 
-// NewEngine is a Gin engine as the gateway runs it (TD-26): release mode
-// (Gin's debug mode prints every route at start, through its own logger),
-// no redirects (a path that is not a route is a 404, never a redirect to
-// one), and 405 for a known path asked with another method. Middleware and
-// the not-found answers are the REST API's (handler/api).
+// NewEngine is a Gin engine in release mode, with no redirects and 405 for a known path with another method.
 func NewEngine() *gin.Engine {
 	releaseMode.Do(func() { gin.SetMode(gin.ReleaseMode) }) // Gin keeps its mode in a package variable
 	e := gin.New()
 	e.HandleMethodNotAllowed = true
 	e.RedirectTrailingSlash = false
 	e.RedirectFixedPath = false
-	// No proxy is trusted, so Gin's ClientIP never reads a forwarding header.
-	// Nothing in the gateway reads the client's address: limits per address
-	// are the edge's, which sees the real one (nginx, page 4).
+	// Trust no proxy, so ClientIP never reads a forwarding header; per-IP limits are the edge's.
 	if err := e.SetTrustedProxies(nil); err != nil {
 		panic("gin: " + err.Error()) // nil is always a valid list
 	}

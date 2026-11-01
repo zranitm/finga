@@ -14,7 +14,6 @@ import (
 	"finga/services/character/internal/clients"
 )
 
-// items is the item service's GrantStarter, faked behind a real gRPC server.
 type items struct {
 	itemv1.UnimplementedItemServiceServer
 	grants []*itemv1.GrantStarterRequest

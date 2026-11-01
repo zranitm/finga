@@ -56,8 +56,6 @@ func newHarness(origins ...string) *harness {
 		sessions:   &fakeSessions{token: goodToken, principal: principal},
 		logs:       &bytes.Buffer{},
 	}
-	// The handler over the real use cases and adapters, the services faked
-	// at their generated clients, as the composition root wires them.
 	h.handler = api.NewHandler(api.Dependencies{
 		Lobby:  application.NewLobby(clients.NewAccounts(h.accounts), clients.NewCharacters(h.characters), h.sessions),
 		Logger: slog.New(slog.NewJSONHandler(h.logs, nil)), CORSOrigins: origins,
@@ -99,8 +97,7 @@ func assertError(t *testing.T, rec *httptest.ResponseRecorder, status int, code 
 	}
 }
 
-// errorRows are the service errors every endpoint must map the same way:
-// each failure has its own code, and the status carries its class.
+// errorRows are the service errors every endpoint must map the same way.
 var errorRows = []struct {
 	name   string
 	err    error
@@ -192,8 +189,7 @@ func TestLogin(t *testing.T) {
 			got = in
 			return &accountv1.LoginResponse{Token: "secret-token"}, nil
 		}
-		// The client's address stays at the edge (nginx limits per IP), even
-		// when a forwarding header claims one.
+		// The client's address stays at the edge, even when a forwarding header claims one.
 		rec := h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, map[string]string{"X-Forwarded-For": "203.0.113.7"})
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())

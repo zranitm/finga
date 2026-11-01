@@ -17,7 +17,6 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// recorder is a Handler that remembers what happened.
 type recorder struct {
 	mu       sync.Mutex
 	opened   int
@@ -238,15 +237,12 @@ func TestBadFramesCloseTheConnection(t *testing.T) {
 func TestSlowConsumerIsDropped(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()
-	// The sender reports Send's first error, or nil if every send fitted.
-	// OnClose can run before the sender sees its error, so the test waits
-	// for this rather than reading a shared value at close time.
+	// OnClose can run before the sender sees Send's error, so wait on this channel instead.
 	sendErr := make(chan error, 1)
 	big := blob{Data: strings.Repeat("x", 8<<10)}
 	rec.onOpen = func(c wsconn.Conn) {
 		go func() {
-			// A client that never reads: the socket buffers fill, then the
-			// queue, then Send fails and the connection is closed.
+			// The client never reads: socket buffers fill, then the queue, then Send fails.
 			for range 4000 {
 				if err := c.Send(wsconn.Message{Type: "Blob", Data: big}); err != nil {
 					sendErr <- err
@@ -327,7 +323,7 @@ func TestServerSideClose(t *testing.T) {
 	t.Run("Send after Close fails and Close twice is harmless", func(t *testing.T) {
 		rec.mu.Lock()
 		defer rec.mu.Unlock()
-		// The conn handed to OnClose is the same one; use the last message's conn via a fresh server instead.
+		// Covered by TestSendAfterCloseFails.
 	})
 }
 
@@ -337,7 +333,7 @@ func TestSendAfterCloseFails(t *testing.T) {
 	var after atomic.Value
 	rec.onMsg = func(c wsconn.Conn, _ wsconn.Message) {
 		c.Close(wsconn.CloseKicked, "x")
-		c.Close(wsconn.CloseKicked, "again") // harmless
+		c.Close(wsconn.CloseKicked, "again")
 		after.Store(c.Send(wsconn.Message{Type: "Attack"}))
 	}
 	s := start(t, rec, wsconn.Options{})
@@ -380,13 +376,11 @@ func TestConnIDsAreDistinct(t *testing.T) {
 }
 
 func TestNoHelloTimeoutIsTheHandlersJob(t *testing.T) {
-	// wsconn has no idea what Hello is; this documents that the gateway
-	// (step 10) owns that timer. Nothing to assert beyond the API shape.
+	// wsconn knows no Hello; the handler owns that timer.
 	var _ wsconn.Handler = newRecorder()
 }
 
-// checkLeaks verifies no goroutine outlives the test. It registers first,
-// so it runs last, after the httptest server's own cleanup has closed it.
+// checkLeaks must be registered first so it runs after the server's cleanup.
 func checkLeaks(t *testing.T) {
 	t.Helper()
 	opt := goleak.IgnoreCurrent()

@@ -1,15 +1,9 @@
-// The movement simulation (page 5), a mirror of the Go package
-// server/internal/sim: the same order of operations, so the
-// vectors in testdata/movement replay exactly here and there. Coordinates
-// are pixels with y growing downward. A character is a width × height box
-// whose position (x, y) is the centre of its feet: the box spans
-// [x-width/2, x+width/2) by [y-height, y). Rectangles are half-open, so a
-// box flush against an edge does not touch it.
+// Mirrors server/internal/sim operation for operation, so testdata/movement replays exactly on both.
+// (x, y) is the centre of the feet, y grows downward, and rectangles are half-open.
 import { movement } from '@/gamedata/movement';
 
 import type { Input } from './input';
 
-/** The ground and drop_platform value when no one-way platform is involved. */
 export const NO_PLATFORM = -1;
 
 export interface Params {
@@ -20,11 +14,10 @@ export interface Params {
   readonly max_fall_speed: number; // px/s
   readonly climb_speed: number; // px/s
   readonly drop_through: number; // seconds a dropped-through platform is ignored
-  readonly width: number; // character box
+  readonly width: number;
   readonly height: number;
 }
 
-/** The constants from data/movement.yaml, through the generated gamedata. */
 export const params: Params = movement;
 
 export interface Rect {
@@ -34,14 +27,12 @@ export interface Rect {
   readonly h: number;
 }
 
-/** What a map's object layers give the simulation; platform indexes refer into platforms. */
 export interface Geometry {
-  readonly solids: readonly Rect[]; // block movement on every side
+  readonly solids: readonly Rect[];
   readonly platforms: readonly Rect[]; // one-way: only the top edge counts, only when landing
-  readonly ropes: readonly Rect[]; // climbable while the feet are within them
+  readonly ropes: readonly Rect[];
 }
 
-/** A character's movement state; step returns a new one and never changes its argument. */
 export interface State {
   readonly x: number;
   readonly y: number;
@@ -52,10 +43,9 @@ export interface State {
   readonly facing: 1 | -1;
   readonly ground: number; // platform index stood on, NO_PLATFORM on a solid or in the air
   readonly drop_platform: number; // platform ignored while drop_timer > 0
-  readonly drop_timer: number; // seconds left of the drop-through
+  readonly drop_timer: number;
 }
 
-/** A character standing still at (x, y), facing right. */
 export function standing(x: number, y: number): State {
   return {
     x,
@@ -71,7 +61,6 @@ export function standing(x: number, y: number): State {
   };
 }
 
-// A mutable copy for the duration of one step.
 interface Working {
   x: number;
   y: number;
@@ -85,41 +74,16 @@ interface Working {
   drop_timer: number;
 }
 
-/**
- * step advances s by one sub-step of p.dt under the input, in this order:
- *
- * 1. Facing follows right or left (right wins when both are held).
- * 2. Rope entry: up with the feet inside a rope's span and rope above them,
- *    or down with rope below them, starts climbing, snapped to the rope's
- *    centre, with velocity cleared. The feet decide, not the box.
- * 3. Climbing: jump leaves the rope with a full jump (horizontal speed from
- *    left/right); otherwise the character moves at climb_speed up or down,
- *    and leaves the rope once the feet pass either end. No gravity and no
- *    collision while climbing; the step ends after the timer (9).
- * 4. Walking: vx is walk_speed to the held side, 0 when neither or both.
- * 5. Jump from the ground: with down while on a one-way platform it drops
- *    through (the platform is ignored for drop_through seconds); otherwise
- *    vy becomes -jump_velocity.
- * 6. Gravity: vy grows by gravity·dt, clamped at max_fall_speed.
- * 7. Move on x by vx·dt and push out of any solid, zeroing vx.
- * 8. Move on y by vy·dt. on_ground is cleared first. Moving down, a solid
- *    or a one-way platform whose top the feet were at or above before the
- *    move stops the fall: feet on its top, vy 0, on_ground set. Moving up, a
- *    solid stops the rise: head on its underside, vy 0. Solids are checked
- *    before platforms, each in map order; the ignored platform is skipped.
- * 9. The drop-through timer counts down and releases its platform at 0.
- */
+/** One sub-step of p.dt. The phase order matches the server's sim.Step; do not reorder. */
 export function step(state: State, input: Input, g: Geometry, p: Params = params): State {
   const s: Working = { ...state };
 
-  // 1. Facing.
   if (input.right) {
     s.facing = 1;
   } else if (input.left) {
     s.facing = -1;
   }
 
-  // 2. Rope entry.
   if (!s.climbing && (input.up || input.down)) {
     for (const rope of g.ropes) {
       if (canEnter(s, input, rope, p)) {
@@ -134,7 +98,6 @@ export function step(state: State, input: Input, g: Geometry, p: Params = params
     }
   }
 
-  // 3. Climbing.
   if (s.climbing) {
     if (input.jump) {
       s.climbing = false;
@@ -149,15 +112,13 @@ export function step(state: State, input: Input, g: Geometry, p: Params = params
         s.y += p.climb_speed * p.dt;
       }
       if (!onAnyRope(s, g, p)) {
-        s.climbing = false; // past the top or the bottom: fall, or land on what is there
+        s.climbing = false;
       }
       return tickTimer(s, p);
     }
   } else {
-    // 4. Walking.
     s.vx = walkVelocity(input, p);
 
-    // 5. Jump or drop through.
     if (s.on_ground && input.jump) {
       if (input.down && s.ground !== NO_PLATFORM) {
         s.drop_platform = s.ground;
@@ -170,13 +131,11 @@ export function step(state: State, input: Input, g: Geometry, p: Params = params
     }
   }
 
-  // 6. Gravity.
   s.vy += p.gravity * p.dt;
   if (s.vy > p.max_fall_speed) {
     s.vy = p.max_fall_speed;
   }
 
-  // 7. X.
   s.x += s.vx * p.dt;
   for (const solid of g.solids) {
     if (!overlaps(box(s, p), solid)) {
@@ -190,7 +149,6 @@ export function step(state: State, input: Input, g: Geometry, p: Params = params
     s.vx = 0;
   }
 
-  // 8. Y.
   const prevFeet = s.y;
   s.y += s.vy * p.dt;
   s.on_ground = false;
@@ -208,6 +166,7 @@ export function step(state: State, input: Input, g: Geometry, p: Params = params
     s.vy = 0;
   }
   if (s.vy > 0) {
+    // A one-way platform catches only feet that were at or above its top before the move.
     for (let i = 0; i < g.platforms.length; i++) {
       const plat = g.platforms[i]!;
       if (i === s.drop_platform || prevFeet > plat.y || s.y < plat.y) {
@@ -223,7 +182,6 @@ export function step(state: State, input: Input, g: Geometry, p: Params = params
     }
   }
 
-  // 9. Drop-through timer.
   return tickTimer(s, p);
 }
 
@@ -246,9 +204,6 @@ function tickTimer(s: Working, p: Params): State {
   return s;
 }
 
-// canEnter: the feet are within the rope's span and the box overlaps it on
-// x, and there is rope left in the held direction (above the feet for up,
-// below for down).
 function canEnter(s: Working, input: Input, rope: Rect, p: Params): boolean {
   if (!feetOn(s, rope, p)) {
     return false;
@@ -260,8 +215,6 @@ function onAnyRope(s: Working, g: Geometry, p: Params): boolean {
   return g.ropes.some((rope) => feetOn(s, rope, p));
 }
 
-// feetOn: the feet are within r's vertical span (ends included) and the box
-// overlaps r on x.
 function feetOn(s: Working, r: Rect, p: Params): boolean {
   return s.y >= r.y && s.y <= r.y + r.h && overlapsX(s, r, p);
 }
@@ -274,7 +227,7 @@ function box(s: Working, p: Params): Rect {
   return { x: s.x - p.width / 2, y: s.y - p.height, w: p.width, h: p.height };
 }
 
-/** The half-open rectangle test: touching edges do not overlap. */
+/** Touching edges do not overlap. */
 export function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }

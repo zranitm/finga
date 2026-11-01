@@ -1,6 +1,4 @@
-// Which windows are open, and whether a text field or window has the
-// keyboard: while captureKeyboard is set, the game ignores movement keys
-// (page 7, Phaser and React together).
+// While captureKeyboard is set, the game ignores movement keys.
 import { defineStore } from './store';
 
 export type WindowName = 'inventory' | 'party' | 'settings';
@@ -8,7 +6,7 @@ export type WindowName = 'inventory' | 'party' | 'settings';
 export interface UiState {
   readonly windows: Readonly<Record<WindowName, boolean>>;
   readonly captureKeyboard: boolean;
-  /** The chat input is asked to take focus (the Enter key, C13). */
+  /** Asks the chat input to take focus. */
   readonly chatOpen: boolean;
   toggleWindow(name: WindowName): void;
   openChat(): void;

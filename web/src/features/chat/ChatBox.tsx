@@ -1,9 +1,4 @@
-// The chat box in the HUD (C13): the last lines from the chat store, and
-// an input the Enter key focuses (the World scene opens it through the ui
-// store). Enter sends ChatSend, map by default or party with a /p prefix;
-// Escape leaves. While the input has focus the keyboard is captured, so
-// the game sees no movement keys. A refused line comes back as a Response
-// with no request ID, shown as a toast by app/wiring.
+// A refused line comes back as a Response with no req; app/wiring shows it as a toast.
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
@@ -19,7 +14,7 @@ export interface ChatBoxProps {
   readonly socket: Pick<GameSocket, 'send'>;
 }
 
-/** "/p hello" is a party line "hello"; anything else is a map line. */
+/** "/p hello" is a party line; anything else is a map line. */
 export function parseLine(raw: string): { channel: ChatChannel; text: string } {
   const m = /^\/p(?:\s+|$)(.*)$/s.exec(raw);
   return m ? { channel: 'party', text: m[1]!.trim() } : { channel: 'map', text: raw.trim() };

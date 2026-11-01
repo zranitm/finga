@@ -1,10 +1,4 @@
-// Command bot drives test players against a running game for the
-// proof session (step 17): each bot signs up, enters the world, walks from
-// the town to the forest, hunts, loots, chats, parties up with the others,
-// and goes back to the town now and then. At the end it reads the world
-// service's /metrics (its ops address, -metrics) and the gateway's, and
-// prints what happened, including the tick p99, so a session can be put in
-// the evidence log.
+// Command bot drives test players against a running game, then prints what happened and the tick p99.
 //
 //	go run ./cmd/bot -url http://localhost:8080 -metrics http://localhost:9104 -bots 4 -duration 30m
 package main
@@ -76,7 +70,6 @@ func run(url, metrics string, n int, duration time.Duration, prefix string) erro
 	return report(metrics, url)
 }
 
-// stats is what one bot saw.
 type stats struct {
 	messages, kills, pickups, deaths, hops, chats, refused, reconnects, loginFailures int
 }
@@ -135,8 +128,6 @@ func (b *bot) count(f func(*stats)) {
 	f(&b.st)
 }
 
-// play signs up once, then enters the world and plays until ctx ends,
-// reconnecting when the connection drops.
 func (b *bot) play(ctx context.Context, all []*bot) {
 	token, err := b.signUp(ctx)
 	if err != nil {
@@ -145,8 +136,7 @@ func (b *bot) play(ctx context.Context, all []*bot) {
 	}
 	for ctx.Err() == nil {
 		if token == "" {
-			// A dropped connection: log in again (the login throttle is 5 per
-			// minute per IP, so wait a little between attempts).
+			// Wait between logins to stay under the per-IP login throttle.
 			time.Sleep(5 * time.Second)
 			token, err = b.login(ctx)
 			if err != nil {
@@ -165,8 +155,6 @@ func (b *bot) play(ctx context.Context, all []*bot) {
 	}
 }
 
-// signUp registers, logs in once, creates the character, and returns the
-// login token for the first Hello.
 func (b *bot) signUp(ctx context.Context) (string, error) {
 	if _, err := b.rest(ctx, "POST", "/api/accounts", "", map[string]string{"username": b.name, "password": "correct horse"}); err != nil {
 		return "", err
@@ -223,7 +211,6 @@ func (b *bot) rest(ctx context.Context, method, path, token string, body any) (m
 	return out, nil
 }
 
-// enter connects and says Hello with the token.
 func (b *bot) enter(ctx context.Context, token string) error {
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -292,7 +279,6 @@ func (b *bot) command(d any) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
 }
 
-// observe updates the bot's view of the world from one message.
 func (b *bot) observe(m wsconn.Message) {
 	b.count(func(s *stats) { s.messages++ })
 	switch d := m.Data.(type) {
@@ -351,8 +337,7 @@ func (b *bot) observe(m wsconn.Message) {
 	}
 }
 
-// loop is one connection's life: 20 decisions a second until the
-// connection closes or the session ends.
+// loop makes 20 decisions a second until the connection closes or the session ends.
 func (b *bot) loop(ctx context.Context, all []*bot) {
 	const (
 		townPortal   = 1216.0 // the town's to_forest arrival point
@@ -468,7 +453,6 @@ func (b *bot) nearestDrop() (protocol.DropView, bool) {
 	return best, bestDist < math.Inf(1)
 }
 
-// scrape reads one /metrics page.
 func scrape(url string) ([]byte, error) {
 	res, err := http.Get(url) //nolint:gosec // the operator names the address
 	if err != nil {
@@ -478,9 +462,6 @@ func scrape(url string) ([]byte, error) {
 	return io.ReadAll(res.Body)
 }
 
-// report reads /metrics from each address (the world's ticks, the game
-// server's players) and prints the tick histogram's percentiles per map and
-// overall, the overruns, and the players online.
 func report(urls ...string) error {
 	var raw []byte
 	for _, url := range urls {
@@ -543,9 +524,7 @@ func report(urls ...string) error {
 	return nil
 }
 
-// percentile reads a Prometheus histogram the way histogram_quantile
-// does: the bucket where the cumulative count crosses the rank, with
-// linear interpolation inside it.
+// percentile interpolates within the bucket that crosses the rank, as histogram_quantile does.
 func percentile(buckets map[float64]float64, count float64, q float64) string {
 	if count == 0 {
 		return "n/a"

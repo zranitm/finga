@@ -17,7 +17,6 @@ import (
 
 var errNotYours = errors.New("not found")
 
-// fakeCharacters is the character service's Load.
 type fakeCharacters struct {
 	chars map[kernel.CharacterID]model.Character
 }
@@ -30,7 +29,6 @@ func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account 
 	return c, nil
 }
 
-// fakeStarter records grants, or fails with err.
 type fakeStarter struct {
 	mu     sync.Mutex
 	grants []kernel.CharacterID
@@ -128,8 +126,7 @@ func TestJoinByID(t *testing.T) {
 	})
 }
 
-// A Leave names the connection that joined: an older connection's Leave,
-// arriving after a newer connection rejoined the character, removes nothing.
+// A stale connection's Leave, arriving after a rejoin, removes nothing.
 func TestLeaveNamesItsConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)

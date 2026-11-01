@@ -8,11 +8,7 @@ import (
 	"finga/pkg/hub"
 )
 
-// ServeSubscription serves a hub subscription on a server stream: first,
-// then every message the hub sends it, in order. It returns when the
-// subscription ends (replaced, overflowed or closed), as Unavailable so the
-// caller subscribes again, or when the caller goes away, closing the
-// subscription.
+// ServeSubscription streams first, then sub's messages; when sub ends it returns Unavailable.
 func ServeSubscription[T any](stream grpc.ServerStreamingServer[T], sub *hub.Sub[*T], first *T) error {
 	defer sub.Close()
 	if err := stream.Send(first); err != nil {

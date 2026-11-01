@@ -1,11 +1,4 @@
-// Package model is the gateway's model (Low-level design, page 11). The
-// client protocol's views (internal/protocol: a character, an item, a
-// party) are its vocabulary for what a player sees; its messages are the
-// WebSocket handler's. This package adds what the use cases work with: a
-// failure as a client sees it, the commands' inputs, Welcome, a
-// connection's player and presence, the services' pushes as deliveries and
-// stream events, and the REST API's accounts and characters. It needs
-// nothing but data.
+// Package model holds the gateway's use-case data: client-facing failures, command inputs and deliveries.
 package model
 
 import (
@@ -15,18 +8,14 @@ import (
 	"finga/internal/kernel"
 )
 
-// Public is a failure as a client sees it: a stable code of the gateway's
-// own (party_full, inventory_full), the HTTP status, and a message safe to
-// show a player. The message is written by the gateway, never taken from
-// an error, so a cause's text cannot reach a client. The WebSocket sends
-// only Code and Message, in a Response.
+// Public is a failure as a client sees it; Message is the gateway's own, never an error's text, so causes never leak.
 type Public struct {
 	Code    string `json:"code"`
 	Status  int    `json:"status"`
 	Message string `json:"message"`
 }
 
-// The failures the gateway raises itself, before or around a service call.
+// The failures the gateway raises itself.
 var (
 	MalformedBody        = Public{"malformed_body", http.StatusBadRequest, "malformed request body"}
 	MissingField         = Public{"missing_field", http.StatusBadRequest, "missing a required field"}
@@ -38,18 +27,13 @@ var (
 	ChatUnavailable      = Public{"chat_unavailable", http.StatusServiceUnavailable, "chat is not available"}
 	PartiesUnavailable   = Public{"parties_unavailable", http.StatusServiceUnavailable, "parties are not available"}
 	InventoryUnavailable = Public{"inventory_unavailable", http.StatusServiceUnavailable, "the inventory is not available"}
-	// Unauthenticated is a missing or malformed token, raised by the
-	// gateway, and the account service's refusal of a token or a login.
-	Unauthenticated = Public{"unauthenticated", http.StatusUnauthorized, "invalid credentials or session"}
-	// BadID and UnknownClass are the gateway's own parsing failing, and the
-	// services' refusals of the same.
-	BadID        = Public{"bad_id", http.StatusBadRequest, "malformed ID"}
-	UnknownClass = Public{"unknown_class", http.StatusBadRequest, "unknown class"}
-	Internal     = Public{"internal", http.StatusInternalServerError, "something went wrong"}
+	Unauthenticated      = Public{"unauthenticated", http.StatusUnauthorized, "invalid credentials or session"}
+	BadID                = Public{"bad_id", http.StatusBadRequest, "malformed ID"}
+	UnknownClass         = Public{"unknown_class", http.StatusBadRequest, "unknown class"}
+	Internal             = Public{"internal", http.StatusInternalServerError, "something went wrong"}
 )
 
-// Raised are the failures the gateway raises itself, for the list of every
-// code a client can receive.
+// Raised lists the failures the gateway raises itself.
 func Raised() []Public {
 	return []Public{
 		MalformedBody, MissingField, BodyTooLarge, NoSuchEndpoint, MethodNotAllowed, RateLimited,
@@ -58,35 +42,24 @@ func Raised() []Public {
 	}
 }
 
-// CharacterNotFound is the code of a character that is not the account's
-// (or not there at all): a Hello that names one is unauthenticated.
+// CharacterNotFound is the code of a character that is not the account's; a Hello naming one is rejected.
 const CharacterNotFound = "character_not_found"
 
 // The failures of the gateway's own use cases.
 var (
-	// ErrNoInventory, ErrNoParties and ErrNoChat are commands for a service
-	// this gateway runs without.
-	ErrNoInventory = errors.New("gateway: no item service")
-	ErrNoParties   = errors.New("gateway: no social service, so no parties")
-	ErrNoChat      = errors.New("gateway: no social service, so no chat")
-	// ErrHelloRejected is a Hello the gateway turns away: its token, or the
-	// character it names, is not the account's.
+	ErrNoInventory   = errors.New("gateway: no item service")
+	ErrNoParties     = errors.New("gateway: no social service, so no parties")
+	ErrNoChat        = errors.New("gateway: no social service, so no chat")
 	ErrHelloRejected = errors.New("gateway: hello rejected")
 )
 
 // The kinds of service failure the gateway acts on itself.
 var (
-	// ErrUnavailable is a service that cannot be reached: starting,
-	// restarting, or down.
-	ErrUnavailable = errors.New("gateway: service unavailable")
-	// ErrNotSubscribed is a join refused because the world has not seen this
-	// gateway's delivery stream yet (or lost it).
+	ErrUnavailable   = errors.New("gateway: service unavailable")
 	ErrNotSubscribed = errors.New("gateway: the world does not hold this gateway's stream")
 )
 
-// ServiceError is a service's failure as the gateway's adapters hand it
-// over: what a client sees, the kind the gateway acts on (nil when none),
-// and the cause, for the logs.
+// ServiceError is a service failure: what the client sees, the kind the gateway acts on (or nil), and the cause.
 type ServiceError struct {
 	Public Public
 	Kind   error
@@ -103,9 +76,6 @@ func (e *ServiceError) Unwrap() []error {
 	return []error{e.Err}
 }
 
-// ownErrors are the gateway's own failures: its use cases', and the shared
-// kernel's errors its parsing raises (an item ID in a message, a class in
-// a request).
 var ownErrors = []struct {
 	err error
 	pub Public
@@ -118,9 +88,7 @@ var ownErrors = []struct {
 	{kernel.ErrUnknownClass, UnknownClass},
 }
 
-// PublicOf is err as a client sees it: a service's failure as its adapter
-// named it, the gateway's own failures, and Internal for anything
-// else (which the caller logs with its cause); the zero Public for nil.
+// PublicOf is err as a client sees it: Internal for anything unexpected, the zero Public for nil.
 func PublicOf(err error) Public {
 	if err == nil {
 		return Public{}
@@ -136,6 +104,5 @@ func PublicOf(err error) Public {
 	return Internal
 }
 
-// IsInternal reports whether p answers an error nobody expected, which the
-// caller logs with its cause.
+// IsInternal reports whether p answers an unexpected error, which the caller should log.
 func IsInternal(p Public) bool { return p.Code == Internal.Code }

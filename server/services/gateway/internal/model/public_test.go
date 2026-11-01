@@ -37,11 +37,7 @@ func TestPublicOf(t *testing.T) {
 	}
 }
 
-// TestEveryKernelErrorIsMapped reads the source of the shared kernel, whose
-// errors the gateway's own parsing raises: an exported Err variable that
-// PublicOf leaves out would reach a player as "something went wrong" with
-// code internal. The services' errors are checked by their own handlers'
-// guards and errmap's TestEveryReasonIsMapped.
+// TestEveryKernelErrorIsMapped fails when a kernel Err variable would reach a player as internal.
 func TestEveryKernelErrorIsMapped(t *testing.T) {
 	declared, err := sentinels.Declared(filepath.Join("..", "..", "..", "..", "internal", "kernel"))
 	if err != nil || len(declared) == 0 {

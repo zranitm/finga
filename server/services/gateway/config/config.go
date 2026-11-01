@@ -1,7 +1,4 @@
-// Package config is the gateway service's configuration (the WebSocket connections and the REST entry):
-// config.yaml beside this file, with only the keys the service uses
-// (Low-level design, page 11). Every key can be overridden by FINGA_ and
-// its path in upper case.
+// Package config is the gateway's config.yaml; any key can be overridden by FINGA_ plus its path in upper case.
 package config
 
 import (
@@ -18,15 +15,13 @@ type Config struct {
 	Dependencies  Dependencies  `mapstructure:"dependencies"`
 }
 
-// HTTP is where the gateway serves clients: REST under /api, the WebSocket
-// at /ws, and /healthz, /readyz and /metrics.
+// HTTP is where the gateway serves clients.
 type HTTP struct {
 	Addr        string   `mapstructure:"addr" validate:"required"`
 	CORSOrigins []string `mapstructure:"cors_origins" validate:"dive,url"` // empty: same origin only
 }
 
-// Dependencies are the addresses this service dials the services it calls
-// at (Compose sets the services' names).
+// Dependencies are the addresses of the services the gateway dials.
 type Dependencies struct {
 	Account   string `mapstructure:"account" validate:"required"`
 	Character string `mapstructure:"character" validate:"required"`

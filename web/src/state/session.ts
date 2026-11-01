@@ -1,5 +1,4 @@
-// The account and whether it is logged in. The token itself stays in
-// net/token.ts (C04); this store only drives the screen flow.
+// The token itself stays in net/token.ts; this store only drives the screen flow.
 import { defineStore } from './store';
 
 export interface Account {

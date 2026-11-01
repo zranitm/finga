@@ -1,7 +1,4 @@
-// Command world runs the world service: the map instances, ticking at
-// 20 Hz, their mobs, combat, drops and portals, served over gRPC to the
-// gateways (Low-level design, pages 3 and 10). It runs until SIGINT or
-// SIGTERM.
+// Command world runs the world service.
 package main
 
 import (

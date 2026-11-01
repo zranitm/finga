@@ -34,9 +34,7 @@ func NewChatService(parties Parties, opts ChatOptions) *ChatService {
 	return &ChatService{parties: parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst, lopts...)}
 }
 
-// Send cleans the text and charges the sender's limit. For the map channel
-// the recipients are nil (the map instance delivers to everyone on it);
-// for the party channel they are the party's members, sender included.
+// Send cleans and rate-limits a line; map lines have nil recipients, party lines the whole party.
 func (s *ChatService) Send(from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error) {
 	if channel != model.ChannelMap && channel != model.ChannelParty {
 		return model.Message{}, nil, model.ErrChannel

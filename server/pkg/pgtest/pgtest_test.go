@@ -16,7 +16,6 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
 	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
-		// A stand-in for the real migrations: the template gets one table.
 		_, err := pool.Exec(ctx, `CREATE TABLE notes (id int PRIMARY KEY, text text NOT NULL)`)
 		return err
 	})

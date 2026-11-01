@@ -30,25 +30,18 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ItemService owns item instances, the inventory, the item events, and the
-// idempotency keys and outbox of its transactions (Low-level design, page
-// 10). Every change is one transaction under an idempotency key, so a
-// retried call changes nothing twice. A failure carries a Reason in
-// google.rpc.ErrorInfo.
+// ItemService owns items and inventories; every change is one transaction under an idempotency key.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type ItemServiceClient interface {
 	// Inventory lists a character's items, by tab and slot.
 	Inventory(ctx context.Context, in *InventoryRequest, opts ...grpc.CallOption) (*InventoryResponse, error)
-	// Add puts a quantity of a template in the inventory: the first stack
-	// with room, then the first free slot. A pickup's key is its drop ID.
+	// Add fills the first stack with room, then the first free slot; a pickup's key is its drop ID.
 	Add(ctx context.Context, in *AddRequest, opts ...grpc.CallOption) (*AddResponse, error)
-	// Move moves an item to a slot of its tab, or merges it into a stack of
-	// the same item there.
+	// Move moves an item to a slot of its tab, merging into a stack of the same item there.
 	Move(ctx context.Context, in *MoveRequest, opts ...grpc.CallOption) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
 	Discard(ctx context.Context, in *DiscardRequest, opts ...grpc.CallOption) (*DiscardResponse, error)
-	// GrantStarter gives a new character its class's starter items, once:
-	// the character ID is the idempotency key, so a second call returns the
-	// first one's slots and changes nothing.
+	// GrantStarter gives a new character its starter items once, keyed by the character ID.
 	GrantStarter(ctx context.Context, in *GrantStarterRequest, opts ...grpc.CallOption) (*GrantStarterResponse, error)
 }
 
@@ -114,25 +107,18 @@ func (c *itemServiceClient) GrantStarter(ctx context.Context, in *GrantStarterRe
 // All implementations must embed UnimplementedItemServiceServer
 // for forward compatibility.
 //
-// ItemService owns item instances, the inventory, the item events, and the
-// idempotency keys and outbox of its transactions (Low-level design, page
-// 10). Every change is one transaction under an idempotency key, so a
-// retried call changes nothing twice. A failure carries a Reason in
-// google.rpc.ErrorInfo.
+// ItemService owns items and inventories; every change is one transaction under an idempotency key.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type ItemServiceServer interface {
 	// Inventory lists a character's items, by tab and slot.
 	Inventory(context.Context, *InventoryRequest) (*InventoryResponse, error)
-	// Add puts a quantity of a template in the inventory: the first stack
-	// with room, then the first free slot. A pickup's key is its drop ID.
+	// Add fills the first stack with room, then the first free slot; a pickup's key is its drop ID.
 	Add(context.Context, *AddRequest) (*AddResponse, error)
-	// Move moves an item to a slot of its tab, or merges it into a stack of
-	// the same item there.
+	// Move moves an item to a slot of its tab, merging into a stack of the same item there.
 	Move(context.Context, *MoveRequest) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
 	Discard(context.Context, *DiscardRequest) (*DiscardResponse, error)
-	// GrantStarter gives a new character its class's starter items, once:
-	// the character ID is the idempotency key, so a second call returns the
-	// first one's slots and changes nothing.
+	// GrantStarter gives a new character its starter items once, keyed by the character ID.
 	GrantStarter(context.Context, *GrantStarterRequest) (*GrantStarterResponse, error)
 	mustEmbedUnimplementedItemServiceServer()
 }

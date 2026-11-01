@@ -1,6 +1,4 @@
-// What the player should know about the connection: connecting, connected,
-// reconnecting (with the attempt), or kicked (with the reason). app/wiring
-// feeds it from the socket's status events; state never imports net.
+// Fed by app/wiring; state never imports net.
 import type { KickReason } from '@/protocol/errors';
 
 import { defineStore } from './store';
@@ -10,9 +8,9 @@ export type ConnectionStatus =
 
 export interface ConnectionState {
   readonly status: ConnectionStatus;
-  readonly attempt: number; // reconnect attempts so far
-  readonly kick: KickReason | null; // when status is kicked
-  readonly rtt: number | null; // milliseconds, from the last Pong
+  readonly attempt: number;
+  readonly kick: KickReason | null;
+  readonly rtt: number | null;
   setConnection(status: ConnectionStatus, extra?: { attempt?: number; kick?: KickReason }): void;
   setRtt(rtt: number | null): void;
 }

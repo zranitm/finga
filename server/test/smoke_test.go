@@ -12,9 +12,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// TestSmoke runs against a gateway that is already up (make up), named
-// by FINGA_SMOKE_URL; without it the test is skipped. It is the CI check of
-// the packaging step: a client signs up, enters the world, and moves.
+// TestSmoke signs up, enters the world and moves against FINGA_SMOKE_URL; skipped without it.
 func TestSmoke(t *testing.T) {
 	url := os.Getenv("FINGA_SMOKE_URL")
 	if url == "" {

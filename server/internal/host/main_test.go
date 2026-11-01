@@ -15,8 +15,7 @@ import (
 	"finga/internal/host"
 )
 
-// shopConfig is a made-up service's own configuration, declared as every
-// service declares its own: the host's sections and a key of its own.
+// shopConfig is a made-up service's configuration: the host's sections and a key of its own.
 type shopConfig struct {
 	GRPC          host.GRPCSection `mapstructure:"grpc"`
 	Ops           host.OpsSection  `mapstructure:"ops"`

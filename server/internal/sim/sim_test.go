@@ -7,8 +7,6 @@ import (
 	"finga/internal/sim"
 )
 
-// A flat floor 1000 px wide whose top is at y = 500, with a wall on the
-// right (x 700..732) and a ceiling block above x 300..400 at height 420..440.
 var flat = sim.Geometry{
 	Solids: []sim.Rect{
 		{X: 0, Y: 500, W: 1000, H: 32},  // floor
@@ -74,8 +72,7 @@ func TestJump(t *testing.T) {
 			break
 		}
 	}
-	// Analytical peak is v²/2g = 101.2 px; with velocity integrated before
-	// position it comes out a little lower.
+	// The analytical peak v²/2g is 101.2 px; integrating velocity first lands a little lower.
 	rise := 500 - peak
 	if rise < 95 || rise > 101.2 {
 		t.Fatalf("jump rose %v px, want about 100", rise)
@@ -244,8 +241,7 @@ func TestOneWayPlatforms(t *testing.T) {
 }
 
 func TestRopes(t *testing.T) {
-	// Floor at 500; a platform at 300 (x 0..400) with a rope from its top
-	// down to the floor at x 196..204.
+	// A platform at 300 with a rope from its top down to the floor at 500.
 	g := sim.Geometry{
 		Solids:    []sim.Rect{{X: 0, Y: 500, W: 1000, H: 32}},
 		Platforms: []sim.Rect{{X: 0, Y: 300, W: 400, H: 8}},
@@ -319,8 +315,7 @@ func TestRopes(t *testing.T) {
 }
 
 func TestStepIsPure(t *testing.T) {
-	// The same inputs from the same state always give the same state, and
-	// Step never changes its arguments.
+	// Same inputs, same state; Step never changes its arguments.
 	p := sim.DefaultParams()
 	start := standing(200)
 	in := sim.Input{Right: true, Jump: true}

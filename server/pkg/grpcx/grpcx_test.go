@@ -21,7 +21,6 @@ import (
 	"finga/pkg/hub"
 )
 
-// The sentinels a pretend service returns, and its table.
 var (
 	errFull     = errors.New("shop: full")
 	errNotFound = errors.New("shop: not found")
@@ -33,8 +32,7 @@ var table = grpcx.ErrorTable{
 	{Err: errNotFound, Code: codes.NotFound, Reason: testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_FALLBACK},
 }
 
-// shop is the test service: EmptyCall returns whatever err holds,
-// UnaryCall panics, StreamingOutputCall sends n messages then ends.
+// shop is the test service: EmptyCall returns err, UnaryCall panics, StreamingOutputCall streams.
 type shop struct {
 	testpb.UnimplementedTestServiceServer
 	err    func(ctx context.Context) error
@@ -112,8 +110,7 @@ func TestKeyNamesTheEnumValueAndItsPackage(t *testing.T) {
 }
 
 func TestAReasonFromDownstreamPassesThrough(t *testing.T) {
-	// A service that calls another and returns its error as it came keeps
-	// the downstream reason and code.
+	// A downstream error passed on as-is keeps its reason and code.
 	downstream := serve(t, &shop{err: func(context.Context) error { return errNotFound }})
 	upstream := serve(t, &shop{err: func(ctx context.Context) error {
 		_, err := downstream.EmptyCall(ctx, &testpb.Empty{})
@@ -136,8 +133,7 @@ func TestAnUnavailableDownstreamStaysUnavailable(t *testing.T) {
 }
 
 func TestAStatusWithoutAReasonKeepsItsCodeAndLosesItsText(t *testing.T) {
-	// An unimplemented call (an old node during a rolling deploy) must say
-	// so, not hide behind Internal.
+	// Unimplemented (an old node mid-deploy) must not hide behind Internal.
 	c := serve(t, &shop{})
 	if _, err := c.UnimplementedCall(context.Background(), &testpb.Empty{}); status.Code(err) != codes.Unimplemented {
 		t.Fatalf("got %v", err)
@@ -191,9 +187,7 @@ func TestStreamErrorsUseTheTableToo(t *testing.T) {
 }
 
 func TestFollow(t *testing.T) {
-	// Each subscription sends three messages numbered by subscription, then
-	// ends the stream; Follow delivers them all, reports each break, and
-	// subscribes again until its context ends.
+	// Each subscription sends three messages and ends; Follow must resubscribe.
 	var mu sync.Mutex
 	subscriptions := 0
 	c := serve(t, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {

@@ -1,9 +1,3 @@
-// World: draws the map named in Welcome from its object layers, the local
-// player predicted one tick ahead of the server (C08), the other players
-// and the mobs interpolated 100 ms behind it (C09, C10), damage numbers,
-// death and respawn, all from the server's messages. A Welcome after a
-// reconnect reloads the map when it changed and waits for the next
-// Snapshot. The scene stays thin: it calls the systems.
 import Phaser from 'phaser';
 
 import { FixedStep } from '@/lib/fixed-step';
@@ -42,20 +36,18 @@ import { Predictor } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
 
-/** What the app passes when the player enters the world, from Welcome. */
 export interface WorldData {
   readonly mapId: string;
   readonly characterId: string;
   readonly cls: string;
   readonly name: string;
-  /** After a MapChange: where the player arrives, shown until the Snapshot confirms it. */
+  /** After a MapChange: shown until the Snapshot confirms it. */
   readonly arrival?: { readonly x: number; readonly y: number };
 }
 
 const FADE_MS = 250;
 const BANNER_MS = 1800;
 
-/** "forest" as "Forest" for the arrival banner. */
 function mapTitle(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
 }
@@ -77,7 +69,7 @@ export class World extends Phaser.Scene {
   private predictor: Predictor | null = null;
   private sender: InputSender | null = null;
   private readonly clock = new FixedStep();
-  private placed = false; // the first Snapshot has named the local player
+  private placed = false; // set by the first Snapshot that names the local player
 
   private remotes: RemotePlayers | null = null;
   private readonly remoteViews = new Map<string, PlayerView>();
@@ -95,7 +87,7 @@ export class World extends Phaser.Scene {
   private readonly drops = new DropTracker();
   private readonly dropViews = new Map<number, DropView>();
   private pickup: PickupSystem | null = null;
-  private hinted: number | null = null; // the drop within reach, if any
+  private hinted: number | null = null;
 
   private view: MapView | null = null;
   private portals: PortalSystem | null = null;
@@ -144,7 +136,7 @@ export class World extends Phaser.Scene {
       this.add.tileSprite(t.x, t.y, t.w, t.h, t.texture).setOrigin(0, 0).setTileScale(ART_SCALE);
     }
 
-    // Standing at the map's entry, hidden until the server says where it is.
+    // Hidden until the server says where the player is.
     this.player = new PlayerView(this, this.entry.cls, this.entry.name);
     this.player.apply({
       x: view.player_spawn.x,
@@ -157,7 +149,6 @@ export class World extends Phaser.Scene {
     });
     this.player.setVisible(false);
     if (this.entry.arrival) {
-      // Through a portal: stand where MapChange said until the Snapshot confirms it.
       this.player.apply({
         x: this.entry.arrival.x,
         y: this.entry.arrival.y,
@@ -172,7 +163,6 @@ export class World extends Phaser.Scene {
     cam.setBounds(0, 0, view.width, view.height);
     cam.startFollow(this.player.sprite, true, 0.15, 0.15);
     for (const p of view.portals) {
-      // A soft glow over each portal, breathing.
       const glow = this.add
         .rectangle(
           p.area.x + p.area.w / 2,
@@ -207,7 +197,6 @@ export class World extends Phaser.Scene {
     sender.setCaptured(ui.getState().captureKeyboard);
     this.offs.push(
       bindKeyboard({
-        // Movement keys go to the input sender; the up key also asks the portals.
         target: {
           press: (a) => {
             sender.press(a);
@@ -276,13 +265,11 @@ export class World extends Phaser.Scene {
     );
   }
 
-  /** The envelope's tick, or the next one when a message carries none. */
   private tickOf(tick: number | undefined): number {
     this.lastTick = tick ?? this.lastTick + 1;
     return this.lastTick;
   }
 
-  /** The frame loop: whole sub-steps only; a tick boundary samples and sends the keys. */
   override update(time: number, deltaMs: number): void {
     const predictor = this.predictor;
     const sender = this.sender;
@@ -293,7 +280,7 @@ export class World extends Phaser.Scene {
     const dead = this.transitionState.dead;
     for (const step of this.clock.advance(deltaMs)) {
       if (dead) {
-        continue; // the server holds a dead player; nothing is sent or predicted
+        continue; // the server holds a dead player
       }
       if (step.tickStart) {
         const input = sender.tickStart();
@@ -311,7 +298,6 @@ export class World extends Phaser.Scene {
     this.numberLayer?.sync(this.numbers.update(time));
   }
 
-  /** The drop within reach, if any, is marked; the pickup key acts on it. */
   private hintDrops(): void {
     const p = this.predictor;
     if (!p) {
@@ -344,7 +330,6 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** The pickup key: one PickUp per tick, only with a drop in reach; the inventory follows InventoryChanged. */
   private pickUp(): void {
     if (this.transitionState.dead || !this.placed || !this.pickup || !this.sender) {
       return;
@@ -374,7 +359,6 @@ export class World extends Phaser.Scene {
       v.apply(state);
     }
     if (arrivals || gone.length > 0) {
-      // Who is here, for the party window; only when someone came or went.
       nearby
         .getState()
         .setNearby([...this.remoteViews.keys()].map((id) => ({ id, name: remotes.nameOf(id) })));
@@ -405,7 +389,6 @@ export class World extends Phaser.Scene {
     return players.find((p) => p.id === this.entry.characterId);
   }
 
-  /** A Snapshot is the truth: it places the local player and replaces the others and the mobs. */
   private onSnapshot(
     players: readonly Wire[],
     mobs: readonly MobWire[],
@@ -453,24 +436,19 @@ export class World extends Phaser.Scene {
     this.applySelf(me);
   }
 
-  /** The server's word on the local player's HP and flags. */
   private applySelf(me: Wire): void {
     this.pushHp(me.hp);
     this.flash.set(me.invulnerable, this.time.now);
   }
 
-  /** A Correction (reserved on page 4) has no facing; the current one stays. */
+  /** A Correction carries no facing; the current one stays. */
   private onCorrection(c: Data<'Correction'>): void {
     if (this.predictor && this.placed) {
       this.predictor.correct({ ...c, facing: this.predictor.state.facing }, c.seq);
     }
   }
 
-  /**
-   * A Welcome after a reconnect: the same map waits for the next Snapshot
-   * to place everyone again; another map (the player moved while away, or
-   * respawned in town) reloads the scene for it.
-   */
+  /** After a reconnect: the same map waits for the next Snapshot; another map restarts the scene. */
   private onWelcome(mapId: string): void {
     if (mapId !== this.entry.mapId) {
       this.scene.restart({ ...this.entry, mapId });
@@ -504,15 +482,12 @@ export class World extends Phaser.Scene {
     this.numberLayer?.sync([]);
   }
 
-  /** The attack key: the class cooldown gates sending; the server decides hits. */
-  /** Whether the predicted feet stand in a portal right now (edges included, page 5). */
   private inPortal(): boolean {
     const p = this.predictor;
     const v = this.view;
     return !!p && !!v && this.placed && standsIn(p.state.x, p.state.y, v.portals) !== undefined;
   }
 
-  /** The map's name for a moment on arrival. */
   private banner(text: string): void {
     const cam = this.cameras.main;
     const t = this.add
@@ -547,7 +522,6 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** The Bowman's arrow: a streak flying the attack range in the facing direction. */
   private arrow(x: number, y: number, facing: 1 | -1): void {
     const streak = this.add.rectangle(x, y, 16, 3, 0xf0ead6).setDepth(5);
     this.tweens.add({
@@ -558,7 +532,6 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** A resolved hit: a number over the target, the mob's bar, the local player's HP. */
   private onDamage(d: Data<'Damage'>): void {
     const target = parseRef(d.target);
     if (!target) {
@@ -592,7 +565,6 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** Died, Respawned and MapChange for the local player, through the transition machine. */
   private onTransition(msg: TransitionMsg): void {
     const r = transition(this.transitionState, msg, this.entry.characterId, this.entry.mapId);
     this.transitionState = r.state;
@@ -626,7 +598,6 @@ export class World extends Phaser.Scene {
       case 'change-map': {
         character.getState().setDead(false);
         this.portals?.arrived();
-        // Fade out, then the scene restarts for the named map; its Snapshot follows.
         const next: WorldData = { ...this.entry, mapId: a.mapId, arrival: { x: a.x, y: a.y } };
         this.placed = false;
         this.cameras.main.fadeOut(FADE_MS);
@@ -638,7 +609,6 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** A level-up effect on the entity; the HUD follows the store (wiring). */
   private onLevelUp(): void {
     if (this.predictor && this.placed) {
       this.numbers.spawn(
@@ -651,7 +621,7 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** HP into the character store only when it changed (the store checks); MP is not on the wire. */
+  /** MP is not on the wire, so only HP is pushed. */
   private pushHp(hp: number): void {
     const c = character.getState().character;
     if (c && c.hp !== hp) {

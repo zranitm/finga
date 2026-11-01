@@ -1,7 +1,4 @@
-// The inventory as the server last described it: three tabs of 24 slots
-// (page 5). The store never rules; it places what Welcome and
-// InventoryChanged say, so a refused move, which arrives as a Response
-// with nothing else, leaves it unchanged.
+// Only Welcome and InventoryChanged change it, so a refused move leaves it as it was.
 import type { Data, ItemView, Tab } from '@/protocol/messages';
 
 import { defineStore } from './store';
@@ -28,14 +25,13 @@ function emptySlots(): Slots {
 
 function place(slots: Slots, tab: Tab, slot: number, item: ItemView | null): Slots {
   if (slot < 0 || slot >= SLOTS_PER_TAB) {
-    return slots; // not a slot this inventory has; the server would not send it
+    return slots;
   }
   const row = [...slots[tab]];
   row[slot] = item;
   return { ...slots, [tab]: row };
 }
 
-/** Every item in the inventory, tab by tab, slot order. */
 export function allItems(slots: Slots): ItemView[] {
   return tabs.flatMap((tab) => slots[tab].filter((it): it is ItemView => it !== null));
 }

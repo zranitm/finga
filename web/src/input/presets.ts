@@ -1,6 +1,4 @@
-// The two presets from Screens and controls, as KeyboardEvent.code values
-// so the layout does not depend on the keyboard's language. I, P and Enter
-// are shared.
+// KeyboardEvent.code values, so the layout does not depend on the keyboard's language.
 import type { Action } from './actions';
 
 export type Preset = 'classic' | 'wasd';
@@ -34,7 +32,6 @@ export const presets: Readonly<Record<Preset, KeyTable>> = {
   },
 };
 
-/** A short label for the first key of an action, for hints and the settings screen. */
 export function keyLabel(preset: Preset, action: Action): string {
   const code = presets[preset][action][0] ?? '';
   return code

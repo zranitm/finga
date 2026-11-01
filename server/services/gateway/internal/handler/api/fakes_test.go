@@ -15,8 +15,7 @@ import (
 	"finga/services/gateway/internal/clients/errmap"
 )
 
-// The fakes return what the test tells them to; a nil function means the
-// endpoint under test must not have reached that method.
+// A nil fake function means the endpoint under test must not reach that method.
 
 type fakeAccounts struct {
 	register       func(ctx context.Context, in *accountv1.RegisterRequest) (*accountv1.RegisterResponse, error)
@@ -72,8 +71,6 @@ func (f *fakeCharacters) List(ctx context.Context, in *characterv1.ListRequest, 
 	return f.list(ctx, in)
 }
 
-// errUnauthenticated is the account service's answer to a bad token, as the
-// gateway's adapter (clients.Guard) hands it to the use cases.
 var errUnauthenticated = errmap.Wrap(grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED))
 
 // fakeSessions knows one good token.

@@ -1,6 +1,3 @@
-// Keyboard to movement actions: KeyboardEvent.code through the player's
-// preset (input/presets) into the input sender. Only movement actions are
-// bound here; attack, pickup and the windows come with their steps.
 import { actionFor, isMovement } from '@/input/actions';
 import type { Action } from '@/input/actions';
 import type { Preset } from '@/state/settings';
@@ -13,19 +10,15 @@ export interface KeyTarget {
 
 export interface KeyboardOptions {
   readonly target: KeyTarget;
-  /** The preset in force right now (the settings store). */
   readonly preset: () => Preset;
-  /** Whether a text field or window has the keyboard (the ui store). */
+  /** A text field or window has the keyboard. */
   readonly captured: () => boolean;
-  /** A non-movement action's key went down (attack, pickup, inventory, party, chat). */
+  /** Non-movement actions: attack, pickup, windows, chat. */
   readonly onAction?: (action: Action) => void;
-  /** Where key events arrive; the window by default. */
   readonly source?: EventTarget;
-  /** What loses focus when the player switches away; the window by default. */
   readonly focusSource?: EventTarget;
 }
 
-/** Binds the listeners; returns the function that unbinds them. */
 export function bindKeyboard(opts: KeyboardOptions): () => void {
   const source = opts.source ?? window;
   const focusSource = opts.focusSource ?? window;
@@ -41,7 +34,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       return;
     }
     if (opts.captured()) {
-      return; // typing: the keys belong to the text field
+      return;
     }
     if (!isMovement(action)) {
       if (!key.repeat) {

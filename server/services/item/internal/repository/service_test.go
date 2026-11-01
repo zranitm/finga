@@ -454,8 +454,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	if h.count(t, `SELECT count(*) FROM outbox WHERE type = 'ItemLooted'`) != before+1 {
 		t.Fatal("no ItemLooted row after a committed add")
 	}
-	// A rolled-back transaction leaves no row: the add runs whole on the
-	// unit of work, and the transaction fails afterwards.
+	// A transaction that fails after the add succeeds leaves no row.
 	svc := application.NewService(rollingBack{h.store}, h.data, application.Options{})
 	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
 	if err == nil {
@@ -469,8 +468,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	}
 }
 
-// rollingBack is the real store, whose transactions fail once the work in
-// them has succeeded, so they roll back.
+// rollingBack is the real store with transactions that fail after their work succeeds.
 type rollingBack struct{ *Postgres }
 
 func (r rollingBack) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {

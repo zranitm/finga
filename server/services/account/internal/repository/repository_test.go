@@ -15,8 +15,7 @@ import (
 	"finga/services/account/migrations"
 )
 
-// These run against real Postgres through the store, so errors arrive
-// classified. They are in the account package to reach ErrSessionRace.
+// These run against real Postgres through the store, so errors arrive classified.
 
 var cluster *pgtest.Cluster
 
@@ -155,7 +154,6 @@ func TestSessions(t *testing.T) {
 		if _, err := store.FindActiveSession(ctx, hashOf("t1")); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("t1 still active: %v", err)
 		}
-		// Now a new session fits.
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Sessions().Insert(ctx, session("t3")) }); err != nil {
 			t.Fatal(err)
 		}
@@ -174,8 +172,7 @@ func TestSessions(t *testing.T) {
 		if _, err := store.FindActiveSession(ctx, hashOf("t3")); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("t3 still active: %v", err)
 		}
-		// Revoking again, or an unknown session, is not an error: the end
-		// state is what was asked for.
+		// Revoking again, or an unknown session, is not an error.
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Sessions().Revoke(ctx, got.ID, t0) }); err != nil {
 			t.Fatalf("second revoke: %v", err)
 		}

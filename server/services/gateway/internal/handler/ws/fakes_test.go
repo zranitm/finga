@@ -41,14 +41,7 @@ func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal
 	return p, nil
 }
 
-// fakeWorld is the world service, served over an in-memory gRPC
-// connection so the gateway's real client and stream run. Join checks the
-// character is the account's (the character service's not-found reason
-// otherwise), records the join, and sends before, then the character's
-// Snapshot, on the stream before it answers, as the real world may.
-// Commands and leaves are recorded; the test pushes events to a player.
-// restart ends the current stream and starts the ticks again; the next
-// subscription carries boot.
+// fakeWorld serves the world over in-memory gRPC; Join streams before and a Snapshot before answering.
 type fakeWorld struct {
 	worldv1.UnimplementedWorldServiceServer
 	mu         sync.Mutex
@@ -62,8 +55,8 @@ type fakeWorld struct {
 	pickups    []*worldv1.Presence
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
-	calls      []string      // every command, in the order it arrived
-	hold       chan struct{} // when set, Deliver takes joins at once but sends Subscribed only during the first one
+	calls      []string      // commands in arrival order
+	hold       chan struct{} // set: Subscribed goes out only during the first join
 	block      chan struct{} // when set, Attack waits for it (or its context)
 	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
 	tick       uint64
@@ -74,7 +67,6 @@ type fakeWorld struct {
 	subscribed chan struct{} // receives once per subscription
 }
 
-// fakeCharacter is a character as the character service has it saved.
 type fakeCharacter struct {
 	account kernel.AccountID
 	view    *worldv1.CharacterView
@@ -127,8 +119,7 @@ func (f *fakeWorld) Deliver(_ *worldv1.DeliverRequest, stream grpc.ServerStreami
 	}
 }
 
-// restart ends the current stream, as a world that went away would: the
-// next subscription carries boot, and the ticks count from one again.
+// restart ends the stream; the next subscription carries boot and ticks count from one again.
 func (f *fakeWorld) restart(boot string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -143,8 +134,7 @@ func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.
 	f.hold = nil
 	f.mu.Unlock()
 	if hold != nil {
-		// Subscribed goes out now, and the gateway reads it while this join
-		// is still in flight.
+		// Subscribed goes out now, read while this join is still in flight.
 		close(hold)
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -296,7 +286,6 @@ func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.Sa
 	return &worldv1.SayResponse{}, nil
 }
 
-// push sends an event to a player on the stream.
 func (f *fakeWorld) push(to kernel.CharacterID, m *worldv1.DeliverResponse) {
 	m.CharacterId = to.String()
 	f.events <- m
@@ -325,10 +314,7 @@ func (o *fakeObserver) OnlineChanged(d int) {
 	o.mu.Unlock()
 }
 
-// onlineAfter waits for the n-th change of the online count and returns the
-// count then. The gateway counts a player after Welcome and the Snapshot
-// are sent and the social service has heard of them, so a client can read
-// both before the count moves.
+// onlineAfter waits for the n-th online count change and returns the count then.
 func (o *fakeObserver) onlineAfter(t *testing.T, n int) int {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -349,9 +335,7 @@ func (o *fakeObserver) onlineAfter(t *testing.T, n int) int {
 	}
 }
 
-// fakeItems is the item service, served over an in-memory gRPC connection
-// so the gateway's real client runs: it records the inventory commands and
-// answers them with changed, or err.
+// fakeItems serves the item service over in-memory gRPC, recording inventory commands.
 type fakeItems struct {
 	itemv1.UnimplementedItemServiceServer
 	mu        sync.Mutex
@@ -362,7 +346,6 @@ type fakeItems struct {
 	err       error
 }
 
-// client serves the fake and returns the gateway's client to it.
 func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
 	t.Helper()
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
@@ -394,12 +377,7 @@ func (f *fakeItems) Discard(_ context.Context, req *itemv1.DiscardRequest) (*ite
 	return &itemv1.DiscardResponse{Changed: f.changed}, nil
 }
 
-// fakeSocial is the social service, served over an in-memory gRPC
-// connection: it records the calls the gateway makes, answers PartyOf from
-// a script, routes chat the way the service would (a party line is
-// delivered on the stream to each recipient), and streams whatever the
-// test pushes on events. Closing end ends the current stream; the next
-// subscription gets boot.
+// fakeSocial serves the social service over in-memory gRPC, delivering party lines to recipients.
 type fakeSocial struct {
 	socialv1.UnimplementedSocialServiceServer
 	mu         sync.Mutex

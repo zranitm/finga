@@ -8,10 +8,6 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// TestAWorldRestartKeepsSocketsAndRejoins: the world restarts (a deploy, a
-// crash) while two players are connected. The gateway keeps both sockets
-// open, and once the world is back each player is joined again from the
-// last checkpoint and gets a Snapshot; the game goes on.
 func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 	s := newStack(t)
 	var ls []*looter
@@ -33,7 +29,6 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 	if !gus.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {
 		t.Fatal("no Pong: the socket did not survive the restart")
 	}
-	// The world plays on: Gus walks.
 	start := gus.x
 	moved := gus.until(5*time.Second, func() bool {
 		_ = gus.input(protocol.Input{Right: true})

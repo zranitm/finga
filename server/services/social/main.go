@@ -1,7 +1,4 @@
-// Command social runs the social service: parties, invites and chat, in
-// memory, served over gRPC, delivering party traffic to each gateway and
-// party membership to each world node (Low-level design, page 10). It runs
-// until SIGINT or SIGTERM.
+// Command social serves parties, invites and chat over gRPC, in memory, until SIGINT or SIGTERM.
 package main
 
 import (

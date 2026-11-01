@@ -1,10 +1,5 @@
-// Package runner runs one process: its listeners (HTTP or gRPC) and its
-// background tasks, with readiness and graceful shutdown. Readiness is
-// local: ready from the moment every listener is bound until shutdown
-// starts, checking no dependency. On shutdown, readiness drops first, then
-// an optional drain runs while the listeners still serve, then the
-// listeners stop accepting and let what is in flight finish within the
-// grace period, then the tasks stop.
+// Package runner runs a process's listeners and background tasks with readiness and graceful shutdown.
+// Shutdown order: readiness drops, Drain runs, listeners stop within the grace period, then tasks stop.
 package runner
 
 import (
@@ -25,20 +20,18 @@ import (
 type Server interface {
 	// Serve accepts on ln until Shutdown; it returns nil once shut down.
 	Serve(ln net.Listener) error
-	// Shutdown stops accepting and waits for the work in flight, until ctx
-	// ends; then it stops whatever is left.
+	// Shutdown stops accepting and waits for in-flight work until ctx ends, then stops the rest.
 	Shutdown(ctx context.Context) error
 }
 
 // Listener is one address and what it serves.
 type Listener struct {
-	Name   string // for logs and Addr
+	Name   string
 	Addr   string // host:port; port 0 picks a free one
 	Server Server
 }
 
-// Task is a background job that runs beside the listeners and stops when
-// the runner's context ends.
+// Task is a background job that runs until the runner's context ends.
 type Task struct {
 	Name string
 	Run  func(ctx context.Context) error
@@ -48,9 +41,7 @@ type Task struct {
 type Options struct {
 	Logger        *slog.Logger
 	ShutdownGrace time.Duration
-	// Drain runs once readiness has dropped and before the listeners stop,
-	// with the grace period's context: the gateway tells its connections
-	// to go here. nil skips it.
+	// Drain runs after readiness drops and before the listeners stop; nil skips it.
 	Drain func(ctx context.Context)
 }
 
@@ -76,18 +67,14 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
-// Addr is a listener's bound address once Run serves; empty before. It
-// turns non-empty together with Ready, so a caller that sees an address
-// also sees the process ready.
+// Addr is a listener's bound address once Run serves; it turns non-empty together with Ready.
 func (r *Runner) Addr(name string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.addrs[name]
 }
 
-// RunTasks runs the background tasks until ctx ends and they have all
-// returned. Run calls it; a test serving a handler through httptest calls
-// it itself.
+// RunTasks runs the background tasks until ctx ends and they all return; Run calls it.
 func (r *Runner) RunTasks(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
@@ -100,9 +87,7 @@ func (r *Runner) RunTasks(ctx context.Context) {
 	wg.Wait()
 }
 
-// Run binds every listener (failing, with nothing started, if one cannot
-// bind), serves them and runs the tasks until ctx ends or a listener
-// fails, then shuts down. It returns nil after a clean shutdown.
+// Run binds all listeners or none, serves until ctx ends or a listener fails, then shuts down.
 func (r *Runner) Run(ctx context.Context) error {
 	lns, err := r.bind()
 	if err != nil {
@@ -167,7 +152,6 @@ func (r *Runner) Run(ctx context.Context) error {
 	return nil
 }
 
-// bind listens on every address, or on none.
 func (r *Runner) bind() ([]net.Listener, error) {
 	lns := make([]net.Listener, 0, len(r.listeners))
 	for _, l := range r.listeners {
@@ -200,8 +184,7 @@ func (s *httpServer) Serve(ln net.Listener) error {
 	return nil
 }
 
-// Shutdown closes the listener and waits for requests in flight until ctx
-// ends, then closes what is left.
+// Shutdown waits for in-flight requests until ctx ends, then closes the rest.
 func (s *httpServer) Shutdown(ctx context.Context) error {
 	if err := s.srv.Shutdown(ctx); err != nil {
 		_ = s.srv.Close()
@@ -210,9 +193,7 @@ func (s *httpServer) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// GRPC serves srv. Shutdown stops it gracefully, and stops it outright
-// when the grace period ends first (a stream to a gateway never ends on
-// its own).
+// GRPC serves srv; Shutdown forces Stop at the deadline, as long-lived streams never end on their own.
 func GRPC(srv *grpc.Server) Server { return &grpcServer{srv: srv} }
 
 type grpcServer struct{ srv *grpc.Server }

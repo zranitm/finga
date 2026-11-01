@@ -1,7 +1,4 @@
-// Command migrate applies every service's pending goose migrations to the
-// configured database, each set with its own version table, then exits
-// (Low-level design, page 10). It reads its own configuration,
-// cmd/migrate/config/config.yaml: the database and the log level.
+// Command migrate applies every service's pending goose migrations, then exits.
 package main
 
 import (
@@ -25,10 +22,7 @@ const connTimeout = 30 * time.Second
 func main() { os.Exit(run()) }
 
 func run() int {
-	// Configuration first: there is no logger until the level is known, so
-	// configuration errors go to stderr. The loader never echoes secrets.
-	// Overrides come from the environment only; whoever starts the process
-	// sets it (Compose under make up, make run exporting server/.env).
+	// No logger until the level is known, so configuration errors go to stderr.
 	cfg, err := configload.Load[config.Config](configload.Options{Path: configload.ResolvePath(config.Dir), EnvPrefix: host.EnvPrefix, Strict: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "migrate: invalid configuration:", err)

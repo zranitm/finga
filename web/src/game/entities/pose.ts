@@ -1,5 +1,3 @@
-// Which pose a character view shows for a movement state: pure, so it is
-// tested without Phaser. Views own no rules; this only reads the state.
 export type Pose = 'stand' | 'walk' | 'jump' | 'climb';
 
 export interface PoseState {
@@ -19,7 +17,7 @@ export function poseFor(s: PoseState): Pose {
   return s.vx !== 0 ? 'walk' : 'stand';
 }
 
-/** A climbing character animates only while moving along the rope. */
+/** Climbing animates only while moving along the rope. */
 export function climbMoving(s: PoseState): boolean {
   return s.climbing && s.vy !== 0;
 }

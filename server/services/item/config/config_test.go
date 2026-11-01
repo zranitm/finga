@@ -13,7 +13,6 @@ import (
 	"finga/services/item/config"
 )
 
-// load reads the service's committed file, as the binary does from server/.
 func load() (*config.Config, error) {
 	return configload.Load[config.Config](configload.Options{Path: "config.yaml", EnvPrefix: host.EnvPrefix, Strict: true})
 }
@@ -29,8 +28,6 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 }
 
-// The strict loader refuses a dependencies section, which the item service has not: each file holds only its
-// own service's keys.
 func TestAKeyOfAnotherServiceIsRefused(t *testing.T) {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {

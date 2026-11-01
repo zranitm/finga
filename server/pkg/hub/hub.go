@@ -1,9 +1,4 @@
-// Package hub fans messages out to subscribers keyed by ID, each with a
-// bounded queue. A sender never blocks: a subscriber whose queue is full is
-// closed instead, and whoever serves it (a stream, say) ends and lets its
-// peer subscribe again. Subscribing again under the same ID replaces and
-// closes the old subscription, so a sender holding the old one fails from
-// then on and never reaches the new one.
+// Package hub fans messages out to keyed subscribers; a full one is closed, never waited on.
 package hub
 
 import "sync"
@@ -35,8 +30,7 @@ type Sub[T any] struct {
 	closed bool
 }
 
-// Subscribe opens a subscription under id, replacing (and closing) any
-// older one with the same id.
+// Subscribe opens a subscription under id, closing any older one.
 func (h *Hub[T]) Subscribe(id string) *Sub[T] {
 	s := &Sub[T]{id: id, hub: h, c: make(chan T, h.queue), done: make(chan struct{})}
 	h.mu.Lock()
@@ -73,12 +67,10 @@ func (h *Hub[T]) Broadcast(v T) {
 // C is where the subscription's messages arrive.
 func (s *Sub[T]) C() <-chan T { return s.c }
 
-// Done is closed when the subscription ends: closed by its owner, replaced
-// by a newer one, or overflowed. Messages still in C may be dropped.
+// Done is closed when the subscription ends; messages left in C may be dropped.
 func (s *Sub[T]) Done() <-chan struct{} { return s.done }
 
-// Send queues v without blocking. It reports false when the subscription
-// has ended, or when its queue is full, which ends it.
+// Send queues v without blocking; a full queue ends the subscription.
 func (s *Sub[T]) Send(v T) bool {
 	s.mu.Lock()
 	if s.closed {
@@ -96,8 +88,7 @@ func (s *Sub[T]) Send(v T) bool {
 	return false
 }
 
-// Close ends the subscription and removes it from the hub, unless a newer
-// one has replaced it there. Closing twice is fine.
+// Close ends the subscription; closing twice is fine.
 func (s *Sub[T]) Close() {
 	s.hub.mu.Lock()
 	if s.hub.subs[s.id] == s {

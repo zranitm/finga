@@ -1,8 +1,4 @@
-// Package app is the account service's composition root (Low-level design,
-// page 10): the pool, the account module with its session hooks feeding
-// WatchSessions, and its gRPC handler on a host. It is a package of its
-// own, next to the main, because the end-to-end tests build the service
-// exactly as production does.
+// Package app is the account service's composition root, shared with the end-to-end tests.
 package app
 
 import (
@@ -21,8 +17,7 @@ import (
 	"finga/services/account/internal/repository"
 )
 
-// Build wires the account service from configuration. It fails fast on an
-// unreachable database.
+// Build wires the account service; it fails fast on an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
 	pool, err := dbx.NewPool(ctx, cfg.Database.URL, cfg.Database.MaxConns)
 	if err != nil {

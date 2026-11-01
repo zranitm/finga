@@ -1,9 +1,4 @@
-// Package progression holds Finga's stat and level rules as pure functions
-// over values (page 5): derived stats from class formulas, primary stats,
-// level and equipment; EXP awards with level-ups; the death penalty. The
-// character service runs them when it creates or shows a character, and
-// the world runs them inside a tick, so they live here, where both can
-// import them, rather than inside either service.
+// Package progression holds the stat and level rules shared by the character service and the world.
 package progression
 
 // Progress is a level and the EXP within it.
@@ -12,9 +7,7 @@ type Progress struct {
 	Exp   int64
 }
 
-// Derived are the stats computed from class, primary stats, level and
-// equipment (page 5). HP and MP are whole points; the rest stay fractional
-// for the damage formula. Rates are fractions.
+// Derived are the computed stats; HP and MP are whole points, rates are fractions.
 type Derived struct {
 	MaxHP       int
 	MaxMP       int
@@ -27,8 +20,7 @@ type Derived struct {
 	Penetration float64
 }
 
-// Equipment is what worn items add. Stage 1 characters wear nothing, so
-// callers pass the zero value; the starter items are inventory.
+// Equipment is what worn items add.
 type Equipment struct {
 	WeaponAttack float64
 	ArmorDefense float64

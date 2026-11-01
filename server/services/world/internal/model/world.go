@@ -1,9 +1,4 @@
-// Package model is the world service's model (Low-level design, page 11):
-// what a joining player and a loaded character carry, what the player sees
-// (views and the events delivered each tick), the checkpoints and level-ups
-// it saves, pickups and their outcomes, the combat rules (combat.go), and
-// the errors its use cases return. It needs nothing but data; the map
-// instance's own state while it ticks belongs to the application.
+// Package model holds the world service's data: players, views, events and combat rules.
 package model
 
 import (
@@ -21,14 +16,11 @@ var (
 	ErrBusy    = errors.New("world: map instance inbox is full")
 	ErrNoMap   = errors.New("world: no such map")
 	ErrStopped = errors.New("world: instance is not running")
-	// ErrClassUnavailable is a joining character whose class the game data
-	// does not have: a join that cannot happen, never a player's refusal.
+	// ErrClassUnavailable means the game data lacks the class: a server fault, not a refusal.
 	ErrClassUnavailable = errors.New("world: class not available")
 )
 
-// Player is what an instance needs to know about a character when it
-// joins; movement and combat state are the instance's own from then on.
-// Derived stats are computed by the instance from Class, Stats and Level.
+// Player is what an instance needs about a joining character.
 type Player struct {
 	ID      kernel.CharacterID
 	Account kernel.AccountID // scopes the idempotency keys of its actions
@@ -40,13 +32,11 @@ type Player struct {
 	HP      int
 	MP      int
 	X, Y    float64 // where to appear: feet centre
-	// Connection is the gateway connection the player joined through; a
-	// Leave naming another connection leaves the player on the map.
+	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
 }
 
-// Character is a character as the world loads it to join: the state the
-// character service saved last.
+// Character is a character as last saved, loaded to join.
 type Character struct {
 	ID      kernel.CharacterID
 	Account kernel.AccountID
@@ -61,8 +51,7 @@ type Character struct {
 	X, Y    float64
 }
 
-// View is the character as the player sees it once joined: Welcome's
-// character, with the maximums derived from class, stats and level.
+// View is the joined player's own character, with derived maximums.
 type View struct {
 	ID    kernel.CharacterID
 	Name  string
@@ -87,8 +76,7 @@ type PlayerView struct {
 	HP    int
 	MaxHP int
 	Dead  bool
-	// Invulnerable is set while the second after contact damage lasts
-	// (step 19); its edges are carried in Deltas even without movement.
+	// Invulnerable lasts a second after contact damage; Deltas carry its edges.
 	Invulnerable bool
 	State        sim.State
 }
@@ -124,9 +112,7 @@ type Snapshot struct {
 	Drops   []DropView
 }
 
-// Delta is what changed in one tick, for one player: AckSeq is the latest
-// input sequence applied for that player, Players and Mobs the ones that
-// moved, changed or appeared, Removed the ones that left.
+// Delta is what changed in one tick, for one player; AckSeq is the latest input applied.
 type Delta struct {
 	Tick         uint64
 	AckSeq       uint32
@@ -138,8 +124,7 @@ type Delta struct {
 	RemovedDrops []uint64
 }
 
-// Teleport moves the player to another map: a respawn away from the town
-// or a portal (step 14). The target instance sends the Snapshot.
+// Teleport moves the player to another map, whose instance sends the Snapshot.
 type Teleport struct {
 	Tick  uint64
 	MapID string
@@ -163,8 +148,7 @@ type Died struct {
 	X, Y float64
 }
 
-// Respawned says a character is back, to everyone on the map it left and
-// to the character.
+// Respawned says a character is back, to the map it left and to the character.
 type Respawned struct {
 	Tick  uint64
 	ID    kernel.CharacterID
@@ -211,8 +195,7 @@ func (ExpGained) event() {}
 
 func (LevelUp) event() {}
 
-// Checkpoint is a character's non-economic state, saved every 30 seconds
-// (TD-02) and on map change and logout.
+// Checkpoint is a character's periodically saved, non-economic state.
 type Checkpoint struct {
 	ID    kernel.CharacterID
 	MapID string // the map it is on, or moving to
@@ -252,8 +235,7 @@ type InventoryChanged struct {
 	Slots []Slot
 }
 
-// Slot is one inventory slot a committed pickup touched; Item is nil when
-// the slot emptied.
+// Slot is one inventory slot a pickup touched; Item is nil when it emptied.
 type Slot struct {
 	Tab  gamedata.Tab
 	Slot int
@@ -267,18 +249,13 @@ type SlotItem struct {
 	Quantity int
 }
 
-// PickupFailed tells the player why a pickup did not happen; the drop
-// stays on the ground. Err is the item service's refusal (a full
-// inventory) as Pickups returned it, or one of the world's own errors
-// below; the gateway turns it into a Response.
+// PickupFailed says why a pickup failed; the drop stays on the ground.
 type PickupFailed struct {
 	Tick uint64
 	Err  error
 }
 
-// The pickup errors the world raises itself. Each names one failure; the
-// service's handler sends it as a reason, and the gateway gives it a code
-// and the words a player sees (its errmap).
+// The pickup errors the world raises itself.
 var (
 	ErrPickupsUnavailable = errors.New("world: pickups not wired")
 	ErrPickupBusy         = errors.New("world: pickup workers busy")
@@ -288,9 +265,7 @@ func (InventoryChanged) event() {}
 
 func (PickupFailed) event() {}
 
-// Pickup is one pickup for the item service: who picks up, and the drop's
-// contents. The drop's ID is the idempotency key and the cause, so a
-// retried pickup can only ever grant the drop once.
+// Pickup is one pickup for the item service; DropID is its idempotency key.
 type Pickup struct {
 	Account   kernel.AccountID // scopes the idempotency key
 	Character kernel.CharacterID

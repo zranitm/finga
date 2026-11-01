@@ -16,7 +16,6 @@ func TestHashFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	parts := strings.Split(h, "$")
-	// $argon2id$v=19$m=8192,t=1,p=1$<salt>$<hash>
 	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != "v=19" || parts[3] != "m=8192,t=1,p=1" {
 		t.Fatalf("not PHC argon2id: %q", h)
 	}

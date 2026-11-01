@@ -14,8 +14,7 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// The rows the step page wants against real Postgres: the partial unique
-// index is the backstop for one active session.
+// The partial unique index is the backstop for one active session.
 
 func newPGService(t *testing.T) (*application.Service, *Postgres) {
 	t.Helper()

@@ -1,5 +1,3 @@
-// The party as the server last described it, and the invites waiting for
-// an answer. Leader and member order follow the payload.
 import type { Data, PartyView } from '@/protocol/messages';
 
 import { defineStore } from './store';
@@ -8,7 +6,7 @@ export interface Invite {
   readonly invite_id: string;
   readonly from: string;
   readonly from_name: string;
-  readonly at: number; // Unix milliseconds, when it arrived; it expires 30 s later
+  readonly at: number; // Unix ms; expires 30 s later
 }
 
 export interface PartyState {
@@ -17,7 +15,6 @@ export interface PartyState {
   applyWelcome(d: Data<'Welcome'>): void;
   applyPartyState(d: Data<'PartyState'>): void;
   applyPartyInvited(d: Data<'PartyInvited'>, at?: number): void;
-  /** Answered or expired: the invite leaves the list. */
   dismissInvite(inviteId: string): void;
   clear(): void;
 }
@@ -43,7 +40,6 @@ export const party = defineStore<PartyState>((set, get) => ({
   },
 }));
 
-/** True when id is in the party. */
 export function isMember(p: PartyView | null, id: string): boolean {
   return p?.members.some((m) => m.character_id === id) ?? false;
 }

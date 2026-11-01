@@ -1,5 +1,3 @@
-// A fetch double for the REST client: scripted replies by method and path,
-// and a record of every call. Imported by tests only.
 import type { FetchLike, HttpResponse } from '@/net/rest';
 
 export interface FetchCall {
@@ -15,7 +13,6 @@ export type Script = (call: FetchCall) => Reply;
 export interface FakeFetch {
   readonly fetch: FetchLike;
   readonly calls: FetchCall[];
-  /** The calls for one method and path. */
   of(method: string, path: string): FetchCall[];
 }
 

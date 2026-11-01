@@ -1,13 +1,6 @@
 # syntax=docker/dockerfile:1
-# One Dockerfile for every binary; the SERVICE build argument picks which:
-# a service under services/ (gateway, item, ...) or a command under cmd/
-# (migrate). Build from server/ (infra/docker-compose.yml does):
-#   docker build --build-arg SERVICE=item .
-# The image holds that binary's own configuration file and nothing of the
-# others', at the path it has under server/ (services/item/config/config.yaml),
-# since the binary runs from /app as it runs from server/.
-# Go's module and build caches are BuildKit cache mounts, so the images
-# Compose builds side by side share one compilation.
+# One Dockerfile for every binary, from server/: docker build --build-arg SERVICE=item .
+# The image holds only that binary's config file, at its server/ path: the binary runs from /app as from server/.
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./

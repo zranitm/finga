@@ -6,28 +6,21 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "finga/api/gen/character/v1;characterv1";
 
-// CharacterService owns characters: creation, their stats, levels and EXP,
-// and the checkpoints the world saves (Low-level design, page 10). The
-// gateway lists and creates characters for REST; the world loads them on
-// join and saves checkpoints and level-ups from its persistence worker. A
-// failure carries a Reason in google.rpc.ErrorInfo.
+// CharacterService owns characters, their progression and the world's checkpoints.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 service CharacterService {
-  // Create makes a level 1 character in the town, commits it, then grants
-  // its starter items through the item service (idempotent, keyed by the
-  // character ID, retried until it succeeds or the deadline ends).
+  // Create makes a level 1 character in the town, then grants its starter items idempotently.
   rpc Create(CreateRequest) returns (CreateResponse);
   // List is an account's characters, oldest first.
   rpc List(ListRequest) returns (ListResponse);
-  // Load is one character, only if it belongs to the account; someone
-  // else's is REASON_CHARACTER_NOT_FOUND, like a missing one.
+  // Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
   rpc Load(LoadRequest) returns (LoadResponse);
-  // SaveCheckpoint saves position, HP, MP and EXP (TD-02).
+  // SaveCheckpoint saves position, HP, MP and EXP.
   rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
   // SaveLevelUp saves a level-up right away.
   rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse);
 }
 
-// Reason names a failure a caller can meet.
 enum Reason {
   REASON_UNSPECIFIED = 0;
   REASON_CHARACTER_NOT_FOUND = 1;
@@ -39,7 +32,6 @@ enum Reason {
   REASON_UNKNOWN_CLASS = 7;
 }
 
-// Stats are the five primary stats.
 message Stats {
   int32 strength = 1;
   int32 dexterity = 2;
@@ -48,8 +40,7 @@ message Stats {
   int32 vitality = 5;
 }
 
-// Character is a character as stored, with its maximum HP and MP derived
-// from class, stats and level.
+// Character is a character as stored, with its derived maximum HP and MP.
 message Character {
   string id = 1;
   string account_id = 2;

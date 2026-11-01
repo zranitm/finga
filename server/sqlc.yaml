@@ -1,11 +1,5 @@
-# sqlc: one entry per service with tables. Each service's queries live in
-# its repository layer's queries/ folder (services/<service>/internal/repository/,
-# page 11; services/<service>/internal/<module>/ until the service moves) and
-# generate into the repository's internal/db package, which Go lets only the
-# repository import. `make gen` runs it.
-# Each entry's schema is its own service's migrations (goose files; sqlc
-# ignores the Down sections), so a query is checked against the real tables
-# and cannot read another service's (Low-level design, page 10).
+# One entry per service with tables; queries generate into the repository's internal/db package.
+# Each schema is only that service's migrations, so a query cannot read another service's tables.
 version: "2"
 sql:
   - engine: postgresql

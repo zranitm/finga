@@ -14,15 +14,12 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// fixedRoll always returns the same value: every attack hits for average
-// damage, nothing crits, and spawned mobs face right.
+// fixedRoll always returns v: average damage, no crits, mobs face right.
 type fixedRoll struct{ v float64 }
 
 func (r fixedRoll) Float64() float64 { return r.v }
 
-// arena is a hunting map with a floor at 608 and one green slime standing
-// still on a 32 px platform at x 300 (its patrol bounds collapse to a
-// point), 18 px above the floor so a shot at chest height crosses it.
+// arena has a floor at 608 and one still slime on a 32 px platform at x 300, 18 px above it.
 func arena(respawn time.Duration) *gamedata.Map {
 	return &gamedata.Map{
 		ID: "arena", Kind: gamedata.Hunting, Town: "town", Width: 1280, Height: 640,
@@ -66,7 +63,6 @@ func damages(s *sink) []model.Damage {
 	return out
 }
 
-// runArena starts an arena instance in the bubble with a fixed roll.
 func runArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
 	t.Helper()
 	opts.TickInterval = tickInterval
@@ -177,7 +173,6 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 	})
 }
 
-// id finds the joining player's ID from the snapshot.
 func (s *sink) id(t *testing.T, _ *application.Instance) kernel.CharacterID {
 	t.Helper()
 	snap := s.all()[0].(model.Snapshot)
@@ -294,10 +289,9 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		if !v.Invulnerable {
 			t.Fatalf("not invulnerable after contact damage: %+v", v)
 		}
-		// Stop, wait inside the invulnerability window: no second hit. Then
-		// walk back in as it ends: a second hit.
+		// Wait out the invulnerability standing still, then walk back in for a second hit.
 		seq = walk(inst, id, seq, sim.Input{}, 22) // past the second of invulnerability, standing still
-		{                                          // the second is over: the Delta carries the cleared flag although the player stood still
+		{                                          // the Delta carries the cleared flag while standing still
 			var ticks []uint64
 			for _, d := range s.deltas() {
 				for _, pv := range d.Players {

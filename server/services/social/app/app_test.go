@@ -16,8 +16,6 @@ import (
 	"finga/services/social/config"
 )
 
-// The service as production builds it: an invite between two characters
-// online through a gateway reaches that gateway's stream.
 func TestAnInviteReachesTheGatewayOverTheRealListener(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

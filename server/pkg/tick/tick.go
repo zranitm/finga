@@ -1,7 +1,4 @@
-// Package tick runs a fixed-timestep loop: it calls a Steppable once per
-// interval, numbers the ticks, and reports how long each step took so the
-// caller can count overruns. A step that runs past the interval delays the
-// next one; missed intervals are dropped, not replayed.
+// Package tick runs a fixed-timestep loop; missed ticks are dropped, not replayed.
 package tick
 
 import (
@@ -12,13 +9,11 @@ import (
 
 // Steppable is what the loop drives.
 type Steppable interface {
-	// Step runs one tick. dt is the interval, the simulated time the step
-	// covers, whatever the wall clock did.
+	// Step runs one tick; dt is always the interval, whatever the wall clock did.
 	Step(tick uint64, dt time.Duration)
 }
 
-// Observer sees each completed step: its number, how long it took, and
-// the interval it had.
+// Observer sees each completed step's number, duration and interval.
 type Observer func(tick uint64, took, interval time.Duration)
 
 // Option tunes Run.
@@ -55,7 +50,7 @@ func Run(ctx context.Context, interval time.Duration, s Steppable, opts ...Optio
 		case <-ticker.C:
 		}
 		if ctx.Err() != nil {
-			return nil // a tick and the cancellation were both ready; the cancellation wins
+			return nil // both were ready; cancellation wins
 		}
 		n++
 		start := time.Now()

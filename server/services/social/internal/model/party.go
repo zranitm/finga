@@ -1,7 +1,4 @@
-// Package model is the social service's model (Low-level design, page 11):
-// parties, their members and invites, with page 5's limits; chat channels,
-// lines and the rule that cleans them; and the errors the use cases
-// return. It needs nothing but data.
+// Package model holds the social service's parties, invites, chat lines and errors.
 package model
 
 import (
@@ -11,14 +8,13 @@ import (
 	"finga/internal/kernel"
 )
 
-// Defaults (page 5).
+// Defaults.
 const (
 	DefaultMaxMembers = 4
 	DefaultInviteTTL  = 30 * time.Second
 )
 
-// Member is a party member as the others see them. The service learns
-// these from the gateway (online, offline) and the world (map, level, HP).
+// Member is a party member as the others see them, fed by the gateway and the world.
 type Member struct {
 	ID     kernel.CharacterID
 	Name   string
@@ -27,8 +23,7 @@ type Member struct {
 	MaxHP  int
 	MapID  string
 	Online bool
-	// JoinOrder is set by the service when the member joins a party: the
-	// longest-standing member has the lowest, and leads when the leader goes.
+	// JoinOrder is lowest for the longest-standing member, who leads when the leader goes.
 	JoinOrder uint64
 }
 
@@ -47,9 +42,7 @@ type Invite struct {
 	Expires  time.Time
 }
 
-// The party errors the commands return. Each names one failure; the service's
-// handler sends it as a reason, and the gateway gives it a code and the
-// words a player sees (its errmap).
+// The party errors; the handler sends each as a contract reason.
 var (
 	ErrNotLeader     = errors.New("party: not the leader")
 	ErrFull          = errors.New("party: full")

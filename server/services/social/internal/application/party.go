@@ -1,12 +1,4 @@
-// Package application is the social service's use cases (Low-level design,
-// page 11). PartyService keeps the parties (TD-19: in memory, one service
-// for the whole server): up to four members, invites that expire, a leader
-// who can kick and promote, and the state pushed to members after every
-// change through the Notifier port, which the handler's delivery streams
-// implement. ChatService cleans, limits and routes chat lines: the map
-// channel to everyone on the sender's map, the party channel to the
-// sender's party. Nothing is stored, so there is no repository; a restart
-// forgets every party.
+// Package application is the social service's party and chat use cases, held in memory.
 package application
 
 import (
@@ -20,13 +12,11 @@ import (
 	"finga/services/social/internal/model"
 )
 
-// Notifier is told what members must hear; the gateway implements it.
+// Notifier is told what members must hear.
 // Calls happen under the service's lock and must not block or call back.
 type Notifier interface {
-	// PartyChanged sends the new state to each listed member; p is nil for a
-	// member who no longer has a party.
+	// PartyChanged sends the new state to each member; p is nil for one who left.
 	PartyChanged(members []kernel.CharacterID, p *model.Party)
-	// Invited delivers an invite to its recipient.
 	Invited(to kernel.CharacterID, inv model.Invite)
 }
 
@@ -37,9 +27,7 @@ type PartyOptions struct {
 	Clock      func() time.Time
 }
 
-// PartyService holds every party and invite. A mutex serialises the commands
-// (page 3's "one actor"): each critical section is a few map operations,
-// and queries from a map tick take the same lock for microseconds.
+// PartyService holds every party and invite behind one mutex.
 type PartyService struct {
 	opts     PartyOptions
 	notifier Notifier
@@ -51,7 +39,7 @@ type PartyService struct {
 	seq     uint64
 }
 
-// NewPartyService makes an empty service. Notify sets where state changes go.
+// NewPartyService makes an empty service; Notify sets where state changes go.
 func NewPartyService(opts PartyOptions) *PartyService {
 	if opts.MaxMembers <= 0 {
 		opts.MaxMembers = model.DefaultMaxMembers
@@ -72,8 +60,7 @@ func (s *PartyService) Notify(n Notifier) {
 	s.notifier = n
 }
 
-// Online records a character as connected, with what the gateway knows.
-// A member of a party gets their row refreshed and the party is told.
+// Online records a character as connected and refreshes their party row.
 func (s *PartyService) Online(m model.Member) {
 	m.Online = true
 	s.upsert(m)
@@ -130,8 +117,7 @@ func (s *PartyService) refresh(id kernel.CharacterID, m model.Member) {
 	s.changed(p)
 }
 
-// Invite asks a character on the inviter's map to join. A character with
-// no party becomes a leader when the invite is accepted.
+// Invite asks a character on the inviter's map to join; a partyless inviter leads once it is accepted.
 func (s *PartyService) Invite(from, to kernel.CharacterID) (model.Invite, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -208,8 +194,7 @@ func (s *PartyService) Respond(who kernel.CharacterID, inviteID string, accept b
 	return nil
 }
 
-// Leave removes who from their party. The longest-standing member leads
-// when the leader leaves; an empty party is gone.
+// Leave removes who from their party; the longest-standing member replaces a leaving leader.
 func (s *PartyService) Leave(who kernel.CharacterID) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -269,10 +254,7 @@ func (s *PartyService) Of(id kernel.CharacterID) (model.Party, bool) {
 	return model.Party{Leader: p.Leader, Members: slices.Clone(p.Members)}, true
 }
 
-// Memberships calls visit with the member IDs of every party, under the
-// service's lock, so no change interleaves with the visit: a subscriber
-// that takes this snapshot and then hears every PartyChanged sees each
-// party's latest membership last. visit must not block or call back.
+// Memberships visits every party's member IDs under the lock; visit must not block or call back.
 func (s *PartyService) Memberships(visit func(members []kernel.CharacterID)) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -333,7 +315,6 @@ func (s *PartyService) changed(p *model.Party) {
 	s.notifier.PartyChanged(ids(p), &model.Party{Leader: p.Leader, Members: slices.Clone(p.Members)})
 }
 
-// expire drops invites past their time.
 func (s *PartyService) expire() {
 	now := s.opts.Clock()
 	for id, inv := range s.invites {

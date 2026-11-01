@@ -1,6 +1,3 @@
-// The collision view of a Tiled map (page 5's conventions), parsed from the
-// .tmj the server validates in CI. The maps hold only object layers, no
-// tile art; the World scene (C07) draws from the same objects.
 import * as v from 'valibot';
 
 import type { Geometry, Rect } from './step';
@@ -39,7 +36,6 @@ export interface Point {
   readonly y: number;
 }
 
-/** A portal leads to a named portal on another map; arrival is the bottom centre. */
 export interface Portal {
   readonly name: string;
   readonly area: Rect;
@@ -57,8 +53,8 @@ export interface Spawn {
 export interface MapView {
   readonly id: string;
   readonly kind: MapKind;
-  readonly town: string; // the map its players respawn in; a town names itself
-  readonly width: number; // pixels
+  readonly town: string; // respawn map; a town names itself
+  readonly width: number;
   readonly height: number;
   readonly geometry: Geometry;
   readonly portals: readonly Portal[];
@@ -75,12 +71,12 @@ export class MapError extends Error {
   }
 }
 
-/** Where a character arriving through the portal stands: the bottom centre. */
+/** The bottom centre of the portal. */
 export function arrival(p: Portal): Point {
   return { x: p.area.x + p.area.w / 2, y: p.area.y + p.area.h };
 }
 
-/** Parses a Tiled map; id is the file name without .tmj. */
+/** id is the file name without .tmj. */
 export function parseMap(id: string, json: unknown): MapView {
   const parsed = v.safeParse(tiledMap, json);
   if (!parsed.success) {

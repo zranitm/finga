@@ -24,7 +24,6 @@ const L: Input = { ...noInput, left: true };
 const RJ: Input = { ...noInput, right: true, jump: true };
 const DJ: Input = { ...noInput, down: true, jump: true };
 
-/** sim/step run directly, three sub-steps per tick, over a scripted input sequence. */
 function simulate(from: State, inputs: readonly Input[]): State[] {
   const out: State[] = [];
   let s = from;
@@ -42,7 +41,6 @@ function wire(s: State): WireState {
   return { x, y, vx, vy, on_ground, climbing, facing };
 }
 
-/** Runs a predictor through whole ticks with consecutive sequence numbers from 1. */
 function run(pred: Predictor, inputs: readonly Input[], firstSeq = 1): State[] {
   const out: State[] = [];
   inputs.forEach((input, i) => {

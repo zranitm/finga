@@ -1,10 +1,4 @@
-// Package handler is the social service's transport layer: the
-// SocialService gRPC server (api/proto/internal/social/v1) over the party
-// and chat modules. It is the party module's notifier: PartyState and
-// invites go out on Deliver to the gateway each member is online through
-// (presence, from Online), and every membership change goes to the world
-// nodes on WatchParties, so their ticks read a local copy. Party chat lines
-// are delivered here too; a map line goes back to the caller.
+// Package handler is the social service's SocialService gRPC server and the party module's notifier.
 package handler
 
 import (
@@ -41,8 +35,7 @@ type Chat interface {
 	Send(from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
 }
 
-// Queue sizes: what may wait for a slow gateway or world node before its
-// stream is ended and it subscribes again.
+// Queue sizes for a slow gateway or world node before its stream is dropped.
 const (
 	deliverQueue = 4096
 	watchQueue   = 4096
@@ -61,9 +54,7 @@ type Server struct {
 	presence map[kernel.CharacterID]string // the gateway each online character is on
 }
 
-// New builds the server; call the party module's Notify with it. bootID is
-// random per process start: a gateway that sees a new one knows the parties
-// are gone.
+// New builds the server for the party module's Notify; a new bootID tells gateways the parties are gone.
 func New(parties Parties, chat Chat, bootID string) *Server {
 	return &Server{
 		parties: parties, chat: chat, bootID: bootID,
@@ -82,10 +73,7 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 	return grpcx.ServeSubscription(stream, s.deliver.Subscribe(req.GetGatewayId()), first)
 }
 
-// WatchParties streams party membership to one world node: Subscribed, the
-// current memberships, then each change. The snapshot is queued under the
-// party module's lock, which every change also holds, so no change can
-// land before an older snapshot.
+// WatchParties streams a membership snapshot, queued under the party lock, then each change.
 func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.ServerStreamingServer[socialv1.WatchPartiesResponse]) error {
 	if req.GetWorldId() == "" {
 		return status.Error(codes.InvalidArgument, "world_id is required")
@@ -195,8 +183,7 @@ var channels = map[socialv1.ChatChannel]model.Channel{
 	socialv1.ChatChannel_CHAT_CHANNEL_PARTY: model.ChannelParty,
 }
 
-// Chat cleans and limits a line; a party line is delivered to every member,
-// a map line goes back to the caller.
+// Chat delivers a party line to every member; a map line goes back to the caller.
 func (s *Server) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.ChatResponse, error) {
 	from, err := kernel.ParseCharacterID(req.GetSenderId())
 	if err != nil {
@@ -225,9 +212,7 @@ func (s *Server) UpdateMember(_ context.Context, req *socialv1.UpdateMemberReque
 	return &socialv1.UpdateMemberResponse{}, nil
 }
 
-// PartyChanged implements party.Notifier: each listed member's gateway gets
-// the new state, and every world node the new membership. It runs under
-// the party module's lock and never blocks.
+// PartyChanged implements party.Notifier; it runs under the party lock and never blocks.
 func (s *Server) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 	state := &socialv1.PartyState{Party: partyOf(p)}
 	for _, id := range members {
@@ -242,15 +227,14 @@ func (s *Server) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 	s.watchers.Broadcast(membership(members, now))
 }
 
-// Invited implements party.Notifier: the invitee's gateway gets it.
+// Invited implements party.Notifier.
 func (s *Server) Invited(to kernel.CharacterID, inv model.Invite) {
 	s.send(to, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{
 		InviteId: inv.ID, FromId: inv.From.String(), FromName: inv.FromName,
 	}}})
 }
 
-// send delivers to the gateway a character is online through, if any; a
-// character offline, or whose gateway has no stream, misses it.
+// send delivers to the character's gateway, if it is online there with a stream.
 func (s *Server) send(to kernel.CharacterID, ev *socialv1.DeliverResponse) {
 	s.mu.Lock()
 	gateway, ok := s.presence[to]

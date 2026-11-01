@@ -14,18 +14,12 @@ import (
 	"finga/pkg/grpcx"
 )
 
-// partyUpdateQueue is how many member updates may wait for the social
-// service; past it they are dropped, and the member's next change carries
-// the latest state anyway.
+// partyUpdateQueue overflow drops updates; the member's next change carries the latest state.
 const partyUpdateQueue = 1024
 
-// updateTimeout bounds one UpdateMember call from the worker.
 const updateTimeout = 5 * time.Second
 
-// PartyCopy is the world's Parties over the social service (page 10, rule
-// 2: the tick never waits on another service). The tick reads a local copy
-// of party membership, fed by WatchParties and cleared when that stream
-// breaks; member updates go to a bounded queue a worker sends from.
+// PartyCopy is the world's Parties: a local copy fed by WatchParties, so the tick never waits.
 type PartyCopy struct {
 	c       socialv1.SocialServiceClient
 	worldID string

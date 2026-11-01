@@ -22,7 +22,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Reason names a failure a caller can meet.
 type Reason int32
 
 const (
@@ -87,7 +86,6 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{0}
 }
 
-// Stats are the five primary stats.
 type Stats struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Strength      int32                  `protobuf:"varint,1,opt,name=strength,proto3" json:"strength,omitempty"`
@@ -164,8 +162,7 @@ func (x *Stats) GetVitality() int32 {
 	return 0
 }
 
-// Character is a character as stored, with its maximum HP and MP derived
-// from class, stats and level.
+// Character is a character as stored, with its derived maximum HP and MP.
 type Character struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`

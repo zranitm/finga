@@ -102,9 +102,7 @@ func TestRepository(t *testing.T) {
 		for slot := range model.SlotsPerTab {
 			insertItem(t, store, model.Item{ID: kernel.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100, UpdatedAt: t0})
 		}
-		// The lock returns every row of the full tab, in slot order, which
-		// is what the service's free-slot search reads (its own test is in
-		// application).
+		// The lock returns the full tab in slot order, which the free-slot search relies on.
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			inv, err := uow.Items().LockInventory(ctx, full)
 			if err != nil {

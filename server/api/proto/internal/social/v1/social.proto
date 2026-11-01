@@ -4,48 +4,31 @@ package internal.social.v1;
 
 option go_package = "finga/api/gen/social/v1;socialv1";
 
-// SocialService owns parties, invites and chat, in memory (TD-19; Low-level
-// design, page 10). The gateway registers who is online on which gateway,
-// sends party and chat commands with the caller's character ID, and
-// receives party state, invites and party chat on Deliver. The world keeps
-// a copy of party membership from WatchParties and reports members' map,
-// level and HP with UpdateMember. A failure carries a Reason in
-// google.rpc.ErrorInfo.
+// SocialService owns parties, invites and chat, in memory.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 service SocialService {
-  // Deliver is a gateway node's stream: first Subscribed, then every
-  // PartyState, PartyInvited and party chat line for a character who is
-  // online through that gateway.
+  // Deliver streams Subscribed, then the party events of every character online through that gateway.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
-  // Online records a character as connected through a gateway; a party
-  // member's row is refreshed and the party told.
+  // Online records a character as connected through a gateway and tells its party.
   rpc Online(OnlineRequest) returns (OnlineResponse);
   // Offline marks a character as disconnected; their party keeps them.
   rpc Offline(OfflineRequest) returns (OfflineResponse);
-  // PartyOf is a character's party, if any.
   rpc PartyOf(PartyOfRequest) returns (PartyOfResponse);
-  // Invite asks a character on the inviter's map to join the inviter's
-  // party; a character with none becomes a leader when it is accepted.
+  // Invite asks a character on the same map to join; an inviter without a party leads the new one.
   rpc Invite(InviteRequest) returns (InviteResponse);
-  // Respond accepts or declines an invite addressed to the character.
   rpc Respond(RespondRequest) returns (RespondResponse);
-  // LeaveParty removes the character from its party.
   rpc LeaveParty(LeavePartyRequest) returns (LeavePartyResponse);
   // Kick removes a member; only the leader may.
   rpc Kick(KickRequest) returns (KickResponse);
-  // Promote hands leadership to another member.
   rpc Promote(PromoteRequest) returns (PromoteResponse);
-  // Chat cleans a line and charges the sender's limit. A party line is
-  // delivered here, to every member on any map; a map line is returned for
-  // the caller to hand to the world.
+  // Chat cleans a line and charges the sender's limit; a map line is returned for the world to deliver.
   rpc Chat(ChatRequest) returns (ChatResponse);
-  // WatchParties streams party membership to a world node: Subscribed,
-  // every current membership, then each change.
+  // WatchParties streams Subscribed, every current membership, then each change.
   rpc WatchParties(WatchPartiesRequest) returns (stream WatchPartiesResponse);
   // UpdateMember records what the world saw of a member: map, level, HP.
   rpc UpdateMember(UpdateMemberRequest) returns (UpdateMemberResponse);
 }
 
-// Reason names a failure a caller can meet.
 enum Reason {
   REASON_UNSPECIFIED = 0;
   REASON_NOT_PARTY_LEADER = 1;
@@ -66,14 +49,12 @@ enum Reason {
   REASON_BAD_ID = 16;
 }
 
-// ChatChannel is where a line goes.
 enum ChatChannel {
   CHAT_CHANNEL_UNSPECIFIED = 0;
   CHAT_CHANNEL_MAP = 1;
   CHAT_CHANNEL_PARTY = 2;
 }
 
-// Member is a party member as the others see them.
 message Member {
   string id = 1;
   string name = 2;
@@ -91,8 +72,7 @@ message Party {
 }
 
 message DeliverRequest {
-  // The subscribing gateway node; a second subscription with the same ID
-  // replaces the first.
+  // The subscribing gateway node; a second subscription with the same ID replaces the first.
   string gateway_id = 1;
 }
 
@@ -110,18 +90,15 @@ message DeliverResponse {
 
 // Subscribed is a stream's first message.
 message Subscribed {
-  // Random per process start: a new value means the service restarted and
-  // every party is gone.
+  // Random per process start: a new value means the service restarted and every party is gone.
   string boot_id = 1;
 }
 
-// PartyState is the character's party after a change; unset when it has
-// none any more.
+// PartyState is the character's party after a change; unset when it has none.
 message PartyState {
   Party party = 1;
 }
 
-// PartyInvited is an invite for the character.
 message PartyInvited {
   string invite_id = 1;
   string from_id = 2;
@@ -208,8 +185,7 @@ message ChatResponse {
 }
 
 message WatchPartiesRequest {
-  // The subscribing world node; a second subscription with the same ID
-  // replaces the first.
+  // The subscribing world node; a second subscription with the same ID replaces the first.
   string world_id = 1;
 }
 
@@ -220,8 +196,7 @@ message WatchPartiesResponse {
   }
 }
 
-// Membership is the party of some characters after a change: each listed
-// character's party is now members (empty: none).
+// Membership sets each listed character's party to members (empty: none).
 message Membership {
   repeated string character_ids = 1;
   repeated string members = 2;

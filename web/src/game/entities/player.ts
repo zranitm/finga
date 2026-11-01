@@ -1,6 +1,3 @@
-// The player view: a sprite that draws the state it is given (position,
-// facing, pose), with a name label when one is given. It owns no rules;
-// the scene passes it plain state.
 import type Phaser from 'phaser';
 
 import { ANIM, ART_SCALE, TEX } from '../keys';
@@ -10,7 +7,7 @@ import { climbMoving, poseFor } from './pose';
 import type { PoseState } from './pose';
 
 export interface PlayerState extends PoseState {
-  readonly x: number; // feet, bottom centre, as in sim/step
+  readonly x: number; // feet, as in sim/step
   readonly y: number;
   readonly facing: 1 | -1;
 }
@@ -45,14 +42,11 @@ const art: Readonly<Record<string, ClassArt>> = {
   },
 };
 
-/** The art for a class id; an unknown class gets the warrior's rather than nothing. */
 export function classArt(cls: string): ClassArt {
   return art[cls] ?? warrior;
 }
 
-/** The label sits this far above the feet: the 64 px sprite plus a margin. */
 const LABEL_ABOVE = 70;
-/** How long the swing pose shows after an attack. */
 const SWING_MS = 150;
 
 export class PlayerView {
@@ -73,7 +67,7 @@ export class PlayerView {
             .setOrigin(0.5, 1);
   }
 
-  /** Draws the state; `now` (ms) lets a recent attack keep its swing pose. */
+  /** `now` lets a recent attack keep its swing pose. */
   apply(s: PlayerState, now = Number.NEGATIVE_INFINITY): void {
     this.sprite.setPosition(s.x, s.y);
     this.sprite.setFlipX(s.facing < 0);
@@ -118,12 +112,10 @@ export class PlayerView {
     this.label?.setVisible(on);
   }
 
-  /** An attack went out now: the swing pose for a moment. */
   attack(now: number): void {
     this.swingUntil = now + SWING_MS;
   }
 
-  /** Lying down until respawn; the hit pose on its side. */
   setDead(dead: boolean): void {
     this.dead = dead;
   }

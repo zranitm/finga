@@ -28,8 +28,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	}
 }
 
-// The strict loader refuses a gRPC listener, which the gateway has not: each file holds only its
-// own service's keys.
+// The strict loader refuses another service's keys, such as a gRPC listener.
 func TestAKeyOfAnotherServiceIsRefused(t *testing.T) {
 	data, err := os.ReadFile("config.yaml")
 	if err != nil {

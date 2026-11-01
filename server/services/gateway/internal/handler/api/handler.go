@@ -1,9 +1,4 @@
-// Package api is the REST handler layer (Low-level design, pages 4 and
-// 11) on Gin (TD-26): it decodes requests, resolves the caller from the
-// bearer token, calls exactly one of the application's Lobby use cases per
-// endpoint, and maps results and errors to HTTP. Business rules live in
-// the services; this package only rejects input that is malformed whatever
-// the rules are.
+// Package api serves the gateway's REST API on Gin, one Lobby use case per endpoint.
 package api
 
 import (
@@ -21,8 +16,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// maxBodyBytes caps a request body; the biggest legitimate body is a
-// password of 128 characters.
+// maxBodyBytes caps a request body; the largest legitimate one holds a 128-character password.
 const maxBodyBytes = 64 << 10
 
 // Dependencies are the use cases and settings the handler is built from.
@@ -56,12 +50,7 @@ type api struct {
 	lobby *application.Lobby
 }
 
-// Mount puts the REST API on e under /api: the request log with panic
-// recovery outermost, then CORS, then authentication on the routes that
-// need a session. A path the engine does not route gets the API's JSON
-// answer (no_such_endpoint, or method_not_allowed for a known path asked
-// with another method) through the same log and CORS, so a preflight for
-// any path is answered too.
+// Mount serves the REST API under /api; unrouted paths also pass the log and CORS, so any preflight is answered.
 func Mount(d Dependencies) func(e *gin.Engine) {
 	return func(e *gin.Engine) {
 		h := &api{lobby: d.Lobby}
@@ -86,21 +75,16 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 	}
 }
 
-// NewHandler is the REST API alone, on an engine of its own as the gateway
-// builds it: what the handler's tests serve.
+// NewHandler serves the REST API alone on its own engine, for tests.
 func NewHandler(d Dependencies) http.Handler {
 	e := handler.NewEngine()
 	Mount(d)(e)
 	return e
 }
 
-// errMalformed tells decode's caller the request was refused.
 var errMalformed = errors.New("api: malformed request body")
 
-// decode reads one JSON document into v, rejecting unknown fields, trailing
-// data, and bodies over the limit. It is stricter than Gin's binding, which
-// accepts trailing data and switches unknown-field checks on for every
-// engine at once.
+// decode reads one JSON document into v; unlike Gin's binding it refuses trailing data and unknown fields.
 func decode(c *gin.Context, v any) error {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
 	dec := json.NewDecoder(c.Request.Body)
@@ -124,8 +108,7 @@ func decode(c *gin.Context, v any) error {
 	return nil
 }
 
-// missing rejects a structurally incomplete request: a required field left
-// out. Whether the value is acceptable is the service's rule.
+// missing rejects a request with a required field left out; validating values is the service's job.
 func missing(c *gin.Context, fields ...string) bool {
 	if slices.Contains(fields, "") {
 		writePublic(c, model.MissingField)
@@ -168,8 +151,6 @@ func (h *api) logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// logoutEverywhere ends every session of the account; the account service
-// tells the gateway, which closes the account's connections.
 func (h *api) logoutEverywhere(c *gin.Context) {
 	if err := h.lobby.LogoutEverywhere(c.Request.Context(), principalFrom(c)); err != nil {
 		writeError(c, err)

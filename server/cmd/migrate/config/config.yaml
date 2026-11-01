@@ -1,8 +1,5 @@
-# cmd/migrate/config/config.yaml: the migrate command's committed defaults,
-# for local runs and Compose (Low-level design, page 11): the database it
-# migrates and the log level. Any key can be overridden as FINGA_<KEY_PATH>
-# (FINGA_DATABASE_URL); CONFIG_PATH, or a git-ignored config.local.yaml
-# beside this file, replaces it. Nothing here is secret.
+# Committed defaults, nothing secret. Override a key as FINGA_<KEY_PATH> (FINGA_DATABASE_URL);
+# CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 
 log_level: info
 database:

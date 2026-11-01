@@ -1,14 +1,6 @@
 // @vitest-environment node
-// A live check of prediction against a running server (make up), run only
-// when FINGA_LIVE_URL is set:
-//
+// Runs only against a live server:
 //   FINGA_LIVE_URL=http://localhost:8080 FINGA_LIVE_DELAY_MS=100 npx vitest run prediction.live
-//
-// It plays scripted seconds of walking, jumping and stopping through the
-// real GameSocket, one Input per tick, and expects every Delta to match the
-// prediction (no reset) under timing jitter alone, with and without the
-// development network delay. A stall longer than the server's hold (five
-// ticks, backend step 18) is the design's real disagreement: one reset.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -30,11 +22,7 @@ const TICK_MS = 50;
 type Wire = Data<'Snapshot'>['players'][number];
 type Keys = Partial<Record<'left' | 'right' | 'up' | 'down' | 'jump', boolean>>;
 
-/**
- * The keys held on a tick: twelve ticks right with a jump, twelve back with a
- * jump, twelve standing; short enough to stay clear of the town walls, where a
- * stopped player would hide a disagreement.
- */
+// Short enough to stay clear of the town walls, where a stopped player would hide a disagreement.
 function script(tick: number): Keys {
   const phase = tick % 36;
   if (phase === 6) return { right: true, jump: true };
@@ -48,14 +36,10 @@ interface Run {
   readonly results: Reconciled[];
   readonly resets: number;
   readonly matches: number;
-  readonly drift: number; // px between the prediction and the last server state
+  readonly drift: number;
 }
 
-/**
- * Plays the script for the given ticks through a fresh character. `gapAt`
- * skips sending (and predicting) for `gapTicks` ticks at that tick, as a
- * stalled client would.
- */
+/** `gapAt` stalls the client for `gapTicks` ticks: nothing sent or predicted. */
 async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const origin = url!;
   const town = parseMap(
@@ -108,10 +92,9 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   for (let tick = 0; tick < ticks; tick++) {
     if (tick >= gapAt && tick < gapAt + gapTicks) {
       await sleep(Math.max(0, started + (tick + 1) * TICK_MS - Date.now()));
-      continue; // stalled on purpose: nothing sent, nothing predicted
+      continue;
     }
-    // The last ticks stand still, so the server holds nothing but a stop after
-    // the run ends (its five-tick hold then falls back to the held keys).
+    // End standing still so the server's five-tick hold replays a stop.
     const keys = tick >= ticks - 6 ? {} : script(tick);
     sender.releaseAll();
     for (const k of ['left', 'right', 'up', 'down', 'jump'] as const) {
@@ -129,9 +112,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
     for (let i = 0; i < STEPS_PER_TICK; i++) {
       predictor.subStep();
     }
-    // An absolute timeline: the loop does not drift by its own overhead. After a
-    // pause of the process longer than a tick, the missed time is dropped rather
-    // than sent as a burst, as lib/fixed-step does in the game.
+    // Absolute timeline; a pause longer than a tick is dropped, not sent as a burst.
     const due = started + (tick + 1) * TICK_MS;
     const now = Date.now();
     if (now > due + TICK_MS) {
@@ -140,7 +121,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
       await sleep(due - now);
     }
   }
-  await sleep(TICK_MS * 6 + delayMs * 2); // the last Deltas arrive
+  await sleep(TICK_MS * 6 + delayMs * 2);
   socket.close();
 
   const resets = results.filter((r) => r === 'reset').length;

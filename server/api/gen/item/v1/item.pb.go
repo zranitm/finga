@@ -21,8 +21,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Reason names a failure a caller can meet. Every one is a rule the
-// request ran into, so retrying the same request cannot help.
+// Reason names a failure a caller can meet; retrying the same request cannot help.
 type Reason int32
 
 const (
@@ -99,7 +98,6 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{0}
 }
 
-// CauseType says what caused a change.
 type CauseType int32
 
 const (
@@ -152,8 +150,7 @@ func (CauseType) EnumDescriptor() ([]byte, []int) {
 	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{1}
 }
 
-// Actor is who acts: the account scopes the idempotency keys, the
-// character owns the items.
+// Actor is who acts: the account scopes the idempotency keys, the character owns the items.
 type Actor struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -206,7 +203,6 @@ func (x *Actor) GetCharacterId() string {
 	return ""
 }
 
-// Cause is the origin of a change.
 type Cause struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Type  CauseType              `protobuf:"varint,1,opt,name=type,proto3,enum=internal.item.v1.CauseType" json:"type,omitempty"`
@@ -840,10 +836,9 @@ func (x *DiscardResponse) GetChanged() []*Slot {
 }
 
 type GrantStarterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Actor *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	// The character's class, whose starter items it gets.
-	Class         string `protobuf:"bytes,2,opt,name=class,proto3" json:"class,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	Class         string                 `protobuf:"bytes,2,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

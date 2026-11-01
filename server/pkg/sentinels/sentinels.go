@@ -1,7 +1,4 @@
-// Package sentinels reads Go source for the sentinel errors packages
-// declare and the ones a file names, so a test can check that an error
-// table maps every error a package can return. It parses source only and
-// never builds or runs it.
+// Package sentinels lists sentinel errors in Go source, for error-table completeness tests.
 package sentinels
 
 import (
@@ -13,9 +10,7 @@ import (
 	"strings"
 )
 
-// Declared lists "pkg.ErrName" for every exported package-level variable
-// named Err..., in the Go files under each directory, skipping tests and
-// generated code in internal/db.
+// Declared lists each "pkg.ErrName" var under dirs, skipping tests and internal/db.
 func Declared(dirs ...string) ([]string, error) {
 	var out []string
 	for _, dir := range dirs {

@@ -1,15 +1,9 @@
-// Request IDs and idempotency keys: UUID v4 built from
-// crypto.getRandomValues, prefixed r- and k- as the golden files show.
-// Not crypto.randomUUID: it exists only in secure contexts (HTTPS or
-// localhost), and a LAN playtest over plain http would crash on it.
-// Idempotency keys must be random, not counters: the server keeps them for
-// 24 hours per account, so a counter restarting after a reload would
-// collide with a key already used.
+// Not crypto.randomUUID: it exists only in secure contexts, so a LAN playtest over plain http would crash.
+// Keys must be random, not counters: the server keeps them 24 h, so a counter reset by a reload would collide.
 export type RandomBytes = (bytes: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>;
 
 const hex = Array.from({ length: 256 }, (_, n) => n.toString(16).padStart(2, '0'));
 
-/** A UUID v4 from 16 random bytes with the version and variant bits set. */
 export function uuidV4(random: RandomBytes = (b) => crypto.getRandomValues(b)): string {
   const b = random(new Uint8Array(16));
   if (b.length !== 16) {

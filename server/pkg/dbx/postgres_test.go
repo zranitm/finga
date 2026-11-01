@@ -67,9 +67,7 @@ func TestInTxAgainstPostgres(t *testing.T) {
 		if _, err := pool.Exec(ctx, `INSERT INTO t VALUES (10, 0), (11, 0)`); err != nil {
 			t.Fatal(err)
 		}
-		// Two transactions lock the same two rows in opposite orders; Postgres
-		// kills one with 40P01 after deadlock_timeout, InTx re-runs it, and both
-		// updates land. Each function counts how often it ran.
+		// Opposite lock orders make Postgres kill one with 40P01; InTx reruns it and both updates land.
 		var runs [2]int
 		var retries [2]int
 		var mu sync.Mutex

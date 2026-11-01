@@ -1,6 +1,4 @@
-// Command character runs the character service: characters, their stats,
-// levels and EXP, and the checkpoints the world saves, served over gRPC
-// (Low-level design, page 10). It runs until SIGINT or SIGTERM.
+// Command character runs the character service.
 package main
 
 import (

@@ -1,7 +1,4 @@
-// The other players on the map, by id and name, for the party window's
-// invite list (C13). Set by the World scene only when the set changes
-// (someone arrived or left), never per tick, so React does not re-render
-// with the world.
+// Set only when someone arrives or leaves, never per tick, so React does not re-render with the world.
 import { defineStore } from './store';
 
 export interface NearbyPlayer {

@@ -1,8 +1,4 @@
-// The view side of combat (C10) over plain data: mobs buffered and
-// interpolated like players, Damage messages turned into numbers and HP
-// changes, the attack cooldown that only gates sending, and the
-// invulnerability flash. The client never computes damage, hit chance or
-// EXP; it shows what the server sent.
+// The client never computes damage, hit chance or EXP; it shows what the server sent.
 import { classes } from '@/gamedata/classes';
 import type { Data } from '@/protocol/messages';
 
@@ -11,7 +7,7 @@ import { RemoteBuffer } from './interpolation';
 export type Ref =
   { readonly kind: 'player'; readonly id: string } | { readonly kind: 'mob'; readonly id: number };
 
-/** "p:<character id>" or "m:<mob id>" (page 4); anything else is undefined. */
+/** "p:<character id>" or "m:<mob id>". */
 export function parseRef(ref: string): Ref | undefined {
   if (ref.startsWith('p:') && ref.length > 2) {
     return { kind: 'player', id: ref.slice(2) };
@@ -36,7 +32,6 @@ export interface MobState {
   readonly max_hp: number;
 }
 
-/** The mobs on the map: positions on the server's tick clock, HP from the newest state or a Damage. */
 export class MobTracker {
   private readonly buffers = new Map<number, RemoteBuffer>();
   private readonly info = new Map<number, { type: string; hp: number; max_hp: number }>();
@@ -64,7 +59,7 @@ export class MobTracker {
     }
   }
 
-  /** A Damage for a mob: its bar drops at once; the next Delta confirms. */
+  /** The bar drops at once; the next Delta confirms. */
   damage(id: number, amount: number): void {
     const i = this.info.get(id);
     if (i) {
@@ -142,14 +137,13 @@ export interface DamageNumber {
 }
 
 export interface DrawnNumber extends DamageNumber {
-  readonly dy: number; // how far it has risen
+  readonly dy: number;
   readonly alpha: number;
 }
 
 export const NUMBER_LIFE_MS = 800;
 const RISE_PX = 40;
 
-/** The text and kind for a Damage; the local player's own hits taken are red. */
 export function numberFor(
   d: { readonly amount: number; readonly crit?: boolean; readonly miss?: boolean },
   targetIsMe: boolean,
@@ -163,7 +157,6 @@ export function numberFor(
   return d.crit ? { text: `${d.amount}!`, kind: 'crit' } : { text: String(d.amount), kind: 'hit' };
 }
 
-/** Numbers rising and fading for NUMBER_LIFE_MS; plain data the scene draws. */
 export class DamageNumbers {
   private items: DamageNumber[] = [];
   private nextId = 1;
@@ -174,7 +167,6 @@ export class DamageNumbers {
     return n;
   }
 
-  /** The live numbers with their rise and fade at now; expired ones are dropped. */
   update(now: number): DrawnNumber[] {
     this.items = this.items.filter((n) => now - n.bornAt < NUMBER_LIFE_MS);
     return this.items.map((n) => {
@@ -192,15 +184,11 @@ export class DamageNumbers {
   }
 }
 
-/** The class's attack cooldown from the generated data; an unknown class gets the warrior's. */
 export function classCooldownMs(cls: string): number {
   return (classes.find((c) => c.id === cls) ?? classes[0]).attack.cooldown_ms;
 }
 
-/**
- * Gates Attack sends by the class cooldown, only so a held key does not
- * spam the server (which decides hits and enforces the cooldown itself).
- */
+/** Only stops a held key spamming the server, which enforces the cooldown itself. */
 export class AttackGate {
   private readyAt = Number.NEGATIVE_INFINITY;
 
@@ -209,7 +197,6 @@ export class AttackGate {
     private readonly send: () => boolean,
   ) {}
 
-  /** True when an Attack went out now. */
   tryAttack(now: number): boolean {
     if (now < this.readyAt) {
       return false;
@@ -223,7 +210,7 @@ export class AttackGate {
   }
 }
 
-/** The invulnerability flash follows the player state's flag, not a local timer. */
+/** Follows the server's invulnerable flag, not a local timer. */
 export class InvulnFlash {
   private on = false;
   private since = 0;
@@ -239,7 +226,6 @@ export class InvulnFlash {
     return this.on;
   }
 
-  /** The sprite alpha at now: steady when off, blinking every 100 ms when on. */
   alpha(now: number): number {
     if (!this.on) {
       return 1;

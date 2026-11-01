@@ -31,7 +31,6 @@ var (
 	}
 )
 
-// fakeCharacters records what the handler asked and answers err when set.
 type fakeCharacters struct {
 	created    application.CreateInput
 	account    kernel.AccountID

@@ -7,8 +7,7 @@ import (
 	"finga/internal/protocol"
 )
 
-// Player is the character a connection plays, as the gateway keeps it to
-// introduce the player to its party.
+// Player is the character a connection plays, as its party sees it.
 type Player struct {
 	ID    kernel.CharacterID
 	Name  string
@@ -17,23 +16,19 @@ type Player struct {
 	MaxHP int
 }
 
-// Presence is where a connected player is: the character and its map,
-// which every world command carries.
+// Presence is where a connected player is; every world command carries it.
 type Presence struct {
 	Character kernel.CharacterID
 	MapID     string
 }
 
-// Actor is who acts on items: the account scopes idempotency keys, the
-// character owns the items.
+// Actor is who acts on items: the account scopes idempotency keys, the character owns the items.
 type Actor struct {
 	Account   kernel.AccountID
 	Character kernel.CharacterID
 }
 
-// Welcome is what a player who joined starts from: the token to use from
-// now on (every Hello rotates it), the character, its inventory and its
-// party (nil: none), the map, and the server's clock.
+// Welcome is what a joined player starts from; Token replaces the one Hello sent.
 type Welcome struct {
 	Token      string
 	Character  protocol.CharacterView
@@ -43,13 +38,12 @@ type Welcome struct {
 	ServerTime time.Time
 }
 
-// Keys are the keys a player holds, which an input carries.
+// Keys are the keys a player holds.
 type Keys struct {
 	Left, Right, Up, Down, Jump bool
 }
 
-// ItemMove moves an item to a slot of a tab. The idempotency key makes a
-// retried command safe.
+// ItemMove moves an item to a slot of a tab.
 type ItemMove struct {
 	IdempotencyKey string
 	Item           kernel.ItemID

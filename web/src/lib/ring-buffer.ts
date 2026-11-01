@@ -1,9 +1,7 @@
-// A fixed-capacity buffer that keeps the newest items: push past the
-// capacity overwrites the oldest. Iteration runs from oldest to newest, and
-// find looks items up by a key (inputs by sequence number in C08).
+// Push past capacity overwrites the oldest; iteration runs oldest to newest.
 export class RingBuffer<T> implements Iterable<T> {
   private readonly items: (T | undefined)[];
-  private start = 0; // index of the oldest item
+  private start = 0;
   private count = 0;
 
   constructor(readonly capacity: number) {

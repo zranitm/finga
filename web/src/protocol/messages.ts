@@ -1,7 +1,4 @@
-// One typed definition of every Stage 1 message (page 4), as valibot
-// schemas the TypeScript types are inferred from, so a type and its check
-// can't drift. The golden files in server/testdata/contracts/ are the reference:
-// the protocol test decodes and re-encodes every one of them.
+// Types are inferred from the schemas; server/testdata/contracts/ is the reference.
 import * as v from 'valibot';
 
 import { errorCodes, kickReasons } from './errors';
@@ -48,8 +45,6 @@ export const partyMemberSchema = v.object({
 
 export const partyViewSchema = v.object({ leader: id, members: v.array(partyMemberSchema) });
 
-// Entities on the map, shared by Snapshot and Delta. dead and invulnerable
-// (backend step 19) are omitted by the server when false.
 export const playerViewSchema = v.object({
   id,
   name: v.string(),
@@ -94,7 +89,6 @@ export const inventorySlotSchema = v.object({
 
 const empty = v.object({});
 
-/** The payload schema of every message, keyed by its wire type. */
 export const schemas = {
   // Client to server
   Hello: v.object({ token: v.string(), protocol_version: int, character_id: id }),
@@ -195,10 +189,8 @@ export function isMessageType(t: string): t is MessageType {
   return Object.hasOwn(schemas, t);
 }
 
-/** The decoded payload of one message type. */
 export type Data<T extends MessageType> = v.InferOutput<(typeof schemas)[T]>;
 
-/** One decoded message: the envelope plus its typed payload. */
 export interface MessageOf<T extends MessageType> {
   readonly t: T;
   readonly req?: string;
@@ -207,7 +199,6 @@ export interface MessageOf<T extends MessageType> {
   readonly d: Data<T>;
 }
 
-/** Every message, as a discriminated union on t. */
 export type Message = { [T in MessageType]: MessageOf<T> }[MessageType];
 
 export type PlayerView = v.InferOutput<typeof playerViewSchema>;

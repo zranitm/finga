@@ -1,6 +1,3 @@
-// Short notices over the game (C11): a refused pickup, a busy server.
-// Pushed by app/wiring from Responses with no request ID, shown by the HUD,
-// dismissed by a click or after a few seconds.
 import { defineStore } from './store';
 
 export type ToastKind = 'error' | 'info';
@@ -18,7 +15,7 @@ export interface ToastsState {
   clear(): void;
 }
 
-/** Never more than this many at once; the oldest goes first. */
+/** The oldest goes first. */
 export const MAX_TOASTS = 4;
 
 let nextId = 1;

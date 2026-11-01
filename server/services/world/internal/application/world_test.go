@@ -18,8 +18,7 @@ import (
 // errRefused is a save the character service refuses by rule: never retried.
 var errRefused = errors.New("refused")
 
-// fakeSaver records checkpoints and level-ups, as the character service
-// would; failures fail the first that many attempts with err.
+// fakeSaver records saves; the first failures attempts fail with err.
 type fakeSaver struct {
 	mu       sync.Mutex
 	saved    []model.Checkpoint
@@ -132,9 +131,7 @@ func TestWorld(t *testing.T) {
 	})
 }
 
-// The persistence worker retries a failed save with backoff, in order, for
-// up to a minute (page 10): a character service restart must
-// not lose a level-up, which no later checkpoint carries.
+// A character service restart must not lose a level-up, which no later checkpoint carries.
 func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 	run := func(t *testing.T, saver *fakeSaver, jobs ...model.Job) {
 		t.Helper()
@@ -173,9 +170,7 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 					levelUps++
 				}
 			}
-			// Backoff from 100 ms doubling to 5 s fits about fifteen tries in a
-			// minute; then the worker gives the level-up up and saves the
-			// checkpoint, which keeps failing for its own minute.
+			// About fifteen tries fit in a minute; then the level-up is dropped and the checkpoint tried.
 			if levelUps < 3 || levelUps > 20 || got[levelUps] != "cp forest" {
 				t.Fatalf("%d level-up attempts, then %v", levelUps, got[levelUps:])
 			}

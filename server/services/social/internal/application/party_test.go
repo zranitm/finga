@@ -11,7 +11,6 @@ import (
 	"finga/services/social/internal/model"
 )
 
-// recorder keeps every notification in order.
 type recorder struct {
 	mu      sync.Mutex
 	states  []stateCall
@@ -71,7 +70,6 @@ func newFixture(t *testing.T, names ...string) *fixture {
 
 func (f *fixture) id(n string) kernel.CharacterID { return f.ids[n] }
 
-// invite sends and accepts in one go.
 func (f *fixture) invite(t *testing.T, from, to string) {
 	t.Helper()
 	inv, err := f.svc.Invite(f.id(from), f.id(to))
@@ -220,8 +218,7 @@ func TestPartyLifecycle(t *testing.T) {
 		if leader != "Ayla" || !equal(members, []string{"Ayla", "Robin"}) {
 			t.Fatalf("leader %s members %v", leader, members)
 		}
-		// Robin joined before Cass did; Cass rejoins, then Ayla leaves:
-		// Robin leads, not Cass.
+		// Robin joined before Cass rejoined, so Robin leads when Ayla leaves.
 		f.invite(t, "Ayla", "Cass")
 		if err := f.svc.Leave(f.id("Ayla")); err != nil {
 			t.Fatal(err)
@@ -283,7 +280,6 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); err != nil {
 		t.Fatalf("same map: %v", err)
 	}
-	// Offline characters cannot be invited either.
 	f.svc.Offline(f.id("Cass"))
 	f.now = f.now.Add(time.Minute)
 	if _, err := f.svc.Invite(f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
@@ -312,12 +308,10 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	if m := last.party.Members[1]; !m.Online || m.Level != 5 || m.MapID != "cave" || m.HP != 10 || m.MaxHP != 300 {
 		t.Fatalf("after Robin came back: %+v", m)
 	}
-	// The world reports a level-up and a map change.
 	f.svc.Update(f.id("Ayla"), "cave", 2, 250, 250)
 	if m := f.rec.last().party.Members[0]; m.Level != 2 || m.MapID != "cave" || m.HP != 250 {
 		t.Fatalf("after Ayla's update: %+v", m)
 	}
-	// Strangers: no party, no members, not the same party.
 	cass := kernel.NewCharacterID()
 	if f.svc.Members(cass) != nil || f.svc.SameParty(f.id("Ayla"), cass) {
 		t.Fatal("a stranger has a party")

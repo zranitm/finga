@@ -1,8 +1,4 @@
-// Package invariants holds the item service's Stage 1 invariant checks
-// (Low-level design, page 6: 5, 6 and 8) as plain functions over its
-// tables. It sits outside the service's internal/ on purpose: the item
-// module's tests, the end-to-end tests and the crash test run them, and the
-// Stage 2 auditor will.
+// Package invariants holds the item service's invariant checks, outside internal/ for the e2e tests.
 package invariants
 
 import (
@@ -13,10 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Each check returns the mismatches it found; any mismatch is a failure.
-
-// CheckQuantityMatchesEvents is check 5: each item's quantity equals the
-// sum of its item events' quantity deltas.
+// CheckQuantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
 func CheckQuantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT i.id, i.quantity, coalesce(sum(e.quantity_delta), 0)
@@ -39,11 +32,8 @@ func CheckQuantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]stri
 	return out, rows.Err()
 }
 
-// CheckTemplateTotals is check 6: per template, the total quantity held
-// equals what was created minus what was discarded. Every change is an
-// event, so the events of a template's items sum to its live quantity.
-// Items and events are summed apart, then compared: joining them row by
-// row would multiply each quantity by its number of events.
+// CheckTemplateTotals is check 6: per template, the quantity held equals its events' delta sum.
+// Items and events are summed apart; a row join would multiply quantities by event count.
 func CheckTemplateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT held.template_id, held.quantity, coalesce(ev.delta, 0)

@@ -23,7 +23,6 @@ const kickMessages: Record<string, string> = {
   server_restart: 'The server restarted.',
 };
 
-/** Sign up and log in (A1). Login and sign-up share one form with a mode switch. */
 export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [username, setUsername] = useState('');

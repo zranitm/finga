@@ -23,7 +23,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Reason names a failure a caller can meet.
 type Reason int32
 
 const (
@@ -31,8 +30,7 @@ const (
 	// The world cannot take the player now (an instance's inbox is full).
 	Reason_REASON_BUSY Reason = 1
 	// The character is on a map the world does not run.
-	Reason_REASON_NO_MAP Reason = 2
-	// The instance has stopped.
+	Reason_REASON_NO_MAP  Reason = 2
 	Reason_REASON_STOPPED Reason = 3
 	// No Deliver stream is open for the gateway.
 	Reason_REASON_NOT_SUBSCRIBED      Reason = 4
@@ -96,8 +94,7 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{0}
 }
 
-// Presence routes a command: the character, and the map the caller
-// believes it is on; an instance ignores a character it does not hold.
+// Presence routes a command to the map the caller believes the character is on.
 type Presence struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
@@ -150,7 +147,6 @@ func (x *Presence) GetMapId() string {
 	return ""
 }
 
-// Keys are the held keys of one Input.
 type Keys struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Left          bool                   `protobuf:"varint,1,opt,name=left,proto3" json:"left,omitempty"`
@@ -370,8 +366,7 @@ func (x *CharacterView) GetY() float64 {
 
 type DeliverRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The subscribing gateway node; a second subscription with the same ID
-	// replaces the first.
+	// The subscribing gateway node; a second subscription with the same ID replaces the first.
 	GatewayId     string `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1211,8 +1206,7 @@ func (x *Delta) GetRemovedDrops() []uint64 {
 	return nil
 }
 
-// Teleport moves the player to another map (a portal, or a respawn away
-// from the town); the target instance sends the Snapshot.
+// Teleport moves the player to another map; the target instance sends the Snapshot.
 type Teleport struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	MapId         string                 `protobuf:"bytes,1,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
@@ -1273,7 +1267,6 @@ func (x *Teleport) GetY() float64 {
 	return 0
 }
 
-// EntityRef names a player or a mob.
 type EntityRef struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Ref:
@@ -1433,7 +1426,6 @@ func (x *Damage) GetMiss() bool {
 	return false
 }
 
-// Died says a character fell.
 type Died struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
@@ -1494,7 +1486,6 @@ func (x *Died) GetY() float64 {
 	return 0
 }
 
-// Respawned says a character is back.
 type Respawned struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
@@ -1571,8 +1562,7 @@ func (x *Respawned) GetHp() int32 {
 	return 0
 }
 
-// ExpGained is EXP awarded to the player (negative for the death penalty),
-// after the award.
+// ExpGained is EXP awarded (negative for the death penalty) and the total after it.
 type ExpGained struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Amount        int64                  `protobuf:"varint,1,opt,name=amount,proto3" json:"amount,omitempty"`
@@ -1776,15 +1766,12 @@ func (x *InventoryChanged) GetSlots() []*v11.Slot {
 	return nil
 }
 
-// PickupFailed says why a pickup did not happen; the drop stays. The
-// reason is the failing service's: the item service's (inventory full) or
-// the world's own (pickups busy).
+// PickupFailed says why a pickup did not happen; the drop stays.
 type PickupFailed struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The proto package of the service whose Reason this is.
 	ErrorDomain string `protobuf:"bytes,1,opt,name=error_domain,json=errorDomain,proto3" json:"error_domain,omitempty"`
-	// The Reason's value name, for example REASON_INVENTORY_FULL; empty for
-	// a failure nobody expected.
+	// The Reason's value name, such as REASON_INVENTORY_FULL; empty when unexpected.
 	ErrorReason   string `protobuf:"bytes,2,opt,name=error_reason,json=errorReason,proto3" json:"error_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

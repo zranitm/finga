@@ -1,8 +1,4 @@
-// The game socket (page 7, Sending and Connection loss; page 4, WebSocket):
-// Hello on open, typed subscriptions, requests matched to their Response by
-// req, one Input per tick, a Ping every 15 s, reconnect with backoff after
-// a drop, and the server's close codes and Kicked reasons as typed events.
-// It knows nothing about stores or Phaser; app/wiring connects them.
+// Knows nothing about stores or Phaser; app/wiring connects them.
 import { backoff } from '@/lib/backoff';
 import type { BackoffOptions } from '@/lib/backoff';
 import { requestId } from '@/lib/id';
@@ -16,7 +12,6 @@ import { clearToken, getToken, setToken } from './token';
 
 export const PROTOCOL_VERSION = 1;
 
-/** The server's close codes (page 4). */
 export const CLOSE_SLOW_CONSUMER = 4001;
 export const CLOSE_NO_PONG = 4002;
 export const CLOSE_KICKED = 4003;
@@ -26,22 +21,21 @@ export type SocketStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' 
 
 /** Why the socket is closed for good. */
 export type ClosedReason =
-  | 'user' // close() was called
-  | 'kicked' // a Kicked reason the player must see: logged_in_elsewhere, abuse
-  | 'session_ended' // unauthenticated or session_expired: the token was cleared, log in again
+  | 'user'
+  | 'kicked' // logged_in_elsewhere or abuse
+  | 'session_ended' // the token was cleared; log in again
   | 'outdated_protocol' // the page must reload
   | 'bad_message' // 4004: a client bug a retry would repeat
-  | 'no_token'; // connect was called without a session token
+  | 'no_token';
 
 export interface StatusEvent {
   readonly status: SocketStatus;
   readonly reason?: ClosedReason;
   readonly kick?: KickReason;
   readonly code?: number;
-  readonly attempt?: number; // reconnect attempts so far
+  readonly attempt?: number;
 }
 
-/** A request the server refused, or one that got no answer. */
 export class RequestError extends Error {
   constructor(
     readonly code: ErrorCode | 'timeout' | 'disconnected',
@@ -63,7 +57,6 @@ type RequestType =
 type ActionType = 'Attack' | 'PickUp' | 'EnterPortal';
 
 export interface SocketOptions {
-  /** ws(s)://host/ws */
   readonly url: string;
   readonly codec?: Codec;
   readonly WebSocket?: new (url: string) => WebSocket;
@@ -73,7 +66,7 @@ export interface SocketOptions {
   readonly pingIntervalMs?: number;
   readonly pongTimeoutMs?: number;
   readonly backoff?: BackoffOptions;
-  /** Development only: a one-way delay on every frame sent and received, for latency checks. */
+  /** Development only: a one-way delay on every frame, for latency checks. */
   readonly delayMs?: number;
 }
 
@@ -120,9 +113,8 @@ export class GameSocket {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private pongDeadline: ReturnType<typeof setTimeout> | null = null;
 
-  /** Round-trip time from the last Pong, in milliseconds. */
   rtt: number | null = null;
-  /** server time minus client time, from the last Pong. */
+  /** Server time minus client time. */
   serverTimeOffset: number | null = null;
 
   constructor(private readonly opts: SocketOptions) {
@@ -141,12 +133,12 @@ export class GameSocket {
     return this.status;
   }
 
-  /** The sequence number the next Input will carry minus one: the last one sent. */
+  /** The last Input sequence number sent. */
   get sequence(): number {
     return this.seq;
   }
 
-  /** Opens the socket, says Hello for the character, and resolves on Welcome. */
+  /** Resolves on Welcome. */
   connect(characterId: string): Promise<Data<'Welcome'>> {
     if (getToken() === null) {
       this.setStatus({ status: 'closed', reason: 'no_token' });
@@ -159,7 +151,6 @@ export class GameSocket {
     return this.open();
   }
 
-  /** Closes for good; nothing reconnects. */
   close(): void {
     this.closedByUser = true;
     this.stopPing();
@@ -172,7 +163,6 @@ export class GameSocket {
     this.setStatus({ status: 'closed', reason: 'user' });
   }
 
-  /** Subscribes to one message type; returns the unsubscribe function. */
   on<T extends MessageType>(t: T, handler: Handler<T>): () => void {
     let set = this.handlers.get(t);
     if (!set) {
@@ -201,7 +191,6 @@ export class GameSocket {
     };
   }
 
-  /** A frame the codec rejected: reported, never thrown. */
   onProtocolError(handler: (err: ProtocolError) => void): () => void {
     this.errorHandlers.add(handler);
     return () => {
@@ -209,11 +198,7 @@ export class GameSocket {
     };
   }
 
-  /**
-   * Sends this tick's sampled keys with the next sequence number. One Input
-   * per tick: a second call for the same tick is refused, so no caller can
-   * exceed the server's limit.
-   */
+  /** A second call for the same tick is refused, so no caller can exceed the server's one Input per tick. */
   sendInput(input: Input, tick: number): boolean {
     if (!this.isOpen() || tick === this.lastInputTick) {
       return false;
@@ -224,7 +209,6 @@ export class GameSocket {
     return true;
   }
 
-  /** Attack, PickUp or EnterPortal, right away, with the current sequence number. */
   sendAction(t: ActionType): boolean {
     if (!this.isOpen()) {
       return false;
@@ -233,7 +217,6 @@ export class GameSocket {
     return true;
   }
 
-  /** A fire-and-forget message with no sequence number: ChatSend, Ping. */
   send<T extends 'ChatSend' | 'Ping'>(t: T, d: Data<T>): boolean {
     if (!this.isOpen()) {
       return false;
@@ -242,12 +225,7 @@ export class GameSocket {
     return true;
   }
 
-  /**
-   * A command that expects a Response, matched by req. Rejects with the
-   * server's code, after the timeout, or when the connection ends for good.
-   * A request pending across a reconnect is re-sent once with a new req and
-   * the same payload, so its idempotency key survives.
-   */
+  /** Pending across a reconnect, it is re-sent once with a new req and the same payload, keeping its idempotency key. */
   request<T extends RequestType>(t: T, d: Data<T>): Promise<Data<'Response'>> {
     return new Promise((resolve, reject) => {
       const req = requestId();
@@ -270,8 +248,6 @@ export class GameSocket {
       }
     });
   }
-
-  // --- connection ---
 
   private open(): Promise<Data<'Welcome'>> {
     return new Promise((resolve, reject) => {
@@ -303,7 +279,7 @@ export class GameSocket {
       };
       const handle = (msg: Message) => {
         if (this.ws !== ws) {
-          return; // arrived (after the dev delay) for a socket already replaced
+          return; // delayed frame for a socket already replaced
         }
         if (msg.t === 'Welcome' && !welcomed) {
           welcomed = true;
@@ -329,7 +305,7 @@ export class GameSocket {
       ws.onclose = (event: CloseEvent) => {
         clearTimeout(helloTimer);
         if (this.ws !== ws) {
-          return; // an old socket, already replaced
+          return;
         }
         this.ws = null;
         this.stopPing();
@@ -341,7 +317,7 @@ export class GameSocket {
         this.afterClose(event.code, kick);
       };
       ws.onerror = () => {
-        // The close event that follows carries the decision.
+        // onclose follows and decides.
       };
     });
   }
@@ -378,7 +354,6 @@ export class GameSocket {
           return;
       }
     }
-    // 4001, 4002, a dropped connection, a normal close from the server: back off and come back.
     this.reconnect();
   }
 
@@ -426,8 +401,6 @@ export class GameSocket {
       this.pending.delete(req);
     }
   }
-
-  // --- messages ---
 
   private decode(raw: unknown): Message | null {
     try {
@@ -503,7 +476,6 @@ export class GameSocket {
     }
   }
 
-  /** Runs fn now, or after the development delay when one is set. */
   private afterDelay(fn: () => void): void {
     if (this.delayMs > 0) {
       setTimeout(fn, this.delayMs);
@@ -523,8 +495,6 @@ export class GameSocket {
     }
   }
 
-  // --- ping ---
-
   private startPing(): void {
     this.stopPing();
     this.pingTimer = setInterval(() => {
@@ -534,7 +504,7 @@ export class GameSocket {
       this.send('Ping', { client_time: this.now() });
       this.pongDeadline ??= setTimeout(() => {
         this.pongDeadline = null;
-        // A silent connection: drop it; the close handler reconnects.
+        // onclose reconnects.
         const ws = this.ws;
         if (ws) {
           ws.close(1000, 'no pong');

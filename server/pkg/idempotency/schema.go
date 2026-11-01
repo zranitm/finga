@@ -1,9 +1,6 @@
 package idempotency
 
-// Schema is the table Store reads and writes, as DDL. A service that uses
-// idempotency keys creates it in one of its own migrations, and this
-// package's tests create it from here; a test in that service checks the
-// two agree.
+// Schema is Store's table DDL, which a service's migration must match.
 const Schema = `
 CREATE TABLE idempotency_keys (
   owner        text NOT NULL,

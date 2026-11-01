@@ -1,5 +1,3 @@
-// Damage numbers (C10): one Phaser text per live number from the pure
-// DamageNumbers queue, rising and fading as it says.
 import type Phaser from 'phaser';
 
 import type { DrawnNumber, NumberKind } from '../systems/combat-view';
@@ -16,7 +14,6 @@ export class DamageNumberLayer {
 
   constructor(private readonly scene: Phaser.Scene) {}
 
-  /** Creates, moves and fades texts to match the live numbers; destroys the rest. */
   sync(drawn: readonly DrawnNumber[]): void {
     const live = new Set<number>();
     for (const n of drawn) {

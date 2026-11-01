@@ -1,8 +1,4 @@
-// Hand-run check of the net layer against a running server (make up):
-// signs up, logs in, creates a character, opens the socket, says Hello and
-// prints the Welcome. Standalone on purpose (Node's fetch and WebSocket,
-// raw JSON), so it needs no bundler:
-//
+// Hand-run against a live server; standalone so it needs no bundler:
 //   node scripts/smoke-net.ts [http://localhost:8080]
 export {};
 const serverOrigin = process.argv[2] ?? 'http://localhost:8080';

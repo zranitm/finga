@@ -44,8 +44,7 @@ func (s Social) Offline(ctx context.Context, character kernel.CharacterID) error
 	return errmap.Wrap(err)
 }
 
-// chatChannels are the client's channels in the contract; anything else is
-// unspecified, which the social service refuses.
+// chatChannels maps client channels to the contract's; the service refuses anything else.
 var chatChannels = map[protocol.ChatChannel]socialv1.ChatChannel{
 	protocol.ChatMap:   socialv1.ChatChannel_CHAT_CHANNEL_MAP,
 	protocol.ChatParty: socialv1.ChatChannel_CHAT_CHANNEL_PARTY,
@@ -94,8 +93,7 @@ func (s Social) Promote(ctx context.Context, leader, target kernel.CharacterID) 
 	return errmap.Wrap(err)
 }
 
-// FollowDeliveries follows this gateway's party and chat stream until ctx
-// ends, turning each event into what its player sees.
+// FollowDeliveries follows this gateway's party and chat stream until ctx ends.
 func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent)) {
 	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.DeliverResponse], error) {
 		return s.c.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: gateway})

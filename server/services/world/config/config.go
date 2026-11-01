@@ -1,7 +1,4 @@
-// Package config is the world service's configuration (the map instances):
-// config.yaml beside this file, with only the keys the service uses
-// (Low-level design, page 11). Every key can be overridden by FINGA_ and
-// its path in upper case.
+// Package config is the world service's configuration; any key can be overridden by FINGA_<PATH>.
 package config
 
 import (
@@ -24,13 +21,11 @@ type Config struct {
 	Dependencies       Dependencies     `mapstructure:"dependencies"`
 }
 
-// Economy is the worker pool that runs pickups and inventory actions off
-// the tick (page 3).
+// Economy is the worker pool that runs pickups and inventory actions off the tick.
 type Economy struct {
 	Workers int `mapstructure:"workers" validate:"min=1"`
 }
 
-// subStepsPerSecond is the movement simulation's fixed step (1/60 s).
 const subStepsPerSecond = 60
 
 // TickInterval is the time between two ticks of a map.
@@ -46,8 +41,7 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// Dependencies are the addresses this service dials the services it calls
-// at (Compose sets the services' names).
+// Dependencies are the addresses of the services this one calls.
 type Dependencies struct {
 	Character string `mapstructure:"character" validate:"required"`
 	Item      string `mapstructure:"item" validate:"required"`

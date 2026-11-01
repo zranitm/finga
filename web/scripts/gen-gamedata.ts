@@ -1,7 +1,4 @@
-// Generates src/gamedata/ (git-ignored) from ../server/data/*.yaml, the files the
-// server reads, so no value is typed by hand on the client. Runs before dev,
-// build, typecheck, lint and test. Node 24 runs this file directly (type
-// stripping), so it uses only erasable TypeScript.
+// Node runs this file directly (type stripping), so it may use only erasable TypeScript.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -24,11 +24,7 @@ func RequestID(ctx context.Context) string {
 	return id
 }
 
-// Dial makes a client connection to addr (host:port, or any target
-// grpc.NewClient takes). It connects lazily and reconnects on its own. The
-// transport is plain-text: in Stage 1 the services trust each other on the
-// internal network, and mTLS comes later. Calls send the request ID of
-// their context.
+// Dial makes a plain-text (internal network) client connection that sends the request ID.
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

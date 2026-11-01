@@ -1,8 +1,4 @@
-// Command gateway runs the gateway service, the only public entry
-// (Low-level design, page 10): REST under /api and the WebSocket gateway at
-// /ws, with no game rules and no database. It calls every other service
-// over gRPC, follows their delivery streams, and runs until SIGINT or
-// SIGTERM, draining its connections first.
+// Command gateway runs the gateway service, the only public entry: REST under /api and the WebSocket at /ws.
 package main
 
 import (

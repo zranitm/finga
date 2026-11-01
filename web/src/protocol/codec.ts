@@ -1,8 +1,4 @@
-// The codec turns wire frames into typed messages and back. JSON in Stage 1;
-// Stage 2 adds a Protobuf codec behind the same interface. Decoding checks
-// the envelope and the payload shape and rejects unknown types. Encoding
-// follows the server's JSON rules (Go's omitempty), so a decoded golden
-// message re-encodes to exactly the file it came from.
+// Encoding follows Go's omitempty, so a decoded golden message re-encodes to exactly its file.
 import * as v from 'valibot';
 
 import { isMessageType, schemas } from './messages';
@@ -13,7 +9,6 @@ export interface Codec {
   decode(raw: string | ArrayBuffer): Message;
 }
 
-/** A frame that is not a well-formed message. */
 export class ProtocolError extends Error {
   constructor(message: string) {
     super(message);

@@ -1,6 +1,4 @@
-// While a text field has focus, the game must ignore movement keys (page
-// 7). Spread the returned handlers on any input so typing never leaks to
-// the game, in a form before the world or in a window over it.
+// Spread the returned handlers on any input so typing never leaks to the game.
 import type { FocusEventHandler } from 'react';
 
 import { ui } from '@/state/ui';

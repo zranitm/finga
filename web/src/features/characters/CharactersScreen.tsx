@@ -6,7 +6,7 @@ import { useKeyboardCapture } from '@/features/shared/use-keyboard-capture';
 import { RestError } from '@/net/rest';
 import type { Character, RestClient } from '@/net/rest';
 
-export const MAX_CHARACTERS = 3; // the Stage 1 cap per account (OD-09 default)
+export const MAX_CHARACTERS = 3; // per account
 export const NAME_RULE = 'Name: 3 to 12 letters and digits, starting with a letter.';
 export const stageClasses = [
   { id: 'warrior', name: 'Warrior' },
@@ -25,7 +25,6 @@ export interface CharactersScreenProps {
   readonly onSettings: () => void;
 }
 
-/** List, create and pick a character (A2); log out from here (A1). */
 export function CharactersScreen({
   rest,
   username,

@@ -1,13 +1,4 @@
-// Package errmap turns the failures services send into what a client
-// sees. A service sends its failure across gRPC as a reason (item.v1's
-// REASON_INVENTORY_FULL), which pkg/grpcx reads back; For gives its Public
-// (page 11's model): an HTTP status, a stable code of the gateway's own
-// for every failure (party_full, inventory_full), and a message safe to
-// show a player. The message is written here, never taken from the error,
-// so a wrapped cause's text cannot reach a client. A failure the table
-// does not know is Internal; the caller logs it with its cause. Wrap hands
-// a failed call to the use cases as a model.ServiceError, with the kinds
-// they act on.
+// Package errmap turns services' gRPC failure reasons into what a client sees.
 package errmap
 
 import (
@@ -31,10 +22,7 @@ import (
 // Public is a failure as a client sees it (the gateway's model).
 type Public = model.Public
 
-// reasons are the failures services in their own processes send across gRPC,
-// by reason (pkg/grpcx). TestEveryReasonIsMapped fails when a contract's
-// Reason enum has a value with no row here. A service's BAD_ID and
-// UNKNOWN_CLASS answer as the gateway's own would (bad_id, unknown_class).
+// reasons maps every service failure reason to its Public; TestEveryReasonIsMapped keeps it complete.
 var reasons = map[grpcx.Reason]Public{
 	grpcx.Key(characterv1.Reason_REASON_CHARACTER_NOT_FOUND):  {Code: "character_not_found", Status: http.StatusNotFound, Message: "character not found"},
 	grpcx.Key(characterv1.Reason_REASON_NAME_TAKEN):           {Code: "name_taken", Status: http.StatusConflict, Message: "that name is taken"},
@@ -87,11 +75,7 @@ var reasons = map[grpcx.Reason]Public{
 	grpcx.Key(worldv1.Reason_REASON_BAD_ID):              model.BadID,
 }
 
-// internalOnly are reasons that never reach a client as a refusal: the
-// gateway closes the connection and logs them (a join into a full or
-// stopped instance, a character on a map or of a class the world does not
-// have, a join before the gateway's delivery stream is open). For answers
-// them Internal; listing them keeps every reason accounted for.
+// internalOnly are reasons the gateway handles itself by closing the connection; For answers them Internal.
 var internalOnly = map[grpcx.Reason]bool{
 	grpcx.Key(worldv1.Reason_REASON_BUSY):              true,
 	grpcx.Key(worldv1.Reason_REASON_NO_MAP):            true,
@@ -100,13 +84,10 @@ var internalOnly = map[grpcx.Reason]bool{
 	grpcx.Key(worldv1.Reason_REASON_CLASS_UNAVAILABLE): true,
 }
 
-// IsInternalOnly reports whether r is a reason the gateway handles itself
-// and never shows a client.
+// IsInternalOnly reports whether r is a reason the gateway handles itself and never shows a client.
 func IsInternalOnly(r grpcx.Reason) bool { return internalOnly[r] }
 
-// For is the Public form of a failed call: the row of the reason it
-// carries; Internal for a reason the table does not know (or one of
-// internalOnly) and for a failure with no reason; the zero value for nil.
+// For is the Public form of a failed call: its reason's row, else Internal; the zero value for nil.
 func For(err error) Public {
 	if err == nil {
 		return Public{}
@@ -119,10 +100,7 @@ func For(err error) Public {
 	return model.Internal
 }
 
-// Wrap hands a failed call to the use cases: a model.ServiceError with its
-// Public, the kind the gateway acts on (the world not holding this
-// gateway's stream yet; a service that cannot be reached), and the cause
-// for the logs. nil stays nil.
+// Wrap turns a failed call into a model.ServiceError with its Public and kind; nil stays nil.
 func Wrap(err error) error {
 	if err == nil {
 		return nil
@@ -141,8 +119,7 @@ func Wrap(err error) error {
 	return e
 }
 
-// Codes is every Public a client can receive, sorted by code; the golden
-// file testdata/errors/codes.json is written from it.
+// Codes is every Public a client can receive, sorted by code, for testdata/errors/codes.json.
 func Codes() []Public {
 	raised := model.Raised()
 	out := make([]Public, 0, len(reasons)+len(raised))

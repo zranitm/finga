@@ -1,8 +1,4 @@
-// Package model is the character service's model (Low-level design, page
-// 11): a character as stored, the checkpoint and level-up it saves, and
-// the errors its use cases return. The progression rules it follows
-// (derived stats, EXP awards, the death penalty) are the shared kernel's
-// internal/progression, so the world runs them inside a tick.
+// Package model is the character service's model: the stored character, its saves and errors.
 package model
 
 import (
@@ -13,9 +9,7 @@ import (
 	"finga/internal/kernel"
 )
 
-// The service's errors. Each names one failure; the service's handler sends
-// it as a reason, and the gateway gives it a code, a status and the words a
-// player sees (its errmap).
+// The service's errors.
 var (
 	ErrNotFound         = errors.New("character: not found")
 	ErrNameTaken        = errors.New("character: name taken")
@@ -41,8 +35,7 @@ type Character struct {
 	UpdatedAt     time.Time
 }
 
-// Checkpoint is the non-economic state saved every 30 seconds (TD-02) and
-// on map change and logout.
+// Checkpoint is the non-economic state saved periodically, on map change and logout.
 type Checkpoint struct {
 	ID    kernel.CharacterID
 	MapID string

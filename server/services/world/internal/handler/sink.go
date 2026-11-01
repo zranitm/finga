@@ -12,10 +12,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// streamSink is one player's sink: it queues the player's events on the
-// Deliver stream of the gateway the player joined through. It never blocks;
-// once that stream has ended (replaced, overflowed, or the gateway gone) it
-// reports false and the instance drops the player.
+// streamSink queues a player's events on its gateway's stream; false drops the player.
 type streamSink struct {
 	sub       *hub.Sub[*worldv1.DeliverResponse]
 	character string
@@ -76,9 +73,7 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 	return nil
 }
 
-// pickupFailed names the failure by its reason: the item service's, passed
-// through, or one of the world's own from the error table. A failure with
-// no reason is logged here, where its cause is known, and crosses empty.
+// pickupFailed logs a reasonless failure here, where its cause is known.
 func (s *streamSink) pickupFailed(err error) *worldv1.PickupFailed {
 	st, explained := Errors.Status(err)
 	if !explained {
@@ -140,8 +135,6 @@ func dropViews(ds []model.DropView) []*worldv1.DropView {
 	return out
 }
 
-// slots are the slots a committed pickup changed, in the item service's
-// terms, which the gateway already reads.
 func slots(in []model.Slot) []*itemv1.Slot {
 	out := make([]*itemv1.Slot, 0, len(in))
 	for _, s := range in {

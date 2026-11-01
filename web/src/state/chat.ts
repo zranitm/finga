@@ -1,4 +1,3 @@
-// The last 100 chat lines, map and party, oldest first.
 import type { ChatChannel, Data } from '@/protocol/messages';
 
 import { defineStore } from './store';
@@ -10,7 +9,7 @@ export interface ChatLine {
   readonly sender: string;
   readonly sender_name: string;
   readonly text: string;
-  readonly at: number; // Unix milliseconds, when it arrived
+  readonly at: number; // Unix ms
 }
 
 export interface ChatState {

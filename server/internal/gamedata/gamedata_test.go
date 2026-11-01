@@ -13,8 +13,7 @@ import (
 	"finga/internal/sim"
 )
 
-// fixture is a minimal valid data folder, as file name to content. Each
-// rejection row breaks one thing in it.
+// fixture is a minimal valid data folder; each rejection row breaks one thing in it.
 func fixture() map[string]string {
 	return map[string]string{
 		"movement.yaml": `
@@ -118,9 +117,7 @@ type object struct {
 	props       string
 }
 
-// tiledMap renders a Tiled JSON map with the six object layers, in the
-// shape Tiled 1.11 exports. extraLayers is spliced in as is; dropLayer
-// omits one layer.
+// tiledMap renders a Tiled 1.11 JSON map; extraLayers is spliced in as is and dropLayer omitted.
 func tiledMap(kind, dropLayer string, objects []object) string {
 	var b strings.Builder
 	b.WriteString(`{"type":"map","version":"1.10","tiledversion":"1.11.0","orientation":"orthogonal","renderorder":"right-down",`)
@@ -454,8 +451,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	})
 }
 
-// The real content is checked on every run, so a content change that breaks
-// a reference fails CI.
+// The real content is checked on every run, so a broken reference fails CI.
 func TestRealDataLoads(t *testing.T) {
 	d, err := gamedata.Load("../../data")
 	if err != nil {

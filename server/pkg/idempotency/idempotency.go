@@ -1,7 +1,4 @@
-// Package idempotency runs a command at most once per key. A store is built
-// over a connection, so a module's unit of work binds it to its transaction:
-// the key, the command's effects and its stored response then commit or
-// roll back together. The same key with a different request is refused.
+// Package idempotency runs a command at most once per key, inside the caller's transaction.
 package idempotency
 
 import (
@@ -22,10 +19,7 @@ var ErrKeyReused = errors.New("idempotency: key reused with a different request"
 
 // Store runs commands once per (owner, scope, key).
 type Store interface {
-	// Do runs fn unless the key was already used by owner in scope. A replay
-	// with the same request hash returns the stored response without running
-	// fn; a replay with another hash returns ErrKeyReused. An error from fn
-	// stores nothing, so the command can be retried.
+	// Do runs fn once per key and replays its stored response; fn's error stores nothing.
 	Do(ctx context.Context, owner, scope, key string, requestHash []byte, fn func() ([]byte, error)) ([]byte, error)
 }
 
@@ -45,10 +39,9 @@ const (
 	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at) VALUES ($1, $2, $3, $4, $5, $6)`
 )
 
-// Do runs fn once per key; see Store.
+// Do implements Store.
 func (s *store) Do(ctx context.Context, owner, scope, key string, requestHash []byte, fn func() ([]byte, error)) ([]byte, error) {
-	// Serialise concurrent uses of one key inside the transaction: the
-	// second waits for the first to commit, then sees its row.
+	// Serialise uses of one key: the second waits for the first to commit, then sees its row.
 	if _, err := s.db.Exec(ctx, lockSQL, lockID(owner, scope, key)); err != nil {
 		return nil, fmt.Errorf("idempotency: lock: %w", err)
 	}

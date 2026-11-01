@@ -9,10 +9,7 @@ import (
 	"finga/services/item/internal/model"
 )
 
-// Errors is every error the item module (and parsing a request) can return,
-// with its gRPC code and its reason in the contract. Each is a rule the
-// request ran into; anything else leaves as Internal and is logged here.
-// TestTheTableCoversTheModuleAndTheContract keeps it complete both ways.
+// Errors maps every module and request-parsing error to its gRPC code and contract reason.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: itemv1.Reason_REASON_ITEM_NOT_FOUND},
 	{Err: model.ErrSlotTaken, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_SLOT_TAKEN},

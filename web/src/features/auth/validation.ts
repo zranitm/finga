@@ -1,5 +1,4 @@
-// The rules from page 4, checked before a request leaves; the server
-// checks them again and its message wins when they disagree.
+// The server checks again, and its message wins when they disagree.
 export const USERNAME_RULE = 'Username: 3 to 16 letters, digits or underscores.';
 export const PASSWORD_RULE = 'Password: 8 to 128 characters.';
 

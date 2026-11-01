@@ -2,8 +2,7 @@ package runner
 
 import "net/http"
 
-// Probes serves a process's operational endpoints: /healthz while it runs,
-// /readyz following ready, and /metrics.
+// Probes serves /healthz, /readyz (following ready) and /metrics.
 func Probes(ready func() bool, metrics http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", Healthz)
@@ -18,8 +17,7 @@ func Healthz(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(`{"status":"ok"}` + "\n"))
 }
 
-// Readyz answers 200 while ready says so and 503 otherwise; it checks no
-// dependency.
+// Readyz answers 200 while ready() and 503 otherwise; it checks no dependency.
 func Readyz(ready func() bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

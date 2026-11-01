@@ -1,5 +1,3 @@
-// A notice while the connection is in trouble (page 7, Connection loss):
-// shown on reconnecting, gone once connected.
 import { connection } from '@/state/connection';
 
 export function ConnectionNotice() {

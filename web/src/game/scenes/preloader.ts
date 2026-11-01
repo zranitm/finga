@@ -1,6 +1,4 @@
-// Preloader: loads the Kenney art and the three maps in the background
-// while the player logs in, defines the animations, draws the item
-// placeholders, then marks the assets ready for the World scene.
+// Loads in the background while the player logs in, then marks the assets ready for World.
 import Phaser from 'phaser';
 
 import { images, mapFile } from '../assets';

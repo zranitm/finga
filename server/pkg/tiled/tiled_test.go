@@ -9,8 +9,7 @@ import (
 	"finga/pkg/tiled"
 )
 
-// minimal is a map in the shape Tiled 1.11 exports: one tile layer, one
-// object group with a property on an object, and a property on the map.
+// minimal is a map shaped like a Tiled 1.11 export.
 const minimal = `{
   "type": "map", "version": "1.10", "tiledversion": "1.11.0", "orientation": "orthogonal",
   "width": 40, "height": 20, "tilewidth": 32, "tileheight": 32, "infinite": false,

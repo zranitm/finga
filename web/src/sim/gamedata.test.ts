@@ -10,8 +10,6 @@ import { items } from '@/gamedata/items';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 
-// The generated gamedata equals the YAML it came from: the server's data,
-// never typed by hand on the client.
 const dataDir = path.resolve(process.cwd(), '..', 'server', 'data');
 
 function yaml(name: string): Record<string, unknown> {

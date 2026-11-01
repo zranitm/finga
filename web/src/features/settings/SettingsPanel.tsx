@@ -16,7 +16,6 @@ const labels: Record<Preset, string> = {
   wasd: 'WASD: W A S D, Space, J attack, K pick up',
 };
 
-/** Choose a control preset (B6): cached at once, saved to the account. */
 export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
   const preset = settings.use((s) => s.preset);
   const [problem, setProblem] = useState<string | null>(null);
@@ -38,7 +37,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
   }, [rest]);
 
   const choose = async (next: Preset) => {
-    settings.getState().setPreset(next); // the cache: the next frame already uses it
+    settings.getState().setPreset(next);
     setProblem(null);
     try {
       await rest.putSettings({ control_preset: next });

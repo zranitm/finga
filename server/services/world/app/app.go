@@ -1,10 +1,4 @@
-// Package app is the world service's composition root (Low-level design,
-// page 10): game data, the tick metrics, clients for the character, item
-// and social services, the world with its adapters over them, and its gRPC
-// handler on a host, with the instances, the persistence worker and the
-// party copy as the host's tasks. It is a package of its own, next to the
-// main, because the end-to-end tests build the service exactly as
-// production does.
+// Package app is the world service's composition root, shared with the end-to-end tests.
 package app
 
 import (
@@ -31,10 +25,7 @@ import (
 	"finga/services/world/internal/handler"
 )
 
-// Build wires the world service from configuration. It needs no database:
-// characters are saved through the character service and items through the
-// item service, from workers, never inside a tick. It fails fast on bad game
-// data; the services it calls are dialled lazily.
+// Build wires the world service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {

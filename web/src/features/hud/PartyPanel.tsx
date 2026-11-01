@@ -1,5 +1,3 @@
-// The compact party list on the HUD (C13), always visible while in a
-// party: name, level, HP and whether they are online, from PartyState.
 import { Bar } from '@/components/Bar';
 import { party } from '@/state/party';
 

@@ -1,8 +1,6 @@
 package outbox
 
-// Schema is the table Writer writes, as DDL. A service that uses the outbox
-// creates it in one of its own migrations, and this package's tests create
-// it from here; a test in that service checks the two agree.
+// Schema is Writer's table DDL, which a service's migration must match.
 const Schema = `
 CREATE TABLE outbox (
   id           bigserial PRIMARY KEY,

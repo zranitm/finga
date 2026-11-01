@@ -1,5 +1,3 @@
-// Short notices over the game (C11): refused pickups, a busy server. Each
-// goes by itself after a few seconds or on a click.
 import { useEffect } from 'react';
 
 import { toasts } from '@/state/toasts';

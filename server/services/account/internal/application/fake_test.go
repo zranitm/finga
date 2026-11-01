@@ -12,10 +12,7 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// fakeStore is an in-memory Store whose InTx hands over a fake unit of
-// work. It mimics the constraints the service relies on: a unique username
-// ignoring case. The one-active-session index is only exercised against
-// real Postgres.
+// fakeStore is an in-memory Store; the one-active-session index is only tested on real Postgres.
 type fakeStore struct {
 	mu       sync.Mutex
 	accounts map[kernel.AccountID]model.NewAccount

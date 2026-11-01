@@ -17,27 +17,18 @@ jobs:
           go-version-file: server/go.mod
       - uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.15.0   # built with Go 1.27, matching server/go.mod; an older build refuses the target version
+          version: v2.15.0   # built with Go 1.27: an older build refuses server/go.mod's version
           args: --help   # install only; `make lint` runs it below with the repo's settings
       - run: make lint-go
-      # The gRPC code in server/api/gen is committed; regenerating it with
-      # the generators pinned in go.mod must change nothing.
       - name: generated gRPC code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen
-      # The internal contracts against the previous commit: a change that
-      # breaks a caller (a field's number or type, a removed RPC) fails here.
       - name: no breaking change to the gRPC contracts
         run: make breaking BREAKING_AGAINST=HEAD~1
-      # The Go half of make test, crash test included: it builds every
-      # service, runs each as its own process over a Testcontainers Postgres,
-      # kills the world and the item service mid-pickup while the gateway
-      # keeps the sockets, restarts them, and checks the item invariants. The
-      # client half of test, lint and cover runs in the node job.
+      # Includes the crash test: the world and item service die mid-pickup and restart.
       - run: make test-go
       - run: make cover-go
 
-  # Each service builds and passes its own tests on its own, without the
-  # rest of the module's tests (Low-level design, page 10).
+  # Each service builds and passes its own tests on its own.
   service:
     runs-on: ubuntu-latest
     strategy:
@@ -51,7 +42,6 @@ jobs:
           go-version-file: server/go.mod
       - run: make test-service SERVICE=${{ matrix.service }}
 
-  # The client: page 7's toolchain, with the lockfile as the cache key.
   node:
     runs-on: ubuntu-latest
     defaults:
@@ -70,10 +60,7 @@ jobs:
       - run: npm run coverage
       - run: npm run build
 
-  # The packaging step: the images build, `make up` brings the whole Stage 1
-  # game up from a clean clone (Postgres, migrate, the six services and the
-  # client on nginx), and a test client signs up, enters the world and moves,
-  # once against the gateway and once through nginx as a browser would.
+  # From a clean clone: build the images, bring the game up, smoke-test it directly and through nginx.
   compose:
     runs-on: ubuntu-latest
     steps:

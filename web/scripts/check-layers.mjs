@@ -1,6 +1,4 @@
-// The negative lint test: a fixture that imports from a lower layer must be
-// flagged by import-x/no-restricted-paths, or the layer rule is not being
-// enforced. Run by `npm run lint`.
+// If the lower-layer fixture is not flagged, the layer rule is not being enforced.
 import { ESLint } from 'eslint';
 
 const fixture = 'src/lib/lower-layer-import.lintfixture.ts';

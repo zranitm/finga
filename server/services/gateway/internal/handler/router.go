@@ -1,6 +1,4 @@
-// Package handler holds the gateway's transports: api (REST) and ws (the
-// WebSocket), on one Gin engine (TD-26). This file is the route table, the
-// one place that lists every path the gateway answers.
+// Package handler mounts the gateway's transports, REST (api) and WebSocket (ws), on one Gin engine.
 package handler
 
 import (
@@ -13,16 +11,13 @@ import (
 
 // Routes are what the router mounts.
 type Routes struct {
-	API     func(e *gin.Engine) // mounts the REST API under /api, with its middleware and not-found answers
+	API     func(e *gin.Engine) // mounts /api
 	Gateway http.Handler        // GET /ws; nil mounts nothing
 	Metrics http.Handler        // GET /metrics
-	Ready   func() bool         // GET /readyz: whether this process can take traffic now
+	Ready   func() bool         // GET /readyz
 }
 
-// NewRouter returns the gateway's one handler: a Gin engine with the REST
-// API under /api/, the gateway at /ws, /metrics, and the two probes.
-// /healthz answers while the process runs; /readyz follows Ready and
-// checks no dependency.
+// NewRouter returns the gateway's one handler: /api, /ws, /metrics, /healthz and /readyz.
 func NewRouter(r Routes) http.Handler {
 	e := NewEngine()
 	if r.API != nil {

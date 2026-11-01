@@ -10,7 +10,6 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// noAccounts is a store with no account in it.
 type noAccounts struct{ Store }
 
 func (noAccounts) FindByUsername(context.Context, string) (model.Credentials, error) {
@@ -21,8 +20,6 @@ func (noAccounts) Settings(context.Context, kernel.AccountID) (model.Settings, e
 	return model.Settings{}, model.ErrNotFound
 }
 
-// An unknown username is verified against a dummy hash, so it takes as long
-// as a wrong password and the answer does not say which it was.
 func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
 	svc := NewService(noAccounts{}, Options{Hash: password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}})
 	if svc.dummy == "" {

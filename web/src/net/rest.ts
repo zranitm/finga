@@ -1,7 +1,4 @@
-// Typed calls for the Stage 1 REST API (page 4; api/openapi.yaml). Errors
-// come back as RestError with the server's code; the session token travels
-// as the server expects (Authorization: Bearer) and is read from token.ts
-// on every call, so a rotation after Hello is picked up at once.
+// The token is read on every call, so a rotation after Hello is picked up at once.
 import { env } from '@/config/env';
 import { errorCodes } from '@/protocol/errors';
 import type { ErrorCode } from '@/protocol/errors';
@@ -33,7 +30,6 @@ export interface Settings {
   readonly control_preset: ControlPreset;
 }
 
-/** What the client needs from fetch's response; the real Response fits. */
 export interface HttpResponse {
   readonly status: number;
   readonly ok: boolean;
@@ -42,7 +38,6 @@ export interface HttpResponse {
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<HttpResponse>;
 
-/** A failed call: the HTTP status and the server's code and message, or a network failure. */
 export class RestError extends Error {
   constructor(
     readonly status: number,
@@ -56,9 +51,7 @@ export class RestError extends Error {
 
 export interface RestClient {
   register(username: string, password: string): Promise<Account>;
-  /** Logs in and keeps the token for every later call. */
   login(username: string, password: string): Promise<void>;
-  /** Ends this session and forgets the token. */
   logout(): Promise<void>;
   listCharacters(): Promise<Character[]>;
   createCharacter(name: string, cls: string): Promise<Character>;
@@ -67,7 +60,7 @@ export interface RestClient {
 }
 
 export interface RestOptions {
-  /** The server's origin; empty for same origin (the default from env). */
+  /** Empty for same origin. */
   readonly origin?: string;
   readonly fetch?: FetchLike;
 }

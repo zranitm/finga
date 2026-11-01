@@ -1,14 +1,4 @@
-// Package ws is the gateway's WebSocket handler (Low-level design, pages 4
-// and 11), the counterpart of the REST handler in handler/api: it upgrades
-// /ws, runs each connection's read and write loops on pkg/wsconn with the
-// client protocol's codec, and routes every message a client sends through
-// its chain (routes.go) to the Gateway's use cases, turning each message
-// into a use case's arguments and its result into the reply. It owns what
-// only the conversation has: the handshake, the per-message rate limits,
-// each connection's command queue, and request IDs. It also implements the
-// application's Conn for each connection, putting what the use cases tell
-// the player into protocol messages. While the gateway drains, it refuses
-// new connections with 503.
+// Package ws serves the gateway's WebSocket at /ws, routing client messages to the Gateway's use cases.
 package ws
 
 import (
@@ -27,12 +17,10 @@ import (
 const (
 	defaultHelloTimeout = 5 * time.Second
 	defaultCommandQueue = 64
-	// commandTimeout bounds a command's service calls.
-	commandTimeout = 5 * time.Second
+	commandTimeout      = 5 * time.Second
 )
 
-// Observer counts the conversation's traffic; internal/telemetry
-// implements it.
+// Observer counts the conversation's traffic.
 type Observer interface {
 	MessageIn(msgType string)
 	MessageOut(msgType string)
@@ -41,13 +29,9 @@ type Observer interface {
 
 // Options tune the handler. Zero values take the defaults.
 type Options struct {
-	// Origins are the browser origins allowed besides the page's own
-	// (empty: same origin only).
-	Origins []string
-	// HelloTimeout is how long a connection has to send Hello; 5 s by
-	// default.
+	// Origins are browser origins allowed besides the page's own.
+	Origins      []string
 	HelloTimeout time.Duration
-	// CommandQueue bounds each connection's command queue; 64 by default.
 	CommandQueue int
 	Clock        func() time.Time
 	Observer     Observer
@@ -59,7 +43,7 @@ type Handler struct {
 	gw     *application.Gateway
 	codec  wsconn.Codec
 	opts   Options
-	router *wsrouter.Router[*client] // every message a client may send (routes.go)
+	router *wsrouter.Router[*client]
 
 	mu      sync.Mutex
 	clients map[string]*client
@@ -96,8 +80,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wsconn.Serve(w, r, h, wsconn.Options{Codec: h.codec, AllowedOrigins: h.opts.Origins})
 }
 
-// OnOpen starts a connection: its command goroutine, the Hello timer, and
-// its session with the gateway.
+// OnOpen starts a connection's command goroutine and its gateway session.
 func (h *Handler) OnOpen(c wsconn.Conn) {
 	cl := newClient(h, c)
 	h.mu.Lock()
@@ -107,9 +90,7 @@ func (h *Handler) OnOpen(c wsconn.Conn) {
 	cl.session = h.gw.Open(cl)
 }
 
-// OnMessage routes a decoded message, on the read loop: the checks that
-// run here, then the connection's command queue for the rest, so the read
-// loop never waits on a service.
+// OnMessage routes a message on the read loop; anything that calls a service is queued.
 func (h *Handler) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	h.opts.Observer.MessageIn(m.Type)
 	if cl := h.client(c.ID()); cl != nil {
@@ -117,9 +98,7 @@ func (h *Handler) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	}
 }
 
-// OnClose ends a connection: it cancels the command in flight and waits
-// for the command goroutine, then ends the session, so no command runs
-// once the player has left.
+// OnClose cancels and drains the connection's commands before ending its session.
 func (h *Handler) OnClose(c wsconn.Conn, err error) {
 	h.mu.Lock()
 	cl := h.clients[c.ID()]
@@ -150,7 +129,6 @@ func closeReason(err error) string {
 	return err.Error()
 }
 
-// noopObserver is the Observer when none is given.
 type noopObserver struct{}
 
 // MessageIn does nothing.

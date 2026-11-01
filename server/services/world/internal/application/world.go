@@ -1,11 +1,5 @@
-// Package application is the world service's use cases (Low-level design,
-// page 11): the World joins players to map instances, one actor per map
-// that ticks at 20 Hz, accepts players, simulates their movement from
-// inputs (TD-18), runs the mobs and resolves combat, and sends each player
-// what changed through the Sink port. It keeps no tables, so there is no
-// repository: it reaches the character and item services only through its
-// ports (ports.go), from worker goroutines, never inside a tick; the
-// clients implement them over gRPC, and the handler implements Sink.
+// Package application runs the map instances: one actor per map, ticking at 20 Hz.
+// Services are called from worker goroutines, never inside a tick.
 package application
 
 import (
@@ -26,16 +20,13 @@ const (
 	persistQueue    = 4096
 	transferTimeout = 5 * time.Second
 
-	// DefaultSaveRetryFor is how long the persistence worker keeps retrying
-	// a save that fails transiently before it logs it and moves on.
+	// DefaultSaveRetryFor is how long a transiently failing save is retried.
 	DefaultSaveRetryFor = time.Minute
 	saveRetryFirst      = 100 * time.Millisecond
 	saveRetryMax        = 5 * time.Second
 )
 
-// World is the registry: one instance per map, on one channel (B4 adds
-// more channels), the persistence worker they share, and the transfers
-// between them.
+// World is the registry of map instances, their shared persistence worker and transfers.
 type World struct {
 	data      *gamedata.Data
 	opts      Options
@@ -71,15 +62,9 @@ func (w *World) Instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-// errNoCharacters is a World built without Options.Characters asked to join
-// by ID: a wiring bug, internal to whoever meets it.
 var errNoCharacters = errors.New("world: characters not wired")
 
-// Join joins a character by ID (page 10): it loads it from the character
-// service (which checks it is the account's), grants its starter items
-// (idempotent: the safety net for a creation that could not reach the item
-// service), and joins it to its saved map's instance, which sends the
-// Snapshot to sink. A failure at any step leaves nobody joined.
+// Join loads the account's character, grants its starter items and joins its saved map.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	if w.opts.Characters == nil {
 		return model.View{}, errNoCharacters
@@ -113,9 +98,7 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}, nil
 }
 
-// Transfer joins the player to another map's instance from its own
-// goroutine, so the calling tick never waits. A failed join is logged; the
-// player's next Hello puts them back on their saved map.
+// Transfer joins the player to another map on its own goroutine, so the calling tick never waits.
 func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	target, ok := w.instances[mapID]
 	if !ok {
@@ -133,8 +116,7 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	}()
 }
 
-// Run ticks every instance and serves the economy workers until ctx is
-// done. Jobs queued on the way out are flushed before it returns.
+// Run ticks every instance and the economy workers until ctx is done, then flushes queued jobs.
 func (w *World) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	if w.workers != nil {
@@ -147,14 +129,12 @@ func (w *World) Run(ctx context.Context) error {
 		wg.Go(func() { _ = inst.Run(ctx) })
 	}
 	wg.Wait()
-	// The instances are done, so no more jobs arrive; drain what is queued
-	// with a context that is not cancelled.
+	// No more jobs can arrive; drain the queue with a context that is not cancelled.
 	w.flush(context.WithoutCancel(ctx))
 	return nil
 }
 
-// Persist queues a job for the persistence worker without blocking; false
-// when the queue is full (the next checkpoint sweep tries again).
+// Persist queues a job without blocking; false when the queue is full.
 func (w *World) Persist(job model.Job) bool {
 	select {
 	case w.persist <- job:
@@ -164,11 +144,7 @@ func (w *World) Persist(job model.Job) bool {
 	}
 }
 
-// RunPersistence saves queued checkpoints and level-ups until ctx is done,
-// one at a time and in order: a save that fails transiently is retried with
-// backoff for up to SaveRetryFor while the next jobs wait, so an older
-// checkpoint never lands after a newer one. Run flushes the queue at the
-// end; call this beside Run to save during the run.
+// RunPersistence saves queued jobs in order, so an older checkpoint never lands after a newer one.
 func (w *World) RunPersistence(ctx context.Context) {
 	for {
 		select {
@@ -180,8 +156,7 @@ func (w *World) RunPersistence(ctx context.Context) {
 	}
 }
 
-// flush saves what is queued once each, without retrying: on the way out
-// a character service that is down must not hold the shutdown.
+// flush saves each queued job once, so a down character service can't hold the shutdown.
 func (w *World) flush(ctx context.Context) {
 	for {
 		select {

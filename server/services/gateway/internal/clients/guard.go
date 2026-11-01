@@ -1,10 +1,4 @@
-// Package clients are the gateway's adapters for the services it calls
-// (Low-level design, page 11): each implements a port of the application
-// over a service's generated client, turns proto into the gateway's model
-// and the client protocol's messages, and hands every failure over through
-// errmap.Wrap, so the use cases know what the client sees without knowing
-// gRPC. The account service is also pkg/auth's Guard, which the REST API
-// and the connections check tokens with.
+// Package clients adapts the services' gRPC clients to the application's ports.
 package clients
 
 import (
@@ -17,8 +11,7 @@ import (
 	"finga/services/gateway/internal/clients/errmap"
 )
 
-// Guard is the REST API's and the connections' auth.Guard over the account
-// service. Failures are wrapped with their reason (errmap.Wrap).
+// Guard is auth.Guard over the account service.
 type Guard struct {
 	c accountv1.AccountServiceClient
 }

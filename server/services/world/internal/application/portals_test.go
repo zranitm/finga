@@ -44,8 +44,7 @@ func snapshots(s *sink) []model.Snapshot {
 	return out
 }
 
-// seenIn counts the deltas and snapshots of s that carry id, and the
-// deltas that remove it.
+// seenIn counts the events of s that carry id, and the deltas that remove it.
 func seenIn(s *sink, id kernel.CharacterID) (present, removed int) {
 	for _, e := range s.all() {
 		switch ev := e.(type) {
@@ -97,7 +96,6 @@ func TestPortals(t *testing.T) {
 		time.Sleep(tickInterval)
 		synctest.Wait()
 
-		// Robin stays in the town and watches.
 		robin := newPlayer("Robin", townMap.PlayerSpawn.X, townMap.PlayerSpawn.Y)
 		sr := &sink{}
 		if err := town.Join(ctx, robin, sr); err != nil {
@@ -133,12 +131,10 @@ func TestPortals(t *testing.T) {
 			if me.ID != ayla.ID || me.State.X != arrival.X || me.State.Y != arrival.Y || me.HP != 150 {
 				t.Fatalf("in the forest snapshot: %+v", me)
 			}
-			// Never in no instance for more than one tick: the forest's
-			// snapshot came by the tick after the town's teleport.
+			// Never out of every instance for more than one tick.
 			if snaps[1].Tick > tel[0].Tick+1 {
 				t.Fatalf("left the town at tick %d, joined the forest at tick %d", tel[0].Tick, snaps[1].Tick)
 			}
-			// The town checkpointed her as already in the forest.
 			synctest.Wait()
 			saver.mu.Lock()
 			var cp *model.Checkpoint
@@ -151,11 +147,9 @@ func TestPortals(t *testing.T) {
 			if cp == nil || cp.MapID != "forest" || cp.X != arrival.X || cp.HP != 150 {
 				t.Fatalf("checkpoint on the way out: %+v", cp)
 			}
-			// Robin saw her leave exactly once and never again.
 			if present, removed := seenIn(sr, ayla.ID); removed != 1 || present == 0 {
 				t.Fatalf("robin saw ayla %d times and removed %d times", present, removed)
 			}
-			// Spamming the portal she just left changes nothing more.
 			for range 20 {
 				town.EnterPortal(ayla.ID)
 			}
@@ -204,8 +198,7 @@ func TestPortals(t *testing.T) {
 			if _, removed := seenIn(sr, cass.ID); removed != 1 {
 				t.Fatalf("the town removed cass %d times", removed)
 			}
-			// Every delta after the teleport came from the forest only: the
-			// town never sent her another one.
+			// After the teleport the town never sent her another delta.
 			for _, e := range sc.all() {
 				if d, ok := e.(model.Delta); ok && d.Tick > tel[0].Tick+1 {
 					for _, r := range d.Removed {
@@ -215,8 +208,7 @@ func TestPortals(t *testing.T) {
 					}
 				}
 			}
-			// Standing on the forest's arrival portal, one more EnterPortal
-			// takes her back: the handoff works both ways.
+			// The handoff works both ways from the forest's arrival portal.
 			forest.EnterPortal(cass.ID)
 			time.Sleep(3 * tickInterval)
 			synctest.Wait()

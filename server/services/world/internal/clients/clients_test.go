@@ -20,7 +20,6 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// items is the item service, faked behind a real gRPC server.
 type items struct {
 	itemv1.UnimplementedItemServiceServer
 	mu      sync.Mutex
@@ -94,7 +93,6 @@ func TestPickupsRetryOnlyWhatMayPass(t *testing.T) {
 	}
 }
 
-// characters is the character service's saves, faked behind a real server.
 type characters struct {
 	characterv1.UnimplementedCharacterServiceServer
 	checkpoints []*characterv1.SaveCheckpointRequest
@@ -135,7 +133,6 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	}
 }
 
-// loads is the character service's Load, faked behind a real server.
 type loads struct {
 	characterv1.UnimplementedCharacterServiceServer
 	char *characterv1.Character

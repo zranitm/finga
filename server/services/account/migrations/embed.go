@@ -1,7 +1,4 @@
-// Package migrations embeds the account service's goose migrations and applies
-// them with the service's own version table, goose_account_version, so its schema
-// changes on its own (Low-level design, page 10). cmd/migrate applies every
-// service's set; the tests of the account module apply this one alone.
+// Package migrations embeds the account service's goose migrations, versioned in their own table.
 package migrations
 
 import (

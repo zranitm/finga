@@ -1,7 +1,4 @@
-// The composition root (page 7): the screen flow (login, characters,
-// world), the services, the Phaser canvas behind the screens, and the
-// wiring between the socket and the stores. Features never import each
-// other; they meet here.
+// The composition root: features never import each other; they meet here.
 import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '@/components/Modal';
@@ -30,7 +27,7 @@ import type { Services } from './services';
 import { leaveWorld, wireSocket } from './wiring';
 
 export interface AppProps {
-  /** Tests pass fakes; the real app builds them from the environment. */
+  /** Tests pass fakes. */
   readonly services?: Services;
 }
 
@@ -123,7 +120,6 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
   );
 }
 
-/** Over the canvas: the HUD, the connection notice, and the way back to the characters. */
 function WorldOverlay({
   socket,
   onLeave,

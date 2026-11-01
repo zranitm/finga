@@ -33,8 +33,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// A second login is the account service's hook firing for real: the
-// gateway watching sessions hears the first one end.
 func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

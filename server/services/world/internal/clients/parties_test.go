@@ -17,7 +17,6 @@ import (
 	"finga/pkg/grpcx/grpctest"
 )
 
-// watched is the social service's WatchParties and UpdateMember, faked.
 type watched struct {
 	socialv1.UnimplementedSocialServiceServer
 	mu      sync.Mutex

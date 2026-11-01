@@ -1,14 +1,5 @@
-// Package configload loads a typed configuration from one YAML document with
-// environment overrides on top, validated at start. It knows nothing about
-// the schema it loads: the schema is a struct with mapstructure and validate
-// tags, and optionally a Validate method for rules tags can't express.
-//
-// Every key of the schema is bound to an environment variable, so a key the
-// YAML omits can still be set from the environment and an empty variable can
-// blank a value. The name is the prefix plus the key path in upper case
-// (server.addr becomes PREFIX_SERVER_ADDR), unless a field carries an
-// envprefix tag, which gives its subtree exactly that name (or NAME_<path>).
-// Slices are set as comma-separated values; maps as k=v pairs or a JSON object.
+// Package configload loads a typed config from YAML plus environment overrides and validates it.
+// An envprefix tag renames a subtree's variables; slices are comma-separated, maps k=v pairs or JSON.
 package configload
 
 import (
@@ -30,7 +21,7 @@ import (
 // Options controls a Load.
 type Options struct {
 	Path      string // the file Load reads; LoadFrom ignores it
-	EnvPrefix string // "DOCVIEWER": server.addr is overridden by DOCVIEWER_SERVER_ADDR
+	EnvPrefix string // "APP": server.addr is overridden by APP_SERVER_ADDR
 	Strict    bool   // fail on a YAML key that no field names
 }
 
@@ -63,10 +54,7 @@ func Load[T any](opts Options) (*T, error) {
 	return LoadFrom[T](f, opts.Path, opts)
 }
 
-// LoadFrom decodes one YAML document from r into T, applies environment
-// overrides, then validates: struct tags first, with errors named by YAML
-// key, then T's Validate method if it has one. Validation messages never
-// echo string values, so secrets don't reach logs. source names r in errors.
+// LoadFrom loads T from r; validation errors never echo values.
 func LoadFrom[T any](r io.Reader, source string, opts Options) (*T, error) {
 	cfg, err := loadFrom[T](r, opts)
 	if err != nil {
@@ -114,10 +102,6 @@ func loadFrom[T any](r io.Reader, opts Options) (*T, error) {
 	return &cfg, nil
 }
 
-// applyEnv walks t's fields and, for every leaf whose variable is set, puts
-// the variable's string into m at the field's key, replacing whatever the
-// YAML had there. A struct field recurses with its own sub-map; everything
-// else (scalars, durations, slices, maps) is a leaf set as a whole.
 func applyEnv(m map[string]any, t reflect.Type, envBase string) {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -149,8 +133,6 @@ func applyEnv(m map[string]any, t reflect.Type, envBase string) {
 	}
 }
 
-// fieldKey is the YAML key of f: its mapstructure tag, else its name in lower
-// case; empty for unexported or skipped fields.
 func fieldKey(f reflect.StructField) string {
 	if !f.IsExported() {
 		return ""
@@ -165,8 +147,6 @@ func fieldKey(f reflect.StructField) string {
 	return name
 }
 
-// isSection reports whether t is a struct of keys (a YAML section), as
-// opposed to a struct that decodes from one value, such as time.Time.
 func isSection(t reflect.Type) bool {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -174,9 +154,6 @@ func isSection(t reflect.Type) bool {
 	return t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Time]()
 }
 
-// stringToMapHook decodes a map set from the environment: a JSON object, or
-// k=v pairs separated by commas. Values stay strings; later hooks turn them
-// into the map's element type.
 func stringToMapHook(from, to reflect.Type, data any) (any, error) {
 	if from.Kind() != reflect.String || to.Kind() != reflect.Map {
 		return data, nil
@@ -203,8 +180,7 @@ func stringToMapHook(from, to reflect.Type, data any) (any, error) {
 	return m, nil
 }
 
-// validateTags checks the validate tags and reports every failing field by
-// its YAML key (server.port, peers.sales.base_url), never by Go name or value.
+// validateTags reports failing fields by YAML key, never by Go name or value.
 func validateTags(cfg any) error {
 	val := validator.New(validator.WithRequiredStructEnabled())
 	val.RegisterTagNameFunc(fieldKey)
@@ -223,8 +199,7 @@ func validateTags(cfg any) error {
 	return errors.Join(errs...)
 }
 
-// yamlKey turns a validator namespace (schema.peers[sales].base_url) into a
-// YAML key path (peers.sales.base_url).
+// yamlKey turns schema.peers[sales].base_url into peers.sales.base_url.
 func yamlKey(namespace string) string {
 	_, path, _ := strings.Cut(namespace, keySep) // drop the root struct's name
 	r := strings.NewReplacer("[", keySep, "]", "")
@@ -238,9 +213,7 @@ func paramSuffix(p string) string {
 	return pairSep + p
 }
 
-// ResolvePath picks $CONFIG_PATH, else dir/config.local.yaml (git-ignored),
-// else dir/config.yaml (committed defaults). The last is returned even when
-// absent, so Load reports the missing file.
+// ResolvePath picks $CONFIG_PATH, else dir/config.local.yaml, else dir/config.yaml.
 func ResolvePath(dir string) string {
 	if p := os.Getenv(configPathEnv); p != "" {
 		return p

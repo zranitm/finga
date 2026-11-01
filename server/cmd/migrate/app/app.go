@@ -1,8 +1,4 @@
-// Package app is the migrate binary's composition root: the migration set
-// of every service with tables, in the order they are applied, and the
-// guard against a database migrated before the split. It is a package of
-// its own, next to the main, because the end-to-end tests prepare their
-// database exactly the way the binary does.
+// Package app is the migrate binary's composition root, shared with the end-to-end tests.
 package app
 
 import (
@@ -19,9 +15,7 @@ import (
 	itemmigrations "finga/services/item/migrations"
 )
 
-// LegacyTable is goose's default version table, which only a database
-// migrated before the split has: every service's set records its versions
-// in a table of its own.
+// LegacyTable is goose's default version table, found only in a database migrated before the split.
 const LegacyTable = "goose_db_version"
 
 // ErrLegacy is a database migrated before the split.
@@ -43,8 +37,7 @@ func Sets() []Set {
 	}
 }
 
-// Apply refuses a database migrated before the split, then applies every
-// set and reports how many migrations each applied.
+// Apply refuses a pre-split database, then applies every set and reports each one's count.
 func Apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
 	legacy, err := dbx.TableExists(ctx, pool, LegacyTable)
 	if err != nil {

@@ -29,13 +29,7 @@ func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 	return rec
 }
 
-// Readiness answers one question: can this process take traffic now? It is
-// ready from the moment it listens until shutdown starts, and it checks no
-// dependency: the database is shared by every instance, so failing on it
-// would pull them all out of rotation at once (Build already refuses to
-// start without it). The router (internal/handler) serves the probes and
-// pkg/runner drives readiness (its tests cover in-flight requests on
-// shutdown and a busy address); this test checks the two are wired.
+// Readiness checks no dependency, so a shared outage cannot pull every instance out of rotation at once.
 func TestReadinessFollowsTheProcess(t *testing.T) {
 	srv := newServer(t)
 	h := srv.Handler()
@@ -89,9 +83,7 @@ func waitFor(t *testing.T, cond func() bool) {
 	}
 }
 
-// On shutdown the drain runs once readiness has turned 503, so a load
-// balancer has stopped sending new connections before the gateway tells
-// the ones it holds to go, and before the listener closes.
+// The drain runs after readiness turns 503, so the load balancer stops sending new connections first.
 func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
 	var srv *app.Server
 	drained := make(chan int, 1)

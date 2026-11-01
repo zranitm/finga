@@ -1,4 +1,3 @@
-// Plain 2D vectors over {x, y} objects. Pure functions, no game knowledge.
 export interface Vec2 {
   readonly x: number;
   readonly y: number;

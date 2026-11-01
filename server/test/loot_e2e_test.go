@@ -18,20 +18,14 @@ import (
 	"finga/services/item/invariants"
 )
 
-// looter wraps a player with what the loot rows need to know about the
-// world: its own position and the drops on the ground, kept current from
-// every message it reads.
+// looter is a player tracking its position and the drops on the ground from every message.
 type looter struct {
 	*player
 	x, y      float64
 	hp        int
 	drops     map[uint64]protocol.DropView
 	inventory int // InventoryChanged messages seen
-	// picked are the drops this looter's pickups took off the ground: the
-	// server removes a picked drop in the Delta of the tick whose
-	// InventoryChanged reports it, so a drop removed in a tick that brought
-	// this looter an InventoryChanged was picked by it. A drop that expired
-	// in another tick is not in it.
+	// picked are drops removed in a tick that also brought this looter an InventoryChanged.
 	picked      map[uint64]protocol.DropView
 	removedTick uint64
 	removed     []protocol.DropView // the drops the Delta of removedTick took away
@@ -59,7 +53,6 @@ func newLooter(p *player, snap protocol.Snapshot) *looter {
 	return l
 }
 
-// observe updates the looter's view of the world from one message.
 func (l *looter) observe(m wsconn.Message) {
 	switch d := m.Data.(type) {
 	case protocol.Delta:
@@ -116,8 +109,7 @@ type reply struct {
 	r   protocol.Response
 }
 
-// until pumps in short slices until pick finds what it wants in the
-// recorded messages (and consumes it), for up to d.
+// until pumps in short slices, for up to d, until pick finds (and consumes) what it wants.
 func (l *looter) until(d time.Duration, pick func() bool) bool {
 	deadline := time.Now().Add(d)
 	for {
@@ -131,7 +123,6 @@ func (l *looter) until(d time.Duration, pick func() bool) bool {
 	}
 }
 
-// pump reads messages for up to d, observing each, until pred is true.
 func (l *looter) pump(d time.Duration, pred func(wsconn.Message) bool) bool {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
@@ -205,10 +196,7 @@ func (l *looter) hunt(d time.Duration, template string) (protocol.DropView, bool
 	return protocol.DropView{}, false
 }
 
-// walkTo walks until the character stands within 12 px of x, then stops.
-// Contact with a mob knocks the character back, so the direction is
-// re-evaluated every tick; a character that stops making progress (a well,
-// a boulder) jumps.
+// walkTo walks to within 12 px of x, re-aiming each tick against knockback and jumping when stuck.
 func (l *looter) walkTo(x float64, d time.Duration) bool {
 	deadline := time.Now().Add(d)
 	lastX, stuck := l.x, 0
@@ -234,8 +222,6 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 	return false
 }
 
-// loot hunts, walks to drops and picks them up until the deadline or the
-// connection dies; it reports how many pickups succeeded.
 func (l *looter) loot(d time.Duration) int {
 	deadline := time.Now().Add(d)
 	nextAttack := time.Now()
@@ -265,8 +251,7 @@ func (l *looter) loot(d time.Duration) int {
 	return l.inventory
 }
 
-// welcome says Hello with a fresh login and returns the Welcome message,
-// which join discards. The old session of the account is replaced.
+// welcome says Hello with a fresh login, replacing the old session, and returns the Welcome.
 func (s *stack) welcome(t *testing.T, username, id string) (*player, protocol.Welcome) {
 	t.Helper()
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
@@ -278,8 +263,6 @@ func (s *stack) welcome(t *testing.T, username, id string) (*player, protocol.We
 	return p, w
 }
 
-// itemTotals is what the database holds for one owner and template: rows,
-// total quantity, and item events.
 func (s *stack) itemTotals(t *testing.T, owner, template string) (rows int, quantity int, events int) {
 	t.Helper()
 	err := s.db.QueryRow(context.Background(), `
@@ -292,7 +275,6 @@ func (s *stack) itemTotals(t *testing.T, owner, template string) (rows int, quan
 	return rows, quantity, events
 }
 
-// inventoryTotals is every template an owner holds, from the database.
 func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 	t.Helper()
 	rows, err := s.db.Query(context.Background(), `SELECT template_id, sum(quantity) FROM items WHERE owner_id = $1 AND location = 'inventory' GROUP BY template_id`, owner)
@@ -345,7 +327,6 @@ func TestLootAndKeep(t *testing.T) {
 		killer.pump(300*time.Millisecond, nil)
 		killer.face(true)
 
-		// D1: the drop lands on the ground beside the slime, inside its patrol.
 		drop, ok := killer.hunt(90*time.Second, "")
 		if !ok {
 			t.Fatal("no drop in 90 s of hunting")
@@ -353,19 +334,12 @@ func TestLootAndKeep(t *testing.T) {
 		if drop.Y != 608 || drop.X < 150 || drop.X > 850 || drop.Quantity < 1 || (drop.Template != "slime_gel" && drop.Template != "red_potion") {
 			t.Fatalf("drop %+v", drop)
 		}
-		// D1: the other player sees the same drop.
 		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.ID]; return seen }) {
 			t.Fatalf("the watcher never saw drop %d", drop.ID)
 		}
 
-		// D2: walk to it and pick it up twice in a row (two messages in one
-		// tick). The second PickUp finds the drop reserved and does nothing,
-		// unless a second drop lies in range too (a slime drops two items):
-		// then it takes that one, and the rule under test is still "one
-		// item per drop". The drop lies where the slimes patrol, and a touch
-		// knocks the character back and up, out of range; so as a real
-		// client would, the pair is sent again when the character was
-		// bounced away before anything arrived.
+		// Pick it up twice in one tick: the second PickUp finds it reserved, or takes another drop in range.
+		// A slime's touch can bounce the character out of range, so the pair is resent as a client would.
 		got := false
 		for attempt := 0; attempt < 20 && !got; attempt++ {
 			if !killer.walkTo(drop.X, 15*time.Second) {
@@ -394,12 +368,8 @@ func TestLootAndKeep(t *testing.T) {
 		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.ID]; return !seen }) {
 			t.Fatal("the watcher still sees the drop")
 		}
-		// D5: the path a real client takes after a lost reply: it re-sends
-		// the same PickUp (same seq). PickUp has no request ID, so the re-send
-		// is a new pickup: it takes nothing already taken, and if another
-		// drop now lies in range (the second item of a slime, or one the
-		// character was knocked next to) it rightly takes that one. Either
-		// way every InventoryChanged is one drop leaving the ground.
+		// Re-send the same PickUp, as after a lost reply; with no request ID it is a new pickup.
+		// It takes nothing already taken, so every InventoryChanged is still one drop leaving the ground.
 		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: protocol.PickUp{}}); err != nil {
 			t.Fatal(err)
 		}
@@ -408,8 +378,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("after re-sending PickUp with seq %d: %d InventoryChanged for %d drops picked, failures %+v", killer.seq, killer.inventory, len(killer.picked), killer.failures)
 		}
 		taken := len(killer.picked)
-		// One item event per drop, each under its own drop ID, and the
-		// template's stack holds the starter stack plus the drop.
+		// One item event per drop, and the stack holds the starter stack plus the drop.
 		var lootEvents, distinctDrops int
 		if err := s.db.QueryRow(context.Background(), `
 			SELECT count(*), count(DISTINCT e.cause_id) FROM item_events e JOIN items i ON i.id = e.item_id
@@ -434,7 +403,6 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("%s: %d events, want %d", drop.Template, events, wantEvents)
 		}
 
-		// D2: the item is there after a reconnect.
 		_, w := s.welcome(t, "liam", id)
 		held := 0
 		for _, it := range w.Inventory {
@@ -449,8 +417,7 @@ func TestLootAndKeep(t *testing.T) {
 	})
 
 	t.Run("D5/a-retried-pickup-job-gives-one-item", func(t *testing.T) {
-		// The worker's exact call to the item service, twice with the drop's
-		// key, as a retry after a lost reply would make it.
+		// The worker's exact item-service call, made twice with the drop's key as a retry would.
 		s := newStack(t)
 		_, id := s.createCharacter(t, "noah", "Noah", "warrior")
 		var account string
@@ -491,7 +458,6 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("starter potions %+v in %+v", potions, welcome.Inventory)
 		}
 
-		// Move to slot 3: ok, two changed slots.
 		p.send(wsconn.Message{ReqID: "m-1", Data: protocol.InventoryMove{IdempotencyKey: "move-1", ItemID: potions.ItemID, Tab: "use", Slot: 3}})
 		r := p.expect("Response")
 		if r.ReqID != "m-1" || !r.Data.(protocol.Response).OK {
@@ -501,18 +467,15 @@ func TestLootAndKeep(t *testing.T) {
 		if len(ic.Slots) != 2 || ic.Slots[0].Slot != 0 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].Item.Quantity != 5 {
 			t.Fatalf("after move %+v", ic)
 		}
-		// The same key again is the same answer; nothing moves twice.
 		p.send(wsconn.Message{ReqID: "m-2", Data: protocol.InventoryMove{IdempotencyKey: "move-1", ItemID: potions.ItemID, Tab: "use", Slot: 3}})
 		if r := p.expect("Response"); r.ReqID != "m-2" || !r.Data.(protocol.Response).OK {
 			t.Fatalf("replayed move %+v", r)
 		}
 		p.expect("InventoryChanged")
-		// A move across tabs is refused.
 		p.send(wsconn.Message{ReqID: "m-3", Data: protocol.InventoryMove{IdempotencyKey: "move-3", ItemID: potions.ItemID, Tab: "etc", Slot: 1}})
 		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "wrong_tab" {
 			t.Fatalf("cross-tab move %+v", r)
 		}
-		// Discard two, then more than there are.
 		p.send(wsconn.Message{ReqID: "d-1", Data: protocol.InventoryDiscard{IdempotencyKey: "discard-1", ItemID: potions.ItemID, Quantity: 2}})
 		if r := p.expect("Response").Data.(protocol.Response); !r.OK {
 			t.Fatalf("discard %+v", r)
@@ -554,7 +517,6 @@ func TestCrashDuringPickups(t *testing.T) {
 	t.Cleanup(db.Close)
 	s := &stack{t: t, url: proc.url, db: db}
 
-	// Three hunters in the slime field, looting as fast as they can.
 	names := [][2]string{{"pat", "Pat"}, {"quinn", "Quinn"}, {"rae", "Rae"}}
 	var hunters []*looter
 	for k, n := range names {
@@ -569,9 +531,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	for k, h := range hunters {
 		wg.Go(func() { ; picked[k] = h.loot(25 * time.Second) })
 	}
-	// Hard kill in the middle of it, while pickups are in flight: the world
-	// (its workers mid-call) and the item service (its transactions
-	// mid-commit), one right after the other. The gateway stays up.
+	// Hard-kill the world and the item service while pickups are in flight; the gateway stays up.
 	time.Sleep(12 * time.Second)
 	worldProc.kill()
 	itemProc.kill()
@@ -579,8 +539,6 @@ func TestCrashDuringPickups(t *testing.T) {
 	t.Logf("pickups before the kill: %v", picked)
 	s.checkInvariants(t)
 
-	// Back up, the gateway joins every hunter again on the sockets they
-	// kept: each gets a Snapshot.
 	itemProc.start()
 	worldProc.start()
 	for _, h := range hunters {
@@ -589,8 +547,6 @@ func TestCrashDuringPickups(t *testing.T) {
 		}
 	}
 
-	// The database is consistent after the restart too, and each hunter is
-	// welcomed back with exactly what the database holds.
 	s.checkInvariants(t)
 	for k, n := range names {
 		_, w := s.welcome(t, n[0], hunters[k].id)

@@ -17,7 +17,6 @@ import (
 	"finga/services/item/invariants"
 )
 
-// checkInvariants runs every Stage 1 check and fails the test on a mismatch.
 func checkInvariants(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
@@ -63,8 +62,6 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 	}
 }
 
-// TestInventoryProperties runs random sequences of adds, moves and
-// discards and checks the invariants after each sequence.
 func TestInventoryProperties(t *testing.T) {
 	data, err := gamedata.Load("../../../../data")
 	if err != nil {
@@ -120,7 +117,6 @@ func TestInventoryProperties(t *testing.T) {
 			}
 		}
 		checkInvariants(t, pool)
-		// The account's live inventory is consistent with what the service reports.
 		inv, err := svc.Inventory(ctx, actor.Character)
 		if err != nil {
 			rt.Fatal(err)
@@ -136,8 +132,7 @@ func TestInventoryProperties(t *testing.T) {
 	})
 }
 
-// isRule reports whether err is one of the module's rule errors, which a
-// random sequence is expected to hit.
+// isRule reports whether err is a rule error, which random sequences are expected to hit.
 func isRule(err error) bool {
 	for _, rule := range []error{model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrNotFound} {
 		if errorsIs(err, rule) {

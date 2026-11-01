@@ -1,8 +1,4 @@
-// The HUD (C09, C10): HP, MP and EXP bars and the level, from the
-// character store. The EXP bar's maximum is the generated curve's value
-// for the level, since no message carries it; at the cap the bar is full
-// and says so. Each ExpGained shows for a moment as a gain or, for the
-// death penalty, a loss.
+// The EXP bar's maximum comes from the generated curve, since no message carries it.
 import { useEffect, useState } from 'react';
 
 import { Bar } from '@/components/Bar';
@@ -37,7 +33,6 @@ export function Hud() {
   );
 }
 
-/** The last EXP change, shown for two seconds: "+5 EXP" or, on the death penalty, "−1 EXP". */
 function ExpDelta() {
   const change = character.use((s) => s.lastExpChange);
   const [hiddenSeq, setHiddenSeq] = useState(0);

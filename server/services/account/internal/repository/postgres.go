@@ -1,6 +1,4 @@
-// Package repository is the account service's storage (Low-level design,
-// page 11): the Postgres store behind application.Store, its unit of work,
-// and classify, over the accounts and sessions tables the service owns.
+// Package repository is the account service's Postgres store behind application.Store.
 package repository
 
 import (
@@ -22,8 +20,7 @@ import (
 	"finga/services/account/internal/repository/internal/db"
 )
 
-// Postgres is the service's store: plain reads on the pool, InTx for writes,
-// and classify at every boundary so callers see the model's errors.
+// Postgres is the service's store; every error it returns is classified into the model's.
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -34,9 +31,7 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 	return &Postgres{pool: pool, q: db.New(pool)}
 }
 
-// InTx runs fn inside one transaction with a unit of work bound to it.
-// fn may run more than once (dbx.InTx retries), so it must have no side
-// effects outside the transaction.
+// InTx runs fn in one transaction; fn may be retried, so it must have no outside side effects.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(unitOfWork{q: db.New(tx)})
@@ -44,8 +39,7 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 	return classify(err)
 }
 
-// FindByUsername loads an account and its password hash; username is
-// matched ignoring letter case (citext).
+// FindByUsername loads an account and its password hash, matching the username case-insensitively.
 func (p *Postgres) FindByUsername(ctx context.Context, username string) (model.Credentials, error) {
 	row, err := p.q.FindAccountByUsername(ctx, username)
 	if err != nil {
@@ -108,13 +102,13 @@ func (r accountRepo) Insert(ctx context.Context, a model.NewAccount) error {
 	})
 }
 
-// Lock takes the account row lock; no row is pgx.ErrNoRows.
+// Lock takes the account row lock.
 func (r accountRepo) Lock(ctx context.Context, id kernel.AccountID) error {
 	_, err := r.q.LockAccount(ctx, uuid.UUID(id))
 	return err
 }
 
-// UpdateSettings replaces the settings JSON; no row is pgx.ErrNoRows.
+// UpdateSettings replaces the settings JSON.
 func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error {
 	settings, err := json.Marshal(s)
 	if err != nil {
@@ -145,22 +139,18 @@ func (r sessionRepo) RevokeAll(ctx context.Context, accountID kernel.AccountID, 
 	return err
 }
 
-// Revoke ends one session. Zero rows is not an error: the session is ended
-// either way.
+// Revoke ends one session; zero rows is fine, the session is ended either way.
 func (r sessionRepo) Revoke(ctx context.Context, id kernel.SessionID, at time.Time) error {
 	_, err := r.q.RevokeSession(ctx, db.RevokeSessionParams{ID: uuid.UUID(id), RevokedAt: &at})
 	return err
 }
 
-// Constraint names from the migration.
 const (
 	constraintUsername      = "accounts_username_key"
 	constraintActiveSession = "one_active_session"
 )
 
-// classify turns database errors into the model's errors, by constraint
-// name. Unknown errors pass through: retries still see 40001, and handlers
-// report the rest as internal.
+// classify maps constraint errors to the model's; others pass through so retries still see 40001.
 func classify(err error) error {
 	var pgErr *pgconn.PgError
 	switch {

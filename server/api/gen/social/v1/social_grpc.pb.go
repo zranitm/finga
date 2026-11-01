@@ -37,42 +37,26 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// SocialService owns parties, invites and chat, in memory (TD-19; Low-level
-// design, page 10). The gateway registers who is online on which gateway,
-// sends party and chat commands with the caller's character ID, and
-// receives party state, invites and party chat on Deliver. The world keeps
-// a copy of party membership from WatchParties and reports members' map,
-// level and HP with UpdateMember. A failure carries a Reason in
-// google.rpc.ErrorInfo.
+// SocialService owns parties, invites and chat, in memory.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type SocialServiceClient interface {
-	// Deliver is a gateway node's stream: first Subscribed, then every
-	// PartyState, PartyInvited and party chat line for a character who is
-	// online through that gateway.
+	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
-	// Online records a character as connected through a gateway; a party
-	// member's row is refreshed and the party told.
+	// Online records a character as connected through a gateway and tells its party.
 	Online(ctx context.Context, in *OnlineRequest, opts ...grpc.CallOption) (*OnlineResponse, error)
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(ctx context.Context, in *OfflineRequest, opts ...grpc.CallOption) (*OfflineResponse, error)
-	// PartyOf is a character's party, if any.
 	PartyOf(ctx context.Context, in *PartyOfRequest, opts ...grpc.CallOption) (*PartyOfResponse, error)
-	// Invite asks a character on the inviter's map to join the inviter's
-	// party; a character with none becomes a leader when it is accepted.
+	// Invite asks a character on the same map to join; an inviter without a party leads the new one.
 	Invite(ctx context.Context, in *InviteRequest, opts ...grpc.CallOption) (*InviteResponse, error)
-	// Respond accepts or declines an invite addressed to the character.
 	Respond(ctx context.Context, in *RespondRequest, opts ...grpc.CallOption) (*RespondResponse, error)
-	// LeaveParty removes the character from its party.
 	LeaveParty(ctx context.Context, in *LeavePartyRequest, opts ...grpc.CallOption) (*LeavePartyResponse, error)
 	// Kick removes a member; only the leader may.
 	Kick(ctx context.Context, in *KickRequest, opts ...grpc.CallOption) (*KickResponse, error)
-	// Promote hands leadership to another member.
 	Promote(ctx context.Context, in *PromoteRequest, opts ...grpc.CallOption) (*PromoteResponse, error)
-	// Chat cleans a line and charges the sender's limit. A party line is
-	// delivered here, to every member on any map; a map line is returned for
-	// the caller to hand to the world.
+	// Chat cleans a line and charges the sender's limit; a map line is returned for the world to deliver.
 	Chat(ctx context.Context, in *ChatRequest, opts ...grpc.CallOption) (*ChatResponse, error)
-	// WatchParties streams party membership to a world node: Subscribed,
-	// every current membership, then each change.
+	// WatchParties streams Subscribed, every current membership, then each change.
 	WatchParties(ctx context.Context, in *WatchPartiesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchPartiesResponse], error)
 	// UpdateMember records what the world saw of a member: map, level, HP.
 	UpdateMember(ctx context.Context, in *UpdateMemberRequest, opts ...grpc.CallOption) (*UpdateMemberResponse, error)
@@ -228,42 +212,26 @@ func (c *socialServiceClient) UpdateMember(ctx context.Context, in *UpdateMember
 // All implementations must embed UnimplementedSocialServiceServer
 // for forward compatibility.
 //
-// SocialService owns parties, invites and chat, in memory (TD-19; Low-level
-// design, page 10). The gateway registers who is online on which gateway,
-// sends party and chat commands with the caller's character ID, and
-// receives party state, invites and party chat on Deliver. The world keeps
-// a copy of party membership from WatchParties and reports members' map,
-// level and HP with UpdateMember. A failure carries a Reason in
-// google.rpc.ErrorInfo.
+// SocialService owns parties, invites and chat, in memory.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type SocialServiceServer interface {
-	// Deliver is a gateway node's stream: first Subscribed, then every
-	// PartyState, PartyInvited and party chat line for a character who is
-	// online through that gateway.
+	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error
-	// Online records a character as connected through a gateway; a party
-	// member's row is refreshed and the party told.
+	// Online records a character as connected through a gateway and tells its party.
 	Online(context.Context, *OnlineRequest) (*OnlineResponse, error)
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(context.Context, *OfflineRequest) (*OfflineResponse, error)
-	// PartyOf is a character's party, if any.
 	PartyOf(context.Context, *PartyOfRequest) (*PartyOfResponse, error)
-	// Invite asks a character on the inviter's map to join the inviter's
-	// party; a character with none becomes a leader when it is accepted.
+	// Invite asks a character on the same map to join; an inviter without a party leads the new one.
 	Invite(context.Context, *InviteRequest) (*InviteResponse, error)
-	// Respond accepts or declines an invite addressed to the character.
 	Respond(context.Context, *RespondRequest) (*RespondResponse, error)
-	// LeaveParty removes the character from its party.
 	LeaveParty(context.Context, *LeavePartyRequest) (*LeavePartyResponse, error)
 	// Kick removes a member; only the leader may.
 	Kick(context.Context, *KickRequest) (*KickResponse, error)
-	// Promote hands leadership to another member.
 	Promote(context.Context, *PromoteRequest) (*PromoteResponse, error)
-	// Chat cleans a line and charges the sender's limit. A party line is
-	// delivered here, to every member on any map; a map line is returned for
-	// the caller to hand to the world.
+	// Chat cleans a line and charges the sender's limit; a map line is returned for the world to deliver.
 	Chat(context.Context, *ChatRequest) (*ChatResponse, error)
-	// WatchParties streams party membership to a world node: Subscribed,
-	// every current membership, then each change.
+	// WatchParties streams Subscribed, every current membership, then each change.
 	WatchParties(*WatchPartiesRequest, grpc.ServerStreamingServer[WatchPartiesResponse]) error
 	// UpdateMember records what the world saw of a member: map, level, HP.
 	UpdateMember(context.Context, *UpdateMemberRequest) (*UpdateMemberResponse, error)

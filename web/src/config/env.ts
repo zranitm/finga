@@ -1,13 +1,8 @@
-// Typed access to import.meta.env (page 7). VITE_API_ORIGIN names the game
-// server's origin; empty means same origin, which is the case behind the
-// Vite proxy in development and behind nginx under make up. VITE_NET_DELAY_MS
-// delays every frame the socket sends and receives, in development only,
-// for the latency check of client step C08.
 export interface Env {
-  /** "" for same origin, else an origin such as http://192.168.1.10:8080 */
+  /** "" for same origin: the Vite proxy in development, nginx under make up. */
   readonly apiOrigin: string;
   readonly isDev: boolean;
-  /** One-way delay added to the socket in development; 0 in builds and by default. */
+  /** One-way socket delay for latency checks; always 0 in builds. */
   readonly netDelayMs: number;
 }
 
@@ -17,7 +12,7 @@ export interface RawEnv {
   readonly DEV: boolean;
 }
 
-/** Validates the raw variables; a malformed origin fails fast at start. */
+/** A malformed origin fails fast at start. */
 export function parseEnv(raw: RawEnv): Env {
   const origin = (raw.VITE_API_ORIGIN ?? '').trim();
   const netDelayMs = raw.DEV ? parseDelay(raw.VITE_NET_DELAY_MS) : 0;

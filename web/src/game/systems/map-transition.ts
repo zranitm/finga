@@ -1,13 +1,9 @@
-// Death, respawn and map change as a small state machine over the
-// server's messages (C10), reused by portals (C12): the scene applies the
-// actions it returns, which is where prediction history, interpolation
-// buffers and the scene itself get reset.
 import type { Data } from '@/protocol/messages';
 
 export interface TransitionState {
-  /** The local player is dead: nothing is sent or predicted until Respawned. */
+  /** Nothing is sent or predicted until Respawned. */
   readonly dead: boolean;
-  /** A Respawned on another map was seen; MapChange and a Snapshot follow. */
+  /** Respawned on another map; MapChange and a Snapshot follow. */
   readonly awaitingMap: boolean;
 }
 
@@ -28,11 +24,7 @@ export interface Transitioned {
   readonly actions: readonly TransitionAction[];
 }
 
-/**
- * Applies one message for the local player (`me`) on `currentMap`. Other
- * players' Died and Respawned change nothing here; their views follow the
- * Deltas.
- */
+/** Other players' Died and Respawned change nothing here; their views follow the Deltas. */
 export function transition(
   state: TransitionState,
   msg: TransitionMsg,

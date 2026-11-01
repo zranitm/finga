@@ -9,18 +9,13 @@ import (
 
 // FollowOptions configure Follow. Zero values take the defaults.
 type FollowOptions struct {
-	// OnBreak is told why each subscription ended (never when the context
-	// ended it), before Follow waits and subscribes again.
+	// OnBreak is told why each subscription ended, unless ctx ended it.
 	OnBreak func(err error)
-	// MinBackoff and MaxBackoff bound the wait before subscribing again; it
-	// doubles after each break that delivered nothing and resets after one
-	// that delivered a message. Defaults 100 ms and 5 s.
+	// MinBackoff and MaxBackoff bound the resubscribe backoff (defaults 100 ms, 5 s).
 	MinBackoff, MaxBackoff time.Duration
 }
 
-// Follow keeps a server stream open until ctx ends: it opens it, hands
-// each message to handle (on Follow's goroutine, in order), and when the
-// stream breaks it reports why, waits, and opens it again.
+// Follow keeps a server stream open until ctx ends; handle runs on Follow's goroutine.
 func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T), opts FollowOptions) {
 	if opts.MinBackoff <= 0 {
 		opts.MinBackoff = 100 * time.Millisecond
@@ -53,7 +48,6 @@ func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.Ser
 	}
 }
 
-// follow runs one subscription until it breaks.
 func follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T)) (bool, error) {
 	stream, err := open(ctx)
 	if err != nil {

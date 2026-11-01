@@ -8,8 +8,7 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// Store is what the service sees of persistence: plain reads on the pool,
-// and InTx for anything that writes. The service never holds a transaction.
+// Store is the service's persistence: plain reads on the pool, InTx for anything that writes.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
 	FindByUsername(ctx context.Context, username string) (model.Credentials, error)
@@ -38,9 +37,8 @@ type SessionRepository interface {
 	Insert(ctx context.Context, s model.Session) error
 	RevokeAll(ctx context.Context, accountID kernel.AccountID, at time.Time) error
 	Revoke(ctx context.Context, id kernel.SessionID, at time.Time) error
-	// Rotate retires the current token as the previous one and sets a new hash; ErrNotFound when the session is not active.
+	// Rotate retires the current token as the previous one; ErrNotFound when the session is not active.
 	Rotate(ctx context.Context, id kernel.SessionID, newHash []byte, at time.Time) error
-	// ConsumePrevious marks the previous token as used (the grace is over for it).
 	ConsumePrevious(ctx context.Context, id kernel.SessionID) error
 	Extend(ctx context.Context, id kernel.SessionID, until time.Time) error
 }

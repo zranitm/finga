@@ -17,10 +17,6 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// The use cases run without a socket: a test calls them with a fake Conn,
-// as the WebSocket handler does with a connection. The handler's own
-// tests (handler/ws) cover the wire.
-
 var (
 	account   = kernel.NewAccountID()
 	sessionID = kernel.NewSessionID()
@@ -104,7 +100,6 @@ func TestHello(t *testing.T) {
 
 func second[T any](_ T, err error) error { return err }
 
-// conn records what the use cases tell the player.
 type conn struct {
 	mu      sync.Mutex
 	welcome *model.Welcome

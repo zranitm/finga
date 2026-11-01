@@ -22,30 +22,30 @@ const (
 	DefaultInboxSize          = 4096
 	DefaultCheckpointInterval = 30 * time.Second
 
-	respawnDelay     = 3 * time.Second // page 5: respawn after 3 s
+	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
 	invulnerability  = time.Second // after contact damage
 	knockbackX       = 16.0        // px away from the mob
-	knockbackVY      = -250.0      // a small hop
+	knockbackVY      = -250.0
 )
 
 // Options tune the instances. Zero values take the defaults.
 type Options struct {
 	TickInterval       time.Duration
-	SubSteps           int // movement sub-steps per tick (page 5: 3 of 1/60 s)
+	SubSteps           int
 	DrainLimit         int // inbox messages handled per tick; the rest wait
 	InboxSize          int
-	CheckpointInterval time.Duration // TD-02
-	Observer           TickObserver  // nil: no metrics
-	Seed               uint64        // the random seed; 0 picks one
-	Roll               model.Roll    // overrides the seeded generator, for tests
-	Transfer           Mover         // moves players between maps; nil respawns in place
-	Items              Pickups       // the item module; nil: pickups are unavailable
-	Workers            *Workers      // the economy worker pool; nil: pickups are unavailable
-	Parties            Parties       // the party service; nil: nobody has a party
-	Characters         Characters    // loads characters for World.Join
-	Starter            Starter       // grants starter items on World.Join; nil grants nothing
-	SaveRetryFor       time.Duration // how long a failing save is retried; a minute by default (World only)
+	CheckpointInterval time.Duration
+	Observer           TickObserver // nil: no metrics
+	Seed               uint64
+	Roll               model.Roll // overrides the seeded generator, for tests
+	Transfer           Mover      // moves players between maps; nil respawns in place
+	Items              Pickups    // nil: pickups are unavailable
+	Workers            *Workers   // nil: pickups are unavailable
+	Parties            Parties    // nil: nobody has a party
+	Characters         Characters
+	Starter            Starter       // nil grants nothing
+	SaveRetryFor       time.Duration // a minute by default (World only)
 }
 
 func (o Options) withDefaults() Options {
@@ -70,8 +70,7 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
-// Instance is one map's actor. Everything inside it runs on its tick
-// goroutine; other goroutines only send to its inbox.
+// Instance is one map's actor; only its tick goroutine touches its state.
 type Instance struct {
 	m       *gamedata.Map
 	data    *gamedata.Data
@@ -98,7 +97,6 @@ type Instance struct {
 	events       []model.Event // map-wide events of the current tick
 }
 
-// message is one inbox item.
 type message struct {
 	join      *joinMsg
 	leave     kernel.CharacterID
@@ -107,7 +105,7 @@ type message struct {
 	attack    kernel.CharacterID
 	pickup    *pickupResult
 	pick      kernel.CharacterID
-	portal    kernel.CharacterID // EnterPortal
+	portal    kernel.CharacterID
 	chat      *chatMsg
 }
 
@@ -123,14 +121,12 @@ type inputMsg struct {
 	in  sim.Input
 }
 
-// player is an instance's view of a character: identity, the movement
-// state, the input queue, and combat state.
 type player struct {
 	model.Player
 	sink    Sink
 	state   sim.State
 	held    sim.Input
-	pending []inputMsg // inputs not yet applied, by sequence number; one per tick
+	pending []inputMsg // unapplied inputs, by sequence number
 	lastSeq uint32
 	starved int // ticks in a row with no queued input
 	moved   bool
@@ -174,8 +170,7 @@ func (i *Instance) MapID() string { return i.m.ID }
 // Seed is the random seed this instance runs with, for replaying a tick.
 func (i *Instance) Seed() uint64 { return i.opts.Seed }
 
-// Run ticks until ctx is done. Players still on the map are checkpointed
-// on the way out.
+// Run ticks until ctx is done, then checkpoints the players still on the map.
 func (i *Instance) Run(ctx context.Context) error {
 	var opts []tick.Option
 	if i.opts.Observer != nil {
@@ -191,8 +186,7 @@ func (i *Instance) Run(ctx context.Context) error {
 	return err
 }
 
-// Join adds a player. It returns once the instance has accepted the join
-// and sent the Snapshot, or ErrBusy when the inbox is full.
+// Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full.
 func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 	done := make(chan error, 1)
 	if !i.post(message{join: &joinMsg{player: p, sink: sink, done: done}}) {
@@ -211,21 +205,17 @@ func (i *Instance) Leave(id kernel.CharacterID) bool {
 	return i.post(message{leave: id})
 }
 
-// LeaveConnection removes a player only if it joined through conn, so a
-// Leave from an older connection, arriving after a newer one joined the same
-// character, removes nothing.
+// LeaveConnection removes a player only if it joined through conn, so a stale Leave is a no-op.
 func (i *Instance) LeaveConnection(id kernel.CharacterID, conn string) bool {
 	return i.post(message{leave: id, leaveConn: conn})
 }
 
-// Input queues held keys with their sequence number. It never blocks: a
-// full inbox drops the input, and the client's next one supersedes it.
+// Input queues held keys without blocking; a dropped input is superseded by the next.
 func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) bool {
 	return i.post(message{input: &inputMsg{id: id, seq: seq, in: in}})
 }
 
-// Attack queues a basic attack the way the character faces. The cooldown
-// is enforced in the tick, so spamming it changes nothing.
+// Attack queues a basic attack; the tick enforces the cooldown.
 func (i *Instance) Attack(id kernel.CharacterID) bool {
 	return i.post(message{attack: id})
 }
@@ -235,8 +225,7 @@ func (i *Instance) PickUp(id kernel.CharacterID) bool {
 	return i.post(message{pick: id})
 }
 
-// EnterPortal takes the portal the character stands in, if any. The
-// handoff to the target map happens inside the tick.
+// EnterPortal takes the portal the character stands in, if any.
 func (i *Instance) EnterPortal(id kernel.CharacterID) bool {
 	return i.post(message{portal: id})
 }
@@ -250,10 +239,7 @@ func (i *Instance) post(m message) bool {
 	}
 }
 
-// Step is one tick (page 3): drain the inbox, apply inputs and simulate,
-// run the mobs, resolve attacks, apply deaths and respawns, then send each
-// player its delta and the tick's events. Nothing here blocks or touches
-// the database.
+// Step runs one tick. Nothing here may block or touch the database.
 func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.tick = n
 	i.events = i.events[:0]
@@ -275,8 +261,6 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.dropped = i.broadcast(changed, removed)
 }
 
-// drain handles up to DrainLimit inbox messages; the rest wait for the
-// next tick. It returns the players that left.
 func (i *Instance) drain() []kernel.CharacterID {
 	var removed []kernel.CharacterID
 	for handled := 0; handled < i.opts.DrainLimit; handled++ {
@@ -371,20 +355,13 @@ func (i *Instance) remove(id kernel.CharacterID) bool {
 	return true
 }
 
-// Input queue bounds (step 18): a burst after a stall is cut to the newest
-// few, so the player catches up within ticks rather than lagging for good.
+// A backlog after a stall is cut to the newest few, so the player catches up.
 const (
 	inputQueueMax  = 4
 	inputQueueKeep = 2
-	// inputHoldTicks is how long a player waits for a late Input before the
-	// last held keys are simulated again, so a stalled client cannot hang in
-	// the air for good but a jittery one never diverges from its prediction.
 	inputHoldTicks = 5
 )
 
-// enqueueInput adds an input to a player's queue in sequence order,
-// ignoring one already applied or already queued. The queue grows by at
-// most one tick's drain before simulate cuts it.
 func enqueueInput(q []inputMsg, in inputMsg, lastSeq uint32) []inputMsg {
 	if in.seq <= lastSeq {
 		return q
@@ -396,9 +373,6 @@ func enqueueInput(q []inputMsg, in inputMsg, lastSeq uint32) []inputMsg {
 	return slices.Insert(q, at, in)
 }
 
-// cutInputs drops a backlog longer than inputQueueMax down to the newest
-// inputQueueKeep, once per tick after the drain, so a burst after a stall
-// is caught up within a few ticks.
 func cutInputs(q []inputMsg) []inputMsg {
 	if len(q) > inputQueueMax {
 		return slices.Delete(q, 0, len(q)-inputQueueKeep)
@@ -406,17 +380,13 @@ func cutInputs(q []inputMsg) []inputMsg {
 	return q
 }
 
-// simulate applies exactly one queued input per player per tick, the
-// oldest not yet applied (step 18), and runs the sub-steps. With none
-// queued the player waits, unmoved and with ack_seq repeated, for up to
-// inputHoldTicks, so the state for each sequence number equals what the
-// client predicted; past that the last held keys are simulated each tick
-// until an Input arrives. A dead player stays where they fell.
+// simulate applies one queued input per player per tick. With none queued the player holds
+// still for inputHoldTicks, so each seq matches the client's prediction, then the held keys run.
 func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
 		if p.invulnUntil == i.tick {
-			p.changed = true // the invulnerability ends this tick: the Delta carries the edge (step 19)
+			p.changed = true // the Delta carries the invulnerability's end
 		}
 		p.pending = cutInputs(p.pending)
 		hold := false
@@ -444,8 +414,6 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	return changed
 }
 
-// broadcast sends each player its Delta and the tick's events. A player
-// whose sink refuses an event is removed; those removals are returned.
 func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.CharacterID {
 	for _, id := range i.order {
 		if p := i.players[id]; (p.changed || p.moved) && !slices.Contains(changed, id) {
@@ -491,8 +459,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state}
 }
 
-// checkpoint hands the player's state to the persistence worker without
-// blocking; a full queue drops this checkpoint, the next sweep retries.
+// checkpoint never blocks: a full queue drops it and the next sweep retries.
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) ticksFor(d time.Duration) uint64 {
@@ -503,7 +470,6 @@ func (i *Instance) ticksFor(d time.Duration) uint64 {
 	return n
 }
 
-// playerBox is the character's box in sim coordinates.
 func (i *Instance) playerBox(p *player) model.Rect {
 	return model.Rect{X: p.state.X - i.params.Width/2, Y: p.state.Y - i.params.Height, W: i.params.Width, H: i.params.Height}
 }
@@ -516,14 +482,12 @@ func defenderOf(d progression.Derived) model.Defender {
 	return model.Defender{Defense: d.Defense, Evasion: d.Evasion}
 }
 
-// detach drops a player without a checkpoint; the caller has saved one
-// that names where the player went.
+// detach drops a player without a checkpoint; the caller has saved one.
 func (i *Instance) detach(id kernel.CharacterID) {
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
 }
 
-// checkpointOn is checkpoint with the map the player will be on.
 func (i *Instance) checkpointOn(p *player, mapID string) {
 	if i.persist == nil {
 		return

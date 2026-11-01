@@ -16,8 +16,6 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// principalKey is the request context's key for the session the auth
-// middleware resolved.
 const principalKey = "finga.principal"
 
 const (
@@ -30,16 +28,13 @@ const (
 	headerAllowOrg = "Access-Control-Allow-Origin"
 )
 
-// principalFrom is the session the auth middleware resolved.
 func principalFrom(c *gin.Context) auth.Principal {
 	v, _ := c.Get(principalKey)
 	p, _ := v.(auth.Principal)
 	return p
 }
 
-// requireAuth resolves the bearer token to a principal through the Lobby.
-// Missing, malformed, unknown, expired and revoked tokens all give 401
-// unauthenticated; any other failure is 500.
+// requireAuth resolves the bearer token; any bad token is 401 unauthenticated.
 func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		scheme, token, ok := strings.Cut(c.GetHeader("Authorization"), " ")
@@ -64,8 +59,7 @@ func requireAuth(lobby *application.Lobby) gin.HandlerFunc {
 	}
 }
 
-// cors answers browsers from the allowed origins and refuses preflights
-// from anywhere else. With no allowed origins, same-origin only.
+// cors answers allowed origins and refuses other preflights; with none allowed, same-origin only.
 func cors(origins []string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.GetHeader(headerOrigin)
@@ -89,11 +83,7 @@ func cors(origins []string) gin.HandlerFunc {
 	}
 }
 
-// requestLog logs one line per request: method, path, status and
-// duration, the error code of a refusal, and the cause of an internal
-// error at level ERROR. Never headers or bodies, so tokens and passwords
-// stay out. A panic is logged with its stack and answered with 500
-// internal; it is the API's recovery, in place of Gin's own.
+// requestLog logs each request without headers or bodies (no tokens or passwords) and recovers panics as 500.
 func requestLog(log *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()

@@ -1,6 +1,4 @@
-// The single place net and state meet (page 7): incoming messages become
-// store actions, and the socket's status becomes the connection store. Each
-// side is tested alone; this file is tested with the fake socket.
+// The single place net and state meet.
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -11,7 +9,6 @@ import { party } from '@/state/party';
 import { session } from '@/state/session';
 import { toasts } from '@/state/toasts';
 
-/** Subscribes the stores to the socket; returns the function that undoes it. */
 export function wireSocket(socket: GameSocket): () => void {
   const offs = [
     socket.on('Welcome', (m) => {
@@ -54,7 +51,7 @@ export function wireSocket(socket: GameSocket): () => void {
   };
 }
 
-/** The socket's status into the connection store; a close that ends the session logs out. */
+/** A close that ends the session leaves the world. */
 export function applyStatus(e: StatusEvent): void {
   const c = connection.getState();
   switch (e.status) {
@@ -72,8 +69,6 @@ export function applyStatus(e: StatusEvent): void {
         c.setConnection('disconnected');
         return;
       }
-      // Kicked, the session ended, an outdated client or a bad message: the
-      // world is over; back to the login screen with the reason shown.
       c.setConnection('kicked', { ...(e.kick && { kick: e.kick }) });
       leaveWorld();
       if (e.reason === 'outdated_protocol' && typeof location !== 'undefined') {
@@ -86,7 +81,7 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** The words for a refused command with no request ID (a pickup, a chat line). */
+/** For a refused command with no req: a pickup, a chat line. */
 export function responseText(d: Data<'Response'>): string {
   switch (d.code) {
     case 'inventory_full':
@@ -101,7 +96,6 @@ export function responseText(d: Data<'Response'>): string {
   }
 }
 
-/** Forgets the character, inventory, party and chat, and logs out. */
 export function leaveWorld(): void {
   character.getState().clear();
   inventory.getState().clear();

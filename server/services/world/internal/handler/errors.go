@@ -9,9 +9,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Errors is every error the world module (and parsing a request) can
-// return, with its gRPC code and its reason in the contract.
-// TestTheTableCoversTheModuleAndTheContract keeps it complete both ways.
+// Errors maps every module and parsing error to its gRPC code and reason.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrBusy, Code: codes.Unavailable, Reason: worldv1.Reason_REASON_BUSY},
 	{Err: model.ErrNoMap, Code: codes.NotFound, Reason: worldv1.Reason_REASON_NO_MAP},

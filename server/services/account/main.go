@@ -1,7 +1,4 @@
-// Command account runs the account service: accounts, login sessions and
-// their tokens, and settings, served over gRPC, with WatchSessions telling
-// every gateway which sessions ended (Low-level design, page 10). It runs
-// until SIGINT or SIGTERM.
+// Command account serves accounts, sessions and settings over gRPC until SIGINT or SIGTERM.
 package main
 
 import (

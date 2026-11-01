@@ -14,9 +14,7 @@ import (
 	"time"
 )
 
-// process is a binary running as its own process over the test database,
-// the way the crash test needs it: it can be killed without warning and
-// started again, on the same addresses.
+// process is a binary in its own process, so it can be killed and restarted on the same addresses.
 type process struct {
 	t      *testing.T
 	name   string
@@ -26,7 +24,7 @@ type process struct {
 	grpc   string // a service's gRPC address
 	health string // the /healthz URL that says it is up
 	cmd    *exec.Cmd
-	out    lockedBuffer // the process writes it from exec's copier goroutine while the test reads it
+	out    lockedBuffer // written by exec's copier goroutine while the test reads it
 	done   chan struct{}
 }
 
@@ -48,8 +46,6 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
-// buildBinaries builds the binaries the process tests run, as production
-// builds them, and returns their paths by name.
 func buildBinaries(t *testing.T) map[string]string {
 	t.Helper()
 	dir := t.TempDir()
@@ -68,16 +64,12 @@ func buildBinaries(t *testing.T) map[string]string {
 	return bins
 }
 
-// baseEnv is what every process gets over its own committed file (each
-// runs from server/, so it reads services/<name>/config/config.yaml and
-// data/ as make run does): the test database, for the services that have
-// one, and a quieter log.
+// baseEnv points every process at the test database, with a quieter log.
 func baseEnv(dbURL string) []string {
 	return append(os.Environ(), "FINGA_DATABASE_URL="+dbURL, "FINGA_LOG_LEVEL=warn")
 }
 
-// startServiceProcess runs a service binary (item, account, ...) on free
-// ports, with extra environment entries (the services it dials).
+// startServiceProcess runs a service binary on free ports; extra names the services it dials.
 func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string) *process {
 	t.Helper()
 	grpc, ops := freePort(t), freePort(t)
@@ -87,8 +79,7 @@ func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string)
 	return p
 }
 
-// dependency is the override that points a binary at svc: the address it
-// dials name at.
+// dependency is the override that makes a binary dial name at svc's address.
 func dependency(name string, svc *process) string {
 	return "FINGA_DEPENDENCIES_" + strings.ToUpper(name) + "=" + svc.grpc
 }
@@ -104,7 +95,6 @@ func freePort(t *testing.T) string {
 	return addr
 }
 
-// startGateway runs the gateway on addr, dialling the services.
 func startGateway(t *testing.T, bin, dbURL, addr string, services map[string]*process) *process {
 	t.Helper()
 	p := &process{t: t, name: "gateway", bin: bin, url: "http://" + addr, health: "http://" + addr + "/healthz"}
@@ -148,8 +138,7 @@ func (p *process) start() {
 	p.t.Fatalf("%s not healthy within 20 s:\n%s", p.name, p.out.String())
 }
 
-// kill ends the process without warning (TerminateProcess on Windows, SIGKILL
-// elsewhere): no shutdown, no checkpoint, no flush.
+// kill ends the process without warning: no shutdown, no checkpoint, no flush.
 func (p *process) kill() {
 	select {
 	case <-p.done:

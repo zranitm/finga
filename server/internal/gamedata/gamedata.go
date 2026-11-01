@@ -1,9 +1,4 @@
-// Package gamedata loads the static content in data/ at startup, validates
-// every reference, and serves it read-only: classes, derived-stat formulas,
-// the EXP curve, items, mobs, movement constants, and the Tiled maps with
-// their geometry converted for the movement simulation. A bad file or a
-// dangling reference stops the server with an error naming the file and
-// the object.
+// Package gamedata loads and validates the content in data/ and serves it read-only.
 package gamedata
 
 import (
@@ -62,14 +57,12 @@ type Stats struct {
 // Total is the sum of the five stats.
 func (s Stats) Total() int { return s.STR + s.DEX + s.INT + s.AGI + s.VIT }
 
-// Coef is a coefficient per primary stat. Fixed fields, not a map, so a
-// formula is summed in the same order everywhere.
+// Coef is a coefficient per primary stat; fields, not a map, so every formula sums in one order.
 type Coef struct {
 	STR, DEX, INT, AGI, VIT float64
 }
 
-// Formula is one derived stat (page 5):
-// base + Σ coef × stat + per_level × (level − 1), then min(., cap) when Cap > 0.
+// Formula is one derived stat: base + Σ coef × stat + per_level × (level − 1), capped when Cap > 0.
 type Formula struct {
 	Base     float64
 	PerLevel float64
@@ -102,9 +95,9 @@ type Class struct {
 	ID            kernel.Class
 	Name          string
 	Attack        Attack
-	BaseStats     Stats   // primary stats at level 1
-	LevelUpPoints Stats   // the Stage 1 preset: 5 points per level-up
-	StarterItems  []Grant // granted at character creation
+	BaseStats     Stats // primary stats at level 1
+	LevelUpPoints Stats
+	StarterItems  []Grant
 }
 
 // Item is an item template.
@@ -161,14 +154,12 @@ type Portal struct {
 	TargetPortal string
 }
 
-// Arrival is where a character arriving through p stands: the bottom
-// centre of its rectangle.
+// Arrival is where a character arriving through p stands: its rectangle's bottom centre.
 func (p Portal) Arrival() Point {
 	return Point{X: p.Area.X + p.Area.W/2, Y: p.Area.Y + p.Area.H}
 }
 
-// Spawn keeps up to Max mobs of one type inside Area; a missing one returns
-// after Respawn.
+// Spawn keeps up to Max mobs of one type inside Area; a missing one returns after Respawn.
 type Spawn struct {
 	Mob     string
 	Max     int
@@ -180,7 +171,7 @@ type Spawn struct {
 type Map struct {
 	ID          string
 	Kind        MapKind
-	Town        string  // the town its players respawn in (map property town); a town names itself
+	Town        string  // the town its players respawn in; a town names itself
 	Width       float64 // pixels
 	Height      float64
 	Geometry    sim.Geometry
@@ -262,8 +253,7 @@ func (d *Data) Map(id string) (*Map, bool) {
 	return d.maps[i], true
 }
 
-// Town is the town map: where characters start and respawn. Stage 1 has
-// exactly one.
+// Town is the town map, where characters start and respawn.
 func (d *Data) Town() *Map {
 	for _, m := range d.maps {
 		if m.Kind == Town {
@@ -273,11 +263,10 @@ func (d *Data) Town() *Map {
 	return nil
 }
 
-// LevelCap is the highest level (OD-13 default 30).
+// LevelCap is the highest level.
 func (d *Data) LevelCap() int { return d.levelCap }
 
-// ExpToNext is the EXP needed to go from level to level+1; false at the cap
-// or for a level that doesn't exist.
+// ExpToNext is the EXP from level to level+1; false at the cap or for a level that doesn't exist.
 func (d *Data) ExpToNext(level int) (int64, bool) {
 	if level < 1 || level >= d.levelCap {
 		return 0, false

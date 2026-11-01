@@ -1,24 +1,22 @@
-# golangci-lint v2. `make lint` runs it; CI would too.
+# golangci-lint v2; `make lint` runs it.
 version: "2"
 
 linters:
   default: standard
   enable:
-    - depguard     # import direction (LLD pages 1 and 10): composition roots -> services -> the shared kernel -> pkg
-    - errorlint    # errors.Is/As and %w, never == or type switches on errors
+    - depguard     # import direction: composition roots -> services -> the shared kernel -> pkg
+    - errorlint
     - gocritic
     - misspell
-    - modernize    # the language and library as they are now: WaitGroup.Go, errors.AsType, range over integers and iterators
+    - modernize
     - nolintlint
     - revive
-    - sloglint     # constant log messages, data in attributes, no global logger
+    - sloglint
     - unconvert
     - unparam
   settings:
     depguard:
       rules:
-        # A composition root (services/<name>/app, cmd/migrate/app)
-        # is the top: only its main and the end-to-end tests import it.
         below-cmd:
           files: ["**/internal/**", "**/pkg/**"]
           deny:
@@ -36,7 +34,6 @@ linters:
               desc: only a binary and the tests import a service's composition root
             - pkg: finga/services/world/app
               desc: only a binary and the tests import a service's composition root
-        # pkg is generic: it never knows the game exists.
         pkg:
           files: ["**/pkg/**"]
           deny:
@@ -44,10 +41,7 @@ linters:
               desc: pkg never imports internal
             - pkg: finga/services
               desc: pkg never imports a service
-        # The shared kernel: kernel's value types (IDs, Class), and the game
-        # data, movement simulation and progression rules more than one
-        # service runs. It sits below every service, and is never sent
-        # between them.
+        # The shared kernel: code several services run, below every service and never sent between them.
         kernel:
           files: ["**/internal/kernel/**", "**/internal/gamedata/**", "**/internal/sim/**", "**/internal/progression/**"]
           deny:
@@ -61,10 +55,7 @@ linters:
               desc: the shared kernel is below telemetry
             - pkg: finga/internal/host
               desc: the shared kernel takes plain values, never configuration or the host
-        # A service's inner layers (model, application, repository; until each
-        # service moves, its modules) are business logic: no transport,
-        # contract, wiring, telemetry or configuration. Its handler and
-        # clients speak the contracts.
+        # A service's inner layers are business logic; only its handler and clients speak the contracts.
         modules:
           files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
           deny:
@@ -88,19 +79,13 @@ linters:
               desc: a module takes option structs; the composition root fills them from configuration
             - pkg: finga/internal/host
               desc: a module knows nothing of how its process runs
-        # The client protocol is the gateway's: its model and use cases speak
-        # it (page 11: the protocol is the gateway's model vocabulary). Every
-        # other service's inner layers return their own types.
+        # The client protocol is the gateway's model vocabulary.
         services-no-protocol:
           files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/gateway/internal/model/**", "!**/services/gateway/internal/application/**"]
           deny:
             - pkg: finga/internal/protocol
               desc: a service returns its own types; only the gateway speaks the client protocol
-        # The gateway's model and use cases know no socket and no HTTP: the
-        # handlers adapt both to the application's use cases and its Conn.
-        # The conversation itself (routing by message type, rate limits per
-        # message, the command queue) is the WebSocket handler's, as routes
-        # are the REST handler's.
+        # The gateway's model and use cases know no socket and no HTTP; the handlers adapt both.
         gateway-application:
           files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
           deny:
@@ -117,10 +102,7 @@ linters:
           deny:
             - pkg: net/http
               desc: the REST handler speaks HTTP; the Lobby takes plain values
-        # Inside a service only its repository layer (and, until each service
-        # moves, a module's repository.go) and sqlc's output talk to the
-        # database: model and application never see a transaction, handlers
-        # and clients never touch the database.
+        # Only a service's repository layer and sqlc's output talk to the database.
         services-no-sql:
           files: ["**/services/*/internal/**", "!**/internal/repository/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
           deny:
@@ -128,11 +110,7 @@ linters:
               desc: only the repository layer talks to the database
             - pkg: finga/pkg/dbx
               desc: only the repository layer opens transactions
-        # The layers of a service (page 11): imports point inward, to model.
-        # depguard matches a denied package by prefix, with no wildcard, so
-        # each rule names every service's layer.
-        # model needs nothing but data; application declares the ports that
-        # repository, handler and clients implement or call.
+        # A service's layers import inward, to model; depguard has no wildcard, so each rule names every service.
         layer-model:
           files: ["**/services/*/internal/model/**"]
           deny:
@@ -254,9 +232,7 @@ linters:
               desc: the repository maps rows to model's types, never to the contract's
             - pkg: google.golang.org/grpc
               desc: the repository knows no transport
-        # A handler's tests may wire the real application and clients over
-        # fake services, as the composition root does (the gateway's run its
-        # whole path that way).
+        # A handler's tests may wire the real application and clients over fake services.
         layer-handler:
           files: ["**/services/*/internal/handler/**", "!$test"]
           deny:
@@ -319,8 +295,6 @@ linters:
               desc: clients never touch the database
             - pkg: finga/pkg/dbx
               desc: clients never touch the database
-        # The gateway is the public entry and holds no database: every table
-        # belongs to a service (page 10).
         gateway-no-database:
           files: ["**/services/gateway/**"]
           deny:
@@ -334,8 +308,7 @@ linters:
               desc: the gateway holds no database
             - pkg: finga/pkg/pgtest
               desc: the gateway's tests need no database
-        # Go's internal/ rule keeps one service out of another's internals;
-        # these keep it out of the rest (its migrations, its composition root).
+        # Go's internal/ rule covers a service's internals; these cover the rest.
         gateway-alone:
           files: ["**/services/gateway/**"]
           deny:
@@ -414,21 +387,17 @@ linters:
               desc: a service reaches another only through its generated client
             - pkg: finga/services/world
               desc: a service reaches another only through its generated client
-        # telemetry, protocol and host sit beside the services; they never reach up into one.
         support:
           files: ["**/internal/telemetry/**", "**/internal/protocol/**", "**/internal/host/**"]
           deny:
             - pkg: finga/services
               desc: support packages never import a service
-        # Gin is the gateway's HTTP edge (TD-26): its handlers and its
-        # composition root use it, nothing else.
         gin-at-the-edge:
           files: ["$all", "!**/services/gateway/internal/handler/**", "!**/services/gateway/app/**"]
           deny:
             - pkg: github.com/gin-gonic/gin
               desc: Gin stays in the gateway's handlers and composition root (TD-26)
-        # A binary's configuration (page 11) is its keys and their checks:
-        # the host's sections and the database section, nothing else.
+        # A binary's configuration is its keys and checks: the host's sections and the database's.
         config:
           list-mode: strict
           files: ["**/services/*/config/**", "**/cmd/migrate/config/**", "!$test"]

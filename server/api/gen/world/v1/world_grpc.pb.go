@@ -33,24 +33,15 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// WorldService runs the map instances: one actor per map, ticking at 20 Hz
-// (Low-level design, pages 3 and 10). The gateway joins players, sends their
-// commands, and receives everything bound for them on Deliver. Commands
-// return as soon as the instance has them queued; their effects arrive on
-// Deliver. A failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at 20 Hz; commands return once queued and their effects arrive on Deliver.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type WorldServiceClient interface {
-	// Deliver is a gateway node's stream: first Subscribed, then every event
-	// for every player who joined through that gateway, in order. Its queue
-	// is bounded; a gateway that falls behind loses the stream, and the
-	// world drops its players, so the gateway subscribes again and rejoins
-	// them.
+	// Deliver streams Subscribed, then every event for the players who joined through that gateway.
+	// A gateway that falls behind loses the stream and its players, so it resubscribes and rejoins them.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
-	// Join loads the character from the character service (it must belong to
-	// the account), grants its starter items if creation never did, and
-	// joins it to its map's instance, which sends the Snapshot on Deliver.
+	// Join loads the account's character, grants missing starter items, and joins it to its map.
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
-	// Leave removes a player and saves a checkpoint, only if the player
-	// joined through that connection.
+	// Leave removes a player who joined through that connection and saves a checkpoint.
 	Leave(ctx context.Context, in *LeaveRequest, opts ...grpc.CallOption) (*LeaveResponse, error)
 	// Input queues held keys with their sequence number (one per tick).
 	Input(ctx context.Context, in *InputRequest, opts ...grpc.CallOption) (*InputResponse, error)
@@ -60,8 +51,7 @@ type WorldServiceClient interface {
 	PickUp(ctx context.Context, in *PickUpRequest, opts ...grpc.CallOption) (*PickUpResponse, error)
 	// EnterPortal takes the portal the character stands in, if any.
 	EnterPortal(ctx context.Context, in *EnterPortalRequest, opts ...grpc.CallOption) (*EnterPortalResponse, error)
-	// Say is a map chat line, already cleaned by the social service, for
-	// everyone on the map.
+	// Say is a map chat line, already cleaned by the social service.
 	Say(ctx context.Context, in *SayRequest, opts ...grpc.CallOption) (*SayResponse, error)
 }
 
@@ -166,24 +156,15 @@ func (c *worldServiceClient) Say(ctx context.Context, in *SayRequest, opts ...gr
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
 //
-// WorldService runs the map instances: one actor per map, ticking at 20 Hz
-// (Low-level design, pages 3 and 10). The gateway joins players, sends their
-// commands, and receives everything bound for them on Deliver. Commands
-// return as soon as the instance has them queued; their effects arrive on
-// Deliver. A failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at 20 Hz; commands return once queued and their effects arrive on Deliver.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type WorldServiceServer interface {
-	// Deliver is a gateway node's stream: first Subscribed, then every event
-	// for every player who joined through that gateway, in order. Its queue
-	// is bounded; a gateway that falls behind loses the stream, and the
-	// world drops its players, so the gateway subscribes again and rejoins
-	// them.
+	// Deliver streams Subscribed, then every event for the players who joined through that gateway.
+	// A gateway that falls behind loses the stream and its players, so it resubscribes and rejoins them.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error
-	// Join loads the character from the character service (it must belong to
-	// the account), grants its starter items if creation never did, and
-	// joins it to its map's instance, which sends the Snapshot on Deliver.
+	// Join loads the account's character, grants missing starter items, and joins it to its map.
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
-	// Leave removes a player and saves a checkpoint, only if the player
-	// joined through that connection.
+	// Leave removes a player who joined through that connection and saves a checkpoint.
 	Leave(context.Context, *LeaveRequest) (*LeaveResponse, error)
 	// Input queues held keys with their sequence number (one per tick).
 	Input(context.Context, *InputRequest) (*InputResponse, error)
@@ -193,8 +174,7 @@ type WorldServiceServer interface {
 	PickUp(context.Context, *PickUpRequest) (*PickUpResponse, error)
 	// EnterPortal takes the portal the character stands in, if any.
 	EnterPortal(context.Context, *EnterPortalRequest) (*EnterPortalResponse, error)
-	// Say is a map chat line, already cleaned by the social service, for
-	// everyone on the map.
+	// Say is a map chat line, already cleaned by the social service.
 	Say(context.Context, *SayRequest) (*SayResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }

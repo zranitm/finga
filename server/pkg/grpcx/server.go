@@ -13,16 +13,12 @@ import (
 
 // ServerOptions configure NewServer.
 type ServerOptions struct {
-	// Errors turns a handler's error into its status (ErrorTable.Status).
 	Errors ErrorTable
-	// Logger records a panic, and an error the table did not explain, with
-	// its cause; the caller only sees Internal. nil discards them.
+	// Logger records panics and unexplained errors; nil discards them.
 	Logger *slog.Logger
 }
 
-// NewServer is a gRPC server whose handlers, unary and streaming, run with
-// the caller's request ID in their context, have a panic answered as
-// Internal, and have every error turned into a status through the table.
+// NewServer is a gRPC server that propagates request IDs, recovers panics and maps errors.
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
@@ -69,13 +65,12 @@ func (i interceptors) recover(ctx context.Context, method string, err *error) {
 	}
 }
 
-// contextStream is a server stream whose context carries the request ID.
 type contextStream struct {
 	grpc.ServerStream
 	ctx context.Context
 }
 
-// Context is the stream's context with the request ID.
+// Context returns the context carrying the request ID.
 func (s *contextStream) Context() context.Context { return s.ctx }
 
 func requestIDFromIncoming(ctx context.Context) context.Context {

@@ -1,6 +1,4 @@
-// Command item runs the item service: item instances, the inventory, item
-// events, and the idempotency keys and outbox of its transactions, served
-// over gRPC (Low-level design, page 10). It runs until SIGINT or SIGTERM.
+// Command item serves items, inventories and item events over gRPC until SIGINT or SIGTERM.
 package main
 
 import (

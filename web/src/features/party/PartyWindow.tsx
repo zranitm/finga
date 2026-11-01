@@ -1,8 +1,4 @@
-// The party window (C13): invite a player on the same map from the
-// nearby list (PartyInvite takes a character id), the members with level,
-// HP, map and online state from PartyState, leave, and kick and promote
-// for the leader. Every command carries a request ID and shows the
-// server's reason on failure; membership changes only on PartyState.
+// Membership changes only on PartyState, never on a command's Response.
 import { useState } from 'react';
 
 import { Bar } from '@/components/Bar';
@@ -16,7 +12,6 @@ export const MAX_PARTY = 4;
 
 export interface PartyWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
-  /** The local character's id, to tell the leader's controls from a member's. */
   readonly me: string;
   readonly onClose: () => void;
   readonly onFocusChange?: (focused: boolean) => void;

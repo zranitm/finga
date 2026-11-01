@@ -37,7 +37,6 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// items is the item service, faked on a loopback port.
 type items struct {
 	itemv1.UnimplementedItemServiceServer
 	mu     sync.Mutex

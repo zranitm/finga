@@ -35,8 +35,6 @@ func TestMain(m *testing.M) {
 
 var errBoom = errors.New("boom")
 
-// run executes one command through a transaction, the way a module's unit
-// of work would: the store is bound to the transaction.
 func run(ctx context.Context, pool dbx.Beginner, owner, scope, key string, hash []byte, fn func() ([]byte, error)) ([]byte, error) {
 	var out []byte
 	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {

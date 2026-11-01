@@ -1,5 +1,3 @@
-// The development-only network delay (client step C08): every frame out
-// and in waits delayMs, so a 100 ms delay is a 200 ms round trip.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { noInput } from '@/sim/input';

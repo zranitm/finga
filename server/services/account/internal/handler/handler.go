@@ -1,8 +1,4 @@
-// Package handler is the account service's transport layer: the
-// AccountService gRPC server (api/proto/internal/account/v1). Each method
-// decodes the request, calls exactly one service method, and encodes the
-// result; errors leave through Errors. WatchSessions streams the session
-// ends the module reports through its hooks to every subscribed gateway.
+// Package handler is the account service's AccountService gRPC server.
 package handler
 
 import (
@@ -36,8 +32,7 @@ type Service interface {
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
 }
 
-// watchQueue is how many session ends may wait for a slow gateway before
-// its stream is ended; its minute check catches what it then misses.
+// watchQueue bounds the session ends queued for a slow gateway before its stream is dropped.
 const watchQueue = 1024
 
 // Server serves AccountService over the module.
@@ -48,8 +43,7 @@ type Server struct {
 	watchers *hub.Hub[*accountv1.WatchSessionsResponse]
 }
 
-// New builds the server. bootID is random per process start, so a gateway
-// can tell a restart from a broken stream.
+// New builds the server; a per-process bootID lets a gateway tell a restart from a broken stream.
 func New(svc Service, bootID string) *Server {
 	return &Server{svc: svc, bootID: bootID, watchers: hub.New[*accountv1.WatchSessionsResponse](watchQueue)}
 }
@@ -155,16 +149,14 @@ func (s *Server) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.
 	return grpcx.ServeSubscription(stream, s.watchers.Subscribe(req.GetGatewayId()), first)
 }
 
-// SessionRevoked is the module's OnSessionRevoked hook: every gateway hears
-// that the session ended.
+// SessionRevoked is the module's OnSessionRevoked hook, broadcast to every gateway.
 func (s *Server) SessionRevoked(_ context.Context, id uuid.UUID, reason string) {
 	s.watchers.Broadcast(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{
 		SessionRevoked: &accountv1.SessionRevoked{SessionId: id.String(), Reason: revokeReason(reason)},
 	}})
 }
 
-// AccountRevoked is the module's OnAccountRevoked hook: every gateway hears
-// that the account's sessions ended.
+// AccountRevoked is the module's OnAccountRevoked hook, broadcast to every gateway.
 func (s *Server) AccountRevoked(_ context.Context, id uuid.UUID, reason string) {
 	s.watchers.Broadcast(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{
 		AccountRevoked: &accountv1.AccountRevoked{AccountId: id.String(), Reason: revokeReason(reason)},

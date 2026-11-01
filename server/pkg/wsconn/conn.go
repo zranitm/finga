@@ -14,17 +14,16 @@ import (
 	"github.com/coder/websocket"
 )
 
-// Close codes: the standard ones the layer uses, and application codes in
-// the 4000 range for the reasons it closes connections itself.
+// Close codes; the 4000s are the layer's own.
 const (
 	CloseNormal       = int(websocket.StatusNormalClosure)
 	CloseGoingAway    = int(websocket.StatusGoingAway)
 	CloseTooBig       = int(websocket.StatusMessageTooBig)
 	CloseInternal     = int(websocket.StatusInternalError)
-	CloseSlowConsumer = 4001 // the send queue filled up
-	CloseTimeout      = 4002 // no pong in time
-	CloseKicked       = 4003 // the handler ended the session (reason says why)
-	CloseBadMessage   = 4004 // an unknown or malformed message
+	CloseSlowConsumer = 4001
+	CloseTimeout      = 4002
+	CloseKicked       = 4003 // the handler ended the session
+	CloseBadMessage   = 4004
 )
 
 // Defaults for Options.
@@ -42,8 +41,7 @@ var (
 	ErrClosed    = errors.New("wsconn: connection closed")
 )
 
-// CloseError is why the layer or the handler closed a connection; OnClose
-// receives it. A peer's normal closure is reported as a nil error.
+// CloseError is why we closed a connection; a peer's normal closure gives OnClose nil.
 type CloseError struct {
 	Code   int
 	Reason string
@@ -54,16 +52,13 @@ func (e *CloseError) Error() string { return fmt.Sprintf("wsconn: closed %d: %s"
 // Conn is a live connection as the handler sees it.
 type Conn interface {
 	ID() string
-	// Send enqueues a message without blocking. A full queue closes the
-	// connection (the peer is too slow) and returns ErrQueueFull.
+	// Send enqueues without blocking; a full queue closes the connection.
 	Send(Message) error
-	// Close ends the connection with a code and reason; the first call wins.
+	// Close ends the connection; the first call wins.
 	Close(code int, reason string)
 }
 
-// Handler receives connection events. OnOpen and OnMessage run on the
-// connection's read goroutine, one message at a time; OnClose runs exactly
-// once, after every other callback has returned.
+// Handler callbacks run on the read goroutine one at a time; OnClose runs last, exactly once.
 type Handler interface {
 	OnOpen(Conn)
 	OnMessage(Conn, Message)
@@ -96,9 +91,7 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
-// Serve upgrades the request and runs the connection until it closes: the
-// read loop on this goroutine, a write loop and a ping loop beside it. A
-// refused origin answers 403 and returns without calling the handler.
+// Serve upgrades the request and runs the connection until it closes.
 func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	opts = opts.withDefaults()
 	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: originPatterns(opts.AllowedOrigins)})
@@ -110,8 +103,7 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	c.run(r.Context(), h, opts)
 }
 
-// originPatterns turns full origins into coder/websocket patterns, which
-// match "scheme://host" when they contain a scheme.
+// originPatterns keeps the scheme so coder/websocket matches scheme://host, not just the host.
 func originPatterns(origins []string) []string {
 	out := make([]string, 0, len(origins))
 	for _, o := range origins {
@@ -136,7 +128,7 @@ type conn struct {
 // ID is the connection's random identifier.
 func (c *conn) ID() string { return c.id }
 
-// Send enqueues a message; a full queue closes the connection.
+// Send enqueues m; a full queue closes the connection.
 func (c *conn) Send(m Message) error {
 	select {
 	case <-c.closed:
@@ -158,7 +150,7 @@ func (c *conn) Send(m Message) error {
 	}
 }
 
-// Close records the reason and wakes the run loop; the first call wins.
+// Close records the reason and wakes the run loop.
 func (c *conn) Close(code int, reason string) {
 	c.once.Do(func() {
 		c.closeErr = &CloseError{Code: code, Reason: reason}
@@ -166,8 +158,6 @@ func (c *conn) Close(code int, reason string) {
 	})
 }
 
-// closedByPeer records a read error (the peer closed, or the socket died)
-// without a CloseError of our own.
 func (c *conn) closedByPeer() {
 	c.once.Do(func() { close(c.closed) })
 }
@@ -182,7 +172,6 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 	defer cancel()
 	var wg sync.WaitGroup
 
-	// Reader: the only goroutine that reads from the socket.
 	frames := make(chan frame)
 	wg.Go(func() {
 		for {
@@ -198,8 +187,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		}
 	})
 
-	// Writer: the only goroutine that writes to the socket while the
-	// connection is open.
+	// Writer: the only socket writer while the connection is open.
 	writerDone := make(chan struct{})
 	wg.Go(func() {
 		defer close(writerDone)
@@ -219,7 +207,6 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		}
 	})
 
-	// Pinger: a missed pong ends the connection.
 	wg.Go(func() {
 		t := time.NewTicker(opts.PingInterval)
 		defer t.Stop()
@@ -246,17 +233,13 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 	h.OnOpen(c)
 	readErr := c.dispatch(h, frames)
 
-	// Tell the peer why, when it was our decision, then tear down. A peer
-	// that stopped reading (slow consumer, missed pong) would never answer
-	// the close handshake, so those paths drop the socket at once.
+	// A peer that stopped reading never answers the close handshake, so drop it at once.
 	if c.closeErr != nil {
 		switch c.closeErr.Code {
 		case CloseSlowConsumer, CloseTimeout:
 			_ = c.ws.CloseNow()
 		default:
-			// The writer has stopped (closed is closed); flush what the
-			// handler queued just before closing, such as a Kicked message,
-			// so the peer learns why before the close frame.
+			// Flush what the handler queued before closing (a Kicked message) ahead of the close frame.
 			<-writerDone
 			c.flush(ctx)
 			_ = c.ws.Close(websocket.StatusCode(c.closeErr.Code), c.closeErr.Reason) //nolint:gosec // close codes are small
@@ -268,10 +251,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 	h.OnClose(c, closeReason(c.closeErr, readErr))
 }
 
-// dispatch hands each frame the reader receives to h, decoded, one at a
-// time, until the connection ends: closed by us (nil), by the peer (the
-// read error, returned for OnClose), or by a frame that does not decode
-// (nil; Close records why).
+// dispatch returns the read error if the peer ended the connection, else nil.
 func (c *conn) dispatch(h Handler, frames <-chan frame) error {
 	for {
 		select {
@@ -292,8 +272,6 @@ func (c *conn) dispatch(h Handler, frames <-chan frame) error {
 	}
 }
 
-// closeReason is what OnClose gets: our CloseError when we closed, nil for
-// a peer's normal closure, else the read error.
 func closeReason(ours *CloseError, readErr error) error {
 	if ours != nil {
 		return ours

@@ -6,8 +6,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// The request and response bodies of api/openapi.yaml. A drift test keeps
-// their JSON fields equal to the schemas there.
+// Request and response bodies of api/openapi.yaml; a drift test keeps them in sync.
 
 // RegisterRequest is POST /api/accounts.
 type RegisterRequest struct {
@@ -66,8 +65,7 @@ type CharactersResponse struct {
 	Characters []CharacterResponse `json:"characters"`
 }
 
-// SettingsRequest is PUT /api/settings; SettingsResponse is what both
-// settings endpoints return.
+// SettingsRequest is PUT /api/settings.
 type SettingsRequest struct {
 	ControlPreset string `json:"control_preset"`
 }
@@ -77,8 +75,7 @@ type SettingsResponse struct {
 	ControlPreset string `json:"control_preset"`
 }
 
-// ErrorResponse is every error body: a code the client can branch on and a
-// message safe to show the player.
+// ErrorResponse is every error body: a stable code and a message safe to show the player.
 type ErrorResponse struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`

@@ -4,9 +4,7 @@ import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-// One config for dev, build and test (page 7). The dev proxy makes the
-// client same-origin with the game server on :8080, so cors_origins stays
-// empty and VITE_API_ORIGIN unset in Stage 1.
+// The dev proxy makes the client same-origin with the server, so no CORS setup is needed.
 const server = 'http://localhost:8080';
 
 export default defineConfig({
@@ -25,8 +23,7 @@ export default defineConfig({
     },
   },
   build: {
-    // Phaser in its own chunk (page 7): the game engine changes rarely and
-    // the app code often, so browsers keep the big chunk cached.
+    // Phaser in its own chunk: it changes rarely, so browsers keep it cached.
     rolldownOptions: {
       output: {
         codeSplitting: {
@@ -42,8 +39,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      // The 80% floor from page 7 applies to the layers tested over plain
-      // data; scenes, entities and components are checked by playing.
+      // Scenes, entities and components are checked by playing, not by the coverage floor.
       include: [
         'src/lib/**',
         'src/protocol/**',

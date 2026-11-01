@@ -12,7 +12,6 @@ import (
 // Store is what the service sees of persistence.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
-	// Inventory lists the owner's items, by tab and slot, on the pool.
 	Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
 }
 
@@ -24,12 +23,9 @@ type UnitOfWork interface {
 	Idempotency() Idempotency
 }
 
-// Repository reads and writes the items table on one connection. Ownership
-// is decided by the service and made atomic here: owned methods put the
-// owner in the WHERE clause.
+// Repository reads and writes the items table; owned methods put the owner in the WHERE clause.
 type Repository interface {
-	// LockInventory locks the owner's inventory rows in ID order and returns
-	// them by tab and slot.
+	// LockInventory locks the owner's rows in ID order and returns them by tab and slot.
 	LockInventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
 	LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error)
 	Insert(ctx context.Context, it model.Item) error
@@ -43,9 +39,7 @@ type EventRepository interface {
 	Append(ctx context.Context, e model.Event) error
 }
 
-// Idempotency runs a command once per key: it hashes the request, stores
-// the result, and replays it for the same key and request. The same key
-// with another request is ErrKeyReused.
+// Idempotency runs a command once per key; the same key with another request is ErrKeyReused.
 type Idempotency interface {
 	Run(ctx context.Context, owner kernel.AccountID, scope, key string, request any, fn func() (Result, error)) (Result, error)
 }

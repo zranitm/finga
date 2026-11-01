@@ -1,6 +1,4 @@
-// The game config and the handle the app drives it through: attach the
-// canvas once, enter the world when Welcome arrives, leave it on the way
-// out. The handle exists before the canvas does, so the app can hold it.
+// The handle exists before the canvas does, so the app can hold it.
 import Phaser from 'phaser';
 
 import type { GameSocket } from '@/net/socket';
@@ -32,7 +30,6 @@ export class GameHandle {
 
   constructor(private readonly deps: GameDeps) {}
 
-  /** Creates the game in the parent element; returns the function that destroys it. */
   attach(parent: HTMLElement): () => void {
     const game = new Phaser.Game(gameConfig(parent));
     game.registry.set(REGISTRY.socket, this.deps.socket);
@@ -48,7 +45,7 @@ export class GameHandle {
     };
   }
 
-  /** Starts the World scene for the map and character from Welcome; restarts it if it is running. */
+  /** Restarts the World scene if it is running. */
   enter(data: WorldData): void {
     this.pending = data;
     const game = this.game;
@@ -61,7 +58,7 @@ export class GameHandle {
     game.scene.start(SCENES.World, data);
   }
 
-  /** Stops the World scene; the canvas stays behind the React screens. */
+  /** The canvas stays behind the React screens. */
   leave(): void {
     this.pending = null;
     this.game?.scene.stop(SCENES.World);

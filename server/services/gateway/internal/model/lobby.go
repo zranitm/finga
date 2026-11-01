@@ -23,8 +23,7 @@ type Stats struct {
 	STR, DEX, INT, AGI, VIT int
 }
 
-// Character is a character as the character service stores it, as the
-// REST API lists it.
+// Character is a character as the REST API lists it.
 type Character struct {
 	ID    kernel.CharacterID
 	Name  string

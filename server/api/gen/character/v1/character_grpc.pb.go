@@ -30,22 +30,16 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// CharacterService owns characters: creation, their stats, levels and EXP,
-// and the checkpoints the world saves (Low-level design, page 10). The
-// gateway lists and creates characters for REST; the world loads them on
-// join and saves checkpoints and level-ups from its persistence worker. A
-// failure carries a Reason in google.rpc.ErrorInfo.
+// CharacterService owns characters, their progression and the world's checkpoints.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type CharacterServiceClient interface {
-	// Create makes a level 1 character in the town, commits it, then grants
-	// its starter items through the item service (idempotent, keyed by the
-	// character ID, retried until it succeeds or the deadline ends).
+	// Create makes a level 1 character in the town, then grants its starter items idempotently.
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	// List is an account's characters, oldest first.
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
-	// Load is one character, only if it belongs to the account; someone
-	// else's is REASON_CHARACTER_NOT_FOUND, like a missing one.
+	// Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
 	Load(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (*LoadResponse, error)
-	// SaveCheckpoint saves position, HP, MP and EXP (TD-02).
+	// SaveCheckpoint saves position, HP, MP and EXP.
 	SaveCheckpoint(ctx context.Context, in *SaveCheckpointRequest, opts ...grpc.CallOption) (*SaveCheckpointResponse, error)
 	// SaveLevelUp saves a level-up right away.
 	SaveLevelUp(ctx context.Context, in *SaveLevelUpRequest, opts ...grpc.CallOption) (*SaveLevelUpResponse, error)
@@ -113,22 +107,16 @@ func (c *characterServiceClient) SaveLevelUp(ctx context.Context, in *SaveLevelU
 // All implementations must embed UnimplementedCharacterServiceServer
 // for forward compatibility.
 //
-// CharacterService owns characters: creation, their stats, levels and EXP,
-// and the checkpoints the world saves (Low-level design, page 10). The
-// gateway lists and creates characters for REST; the world loads them on
-// join and saves checkpoints and level-ups from its persistence worker. A
-// failure carries a Reason in google.rpc.ErrorInfo.
+// CharacterService owns characters, their progression and the world's checkpoints.
+// A failure carries a Reason in google.rpc.ErrorInfo.
 type CharacterServiceServer interface {
-	// Create makes a level 1 character in the town, commits it, then grants
-	// its starter items through the item service (idempotent, keyed by the
-	// character ID, retried until it succeeds or the deadline ends).
+	// Create makes a level 1 character in the town, then grants its starter items idempotently.
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	// List is an account's characters, oldest first.
 	List(context.Context, *ListRequest) (*ListResponse, error)
-	// Load is one character, only if it belongs to the account; someone
-	// else's is REASON_CHARACTER_NOT_FOUND, like a missing one.
+	// Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
 	Load(context.Context, *LoadRequest) (*LoadResponse, error)
-	// SaveCheckpoint saves position, HP, MP and EXP (TD-02).
+	// SaveCheckpoint saves position, HP, MP and EXP.
 	SaveCheckpoint(context.Context, *SaveCheckpointRequest) (*SaveCheckpointResponse, error)
 	// SaveLevelUp saves a level-up right away.
 	SaveLevelUp(context.Context, *SaveLevelUpRequest) (*SaveLevelUpResponse, error)

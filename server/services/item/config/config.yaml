@@ -1,8 +1,5 @@
-# services/item/config/config.yaml: the item service's committed defaults, for local
-# runs and Compose, with only the keys it uses (Low-level design, page 11).
-# Any key can be overridden as FINGA_<KEY_PATH> (FINGA_DATABASE_URL);
-# CONFIG_PATH, or a git-ignored config.local.yaml beside this file, replaces
-# it. Nothing here is secret.
+# Committed defaults, nothing secret. Override a key as FINGA_<KEY_PATH> (FINGA_DATABASE_URL);
+# CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 
 grpc:
   listen: ":9003"

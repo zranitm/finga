@@ -1,8 +1,4 @@
-// Package clients are the world service's adapters for the services it
-// calls, in the world module's own terms: the character service (loading
-// characters to join, saving checkpoints and level-ups), the item service
-// (pickups, and starter items on join) and the social service (the party
-// copy the tick reads).
+// Package clients adapts the character, item and social services to the world's ports.
 package clients
 
 import (
@@ -22,8 +18,7 @@ type Pickups struct{ c itemv1.ItemServiceClient }
 // NewPickups adapts the item client.
 func NewPickups(c itemv1.ItemServiceClient) Pickups { return Pickups{c: c} }
 
-// Add puts a drop in the inventory, keyed and caused by the drop's ID, so a
-// retry or a replay grants it once.
+// Add keys the grant by the drop's ID, so a retry or replay grants it once.
 func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
 	drop := in.DropID.String()
 	res, err := p.c.Add(ctx, &itemv1.AddRequest{
@@ -51,8 +46,7 @@ func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error)
 	return out, nil
 }
 
-// Retryable is a failure that carries no reason: the item service was not
-// reached, or could not explain it. A reason is a rule; retrying cannot help.
+// Retryable is a failure without a reason; a rule never passes on retry.
 func (Pickups) Retryable(err error) bool { return !grpcx.IsRule(err) }
 
 // Saver is the world's Saver over the character service.
@@ -93,8 +87,7 @@ type Characters struct {
 // NewCharacters adapts the character client.
 func NewCharacters(c characterv1.CharacterServiceClient) Characters { return Characters{c: c} }
 
-// Load is a character of the account, as last saved; someone else's fails
-// with the character service's not-found reason, passed through.
+// Load is the account's character as last saved.
 func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	res, err := c.c.Load(ctx, &characterv1.LoadRequest{CharacterId: id.String(), AccountId: account.String()})
 	if err != nil {
@@ -119,8 +112,7 @@ type Starter struct{ c itemv1.ItemServiceClient }
 // NewStarter adapts the item client.
 func NewStarter(c itemv1.ItemServiceClient) Starter { return Starter{c: c} }
 
-// GrantStarter asks for the class's starter items, keyed by the character:
-// a no-op unless creation never granted them.
+// GrantStarter asks for the class's starter items, keyed by the character.
 func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error {
 	_, err := s.c.GrantStarter(ctx, &itemv1.GrantStarterRequest{
 		Actor: &itemv1.Actor{AccountId: account.String(), CharacterId: id.String()},

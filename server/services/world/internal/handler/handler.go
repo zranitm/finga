@@ -1,10 +1,4 @@
-// Package handler is the world service's transport layer: the WorldService
-// gRPC server (api/proto/internal/world/v1) over the world module. Each
-// gateway node holds one Deliver stream with a bounded queue; every player
-// who joined through that gateway sends its events there, and a stream that
-// falls behind is closed, which drops its players at their next event. A
-// command names the map its caller believes the player is on and goes to
-// that instance, which ignores a player it does not hold.
+// Package handler is the world service's gRPC server: one bounded Deliver stream per gateway.
 package handler
 
 import (
@@ -31,12 +25,10 @@ type World interface {
 	Instance(mapID string) (*application.Instance, error)
 }
 
-// DefaultQueue is what may wait for one gateway before its stream ends:
-// about two seconds of deltas for a few hundred players.
+// DefaultQueue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
 const DefaultQueue = 8192
 
-// ErrNotSubscribed is a Join from a gateway with no Deliver stream open:
-// the Snapshot would have nowhere to go.
+// ErrNotSubscribed is a Join from a gateway with no Deliver stream open.
 var ErrNotSubscribed = errors.New("world: gateway has no deliver stream")
 
 // Server serves WorldService.
@@ -50,12 +42,9 @@ type Server struct {
 
 // Options configure the server.
 type Options struct {
-	// BootID is random per process start: a gateway that sees a new one
-	// knows every player it had joined is gone.
+	// BootID is random per process start, so a gateway can tell its players are gone.
 	BootID string
-	// Queue bounds each gateway's stream; DefaultQueue when zero.
-	Queue int
-	// Logger logs a pickup failure nobody expected; nil discards it.
+	Queue  int
 	Logger *slog.Logger
 }
 
@@ -70,8 +59,7 @@ func New(w World, opts Options) *Server {
 	return &Server{world: w, bootID: opts.BootID, deliver: hub.New[*worldv1.DeliverResponse](opts.Queue), log: opts.Logger}
 }
 
-// Deliver streams one gateway's events: Subscribed, then everything bound
-// for the players who joined through it.
+// Deliver streams one gateway's events, starting with Subscribed.
 func (s *Server) Deliver(req *worldv1.DeliverRequest, stream grpc.ServerStreamingServer[worldv1.DeliverResponse]) error {
 	if req.GetGatewayId() == "" {
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
@@ -80,8 +68,7 @@ func (s *Server) Deliver(req *worldv1.DeliverRequest, stream grpc.ServerStreamin
 	return grpcx.ServeSubscription(stream, s.deliver.Subscribe(req.GetGatewayId()), first)
 }
 
-// Join loads the character, grants its starter items if needed and joins
-// it to its map; the Snapshot goes to the gateway's stream.
+// Join joins the character to its map; the Snapshot goes to the gateway's stream.
 func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
 	sub, ok := s.deliver.Get(req.GetGatewayId())
 	if !ok {
@@ -146,9 +133,7 @@ func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayRe
 	})
 }
 
-// command posts one command to the instance of the presence's map; a full
-// inbox is ErrBusy (the gateway drops the command: the next one supersedes
-// it).
+// command posts to the instance of the presence's map; a full inbox is ErrBusy.
 func (s *Server) command(p *worldv1.Presence, post func(*application.Instance, kernel.CharacterID) bool) error {
 	id, err := kernel.ParseCharacterID(p.GetCharacterId())
 	if err != nil {

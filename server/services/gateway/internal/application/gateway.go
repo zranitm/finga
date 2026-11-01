@@ -19,22 +19,16 @@ import (
 
 // Dependencies are the services and settings the gateway is built from.
 type Dependencies struct {
-	// ID names this gateway node to the services that stream to it; random
-	// when empty.
-	ID          string
-	Sessions    auth.Guard
-	SessionEnds SessionEnds // the account service's stream; nil: none is followed, the minute check still runs
-	World       World       // joins, commands, and the delivery stream Run follows
-	Items       Items       // nil: Welcome carries no items and inventory commands are unavailable
-	Social      Social      // parties and chat; nil: both are unavailable
-	Logger      *slog.Logger
-	Observer    Observer
-	Clock       func() time.Time
-	// JoinTimeout bounds a join, waiting out a world that is starting or
-	// restarting; 5 s by default.
-	JoinTimeout time.Duration
-	// SessionCheckInterval is how often Run checks each connection's session
-	// and kicks the expired ones; a minute by default.
+	ID                   string
+	Sessions             auth.Guard
+	SessionEnds          SessionEnds // nil: only the periodic session check runs
+	World                World
+	Items                Items  // nil: no inventory
+	Social               Social // nil: no parties or chat
+	Logger               *slog.Logger
+	Observer             Observer
+	Clock                func() time.Time
+	JoinTimeout          time.Duration
 	SessionCheckInterval time.Duration
 }
 
@@ -46,11 +40,7 @@ const (
 	joinRetryMax                = 500 * time.Millisecond
 )
 
-// Gateway is the connections' use cases (page 10): a connection's
-// session from Open to Closed, Hello, the players' commands (commands.go),
-// and the services' streams, whose pushes it forwards to each player's
-// connection. The WebSocket handler calls it for each connection's
-// messages, as the REST handler calls the Lobby.
+// Gateway runs the connection use cases and forwards the services' pushes to players.
 type Gateway struct {
 	deps Dependencies
 	now  func() time.Time
@@ -58,14 +48,14 @@ type Gateway struct {
 	mu          sync.Mutex
 	byConn      map[string]*Session
 	byAccount   map[kernel.AccountID]*Session
-	byCharacter map[kernel.CharacterID]*Session // active sessions, for party and chat delivery
-	bySession   map[kernel.SessionID]*Session   // active connections by login session
-	socialBoot  string                          // the social service's boot ID, from its stream
-	worldSubs   uint64                          // subscriptions to the world's stream so far
-	draining    atomic.Bool                     // Drain has begun: no new connections
+	byCharacter map[kernel.CharacterID]*Session
+	bySession   map[kernel.SessionID]*Session
+	socialBoot  string // a new boot ID means the social service restarted
+	worldSubs   uint64 // more than one means the world's stream broke
+	draining    atomic.Bool
 }
 
-// NewGateway builds the connections' use cases.
+// NewGateway builds a Gateway, defaulting unset dependencies.
 func NewGateway(deps Dependencies) *Gateway {
 	if deps.Clock == nil {
 		deps.Clock = time.Now
@@ -92,12 +82,7 @@ func NewGateway(deps Dependencies) *Gateway {
 	}
 }
 
-// Run follows the world's delivery stream, the social service's and the
-// account service's session ends (each when set), and checks every
-// connection's login session on an interval, until ctx is done, kicking the
-// ones whose session ended (expired, logged out, reused token) with
-// session_expired. The minute check catches what a broken stream missed.
-// It never returns an error.
+// Run follows the services' streams and periodically kicks expired sessions until ctx is done.
 func (g *Gateway) Run(ctx context.Context) error {
 	if g.deps.World != nil {
 		go g.deps.World.FollowDeliveries(ctx, g.deps.ID, g.worldDelivered)
@@ -134,7 +119,6 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 	}
 }
 
-// sessionEnded acts on one message of the account service's stream.
 func (g *Gateway) sessionEnded(ev model.SessionEnd) {
 	switch {
 	case !ev.Session.IsZero():
@@ -144,8 +128,7 @@ func (g *Gateway) sessionEnded(ev model.SessionEnd) {
 	}
 }
 
-// KickSession closes every connection on a login session: the account
-// service reported it ended by reuse or logout.
+// KickSession closes the connection on a login session that ended.
 func (g *Gateway) KickSession(sessionID kernel.SessionID) {
 	g.mu.Lock()
 	s := g.bySession[sessionID]
@@ -155,9 +138,7 @@ func (g *Gateway) KickSession(sessionID kernel.SessionID) {
 	}
 }
 
-// KickAccount closes every connection of an account: a logout everywhere,
-// or a new login elsewhere (newLogin), which the player sees as
-// logged_in_elsewhere; anything else is session_expired.
+// KickAccount closes an account's connection: logged_in_elsewhere on a new login, else session_expired.
 func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	g.mu.Lock()
 	s := g.byAccount[accountID]
@@ -172,25 +153,18 @@ func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	s.conn.Kick(why)
 }
 
-// sessionOf finds the active session of a character, if any.
 func (g *Gateway) sessionOf(id kernel.CharacterID) *Session {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.byCharacter[id]
 }
 
-// Draining reports whether Drain has begun: the handler refuses new
-// connections from then on.
+// Draining reports whether Drain has begun; new connections are refused from then on.
 func (g *Gateway) Draining() bool { return g.draining.Load() }
 
-// drainPoll is how often Drain checks whether every connection has closed.
 const drainPoll = 10 * time.Millisecond
 
-// Drain is the gateway's part of a graceful shutdown, run once readiness
-// has turned 503 and before the listener closes: it refuses new
-// connections, tells every connection the server is restarting (Kicked
-// server_restart, after which the client reconnects with jitter) and
-// closes it, and returns once they have all closed or ctx ends.
+// Drain refuses new connections, kicks open ones with server_restart and waits until they close or ctx ends.
 func (g *Gateway) Drain(ctx context.Context) {
 	g.draining.Store(true)
 	g.mu.Lock()
@@ -220,25 +194,21 @@ func (g *Gateway) Drain(ctx context.Context) {
 	}
 }
 
-// Open starts a connection's session; the WebSocket handler holds it for
-// the connection and passes it to every use case. A connection that
-// opened as Drain began is told the server is restarting.
+// Open starts a connection's session, which the handler passes to every use case.
 func (g *Gateway) Open(c Conn) *Session {
 	s := &Session{conn: c, out: out{conn: c}}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	g.mu.Lock()
 	g.byConn[c.ID()] = s
-	draining := g.draining.Load() // read under the lock Drain collects connections with
+	draining := g.draining.Load() // under the lock, so Drain cannot miss this connection
 	g.mu.Unlock()
 	if draining {
-		c.Kick(protocol.KickServerRestart) // upgraded as Drain began
+		c.Kick(protocol.KickServerRestart)
 	}
 	return s
 }
 
-// Closed ends a session whose connection closed (reason for the log),
-// once no command of the connection runs any more: it stops a rejoin in
-// flight, leaves the map and clears the registry.
+// Closed ends a session once its connection closed and none of its commands still runs.
 func (g *Gateway) Closed(s *Session, reason string) {
 	s.cancel()
 	g.mu.Lock()
@@ -256,8 +226,6 @@ func (g *Gateway) Closed(s *Session, reason string) {
 	}
 	g.mu.Unlock()
 	if joined {
-		// The world removes the player only if it joined through this
-		// connection; a rejoin that finishes after this leaves again.
 		g.leave(s)
 	}
 	if s.active() {
@@ -273,7 +241,6 @@ func (g *Gateway) Closed(s *Session, reason string) {
 	g.deps.Logger.Info("ws closed", "conn", s.conn.ID(), "reason", reason)
 }
 
-// leave tells the world the connection's player is gone.
 func (g *Gateway) leave(s *Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
@@ -282,15 +249,7 @@ func (g *Gateway) leave(s *Session) {
 	}
 }
 
-// Hello joins the connection's player (page 10): the token, then the join
-// through the world (which checks the character is the account's), the
-// inventory and the party, then Welcome through the Conn. The session is
-// registered for its character before the join, so the Snapshot, which
-// may come back on the world's stream before the join answers, waits in
-// the session and follows Welcome. An older connection of the account
-// loses once the join holds. It fails with model.ErrHelloRejected when the
-// token or the character is not the account's; any other failure is one
-// the client may retry, logged here with its cause.
+// Hello joins the connection's character and sends Welcome; model.ErrHelloRejected means a bad token or character.
 func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID kernel.CharacterID) error {
 	ctx, cancel := context.WithTimeout(ctx, g.deps.JoinTimeout)
 	defer cancel()
@@ -298,8 +257,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	if err != nil {
 		return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 	}
-	// Every Hello rotates the token (step 16): the client keeps the one in
-	// Welcome; the one it sent works once more for a minute.
+	// The client keeps Welcome's token; the one it sent works once more for a minute.
 	rotated, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
 	if err != nil {
 		if model.PublicOf(err) == model.Unauthenticated {
@@ -310,7 +268,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	}
 	account, sessionID := kernel.AccountID(p.AccountID), kernel.SessionID(p.SessionID)
 
-	// A rejoin (the world's stream broke) waits until this join is out.
+	// Rejoins wait, and deliveries are held so a Snapshot that beats the join follows Welcome.
 	s.rejoinMu.Lock()
 	defer s.rejoinMu.Unlock()
 	s.out.hold()
@@ -318,9 +276,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	previous := g.byCharacter[charID]
 	g.byCharacter[charID] = s
 	s.account, s.sessionID, s.character.ID = account, sessionID, charID
-	// A join only succeeds once the world holds this gateway's stream, so
-	// the first subscription is never a break, even before the gateway has
-	// read its Subscribed.
+	// A join succeeds only once the world has our stream, so the first subscription is never a break.
 	subs := max(g.worldSubs, 1)
 	g.mu.Unlock()
 
@@ -337,9 +293,6 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 		}
 		s.character.ID = kernel.CharacterID{}
 		g.mu.Unlock()
-		// Someone else's character, or none, is a bad Hello; a world or
-		// character service that cannot answer is a server fault the client
-		// retries.
 		if model.PublicOf(err).Code == model.CharacterNotFound {
 			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
@@ -357,8 +310,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 		welcome.Inventory = items
 	}
 	if g.deps.Social != nil {
-		// Parties are optional: a social service that cannot be reached
-		// leaves Welcome without one rather than the player out of the game.
+		// Parties are optional: a social failure must not block the join.
 		party, err := g.deps.Social.PartyOf(ctx, charID)
 		if err != nil {
 			g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", charID, "err", err)
@@ -376,8 +328,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	missed := g.worldSubs > subs // the stream broke during the join
 	g.mu.Unlock()
 	s.out.release(joined.MapID, func() { s.conn.Welcome(welcome) })
-	// An older connection of the account, or a second Hello on the same
-	// session, loses: the newest connection wins.
+	// The newest connection wins.
 	for _, prev := range []*Session{old, sameSession, previous} {
 		if prev != nil && prev != s {
 			prev.conn.Kick(protocol.KickLoggedInElsewhere)
@@ -392,11 +343,8 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	return nil
 }
 
-// worldDelivered acts on one message of the world's stream: a delivery
-// goes to its player's session; Subscribed after the first means the
-// stream broke and every player this gateway had joined is gone from the
-// world, so each is joined again. Nothing here waits on the world: the
-// joins' Snapshots come back on this same stream.
+// worldDelivered routes a delivery to its session. A repeat Subscribed means the stream broke,
+// so every player rejoins off this goroutine: their Snapshots arrive on this same stream.
 func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 	if ev.Subscribed {
 		g.mu.Lock()
@@ -418,20 +366,14 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 	}
 	s := g.sessionOf(ev.Character)
 	if s == nil {
-		return // gone from this gateway; the world learns it from Leave
+		return
 	}
 	if !s.out.deliver(ev.Delivery) {
 		s.conn.Close("deliveries")
 	}
 }
 
-// rejoin joins a connected player again after the world's stream broke,
-// from the character's last checkpoint: MapChange first when that is
-// another map than the session's, then the Snapshot. The socket stays
-// open; a join that fails because the stream broke again waits for the
-// next subscription, which rejoins, and any other failure (the world still
-// unreachable when the join gives up, say) closes the connection so the
-// client reconnects.
+// rejoin joins a player again after the world's stream broke; other failures close the connection.
 func (g *Gateway) rejoin(s *Session) {
 	s.rejoinMu.Lock()
 	defer s.rejoinMu.Unlock()
@@ -443,7 +385,7 @@ func (g *Gateway) rejoin(s *Session) {
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
-			g.leave(s) // the connection closed mid-join; the world may have joined it anyway
+			g.leave(s) // closed mid-join; the world may have joined it anyway
 			return
 		}
 		if errors.Is(err, model.ErrNotSubscribed) {
@@ -470,10 +412,7 @@ func (g *Gateway) rejoin(s *Session) {
 	g.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.conn.ID(), "character_id", s.character.ID, "map_id", joined.MapID)
 }
 
-// join asks the world to join a player, waiting out a world that is not
-// reachable yet (starting, restarting) or has not seen this gateway's
-// stream yet, until ctx ends. A join is safe to repeat: the world replaces
-// a presence that joined through the same connection.
+// join retries while the world cannot take the join yet, until ctx ends; a join is safe to repeat.
 func (g *Gateway) join(ctx context.Context, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
 	wait := joinRetryFirst
 	for {
@@ -492,15 +431,11 @@ func (g *Gateway) join(ctx context.Context, conn string, account kernel.AccountI
 	}
 }
 
-// waitable is a join failure that time may cure: the world is unreachable,
-// or its stream to this gateway is not open yet.
 func waitable(err error) bool {
 	return errors.Is(err, model.ErrNotSubscribed) || errors.Is(err, model.ErrUnavailable)
 }
 
-// online tells the social service a player is connected through this
-// gateway, so party traffic finds it here. A failure is logged: parties are
-// optional, and the next registration (a social restart) tries again.
+// online registers the player with the social service; failures are only logged.
 func (g *Gateway) online(ctx context.Context, s *Session) {
 	if g.deps.Social == nil {
 		return
@@ -510,10 +445,7 @@ func (g *Gateway) online(ctx context.Context, s *Session) {
 	}
 }
 
-// socialDelivered forwards one message of the social service's stream to
-// its player's connection. A new boot ID on Subscribed means the social
-// service restarted and every party is gone: each connected player gets
-// PartyState with no party and is registered again.
+// socialDelivered forwards a delivery; a new boot ID means the service restarted and every party is gone.
 func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	if ev.Subscribed {
 		g.mu.Lock()
@@ -536,12 +468,11 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	}
 	t := g.sessionOf(ev.Character)
 	if t == nil {
-		return // gone from this gateway; the social service learns it from Offline
+		return
 	}
 	t.conn.Deliver(ev.Delivery)
 }
 
-// noopObserver is the Observer when none is given.
 type noopObserver struct{}
 
 // OnlineChanged does nothing.

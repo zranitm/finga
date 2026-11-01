@@ -2,9 +2,7 @@ package kernel
 
 import "errors"
 
-// Class is a character class. The game has four (OD-03); which ones a
-// player can pick in a given stage is decided by game data, not here
-// (Stage 1: Warrior and Bowman, S1-Q1).
+// Class is a character class; game data decides which ones a player can pick.
 type Class string
 
 // The four classes, as stored in characters.class.

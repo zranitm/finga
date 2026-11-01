@@ -1,7 +1,4 @@
-// Package outbox is the transactional outbox: a module writes its domain
-// events to the outbox table inside the same transaction as the change, so
-// a committed change always has its event and an uncommitted one never
-// does. Stage 2 adds the relay that publishes unsent rows.
+// Package outbox writes domain events in the same transaction as the change.
 package outbox
 
 import (
@@ -14,8 +11,7 @@ import (
 	"finga/pkg/dbx"
 )
 
-// Event is one domain event to publish. A zero ID gets a new one; a zero
-// OccurredAt is now. ContentType defaults to application/json.
+// Event is one domain event; Add fills a zero ID, OccurredAt and ContentType.
 type Event struct {
 	ID          uuid.UUID
 	Topic       string
@@ -26,7 +22,7 @@ type Event struct {
 	OccurredAt  time.Time
 }
 
-// DefaultContentType is Stage 1's encoding.
+// DefaultContentType is used for an Event without one.
 const DefaultContentType = "application/json"
 
 // Writer appends events inside the caller's transaction.
@@ -46,7 +42,7 @@ type writer struct {
 
 const insertSQL = `INSERT INTO outbox (event_id, topic, key, type, content_type, payload, occurred_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
-// Add inserts the events, filling in IDs, times and the content type.
+// Add implements Writer.
 func (w *writer) Add(ctx context.Context, events ...Event) error {
 	for _, e := range events {
 		if e.ID == uuid.Nil {

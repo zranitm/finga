@@ -8,10 +8,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// enterPortal moves a player standing in one of this map's portals to the
-// linked portal on the target map (page 3: leave, checkpoint, join the
-// target, MapChange). It reports whether the player left this instance.
-// Off a portal, dead, or with no mover, nothing happens.
+// enterPortal reports whether the player left through a portal.
 func (i *Instance) enterPortal(p *player) bool {
 	if p.dead || i.opts.Transfer == nil {
 		return false
@@ -35,18 +32,12 @@ func (i *Instance) enterPortal(p *player) bool {
 	return false
 }
 
-// standsIn reports whether feet at (x, y) are inside a portal rectangle.
-// The bottom edge counts: a character arriving through a portal stands
-// exactly on it.
+// standsIn includes the bottom edge: a character arriving through a portal stands exactly on it.
 func standsIn(r sim.Rect, x, y float64) bool {
 	return x >= r.X && x < r.X+r.W && y >= r.Y && y <= r.Y+r.H
 }
 
-// handOff is the order of a map change (page 3): tell the player where
-// they go, checkpoint them as already there (a crash in between still
-// lands them on the target), drop them from this instance, and have the
-// World join them to the target from its own goroutine. The player's
-// in-memory state (HP, MP, EXP, level) travels with them untouched.
+// handOff checkpoints the player on the target map before detaching, so a crash still lands them there.
 func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
 	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
 	moved := p.Player

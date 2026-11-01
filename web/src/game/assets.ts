@@ -1,6 +1,3 @@
-// The asset manifest: every texture key and the file it loads from, under
-// public/assets. A Node test checks that each key in TEX is here and that
-// every file exists, so a missing or renamed file fails before it 404s.
 import { TEX } from './keys';
 import type { TextureKey } from './keys';
 

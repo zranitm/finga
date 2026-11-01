@@ -1,9 +1,4 @@
-// Package host runs one internal service the way every Finga service runs
-// (Low-level design, page 10): a gRPC server on its listen address, built
-// by pkg/grpcx with the service's error table, and /healthz, /readyz and
-// /metrics on its ops address, with background tasks, readiness and
-// graceful shutdown on pkg/runner. A service's composition root makes a
-// Host, registers its gRPC handlers on GRPC, and runs it.
+// Package host runs one internal service: gRPC, the ops endpoints, background tasks and graceful shutdown.
 package host
 
 import (
@@ -27,11 +22,11 @@ const (
 
 // Options describe one service.
 type Options struct {
-	Name     string   // for logs
-	Settings Settings // the listeners and the grace period, from the service's configuration
+	Name     string
+	Settings Settings
 	Logger   *slog.Logger
 	Registry *prometheus.Registry // served on /metrics
-	Errors   grpcx.ErrorTable     // the service's errors and their reasons
+	Errors   grpcx.ErrorTable
 	Tasks    []runner.Task
 }
 

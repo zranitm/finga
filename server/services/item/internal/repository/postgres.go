@@ -1,7 +1,4 @@
-// Package repository is the item service's storage (Low-level design, page
-// 11): the Postgres store behind application.Store, its unit of work (the
-// items, the item events, the outbox and idempotency keys), and classify,
-// over the items and item_events tables the service owns.
+// Package repository is the item service's Postgres store behind application.Store.
 package repository
 
 import (
@@ -27,9 +24,7 @@ import (
 	"finga/services/item/internal/repository/internal/db"
 )
 
-// Postgres is the service's store: plain reads on the pool, InTx for writes,
-// UnitOfWork for joining another module's transaction, and classify at
-// every boundary.
+// Postgres is the service's store; every error it returns is classified into the model's.
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
@@ -41,9 +36,7 @@ func NewPostgres(pool *pgxpool.Pool) *Postgres {
 	return &Postgres{pool: pool, q: db.New(pool), now: time.Now}
 }
 
-// InTx runs fn inside one transaction with a unit of work bound to it. fn
-// may run more than once, so it must have no side effects outside the
-// transaction.
+// InTx runs fn in one transaction; fn may be retried, so it must have no outside side effects.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(p.unitOfWork(tx))
@@ -51,7 +44,6 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 	return classify(err)
 }
 
-// unitOfWork builds the store's unit of work over a transaction.
 func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 	q := db.New(tx)
 	return unitOfWork{
@@ -127,20 +119,20 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 	})
 }
 
-// SetQuantity changes a quantity; no row is pgx.ErrNoRows.
+// SetQuantity changes a quantity.
 func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error {
 	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity), UpdatedAt: r.now()}) //nolint:gosec // quantities are small
 	return rowsOrNotFound(n, err)
 }
 
-// SetSlot moves an item to a slot; no row is pgx.ErrNoRows.
+// SetSlot moves an item to a slot.
 func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
 	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, UpdatedAt: r.now()})
 	return rowsOrNotFound(n, err)
 }
 
-// Destroy marks an item destroyed with quantity 0; no row is pgx.ErrNoRows.
+// Destroy marks an item destroyed with quantity 0 rather than deleting the row.
 func (r repo) Destroy(ctx context.Context, id kernel.ItemID) error {
 	n, err := r.q.DestroyItem(ctx, db.DestroyItemParams{ID: uuid.UUID(id), UpdatedAt: r.now()})
 	return rowsOrNotFound(n, err)
@@ -169,8 +161,7 @@ func (r eventRepo) Append(ctx context.Context, e model.Event) error {
 	return r.q.InsertItemEvent(ctx, params)
 }
 
-// idem adapts pkg/idempotency to the use cases: it hashes the request as JSON
-// and stores the Result as JSON.
+// idem adapts pkg/idempotency, hashing the request and storing the Result as JSON.
 type idem struct{ store idempotency.Store }
 
 // Run runs fn once per key for the account.
@@ -231,15 +222,12 @@ func rowsOrNotFound(n int64, err error) error {
 	return nil
 }
 
-// Constraint names from the migration.
 const (
 	constraintSlot     = "one_item_per_slot"
 	constraintQuantity = "items_quantity_check"
 )
 
-// classify turns database errors into the model's errors, by constraint
-// name. Unknown errors pass through: retries still see 40001, and handlers
-// report the rest as internal.
+// classify maps constraint errors to the model's; others pass through so retries still see 40001.
 func classify(err error) error {
 	var pgErr *pgconn.PgError
 	switch {

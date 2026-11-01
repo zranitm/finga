@@ -1,7 +1,4 @@
-// Package config is the social service's configuration (parties and chat):
-// config.yaml beside this file, with only the keys the service uses
-// (Low-level design, page 11). Every key can be overridden by FINGA_ and
-// its path in upper case.
+// Package config loads the social service's config.yaml; FINGA_<KEY_PATH> overrides any key.
 package config
 
 import (

@@ -1,5 +1,3 @@
-// A stand-in for the `phaser` module in tests: records games created and
-// destroyed and the scenes started and stopped, with none of the canvas.
 // Use: vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
 
 export class FakeScene {
@@ -11,7 +9,6 @@ export class FakeGame {
   static reset(): void {
     FakeGame.instances = [];
   }
-  /** Games created and not destroyed. */
   static live(): FakeGame[] {
     return FakeGame.instances.filter((g) => !g.destroyed);
   }

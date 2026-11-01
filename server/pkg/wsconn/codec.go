@@ -1,8 +1,4 @@
-// Package wsconn is a generic WebSocket session layer: an upgrade with an
-// origin check, one read loop and one write loop per connection, pings
-// with timeouts, a read size limit, a bounded send queue that drops slow
-// consumers, and a pluggable Codec with a type registry. It knows nothing
-// about the game; internal/protocol registers the message types.
+// Package wsconn is a WebSocket session layer with origin checks, pings and a bounded send queue.
 package wsconn
 
 import (
@@ -13,14 +9,13 @@ import (
 	"sort"
 )
 
-// Message is one frame, decoded: a type and its data, plus the optional
-// envelope fields.
+// Message is one decoded frame.
 type Message struct {
 	Type  string
-	Seq   uint32 // client input sequence, optional
-	ReqID string // request/response correlation, optional
-	Tick  uint64 // server tick, optional
-	Data  any    // concrete message struct, resolved through the registry
+	Seq   uint32
+	ReqID string
+	Tick  uint64
+	Data  any // concrete message struct, resolved through the registry
 }
 
 // Codec encodes and decodes frames.
@@ -35,8 +30,6 @@ var (
 	ErrMalformed   = errors.New("wsconn: malformed message")
 )
 
-// envelope is the JSON wire form (Low-level design, page 4):
-// {"t": "...", "req": "...", "seq": 1, "tick": 2, "d": {...}}.
 type envelope struct {
 	Type  string          `json:"t"`
 	ReqID string          `json:"req,omitempty"`
@@ -45,8 +38,7 @@ type envelope struct {
 	Data  json.RawMessage `json:"d,omitempty"`
 }
 
-// JSONCodec is the Stage 1 encoding. Types are registered by name; Encode
-// accepts a Message with its Type set or infers it from the Data's type.
+// JSONCodec is a JSON Codec over a registry of named message types.
 type JSONCodec struct {
 	types map[string]reflect.Type
 	names map[reflect.Type]string
@@ -57,9 +49,7 @@ func NewJSONCodec() *JSONCodec {
 	return &JSONCodec{types: map[string]reflect.Type{}, names: map[reflect.Type]string{}}
 }
 
-// Register binds a message name to the type of zero (a struct value or a
-// pointer to one). It panics on a duplicate name or type, which is a
-// programming error caught at startup.
+// Register binds name to zero's struct type; a duplicate name or type panics.
 func (c *JSONCodec) Register(name string, zero any) {
 	t := reflect.TypeOf(zero)
 	for t.Kind() == reflect.Pointer {
@@ -85,7 +75,7 @@ func (c *JSONCodec) Types() []string {
 	return out
 }
 
-// Encode writes the envelope. Nil Data encodes as an empty object.
+// Encode writes the envelope, inferring Type from Data when unset; nil Data encodes as {}.
 func (c *JSONCodec) Encode(m Message) ([]byte, error) {
 	name := m.Type
 	if m.Data != nil {
@@ -111,9 +101,7 @@ func (c *JSONCodec) Encode(m Message) ([]byte, error) {
 	return json.Marshal(envelope{Type: name, ReqID: m.ReqID, Seq: m.Seq, Tick: m.Tick, Data: data})
 }
 
-// Decode reads the envelope and the data into the registered type, as a
-// value (not a pointer). Unknown fields inside the data are ignored, so an
-// older server tolerates a newer client's extra fields.
+// Decode yields Data as a value of the registered type; unknown fields are ignored.
 func (c *JSONCodec) Decode(b []byte) (Message, error) {
 	var env envelope
 	if err := json.Unmarshal(b, &env); err != nil {

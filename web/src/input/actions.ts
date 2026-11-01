@@ -1,6 +1,3 @@
-// Key codes become actions through the chosen preset (Screens and
-// controls). Movement actions become the sim's Input; the others are
-// commands and window toggles that the game and the features act on.
 import type { Input } from '@/sim/input';
 
 import { presets } from './presets';
@@ -33,7 +30,6 @@ export const actions: readonly Action[] = [
 
 const movement: readonly Action[] = ['left', 'right', 'up', 'down', 'jump'];
 
-/** The action a KeyboardEvent.code maps to under the preset, or undefined. */
 export function actionFor(code: string, preset: Preset): Action | undefined {
   const table = presets[preset];
   for (const action of actions) {
@@ -48,7 +44,6 @@ export function isMovement(action: Action): boolean {
   return movement.includes(action);
 }
 
-/** The sim Input for the actions currently held. */
 export function heldInput(held: ReadonlySet<Action>): Input {
   return {
     left: held.has('left'),

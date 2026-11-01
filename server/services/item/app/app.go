@@ -1,7 +1,4 @@
-// Package app is the item service's composition root (Low-level design,
-// page 10): game data, the pool, the item module, and its gRPC handler on
-// a host. It is a package of its own, next to the main, because the
-// end-to-end tests build the service exactly as production does.
+// Package app is the item service's composition root, shared with the end-to-end tests.
 package app
 
 import (
@@ -20,8 +17,7 @@ import (
 	"finga/services/item/internal/repository"
 )
 
-// Build wires the item service from configuration. It fails fast on bad
-// game data or an unreachable database.
+// Build wires the item service; it fails fast on bad game data or an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {

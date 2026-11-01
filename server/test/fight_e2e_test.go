@@ -11,9 +11,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// place moves a character straight in the database, the way a checkpoint
-// would have left it: the forest with a given HP and EXP. The REST API has
-// no such endpoint, and portals arrive in step 14.
+// place moves a character straight in the database, as a checkpoint would have left it.
 func (s *stack) place(t *testing.T, charID, mapID string, x, y float64, hp int, exp int64) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -24,8 +22,6 @@ func (s *stack) place(t *testing.T, charID, mapID string, x, y float64, hp int, 
 	}
 }
 
-// createCharacter signs up, logs in and creates a character; it returns
-// the token and the character ID without connecting.
 func (s *stack) createCharacter(t *testing.T, username, charName, class string) (token, id string) {
 	t.Helper()
 	s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": username, "password": "correct horse"}), http.StatusCreated)
@@ -35,7 +31,6 @@ func (s *stack) createCharacter(t *testing.T, username, charName, class string) 
 	return token, created.body["id"].(string)
 }
 
-// join opens the WebSocket and says Hello for an existing character.
 func (s *stack) join(t *testing.T, token, id string) (*player, protocol.Snapshot) {
 	t.Helper()
 	p := s.connect(t, id)
@@ -45,8 +40,7 @@ func (s *stack) join(t *testing.T, token, id string) (*player, protocol.Snapshot
 	return p, snap
 }
 
-// attackUntil sends Attack every 850 ms until pred sees a message or the
-// deadline passes.
+// attackUntil sends Attack every 850 ms until pred sees a message or d passes.
 func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
 	deadline := time.Now().Add(d)
 	next := time.Now()
@@ -65,7 +59,7 @@ func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bo
 	return false
 }
 
-// facing sends a one-tick nudge so the character faces right (or left).
+// face sends a one-tick nudge so the character faces right (or left).
 func (p *player) face(right bool) {
 	p.send(wsconn.Message{Seq: 500, Data: protocol.Input{Right: right, Left: !right}})
 	time.Sleep(60 * time.Millisecond)
@@ -73,8 +67,7 @@ func (p *player) face(right bool) {
 }
 
 func TestFightAndGrow(t *testing.T) {
-	// One stack per row: the login throttle is five per minute per IP, and
-	// every row logs in from the loopback address.
+	// One stack per row, so the rows' logins stay under the login throttle.
 
 	t.Run("C1/mobs-appear-wander-and-are-the-same-for-everyone", func(t *testing.T) {
 		s := newStack(t)
@@ -94,7 +87,6 @@ func TestFightAndGrow(t *testing.T) {
 		if !types["green_slime"] || !types["orange_mushroom"] {
 			t.Fatalf("mob types %v", types)
 		}
-		// Mobs wander: a delta soon carries a mob at another x.
 		moved := false
 		deadline := time.Now().Add(3 * time.Second)
 		for !moved && time.Now().Before(deadline) {
@@ -116,7 +108,6 @@ func TestFightAndGrow(t *testing.T) {
 		if !moved {
 			t.Fatal("no mob moved within 3 s")
 		}
-		// A second player sees the same mobs.
 		token2, id2 := s.createCharacter(t, "greg", "Greg", "warrior")
 		s.place(t, id2, "forest", 400, 608, 204, 0)
 		_, snap2 := s.join(t, token2, id2)
@@ -162,7 +153,6 @@ func TestFightAndGrow(t *testing.T) {
 		if !strings.HasPrefix(hit.Target, "m:") || hit.Amount < 1 {
 			t.Fatalf("damage %+v", hit)
 		}
-		// The other player saw the same damage.
 		seen := false
 		deadline := time.Now().Add(3 * time.Second)
 		for !seen && time.Now().Before(deadline) {
@@ -184,12 +174,8 @@ func TestFightAndGrow(t *testing.T) {
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.join(t, token, id)
-		// No settling drain here: a slime can stand on the spawn point, and
-		// a Died discarded in the first 300 ms would never be seen again.
-		// Walk back and forth inside the slime field (x 216..784). A contact
-		// misses 22% of the time, and a character that walked straight on
-		// could cross the field alive and stand against the boulder at 960
-		// where nothing patrols, so the direction flips every 1.5 s.
+		// No settling drain: a slime may stand on the spawn point, and a discarded Died is never seen again.
+		// Contacts miss 22% of the time, so flip every 1.5 s to stay in the slime field (x 216..784).
 		right := true
 		seq := uint32(1)
 		p.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
@@ -249,8 +235,7 @@ func TestFightAndGrow(t *testing.T) {
 		if len(snap.Mobs) != 0 {
 			t.Fatal("the town has mobs")
 		}
-		// The death penalty took 5% of level 1's 20 EXP: 10 → 9, and the
-		// checkpoint on the way out saved it with the town position.
+		// The death penalty took 5% of level 1's 20 EXP (10 → 9), saved with the town position.
 		var exp int64
 		var mapID string
 		dl := time.Now().Add(5 * time.Second)
@@ -293,7 +278,6 @@ func TestFightAndGrow(t *testing.T) {
 		if lu.Character.Level != 2 || lu.Character.ID != id || lu.Character.HP != lu.Character.MaxHP || lu.Character.Stats.DEX != 15 {
 			t.Fatalf("level-up %+v", lu.Character)
 		}
-		// Saved right away: the REST list shows level 2.
 		dl := time.Now().Add(5 * time.Second)
 		for time.Now().Before(dl) {
 			list := s.call("GET", "/api/characters", p.token, nil)

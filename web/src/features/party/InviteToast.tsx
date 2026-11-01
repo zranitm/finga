@@ -1,6 +1,3 @@
-// Incoming party invites (C13): who asks, Accept and Decline through
-// PartyRespond, and a 30 s countdown after which the invite goes by
-// itself (the server expires it too).
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/Button';
@@ -53,7 +50,7 @@ function InviteItem({
   const respond = (accept: boolean) => {
     party.getState().dismissInvite(invite.invite_id);
     void socket.request('PartyRespond', { invite_id: invite.invite_id, accept }).catch(() => {
-      // The server's reason is not worth a toast here: the invite may simply have expired.
+      // No toast: the invite may simply have expired.
     });
   };
 

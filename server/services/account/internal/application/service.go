@@ -1,9 +1,4 @@
-// Package application is the account service's use cases (Low-level
-// design, page 11): sign up, log in, sessions with one active session per
-// account (OD-08), and account settings. Its Service implements pkg/auth,
-// so the handler and the gateway depend on the interface (TD-17). ports.go
-// declares what it needs: its Store and the repositories bound to one
-// transaction, which the repository layer implements.
+// Package application is the account service's use cases: sign up, log in, sessions and settings.
 package application
 
 import (
@@ -33,27 +28,24 @@ type RegisterInput struct {
 	Password string
 }
 
-// LoginInput is a login. IP is the caller's address for throttling; empty
-// skips the per-IP limit.
+// LoginInput is a login.
 type LoginInput struct {
 	Username string
 	Password string
 }
 
-// Options tune the service. Zero values take the defaults below.
+// Options tune the service; zero values take the defaults.
 type Options struct {
-	IdleTTL            time.Duration    // a session ends after this long unused (TD-24: 7 days)
-	MaxLifetime        time.Duration    // and never lives longer than this from login (30 days)
-	ExtendEvery        time.Duration    // the idle expiry is pushed at most this often (10 minutes)
-	RotationGrace      time.Duration    // the token retired by a rotation works once within this (60 s)
-	LoginRatePerMinute float64          // per username and per IP (page 4: 5 per minute)
-	LoginBurst         int              // attempts allowed at once
-	Now                func() time.Time // the clock; tests inject one
-	Hash               password.Params  // argon2id parameters
+	IdleTTL            time.Duration // a session ends after this long unused
+	MaxLifetime        time.Duration // and never lives longer than this from login
+	ExtendEvery        time.Duration // the idle expiry is pushed at most this often
+	RotationGrace      time.Duration // the token retired by a rotation works once within this
+	LoginRatePerMinute float64       // per username
+	LoginBurst         int
+	Now                func() time.Time
+	Hash               password.Params
 
-	// OnSessionRevoked and OnAccountRevoked are told when the service ends
-	// sessions (reuse, logout, a new login elsewhere), so connections can
-	// be closed. Both may be nil.
+	// OnSessionRevoked and OnAccountRevoked, if set, hear of ended sessions so connections can close.
 	OnSessionRevoked func(ctx context.Context, sessionID uuid.UUID, reason string)
 	OnAccountRevoked func(ctx context.Context, accountID uuid.UUID, reason string)
 }
@@ -78,14 +70,9 @@ const (
 
 // The reasons OnSessionRevoked and OnAccountRevoked give.
 const (
-	// ReasonTokenReuse: the session's previous token was used again after
-	// the grace, so the session ended (step 16).
 	ReasonTokenReuse = "token reuse"
-	// ReasonLogout: the player logged out, here or everywhere.
-	ReasonLogout = "logged out"
-	// ReasonNewLogin: a new login ended the older session (one active
-	// session per account).
-	ReasonNewLogin = "logged in elsewhere"
+	ReasonLogout     = "logged out"
+	ReasonNewLogin   = "logged in elsewhere"
 )
 
 var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
@@ -96,8 +83,8 @@ type Service struct {
 	opts       Options
 	now        func() time.Time
 	hash       password.Params
-	dummy      string            // an argon2id hash verified for unknown usernames, so they take as long
-	byUser     ratelimit.Limiter // logins per username; per-IP limits are the edge's (nginx)
+	dummy      string            // verified for unknown usernames, so they take as long
+	byUser     ratelimit.Limiter // per-IP limits belong to the edge (nginx)
 	presetList []model.Preset
 }
 
@@ -148,8 +135,7 @@ func NewService(store Store, opts Options) *Service {
 	}
 }
 
-// Register creates an account. The password is hashed here; the
-// repository never sees it.
+// Register creates an account; the repository only ever sees the password hash.
 func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account, error) {
 	if len(in.Username) < usernameMin || len(in.Username) > usernameMax || !usernameRe.MatchString(in.Username) {
 		return model.Account{}, model.ErrBadUsername
@@ -171,10 +157,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	return model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: a.CreatedAt}, nil
 }
 
-// Login throttles per username, verifies the credentials, and issues a
-// session. The token is returned once and never stored. The throttle is the
-// one only the service can apply, since only it reads the username; limits
-// per address belong to the edge, which sees the real one (nginx, TD-12).
+// Login throttles per username, verifies the credentials and issues a session token.
 func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 	if !s.byUser.Allow(strings.ToLower(in.Username)) {
 		return "", model.ErrRateLimited
@@ -186,10 +169,8 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 	return s.Issue(ctx, id)
 }
 
-// Verify implements auth.Authenticator. An unknown user and a wrong
-// password fail the same way and take the same time: an unknown username
-// is verified against a dummy hash, so responses don't reveal which
-// usernames exist, by content or by timing.
+// Verify implements auth.Authenticator.
+// An unknown username is checked against a dummy hash, so timing reveals nothing.
 func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, error) {
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
@@ -209,10 +190,8 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 	return uuid.UUID(creds.Account.ID), nil
 }
 
-// Issue implements auth.Sessions: one transaction revokes the account's
-// older sessions and inserts the new one. The account row is locked first,
-// so concurrent logins queue; the partial unique index is the backstop, and
-// a violation runs the transaction once more.
+// Issue implements auth.Sessions, replacing the account's older sessions in one transaction.
+// The account row lock queues concurrent logins; a unique-index race retries once.
 func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
@@ -243,10 +222,8 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 	}
 }
 
-// Validate implements auth.Sessions. Unknown, expired and revoked tokens
-// all fail with ErrUnauthenticated. The token retired by the last rotation
-// is accepted once within the grace period; any other use of it is reuse
-// and revokes the session. A valid use slides the expiry.
+// Validate implements auth.Sessions and slides the expiry on success.
+// The last rotated-out token works once within the grace; any other use revokes the session.
 func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, error) {
 	hash := sha256.Sum256([]byte(token))
 	session, err := s.store.FindActiveSession(ctx, hash[:])
@@ -281,8 +258,7 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 	return auth.Principal{AccountID: uuid.UUID(session.AccountID), SessionID: uuid.UUID(session.ID)}, nil
 }
 
-// Rotate implements auth.Sessions: the session gets a new token, and the
-// one it had becomes the previous token for the grace period.
+// Rotate implements auth.Sessions; the old token stays valid once within the grace period.
 func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
@@ -349,8 +325,7 @@ func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time
 	return nil
 }
 
-// expiry is when a session used at now should end: the idle period from
-// now, never past the lifetime from its creation.
+// expiry is the idle period from now, capped at the lifetime from creation.
 func (s *Service) expiry(createdAt, now time.Time) time.Time {
 	until := now.Add(s.opts.IdleTTL)
 	if limit := createdAt.Add(s.opts.MaxLifetime); until.After(limit) {
@@ -359,8 +334,7 @@ func (s *Service) expiry(createdAt, now time.Time) time.Time {
 	return until
 }
 
-// extend slides the expiry, at most once every ExtendEvery and only when
-// it moves it later.
+// extend slides the expiry, at most once every ExtendEvery.
 func (s *Service) extend(ctx context.Context, session model.Session, now time.Time) error {
 	lastExtended := session.ExpiresAt.Add(-s.opts.IdleTTL)
 	if now.Sub(lastExtended) < s.opts.ExtendEvery {
@@ -394,7 +368,6 @@ func (s *Service) UpdateSettings(ctx context.Context, id kernel.AccountID, st mo
 	})
 }
 
-// newToken is 32 random bytes as URL-safe base64, and its SHA-256.
 func newToken() (token string, hash []byte, err error) {
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {

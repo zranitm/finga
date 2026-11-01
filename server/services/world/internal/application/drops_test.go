@@ -17,12 +17,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// errFull is the item service's refusal in these tests: a rule, so the
-// world never retries it.
+// errFull is a rule, so the world never retries it.
 var errFull = errors.New("inventory full")
 
-// fakePickups stands in for the item service: idempotent by drop, with a
-// scripted failure for the first call when set.
+// fakePickups is idempotent by drop, with an optional failure on each drop's first call.
 type fakePickups struct {
 	mu        sync.Mutex
 	calls     []model.Pickup
@@ -55,7 +53,6 @@ func (f *fakePickups) Add(_ context.Context, in model.Pickup) ([]model.Slot, err
 	return slots, nil
 }
 
-// Retryable is everything but the refusal.
 func (f *fakePickups) Retryable(err error) bool { return !errors.Is(err, errFull) }
 
 func (f *fakePickups) items() int {
@@ -70,8 +67,6 @@ func (f *fakePickups) callCount() int {
 	return len(f.calls)
 }
 
-// alwaysDrops rolls so that every drop entry drops at its minimum quantity
-// and every attack hits for average damage.
 type scriptedRoll struct{ v float64 }
 
 func (r scriptedRoll) Float64() float64 { return r.v }
@@ -116,8 +111,6 @@ func pickupFailures(s *sink) []model.PickupFailed {
 	return out
 }
 
-// runLootArena starts the arena with pickups wired to a fake item service
-// and a worker pool inside the bubble.
 func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...application.Options) (*application.Instance, func()) {
 	t.Helper()
 	workers := application.NewWorkers(2, nil)
@@ -207,8 +200,7 @@ func TestPickUp(t *testing.T) {
 		for _, d := range drops {
 			theDrop = d
 		}
-		// Walk under the drop (it lies beside x 300 on the platform level, 18 px
-		// above the player's feet: within the 40 px range from the centre).
+		// Walk under the drop, within the 40 px pickup range.
 		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		walk(inst, p.ID, seq, sim.Input{}, 1)
 		{ // a pickup in range becomes one item, the drop leaves the ground

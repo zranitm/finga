@@ -12,8 +12,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// SessionWatcher is what the stream of ended sessions needs of the account
-// service's generated client.
+// SessionWatcher is the part of the account client that streams ended sessions.
 type SessionWatcher interface {
 	WatchSessions(ctx context.Context, in *accountv1.WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[accountv1.WatchSessionsResponse], error)
 }

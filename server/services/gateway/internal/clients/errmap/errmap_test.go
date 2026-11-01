@@ -114,8 +114,7 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 	}
 }
 
-// contracts are the reason enums of the services that run in their own
-// processes; every value must have a row, or a client would see internal.
+// contracts are the services' reason enums; every value needs a row, or a client sees internal.
 var contracts = []protoreflect.EnumDescriptor{
 	accountv1.Reason(0).Descriptor(),
 	characterv1.Reason(0).Descriptor(),
@@ -124,8 +123,6 @@ var contracts = []protoreflect.EnumDescriptor{
 	worldv1.Reason(0).Descriptor(),
 }
 
-// TestEveryReasonIsMapped: every reason has a row, or is one the gateway
-// handles itself, which For answers Internal.
 func TestEveryReasonIsMapped(t *testing.T) {
 	for _, d := range contracts {
 		for _, r := range grpcx.Reasons(d) {
@@ -137,8 +134,6 @@ func TestEveryReasonIsMapped(t *testing.T) {
 	}
 }
 
-// Wrap hands a failed call to the use cases with what the client sees and
-// the kinds they act on, and leaves nil and an already wrapped failure alone.
 func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 	tests := []struct {
 		name string

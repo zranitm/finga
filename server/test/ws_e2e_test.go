@@ -15,9 +15,8 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// player is one Go test client: a REST session plus a WebSocket whose
-// frames a background reader decodes into a channel, so waiting with a
-// timeout never closes the socket (a timed-out Read would).
+// player is one test client: a REST session plus a WebSocket.
+// A background reader decodes frames, since a timed-out Read would close the socket.
 type player struct {
 	t     *testing.T
 	id    string
@@ -28,7 +27,6 @@ type player struct {
 	done  chan struct{} // closed when the reader stops (connection closed)
 }
 
-// enter signs up, logs in, creates a character and joins the world.
 func (s *stack) enter(t *testing.T, username, charName, class string) *player {
 	t.Helper()
 	s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": username, "password": "correct horse"}), http.StatusCreated)
@@ -42,7 +40,7 @@ func (s *stack) enter(t *testing.T, username, charName, class string) *player {
 	if w.Character.Name != charName {
 		t.Fatalf("welcome %+v", w)
 	}
-	p.token = w.Token // rotated on Hello (step 16): REST calls use this one from now on
+	p.token = w.Token // rotated on Hello; REST calls use this one from now on
 	p.expect("Snapshot")
 	return p
 }
@@ -52,9 +50,7 @@ func (s *stack) connect(t *testing.T, id string) *player {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// The Origin a browser on the same page would send, so the gateway's
-	// origin check runs here as it does for players (and, in CI's smoke
-	// through nginx, checks that the proxy passes the browser's Host on).
+	// A same-page browser Origin, so the gateway's origin check runs as it does for players.
 	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(s.url, "http")+"/ws",
 		&websocket.DialOptions{HTTPHeader: http.Header{"Origin": {s.url}}})
 	if err != nil {
@@ -90,8 +86,6 @@ func (p *player) send(m wsconn.Message) {
 	}
 }
 
-// read returns the next message within d, or false when none arrived or
-// the connection closed.
 func (p *player) read(d time.Duration) (wsconn.Message, bool) {
 	select {
 	case m := <-p.msgs:
@@ -108,7 +102,6 @@ func (p *player) read(d time.Duration) (wsconn.Message, bool) {
 	}
 }
 
-// closed reports whether the connection has closed, waiting up to d.
 func (p *player) closed(d time.Duration) bool {
 	select {
 	case <-p.done:
@@ -134,7 +127,6 @@ func (p *player) expect(msgType string) wsconn.Message {
 	return wsconn.Message{}
 }
 
-// position reads deltas until one carries the character, for up to d.
 func (p *player) position(of string, d time.Duration) (protocol.PlayerView, bool) {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
@@ -154,7 +146,6 @@ func (p *player) position(of string, d time.Duration) (protocol.PlayerView, bool
 	return protocol.PlayerView{}, false
 }
 
-// drain discards messages for d.
 func (p *player) drain(d time.Duration) {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
@@ -200,10 +191,8 @@ func TestWalkTogether(t *testing.T) {
 	t.Run("B2/faster-inputs-do-not-move-faster", func(t *testing.T) {
 		ayla.drain(400 * time.Millisecond)
 		robin.drain(400 * time.Millisecond)
-		// Ayla sends one input per tick for 20 ticks; Robin sends 10 per tick
-		// (the first 20 pass the limit at once, the rest are dropped). Both
-		// walk right for the same second and should cover about the same
-		// distance, bounded by walk speed, not by input count.
+		// For 20 ticks Ayla sends one input per tick and Robin ten (the excess is dropped).
+		// Both should cover about the same distance, bounded by walk speed, not input count.
 		seqA, seqR := uint32(10), uint32(10)
 		var startA, startR protocol.PlayerView
 		for i := range 20 {
@@ -228,8 +217,7 @@ func TestWalkTogether(t *testing.T) {
 		ayla.send(wsconn.Message{Seq: seqA, Data: protocol.Input{}})
 		seqR++
 		robin.send(wsconn.Message{Seq: seqR, Data: protocol.Input{}})
-		// The stop makes one last change to each state: the last delta
-		// carrying each character is the end position.
+		// The stop is each state's last change, so the last delta carrying a character is its end position.
 		var endA, endR protocol.PlayerView
 		for {
 			v, ok := robin.position(ayla.id, 500*time.Millisecond)
@@ -278,7 +266,6 @@ func TestWalkTogether(t *testing.T) {
 func TestSecondLoginKicksTheFirstEndToEnd(t *testing.T) {
 	s := newStack(t)
 	first := s.enter(t, "carol", "Cass", "warrior")
-	// A second login for the same account: new token, same character.
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"}).body["token"].(string)
 	second := s.connect(t, first.id)
 	second.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: first.id}})
