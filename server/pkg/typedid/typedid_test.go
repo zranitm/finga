@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"finga/pkg/typedid"
+	"finga/pkg/uuidv7"
 )
 
 type (
@@ -119,7 +120,7 @@ func TestKindsAreDistinctTypes(t *testing.T) {
 }
 
 func TestConvertsToAndFromUUID(t *testing.T) {
-	u := uuid.Must(uuid.NewV7())
+	u := uuidv7.New()
 	id := orderID(u)
 	if uuid.UUID(id) != u || id.String() != u.String() {
 		t.Fatalf("%s does not match %s", id, u)

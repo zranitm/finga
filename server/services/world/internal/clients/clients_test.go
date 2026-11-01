@@ -6,7 +6,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -16,6 +15,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/uuidv7"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/model"
 )
@@ -54,7 +54,7 @@ func TestPickupsAddTheDropUnderItsOwnKey(t *testing.T) {
 	gel := kernel.NewItemID()
 	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 2, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7}}, {Tab: "etc", Slot: 4}}}
 	p := clients.NewPickups(itemClient(t, f))
-	in := model.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuid.New(), Template: "slime_gel", Quantity: 2}
+	in := model.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuidv7.New(), Template: "slime_gel", Quantity: 2}
 	slots, err := p.Add(context.Background(), in)
 	if err != nil {
 		t.Fatal(err)

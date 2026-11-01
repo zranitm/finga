@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"finga/pkg/uuidv7"
 )
 
 // ID is an identifier of kind K.
@@ -15,13 +17,7 @@ type ID[K any] uuid.UUID
 var ErrMalformed = errors.New("typedid: malformed ID")
 
 // New mints an ID; it panics only if the system's random source fails.
-func New[K any]() ID[K] {
-	u, err := uuid.NewV7()
-	if err != nil {
-		panic(err)
-	}
-	return ID[K](u)
-}
+func New[K any]() ID[K] { return ID[K](uuidv7.New()) }
 
 // Parse reads any text form google/uuid accepts; anything else is ErrMalformed.
 func Parse[K any](s string) (ID[K], error) {

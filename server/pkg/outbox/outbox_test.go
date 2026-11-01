@@ -14,6 +14,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/outbox"
 	"finga/pkg/pgtest"
+	"finga/pkg/uuidv7"
 )
 
 var cluster *pgtest.Cluster
@@ -57,7 +58,7 @@ func TestAdd(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	t0 := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	given := uuid.New()
+	given := uuidv7.New()
 
 	t.Run("rows exist exactly when the transaction commits", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {

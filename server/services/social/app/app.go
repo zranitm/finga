@@ -5,11 +5,11 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/host"
+	"finga/pkg/uuidv7"
 	"finga/services/social/config"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
@@ -19,7 +19,7 @@ import (
 // Build wires the social service; parties live in memory, so a restart forgets them.
 func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
 	parties := application.NewPartyService(repository.NewMemory(), application.PartyOptions{})
-	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{}), uuid.NewString())
+	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{}), uuidv7.NewString())
 	parties.Notify(srv)
 	h := host.New(host.Options{
 		Name:     "social",

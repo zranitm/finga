@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 	"finga/services/item/invariants"
@@ -84,7 +84,7 @@ func TestInventoryProperties(t *testing.T) {
 				tmpl := rapid.SampledFrom(templates).Draw(rt, "template")
 				it, _ := data.Item(tmpl)
 				qty := rapid.IntRange(1, it.MaxStack).Draw(rt, "qty")
-				_, err := svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
+				_, err := svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("add: %v", err)
 				}

@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"finga/pkg/dbx"
+	"finga/pkg/uuidv7"
 )
 
 // Event is one domain event; Add fills a zero ID, OccurredAt and ContentType.
@@ -46,11 +47,7 @@ const insertSQL = `INSERT INTO outbox (event_id, topic, key, type, content_type,
 func (w *writer) Add(ctx context.Context, events ...Event) error {
 	for _, e := range events {
 		if e.ID == uuid.Nil {
-			id, err := uuid.NewV7()
-			if err != nil {
-				return fmt.Errorf("outbox: event id: %w", err)
-			}
-			e.ID = id
+			e.ID = uuidv7.New()
 		}
 		if e.OccurredAt.IsZero() {
 			e.OccurredAt = w.now()

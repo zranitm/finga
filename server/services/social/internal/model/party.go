@@ -29,14 +29,14 @@ type Member struct {
 
 // Party is one party: the leader and the members in join order.
 type Party struct {
-	ID      string
+	ID      PartyID
 	Leader  kernel.CharacterID
 	Members []Member
 }
 
 // Invite is a pending invitation.
 type Invite struct {
-	ID       string
+	ID       InviteID
 	From     kernel.CharacterID
 	FromName string
 	To       kernel.CharacterID

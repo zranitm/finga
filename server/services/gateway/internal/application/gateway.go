@@ -15,6 +15,7 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
+	"finga/pkg/uuidv7"
 	"finga/services/gateway/internal/model"
 )
 
@@ -71,7 +72,7 @@ func NewGateway(deps Dependencies) *Gateway {
 		deps.SessionCheckInterval = defaultSessionCheckInterval
 	}
 	if deps.ID == "" {
-		deps.ID = uuid.NewString()
+		deps.ID = uuidv7.NewString()
 	}
 	return &Gateway{
 		deps:        deps,

@@ -7,7 +7,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -17,6 +16,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
+	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/handler"
 	"finga/services/item/internal/model"
@@ -121,7 +121,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 	})
 	t.Run("Add, a pickup keyed by its drop", func(t *testing.T) {
-		drop := uuid.New()
+		drop := uuidv7.New()
 		res, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: drop.String(), TemplateId: "slime_gel", Quantity: 2,
 			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: drop.String()}})
 		if err != nil {

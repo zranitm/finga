@@ -22,7 +22,7 @@ type Parties interface {
 	Offline(ctx context.Context, id kernel.CharacterID) error
 	Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error)
-	Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error
+	Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error
 	Leave(ctx context.Context, who kernel.CharacterID) error
 	Kick(ctx context.Context, leader, target kernel.CharacterID) error
 	Promote(ctx context.Context, leader, target kernel.CharacterID) error
@@ -149,7 +149,7 @@ func (s *Server) Invite(ctx context.Context, req *socialv1.InviteRequest) (*soci
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.InviteResponse{InviteId: inv.ID}, nil
+	return &socialv1.InviteResponse{InviteId: inv.ID.String()}, nil
 }
 
 // Respond accepts or declines an invite.
@@ -158,7 +158,11 @@ func (s *Server) Respond(ctx context.Context, req *socialv1.RespondRequest) (*so
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.RespondResponse{}, s.parties.Respond(ctx, who, req.GetInviteId(), req.GetAccept())
+	invite, err := model.ParseInviteID(req.GetInviteId())
+	if err != nil {
+		return nil, err
+	}
+	return &socialv1.RespondResponse{}, s.parties.Respond(ctx, who, invite, req.GetAccept())
 }
 
 // LeaveParty removes the caller from its party.
@@ -242,7 +246,7 @@ func (s *Server) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 // Invited implements party.Notifier.
 func (s *Server) Invited(to kernel.CharacterID, inv model.Invite) {
 	s.send(to, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{
-		InviteId: inv.ID, FromId: inv.From.String(), FromName: inv.FromName,
+		InviteId: inv.ID.String(), FromId: inv.From.String(), FromName: inv.FromName,
 	}}})
 }
 

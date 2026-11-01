@@ -103,7 +103,7 @@ on crit (random below crit_rate): damage = round(damage × (1 + crit_damage))
 ## Drops
 
 - On death the mob rolls its drop table. Each entry (an item, or coins from Stage 2; a chance; a quantity range) rolls independently.
-- Drops land near the mob: on its ground line, up to 24 px either side of it, 20 px apart when one mob drops several. They live in the map instance's memory only; each gets a wire ID and a UUID that is the idempotency key of its pickup. **Loot window (OD-05 default):** for 10 s only the killer or their party can pick up; then anyone. Drops vanish after 60 s.
+- Drops land near the mob: on its ground line, up to 24 px either side of it, 20 px apart when one mob drops several. They live in the map instance's memory only; each gets a wire ID and a UUIDv7 that is the idempotency key of its pickup. **Loot window (OD-05 default):** for 10 s only the killer or their party can pick up; then anyone. Drops vanish after 60 s.
 - Pickup range: 40 px from the centre of the character's box. PickUp takes the nearest eligible drop in range; a second PickUp in the same tick finds it reserved and does nothing. A failed pickup (for example `inventory_full`) reaches the player as a Response with `ok: false` and the code, and the drop stays on the ground.
 
 ## Inventory

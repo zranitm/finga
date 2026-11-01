@@ -21,11 +21,11 @@ type PartyTx interface {
 	PartyOf(member kernel.CharacterID) (model.Party, bool)
 	// PutParty saves p; a member it no longer lists no longer finds it.
 	PutParty(p model.Party)
-	DeleteParty(id string)
+	DeleteParty(id model.PartyID)
 	Parties() []model.Party
-	Invite(id string) (model.Invite, bool)
+	Invite(id model.InviteID) (model.Invite, bool)
 	PutInvite(inv model.Invite)
-	DeleteInvite(id string)
+	DeleteInvite(id model.InviteID)
 	Invites() []model.Invite
 	// NextJoinOrder hands out increasing numbers for model.Member.JoinOrder.
 	NextJoinOrder() uint64

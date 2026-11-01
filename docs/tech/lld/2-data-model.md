@@ -4,7 +4,7 @@
 
 - Postgres, one schema (`public`, TD-22). Table names carry no schema prefix.
 - Each module owns its tables (see Table ownership). No module reads or writes another module's tables.
-- IDs are UUIDv7, generated in Go.
+- IDs are UUIDv7, generated in Go by `pkg/uuidv7`; the client's request IDs and idempotency keys are UUIDv7 too (`web/src/lib/id.ts`).
 - Coins are `bigint` whole units; no decimals.
 - Timestamps are `timestamptz`.
 - No foreign keys across modules: modules refer to each other by ID only, so a module's tables can later move to their own database.

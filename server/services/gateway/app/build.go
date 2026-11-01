@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
@@ -17,6 +16,7 @@ import (
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
+	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
@@ -47,7 +47,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 
 	lobby := application.NewLobby(clients.NewAccounts(accounts), clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)), guard)
 	gateway := application.NewGateway(application.Dependencies{
-		ID:          uuid.NewString(),
+		ID:          uuidv7.NewString(),
 		Sessions:    guard,
 		SessionEnds: clients.NewSessionEnds(accounts, opts.Logger),
 		World:       clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger),

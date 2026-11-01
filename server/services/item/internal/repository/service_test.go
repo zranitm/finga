@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 )
@@ -37,7 +37,7 @@ func newHarness(t *testing.T) *harness {
 
 func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
 	t.Helper()
-	res, err := h.svc.Add(context.Background(), h.actor, application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
+	res, err := h.svc.Add(context.Background(), h.actor, application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 	if err != nil {
 		t.Fatalf("add %s x%d: %v", template, qty, err)
 	}
@@ -320,7 +320,7 @@ func TestDiscard(t *testing.T) {
 func TestIdempotency(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	in := application.AddInput{Key: "pickup-1", TemplateID: "red_potion", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}}
+	in := application.AddInput{Key: "pickup-1", TemplateID: "red_potion", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}}
 	first, err := h.svc.Add(ctx, h.actor, in)
 	if err != nil {
 		t.Fatal(err)
@@ -456,7 +456,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	}
 	// A transaction that fails after the add succeeds leaves no row.
 	svc := application.NewService(rollingBack{h.store}, h.data, application.Options{})
-	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuid.New()}})
+	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 	if err == nil {
 		t.Fatal("no error")
 	}

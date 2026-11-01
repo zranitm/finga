@@ -6,6 +6,7 @@ linters:
   enable:
     - depguard     # import direction: composition roots -> services -> the shared kernel -> pkg
     - errorlint
+    - forbidigo    # every UUID is minted by pkg/uuidv7
     - gocritic
     - misspell
     - modernize
@@ -429,6 +430,12 @@ linters:
             - finga/internal/host
             - finga/pkg/dbx
             - finga/pkg/logger
+    forbidigo:
+      analyze-types: true
+      forbid:
+        - pattern: ^uuid\.New
+          pkg: ^github\.com/google/uuid$
+          msg: mint UUIDs with finga/pkg/uuidv7, so every ID is a UUIDv7
     sloglint:
       static-msg: true
       kv-only: true
@@ -447,6 +454,8 @@ linters:
     rules:
       - path: _test\.go
         linters: [unparam]
+      - path: pkg/uuidv7/
+        linters: [forbidigo]
 
 formatters:
   enable:

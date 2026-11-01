@@ -16,9 +16,9 @@ import (
 type Memory struct {
 	mu       sync.Mutex
 	members  map[kernel.CharacterID]model.Member
-	parties  map[string]model.Party
-	byMember map[kernel.CharacterID]string
-	invites  map[string]model.Invite
+	parties  map[model.PartyID]model.Party
+	byMember map[kernel.CharacterID]model.PartyID
+	invites  map[model.InviteID]model.Invite
 	seq      uint64
 }
 
@@ -28,9 +28,9 @@ var _ application.PartyStore = (*Memory)(nil)
 func NewMemory() *Memory {
 	return &Memory{
 		members:  map[kernel.CharacterID]model.Member{},
-		parties:  map[string]model.Party{},
-		byMember: map[kernel.CharacterID]string{},
-		invites:  map[string]model.Invite{},
+		parties:  map[model.PartyID]model.Party{},
+		byMember: map[kernel.CharacterID]model.PartyID{},
+		invites:  map[model.InviteID]model.Invite{},
 	}
 }
 
@@ -38,7 +38,7 @@ func NewMemory() *Memory {
 func (s *Memory) InTx(_ context.Context, fn func(application.PartyTx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	tx := &memoryTx{s: s, members: map[kernel.CharacterID]model.Member{}, parties: map[string]*model.Party{}, invites: map[string]*model.Invite{}, seq: s.seq}
+	tx := &memoryTx{s: s, members: map[kernel.CharacterID]model.Member{}, parties: map[model.PartyID]*model.Party{}, invites: map[model.InviteID]*model.Invite{}, seq: s.seq}
 	if err := fn(tx); err != nil {
 		return err
 	}
@@ -50,8 +50,8 @@ func (s *Memory) InTx(_ context.Context, fn func(application.PartyTx) error) err
 type memoryTx struct {
 	s       *Memory
 	members map[kernel.CharacterID]model.Member
-	parties map[string]*model.Party
-	invites map[string]*model.Invite
+	parties map[model.PartyID]*model.Party
+	invites map[model.InviteID]*model.Invite
 	seq     uint64
 }
 
@@ -91,7 +91,7 @@ func (t *memoryTx) PutParty(p model.Party) {
 }
 
 // DeleteParty removes a party.
-func (t *memoryTx) DeleteParty(id string) { t.parties[id] = nil }
+func (t *memoryTx) DeleteParty(id model.PartyID) { t.parties[id] = nil }
 
 // Parties lists every party.
 func (t *memoryTx) Parties() []model.Party {
@@ -110,7 +110,7 @@ func (t *memoryTx) Parties() []model.Party {
 }
 
 // Invite is a pending invite.
-func (t *memoryTx) Invite(id string) (model.Invite, bool) {
+func (t *memoryTx) Invite(id model.InviteID) (model.Invite, bool) {
 	if inv, staged := t.invites[id]; staged {
 		if inv == nil {
 			return model.Invite{}, false
@@ -125,7 +125,7 @@ func (t *memoryTx) Invite(id string) (model.Invite, bool) {
 func (t *memoryTx) PutInvite(inv model.Invite) { t.invites[inv.ID] = &inv }
 
 // DeleteInvite removes an invite.
-func (t *memoryTx) DeleteInvite(id string) { t.invites[id] = nil }
+func (t *memoryTx) DeleteInvite(id model.InviteID) { t.invites[id] = nil }
 
 // Invites lists the pending invites.
 func (t *memoryTx) Invites() []model.Invite {

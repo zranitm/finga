@@ -13,13 +13,13 @@ import (
 type fakeStore struct {
 	fail    error
 	members map[kernel.CharacterID]model.Member
-	parties map[string]model.Party
-	invites map[string]model.Invite
+	parties map[model.PartyID]model.Party
+	invites map[model.InviteID]model.Invite
 	seq     uint64
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{members: map[kernel.CharacterID]model.Member{}, parties: map[string]model.Party{}, invites: map[string]model.Invite{}}
+	return &fakeStore{members: map[kernel.CharacterID]model.Member{}, parties: map[model.PartyID]model.Party{}, invites: map[model.InviteID]model.Invite{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(application.PartyTx) error) error {
@@ -45,8 +45,8 @@ func (s *fakeStore) PartyOf(id kernel.CharacterID) (model.Party, bool) {
 	return model.Party{}, false
 }
 
-func (s *fakeStore) PutParty(p model.Party) { s.parties[p.ID] = clone(p) }
-func (s *fakeStore) DeleteParty(id string)  { delete(s.parties, id) }
+func (s *fakeStore) PutParty(p model.Party)       { s.parties[p.ID] = clone(p) }
+func (s *fakeStore) DeleteParty(id model.PartyID) { delete(s.parties, id) }
 
 func (s *fakeStore) Parties() []model.Party {
 	out := make([]model.Party, 0, len(s.parties))
@@ -56,13 +56,13 @@ func (s *fakeStore) Parties() []model.Party {
 	return out
 }
 
-func (s *fakeStore) Invite(id string) (model.Invite, bool) {
+func (s *fakeStore) Invite(id model.InviteID) (model.Invite, bool) {
 	inv, ok := s.invites[id]
 	return inv, ok
 }
 
-func (s *fakeStore) PutInvite(inv model.Invite) { s.invites[inv.ID] = inv }
-func (s *fakeStore) DeleteInvite(id string)     { delete(s.invites, id) }
+func (s *fakeStore) PutInvite(inv model.Invite)     { s.invites[inv.ID] = inv }
+func (s *fakeStore) DeleteInvite(id model.InviteID) { delete(s.invites, id) }
 
 func (s *fakeStore) Invites() []model.Invite {
 	out := make([]model.Invite, 0, len(s.invites))

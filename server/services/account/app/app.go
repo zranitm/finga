@@ -11,6 +11,7 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
 	"finga/pkg/dbx"
+	"finga/pkg/uuidv7"
 	"finga/services/account/config"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
@@ -28,7 +29,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		OnSessionRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.SessionRevoked(ctx, id, reason) },
 		OnAccountRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.AccountRevoked(ctx, id, reason) },
 	})
-	srv = handler.New(accounts, uuid.NewString())
+	srv = handler.New(accounts, uuidv7.NewString())
 	h := host.New(host.Options{
 		Name:     "account",
 		Settings: cfg.Host(),

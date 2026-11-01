@@ -16,6 +16,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
+	"finga/pkg/uuidv7"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
 	"finga/services/social/internal/repository"
@@ -173,9 +174,13 @@ func TestCommandsAnswerWithTheirReasons(t *testing.T) {
 			return err
 		}, socialv1.Reason_REASON_INVITE_SELF},
 		{"an invite nobody made", func() error {
-			_, err := s.c.Respond(s.ctx, &socialv1.RespondRequest{CharacterId: bo.String(), InviteId: "nope", Accept: true})
+			_, err := s.c.Respond(s.ctx, &socialv1.RespondRequest{CharacterId: bo.String(), InviteId: uuidv7.NewString(), Accept: true})
 			return err
 		}, socialv1.Reason_REASON_INVITE_EXPIRED},
+		{"a malformed invite ID", func() error {
+			_, err := s.c.Respond(s.ctx, &socialv1.RespondRequest{CharacterId: bo.String(), InviteId: "nope", Accept: true})
+			return err
+		}, socialv1.Reason_REASON_BAD_ID},
 		{"a member kicking", func() error {
 			_, err := s.c.Kick(s.ctx, &socialv1.KickRequest{CharacterId: bo.String(), TargetId: ann.String()})
 			return err

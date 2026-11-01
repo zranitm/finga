@@ -2,8 +2,6 @@ package wsconn
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +11,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+
+	"finga/pkg/uuidv7"
 )
 
 // Close codes; the 4000s are the layer's own.
@@ -126,7 +126,7 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	if codec.Binary() {
 		frame = websocket.MessageBinary
 	}
-	c := &conn{id: newID(), ws: ws, codec: codec, frame: frame, send: make(chan []byte, opts.SendQueue), closed: make(chan struct{})}
+	c := &conn{id: uuidv7.NewString(), ws: ws, codec: codec, frame: frame, send: make(chan []byte, opts.SendQueue), closed: make(chan struct{})}
 	c.run(r.Context(), h, opts)
 }
 
@@ -321,14 +321,6 @@ func closeReason(ours *CloseError, readErr error) error {
 		return nil
 	}
 	return readErr
-}
-
-func newID() string {
-	b := make([]byte, 8)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(b)
 }
 
 // flush writes whatever is still queued, after the writer has stopped.

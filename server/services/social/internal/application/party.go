@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
-
 	"finga/internal/kernel"
 	"finga/services/social/internal/model"
 )
@@ -122,7 +120,7 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 		if slices.ContainsFunc(tx.Invites(), func(i model.Invite) bool { return i.From == from && i.To == to }) {
 			return model.ErrAlreadyAsked
 		}
-		inv = model.Invite{ID: uuid.NewString(), From: from, FromName: inviter.Name, To: to, Expires: s.opts.Clock().Add(s.opts.InviteTTL)}
+		inv = model.Invite{ID: model.NewInviteID(), From: from, FromName: inviter.Name, To: to, Expires: s.opts.Clock().Add(s.opts.InviteTTL)}
 		tx.PutInvite(inv)
 		n.invited(to, inv)
 		return nil
@@ -134,7 +132,7 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 }
 
 // Respond accepts or declines an invite addressed to who. The invite is spent even if joining is refused.
-func (s *PartyService) Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error {
+func (s *PartyService) Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error {
 	var refused error
 	err := s.update(ctx, func(tx PartyTx, n *notes) error {
 		s.expire(tx)
@@ -168,7 +166,7 @@ func (s *PartyService) join(tx PartyTx, n *notes, inv model.Invite) error {
 		if !ok {
 			return model.ErrInviteExpired
 		}
-		p = add(tx, model.Party{ID: uuid.NewString(), Leader: inv.From}, leader)
+		p = add(tx, model.Party{ID: model.NewPartyID(), Leader: inv.From}, leader)
 	}
 	if len(p.Members) >= s.opts.MaxMembers {
 		return model.ErrFull

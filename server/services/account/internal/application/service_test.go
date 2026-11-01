@@ -13,6 +13,7 @@ import (
 
 	"finga/pkg/auth"
 	"finga/pkg/auth/password"
+	"finga/pkg/uuidv7"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
 )
@@ -311,7 +312,7 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 	var _ auth.Sessions = (*application.Service)(nil)
 	t.Run("Issue for an unknown account fails", func(t *testing.T) {
 		svc, _ := newService(newFakeStore())
-		if _, err := svc.Issue(context.Background(), uuid.New()); !errors.Is(err, model.ErrNotFound) {
+		if _, err := svc.Issue(context.Background(), uuidv7.New()); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})

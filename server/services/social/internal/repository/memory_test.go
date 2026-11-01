@@ -13,17 +13,22 @@ import (
 
 var errAbort = errors.New("abort")
 
+var (
+	partyID  = model.NewPartyID()
+	inviteID = model.NewInviteID()
+)
+
 func TestMemoryCommitsOnlyWhatSucceeds(t *testing.T) {
 	ctx := t.Context()
 	s := repository.NewMemory()
 	ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
-	party := model.Party{ID: "p-1", Leader: ayla, Members: []model.Member{{ID: ayla, Name: "Ayla"}, {ID: robin, Name: "Robin"}}}
+	party := model.Party{ID: partyID, Leader: ayla, Members: []model.Member{{ID: ayla, Name: "Ayla"}, {ID: robin, Name: "Robin"}}}
 
 	t.Run("a failed transaction leaves nothing behind", func(t *testing.T) {
 		err := s.InTx(ctx, func(tx application.PartyTx) error {
 			tx.PutMember(model.Member{ID: ayla, Name: "Ayla"})
 			tx.PutParty(party)
-			tx.PutInvite(model.Invite{ID: "inv-1", From: ayla, To: robin})
+			tx.PutInvite(model.Invite{ID: inviteID, From: ayla, To: robin})
 			if tx.NextJoinOrder() != 1 {
 				t.Error("the first join order is not 1")
 			}
@@ -38,7 +43,7 @@ func TestMemoryCommitsOnlyWhatSucceeds(t *testing.T) {
 		view(t, s, func(tx application.PartyTx) {
 			_, member := tx.Member(ayla)
 			_, inParty := tx.PartyOf(ayla)
-			_, invited := tx.Invite("inv-1")
+			_, invited := tx.Invite(inviteID)
 			if member || inParty || invited || len(tx.Parties()) != 0 || len(tx.Invites()) != 0 || tx.NextJoinOrder() != 1 {
 				t.Fatal("the failed transaction's writes landed")
 			}
@@ -48,18 +53,18 @@ func TestMemoryCommitsOnlyWhatSucceeds(t *testing.T) {
 		update(t, s, func(tx application.PartyTx) {
 			tx.PutMember(model.Member{ID: ayla, Name: "Ayla", Online: true})
 			tx.PutParty(party)
-			tx.PutInvite(model.Invite{ID: "inv-1", From: ayla, To: robin})
+			tx.PutInvite(model.Invite{ID: inviteID, From: ayla, To: robin})
 		})
 		view(t, s, func(tx application.PartyTx) {
 			for _, id := range []kernel.CharacterID{ayla, robin} {
-				if p, ok := tx.PartyOf(id); !ok || p.ID != "p-1" || len(p.Members) != 2 {
+				if p, ok := tx.PartyOf(id); !ok || p.ID != partyID || len(p.Members) != 2 {
 					t.Fatalf("party of %s: %+v %v", id, p, ok)
 				}
 			}
 			if m, ok := tx.Member(ayla); !ok || !m.Online {
 				t.Fatalf("member %+v %v", m, ok)
 			}
-			if inv, ok := tx.Invite("inv-1"); !ok || inv.To != robin || len(tx.Invites()) != 1 || len(tx.Parties()) != 1 {
+			if inv, ok := tx.Invite(inviteID); !ok || inv.To != robin || len(tx.Invites()) != 1 || len(tx.Parties()) != 1 {
 				t.Fatalf("invite %+v %v", inv, ok)
 			}
 		})
@@ -95,12 +100,12 @@ func TestMemoryCommitsOnlyWhatSucceeds(t *testing.T) {
 	})
 	t.Run("deleting a party and an invite removes them for everyone", func(t *testing.T) {
 		update(t, s, func(tx application.PartyTx) {
-			tx.DeleteParty("p-1")
-			tx.DeleteInvite("inv-1")
+			tx.DeleteParty(partyID)
+			tx.DeleteInvite(inviteID)
 		})
 		view(t, s, func(tx application.PartyTx) {
 			_, inParty := tx.PartyOf(ayla)
-			_, invited := tx.Invite("inv-1")
+			_, invited := tx.Invite(inviteID)
 			if inParty || invited || len(tx.Parties()) != 0 || len(tx.Invites()) != 0 {
 				t.Fatal("a deleted party or invite is still there")
 			}

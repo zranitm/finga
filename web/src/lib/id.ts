@@ -1,15 +1,25 @@
-// Not crypto.randomUUID: it exists only in secure contexts, so a LAN playtest over plain http would crash.
-// Keys must be random, not counters: the server keeps them 24 h, so a counter reset by a reload would collide.
+// UUIDv7, like every ID the server mints. Not crypto.randomUUID: it is v4, and exists only in secure contexts.
+// Keys must not be counters: the server keeps them 24 h, so a counter reset by a reload would collide.
 export type RandomBytes = (bytes: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>;
 
 const hex = Array.from({ length: 256 }, (_, n) => n.toString(16).padStart(2, '0'));
 
-export function uuidV4(random: RandomBytes = (b) => crypto.getRandomValues(b)): string {
+export function uuidV7(
+  random: RandomBytes = (b) => crypto.getRandomValues(b),
+  now: () => number = Date.now,
+): string {
+  const ms = now();
+  if (!Number.isSafeInteger(ms) || ms < 0 || ms >= 2 ** 48) {
+    throw new RangeError(`uuidV7 needs a 48-bit millisecond time, got ${ms}`);
+  }
   const b = random(new Uint8Array(16));
   if (b.length !== 16) {
-    throw new RangeError(`uuidV4 needs 16 random bytes, got ${b.length}`);
+    throw new RangeError(`uuidV7 needs 16 random bytes, got ${b.length}`);
   }
-  b[6] = ((b[6] ?? 0) & 0x0f) | 0x40; // version 4
+  for (let i = 5, t = ms; i >= 0; i--, t = Math.floor(t / 256)) {
+    b[i] = t % 256;
+  }
+  b[6] = ((b[6] ?? 0) & 0x0f) | 0x70; // version 7
   b[8] = ((b[8] ?? 0) & 0x3f) | 0x80; // variant 10xx
   const h = Array.from(b, (n) => hex[n]).join('');
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
@@ -17,10 +27,10 @@ export function uuidV4(random: RandomBytes = (b) => crypto.getRandomValues(b)): 
 
 /** A request ID for a command that expects a Response: r-<uuid>. */
 export function requestId(random?: RandomBytes): string {
-  return `r-${uuidV4(random)}`;
+  return `r-${uuidV7(random)}`;
 }
 
 /** An idempotency key for an item action, made once per click: k-<uuid>. */
 export function idempotencyKey(random?: RandomBytes): string {
-  return `k-${uuidV4(random)}`;
+  return `k-${uuidV7(random)}`;
 }

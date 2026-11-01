@@ -19,6 +19,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentinels"
+	"finga/pkg/uuidv7"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
 	"finga/services/account/internal/model"
@@ -39,8 +40,8 @@ type fakeAccounts struct {
 }
 
 var (
-	accountID = uuid.Must(uuid.NewV7())
-	sessionID = uuid.Must(uuid.NewV7())
+	accountID = uuidv7.New()
+	sessionID = uuidv7.New()
 	created   = time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
 )
 

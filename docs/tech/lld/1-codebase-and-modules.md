@@ -423,9 +423,14 @@ func (r *Router[S]) Dispatch(session S, m Message)
 ```
 
 ```go
+// pkg/uuidv7: mints every UUID the server makes, as version 7, so IDs sort by creation
+// and new keys land at the end of an index; forbidigo keeps uuid.New* out of everything else
+func New() uuid.UUID
+func NewString() string
+
 // pkg/typedid: typed UUIDv7 identifiers, one Go type per kind (step 20)
 type ID[K any] uuid.UUID
-func New[K any]() ID[K]
+func New[K any]() ID[K] // from pkg/uuidv7
 func Parse[K any](s string) (ID[K], error) // ErrMalformed
 // kernel.CharacterID is typedid.ID[characterKind]: an item ID where a character ID is expected does not compile.
 
@@ -510,5 +515,5 @@ The other services' files have the same shape with their own keys (README, Confi
 Carried over from docviewer:
 
 - **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations, then the six services without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `test-service SERVICE=<name>` (one service built and tested on its own, as CI's matrix does), `cover` (fails below 80% of statements in `internal/`, `pkg/`, `services/` and `cmd/migrate/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), `breaking` (`buf breaking` against the previous commit), and `gen` (sqlc, and `buf generate` for the gRPC code and the client protocol's Go code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed, read from the world's ops address).
-- **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys; and, since 2026-10-31, `modernize`, which keeps the code on the language and library as they are now (`sync.WaitGroup.Go`, `errors.AsType`, `strings.SplitSeq`, `slices.Backward`, `t.Context`).
+- **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys; `forbidigo`, which leaves minting UUIDs to `pkg/uuidv7`; and, since 2026-10-31, `modernize`, which keeps the code on the language and library as they are now (`sync.WaitGroup.Go`, `errors.AsType`, `strings.SplitSeq`, `slices.Backward`, `t.Context`).
 - **Tests:** table-driven, with named cases. No test logic in production code: tests use the seams production already has (interfaces, constructors, `httptest`) and `testing/synctest` for time.

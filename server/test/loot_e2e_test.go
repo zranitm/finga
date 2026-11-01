@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/protocol"
+	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 	"finga/services/item/invariants"
 )
@@ -430,7 +430,7 @@ func TestLootAndKeep(t *testing.T) {
 		if err := s.db.QueryRow(context.Background(), `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
 			t.Fatal(err)
 		}
-		key := uuid.New().String()
+		key := uuidv7.NewString()
 		in := &itemv1.AddRequest{Actor: &itemv1.Actor{AccountId: account, CharacterId: id}, IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2,
 			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}}
 		first, err := s.items.Add(context.Background(), in)

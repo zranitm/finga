@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 
@@ -19,6 +18,7 @@ import (
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
 	"finga/pkg/runner"
+	"finga/pkg/uuidv7"
 	"finga/services/world/config"
 	"finga/services/world/internal/application"
 	"finga/services/world/internal/clients"
@@ -65,7 +65,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	characters := characterv1.NewCharacterServiceClient(characterConn)
 	items := itemv1.NewItemServiceClient(itemConn)
 
-	nodeID := uuid.NewString()
+	nodeID := uuidv7.NewString()
 	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log)
 	maps := application.New(data, clients.NewSaver(characters), log, application.Options{
 		TickInterval:       cfg.TickInterval(),

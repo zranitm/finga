@@ -9,6 +9,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/uuidv7"
 	"finga/services/world/internal/model"
 )
 
@@ -51,7 +52,7 @@ func (i *Instance) rollDrops(mb *mob, killer *player) {
 		i.nextDrop++
 		x := mb.x + (i.roll.Float64()*2-1)*dropSpread + float64(n)*dropSpacing
 		d := &drop{
-			id: i.nextDrop, key: uuid.New(), template: entry.Item, quantity: qty, x: x, y: mb.y, killer: killer.ID,
+			id: i.nextDrop, key: uuidv7.New(), template: entry.Item, quantity: qty, x: x, y: mb.y, killer: killer.ID,
 			windowEnd: i.tick + i.ticksFor(lootWindow), expiresAt: i.tick + i.ticksFor(dropLife),
 		}
 		i.drops = append(i.drops, d)

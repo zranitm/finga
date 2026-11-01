@@ -247,6 +247,7 @@ Non-domain code goes in `/pkg` as generic libraries with no knowledge of the gam
 - `pkg/logger`: the `*slog.Logger` every binary logs through, with zapcore writing it: JSON or console lines, sampling (TD-28).
 - `pkg/observability`: metrics setup (TD-21).
 - `pkg/configload`: typed YAML configuration with environment overrides, validated at start. Copied from docviewer, without its .env loader: Compose and make inject server/.env into the environment.
+- `pkg/uuidv7`: mints every UUID the server makes, as UUIDv7, so IDs sort by creation.
 - `pkg/typedid`: typed UUIDv7 identifiers, one Go type per kind.
 - `pkg/tiled`: Tiled's JSON map format, without any game's layer rules.
 - `pkg/grpcx`: gRPC servers and clients with request IDs, and errors whose reason survives the call.
