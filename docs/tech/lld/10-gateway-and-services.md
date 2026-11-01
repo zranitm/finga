@@ -17,7 +17,7 @@ The reason is deploys. A game service (world, item, character, social, account) 
 | `character` | Characters, stats, levels, checkpoints | None in memory | `characters` | item (starter items) |
 | `item` | Items, inventory, item events, idempotency, outbox. Stage 2: economy and market join here, since they share transactions with items | None in memory | `items`, `item_events`, `idempotency_keys`, `outbox` | nothing |
 | `world` | Map instances, movement, mobs, combat, drops, portals | Stateful: one owner per map | None | character, item, social |
-| `social` | Parties, invites, chat | Parties and invites, in memory (TD-19) | None | nothing |
+| `social` | Parties, invites, chat | Parties and invites, in memory behind a store port (TD-19) | None | nothing |
 
 The gateway has no game rules and no database. It is deployed rarely and kept thin.
 

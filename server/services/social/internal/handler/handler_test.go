@@ -18,6 +18,7 @@ import (
 	"finga/pkg/sentinels"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
+	"finga/services/social/internal/repository"
 )
 
 type stack struct {
@@ -28,7 +29,7 @@ type stack struct {
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	now := time.Unix(1_700_000_000, 0)
-	parties := application.NewPartyService(application.PartyOptions{Clock: func() time.Time { return now }})
+	parties := application.NewPartyService(repository.NewMemory(), application.PartyOptions{Clock: func() time.Time { return now }})
 	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{Clock: func() time.Time { return now }}), "boot-1")
 	parties.Notify(srv)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})

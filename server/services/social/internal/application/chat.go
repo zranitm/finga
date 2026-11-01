@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"time"
 	"unicode/utf8"
 
@@ -11,7 +12,7 @@ import (
 
 // Parties answers who is in the sender's party.
 type Parties interface {
-	Members(id kernel.CharacterID) []kernel.CharacterID
+	Members(ctx context.Context, id kernel.CharacterID) ([]kernel.CharacterID, error)
 }
 
 // ChatOptions tune the service. Zero values take the defaults.
@@ -35,7 +36,7 @@ func NewChatService(parties Parties, opts ChatOptions) *ChatService {
 }
 
 // Send cleans and rate-limits a line; map lines have nil recipients, party lines the whole party.
-func (s *ChatService) Send(from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error) {
+func (s *ChatService) Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error) {
 	if channel != model.ChannelMap && channel != model.ChannelParty {
 		return model.Message{}, nil, model.ErrChannel
 	}
@@ -56,7 +57,10 @@ func (s *ChatService) Send(from model.Sender, channel model.Channel, text string
 	if s.parties == nil {
 		return model.Message{}, nil, model.ErrNoParties
 	}
-	members := s.parties.Members(from.ID)
+	members, err := s.parties.Members(ctx, from.ID)
+	if err != nil {
+		return model.Message{}, nil, err
+	}
 	if len(members) == 0 {
 		return model.Message{}, nil, model.ErrChatNoParty
 	}

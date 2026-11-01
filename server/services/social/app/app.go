@@ -13,11 +13,12 @@ import (
 	"finga/services/social/config"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
+	"finga/services/social/internal/repository"
 )
 
 // Build wires the social service; parties live in memory, so a restart forgets them.
 func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	parties := application.NewPartyService(application.PartyOptions{})
+	parties := application.NewPartyService(repository.NewMemory(), application.PartyOptions{})
 	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{}), uuid.NewString())
 	parties.Notify(srv)
 	h := host.New(host.Options{

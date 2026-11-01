@@ -29,6 +29,7 @@ type Member struct {
 
 // Party is one party: the leader and the members in join order.
 type Party struct {
+	ID      string
 	Leader  kernel.CharacterID
 	Members []Member
 }

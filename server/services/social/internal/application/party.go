@@ -1,7 +1,8 @@
-// Package application is the social service's party and chat use cases, held in memory.
+// Package application holds the social service's party and chat rules.
 package application
 
 import (
+	"context"
 	"slices"
 	"sync"
 	"time"
@@ -12,14 +13,6 @@ import (
 	"finga/services/social/internal/model"
 )
 
-// Notifier is told what members must hear.
-// Calls happen under the service's lock and must not block or call back.
-type Notifier interface {
-	// PartyChanged sends the new state to each member; p is nil for one who left.
-	PartyChanged(members []kernel.CharacterID, p *model.Party)
-	Invited(to kernel.CharacterID, inv model.Invite)
-}
-
 // PartyOptions tune the service. Zero values take the defaults.
 type PartyOptions struct {
 	MaxMembers int
@@ -27,20 +20,18 @@ type PartyOptions struct {
 	Clock      func() time.Time
 }
 
-// PartyService holds every party and invite behind one mutex.
+// PartyService runs the party rules over a PartyStore.
 type PartyService struct {
-	opts     PartyOptions
-	notifier Notifier
+	store PartyStore
+	opts  PartyOptions
 
-	mu      sync.Mutex
-	known   map[kernel.CharacterID]model.Member // everyone seen online, for invites and member rows
-	parties map[kernel.CharacterID]*model.Party // by member
-	invites map[string]model.Invite
-	seq     uint64
+	// mu orders each change with its notifications, so members never hear an older state last.
+	mu       sync.Mutex
+	notifier Notifier
 }
 
-// NewPartyService makes an empty service; Notify sets where state changes go.
-func NewPartyService(opts PartyOptions) *PartyService {
+// NewPartyService makes the service over store; Notify sets where state changes go.
+func NewPartyService(store PartyStore, opts PartyOptions) *PartyService {
 	if opts.MaxMembers <= 0 {
 		opts.MaxMembers = model.DefaultMaxMembers
 	}
@@ -50,7 +41,7 @@ func NewPartyService(opts PartyOptions) *PartyService {
 	if opts.Clock == nil {
 		opts.Clock = time.Now
 	}
-	return &PartyService{opts: opts, known: map[kernel.CharacterID]model.Member{}, parties: map[kernel.CharacterID]*model.Party{}, invites: map[string]model.Invite{}}
+	return &PartyService{store: store, opts: opts}
 }
 
 // Notify sets the notifier; nil means nobody is told.
@@ -61,273 +52,320 @@ func (s *PartyService) Notify(n Notifier) {
 }
 
 // Online records a character as connected and refreshes their party row.
-func (s *PartyService) Online(m model.Member) {
+func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
-	s.upsert(m)
+	return s.update(ctx, func(tx PartyTx, n *notes) error {
+		if old, ok := tx.Member(m.ID); ok {
+			m.JoinOrder = old.JoinOrder
+		}
+		tx.PutMember(m)
+		refresh(tx, n, m)
+		return nil
+	})
 }
 
 // Offline marks a character as disconnected; their party keeps them.
-func (s *PartyService) Offline(id kernel.CharacterID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	m, ok := s.known[id]
-	if !ok {
-		return
-	}
-	m.Online = false
-	s.known[id] = m
-	s.refresh(id, m)
+func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID) error {
+	return s.update(ctx, func(tx PartyTx, n *notes) error {
+		m, ok := tx.Member(id)
+		if !ok {
+			return nil
+		}
+		m.Online = false
+		tx.PutMember(m)
+		refresh(tx, n, m)
+		return nil
+	})
 }
 
 // Update records a change the world saw: the map, level or HP of a member.
-func (s *PartyService) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
+func (s *PartyService) Update(ctx context.Context, id kernel.CharacterID, mapID string, level, hp, maxHP int) error {
+	return s.update(ctx, func(tx PartyTx, n *notes) error {
+		m, ok := tx.Member(id)
+		if !ok {
+			return nil
+		}
+		m.MapID, m.Level, m.HP, m.MaxHP = mapID, level, hp, maxHP
+		tx.PutMember(m)
+		refresh(tx, n, m)
+		return nil
+	})
+}
+
+// Invite asks a character on the inviter's map to join; a partyless inviter leads once it is accepted.
+func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error) {
+	var inv model.Invite
+	err := s.update(ctx, func(tx PartyTx, n *notes) error {
+		s.expire(tx)
+		if from == to {
+			return model.ErrSelf
+		}
+		inviter, ok := tx.Member(from)
+		if !ok {
+			return model.ErrNotHere
+		}
+		if p, ok := tx.PartyOf(from); ok {
+			if p.Leader != from {
+				return model.ErrNotLeader
+			}
+			if len(p.Members) >= s.opts.MaxMembers {
+				return model.ErrFull
+			}
+		}
+		target, ok := tx.Member(to)
+		if !ok || !target.Online || target.MapID != inviter.MapID {
+			return model.ErrNotHere
+		}
+		if _, ok := tx.PartyOf(to); ok {
+			return model.ErrInParty
+		}
+		if slices.ContainsFunc(tx.Invites(), func(i model.Invite) bool { return i.From == from && i.To == to }) {
+			return model.ErrAlreadyAsked
+		}
+		inv = model.Invite{ID: uuid.NewString(), From: from, FromName: inviter.Name, To: to, Expires: s.opts.Clock().Add(s.opts.InviteTTL)}
+		tx.PutInvite(inv)
+		n.invited(to, inv)
+		return nil
+	})
+	if err != nil {
+		return model.Invite{}, err
+	}
+	return inv, nil
+}
+
+// Respond accepts or declines an invite addressed to who. The invite is spent even if joining is refused.
+func (s *PartyService) Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error {
+	var refused error
+	err := s.update(ctx, func(tx PartyTx, n *notes) error {
+		s.expire(tx)
+		inv, ok := tx.Invite(inviteID)
+		if !ok || inv.To != who {
+			return model.ErrInviteExpired
+		}
+		tx.DeleteInvite(inviteID)
+		if accept {
+			refused = s.join(tx, n, inv)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return refused
+}
+
+func (s *PartyService) join(tx PartyTx, n *notes, inv model.Invite) error {
+	if _, ok := tx.PartyOf(inv.To); ok {
+		return model.ErrInParty
+	}
+	member, ok := tx.Member(inv.To)
+	if !ok {
+		return model.ErrNotHere
+	}
+	p, ok := tx.PartyOf(inv.From)
+	if !ok {
+		leader, ok := tx.Member(inv.From)
+		if !ok {
+			return model.ErrInviteExpired
+		}
+		p = add(tx, model.Party{ID: uuid.NewString(), Leader: inv.From}, leader)
+	}
+	if len(p.Members) >= s.opts.MaxMembers {
+		return model.ErrFull
+	}
+	p = add(tx, p, member)
+	tx.PutParty(p)
+	n.changed(p)
+	return nil
+}
+
+// Leave removes who from their party; the longest-standing member replaces a leaving leader.
+func (s *PartyService) Leave(ctx context.Context, who kernel.CharacterID) error {
+	return s.update(ctx, func(tx PartyTx, n *notes) error {
+		p, ok := tx.PartyOf(who)
+		if !ok {
+			return model.ErrNoParty
+		}
+		remove(tx, n, p, who)
+		return nil
+	})
+}
+
+// Kick removes a member; only the leader may, and not themselves.
+func (s *PartyService) Kick(ctx context.Context, leader, target kernel.CharacterID) error {
+	return s.update(ctx, func(tx PartyTx, n *notes) error {
+		p, err := ledBy(tx, leader, target)
+		if err != nil {
+			return err
+		}
+		remove(tx, n, p, target)
+		return nil
+	})
+}
+
+// Promote hands leadership to another member.
+func (s *PartyService) Promote(ctx context.Context, leader, target kernel.CharacterID) error {
+	return s.update(ctx, func(tx PartyTx, n *notes) error {
+		p, err := ledBy(tx, leader, target)
+		if err != nil {
+			return err
+		}
+		p.Leader = target
+		tx.PutParty(p)
+		n.changed(p)
+		return nil
+	})
+}
+
+// Of is the party of a character, or false.
+func (s *PartyService) Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error) {
+	var p model.Party
+	var ok bool
+	err := s.store.InTx(ctx, func(tx PartyTx) error {
+		p, ok = tx.PartyOf(id)
+		return nil
+	})
+	return p, ok && err == nil, err
+}
+
+// Memberships visits every party's member IDs; nothing changes until it returns, and visit must not block.
+func (s *PartyService) Memberships(ctx context.Context, visit func(members []kernel.CharacterID)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	m, ok := s.known[id]
+	var parties []model.Party
+	if err := s.store.InTx(ctx, func(tx PartyTx) error {
+		parties = tx.Parties()
+		return nil
+	}); err != nil {
+		return err
+	}
+	for _, p := range parties {
+		visit(ids(p))
+	}
+	return nil
+}
+
+// Members lists the IDs of a character's party, nil without one.
+func (s *PartyService) Members(ctx context.Context, id kernel.CharacterID) ([]kernel.CharacterID, error) {
+	p, ok, err := s.Of(ctx, id)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return ids(p), nil
+}
+
+// SameParty reports whether two characters share a party.
+func (s *PartyService) SameParty(ctx context.Context, a, b kernel.CharacterID) (bool, error) {
+	var same bool
+	err := s.store.InTx(ctx, func(tx PartyTx) error {
+		pa, okA := tx.PartyOf(a)
+		pb, okB := tx.PartyOf(b)
+		same = okA && okB && pa.ID == pb.ID
+		return nil
+	})
+	return same && err == nil, err
+}
+
+// update runs fn as one transaction, then tells the notifier what fn queued.
+func (s *PartyService) update(ctx context.Context, fn func(tx PartyTx, n *notes) error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var n notes
+	if err := s.store.InTx(ctx, func(tx PartyTx) error {
+		n = notes{}
+		return fn(tx, &n)
+	}); err != nil {
+		return err
+	}
+	if s.notifier != nil {
+		for _, send := range n {
+			send(s.notifier)
+		}
+	}
+	return nil
+}
+
+func (s *PartyService) expire(tx PartyTx) {
+	now := s.opts.Clock()
+	for _, inv := range tx.Invites() {
+		if !inv.Expires.After(now) {
+			tx.DeleteInvite(inv.ID)
+		}
+	}
+}
+
+// ledBy is leader's party, if leader leads it and target is another member of it.
+func ledBy(tx PartyTx, leader, target kernel.CharacterID) (model.Party, error) {
+	p, ok := tx.PartyOf(leader)
+	if !ok {
+		return model.Party{}, model.ErrNoParty
+	}
+	if p.Leader != leader {
+		return model.Party{}, model.ErrNotLeader
+	}
+	if tp, ok := tx.PartyOf(target); target == leader || !ok || tp.ID != p.ID {
+		return model.Party{}, model.ErrNotMember
+	}
+	return p, nil
+}
+
+// refresh copies a member's row into their party.
+func refresh(tx PartyTx, n *notes, m model.Member) {
+	p, ok := tx.PartyOf(m.ID)
 	if !ok {
 		return
 	}
-	m.MapID, m.Level, m.HP, m.MaxHP = mapID, level, hp, maxHP
-	s.known[id] = m
-	s.refresh(id, m)
-}
-
-func (s *PartyService) upsert(m model.Member) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if old, ok := s.known[m.ID]; ok {
-		m.JoinOrder = old.JoinOrder
-	}
-	s.known[m.ID] = m
-	s.refresh(m.ID, m)
-}
-
-// refresh copies a member's row into their party and tells the party.
-func (s *PartyService) refresh(id kernel.CharacterID, m model.Member) {
-	p, ok := s.parties[id]
-	if !ok {
-		return
-	}
-	k := slices.IndexFunc(p.Members, func(x model.Member) bool { return x.ID == id })
+	k := slices.IndexFunc(p.Members, func(x model.Member) bool { return x.ID == m.ID })
 	if k < 0 {
 		return
 	}
 	m.JoinOrder = p.Members[k].JoinOrder
 	p.Members[k] = m
-	s.changed(p)
+	tx.PutParty(p)
+	n.changed(p)
 }
 
-// Invite asks a character on the inviter's map to join; a partyless inviter leads once it is accepted.
-func (s *PartyService) Invite(from, to kernel.CharacterID) (model.Invite, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.expire()
-	if from == to {
-		return model.Invite{}, model.ErrSelf
-	}
-	inviter, ok := s.known[from]
-	if !ok {
-		return model.Invite{}, model.ErrNotHere
-	}
-	if p, ok := s.parties[from]; ok {
-		if p.Leader != from {
-			return model.Invite{}, model.ErrNotLeader
-		}
-		if len(p.Members) >= s.opts.MaxMembers {
-			return model.Invite{}, model.ErrFull
-		}
-	}
-	target, ok := s.known[to]
-	if !ok || !target.Online || target.MapID != inviter.MapID {
-		return model.Invite{}, model.ErrNotHere
-	}
-	if _, ok := s.parties[to]; ok {
-		return model.Invite{}, model.ErrInParty
-	}
-	for _, inv := range s.invites {
-		if inv.From == from && inv.To == to {
-			return model.Invite{}, model.ErrAlreadyAsked
-		}
-	}
-	inv := model.Invite{ID: uuid.NewString(), From: from, FromName: inviter.Name, To: to, Expires: s.opts.Clock().Add(s.opts.InviteTTL)}
-	s.invites[inv.ID] = inv
-	if s.notifier != nil {
-		s.notifier.Invited(to, inv)
-	}
-	return inv, nil
-}
-
-// Respond accepts or declines an invite addressed to who.
-func (s *PartyService) Respond(who kernel.CharacterID, inviteID string, accept bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.expire()
-	inv, ok := s.invites[inviteID]
-	if !ok || inv.To != who {
-		return model.ErrInviteExpired
-	}
-	delete(s.invites, inviteID)
-	if !accept {
-		return nil
-	}
-	if _, ok := s.parties[who]; ok {
-		return model.ErrInParty
-	}
-	member, ok := s.known[who]
-	if !ok {
-		return model.ErrNotHere
-	}
-	p, ok := s.parties[inv.From]
-	if !ok {
-		leader, ok := s.known[inv.From]
-		if !ok {
-			return model.ErrInviteExpired
-		}
-		p = &model.Party{Leader: inv.From}
-		s.add(p, leader)
-	}
-	if len(p.Members) >= s.opts.MaxMembers {
-		return model.ErrFull
-	}
-	s.add(p, member)
-	s.changed(p)
-	return nil
-}
-
-// Leave removes who from their party; the longest-standing member replaces a leaving leader.
-func (s *PartyService) Leave(who kernel.CharacterID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.parties[who]
-	if !ok {
-		return model.ErrNoParty
-	}
-	s.remove(p, who)
-	return nil
-}
-
-// Kick removes a member; only the leader may, and not themselves.
-func (s *PartyService) Kick(leader, target kernel.CharacterID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.parties[leader]
-	if !ok {
-		return model.ErrNoParty
-	}
-	if p.Leader != leader {
-		return model.ErrNotLeader
-	}
-	if target == leader || s.parties[target] != p {
-		return model.ErrNotMember
-	}
-	s.remove(p, target)
-	return nil
-}
-
-// Promote hands leadership to another member.
-func (s *PartyService) Promote(leader, target kernel.CharacterID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.parties[leader]
-	if !ok {
-		return model.ErrNoParty
-	}
-	if p.Leader != leader {
-		return model.ErrNotLeader
-	}
-	if target == leader || s.parties[target] != p {
-		return model.ErrNotMember
-	}
-	p.Leader = target
-	s.changed(p)
-	return nil
-}
-
-// Of is the party of a character, copied, or false.
-func (s *PartyService) Of(id kernel.CharacterID) (model.Party, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.parties[id]
-	if !ok {
-		return model.Party{}, false
-	}
-	return model.Party{Leader: p.Leader, Members: slices.Clone(p.Members)}, true
-}
-
-// Memberships visits every party's member IDs under the lock; visit must not block or call back.
-func (s *PartyService) Memberships(visit func(members []kernel.CharacterID)) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	seen := map[*model.Party]bool{}
-	for _, p := range s.parties {
-		if !seen[p] {
-			seen[p] = true
-			visit(ids(p))
-		}
-	}
-}
-
-// Members lists the IDs of a character's party, nil without one.
-func (s *PartyService) Members(id kernel.CharacterID) []kernel.CharacterID {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.parties[id]
-	if !ok {
-		return nil
-	}
-	return ids(p)
-}
-
-// SameParty reports whether two characters share a party.
-func (s *PartyService) SameParty(a, b kernel.CharacterID) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, ok := s.parties[a]
-	return ok && s.parties[b] == p
-}
-
-func (s *PartyService) add(p *model.Party, m model.Member) {
-	s.seq++
-	m.JoinOrder = s.seq
+func add(tx PartyTx, p model.Party, m model.Member) model.Party {
+	m.JoinOrder = tx.NextJoinOrder()
 	p.Members = append(p.Members, m)
-	s.parties[m.ID] = p
+	return p
 }
 
-func (s *PartyService) remove(p *model.Party, id kernel.CharacterID) {
+func remove(tx PartyTx, n *notes, p model.Party, id kernel.CharacterID) {
 	p.Members = slices.DeleteFunc(p.Members, func(m model.Member) bool { return m.ID == id })
-	delete(s.parties, id)
-	if s.notifier != nil {
-		s.notifier.PartyChanged([]kernel.CharacterID{id}, nil)
-	}
+	n.left(id)
 	if len(p.Members) == 0 {
+		tx.DeleteParty(p.ID)
 		return
 	}
 	if p.Leader == id {
 		p.Leader = slices.MinFunc(p.Members, func(a, b model.Member) int { return int(a.JoinOrder) - int(b.JoinOrder) }).ID
 	}
-	s.changed(p)
+	tx.PutParty(p)
+	n.changed(p)
 }
 
-func (s *PartyService) changed(p *model.Party) {
-	if s.notifier == nil {
-		return
-	}
-	s.notifier.PartyChanged(ids(p), &model.Party{Leader: p.Leader, Members: slices.Clone(p.Members)})
-}
-
-func (s *PartyService) expire() {
-	now := s.opts.Clock()
-	for id, inv := range s.invites {
-		if !inv.Expires.After(now) {
-			delete(s.invites, id)
-		}
-	}
-}
-
-func ids(p *model.Party) []kernel.CharacterID {
+func ids(p model.Party) []kernel.CharacterID {
 	out := make([]kernel.CharacterID, 0, len(p.Members))
 	for _, m := range p.Members {
 		out = append(out, m.ID)
 	}
 	return out
+}
+
+// notes are the notifications of one change, sent once it commits.
+type notes []func(Notifier)
+
+func (n *notes) changed(p model.Party) {
+	members := ids(p)
+	state := &model.Party{ID: p.ID, Leader: p.Leader, Members: slices.Clone(p.Members)}
+	*n = append(*n, func(to Notifier) { to.PartyChanged(members, state) })
+}
+
+func (n *notes) left(id kernel.CharacterID) {
+	*n = append(*n, func(to Notifier) { to.PartyChanged([]kernel.CharacterID{id}, nil) })
+}
+
+func (n *notes) invited(to kernel.CharacterID, inv model.Invite) {
+	*n = append(*n, func(nt Notifier) { nt.Invited(to, inv) })
 }

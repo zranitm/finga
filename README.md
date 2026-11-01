@@ -206,7 +206,8 @@ generated code committed in `server/api/gen/`:
   the idempotency key, and the result comes back as an inbox message;
   checkpoints go to the character service from the persistence worker;
   party membership is a local copy fed by the social service.
-- **`social`** holds the parties and chat, in memory: it delivers party
+- **`social`** holds the parties and chat, in memory behind a store port
+  that a Redis or Postgres repository can replace: it delivers party
   state, invites and party chat to each member's gateway on its own stream,
   and feeds the world's party copy on `WatchParties`.
 

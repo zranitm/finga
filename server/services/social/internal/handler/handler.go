@@ -18,21 +18,21 @@ import (
 
 // Parties is what the handler needs from the party module.
 type Parties interface {
-	Online(m model.Member)
-	Offline(id kernel.CharacterID)
-	Of(id kernel.CharacterID) (model.Party, bool)
-	Invite(from, to kernel.CharacterID) (model.Invite, error)
-	Respond(who kernel.CharacterID, inviteID string, accept bool) error
-	Leave(who kernel.CharacterID) error
-	Kick(leader, target kernel.CharacterID) error
-	Promote(leader, target kernel.CharacterID) error
-	Update(id kernel.CharacterID, mapID string, level, hp, maxHP int)
-	Memberships(visit func(members []kernel.CharacterID))
+	Online(ctx context.Context, m model.Member) error
+	Offline(ctx context.Context, id kernel.CharacterID) error
+	Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
+	Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error)
+	Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error
+	Leave(ctx context.Context, who kernel.CharacterID) error
+	Kick(ctx context.Context, leader, target kernel.CharacterID) error
+	Promote(ctx context.Context, leader, target kernel.CharacterID) error
+	Update(ctx context.Context, id kernel.CharacterID, mapID string, level, hp, maxHP int) error
+	Memberships(ctx context.Context, visit func(members []kernel.CharacterID)) error
 }
 
 // Chat is what the handler needs from the chat module.
 type Chat interface {
-	Send(from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
+	Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
 }
 
 // Queue sizes for a slow gateway or world node before its stream is dropped.
@@ -79,15 +79,18 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 		return status.Error(codes.InvalidArgument, "world_id is required")
 	}
 	sub := s.watchers.Subscribe(req.GetWorldId())
-	s.parties.Memberships(func(members []kernel.CharacterID) {
+	if err := s.parties.Memberships(stream.Context(), func(members []kernel.CharacterID) {
 		sub.Send(membership(members, members))
-	})
+	}); err != nil {
+		sub.Close()
+		return err
+	}
 	first := &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}
 	return grpcx.ServeSubscription(stream, sub, first)
 }
 
 // Online records a character as connected through a gateway.
-func (s *Server) Online(_ context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
+func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
 	if req.GetGatewayId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
@@ -99,17 +102,21 @@ func (s *Server) Online(_ context.Context, req *socialv1.OnlineRequest) (*social
 	s.mu.Lock()
 	s.presence[id] = req.GetGatewayId()
 	s.mu.Unlock()
-	s.parties.Online(model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()})
+	if err := s.parties.Online(ctx, model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()}); err != nil {
+		return nil, err
+	}
 	return &socialv1.OnlineResponse{}, nil
 }
 
 // Offline marks a character as disconnected.
-func (s *Server) Offline(_ context.Context, req *socialv1.OfflineRequest) (*socialv1.OfflineResponse, error) {
+func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*socialv1.OfflineResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	s.parties.Offline(id)
+	if err := s.parties.Offline(ctx, id); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	delete(s.presence, id)
 	s.mu.Unlock()
@@ -117,12 +124,15 @@ func (s *Server) Offline(_ context.Context, req *socialv1.OfflineRequest) (*soci
 }
 
 // PartyOf is a character's party, if any.
-func (s *Server) PartyOf(_ context.Context, req *socialv1.PartyOfRequest) (*socialv1.PartyOfResponse, error) {
+func (s *Server) PartyOf(ctx context.Context, req *socialv1.PartyOfRequest) (*socialv1.PartyOfResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	p, ok := s.parties.Of(id)
+	p, ok, err := s.parties.Of(ctx, id)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return &socialv1.PartyOfResponse{}, nil
 	}
@@ -130,12 +140,12 @@ func (s *Server) PartyOf(_ context.Context, req *socialv1.PartyOfRequest) (*soci
 }
 
 // Invite asks a character to join the caller's party.
-func (s *Server) Invite(_ context.Context, req *socialv1.InviteRequest) (*socialv1.InviteResponse, error) {
+func (s *Server) Invite(ctx context.Context, req *socialv1.InviteRequest) (*socialv1.InviteResponse, error) {
 	from, to, err := pair(req.GetCharacterId(), req.GetTargetId())
 	if err != nil {
 		return nil, err
 	}
-	inv, err := s.parties.Invite(from, to)
+	inv, err := s.parties.Invite(ctx, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -143,39 +153,39 @@ func (s *Server) Invite(_ context.Context, req *socialv1.InviteRequest) (*social
 }
 
 // Respond accepts or declines an invite.
-func (s *Server) Respond(_ context.Context, req *socialv1.RespondRequest) (*socialv1.RespondResponse, error) {
+func (s *Server) Respond(ctx context.Context, req *socialv1.RespondRequest) (*socialv1.RespondResponse, error) {
 	who, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.RespondResponse{}, s.parties.Respond(who, req.GetInviteId(), req.GetAccept())
+	return &socialv1.RespondResponse{}, s.parties.Respond(ctx, who, req.GetInviteId(), req.GetAccept())
 }
 
 // LeaveParty removes the caller from its party.
-func (s *Server) LeaveParty(_ context.Context, req *socialv1.LeavePartyRequest) (*socialv1.LeavePartyResponse, error) {
+func (s *Server) LeaveParty(ctx context.Context, req *socialv1.LeavePartyRequest) (*socialv1.LeavePartyResponse, error) {
 	who, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.LeavePartyResponse{}, s.parties.Leave(who)
+	return &socialv1.LeavePartyResponse{}, s.parties.Leave(ctx, who)
 }
 
 // Kick removes a member.
-func (s *Server) Kick(_ context.Context, req *socialv1.KickRequest) (*socialv1.KickResponse, error) {
+func (s *Server) Kick(ctx context.Context, req *socialv1.KickRequest) (*socialv1.KickResponse, error) {
 	leader, target, err := pair(req.GetCharacterId(), req.GetTargetId())
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.KickResponse{}, s.parties.Kick(leader, target)
+	return &socialv1.KickResponse{}, s.parties.Kick(ctx, leader, target)
 }
 
 // Promote hands leadership to another member.
-func (s *Server) Promote(_ context.Context, req *socialv1.PromoteRequest) (*socialv1.PromoteResponse, error) {
+func (s *Server) Promote(ctx context.Context, req *socialv1.PromoteRequest) (*socialv1.PromoteResponse, error) {
 	leader, target, err := pair(req.GetCharacterId(), req.GetTargetId())
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.PromoteResponse{}, s.parties.Promote(leader, target)
+	return &socialv1.PromoteResponse{}, s.parties.Promote(ctx, leader, target)
 }
 
 var channels = map[socialv1.ChatChannel]model.Channel{
@@ -184,12 +194,12 @@ var channels = map[socialv1.ChatChannel]model.Channel{
 }
 
 // Chat delivers a party line to every member; a map line goes back to the caller.
-func (s *Server) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.ChatResponse, error) {
+func (s *Server) Chat(ctx context.Context, req *socialv1.ChatRequest) (*socialv1.ChatResponse, error) {
 	from, err := kernel.ParseCharacterID(req.GetSenderId())
 	if err != nil {
 		return nil, err
 	}
-	msg, to, err := s.chat.Send(model.Sender{ID: from, Name: req.GetSenderName()}, channels[req.GetChannel()], req.GetText())
+	msg, to, err := s.chat.Send(ctx, model.Sender{ID: from, Name: req.GetSenderName()}, channels[req.GetChannel()], req.GetText())
 	if err != nil {
 		return nil, err
 	}
@@ -203,12 +213,14 @@ func (s *Server) Chat(_ context.Context, req *socialv1.ChatRequest) (*socialv1.C
 }
 
 // UpdateMember records what the world saw of a member.
-func (s *Server) UpdateMember(_ context.Context, req *socialv1.UpdateMemberRequest) (*socialv1.UpdateMemberResponse, error) {
+func (s *Server) UpdateMember(ctx context.Context, req *socialv1.UpdateMemberRequest) (*socialv1.UpdateMemberResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	s.parties.Update(id, req.GetMapId(), int(req.GetLevel()), int(req.GetHp()), int(req.GetMaxHp()))
+	if err := s.parties.Update(ctx, id, req.GetMapId(), int(req.GetLevel()), int(req.GetHp()), int(req.GetMaxHp())); err != nil {
+		return nil, err
+	}
 	return &socialv1.UpdateMemberResponse{}, nil
 }
 

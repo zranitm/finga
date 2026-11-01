@@ -12,7 +12,7 @@
 
 ## Why the default
 
-Parties are short-lived and rebuilding one after a restart takes seconds. Revisit at the gateway split in Stage 2, when parties must span nodes.
+Parties are short-lived and rebuilding one after a restart takes seconds. Revisit at the gateway split in Stage 2, when parties must span nodes. The rules already work through a store port (`PartyStore`, a unit of work), so option B, or Redis, is a new repository in the social service.
 
 ## Affects
 

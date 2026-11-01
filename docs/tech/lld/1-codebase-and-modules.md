@@ -50,7 +50,7 @@ server/                 the Go module: everything the server builds, reads and p
       invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
     account/            in layers (step 31): main.go, app/, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
-    social/             in layers (step 34): config/, internal/model (parties, chat lines, the errors), internal/application (PartyService, ChatService), its handler (SocialService, Deliver, WatchParties); no database, no repository
+    social/             in layers (step 34): config/, internal/model (parties, chat lines, the errors), internal/application (PartyService, ChatService, the PartyStore port), internal/repository (the in-memory PartyStore), its handler (SocialService, Deliver, WatchParties); no database
     character/          the same shape as item, in layers (step 33), and internal/clients/ for the item service (starter items): the application's StarterItems port over gRPC
     world/              in layers (step 35): internal/model (what a player and a character carry, views and events, saves, pickups, the combat rules, the errors), internal/application (the World, the map instances' actors and their tick, the workers, the ports), internal/clients (character, item, the party copy), its handler (WorldService, Deliver; the Sink port); no database, no repository
   pkg/                  generic libraries with no game knowledge
