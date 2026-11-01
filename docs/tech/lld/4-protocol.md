@@ -9,7 +9,7 @@ JSON bodies. Authenticated calls send the header `Authorization: Bearer TOKEN`. 
 | Method and path | Purpose | Notes |
 | --- | --- | --- |
 | `POST /api/accounts` | Sign up | Username 3–16 characters (letters, digits, underscore); password at least 8 characters |
-| `POST /api/sessions` | Log in | Returns an opaque token and revokes any older session. Rate-limited per username and per IP. |
+| `POST /api/sessions` | Log in | Returns an opaque token and revokes any older session. Rate-limited per username (account service) and per client address (nginx). |
 | `DELETE /api/sessions/current` | Log out |  |
 | `DELETE /api/sessions` | Log out everywhere | Ends every session of the account and closes its game connections |
 | `GET /api/characters` | List my characters |  |
@@ -102,7 +102,9 @@ Token buckets per account in the gateway (a `golang.org/x/time/rate` limiter per
 - ChatSend: 1 per second, burst of 3 (E1), enforced by the chat service per character rather than by the gateway's buckets, so a refused line is answered with a Response (`ok: false`, `chat_rate_limited`, no request ID) instead of being dropped silently.
 - Party commands: 2 per second.
 - Inventory and market commands: 5 per second.
-- Login (REST): 5 per minute per username and per IP.
+- Login (REST): 5 per minute per username, in the account service, which alone reads the username.
+
+Limits per client address are the edge's alone: the gateway and the services never read the address, so nothing behind nginx can be fooled by a forwarding header or limit every player behind one proxy as one. nginx (`infra/nginx/finga.conf`) counts every request to the gateway at 10 per second with a burst of 20, a WebSocket upgrade included, and each login (POST `/api/sessions`) also at 5 per minute. Its refusal is the gateway's own: 429, `application/json`, `rate_limited` or `login_rate_limited` with the same message, so the client handles both alike. From Stage 2, with Cloudflare in front, the limits key on the real client IP Cloudflare passes (TD-13), not the peer.
 
 ## Trust model (Stage 1, TD-24's default)
 
@@ -114,7 +116,7 @@ What a session token is, and what happens when it is stolen.
 - **Lifetime:** a session ends after 7 days unused. Each valid use pushes that expiry, at most once every 10 minutes, and never past 30 days from login.
 - **Checks while connected:** the account service tells every gateway at once when a session ends by reuse or logout, or an account's sessions end (`WatchSessions`, step 24), and the gateway closes those connections; it also re-checks every connection's session once a minute and closes the ones that ended (expired, logged out, reused) with Kicked `session_expired`, which catches what a broken stream missed. A second Hello on a session that already has a connection closes the older connection (`logged_in_elsewhere`).
 - **Log out everywhere:** `DELETE /api/sessions` revokes every session of the account and closes its connections.
-- **Login:** throttled at 5 per minute per username and per IP; an unknown username is verified against a dummy argon2id hash, so a wrong username takes as long as a wrong password and reveals nothing by timing.
+- **Login:** throttled at 5 per minute per username (the account service) and per client address (nginx); an unknown username is verified against a dummy argon2id hash, so a wrong username takes as long as a wrong password and reveals nothing by timing.
 - **Not in Stage 1:** binding a session to an IP or device, refresh tokens, and any client-side storage rule beyond "keep the token in memory and never in a URL"; TLS is the deployment's job, in front of the gateway.
 
 ## Versioning

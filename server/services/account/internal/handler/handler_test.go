@@ -109,9 +109,9 @@ func TestEachCallMapsItsFields(t *testing.T) {
 			t.Fatalf("input %+v account %+v", f.register, a)
 		}
 	})
-	t.Run("Login carries the caller's IP for the throttle", func(t *testing.T) {
-		res, err := c.Login(ctx, &accountv1.LoginRequest{Username: "alice", Password: "pw", Ip: "10.0.0.9"})
-		if err != nil || res.GetToken() != "tok-1" || f.login != (application.LoginInput{Username: "alice", Password: "pw", IP: "10.0.0.9"}) {
+	t.Run("Login", func(t *testing.T) {
+		res, err := c.Login(ctx, &accountv1.LoginRequest{Username: "alice", Password: "pw"})
+		if err != nil || res.GetToken() != "tok-1" || f.login != (application.LoginInput{Username: "alice", Password: "pw"}) {
 			t.Fatalf("token %q input %+v err %v", res.GetToken(), f.login, err)
 		}
 	})

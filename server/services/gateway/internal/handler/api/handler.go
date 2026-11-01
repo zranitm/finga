@@ -11,7 +11,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"slices"
 
@@ -153,7 +152,7 @@ func (h *api) login(c *gin.Context) {
 	if decode(c, &req) != nil || missing(c, req.Username, req.Password) {
 		return
 	}
-	token, err := h.lobby.Login(c.Request.Context(), req.Username, req.Password, clientIP(c.Request))
+	token, err := h.lobby.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
 		writeError(c, err)
 		return
@@ -221,17 +220,4 @@ func (h *api) updateSettings(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusOK, toSettings(s))
-}
-
-// clientIP is the peer's address. Under make up the browser's requests come
-// through nginx, which sets X-Forwarded-For, but the gateway does not trust
-// the header yet (Stage 2, with the edge's TLS and limits), so every browser
-// behind nginx shares its address for the login throttle. Gin's ClientIP
-// is not used, and the engine trusts no proxy (handler.NewEngine).
-func clientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }

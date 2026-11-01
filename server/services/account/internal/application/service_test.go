@@ -139,7 +139,7 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 	store := newFakeStore()
 	svc, c := newService(store)
 	acc := register(t, svc, "alice", "correct horse")
-	token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.1"})
+	token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,31 +241,27 @@ func TestLoginThrottling(t *testing.T) {
 		svc, c := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for i := range 5 {
-			if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong", IP: fmt.Sprintf("10.0.0.%d", i)}); !errors.Is(err, model.ErrUnauthenticated) {
+			if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong"}); !errors.Is(err, model.ErrUnauthenticated) {
 				t.Fatalf("attempt %d: %v", i, err)
 			}
 		}
-		_, err := svc.Login(ctx, application.LoginInput{Username: "ALICE", Password: "correct horse", IP: "10.0.0.9"})
+		_, err := svc.Login(ctx, application.LoginInput{Username: "ALICE", Password: "correct horse"})
 		if !errors.Is(err, model.ErrRateLimited) {
 			t.Fatalf("sixth attempt: %v, want rate_limited even with the right password", err)
 		}
 		c.t = c.t.Add(time.Minute)
-		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.9"}); err != nil {
+		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"}); err != nil {
 			t.Fatalf("after the window: %v", err)
 		}
 	})
-	t.Run("too many attempts from one IP give rate_limited across usernames", func(t *testing.T) {
+	t.Run("one username's throttle leaves the others alone: per-IP limits are the edge's (nginx)", func(t *testing.T) {
 		svc, _ := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for i := range 5 {
-			_, _ = svc.Login(ctx, application.LoginInput{Username: fmt.Sprintf("user%d", i), Password: "wrong", IP: "10.0.0.1"})
+			_, _ = svc.Login(ctx, application.LoginInput{Username: fmt.Sprintf("user%d", i), Password: "wrong"})
 		}
-		_, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.1"})
-		if !errors.Is(err, model.ErrRateLimited) {
-			t.Fatalf("err = %v", err)
-		}
-		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse", IP: "10.0.0.2"}); err != nil {
-			t.Fatalf("another IP: %v", err)
+		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"}); err != nil {
+			t.Fatalf("another username: %v", err)
 		}
 	})
 	t.Run("Verify itself is not throttled: the handler's job", func(t *testing.T) {

@@ -95,5 +95,8 @@ jobs:
         run: |
           curl -fsS http://localhost:4173/ | grep -q '<title>Finga</title>'
           make smoke SMOKE_URL=http://localhost:4173
+      # Last: it uses up the runner's login allowance at nginx for a minute.
+      - name: limits per client address at nginx, none at the gateway
+        run: make edge
       - if: always()
         run: make down

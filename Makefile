@@ -8,10 +8,11 @@ SERVER    ?= server
 COVER_MIN ?= 80
 COMPOSE   ?= docker compose -f infra/docker-compose.yml
 SMOKE_URL ?= http://localhost:8080
+EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9104
 NPM       ?= npm --prefix web
 
-.PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke bots
+.PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
 
 up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway)
 	$(COMPOSE) up --build -d
@@ -80,6 +81,10 @@ breaking:      ## buf breaking: the gRPC contracts against BREAKING_AGAINST (def
 
 smoke:         ## against a running stack (make up): a client signs up, enters the world and moves
 	cd $(SERVER) && FINGA_SMOKE_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestSmoke ./test/
+
+# Uses up the address's login allowance at nginx for a minute: run it last.
+edge:          ## against a running stack (make up): nginx limits per client address, the gateway does not
+	cd $(SERVER) && FINGA_EDGE_URL=$(EDGE_URL) FINGA_GATEWAY_URL=$(SMOKE_URL) $(GO) test -count=1 -run TestEdge ./test/
 
 # sqlc generates each module's queries into server/services/<service>/internal/<module>/internal/db;
 # each entry's schema is its service's server/services/<service>/migrations/. buf generates the

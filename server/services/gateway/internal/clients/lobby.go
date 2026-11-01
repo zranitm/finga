@@ -42,8 +42,8 @@ func (a Accounts) Register(ctx context.Context, username, password string) (mode
 }
 
 // Login opens a session.
-func (a Accounts) Login(ctx context.Context, username, password, ip string) (string, error) {
-	res, err := a.c.Login(ctx, &accountv1.LoginRequest{Username: username, Password: password, Ip: ip})
+func (a Accounts) Login(ctx context.Context, username, password string) (string, error) {
+	res, err := a.c.Login(ctx, &accountv1.LoginRequest{Username: username, Password: password})
 	return res.GetToken(), errmap.Wrap(err)
 }
 

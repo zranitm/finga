@@ -67,7 +67,7 @@ func (s *Server) Register(ctx context.Context, req *accountv1.RegisterRequest) (
 
 // Login issues a session.
 func (s *Server) Login(ctx context.Context, req *accountv1.LoginRequest) (*accountv1.LoginResponse, error) {
-	token, err := s.svc.Login(ctx, application.LoginInput{Username: req.GetUsername(), Password: req.GetPassword(), IP: req.GetIp()})
+	token, err := s.svc.Login(ctx, application.LoginInput{Username: req.GetUsername(), Password: req.GetPassword()})
 	if err != nil {
 		return nil, err
 	}

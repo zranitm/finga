@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accountv1 "finga/api/gen/account/v1"
@@ -184,19 +185,21 @@ func TestRegister(t *testing.T) {
 }
 
 func TestLogin(t *testing.T) {
-	t.Run("happy path passes the client IP and returns the token once", func(t *testing.T) {
+	t.Run("happy path passes the credentials and nothing else, and returns the token once", func(t *testing.T) {
 		h := newHarness()
 		var got *accountv1.LoginRequest
 		h.accounts.login = func(_ context.Context, in *accountv1.LoginRequest) (*accountv1.LoginResponse, error) {
 			got = in
 			return &accountv1.LoginResponse{Token: "secret-token"}, nil
 		}
-		rec := h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, nil)
+		// The client's address stays at the edge (nginx limits per IP), even
+		// when a forwarding header claims one.
+		rec := h.do("POST", "/api/sessions", `{"username":"alice","password":"correct horse"}`, map[string]string{"X-Forwarded-For": "203.0.113.7"})
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got.GetUsername() != "alice" || got.GetPassword() != "correct horse" || got.GetIp() == "" {
-			t.Fatalf("service got %+v", got)
+		if want := (&accountv1.LoginRequest{Username: "alice", Password: "correct horse"}); !proto.Equal(got, want) {
+			t.Fatalf("service got %v, want %v", got, want)
 		}
 		var body api.SessionResponse
 		decode(t, rec, &body)

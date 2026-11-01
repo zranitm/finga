@@ -361,7 +361,11 @@ type LoginRequest struct {
 	state    protoimpl.MessageState `protogen:"open.v1"`
 	Username string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Password string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	// The caller's address, for the per-IP throttle; empty skips it.
+	// The caller's address, for a per-IP throttle that moved to the edge
+	// (nginx limits per IP): ignored, and no caller sends it. buf's FILE
+	// rules keep a field in v1 once published, so it stays deprecated.
+	//
+	// Deprecated: Marked as deprecated in internal/account/v1/account.proto.
 	Ip            string `protobuf:"bytes,3,opt,name=ip,proto3" json:"ip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -411,6 +415,7 @@ func (x *LoginRequest) GetPassword() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in internal/account/v1/account.proto.
 func (x *LoginRequest) GetIp() string {
 	if x != nil {
 		return x.Ip
@@ -1376,11 +1381,11 @@ const file_internal_account_v1_account_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"J\n" +
 	"\x10RegisterResponse\x126\n" +
-	"\aaccount\x18\x01 \x01(\v2\x1c.internal.account.v1.AccountR\aaccount\"V\n" +
+	"\aaccount\x18\x01 \x01(\v2\x1c.internal.account.v1.AccountR\aaccount\"Z\n" +
 	"\fLoginRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x0e\n" +
-	"\x02ip\x18\x03 \x01(\tR\x02ip\"%\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x12\n" +
+	"\x02ip\x18\x03 \x01(\tB\x02\x18\x01R\x02ip\"%\n" +
 	"\rLoginResponse\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"'\n" +
 	"\x0fValidateRequest\x12\x14\n" +

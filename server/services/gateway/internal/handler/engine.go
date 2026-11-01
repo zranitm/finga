@@ -19,8 +19,9 @@ func NewEngine() *gin.Engine {
 	e.HandleMethodNotAllowed = true
 	e.RedirectTrailingSlash = false
 	e.RedirectFixedPath = false
-	// No proxy is trusted, so Gin's ClientIP never reads a forwarding header
-	// (the gateway takes the socket's address, decision 253).
+	// No proxy is trusted, so Gin's ClientIP never reads a forwarding header.
+	// Nothing in the gateway reads the client's address: limits per address
+	// are the edge's, which sees the real one (nginx, page 4).
 	if err := e.SetTrustedProxies(nil); err != nil {
 		panic("gin: " + err.Error()) // nil is always a valid list
 	}

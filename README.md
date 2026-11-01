@@ -32,6 +32,7 @@ vectors, the error codes). The root `Makefile` drives all three parts.
 ```bash
 make up      # everything: Postgres, the migrations, the six services and the client; the game at http://localhost:4173
 make smoke   # a client signs up, enters the world and moves, against the running stack
+make edge    # nginx limits each client address, the gateway does not (uses up the login allowance for a minute)
 make down    # stop everything and drop the database volume
 ```
 
@@ -133,6 +134,7 @@ make cover   # coverage report over server/internal/, server/pkg/, server/servic
 make lint    # golangci-lint (sloglint, depguard import directions, revive, staticcheck) and buf lint
 make breaking   # buf breaking: the gRPC contracts against the previous commit
 make smoke   # the packaging check, against a running stack
+make edge    # nginx limits each client address, the gateway does not; run it last
 make bots    # the proof session: 4 bots play for 30 minutes and the tick p99 is printed (read from the world service's ops port, 9104)
 ```
 

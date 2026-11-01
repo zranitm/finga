@@ -38,7 +38,6 @@ type RegisterInput struct {
 type LoginInput struct {
 	Username string
 	Password string
-	IP       string
 }
 
 // Options tune the service. Zero values take the defaults below.
@@ -72,8 +71,6 @@ const (
 	usernameMax     = 16
 	passwordMin     = 8
 	passwordMax     = 128
-	loginKeyUser    = "user:"
-	loginKeyIP      = "ip:"
 	loginMaxRetries = 1 // once more, when the one_active_session index catches a race
 
 	dummySecret = "finga-dummy-password-for-timing" // hashed once; verified for unknown usernames
@@ -99,9 +96,8 @@ type Service struct {
 	opts       Options
 	now        func() time.Time
 	hash       password.Params
-	dummy      string // an argon2id hash verified for unknown usernames, so they take as long
-	byUser     ratelimit.Limiter
-	byIP       ratelimit.Limiter
+	dummy      string            // an argon2id hash verified for unknown usernames, so they take as long
+	byUser     ratelimit.Limiter // logins per username; per-IP limits are the edge's (nginx)
 	presetList []model.Preset
 }
 
@@ -148,7 +144,6 @@ func NewService(store Store, opts Options) *Service {
 		hash:       opts.Hash,
 		dummy:      dummy,
 		byUser:     ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
-		byIP:       ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
 		presetList: []model.Preset{model.PresetClassic, model.PresetWASD},
 	}
 }
@@ -176,13 +171,12 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	return model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: a.CreatedAt}, nil
 }
 
-// Login throttles per username and per IP, verifies the credentials, and
-// issues a session. The token is returned once and never stored.
+// Login throttles per username, verifies the credentials, and issues a
+// session. The token is returned once and never stored. The throttle is the
+// one only the service can apply, since only it reads the username; limits
+// per address belong to the edge, which sees the real one (nginx, TD-12).
 func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
-	if !s.byUser.Allow(loginKeyUser + strings.ToLower(in.Username)) {
-		return "", model.ErrRateLimited
-	}
-	if in.IP != "" && !s.byIP.Allow(loginKeyIP+in.IP) {
+	if !s.byUser.Allow(strings.ToLower(in.Username)) {
 		return "", model.ErrRateLimited
 	}
 	id, err := s.Verify(ctx, in.Username, in.Password)

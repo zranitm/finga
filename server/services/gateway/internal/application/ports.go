@@ -18,9 +18,8 @@ import (
 // Accounts is the account service, for the REST API.
 type Accounts interface {
 	Register(ctx context.Context, username, password string) (model.Account, error)
-	// Login returns a new session's token; ip is the caller's address, for
-	// the per-IP throttle.
-	Login(ctx context.Context, username, password, ip string) (string, error)
+	// Login returns a new session's token.
+	Login(ctx context.Context, username, password string) (string, error)
 	Settings(ctx context.Context, account kernel.AccountID) (model.Settings, error)
 	UpdateSettings(ctx context.Context, account kernel.AccountID, s model.Settings) error
 }

@@ -32,10 +32,10 @@ func (l *Lobby) Register(ctx context.Context, username, password string) (model.
 	return l.accounts.Register(ctx, username, password)
 }
 
-// Login opens a login session and returns its token; ip is the caller's
-// address, for the account service's per-IP throttle.
-func (l *Lobby) Login(ctx context.Context, username, password, ip string) (string, error) {
-	return l.accounts.Login(ctx, username, password, ip)
+// Login opens a login session and returns its token. The account service
+// throttles per username; per-IP limits are the edge's (nginx).
+func (l *Lobby) Login(ctx context.Context, username, password string) (string, error) {
+	return l.accounts.Login(ctx, username, password)
 }
 
 // Logout ends the caller's login session.
