@@ -9,6 +9,7 @@ import (
 
 	"finga/internal/host"
 	"finga/pkg/configload"
+	"finga/pkg/logger"
 	"finga/services/gateway/config"
 )
 
@@ -22,7 +23,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config.Config{HTTP: config.HTTP{Addr: ":8080", CORSOrigins: []string{}}, ShutdownGrace: 10 * time.Second, LogLevel: "info", Dependencies: config.Dependencies{Account: "localhost:9001", Character: "localhost:9002", Item: "localhost:9003", World: "localhost:9004", Social: "localhost:9005"}}
+	want := config.Config{HTTP: config.HTTP{Addr: ":8080", CORSOrigins: []string{}}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, Dependencies: config.Dependencies{Account: "localhost:9001", Character: "localhost:9002", Item: "localhost:9003", World: "localhost:9004", Social: "localhost:9005"}}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
 	}

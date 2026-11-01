@@ -4,5 +4,7 @@ grpc:
 ops:
   addr: "127.0.0.1:0"
 shutdown_grace: 1s
-log_level: info
+log:
+  level: info
+  format: json
 stock: 3

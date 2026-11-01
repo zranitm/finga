@@ -6,7 +6,13 @@ grpc:
 ops:
   addr: ":9104"         # /healthz, /readyz, /metrics
 shutdown_grace: 10s
-log_level: info
+log:
+  level: info
+  format: json            # or console: coloured lines for a terminal
+  source: false           # add each call's file:line
+  sampling:               # each message at each level per second: the first 100, then every 100th
+    initial: 100
+    thereafter: 100
 data_dir: data           # the game data, relative to server/
 tick_rate_hz: 20
 checkpoint_interval: 30s

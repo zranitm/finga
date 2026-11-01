@@ -111,8 +111,9 @@ run` exports it before starting the binaries. To change one service only, a
 git-ignored `config.local.yaml` beside its `config.yaml` replaces it, and
 `CONFIG_PATH` names any file. Nothing committed is a secret.
 
-Every service has `shutdown_grace` and `log_level`, and each internal
-service `grpc.listen` and `ops.addr` (the ports table above). Besides those:
+Every service has `shutdown_grace` and `log` (`level`, `format` json or
+console, `source`, `sampling`), and each internal service `grpc.listen` and
+`ops.addr` (the ports table above). Besides those:
 
 | Binary      | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
@@ -122,7 +123,7 @@ service `grpc.listen` and `ops.addr` (the ports table above). Besides those:
 | `item`      | `database`, `data_dir`                                                            |
 | `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `economy.workers` (8), `dependencies` on character, item and social |
 | `social`    | none                                                                              |
-| `migrate`   | `database`, `log_level` only                                                      |
+| `migrate`   | `database`, `log` only                                                            |
 
 ## Tests
 

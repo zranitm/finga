@@ -14,7 +14,7 @@ import (
 	"finga/internal/host"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
-	"finga/pkg/observability"
+	"finga/pkg/logger"
 )
 
 const connTimeout = 30 * time.Second
@@ -22,18 +22,17 @@ const connTimeout = 30 * time.Second
 func main() { os.Exit(run()) }
 
 func run() int {
-	// No logger until the level is known, so configuration errors go to stderr.
+	// No logger until its section is read, so configuration errors go to stderr.
 	cfg, err := configload.Load[config.Config](configload.Options{Path: configload.ResolvePath(config.Dir), EnvPrefix: host.EnvPrefix, Strict: true})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "migrate: invalid configuration:", err)
 		return 1
 	}
-	level, err := observability.ParseLevel(cfg.LogLevel)
+	log, err := logger.New(os.Stdout, cfg.Log)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "migrate:", err)
 		return 1
 	}
-	log := observability.NewLogger(os.Stdout, level)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -10,6 +10,7 @@ import (
 	"finga/internal/host"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
+	"finga/pkg/logger"
 )
 
 func load() (*config.Config, error) {
@@ -21,7 +22,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config.Config{LogLevel: "info", Database: dbx.Config{URL: "postgres://finga:finga@localhost:5432/finga?sslmode=disable", MaxConns: 2}}
+	want := config.Config{Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, Database: dbx.Config{URL: "postgres://finga:finga@localhost:5432/finga?sslmode=disable", MaxConns: 2}}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
 	}

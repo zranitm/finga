@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/internal/host"
+	"finga/pkg/logger"
 )
 
 // shopConfig is a made-up service's configuration: the host's sections and a key of its own.
@@ -20,12 +21,12 @@ type shopConfig struct {
 	GRPC          host.GRPCSection `mapstructure:"grpc"`
 	Ops           host.OpsSection  `mapstructure:"ops"`
 	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
-	LogLevel      string           `mapstructure:"log_level" validate:"oneof=debug info warn error"`
+	Log           logger.Config    `mapstructure:"log"`
 	Stock         int              `mapstructure:"stock" validate:"min=1"`
 }
 
 func (c shopConfig) Host() host.Settings {
-	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, LogLevel: c.LogLevel}
+	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log}
 }
 
 type process struct {
@@ -61,7 +62,7 @@ func TestStart(t *testing.T) {
 		{"reads the service's own file, builds, runs until the context ends, and closes", testdata, nil, ok, nil, 0, `"msg":"stopped"`, true},
 		{"an override reaches the service's own key", testdata, map[string]string{"FINGA_STOCK": "7"}, wantStock(7), nil, 0, `"msg":"stopped"`, true},
 		{"a configuration error stops it before the build", testdata, map[string]string{"FINGA_STOCK": "0"}, ok, nil, 1, "invalid configuration", false},
-		{"a bad log level stops it", testdata, map[string]string{"FINGA_LOG_LEVEL": "loud"}, ok, nil, 1, "log_level", false},
+		{"a bad log level stops it", testdata, map[string]string{"FINGA_LOG_LEVEL": "loud"}, ok, nil, 1, "log.level", false},
 		{"a missing file is named in the error", t.TempDir(), nil, ok, nil, 1, filepath.Join("services", "shop", "config", "config.yaml"), false},
 		{"a failed build", testdata, nil, func(*process) host.Build[shopConfig] {
 			return func(context.Context, shopConfig, *slog.Logger, *prometheus.Registry) (host.Process, error) {

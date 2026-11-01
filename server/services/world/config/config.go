@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"finga/internal/host"
+	"finga/pkg/logger"
 )
 
 // Config is services/world/config/config.yaml.
@@ -13,7 +14,7 @@ type Config struct {
 	GRPC               host.GRPCSection `mapstructure:"grpc"`
 	Ops                host.OpsSection  `mapstructure:"ops"`
 	ShutdownGrace      time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
-	LogLevel           string           `mapstructure:"log_level" validate:"oneof=debug info warn error"`
+	Log                logger.Config    `mapstructure:"log"`
 	DataDir            string           `mapstructure:"data_dir" validate:"required"`
 	TickRateHz         int              `mapstructure:"tick_rate_hz" validate:"min=1,max=60"`
 	CheckpointInterval time.Duration    `mapstructure:"checkpoint_interval" validate:"gt=0"`
@@ -50,5 +51,5 @@ type Dependencies struct {
 
 // Host is the part of the configuration the host runs the service with.
 func (c Config) Host() host.Settings {
-	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, LogLevel: c.LogLevel}
+	return host.Settings{GRPC: c.GRPC.Listen, Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log}
 }

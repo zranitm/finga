@@ -75,16 +75,16 @@ func newStack(t *testing.T) *stack {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
-	item := runService(t, itemconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data", Database: db},
+	item := runService(t, itemconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, DataDir: "../data", Database: db},
 		func(c itemconfig.Config, at string) itemconfig.Config { c.GRPC.Listen = at; return c }, itemapp.Build)
-	account := runService(t, accountconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", Database: db},
+	account := runService(t, accountconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, Database: db},
 		func(c accountconfig.Config, at string) accountconfig.Config { c.GRPC.Listen = at; return c }, accountapp.Build)
-	character := runService(t, characterconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data", Database: db,
+	character := runService(t, characterconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, DataDir: "../data", Database: db,
 		Dependencies: characterconfig.Dependencies{Item: item.addr}},
 		func(c characterconfig.Config, at string) characterconfig.Config { c.GRPC.Listen = at; return c }, characterapp.Build)
-	social := runService(t, socialconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error"},
+	social := runService(t, socialconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace},
 		func(c socialconfig.Config, at string) socialconfig.Config { c.GRPC.Listen = at; return c }, socialapp.Build)
-	world := runService(t, worldconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, LogLevel: "error", DataDir: "../data",
+	world := runService(t, worldconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, DataDir: "../data",
 		TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: worldconfig.Economy{Workers: 2},
 		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}},
 		func(c worldconfig.Config, at string) worldconfig.Config { c.GRPC.Listen = at; return c }, worldapp.Build)
@@ -97,7 +97,6 @@ func newStack(t *testing.T) *stack {
 		Config: gatewayconfig.Config{
 			HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
 			ShutdownGrace: grace,
-			LogLevel:      "error",
 			Dependencies: gatewayconfig.Dependencies{
 				Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
 			},

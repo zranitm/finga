@@ -466,7 +466,7 @@ func Declared(dirs ...string) ([]string, error)
 func Referenced(files ...string) (map[string]bool, error)
 ```
 
-Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28), `observability` (structured logging and metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
+Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28), `observability` (Prometheus metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
 
 ## Configuration
 
@@ -475,7 +475,7 @@ The same scheme as docviewer, using its `pkg/configload`:
 - **One file per binary, inside it** (page 11, step 29): the defaults are `services/<name>/config/config.yaml` (`cmd/migrate/config/config.yaml` for migrate), committed and never secret, with only the keys that binary uses. A git-ignored `config.local.yaml` beside it replaces it when present, or `CONFIG_PATH` points at another file. The binaries run from `server/` (and `/app` in an image, which holds the binary's own file at the same path), so the paths are relative to it, as `data/` is.
 - **Overrides:** any key can be set from the environment as `FINGA_` plus its path in upper case, read by each binary that has the key, for example `FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM=item:9003` or `FINGA_TICK_RATE_HZ=30`.
 - **`.env`:** the binaries never read it; they read the YAML file and their environment, nothing else. Whoever starts them injects the git-ignored `server/.env`: `make up` through Compose's `env_file`, where the Compose file's own `environment` entries (each service's database and the addresses it dials) win over it, and `make run` by exporting it before starting the binaries without Docker. `server/.env.example` lists every override, commented out. The host ports Compose publishes are Compose's own settings, read from `infra/.env` (changed 2026-10-23 at the user's request: environment injection belongs to Docker and the tooling, not the code).
-- **Validated at start:** each binary's type sits beside its file (`services/<name>/config`, package `config`), and `internal/host` loads it with the strict loader: an unknown key (another service's, too) or an invalid value stops the binary with a message naming the key and the file. The sections every service has are `internal/host`'s types (`GRPCSection`, `OpsSection`), and the database section is `pkg/dbx`'s `Config`. Stage 2 binaries get their own the same way (the outbox relay, the auditor).
+- **Validated at start:** each binary's type sits beside its file (`services/<name>/config`, package `config`), and `internal/host` loads it with the strict loader: an unknown key (another service's, too) or an invalid value stops the binary with a message naming the key and the file. The sections every service has are `internal/host`'s types (`GRPCSection`, `OpsSection`), the database section is `pkg/dbx`'s `Config`, and the log section `pkg/logger`'s. Stage 2 binaries get their own the same way (the outbox relay, the auditor).
 
 The world service's `services/world/config/config.yaml`:
 
@@ -485,7 +485,13 @@ grpc:
 ops:
   addr: ":9104"            # /healthz, /readyz, /metrics
 shutdown_grace: 10s
-log_level: info
+log:
+  level: info
+  format: json             # or console: coloured lines for a terminal
+  source: false            # add each call's file:line
+  sampling:                # each message at each level per second: the first 100, then every 100th
+    initial: 100
+    thereafter: 100
 data_dir: data             # the game data, relative to server/
 tick_rate_hz: 20
 checkpoint_interval: 30s   # TD-02

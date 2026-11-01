@@ -1,7 +1,13 @@
 # Committed defaults, nothing secret. Override a key as FINGA_<KEY_PATH> (FINGA_DATABASE_URL);
 # CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 
-log_level: info
+log:
+  level: info
+  format: json            # or console: coloured lines for a terminal
+  source: false           # add each call's file:line
+  sampling:               # each message at each level per second: the first 100, then every 100th
+    initial: 100
+    thereafter: 100
 database:
   url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
   max_conns: 2

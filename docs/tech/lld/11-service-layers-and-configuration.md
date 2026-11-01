@@ -70,7 +70,7 @@ Tests move with the code they test: rule tests with fakes go to `application`, t
 
 ## Configuration per service
 
-Each service reads one file, its own: `services/<name>/config/config.yaml`, with only the keys it uses. The type and its checks live beside it, in the same package (`services/<name>/config`). `cmd/migrate` has its own file the same way (`cmd/migrate/config/config.yaml`: the database and the log level). The root `server/configs/config.yaml` and `internal/config` are removed.
+Each service reads one file, its own: `services/<name>/config/config.yaml`, with only the keys it uses. The type and its checks live beside it, in the same package (`services/<name>/config`). `cmd/migrate` has its own file the same way (`cmd/migrate/config/config.yaml`: the database and the log section). The root `server/configs/config.yaml` and `internal/config` are removed.
 
 ```yaml
 # services/world/config/config.yaml
@@ -79,7 +79,13 @@ grpc:
 ops:
   addr: ":9104"            # /healthz, /readyz, /metrics
 shutdown_grace: 10s
-log_level: info
+log:
+  level: info
+  format: json             # or console: coloured lines for a terminal
+  source: false            # add each call's file:line
+  sampling:                # each message at each level per second: the first 100, then every 100th
+    initial: 100
+    thereafter: 100
 data_dir: data
 tick_rate_hz: 20
 checkpoint_interval: 30s   # TD-02
@@ -91,7 +97,7 @@ dependencies:              # where this service dials the ones it calls
   social: localhost:9005
 ```
 
-| Service | Keys besides `grpc`, `ops`, `shutdown_grace`, `log_level` |
+| Service | Keys besides `grpc`, `ops`, `shutdown_grace`, `log` |
 | --- | --- |
 | `gateway` | `http.addr` (:8080) and `http.cors_origins` instead of `grpc`; `dependencies` on all five |
 | `account` | `database` |
@@ -99,11 +105,11 @@ dependencies:              # where this service dials the ones it calls
 | `item` | `database`, `data_dir` |
 | `world` | `data_dir`, `tick_rate_hz`, `checkpoint_interval`, `economy.workers`, `dependencies` on character, item and social |
 | `social` | none |
-| `migrate` | `database` and `log_level` only |
+| `migrate` | `database` and `log` only |
 
 - **Overrides keep their form:** `FINGA_` and the key's path in upper case, read by the one binary that has the key: `FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM`, `FINGA_HTTP_ADDR` (was `FINGA_SERVER_ADDR`). Compose sets each service's own.
 - **Paths stay relative to `server/`,** as `data/` is: a binary run from `server/` (`make run`, the process tests) reads `services/<name>/config/config.yaml`, and the image puts the file at the same path under `/app`. `CONFIG_PATH` still names any file, and a git-ignored `config.local.yaml` next to the defaults still replaces them.
-- **Shared parts are types, not a shared file:** `internal/host` has the types of the sections every service has (`GRPCSection`, `OpsSection`), and `pkg/dbx` the database section's (`dbx.Config`); each service's `Config` lists its keys with them and hands the host its part (`Host()`), and `host.Main` loads the service's own file for it.
+- **Shared parts are types, not a shared file:** `internal/host` has the types of the sections every service has (`GRPCSection`, `OpsSection`), `pkg/dbx` the database section's (`dbx.Config`), and `pkg/logger` the log section's (`logger.Config`, TD-28); each service's `Config` lists its keys with them and hands the host its part (`Host()`), and `host.Main` loads the service's own file for it.
 
 ## Steps
 

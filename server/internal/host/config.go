@@ -3,6 +3,8 @@ package host
 import (
 	"path/filepath"
 	"time"
+
+	"finga/pkg/logger"
 )
 
 // EnvPrefix starts every environment override: database.url is FINGA_DATABASE_URL.
@@ -23,7 +25,7 @@ type Settings struct {
 	GRPC          string // empty for the gateway, which serves HTTP
 	Ops           string // empty for the gateway, whose HTTP listener serves them
 	ShutdownGrace time.Duration
-	LogLevel      string
+	Log           logger.Config
 }
 
 // Config is a service's own configuration type, loaded by Start.

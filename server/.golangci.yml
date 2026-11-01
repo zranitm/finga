@@ -420,7 +420,7 @@ linters:
           deny:
             - pkg: go.uber.org/zap
               desc: everything logs through log/slog; zap is pkg/logger's backend (TD-28)
-        # A binary's configuration is its keys and checks: the host's sections and the database's.
+        # A binary's configuration is its keys and checks: the host's sections, the database's and the log's.
         config:
           list-mode: strict
           files: ["**/services/*/config/**", "**/cmd/migrate/config/**", "!$test"]
@@ -428,6 +428,7 @@ linters:
             - $gostd
             - finga/internal/host
             - finga/pkg/dbx
+            - finga/pkg/logger
     sloglint:
       static-msg: true
       kv-only: true

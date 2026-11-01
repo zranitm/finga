@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/pkg/configload"
+	"finga/pkg/logger"
 	"finga/pkg/observability"
 )
 
@@ -41,12 +42,11 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name, versio
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
 	}
-	level, err := observability.ParseLevel((*cfg).Host().LogLevel)
+	log, err := logger.New(stdout, (*cfg).Host().Log)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+":", err)
 		return 1
 	}
-	log := observability.NewLogger(stdout, level)
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
 	p, err := build(buildCtx, *cfg, log, observability.NewRegistry())

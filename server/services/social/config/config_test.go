@@ -9,6 +9,7 @@ import (
 
 	"finga/internal/host"
 	"finga/pkg/configload"
+	"finga/pkg/logger"
 	"finga/services/social/config"
 )
 
@@ -21,7 +22,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config.Config{GRPC: host.GRPCSection{Listen: ":9005"}, Ops: host.OpsSection{Addr: ":9105"}, ShutdownGrace: 10 * time.Second, LogLevel: "info"}
+	want := config.Config{GRPC: host.GRPCSection{Listen: ":9005"}, Ops: host.OpsSection{Addr: ":9105"}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
 	}
