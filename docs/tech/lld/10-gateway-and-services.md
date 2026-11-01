@@ -23,7 +23,7 @@ The gateway has no game rules and no database. It is deployed rarely and kept th
 
 ## Layout
 
-Everything stays inside `server/`, the Go module (R2), and Compose stays in `infra/` (decision 167). The tree after step 28:
+Everything stays inside `server/`, the Go module (R2), and Compose stays in `infra/`. The tree after step 28:
 
 ```txt
 server/
@@ -79,21 +79,21 @@ services/item/
 - Existing modules move as they are: `internal/application/item` becomes `services/item/internal/item`, with the same layers inside (handler, service, repository). Layout, not a rewrite.
 - The Makefile and CI build and test each service on its own (`go test ./services/item/...`) and all of them together.
 
-Three things the plan's tree did not have, because Go's `internal/` rule needs them (decision 170): `internal/sim` (gamedata's map geometry is the simulation's), `internal/progression` (the world's tick runs the character rules), and the generated code under `api/gen/<service>/v1` rather than `api/gen/internal/...`, which only `api/gen` itself could import (decision 169).
+Three things the plan's tree did not have, because Go's `internal/` rule needs them: `internal/sim` (gamedata's map geometry is the simulation's), `internal/progression` (the world's tick runs the character rules), and the generated code under `api/gen/<service>/v1` rather than `api/gen/internal/...`, which only `api/gen` itself could import.
 
 ## Internal transport
 
 - **gRPC.** Unary calls for commands and queries. A server stream from a service to the gateway for "deliver to character X" events: the world's and social's `Deliver`, and account's `WatchSessions`. One more stream feeds the world: social's `WatchParties`.
 - **The client protocol stays JSON** in Stage 1 (page 4); only the gateway speaks it.
 - **NATS** replaces the delivery streams in Stage 2, when there is more than one gateway node. **Kafka** is only for after-commit domain events through the outbox (Stage 2), never live traffic.
-- **Versioned and backward-compatible.** Every contract is a versioned proto package (`internal.item.v1`). Fields are added, never renumbered or retyped, so old and new nodes run side by side during a rolling deploy. `buf lint` runs with `make lint`, and `buf breaking` runs in CI from step 28, once every contract exists (decision 186).
+- **Versioned and backward-compatible.** Every contract is a versioned proto package (`internal.item.v1`). Fields are added, never renumbered or retyped, so old and new nodes run side by side during a rolling deploy. `buf lint` runs with `make lint`, and `buf breaking` runs in CI from step 28, once every contract exists.
 - **Routing keys.** Every internal message carries the keys that route it and make a retry safe: the character ID, the map ID for world commands, the connection ID for a join and a leave, and the idempotency key for anything that changes items. The request ID rides in gRPC metadata (`x-request-id`) for the logs.
 - **Identity.** The gateway authenticates once (the token on REST, Hello on the WebSocket) and forwards the caller's identity as fields of the request: `account_id`, `character_id`. Internal services trust it on the internal network in Stage 1; mTLS comes later.
 - **Insecure transport inside the Compose network** in Stage 1, the same trust boundary.
 
 ### Errors across gRPC
 
-R1's model stays (decision 168): services return plain sentinel errors named for the failure, and the gateway owns the mapping to what a client sees. `pkg/errs` stays deleted.
+R1's model stays: services return plain sentinel errors named for the failure, and the gateway owns the mapping to what a client sees. `pkg/errs` stays deleted.
 
 1. Each service's proto declares `enum Reason` with one value per sentinel its clients can meet (`REASON_PARTY_FULL`, `REASON_INVENTORY_FULL`).
 2. Each service's gRPC handler has a table from its sentinels to a gRPC code and a `Reason`. A failure leaves as a status whose details carry `google.rpc.ErrorInfo`, with the reason's name and the proto package as its domain. An error the table does not know leaves as `Internal`, its text kept in the service's log, never sent.
@@ -101,7 +101,7 @@ R1's model stays (decision 168): services return plain sentinel errors named for
 4. The gateway's `errmap` maps each (domain, reason) to the client's own code, HTTP status and player message, as it maps sentinels today. The codes, `testdata/errors/codes.json`, and every word a player reads stay the same.
 5. Guard tests close the loop: in each service, every exported `Err` of its modules has a row; in the gateway, every value of every service's `Reason` enum has a row.
 
-A service the gateway cannot reach answers `internal`, as a database failure does today (decision 181).
+A service the gateway cannot reach answers `internal`, as a database failure does today.
 
 ## Contracts
 
@@ -173,22 +173,22 @@ The gateway serves no gRPC.
 1. The gateway's per-player queue runs Hello (the read loop only decodes and routes). Version check as today.
 2. `account.Validate`, then `account.Rotate`: the token in Welcome is the rotated one (step 16).
 3. `world.Join(gateway_id, connection_id, account_id, character_id)`. The world loads the character from the character service (ownership checked there: someone else's character is `not found`, and the gateway kicks `unauthenticated` as today), asks the item service for the starter items (idempotent, keyed by the character ID: a no-op unless character creation crashed before granting them), and joins the map instance, which sends the Snapshot through the delivery stream. The reply is the character as the player sees it.
-4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order (decision 176). The join's answer and its Snapshot travel on different calls, so the Snapshot can also come after Welcome; until it does, anything else for the character belongs to an older presence and is dropped (decision 223).
+4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order. The join's answer and its Snapshot travel on different calls, so the Snapshot can also come after Welcome; until it does, anything else for the character belongs to an older presence and is dropped.
 5. `social.Online` with the gateway's ID, so party traffic finds this gateway.
 
-A failure after the join leaves the world (`world.Leave`) before the connection closes. A newer connection of the same account still kicks the older one with `logged_in_elsewhere`; the older one's `Leave` carries its own connection ID, so it can never remove the newer presence (decision 178).
+A failure after the join leaves the world (`world.Leave`) before the connection closes. A newer connection of the same account still kicks the older one with `logged_in_elsewhere`; the older one's `Leave` carries its own connection ID, so it can never remove the newer presence.
 
 ### Commands
 
 - The read loop decodes, applies the per-account rate limits, and puts the message on the player's command queue. It never blocks on a service. A full queue answers `rate_limited` when the message has a request ID, as an over-limit command does.
 - One goroutine per player drains the queue in order, with a context that ends when the connection closes. Input, Attack, PickUp and EnterPortal become unary world calls carrying the character and the map; inventory commands call the item service; party commands call social; ChatSend asks social, and a map line goes on to `world.Say`.
-- Inputs are unary calls, as the plan says (decision 183): ordered by the queue and by the world's sequence numbers. A client-streamed input channel is the Stage 2 option if the call rate shows in the tick p99.
+- Inputs are unary calls, as the plan says: ordered by the queue and by the world's sequence numbers. A client-streamed input channel is the Stage 2 option if the call rate shows in the tick p99.
 - Ping never leaves the gateway.
 
 ### Deliveries
 
-- At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process). It does not hold its listener for them: a Hello that comes before the world's stream is open (or while the world restarts) retries the join with backoff until the join timeout (decision 225).
-- The world's sink for a player is the gateway's stream plus the character ID. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players (decision 180). A slow player is still the gateway's to close (4001), as today.
+- At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process). It does not hold its listener for them: a Hello that comes before the world's stream is open (or while the world restarts) retries the join with backoff until the join timeout.
+- The world's sink for a player is the gateway's stream plus the character ID. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players. A slow player is still the gateway's to close (4001), as today.
 - The gateway turns each delivery into the protocol message it was before (`delivery.go`, from proto; it was `sink.go` over world types) and enqueues it on the player's connection.
 - A Teleport moves the session to the target map, so later commands carry the new map ID.
 
@@ -198,14 +198,14 @@ The REST handler moves into the gateway as it is. It authenticates with `account
 
 ### Character creation and starter items
 
-No transaction spans two services (rule 1 below). The character service commits the character, then calls `item.GrantStarter` with the character ID as the idempotency key, retrying with backoff until it succeeds or the request's deadline ends (decision 177). The world calls it again on every join, as a safety net for a crash in between. Character creation answers success once the character is committed: a client that saw an error would retry and meet `name_taken`.
+No transaction spans two services (rule 1 below). The character service commits the character, then calls `item.GrantStarter` with the character ID as the idempotency key, retrying with backoff until it succeeds or the request's deadline ends. The world calls it again on every join, as a safety net for a crash in between. Character creation answers success once the character is committed: a client that saw an error would retry and meet `name_taken`.
 
 `Starter()` through `Within` stays a pattern for modules inside one service (page 1); character creation no longer uses it.
 
 ### Pickups, checkpoints and the tick
 
 - **Pickups** already run on the world's economy workers: the worker calls the item service's `Add`, keyed by the drop ID, and retries once when the failure carries no reason. The result returns through the instance's inbox, as today.
-- **Checkpoints and level-ups** go to the character service from the persistence worker, which retries a failed save with backoff, in order, for up to a minute before logging it (decision 182).
+- **Checkpoints and level-ups** go to the character service from the persistence worker, which retries a failed save with backoff, in order, for up to a minute before logging it.
 - **Parties.** The world keeps a local copy of party membership, fed by social's `WatchParties` stream; loot windows and EXP sharing read the copy. When a member's map, level or HP changes, the world queues `social.UpdateMember` for a worker; the tick never waits for it.
 
 ### Party and chat
@@ -217,7 +217,7 @@ No transaction spans two services (rule 1 below). The character service commits 
 
 | What restarts | What players see | How |
 | --- | --- | --- |
-| world | A short freeze, then play resumes at the last checkpoint; sockets stay up | The gateway's `Deliver` stream breaks. It keeps every socket, re-subscribes with backoff, and calls `world.Join` again for each connected player; the world reloads them from the character service. A player whose saved map differs from the one they were on gets MapChange, then the Snapshot. Mobs and ground drops reset, as after a crash today. The gateway shifts the restarted world's ticks so they never go back on a connection (decision 224). |
+| world | A short freeze, then play resumes at the last checkpoint; sockets stay up | The gateway's `Deliver` stream breaks. It keeps every socket, re-subscribes with backoff, and calls `world.Join` again for each connected player; the world reloads them from the character service. A player whose saved map differs from the one they were on gets MapChange, then the Snapshot. Mobs and ground drops reset, as after a crash today. The gateway shifts the restarted world's ticks so they never go back on a connection. |
 | social | Parties are gone (in memory, as after a crash today); sockets stay up | A new boot ID on Subscribed tells the gateway the parties are gone: each player gets PartyState with no party, and the gateway registers its players with `Online` again. The world's `WatchParties` copy is rebuilt from the new, empty table. |
 | account, character, item | Calls fail while it is down (the client sees `internal` for a command, or a Hello fails and the client retries) | gRPC clients reconnect on their own. Session ends missed during an account restart are caught by the gateway's minute check. |
 | gateway | Each client reconnects | Rolling, one node at a time, draining first: readiness turns 503, a new WebSocket upgrade is refused with 503, every connection gets Kicked `server_restart` (the client reconnects with jitter), then the listener closes (step 28). |
@@ -242,15 +242,15 @@ After a world restart the HUD's EXP can show more than the reloaded checkpoint u
 
 - Each service with tables embeds its own goose files: account (`citext`, `accounts`, `sessions`, the rotation columns), character (`citext`, `characters`), item (`items`, `item_events`, `outbox`, `idempotency_keys`). `citext` is created by both account and character with `IF NOT EXISTS`, and neither drops it.
 - `cmd/migrate` applies every service's set, each with its own version table (`goose_account_version`, `goose_character_version`, `goose_item_version`).
-- A database migrated before the split (it has goose's default `goose_db_version`) is refused with a message saying to recreate it (`make down`); Stage 1 has no data worth carrying over (decision 184).
+- A database migrated before the split (it has goose's default `goose_db_version`) is refused with a message saying to recreate it (`make down`); Stage 1 has no data worth carrying over.
 - The tests of a module apply only its own service's migrations, so a test that reads another service's table fails.
 
 ## Binaries, configuration and deployment
 
-- **Binaries:** `services/<service>` for the six services, with `main.go` at the service's root (until 2026-10-29, `services/<service>/cmd/<service>`, decision 266); `cmd/migrate` and `cmd/bot` stay. `cmd/gameserver` is gone after step 28.
+- **Binaries:** `services/<service>` for the six services, with `main.go` at the service's root (until 2026-10-29, `services/<service>/cmd/<service>`); `cmd/migrate` and `cmd/bot` stay. `cmd/gameserver` is gone after step 28.
 - **Composition roots:** each in `services/<service>/app` (R5's rule), which the end-to-end tests import to build the whole game in one test process.
-- **Listeners:** the gateway serves `/api`, `/ws`, `/healthz`, `/readyz` and `/metrics` on `server.addr` (:8080). Every other service serves gRPC on its `listen` address and `/healthz`, `/readyz` and `/metrics` on its `ops` address, so Prometheus scrapes every process and the bot reads the tick percentiles from the world (decision 174). `pkg/runner` runs a binary's listeners and background tasks with readiness and graceful shutdown (today's `app.Server`, made generic).
-- **Configuration:** each binary has its own file and type inside it, `services/<name>/config/` (page 11, step 29; until then one schema, `internal/config`, and one `configs/config.yaml` served every binary, decision 173). An internal service's file has its gRPC listener (`grpc.listen`, :9001 to :9005) and its ops listener (`ops.addr`, :9101 to :9105); a service that calls others has their addresses under `dependencies`, which Compose sets to the services' names:
+- **Listeners:** the gateway serves `/api`, `/ws`, `/healthz`, `/readyz` and `/metrics` on `server.addr` (:8080). Every other service serves gRPC on its `listen` address and `/healthz`, `/readyz` and `/metrics` on its `ops` address, so Prometheus scrapes every process and the bot reads the tick percentiles from the world. `pkg/runner` runs a binary's listeners and background tasks with readiness and graceful shutdown (today's `app.Server`, made generic).
+- **Configuration:** each binary has its own file and type inside it, `services/<name>/config/` (page 11, step 29; until then one schema, `internal/config`, and one `configs/config.yaml` served every binary). An internal service's file has its gRPC listener (`grpc.listen`, :9001 to :9005) and its ops listener (`ops.addr`, :9101 to :9105); a service that calls others has their addresses under `dependencies`, which Compose sets to the services' names:
 
 ```yaml
 # services/character/config/config.yaml, besides the database and data_dir
@@ -265,7 +265,7 @@ dependencies:
 - **Compose:** Postgres, `migrate`, and the six services, each built from the one Dockerfile with `SERVICE` set; the gateway publishes :8080 and the world its ops port for the bots. Builds share Go's caches through BuildKit cache mounts.
 - **Make:** `up`, `down`, `test`, `cover`, `lint` and `smoke` keep their meaning for the whole game; `make test-service SERVICE=item` builds and tests one service; `make breaking` runs `buf breaking` against the previous commit; `make run` starts the migrations and the six binaries without Docker; `make gen` runs sqlc and `buf generate`.
 - **CI:** the go job runs lint (golangci-lint and `buf lint`), every test and coverage, and checks the generated code is current; a matrix job tests each service on its own; the compose job runs `make up` and the smoke test against the gateway; `buf breaking` against the previous commit from step 28.
-- **Tools:** `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` are pinned as Go tools in `server/go.mod` (`go get -tool`), so a laptop and CI generate with the same versions (decision 175).
+- **Tools:** `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` are pinned as Go tools in `server/go.mod` (`go get -tool`), so a laptop and CI generate with the same versions.
 
 ## Testing
 
@@ -291,7 +291,7 @@ dependencies:
 | [27. World service](./backend-steps/27-world-service.md) | `services/world`; the delivery stream, Hello through the world, rejoin on a world restart | feat |
 | [28. Gateway service](./backend-steps/28-gateway-service.md) | `services/gateway`; per-player command queues, the drain, Compose and CI per service, `buf breaking` | feat |
 
-Services leave the game server in dependency order, the ones that call nothing first, so the whole game builds, tests and runs after every step (decision 185): item, account and social call nothing; character calls item; the world calls three of them; what remains of the game server becomes the gateway. Until its consumer leaves too, the gRPC adapter for an extracted service sits in the game server's composition root.
+Services leave the game server in dependency order, the ones that call nothing first, so the whole game builds, tests and runs after every step: item, account and social call nothing; character calls item; the world calls three of them; what remains of the game server becomes the gateway. Until its consumer leaves too, the gRPC adapter for an extracted service sits in the game server's composition root.
 
 ### Existing steps that change
 
@@ -316,13 +316,13 @@ The step pages say what they built and stay as they were; each gets a note namin
 
 ## Where the plan did not match the repository
 
-The plan was written against Notion and the Stage 1 tree. These defaults follow the user's own changes of 2026-10-23; each is a numbered decision in `docs/ai-coding-log.md`.
+The plan was written against Notion and the Stage 1 tree. These defaults follow the user's own changes of 2026-10-23.
 
-1. **Docs:** Notion is no longer updated (R6). This page and the step pages are in `docs/tech/lld/`, and each step edits the pages it changes (decision 166).
-2. **Layout:** the module is `server/` and Compose is in `infra/` (R2). The plan's tree goes inside `server/`; the Dockerfile stays in `server/` with a `SERVICE` argument (decision 167).
-3. **`pkg/errs`:** R1 deleted it. Services keep plain sentinels; reasons cross gRPC in `ErrorInfo`; the gateway maps them (decision 168).
+1. **Docs:** Notion is no longer updated (R6). This page and the step pages are in `docs/tech/lld/`, and each step edits the pages it changes.
+2. **Layout:** the module is `server/` and Compose is in `infra/` (R2). The plan's tree goes inside `server/`; the Dockerfile stays in `server/` with a `SERVICE` argument.
+3. **`pkg/errs`:** R1 deleted it. Services keep plain sentinels; reasons cross gRPC in `ErrorInfo`; the gateway maps them.
 4. **`pkg/typedid` and `pkg/tiled`** are new, extracted from `internal/model/id.go` and the game-data loader (step 20).
-5. **Go's `internal/` rule** adds `internal/sim` and `internal/progression`, and puts the generated code at `api/gen/<service>/v1` (decisions 169, 170).
+5. **Go's `internal/` rule** adds `internal/sim` and `internal/progression`, and puts the generated code at `api/gen/<service>/v1`.
 6. **Shared tables:** `outbox` and `idempotency_keys` were shared on page 2; only the item module uses them, so the item service owns them. A later service that needs an outbox gets its own table.
 
 ## Open questions

@@ -9,8 +9,8 @@ The backend for Stage 1 is complete and published at [https://github.com/zranitm
 1. **Review:** you read the step page. Status moves from Ready for review to Approved, or to Changes requested with comments.
 2. **Tests first:** the tests listed on the page are written before the code, as `test.each` tables. The case names are the main review surface.
 3. **Build:** only what the step's scope lists, on top of steps already done.
-4. **Green:** `make test`, `make lint`, and `make cover` pass (they run the client's scripts through `npm --prefix web`), then one commit for the step.
-5. **Log:** one row in `docs/ai-coding-log.md`: what was produced, how it was verified, what changed, mistakes caught, and the commit. Status moves to Done.
+4. **Green:** `make test`, `make lint`, and `make cover` pass (they run the client's scripts through `npm --prefix web`).
+5. **Commit:** one Conventional Commit for the step (`feat:`, `fix:`, `refactor:`, ...), whose message says what was produced, how it was verified and what changed. Status moves to Done.
 
 ## Rules
 
@@ -22,7 +22,7 @@ The backend for Stage 1 is complete and published at [https://github.com/zranitm
 - **Stage 1 only:** nothing from Stage 2 (currency, shop, marketplace, Protobuf, Playwright, nginx).
 - **Open decisions:** a step that depends on one builds the current default and names it.
 - **By layer:** each step says which page 7 layers it builds and groups its scope and tests by layer. `sim`, `protocol`, `net`, `state` and `game/systems` are tested with Vitest over plain data; `features` with Testing Library; scenes and entities by playing against `make up`.
-- **Checked by playing:** every milestone from M1 on ends with the step's author playing it in a browser against the real server and recording what was seen in the log row.
+- **Checked by playing:** every milestone from M1 on ends with the step's author playing it in a browser against the real server and recording what was seen in the step's commit message.
 
 ## Milestones
 

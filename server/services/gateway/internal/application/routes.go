@@ -23,7 +23,7 @@ type msgContext = wsrouter.Context[*session]
 // Every message passes helloFirst. The read loop answers Ping and applies
 // each command's rate limit, so a flood never fills the queue; queued
 // hands the rest to the connection's command goroutine. World commands are
-// fire and forget (decision 229): the next input supersedes a failed one,
+// fire and forget: the next input supersedes a failed one,
 // and a world that went away is the rejoin's to handle. Inventory and
 // party commands are answered with a Response matched to their request ID
 // (respond); a chat line is answered only when it is refused (refusals),

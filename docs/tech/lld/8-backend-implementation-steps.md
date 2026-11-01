@@ -7,8 +7,8 @@ The Stage 1 backend, split into steps you review one at a time before any code i
 1. **Review:** you read the step page. Status moves from Ready for review to Approved, or to Changes requested with comments.
 2. **Tests first:** the tests listed on the page are written before the code. The test tables are the main review surface: each case name says what it proves.
 3. **Build:** only what the step's scope lists, on top of steps already done.
-4. **Green:** `make test`, `make lint`, and `make cover` pass, then one commit for the step.
-5. **Log:** one row in `docs/ai-coding-log.md`: what was produced, how it was verified, what changed, mistakes caught, and the commit. Status moves to Done.
+4. **Green:** `make test`, `make lint`, and `make cover` pass.
+5. **Commit:** one Conventional Commit for the step (`feat:`, `fix:`, `refactor:`, ...), whose message says what was produced, how it was verified and what changed. Status moves to Done.
 
 ## Rules
 

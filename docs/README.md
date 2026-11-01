@@ -16,7 +16,6 @@ Each section owns its own decisions: Product decisions under Product, Tech decis
 
 Beside the design:
 
-- [AI coding log](./ai-coding-log.md): one row per implementation step, and every decision taken while building, numbered.
 - [Proof session](./proof-session.md): the Stage 1 proof-session checklist.
 
 These pages moved here from Notion on 2026-10-23 and are the source of truth from then on: a change to the design is a change to these files, in the same commit as the code it describes. The Notion pages are no longer updated.

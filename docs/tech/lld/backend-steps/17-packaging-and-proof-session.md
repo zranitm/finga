@@ -17,8 +17,8 @@
 ## Scope
 
 - `deploy/Dockerfile`: one file for every binary, picked by a build argument, on a distroless base as in docviewer.
-- `deploy/docker-compose.yml`: Postgres with a health check, `migrate` as a one-shot job, `gameserver` once the migration succeeds, and `web` (nginx serving the built client, once the frontend exists). (Added on 2026-10-28, after the client steps: decision 251.)
-- README: build and run, configuration, tests, architecture at a glance, and how this was built with AI, drawn from `docs/ai-coding-log.md`.
+- `deploy/docker-compose.yml`: Postgres with a health check, `migrate` as a one-shot job, `gameserver` once the migration succeeds, and `web` (nginx serving the built client, once the frontend exists). (Added on 2026-10-28, after the client steps.)
+- README: build and run, configuration, tests, architecture at a glance, and how this was built with AI.
 - The crash test from step 13 runs in CI.
 - A proof-session checklist built from Stage 1's exit criteria.
 
@@ -33,7 +33,7 @@
 - Tick p99 under 25 ms, with the number measured.
 - The crash test with the invariants intact.
 - The double and retried pickup rows, including the WebSocket re-send with the same seq.
-- All of it in [docs/ai-coding-log.md](../../../ai-coding-log.md).
+- All of it in [docs/proof-session.md](../../../proof-session.md).
 
 ## Done when
 

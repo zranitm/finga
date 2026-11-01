@@ -133,7 +133,7 @@ func TestWorld(t *testing.T) {
 }
 
 // The persistence worker retries a failed save with backoff, in order, for
-// up to a minute (page 10, decision 182): a character service restart must
+// up to a minute (page 10): a character service restart must
 // not lose a level-up, which no later checkpoint carries.
 func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 	run := func(t *testing.T, saver *fakeSaver, jobs ...model.Job) {

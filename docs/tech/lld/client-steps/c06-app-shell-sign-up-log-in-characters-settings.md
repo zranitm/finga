@@ -35,7 +35,7 @@
 
 ## Done when
 
-- [x] Against `make up`: sign up, log in, create a character, pick a preset, and reach the world placeholder, which shows the Welcome character's name and level. Checked with the smoke script through the Vite proxy and temporary live tests (jsdom App, Node GameSocket); the browser run is owed at the M1 end (decision 118).
+- [x] Against `make up`: sign up, log in, create a character, pick a preset, and reach the world placeholder, which shows the Welcome character's name and level. Checked with the smoke script through the Vite proxy and temporary live tests (jsdom App, Node GameSocket); the browser run is owed at the M1 end.
 - [x] Foundations milestone: C00 to C06 Done.
 
 ## Review focus

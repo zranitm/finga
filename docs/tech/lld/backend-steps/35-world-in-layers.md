@@ -13,7 +13,7 @@
 
 ## Scope
 
-- `internal/world` and `internal/combat` become `model` (what a joining player and a loaded character carry, the views and delivered events, the saves, pickups and their outcomes, the combat rules, the errors) and `application` (the World, the map instance's actor and tick with its working state, the economy and persistence workers, and the ports for the character, item and social services and for delivery). `clients` and `handler` implement those ports. No repository. The instance's private player, mob and drop state stays with the actor in `application` (decision 264).
+- `internal/world` and `internal/combat` become `model` (what a joining player and a loaded character carry, the views and delivered events, the saves, pickups and their outcomes, the combat rules, the errors) and `application` (the World, the map instance's actor and tick with its working state, the economy and persistence workers, and the ports for the character, item and social services and for delivery). `clients` and `handler` implement those ports. No repository. The instance's private player, mob and drop state stays with the actor in `application`.
 - Tests move with the code they test: rule tests with fakes to `application`, Postgres tests to `repository`, the error table's tests stay in `handler`.
 - Page 10's tree and the README's architecture section show the world service's layers.
 

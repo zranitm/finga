@@ -13,7 +13,7 @@
 
 ## Scope
 
-- `services/<name>/config/`: `config.yaml` and the `Config` type beside it, for the six services, and `cmd/migrate/config/` the same way. Outside `internal/`, so the end-to-end tests build each service with its own (decision 259).
+- `services/<name>/config/`: `config.yaml` and the `Config` type beside it, for the six services, and `cmd/migrate/config/` the same way. Outside `internal/`, so the end-to-end tests build each service with its own.
 - `internal/host`: the types of the sections every service has (`GRPCSection`, `OpsSection`) and `Settings`, which each `Config` hands it through `Host()`; `host.Main` and `host.Start` are generic over the service's `Config` and load its own file, `services/<name>/config` relative to where the binary runs. `pkg/dbx` gets the database section's type, `dbx.Config`.
 - Each composition root takes its own `Config`; the end-to-end and process tests build each service's.
 - `server/configs/` and `internal/config` removed.

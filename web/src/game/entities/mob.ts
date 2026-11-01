@@ -1,5 +1,5 @@
 // A mob view (C10): the Kenney enemy for the type, tinted where the shape
-// is only near (decision 119), with an HP bar above. It draws the state it
+// is only near, with an HP bar above. It draws the state it
 // is given and owns no rules.
 import type Phaser from 'phaser';
 

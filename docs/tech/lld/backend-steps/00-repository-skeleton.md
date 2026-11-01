@@ -18,7 +18,7 @@
 - `configs/config.yaml` with the starting values from page 1, and `.env.example` listing every `FINGA_` override, commented out.
 - `deploy/docker-compose.yml` with Postgres only, with a health check.
 - `.github/workflows/ci.yml`: `make lint`, `make test`, `make cover`.
-- `docs/ai-coding-log.md` with its header row, and a README stub: what Finga is, prerequisites, Make targets.
+- A README stub: what Finga is, prerequisites, Make targets.
 
 ## Tests first
 

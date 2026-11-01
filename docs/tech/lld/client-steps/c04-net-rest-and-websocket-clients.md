@@ -46,7 +46,7 @@
 ## Done when
 
 - [ ] Tests pass with 80% coverage on `net`.
-- [ ] A smoke script in `web/scripts/` signs up, logs in and receives Welcome against `make up` (run by hand; recorded in the log row).
+- [ ] A smoke script in `web/scripts/` signs up, logs in and receives Welcome against `make up` (run by hand; recorded in the commit message).
 
 ## Review focus
 

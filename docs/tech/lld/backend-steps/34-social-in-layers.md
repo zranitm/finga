@@ -13,7 +13,7 @@
 
 ## Scope
 
-- `internal/party` and `internal/chat` become `model` (`party.go`: Member, Party, Invite, the party errors; `chat.go`: Channel, Sender, Message, the line limits and `CleanLine`, the chat errors) and `application` (`party.go`: `PartyService` and its `Notifier` port, which the handler's streams implement; `chat.go`: `ChatService` and its `Parties` port). The names the two packages shared take their module's name (`PartyService`, `ChatService`, `ChannelMap`, `ErrChatNoParty`; decision 263). No repository: parties stay in memory (TD-19).
+- `internal/party` and `internal/chat` become `model` (`party.go`: Member, Party, Invite, the party errors; `chat.go`: Channel, Sender, Message, the line limits and `CleanLine`, the chat errors) and `application` (`party.go`: `PartyService` and its `Notifier` port, which the handler's streams implement; `chat.go`: `ChatService` and its `Parties` port). The names the two packages shared take their module's name (`PartyService`, `ChatService`, `ChannelMap`, `ErrChatNoParty`). No repository: parties stay in memory (TD-19).
 - Tests move with the code they test: rule tests with fakes to `application`, Postgres tests to `repository`, the error table's tests stay in `handler`.
 - Page 10's tree and the README's architecture section show the social service's layers.
 

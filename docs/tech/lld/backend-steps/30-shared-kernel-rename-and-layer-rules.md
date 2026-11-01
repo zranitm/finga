@@ -14,12 +14,12 @@
 ## Scope
 
 - `internal/model` becomes `internal/kernel` (`kernel.CharacterID`, `kernel.Class`), with every import updated; page 1 and page 10 name it.
-- `.golangci.yml`: one depguard rule per layer of page 11 (`layer-model`, `layer-application`, `layer-repository`, `layer-handler`, `layer-clients`; the `config` rule came with step 29) for files under `services/*/internal/<layer>/`, so they hold as each service moves in steps 31 to 36. depguard matches a denied package by prefix with no wildcard, so each rule names every service's layer (decision 262).
+- `.golangci.yml`: one depguard rule per layer of page 11 (`layer-model`, `layer-application`, `layer-repository`, `layer-handler`, `layer-clients`; the `config` rule came with step 29) for files under `services/*/internal/<layer>/`, so they hold as each service moves in steps 31 to 36. depguard matches a denied package by prefix with no wildcard, so each rule names every service's layer.
 - Page 1's Layers and responsibilities and Module anatomy describe the layers as packages.
 
 ## Tests first
 
-- each rule rejects the import it forbids, checked by hand when the rules are added: a forbidden import put in a layer (`application` importing `repository`, `model` importing gRPC, `handler` importing pgx) is reported by `make lint`, then removed; the log row records it
+- each rule rejects the import it forbids, checked by hand when the rules are added: a forbidden import put in a layer (`application` importing `repository`, `model` importing gRPC, `handler` importing pgx) is reported by `make lint`, then removed; the commit message records it
 
 ## Done when
 

@@ -34,8 +34,8 @@
 
 ## Done when
 
-- [ ] Against `make up` with two browsers: each sees the other walk and jump without stutter at 20 Hz; killing the server for 5 s shows the notice and both come back at their last saved position; logging in on a second tab kicks the first with a message. (Not run: no browser was attached to the implementation session; the M1 browser hand check is owed to the author, see the C09 log row.)
-- [ ] M1 milestone: played and recorded in the log row.
+- [ ] Against `make up` with two browsers: each sees the other walk and jump without stutter at 20 Hz; killing the server for 5 s shows the notice and both come back at their last saved position; logging in on a second tab kicks the first with a message. (Not run: no browser was attached to the implementation session; the M1 browser hand check is owed to the author, see the C09 commit.)
+- [ ] M1 milestone: played and recorded in the commit message.
 
 ## Review focus
 

@@ -117,7 +117,7 @@ flowchart LR
 - Entities are views: they draw the state they're given and own no game rules.
 - Prediction and interpolation are functions over plain data, so they're tested without Phaser.
 - Tiled maps are validated by the Go `gamedata` tests in CI, so the client loads the same files without checking them again.
-- A map change restarts the World scene for the new map (C12, decision 142): the collision view, the interpolation buffers, every entity view and the predictor are rebuilt from nothing and the following Snapshot places everyone, so nothing stale can survive a hop. That is the cost of a hop in Stage 1 (one fade and one Snapshot); Stage 2's interest management starts from it.
+- A map change restarts the World scene for the new map (C12): the collision view, the interpolation buffers, every entity view and the predictor are rebuilt from nothing and the following Snapshot places everyone, so nothing stale can survive a hop. That is the cost of a hop in Stage 1 (one fade and one Snapshot); Stage 2's interest management starts from it.
 
 ## Frame loop
 
@@ -153,7 +153,7 @@ The control preset is saved to the account with `PUT /api/settings` (B6) and cac
 
 ## Assets
 
-Kenney CC0 images and spritesheets under `public/assets/`, loaded as they come in Stage 1; packing them into texture atlases waits until the asset count calls for it. The art is Kenney's "Platformer Pack Remastered" (128 px tiles, enemies and backgrounds, 128x256 players), drawn at scale 0.25 so one tile is one 32 px grid cell and nothing blurs; the two potions are tinted flasks from "Generic Items", and the other item templates are 32 px shapes drawn at runtime in the same palette, listed as original in `LICENSES.md` (C07, decisions 119 and 120).
+Kenney CC0 images and spritesheets under `public/assets/`, loaded as they come in Stage 1; packing them into texture atlases waits until the asset count calls for it. The art is Kenney's "Platformer Pack Remastered" (128 px tiles, enemies and backgrounds, 128x256 players), drawn at scale 0.25 so one tile is one 32 px grid cell and nothing blurs; the two potions are tinted flasks from "Generic Items", and the other item templates are 32 px shapes drawn at runtime in the same palette, listed as original in `LICENSES.md` (C07).
 
 The Tiled maps hold only object layers (solids, platforms, ropes, portals, spawns, the player spawn) and no tile art, so the World scene draws each object with a repeating Kenney texture. The maps are copied from `server/data/maps` before each dev and build run: the same files the server reads.
 

@@ -41,7 +41,7 @@
 
 ## Done when
 
-- [ ] Against `make up`: walk, jump, drop through a platform and climb a rope in the town with no visible snapping; with `VITE_NET_DELAY_MS=100` (200 ms round trip), movement still feels immediate and settles without rubber-banding. (Checked through the real socket by the opt-in live test at 0 and 100 ms one-way delay: a hundred ticks with no reset, a 3-tick stall held by the server, an 8-tick stall exactly one reset; backend step 18's hold rule, decision 127. The in-browser feel is owed with the M1 hand check in C09.)
+- [ ] Against `make up`: walk, jump, drop through a platform and climb a rope in the town with no visible snapping; with `VITE_NET_DELAY_MS=100` (200 ms round trip), movement still feels immediate and settles without rubber-banding. (Checked through the real socket by the opt-in live test at 0 and 100 ms one-way delay: a hundred ticks with no reset, a 3-tick stall held by the server, an 8-tick stall exactly one reset; backend step 18's hold rule. The in-browser feel is owed with the M1 hand check in C09.)
 
 ## Review focus
 

@@ -26,7 +26,7 @@
 ## Tests first
 
 - portals system over plain data: a press with the feet inside the rectangle sends EnterPortal; outside sends nothing; holding the key sends exactly one; after a MapChange, a key still held sends nothing until it is released and pressed again
-- map-transition on MapChange to a different map rebuilds the collision view (the `sim/map` for the target) and clears buffers; a same-map Respawned (C10) only resets position, since the server never sends a MapChange to the map you're on. (Built as a scene restart with the arrival position: the restart reparses the target map and recreates every buffer and view, decision 142; the reducer's change-map case is tested in map-transition, the rebuild is by construction.)
+- map-transition on MapChange to a different map rebuilds the collision view (the `sim/map` for the target) and clears buffers; a same-map Respawned (C10) only resets position, since the server never sends a MapChange to the map you're on. (Built as a scene restart with the arrival position: the restart reparses the target map and recreates every buffer and view; the reducer's change-map case is tested in map-transition, the rebuild is by construction.)
 - a press outside the portal uses up the press, so walking into it with the key held sends nothing
 
 ## Done when

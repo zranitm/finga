@@ -8,8 +8,7 @@ the tech design (how it is built), starting at `docs/README.md`.
 This repository holds Stage 1, the proof of concept: the backend and the
 client, built in the steps of `docs/tech/lld/8-backend-implementation-steps.md`
 and `docs/tech/lld/9-client-implementation-steps.md`, one commit per step,
-with the evidence trail in `docs/ai-coding-log.md` and the proof-session
-checklist in `docs/proof-session.md`.
+with the proof-session checklist in `docs/proof-session.md`.
 
 ## Repository layout
 
@@ -19,7 +18,7 @@ server/   the Go module: the six services (services/), their tools, configuratio
 web/      the browser client: Phaser 4, React, Vite, TypeScript
 infra/    how it runs: Docker Compose and the nginx config today; infrastructure
           as code and the Grafana dashboards join here
-docs/     the design (product and tech), the AI coding log, the proof-session checklist
+docs/     the design (product and tech), the proof-session checklist
 ```
 
 The server is the reference for everything the two sides share: the client
@@ -81,7 +80,7 @@ sqlc for `make gen` (which also runs `buf generate` through the Go tools pinned 
 
 The browser client lives in `web/` (Phaser 4, React 19, Vite 8, TypeScript,
 Zustand, Vitest; page 7 of the design). It is built step by step after the
-backend, the same way, with its own rows in `docs/ai-coding-log.md`.
+backend, the same way.
 
 `make up` already serves the client's production build on :4173. To work
 on the client with hot reload, run the dev server against the running stack:
@@ -236,12 +235,8 @@ lint` and `make cover` green, one commit per step, and when a step shows a
 design page is wrong, fix the page in the same step so the pages always say
 what the code does.
 
-`docs/ai-coding-log.md` is the trail: one row per step (what the tests
-cover, what was built, how it was verified, what the user changed, what the
-tests caught), plus every decision taken while the user was away, numbered,
-with the reason. The caught bugs are kept on purpose, from a joined
-invariant query that multiplied quantities, to mobs that drifted across the
-whole map because the patrol rule was read too literally, to a session
-revoked in the database while its connection stayed open. The review
-happened at milestone ends, against that log and the design pages, which
-moved from Notion into `docs/` on 2026-10-23.
+The git history is the trail: each step is one Conventional Commit
+(`feat:`, `fix:`, `refactor:`, `docs:`, ...) whose message says what changed,
+why, and how it was verified. The review happened at milestone ends, against
+the commits and the design pages, which moved from Notion into `docs/` on
+2026-10-23.
