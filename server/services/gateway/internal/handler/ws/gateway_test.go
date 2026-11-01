@@ -52,6 +52,12 @@ var (
 	sessBob   = kernel.NewSessionID()
 )
 
+// observer is what the gateway and its handler count, together.
+type observer interface {
+	application.Observer
+	ws.Observer
+}
+
 type harness struct {
 	ts    *httptest.Server
 	world *fakeWorld
@@ -70,7 +76,7 @@ type deps struct {
 	Items                itemv1.ItemServiceClient
 	Social               socialv1.SocialServiceClient
 	Logger               *slog.Logger
-	Observer             application.Observer
+	Observer             observer
 	CORSOrigins          []string
 	Clock                func() time.Time
 	HelloTimeout         time.Duration
@@ -84,7 +90,7 @@ type deps struct {
 func (d deps) build() (*application.Gateway, http.Handler) {
 	app := application.Dependencies{
 		ID: d.ID, Sessions: d.Sessions, Logger: d.Logger, Observer: d.Observer, Clock: d.Clock,
-		HelloTimeout: d.HelloTimeout, JoinTimeout: d.JoinTimeout, CommandQueue: d.CommandQueue, SessionCheckInterval: d.SessionCheckInterval,
+		JoinTimeout: d.JoinTimeout, SessionCheckInterval: d.SessionCheckInterval,
 	}
 	if d.World != nil {
 		app.World = clients.NewWorld(d.World, d.Logger)
@@ -99,7 +105,9 @@ func (d deps) build() (*application.Gateway, http.Handler) {
 		app.SessionEnds = clients.NewSessionEnds(d.Watcher, d.Logger)
 	}
 	gw := application.NewGateway(app)
-	return gw, ws.New(gw, d.CORSOrigins)
+	return gw, ws.New(gw, ws.Options{
+		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Clock: d.Clock, Observer: d.Observer, Logger: d.Logger,
+	})
 }
 
 // newHarness builds the gateway over a fake world service, runs it, and
@@ -413,7 +421,7 @@ func TestRateLimits(t *testing.T) {
 	}
 	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
 		for i := range 6 {
-			c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: "x", Tab: "use", Slot: i}})
+			c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Tab: "use", Slot: i}})
 		}
 		// The read loop answers the refused one at once, while the five
 		// before it wait on the command queue: match answers by request ID.
@@ -742,6 +750,12 @@ func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
 	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Quantity: 1}})
 	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "inventory_unavailable" {
 		t.Fatalf("response %+v", r)
+	}
+	// The handler checks the message before any use case runs, as the REST
+	// handler answers a malformed request before calling a service.
+	c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: "x", Quantity: 1}})
+	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_id" {
+		t.Fatalf("a malformed item ID: %+v", r)
 	}
 }
 

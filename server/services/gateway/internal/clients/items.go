@@ -26,8 +26,8 @@ func (i Items) Inventory(ctx context.Context, character kernel.CharacterID) ([]p
 }
 
 // Move moves an item and returns the slots it changed.
-func (i Items) Move(ctx context.Context, a model.Actor, in protocol.InventoryMove) ([]protocol.InventorySlot, error) {
-	res, err := i.c.Move(ctx, &itemv1.MoveRequest{Actor: actor(a), IdempotencyKey: in.IdempotencyKey, ItemId: in.ItemID, Tab: in.Tab, Slot: int32(in.Slot)})
+func (i Items) Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]protocol.InventorySlot, error) {
+	res, err := i.c.Move(ctx, &itemv1.MoveRequest{Actor: actor(a), IdempotencyKey: in.IdempotencyKey, ItemId: in.Item.String(), Tab: in.Tab, Slot: int32(in.Slot)})
 	if err != nil {
 		return nil, errmap.Wrap(err)
 	}
@@ -36,8 +36,8 @@ func (i Items) Move(ctx context.Context, a model.Actor, in protocol.InventoryMov
 
 // Discard discards an item, or part of a stack, and returns the slots it
 // changed.
-func (i Items) Discard(ctx context.Context, a model.Actor, in protocol.InventoryDiscard) ([]protocol.InventorySlot, error) {
-	res, err := i.c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor(a), IdempotencyKey: in.IdempotencyKey, ItemId: in.ItemID, Quantity: int32(in.Quantity)})
+func (i Items) Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]protocol.InventorySlot, error) {
+	res, err := i.c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor(a), IdempotencyKey: in.IdempotencyKey, ItemId: in.Item.String(), Quantity: int32(in.Quantity)})
 	if err != nil {
 		return nil, errmap.Wrap(err)
 	}

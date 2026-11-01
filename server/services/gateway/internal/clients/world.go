@@ -8,7 +8,6 @@ import (
 
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
-	"finga/internal/protocol"
 	"finga/pkg/grpcx"
 	"finga/services/gateway/internal/clients/errmap"
 	"finga/services/gateway/internal/model"
@@ -40,8 +39,8 @@ func (w World) Leave(ctx context.Context, p model.Presence, conn string) error {
 }
 
 // Input sends one input.
-func (w World) Input(ctx context.Context, p model.Presence, seq uint32, in protocol.Input) error {
-	_, err := w.c.Input(ctx, &worldv1.InputRequest{Presence: presence(p), Seq: seq, Keys: &worldv1.Keys{Left: in.Left, Right: in.Right, Up: in.Up, Down: in.Down, Jump: in.Jump}})
+func (w World) Input(ctx context.Context, p model.Presence, seq uint32, k model.Keys) error {
+	_, err := w.c.Input(ctx, &worldv1.InputRequest{Presence: presence(p), Seq: seq, Keys: &worldv1.Keys{Left: k.Left, Right: k.Right, Up: k.Up, Down: k.Down, Jump: k.Jump}})
 	return errmap.Wrap(err)
 }
 
@@ -83,11 +82,14 @@ func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver fun
 		if err != nil {
 			return
 		}
-		msg, ok := delivery(m)
+		d, ok := delivery(m)
 		if !ok {
 			return
 		}
-		deliver(model.WorldEvent{Character: id, Message: msg})
+		if f := m.GetPickupFailed(); f != nil && f.GetErrorReason() == "" {
+			w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", id)
+		}
+		deliver(model.WorldEvent{Character: id, Delivery: d})
 	}, grpcx.FollowOptions{OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})

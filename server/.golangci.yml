@@ -97,12 +97,19 @@ linters:
             - pkg: finga/internal/protocol
               desc: a service returns its own types; only the gateway speaks the client protocol
         # The gateway's model and use cases know no socket and no HTTP: the
-        # handler adapts both to the application's Conn and Lobby.
+        # handlers adapt both to the application's use cases and its Conn.
+        # The conversation itself (routing by message type, rate limits per
+        # message, the command queue) is the WebSocket handler's, as routes
+        # are the REST handler's.
         gateway-application:
           files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
           deny:
             - pkg: finga/pkg/wsconn
               desc: the WebSocket handler adapts the socket to the application's Conn
+            - pkg: finga/pkg/wsrouter
+              desc: the WebSocket handler routes messages to the use cases; the application exposes the use cases
+            - pkg: golang.org/x/time/rate
+              desc: per-message rate limits are the WebSocket handler's
             - pkg: finga/services/gateway/internal/handler
               desc: the handler calls the application, never the reverse
         gateway-application-no-http:

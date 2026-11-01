@@ -168,18 +168,24 @@ generated code committed in `server/api/gen/`:
   holds no database and no game rules: the Hello handshake, one connection
   per account, token rotation, per-account rate limits, and a command queue
   per connection whose goroutine calls the service that owns each message,
-  with the identity taken from the connection, never from the message. Each
-  message type is one route with its middleware (rate limit, Hello first,
-  the queue, the reply) on `pkg/wsrouter`, a router for WebSocket messages
-  as Gin is for HTTP; the read loop only decodes, limits and routes. Players join through the
+  with the identity taken from the connection, never from the message. The
+  WebSocket handler is built like the REST one: each message type is one
+  route with its middleware (Hello first, rate limit, the queue, the reply)
+  on `pkg/wsrouter`, a router for WebSocket messages as Gin is for HTTP, and
+  one handler that turns the message into a use case's arguments and its
+  result into the reply; the read loop only decodes, limits and routes. The
+  use cases tell the player what happened through a `Conn` port (Welcome,
+  Kick, the services' pushes), which the handler puts in protocol
+  messages. Players join through the
   world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.
   Its adapters' `errmap` turns the reason a service's failure carries into
   what a client sees: an HTTP status, a code of its own (`party_full`) and
   the player message; a failure it does not know answers `internal` and is
-  logged. In layers, the client protocol is its model's vocabulary: its use
-  cases (the REST API's Lobby, the connections' Gateway) know neither gRPC
-  nor HTTP nor the socket. On
+  logged. In layers, the client protocol's views are its model's
+  vocabulary: its use cases (the REST API's Lobby, the connections'
+  Gateway) know neither gRPC nor HTTP nor the socket, nor any client
+  message. On
   SIGTERM the gateway turns unready, tells every connection to reconnect
   (Kicked `server_restart`), then stops.
 - **`account`** holds accounts and sessions. The gateway checks tokens

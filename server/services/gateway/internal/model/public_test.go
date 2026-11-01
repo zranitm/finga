@@ -22,6 +22,10 @@ func TestPublicOf(t *testing.T) {
 		{"a service's failure is what its adapter named", fmt.Errorf("invite: %w", refused), refused.Public},
 		{"a malformed ID from the gateway's own parsing", fmt.Errorf("item: %w", kernel.ErrBadID), model.BadID},
 		{"an unknown class from the gateway's own parsing", kernel.ErrUnknownClass, model.UnknownClass},
+		{"a command for an item service the gateway runs without", fmt.Errorf("discard: %w", model.ErrNoInventory), model.InventoryUnavailable},
+		{"a party command for a social service the gateway runs without", model.ErrNoParties, model.PartiesUnavailable},
+		{"a chat line for a social service the gateway runs without", model.ErrNoChat, model.ChatUnavailable},
+		{"a Hello whose token or character is not the account's", fmt.Errorf("hello: %w", model.ErrHelloRejected), model.Unauthenticated},
 		{"anything else is internal", errors.New("dial tcp: connection refused"), model.Internal},
 	}
 	for _, tt := range tests {

@@ -18,7 +18,7 @@ type Joined struct {
 type WorldEvent struct {
 	Subscribed bool
 	Character  kernel.CharacterID
-	Message    Message
+	Delivery   Delivery
 }
 
 // SocialEvent is one message of the social service's stream: Subscribed
@@ -28,7 +28,7 @@ type SocialEvent struct {
 	Subscribed bool
 	BootID     string
 	Character  kernel.CharacterID
-	Message    Message
+	Delivery   Delivery
 }
 
 // SessionEnd is one message of the account service's stream: a login

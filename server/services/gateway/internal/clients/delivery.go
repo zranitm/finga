@@ -14,48 +14,48 @@ import (
 
 // delivery turns one event of the world's stream into the protocol message
 // the player sees; false for an event this gateway does not know yet.
-func delivery(m *worldv1.DeliverResponse) (model.Message, bool) {
+func delivery(m *worldv1.DeliverResponse) (model.Delivery, bool) {
 	tick := m.GetTick()
 	switch {
 	case m.GetSnapshot() != nil:
 		ev := m.GetSnapshot()
-		return model.Message{Type: "Snapshot", Tick: tick, Data: protocol.Snapshot{
+		return model.Delivery{Type: model.DeliverySnapshot, Tick: tick, Data: protocol.Snapshot{
 			Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs(), true), Drops: dropViews(ev.GetDrops(), true),
 		}}, true
 	case m.GetDelta() != nil:
 		ev := m.GetDelta()
-		return model.Message{Type: "Delta", Tick: tick, Data: protocol.Delta{
+		return model.Delivery{Type: "Delta", Tick: tick, Data: protocol.Delta{
 			AckSeq: ev.GetAckSeq(), Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs(), false), Drops: dropViews(ev.GetDrops(), false),
 			RemovedPlayers: ev.GetRemovedPlayers(), RemovedMobs: ev.GetRemovedMobs(), RemovedDrops: ev.GetRemovedDrops(),
 		}}, true
 	case m.GetTeleport() != nil:
 		ev := m.GetTeleport()
-		return model.Message{Type: "MapChange", Tick: tick, Data: protocol.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}}, true
+		return model.Delivery{Type: "MapChange", Tick: tick, MapID: ev.GetMapId(), Data: protocol.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}}, true
 	case m.GetDamage() != nil:
 		ev := m.GetDamage()
-		return model.Message{Type: "Damage", Tick: tick, Data: protocol.Damage{
+		return model.Delivery{Type: "Damage", Tick: tick, Data: protocol.Damage{
 			Source: entityRef(ev.GetSource()), Target: entityRef(ev.GetTarget()), Amount: int(ev.GetAmount()), Crit: ev.GetCrit(), Miss: ev.GetMiss(),
 		}}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
-		return model.Message{Type: "Died", Tick: tick, Data: protocol.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}}, true
+		return model.Delivery{Type: "Died", Tick: tick, Data: protocol.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}}, true
 	case m.GetRespawned() != nil:
 		ev := m.GetRespawned()
-		return model.Message{Type: "Respawned", Tick: tick, Data: protocol.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: int(ev.GetHp())}}, true
+		return model.Delivery{Type: "Respawned", Tick: tick, Data: protocol.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: int(ev.GetHp())}}, true
 	case m.GetExpGained() != nil:
 		ev := m.GetExpGained()
-		return model.Message{Type: "ExpGained", Tick: tick, Data: protocol.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}}, true
+		return model.Delivery{Type: "ExpGained", Tick: tick, Data: protocol.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}}, true
 	case m.GetLevelUp() != nil:
-		return model.Message{Type: "LevelUp", Tick: tick, Data: protocol.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}}, true
+		return model.Delivery{Type: "LevelUp", Tick: tick, Data: protocol.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}}, true
 	case m.GetChat() != nil:
 		ev := m.GetChat()
-		return model.Message{Type: "ChatMessage", Tick: tick, Data: protocol.ChatMessage{Channel: protocol.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}}, true
+		return model.Delivery{Type: "ChatMessage", Tick: tick, Data: protocol.ChatMessage{Channel: protocol.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}}, true
 	case m.GetInventoryChanged() != nil:
-		return model.Message{Type: "InventoryChanged", Tick: tick, Data: protocol.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}}, true
+		return model.Delivery{Type: "InventoryChanged", Tick: tick, Data: protocol.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}}, true
 	case m.GetPickupFailed() != nil:
-		return model.Message{Type: "Response", Tick: tick, Data: refusal(pickupFailure(m.GetPickupFailed()))}, true
+		return model.Delivery{Type: "Response", Tick: tick, Data: refusal(pickupFailure(m.GetPickupFailed()))}, true
 	}
-	return model.Message{}, false
+	return model.Delivery{}, false
 }
 
 // pickupFailure is a failed pickup as the player sees it, by the reason

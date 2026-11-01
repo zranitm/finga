@@ -1,10 +1,11 @@
 // Package model is the gateway's model (Low-level design, page 11). The
-// gateway's job is the conversation with clients, so the client protocol's
-// messages (internal/protocol) are its vocabulary for what a player sees
-// and sends; this package adds what the gateway keeps around them: a
-// failure as a client sees it, the envelope of a message, a connection's
-// player and limits, the REST API's accounts and characters, and the
-// events of the services' streams. It needs nothing but data.
+// client protocol's views (internal/protocol: a character, an item, a
+// party) are its vocabulary for what a player sees; its messages are the
+// WebSocket handler's. This package adds what the use cases work with: a
+// failure as a client sees it, the commands' inputs, Welcome, a
+// connection's player and presence, the services' pushes as deliveries and
+// stream events, and the REST API's accounts and characters. It needs
+// nothing but data.
 package model
 
 import (
@@ -61,6 +62,18 @@ func Raised() []Public {
 // (or not there at all): a Hello that names one is unauthenticated.
 const CharacterNotFound = "character_not_found"
 
+// The failures of the gateway's own use cases.
+var (
+	// ErrNoInventory, ErrNoParties and ErrNoChat are commands for a service
+	// this gateway runs without.
+	ErrNoInventory = errors.New("gateway: no item service")
+	ErrNoParties   = errors.New("gateway: no social service, so no parties")
+	ErrNoChat      = errors.New("gateway: no social service, so no chat")
+	// ErrHelloRejected is a Hello the gateway turns away: its token, or the
+	// character it names, is not the account's.
+	ErrHelloRejected = errors.New("gateway: hello rejected")
+)
+
 // The kinds of service failure the gateway acts on itself.
 var (
 	// ErrUnavailable is a service that cannot be reached: starting,
@@ -90,18 +103,23 @@ func (e *ServiceError) Unwrap() []error {
 	return []error{e.Err}
 }
 
-// kernelErrors are the shared kernel's errors the gateway's own parsing
-// raises (an item ID in a message, a class in a request).
-var kernelErrors = []struct {
+// ownErrors are the gateway's own failures: its use cases', and the shared
+// kernel's errors its parsing raises (an item ID in a message, a class in
+// a request).
+var ownErrors = []struct {
 	err error
 	pub Public
 }{
+	{ErrNoInventory, InventoryUnavailable},
+	{ErrNoParties, PartiesUnavailable},
+	{ErrNoChat, ChatUnavailable},
+	{ErrHelloRejected, Unauthenticated},
 	{kernel.ErrBadID, BadID},
 	{kernel.ErrUnknownClass, UnknownClass},
 }
 
 // PublicOf is err as a client sees it: a service's failure as its adapter
-// named it, the gateway's own parsing failures, and Internal for anything
+// named it, the gateway's own failures, and Internal for anything
 // else (which the caller logs with its cause); the zero Public for nil.
 func PublicOf(err error) Public {
 	if err == nil {
@@ -110,7 +128,7 @@ func PublicOf(err error) Public {
 	if se, ok := errors.AsType[*ServiceError](err); ok {
 		return se.Public
 	}
-	for _, row := range kernelErrors {
+	for _, row := range ownErrors {
 		if errors.Is(err, row.err) {
 			return row.pub
 		}

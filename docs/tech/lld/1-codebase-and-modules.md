@@ -31,13 +31,13 @@ server/                 the Go module: everything the server builds, reads and p
     gateway/            the only public entry; no database, no game rules
       main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
       config/           its own configuration: config.yaml (http, the five dependencies) and its type
-      internal/model/   in layers (step 36): a failure as a client sees it (Public), the message envelope, a connection's player, presence and limits, the REST API's accounts and characters, the services' stream events; the client protocol is its vocabulary
-      internal/application/  the Lobby (the REST API's use cases) and the Gateway (Hello, join and rejoin, the command queue, kicks, the drain); routes.go: every client message with its middleware on pkg/wsrouter; ports.go
+      internal/model/   in layers (step 36): a failure as a client sees it (Public), the commands' inputs, Welcome, a connection's player and presence, the services' pushes (Delivery) and stream events, the REST API's accounts and characters; the client protocol's views are its vocabulary
+      internal/application/  the Lobby (the REST API's use cases) and the Gateway (a connection's Session, Hello, join and rejoin, the players' commands in commands.go, kicks, the drain); ports.go, with Conn: what the use cases tell a player
       internal/clients/ the ports over the services' generated clients, the deliveries turned into protocol messages, the account service as pkg/auth's Guard
         errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
       internal/handler/
         api/            REST on Gin (TD-26): the /api group and its middleware (request log with recovery, CORS, bearer auth), DTOs, validation, over the Lobby
-        ws/             the socket: wsconn's read and write loops, the codec, the Conn the Gateway sends through
+        ws/             WebSocket on pkg/wsconn, as api/ is REST on Gin: routes.go, every client message with its middleware on pkg/wsrouter (Hello first, its rate limit, the connection's command queue, a deadline, the Response); messages.go, one handler per message, from the message to the use case's arguments and from its result to the reply; client.go, a connection's state and the application's Conn in protocol messages
         engine.go       the Gin engine as the gateway runs it: release mode, no redirects, 405 for another method, no trusted proxy
         router.go       the route table on that engine: /api, /ws, /metrics, /healthz, /readyz
     item/

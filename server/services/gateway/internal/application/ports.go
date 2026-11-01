@@ -45,7 +45,7 @@ type World interface {
 	Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error)
 	// Leave removes the player, if it joined through conn.
 	Leave(ctx context.Context, p model.Presence, conn string) error
-	Input(ctx context.Context, p model.Presence, seq uint32, in protocol.Input) error
+	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
 	Attack(ctx context.Context, p model.Presence) error
 	EnterPortal(ctx context.Context, p model.Presence) error
 	PickUp(ctx context.Context, p model.Presence) error
@@ -58,8 +58,8 @@ type World interface {
 type Items interface {
 	Inventory(ctx context.Context, character kernel.CharacterID) ([]protocol.ItemView, error)
 	// Move and Discard return the slots the command changed.
-	Move(ctx context.Context, a model.Actor, in protocol.InventoryMove) ([]protocol.InventorySlot, error)
-	Discard(ctx context.Context, a model.Actor, in protocol.InventoryDiscard) ([]protocol.InventorySlot, error)
+	Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]protocol.InventorySlot, error)
+	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]protocol.InventorySlot, error)
 }
 
 // Social is the social service: parties and chat.
@@ -80,21 +80,30 @@ type Social interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent))
 }
 
-// Conn is one client connection as the use cases see it; the WebSocket
-// handler implements it.
+// Conn is one client connection as the use cases see it: what they tell
+// the player, which the WebSocket handler, implementing it, puts in the
+// client protocol's messages. No method blocks: a connection too slow to
+// keep up is closed by the transport.
 type Conn interface {
 	ID() string
-	// Send enqueues a message without blocking; a connection too slow to
-	// keep up is closed by the transport.
-	Send(m model.Message)
-	// Close ends the connection; the first call wins.
-	Close(code model.CloseCode, reason string)
+	// Welcome answers a Hello that joined.
+	Welcome(w model.Welcome)
+	// MapChange tells the player a rejoin put them on another map.
+	MapChange(mapID string, x, y float64)
+	// PartyGone tells the player they have no party any more: the social
+	// service restarted.
+	PartyGone()
+	// Deliver forwards a service's push.
+	Deliver(d model.Delivery)
+	// Kick tells the player why the gateway ends the connection, then ends
+	// it; the client does not reconnect on its own.
+	Kick(reason protocol.KickReason)
+	// Close ends the connection on a failure the client cannot fix but may
+	// retry: it reconnects. The first Kick or Close wins.
+	Close(reason string)
 }
 
-// Observer counts traffic; internal/telemetry implements it.
+// Observer counts the players online; internal/telemetry implements it.
 type Observer interface {
-	MessageIn(msgType string)
-	MessageOut(msgType string)
-	SlowConsumer()
 	OnlineChanged(delta int)
 }

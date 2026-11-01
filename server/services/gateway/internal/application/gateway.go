@@ -3,18 +3,17 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/time/rate"
 
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/auth"
-	"finga/pkg/wsrouter"
 	"finga/services/gateway/internal/model"
 )
 
@@ -31,44 +30,39 @@ type Dependencies struct {
 	Logger      *slog.Logger
 	Observer    Observer
 	Clock       func() time.Time
-	// HelloTimeout is how long a connection has to send Hello; 5 s by default.
-	HelloTimeout time.Duration
 	// JoinTimeout bounds a join, waiting out a world that is starting or
 	// restarting; 5 s by default.
 	JoinTimeout time.Duration
-	// CommandQueue bounds each connection's command queue; 64 by default.
-	CommandQueue int
 	// SessionCheckInterval is how often Run checks each connection's session
 	// and kicks the expired ones; a minute by default.
 	SessionCheckInterval time.Duration
 }
 
 const (
-	defaultHelloTimeout         = 5 * time.Second
 	defaultSessionCheckInterval = time.Minute
 	defaultJoinTimeout          = 5 * time.Second
-	defaultCommandQueue         = 64
 	commandTimeout              = 5 * time.Second
 	joinRetryFirst              = 20 * time.Millisecond
 	joinRetryMax                = 500 * time.Millisecond
 )
 
-// Gateway is the connections' use cases; the WebSocket handler feeds it
-// each connection's open, messages and close.
+// Gateway is the connections' use cases (page 10): a connection's
+// session from Open to Closed, Hello, the players' commands (commands.go),
+// and the services' streams, whose pushes it forwards to each player's
+// connection. The WebSocket handler calls it for each connection's
+// messages, as the REST handler calls the Lobby.
 type Gateway struct {
-	deps   Dependencies
-	router *wsrouter.Router[*session] // every message a client may send (routes.go)
-	now    func() time.Time
+	deps Dependencies
+	now  func() time.Time
 
 	mu          sync.Mutex
-	byConn      map[string]*session
-	byAccount   map[kernel.AccountID]*session
-	byCharacter map[kernel.CharacterID]*session // active sessions, for party and chat delivery
-	bySession   map[kernel.SessionID]*session   // active connections by login session
+	byConn      map[string]*Session
+	byAccount   map[kernel.AccountID]*Session
+	byCharacter map[kernel.CharacterID]*Session // active sessions, for party and chat delivery
+	bySession   map[kernel.SessionID]*Session   // active connections by login session
 	socialBoot  string                          // the social service's boot ID, from its stream
 	worldSubs   uint64                          // subscriptions to the world's stream so far
-	helloGrace  time.Duration
-	draining    atomic.Bool // Drain has begun: no new connections
+	draining    atomic.Bool                     // Drain has begun: no new connections
 }
 
 // NewGateway builds the connections' use cases.
@@ -76,14 +70,8 @@ func NewGateway(deps Dependencies) *Gateway {
 	if deps.Clock == nil {
 		deps.Clock = time.Now
 	}
-	if deps.HelloTimeout <= 0 {
-		deps.HelloTimeout = defaultHelloTimeout
-	}
 	if deps.JoinTimeout <= 0 {
 		deps.JoinTimeout = defaultJoinTimeout
-	}
-	if deps.CommandQueue <= 0 {
-		deps.CommandQueue = defaultCommandQueue
 	}
 	if deps.Observer == nil {
 		deps.Observer = noopObserver{}
@@ -94,17 +82,14 @@ func NewGateway(deps Dependencies) *Gateway {
 	if deps.ID == "" {
 		deps.ID = uuid.NewString()
 	}
-	g := &Gateway{
+	return &Gateway{
 		deps:        deps,
 		now:         deps.Clock,
-		byConn:      map[string]*session{},
-		byAccount:   map[kernel.AccountID]*session{},
-		byCharacter: map[kernel.CharacterID]*session{},
-		bySession:   map[kernel.SessionID]*session{},
-		helloGrace:  deps.HelloTimeout,
+		byConn:      map[string]*Session{},
+		byAccount:   map[kernel.AccountID]*Session{},
+		byCharacter: map[kernel.CharacterID]*Session{},
+		bySession:   map[kernel.SessionID]*Session{},
 	}
-	g.router = g.routes()
-	return g
 }
 
 // Run follows the world's delivery stream, the social service's and the
@@ -137,14 +122,14 @@ func (g *Gateway) Run(ctx context.Context) error {
 
 func (g *Gateway) checkSessions(ctx context.Context) {
 	g.mu.Lock()
-	active := make([]*session, 0, len(g.bySession))
+	active := make([]*Session, 0, len(g.bySession))
 	for _, s := range g.bySession {
 		active = append(active, s)
 	}
 	g.mu.Unlock()
 	for _, s := range active {
 		if err := g.deps.Sessions.Check(ctx, uuid.UUID(s.sessionID)); err != nil {
-			g.kick(s.conn, protocol.KickSessionExpired)
+			s.conn.Kick(protocol.KickSessionExpired)
 		}
 	}
 }
@@ -166,7 +151,7 @@ func (g *Gateway) KickSession(sessionID kernel.SessionID) {
 	s := g.bySession[sessionID]
 	g.mu.Unlock()
 	if s != nil {
-		g.kick(s.conn, protocol.KickSessionExpired)
+		s.conn.Kick(protocol.KickSessionExpired)
 	}
 }
 
@@ -184,11 +169,11 @@ func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	if newLogin {
 		why = protocol.KickLoggedInElsewhere
 	}
-	g.kick(s.conn, why)
+	s.conn.Kick(why)
 }
 
 // sessionOf finds the active session of a character, if any.
-func (g *Gateway) sessionOf(id kernel.CharacterID) *session {
+func (g *Gateway) sessionOf(id kernel.CharacterID) *Session {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	return g.byCharacter[id]
@@ -215,7 +200,7 @@ func (g *Gateway) Drain(ctx context.Context) {
 	}
 	g.mu.Unlock()
 	for _, c := range conns {
-		g.kick(c, protocol.KickServerRestart)
+		c.Kick(protocol.KickServerRestart)
 	}
 	t := time.NewTicker(drainPoll)
 	defer t.Stop()
@@ -235,90 +220,41 @@ func (g *Gateway) Drain(ctx context.Context) {
 	}
 }
 
-// Open starts a connection: the Hello timer and its command goroutine. A
-// connection that stays silent is closed.
-func (g *Gateway) Open(c Conn) {
-	s := &session{conn: c, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), g.deps.CommandQueue), drained: make(chan struct{})}
+// Open starts a connection's session; the WebSocket handler holds it for
+// the connection and passes it to every use case. A connection that
+// opened as Drain began is told the server is restarting.
+func (g *Gateway) Open(c Conn) *Session {
+	s := &Session{conn: c, out: out{conn: c}}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
-	s.out.send = func(m model.Message) { g.send(c, m) }
-	s.helloTimer = time.AfterFunc(g.helloGrace, func() {
-		if !s.active() {
-			c.Close(model.CloseKicked, "no hello")
-		}
-	})
 	g.mu.Lock()
 	g.byConn[c.ID()] = s
 	draining := g.draining.Load() // read under the lock Drain collects connections with
 	g.mu.Unlock()
-	go g.commands(s)
 	if draining {
-		g.kick(c, protocol.KickServerRestart) // upgraded as Drain began
+		c.Kick(protocol.KickServerRestart) // upgraded as Drain began
 	}
+	return s
 }
 
-// Receive takes one decoded message on the connection's read loop and
-// runs it through its route (routes.go): the checks of the read loop, then
-// the connection's command queue for the rest, never waiting on a service
-// here.
-func (g *Gateway) Receive(c Conn, m model.Message) {
-	g.deps.Observer.MessageIn(m.Type)
-	g.mu.Lock()
-	s := g.byConn[c.ID()]
-	g.mu.Unlock()
-	if s == nil {
-		return
-	}
-	g.router.Dispatch(s, wsrouter.Message{Type: m.Type, ReqID: m.ReqID, Seq: m.Seq, Data: m.Data})
-}
-
-// commands runs a connection's queue in order, one message's chain at a
-// time, until the connection closes; then it stops, and Closed waits for
-// it.
-func (g *Gateway) commands(s *session) {
-	defer close(s.drained)
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case rest := <-s.queue:
-			if s.ctx.Err() != nil {
-				return
-			}
-			rest()
-		}
-	}
-}
-
-// Closed ends a connection the transport closed (slow when it fell too far
-// behind; reason for the log): it cancels the command in flight, waits for
-// the command goroutine, then leaves the map and clears the registry.
-func (g *Gateway) Closed(c Conn, slow bool, reason string) {
-	g.mu.Lock()
-	s := g.byConn[c.ID()]
-	g.mu.Unlock()
-	if s == nil {
-		return
-	}
+// Closed ends a session whose connection closed (reason for the log),
+// once no command of the connection runs any more: it stops a rejoin in
+// flight, leaves the map and clears the registry.
+func (g *Gateway) Closed(s *Session, reason string) {
 	s.cancel()
-	<-s.drained
 	g.mu.Lock()
-	delete(g.byConn, c.ID())
-	var joined bool
-	if s != nil {
-		s.closed = true
-		joined = !s.character.ID.IsZero()
-		if g.byAccount[s.account] == s {
-			delete(g.byAccount, s.account)
-		}
-		if g.byCharacter[s.character.ID] == s {
-			delete(g.byCharacter, s.character.ID)
-		}
-		if g.bySession[s.sessionID] == s {
-			delete(g.bySession, s.sessionID)
-		}
+	delete(g.byConn, s.conn.ID())
+	s.closed = true
+	joined := !s.character.ID.IsZero()
+	if g.byAccount[s.account] == s {
+		delete(g.byAccount, s.account)
+	}
+	if g.byCharacter[s.character.ID] == s {
+		delete(g.byCharacter, s.character.ID)
+	}
+	if g.bySession[s.sessionID] == s {
+		delete(g.bySession, s.sessionID)
 	}
 	g.mu.Unlock()
-	s.helloTimer.Stop()
 	if joined {
 		// The world removes the player only if it joined through this
 		// connection; a rejoin that finishes after this leaves again.
@@ -334,14 +270,11 @@ func (g *Gateway) Closed(c Conn, slow bool, reason string) {
 		}
 		g.deps.Observer.OnlineChanged(-1)
 	}
-	if slow {
-		g.deps.Observer.SlowConsumer()
-	}
-	g.deps.Logger.Info("ws closed", "conn", c.ID(), "reason", reason)
+	g.deps.Logger.Info("ws closed", "conn", s.conn.ID(), "reason", reason)
 }
 
 // leave tells the world the connection's player is gone.
-func (g *Gateway) leave(s *session) {
+func (g *Gateway) leave(s *Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
 	if err := g.deps.World.Leave(ctx, s.presence(), s.conn.ID()); err != nil {
@@ -349,40 +282,31 @@ func (g *Gateway) leave(s *session) {
 	}
 }
 
-// hello runs the handshake: version, token, then the join through the
-// world (which checks the character is the account's), the inventory and
-// the party, then Welcome. The session is registered for its character
-// before the join, so the Snapshot, which may come back on the world's
-// stream before the join answers, waits in the session and follows
-// Welcome. An older connection of the account loses once the join holds.
-func (g *Gateway) hello(s *session, h protocol.Hello) {
-	ctx, cancel := context.WithTimeout(s.ctx, g.deps.JoinTimeout)
+// Hello joins the connection's player (page 10): the token, then the join
+// through the world (which checks the character is the account's), the
+// inventory and the party, then Welcome through the Conn. The session is
+// registered for its character before the join, so the Snapshot, which
+// may come back on the world's stream before the join answers, waits in
+// the session and follows Welcome. An older connection of the account
+// loses once the join holds. It fails with model.ErrHelloRejected when the
+// token or the character is not the account's; any other failure is one
+// the client may retry, logged here with its cause.
+func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID kernel.CharacterID) error {
+	ctx, cancel := context.WithTimeout(ctx, g.deps.JoinTimeout)
 	defer cancel()
-	if h.ProtocolVersion != protocol.Version {
-		g.kick(s.conn, protocol.KickOutdatedProtocol)
-		return
-	}
-	p, err := g.deps.Sessions.Validate(ctx, h.Token)
+	p, err := g.deps.Sessions.Validate(ctx, token)
 	if err != nil {
-		g.kick(s.conn, protocol.KickUnauthenticated)
-		return
+		return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 	}
 	// Every Hello rotates the token (step 16): the client keeps the one in
 	// Welcome; the one it sent works once more for a minute.
-	token, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
+	rotated, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
 	if err != nil {
 		if model.PublicOf(err) == model.Unauthenticated {
-			g.kick(s.conn, protocol.KickUnauthenticated)
-			return
+			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
 		g.deps.Logger.ErrorContext(ctx, "token rotation failed", "session_id", p.SessionID, "err", err)
-		s.conn.Close(model.CloseInternal, "session")
-		return
-	}
-	charID, err := kernel.ParseCharacterID(h.CharacterID)
-	if err != nil {
-		g.kick(s.conn, protocol.KickUnauthenticated)
-		return
+		return fmt.Errorf("rotate: %w", err)
 	}
 	account, sessionID := kernel.AccountID(p.AccountID), kernel.SessionID(p.SessionID)
 
@@ -399,7 +323,6 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	// read its Subscribed.
 	subs := max(g.worldSubs, 1)
 	g.mu.Unlock()
-	s.helloTimer.Stop()
 
 	joined, err := g.join(ctx, s.conn.ID(), account, charID)
 	if err != nil {
@@ -418,30 +341,20 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 		// character service that cannot answer is a server fault the client
 		// retries.
 		if model.PublicOf(err).Code == model.CharacterNotFound {
-			g.kick(s.conn, protocol.KickUnauthenticated)
-			return
+			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
 		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "err", err)
-		s.conn.Close(model.CloseInternal, "join")
-		return
+		return fmt.Errorf("join: %w", err)
 	}
 	c := joined.Character
-	inventory := []protocol.ItemView{}
+	welcome := model.Welcome{Token: rotated, Character: c, MapID: joined.MapID, ServerTime: g.now()}
 	if g.deps.Items != nil {
 		items, err := g.deps.Items.Inventory(ctx, charID)
 		if err != nil {
 			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
-			s.conn.Close(model.CloseInternal, "inventory")
-			return
+			return fmt.Errorf("inventory: %w", err)
 		}
-		inventory = items
-	}
-	welcome := protocol.Welcome{
-		Token:      token,
-		Character:  c,
-		Inventory:  inventory,
-		MapID:      joined.MapID,
-		ServerTime: g.now().UnixMilli(),
+		welcome.Inventory = items
 	}
 	if g.deps.Social != nil {
 		// Parties are optional: a social service that cannot be reached
@@ -462,12 +375,12 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	s.setActive()
 	missed := g.worldSubs > subs // the stream broke during the join
 	g.mu.Unlock()
-	s.out.release(joined.MapID, model.Message{Data: welcome})
+	s.out.release(joined.MapID, func() { s.conn.Welcome(welcome) })
 	// An older connection of the account, or a second Hello on the same
 	// session, loses: the newest connection wins.
-	for _, prev := range []*session{old, sameSession, previous} {
+	for _, prev := range []*Session{old, sameSession, previous} {
 		if prev != nil && prev != s {
-			g.kick(prev.conn, protocol.KickLoggedInElsewhere)
+			prev.conn.Kick(protocol.KickLoggedInElsewhere)
 		}
 	}
 	if missed {
@@ -476,6 +389,7 @@ func (g *Gateway) hello(s *session, h protocol.Hello) {
 	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", charID, "map_id", joined.MapID)
+	return nil
 }
 
 // worldDelivered acts on one message of the world's stream: a delivery
@@ -488,7 +402,7 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 		g.mu.Lock()
 		again := g.worldSubs > 0
 		g.worldSubs++
-		var active []*session
+		var active []*Session
 		for _, s := range g.byCharacter {
 			if s.active() {
 				active = append(active, s)
@@ -506,11 +420,8 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 	if s == nil {
 		return // gone from this gateway; the world learns it from Leave
 	}
-	if p, isRefusal := ev.Message.Data.(protocol.Response); isRefusal && p.Code == model.Internal.Code {
-		g.deps.Logger.Warn("pickup failed for a reason the world could not name", "conn", s.conn.ID(), "character_id", ev.Character)
-	}
-	if !s.out.deliver(ev.Message) {
-		s.conn.Close(model.CloseInternal, "join")
+	if !s.out.deliver(ev.Delivery) {
+		s.conn.Close("deliveries")
 	}
 }
 
@@ -521,7 +432,7 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 // next subscription, which rejoins, and any other failure (the world still
 // unreachable when the join gives up, say) closes the connection so the
 // client reconnects.
-func (g *Gateway) rejoin(s *session) {
+func (g *Gateway) rejoin(s *Session) {
 	s.rejoinMu.Lock()
 	defer s.rejoinMu.Unlock()
 	ctx, cancel := context.WithTimeout(s.ctx, g.deps.JoinTimeout)
@@ -541,14 +452,14 @@ func (g *Gateway) rejoin(s *session) {
 			return
 		}
 		g.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.character.ID, "err", err)
-		s.conn.Close(model.CloseInternal, "rejoin")
+		s.conn.Close("rejoin")
 		return
 	}
-	var first []model.Message
+	var first func()
 	if joined.MapID != before {
-		first = append(first, model.Message{Data: protocol.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}})
+		first = func() { s.conn.MapChange(joined.MapID, joined.X, joined.Y) }
 	}
-	s.out.release(joined.MapID, first...)
+	s.out.release(joined.MapID, first)
 	g.mu.Lock()
 	closed := s.closed
 	g.mu.Unlock()
@@ -590,7 +501,7 @@ func waitable(err error) bool {
 // online tells the social service a player is connected through this
 // gateway, so party traffic finds it here. A failure is logged: parties are
 // optional, and the next registration (a social restart) tries again.
-func (g *Gateway) online(ctx context.Context, s *session) {
+func (g *Gateway) online(ctx context.Context, s *Session) {
 	if g.deps.Social == nil {
 		return
 	}
@@ -599,8 +510,8 @@ func (g *Gateway) online(ctx context.Context, s *session) {
 	}
 }
 
-// socialDelivered turns one message of the social service's stream into
-// what the client sees. A new boot ID on Subscribed means the social
+// socialDelivered forwards one message of the social service's stream to
+// its player's connection. A new boot ID on Subscribed means the social
 // service restarted and every party is gone: each connected player gets
 // PartyState with no party and is registered again.
 func (g *Gateway) socialDelivered(ev model.SocialEvent) {
@@ -608,7 +519,7 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 		g.mu.Lock()
 		restarted := g.socialBoot != "" && g.socialBoot != ev.BootID
 		g.socialBoot = ev.BootID
-		active := make([]*session, 0, len(g.byCharacter))
+		active := make([]*Session, 0, len(g.byCharacter))
 		for _, s := range g.byCharacter {
 			active = append(active, s)
 		}
@@ -617,7 +528,7 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 			ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
 			defer cancel()
 			for _, s := range active {
-				g.send(s.conn, model.Message{Data: protocol.PartyState{}})
+				s.conn.PartyGone()
 				g.online(ctx, s)
 			}
 		}
@@ -627,50 +538,11 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	if t == nil {
 		return // gone from this gateway; the social service learns it from Offline
 	}
-	g.send(t.conn, ev.Message)
-}
-
-// refusal is a failure as a Response.
-func refusal(p model.Public) protocol.Response {
-	return protocol.Response{OK: false, Code: p.Code, Message: p.Message}
-}
-
-// refuse answers a command's error with its own code and message, and logs
-// the cause of an error nobody expected (a database failure), which the
-// player only sees as internal.
-func (g *Gateway) refuse(s *session, command string, err error) protocol.Response {
-	p := model.PublicOf(err)
-	if model.IsInternal(p) {
-		g.deps.Logger.Error("command failed", "conn", s.conn.ID(), "character_id", s.character.ID, "command", command, "err", err)
-	}
-	return refusal(p)
-}
-
-// kick tells the peer why and closes.
-func (g *Gateway) kick(c Conn, reason protocol.KickReason) {
-	g.send(c, model.Message{Data: protocol.Kicked{Reason: reason}})
-	c.Close(model.CloseKicked, string(reason))
-}
-
-func (g *Gateway) send(c Conn, m model.Message) {
-	if m.Type == "" {
-		m.Type = typeName(m.Data)
-	}
-	g.deps.Observer.MessageOut(m.Type)
-	c.Send(m) // a full queue closes the connection; Closed cleans up
+	t.conn.Deliver(ev.Delivery)
 }
 
 // noopObserver is the Observer when none is given.
 type noopObserver struct{}
-
-// MessageIn does nothing.
-func (noopObserver) MessageIn(string) {}
-
-// MessageOut does nothing.
-func (noopObserver) MessageOut(string) {}
-
-// SlowConsumer does nothing.
-func (noopObserver) SlowConsumer() {}
 
 // OnlineChanged does nothing.
 func (noopObserver) OnlineChanged(int) {}
