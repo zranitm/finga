@@ -48,7 +48,7 @@ export default defineConfig({
         'src/state/**',
         'src/game/systems/**',
       ],
-      exclude: ['**/*.test.{ts,tsx}', '**/*.lintfixture.ts'],
+      exclude: ['**/*.test.{ts,tsx}', '**/*.lintfixture.ts', 'src/protocol/gen/**'],
       thresholds: { lines: 80, statements: 80, functions: 80, branches: 80 },
     },
   },

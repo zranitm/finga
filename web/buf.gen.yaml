@@ -1,0 +1,11 @@
+# npm run gen writes the client protocol's TypeScript into src/protocol/gen, which git ignores.
+version: v2
+clean: true
+inputs:
+  - directory: ../server/api/proto
+    paths:
+      - ../server/api/proto/client
+plugins:
+  - local: protoc-gen-es
+    out: src/protocol/gen
+    opt: target=ts

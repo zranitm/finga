@@ -1,0 +1,369 @@
+syntax = "proto3";
+
+// The browser's WebSocket protocol: one ClientMessage or ServerMessage per frame.
+// Subprotocol finga.v1.proto sends them binary, finga.v1.json as protojson with these field names.
+package client.v1;
+
+option go_package = "finga/api/gen/client/v1;clientv1";
+
+// ClientMessage is one frame from the browser. Hot messages take field numbers below 16, a one-byte tag.
+message ClientMessage {
+  // Input, Attack, PickUp and EnterPortal carry the input sequence number.
+  uint32 seq = 1;
+  // A command that wants a Response sets req; the Response carries it back.
+  string req = 2;
+  oneof body {
+    Input input = 3;
+    Attack attack = 4;
+    PickUp pick_up = 5;
+    EnterPortal enter_portal = 6;
+    Ping ping = 7;
+    ChatSend chat_send = 8;
+    InventoryMove inventory_move = 9;
+    InventoryDiscard inventory_discard = 10;
+    PartyInvite party_invite = 11;
+    PartyRespond party_respond = 12;
+    PartyLeave party_leave = 13;
+    PartyKick party_kick = 14;
+    PartyPromote party_promote = 15;
+    Hello hello = 16;
+  }
+}
+
+// ServerMessage is one frame to the browser.
+message ServerMessage {
+  // The req of the command a Response answers.
+  string req = 1;
+  // The map instance's tick for world events; 32 bits last 6.8 years at 20 Hz.
+  uint32 tick = 2;
+  oneof body {
+    Delta delta = 3;
+    Damage damage = 4;
+    Correction correction = 5;
+    Pong pong = 6;
+    Response response = 7;
+    InventoryChanged inventory_changed = 8;
+    ExpGained exp_gained = 9;
+    Died died = 10;
+    Respawned respawned = 11;
+    ChatMessage chat_message = 12;
+    Snapshot snapshot = 13;
+    MapChange map_change = 14;
+    PartyState party_state = 15;
+    PartyInvited party_invited = 16;
+    LevelUp level_up = 17;
+    Welcome welcome = 18;
+    Kicked kicked = 19;
+  }
+}
+
+enum ChatChannel {
+  CHAT_CHANNEL_UNSPECIFIED = 0;
+  CHAT_CHANNEL_MAP = 1;
+  CHAT_CHANNEL_PARTY = 2;
+}
+
+// KickReason says why the server is about to close the connection.
+enum KickReason {
+  KICK_REASON_UNSPECIFIED = 0;
+  KICK_REASON_LOGGED_IN_ELSEWHERE = 1;
+  KICK_REASON_OUTDATED_PROTOCOL = 2;
+  KICK_REASON_SERVER_RESTART = 3;
+  KICK_REASON_ABUSE = 4;
+  KICK_REASON_UNAUTHENTICATED = 5;
+  // The session ended: expired, logged out, or its token was reused.
+  KICK_REASON_SESSION_EXPIRED = 6;
+}
+
+// Hello is the first message, within 5 seconds of connecting.
+message Hello {
+  string token = 1;
+  int32 protocol_version = 2;
+  string character_id = 3;
+}
+
+// Input is the held keys.
+message Input {
+  bool left = 1;
+  bool right = 2;
+  bool up = 3;
+  bool down = 4;
+  bool jump = 5;
+}
+
+// Attack swings or shoots the way the character faces.
+message Attack {}
+
+// PickUp takes the nearest eligible drop in range.
+message PickUp {}
+
+// EnterPortal uses the portal the character stands in.
+message EnterPortal {}
+
+// ChatSend is a chat line, up to 120 characters.
+message ChatSend {
+  ChatChannel channel = 1;
+  string text = 2;
+}
+
+// PartyInvite invites a character on the same map.
+message PartyInvite {
+  string character_id = 1;
+}
+
+message PartyRespond {
+  string invite_id = 1;
+  bool accept = 2;
+}
+
+message PartyLeave {}
+
+// PartyKick removes a member (leader only).
+message PartyKick {
+  string character_id = 1;
+}
+
+// PartyPromote hands leadership over (leader only).
+message PartyPromote {
+  string character_id = 1;
+}
+
+// InventoryMove moves an item to a slot of its tab.
+message InventoryMove {
+  string idempotency_key = 1;
+  string item_id = 2;
+  string tab = 3;
+  int32 slot = 4;
+}
+
+// InventoryDiscard destroys some or all of an item.
+message InventoryDiscard {
+  string idempotency_key = 1;
+  string item_id = 2;
+  int32 quantity = 3;
+}
+
+message Ping {
+  // Unix milliseconds.
+  int64 client_time = 1;
+}
+
+message Stats {
+  int32 str = 1;
+  int32 dex = 2;
+  int32 int = 3;
+  int32 agi = 4;
+  int32 vit = 5;
+}
+
+// CharacterView is the player's own character.
+message CharacterView {
+  string id = 1;
+  string name = 2;
+  string class = 3;
+  int32 level = 4;
+  int64 exp = 5;
+  Stats stats = 6;
+  int32 hp = 7;
+  int32 max_hp = 8;
+  int32 mp = 9;
+  int32 max_mp = 10;
+}
+
+// ItemView is one inventory slot's item.
+message ItemView {
+  string item_id = 1;
+  string template = 2;
+  string tab = 3;
+  int32 slot = 4;
+  int32 quantity = 5;
+}
+
+message PartyMember {
+  string character_id = 1;
+  string name = 2;
+  int32 level = 3;
+  int32 hp = 4;
+  int32 max_hp = 5;
+  string map_id = 6;
+  bool online = 7;
+}
+
+message PartyView {
+  string leader = 1;
+  repeated PartyMember members = 2;
+}
+
+// Welcome answers Hello.
+message Welcome {
+  // The rotated session token, used from now on.
+  string token = 1;
+  CharacterView character = 2;
+  repeated ItemView inventory = 3;
+  // Unset without a party.
+  PartyView party = 4;
+  string map_id = 5;
+  uint32 tick = 6;
+  // Unix milliseconds.
+  int64 server_time = 7;
+}
+
+// PlayerView is a character on the map as everyone sees it.
+message PlayerView {
+  string id = 1;
+  string name = 2;
+  string class = 3;
+  int32 level = 4;
+  double x = 5;
+  double y = 6;
+  double vx = 7;
+  double vy = 8;
+  // -1 left, 1 right.
+  sint32 facing = 9;
+  bool on_ground = 10;
+  bool climbing = 11;
+  int32 hp = 12;
+  int32 max_hp = 13;
+  bool dead = 14;
+  // Set for a second after contact damage.
+  bool invulnerable = 15;
+}
+
+// Mob and drop IDs count up within one map instance.
+message MobView {
+  uint32 id = 1;
+  string type = 2;
+  double x = 3;
+  double y = 4;
+  sint32 facing = 5;
+  int32 hp = 6;
+  int32 max_hp = 7;
+}
+
+// DropView is an item on the ground.
+message DropView {
+  uint32 id = 1;
+  string template = 2;
+  int32 quantity = 3;
+  double x = 4;
+  double y = 5;
+}
+
+// Snapshot is everything on the map, on join and map change.
+message Snapshot {
+  repeated PlayerView players = 1;
+  repeated MobView mobs = 2;
+  repeated DropView drops = 3;
+}
+
+// Delta is what changed this tick: new or changed entities, and the IDs that left.
+message Delta {
+  // The latest input sequence applied.
+  uint32 ack_seq = 1;
+  repeated PlayerView players = 2;
+  repeated MobView mobs = 3;
+  repeated DropView drops = 4;
+  repeated string removed_players = 5;
+  repeated uint32 removed_mobs = 6;
+  repeated uint32 removed_drops = 7;
+}
+
+// Correction tells the client its prediction diverged at seq.
+message Correction {
+  uint32 seq = 1;
+  double x = 2;
+  double y = 3;
+  double vx = 4;
+  double vy = 5;
+  bool on_ground = 6;
+  bool climbing = 7;
+}
+
+// Damage is one resolved hit; source and target are "p:<character id>" or "m:<mob id>".
+message Damage {
+  string source = 1;
+  string target = 2;
+  int32 amount = 3;
+  bool crit = 4;
+  bool miss = 5;
+}
+
+message Died {
+  string character_id = 1;
+  double x = 2;
+  double y = 3;
+}
+
+message Respawned {
+  string character_id = 1;
+  string map_id = 2;
+  double x = 3;
+  double y = 4;
+  int32 hp = 5;
+}
+
+// ExpGained is EXP awarded (negative for the death penalty) and the total within the level after it.
+message ExpGained {
+  int64 amount = 1;
+  int64 exp = 2;
+}
+
+// LevelUp carries the new level and stats.
+message LevelUp {
+  CharacterView character = 1;
+}
+
+// InventorySlot is a slot after a change; item is unset when it emptied.
+message InventorySlot {
+  string tab = 1;
+  int32 slot = 2;
+  ItemView item = 3;
+}
+
+message InventoryChanged {
+  repeated InventorySlot slots = 1;
+}
+
+// MapChange follows a portal.
+message MapChange {
+  string map_id = 1;
+  double x = 2;
+  double y = 3;
+}
+
+// ChatMessage is a line from a player, the sender's own echo included.
+message ChatMessage {
+  ChatChannel channel = 1;
+  string sender = 2;
+  string sender_name = 3;
+  string text = 4;
+}
+
+// PartyState is the whole party after any change; party is unset when there is none.
+message PartyState {
+  PartyView party = 1;
+}
+
+message PartyInvited {
+  string invite_id = 1;
+  string from = 2;
+  string from_name = 3;
+}
+
+// Response answers a command that carried a req, or reports a refused one without.
+message Response {
+  bool ok = 1;
+  // An error code from server/testdata/errors/codes.json; empty when ok.
+  string code = 2;
+  string message = 3;
+}
+
+// Kicked precedes a server-side close.
+message Kicked {
+  KickReason reason = 1;
+}
+
+message Pong {
+  int64 client_time = 1;
+  int64 server_time = 2;
+}

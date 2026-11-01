@@ -26,3 +26,4 @@ web/public/maps/
 # client coverage output
 web/coverage/
 web/src/gamedata/
+web/src/protocol/gen/

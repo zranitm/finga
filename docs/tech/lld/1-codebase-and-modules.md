@@ -10,7 +10,8 @@ server/                 the Go module: everything the server builds, reads and p
     openapi.yaml        REST contract: accounts, sessions, characters, settings
     asyncapi.yaml       WebSocket message catalogue
     proto/internal/     the internal gRPC contracts, one package per service: internal/<service>/v1 (page 10)
-    gen/                their generated Go code, api/gen/<service>/v1, committed; make gen regenerates it
+    proto/client/v1/    the browser's WebSocket protocol (page 4); npm run gen generates the client's TypeScript from it
+    gen/                their generated Go code, api/gen/<package>/v1, committed; make gen regenerates it
   cmd/                  the binaries that are not services; each wires its own dependencies next to its main
     migrate/            applies every service's goose migrations, then exits
       app/              the sets in order and the guard against a database migrated before the split; the end-to-end tests use it
@@ -493,6 +494,6 @@ The other services' files have the same shape with their own keys (README, Confi
 
 Carried over from docviewer:
 
-- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations, then the six services without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `test-service SERVICE=<name>` (one service built and tested on its own, as CI's matrix does), `cover` (fails below 80% of statements in `internal/`, `pkg/`, `services/` and `cmd/migrate/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), `breaking` (`buf breaking` against the previous commit), and `gen` (sqlc, and `buf generate` for the gRPC code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed, read from the world's ops address).
+- **`make` targets:** `up` and `down` (Docker Compose), `run` (every service's migrations, then the six services without Docker, with `server/.env` exported), `test` (Go with `-race`, plus the web tests), `test-service SERVICE=<name>` (one service built and tested on its own, as CI's matrix does), `cover` (fails below 80% of statements in `internal/`, `pkg/`, `services/` and `cmd/migrate/app/`), `lint` (golangci-lint, plus ESLint and Prettier for the web), `breaking` (`buf breaking` against the previous commit), and `gen` (sqlc, and `buf generate` for the gRPC code and the client protocol's Go code, with `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` pinned as Go tools in `go.mod`), `smoke` (against a running stack: a client signs up, enters the world and moves; CI runs it after `make up`), and `bots` (the proof session: four bots play for 30 minutes and the tick p99 is printed, read from the world's ops address).
 - **`.golangci.yml`:** the same linters, including `errorlint`, `revive`, and `sloglint` with constant log messages, attributes as key-value pairs, no global logger, and snake_case keys; and, since 2026-10-31, `modernize`, which keeps the code on the language and library as they are now (`sync.WaitGroup.Go`, `errors.AsType`, `strings.SplitSeq`, `slices.Backward`, `t.Context`).
 - **Tests:** table-driven, with named cases. No test logic in production code: tests use the seams production already has (interfaces, constructors, `httptest`) and `testing/synctest` for time.

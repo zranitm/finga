@@ -44,7 +44,15 @@ function forbiddenImports() {
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'public', 'src/gamedata', 'node_modules', '**/*.lintfixture.ts'],
+    ignores: [
+      'dist',
+      'coverage',
+      'public',
+      'src/gamedata',
+      'src/protocol/gen',
+      'node_modules',
+      '**/*.lintfixture.ts',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

@@ -41,6 +41,7 @@ web/
     gamedata/             generated from ../server/data before dev, build, typecheck, and test; git-ignored
     lib/                  generic helpers with no game knowledge: vec2, ring buffer, backoff, fixed-step accumulator
     protocol/             message types and the codec interface; JSON now, generated Protobuf in Stage 2
+      gen/                the client protocol generated from ../server/api/proto/client by npm run gen (protobuf-es); git-ignored
     sim/                  movement simulation, a mirror of the Go code
     net/                  REST client; WebSocket client with Hello, request IDs, idempotency keys, reconnect
     state/                Zustand stores: session, character, inventory, party, chat, connection, settings, ui

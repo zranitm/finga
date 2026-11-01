@@ -158,6 +158,7 @@ services:
       context: ../web
       additional_contexts:
         gamedata: ../server/data
+        proto: ../server/api/proto
         edge: ./nginx
     ports:
       - "${FINGA_WEB_PORT:-4173}:80"
