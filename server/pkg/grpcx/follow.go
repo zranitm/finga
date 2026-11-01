@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"google.golang.org/grpc"
 )
 
@@ -11,7 +12,7 @@ import (
 type FollowOptions struct {
 	// OnBreak is told why each subscription ended, unless ctx ended it.
 	OnBreak func(err error)
-	// MinBackoff and MaxBackoff bound the resubscribe backoff (defaults 100 ms, 5 s).
+	// MinBackoff and MaxBackoff bound the jittered resubscribe backoff (defaults 100 ms, 5 s).
 	MinBackoff, MaxBackoff time.Duration
 }
 
@@ -23,7 +24,12 @@ func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.Ser
 	if opts.MaxBackoff < opts.MinBackoff {
 		opts.MaxBackoff = max(5*time.Second, opts.MinBackoff)
 	}
-	wait := opts.MinBackoff
+	b := &backoff.ExponentialBackOff{
+		InitialInterval:     opts.MinBackoff,
+		RandomizationFactor: backoff.DefaultRandomizationFactor,
+		Multiplier:          2,
+		MaxInterval:         opts.MaxBackoff,
+	}
 	for {
 		delivered, err := follow(ctx, open, handle)
 		if ctx.Err() != nil {
@@ -33,17 +39,14 @@ func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.Ser
 			opts.OnBreak(err)
 		}
 		if delivered {
-			wait = opts.MinBackoff
+			b.Reset()
 		}
-		t := time.NewTimer(wait)
+		t := time.NewTimer(b.NextBackOff())
 		select {
 		case <-ctx.Done():
 			t.Stop()
 			return
 		case <-t.C:
-		}
-		if !delivered {
-			wait = min(wait*2, opts.MaxBackoff)
 		}
 	}
 }

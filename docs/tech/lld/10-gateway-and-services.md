@@ -202,6 +202,10 @@ No transaction spans two services (rule 1 below). The character service commits 
 
 `Starter()` through `Within` stays a pattern for modules inside one service (page 1); character creation no longer uses it.
 
+### Retries
+
+Every retry and resubscribe waits on `github.com/cenkalti/backoff/v5`, doubling and jittered by ±50%, so a restarted service is not hit by every caller at once: the gateway's join and its streams, the starter grant, the persistence worker, and `pkg/dbx`'s rerun of a deadlocked or serialization-failed transaction.
+
 ### Pickups, checkpoints and the tick
 
 - **Pickups** already run on the world's economy workers: the worker calls the item service's `Add`, keyed by the drop ID, and retries once when the failure carries no reason. The result returns through the instance's inbox, as today.

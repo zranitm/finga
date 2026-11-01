@@ -124,7 +124,7 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 		Logger:       slog.New(slog.DiscardHandler),
 		Observer:     obs,
 		HelloTimeout: 200 * time.Millisecond,
-		JoinTimeout:  300 * time.Millisecond,
+		JoinTimeout:  time.Second, // room for two jittered backoffs: the stream's resubscribe and the join's retries
 	}
 	for _, o := range opts {
 		o(&d)

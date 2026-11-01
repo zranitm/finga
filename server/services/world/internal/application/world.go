@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -169,27 +171,22 @@ func (w *World) flush(ctx context.Context) {
 }
 
 func (w *World) save(ctx context.Context, job model.Job, retryFor time.Duration) {
-	deadline := time.Now().Add(retryFor)
-	wait := saveRetryFirst
-	for {
+	opts := []backoff.RetryOption{
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}),
+		backoff.WithMaxElapsedTime(retryFor),
+	}
+	if retryFor <= 0 {
+		opts = append(opts, backoff.WithMaxTries(1))
+	}
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		err := w.saveOnce(ctx, job)
-		if err == nil {
-			return
+		if err != nil && !w.saver.Retryable(err) {
+			return struct{}{}, backoff.Permanent(err)
 		}
-		if !w.saver.Retryable(err) || time.Now().Add(wait).After(deadline) {
-			if w.log != nil {
-				w.log.ErrorContext(ctx, "persistence failed", "err", err)
-			}
-			return
-		}
-		t := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			t.Stop()
-			return
-		case <-t.C:
-		}
-		wait = min(wait*2, saveRetryMax)
+		return struct{}{}, err
+	}, opts...)
+	if err != nil && ctx.Err() == nil && w.log != nil {
+		w.log.ErrorContext(ctx, "persistence failed", "err", err)
 	}
 }
 

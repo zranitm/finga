@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
+
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/services/character/internal/model"
@@ -114,25 +116,23 @@ func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	}
 	ctx, cancel := context.WithTimeout(ctx, s.opts.StarterTimeout)
 	defer cancel()
-	wait := s.opts.StarterBackoff
-	for {
-		err := s.opts.Starter.GrantStarter(ctx, c.AccountID, c.ID, c.Class)
-		if err == nil {
-			return
+	var last error
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		last = s.opts.Starter.GrantStarter(ctx, c.AccountID, c.ID, c.Class)
+		if last != nil && !s.opts.Starter.Retryable(last) {
+			return struct{}{}, backoff.Permanent(last)
 		}
-		if !s.opts.Starter.Retryable(err) {
-			s.opts.Logger.ErrorContext(ctx, "starter items refused", "character_id", c.ID, "class", c.Class, "err", err)
-			return
-		}
-		t := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			t.Stop()
-			s.opts.Logger.WarnContext(ctx, "starter items not granted yet; the next join grants them", "character_id", c.ID, "err", err)
-			return
-		case <-t.C:
-		}
-		wait = min(wait*2, maxStarterBackoff)
+		return struct{}{}, last
+	},
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: s.opts.StarterBackoff, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: maxStarterBackoff}),
+		backoff.WithMaxElapsedTime(0),
+	)
+	switch {
+	case err == nil:
+	case ctx.Err() != nil:
+		s.opts.Logger.WarnContext(ctx, "starter items not granted yet; the next join grants them", "character_id", c.ID, "err", last)
+	default:
+		s.opts.Logger.ErrorContext(ctx, "starter items refused", "character_id", c.ID, "class", c.Class, "err", err)
 	}
 }
 

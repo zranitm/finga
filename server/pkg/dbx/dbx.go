@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,8 +33,8 @@ const (
 
 const (
 	defaultMaxAttempts = 3
-	retryBaseDelay     = 10 * time.Millisecond
-	retryJitter        = 20 * time.Millisecond
+	retryFirst         = 20 * time.Millisecond
+	retryMax           = 200 * time.Millisecond
 )
 
 // Option tunes InTx.
@@ -84,18 +84,27 @@ func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Op
 	for _, opt := range opts {
 		opt(&o)
 	}
-	for attempt := 1; ; attempt++ {
-		err := runOnce(ctx, db, fn)
-		if err == nil || !retryable(err) || attempt >= o.maxAttempts {
-			return err
+	var last error
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		last = runOnce(ctx, db, fn)
+		if last != nil && !retryable(last) {
+			return struct{}{}, backoff.Permanent(last)
 		}
-		if o.onRetry != nil {
-			o.onRetry(err)
-		}
-		if waitErr := wait(ctx, backoff(attempt)); waitErr != nil {
-			return fmt.Errorf("dbx: retry abandoned: %w (last error: %w)", waitErr, err)
-		}
+		return struct{}{}, last
+	},
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: retryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: retryMax}),
+		backoff.WithMaxTries(uint(o.maxAttempts)), //nolint:gosec // MaxAttempts keeps it at least 1
+		backoff.WithMaxElapsedTime(0),
+		backoff.WithNotify(func(err error, _ time.Duration) {
+			if o.onRetry != nil {
+				o.onRetry(err)
+			}
+		}),
+	)
+	if err != nil && last != nil && !errors.Is(err, last) {
+		return fmt.Errorf("dbx: retry abandoned: %w (last error: %w)", err, last)
 	}
+	return err
 }
 
 func runOnce(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error) (err error) {
@@ -127,22 +136,4 @@ func retryable(err error) bool {
 		return false
 	}
 	return pgErr.Code == codeSerializationFailure || pgErr.Code == codeDeadlockDetected
-}
-
-func backoff(attempt int) time.Duration {
-	return time.Duration(attempt)*retryBaseDelay + rand.N(retryJitter) //nolint:gosec // jitter, not security
-}
-
-func wait(ctx context.Context, d time.Duration) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-t.C:
-		return nil
-	}
 }

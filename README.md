@@ -223,7 +223,7 @@ own goose files with its own version table. Go's
 rest of the import direction: composition roots → services → the shared
 kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`,
 `internal/progression`) → `pkg/`, the generic parts (config loading, the
-transaction helper with retries, idempotency keys, the outbox, keyed rate
+transaction helper with retries on `cenkalti/backoff`, idempotency keys, the outbox, keyed rate
 limits on `golang.org/x/time/rate`, the tick loop, the WebSocket connection and its message router, typed IDs, Tiled maps, the
 gRPC plumbing, Testcontainers glue).
 

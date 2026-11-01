@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 
 	"finga/internal/kernel"
@@ -414,21 +415,23 @@ func (g *Gateway) rejoin(s *Session) {
 
 // join retries while the world cannot take the join yet, until ctx ends; a join is safe to repeat.
 func (g *Gateway) join(ctx context.Context, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
-	wait := joinRetryFirst
-	for {
+	var last error
+	joined, err := backoff.Retry(ctx, func() (model.Joined, error) {
 		joined, err := g.deps.World.Join(ctx, g.deps.ID, conn, account, character)
-		if err == nil || !waitable(err) {
-			return joined, err
+		last = err
+		if err != nil && !waitable(err) {
+			return joined, backoff.Permanent(err)
 		}
-		t := time.NewTimer(wait)
-		select {
-		case <-ctx.Done():
-			t.Stop()
-			return model.Joined{}, err
-		case <-t.C:
-		}
-		wait = min(wait*2, joinRetryMax)
+		return joined, err
+	},
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: joinRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: joinRetryMax}),
+		backoff.WithMaxElapsedTime(0),
+	)
+	// The caller acts on why the world refused (ErrNotSubscribed), not on the deadline.
+	if err != nil && last != nil && !errors.Is(err, last) {
+		return joined, fmt.Errorf("%w (last error: %w)", err, last)
 	}
+	return joined, err
 }
 
 func waitable(err error) bool {

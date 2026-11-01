@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -182,22 +183,13 @@ const (
 
 // startContainer retries because concurrent Testcontainers starts fail transiently on Windows.
 func startContainer(ctx context.Context) (*postgres.PostgresContainer, error) {
-	var err error
-	for attempt := 1; attempt <= startAttempts; attempt++ {
-		var c *postgres.PostgresContainer
-		c, err = postgres.Run(ctx, image,
+	return backoff.Retry(ctx, func() (*postgres.PostgresContainer, error) {
+		return postgres.Run(ctx, image,
 			postgres.WithDatabase(adminDB), postgres.WithUsername("pgtest"), postgres.WithPassword("pgtest"),
 			postgres.BasicWaitStrategies())
-		if err == nil {
-			return c, nil
-		}
-		if attempt < startAttempts {
-			select {
-			case <-time.After(startBackoff * time.Duration(attempt)):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}
-	}
-	return nil, err
+	},
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: startBackoff, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: 4 * startBackoff}),
+		backoff.WithMaxTries(startAttempts),
+		backoff.WithMaxElapsedTime(0),
+	)
 }
