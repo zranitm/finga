@@ -56,13 +56,7 @@ export const errorCodes = [
 
 export type ErrorCode = (typeof errorCodes)[number];
 
-export const kickReasons = [
-  'logged_in_elsewhere',
-  'outdated_protocol',
-  'server_restart',
-  'abuse',
-  'unauthenticated',
-  'session_expired',
-] as const;
-
-export type KickReason = (typeof kickReasons)[number];
+/** The wire carries codes as strings; a newer server may send one this client does not know. */
+export function isErrorCode(code: string): code is ErrorCode {
+  return (errorCodes as readonly string[]).includes(code);
+}

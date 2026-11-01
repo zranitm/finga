@@ -1,15 +1,12 @@
+import { create } from '@bufbuild/protobuf';
 import { describe, expect, it, vi } from 'vitest';
 
-import { DropTracker, PICKUP_RANGE, PickupSystem, boxCentre } from './pickup';
-import type { DropWire } from './pickup';
+import { DropViewSchema } from '@/protocol/messages';
 
-const gel = (id: number, x: number, y = 608): DropWire => ({
-  id,
-  template: 'slime_gel',
-  quantity: 1,
-  x,
-  y,
-});
+import { DropTracker, PICKUP_RANGE, PickupSystem, boxCentre } from './pickup';
+
+const gel = (id: number, x: number, y = 608) =>
+  create(DropViewSchema, { id, template: 'slime_gel', quantity: 1, x, y });
 
 describe('DropTracker', () => {
   it('a Snapshot sets the drops and reports what appeared and what went; Deltas add and remove', () => {

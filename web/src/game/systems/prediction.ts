@@ -18,6 +18,29 @@ export interface WireState {
   readonly facing: 1 | -1;
 }
 
+/** A body as the server sends it: a PlayerView, or a Correction with the current facing. */
+export interface ServerState {
+  readonly x: number;
+  readonly y: number;
+  readonly vx: number;
+  readonly vy: number;
+  readonly onGround: boolean;
+  readonly climbing: boolean;
+  readonly facing: number; // -1 left, 1 right
+}
+
+export function wireState(s: ServerState): WireState {
+  return {
+    x: s.x,
+    y: s.y,
+    vx: s.vx,
+    vy: s.vy,
+    on_ground: s.onGround,
+    climbing: s.climbing,
+    facing: s.facing < 0 ? -1 : 1,
+  };
+}
+
 export interface TickEntry {
   readonly seq: number;
   readonly input: Input;

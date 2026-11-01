@@ -1,7 +1,6 @@
 {
-  "t": "ExpGained",
-  "d": {
-    "amount": 5,
-    "exp": 15
+  "exp_gained": {
+    "amount": "5",
+    "exp": "15"
   }
 }

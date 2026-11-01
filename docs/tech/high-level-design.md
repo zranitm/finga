@@ -198,7 +198,7 @@ sequenceDiagram
 - **WebSocket with binary Protobuf** for gameplay.
   - Client to server: inputs with sequence numbers, and actions (attack, pickup, chat, party, market). Commands that change economic state carry an idempotency key.
   - Server to client: snapshots, deltas tagged with tick numbers, events (damage, death, level-up), and acknowledgements.
-- Schemas live in `api/proto` and are generated for Go and TypeScript with buf. `api/` also holds the REST contract (`openapi.yaml`) and the WebSocket message catalogue (`asyncapi.yaml`). Breaking-change checks in CI keep older clients working.
+- Schemas live in `api/proto` and are generated for Go and TypeScript with buf. `api/` also holds the REST contract (`openapi.yaml`); the WebSocket's messages are `api/proto/client/v1` (TD-27), sent binary, or as protojson text for debugging. Breaking-change checks in CI keep older clients working.
 - **Internal:** gRPC between services from Stage 1 (TD-25): unary calls for commands and queries, server streams for delivery to players, versioned contracts in `api/proto/internal/` checked by `buf breaking`. NATS replaces the delivery streams once there are several gateways; Kafka carries durable domain events only.
 
 # 9. Correctness and failure handling

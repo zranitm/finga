@@ -1,6 +1,7 @@
 package wsconn_test
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -136,4 +137,14 @@ func TestProtoCodecPanicsOnAnEnvelopeWithoutABody(t *testing.T) {
 		}
 	}()
 	wsconn.NewProtoCodec(&clientv1.Input{}, &clientv1.ServerMessage{}, wsconn.Binary)
+}
+
+func canon(t *testing.T, b []byte) string {
+	t.Helper()
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		t.Fatalf("not JSON: %s", b)
+	}
+	out, _ := json.Marshal(v)
+	return string(out)
 }

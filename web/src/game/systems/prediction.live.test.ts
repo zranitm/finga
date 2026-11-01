@@ -12,14 +12,14 @@ import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 
 import { InputSender } from './input-sender';
-import { Predictor, STEPS_PER_TICK } from './prediction';
+import { Predictor, STEPS_PER_TICK, wireState } from './prediction';
 import type { Reconciled } from './prediction';
 
 const url = process.env.FINGA_LIVE_URL;
 const delayMs = Number(process.env.FINGA_LIVE_DELAY_MS ?? '0');
 const TICK_MS = 50;
 
-type Wire = Data<'Snapshot'>['players'][number];
+type Wire = Data<'snapshot'>['players'][number];
 type Keys = Partial<Record<'left' | 'right' | 'up' | 'down' | 'jump', boolean>>;
 
 // Short enough to stay clear of the town walls, where a stopped player would hide a disagreement.
@@ -59,27 +59,27 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   let placed = false;
   let lastServer: Wire | undefined;
   const me = (players: readonly Wire[]) => players.find((p) => p.id === c.id);
-  socket.on('Snapshot', (m) => {
+  socket.on('snapshot', (m) => {
     const w = me(m.d.players);
     if (w && !placed) {
-      predictor.reset(w);
+      predictor.reset(wireState(w));
       placed = true;
     }
   });
-  socket.on('Delta', (m) => {
+  socket.on('delta', (m) => {
     const w = me(m.d.players);
     if (w && placed) {
       lastServer = w;
-      const before = predictor.history.find((e) => e.seq, m.d.ack_seq);
-      const r = predictor.reconcile(w, m.d.ack_seq);
+      const before = predictor.history.find((e) => e.seq, m.d.ackSeq);
+      const r = predictor.reconcile(wireState(w), m.d.ackSeq);
       if (r === 'reset' && before) {
         console.log(
-          `reset at ack ${m.d.ack_seq}: dx ${(before.state.x - w.x).toFixed(2)} dy ${(before.state.y - w.y).toFixed(2)}`,
+          `reset at ack ${m.d.ackSeq}: dx ${(before.state.x - w.x).toFixed(2)} dy ${(before.state.y - w.y).toFixed(2)}`,
         );
       }
       if (process.env.FINGA_LIVE_TRACE) {
         console.log(
-          `delta ack ${m.d.ack_seq} sent ${socket.sequence} -> ${r} server x ${w.x.toFixed(1)} pred x ${predictor.state.x.toFixed(1)}`,
+          `delta ack ${m.d.ackSeq} sent ${socket.sequence} -> ${r} server x ${w.x.toFixed(1)} pred x ${predictor.state.x.toFixed(1)}`,
         );
       }
       results.push(r);

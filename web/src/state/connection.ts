@@ -1,5 +1,5 @@
 // Fed by app/wiring; state never imports net.
-import type { KickReason } from '@/protocol/errors';
+import type { KickReason } from '@/protocol/messages';
 
 import { defineStore } from './store';
 

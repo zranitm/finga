@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createRestClient } from '@/net/rest';
 import { clearToken, getToken } from '@/net/token';
+import { KickReason } from '@/protocol/messages';
 import { connection } from '@/state/connection';
 import { ui } from '@/state/ui';
 import { fakeFetch } from '@/testing/fake-fetch';
@@ -116,7 +117,7 @@ describe('LoginScreen', () => {
   });
 
   it('typing in the form captures the keyboard, and shows why the player was kicked', async () => {
-    connection.getState().setConnection('kicked', { kick: 'logged_in_elsewhere' });
+    connection.getState().setConnection('kicked', { kick: KickReason.LOGGED_IN_ELSEWHERE });
     render(
       <LoginScreen
         rest={createRestClient({ origin: '', fetch: fakeFetch(() => ({ status: 500 })).fetch })}
@@ -129,5 +130,16 @@ describe('LoginScreen', () => {
     expect(ui.getState().captureKeyboard).toBe(true);
     field.blur();
     expect(ui.getState().captureKeyboard).toBe(false);
+  });
+
+  it('a kick reason this client does not know still says the server closed the connection', () => {
+    connection.getState().setConnection('kicked', { kick: 99 as KickReason });
+    render(
+      <LoginScreen
+        rest={createRestClient({ origin: '', fetch: fakeFetch(() => ({ status: 500 })).fetch })}
+        onLoggedIn={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('The server closed the connection.')).toBeInTheDocument();
   });
 });

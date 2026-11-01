@@ -12,8 +12,8 @@ import (
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
-	"finga/internal/protocol"
 	"finga/pkg/auth"
 	"finga/services/gateway/internal/model"
 )
@@ -115,7 +115,7 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 	g.mu.Unlock()
 	for _, s := range active {
 		if err := g.deps.Sessions.Check(ctx, uuid.UUID(s.sessionID)); err != nil {
-			s.conn.Kick(protocol.KickSessionExpired)
+			s.conn.Kick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 		}
 	}
 }
@@ -135,7 +135,7 @@ func (g *Gateway) KickSession(sessionID kernel.SessionID) {
 	s := g.bySession[sessionID]
 	g.mu.Unlock()
 	if s != nil {
-		s.conn.Kick(protocol.KickSessionExpired)
+		s.conn.Kick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 	}
 }
 
@@ -147,9 +147,9 @@ func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	if s == nil {
 		return
 	}
-	why := protocol.KickSessionExpired
+	why := clientv1.KickReason_KICK_REASON_SESSION_EXPIRED
 	if newLogin {
-		why = protocol.KickLoggedInElsewhere
+		why = clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE
 	}
 	s.conn.Kick(why)
 }
@@ -175,7 +175,7 @@ func (g *Gateway) Drain(ctx context.Context) {
 	}
 	g.mu.Unlock()
 	for _, c := range conns {
-		c.Kick(protocol.KickServerRestart)
+		c.Kick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
 	}
 	t := time.NewTicker(drainPoll)
 	defer t.Stop()
@@ -204,7 +204,7 @@ func (g *Gateway) Open(c Conn) *Session {
 	draining := g.draining.Load() // under the lock, so Drain cannot miss this connection
 	g.mu.Unlock()
 	if draining {
-		c.Kick(protocol.KickServerRestart)
+		c.Kick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
 	}
 	return s
 }
@@ -324,7 +324,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	sameSession := g.bySession[sessionID]
 	g.byAccount[account] = s
 	g.bySession[sessionID] = s
-	s.character = model.Player{ID: charID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
+	s.character = model.Player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
 	s.setActive()
 	missed := g.worldSubs > subs // the stream broke during the join
 	g.mu.Unlock()
@@ -332,7 +332,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	// The newest connection wins.
 	for _, prev := range []*Session{old, sameSession, previous} {
 		if prev != nil && prev != s {
-			prev.conn.Kick(protocol.KickLoggedInElsewhere)
+			prev.conn.Kick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 		}
 	}
 	if missed {

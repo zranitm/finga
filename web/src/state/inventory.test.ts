@@ -1,46 +1,25 @@
+import { create } from '@bufbuild/protobuf';
+import type { MessageInitShape } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { ItemView } from '@/protocol/messages';
+import { InventoryChangedSchema, ItemViewSchema, WelcomeSchema } from '@/protocol/messages';
+import type { ItemView, InventorySlotSchema } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
-import { allItems, inventory, SLOTS_PER_TAB } from './inventory';
+import { allItems, inventory, isTab, SLOTS_PER_TAB } from './inventory';
 
-const potion: ItemView = {
-  item_id: 'i-potion',
-  template: 'red_potion',
-  tab: 'use',
-  slot: 0,
-  quantity: 5,
-};
-const sword: ItemView = {
-  item_id: 'i-sword',
-  template: 'wooden_sword',
-  tab: 'equip',
-  slot: 0,
-  quantity: 1,
-};
-const gel: ItemView = { item_id: 'i-gel', template: 'slime_gel', tab: 'etc', slot: 2, quantity: 2 };
+const item = (itemId: string, template: string, tab: string, slot: number, quantity: number) =>
+  create(ItemViewSchema, { itemId, template, tab, slot, quantity });
+const potion = item('i-potion', 'red_potion', 'use', 0, 5);
+const sword = item('i-sword', 'wooden_sword', 'equip', 0, 1);
+const gel = item('i-gel', 'slime_gel', 'etc', 2, 2);
 
 function welcomeWith(items: ItemView[]) {
-  return {
-    token: 't',
-    character: {
-      id: 'c',
-      name: 'Ayla',
-      class: 'warrior',
-      level: 1,
-      exp: 0,
-      stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
-      hp: 204,
-      max_hp: 204,
-      mp: 28,
-      max_mp: 28,
-    },
-    inventory: items,
-    map_id: 'town',
-    tick: 1,
-    server_time: 0,
-  };
+  return create(WelcomeSchema, { token: 't', inventory: items, mapId: 'town' });
+}
+
+function changed(slots: MessageInitShape<typeof InventorySlotSchema>[]) {
+  return create(InventoryChangedSchema, { slots });
 }
 
 describe('inventory store', () => {
@@ -70,32 +49,32 @@ describe('inventory store', () => {
       name: 'a move empties the source and fills the target',
       before: [potion],
       change: [
-        { tab: 'use' as const, slot: 0 },
-        { tab: 'use' as const, slot: 3, item: { ...potion, slot: 3 } },
+        { tab: 'use', slot: 0 },
+        { tab: 'use', slot: 3, item: { ...potion, slot: 3 } },
       ],
       want: { use: { 0: null, 3: { ...potion, slot: 3 } } },
     },
     {
       name: 'a stack grows in place',
       before: [potion],
-      change: [{ tab: 'use' as const, slot: 0, item: { ...potion, quantity: 6 } }],
+      change: [{ tab: 'use', slot: 0, item: { ...potion, quantity: 6 } }],
       want: { use: { 0: { ...potion, quantity: 6 } } },
     },
     {
       name: 'a discard removes the item',
       before: [gel],
-      change: [{ tab: 'etc' as const, slot: 2 }],
+      change: [{ tab: 'etc', slot: 2 }],
       want: { etc: { 2: null } },
     },
     {
       name: 'a pickup fills a free slot',
       before: [],
-      change: [{ tab: 'etc' as const, slot: 0, item: { ...gel, slot: 0 } }],
+      change: [{ tab: 'etc', slot: 0, item: { ...gel, slot: 0 } }],
       want: { etc: { 0: { ...gel, slot: 0 } } },
     },
   ])('$name', ({ before, change, want }) => {
     inventory.getState().applyWelcome(welcomeWith(before));
-    inventory.getState().applyInventoryChanged({ slots: change });
+    inventory.getState().applyInventoryChanged(changed(change));
     const { slots } = inventory.getState();
     for (const [tab, expected] of Object.entries(want) as [
       'use' | 'etc',
@@ -109,11 +88,13 @@ describe('inventory store', () => {
 
   it('a slot never holds two items: the latest payload for a slot wins', () => {
     inventory.getState().applyWelcome(welcomeWith([potion]));
-    inventory.getState().applyInventoryChanged({
-      slots: [{ tab: 'use', slot: 0, item: { ...gel, tab: 'use', slot: 0 } }],
-    });
+    inventory
+      .getState()
+      .applyInventoryChanged(
+        changed([{ tab: 'use', slot: 0, item: { ...gel, tab: 'use', slot: 0 } }]),
+      );
     const { slots } = inventory.getState();
-    expect(slots.use[0]?.item_id).toBe('i-gel');
+    expect(slots.use[0]?.itemId).toBe('i-gel');
     expect(allItems(slots)).toHaveLength(1);
   });
 
@@ -125,9 +106,11 @@ describe('inventory store', () => {
     expect(allItems(before)).toEqual([sword, potion]);
   });
 
-  it('ignores a slot outside the tab, and clears', () => {
-    inventory.getState().applyInventoryChanged({ slots: [{ tab: 'use', slot: 99, item: potion }] });
+  it('ignores a slot outside the tab or in a tab this client does not know, and clears', () => {
+    inventory.getState().applyInventoryChanged(changed([{ tab: 'use', slot: 99, item: potion }]));
+    inventory.getState().applyInventoryChanged(changed([{ tab: 'cash', slot: 0, item: potion }]));
     expect(allItems(inventory.getState().slots)).toEqual([]);
+    expect([isTab('equip'), isTab('cash')]).toEqual([true, false]);
     inventory.getState().applyWelcome(welcomeWith([potion]));
     inventory.getState().clear();
     expect(allItems(inventory.getState().slots)).toEqual([]);

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { KickReason } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
 import { connection } from './connection';
@@ -23,13 +24,13 @@ describe('session, connection and ui stores', () => {
     connection.getState().setConnection('connecting');
     connection.getState().setConnection('reconnecting', { attempt: 3 });
     expect(connection.getState()).toMatchObject({ status: 'reconnecting', attempt: 3, kick: null });
-    connection.getState().setConnection('kicked', { kick: 'logged_in_elsewhere' });
+    connection.getState().setConnection('kicked', { kick: KickReason.LOGGED_IN_ELSEWHERE });
     expect(connection.getState()).toMatchObject({
       status: 'kicked',
       attempt: 0,
-      kick: 'logged_in_elsewhere',
+      kick: KickReason.LOGGED_IN_ELSEWHERE,
     });
-    connection.getState().setConnection('connected', { kick: 'abuse' });
+    connection.getState().setConnection('connected', { kick: KickReason.ABUSE });
     expect(connection.getState().kick).toBeNull(); // a kick reason only makes sense when kicked
     connection.getState().setRtt(42);
     expect(connection.getState().rtt).toBe(42);

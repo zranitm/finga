@@ -16,7 +16,7 @@ In order. Each step brings the system closer to the High-level design.
 
 1. **Public demo:** nginx, Cloudflare, and Terraform on one VPS (TD-05, TD-12, TD-13).
 2. **Event pipeline:** outbox relay and Kafka; the auditor becomes a consumer; trade-history and price-candles arrive with F5 (TD-04, TD-14).
-3. **Protocol:** Protobuf with buf and breaking-change checks.
+3. **Protocol:** done in Stage 1 (TD-27): the WebSocket speaks Protobuf, with buf's breaking-change checks.
 4. **Observability:** Prometheus and Grafana dashboards.
 5. **Load and chaos:** the bot client, load tests to the TD-08 target, and chaos tests verified by the auditor.
 6. **Scale out:** channels (B4), then more nodes per service: several gateways and world nodes, a registry of which node owns which map, NATS in place of the delivery streams, and economy and market inside the item service (HLD section 15). The split into services itself happened in Stage 1 (TD-25).

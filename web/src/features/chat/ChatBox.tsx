@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import type { GameSocket } from '@/net/socket';
-import type { ChatChannel } from '@/protocol/messages';
+import { ChatChannel } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { ui } from '@/state/ui';
 
@@ -17,7 +17,9 @@ export interface ChatBoxProps {
 /** "/p hello" is a party line; anything else is a map line. */
 export function parseLine(raw: string): { channel: ChatChannel; text: string } {
   const m = /^\/p(?:\s+|$)(.*)$/s.exec(raw);
-  return m ? { channel: 'party', text: m[1]!.trim() } : { channel: 'map', text: raw.trim() };
+  return m
+    ? { channel: ChatChannel.PARTY, text: m[1]!.trim() }
+    : { channel: ChatChannel.MAP, text: raw.trim() };
 }
 
 export function ChatBox({ socket }: ChatBoxProps) {
@@ -48,7 +50,7 @@ export function ChatBox({ socket }: ChatBoxProps) {
     if (text === '' || over) {
       return;
     }
-    socket.send('ChatSend', { channel, text });
+    socket.send('chatSend', { channel, text });
     setDraft('');
     input.current?.blur();
   };
@@ -57,9 +59,12 @@ export function ChatBox({ socket }: ChatBoxProps) {
     <div className="chat" aria-label="Chat">
       <ul className="chat-lines" aria-live="polite">
         {lines.slice(-SHOWN_LINES).map((l) => (
-          <li key={`${l.at}-${l.sender}-${l.text}`} className={`chat-line chat-${l.channel}`}>
-            <span className="chat-tag">[{l.channel === 'party' ? 'Party' : 'Map'}]</span>{' '}
-            <strong>{l.sender_name}:</strong> {l.text}
+          <li
+            key={`${l.at}-${l.sender}-${l.text}`}
+            className={`chat-line chat-${l.channel === ChatChannel.PARTY ? 'party' : 'map'}`}
+          >
+            <span className="chat-tag">[{l.channel === ChatChannel.PARTY ? 'Party' : 'Map'}]</span>{' '}
+            <strong>{l.senderName}:</strong> {l.text}
           </li>
         ))}
       </ul>

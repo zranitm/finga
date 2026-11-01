@@ -1,3 +1,25 @@
+import { create, fromBinary, fromJsonString, toBinary, toJsonString } from '@bufbuild/protobuf';
+import type { MessageInitShape } from '@bufbuild/protobuf';
+
+import { jsonCodec } from '@/protocol/codec';
+import { ClientMessageSchema, ServerMessageSchema } from '@/protocol/messages';
+import type { ClientBody, ClientMessageType, MessageType } from '@/protocol/messages';
+
+type ServerBodyInit = Extract<
+  MessageInitShape<typeof ServerMessageSchema>['body'],
+  { case: MessageType }
+>;
+/** A server message as a test writes it: any field left out is its default. */
+export type ServerInit<T extends MessageType> = Extract<ServerBodyInit, { case: T }>['value'];
+
+/** A sent ClientMessage, flattened like the socket's Received. */
+export interface SentFrame {
+  readonly t: ClientMessageType | undefined;
+  readonly seq: number;
+  readonly req: string;
+  readonly d: ClientBody['value'] | undefined;
+}
+
 export class FakeWebSocket {
   static instances: FakeWebSocket[] = [];
 
@@ -19,7 +41,8 @@ export class FakeWebSocket {
   static readonly CLOSED = 3;
 
   readyState = FakeWebSocket.CONNECTING;
-  readonly sent: string[] = [];
+  binaryType: BinaryType = 'blob';
+  readonly sent: (string | Uint8Array)[] = [];
   closedWith: { code: number; reason: string } | null = null;
 
   onopen: ((ev: Event) => void) | null = null;
@@ -27,15 +50,23 @@ export class FakeWebSocket {
   onclose: ((ev: CloseEvent) => void) | null = null;
   onerror: ((ev: Event) => void) | null = null;
 
-  constructor(readonly url: string) {
+  constructor(
+    readonly url: string,
+    readonly protocols: string[] = [],
+  ) {
     FakeWebSocket.instances.push(this);
   }
 
-  send(data: string | ArrayBuffer): void {
+  /** The server takes the first subprotocol asked for. */
+  get protocol(): string {
+    return this.protocols[0] ?? '';
+  }
+
+  send(data: string | Uint8Array): void {
     if (this.readyState !== FakeWebSocket.OPEN) {
       throw new Error('send on a socket that is not open');
     }
-    this.sent.push(typeof data === 'string' ? data : new TextDecoder().decode(data));
+    this.sent.push(data);
   }
 
   close(code = 1000, reason = ''): void {
@@ -52,8 +83,23 @@ export class FakeWebSocket {
     this.onopen?.(new Event('open'));
   }
 
-  push(frame: string | object): void {
-    const data = typeof frame === 'string' ? frame : JSON.stringify(frame);
+  /** Sends a server message in the subprotocol's codec. */
+  push<T extends MessageType>(
+    t: T,
+    d: ServerInit<T>,
+    envelope: { readonly req?: string; readonly tick?: number } = {},
+  ): void {
+    const body = { case: t, value: d } as ServerBodyInit;
+    const msg = create(ServerMessageSchema, { ...envelope, body });
+    this.pushRaw(
+      this.protocol === jsonCodec.subprotocol
+        ? toJsonString(ServerMessageSchema, msg, { useProtoFieldName: true })
+        : toBinary(ServerMessageSchema, msg).buffer,
+    );
+  }
+
+  /** Sends a frame as it is, such as one no codec would write. */
+  pushRaw(data: unknown): void {
     this.onmessage?.({ data } as MessageEvent<unknown>);
   }
 
@@ -62,11 +108,18 @@ export class FakeWebSocket {
     this.onclose?.({ code, reason, wasClean: true } as CloseEvent);
   }
 
-  frames(): { t: string; req?: string; seq?: number; d: Record<string, unknown> }[] {
-    return this.sent.map(
-      (s) => JSON.parse(s) as { t: string; req?: string; seq?: number; d: Record<string, unknown> },
-    );
+  frames(): SentFrame[] {
+    return this.sent.map((raw) => {
+      const msg =
+        typeof raw === 'string'
+          ? fromJsonString(ClientMessageSchema, raw)
+          : fromBinary(ClientMessageSchema, raw);
+      return { t: msg.body.case, seq: msg.seq, req: msg.req, d: msg.body.value };
+    });
   }
 }
 
-export const fakeWebSocketClass = FakeWebSocket as unknown as new (url: string) => WebSocket;
+export const fakeWebSocketClass = FakeWebSocket as unknown as new (
+  url: string,
+  protocols: string[],
+) => WebSocket;

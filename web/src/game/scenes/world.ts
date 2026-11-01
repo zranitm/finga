@@ -32,7 +32,7 @@ import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { DropTracker, PickupSystem, boxCentre } from '../systems/pickup';
 import { PortalSystem, standsIn } from '../systems/portals';
-import { Predictor } from '../systems/prediction';
+import { Predictor, wireState } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
 
@@ -52,9 +52,9 @@ function mapTitle(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
 }
 
-type Wire = Data<'Snapshot'>['players'][number];
-type MobWire = Data<'Snapshot'>['mobs'][number];
-type DropWire = Data<'Snapshot'>['drops'][number];
+type Wire = Data<'snapshot'>['players'][number];
+type MobWire = Data<'snapshot'>['mobs'][number];
+type DropWire = Data<'snapshot'>['drops'][number];
 
 const ARROW_RANGE = 420;
 const ARROW_MS = 300;
@@ -185,12 +185,12 @@ export class World extends Phaser.Scene {
     this.mobs.clear();
     this.drops.clear();
     this.numbers.clear();
-    this.pickup = new PickupSystem(() => socket.sendAction('PickUp'));
-    const portals = new PortalSystem(() => socket.sendAction('EnterPortal'));
+    this.pickup = new PickupSystem(() => socket.sendAction('pickUp'));
+    const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
     this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), () =>
-      socket.sendAction('Attack'),
+      socket.sendAction('attack'),
     );
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
@@ -240,33 +240,34 @@ export class World extends Phaser.Scene {
         },
       }),
       ui.subscribe((s) => sender.setCaptured(s.captureKeyboard)),
-      socket.on('Snapshot', (m) =>
+      socket.on('snapshot', (m) =>
         this.onSnapshot(m.d.players, m.d.mobs, m.d.drops, this.tickOf(m.tick)),
       ),
-      socket.on('Delta', (m) =>
+      socket.on('delta', (m) =>
         this.onDelta(
           m.d.players,
-          m.d.removed_players,
+          m.d.removedPlayers,
           m.d.mobs,
-          m.d.removed_mobs,
+          m.d.removedMobs,
           m.d.drops,
-          m.d.removed_drops,
-          m.d.ack_seq,
+          m.d.removedDrops,
+          m.d.ackSeq,
           this.tickOf(m.tick),
         ),
       ),
-      socket.on('Correction', (m) => this.onCorrection(m.d)),
-      socket.on('Welcome', (m) => this.onWelcome(m.d.map_id)),
-      socket.on('Damage', (m) => this.onDamage(m.d)),
-      socket.on('Died', (m) => this.onTransition({ t: 'Died', d: m.d })),
-      socket.on('Respawned', (m) => this.onTransition({ t: 'Respawned', d: m.d })),
-      socket.on('MapChange', (m) => this.onTransition({ t: 'MapChange', d: m.d })),
-      socket.on('LevelUp', () => this.onLevelUp()),
+      socket.on('correction', (m) => this.onCorrection(m.d)),
+      socket.on('welcome', (m) => this.onWelcome(m.d.mapId)),
+      socket.on('damage', (m) => this.onDamage(m.d)),
+      socket.on('died', (m) => this.onTransition({ t: 'died', d: m.d })),
+      socket.on('respawned', (m) => this.onTransition({ t: 'respawned', d: m.d })),
+      socket.on('mapChange', (m) => this.onTransition({ t: 'mapChange', d: m.d })),
+      socket.on('levelUp', () => this.onLevelUp()),
     );
   }
 
-  private tickOf(tick: number | undefined): number {
-    this.lastTick = tick ?? this.lastTick + 1;
+  /** proto3 sends no tick as 0. */
+  private tickOf(tick: number): number {
+    this.lastTick = tick === 0 ? this.lastTick + 1 : tick;
     return this.lastTick;
   }
 
@@ -404,7 +405,7 @@ export class World extends Phaser.Scene {
     if (!me || !this.predictor || !this.player) {
       return;
     }
-    this.predictor.reset(me);
+    this.predictor.reset(wireState(me));
     this.placed = true;
     this.player.setVisible(true);
     this.player.apply(this.predictor.state);
@@ -431,7 +432,7 @@ export class World extends Phaser.Scene {
       return;
     }
     if (!this.transitionState.dead) {
-      this.predictor.reconcile(me, ackSeq);
+      this.predictor.reconcile(wireState(me), ackSeq);
     }
     this.applySelf(me);
   }
@@ -442,9 +443,9 @@ export class World extends Phaser.Scene {
   }
 
   /** A Correction carries no facing; the current one stays. */
-  private onCorrection(c: Data<'Correction'>): void {
+  private onCorrection(c: Data<'correction'>): void {
     if (this.predictor && this.placed) {
-      this.predictor.correct({ ...c, facing: this.predictor.state.facing }, c.seq);
+      this.predictor.correct(wireState({ ...c, facing: this.predictor.state.facing }), c.seq);
     }
   }
 
@@ -532,7 +533,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  private onDamage(d: Data<'Damage'>): void {
+  private onDamage(d: Data<'damage'>): void {
     const target = parseRef(d.target);
     if (!target) {
       return;

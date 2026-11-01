@@ -28,7 +28,8 @@ Everything stays inside `server/`, the Go module (R2), and Compose stays in `inf
 ```txt
 server/
   api/
-    openapi.yaml  asyncapi.yaml       the public contracts, served by the gateway
+    openapi.yaml                      the REST contract
+    proto/client/v1/                  the WebSocket contract (TD-27)
     proto/internal/<service>/v1/      the internal gRPC contracts, one package per service
     gen/<service>/v1/                 generated Go code (committed; make gen)
   services/

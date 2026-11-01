@@ -7,6 +7,7 @@ import { GameHandle } from '@/game/main';
 import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
+import { KickReason } from '@/protocol/messages';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { Script } from '@/testing/fake-fetch';
 import { FakeGame } from '@/testing/fake-phaser';
@@ -18,13 +19,12 @@ import { socketUrl } from './services';
 
 vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
 
+const { id, name, level, hp, mp } = sampleCharacter;
 const welcome = {
   token: 'tok-rotated',
-  character: { ...sampleCharacter, max_hp: 204, max_mp: 28 },
-  inventory: [],
-  map_id: 'town',
+  character: { id, name, class: sampleCharacter.class, level, hp, maxHp: hp, mp, maxMp: mp },
+  mapId: 'town',
   tick: 1,
-  server_time: 0,
 };
 
 function services(script: Script) {
@@ -78,8 +78,8 @@ describe('App', () => {
     const ws = FakeWebSocket.latest();
     expect(ws.url).toBe('ws://game.test/ws');
     ws.open();
-    expect(ws.frames()[0]?.d).toMatchObject({ token: 'tok-1', character_id: 'c-ayla' });
-    ws.push({ t: 'Welcome', d: welcome });
+    expect(ws.frames()[0]?.d).toMatchObject({ token: 'tok-1', characterId: 'c-ayla' });
+    ws.push('welcome', welcome);
     expect(await screen.findByLabelText('Status')).toHaveTextContent('Ayla');
     expect(screen.getByText('Lv. 1')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '204');
@@ -112,9 +112,9 @@ describe('App', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
     const ws = FakeWebSocket.latest();
     ws.open();
-    ws.push({ t: 'Welcome', d: welcome });
+    ws.push('welcome', welcome);
     await waitFor(() => expect(game.started).toHaveLength(1));
-    ws.push({ t: 'Kicked', d: { reason: 'logged_in_elsewhere' } });
+    ws.push('kicked', { reason: KickReason.LOGGED_IN_ELSEWHERE });
     ws.closeFromServer(4003);
     expect(await screen.findByRole('form', { name: 'Log in' })).toBeInTheDocument();
     expect(game.stopped).toEqual([SCENES.World]);

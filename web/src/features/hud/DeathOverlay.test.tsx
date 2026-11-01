@@ -1,6 +1,8 @@
+import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ExpGainedSchema, WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -12,21 +14,15 @@ const ayla = {
   name: 'Ayla',
   class: 'warrior',
   level: 1,
-  exp: 10,
+  exp: 10n,
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 150,
-  max_hp: 204,
+  maxHp: 204,
   mp: 20,
-  max_mp: 28,
+  maxMp: 28,
 };
-const welcome = {
-  token: 'tok',
-  character: ayla,
-  inventory: [],
-  map_id: 'town',
-  tick: 1,
-  server_time: 0,
-};
+const welcome = create(WelcomeSchema, { token: 'tok', character: ayla, mapId: 'town', tick: 1 });
+const gained = (amount: bigint, exp: bigint) => create(ExpGainedSchema, { amount, exp });
 
 describe('DeathOverlay', () => {
   beforeEach(() => {
@@ -55,7 +51,7 @@ describe('Hud EXP changes', () => {
 
   it('a negative ExpGained lowers the EXP bar and shows a loss, which fades after two seconds', () => {
     render(<Hud />);
-    act(() => character.getState().applyExpGained({ amount: -1, exp: 9 }));
+    act(() => character.getState().applyExpGained(gained(-1n, 9n)));
     expect(screen.getByRole('meter', { name: 'EXP' })).toHaveAttribute('aria-valuenow', '9');
     const loss = screen.getByRole('status');
     expect(loss).toHaveTextContent('−1 EXP');
@@ -68,14 +64,14 @@ describe('Hud EXP changes', () => {
 
   it('a gain shows as a gain, and a second gain shows again', () => {
     render(<Hud />);
-    act(() => character.getState().applyExpGained({ amount: 5, exp: 15 }));
+    act(() => character.getState().applyExpGained(gained(5n, 15n)));
     expect(screen.getByRole('status')).toHaveTextContent('+5 EXP');
     expect(screen.getByRole('status')).toHaveClass('exp-gain');
     act(() => {
       vi.advanceTimersByTime(2000);
     });
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    act(() => character.getState().applyExpGained({ amount: 3, exp: 18 }));
+    act(() => character.getState().applyExpGained(gained(3n, 18n)));
     expect(screen.getByRole('status')).toHaveTextContent('+3 EXP');
   });
 });

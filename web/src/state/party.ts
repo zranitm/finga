@@ -3,18 +3,18 @@ import type { Data, PartyView } from '@/protocol/messages';
 import { defineStore } from './store';
 
 export interface Invite {
-  readonly invite_id: string;
+  readonly inviteId: string;
   readonly from: string;
-  readonly from_name: string;
+  readonly fromName: string;
   readonly at: number; // Unix ms; expires 30 s later
 }
 
 export interface PartyState {
   readonly party: PartyView | null;
   readonly invites: readonly Invite[];
-  applyWelcome(d: Data<'Welcome'>): void;
-  applyPartyState(d: Data<'PartyState'>): void;
-  applyPartyInvited(d: Data<'PartyInvited'>, at?: number): void;
+  applyWelcome(d: Data<'welcome'>): void;
+  applyPartyState(d: Data<'partyState'>): void;
+  applyPartyInvited(d: Data<'partyInvited'>, at?: number): void;
   dismissInvite(inviteId: string): void;
   clear(): void;
 }
@@ -26,14 +26,14 @@ export const party = defineStore<PartyState>((set, get) => ({
     set({ party: d.party ?? null });
   },
   applyPartyState: (d) => {
-    set({ party: d.party });
+    set({ party: d.party ?? null });
   },
-  applyPartyInvited: (d, at = Date.now()) => {
-    const invites = get().invites.filter((i) => i.invite_id !== d.invite_id);
-    set({ invites: [...invites, { ...d, at }] });
+  applyPartyInvited: ({ inviteId, from, fromName }, at = Date.now()) => {
+    const invites = get().invites.filter((i) => i.inviteId !== inviteId);
+    set({ invites: [...invites, { inviteId, from, fromName, at }] });
   },
   dismissInvite: (inviteId) => {
-    set({ invites: get().invites.filter((i) => i.invite_id !== inviteId) });
+    set({ invites: get().invites.filter((i) => i.inviteId !== inviteId) });
   },
   clear: () => {
     set({ party: null, invites: [] });
@@ -41,5 +41,5 @@ export const party = defineStore<PartyState>((set, get) => ({
 }));
 
 export function isMember(p: PartyView | null, id: string): boolean {
-  return p?.members.some((m) => m.character_id === id) ?? false;
+  return p?.members.some((m) => m.characterId === id) ?? false;
 }

@@ -6,40 +6,55 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
-	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
 
-// The golden files are the wire contract with the client; -update rewrites them after a deliberate change.
+// The golden files show every message as protojson; -update rewrites them after a deliberate change.
 var update = flag.Bool("update", false, "rewrite testdata/contracts from the samples")
 
 const contractsDir = "../../testdata/contracts"
 
+// codecFor is the codec that writes m: the client's for its messages, the server's for the rest.
+func codecFor(m wsconn.Message, f wsconn.Format) *wsconn.ProtoCodec {
+	if slices.Contains(protocol.ClientMessages(), m.Type) {
+		return protocol.ClientCodec(f)
+	}
+	return protocol.ServerCodec(f)
+}
+
+// readerFor decodes what codecFor wrote.
+func readerFor(m wsconn.Message, f wsconn.Format) *wsconn.ProtoCodec {
+	if slices.Contains(protocol.ClientMessages(), m.Type) {
+		return protocol.ServerCodec(f)
+	}
+	return protocol.ClientCodec(f)
+}
+
 func TestGoldenFiles(t *testing.T) {
-	codec := protocol.NewCodec()
 	samples := protocol.Samples()
 	seen := map[string]bool{}
 	for _, m := range samples {
-		if m.Type == "" {
-			t.Fatalf("sample without a type: %+v", m)
-		}
 		if seen[m.Type] {
 			t.Fatalf("two samples for %s", m.Type)
 		}
 		seen[m.Type] = true
 	}
-	for _, name := range codec.Types() {
+	for _, name := range append(protocol.ClientMessages(), protocol.ServerMessages()...) {
 		if !seen[name] {
-			t.Errorf("registered type %s has no sample, so no golden file", name)
+			t.Errorf("message %s has no sample, so no golden file", name)
 		}
 	}
 	for _, m := range samples {
 		t.Run(m.Type, func(t *testing.T) {
-			encoded, err := codec.Encode(m)
+			encoded, err := codecFor(m, wsconn.JSON).Encode(m)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,27 +74,24 @@ func TestGoldenFiles(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%v; run with -update after a deliberate change", err)
 			}
-			decoded, err := codec.Decode(golden)
+			decoded, err := readerFor(m, wsconn.JSON).Decode(golden)
 			if err != nil {
 				t.Fatalf("golden does not decode: %v", err)
 			}
-			if !reflect.DeepEqual(decoded, m) {
-				t.Fatalf("golden decodes to\n%+v\nwant the sample\n%+v", decoded, m)
-			}
+			same(t, decoded, m)
 			if canon(t, encoded) != canon(t, golden) {
 				t.Fatalf("re-encoded\n%s\ngolden\n%s", encoded, golden)
 			}
 		})
 	}
-	t.Run("every golden file is a registered type", func(t *testing.T) {
+	t.Run("every golden file is a message", func(t *testing.T) {
 		files, err := filepath.Glob(filepath.Join(contractsDir, "*.json"))
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, f := range files {
-			name := strings.TrimSuffix(filepath.Base(f), ".json")
-			if !seen[name] {
-				t.Errorf("%s has no registered type", name)
+			if name := strings.TrimSuffix(filepath.Base(f), ".json"); !seen[name] {
+				t.Errorf("%s is no message", name)
 			}
 		}
 		if len(files) != len(samples) {
@@ -88,56 +100,60 @@ func TestGoldenFiles(t *testing.T) {
 	})
 }
 
+func TestEverySampleSurvivesTheBinaryFormat(t *testing.T) {
+	for _, m := range protocol.Samples() {
+		b, err := codecFor(m, wsconn.Binary).Encode(m)
+		if err != nil {
+			t.Fatalf("%s: %v", m.Type, err)
+		}
+		decoded, err := readerFor(m, wsconn.Binary).Decode(b)
+		if err != nil {
+			t.Fatalf("%s: %v", m.Type, err)
+		}
+		same(t, decoded, m)
+	}
+}
+
 func TestCatalogueCoversPage4(t *testing.T) {
-	codec := protocol.NewCodec()
-	have := map[string]bool{}
-	for _, name := range codec.Types() {
-		have[name] = true
+	want := map[string][]string{
+		"client": {"Attack", "ChatSend", "EnterPortal", "Hello", "Input", "InventoryDiscard", "InventoryMove",
+			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping"},
+		"server": {"ChatMessage", "Correction", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
+			"LevelUp", "MapChange", "PartyInvited", "PartyState", "Pong", "Respawned", "Response", "Snapshot", "Welcome"},
 	}
-	want := []string{
-		// client to server
-		"Hello", "Input", "Attack", "PickUp", "EnterPortal", "ChatSend",
-		"PartyInvite", "PartyRespond", "PartyLeave", "PartyKick", "PartyPromote",
-		"InventoryMove", "InventoryDiscard", "Ping",
-		// server to client
-		"Welcome", "Snapshot", "Delta", "Correction", "Damage", "Died", "Respawned",
-		"ExpGained", "LevelUp", "InventoryChanged", "MapChange", "ChatMessage",
-		"PartyState", "PartyInvited", "Response", "Kicked", "Pong",
+	if got := protocol.ClientMessages(); !slices.Equal(got, want["client"]) {
+		t.Errorf("client messages %v", got)
 	}
-	for _, name := range want {
-		if !have[name] {
-			t.Errorf("page 4 message %s is not registered", name)
-		}
-	}
-	for _, name := range codec.Types() {
-		if strings.HasPrefix(name, "Market") || name == "WalletChanged" {
-			t.Errorf("%s is Stage 2", name)
-		}
+	if got := protocol.ServerMessages(); !slices.Equal(got, want["server"]) {
+		t.Errorf("server messages %v", got)
 	}
 }
 
-func TestKickReasons(t *testing.T) {
-	for _, r := range []protocol.KickReason{protocol.KickLoggedInElsewhere, protocol.KickOutdatedProtocol, protocol.KickServerRestart, protocol.KickAbuse, protocol.KickUnauthenticated} {
-		if r == "" {
-			t.Fatal("empty reason")
-		}
-	}
-	if protocol.Version < 1 {
-		t.Fatal("protocol version must start at 1")
-	}
-}
-
-func TestEnvelopeOnTheWire(t *testing.T) {
-	// The client relies on these exact envelope keys.
-	codec := protocol.NewCodec()
-	b, err := codec.Encode(wsconn.Message{Type: "Delta", Tick: 81234, Data: protocol.Delta{AckSeq: 117}})
+func TestTheDebugFormatReadsLikeTheSchema(t *testing.T) {
+	b, err := protocol.ServerCodec(wsconn.JSON).Encode(wsconn.Message{Tick: 81234, Data: &clientv1.Delta{AckSeq: 117}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{`"t":"Delta"`, `"tick":81234`, `"ack_seq":117`} {
-		if !strings.Contains(string(b), key) {
-			t.Fatalf("%s lacks %s", b, key)
-		}
+	if canon(t, b) != `{"delta":{"ack_seq":117},"tick":81234}` {
+		t.Fatalf("encoded %s", b)
+	}
+}
+
+func TestTheServerPrefersBinary(t *testing.T) {
+	sps := protocol.Subprotocols()
+	if len(sps) != 2 || sps[0].Name != protocol.SubprotocolProto || !sps[0].Codec.Binary() || sps[1].Name != protocol.SubprotocolJSON || sps[1].Codec.Binary() {
+		t.Fatalf("subprotocols %+v", sps)
+	}
+	if protocol.Version < 1 {
+		t.Fatal("the protocol version starts at 1")
+	}
+}
+
+func same(t *testing.T, got, want wsconn.Message) {
+	t.Helper()
+	if got.Type != want.Type || got.Seq != want.Seq || got.ReqID != want.ReqID || got.Tick != want.Tick ||
+		!proto.Equal(got.Data.(proto.Message), want.Data.(proto.Message)) {
+		t.Fatalf("decoded %+v\nwant %+v", got, want)
 	}
 }
 

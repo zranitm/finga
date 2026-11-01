@@ -51,26 +51,26 @@ export function PartyWindow({ socket, me, onClose, onFocusChange }: PartyWindowP
         {current ? (
           <ul className="party-members" aria-label="Members">
             {current.members.map((m) => (
-              <li key={m.character_id} className={m.online ? '' : 'party-offline'}>
+              <li key={m.characterId} className={m.online ? '' : 'party-offline'}>
                 <div className="party-member-head">
                   <strong>
                     {m.name}
-                    {m.character_id === current.leader ? ' (leader)' : ''}
+                    {m.characterId === current.leader ? ' (leader)' : ''}
                   </strong>
                   <span>
-                    Lv. {m.level} · {m.map_id}
+                    Lv. {m.level} · {m.mapId}
                     {m.online ? '' : ' · offline'}
                   </span>
                 </div>
-                <Bar label={`${m.name} HP`} value={m.hp} max={m.max_hp} kind="hp" />
-                {leader && m.character_id !== me && (
+                <Bar label={`${m.name} HP`} value={m.hp} max={m.maxHp} kind="hp" />
+                {leader && m.characterId !== me && (
                   <div className="row">
                     <Button
                       variant="quiet"
                       disabled={busy}
                       onClick={() =>
                         void run(() =>
-                          socket.request('PartyPromote', { character_id: m.character_id }),
+                          socket.request('partyPromote', { characterId: m.characterId }),
                         )
                       }
                     >
@@ -80,9 +80,7 @@ export function PartyWindow({ socket, me, onClose, onFocusChange }: PartyWindowP
                       variant="danger"
                       disabled={busy}
                       onClick={() =>
-                        void run(() =>
-                          socket.request('PartyKick', { character_id: m.character_id }),
-                        )
+                        void run(() => socket.request('partyKick', { characterId: m.characterId }))
                       }
                     >
                       Kick
@@ -99,7 +97,7 @@ export function PartyWindow({ socket, me, onClose, onFocusChange }: PartyWindowP
           <Button
             variant="quiet"
             disabled={busy}
-            onClick={() => void run(() => socket.request('PartyLeave', {}))}
+            onClick={() => void run(() => socket.request('partyLeave', {}))}
           >
             Leave party
           </Button>
@@ -116,7 +114,7 @@ export function PartyWindow({ socket, me, onClose, onFocusChange }: PartyWindowP
                   variant="quiet"
                   disabled={busy || full}
                   onClick={() =>
-                    void run(() => socket.request('PartyInvite', { character_id: p.id }))
+                    void run(() => socket.request('partyInvite', { characterId: p.id }))
                   }
                 >
                   Invite

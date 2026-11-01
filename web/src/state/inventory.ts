@@ -1,17 +1,23 @@
 // Only Welcome and InventoryChanged change it, so a refused move leaves it as it was.
-import type { Data, ItemView, Tab } from '@/protocol/messages';
+import type { Data, ItemView } from '@/protocol/messages';
 
 import { defineStore } from './store';
 
 export const SLOTS_PER_TAB = 24;
-export const tabs: readonly Tab[] = ['equip', 'use', 'etc'];
+export const tabs = ['equip', 'use', 'etc'] as const;
+export type Tab = (typeof tabs)[number];
+
+/** Tabs are strings on the wire; a slot in a tab this client does not know is skipped. */
+export function isTab(tab: string): tab is Tab {
+  return (tabs as readonly string[]).includes(tab);
+}
 
 export type Slots = Readonly<Record<Tab, readonly (ItemView | null)[]>>;
 
 export interface InventoryState {
   readonly slots: Slots;
-  applyWelcome(d: Data<'Welcome'>): void;
-  applyInventoryChanged(d: Data<'InventoryChanged'>): void;
+  applyWelcome(d: Data<'welcome'>): void;
+  applyInventoryChanged(d: Data<'inventoryChanged'>): void;
   clear(): void;
 }
 
@@ -23,8 +29,8 @@ function emptySlots(): Slots {
   };
 }
 
-function place(slots: Slots, tab: Tab, slot: number, item: ItemView | null): Slots {
-  if (slot < 0 || slot >= SLOTS_PER_TAB) {
+function place(slots: Slots, tab: string, slot: number, item: ItemView | null): Slots {
+  if (!isTab(tab) || slot < 0 || slot >= SLOTS_PER_TAB) {
     return slots;
   }
   const row = [...slots[tab]];

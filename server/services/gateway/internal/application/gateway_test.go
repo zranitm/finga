@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
-	"finga/internal/protocol"
 	"finga/pkg/auth"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
@@ -42,7 +42,7 @@ func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
 		{"leaving a party", g.LeaveParty(ctx, s), model.ErrNoParties},
 		{"kicking from a party", g.KickFromParty(ctx, s, other), model.ErrNoParties},
 		{"promoting", g.PromoteInParty(ctx, s, other), model.ErrNoParties},
-		{"chatting", g.Chat(ctx, s, protocol.ChatMap, "hi"), model.ErrNoChat},
+		{"chatting", g.Chat(ctx, s, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hi"), model.ErrNoChat},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestHello(t *testing.T) {
 			t.Fatal(err)
 		}
 		welcome := c.welcomed()
-		if welcome == nil || welcome.Token != "rotated" || welcome.Character.ID != ayla.String() || welcome.MapID != "town" || !welcome.ServerTime.Equal(time.UnixMilli(1000)) {
+		if welcome == nil || welcome.Token != "rotated" || welcome.Character.GetId() != ayla.String() || welcome.MapID != "town" || !welcome.ServerTime.Equal(time.UnixMilli(1000)) {
 			t.Fatalf("welcome %+v", welcome)
 		}
 		if s.Character() != ayla {
@@ -114,7 +114,7 @@ func (c *conn) Welcome(w model.Welcome) {
 func (c *conn) MapChange(string, float64, float64) {}
 func (c *conn) PartyGone()                         {}
 func (c *conn) Deliver(model.Delivery)             {}
-func (c *conn) Kick(protocol.KickReason)           {}
+func (c *conn) Kick(clientv1.KickReason)           {}
 func (c *conn) Close(string)                       {}
 
 func (c *conn) welcomed() *model.Welcome {
@@ -144,7 +144,7 @@ func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kerne
 	if w.joinErr != nil {
 		return model.Joined{}, w.joinErr
 	}
-	return model.Joined{Character: protocol.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
+	return model.Joined{Character: &clientv1.CharacterView{Id: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
 }
 func (w *world) Leave(context.Context, model.Presence, string) error              { return nil }
 func (w *world) Input(context.Context, model.Presence, uint32, model.Keys) error  { return nil }

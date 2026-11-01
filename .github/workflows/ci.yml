@@ -20,9 +20,9 @@ jobs:
           version: v2.15.0   # built with Go 1.27: an older build refuses server/go.mod's version
           args: --help   # install only; `make lint` runs it below with the repo's settings
       - run: make lint-go
-      - name: generated gRPC code is current
+      - name: generated Go code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen
-      - name: no breaking change to the gRPC contracts
+      - name: no breaking change to the contracts
         run: make breaking BREAKING_AGAINST=HEAD~1
       # Includes the crash test: the world and item service die mid-pickup and restart.
       - run: make test-go

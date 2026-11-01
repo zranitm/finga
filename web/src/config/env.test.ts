@@ -18,7 +18,12 @@ describe('env', () => {
       want: 'https://play.example',
     },
   ])('$name', ({ raw, want }) => {
-    expect(parseEnv(raw)).toEqual({ apiOrigin: want, isDev: raw.DEV, netDelayMs: 0 });
+    expect(parseEnv(raw)).toEqual({
+      apiOrigin: want,
+      isDev: raw.DEV,
+      netDelayMs: 0,
+      wsJson: false,
+    });
   });
 
   it.each([
@@ -48,9 +53,25 @@ describe('env', () => {
     expect(() => parseEnv({ VITE_NET_DELAY_MS: value, DEV: true })).toThrow(/VITE_NET_DELAY_MS/);
   });
 
+  it.each([
+    { name: 'unset is binary', raw: { DEV: true }, want: false },
+    { name: '1 in development', raw: { VITE_WS_JSON: '1', DEV: true }, want: true },
+    { name: 'true in development', raw: { VITE_WS_JSON: ' true ', DEV: true }, want: true },
+    { name: '0 is binary', raw: { VITE_WS_JSON: '0', DEV: true }, want: false },
+    { name: 'false is binary', raw: { VITE_WS_JSON: 'false', DEV: true }, want: false },
+    { name: 'ignored in a build', raw: { VITE_WS_JSON: '1', DEV: false }, want: false },
+  ])('JSON frames: $name', ({ raw, want }) => {
+    expect(parseEnv(raw).wsJson).toBe(want);
+  });
+
+  it('a JSON flag that is not 1, true, 0 or false throws', () => {
+    expect(() => parseEnv({ VITE_WS_JSON: 'yes', DEV: true })).toThrow(/VITE_WS_JSON/);
+  });
+
   it('the module value comes from import.meta.env', () => {
     expect(env.apiOrigin).toBe('');
     expect(typeof env.isDev).toBe('boolean');
     expect(env.netDelayMs).toBe(0);
+    expect(env.wsJson).toBe(false);
   });
 });

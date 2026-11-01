@@ -8,7 +8,6 @@ The layout and tooling follow [zranitm/docviewer](https://github.com/zranitm/doc
 server/                 the Go module: everything the server builds, reads and publishes
   api/
     openapi.yaml        REST contract: accounts, sessions, characters, settings
-    asyncapi.yaml       WebSocket message catalogue
     proto/internal/     the internal gRPC contracts, one package per service: internal/<service>/v1 (page 10)
     proto/client/v1/    the browser's WebSocket protocol (page 4); npm run gen generates the client's TypeScript from it
     gen/                their generated Go code, api/gen/<package>/v1, committed; make gen regenerates it
@@ -21,7 +20,7 @@ server/                 the Go module: everything the server builds, reads and p
     bot/                test players for the proof session (make bots); Stage 2 grows it into the load and chaos client
   data/                 game content: classes, stats, mobs, items, EXP curve, Tiled maps; the client generates from it
   internal/
-    protocol/           WebSocket message types, registered with the codec: the gateway, the bot and the end-to-end tests
+    protocol/           the WebSocket's subprotocols, codecs and sample messages, over the generated api/gen/client/v1: the gateway, the bot and the end-to-end tests
     kernel/             value types shared by every service: IDs (on pkg/typedid), Class, Coins (internal/model until step 30)
     gamedata/           game data: classes, stats, mobs, items, the EXP curve and the maps (on pkg/tiled), loaded and validated at startup
     sim/                the movement simulation, shared with the client through testdata/movement
@@ -84,7 +83,7 @@ tools/                  developer tools; empty in Stage 1
 - Imports flow one way: composition roots (`services/*/app`, `cmd/migrate/app`) → each service's handler and clients → its application → its model → the shared kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`; a service's repository implements its application's ports and imports application and model (page 11, Layers). Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry, configuration or `internal/host` (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it; `internal/model` became `internal/kernel` in step 30, so every service's own layer can be called `model`).
 - A service never imports another: Go's `internal/` rule keeps it out of the other's internals, and depguard out of the rest (its migrations, its composition root). It reaches another only through the client generated from `api/proto/internal/` (page 10).
 - A service's layers are packages (page 11; each service moves into them in steps 31 to 36, and until its step keeps them as files of one module package, `services/<name>/internal/<module>`): `model` imports none of the others; `application` imports `model`; `repository` imports `application` and `model`; `handler` and `clients` import `application` and `model`, never `repository` or each other. depguard has one rule per layer (`layer-model`, ..., `layer-clients`), naming every service's packages, since it matches a denied path by prefix with no wildcard; a new service is added to each list.
-- The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, a configuration package or `internal/host`:
+- The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, a configuration package or `internal/host`; the gateway's `model` and `application` alone use the client protocol's messages (`api/gen/client/v1`, page 11):
   - It returns its own result types, for example the world's `model.Delta`; its service's handler turns them into the contract's messages, and the gateway turns those into protocol messages.
   - It reports metrics through small observer interfaces it declares, and `internal/telemetry` implements them.
   - It takes plain option structs, and its service's composition root fills them from configuration.
@@ -134,7 +133,7 @@ Each layer is a package of the service (page 11). The model below them holds the
 </tr>
 <tr>
 <th>Types it uses</th>
-<td>DTOs and <code>internal/protocol</code> messages</td>
+<td>DTOs and the client protocol's messages (<code>api/gen/client/v1</code>)</td>
 <td><code>internal/kernel</code>, the service's <code>model</code>, and its own inputs and results</td>
 <td>sqlc rows, which never leave the repository</td>
 </tr>

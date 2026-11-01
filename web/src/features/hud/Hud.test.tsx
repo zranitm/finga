@@ -1,6 +1,8 @@
+import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { ExpGainedSchema, LevelUpSchema, WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
 import { resetStores } from '@/testing/reset-stores';
@@ -13,21 +15,15 @@ const ayla = {
   name: 'Ayla',
   class: 'warrior',
   level: 1,
-  exp: 10,
+  exp: 10n,
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 150,
-  max_hp: 204,
+  maxHp: 204,
   mp: 20,
-  max_mp: 28,
+  maxMp: 28,
 };
-const welcome = {
-  token: 'tok',
-  character: ayla,
-  inventory: [],
-  map_id: 'town',
-  tick: 1,
-  server_time: 0,
-};
+const welcome = create(WelcomeSchema, { token: 'tok', character: ayla, mapId: 'town', tick: 1 });
+const gained = (amount: bigint, exp: bigint) => create(ExpGainedSchema, { amount, exp });
 
 describe('Hud', () => {
   beforeEach(() => {
@@ -50,13 +46,15 @@ describe('Hud', () => {
     expect(exp).toHaveAttribute('aria-valuenow', '10');
     expect(exp).toHaveAttribute('aria-valuemax', '20');
 
-    act(() => character.getState().applyExpGained({ amount: 5, exp: 15 }));
+    act(() => character.getState().applyExpGained(gained(5n, 15n)));
     expect(screen.getByRole('meter', { name: 'EXP' })).toHaveAttribute('aria-valuenow', '15');
 
     act(() =>
-      character.getState().applyLevelUp({
-        character: { ...ayla, level: 2, exp: 0, hp: 230, max_hp: 230, mp: 30, max_mp: 30 },
-      }),
+      character.getState().applyLevelUp(
+        create(LevelUpSchema, {
+          character: { ...ayla, level: 2, exp: 0n, hp: 230, maxHp: 230, mp: 30, maxMp: 30 },
+        }),
+      ),
     );
     expect(screen.getByText('Lv. 2')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'HP' })).toHaveAttribute('aria-valuenow', '230');
@@ -67,7 +65,9 @@ describe('Hud', () => {
   });
 
   it('at the level cap the EXP bar is full and says MAX', () => {
-    character.getState().applyWelcome({ ...welcome, character: { ...ayla, level: 30, exp: 0 } });
+    character
+      .getState()
+      .applyWelcome(create(WelcomeSchema, { character: { ...ayla, level: 30, exp: 0n } }));
     render(<Hud />);
     const exp = screen.getByRole('meter', { name: 'EXP' });
     expect(exp).toHaveAttribute('aria-valuenow', '1');

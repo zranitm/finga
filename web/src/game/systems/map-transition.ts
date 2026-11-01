@@ -10,9 +10,9 @@ export interface TransitionState {
 export const initialTransition: TransitionState = { dead: false, awaitingMap: false };
 
 export type TransitionMsg =
-  | { readonly t: 'Died'; readonly d: Data<'Died'> }
-  | { readonly t: 'Respawned'; readonly d: Data<'Respawned'> }
-  | { readonly t: 'MapChange'; readonly d: Data<'MapChange'> };
+  | { readonly t: 'died'; readonly d: Data<'died'> }
+  | { readonly t: 'respawned'; readonly d: Data<'respawned'> }
+  | { readonly t: 'mapChange'; readonly d: Data<'mapChange'> };
 
 export type TransitionAction =
   | { readonly type: 'die' }
@@ -32,16 +32,16 @@ export function transition(
   currentMap: string,
 ): Transitioned {
   switch (msg.t) {
-    case 'Died':
-      if (msg.d.character_id !== me) {
+    case 'died':
+      if (msg.d.characterId !== me) {
         return { state, actions: [] };
       }
       return { state: { ...state, dead: true }, actions: [{ type: 'die' }] };
-    case 'Respawned': {
-      if (msg.d.character_id !== me) {
+    case 'respawned': {
+      if (msg.d.characterId !== me) {
         return { state, actions: [] };
       }
-      if (msg.d.map_id === currentMap) {
+      if (msg.d.mapId === currentMap) {
         return {
           state: { dead: false, awaitingMap: false },
           actions: [{ type: 'respawn-here', x: msg.d.x, y: msg.d.y, hp: msg.d.hp }],
@@ -49,10 +49,10 @@ export function transition(
       }
       return { state: { dead: false, awaitingMap: true }, actions: [] };
     }
-    case 'MapChange':
+    case 'mapChange':
       return {
         state: { dead: false, awaitingMap: false },
-        actions: [{ type: 'change-map', mapId: msg.d.map_id, x: msg.d.x, y: msg.d.y }],
+        actions: [{ type: 'change-map', mapId: msg.d.mapId, x: msg.d.x, y: msg.d.y }],
       };
   }
 }

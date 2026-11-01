@@ -22,7 +22,9 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"google.golang.org/protobuf/proto"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -91,7 +93,7 @@ type bot struct {
 	name     string
 	charName string // 3 to 12 letters and digits
 	index    int
-	codec    *wsconn.JSONCodec
+	codec    *wsconn.ProtoCodec
 	rng      *rand.Rand
 
 	mu    sync.Mutex
@@ -106,14 +108,14 @@ type bot struct {
 	mapID   string
 	x, y    float64
 	dead    bool
-	drops   map[uint64]protocol.DropView
+	drops   map[uint32]*clientv1.DropView
 	seq     uint32
-	held    protocol.Input
+	held    *clientv1.Input
 	inParty atomic.Bool
 }
 
 func newBot(url, name, charName string, index int) *bot {
-	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.NewCodec(), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano())))}
+	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano())))}
 }
 
 func (b *bot) snapshot() stats {
@@ -214,7 +216,7 @@ func (b *bot) rest(ctx context.Context, method, path, token string, body any) (m
 func (b *bot) enter(ctx context.Context, token string) error {
 	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	conn, _, err := websocket.Dial(dialCtx, "ws"+strings.TrimPrefix(b.url, "http")+"/ws", nil)
+	conn, _, err := websocket.Dial(dialCtx, "ws"+strings.TrimPrefix(b.url, "http")+"/ws", &websocket.DialOptions{Subprotocols: []string{protocol.SubprotocolProto}})
 	if err != nil {
 		return err
 	}
@@ -235,10 +237,10 @@ func (b *bot) enter(ctx context.Context, token string) error {
 			b.msgs <- m
 		}
 	}()
-	b.drops = map[uint64]protocol.DropView{}
+	b.drops = map[uint32]*clientv1.DropView{}
 	b.dead = false
-	b.held = protocol.Input{}
-	if err := b.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: b.id}}); err != nil {
+	b.held = &clientv1.Input{}
+	if err := b.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: b.id}}); err != nil {
 		return err
 	}
 	deadline := time.Now().Add(5 * time.Second)
@@ -262,11 +264,11 @@ func (b *bot) send(m wsconn.Message) error {
 	if err != nil {
 		return err
 	}
-	return b.conn.Write(context.Background(), websocket.MessageText, data)
+	return b.conn.Write(context.Background(), websocket.MessageBinary, data)
 }
 
-func (b *bot) input(in protocol.Input) {
-	if in == b.held {
+func (b *bot) input(in *clientv1.Input) {
+	if proto.Equal(in, b.held) {
 		return
 	}
 	b.held = in
@@ -274,7 +276,7 @@ func (b *bot) input(in protocol.Input) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: in})
 }
 
-func (b *bot) command(d any) {
+func (b *bot) command(d proto.Message) {
 	b.seq++
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
 }
@@ -282,58 +284,58 @@ func (b *bot) command(d any) {
 func (b *bot) observe(m wsconn.Message) {
 	b.count(func(s *stats) { s.messages++ })
 	switch d := m.Data.(type) {
-	case protocol.Welcome:
-		b.token = d.Token
-		b.mapID = d.MapID
-	case protocol.Snapshot:
-		b.drops = map[uint64]protocol.DropView{}
-		for _, dv := range d.Drops {
-			b.drops[dv.ID] = dv
+	case *clientv1.Welcome:
+		b.token = d.GetToken()
+		b.mapID = d.GetMapId()
+	case *clientv1.Snapshot:
+		b.drops = map[uint32]*clientv1.DropView{}
+		for _, dv := range d.GetDrops() {
+			b.drops[dv.GetId()] = dv
 		}
-		for _, v := range d.Players {
-			if v.ID == b.id {
-				b.x, b.y, b.dead = v.X, v.Y, v.Dead
+		for _, v := range d.GetPlayers() {
+			if v.GetId() == b.id {
+				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
 			}
 		}
-	case protocol.Delta:
-		for _, v := range d.Players {
-			if v.ID == b.id {
-				b.x, b.y, b.dead = v.X, v.Y, v.Dead
+	case *clientv1.Delta:
+		for _, v := range d.GetPlayers() {
+			if v.GetId() == b.id {
+				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
 			}
 		}
-		for _, dv := range d.Drops {
-			b.drops[dv.ID] = dv
+		for _, dv := range d.GetDrops() {
+			b.drops[dv.GetId()] = dv
 		}
-		for _, id := range d.RemovedDrops {
+		for _, id := range d.GetRemovedDrops() {
 			delete(b.drops, id)
 		}
-	case protocol.MapChange:
-		b.mapID, b.x, b.y = d.MapID, d.X, d.Y
-		b.held = protocol.Input{}
+	case *clientv1.MapChange:
+		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
+		b.held = &clientv1.Input{}
 		b.count(func(s *stats) { s.hops++ })
-	case protocol.Died:
-		if d.CharacterID == b.id {
+	case *clientv1.Died:
+		if d.GetCharacterId() == b.id {
 			b.dead = true
 			b.count(func(s *stats) { s.deaths++ })
 		}
-	case protocol.Respawned:
-		if d.CharacterID == b.id {
+	case *clientv1.Respawned:
+		if d.GetCharacterId() == b.id {
 			b.dead = false
-			b.mapID, b.x, b.y = d.MapID, d.X, d.Y
-			b.held = protocol.Input{}
+			b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
+			b.held = &clientv1.Input{}
 		}
-	case protocol.ExpGained:
+	case *clientv1.ExpGained:
 		b.count(func(s *stats) { s.kills++ })
-	case protocol.InventoryChanged:
+	case *clientv1.InventoryChanged:
 		b.count(func(s *stats) { s.pickups++ })
-	case protocol.Response:
-		if !d.OK {
+	case *clientv1.Response:
+		if !d.GetOk() {
 			b.count(func(s *stats) { s.refused++ })
 		}
-	case protocol.PartyInvited:
-		b.command(protocol.PartyRespond{InviteID: d.InviteID, Accept: true})
-	case protocol.PartyState:
-		b.inParty.Store(d.Party != nil)
+	case *clientv1.PartyInvited:
+		b.command(&clientv1.PartyRespond{InviteId: d.GetInviteId(), Accept: true})
+	case *clientv1.PartyState:
+		b.inParty.Store(d.GetParty() != nil)
 	}
 }
 
@@ -368,7 +370,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			}
 		}
 		if b.dead {
-			b.input(protocol.Input{})
+			b.input(&clientv1.Input{})
 			continue
 		}
 		if math.Abs(b.x-lastX) < 1 {
@@ -381,22 +383,22 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		switch b.mapID {
 		case "town":
 			if b.walkTo(townPortal, jump) {
-				b.command(protocol.EnterPortal{})
+				b.command(&clientv1.EnterPortal{})
 				leaveForestAt = time.Now().Add(time.Duration(8+b.index) * time.Minute)
 			}
 		case "forest":
 			if time.Now().After(leaveForestAt) {
 				if b.walkTo(forestPortal, jump) {
-					b.command(protocol.EnterPortal{})
+					b.command(&clientv1.EnterPortal{})
 				}
 				continue
 			}
-			if drop, ok := b.nearestDrop(); ok && math.Abs(drop.X-b.x) < 160 {
-				if math.Abs(drop.X-b.x) < 12 {
-					b.input(protocol.Input{})
-					b.command(protocol.PickUp{})
+			if drop, ok := b.nearestDrop(); ok && math.Abs(drop.GetX()-b.x) < 160 {
+				if math.Abs(drop.GetX()-b.x) < 12 {
+					b.input(&clientv1.Input{})
+					b.command(&clientv1.PickUp{})
 				} else {
-					b.walkTo(drop.X, jump)
+					b.walkTo(drop.GetX(), jump)
 				}
 			} else {
 				if b.walkTo(target, jump) {
@@ -407,26 +409,26 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 					}
 				}
 				if time.Now().After(nextAttack) {
-					b.command(protocol.Attack{})
+					b.command(&clientv1.Attack{})
 					nextAttack = time.Now().Add(900 * time.Millisecond)
 				}
 			}
 			if time.Now().After(nextChat) {
-				b.command(protocol.ChatSend{Channel: protocol.ChatMap, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
+				b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
 				b.count(func(s *stats) { s.chats++ })
 				nextChat = time.Now().Add(time.Duration(25+b.rng.IntN(20)) * time.Second)
 			}
 			if b.index == 0 && time.Now().After(nextInvite) {
 				for _, other := range all {
 					if other != b && other.id != "" && !other.inParty.Load() {
-						b.command(protocol.PartyInvite{CharacterID: other.id})
+						b.command(&clientv1.PartyInvite{CharacterId: other.id})
 						break
 					}
 				}
 				nextInvite = time.Now().Add(15 * time.Second)
 			}
 		default: // the cave or anywhere else: go back where we came from
-			b.command(protocol.EnterPortal{})
+			b.command(&clientv1.EnterPortal{})
 		}
 	}
 }
@@ -435,18 +437,18 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 func (b *bot) walkTo(x float64, jump bool) bool {
 	dx := x - b.x
 	if math.Abs(dx) < 12 {
-		b.input(protocol.Input{})
+		b.input(&clientv1.Input{})
 		return true
 	}
-	b.input(protocol.Input{Right: dx > 0, Left: dx < 0, Jump: jump})
+	b.input(&clientv1.Input{Right: dx > 0, Left: dx < 0, Jump: jump})
 	return false
 }
 
-func (b *bot) nearestDrop() (protocol.DropView, bool) {
-	var best protocol.DropView
+func (b *bot) nearestDrop() (*clientv1.DropView, bool) {
+	var best *clientv1.DropView
 	bestDist := math.Inf(1)
 	for _, d := range b.drops {
-		if dist := math.Abs(d.X - b.x); dist < bestDist {
+		if dist := math.Abs(d.GetX() - b.x); dist < bestDist {
 			best, bestDist = d, dist
 		}
 	}

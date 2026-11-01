@@ -1,6 +1,5 @@
 {
-  "t": "Kicked",
-  "d": {
-    "reason": "logged_in_elsewhere"
+  "kicked": {
+    "reason": "KICK_REASON_LOGGED_IN_ELSEWHERE"
   }
 }

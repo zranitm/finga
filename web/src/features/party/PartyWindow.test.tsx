@@ -1,8 +1,10 @@
+import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import { PartyInvitedSchema, PartyStateSchema } from '@/protocol/messages';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
 import { resetStores } from '@/testing/reset-stores';
@@ -13,17 +15,23 @@ import { MAX_PARTY, PartyWindow } from './PartyWindow';
 const member = (
   id: string,
   name: string,
-  extra: Partial<{ level: number; hp: number; online: boolean; map_id: string }> = {},
+  extra: Partial<{ level: number; hp: number; online: boolean; mapId: string }> = {},
 ) => ({
-  character_id: id,
+  characterId: id,
   name,
   level: 1,
   hp: 100,
-  max_hp: 100,
-  map_id: 'forest',
+  maxHp: 100,
+  mapId: 'forest',
   online: true,
   ...extra,
 });
+type Member = ReturnType<typeof member>;
+
+const partyOf = (leader: string, members: Member[]) =>
+  create(PartyStateSchema, { party: { leader, members } });
+const invited = (inviteId: string, from: string, fromName: string) =>
+  create(PartyInvitedSchema, { inviteId, from, fromName });
 
 function fakeSocket(answers: readonly (object | Error)[] = []) {
   const calls: { t: string; d: unknown }[] = [];
@@ -51,24 +59,23 @@ describe('PartyWindow', () => {
     const buttons = screen.getAllByRole('button', { name: 'Invite' });
     expect(buttons).toHaveLength(2);
     await userEvent.click(buttons[1]!); // sorted by name: Bruno, Robin
-    expect(calls).toEqual([{ t: 'PartyInvite', d: { character_id: 'c-robin' } }]);
+    expect(calls).toEqual([{ t: 'partyInvite', d: { characterId: 'c-robin' } }]);
   });
 
-  it('a PartyState with four members disables invite, and party: null closes the panel', () => {
+  it('a PartyState with four members disables invite, and one with no party closes the panel', () => {
     const { socket } = fakeSocket();
     render(<PartyWindow socket={socket} me="c-ayla" onClose={vi.fn()} />);
     act(() =>
-      party.getState().applyPartyState({
-        party: {
-          leader: 'c-ayla',
-          members: [
+      party
+        .getState()
+        .applyPartyState(
+          partyOf('c-ayla', [
             member('c-ayla', 'Ayla'),
             member('c-a', 'A'),
             member('c-b', 'B'),
             member('c-c', 'C'),
-          ],
-        },
-      }),
+          ]),
+        ),
     );
     expect(
       screen
@@ -77,7 +84,7 @@ describe('PartyWindow', () => {
     ).toBe(true);
     expect(screen.getByText(`The party is full (${MAX_PARTY}).`)).toBeInTheDocument();
     expect(screen.getByLabelText('Members').children).toHaveLength(4);
-    act(() => party.getState().applyPartyState({ party: null }));
+    act(() => party.getState().applyPartyState(create(PartyStateSchema)));
     expect(screen.queryByLabelText('Members')).not.toBeInTheDocument();
     expect(screen.getByText('You are not in a party.')).toBeInTheDocument();
   });
@@ -89,15 +96,14 @@ describe('PartyWindow', () => {
     ]);
     render(<PartyWindow socket={socket} me="c-ayla" onClose={vi.fn()} />);
     act(() =>
-      party.getState().applyPartyState({
-        party: {
-          leader: 'c-ayla',
-          members: [
+      party
+        .getState()
+        .applyPartyState(
+          partyOf('c-ayla', [
             member('c-ayla', 'Ayla'),
             member('c-robin', 'Robin', { online: false, hp: 40 }),
-          ],
-        },
-      }),
+          ]),
+        ),
     );
     expect(screen.getByText('Ayla (leader)')).toBeInTheDocument();
     expect(screen.getByRole('meter', { name: 'Robin HP' })).toHaveAttribute('aria-valuenow', '40');
@@ -105,21 +111,20 @@ describe('PartyWindow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Kick' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('no such member');
     await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
-    expect(calls.map((c) => c.t)).toEqual(['PartyKick', 'PartyPromote']);
-    expect(calls[1]?.d).toEqual({ character_id: 'c-robin' });
+    expect(calls.map((c) => c.t)).toEqual(['partyKick', 'partyPromote']);
+    expect(calls[1]?.d).toEqual({ characterId: 'c-robin' });
     // Robin is not in the nearby invite list any more: already a member.
     expect(screen.getAllByRole('button', { name: 'Invite' })).toHaveLength(1);
     act(() =>
-      party.getState().applyPartyState({
-        party: {
-          leader: 'c-robin',
-          members: [member('c-robin', 'Robin'), member('c-ayla', 'Ayla')],
-        },
-      }),
+      party
+        .getState()
+        .applyPartyState(
+          partyOf('c-robin', [member('c-robin', 'Robin'), member('c-ayla', 'Ayla')]),
+        ),
     );
     expect(screen.queryByRole('button', { name: 'Kick' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Leave party' }));
-    expect(calls[2]).toEqual({ t: 'PartyLeave', d: {} });
+    expect(calls[2]).toEqual({ t: 'partyLeave', d: {} });
   });
 });
 
@@ -136,11 +141,7 @@ describe('InviteToasts', () => {
     const { socket, calls } = fakeSocket();
     let now = 100_000;
     render(<InviteToasts socket={socket} now={() => now} />);
-    act(() =>
-      party
-        .getState()
-        .applyPartyInvited({ invite_id: 'inv-1', from: 'c-robin', from_name: 'Robin' }, now),
-    );
+    act(() => party.getState().applyPartyInvited(invited('inv-1', 'c-robin', 'Robin'), now));
     expect(screen.getByRole('status')).toHaveTextContent(
       `Robin invites you to a party (${INVITE_SECONDS}s)`,
     );
@@ -152,14 +153,10 @@ describe('InviteToasts', () => {
     act(() => {
       screen.getByRole('button', { name: 'Accept' }).click();
     });
-    expect(calls).toEqual([{ t: 'PartyRespond', d: { invite_id: 'inv-1', accept: true } }]);
+    expect(calls).toEqual([{ t: 'partyRespond', d: { inviteId: 'inv-1', accept: true } }]);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-    act(() =>
-      party
-        .getState()
-        .applyPartyInvited({ invite_id: 'inv-2', from: 'c-bruno', from_name: 'Bruno' }, now),
-    );
+    act(() => party.getState().applyPartyInvited(invited('inv-2', 'c-bruno', 'Bruno'), now));
     act(() => {
       now += INVITE_SECONDS * 1000;
       vi.advanceTimersByTime(INVITE_SECONDS * 1000);
@@ -171,14 +168,10 @@ describe('InviteToasts', () => {
   it('decline sends PartyRespond with accept false', () => {
     const { socket, calls } = fakeSocket();
     render(<InviteToasts socket={socket} />);
-    act(() =>
-      party
-        .getState()
-        .applyPartyInvited({ invite_id: 'inv-3', from: 'c-robin', from_name: 'Robin' }),
-    );
+    act(() => party.getState().applyPartyInvited(invited('inv-3', 'c-robin', 'Robin')));
     act(() => {
       screen.getByRole('button', { name: 'Decline' }).click();
     });
-    expect(calls).toEqual([{ t: 'PartyRespond', d: { invite_id: 'inv-3', accept: false } }]);
+    expect(calls).toEqual([{ t: 'partyRespond', d: { inviteId: 'inv-3', accept: false } }]);
   });
 });

@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
+	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
 	migrateapp "finga/cmd/migrate/app"
 	"finga/internal/host"
@@ -246,8 +247,8 @@ func TestAcceptance(t *testing.T) {
 		p.expect("Kicked")
 		token := login.body["token"].(string)
 		q := s.connect(t, p.id)
-		q.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: p.id}})
-		w := q.expect("Welcome").Data.(protocol.Welcome)
+		q.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: p.id}})
+		w := q.expect("Welcome").Data.(*clientv1.Welcome)
 		q.expect("Snapshot")
 		if w.Token == "" || w.Token == token {
 			t.Fatalf("welcome token %q", w.Token)
@@ -257,14 +258,14 @@ func TestAcceptance(t *testing.T) {
 		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusOK)
 		// Reusing the retired token ends the session and kills the rotated token too.
 		s.mustStatus(s.call("GET", "/api/characters", token, nil), http.StatusUnauthorized)
-		if k := q.expect("Kicked").Data.(protocol.Kicked); k.Reason != protocol.KickSessionExpired {
+		if k := q.expect("Kicked").Data.(*clientv1.Kicked); k.Reason != clientv1.KickReason_KICK_REASON_SESSION_EXPIRED {
 			t.Fatalf("kicked for %s", k.Reason)
 		}
 		s.mustStatus(s.call("GET", "/api/characters", w.Token, nil), http.StatusUnauthorized)
 
 		r := s.enter(t, "fay", "Fay", "bowman")
 		s.mustStatus(s.call("DELETE", "/api/sessions", r.token, nil), http.StatusNoContent)
-		if k := r.expect("Kicked").Data.(protocol.Kicked); k.Reason != protocol.KickSessionExpired {
+		if k := r.expect("Kicked").Data.(*clientv1.Kicked); k.Reason != clientv1.KickReason_KICK_REASON_SESSION_EXPIRED {
 			t.Fatalf("kicked for %s", k.Reason)
 		}
 		s.mustStatus(s.call("GET", "/api/characters", r.token, nil), http.StatusUnauthorized)

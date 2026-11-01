@@ -1,32 +1,33 @@
+import { create } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { expCurve } from '@/gamedata/exp-curve';
-import type { CharacterView } from '@/protocol/messages';
+import {
+  CharacterViewSchema,
+  ExpGainedSchema,
+  LevelUpSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
 import { character, expToNextLevel } from './character';
 
-const ayla: CharacterView = {
+const ayla = create(CharacterViewSchema, {
   id: 'c1',
   name: 'Ayla',
   class: 'warrior',
   level: 1,
-  exp: 10,
+  exp: 10n,
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 204,
-  max_hp: 204,
+  maxHp: 204,
   mp: 28,
-  max_mp: 28,
-};
+  maxMp: 28,
+});
 
-const welcome = {
-  token: 't',
-  character: ayla,
-  inventory: [],
-  map_id: 'town',
-  tick: 1,
-  server_time: 0,
-};
+const welcome = create(WelcomeSchema, { token: 't', character: ayla, mapId: 'town', tick: 1 });
+
+const gained = (amount: bigint, exp: bigint) => create(ExpGainedSchema, { amount, exp });
 
 describe('character store', () => {
   beforeEach(() => {
@@ -55,37 +56,47 @@ describe('character store', () => {
     expect(character.getState().expToNext).toBe(20);
   });
 
+  it('a Welcome without a character clears it', () => {
+    character.getState().applyWelcome(welcome);
+    character.getState().applyWelcome(create(WelcomeSchema, { token: 't' }));
+    expect(character.getState()).toMatchObject({ character: null, expToNext: null });
+  });
+
   it('ExpGained sets exp to the payload total, up or down (the death penalty)', () => {
     character.getState().applyWelcome(welcome);
-    character.getState().applyExpGained({ amount: 5, exp: 15 });
-    expect(character.getState().character?.exp).toBe(15);
-    character.getState().applyExpGained({ amount: -1, exp: 14 });
-    expect(character.getState().character?.exp).toBe(14);
+    character.getState().applyExpGained(gained(5n, 15n));
+    expect(character.getState().character?.exp).toBe(15n);
+    character.getState().applyExpGained(gained(-1n, 14n));
+    expect(character.getState().character?.exp).toBe(14n);
   });
 
   it('LevelUp replaces the character and moves the EXP target', () => {
     character.getState().applyWelcome(welcome);
-    character.getState().applyLevelUp({
-      character: {
-        ...ayla,
-        level: 2,
-        exp: 3,
-        stats: { ...ayla.stats, str: 15, vit: 12 },
-        hp: 252,
-        max_hp: 252,
-      },
-    });
-    expect(character.getState().character).toMatchObject({ level: 2, exp: 3, hp: 252 });
+    character.getState().applyLevelUp(
+      create(LevelUpSchema, {
+        character: {
+          ...ayla,
+          level: 2,
+          exp: 3n,
+          stats: { ...ayla.stats!, str: 15, vit: 12 },
+          hp: 252,
+          maxHp: 252,
+        },
+      }),
+    );
+    expect(character.getState().character).toMatchObject({ level: 2, exp: 3n, hp: 252 });
     expect(character.getState().expToNext).toBe(65);
+    character.getState().applyLevelUp(create(LevelUpSchema)); // no character: nothing to do
+    expect(character.getState().character?.level).toBe(2);
   });
 
   it('ExpGained records the change for the HUD, each with a new counter; a negative one is the death penalty', () => {
     character.getState().applyWelcome(welcome);
-    character.getState().applyExpGained({ amount: 5, exp: 15 });
+    character.getState().applyExpGained(gained(5n, 15n));
     expect(character.getState().lastExpChange).toEqual({ amount: 5, seq: 1 });
-    character.getState().applyExpGained({ amount: -1, exp: 14 });
+    character.getState().applyExpGained(gained(-1n, 14n));
     expect(character.getState().lastExpChange).toEqual({ amount: -1, seq: 2 });
-    expect(character.getState().character?.exp).toBe(14);
+    expect(character.getState().character?.exp).toBe(14n);
   });
 
   it('dead is set and cleared only on a change, and Welcome and clear reset it', () => {
@@ -118,7 +129,7 @@ describe('character store', () => {
     character.getState().clear();
     expect(character.getState().character).toBeNull();
     expect(character.getState().expToNext).toBeNull();
-    character.getState().applyExpGained({ amount: 1, exp: 1 }); // no character: nothing to do
+    character.getState().applyExpGained(gained(1n, 1n)); // no character: nothing to do
     expect(character.getState().character).toBeNull();
   });
 });

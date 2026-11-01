@@ -2,12 +2,13 @@ package ws
 
 import (
 	"context"
-	"reflect"
+	"strings"
 	"time"
 
 	"golang.org/x/time/rate"
+	"google.golang.org/protobuf/proto"
 
-	"finga/internal/protocol"
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
@@ -71,57 +72,42 @@ func (c *client) ID() string { return c.conn.ID() }
 
 // Welcome answers a Hello that joined.
 func (c *client) Welcome(w model.Welcome) {
-	inventory := w.Inventory
-	if inventory == nil {
-		inventory = []protocol.ItemView{} // the client reads an array
-	}
-	c.send(wsconn.Message{Data: protocol.Welcome{
-		Token: w.Token, Character: w.Character, Inventory: inventory, Party: w.Party, MapID: w.MapID, ServerTime: w.ServerTime.UnixMilli(),
+	c.send(wsconn.Message{Data: &clientv1.Welcome{
+		Token: w.Token, Character: w.Character, Inventory: w.Inventory, Party: w.Party, MapId: w.MapID, ServerTime: w.ServerTime.UnixMilli(),
 	}})
 }
 
 // MapChange tells the player a rejoin put them on another map.
 func (c *client) MapChange(mapID string, x, y float64) {
-	c.send(wsconn.Message{Data: protocol.MapChange{MapID: mapID, X: x, Y: y}})
+	c.send(wsconn.Message{Data: &clientv1.MapChange{MapId: mapID, X: x, Y: y}})
 }
 
 // PartyGone tells the player they have no party.
-func (c *client) PartyGone() { c.send(wsconn.Message{Data: protocol.PartyState{}}) }
+func (c *client) PartyGone() { c.send(wsconn.Message{Data: &clientv1.PartyState{}}) }
 
 // Deliver forwards a service's push.
 func (c *client) Deliver(d model.Delivery) {
 	c.send(wsconn.Message{Type: d.Type, Tick: d.Tick, Data: d.Data})
 }
 
-// Kick sends Kicked with the reason, then closes.
-func (c *client) Kick(reason protocol.KickReason) {
-	c.send(wsconn.Message{Data: protocol.Kicked{Reason: reason}})
-	c.conn.Close(wsconn.CloseKicked, string(reason))
+// Kick sends Kicked with the reason, then closes with the reason's short name, like logged_in_elsewhere.
+func (c *client) Kick(reason clientv1.KickReason) {
+	c.send(wsconn.Message{Data: &clientv1.Kicked{Reason: reason}})
+	c.conn.Close(wsconn.CloseKicked, strings.ToLower(strings.TrimPrefix(reason.String(), "KICK_REASON_")))
 }
 
 // Close ends the connection as internal: the client reconnects.
 func (c *client) Close(reason string) { c.conn.Close(wsconn.CloseInternal, reason) }
 
-func (c *client) reply(reqID string, data any) {
+func (c *client) reply(reqID string, data proto.Message) {
 	c.send(wsconn.Message{ReqID: reqID, Data: data})
 }
 
-// send enqueues a message; a full queue closes the connection.
+// send enqueues a message, typed by its data's name when unset; a full queue closes the connection.
 func (c *client) send(m wsconn.Message) {
-	if m.Type == "" {
-		m.Type = typeName(m.Data)
+	if data, ok := m.Data.(proto.Message); ok && m.Type == "" {
+		m.Type = string(data.ProtoReflect().Descriptor().Name())
 	}
 	c.h.opts.Observer.MessageOut(m.Type)
 	_ = c.conn.Send(m)
-}
-
-func typeName(v any) string {
-	if v == nil {
-		return ""
-	}
-	t := reflect.TypeOf(v)
-	for t.Kind() == reflect.Pointer {
-		t = t.Elem()
-	}
-	return t.Name()
 }

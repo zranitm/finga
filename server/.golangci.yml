@@ -59,8 +59,6 @@ linters:
         modules:
           files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
           deny:
-            - pkg: finga/api/gen
-              desc: a module returns its own types; its handler turns them into the contract's
             - pkg: google.golang.org/grpc
               desc: a module knows no transport; its handler and clients do
             - pkg: finga/internal/telemetry
@@ -79,12 +77,32 @@ linters:
               desc: a module takes option structs; the composition root fills them from configuration
             - pkg: finga/internal/host
               desc: a module knows nothing of how its process runs
-        # The client protocol is the gateway's model vocabulary.
-        services-no-protocol:
+        modules-no-contracts:
           files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/gateway/internal/model/**", "!**/services/gateway/internal/application/**"]
           deny:
+            - pkg: finga/api/gen
+              desc: a module returns its own types; its handler turns them into the contract's
+        # The client protocol is the gateway's model vocabulary; the services' contracts stay its clients'.
+        gateway-no-service-contracts:
+          files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
+          deny:
+            - pkg: finga/api/gen/account
+              desc: the gateway's clients turn a service's contract into the gateway's model
+            - pkg: finga/api/gen/character
+              desc: the gateway's clients turn a service's contract into the gateway's model
+            - pkg: finga/api/gen/item
+              desc: the gateway's clients turn a service's contract into the gateway's model
+            - pkg: finga/api/gen/social
+              desc: the gateway's clients turn a service's contract into the gateway's model
+            - pkg: finga/api/gen/world
+              desc: the gateway's clients turn a service's contract into the gateway's model
+        services-no-client-protocol:
+          files: ["**/services/**", "!**/services/gateway/**"]
+          deny:
+            - pkg: finga/api/gen/client
+              desc: only the gateway speaks the client protocol
             - pkg: finga/internal/protocol
-              desc: a service returns its own types; only the gateway speaks the client protocol
+              desc: only the gateway speaks the client protocol
         # The gateway's model and use cases know no socket and no HTTP; the handlers adapt both.
         gateway-application:
           files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]

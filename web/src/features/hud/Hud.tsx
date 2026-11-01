@@ -19,11 +19,11 @@ export function Hud() {
         <strong>{c.name}</strong>
         <span>Lv. {c.level}</span>
       </div>
-      <Bar label="HP" value={c.hp} max={c.max_hp} kind="hp" />
-      <Bar label="MP" value={c.mp} max={c.max_mp} kind="mp" />
+      <Bar label="HP" value={c.hp} max={c.maxHp} kind="hp" />
+      <Bar label="MP" value={c.mp} max={c.maxMp} kind="mp" />
       <Bar
         label="EXP"
-        value={capped ? 1 : c.exp}
+        value={capped ? 1 : Number(c.exp)}
         max={capped ? 1 : expToNext}
         kind="exp"
         {...(capped && { text: 'MAX' })}

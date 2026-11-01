@@ -23,6 +23,7 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	characterv1 "finga/api/gen/character/v1"
+	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
@@ -144,22 +145,35 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	return &harness{ts: ts, world: fw, obs: obs, gw: gw}
 }
 
+// client speaks one subprotocol: binary frames, or protojson text frames as finga.v1.json.
 type client struct {
 	t     *testing.T
 	c     *websocket.Conn
-	codec *wsconn.JSONCodec
+	codec wsconn.Codec
+	frame websocket.MessageType
 }
 
 func (h *harness) dial(t *testing.T) *client {
 	t.Helper()
+	return h.dialAs(t, protocol.SubprotocolProto)
+}
+
+func (h *harness) dialAs(t *testing.T, subprotocol string) *client {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), nil)
+	c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), &websocket.DialOptions{Subprotocols: []string{subprotocol}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.CloseNow() })
-	return &client{t: t, c: c, codec: protocol.NewCodec()}
+	if c.Subprotocol() != subprotocol {
+		t.Fatalf("the server chose %q, want %q", c.Subprotocol(), subprotocol)
+	}
+	if subprotocol == protocol.SubprotocolJSON {
+		return &client{t: t, c: c, codec: protocol.ClientCodec(wsconn.JSON), frame: websocket.MessageText}
+	}
+	return &client{t: t, c: c, codec: protocol.ClientCodec(wsconn.Binary), frame: websocket.MessageBinary}
 }
 
 func (c *client) send(m wsconn.Message) {
@@ -168,14 +182,12 @@ func (c *client) send(m wsconn.Message) {
 	if err != nil {
 		c.t.Fatal(err)
 	}
-	if err := c.c.Write(context.Background(), websocket.MessageText, b); err != nil {
-		c.t.Fatal(err)
-	}
+	c.sendRaw(b)
 }
 
-func (c *client) sendRaw(raw string) {
+func (c *client) sendRaw(b []byte) {
 	c.t.Helper()
-	if err := c.c.Write(context.Background(), websocket.MessageText, []byte(raw)); err != nil {
+	if err := c.c.Write(context.Background(), c.frame, b); err != nil {
 		c.t.Fatal(err)
 	}
 }
@@ -185,13 +197,16 @@ func (c *client) read() (wsconn.Message, websocket.StatusCode) {
 	c.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, data, err := c.c.Read(ctx)
+	frame, data, err := c.c.Read(ctx)
 	if err != nil {
 		return wsconn.Message{}, websocket.CloseStatus(err)
 	}
+	if frame != c.frame {
+		c.t.Fatalf("a %v frame on a %s connection", frame, c.c.Subprotocol())
+	}
 	m, err := c.codec.Decode(data)
 	if err != nil {
-		c.t.Fatalf("decode %s: %v", data, err)
+		c.t.Fatalf("decode %q: %v", data, err)
 	}
 	return m, -1
 }
@@ -211,14 +226,14 @@ func (c *client) expect(msgType string) wsconn.Message {
 
 func (c *client) hello(token string, charID kernel.CharacterID) {
 	c.t.Helper()
-	c.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: charID.String()}})
+	c.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: charID.String()}})
 }
 
-func (c *client) expectKick(reason protocol.KickReason) {
+func (c *client) expectKick(reason clientv1.KickReason) {
 	c.t.Helper()
 	m := c.expect("Kicked")
-	if got := m.Data.(protocol.Kicked).Reason; got != reason {
-		c.t.Fatalf("kicked for %q, want %q", got, reason)
+	if got := m.Data.(*clientv1.Kicked).GetReason(); got != reason {
+		c.t.Fatalf("kicked for %s, want %s", got, reason)
 	}
 	if _, status := c.read(); status != websocket.StatusCode(wsconn.CloseKicked) {
 		c.t.Fatalf("close status %d after Kicked", status)
@@ -230,23 +245,20 @@ func TestHelloHappyPath(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	w := c.expect("Welcome")
-	welcome := w.Data.(protocol.Welcome)
-	if welcome.Character.ID != aylaID.String() || welcome.Character.Name != "Ayla" || welcome.Character.MaxHP != 204 || welcome.MapID != "town" || welcome.ServerTime == 0 {
+	welcome := w.Data.(*clientv1.Welcome)
+	if welcome.GetCharacter().GetId() != aylaID.String() || welcome.GetCharacter().GetName() != "Ayla" || welcome.GetCharacter().GetMaxHp() != 204 || welcome.GetMapId() != "town" || welcome.ServerTime == 0 {
 		t.Fatalf("welcome %+v", welcome)
 	}
-	if welcome.Inventory == nil {
-		t.Fatal("inventory must be an empty array, not null")
-	}
 	s := c.expect("Snapshot")
-	snap := s.Data.(protocol.Snapshot)
-	if s.Tick != 1 || len(snap.Players) != 1 || snap.Players[0].ID != aylaID.String() || snap.Players[0].X != 416 || snap.Mobs == nil || snap.Drops == nil {
+	snap := s.Data.(*clientv1.Snapshot)
+	if s.Tick != 1 || len(snap.Players) != 1 || snap.Players[0].GetId() != aylaID.String() || snap.Players[0].X != 416 {
 		t.Fatalf("snapshot %+v (tick %d)", snap, s.Tick)
 	}
 	joined := h.world.joins()
 	if len(joined) != 1 || joined[0].GetCharacterId() != aylaID.String() || joined[0].GetAccountId() != alice.String() || joined[0].GetGatewayId() != "gw-test" || joined[0].GetConnectionId() == "" {
 		t.Fatalf("joined %+v", joined)
 	}
-	if welcome.Character.Stats.STR != 12 {
+	if welcome.GetCharacter().GetStats().GetStr() != 12 {
 		t.Fatalf("welcome character %+v", welcome.Character)
 	}
 	online := h.obs.onlineAfter(t, 1)
@@ -276,15 +288,15 @@ func TestNoHelloInTimeClosesTheConnection(t *testing.T) {
 func TestHelloFailures(t *testing.T) {
 	tests := []struct {
 		name   string
-		hello  protocol.Hello
-		reason protocol.KickReason
+		hello  *clientv1.Hello
+		reason clientv1.KickReason
 	}{
-		{"a bad token", protocol.Hello{Token: "nope", ProtocolVersion: protocol.Version, CharacterID: aylaID.String()}, protocol.KickUnauthenticated},
-		{"someone else's character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: brunoID.String()}, protocol.KickUnauthenticated},
-		{"an unknown character", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: kernel.NewCharacterID().String()}, protocol.KickUnauthenticated},
-		{"a malformed character ID", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterID: "ayla"}, protocol.KickUnauthenticated},
-		{"an old protocol version", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version - 1, CharacterID: aylaID.String()}, protocol.KickOutdatedProtocol},
-		{"a future protocol version", protocol.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version + 1, CharacterID: aylaID.String()}, protocol.KickOutdatedProtocol},
+		{"a bad token", &clientv1.Hello{Token: "nope", ProtocolVersion: protocol.Version, CharacterId: aylaID.String()}, clientv1.KickReason_KICK_REASON_UNAUTHENTICATED},
+		{"someone else's character", &clientv1.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterId: brunoID.String()}, clientv1.KickReason_KICK_REASON_UNAUTHENTICATED},
+		{"an unknown character", &clientv1.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterId: kernel.NewCharacterID().String()}, clientv1.KickReason_KICK_REASON_UNAUTHENTICATED},
+		{"a malformed character ID", &clientv1.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version, CharacterId: "ayla"}, clientv1.KickReason_KICK_REASON_UNAUTHENTICATED},
+		{"an old protocol version", &clientv1.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version - 1, CharacterId: aylaID.String()}, clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL},
+		{"a future protocol version", &clientv1.Hello{Token: tokenAlice, ProtocolVersion: protocol.Version + 1, CharacterId: aylaID.String()}, clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -328,9 +340,9 @@ func TestMessagesBeforeHelloAreRejected(t *testing.T) {
 		name string
 		msg  wsconn.Message
 	}{
-		{"an input", wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}}},
-		{"a ping", wsconn.Message{Data: protocol.Ping{ClientTime: 1}}},
-		{"an attack", wsconn.Message{Data: protocol.Attack{}}},
+		{"an input", wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}}},
+		{"a ping", wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}},
+		{"an attack", wsconn.Message{Data: &clientv1.Attack{}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -349,11 +361,11 @@ func TestMessagesBeforeHelloAreRejected(t *testing.T) {
 
 func TestIdentityComesFromTheConnection(t *testing.T) {
 	h := newHarness(t)
-	c := h.dial(t)
+	c := h.dialAs(t, protocol.SubprotocolJSON)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	// A smuggled character_id is ignored; the input is routed as Ayla's.
-	c.sendRaw(`{"t":"Input","seq":5,"d":{"right":true,"character_id":"` + brunoID.String() + `"}}`)
+	c.sendRaw([]byte(`{"seq":5,"input":{"right":true,"character_id":"` + brunoID.String() + `"}}`))
 	waitFor(t, "the input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	in := append([]*worldv1.InputRequest(nil), h.world.inputs...)
@@ -377,12 +389,12 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 	second := h.dial(t)
 	second.hello(tokenAlice, robinID) // same account, another character
 	second.expect("Snapshot")
-	first.expectKick(protocol.KickLoggedInElsewhere)
+	first.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 	left := waitFor(t, "Ayla's leave", h.world.leaves, 1)
 	if left[0].GetPresence().GetCharacterId() != aylaID.String() || left[0].GetConnectionId() != h.world.joins()[0].GetConnectionId() {
 		t.Fatalf("left %+v, want Ayla's, through her connection", left)
 	}
-	second.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	second.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
 	second.expect("Pong")
 	// Ayla counted, Robin counted, Ayla's connection closed.
 	if online := h.obs.onlineAfter(t, 3); online != 1 {
@@ -397,23 +409,23 @@ func TestRateLimits(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	for seq := uint32(1); seq <= 40; seq++ {
-		c.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
+		c.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}})
 	}
 	// Commands reach the world in order: once the Attack is in, every input before it was handled.
-	c.send(wsconn.Message{Seq: 41, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Seq: 41, Data: &clientv1.Attack{}})
 	waitFor(t, "the attack", h.world.attackList, 1)
 	if got := h.world.inputCount(); got != 30 {
 		t.Fatalf("%d inputs forwarded of 40 in one instant, want 30 (the burst)", got)
 	}
 	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
 		for i := range 6 {
-			c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: protocol.InventoryMove{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Tab: "use", Slot: i}})
+			c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: &clientv1.InventoryMove{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Tab: "use", Slot: int32(i)}})
 		}
 		// The refused one is answered at once on the read loop, ahead of the queue: match by request ID.
 		codes := map[string]string{}
 		for range 6 {
 			m := c.expect("Response")
-			codes[m.ReqID] = m.Data.(protocol.Response).Code
+			codes[m.ReqID] = m.Data.(*clientv1.Response).Code
 		}
 		if codes["r-5"] != "rate_limited" || codes["r-0"] != "inventory_unavailable" || len(codes) != 6 {
 			t.Fatalf("codes %v", codes)
@@ -431,13 +443,13 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		RemovedPlayers: []string{brunoID.String()},
 	}}})
 	m := c.expect("Delta")
-	d := m.Data.(protocol.Delta)
-	if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].ID != robinID.String() || d.Players[0].VX != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
+	d := m.Data.(*clientv1.Delta)
+	if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
 		t.Fatalf("delta %+v (tick %d)", d, m.Tick)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
 	mc := c.expect("MapChange")
-	if mc.Data.(protocol.MapChange).MapID != "forest" {
+	if mc.Data.(*clientv1.MapChange).GetMapId() != "forest" {
 		t.Fatalf("map change %+v", mc.Data)
 	}
 }
@@ -487,13 +499,13 @@ func TestUnavailableCommandsAnswerWithAResponse(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.PartyLeave{}})
+	c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.PartyLeave{}})
 	m := c.expect("Response")
-	if m.ReqID != "r-1" || m.Data.(protocol.Response).OK || m.Data.(protocol.Response).Code != "parties_unavailable" {
+	if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != "parties_unavailable" {
 		t.Fatalf("response %+v", m)
 	}
-	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}}) // no request ID: silently ignored
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}}) // no request ID: silently ignored
+	c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
 	c.expect("Pong")
 }
 
@@ -507,18 +519,48 @@ func TestOriginCheckAppliesToTheGateway(t *testing.T) {
 	}
 }
 
-func TestWelcomeIsValidJSONForTheClient(t *testing.T) {
+func TestTheJSONSubprotocolSpeaksProtojsonInTextFrames(t *testing.T) {
 	h := newHarness(t)
-	c := h.dial(t)
-	c.hello(tokenAlice, aylaID)
-	ctx := context.Background()
-	_, data, err := c.c.Read(ctx)
+	c := h.dialAs(t, protocol.SubprotocolJSON)
+	c.sendRaw(fmt.Appendf(nil, `{"hello":{"token":%q,"protocol_version":%d,"character_id":%q}}`, tokenAlice, protocol.Version, aylaID))
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	frame, data, err := c.c.Read(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var env map[string]any
-	if err := json.Unmarshal(data, &env); err != nil || env["t"] != "Welcome" {
-		t.Fatalf("welcome frame %s", data)
+	var env struct {
+		Welcome *struct {
+			MapID     string `json:"map_id"`
+			Character struct {
+				MaxHP int `json:"max_hp"`
+			} `json:"character"`
+		} `json:"welcome"`
+	}
+	if err := json.Unmarshal(data, &env); err != nil || frame != websocket.MessageText || env.Welcome == nil || env.Welcome.MapID != "town" || env.Welcome.Character.MaxHP != 204 {
+		t.Fatalf("a %v frame %s (%v), want Welcome as protojson text with the .proto field names", frame, data, err)
+	}
+}
+
+func TestAClientWithoutAKnownSubprotocolIsClosedAsAPolicyViolation(t *testing.T) {
+	h := newHarness(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, asked := range [][]string{nil, {"finga.v0.json"}} {
+		c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.ts.URL, "http"), &websocket.DialOptions{Subprotocols: asked})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _, err = c.Read(ctx)
+		if ce, ok := errors.AsType[websocket.CloseError](err); !ok || ce.Code != websocket.StatusCode(wsconn.CloseNoSubprotocol) || !strings.Contains(ce.Reason, protocol.SubprotocolProto) {
+			t.Fatalf("asking for %v: read %v, want a %d close naming %s", asked, err, wsconn.CloseNoSubprotocol, protocol.SubprotocolProto)
+		}
+		_ = c.CloseNow()
+	}
+	h.obs.mu.Lock()
+	defer h.obs.mu.Unlock()
+	if len(h.obs.in) != 0 || len(h.obs.out) != 0 {
+		t.Fatalf("in %v, out %v: a connection without a codec reached the handler", h.obs.in, h.obs.out)
 	}
 }
 
@@ -527,7 +569,7 @@ func TestAttackIsRoutedAsTheSender(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{Seq: 3, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Seq: 3, Data: &clientv1.Attack{}})
 	waitFor(t, "the attack", h.world.attackList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
@@ -545,38 +587,38 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 	mob := &worldv1.EntityRef{Ref: &worldv1.EntityRef_MobId{MobId: 7}}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{Source: me, Target: mob, Amount: 21, Crit: true}}})
 	m := c.expect("Damage")
-	d := m.Data.(protocol.Damage)
+	d := m.Data.(*clientv1.Damage)
 	if d.Source != "p:"+aylaID.String() || d.Target != "m:7" || d.Amount != 21 || !d.Crit || m.Tick != 5 {
 		t.Fatalf("damage %+v", d)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 6, Event: &worldv1.DeliverResponse_Damage{Damage: &worldv1.Damage{Source: mob, Target: me, Miss: true}}})
-	if d := c.expect("Damage").Data.(protocol.Damage); d.Source != "m:7" || !d.Miss {
+	if d := c.expect("Damage").Data.(*clientv1.Damage); d.Source != "m:7" || !d.Miss {
 		t.Fatalf("damage %+v", d)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: aylaID.String(), X: 1, Y: 2}}})
-	if d := c.expect("Died").Data.(protocol.Died); d.CharacterID != aylaID.String() || d.X != 1 {
+	if d := c.expect("Died").Data.(*clientv1.Died); d.GetCharacterId() != aylaID.String() || d.X != 1 {
 		t.Fatalf("died %+v", d)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 8, Event: &worldv1.DeliverResponse_Respawned{Respawned: &worldv1.Respawned{CharacterId: aylaID.String(), MapId: "town", X: 416, Y: 608, Hp: 102}}})
-	if r := c.expect("Respawned").Data.(protocol.Respawned); r.MapID != "town" || r.HP != 102 {
+	if r := c.expect("Respawned").Data.(*clientv1.Respawned); r.GetMapId() != "town" || r.GetHp() != 102 {
 		t.Fatalf("respawned %+v", r)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_ExpGained{ExpGained: &worldv1.ExpGained{Amount: 5, Exp: 15}}})
-	if e := c.expect("ExpGained").Data.(protocol.ExpGained); e.Amount != 5 || e.Exp != 15 {
+	if e := c.expect("ExpGained").Data.(*clientv1.ExpGained); e.Amount != 5 || e.Exp != 15 {
 		t.Fatalf("exp %+v", e)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
 		Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 2, Exp: 3, Stats: &characterv1.Stats{Strength: 15, Vitality: 12}, Hp: 252, MaxHp: 252, Mp: 32, MaxMp: 32,
 	}}}})
-	lu := c.expect("LevelUp").Data.(protocol.LevelUp)
-	if lu.Character.Level != 2 || lu.Character.MaxHP != 252 || lu.Character.Stats.STR != 15 || lu.Character.Name != "Ayla" {
+	lu := c.expect("LevelUp").Data.(*clientv1.LevelUp)
+	if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetMaxHp() != 252 || lu.GetCharacter().GetStats().GetStr() != 15 || lu.GetCharacter().GetName() != "Ayla" {
 		t.Fatalf("level-up %+v", lu)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 11, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{
 		Mobs: []*worldv1.MobView{{Id: 7, Type: "green_slime", X: 300, Y: 608, Facing: -1, Hp: 9, MaxHp: 30}}, RemovedMobs: []uint64{6},
 	}}})
-	dl := c.expect("Delta").Data.(protocol.Delta)
-	if len(dl.Mobs) != 1 || dl.Mobs[0].Type != "green_slime" || dl.Mobs[0].HP != 9 || len(dl.RemovedMobs) != 1 || dl.RemovedMobs[0] != 6 {
+	dl := c.expect("Delta").Data.(*clientv1.Delta)
+	if len(dl.Mobs) != 1 || dl.Mobs[0].Type != "green_slime" || dl.Mobs[0].GetHp() != 9 || len(dl.RemovedMobs) != 1 || dl.RemovedMobs[0] != 6 {
 		t.Fatalf("delta %+v", dl)
 	}
 }
@@ -588,7 +630,7 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 	c.expect("Snapshot")
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: "forest", X: 64, Y: 608}}})
 	c.expect("MapChange")
-	c.send(wsconn.Message{Seq: 9, Data: protocol.Input{Left: true}})
+	c.send(wsconn.Message{Seq: 9, Data: &clientv1.Input{Left: true}})
 	waitFor(t, "the input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
@@ -603,14 +645,14 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
-	w := c.expect("Welcome").Data.(protocol.Welcome)
-	if len(w.Inventory) != 1 || w.Inventory[0].ItemID != potion.GetId() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 {
+	w := c.expect("Welcome").Data.(*clientv1.Welcome)
+	if len(w.Inventory) != 1 || w.Inventory[0].GetItemId() != potion.GetId() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 {
 		t.Fatalf("welcome inventory %+v", w.Inventory)
 	}
 	c.expect("Snapshot")
 
 	t.Run("PickUp is routed as the sender", func(t *testing.T) {
-		c.send(wsconn.Message{Seq: 4, Data: protocol.PickUp{}})
+		c.send(wsconn.Message{Seq: 4, Data: &clientv1.PickUp{}})
 		waitFor(t, "the pickup", h.world.pickupList, 1)
 		h.world.mu.Lock()
 		defer h.world.mu.Unlock()
@@ -621,13 +663,13 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	t.Run("InventoryMove answers ok and sends the changed slots, with the connection's identity", func(t *testing.T) {
 		moved := &itemv1.Item{Id: potion.GetId(), TemplateId: "red_potion", Tab: "use", Slot: 3, Quantity: 5}
 		items.changed = []*itemv1.Slot{{Tab: "use", Slot: 0}, {Tab: "use", Slot: 3, Item: moved}}
-		c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryMove{IdempotencyKey: "k-1", ItemID: potion.GetId(), Tab: "use", Slot: 3}})
+		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryMove{IdempotencyKey: "k-1", ItemId: potion.GetId(), Tab: "use", Slot: 3}})
 		r := c.expect("Response")
-		if r.ReqID != "r-1" || !r.Data.(protocol.Response).OK {
+		if r.ReqID != "r-1" || !r.Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("response %+v", r)
 		}
-		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
-		if len(ic.Slots) != 2 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].Item.Quantity != 5 {
+		ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+		if len(ic.Slots) != 2 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].GetItem().GetQuantity() != 5 {
 			t.Fatalf("inventory changed %+v", ic)
 		}
 		items.mu.Lock()
@@ -640,18 +682,18 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	})
 	t.Run("InventoryDiscard maps a rule error to the Response code", func(t *testing.T) {
 		items.err = grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_QUANTITY)
-		c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k-2", ItemID: potion.GetId(), Quantity: 9}})
-		r := c.expect("Response").Data.(protocol.Response)
-		if r.OK || r.Code != "bad_quantity" || r.Message == "" {
+		c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-2", ItemId: potion.GetId(), Quantity: 9}})
+		r := c.expect("Response").Data.(*clientv1.Response)
+		if r.GetOk() || r.Code != "bad_quantity" || r.Message == "" {
 			t.Fatalf("response %+v", r)
 		}
 		items.err = nil
 	})
 	t.Run("a malformed item ID is bad_id without reaching the service", func(t *testing.T) {
 		before := len(items.discards)
-		c.send(wsconn.Message{ReqID: "r-3", Data: protocol.InventoryDiscard{IdempotencyKey: "k-3", ItemID: "nope", Quantity: 1}})
-		r := c.expect("Response").Data.(protocol.Response)
-		if r.OK || r.Code != "bad_id" {
+		c.send(wsconn.Message{ReqID: "r-3", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-3", ItemId: "nope", Quantity: 1}})
+		r := c.expect("Response").Data.(*clientv1.Response)
+		if r.GetOk() || r.Code != "bad_id" {
 			t.Fatalf("response %+v", r)
 		}
 		if len(items.discards) != before {
@@ -660,25 +702,25 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	})
 	t.Run("drops and pickup results reach the client", func(t *testing.T) {
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 12, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}}}})
-		d := c.expect("Delta").Data.(protocol.Delta)
+		d := c.expect("Delta").Data.(*clientv1.Delta)
 		if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
 			t.Fatalf("delta %+v", d)
 		}
 		full := grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 13, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{ErrorDomain: full.Domain, ErrorReason: full.Name}}})
-		r := c.expect("Response").Data.(protocol.Response)
-		if r.OK || r.Code != "inventory_full" || r.Message != "your inventory is full" {
+		r := c.expect("Response").Data.(*clientv1.Response)
+		if r.GetOk() || r.Code != "inventory_full" || r.Message != "your inventory is full" {
 			t.Fatalf("response %+v", r)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: []*itemv1.Slot{
 			{Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
 		}}}})
-		ic := c.expect("InventoryChanged").Data.(protocol.InventoryChanged)
-		if len(ic.Slots) != 1 || ic.Slots[0].Item.Template != "slime_gel" {
+		ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+		if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetTemplate() != "slime_gel" {
 			t.Fatalf("inventory changed %+v", ic)
 		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 15, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{}}})
-		if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "internal" {
+		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "internal" {
 			t.Fatalf("a failure the world could not name: %+v", r)
 		}
 	})
@@ -696,9 +738,9 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Welcome")
 	c.expect("Snapshot")
-	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Quantity: 1}})
-	r := c.expect("Response").Data.(protocol.Response)
-	if r.OK || r.Code != "internal" || strings.Contains(r.Message, "connection reset") {
+	c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
+	r := c.expect("Response").Data.(*clientv1.Response)
+	if r.GetOk() || r.Code != "internal" || strings.Contains(r.Message, "connection reset") {
 		t.Fatalf("response %+v; the cause must stay out of it", r)
 	}
 	got := logs.String()
@@ -730,13 +772,13 @@ func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{ReqID: "r-1", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: kernel.NewItemID().String(), Quantity: 1}})
-	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "inventory_unavailable" {
+	c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
+	if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "inventory_unavailable" {
 		t.Fatalf("response %+v", r)
 	}
 	// The handler rejects a malformed message before any use case runs.
-	c.send(wsconn.Message{ReqID: "r-2", Data: protocol.InventoryDiscard{IdempotencyKey: "k", ItemID: "x", Quantity: 1}})
-	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_id" {
+	c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: "x", Quantity: 1}})
+	if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
 		t.Fatalf("a malformed item ID: %+v", r)
 	}
 }
@@ -746,7 +788,7 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{Seq: 7, Data: protocol.EnterPortal{}})
+	c.send(wsconn.Message{Seq: 7, Data: &clientv1.EnterPortal{}})
 	waitFor(t, "the portal", h.world.portalList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
@@ -779,7 +821,7 @@ func TestChatRouting(t *testing.T) {
 	bruno.expect("Snapshot")
 
 	t.Run("a map line goes to the sender's map with the connection's identity", func(t *testing.T) {
-		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hello map"}})
+		ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hello map"}})
 		waitFor(t, "the map line", h.world.sayList, 1)
 		h.world.mu.Lock()
 		defer h.world.mu.Unlock()
@@ -789,16 +831,16 @@ func TestChatRouting(t *testing.T) {
 	})
 	t.Run("a map line from the world reaches the client as ChatMessage", func(t *testing.T) {
 		h.world.push(brunoID, &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: aylaID.String(), SenderName: "Ayla", Text: "hello map"}}})
-		cm := bruno.expect("ChatMessage").Data.(protocol.ChatMessage)
-		if cm.Channel != protocol.ChatMap || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "hello map" {
+		cm := bruno.expect("ChatMessage").Data.(*clientv1.ChatMessage)
+		if cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_MAP || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "hello map" {
 			t.Fatalf("chat message %+v", cm)
 		}
 	})
 	t.Run("a party line the social service delivers reaches every recipient, the sender included", func(t *testing.T) {
-		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatParty, Text: "psst"}})
+		ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "psst"}})
 		for _, c := range []*client{ayla, bruno} {
-			cm := c.expect("ChatMessage").Data.(protocol.ChatMessage)
-			if cm.Channel != protocol.ChatParty || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "psst" {
+			cm := c.expect("ChatMessage").Data.(*clientv1.ChatMessage)
+			if cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_PARTY || cm.Sender != aylaID.String() || cm.SenderName != "Ayla" || cm.Text != "psst" {
 				t.Fatalf("party chat %+v", cm)
 			}
 		}
@@ -807,9 +849,9 @@ func TestChatRouting(t *testing.T) {
 		fs.mu.Lock()
 		fs.chatErr = grpcx.Error(codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG)
 		fs.mu.Unlock()
-		ayla.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "..."}})
+		ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "..."}})
 		r := ayla.expect("Response")
-		if r.ReqID != "" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "chat_too_long" {
+		if r.ReqID != "" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != "chat_too_long" {
 			t.Fatalf("response %+v", r)
 		}
 	})
@@ -820,12 +862,12 @@ func TestChatAndPartiesAreUnavailableWithoutTheSocialService(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hi"}})
-	if r := c.expect("Response").Data.(protocol.Response); r.Code != "chat_unavailable" {
+	c.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hi"}})
+	if r := c.expect("Response").Data.(*clientv1.Response); r.Code != "chat_unavailable" {
 		t.Fatalf("chat %+v", r)
 	}
-	c.send(wsconn.Message{ReqID: "p", Data: protocol.PartyLeave{}})
-	if r := c.expect("Response").Data.(protocol.Response); r.Code != "parties_unavailable" {
+	c.send(wsconn.Message{ReqID: "p", Data: &clientv1.PartyLeave{}})
+	if r := c.expect("Response").Data.(*clientv1.Response); r.Code != "parties_unavailable" {
 		t.Fatalf("party %+v", r)
 	}
 }
@@ -839,14 +881,14 @@ func TestPartyCommandsAndState(t *testing.T) {
 	h := social(t, fs)
 	ayla := h.dial(t)
 	ayla.hello(tokenAlice, aylaID)
-	w := ayla.expect("Welcome").Data.(protocol.Welcome)
-	if w.Party == nil || w.Party.Leader != aylaID.String() || len(w.Party.Members) != 2 || w.Party.Members[1].Name != "Bruno" || w.Party.Members[1].MapID != "forest" || w.Party.Members[1].Online {
+	w := ayla.expect("Welcome").Data.(*clientv1.Welcome)
+	if w.Party == nil || w.GetParty().GetLeader() != aylaID.String() || len(w.GetParty().GetMembers()) != 2 || w.GetParty().GetMembers()[1].GetName() != "Bruno" || w.GetParty().GetMembers()[1].GetMapId() != "forest" || w.GetParty().GetMembers()[1].GetOnline() {
 		t.Fatalf("welcome party %+v", w.Party)
 	}
 	ayla.expect("Snapshot")
 	bruno := h.dial(t)
 	bruno.hello(tokenBob, brunoID)
-	if w := bruno.expect("Welcome").Data.(protocol.Welcome); w.Party != nil {
+	if w := bruno.expect("Welcome").Data.(*clientv1.Welcome); w.Party != nil {
 		t.Fatalf("bruno has a party in Welcome: %+v", w.Party)
 	}
 	bruno.expect("Snapshot")
@@ -873,16 +915,16 @@ func TestPartyCommandsAndState(t *testing.T) {
 			msg  any
 			want string
 		}{
-			{protocol.PartyInvite{CharacterID: brunoID.String()}, "invite " + aylaID.String() + " " + brunoID.String()},
-			{protocol.PartyRespond{InviteID: "inv-9", Accept: true}, "respond " + aylaID.String() + " inv-9 yes"},
-			{protocol.PartyKick{CharacterID: brunoID.String()}, "kick " + aylaID.String() + " " + brunoID.String()},
-			{protocol.PartyPromote{CharacterID: brunoID.String()}, "promote " + aylaID.String() + " " + brunoID.String()},
-			{protocol.PartyLeave{}, "leave " + aylaID.String()},
+			{&clientv1.PartyInvite{CharacterId: brunoID.String()}, "invite " + aylaID.String() + " " + brunoID.String()},
+			{&clientv1.PartyRespond{InviteId: "inv-9", Accept: true}, "respond " + aylaID.String() + " inv-9 yes"},
+			{&clientv1.PartyKick{CharacterId: brunoID.String()}, "kick " + aylaID.String() + " " + brunoID.String()},
+			{&clientv1.PartyPromote{CharacterId: brunoID.String()}, "promote " + aylaID.String() + " " + brunoID.String()},
+			{&clientv1.PartyLeave{}, "leave " + aylaID.String()},
 		} {
 			req := "p-" + string(rune('a'+k))
 			ayla.send(wsconn.Message{ReqID: req, Data: tt.msg})
 			r := ayla.expect("Response")
-			if r.ReqID != req || !r.Data.(protocol.Response).OK {
+			if r.ReqID != req || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("%T: response %+v", tt.msg, r)
 			}
 			if got := fs.lastCall(); got != tt.want {
@@ -891,15 +933,15 @@ func TestPartyCommandsAndState(t *testing.T) {
 		}
 	})
 	t.Run("errors map to the Response code", func(t *testing.T) {
-		ayla.send(wsconn.Message{ReqID: "p-x", Data: protocol.PartyInvite{CharacterID: "nope"}})
-		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_id" {
+		ayla.send(wsconn.Message{ReqID: "p-x", Data: &clientv1.PartyInvite{CharacterId: "nope"}})
+		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
 			t.Fatalf("malformed id: %+v", r)
 		}
 		fs.mu.Lock()
 		fs.err = grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER)
 		fs.mu.Unlock()
-		ayla.send(wsconn.Message{ReqID: "p-y", Data: protocol.PartyKick{CharacterID: brunoID.String()}})
-		if r := ayla.expect("Response").Data.(protocol.Response); r.OK || r.Code != "not_party_leader" || r.Message == "" {
+		ayla.send(wsconn.Message{ReqID: "p-y", Data: &clientv1.PartyKick{CharacterId: brunoID.String()}})
+		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "not_party_leader" || r.Message == "" {
 			t.Fatalf("not leader: %+v", r)
 		}
 		fs.mu.Lock()
@@ -912,17 +954,17 @@ func TestPartyCommandsAndState(t *testing.T) {
 			fs.push(id, &socialv1.DeliverResponse{Event: state})
 		}
 		for _, c := range []*client{ayla, bruno} {
-			ps := c.expect("PartyState").Data.(protocol.PartyState)
-			if ps.Party == nil || ps.Party.Leader != brunoID.String() || len(ps.Party.Members) != 2 {
+			ps := c.expect("PartyState").Data.(*clientv1.PartyState)
+			if ps.Party == nil || ps.GetParty().GetLeader() != brunoID.String() || len(ps.GetParty().GetMembers()) != 2 {
 				t.Fatalf("party state %+v", ps)
 			}
 		}
 		fs.push(brunoID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{InviteId: "inv-2", FromId: aylaID.String(), FromName: "Ayla"}}})
-		if inv := bruno.expect("PartyInvited").Data.(protocol.PartyInvited); inv.InviteID != "inv-2" || inv.From != aylaID.String() || inv.FromName != "Ayla" {
+		if inv := bruno.expect("PartyInvited").Data.(*clientv1.PartyInvited); inv.GetInviteId() != "inv-2" || inv.From != aylaID.String() || inv.FromName != "Ayla" {
 			t.Fatalf("invited %+v", inv)
 		}
 		fs.push(aylaID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{}}})
-		if ps := ayla.expect("PartyState").Data.(protocol.PartyState); ps.Party != nil {
+		if ps := ayla.expect("PartyState").Data.(*clientv1.PartyState); ps.Party != nil {
 			t.Fatalf("party state after leaving %+v", ps)
 		}
 	})
@@ -930,7 +972,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		before := len(fs.onlineCalls())
 		fs.restart("boot-2")
 		for _, c := range []*client{ayla, bruno} {
-			if ps := c.expect("PartyState").Data.(protocol.PartyState); ps.Party != nil {
+			if ps := c.expect("PartyState").Data.(*clientv1.PartyState); ps.Party != nil {
 				t.Fatalf("party state after the restart %+v", ps)
 			}
 		}
@@ -941,7 +983,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 9}})
+		ayla.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 9}})
 		ayla.expect("Pong") // the socket stayed up
 	})
 	t.Run("a stream that breaks without a restart changes nothing", func(t *testing.T) {
@@ -951,7 +993,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("no new subscription")
 		}
-		ayla.send(wsconn.Message{Data: protocol.Ping{ClientTime: 10}})
+		ayla.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 10}})
 		if m := ayla.expect("Pong"); m.Type != "Pong" {
 			t.Fatalf("got %+v; a PartyState was sent although the parties survived", m)
 		}
@@ -977,12 +1019,12 @@ func TestChatAndPartyWithoutTheServices(t *testing.T) {
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
-	c.send(wsconn.Message{Data: protocol.ChatSend{Channel: protocol.ChatMap, Text: "hi"}})
-	if r := c.expect("Response").Data.(protocol.Response); r.OK || r.Code != "chat_unavailable" {
+	c.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hi"}})
+	if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "chat_unavailable" {
 		t.Fatalf("chat: %+v", r)
 	}
-	c.send(wsconn.Message{ReqID: "p-1", Data: protocol.PartyLeave{}})
-	if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(protocol.Response).OK || r.Data.(protocol.Response).Code != "parties_unavailable" {
+	c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
+	if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != "parties_unavailable" {
 		t.Fatalf("party: %+v", r)
 	}
 }
@@ -991,7 +1033,7 @@ func TestWelcomeCarriesTheRotatedToken(t *testing.T) {
 	h := newHarness(t)
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
-	w := c.expect("Welcome").Data.(protocol.Welcome)
+	w := c.expect("Welcome").Data.(*clientv1.Welcome)
 	if w.Token == "" || w.Token == tokenAlice || !strings.HasPrefix(w.Token, "rotated-") {
 		t.Fatalf("welcome token %q", w.Token)
 	}
@@ -1005,7 +1047,7 @@ func TestSecondHelloOnTheSameSessionKicksTheFirst(t *testing.T) {
 	second := h.dial(t)
 	second.hello(tokenAlice, aylaID) // the same login session, as a retried Hello would be
 	second.expect("Snapshot")
-	first.expectKick(protocol.KickLoggedInElsewhere)
+	first.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 }
 
 func TestExpiredSessionIsKicked(t *testing.T) {
@@ -1019,7 +1061,7 @@ func TestExpiredSessionIsKicked(t *testing.T) {
 	c.expect("Snapshot")
 	time.Sleep(60 * time.Millisecond) // a few checks pass while the session is fine
 	sessions.expire(uuid.UUID(sessAlice))
-	c.expectKick(protocol.KickSessionExpired)
+	c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 }
 
 func TestRevokedSessionsAndAccountsAreKicked(t *testing.T) {
@@ -1029,14 +1071,14 @@ func TestRevokedSessionsAndAccountsAreKicked(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		h.gw.KickSession(sessAlice)
-		c.expectKick(protocol.KickSessionExpired)
+		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 	})
 	t.Run("logging out everywhere", func(t *testing.T) {
 		c := h.dial(t)
 		c.hello(tokenBob, brunoID)
 		c.expect("Snapshot")
 		h.gw.KickAccount(bob, false)
-		c.expectKick(protocol.KickSessionExpired)
+		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 		h.gw.KickAccount(bob, false) // nobody left: nothing happens
 	})
 }
@@ -1047,7 +1089,7 @@ func TestANewLoginElsewhereKicksAsLoggedInElsewhere(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
 	h.gw.KickAccount(alice, true)
-	c.expectKick(protocol.KickLoggedInElsewhere)
+	c.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 }
 
 type watcher struct {
@@ -1100,7 +1142,7 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 		w.events <- &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{AccountRevoked: &accountv1.AccountRevoked{
 			AccountId: alice.String(), Reason: accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN,
 		}}}
-		c.expectKick(protocol.KickLoggedInElsewhere)
+		c.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 	})
 	t.Run("a session ended by reuse kicks as session_expired", func(t *testing.T) {
 		c := h.dial(t)
@@ -1109,7 +1151,7 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 		w.events <- &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{SessionRevoked: &accountv1.SessionRevoked{
 			SessionId: sessBob.String(), Reason: accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE,
 		}}}
-		c.expectKick(protocol.KickSessionExpired)
+		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 	})
 	t.Run("after the stream breaks the gateway subscribes again, under its ID", func(t *testing.T) {
 		close(w.end)
@@ -1152,7 +1194,7 @@ func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 		t.Fatalf("order %v, want Welcome then the Snapshot", got)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 42, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 1}}})
-	if d := c.expect("Delta"); d.Data.(protocol.Delta).AckSeq != 1 {
+	if d := c.expect("Delta"); d.Data.(*clientv1.Delta).AckSeq != 1 {
 		t.Fatalf("delta %+v: the older presence's came through", d)
 	}
 }
@@ -1178,7 +1220,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		t.Fatalf("snapshot tick %d after 500: the ticks went back on the connection", snap.Tick)
 	}
 	m, status := bruno.read()
-	if status != -1 || m.Type != "MapChange" || m.Data.(protocol.MapChange).MapID != "forest" || m.Data.(protocol.MapChange).X != 64 {
+	if status != -1 || m.Type != "MapChange" || m.Data.(*clientv1.MapChange).GetMapId() != "forest" || m.Data.(*clientv1.MapChange).X != 64 {
 		t.Fatalf("bruno got %+v (status %d), want MapChange to the forest first", m, status)
 	}
 	if m, _ := bruno.read(); m.Type != "Snapshot" {
@@ -1189,10 +1231,10 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		t.Fatalf("joins %+v", joins)
 	}
 	for _, c := range []*client{ayla, bruno} {
-		c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+		c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
 		c.expect("Pong") // the socket stayed open
 	}
-	bruno.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}})
+	bruno.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
 	waitFor(t, "Bruno's input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
@@ -1228,12 +1270,12 @@ func TestABlockedCommandDoesNotStopTheReadLoop(t *testing.T) {
 	h.world.mu.Lock()
 	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
 	h.world.mu.Unlock()
-	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}})
 	if err := <-h.world.blocked; err != nil { // the world holds the attack
 		t.Fatal(err)
 	}
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 5}})
-	if p := c.expect("Pong").Data.(protocol.Pong); p.ClientTime != 5 {
+	c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 5}})
+	if p := c.expect("Pong").Data.(*clientv1.Pong); p.ClientTime != 5 {
 		t.Fatalf("pong %+v", p)
 	}
 	close(h.world.block)
@@ -1245,12 +1287,12 @@ func TestABlockedCommandDoesNotStopTheReadLoop(t *testing.T) {
 func TestCommandsReachTheServicesInTheOrderTheyArrived(t *testing.T) {
 	h := newHarness(t)
 	c := h.joined(t)
-	c.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}})
-	c.send(wsconn.Message{Seq: 2, Data: protocol.Attack{}})
-	c.send(wsconn.Message{Seq: 3, Data: protocol.Input{}})
-	c.send(wsconn.Message{Seq: 4, Data: protocol.PickUp{}})
-	c.send(wsconn.Message{Seq: 5, Data: protocol.EnterPortal{}})
-	c.send(wsconn.Message{Seq: 6, Data: protocol.Input{Left: true}})
+	c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+	c.send(wsconn.Message{Seq: 2, Data: &clientv1.Attack{}})
+	c.send(wsconn.Message{Seq: 3, Data: &clientv1.Input{}})
+	c.send(wsconn.Message{Seq: 4, Data: &clientv1.PickUp{}})
+	c.send(wsconn.Message{Seq: 5, Data: &clientv1.EnterPortal{}})
+	c.send(wsconn.Message{Seq: 6, Data: &clientv1.Input{Left: true}})
 	got := waitFor(t, "six commands", h.world.callList, 6)
 	want := []string{"input 1", "attack", "input 3", "pickup", "portal", "input 6"}
 	if strings.Join(got, ", ") != strings.Join(want, ", ") {
@@ -1264,16 +1306,16 @@ func TestAFullCommandQueueAnswersRateLimited(t *testing.T) {
 	h.world.mu.Lock()
 	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
 	h.world.mu.Unlock()
-	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}})
 	if err := <-h.world.blocked; err != nil { // in flight; the queue behind it is empty
 		t.Fatal(err)
 	}
-	c.send(wsconn.Message{Seq: 2, Data: protocol.Input{Right: true}})
-	c.send(wsconn.Message{Seq: 3, Data: protocol.Input{}})
-	c.send(wsconn.Message{Seq: 4, Data: protocol.Input{Left: true}}) // dropped: no request ID to answer
-	c.send(wsconn.Message{ReqID: "p-1", Data: protocol.PartyLeave{}})
+	c.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{Right: true}})
+	c.send(wsconn.Message{Seq: 3, Data: &clientv1.Input{}})
+	c.send(wsconn.Message{Seq: 4, Data: &clientv1.Input{Left: true}}) // dropped: no request ID to answer
+	c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
 	r := c.expect("Response")
-	if r.ReqID != "p-1" || r.Data.(protocol.Response).Code != "rate_limited" {
+	if r.ReqID != "p-1" || r.Data.(*clientv1.Response).Code != "rate_limited" {
 		t.Fatalf("response %+v", r)
 	}
 	close(h.world.block)
@@ -1293,7 +1335,7 @@ func TestClosingTheConnectionCancelsItsCommandInFlight(t *testing.T) {
 	h.world.mu.Lock()
 	h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
 	h.world.mu.Unlock()
-	c.send(wsconn.Message{Seq: 1, Data: protocol.Attack{}})
+	c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}})
 	if err := <-h.world.blocked; err != nil {
 		t.Fatal(err)
 	}
@@ -1319,7 +1361,7 @@ func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
 	drained := make(chan struct{})
 	go func() { defer close(drained); h.gw.Drain(context.Background()) }()
 	for _, c := range []*client{ayla, bruno, silent} {
-		c.expectKick(protocol.KickServerRestart)
+		c.expectKick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
 	}
 	select {
 	case <-drained:
@@ -1346,7 +1388,7 @@ func TestTheFirstSubscriptionIsNotABreak(t *testing.T) {
 	c.hello(tokenAlice, aylaID)
 	c.expect("Welcome")
 	c.expect("Snapshot")
-	c.send(wsconn.Message{Data: protocol.Ping{ClientTime: 1}})
+	c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
 	c.expect("Pong")
 	time.Sleep(50 * time.Millisecond) // a rejoin would follow at once
 	if n := len(h.world.joins()); n != 1 {

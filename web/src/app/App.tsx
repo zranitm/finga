@@ -76,11 +76,12 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
             setPlaying(c);
             svc.socket.connect(c.id).then(
               (welcome) => {
+                const me = welcome.character ?? c; // always sent, but a message field is optional
                 svc.game.enter({
-                  mapId: welcome.map_id,
-                  characterId: welcome.character.id,
-                  cls: welcome.character.class,
-                  name: welcome.character.name,
+                  mapId: welcome.mapId,
+                  characterId: me.id,
+                  cls: me.class,
+                  name: me.name,
                 });
               },
               (err: unknown) => {

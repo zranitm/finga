@@ -1,7 +1,7 @@
 import type { Data } from '@/protocol/messages';
 import { params } from '@/sim/step';
 
-export type DropWire = Data<'Snapshot'>['drops'][number];
+export type DropWire = Data<'snapshot'>['drops'][number];
 
 /** From the player's box centre. */
 export const PICKUP_RANGE = 40;

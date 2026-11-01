@@ -11,30 +11,30 @@ import { toasts } from '@/state/toasts';
 
 export function wireSocket(socket: GameSocket): () => void {
   const offs = [
-    socket.on('Welcome', (m) => {
+    socket.on('welcome', (m) => {
       character.getState().applyWelcome(m.d);
       inventory.getState().applyWelcome(m.d);
       party.getState().applyWelcome(m.d);
     }),
-    socket.on('InventoryChanged', (m) => {
+    socket.on('inventoryChanged', (m) => {
       inventory.getState().applyInventoryChanged(m.d);
     }),
-    socket.on('PartyState', (m) => {
+    socket.on('partyState', (m) => {
       party.getState().applyPartyState(m.d);
     }),
-    socket.on('PartyInvited', (m) => {
+    socket.on('partyInvited', (m) => {
       party.getState().applyPartyInvited(m.d);
     }),
-    socket.on('ChatMessage', (m) => {
+    socket.on('chatMessage', (m) => {
       chat.getState().applyChatMessage(m.d);
     }),
-    socket.on('LevelUp', (m) => {
+    socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
     }),
-    socket.on('ExpGained', (m) => {
+    socket.on('expGained', (m) => {
       character.getState().applyExpGained(m.d);
     }),
-    socket.on('Pong', () => {
+    socket.on('pong', () => {
       connection.getState().setRtt(socket.rtt);
     }),
     socket.onStatus(applyStatus),
@@ -69,7 +69,7 @@ export function applyStatus(e: StatusEvent): void {
         c.setConnection('disconnected');
         return;
       }
-      c.setConnection('kicked', { ...(e.kick && { kick: e.kick }) });
+      c.setConnection('kicked', e.kick === undefined ? {} : { kick: e.kick });
       leaveWorld();
       if (e.reason === 'outdated_protocol' && typeof location !== 'undefined') {
         location.reload();
@@ -82,7 +82,7 @@ export function applyStatus(e: StatusEvent): void {
 }
 
 /** For a refused command with no req: a pickup, a chat line. */
-export function responseText(d: Data<'Response'>): string {
+export function responseText(d: Data<'response'>): string {
   switch (d.code) {
     case 'inventory_full':
       return 'Your inventory is full.';
@@ -92,7 +92,7 @@ export function responseText(d: Data<'Response'>): string {
     case 'chat_rate_limited':
       return 'Too fast. Wait a moment.';
     default:
-      return d.message ?? d.code ?? 'The server refused.';
+      return d.message || d.code || 'The server refused.';
   }
 }
 

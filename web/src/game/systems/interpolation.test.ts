@@ -103,7 +103,13 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
   id,
   name,
   class: cls,
-  ...at(x, 608),
+  x,
+  y: 608,
+  vx: 0,
+  vy: 0,
+  facing: 1,
+  onGround: true,
+  climbing: false,
 });
 
 describe('RemotePlayers', () => {

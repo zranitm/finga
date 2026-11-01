@@ -1,30 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Data } from '@/protocol/messages';
 import { noInput } from '@/sim/input';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 
 import { GameSocket } from './socket';
 import { clearToken, setToken } from './token';
 
-const welcome = {
-  token: 'tok-rotated',
-  character: {
-    id: 'c-ayla',
-    name: 'Ayla',
-    class: 'warrior',
-    level: 1,
-    exp: 0,
-    stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
-    hp: 204,
-    max_hp: 204,
-    mp: 28,
-    max_mp: 28,
-  },
-  inventory: [],
-  map_id: 'town',
-  tick: 1,
-  server_time: 0,
-};
+const welcome = { token: 'tok-rotated', character: { id: 'c-ayla', name: 'Ayla' }, mapId: 'town' };
 
 describe('GameSocket delayMs', () => {
   beforeEach(() => {
@@ -48,24 +31,24 @@ describe('GameSocket delayMs', () => {
     ws.open();
     expect(ws.frames()).toHaveLength(0); // Hello waits
     await vi.advanceTimersByTimeAsync(100);
-    expect(ws.frames()[0]?.t).toBe('Hello');
+    expect(ws.frames()[0]?.t).toBe('hello');
 
-    ws.push({ t: 'Welcome', d: welcome });
+    ws.push('welcome', welcome);
     expect(socket.currentStatus).toBe('connecting'); // Welcome waits too
     await vi.advanceTimersByTimeAsync(100);
     await p;
     expect(socket.currentStatus).toBe('connected');
 
-    const seen: unknown[] = [];
-    socket.on('Snapshot', (m) => seen.push(m.d));
-    ws.push({ t: 'Snapshot', d: { players: [], mobs: [], drops: [] } });
+    const seen: Data<'snapshot'>[] = [];
+    socket.on('snapshot', (m) => seen.push(m.d));
+    ws.push('snapshot', {});
     socket.sendInput({ ...noInput, right: true }, 1);
     await vi.advanceTimersByTimeAsync(99);
     expect(seen).toHaveLength(0);
-    expect(ws.frames().filter((f) => f.t === 'Input')).toHaveLength(0);
+    expect(ws.frames().filter((f) => f.t === 'input')).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(1);
     expect(seen).toHaveLength(1);
-    expect(ws.frames().filter((f) => f.t === 'Input')).toHaveLength(1);
+    expect(ws.frames().filter((f) => f.t === 'input')).toHaveLength(1);
   });
 
   it('a frame delayed past the socket closing is dropped, not sent on the next one', async () => {
@@ -79,12 +62,12 @@ describe('GameSocket delayMs', () => {
     const ws = FakeWebSocket.latest();
     ws.open();
     await vi.advanceTimersByTimeAsync(50);
-    ws.push({ t: 'Welcome', d: welcome });
+    ws.push('welcome', welcome);
     await vi.advanceTimersByTimeAsync(50);
     await p;
     socket.sendInput({ ...noInput, left: true }, 1);
     ws.closeFromServer(4002); // before the delayed Input leaves
     await vi.advanceTimersByTimeAsync(50);
-    expect(ws.frames().filter((f) => f.t === 'Input')).toHaveLength(0);
+    expect(ws.frames().filter((f) => f.t === 'input')).toHaveLength(0);
   });
 });

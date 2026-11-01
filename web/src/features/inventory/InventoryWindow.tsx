@@ -8,8 +8,9 @@ import { items as templates } from '@/gamedata/items';
 import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
-import type { ItemView, Tab } from '@/protocol/messages';
+import type { ItemView } from '@/protocol/messages';
 import { SLOTS_PER_TAB, inventory, tabs } from '@/state/inventory';
+import type { Tab } from '@/state/inventory';
 
 export interface InventoryWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -78,14 +79,14 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
       setNotice('Items stay in their tab.');
       return;
     }
-    if (slot === item.slot || pending.has(item.item_id)) {
+    if (slot === item.slot || pending.has(item.itemId)) {
       return;
     }
     const key = idempotencyKey();
-    void run(item.item_id, key, () =>
-      socket.request('InventoryMove', {
-        idempotency_key: key,
-        item_id: item.item_id,
+    void run(item.itemId, key, () =>
+      socket.request('inventoryMove', {
+        idempotencyKey: key,
+        itemId: item.itemId,
         tab: toTab,
         slot,
       }),
@@ -96,10 +97,10 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
     setConfirmDiscard(null);
     setSelected(null);
     const key = idempotencyKey();
-    void run(item.item_id, key, () =>
-      socket.request('InventoryDiscard', {
-        idempotency_key: key,
-        item_id: item.item_id,
+    void run(item.itemId, key, () =>
+      socket.request('inventoryDiscard', {
+        idempotencyKey: key,
+        itemId: item.itemId,
         quantity: item.quantity,
       }),
     );
@@ -120,9 +121,7 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
     }
   };
 
-  const selectedItem = selected
-    ? (slots[tab].find((it) => it?.item_id === selected) ?? null)
-    : null;
+  const selectedItem = selected ? (slots[tab].find((it) => it?.itemId === selected) ?? null) : null;
   const selectedPending = selected ? pending.get(selected) : undefined;
 
   return (
@@ -154,7 +153,7 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
         <div className="inventory-grid" role="grid" aria-label={`${tabLabels[tab]} items`}>
           {Array.from({ length: SLOTS_PER_TAB }, (_, slot) => {
             const item = slots[tab][slot] ?? null;
-            const isPending = item ? pending.has(item.item_id) : false;
+            const isPending = item ? pending.has(item.itemId) : false;
             return (
               <button
                 key={slot}
@@ -165,14 +164,14 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
                 }
                 aria-busy={isPending}
                 className={`slot${item ? ` slot-${item.tab}` : ''}${isPending ? ' slot-pending' : ''}${
-                  item?.item_id === selected ? ' slot-selected' : ''
+                  item?.itemId === selected ? ' slot-selected' : ''
                 }`}
                 draggable={item !== null && !isPending}
                 onDragStart={() => setDragging(item)}
                 onDragEnd={() => setDragging(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, slot)}
-                onClick={() => setSelected(item ? item.item_id : null)}
+                onClick={() => setSelected(item ? item.itemId : null)}
               >
                 {item && (
                   <>
@@ -193,7 +192,7 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
               {selectedItem.quantity > 1 ? ` x${selectedItem.quantity}` : ''}
             </span>
             {selectedPending?.retryable ? (
-              <Button variant="quiet" onClick={() => retry(selectedItem.item_id)}>
+              <Button variant="quiet" onClick={() => retry(selectedItem.itemId)}>
                 Retry
               </Button>
             ) : (

@@ -1,58 +1,30 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { create, fromJsonString } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import {
+  InventoryChangedSchema,
+  ResponseSchema,
+  ServerMessageSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { inventory } from '@/state/inventory';
 import { resetStores } from '@/testing/reset-stores';
 
 import { InventoryWindow, itemName } from './InventoryWindow';
 
-const sword = {
-  item_id: 'i-sword',
-  template: 'wooden_sword',
-  tab: 'equip',
-  slot: 0,
-  quantity: 1,
-} as const;
-const cap = {
-  item_id: 'i-cap',
-  template: 'leather_cap',
-  tab: 'equip',
-  slot: 5,
-  quantity: 1,
-} as const;
-const potion = {
-  item_id: 'i-potion',
-  template: 'red_potion',
-  tab: 'use',
-  slot: 0,
-  quantity: 5,
-} as const;
+const sword = { itemId: 'i-sword', template: 'wooden_sword', tab: 'equip', slot: 0, quantity: 1 };
+const cap = { itemId: 'i-cap', template: 'leather_cap', tab: 'equip', slot: 5, quantity: 1 };
+const potion = { itemId: 'i-potion', template: 'red_potion', tab: 'use', slot: 0, quantity: 5 };
 
-const welcome = {
-  token: 'tok',
-  character: {
-    id: 'c-ayla',
-    name: 'Ayla',
-    class: 'warrior',
-    level: 1,
-    exp: 0,
-    stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
-    hp: 204,
-    max_hp: 204,
-    mp: 28,
-    max_mp: 28,
-  },
-  inventory: [sword, cap, potion],
-  map_id: 'town',
-  tick: 1,
-  server_time: 0,
-};
+const welcome = create(WelcomeSchema, { token: 'tok', inventory: [sword, cap, potion] });
+const ok = create(ResponseSchema, { ok: true });
 
 interface Request {
   t: string;
@@ -60,17 +32,17 @@ interface Request {
 }
 
 /** Requests resolve or reject with the given answers, in order. */
-function fakeSocket(answers: readonly (Data<'Response'> | Error)[]) {
+function fakeSocket(answers: readonly (Data<'response'> | Error)[]) {
   const calls: Request[] = [];
   const request = vi.fn((t: string, d: Record<string, unknown>) => {
     calls.push({ t, d });
-    const a = answers[calls.length - 1] ?? { ok: true };
+    const a = answers[calls.length - 1] ?? ok;
     return a instanceof Error ? Promise.reject(a) : Promise.resolve(a);
   });
   return { socket: { request } as never, calls };
 }
 
-function setup(answers: readonly (Data<'Response'> | Error)[] = []) {
+function setup(answers: readonly (Data<'response'> | Error)[] = []) {
   const { socket, calls } = fakeSocket(answers);
   const onClose = vi.fn();
   render(<InventoryWindow socket={socket} onClose={onClose} />);
@@ -96,38 +68,40 @@ describe('InventoryWindow', () => {
   });
 
   it('a drag between slots sends InventoryMove with the item, tab and slot, and the item waits in place as pending', async () => {
-    const { calls } = setup([{ ok: true }]);
+    const { calls } = setup([ok]);
     fireEvent.dragStart(cell('Wooden Sword x1'));
     fireEvent.drop(cell('empty slot 3'));
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
-      t: 'InventoryMove',
-      d: { item_id: 'i-sword', tab: 'equip', slot: 2 },
+      t: 'inventoryMove',
+      d: { itemId: 'i-sword', tab: 'equip', slot: 2 },
     });
-    expect(String(calls[0]!.d.idempotency_key)).toMatch(/^k-/);
+    expect(String(calls[0]!.d.idempotencyKey)).toMatch(/^k-/);
     expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'true'); // still in slot 1
     await waitFor(() => expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'false'));
     // Only InventoryChanged moves it.
     act(() =>
-      inventory.getState().applyInventoryChanged({
-        slots: [
-          { tab: 'equip', slot: 0 },
-          { tab: 'equip', slot: 2, item: { ...sword, slot: 2 } },
-        ],
-      }),
+      inventory.getState().applyInventoryChanged(
+        create(InventoryChangedSchema, {
+          slots: [
+            { tab: 'equip', slot: 0 },
+            { tab: 'equip', slot: 2, item: { ...sword, slot: 2 } },
+          ],
+        }),
+      ),
     );
     expect(screen.getAllByRole('gridcell')[2]).toHaveAccessibleName('Wooden Sword x1');
     expect(screen.getAllByRole('gridcell')[0]).toHaveAccessibleName('empty slot 1');
   });
 
   it('a timed-out request retried sends the same idempotency key', async () => {
-    const { calls } = setup([new RequestError('timeout', 'no answer'), { ok: true }]);
+    const { calls } = setup([new RequestError('timeout', 'no answer'), ok]);
     fireEvent.dragStart(cell('Wooden Sword x1'));
     fireEvent.drop(cell('empty slot 4'));
     await userEvent.click(cell('Wooden Sword x1'));
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(calls).toHaveLength(2));
-    expect(calls[1]!.d.idempotency_key).toBe(calls[0]!.d.idempotency_key);
+    expect(calls[1]!.d.idempotencyKey).toBe(calls[0]!.d.idempotencyKey);
     expect(calls[1]!.d.slot).toBe(3);
     await waitFor(() => expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'false'));
   });
@@ -155,7 +129,7 @@ describe('InventoryWindow', () => {
   });
 
   it('discard asks first, then sends InventoryDiscard with the whole stack and one key', async () => {
-    const { calls } = setup([{ ok: true }]);
+    const { calls } = setup([ok]);
     await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
     await userEvent.click(cell('Red Potion x5'));
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
@@ -165,14 +139,15 @@ describe('InventoryWindow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
     await userEvent.click(screen.getByRole('button', { name: 'Yes, discard' }));
     expect(calls[0]).toMatchObject({
-      t: 'InventoryDiscard',
-      d: { item_id: 'i-potion', quantity: 5 },
+      t: 'inventoryDiscard',
+      d: { itemId: 'i-potion', quantity: 5 },
     });
-    expect(String(calls[0]!.d.idempotency_key)).toMatch(/^k-/);
+    expect(String(calls[0]!.d.idempotencyKey)).toMatch(/^k-/);
   });
 
   it('store and window agree after the golden InventoryChanged payload', () => {
-    const golden = JSON.parse(
+    const golden = fromJsonString(
+      ServerMessageSchema,
       readFileSync(
         path.resolve(
           process.cwd(),
@@ -184,10 +159,12 @@ describe('InventoryWindow', () => {
         ),
         'utf8',
       ),
-    ) as { d: Data<'InventoryChanged'> };
-    inventory.getState().applyInventoryChanged(golden.d);
+    );
+    if (golden.body.case !== 'inventoryChanged') throw new Error(golden.body.case);
+    const changed: Data<'inventoryChanged'> = golden.body.value;
+    inventory.getState().applyInventoryChanged(changed);
     setup();
-    for (const s of golden.d.slots) {
+    for (const s of changed.slots) {
       if (s.tab !== 'equip') {
         continue;
       }

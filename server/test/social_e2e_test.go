@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/protocol"
+	"google.golang.org/protobuf/proto"
+
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 )
 
@@ -30,17 +32,17 @@ func take[T any](t *testing.T, l *looter, what string, recorded *[]T, d time.Dur
 }
 
 // partyState waits for a PartyState with n members (0: no party).
-func (l *looter) partyState(t *testing.T, n int) protocol.PartyState {
+func (l *looter) partyState(t *testing.T, n int) *clientv1.PartyState {
 	t.Helper()
-	return take(t, l, "PartyState", &l.partyStates, 5*time.Second, func(ps protocol.PartyState) bool {
+	return take(t, l, "PartyState", &l.partyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
 		if n == 0 {
 			return ps.Party == nil
 		}
-		return ps.Party != nil && len(ps.Party.Members) == n
+		return ps.Party != nil && len(ps.GetParty().GetMembers()) == n
 	})
 }
 
-func (l *looter) command(t *testing.T, req string, d any) protocol.Response {
+func (l *looter) command(t *testing.T, req string, d proto.Message) *clientv1.Response {
 	t.Helper()
 	if err := l.trySend(wsconn.Message{ReqID: req, Data: d}); err != nil {
 		t.Fatal(err)
@@ -49,21 +51,21 @@ func (l *looter) command(t *testing.T, req string, d any) protocol.Response {
 }
 
 // response waits for a Response without a request ID (a refused chat line).
-func (l *looter) response(t *testing.T) protocol.Response {
+func (l *looter) response(t *testing.T) *clientv1.Response {
 	t.Helper()
 	return take(t, l, "Response", &l.responses, 5*time.Second, func(r reply) bool { return r.req == "" }).r
 }
 
-func (l *looter) say(t *testing.T, channel protocol.ChatChannel, text string) {
+func (l *looter) say(t *testing.T, channel clientv1.ChatChannel, text string) {
 	t.Helper()
-	if err := l.trySend(wsconn.Message{Data: protocol.ChatSend{Channel: channel, Text: text}}); err != nil {
+	if err := l.trySend(wsconn.Message{Data: &clientv1.ChatSend{Channel: channel, Text: text}}); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func (l *looter) hears(t *testing.T, text string) protocol.ChatMessage {
+func (l *looter) hears(t *testing.T, text string) *clientv1.ChatMessage {
 	t.Helper()
-	return take(t, l, "ChatMessage "+text, &l.chatLines, 5*time.Second, func(cm protocol.ChatMessage) bool { return cm.Text == text })
+	return take(t, l, "ChatMessage "+text, &l.chatLines, 5*time.Second, func(cm *clientv1.ChatMessage) bool { return cm.Text == text })
 }
 
 func (l *looter) doesNotHear(text string, d time.Duration) bool {
@@ -96,49 +98,55 @@ func TestPlayTogether(t *testing.T) {
 			if k > 0 {
 				time.Sleep(600 * time.Millisecond) // party commands are limited to 2 per second
 			}
-			if r := ann.command(t, "inv-"+m.id, protocol.PartyInvite{CharacterID: m.id}); !r.OK {
+			if r := ann.command(t, "inv-"+m.id, &clientv1.PartyInvite{CharacterId: m.id}); !r.GetOk() {
 				t.Fatalf("invite %s: %+v", m.id, r)
 			}
 			inv := take(t, m, "PartyInvited", &m.invites, 5*time.Second, nil)
-			if inv.From != ann.id || inv.FromName != "Ann" || inv.InviteID == "" {
+			if inv.From != ann.id || inv.FromName != "Ann" || inv.GetInviteId() == "" {
 				t.Fatalf("invited %+v", inv)
 			}
-			if r := m.command(t, "acc-"+m.id, protocol.PartyRespond{InviteID: inv.InviteID, Accept: true}); !r.OK {
+			if r := m.command(t, "acc-"+m.id, &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
 				t.Fatalf("accept: %+v", r)
 			}
 			for _, l := range ls[:k+2] {
 				ps := l.partyState(t, k+2)
-				if ps.Party.Leader != ann.id || ps.Party.Members[0].CharacterID != ann.id || !ps.Party.Members[k+1].Online || ps.Party.Members[k+1].MapID != "forest" {
+				if ps.GetParty().GetLeader() != ann.id || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.id || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "forest" {
 					t.Fatalf("%s sees %+v", l.id, ps.Party)
 				}
 			}
 		}
 		// A member cannot invite, and a full party's leader cannot invite anyone: party_full answers first.
-		if r := ben.command(t, "inv-x", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "not_party_leader" {
+		if r := ben.command(t, "inv-x", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != "not_party_leader" {
 			t.Fatalf("member invites: %+v", r)
 		}
-		if r := ann.command(t, "inv-y", protocol.PartyInvite{CharacterID: cat.id}); r.OK || r.Code != "party_full" {
+		if r := ann.command(t, "inv-y", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != "party_full" {
 			t.Fatalf("inviting from a full party: %+v", r)
 		}
 	})
 
 	t.Run("E1/map-chat-reaches-the-map-cleaned-and-limited", func(t *testing.T) {
-		ann.say(t, protocol.ChatMap, "hello\tforest\n")
+		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hello\tforest\n")
 		for _, l := range ls {
 			cm := l.hears(t, "helloforest")
-			if cm.Channel != protocol.ChatMap || cm.Sender != ann.id || cm.SenderName != "Ann" {
+			if cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_MAP || cm.Sender != ann.id || cm.SenderName != "Ann" {
 				t.Fatalf("%s heard %+v", l.id, cm)
 			}
 		}
-		ann.say(t, protocol.ChatMap, strings.Repeat("x", 121))
-		if r := ann.response(t); r.OK || r.Code != "chat_too_long" {
+		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, strings.Repeat("x", 121))
+		if r := ann.response(t); r.GetOk() || r.Code != "chat_too_long" {
 			t.Fatalf("121 characters: %+v", r)
 		}
-		for k := range 3 {
-			ben.say(t, protocol.ChatMap, "spam "+string(rune('a'+k)))
+		for _, channel := range []clientv1.ChatChannel{clientv1.ChatChannel_CHAT_CHANNEL_UNSPECIFIED, 7} {
+			ann.say(t, channel, "which channel?")
+			if r := ann.response(t); r.GetOk() || r.Code != "bad_chat_channel" {
+				t.Fatalf("channel %v: %+v", channel, r)
+			}
 		}
-		ben.say(t, protocol.ChatMap, "spam d")
-		if r := ben.response(t); r.OK || r.Code != "chat_rate_limited" {
+		for k := range 3 {
+			ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "spam "+string(rune('a'+k)))
+		}
+		ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "spam d")
+		if r := ben.response(t); r.GetOk() || r.Code != "chat_rate_limited" {
 			t.Fatalf("fourth line: %+v", r)
 		}
 		ann.hears(t, "spam c")
@@ -150,20 +158,20 @@ func TestPlayTogether(t *testing.T) {
 	t.Run("E1-E3/party-chat-crosses-maps-and-map-chat-does-not", func(t *testing.T) {
 		dan.hop(t, 64, "town", 1216)
 		for _, l := range ls {
-			ps := take(t, l, "PartyState with Dan in the town", &l.partyStates, 5*time.Second, func(ps protocol.PartyState) bool {
-				return ps.Party != nil && len(ps.Party.Members) == 4 && ps.Party.Members[3].MapID == "town"
+			ps := take(t, l, "PartyState with Dan in the town", &l.partyStates, 5*time.Second, func(ps *clientv1.PartyState) bool {
+				return ps.Party != nil && len(ps.GetParty().GetMembers()) == 4 && ps.GetParty().GetMembers()[3].GetMapId() == "town"
 			})
-			if ps.Party.Members[3].CharacterID != dan.id {
+			if ps.GetParty().GetMembers()[3].GetCharacterId() != dan.id {
 				t.Fatalf("%s sees %+v", l.id, ps.Party)
 			}
 		}
-		ann.say(t, protocol.ChatParty, "regroup at the well")
+		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_PARTY, "regroup at the well")
 		for _, l := range ls {
-			if cm := l.hears(t, "regroup at the well"); cm.Channel != protocol.ChatParty || cm.Sender != ann.id {
+			if cm := l.hears(t, "regroup at the well"); cm.Channel != clientv1.ChatChannel_CHAT_CHANNEL_PARTY || cm.Sender != ann.id {
 				t.Fatalf("%s heard %+v", l.id, cm)
 			}
 		}
-		ann.say(t, protocol.ChatMap, "forest only")
+		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "forest only")
 		for _, l := range ls[:3] {
 			l.hears(t, "forest only")
 		}
@@ -187,7 +195,7 @@ func TestPlayTogether(t *testing.T) {
 			}
 			ann.pump(100*time.Millisecond, func(m wsconn.Message) bool {
 				if m.Type == "ExpGained" {
-					got = m.Data.(protocol.ExpGained).Amount
+					got = m.Data.(*clientv1.ExpGained).Amount
 					return true
 				}
 				return false
@@ -207,25 +215,25 @@ func TestPlayTogether(t *testing.T) {
 	})
 
 	t.Run("E3/leave-kick-and-the-lead-passes-to-the-longest-standing", func(t *testing.T) {
-		if r := ben.command(t, "leave", protocol.PartyLeave{}); !r.OK {
+		if r := ben.command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {
 			t.Fatalf("leave: %+v", r)
 		}
 		ben.partyState(t, 0)
 		for _, l := range []*looter{ann, cat, dan} {
 			l.partyState(t, 3)
 		}
-		if r := cat.command(t, "kick", protocol.PartyKick{CharacterID: dan.id}); r.OK || r.Code != "not_party_leader" {
+		if r := cat.command(t, "kick", &clientv1.PartyKick{CharacterId: dan.id}); r.GetOk() || r.Code != "not_party_leader" {
 			t.Fatalf("a member kicks: %+v", r)
 		}
-		if r := ann.command(t, "leave", protocol.PartyLeave{}); !r.OK {
+		if r := ann.command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {
 			t.Fatalf("leader leaves: %+v", r)
 		}
 		for _, l := range []*looter{cat, dan} {
-			if ps := l.partyState(t, 2); ps.Party.Leader != cat.id {
-				t.Fatalf("%s sees leader %s, want Cat", l.id, ps.Party.Leader)
+			if ps := l.partyState(t, 2); ps.GetParty().GetLeader() != cat.id {
+				t.Fatalf("%s sees leader %s, want Cat", l.id, ps.GetParty().GetLeader())
 			}
 		}
-		if r := cat.command(t, "kick2", protocol.PartyKick{CharacterID: dan.id}); !r.OK {
+		if r := cat.command(t, "kick2", &clientv1.PartyKick{CharacterId: dan.id}); !r.GetOk() {
 			t.Fatalf("the new leader kicks: %+v", r)
 		}
 		dan.partyState(t, 0)
@@ -245,11 +253,11 @@ func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 	eve, fin := ls[0], ls[1]
 	party := func(req string) {
 		t.Helper()
-		if r := eve.command(t, "inv-"+req, protocol.PartyInvite{CharacterID: fin.id}); !r.OK {
+		if r := eve.command(t, "inv-"+req, &clientv1.PartyInvite{CharacterId: fin.id}); !r.GetOk() {
 			t.Fatalf("invite: %+v", r)
 		}
 		inv := take(t, fin, "PartyInvited", &fin.invites, 5*time.Second, nil)
-		if r := fin.command(t, "acc-"+req, protocol.PartyRespond{InviteID: inv.InviteID, Accept: true}); !r.OK {
+		if r := fin.command(t, "acc-"+req, &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
 			t.Fatalf("accept: %+v", r)
 		}
 		for _, l := range ls {
@@ -262,7 +270,7 @@ func TestASocialRestartForgetsPartiesAndKeepsSockets(t *testing.T) {
 	for _, l := range ls {
 		l.partyState(t, 0) // the parties are gone, and the players are told
 	}
-	if err := eve.trySend(wsconn.Message{Data: protocol.Ping{ClientTime: 1}}); err != nil {
+	if err := eve.trySend(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}); err != nil {
 		t.Fatal(err)
 	}
 	if !eve.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {

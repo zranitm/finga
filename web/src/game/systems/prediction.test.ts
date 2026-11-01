@@ -9,7 +9,14 @@ import { parseMap } from '@/sim/map';
 import { NO_PLATFORM, params, standing, step } from '@/sim/step';
 import type { State } from '@/sim/step';
 
-import { HISTORY_TICKS, Predictor, STEPS_PER_TICK, fromWire, platformUnder } from './prediction';
+import {
+  HISTORY_TICKS,
+  Predictor,
+  STEPS_PER_TICK,
+  fromWire,
+  platformUnder,
+  wireState,
+} from './prediction';
 import type { WireState } from './prediction';
 
 const town = parseMap(
@@ -168,6 +175,25 @@ describe('Predictor', () => {
       pred.subStep();
     }
     expect(pred.state).toEqual(simulate(start, [R])[0]);
+  });
+});
+
+describe('wireState', () => {
+  it.each([
+    { facing: 1, want: 1 },
+    { facing: -1, want: -1 },
+    { facing: 0, want: 1 },
+  ])('takes a body from the wire into sim terms, facing $facing as $want', ({ facing, want }) => {
+    const view = { x: 1, y: 2, vx: 3, vy: 4, onGround: true, climbing: false, facing };
+    expect(wireState(view)).toEqual({
+      x: 1,
+      y: 2,
+      vx: 3,
+      vy: 4,
+      on_ground: true,
+      climbing: false,
+      facing: want,
+    });
   });
 });
 

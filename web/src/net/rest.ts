@@ -1,8 +1,7 @@
 // The token is read on every call, so a rotation after Hello is picked up at once.
 import { env } from '@/config/env';
-import { errorCodes } from '@/protocol/errors';
+import { isErrorCode } from '@/protocol/errors';
 import type { ErrorCode } from '@/protocol/errors';
-import type { Stats } from '@/protocol/messages';
 
 import { clearToken, getToken, setToken } from './token';
 
@@ -10,6 +9,14 @@ export interface Account {
   readonly id: string;
   readonly username: string;
   readonly created_at: string;
+}
+
+export interface Stats {
+  readonly str: number;
+  readonly dex: number;
+  readonly int: number;
+  readonly agi: number;
+  readonly vit: number;
 }
 
 export interface Character {
@@ -137,8 +144,4 @@ function toRestError(status: number, body: unknown): RestError {
     }
   }
   return new RestError(status, 'malformed', `HTTP ${status} without an error body`);
-}
-
-function isErrorCode(code: string): code is ErrorCode {
-  return (errorCodes as readonly string[]).includes(code);
 }

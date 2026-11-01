@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
-	"finga/internal/protocol"
 	"finga/services/gateway/internal/model"
 )
 
@@ -29,7 +29,7 @@ func (g *Gateway) EnterPortal(ctx context.Context, s *Session) error {
 }
 
 // MoveItem moves an item and returns the slots it changed.
-func (g *Gateway) MoveItem(ctx context.Context, s *Session, in model.ItemMove) ([]protocol.InventorySlot, error) {
+func (g *Gateway) MoveItem(ctx context.Context, s *Session, in model.ItemMove) ([]*clientv1.InventorySlot, error) {
 	if g.deps.Items == nil {
 		return nil, model.ErrNoInventory
 	}
@@ -37,7 +37,7 @@ func (g *Gateway) MoveItem(ctx context.Context, s *Session, in model.ItemMove) (
 }
 
 // DiscardItem destroys some or all of a stack and returns the slots it changed.
-func (g *Gateway) DiscardItem(ctx context.Context, s *Session, in model.ItemDiscard) ([]protocol.InventorySlot, error) {
+func (g *Gateway) DiscardItem(ctx context.Context, s *Session, in model.ItemDiscard) ([]*clientv1.InventorySlot, error) {
 	if g.deps.Items == nil {
 		return nil, model.ErrNoInventory
 	}
@@ -85,7 +85,7 @@ func (g *Gateway) PromoteInParty(ctx context.Context, s *Session, target kernel.
 }
 
 // Chat cleans a line via the social service, which delivers party lines itself; map lines go to the world.
-func (g *Gateway) Chat(ctx context.Context, s *Session, channel protocol.ChatChannel, text string) error {
+func (g *Gateway) Chat(ctx context.Context, s *Session, channel clientv1.ChatChannel, text string) error {
 	if g.deps.Social == nil {
 		return model.ErrNoChat
 	}
@@ -93,7 +93,7 @@ func (g *Gateway) Chat(ctx context.Context, s *Session, channel protocol.ChatCha
 	if err != nil {
 		return err
 	}
-	if line.Channel == protocol.ChatMap {
+	if line.Channel == clientv1.ChatChannel_CHAT_CHANNEL_MAP {
 		_ = g.deps.World.Say(ctx, s.presence(), s.character.Name, line.Text) // fire and forget, as every world command
 	}
 	return nil

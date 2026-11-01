@@ -20,7 +20,7 @@ export function InviteToasts({ socket, now = Date.now }: InviteToastProps) {
   return (
     <div className="invites">
       {invites.map((inv) => (
-        <InviteItem key={inv.invite_id} invite={inv} socket={socket} now={now} />
+        <InviteItem key={inv.inviteId} invite={inv} socket={socket} now={now} />
       ))}
     </div>
   );
@@ -41,15 +41,15 @@ function InviteItem({
       const s = secondsLeft(invite, now());
       setLeft(s);
       if (s <= 0) {
-        party.getState().dismissInvite(invite.invite_id);
+        party.getState().dismissInvite(invite.inviteId);
       }
     }, 1000);
     return () => clearInterval(id);
   }, [invite, now]);
 
   const respond = (accept: boolean) => {
-    party.getState().dismissInvite(invite.invite_id);
-    void socket.request('PartyRespond', { invite_id: invite.invite_id, accept }).catch(() => {
+    party.getState().dismissInvite(invite.inviteId);
+    void socket.request('partyRespond', { inviteId: invite.inviteId, accept }).catch(() => {
       // No toast: the invite may simply have expired.
     });
   };
@@ -57,7 +57,7 @@ function InviteItem({
   return (
     <div className="invite" role="status">
       <span>
-        <strong>{invite.from_name}</strong> invites you to a party ({left}s)
+        <strong>{invite.fromName}</strong> invites you to a party ({left}s)
       </span>
       <Button onClick={() => respond(true)}>Accept</Button>
       <Button variant="quiet" onClick={() => respond(false)}>

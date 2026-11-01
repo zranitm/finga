@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 	"go.uber.org/goleak"
+	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
@@ -84,7 +85,7 @@ type server struct {
 func start(t *testing.T, rec *recorder, opts wsconn.Options) *server {
 	t.Helper()
 	if opts.Codec == nil {
-		opts.Codec = newCodec()
+		opts.Codec = serverCodec(wsconn.JSON) // text frames, so a test can write them by hand
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		wsconn.Serve(w, r, rec, opts)
@@ -174,29 +175,29 @@ func TestEcho(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()
 	rec.onMsg = func(c wsconn.Conn, m wsconn.Message) {
-		m.Tick = 42
-		if err := c.Send(m); err != nil {
+		pong := &clientv1.Pong{ClientTime: m.Data.(*clientv1.Ping).GetClientTime(), ServerTime: 9}
+		if err := c.Send(wsconn.Message{ReqID: m.ReqID, Tick: 42, Data: pong}); err != nil {
 			t.Errorf("send: %v", err)
 		}
 	}
 	s := start(t, rec, wsconn.Options{})
 	c := dial(t, s, "")
 	ctx := context.Background()
-	if err := c.Write(ctx, websocket.MessageText, []byte(`{"t":"Ping","seq":3,"req":"r-1","d":{"client_time":7}}`)); err != nil {
+	if err := c.Write(ctx, websocket.MessageText, []byte(`{"seq":3,"req":"r-1","ping":{"client_time":7}}`)); err != nil {
 		t.Fatal(err)
 	}
 	_, data, err := c.Read(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if canon(t, data) != canon(t, []byte(`{"t":"Ping","seq":3,"req":"r-1","tick":42,"d":{"client_time":7}}`)) {
+	if canon(t, data) != canon(t, []byte(`{"req":"r-1","tick":42,"pong":{"client_time":"7","server_time":"9"}}`)) {
 		t.Fatalf("echoed %s", data)
 	}
 	c.Close(websocket.StatusNormalClosure, "bye")
 	if err := rec.waitClosed(t); err != nil {
 		t.Fatalf("a normal closure reported %v", err)
 	}
-	if rec.opened != 1 || len(rec.messages) != 1 || rec.messages[0].Data != (ping{ClientTime: 7}) {
+	if rec.opened != 1 || len(rec.messages) != 1 || rec.messages[0].Seq != 3 || !proto.Equal(rec.messages[0].Data.(proto.Message), &clientv1.Ping{ClientTime: 7}) {
 		t.Fatalf("recorder %+v", rec)
 	}
 }
@@ -209,9 +210,9 @@ func TestBadFramesCloseTheConnection(t *testing.T) {
 		opts     wsconn.Options
 		wantCode websocket.StatusCode
 	}{
-		{"an unknown message type", []byte(`{"t":"Teleport","d":{}}`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
-		{"a malformed frame", []byte(`{"t":`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
-		{"a frame over the read limit", []byte(`{"t":"Ping","d":{"client_time":` + strings.Repeat("1", 2000) + `}}`), wsconn.Options{ReadLimit: 1024}, websocket.StatusMessageTooBig},
+		{"an unknown message type", []byte(`{"teleport":{}}`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
+		{"a malformed frame", []byte(`{"ping":`), wsconn.Options{}, websocket.StatusCode(wsconn.CloseBadMessage)},
+		{"a frame over the read limit", []byte(`{"chat_send":{"text":"` + strings.Repeat("x", 2000) + `"}}`), wsconn.Options{ReadLimit: 1024}, websocket.StatusMessageTooBig},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -241,12 +242,12 @@ func TestSlowConsumerIsDropped(t *testing.T) {
 	rec := newRecorder()
 	// OnClose can run before the sender sees Send's error, so wait on this channel instead.
 	sendErr := make(chan error, 1)
-	big := blob{Data: strings.Repeat("x", 8<<10)}
+	big := &clientv1.ChatMessage{Text: strings.Repeat("x", 8<<10)}
 	rec.onOpen = func(c wsconn.Conn) {
 		go func() {
 			// The client never reads: socket buffers fill, then the queue, then Send fails.
 			for range 4000 {
-				if err := c.Send(wsconn.Message{Type: "Blob", Data: big}); err != nil {
+				if err := c.Send(wsconn.Message{Data: big}); err != nil {
 					sendErr <- err
 					return
 				}
@@ -311,7 +312,7 @@ func TestServerSideClose(t *testing.T) {
 	rec.onMsg = func(c wsconn.Conn, _ wsconn.Message) { c.Close(wsconn.CloseKicked, "logged in elsewhere") }
 	s := start(t, rec, wsconn.Options{})
 	c := dial(t, s, "")
-	if err := c.Write(context.Background(), websocket.MessageText, []byte(`{"t":"Attack"}`)); err != nil {
+	if err := c.Write(context.Background(), websocket.MessageText, []byte(`{"attack":{}}`)); err != nil {
 		t.Fatal(err)
 	}
 	if got := closeStatus(t, c); got != websocket.StatusCode(wsconn.CloseKicked) {
@@ -322,11 +323,6 @@ func TestServerSideClose(t *testing.T) {
 	if !errors.As(err, &ce) || ce.Code != wsconn.CloseKicked || ce.Reason != "logged in elsewhere" {
 		t.Fatalf("OnClose got %v", err)
 	}
-	t.Run("Send after Close fails and Close twice is harmless", func(t *testing.T) {
-		rec.mu.Lock()
-		defer rec.mu.Unlock()
-		// Covered by TestSendAfterCloseFails.
-	})
 }
 
 func TestSendAfterCloseFails(t *testing.T) {
@@ -336,11 +332,11 @@ func TestSendAfterCloseFails(t *testing.T) {
 	rec.onMsg = func(c wsconn.Conn, _ wsconn.Message) {
 		c.Close(wsconn.CloseKicked, "x")
 		c.Close(wsconn.CloseKicked, "again")
-		after.Store(c.Send(wsconn.Message{Type: "Attack"}))
+		after.Store(c.Send(wsconn.Message{Data: &clientv1.Pong{}}))
 	}
 	s := start(t, rec, wsconn.Options{})
 	c := dial(t, s, "")
-	if err := c.Write(context.Background(), websocket.MessageText, []byte(`{"t":"Attack"}`)); err != nil {
+	if err := c.Write(context.Background(), websocket.MessageText, []byte(`{"attack":{}}`)); err != nil {
 		t.Fatal(err)
 	}
 	closeStatus(t, c)

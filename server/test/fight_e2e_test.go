@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -31,12 +34,12 @@ func (s *stack) createCharacter(t *testing.T, username, charName, class string) 
 	return token, created.body["id"].(string)
 }
 
-func (s *stack) join(t *testing.T, token, id string) (*player, protocol.Snapshot) {
+func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapshot) {
 	t.Helper()
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: id}})
-	p.token = p.expect("Welcome").Data.(protocol.Welcome).Token
-	snap := p.expect("Snapshot").Data.(protocol.Snapshot)
+	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
+	p.token = p.expect("Welcome").Data.(*clientv1.Welcome).Token
+	snap := p.expect("Snapshot").Data.(*clientv1.Snapshot)
 	return p, snap
 }
 
@@ -48,7 +51,7 @@ func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bo
 	for time.Now().Before(deadline) {
 		if !time.Now().Before(next) {
 			seq++
-			p.send(wsconn.Message{Seq: seq, Data: protocol.Attack{}})
+			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Attack{}})
 			next = time.Now().Add(850 * time.Millisecond)
 		}
 		m, ok := p.read(100 * time.Millisecond)
@@ -61,9 +64,9 @@ func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bo
 
 // face sends a one-tick nudge so the character faces right (or left).
 func (p *player) face(right bool) {
-	p.send(wsconn.Message{Seq: 500, Data: protocol.Input{Right: right, Left: !right}})
+	p.send(wsconn.Message{Seq: 500, Data: &clientv1.Input{Right: right, Left: !right}})
 	time.Sleep(60 * time.Millisecond)
-	p.send(wsconn.Message{Seq: 501, Data: protocol.Input{}})
+	p.send(wsconn.Message{Seq: 501, Data: &clientv1.Input{}})
 }
 
 func TestFightAndGrow(t *testing.T) {
@@ -80,7 +83,7 @@ func TestFightAndGrow(t *testing.T) {
 		types := map[string]bool{}
 		for _, m := range snap.Mobs {
 			types[m.Type] = true
-			if m.HP <= 0 || m.MaxHP <= 0 {
+			if m.GetHp() <= 0 || m.GetMaxHp() <= 0 {
 				t.Fatalf("mob %+v", m)
 			}
 		}
@@ -97,9 +100,9 @@ func TestFightAndGrow(t *testing.T) {
 			if m.Type != "Delta" {
 				continue
 			}
-			for _, mv := range m.Data.(protocol.Delta).Mobs {
+			for _, mv := range m.Data.(*clientv1.Delta).Mobs {
 				for _, sm := range snap.Mobs {
-					if sm.ID == mv.ID && sm.X != mv.X {
+					if sm.GetId() == mv.GetId() && sm.X != mv.X {
 						moved = true
 					}
 				}
@@ -117,10 +120,10 @@ func TestFightAndGrow(t *testing.T) {
 		for _, a := range snap.Mobs {
 			found := false
 			for _, b := range snap2.Mobs {
-				found = found || (a.ID == b.ID && a.Type == b.Type)
+				found = found || (a.GetId() == b.GetId() && a.Type == b.Type)
 			}
 			if !found {
-				t.Fatalf("mob %d is missing from the second snapshot", a.ID)
+				t.Fatalf("mob %d is missing from the second snapshot", a.GetId())
 			}
 		}
 	})
@@ -135,12 +138,12 @@ func TestFightAndGrow(t *testing.T) {
 		watcher, _ := s.join(t, token2, id2)
 		p.drain(300 * time.Millisecond)
 		p.face(true)
-		var hit protocol.Damage
+		var hit *clientv1.Damage
 		ok := p.attackUntil(20*time.Second, func(m wsconn.Message) bool {
 			if m.Type != "Damage" {
 				return false
 			}
-			d := m.Data.(protocol.Damage)
+			d := m.Data.(*clientv1.Damage)
 			if d.Source == "p:"+id && !d.Miss {
 				hit = d
 				return true
@@ -160,7 +163,7 @@ func TestFightAndGrow(t *testing.T) {
 			if !ok {
 				break
 			}
-			if m.Type == "Damage" && m.Data.(protocol.Damage) == hit {
+			if m.Type == "Damage" && proto.Equal(m.Data.(*clientv1.Damage), hit) {
 				seen = true
 			}
 		}
@@ -178,18 +181,18 @@ func TestFightAndGrow(t *testing.T) {
 		// Contacts miss 22% of the time, so flip every 1.5 s to stay in the slime field (x 216..784).
 		right := true
 		seq := uint32(1)
-		p.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: true}})
+		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}})
 		flip := time.Now().Add(1500 * time.Millisecond)
 		died := false
 		var hits, misses int
-		var me protocol.PlayerView
-		mobs := map[uint64]protocol.MobView{}
+		var me *clientv1.PlayerView
+		mobs := map[uint32]*clientv1.MobView{}
 		deadline := time.Now().Add(20 * time.Second)
 		for !died && time.Now().Before(deadline) {
 			if time.Now().After(flip) {
 				right = !right
 				seq++
-				p.send(wsconn.Message{Seq: seq, Data: protocol.Input{Right: right, Left: !right}})
+				p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
 				flip = time.Now().Add(1500 * time.Millisecond)
 			}
 			m, ok := p.read(100 * time.Millisecond)
@@ -200,9 +203,9 @@ func TestFightAndGrow(t *testing.T) {
 				continue
 			}
 			switch d := m.Data.(type) {
-			case protocol.Died:
-				died = d.CharacterID == id
-			case protocol.Damage:
+			case *clientv1.Died:
+				died = d.GetCharacterId() == id
+			case *clientv1.Damage:
 				if d.Target == "p:"+id {
 					if d.Miss {
 						misses++
@@ -210,28 +213,28 @@ func TestFightAndGrow(t *testing.T) {
 						hits++
 					}
 				}
-			case protocol.Delta:
+			case *clientv1.Delta:
 				for _, v := range d.Players {
-					if v.ID == id {
+					if v.GetId() == id {
 						me = v
 					}
 				}
 				for _, mv := range d.Mobs {
-					mobs[mv.ID] = mv
+					mobs[mv.GetId()] = mv
 				}
 			}
 		}
 		if !died {
 			t.Fatalf("never died walking into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
 		}
-		r := p.expect("Respawned").Data.(protocol.Respawned)
-		if r.CharacterID != id || r.MapID != "town" || r.HP != 102 {
+		r := p.expect("Respawned").Data.(*clientv1.Respawned)
+		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 102 {
 			t.Fatalf("respawned %+v", r)
 		}
-		if mc := p.expect("MapChange").Data.(protocol.MapChange); mc.MapID != "town" {
+		if mc := p.expect("MapChange").Data.(*clientv1.MapChange); mc.GetMapId() != "town" {
 			t.Fatalf("map change %+v", mc)
 		}
-		snap := p.expect("Snapshot").Data.(protocol.Snapshot)
+		snap := p.expect("Snapshot").Data.(*clientv1.Snapshot)
 		if len(snap.Mobs) != 0 {
 			t.Fatal("the town has mobs")
 		}
@@ -260,14 +263,14 @@ func TestFightAndGrow(t *testing.T) {
 		p, _ := s.join(t, token, id)
 		p.drain(300 * time.Millisecond)
 		p.face(true)
-		var lu protocol.LevelUp
+		var lu *clientv1.LevelUp
 		var gained bool
 		ok := p.attackUntil(40*time.Second, func(m wsconn.Message) bool {
 			switch m.Type {
 			case "ExpGained":
 				gained = true
 			case "LevelUp":
-				lu = m.Data.(protocol.LevelUp)
+				lu = m.Data.(*clientv1.LevelUp)
 				return true
 			}
 			return false
@@ -275,7 +278,7 @@ func TestFightAndGrow(t *testing.T) {
 		if !ok || !gained {
 			t.Fatalf("no level-up in 40 s (exp gained: %v)", gained)
 		}
-		if lu.Character.Level != 2 || lu.Character.ID != id || lu.Character.HP != lu.Character.MaxHP || lu.Character.Stats.DEX != 15 {
+		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 15 {
 			t.Fatalf("level-up %+v", lu.Character)
 		}
 		dl := time.Now().Add(5 * time.Second)

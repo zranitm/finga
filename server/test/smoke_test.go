@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -26,19 +27,19 @@ func TestSmoke(t *testing.T) {
 	s.mustStatus(created, http.StatusCreated)
 	id := created.body["id"].(string)
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: id}})
-	w := p.expect("Welcome").Data.(protocol.Welcome)
-	if w.MapID != "town" || w.Token == "" {
+	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
+	w := p.expect("Welcome").Data.(*clientv1.Welcome)
+	if w.GetMapId() != "town" || w.Token == "" {
 		t.Fatalf("welcome %+v", w)
 	}
-	snap := p.expect("Snapshot").Data.(protocol.Snapshot)
+	snap := p.expect("Snapshot").Data.(*clientv1.Snapshot)
 	var start float64
 	for _, v := range snap.Players {
-		if v.ID == id {
+		if v.GetId() == id {
 			start = v.X
 		}
 	}
-	p.send(wsconn.Message{Seq: 1, Data: protocol.Input{Right: true}})
+	p.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		v, ok := p.position(id, time.Until(deadline))
@@ -46,7 +47,7 @@ func TestSmoke(t *testing.T) {
 			break
 		}
 		if v.X > start+50 {
-			p.send(wsconn.Message{Seq: 2, Data: protocol.Input{}})
+			p.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
 			return
 		}
 	}

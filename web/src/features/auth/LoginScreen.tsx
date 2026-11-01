@@ -5,6 +5,7 @@ import { Button } from '@/components/Button';
 import { useKeyboardCapture } from '@/features/shared/use-keyboard-capture';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
+import { KickReason } from '@/protocol/messages';
 import { connection } from '@/state/connection';
 
 import { passwordProblem, usernameProblem } from './validation';
@@ -14,13 +15,14 @@ export interface LoginScreenProps {
   readonly onLoggedIn: (username: string) => void;
 }
 
-const kickMessages: Record<string, string> = {
-  logged_in_elsewhere: 'This account logged in somewhere else.',
-  session_expired: 'Your session ended. Log in again.',
-  unauthenticated: 'Your session ended. Log in again.',
-  abuse: 'The server closed the connection.',
-  outdated_protocol: 'A new version is available; reload the page.',
-  server_restart: 'The server restarted.',
+const closedByServer = 'The server closed the connection.';
+const kickMessages: Partial<Record<KickReason, string>> = {
+  [KickReason.LOGGED_IN_ELSEWHERE]: 'This account logged in somewhere else.',
+  [KickReason.SESSION_EXPIRED]: 'Your session ended. Log in again.',
+  [KickReason.UNAUTHENTICATED]: 'Your session ended. Log in again.',
+  [KickReason.ABUSE]: closedByServer,
+  [KickReason.OUTDATED_PROTOCOL]: 'A new version is available; reload the page.',
+  [KickReason.SERVER_RESTART]: 'The server restarted.',
 };
 
 export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
@@ -69,7 +71,9 @@ export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
         aria-label={mode === 'login' ? 'Log in' : 'Sign up'}
       >
         <h1>Finga</h1>
-        {status === 'kicked' && kick && <p className="notice">{kickMessages[kick] ?? kick}</p>}
+        {status === 'kicked' && kick !== null && (
+          <p className="notice">{kickMessages[kick] ?? closedByServer}</p>
+        )}
         <label className="field">
           Username
           <input

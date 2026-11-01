@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/protocol"
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 )
 
 // hop walks to x, enters the portal there and returns the snapshot once MapChange names wantMap at wantX.
-func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) protocol.Snapshot {
+func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) *clientv1.Snapshot {
 	t.Helper()
 	if !l.walkTo(x, 25*time.Second) {
 		t.Fatalf("could not reach x %.0f (at %.0f)", x, l.x)
@@ -19,25 +19,25 @@ func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) pro
 	if err := l.enterPortal(); err != nil {
 		t.Fatal(err)
 	}
-	var mc protocol.MapChange
+	var mc *clientv1.MapChange
 	if !l.pump(5*time.Second, func(m wsconn.Message) bool {
 		if m.Type != "MapChange" {
 			return false
 		}
-		mc = m.Data.(protocol.MapChange)
+		mc = m.Data.(*clientv1.MapChange)
 		return true
 	}) {
 		t.Fatalf("no MapChange after EnterPortal at %.0f", l.x)
 	}
-	if mc.MapID != wantMap || mc.X != wantX || mc.Y != 608 {
+	if mc.GetMapId() != wantMap || mc.X != wantX || mc.Y != 608 {
 		t.Fatalf("map change %+v, want %s at %.0f", mc, wantMap, wantX)
 	}
-	var snap protocol.Snapshot
+	var snap *clientv1.Snapshot
 	if !l.pump(5*time.Second, func(m wsconn.Message) bool {
 		if m.Type != "Snapshot" {
 			return false
 		}
-		snap = m.Data.(protocol.Snapshot)
+		snap = m.Data.(*clientv1.Snapshot)
 		return true
 	}) {
 		t.Fatal("no Snapshot after MapChange")
@@ -50,7 +50,7 @@ func (l *looter) hop(t *testing.T, x float64, wantMap string, wantX float64) pro
 
 func (l *looter) enterPortal() error {
 	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: protocol.EnterPortal{}})
+	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.EnterPortal{}})
 }
 
 func TestTravel(t *testing.T) {
@@ -124,8 +124,8 @@ func TestTravel(t *testing.T) {
 			t.Fatalf("saved on %s at %.0f, want town at 1216", mapID, x)
 		}
 		_, w := s.welcome(t, "sam", id)
-		if w.MapID != "town" {
-			t.Fatalf("welcomed on %s", w.MapID)
+		if w.GetMapId() != "town" {
+			t.Fatalf("welcomed on %s", w.GetMapId())
 		}
 	})
 }

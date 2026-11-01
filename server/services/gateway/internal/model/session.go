@@ -3,8 +3,8 @@ package model
 import (
 	"time"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
-	"finga/internal/protocol"
 )
 
 // Player is the character a connection plays, as its party sees it.
@@ -31,9 +31,9 @@ type Actor struct {
 // Welcome is what a joined player starts from; Token replaces the one Hello sent.
 type Welcome struct {
 	Token      string
-	Character  protocol.CharacterView
-	Inventory  []protocol.ItemView
-	Party      *protocol.PartyView
+	Character  *clientv1.CharacterView
+	Inventory  []*clientv1.ItemView
+	Party      *clientv1.PartyView
 	MapID      string
 	ServerTime time.Time
 }

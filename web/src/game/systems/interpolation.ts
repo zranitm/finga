@@ -1,5 +1,6 @@
 // Remote players are drawn RENDER_DELAY_MS behind the newest server state, blended between buffered states.
-import type { WireState } from './prediction';
+import { wireState } from './prediction';
+import type { ServerState, WireState } from './prediction';
 
 export const TICK_MS = 50;
 export const RENDER_DELAY_MS = 100;
@@ -92,7 +93,7 @@ export class RemoteBuffer {
   }
 }
 
-export interface RemoteWire extends WireState {
+export interface RemoteWire extends ServerState {
   readonly id: string;
   readonly name: string;
   readonly class: string;
@@ -140,7 +141,7 @@ export class RemotePlayers {
       this.buffers.set(p.id, b);
       this.info.set(p.id, { name: p.name, cls: p.class });
     }
-    b.push(t, p);
+    b.push(t, wireState(p));
   }
 
   render(renderTime: number): { shown: Map<string, WireState>; gone: string[] } {

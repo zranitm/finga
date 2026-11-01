@@ -1,7 +1,6 @@
 {
-  "t": "Input",
   "seq": 117,
-  "d": {
+  "input": {
     "right": true,
     "jump": true
   }

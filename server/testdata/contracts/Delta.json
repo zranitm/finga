@@ -1,7 +1,6 @@
 {
-  "t": "Delta",
   "tick": 81235,
-  "d": {
+  "delta": {
     "ack_seq": 117,
     "players": [
       {
@@ -12,10 +11,8 @@
         "x": 416,
         "y": 608,
         "vx": 200,
-        "vy": 0,
         "facing": 1,
         "on_ground": true,
-        "climbing": false,
         "hp": 250,
         "max_hp": 250
       },
@@ -26,11 +23,8 @@
         "level": 1,
         "x": 540,
         "y": 596,
-        "vx": 0,
         "vy": -300,
         "facing": -1,
-        "on_ground": false,
-        "climbing": false,
         "hp": 90,
         "max_hp": 105,
         "invulnerable": true

@@ -3,6 +3,7 @@ import { classes } from '@/gamedata/classes';
 import type { Data } from '@/protocol/messages';
 
 import { RemoteBuffer } from './interpolation';
+import { wireState } from './prediction';
 
 export type Ref =
   { readonly kind: 'player'; readonly id: string } | { readonly kind: 'mob'; readonly id: number };
@@ -21,7 +22,7 @@ export function parseRef(ref: string): Ref | undefined {
   return undefined;
 }
 
-export type MobWire = Data<'Snapshot'>['mobs'][number];
+export type MobWire = Data<'snapshot'>['mobs'][number];
 
 export interface MobState {
   readonly type: string;
@@ -29,12 +30,12 @@ export interface MobState {
   readonly y: number;
   readonly facing: 1 | -1;
   readonly hp: number;
-  readonly max_hp: number;
+  readonly maxHp: number;
 }
 
 export class MobTracker {
   private readonly buffers = new Map<number, RemoteBuffer>();
-  private readonly info = new Map<number, { type: string; hp: number; max_hp: number }>();
+  private readonly info = new Map<number, { type: string; hp: number; maxHp: number }>();
 
   applySnapshot(t: number, mobs: readonly MobWire[]): void {
     const seen = new Set<number>();
@@ -73,16 +74,19 @@ export class MobTracker {
       b = new RemoteBuffer();
       this.buffers.set(m.id, b);
     }
-    b.push(t, {
-      x: m.x,
-      y: m.y,
-      vx: 0,
-      vy: 0,
-      facing: m.facing,
-      on_ground: true,
-      climbing: false,
-    });
-    this.info.set(m.id, { type: m.type, hp: m.hp, max_hp: m.max_hp });
+    b.push(
+      t,
+      wireState({
+        x: m.x,
+        y: m.y,
+        vx: 0,
+        vy: 0,
+        facing: m.facing,
+        onGround: true,
+        climbing: false,
+      }),
+    );
+    this.info.set(m.id, { type: m.type, hp: m.hp, maxHp: m.maxHp });
   }
 
   render(renderTime: number): { shown: Map<number, MobState>; gone: number[] } {
@@ -104,7 +108,7 @@ export class MobTracker {
           y: s.y,
           facing: s.facing,
           hp: i.hp,
-          max_hp: i.max_hp,
+          maxHp: i.maxHp,
         });
       }
     }

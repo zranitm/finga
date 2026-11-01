@@ -71,7 +71,7 @@ export class MobView {
     const x = s.x - BAR_W / 2;
     const y = s.y - BAR_ABOVE;
     this.bar.fillStyle(0x1a1a24, 0.8).fillRect(x, y, BAR_W, BAR_H);
-    const ratio = s.max_hp > 0 ? Math.max(0, Math.min(1, s.hp / s.max_hp)) : 0;
+    const ratio = s.maxHp > 0 ? Math.max(0, Math.min(1, s.hp / s.maxHp)) : 0;
     this.bar.fillStyle(0xe04848, 1).fillRect(x, y, BAR_W * ratio, BAR_H);
   }
 

@@ -1,4 +1,7 @@
+import { create } from '@bufbuild/protobuf';
 import { describe, expect, it, vi } from 'vitest';
+
+import { MobViewSchema } from '@/protocol/messages';
 
 import {
   AttackGate,
@@ -10,17 +13,9 @@ import {
   numberFor,
   parseRef,
 } from './combat-view';
-import type { MobWire } from './combat-view';
 
-const slime = (id: number, x: number, hp = 30): MobWire => ({
-  id,
-  type: 'green_slime',
-  x,
-  y: 608,
-  facing: -1,
-  hp,
-  max_hp: 30,
-});
+const slime = (id: number, x: number, hp = 30) =>
+  create(MobViewSchema, { id, type: 'green_slime', x, y: 608, facing: -1, hp, maxHp: 30 });
 
 describe('parseRef', () => {
   it.each([
@@ -49,7 +44,7 @@ describe('MobTracker', () => {
       y: 608,
       facing: -1,
       hp: 30,
-      max_hp: 30,
+      maxHp: 30,
     });
     m.applySnapshot(1100, [slime(3, 300)]);
     expect(m.size).toBe(1);

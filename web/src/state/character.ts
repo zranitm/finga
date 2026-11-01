@@ -11,10 +11,10 @@ export interface CharacterState {
   readonly dead: boolean;
   /** seq lets the HUD show two equal gains in a row. */
   readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
-  applyWelcome(d: Data<'Welcome'>): void;
-  applyLevelUp(d: Data<'LevelUp'>): void;
+  applyWelcome(d: Data<'welcome'>): void;
+  applyLevelUp(d: Data<'levelUp'>): void;
   /** amount is negative on the death penalty. */
-  applyExpGained(d: Data<'ExpGained'>): void;
+  applyExpGained(d: Data<'expGained'>): void;
   setVitals(hp: number, mp: number): void;
   setDead(dead: boolean): void;
   clear(): void;
@@ -34,16 +34,19 @@ export const character = defineStore<CharacterState>((set, get) => ({
   dead: false,
   lastExpChange: null,
   applyWelcome: (d) => {
-    set({ character: d.character, expToNext: expToNextLevel(d.character.level), dead: false });
+    const c = d.character ?? null;
+    set({ character: c, expToNext: c ? expToNextLevel(c.level) : null, dead: false });
   },
   applyLevelUp: (d) => {
-    set({ character: d.character, expToNext: expToNextLevel(d.character.level) });
+    if (d.character) {
+      set({ character: d.character, expToNext: expToNextLevel(d.character.level) });
+    }
   },
   applyExpGained: (d) => {
     const c = get().character;
     if (c) {
       const seq = (get().lastExpChange?.seq ?? 0) + 1;
-      set({ character: { ...c, exp: d.exp }, lastExpChange: { amount: d.amount, seq } });
+      set({ character: { ...c, exp: d.exp }, lastExpChange: { amount: Number(d.amount), seq } });
     }
   },
   setVitals: (hp, mp) => {

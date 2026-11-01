@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, getToken, setToken } from '@/net/token';
+import { ChatChannel, KickReason } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { connection } from '@/state/connection';
@@ -10,6 +11,7 @@ import { party } from '@/state/party';
 import { session } from '@/state/session';
 import { toasts } from '@/state/toasts';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
+import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
 import { applyStatus, wireSocket } from './wiring';
@@ -19,15 +21,15 @@ const ayla = {
   name: 'Ayla',
   class: 'warrior',
   level: 1,
-  exp: 10,
+  exp: 10n,
   stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
   hp: 204,
-  max_hp: 204,
+  maxHp: 204,
   mp: 28,
-  max_mp: 28,
+  maxMp: 28,
 };
-const potion = { item_id: 'i1', template: 'red_potion', tab: 'use', slot: 0, quantity: 5 };
-const welcome = {
+const potion = { itemId: 'i1', template: 'red_potion', tab: 'use', slot: 0, quantity: 5 };
+const welcome: ServerInit<'welcome'> = {
   token: 'tok-rotated',
   character: ayla,
   inventory: [potion],
@@ -35,19 +37,18 @@ const welcome = {
     leader: 'c-ayla',
     members: [
       {
-        character_id: 'c-ayla',
+        characterId: 'c-ayla',
         name: 'Ayla',
         level: 1,
         hp: 204,
-        max_hp: 204,
-        map_id: 'town',
+        maxHp: 204,
+        mapId: 'town',
         online: true,
       },
     ],
   },
-  map_id: 'town',
+  mapId: 'town',
   tick: 1,
-  server_time: 0,
 };
 
 async function connectedSocket(): Promise<{ socket: GameSocket; ws: FakeWebSocket }> {
@@ -61,7 +62,7 @@ async function connectedSocket(): Promise<{ socket: GameSocket; ws: FakeWebSocke
   const p = socket.connect('c-ayla');
   const ws = FakeWebSocket.latest();
   ws.open();
-  ws.push({ t: 'Welcome', d: welcome });
+  ws.push('welcome', welcome);
   await p;
   return { socket, ws };
 }
@@ -82,7 +83,7 @@ describe('wiring', () => {
     await connectedSocket();
     expect(character.getState().character?.name).toBe('Ayla');
     expect(character.getState().expToNext).toBe(20);
-    expect(inventory.getState().slots.use[0]).toEqual(potion);
+    expect(inventory.getState().slots.use[0]).toMatchObject(potion);
     expect(party.getState().party?.leader).toBe('c-ayla');
     expect(connection.getState().status).toBe('connected');
     expect(getToken()).toBe('tok-rotated');
@@ -91,62 +92,69 @@ describe('wiring', () => {
   it.each([
     {
       name: 'InventoryChanged',
-      frame: {
-        t: 'InventoryChanged',
-        d: {
+      push: (ws: FakeWebSocket) =>
+        ws.push('inventoryChanged', {
           slots: [
             { tab: 'use', slot: 0 },
             { tab: 'use', slot: 3, item: { ...potion, slot: 3 } },
           ],
-        },
-      },
+        }),
       check: () => expect(inventory.getState().slots.use[3]?.slot).toBe(3),
     },
     {
       name: 'PartyState',
-      frame: { t: 'PartyState', d: { party: null } },
+      push: (ws: FakeWebSocket) => ws.push('partyState', {}),
       check: () => expect(party.getState().party).toBeNull(),
     },
     {
       name: 'PartyInvited',
-      frame: { t: 'PartyInvited', d: { invite_id: 'inv-1', from: 'c-robin', from_name: 'Robin' } },
-      check: () => expect(party.getState().invites[0]?.from_name).toBe('Robin'),
+      push: (ws: FakeWebSocket) =>
+        ws.push('partyInvited', { inviteId: 'inv-1', from: 'c-robin', fromName: 'Robin' }),
+      check: () => expect(party.getState().invites[0]?.fromName).toBe('Robin'),
     },
     {
       name: 'ChatMessage',
-      frame: {
-        t: 'ChatMessage',
-        d: { channel: 'map', sender: 'c-robin', sender_name: 'Robin', text: 'hi' },
-      },
+      push: (ws: FakeWebSocket) =>
+        ws.push('chatMessage', {
+          channel: ChatChannel.MAP,
+          sender: 'c-robin',
+          senderName: 'Robin',
+          text: 'hi',
+        }),
       check: () => expect(chat.getState().lines[0]?.text).toBe('hi'),
     },
     {
       name: 'LevelUp',
-      frame: { t: 'LevelUp', d: { character: { ...ayla, level: 2, exp: 0 } } },
+      push: (ws: FakeWebSocket) =>
+        ws.push('levelUp', { character: { ...ayla, level: 2, exp: 0n } }),
       check: () =>
         expect(character.getState()).toMatchObject({ character: { level: 2 }, expToNext: 65 }),
     },
     {
       name: 'ExpGained',
-      frame: { t: 'ExpGained', d: { amount: 5, exp: 15 } },
-      check: () => expect(character.getState().character?.exp).toBe(15),
+      push: (ws: FakeWebSocket) => ws.push('expGained', { amount: 5n, exp: 15n }),
+      check: () => expect(character.getState().character?.exp).toBe(15n),
     },
     {
       name: 'Pong',
-      frame: { t: 'Pong', d: { client_time: Date.now() - 30, server_time: 1 } },
+      push: (ws: FakeWebSocket) =>
+        ws.push('pong', { clientTime: BigInt(Date.now() - 30), serverTime: 1n }),
       check: () => expect(connection.getState().rtt).toBeGreaterThanOrEqual(30),
     },
-  ])('a pushed $name lands in its store', async ({ frame, check }) => {
+  ])('a pushed $name lands in its store', async ({ push, check }) => {
     const { ws } = await connectedSocket();
-    ws.push(frame);
+    push(ws);
     check();
   });
 
   it('a Kicked frame sets the connection to kicked and returns to the login screen', async () => {
     const { ws } = await connectedSocket();
-    ws.push({ t: 'Kicked', d: { reason: 'logged_in_elsewhere' } });
+    ws.push('kicked', { reason: KickReason.LOGGED_IN_ELSEWHERE });
     ws.closeFromServer(4003);
-    expect(connection.getState()).toMatchObject({ status: 'kicked', kick: 'logged_in_elsewhere' });
+    expect(connection.getState()).toMatchObject({
+      status: 'kicked',
+      kick: KickReason.LOGGED_IN_ELSEWHERE,
+    });
     expect(session.getState().loggedIn).toBe(false);
     expect(character.getState().character).toBeNull();
     expect(inventory.getState().slots.use[0]).toBeNull();
@@ -172,8 +180,16 @@ describe('wiring', () => {
     expect(connection.getState().status).toBe('disconnected');
     applyStatus({ status: 'closed', reason: 'no_token' });
     expect(connection.getState().status).toBe('disconnected');
-    applyStatus({ status: 'closed', reason: 'session_ended', kick: 'session_expired', code: 4003 });
-    expect(connection.getState()).toMatchObject({ status: 'kicked', kick: 'session_expired' });
+    applyStatus({
+      status: 'closed',
+      reason: 'session_ended',
+      kick: KickReason.SESSION_EXPIRED,
+      code: 4003,
+    });
+    expect(connection.getState()).toMatchObject({
+      status: 'kicked',
+      kick: KickReason.SESSION_EXPIRED,
+    });
     expect(session.getState().loggedIn).toBe(false);
   });
 
@@ -210,13 +226,13 @@ describe('wiring', () => {
     },
   ])('a Response with no request ID and $name shows a toast', async ({ d, text }) => {
     const { ws } = await connectedSocket();
-    ws.push({ t: 'Response', d });
+    ws.push('response', d);
     expect(toasts.getState().toasts.map((t) => t.text)).toEqual([text]);
   });
 
   it('a Response with no request ID that is ok shows nothing', async () => {
     const { ws } = await connectedSocket();
-    ws.push({ t: 'Response', d: { ok: true } });
+    ws.push('response', { ok: true });
     expect(toasts.getState().toasts).toEqual([]);
   });
 
@@ -228,7 +244,7 @@ describe('wiring', () => {
     const p = socket.connect('c-ayla');
     const ws = FakeWebSocket.latest();
     ws.open();
-    ws.push({ t: 'Welcome', d: welcome });
+    ws.push('welcome', welcome);
     await p;
     expect(character.getState().character).toBeNull();
     expect(connection.getState().status).toBe('disconnected');

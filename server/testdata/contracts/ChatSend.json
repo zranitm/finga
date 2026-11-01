@@ -1,7 +1,6 @@
 {
-  "t": "ChatSend",
-  "d": {
-    "channel": "map",
+  "chat_send": {
+    "channel": "CHAT_CHANNEL_MAP",
     "text": "hello there"
   }
 }

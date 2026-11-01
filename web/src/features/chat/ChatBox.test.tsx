@@ -1,12 +1,17 @@
+import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ChatChannel, ChatMessageSchema } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 
 import { ChatBox, MAX_CHAT_CHARS, parseLine } from './ChatBox';
+
+const line = (channel: ChatChannel, senderName: string, text: string) =>
+  create(ChatMessageSchema, { channel, sender: `c-${senderName}`, senderName, text });
 
 function setup() {
   const send = vi.fn(() => true);
@@ -20,11 +25,11 @@ describe('ChatBox', () => {
   });
 
   it.each([
-    { raw: 'hello', want: { channel: 'map', text: 'hello' } },
-    { raw: '/p hello there', want: { channel: 'party', text: 'hello there' } },
-    { raw: '/p', want: { channel: 'party', text: '' } },
-    { raw: '/party no', want: { channel: 'map', text: '/party no' } },
-    { raw: '  spaced  ', want: { channel: 'map', text: 'spaced' } },
+    { raw: 'hello', want: { channel: ChatChannel.MAP, text: 'hello' } },
+    { raw: '/p hello there', want: { channel: ChatChannel.PARTY, text: 'hello there' } },
+    { raw: '/p', want: { channel: ChatChannel.PARTY, text: '' } },
+    { raw: '/party no', want: { channel: ChatChannel.MAP, text: '/party no' } },
+    { raw: '  spaced  ', want: { channel: ChatChannel.MAP, text: 'spaced' } },
   ])('parseLine($raw)', ({ raw, want }) => {
     expect(parseLine(raw)).toEqual(want);
   });
@@ -32,7 +37,7 @@ describe('ChatBox', () => {
   it('Enter sends ChatSend with the typed text on the map channel, clears and leaves', async () => {
     const { send, input } = setup();
     await userEvent.type(input(), 'hello all{Enter}');
-    expect(send).toHaveBeenCalledWith('ChatSend', { channel: 'map', text: 'hello all' });
+    expect(send).toHaveBeenCalledWith('chatSend', { channel: ChatChannel.MAP, text: 'hello all' });
     expect(input()).toHaveValue('');
     expect(input()).not.toHaveFocus();
     expect(ui.getState().captureKeyboard).toBe(false);
@@ -41,7 +46,10 @@ describe('ChatBox', () => {
   it('/p sends a party line', async () => {
     const { send, input } = setup();
     await userEvent.type(input(), '/p on my way{Enter}');
-    expect(send).toHaveBeenCalledWith('ChatSend', { channel: 'party', text: 'on my way' });
+    expect(send).toHaveBeenCalledWith('chatSend', {
+      channel: ChatChannel.PARTY,
+      text: 'on my way',
+    });
   });
 
   it('121 characters is blocked with the counter red; an empty line sends nothing', async () => {
@@ -70,18 +78,8 @@ describe('ChatBox', () => {
   it('an incoming ChatMessage renders with the right tag, and the last eight show', () => {
     setup();
     act(() => {
-      chat
-        .getState()
-        .applyChatMessage(
-          { channel: 'map', sender: 'c-robin', sender_name: 'Robin', text: 'hi' },
-          1,
-        );
-      chat
-        .getState()
-        .applyChatMessage(
-          { channel: 'party', sender: 'c-ayla', sender_name: 'Ayla', text: 'go' },
-          2,
-        );
+      chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 1);
+      chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 2);
     });
     const items = screen.getAllByRole('listitem');
     expect(items[0]).toHaveTextContent('[Map] Robin: hi');
@@ -89,12 +87,7 @@ describe('ChatBox', () => {
     expect(items[1]).toHaveClass('chat-party');
     act(() => {
       for (let i = 0; i < 10; i++) {
-        chat
-          .getState()
-          .applyChatMessage(
-            { channel: 'map', sender: 'c', sender_name: 'N', text: `l${i}` },
-            10 + i,
-          );
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'N', `l${i}`), 10 + i);
       }
     });
     expect(screen.getAllByRole('listitem')).toHaveLength(8);

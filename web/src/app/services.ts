@@ -3,6 +3,7 @@ import { GameHandle } from '@/game/main';
 import { createRestClient } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
+import { binaryCodec, jsonCodec } from '@/protocol/codec';
 
 export interface Services {
   readonly rest: RestClient;
@@ -19,6 +20,7 @@ export function socketUrl(apiOrigin: string, pageOrigin: string): string {
 export function createServices(): Services {
   const socket = new GameSocket({
     url: socketUrl(env.apiOrigin, location.origin),
+    codec: env.wsJson ? jsonCodec : binaryCodec,
     delayMs: env.netDelayMs,
   });
   return { rest: createRestClient(), socket, game: new GameHandle({ socket }) };

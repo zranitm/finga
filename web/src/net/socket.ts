@@ -1,17 +1,28 @@
 // Knows nothing about stores or Phaser; app/wiring connects them.
+import { create } from '@bufbuild/protobuf';
+
 import { backoff } from '@/lib/backoff';
 import type { BackoffOptions } from '@/lib/backoff';
 import { requestId } from '@/lib/id';
-import { JsonCodec, ProtocolError } from '@/protocol/codec';
-import type { Codec } from '@/protocol/codec';
-import type { ErrorCode, KickReason } from '@/protocol/errors';
-import type { Data, Message, MessageOf, MessageType } from '@/protocol/messages';
+import { binaryCodec, ProtocolError } from '@/protocol/codec';
+import type { Codec, ServerFrame } from '@/protocol/codec';
+import { isErrorCode } from '@/protocol/errors';
+import type { ErrorCode } from '@/protocol/errors';
+import { ClientMessageSchema, KickReason } from '@/protocol/messages';
+import type {
+  ClientBodyInit,
+  ClientInit,
+  ClientMessageType,
+  Data,
+  MessageType,
+} from '@/protocol/messages';
 import type { Input } from '@/sim/input';
 
 import { clearToken, getToken, setToken } from './token';
 
 export const PROTOCOL_VERSION = 1;
 
+export const CLOSE_NO_SUBPROTOCOL = 1008; // the server speaks none of the codecs asked for
 export const CLOSE_SLOW_CONSUMER = 4001;
 export const CLOSE_NO_PONG = 4002;
 export const CLOSE_KICKED = 4003;
@@ -22,9 +33,9 @@ export type SocketStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' 
 /** Why the socket is closed for good. */
 export type ClosedReason =
   | 'user'
-  | 'kicked' // logged_in_elsewhere or abuse
+  | 'kicked' // logged in elsewhere, or abuse
   | 'session_ended' // the token was cleared; log in again
-  | 'outdated_protocol' // the page must reload
+  | 'outdated_protocol' // the page must reload, as for close 1008
   | 'bad_message' // 4004: a client bug a retry would repeat
   | 'no_token';
 
@@ -47,19 +58,28 @@ export class RequestError extends Error {
 }
 
 type RequestType =
-  | 'InventoryMove'
-  | 'InventoryDiscard'
-  | 'PartyInvite'
-  | 'PartyRespond'
-  | 'PartyLeave'
-  | 'PartyKick'
-  | 'PartyPromote';
-type ActionType = 'Attack' | 'PickUp' | 'EnterPortal';
+  | 'inventoryMove'
+  | 'inventoryDiscard'
+  | 'partyInvite'
+  | 'partyRespond'
+  | 'partyLeave'
+  | 'partyKick'
+  | 'partyPromote';
+type ActionType = 'attack' | 'pickUp' | 'enterPortal';
+
+/** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */
+export interface Received<T extends MessageType> {
+  readonly t: T;
+  readonly req: string; // '' unless it answers a request
+  readonly tick: number;
+  readonly d: Data<T>;
+}
 
 export interface SocketOptions {
   readonly url: string;
+  /** Binary unless set; the JSON codec is for reading frames in devtools. */
   readonly codec?: Codec;
-  readonly WebSocket?: new (url: string) => WebSocket;
+  readonly WebSocket?: new (url: string, protocols: string[]) => WebSocket;
   readonly now?: () => number;
   readonly requestTimeoutMs?: number;
   readonly helloTimeoutMs?: number; // under the server's 5 s window
@@ -72,20 +92,20 @@ export interface SocketOptions {
 
 interface Pending {
   readonly t: RequestType;
-  readonly d: Data<RequestType>;
-  readonly resolve: (d: Data<'Response'>) => void;
+  readonly d: ClientInit<RequestType>;
+  readonly resolve: (d: Data<'response'>) => void;
   readonly reject: (err: RequestError) => void;
   timer: ReturnType<typeof setTimeout>;
   resent: boolean;
 }
 
-type Handler<T extends MessageType> = (msg: MessageOf<T>) => void;
+type Handler<T extends MessageType> = (msg: Received<T>) => void;
 
 const OPEN = 1;
 
 export class GameSocket {
   private readonly codec: Codec;
-  private readonly WebSocketImpl: new (url: string) => WebSocket;
+  private readonly WebSocketImpl: new (url: string, protocols: string[]) => WebSocket;
   private readonly now: () => number;
   private readonly requestTimeoutMs: number;
   private readonly helloTimeoutMs: number;
@@ -107,7 +127,7 @@ export class GameSocket {
   private readonly pending = new Map<string, Pending>();
   private readonly handlers = new Map<MessageType, Set<Handler<MessageType>>>();
   private readonly statusHandlers = new Set<(e: StatusEvent) => void>();
-  private readonly unmatchedHandlers = new Set<(d: Data<'Response'>) => void>();
+  private readonly unmatchedHandlers = new Set<(d: Data<'response'>) => void>();
   private readonly errorHandlers = new Set<(err: ProtocolError) => void>();
 
   private pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -118,7 +138,7 @@ export class GameSocket {
   serverTimeOffset: number | null = null;
 
   constructor(private readonly opts: SocketOptions) {
-    this.codec = opts.codec ?? new JsonCodec();
+    this.codec = opts.codec ?? binaryCodec;
     this.WebSocketImpl = opts.WebSocket ?? WebSocket;
     this.now = opts.now ?? (() => Date.now());
     this.requestTimeoutMs = opts.requestTimeoutMs ?? 5000;
@@ -139,7 +159,7 @@ export class GameSocket {
   }
 
   /** Resolves on Welcome. */
-  connect(characterId: string): Promise<Data<'Welcome'>> {
+  connect(characterId: string): Promise<Data<'welcome'>> {
     if (getToken() === null) {
       this.setStatus({ status: 'closed', reason: 'no_token' });
       return Promise.reject(new Error('connect: no session token'));
@@ -169,7 +189,7 @@ export class GameSocket {
       set = new Set();
       this.handlers.set(t, set);
     }
-    const h = handler as Handler<MessageType>;
+    const h = handler as unknown as Handler<MessageType>; // the set for t only ever sees a t
     set.add(h);
     return () => {
       set.delete(h);
@@ -184,7 +204,7 @@ export class GameSocket {
   }
 
   /** A Response with no req: a failed pickup, a refused chat line. */
-  onUnmatchedResponse(handler: (d: Data<'Response'>) => void): () => void {
+  onUnmatchedResponse(handler: (d: Data<'response'>) => void): () => void {
     this.unmatchedHandlers.add(handler);
     return () => {
       this.unmatchedHandlers.delete(handler);
@@ -205,7 +225,7 @@ export class GameSocket {
     }
     this.lastInputTick = tick;
     this.seq++;
-    this.transmit({ t: 'Input', seq: this.seq, d: input });
+    this.transmit('input', input, { seq: this.seq });
     return true;
   }
 
@@ -213,20 +233,20 @@ export class GameSocket {
     if (!this.isOpen()) {
       return false;
     }
-    this.transmit({ t, seq: this.seq, d: {} });
+    this.transmit(t, {}, { seq: this.seq });
     return true;
   }
 
-  send<T extends 'ChatSend' | 'Ping'>(t: T, d: Data<T>): boolean {
+  send<T extends 'chatSend' | 'ping'>(t: T, d: ClientInit<T>): boolean {
     if (!this.isOpen()) {
       return false;
     }
-    this.transmit({ t, d } as Message);
+    this.transmit(t, d);
     return true;
   }
 
   /** Pending across a reconnect, it is re-sent once with a new req and the same payload, keeping its idempotency key. */
-  request<T extends RequestType>(t: T, d: Data<T>): Promise<Data<'Response'>> {
+  request<T extends RequestType>(t: T, d: ClientInit<T>): Promise<Data<'response'>> {
     return new Promise((resolve, reject) => {
       const req = requestId();
       const pending: Pending = {
@@ -244,12 +264,12 @@ export class GameSocket {
       };
       this.pending.set(req, pending);
       if (this.isOpen()) {
-        this.transmit({ t, req, d } as Message);
+        this.transmit(t, d, { req });
       }
     });
   }
 
-  private open(): Promise<Data<'Welcome'>> {
+  private open(): Promise<Data<'welcome'>> {
     return new Promise((resolve, reject) => {
       const characterId = this.characterId;
       const token = getToken();
@@ -261,7 +281,8 @@ export class GameSocket {
         status: this.attempt > 0 ? 'reconnecting' : 'connecting',
         attempt: this.attempt,
       });
-      const ws = new this.WebSocketImpl(this.opts.url);
+      const ws = new this.WebSocketImpl(this.opts.url, [this.codec.subprotocol]);
+      ws.binaryType = 'arraybuffer';
       this.ws = ws;
       this.pendingKick = null;
       let welcomed = false;
@@ -272,26 +293,23 @@ export class GameSocket {
       }, this.helloTimeoutMs);
 
       ws.onopen = () => {
-        this.transmit({
-          t: 'Hello',
-          d: { token, protocol_version: PROTOCOL_VERSION, character_id: characterId },
-        });
+        this.transmit('hello', { token, protocolVersion: PROTOCOL_VERSION, characterId });
       };
-      const handle = (msg: Message) => {
+      const handle = (msg: ServerFrame) => {
         if (this.ws !== ws) {
           return; // delayed frame for a socket already replaced
         }
-        if (msg.t === 'Welcome' && !welcomed) {
+        if (msg.body.case === 'welcome' && !welcomed) {
           welcomed = true;
           clearTimeout(helloTimer);
-          setToken(msg.d.token);
+          setToken(msg.body.value.token);
           this.attempt = 0;
           this.reconnecting = false;
           this.setStatus({ status: 'connected' });
           this.startPing();
           this.resendPending();
           this.dispatch(msg);
-          resolve(msg.d);
+          resolve(msg.body.value);
           return;
         }
         this.receive(msg);
@@ -331,26 +349,34 @@ export class GameSocket {
       this.setStatus({ status: 'closed', reason: 'bad_message', code });
       return;
     }
+    if (code === CLOSE_NO_SUBPROTOCOL) {
+      this.failPending('disconnected', 'the client is outdated');
+      this.setStatus({ status: 'closed', reason: 'outdated_protocol', code });
+      return;
+    }
     if (code === CLOSE_KICKED) {
       switch (kick) {
-        case 'server_restart':
+        case KickReason.SERVER_RESTART:
           this.reconnect();
           return;
-        case 'unauthenticated':
-        case 'session_expired':
+        case KickReason.UNAUTHENTICATED:
+        case KickReason.SESSION_EXPIRED:
           clearToken();
           this.failPending('disconnected', 'the session ended');
           this.setStatus({ status: 'closed', reason: 'session_ended', kick, code });
           return;
-        case 'outdated_protocol':
+        case KickReason.OUTDATED_PROTOCOL:
           this.failPending('disconnected', 'the client is outdated');
           this.setStatus({ status: 'closed', reason: 'outdated_protocol', kick, code });
           return;
-        case 'logged_in_elsewhere':
-        case 'abuse':
-        case null:
+        default: // logged in elsewhere, abuse, no Kicked, or a reason this client does not know
           this.failPending('disconnected', 'kicked');
-          this.setStatus({ status: 'closed', reason: 'kicked', ...(kick && { kick }), code });
+          this.setStatus({
+            status: 'closed',
+            reason: 'kicked',
+            ...(kick !== null && { kick }),
+            code,
+          });
           return;
       }
     }
@@ -390,7 +416,7 @@ export class GameSocket {
       p.resent = true;
       const again = requestId();
       this.pending.set(again, p);
-      this.transmit({ t: p.t, req: again, d: p.d } as Message);
+      this.transmit(p.t, p.d, { req: again });
     }
   }
 
@@ -402,7 +428,7 @@ export class GameSocket {
     }
   }
 
-  private decode(raw: unknown): Message | null {
+  private decode(raw: unknown): ServerFrame | null {
     try {
       if (typeof raw !== 'string' && !(raw instanceof ArrayBuffer)) {
         throw new ProtocolError('frame is neither text nor binary');
@@ -417,37 +443,41 @@ export class GameSocket {
     }
   }
 
-  private receive(msg: Message): void {
-    switch (msg.t) {
-      case 'Response': {
-        const p = msg.req !== undefined ? this.pending.get(msg.req) : undefined;
-        if (msg.req !== undefined && p) {
+  private receive(msg: ServerFrame): void {
+    const { body } = msg;
+    switch (body.case) {
+      case 'response': {
+        const p = this.pending.get(msg.req); // none for an empty req
+        const r = body.value;
+        if (p) {
           this.pending.delete(msg.req);
           clearTimeout(p.timer);
-          if (msg.d.ok) {
-            p.resolve(msg.d);
+          if (r.ok) {
+            p.resolve(r);
           } else {
-            p.reject(new RequestError(msg.d.code ?? 'internal', msg.d.message ?? 'refused'));
+            p.reject(
+              new RequestError(isErrorCode(r.code) ? r.code : 'internal', r.message || 'refused'),
+            );
           }
         } else {
           for (const h of this.unmatchedHandlers) {
-            h(msg.d);
+            h(r);
           }
         }
         break;
       }
-      case 'Pong': {
+      case 'pong': {
         const now = this.now();
-        this.rtt = now - msg.d.client_time;
-        this.serverTimeOffset = msg.d.server_time - (now - this.rtt / 2);
+        this.rtt = now - Number(body.value.clientTime);
+        this.serverTimeOffset = Number(body.value.serverTime) - (now - this.rtt / 2);
         if (this.pongDeadline) {
           clearTimeout(this.pongDeadline);
           this.pongDeadline = null;
         }
         break;
       }
-      case 'Kicked':
-        this.pendingKick = msg.d.reason;
+      case 'kicked':
+        this.pendingKick = body.value.reason;
         break;
       default:
         break;
@@ -455,19 +485,25 @@ export class GameSocket {
     this.dispatch(msg);
   }
 
-  private dispatch(msg: Message): void {
-    const set = this.handlers.get(msg.t);
+  private dispatch(msg: ServerFrame): void {
+    const set = this.handlers.get(msg.body.case);
     if (set) {
+      const received = { t: msg.body.case, req: msg.req, tick: msg.tick, d: msg.body.value };
       for (const h of set) {
-        h(msg);
+        h(received);
       }
     }
   }
 
-  private transmit(msg: Message): void {
+  private transmit<T extends ClientMessageType>(
+    t: T,
+    d: ClientInit<T>,
+    envelope: { readonly seq?: number; readonly req?: string } = {},
+  ): void {
     const ws = this.ws;
     if (ws?.readyState === OPEN) {
-      const frame = this.codec.encode(msg);
+      const body = { case: t, value: d } as ClientBodyInit;
+      const frame = this.codec.encode(create(ClientMessageSchema, { ...envelope, body }));
       this.afterDelay(() => {
         if (ws.readyState === OPEN) {
           ws.send(frame);
@@ -501,7 +537,7 @@ export class GameSocket {
       if (!this.isOpen()) {
         return;
       }
-      this.send('Ping', { client_time: this.now() });
+      this.send('ping', { clientTime: BigInt(Math.round(this.now())) });
       this.pongDeadline ??= setTimeout(() => {
         this.pongDeadline = null;
         // onclose reconnects.

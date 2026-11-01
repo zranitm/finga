@@ -19,7 +19,7 @@ The backend for Stage 1 is complete and published at [https://github.com/zranitm
 - **The design wins:** if a step shows that a design page is wrong, that page is fixed in the same step, not only the step page.
 - **The server is the reference:** the client decodes and re-encodes every golden message in `testdata/contracts/` and replays every movement vector in `testdata/movement/`. If the client needs something the server does not send, the backend gets a follow-up step; the client does not guess. The review of these steps found two: backend step 18 (one Input per tick, which C08 needs) and step 19 (EXP after death and invulnerability, which C10 needs).
 - **Rules stay on the server:** a client copy of a server rule (the attack cooldown, the pickup range, the portal rectangle, no attacks in a town) only decides whether to send a command or show a hint. It never changes state, and its numbers come from the generated `gamedata` module (C03), never typed by hand.
-- **Stage 1 only:** nothing from Stage 2 (currency, shop, marketplace, Protobuf, Playwright, nginx).
+- **Stage 1 only:** nothing from Stage 2 (currency, shop, marketplace, Playwright, nginx).
 - **Open decisions:** a step that depends on one builds the current default and names it.
 - **By layer:** each step says which page 7 layers it builds and groups its scope and tests by layer. `sim`, `protocol`, `net`, `state` and `game/systems` are tested with Vitest over plain data; `features` with Testing Library; scenes and entities by playing against `make up`.
 - **Checked by playing:** every milestone from M1 on ends with the step's author playing it in a browser against the real server and recording what was seen in the step's commit message.

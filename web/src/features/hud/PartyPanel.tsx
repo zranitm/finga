@@ -9,12 +9,12 @@ export function PartyPanel() {
   return (
     <div className="party-panel" aria-label="Party">
       {current.members.map((m) => (
-        <div key={m.character_id} className={`party-panel-row${m.online ? '' : ' party-offline'}`}>
+        <div key={m.characterId} className={`party-panel-row${m.online ? '' : ' party-offline'}`}>
           <span>
-            {m.character_id === current.leader ? '★ ' : ''}
+            {m.characterId === current.leader ? '★ ' : ''}
             {m.name} <small>Lv. {m.level}</small>
           </span>
-          <Bar label={`${m.name} HP`} value={m.hp} max={m.max_hp} kind="hp" />
+          <Bar label={`${m.name} HP`} value={m.hp} max={m.maxHp} kind="hp" />
         </div>
       ))}
     </div>

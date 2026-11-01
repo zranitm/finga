@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/internal/protocol"
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 )
 
@@ -23,7 +23,7 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 		}
 	}
 	gus := ls[0]
-	if err := gus.trySend(wsconn.Message{Data: protocol.Ping{ClientTime: 1}}); err != nil {
+	if err := gus.trySend(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}); err != nil {
 		t.Fatal(err)
 	}
 	if !gus.pump(5*time.Second, func(m wsconn.Message) bool { return m.Type == "Pong" }) {
@@ -31,7 +31,7 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 	}
 	start := gus.x
 	moved := gus.until(5*time.Second, func() bool {
-		_ = gus.input(protocol.Input{Right: true})
+		_ = gus.input(&clientv1.Input{Right: true})
 		gus.pump(50*time.Millisecond, nil)
 		return gus.x > start+20
 	})

@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
@@ -22,32 +23,32 @@ import (
 type looter struct {
 	*player
 	x, y      float64
-	hp        int
-	drops     map[uint64]protocol.DropView
+	hp        int32
+	drops     map[uint32]*clientv1.DropView
 	inventory int // InventoryChanged messages seen
 	// picked are drops removed in a tick that also brought this looter an InventoryChanged.
-	picked      map[uint64]protocol.DropView
+	picked      map[uint32]*clientv1.DropView
 	removedTick uint64
-	removed     []protocol.DropView // the drops the Delta of removedTick took away
-	failures    []protocol.Response
+	removed     []*clientv1.DropView // the drops the Delta of removedTick took away
+	failures    []*clientv1.Response
 	seq         uint32
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
-	partyStates []protocol.PartyState
-	invites     []protocol.PartyInvited
-	chatLines   []protocol.ChatMessage
-	exp         []protocol.ExpGained
+	partyStates []*clientv1.PartyState
+	invites     []*clientv1.PartyInvited
+	chatLines   []*clientv1.ChatMessage
+	exp         []*clientv1.ExpGained
 }
 
-func newLooter(p *player, snap protocol.Snapshot) *looter {
-	l := &looter{player: p, drops: map[uint64]protocol.DropView{}, picked: map[uint64]protocol.DropView{}, seq: 2000}
+func newLooter(p *player, snap *clientv1.Snapshot) *looter {
+	l := &looter{player: p, drops: map[uint32]*clientv1.DropView{}, picked: map[uint32]*clientv1.DropView{}, seq: 2000}
 	for _, d := range snap.Drops {
-		l.drops[d.ID] = d
+		l.drops[d.GetId()] = d
 	}
 	for _, v := range snap.Players {
-		if v.ID == p.id {
-			l.x, l.y, l.hp = v.X, v.Y, v.HP
+		if v.GetId() == p.id {
+			l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
 		}
 	}
 	return l
@@ -55,14 +56,14 @@ func newLooter(p *player, snap protocol.Snapshot) *looter {
 
 func (l *looter) observe(m wsconn.Message) {
 	switch d := m.Data.(type) {
-	case protocol.Delta:
+	case *clientv1.Delta:
 		for _, v := range d.Players {
-			if v.ID == l.id {
-				l.x, l.y, l.hp = v.X, v.Y, v.HP
+			if v.GetId() == l.id {
+				l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
 			}
 		}
 		for _, dv := range d.Drops {
-			l.drops[dv.ID] = dv
+			l.drops[dv.GetId()] = dv
 		}
 		l.removedTick, l.removed = m.Tick, l.removed[:0]
 		for _, id := range d.RemovedDrops {
@@ -71,42 +72,42 @@ func (l *looter) observe(m wsconn.Message) {
 			}
 			delete(l.drops, id)
 		}
-	case protocol.Snapshot:
-		l.drops = map[uint64]protocol.DropView{}
+	case *clientv1.Snapshot:
+		l.drops = map[uint32]*clientv1.DropView{}
 		for _, dv := range d.Drops {
-			l.drops[dv.ID] = dv
+			l.drops[dv.GetId()] = dv
 		}
 		for _, v := range d.Players {
-			if v.ID == l.id {
-				l.x, l.y, l.hp = v.X, v.Y, v.HP
+			if v.GetId() == l.id {
+				l.x, l.y, l.hp = v.X, v.Y, v.GetHp()
 			}
 		}
-	case protocol.InventoryChanged:
+	case *clientv1.InventoryChanged:
 		l.inventory++
 		if m.Tick == l.removedTick {
 			for _, dv := range l.removed {
-				l.picked[dv.ID] = dv
+				l.picked[dv.GetId()] = dv
 			}
 		}
-	case protocol.Response:
-		if !d.OK {
+	case *clientv1.Response:
+		if !d.GetOk() {
 			l.failures = append(l.failures, d)
 		}
 		l.responses = append(l.responses, reply{m.ReqID, d})
-	case protocol.PartyState:
+	case *clientv1.PartyState:
 		l.partyStates = append(l.partyStates, d)
-	case protocol.PartyInvited:
+	case *clientv1.PartyInvited:
 		l.invites = append(l.invites, d)
-	case protocol.ChatMessage:
+	case *clientv1.ChatMessage:
 		l.chatLines = append(l.chatLines, d)
-	case protocol.ExpGained:
+	case *clientv1.ExpGained:
 		l.exp = append(l.exp, d)
 	}
 }
 
 type reply struct {
 	req string
-	r   protocol.Response
+	r   *clientv1.Response
 }
 
 // until pumps in short slices, for up to d, until pick finds (and consumes) what it wants.
@@ -144,27 +145,27 @@ func (l *looter) trySend(m wsconn.Message) error {
 	if err != nil {
 		return err
 	}
-	return l.conn.Write(context.Background(), websocket.MessageText, b)
+	return l.conn.Write(context.Background(), websocket.MessageBinary, b)
 }
 
-func (l *looter) input(in protocol.Input) error {
+func (l *looter) input(in *clientv1.Input) error {
 	l.seq++
 	return l.trySend(wsconn.Message{Seq: l.seq, Data: in})
 }
 
 func (l *looter) attack() error {
 	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: protocol.Attack{}})
+	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.Attack{}})
 }
 
 func (l *looter) pickUp() error {
 	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: protocol.PickUp{}})
+	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.PickUp{}})
 }
 
 // nearestDrop is the closest drop of the template ("" for any).
-func (l *looter) nearestDrop(template string) (protocol.DropView, bool) {
-	var best protocol.DropView
+func (l *looter) nearestDrop(template string) (*clientv1.DropView, bool) {
+	var best *clientv1.DropView
 	bestDist := math.Inf(1)
 	for _, d := range l.drops {
 		if template != "" && d.Template != template {
@@ -178,13 +179,13 @@ func (l *looter) nearestDrop(template string) (protocol.DropView, bool) {
 }
 
 // hunt attacks every 850 ms until a drop of the template appears.
-func (l *looter) hunt(d time.Duration, template string) (protocol.DropView, bool) {
+func (l *looter) hunt(d time.Duration, template string) (*clientv1.DropView, bool) {
 	deadline := time.Now().Add(d)
 	next := time.Now()
 	for time.Now().Before(deadline) {
 		if !time.Now().Before(next) {
 			if err := l.attack(); err != nil {
-				return protocol.DropView{}, false
+				return nil, false
 			}
 			next = time.Now().Add(850 * time.Millisecond)
 		}
@@ -193,7 +194,7 @@ func (l *looter) hunt(d time.Duration, template string) (protocol.DropView, bool
 			return drop, true
 		}
 	}
-	return protocol.DropView{}, false
+	return nil, false
 }
 
 // walkTo walks to within 12 px of x and stops there, re-aiming after knockback and jumping when stuck.
@@ -203,7 +204,7 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 	for time.Now().Before(deadline) {
 		dx := x - l.x
 		if math.Abs(dx) < 12 {
-			if err := l.input(protocol.Input{}); err != nil {
+			if err := l.input(&clientv1.Input{}); err != nil {
 				return false
 			}
 			l.pump(100*time.Millisecond, nil)
@@ -218,12 +219,12 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 			stuck = 0
 		}
 		lastX = l.x
-		if err := l.input(protocol.Input{Right: dx > 0, Left: dx < 0, Jump: stuck >= 3}); err != nil {
+		if err := l.input(&clientv1.Input{Right: dx > 0, Left: dx < 0, Jump: stuck >= 3}); err != nil {
 			return false
 		}
 		l.pump(50*time.Millisecond, nil)
 	}
-	_ = l.input(protocol.Input{})
+	_ = l.input(&clientv1.Input{})
 	return false
 }
 
@@ -233,11 +234,11 @@ func (l *looter) loot(d time.Duration) int {
 	for time.Now().Before(deadline) {
 		if drop, ok := l.nearestDrop(""); ok {
 			if math.Abs(drop.X-l.x) >= 12 {
-				if l.input(protocol.Input{Right: drop.X > l.x, Left: drop.X < l.x}) != nil {
+				if l.input(&clientv1.Input{Right: drop.X > l.x, Left: drop.X < l.x}) != nil {
 					return l.inventory
 				}
 			} else {
-				_ = l.input(protocol.Input{})
+				_ = l.input(&clientv1.Input{})
 				if l.pickUp() != nil {
 					return l.inventory
 				}
@@ -252,17 +253,17 @@ func (l *looter) loot(d time.Duration) int {
 			return l.inventory
 		}
 	}
-	_ = l.input(protocol.Input{})
+	_ = l.input(&clientv1.Input{})
 	return l.inventory
 }
 
 // welcome says Hello with a fresh login, replacing the old session, and returns the Welcome.
-func (s *stack) welcome(t *testing.T, username, id string) (*player, protocol.Welcome) {
+func (s *stack) welcome(t *testing.T, username, id string) (*player, *clientv1.Welcome) {
 	t.Helper()
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: protocol.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterID: id}})
-	w := p.expect("Welcome").Data.(protocol.Welcome)
+	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
+	w := p.expect("Welcome").Data.(*clientv1.Welcome)
 	p.token = w.Token
 	p.expect("Snapshot")
 	return p, w
@@ -339,8 +340,8 @@ func TestLootAndKeep(t *testing.T) {
 		if drop.Y != 608 || drop.X < 150 || drop.X > 850 || drop.Quantity < 1 || (drop.Template != "slime_gel" && drop.Template != "red_potion") {
 			t.Fatalf("drop %+v", drop)
 		}
-		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.ID]; return seen }) {
-			t.Fatalf("the watcher never saw drop %d", drop.ID)
+		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.GetId()]; return seen }) {
+			t.Fatalf("the watcher never saw drop %d", drop.GetId())
 		}
 
 		// Pick it up twice in one tick: the second PickUp finds it reserved, or takes another drop in range.
@@ -364,18 +365,18 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("no InventoryChanged after PickUp (failures %+v, at %.0f, drop %+v)", killer.failures, killer.x, drop)
 		}
 		killer.pump(time.Second, nil)
-		if _, picked := killer.picked[drop.ID]; !picked || len(killer.picked) != killer.inventory || len(killer.failures) != 0 {
-			t.Fatalf("picked %v with %d InventoryChanged, failures %+v; want drop %d among them, one InventoryChanged each", killer.picked, killer.inventory, killer.failures, drop.ID)
+		if _, picked := killer.picked[drop.GetId()]; !picked || len(killer.picked) != killer.inventory || len(killer.failures) != 0 {
+			t.Fatalf("picked %v with %d InventoryChanged, failures %+v; want drop %d among them, one InventoryChanged each", killer.picked, killer.inventory, killer.failures, drop.GetId())
 		}
-		if _, still := killer.drops[drop.ID]; still {
+		if _, still := killer.drops[drop.GetId()]; still {
 			t.Fatal("the drop is still on the ground")
 		}
-		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.ID]; return !seen }) {
+		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.GetId()]; return !seen }) {
 			t.Fatal("the watcher still sees the drop")
 		}
 		// Re-send the same PickUp, as after a lost reply; with no request ID it is a new pickup.
 		// It takes nothing already taken, so every InventoryChanged is still one drop leaving the ground.
-		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: protocol.PickUp{}}); err != nil {
+		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: &clientv1.PickUp{}}); err != nil {
 			t.Fatal(err)
 		}
 		killer.pump(time.Second, nil)
@@ -396,7 +397,7 @@ func TestLootAndKeep(t *testing.T) {
 		wantQty, sameTemplate := starterQuantity(drop.Template), 0
 		for _, d := range killer.picked {
 			if d.Template == drop.Template {
-				wantQty += d.Quantity
+				wantQty += int(d.GetQuantity())
 				sameTemplate++
 			}
 		}
@@ -412,7 +413,7 @@ func TestLootAndKeep(t *testing.T) {
 		held := 0
 		for _, it := range w.Inventory {
 			if it.Template == drop.Template {
-				held += it.Quantity
+				held += int(it.GetQuantity())
 			}
 		}
 		if held != wantQty {
@@ -453,44 +454,44 @@ func TestLootAndKeep(t *testing.T) {
 		s := newStack(t)
 		_, id := s.createCharacter(t, "olive", "Olive", "warrior")
 		p, welcome := s.welcome(t, "olive", id)
-		var potions protocol.ItemView
+		var potions *clientv1.ItemView
 		for _, it := range welcome.Inventory {
 			if it.Template == "red_potion" {
 				potions = it
 			}
 		}
-		if potions.ItemID == "" || potions.Quantity != 5 || potions.Tab != "use" || potions.Slot != 0 {
+		if potions.GetItemId() == "" || potions.GetQuantity() != 5 || potions.GetTab() != "use" || potions.GetSlot() != 0 {
 			t.Fatalf("starter potions %+v in %+v", potions, welcome.Inventory)
 		}
 
-		p.send(wsconn.Message{ReqID: "m-1", Data: protocol.InventoryMove{IdempotencyKey: "move-1", ItemID: potions.ItemID, Tab: "use", Slot: 3}})
+		p.send(wsconn.Message{ReqID: "m-1", Data: &clientv1.InventoryMove{IdempotencyKey: "move-1", ItemId: potions.GetItemId(), Tab: "use", Slot: 3}})
 		r := p.expect("Response")
-		if r.ReqID != "m-1" || !r.Data.(protocol.Response).OK {
+		if r.ReqID != "m-1" || !r.Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("move response %+v", r)
 		}
-		ic := p.expect("InventoryChanged").Data.(protocol.InventoryChanged)
-		if len(ic.Slots) != 2 || ic.Slots[0].Slot != 0 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].Item.Quantity != 5 {
+		ic := p.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+		if len(ic.Slots) != 2 || ic.Slots[0].Slot != 0 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].GetItem().GetQuantity() != 5 {
 			t.Fatalf("after move %+v", ic)
 		}
-		p.send(wsconn.Message{ReqID: "m-2", Data: protocol.InventoryMove{IdempotencyKey: "move-1", ItemID: potions.ItemID, Tab: "use", Slot: 3}})
-		if r := p.expect("Response"); r.ReqID != "m-2" || !r.Data.(protocol.Response).OK {
+		p.send(wsconn.Message{ReqID: "m-2", Data: &clientv1.InventoryMove{IdempotencyKey: "move-1", ItemId: potions.GetItemId(), Tab: "use", Slot: 3}})
+		if r := p.expect("Response"); r.ReqID != "m-2" || !r.Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("replayed move %+v", r)
 		}
 		p.expect("InventoryChanged")
-		p.send(wsconn.Message{ReqID: "m-3", Data: protocol.InventoryMove{IdempotencyKey: "move-3", ItemID: potions.ItemID, Tab: "etc", Slot: 1}})
-		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "wrong_tab" {
+		p.send(wsconn.Message{ReqID: "m-3", Data: &clientv1.InventoryMove{IdempotencyKey: "move-3", ItemId: potions.GetItemId(), Tab: "etc", Slot: 1}})
+		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "wrong_tab" {
 			t.Fatalf("cross-tab move %+v", r)
 		}
-		p.send(wsconn.Message{ReqID: "d-1", Data: protocol.InventoryDiscard{IdempotencyKey: "discard-1", ItemID: potions.ItemID, Quantity: 2}})
-		if r := p.expect("Response").Data.(protocol.Response); !r.OK {
+		p.send(wsconn.Message{ReqID: "d-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "discard-1", ItemId: potions.GetItemId(), Quantity: 2}})
+		if r := p.expect("Response").Data.(*clientv1.Response); !r.GetOk() {
 			t.Fatalf("discard %+v", r)
 		}
-		ic = p.expect("InventoryChanged").Data.(protocol.InventoryChanged)
-		if len(ic.Slots) != 1 || ic.Slots[0].Slot != 3 || ic.Slots[0].Item == nil || ic.Slots[0].Item.Quantity != 3 {
+		ic = p.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+		if len(ic.Slots) != 1 || ic.Slots[0].Slot != 3 || ic.Slots[0].Item == nil || ic.Slots[0].GetItem().GetQuantity() != 3 {
 			t.Fatalf("after discard %+v", ic)
 		}
-		p.send(wsconn.Message{ReqID: "d-2", Data: protocol.InventoryDiscard{IdempotencyKey: "discard-2", ItemID: potions.ItemID, Quantity: 9}})
-		if r := p.expect("Response").Data.(protocol.Response); r.OK || r.Code != "bad_quantity" {
+		p.send(wsconn.Message{ReqID: "d-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "discard-2", ItemId: potions.GetItemId(), Quantity: 9}})
+		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_quantity" {
 			t.Fatalf("over-discard %+v", r)
 		}
 		if rows, quantity, _ := s.itemTotals(t, id, "red_potion"); rows != 1 || quantity != 3 {
@@ -557,7 +558,7 @@ func TestCrashDuringPickups(t *testing.T) {
 		_, w := s.welcome(t, n[0], hunters[k].id)
 		held := map[string]int{}
 		for _, it := range w.Inventory {
-			held[it.Template] += it.Quantity
+			held[it.GetTemplate()] += int(it.GetQuantity())
 		}
 		if want := s.inventoryTotals(t, hunters[k].id); len(held) != len(want) || func() bool {
 			for tmpl, q := range want {

@@ -40,10 +40,10 @@ type Options struct {
 
 // Handler serves /ws.
 type Handler struct {
-	gw     *application.Gateway
-	codec  wsconn.Codec
-	opts   Options
-	router *wsrouter.Router[*client]
+	gw           *application.Gateway
+	subprotocols []wsconn.Subprotocol
+	opts         Options
+	router       *wsrouter.Router[*client]
 
 	mu      sync.Mutex
 	clients map[string]*client
@@ -66,7 +66,7 @@ func New(gw *application.Gateway, opts Options) *Handler {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
-	h := &Handler{gw: gw, codec: protocol.NewCodec(), opts: opts, clients: map[string]*client{}}
+	h := &Handler{gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, clients: map[string]*client{}}
 	h.router = h.routes()
 	return h
 }
@@ -77,7 +77,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server restarting", http.StatusServiceUnavailable)
 		return
 	}
-	wsconn.Serve(w, r, h, wsconn.Options{Codec: h.codec, AllowedOrigins: h.opts.Origins})
+	wsconn.Serve(w, r, h, wsconn.Options{Subprotocols: h.subprotocols, AllowedOrigins: h.opts.Origins})
 }
 
 // OnOpen starts a connection's command goroutine and its gateway session.

@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
+	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
-	"finga/internal/protocol"
 	"finga/services/gateway/internal/model"
 )
 
@@ -45,19 +45,19 @@ type World interface {
 
 // Items is the item service: the inventory and its commands.
 type Items interface {
-	Inventory(ctx context.Context, character kernel.CharacterID) ([]protocol.ItemView, error)
-	Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]protocol.InventorySlot, error)
-	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]protocol.InventorySlot, error)
+	Inventory(ctx context.Context, character kernel.CharacterID) ([]*clientv1.ItemView, error)
+	Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]*clientv1.InventorySlot, error)
+	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]*clientv1.InventorySlot, error)
 }
 
 // Social is the social service: parties and chat.
 type Social interface {
 	// PartyOf is the character's party; nil when it has none.
-	PartyOf(ctx context.Context, character kernel.CharacterID) (*protocol.PartyView, error)
+	PartyOf(ctx context.Context, character kernel.CharacterID) (*clientv1.PartyView, error)
 	Online(ctx context.Context, gateway string, p model.Player, mapID string) error
 	Offline(ctx context.Context, character kernel.CharacterID) error
 	// Chat cleans and rate-limits a line; the caller hands map lines to the world.
-	Chat(ctx context.Context, sender model.Player, channel protocol.ChatChannel, text string) (model.ChatLine, error)
+	Chat(ctx context.Context, sender model.Player, channel clientv1.ChatChannel, text string) (model.ChatLine, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) error
 	Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error
 	Leave(ctx context.Context, who kernel.CharacterID) error
@@ -76,7 +76,7 @@ type Conn interface {
 	PartyGone()
 	Deliver(d model.Delivery)
 	// Kick tells the player why the connection ends, then ends it; the client does not reconnect.
-	Kick(reason protocol.KickReason)
+	Kick(reason clientv1.KickReason)
 	// Close ends the connection so the client reconnects; the first Kick or Close wins.
 	Close(reason string)
 }

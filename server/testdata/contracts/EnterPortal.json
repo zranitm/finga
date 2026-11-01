@@ -1,5 +1,4 @@
 {
-  "t": "EnterPortal",
   "seq": 120,
-  "d": {}
+  "enter_portal": {}
 }

@@ -3,7 +3,9 @@ package ws
 import (
 	"context"
 
-	"finga/internal/protocol"
+	"google.golang.org/protobuf/proto"
+
+	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/model"
 )
@@ -11,7 +13,7 @@ import (
 // helloFirst accepts only Hello first, and closes the connection on a second one.
 func (h *Handler) helloFirst(c *msgContext) {
 	cl := c.Session
-	_, isHello := c.Message.Data.(protocol.Hello)
+	_, isHello := c.Message.Data.(*clientv1.Hello)
 	switch {
 	case !cl.helloSeen && !isHello:
 		cl.conn.Close(wsconn.CloseKicked, "hello expected")
@@ -70,9 +72,9 @@ func (h *Handler) respond(label string) handler {
 			cl.reply(c.Message.ReqID, h.refuse(c, label))
 			return
 		}
-		cl.reply(c.Message.ReqID, protocol.Response{OK: true})
-		if c.Result != nil {
-			cl.reply("", c.Result)
+		cl.reply(c.Message.ReqID, &clientv1.Response{Ok: true})
+		if result, ok := c.Result.(proto.Message); ok {
+			cl.reply("", result)
 		}
 	}
 }
@@ -91,7 +93,7 @@ func (h *Handler) notImplemented(c *msgContext) {
 }
 
 // refuse turns a command's error into a Response, logging unexpected ones.
-func (h *Handler) refuse(c *msgContext, command string) protocol.Response {
+func (h *Handler) refuse(c *msgContext, command string) *clientv1.Response {
 	p := model.PublicOf(c.Err)
 	if model.IsInternal(p) {
 		h.opts.Logger.Error("command failed", "conn", c.Session.ID(), "character_id", c.Session.session.Character(), "command", command, "err", c.Err)
@@ -106,6 +108,6 @@ func refuseWith(c *msgContext, p model.Public) {
 	}
 }
 
-func refusal(p model.Public) protocol.Response {
-	return protocol.Response{OK: false, Code: p.Code, Message: p.Message}
+func refusal(p model.Public) *clientv1.Response {
+	return &clientv1.Response{Ok: false, Code: p.Code, Message: p.Message}
 }
