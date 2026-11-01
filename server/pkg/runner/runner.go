@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 )
 
@@ -94,19 +95,18 @@ func (r *Runner) Run(ctx context.Context) error {
 		return err
 	}
 	taskCtx, stopTasks := context.WithCancel(context.WithoutCancel(ctx))
-	tasksDone := make(chan struct{})
-	go func() { defer close(tasksDone); r.RunTasks(taskCtx) }()
+	var tasks sync.WaitGroup
+	tasks.Go(func() { r.RunTasks(taskCtx) })
 
-	served := make(chan error, len(lns))
+	serving, servingCtx := errgroup.WithContext(ctx)
 	for i, ln := range lns {
 		l := r.listeners[i]
-		go func() {
+		serving.Go(func() error {
 			if err := l.Server.Serve(ln); err != nil {
-				served <- fmt.Errorf("%s: %w", l.Name, err)
-				return
+				return fmt.Errorf("%s: %w", l.Name, err)
 			}
-			served <- nil
-		}()
+			return nil
+		})
 	}
 	r.mu.Lock()
 	for i, l := range r.listeners {
@@ -118,38 +118,32 @@ func (r *Runner) Run(ctx context.Context) error {
 		r.opts.Logger.InfoContext(ctx, "listening", "listener", l.Name, "addr", r.Addr(l.Name))
 	}
 
-	var failure error
-	select {
-	case failure = <-served:
-	case <-ctx.Done():
-	}
+	<-servingCtx.Done()
+	failed := ctx.Err() == nil // the serving context ended on its own: a listener failed
 	r.ready.Store(false)
 	r.opts.Logger.InfoContext(ctx, "shutting down", "grace", r.opts.ShutdownGrace)
 	graceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.opts.ShutdownGrace)
 	defer cancel()
-	if r.opts.Drain != nil && failure == nil {
+	if r.opts.Drain != nil && !failed {
 		r.opts.Drain(graceCtx)
 	}
-	var wg sync.WaitGroup
-	errs := make(chan error, len(r.listeners))
+	var shutdown errgroup.Group
 	for _, l := range r.listeners {
-		wg.Go(func() {
+		shutdown.Go(func() error {
 			if err := l.Server.Shutdown(graceCtx); err != nil {
-				errs <- fmt.Errorf("%s: %w", l.Name, err)
+				return fmt.Errorf("%s: %w", l.Name, err)
 			}
+			return nil
 		})
 	}
-	wg.Wait()
-	close(errs)
+	shutdownErr := shutdown.Wait()
+	servingErr := serving.Wait()
 	stopTasks()
-	<-tasksDone
-	if failure != nil {
-		return failure
+	tasks.Wait()
+	if servingErr != nil {
+		return servingErr
 	}
-	for err := range errs {
-		return err
-	}
-	return nil
+	return shutdownErr
 }
 
 func (r *Runner) bind() ([]net.Listener, error) {

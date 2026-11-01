@@ -2,8 +2,10 @@ package runner_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -291,5 +293,43 @@ func waitFor(t *testing.T, cond func() bool) {
 			t.Fatal("condition not met in time")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// failing serves until told to fail, then returns err; it counts its shutdowns.
+type failing struct {
+	fail     chan struct{}
+	err      error
+	shutdown atomic.Int32
+}
+
+func (f *failing) Serve(net.Listener) error { <-f.fail; return f.err }
+func (f *failing) Shutdown(context.Context) error {
+	f.shutdown.Add(1)
+	return nil
+}
+
+func TestAListenerThatFailsStopsTheRunner(t *testing.T) {
+	broken := &failing{fail: make(chan struct{}), err: errors.New("accept: too many open files")}
+	var drained, taskStopped atomic.Bool
+	r := newRunner(t, runner.Options{Drain: func(context.Context) { drained.Store(true) }}, []runner.Listener{
+		{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())},
+		{Name: "broken", Addr: "127.0.0.1:0", Server: broken},
+	}, runner.Task{Name: "ticker", Run: func(ctx context.Context) error { <-ctx.Done(); taskStopped.Store(true); return nil }})
+	done := make(chan error, 1)
+	go func() { done <- r.Run(context.Background()) }()
+	waitFor(t, r.Ready)
+	close(broken.fail)
+	select {
+	case err := <-done:
+		if !errors.Is(err, broken.err) || !strings.Contains(err.Error(), "broken") {
+			t.Fatalf("Run = %v, want the broken listener's error, named", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run kept running after a listener failed")
+	}
+	if r.Ready() || drained.Load() || !taskStopped.Load() || broken.shutdown.Load() != 1 {
+		t.Fatalf("ready %v, drained %v, task stopped %v, shutdowns %d: want not ready, no drain, the task stopped, every listener shut down",
+			r.Ready(), drained.Load(), taskStopped.Load(), broken.shutdown.Load())
 	}
 }
