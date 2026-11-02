@@ -10,19 +10,21 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/clients/errmap"
 	"finga/services/gateway/internal/model"
 )
 
 // Social is the application's Social over the social service.
 type Social struct {
-	c   socialv1.SocialServiceClient
-	log *slog.Logger
+	c      socialv1.SocialServiceClient
+	log    *slog.Logger
+	panics *panics.Recorder
 }
 
-// NewSocial adapts the social client; log hears the stream's breaks.
-func NewSocial(c socialv1.SocialServiceClient, log *slog.Logger) Social {
-	return Social{c: c, log: log}
+// NewSocial adapts the social client; log hears the stream's breaks, and rec a panic handling it.
+func NewSocial(c socialv1.SocialServiceClient, log *slog.Logger, rec *panics.Recorder) Social {
+	return Social{c: c, log: log, panics: rec}
 }
 
 // PartyOf is the character's party, nil when it has none.
@@ -120,7 +122,7 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 			return
 		}
 		deliver(model.SocialEvent{Character: id, Delivery: d})
-	}, grpcx.FollowOptions{OnBreak: func(err error) {
+	}, grpcx.FollowOptions{Panics: s.panics, OnBreak: func(err error) {
 		s.log.WarnContext(ctx, "social stream broke; subscribing again", "err", err)
 	}})
 }

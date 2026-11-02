@@ -7,11 +7,13 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/panics"
 )
 
 // partyUpdateQueue overflow drops updates; the member's next change carries the latest state.
@@ -24,15 +26,16 @@ type PartyCopy struct {
 	c       socialv1.SocialServiceClient
 	worldID string
 	log     *slog.Logger
+	panics  *panics.Recorder
 	updates chan *socialv1.UpdateMemberRequest
 
 	mu    sync.Mutex
 	table map[kernel.CharacterID][]kernel.CharacterID
 }
 
-// NewPartyCopy adapts the social client; Run feeds the copy.
-func NewPartyCopy(c socialv1.SocialServiceClient, worldID string, log *slog.Logger) *PartyCopy {
-	return &PartyCopy{c: c, worldID: worldID, log: log, updates: make(chan *socialv1.UpdateMemberRequest, partyUpdateQueue), table: map[kernel.CharacterID][]kernel.CharacterID{}}
+// NewPartyCopy adapts the social client; Run feeds the copy, and rec records a panic handling the stream.
+func NewPartyCopy(c socialv1.SocialServiceClient, worldID string, log *slog.Logger, rec *panics.Recorder) *PartyCopy {
+	return &PartyCopy{c: c, worldID: worldID, log: log, panics: rec, updates: make(chan *socialv1.UpdateMemberRequest, partyUpdateQueue), table: map[kernel.CharacterID][]kernel.CharacterID{}}
 }
 
 // Members lists the IDs of a character's party, nil without one.
@@ -57,16 +60,25 @@ func (p *PartyCopy) Update(id kernel.CharacterID, mapID string, level, hp, maxHP
 	}
 }
 
-// Run follows WatchParties and sends the queued updates until ctx ends.
+// Run follows WatchParties and sends the queued updates until ctx ends or either panics.
 func (p *PartyCopy) Run(ctx context.Context) error {
-	go p.sendUpdates(ctx)
-	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.WatchPartiesResponse], error) {
-		return p.c.WatchParties(ctx, &socialv1.WatchPartiesRequest{WorldId: p.worldID})
-	}, p.apply, grpcx.FollowOptions{OnBreak: func(err error) {
-		p.clear()
-		p.log.WarnContext(ctx, "party stream broke; nobody has a party until it is back", "err", err)
-	}})
-	return nil
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() (err error) {
+		defer panics.Capture(&err)
+		p.sendUpdates(gctx)
+		return nil
+	})
+	g.Go(func() (err error) {
+		defer panics.Capture(&err)
+		grpcx.Follow(gctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.WatchPartiesResponse], error) {
+			return p.c.WatchParties(ctx, &socialv1.WatchPartiesRequest{WorldId: p.worldID})
+		}, p.apply, grpcx.FollowOptions{Panics: p.panics, OnBreak: func(err error) {
+			p.clear()
+			p.log.WarnContext(gctx, "party stream broke; nobody has a party until it is back", "err", err)
+		}})
+		return nil
+	})
+	return g.Wait()
 }
 
 func (p *PartyCopy) apply(m *socialv1.WatchPartiesResponse) {

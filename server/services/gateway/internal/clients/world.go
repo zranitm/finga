@@ -9,18 +9,22 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/clients/errmap"
 	"finga/services/gateway/internal/model"
 )
 
 // World is the application's World over the world service.
 type World struct {
-	c   worldv1.WorldServiceClient
-	log *slog.Logger
+	c      worldv1.WorldServiceClient
+	log    *slog.Logger
+	panics *panics.Recorder
 }
 
-// NewWorld adapts the world client; log hears the stream's breaks.
-func NewWorld(c worldv1.WorldServiceClient, log *slog.Logger) World { return World{c: c, log: log} }
+// NewWorld adapts the world client; log hears the stream's breaks, and rec a panic handling it.
+func NewWorld(c worldv1.WorldServiceClient, log *slog.Logger, rec *panics.Recorder) World {
+	return World{c: c, log: log, panics: rec}
+}
 
 // Join joins a character through one of this gateway's connections.
 func (w World) Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
@@ -89,7 +93,7 @@ func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver fun
 			w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", id)
 		}
 		deliver(model.WorldEvent{Character: id, Delivery: d})
-	}, grpcx.FollowOptions{OnBreak: func(err error) {
+	}, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})
 }

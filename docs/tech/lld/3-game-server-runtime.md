@@ -86,6 +86,8 @@ Only one player can hold a reservation, so two players can never both get a drop
 
 - **A request answers `internal` and the process goes on:** a REST request (the request-log middleware), a gRPC call or stream (`pkg/grpcx`'s interceptors), and a WebSocket message (the router's Recover, on the read loop and on the connection's command queue). The connection stays open. A panic in a connection's own callbacks closes it with 1011 and still ends its session.
 - **A followed stream resubscribes:** a panic while handling one of its messages breaks the subscription as a stream error would, and the resubscription rebuilds what the follower holds.
+- **One-off background work is recorded and the process goes on:** an economy job (its worker takes the next one), a transfer between maps, a gateway's rejoin.
+- **A background loop shuts the process down gracefully:** a panic in a runner task (a map's tick loop, the economy pool, the world's party copy, the gateway's stream followers and session check) shuts the process down as SIGTERM does. Readiness drops, the gateway drains its players, the other maps checkpoint, and the binary exits with status 1 for Compose to restart (`restart: unless-stopped`; page 10, Restarts and failures). The map that panicked does not checkpoint: its state may be half-updated, so its players lose what they did since their last checkpoint, as in a crash.
 - **One shape everywhere:** each binary has one `pkg/panics` recorder. It logs a panic once, as `panic recovered` with its flow, value and stack, and counts it in `panics_total` by flow (`pkg/observability`'s counter). An HTTP server's own errors, such as a panic no handler recovered, go to the same log.
 
 ## Metrics
@@ -96,4 +98,4 @@ Only one player can hold a reservation, so two players can never both get a drop
 - `db_tx_duration_seconds` by operation; `db_tx_retries_total`
 - `economy_jobs_inflight`
 - `outbox_unpublished`: grows in Stage 1, then shows relay lag in Stage 2
-- `panics_total` by flow (`http`, `grpc`, `ws`, `stream`), on every binary
+- `panics_total` by flow (`http`, `grpc`, `ws`, `stream`, `job`, `task`), on every binary

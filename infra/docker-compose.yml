@@ -7,6 +7,7 @@ x-database: &database
 
 services:
   postgres:
+    restart: unless-stopped
     image: postgres:17-alpine
     ports:
       - "${FINGA_POSTGRES_PORT:-5432}:5432"   # host port; set FINGA_POSTGRES_PORT when 5432 is taken
@@ -35,6 +36,7 @@ services:
 
   # gRPC on 9001, ops on 9101.
   account:
+    restart: unless-stopped
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -51,6 +53,7 @@ services:
 
   # gRPC on 9002, ops on 9102.
   character:
+    restart: unless-stopped
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -69,6 +72,7 @@ services:
 
   # gRPC on 9003, ops on 9103.
   item:
+    restart: unless-stopped
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -85,6 +89,7 @@ services:
 
   # gRPC on 9005, ops on 9105; parties live in memory, so no database.
   social:
+    restart: unless-stopped
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -97,6 +102,7 @@ services:
 
   # gRPC on 9004, ops on 9104 (published for make bots); it saves through character and item.
   world:
+    restart: unless-stopped
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -122,6 +128,7 @@ services:
 
   # REST under /api, the WebSocket at /ws and ops, all on 8080.
   gateway:
+    restart: unless-stopped
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -154,6 +161,7 @@ services:
 
   # The client on nginx, passing /api and /ws to the gateway so the browser sees one origin.
   web:
+    restart: unless-stopped
     build:
       context: ../web
       additional_contexts:

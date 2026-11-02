@@ -49,7 +49,7 @@ func New(opts Options) *Host {
 	}
 	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics})}
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
-	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace}, []runner.Listener{
+	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace, Panics: opts.Panics}, []runner.Listener{
 		{Name: GRPC, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},
 		{Name: Ops, Addr: opts.Settings.Ops, Server: runner.HTTP(ops)},
 	}, opts.Tasks)

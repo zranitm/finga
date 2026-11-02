@@ -9,6 +9,7 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/model"
 )
 
@@ -19,13 +20,14 @@ type SessionWatcher interface {
 
 // SessionEnds is the application's SessionEnds over the account service.
 type SessionEnds struct {
-	c   SessionWatcher
-	log *slog.Logger
+	c      SessionWatcher
+	log    *slog.Logger
+	panics *panics.Recorder
 }
 
-// NewSessionEnds adapts the account client; log hears the stream's breaks.
-func NewSessionEnds(c SessionWatcher, log *slog.Logger) SessionEnds {
-	return SessionEnds{c: c, log: log}
+// NewSessionEnds adapts the account client; log hears the stream's breaks, and rec a panic handling it.
+func NewSessionEnds(c SessionWatcher, log *slog.Logger, rec *panics.Recorder) SessionEnds {
+	return SessionEnds{c: c, log: log, panics: rec}
 }
 
 // FollowSessionEnds follows the ended sessions until ctx ends.
@@ -44,7 +46,7 @@ func (s SessionEnds) FollowSessionEnds(ctx context.Context, gateway string, deli
 				deliver(model.SessionEnd{Account: id, NewLogin: ev.GetReason() == accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN})
 			}
 		}
-	}, grpcx.FollowOptions{OnBreak: func(err error) {
+	}, grpcx.FollowOptions{Panics: s.panics, OnBreak: func(err error) {
 		s.log.WarnContext(ctx, "session stream broke; subscribing again", "err", err)
 	}})
 }

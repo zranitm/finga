@@ -55,14 +55,15 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	gateway := application.NewGateway(application.Dependencies{
 		ID:          uuidv7.NewString(),
 		Sessions:    guard,
-		SessionEnds: clients.NewSessionEnds(accounts, opts.Logger),
-		World:       clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger),
+		SessionEnds: clients.NewSessionEnds(accounts, opts.Logger, rec),
+		World:       clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger, rec),
 		Items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
-		Social:      clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger),
+		Social:      clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger, rec),
 		Logger:      opts.Logger,
+		Panics:      rec,
 		Observer:    metrics,
 	})
-	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger}, Deps{
+	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger, Panics: rec}, Deps{
 		API:     api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
 		Gateway: ws.New(gateway, ws.Options{Origins: cfg.HTTP.CORSOrigins, Observer: metrics, Logger: opts.Logger, Panics: rec}),
 		Metrics: observability.MetricsHandler(opts.Registry),

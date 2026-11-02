@@ -86,3 +86,26 @@ func TestARecorderWithoutACounterOnlyLogs(t *testing.T) {
 		t.Fatalf("log %q", buf.String())
 	}
 }
+
+func TestDoRecordsAPanicAndReturns(t *testing.T) {
+	var buf bytes.Buffer
+	n := counts{}
+	rec := panics.NewRecorder(slog.New(slog.NewJSONHandler(&buf, nil)), n)
+	rec.Do(context.Background(), panics.FlowJob, func() { explode("bad job") }, "job", "pickup")
+	if n[panics.FlowJob] != 1 || !strings.Contains(buf.String(), `"job":"pickup"`) || !strings.Contains(buf.String(), `"panic":"bad job"`) {
+		t.Fatalf("counts %v, log %q", n, buf.String())
+	}
+}
+
+func TestGoRecordsAPanicOnItsOwnGoroutine(t *testing.T) {
+	recorded := make(chan string, 1)
+	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), counterFunc(func(flow string) { recorded <- flow }))
+	rec.Go(context.Background(), panics.FlowJob, func() { explode("bad transfer") })
+	if flow := <-recorded; flow != panics.FlowJob {
+		t.Fatalf("flow %q", flow)
+	}
+}
+
+type counterFunc func(flow string)
+
+func (f counterFunc) Inc(flow string) { f(flow) }

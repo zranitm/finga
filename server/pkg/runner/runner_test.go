@@ -19,6 +19,7 @@ import (
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 
 	"finga/pkg/grpcx"
+	"finga/pkg/panics"
 	"finga/pkg/runner"
 )
 
@@ -368,4 +369,60 @@ func (b *lockedBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.buf.String()
+}
+
+// tally is a panics.Counter the runner's goroutines can share.
+type tally struct {
+	mu sync.Mutex
+	n  map[string]int
+}
+
+func (c *tally) Inc(flow string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.n == nil {
+		c.n = map[string]int{}
+	}
+	c.n[flow]++
+}
+
+func (c *tally) get(flow string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.n[flow]
+}
+
+func TestAPanickingTaskStopsTheProcessGracefully(t *testing.T) {
+	var logs lockedBuffer
+	log := slog.New(slog.NewJSONHandler(&logs, nil))
+	count := &tally{}
+	steadyStopped := make(chan struct{})
+	var drained atomic.Bool
+	r := newRunner(t, runner.Options{Logger: log, Panics: panics.NewRecorder(log, count), Drain: func(context.Context) { drained.Store(true) }},
+		[]runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}},
+		runner.Task{Name: "steady", Run: func(ctx context.Context) error { <-ctx.Done(); close(steadyStopped); return nil }},
+		runner.Task{Name: "broken", Run: func(context.Context) error { panic("bad state") }},
+	)
+	done := make(chan error, 1)
+	go func() { done <- r.Run(context.Background()) }()
+	var err error
+	select {
+	case err = <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run kept serving after a task panicked")
+	}
+	if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "bad state" || !strings.Contains(err.Error(), "broken") {
+		t.Fatalf("Run returned %v", err)
+	}
+	select {
+	case <-steadyStopped:
+	default:
+		t.Fatal("the other task was still running when Run returned")
+	}
+	if !drained.Load() {
+		t.Fatal("the shutdown skipped Drain")
+	}
+	if count.get(panics.FlowTask) != 1 || !strings.Contains(logs.String(), `"task":"broken"`) || !strings.Contains(logs.String(), `"panic":"bad state"`) {
+		t.Fatalf("count %d, log %q", count.get(panics.FlowTask), logs.String())
+	}
 }

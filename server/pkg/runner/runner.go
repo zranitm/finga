@@ -15,6 +15,8 @@ import (
 
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+
+	"finga/pkg/panics"
 )
 
 // Server is what a listener serves.
@@ -44,6 +46,8 @@ type Options struct {
 	ShutdownGrace time.Duration
 	// Drain runs after readiness drops and before the listeners stop; nil skips it.
 	Drain func(ctx context.Context)
+	// Panics records a task's panic, which then shuts the process down; nil logs it to Logger.
+	Panics *panics.Recorder
 }
 
 // Runner is one process.
@@ -61,6 +65,9 @@ type Runner struct {
 func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
+	}
+	if opts.Panics == nil {
+		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
 	for _, l := range listeners {
 		if s, ok := l.Server.(*httpServer); ok && s.srv.ErrorLog == nil {
@@ -81,16 +88,30 @@ func (r *Runner) Addr(name string) string {
 }
 
 // RunTasks runs the background tasks until ctx ends and they all return; Run calls it.
-func (r *Runner) RunTasks(ctx context.Context) {
+func (r *Runner) RunTasks(ctx context.Context) { r.runTasks(ctx, func(error) {}) }
+
+// runTasks hands a task's panic to fatal, after recording it.
+func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
 		wg.Go(func() {
-			if err := t.Run(ctx); err != nil {
+			err := run(ctx, t)
+			if e, ok := errors.AsType[*panics.Error](err); ok {
+				r.opts.Panics.Record(ctx, panics.FlowTask, e, "task", t.Name, "err", err.Error())
+				fatal(fmt.Errorf("task %s: %w", t.Name, err))
+				return
+			}
+			if err != nil {
 				r.opts.Logger.ErrorContext(ctx, "task stopped with an error", "task", t.Name, "err", err)
 			}
 		})
 	}
 	wg.Wait()
+}
+
+func run(ctx context.Context, t Task) (err error) {
+	defer panics.Capture(&err)
+	return t.Run(ctx)
 }
 
 // Run binds all listeners or none, serves until ctx ends or a listener fails, then shuts down.
@@ -99,11 +120,13 @@ func (r *Runner) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	runCtx, stop := context.WithCancelCause(ctx)
+	defer stop(nil)
 	taskCtx, stopTasks := context.WithCancel(context.WithoutCancel(ctx))
 	var tasks sync.WaitGroup
-	tasks.Go(func() { r.RunTasks(taskCtx) })
+	tasks.Go(func() { r.runTasks(taskCtx, stop) })
 
-	serving, servingCtx := errgroup.WithContext(ctx)
+	serving, servingCtx := errgroup.WithContext(runCtx)
 	for i, ln := range lns {
 		l := r.listeners[i]
 		serving.Go(func() error {
@@ -124,7 +147,11 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	<-servingCtx.Done()
-	failed := ctx.Err() == nil // the serving context ended on its own: a listener failed
+	panicked := context.Cause(runCtx)
+	if ctx.Err() != nil || runCtx.Err() == nil {
+		panicked = nil
+	}
+	failed := runCtx.Err() == nil // the serving context ended on its own: a listener failed
 	r.ready.Store(false)
 	r.opts.Logger.InfoContext(ctx, "shutting down", "grace", r.opts.ShutdownGrace)
 	graceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.opts.ShutdownGrace)
@@ -145,6 +172,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	servingErr := serving.Wait()
 	stopTasks()
 	tasks.Wait()
+	if panicked != nil {
+		return panicked
+	}
 	if servingErr != nil {
 		return servingErr
 	}

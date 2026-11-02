@@ -10,6 +10,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
+	"finga/pkg/panics"
 	"finga/pkg/tick"
 	"finga/services/world/internal/model"
 )
@@ -44,8 +45,9 @@ type Options struct {
 	Workers            *Workers   // nil: pickups are unavailable
 	Parties            Parties    // nil: nobody has a party
 	Characters         Characters
-	Starter            Starter       // nil grants nothing
-	SaveRetryFor       time.Duration // a minute by default (World only)
+	Starter            Starter          // nil grants nothing
+	SaveRetryFor       time.Duration    // a minute by default (World only)
+	Panics             *panics.Recorder // a transfer's panic (World only); nil logs it
 }
 
 func (o Options) withDefaults() Options {

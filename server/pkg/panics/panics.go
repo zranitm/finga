@@ -14,6 +14,8 @@ const (
 	FlowGRPC   = "grpc"   // a gRPC call or stream
 	FlowWS     = "ws"     // a WebSocket message or connection
 	FlowStream = "stream" // a message from a followed stream
+	FlowJob    = "job"    // one-off background work
+	FlowTask   = "task"   // a background loop; the process shuts down
 )
 
 // Error is a recovered panic and the stack it happened on.
@@ -53,4 +55,19 @@ func (r *Recorder) Record(ctx context.Context, flow string, e *Error, attrs ...a
 	}
 	args := append([]any{"flow", flow, "panic", fmt.Sprint(e.Value), "stack", string(e.Stack)}, attrs...)
 	r.log.ErrorContext(ctx, "panic recovered", args...)
+}
+
+// Do runs fn, recording a panic in it instead of letting it go on.
+func (r *Recorder) Do(ctx context.Context, flow string, fn func(), attrs ...any) {
+	defer func() {
+		if p := recover(); p != nil {
+			r.Record(ctx, flow, Of(p), attrs...)
+		}
+	}()
+	fn()
+}
+
+// Go runs fn on its own goroutine, recording a panic in it.
+func (r *Recorder) Go(ctx context.Context, flow string, fn func(), attrs ...any) {
+	go r.Do(ctx, flow, fn, attrs...)
 }

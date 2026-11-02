@@ -89,16 +89,16 @@ func (d deps) build() (*application.Gateway, http.Handler) {
 		JoinTimeout: d.JoinTimeout, SessionCheckInterval: d.SessionCheckInterval,
 	}
 	if d.World != nil {
-		app.World = clients.NewWorld(d.World, d.Logger)
+		app.World = clients.NewWorld(d.World, d.Logger, nil)
 	}
 	if d.Items != nil {
 		app.Items = clients.NewItems(d.Items)
 	}
 	if d.Social != nil {
-		app.Social = clients.NewSocial(d.Social, d.Logger)
+		app.Social = clients.NewSocial(d.Social, d.Logger, nil)
 	}
 	if d.Watcher != nil {
-		app.SessionEnds = clients.NewSessionEnds(d.Watcher, d.Logger)
+		app.SessionEnds = clients.NewSessionEnds(d.Watcher, d.Logger, nil)
 	}
 	gw := application.NewGateway(app)
 	return gw, ws.New(gw, ws.Options{

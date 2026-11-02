@@ -3,18 +3,20 @@
 package application
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
+	"golang.org/x/sync/errgroup"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/pkg/panics"
 	"finga/services/world/internal/model"
 )
 
@@ -45,6 +47,9 @@ type World struct {
 func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *World {
 	if opts.SaveRetryFor <= 0 {
 		opts.SaveRetryFor = DefaultSaveRetryFor
+	}
+	if opts.Panics == nil {
+		opts.Panics = panics.NewRecorder(cmp.Or(log, slog.New(slog.DiscardHandler)), nil)
 	}
 	w := &World{data: data, opts: opts, instances: map[string]*Instance{}, persist: make(chan model.Job, persistQueue), saver: saver, log: log, workers: opts.Workers, retryFor: opts.SaveRetryFor}
 	opts.Transfer = w
@@ -109,31 +114,42 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 		}
 		return
 	}
-	go func() {
+	w.opts.Panics.Go(context.Background(), panics.FlowJob, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 		defer cancel()
 		if err := target.Join(ctx, p, sink); err != nil && w.log != nil {
 			w.log.ErrorContext(ctx, "transfer failed", "character_id", p.ID, "map_id", mapID, "err", err)
 		}
-	}()
+	}, "job", "transfer", "character_id", p.ID, "map_id", mapID)
 }
 
 // Run ticks every instance and the economy workers until ctx is done, then flushes queued jobs.
+// A map that panics stops them all; the others still checkpoint, but its own state is suspect and is not saved.
 func (w *World) Run(ctx context.Context) error {
-	var wg sync.WaitGroup
+	g, gctx := errgroup.WithContext(ctx)
 	if w.workers != nil {
-		wg.Go(func() {
-			w.workers.Run(ctx)
+		g.Go(func() (err error) {
+			defer panics.Capture(&err)
+			w.workers.Run(gctx)
+			return nil
 		})
 	}
 	for _, id := range w.order {
 		inst := w.instances[id]
-		wg.Go(func() { _ = inst.Run(ctx) })
+		g.Go(func() (err error) {
+			defer func() {
+				if err != nil {
+					err = fmt.Errorf("map %s: %w", id, err)
+				}
+			}()
+			defer panics.Capture(&err)
+			return inst.Run(gctx)
+		})
 	}
-	wg.Wait()
+	err := g.Wait()
 	// No more jobs can arrive; drain the queue with a context that is not cancelled.
 	w.flush(context.WithoutCancel(ctx))
-	return nil
+	return err
 }
 
 // Persist queues a job without blocking; false when the queue is full.

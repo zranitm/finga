@@ -228,6 +228,8 @@ Every retry and resubscribe waits on `github.com/cenkalti/backoff/v5`, doubling 
 | gateway | Each client reconnects | Rolling, one node at a time, draining first: readiness turns 503, a new WebSocket upgrade is refused with 503, every connection gets Kicked `server_restart` (the client reconnects with jitter), then the listener closes (step 28). |
 | Postgres | As today | |
 
+A service whose background loop panics shuts itself down gracefully and exits with status 1; Compose's `restart: unless-stopped` starts it again, and the row for that service applies (page 3, Panics).
+
 After a world restart the HUD's EXP can show more than the reloaded checkpoint until the next EXP event: Snapshot carries no EXP, and a fresh Welcome on the same socket would be a protocol change (open question 2).
 
 ## Rules that change because of the split

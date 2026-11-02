@@ -13,6 +13,7 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
 )
@@ -138,7 +139,10 @@ func (guard) Check(context.Context, uuid.UUID) error            { return nil }
 func (guard) RevokeAll(context.Context, uuid.UUID) error        { return nil }
 
 // world joins every character on the town, or fails with joinErr.
-type world struct{ joinErr error }
+type world struct {
+	joinErr     error
+	followPanic string
+}
 
 func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
 	if w.joinErr != nil {
@@ -146,10 +150,28 @@ func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kerne
 	}
 	return model.Joined{Character: &clientv1.CharacterView{Id: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
 }
-func (w *world) Leave(context.Context, model.Presence, string) error              { return nil }
-func (w *world) Input(context.Context, model.Presence, uint32, model.Keys) error  { return nil }
-func (w *world) Attack(context.Context, model.Presence) error                     { return nil }
-func (w *world) EnterPortal(context.Context, model.Presence) error                { return nil }
-func (w *world) PickUp(context.Context, model.Presence) error                     { return nil }
-func (w *world) Say(context.Context, model.Presence, string, string) error        { return nil }
-func (w *world) FollowDeliveries(context.Context, string, func(model.WorldEvent)) {}
+func (w *world) Leave(context.Context, model.Presence, string) error             { return nil }
+func (w *world) Input(context.Context, model.Presence, uint32, model.Keys) error { return nil }
+func (w *world) Attack(context.Context, model.Presence) error                    { return nil }
+func (w *world) EnterPortal(context.Context, model.Presence) error               { return nil }
+func (w *world) PickUp(context.Context, model.Presence) error                    { return nil }
+func (w *world) Say(context.Context, model.Presence, string, string) error       { return nil }
+func (w *world) FollowDeliveries(context.Context, string, func(model.WorldEvent)) {
+	if w.followPanic != "" {
+		panic(w.followPanic)
+	}
+}
+
+func TestAPanickingFollowerStopsRun(t *testing.T) {
+	g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: &world{followPanic: "bad stream"}, SessionCheckInterval: time.Hour})
+	done := make(chan error, 1)
+	go func() { done <- g.Run(context.Background()) }()
+	select {
+	case err := <-done:
+		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "bad stream" {
+			t.Fatalf("Run returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run kept going after a follower panicked")
+	}
+}

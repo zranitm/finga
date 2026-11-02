@@ -464,11 +464,14 @@ func Capture(err *error) // deferred: a panic becomes the *Error the goroutine r
 type Counter interface{ Inc(flow string) } // observability.PanicCounter: panics_total by flow
 func NewRecorder(log *slog.Logger, count Counter) *Recorder // one per process; a nil count only logs
 func (r *Recorder) Record(ctx context.Context, flow string, e *Error, attrs ...any) // "panic recovered", with its stack
+func (r *Recorder) Do(ctx context.Context, flow string, fn func(), attrs ...any)     // one-off work: recorded, not fatal
+func (r *Recorder) Go(ctx context.Context, flow string, fn func(), attrs ...any)     // the same, on its own goroutine
 
 // pkg/runner: one process's listeners and tasks (step 22)
 type Listener struct { Name, Addr string; Server Server } // runner.HTTP(handler) or runner.GRPC(server)
 func New(opts Options, listeners []Listener, tasks []Task) *Runner
 func (r *Runner) Run(ctx context.Context) error // ready while listening; on shutdown: not ready, Drain, listeners stop within the grace, tasks stop
+// A task's panic is recorded and shuts the process down the same way; Run then returns it.
 func Probes(ready func() bool, metrics http.Handler) http.Handler // /healthz, /readyz, /metrics
 
 // pkg/hub: subscribers with bounded queues, behind the delivery streams (step 22)

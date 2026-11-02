@@ -2,7 +2,10 @@ package application
 
 import (
 	"context"
+	"log/slog"
 	"sync"
+
+	"finga/pkg/panics"
 )
 
 // EconomyObserver counts jobs in flight.
@@ -13,23 +16,27 @@ type EconomyObserver interface {
 
 // Workers is the economy worker pool, so a tick never waits on the database.
 type Workers struct {
-	jobs chan func(ctx context.Context)
-	n    int
-	obs  EconomyObserver
+	jobs   chan func(ctx context.Context)
+	n      int
+	obs    EconomyObserver
+	panics *panics.Recorder
 }
 
 // DefaultEconomyQueue is how many jobs may wait for a worker.
 const DefaultEconomyQueue = 1024
 
-// NewWorkers makes a pool of n workers with a queue of DefaultEconomyQueue.
-func NewWorkers(n int, obs EconomyObserver) *Workers {
+// NewWorkers makes a pool of n workers with a queue of DefaultEconomyQueue; a job's panic goes to rec.
+func NewWorkers(n int, obs EconomyObserver, rec *panics.Recorder) *Workers {
 	if n < 1 {
 		n = 1
 	}
 	if obs == nil {
 		obs = noopEconomy{}
 	}
-	return &Workers{jobs: make(chan func(ctx context.Context), DefaultEconomyQueue), n: n, obs: obs}
+	if rec == nil {
+		rec = panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
+	}
+	return &Workers{jobs: make(chan func(ctx context.Context), DefaultEconomyQueue), n: n, obs: obs, panics: rec}
 }
 
 // Submit queues a job; false when the queue is full.
@@ -53,7 +60,7 @@ func (w *Workers) Run(ctx context.Context) {
 				case <-ctx.Done():
 					return
 				case job := <-w.jobs:
-					job(ctx)
+					w.panics.Do(ctx, panics.FlowJob, func() { job(ctx) }, "job", "economy")
 					w.obs.JobFinished()
 				}
 			}

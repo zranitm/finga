@@ -113,7 +113,7 @@ func pickupFailures(s *sink) []model.PickupFailed {
 
 func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...application.Options) (*application.Instance, func()) {
 	t.Helper()
-	workers := application.NewWorkers(2, nil)
+	workers := application.NewWorkers(2, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); workers.Run(ctx) }()

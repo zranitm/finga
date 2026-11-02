@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"finga/pkg/panics"
 	"finga/pkg/runner"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/handler"
@@ -22,6 +23,7 @@ type Options struct {
 	HTTP          config.HTTP
 	ShutdownGrace time.Duration
 	Logger        *slog.Logger
+	Panics        *panics.Recorder // a task's panic, which shuts the gateway down; nil logs it
 }
 
 // Deps are the handlers the router mounts and the tasks the server runs.
@@ -52,7 +54,7 @@ func New(opts Options, deps Deps) *Server {
 		Metrics: deps.Metrics,
 		Ready:   func() bool { return s.run.Ready() },
 	})
-	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.ShutdownGrace, Drain: deps.Drain},
+	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.ShutdownGrace, Drain: deps.Drain, Panics: opts.Panics},
 		[]runner.Listener{{Name: listener, Addr: opts.HTTP.Addr, Server: runner.HTTP(s.handler)}}, deps.Tasks)
 	return s
 }

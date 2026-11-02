@@ -73,16 +73,17 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	items := itemv1.NewItemServiceClient(itemConn)
 
 	nodeID := uuidv7.NewString()
-	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log)
+	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log, rec)
 	maps := application.New(data, clients.NewSaver(characters), log, application.Options{
 		TickInterval:       cfg.TickInterval(),
 		CheckpointInterval: cfg.CheckpointInterval,
 		Observer:           metrics,
 		Items:              clients.NewPickups(items),
-		Workers:            application.NewWorkers(cfg.Economy.Workers, metrics),
+		Workers:            application.NewWorkers(cfg.Economy.Workers, metrics, rec),
 		Parties:            parties,
 		Characters:         clients.NewCharacters(characters),
 		Starter:            clients.NewStarter(items),
+		Panics:             rec,
 	})
 	h := host.New(host.Options{
 		Name:     "world",

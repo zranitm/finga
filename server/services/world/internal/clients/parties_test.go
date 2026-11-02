@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/panics"
 )
 
 type watched struct {
@@ -80,7 +82,7 @@ func TestThePartyCopy(t *testing.T) {
 	w := &watched{events: make(chan *socialv1.WatchPartiesResponse, 16), end: make(chan struct{})}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	socialv1.RegisterSocialServiceServer(srv, w)
-	copy := NewPartyCopy(socialv1.NewSocialServiceClient(grpctest.Conn(t, srv)), "world-1", slog.New(slog.DiscardHandler))
+	copy := NewPartyCopy(socialv1.NewSocialServiceClient(grpctest.Conn(t, srv)), "world-1", slog.New(slog.DiscardHandler), nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- copy.Run(ctx) }()
@@ -139,12 +141,39 @@ func TestThePartyCopy(t *testing.T) {
 }
 
 func TestAFullUpdateQueueDropsWithoutBlocking(t *testing.T) {
-	copy := NewPartyCopy(nil, "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
+	copy := NewPartyCopy(nil, "world-1", slog.New(slog.DiscardHandler), nil) // never Run: nothing drains
 	start := time.Now()
 	for range partyUpdateQueue + 10 {
 		copy.Update(kernel.NewCharacterID(), "town", 1, 1, 1)
 	}
 	if time.Since(start) > time.Second {
 		t.Fatal("Update blocked")
+	}
+}
+
+// brokenSocial panics on UpdateMember and holds WatchParties open until the copy stops.
+type brokenSocial struct{ socialv1.SocialServiceClient }
+
+func (brokenSocial) WatchParties(ctx context.Context, _ *socialv1.WatchPartiesRequest, _ ...grpc.CallOption) (grpc.ServerStreamingClient[socialv1.WatchPartiesResponse], error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+func (brokenSocial) UpdateMember(context.Context, *socialv1.UpdateMemberRequest, ...grpc.CallOption) (*socialv1.UpdateMemberResponse, error) {
+	panic("bad update")
+}
+
+func TestAPanicSendingUpdatesStopsTheCopy(t *testing.T) {
+	copy := NewPartyCopy(brokenSocial{}, "world-1", slog.New(slog.DiscardHandler), nil)
+	copy.Update(kernel.NewCharacterID(), "town", 1, 10, 10)
+	done := make(chan error, 1)
+	go func() { done <- copy.Run(context.Background()) }()
+	select {
+	case err := <-done:
+		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "bad update" {
+			t.Fatalf("Run returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run kept going after its update loop panicked")
 	}
 }

@@ -11,10 +11,12 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
+	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/internal/model"
 )
@@ -28,6 +30,7 @@ type Dependencies struct {
 	Items                Items  // nil: no inventory
 	Social               Social // nil: no parties or chat
 	Logger               *slog.Logger
+	Panics               *panics.Recorder // a rejoin's panic; nil logs it to Logger
 	Observer             Observer
 	Clock                func() time.Time
 	JoinTimeout          time.Duration
@@ -74,6 +77,9 @@ func NewGateway(deps Dependencies) *Gateway {
 	if deps.ID == "" {
 		deps.ID = uuidv7.NewString()
 	}
+	if deps.Panics == nil {
+		deps.Panics = panics.NewRecorder(deps.Logger, nil)
+	}
 	return &Gateway{
 		deps:        deps,
 		now:         deps.Clock,
@@ -84,27 +90,45 @@ func NewGateway(deps Dependencies) *Gateway {
 	}
 }
 
-// Run follows the services' streams and periodically kicks expired sessions until ctx is done.
+// Run follows the services' streams and periodically kicks expired sessions until ctx is done or one of them panics.
 func (g *Gateway) Run(ctx context.Context) error {
+	group, gctx := errgroup.WithContext(ctx)
+	loop := func(f func(ctx context.Context)) {
+		group.Go(func() (err error) {
+			defer panics.Capture(&err)
+			f(gctx)
+			return nil
+		})
+	}
 	if g.deps.World != nil {
-		go g.deps.World.FollowDeliveries(ctx, g.deps.ID, g.worldDelivered)
+		loop(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, g.deps.ID, g.worldDelivered) })
 	}
 	if g.deps.Social != nil {
-		go g.deps.Social.FollowDeliveries(ctx, g.deps.ID, g.socialDelivered)
+		loop(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, g.deps.ID, g.socialDelivered) })
 	}
 	if g.deps.SessionEnds != nil {
-		go g.deps.SessionEnds.FollowSessionEnds(ctx, g.deps.ID, g.sessionEnded)
+		loop(func(ctx context.Context) { g.deps.SessionEnds.FollowSessionEnds(ctx, g.deps.ID, g.sessionEnded) })
 	}
+	loop(g.checkSessionsEvery)
+	return group.Wait()
+}
+
+func (g *Gateway) checkSessionsEvery(ctx context.Context) {
 	ticker := time.NewTicker(g.deps.SessionCheckInterval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-ticker.C:
 			g.checkSessions(ctx)
 		}
 	}
+}
+
+// rejoinOffStream rejoins s on its own goroutine, so the stream that noticed the break keeps flowing.
+func (g *Gateway) rejoinOffStream(s *Session) {
+	g.deps.Panics.Go(context.Background(), panics.FlowJob, func() { g.rejoin(s) }, "job", "rejoin", "character_id", s.Character())
 }
 
 func (g *Gateway) checkSessions(ctx context.Context) {
@@ -337,7 +361,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 		}
 	}
 	if missed {
-		go g.rejoin(s)
+		g.rejoinOffStream(s)
 	}
 	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
@@ -361,7 +385,7 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 		g.mu.Unlock()
 		if again {
 			for _, s := range active {
-				go g.rejoin(s)
+				g.rejoinOffStream(s)
 			}
 		}
 		return
