@@ -749,6 +749,38 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	}
 }
 
+// panickingItems is an item client whose Discard panics inside the gateway, on the connection's command goroutine.
+type panickingItems struct{ itemv1.ItemServiceClient }
+
+func (panickingItems) Discard(context.Context, *itemv1.DiscardRequest, ...grpc.CallOption) (*itemv1.DiscardResponse, error) {
+	panic("nil map in the gateway")
+}
+
+func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
+	logs := &lockedBuffer{}
+	h := newHarness(t, func(d *deps) {
+		d.Items = panickingItems{(&fakeItems{}).client(t)}
+		d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
+	})
+	c := h.dial(t)
+	c.hello(tokenAlice, aylaID)
+	c.expect("Welcome")
+	c.expect("Snapshot")
+	c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
+	m := c.expect("Response")
+	if r := m.Data.(*clientv1.Response); m.ReqID != "r-1" || r.GetOk() || r.Code != "internal" || strings.Contains(r.Message, "nil map") {
+		t.Fatalf("response %q %+v; the panic must stay out of it", m.ReqID, r)
+	}
+	c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 5}})
+	c.expect("Pong")
+	got := logs.String()
+	for _, want := range []string{`"msg":"panic recovered"`, `"flow":"ws"`, `"panic":"nil map in the gateway"`, `"type":"InventoryDiscard"`, `"req_id":"r-1"`, `"conn":`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("log lacks %s: %s", want, got)
+		}
+	}
+}
+
 // lockedBuffer is a log destination the gateway's goroutines can share.
 type lockedBuffer struct {
 	mu  sync.Mutex

@@ -17,6 +17,8 @@ import (
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
+	"finga/pkg/observability"
+	"finga/pkg/panics"
 	"finga/pkg/runner"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
@@ -27,6 +29,11 @@ import (
 
 // Build wires the world service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
+	panicCount, err := observability.NewPanicCounter(reg)
+	if err != nil {
+		return nil, err
+	}
+	rec := panics.NewRecorder(log, panicCount)
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -82,6 +89,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Settings: cfg.Host(),
 		Logger:   log,
 		Registry: reg,
+		Panics:   rec,
 		Errors:   handler.Errors,
 		Tasks: []runner.Task{
 			{Name: "parties", Run: parties.Run},

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"finga/internal/protocol"
+	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/pkg/wsrouter"
 	"finga/services/gateway/internal/application"
@@ -36,6 +37,8 @@ type Options struct {
 	Clock        func() time.Time
 	Observer     Observer
 	Logger       *slog.Logger
+	// Panics records a panic in a message's chain or a connection's callbacks; nil logs it to Logger.
+	Panics *panics.Recorder
 }
 
 // Handler serves /ws.
@@ -66,6 +69,9 @@ func New(gw *application.Gateway, opts Options) *Handler {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
+	if opts.Panics == nil {
+		opts.Panics = panics.NewRecorder(opts.Logger, nil)
+	}
 	h := &Handler{gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, clients: map[string]*client{}}
 	h.router = h.routes()
 	return h
@@ -77,7 +83,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server restarting", http.StatusServiceUnavailable)
 		return
 	}
-	wsconn.Serve(w, r, h, wsconn.Options{Subprotocols: h.subprotocols, AllowedOrigins: h.opts.Origins})
+	wsconn.Serve(w, r, h, wsconn.Options{Subprotocols: h.subprotocols, AllowedOrigins: h.opts.Origins, Panics: h.opts.Panics})
 }
 
 // OnOpen starts a connection's command goroutine and its gateway session.

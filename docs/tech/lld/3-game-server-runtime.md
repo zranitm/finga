@@ -82,6 +82,12 @@ Only one player can hold a reservation, so two players can never both get a drop
 - **Graceful (SIGTERM):** each process turns unready first. The gateway then refuses new connections, tells every client the server is restarting (Kicked `server_restart`) and closes its connections; the world flushes every queued checkpoint before it exits. A service other than the gateway restarts without closing a socket (page 10, Restarts and failures).
 - **Crash:** in-memory state since the last checkpoint is lost (positions, mobs, ground drops, parties). Committed items and coins are unaffected. A world crash keeps the sockets: the gateway rejoins its players when the world is back.
 
+## Panics
+
+- **A request answers `internal` and the process goes on:** a REST request (the request-log middleware), a gRPC call or stream (`pkg/grpcx`'s interceptors), and a WebSocket message (the router's Recover, on the read loop and on the connection's command queue). The connection stays open. A panic in a connection's own callbacks closes it with 1011 and still ends its session.
+- **A followed stream resubscribes:** a panic while handling one of its messages breaks the subscription as a stream error would, and the resubscription rebuilds what the follower holds.
+- **One shape everywhere:** each binary has one `pkg/panics` recorder. It logs a panic once, as `panic recovered` with its flow, value and stack, and counts it in `panics_total` by flow (`pkg/observability`'s counter). An HTTP server's own errors, such as a panic no handler recovered, go to the same log.
+
 ## Metrics
 
 - `tick_duration_seconds` histogram per map; `tick_overruns_total` (on the world's ops `/metrics`)
@@ -90,3 +96,4 @@ Only one player can hold a reservation, so two players can never both get a drop
 - `db_tx_duration_seconds` by operation; `db_tx_retries_total`
 - `economy_jobs_inflight`
 - `outbox_unpublished`: grows in Stage 1, then shows relay lag in Stage 2
+- `panics_total` by flow (`http`, `grpc`, `ws`, `stream`), on every binary

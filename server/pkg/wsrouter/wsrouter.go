@@ -1,11 +1,13 @@
 // Package wsrouter routes decoded WebSocket messages by type through middleware chains.
-// A middleware calls c.Next to continue, possibly later on another goroutine, or skips it to stop.
+// A middleware calls c.Next to continue, hands c.Later to another goroutine, or skips both to stop.
 package wsrouter
 
 import (
 	"context"
 	"fmt"
 	"slices"
+
+	"finga/pkg/panics"
 )
 
 // Message is the part of a decoded message the router reads.
@@ -29,8 +31,9 @@ type Context[S any] struct {
 	Result any
 	Err    error
 
-	chain []HandlerFunc[S]
-	index int
+	chain   []HandlerFunc[S]
+	index   int
+	onPanic PanicHandler[S]
 }
 
 // Next runs the rest of the chain.
@@ -41,11 +44,29 @@ func (c *Context[S]) Next() {
 	}
 }
 
+// Later is the rest of the chain, for a middleware to run on another goroutine under the router's Recover.
+func (c *Context[S]) Later() func() { return c.run }
+
+func (c *Context[S]) run() {
+	if c.onPanic != nil {
+		defer func() {
+			if p := recover(); p != nil {
+				c.onPanic(c, panics.Of(p))
+			}
+		}()
+	}
+	c.Next()
+}
+
+// PanicHandler is what a recovered panic in a chain becomes.
+type PanicHandler[S any] func(c *Context[S], e *panics.Error)
+
 // Router holds the routes of one kind of connection.
 type Router[S any] struct {
 	global  []HandlerFunc[S]
 	routes  map[string][]HandlerFunc[S]
 	noRoute []HandlerFunc[S]
+	onPanic PanicHandler[S]
 }
 
 // New makes a router whose every message runs middleware first.
@@ -73,14 +94,17 @@ func Handle[S, T any](r *Router[S], msgType string, h func(c *Context[S], in T) 
 // NoRoute sets the chain unrouted types run after the global middleware.
 func (r *Router[S]) NoRoute(handlers ...HandlerFunc[S]) { r.noRoute = handlers }
 
+// Recover hands a panic in a chain, on Dispatch's goroutine or Later's, to onPanic; without it the panic goes on.
+func (r *Router[S]) Recover(onPanic PanicHandler[S]) { r.onPanic = onPanic }
+
 // Dispatch runs m through its chain for the connection session.
 func (r *Router[S]) Dispatch(session S, m Message) {
 	route, ok := r.routes[m.Type]
 	if !ok {
 		route = r.noRoute
 	}
-	c := &Context[S]{Session: session, Message: m, Ctx: context.Background(), chain: append(slices.Clone(r.global), route...), index: -1}
-	c.Next()
+	c := &Context[S]{Session: session, Message: m, Ctx: context.Background(), chain: append(slices.Clone(r.global), route...), index: -1, onPanic: r.onPanic}
+	c.run()
 }
 
 // Types lists the routed message types, sorted.

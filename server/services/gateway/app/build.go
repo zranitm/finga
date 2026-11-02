@@ -16,6 +16,7 @@ import (
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
+	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
@@ -38,6 +39,11 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
+	panicCount, err := observability.NewPanicCounter(opts.Registry)
+	if err != nil {
+		return nil, err
+	}
+	rec := panics.NewRecorder(opts.Logger, panicCount)
 	conns, err := dialAll(cfg.Dependencies)
 	if err != nil {
 		return nil, err
@@ -57,8 +63,8 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Observer:    metrics,
 	})
 	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger}, Deps{
-		API:     api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins}),
-		Gateway: ws.New(gateway, ws.Options{Origins: cfg.HTTP.CORSOrigins, Observer: metrics, Logger: opts.Logger}),
+		API:     api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
+		Gateway: ws.New(gateway, ws.Options{Origins: cfg.HTTP.CORSOrigins, Observer: metrics, Logger: opts.Logger, Panics: rec}),
 		Metrics: observability.MetricsHandler(opts.Registry),
 		Tasks:   []Task{{Name: "streams", Run: gateway.Run}},
 		Drain:   gateway.Drain,

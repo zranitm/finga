@@ -11,6 +11,7 @@ import (
 
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
+	"finga/pkg/panics"
 	"finga/pkg/runner"
 )
 
@@ -28,6 +29,8 @@ type Options struct {
 	Registry *prometheus.Registry // served on /metrics
 	Errors   grpcx.ErrorTable
 	Tasks    []runner.Task
+	// Panics records the process's recovered panics; nil logs them to Logger.
+	Panics *panics.Recorder
 }
 
 // Host is one service's process.
@@ -41,7 +44,10 @@ type Host struct {
 // New builds the process; register handlers on GRPC, then Run.
 func New(opts Options) *Host {
 	logger := opts.Logger.With("service", opts.Name)
-	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger})}
+	if opts.Panics == nil {
+		opts.Panics = panics.NewRecorder(opts.Logger, nil)
+	}
+	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics})}
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
 	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace}, []runner.Listener{
 		{Name: GRPC, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},

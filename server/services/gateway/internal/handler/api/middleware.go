@@ -3,7 +3,6 @@ package api
 import (
 	"log/slog"
 	"net/http"
-	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"finga/pkg/auth"
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
 )
@@ -84,7 +84,7 @@ func cors(origins []string) gin.HandlerFunc {
 }
 
 // requestLog logs each request without headers or bodies (no tokens or passwords) and recovers panics as 500.
-func requestLog(log *slog.Logger) gin.HandlerFunc {
+func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		defer func() {
@@ -94,7 +94,7 @@ func requestLog(log *slog.Logger) gin.HandlerFunc {
 					writePublic(c, model.Internal)
 				}
 				c.Abort()
-				log.ErrorContext(r.Context(), "panic in request", "method", r.Method, "path", r.URL.Path, "panic", p, "stack", string(debug.Stack()))
+				rec.Record(r.Context(), panics.FlowHTTP, panics.Of(p), "method", r.Method, "path", r.URL.Path)
 			}
 			args := []any{"method", r.Method, "path", r.URL.Path, "status", c.Writer.Status(), "duration_ms", float64(time.Since(start).Microseconds()) / 1000}
 			level := slog.LevelInfo

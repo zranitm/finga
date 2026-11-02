@@ -11,6 +11,8 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
 	"finga/pkg/dbx"
+	"finga/pkg/observability"
+	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/account/config"
 	"finga/services/account/internal/application"
@@ -20,6 +22,11 @@ import (
 
 // Build wires the account service; it fails fast on an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
+	panicCount, err := observability.NewPanicCounter(reg)
+	if err != nil {
+		return nil, err
+	}
+	rec := panics.NewRecorder(log, panicCount)
 	pool, err := dbx.NewPool(ctx, cfg.Database.URL, cfg.Database.MaxConns)
 	if err != nil {
 		return nil, err
@@ -35,6 +42,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Settings: cfg.Host(),
 		Logger:   log,
 		Registry: reg,
+		Panics:   rec,
 		Errors:   handler.Errors,
 	})
 	accountv1.RegisterAccountServiceServer(h.GRPC, srv)

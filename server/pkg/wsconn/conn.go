@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 )
 
@@ -84,6 +85,9 @@ type Options struct {
 	SendQueue      int
 	PingInterval   time.Duration
 	PongTimeout    time.Duration
+	// Panics records a panic in a Handler callback, which closes the connection with 1011;
+	// nil passes the panic on to the HTTP server once the connection is closed.
+	Panics *panics.Recorder
 }
 
 func (o Options) withDefaults() Options {
@@ -267,8 +271,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		}
 	})
 
-	h.OnOpen(c)
-	readErr := c.dispatch(h, frames)
+	failure, readErr := c.callbacks(h, frames)
 
 	// A peer that stopped reading never answers the close handshake, so drop it at once.
 	if c.closeErr != nil {
@@ -285,7 +288,41 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 	cancel()
 	_ = c.ws.CloseNow()
 	wg.Wait()
-	h.OnClose(c, closeReason(c.closeErr, readErr))
+	if failure != nil && opts.Panics != nil {
+		opts.Panics.Record(parent, panics.FlowWS, failure, "conn", c.id)
+	}
+	if late := onClose(c, h, closeReason(c.closeErr, readErr)); late != nil {
+		if opts.Panics != nil {
+			opts.Panics.Record(parent, panics.FlowWS, late, "conn", c.id)
+		} else if failure == nil {
+			failure = late
+		}
+	}
+	if failure != nil && opts.Panics == nil {
+		panic(failure)
+	}
+}
+
+// callbacks runs OnOpen, then OnMessage for each frame; a panic in either closes the connection with 1011.
+func (c *conn) callbacks(h Handler, frames <-chan frame) (failure *panics.Error, readErr error) {
+	defer func() {
+		if p := recover(); p != nil {
+			failure = panics.Of(p)
+			c.Close(CloseInternal, "internal error")
+		}
+	}()
+	h.OnOpen(c)
+	return nil, c.dispatch(h, frames)
+}
+
+func onClose(c *conn, h Handler, err error) (failure *panics.Error) {
+	defer func() {
+		if p := recover(); p != nil {
+			failure = panics.Of(p)
+		}
+	}()
+	h.OnClose(c, err)
+	return nil
 }
 
 // dispatch returns the read error if the peer ended the connection, else nil.

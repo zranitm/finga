@@ -14,6 +14,8 @@ import (
 	"finga/internal/host"
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
+	"finga/pkg/observability"
+	"finga/pkg/panics"
 	"finga/services/character/config"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/clients"
@@ -23,6 +25,11 @@ import (
 
 // Build wires the character service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
+	panicCount, err := observability.NewPanicCounter(reg)
+	if err != nil {
+		return nil, err
+	}
+	rec := panics.NewRecorder(log, panicCount)
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -45,6 +52,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Settings: cfg.Host(),
 		Logger:   log,
 		Registry: reg,
+		Panics:   rec,
 		Errors:   handler.Errors,
 	})
 	characterv1.RegisterCharacterServiceServer(h.GRPC, handler.New(characters))

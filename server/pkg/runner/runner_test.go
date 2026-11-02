@@ -1,6 +1,7 @@
 package runner_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -332,4 +334,38 @@ func TestAListenerThatFailsStopsTheRunner(t *testing.T) {
 		t.Fatalf("ready %v, drained %v, task stopped %v, shutdowns %d: want not ready, no drain, the task stopped, every listener shut down",
 			r.Ready(), drained.Load(), taskStopped.Load(), broken.shutdown.Load())
 	}
+}
+
+func TestAnHTTPServersOwnErrorsReachTheLogger(t *testing.T) {
+	var logs lockedBuffer
+	panicky := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("handler without its own recovery") })
+	r := newRunner(t, runner.Options{Logger: slog.New(slog.NewJSONHandler(&logs, nil))},
+		[]runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(panicky)}})
+	stop := start(t, r)
+	defer func() { _ = stop() }()
+	if res, err := http.Get("http://" + r.Addr("http")); err == nil {
+		res.Body.Close()
+	}
+	waitFor(t, func() bool { return strings.Contains(logs.String(), "handler without its own recovery") })
+	if !strings.Contains(logs.String(), `"level":"ERROR"`) {
+		t.Fatalf("log %q", logs.String())
+	}
+}
+
+// lockedBuffer is a log destination the runner's goroutines can share.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

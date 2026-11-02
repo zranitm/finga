@@ -16,6 +16,7 @@ type limit struct {
 // routes maps every client message to its middleware chain and handler.
 func (h *Handler) routes() *wsrouter.Router[*client] {
 	r := wsrouter.New(h.helloFirst)
+	r.Recover(h.panicked)
 	// Unrouted messages are refused in order, behind the commands queued before them.
 	r.NoRoute(h.queued, h.joined, h.notImplemented)
 

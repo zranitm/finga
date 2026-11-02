@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"finga/pkg/panics"
 	"finga/pkg/wsrouter"
 )
 
@@ -168,4 +169,73 @@ func TestTypesListsTheRoutes(t *testing.T) {
 	if got := r.Types(); !reflect.DeepEqual(got, []string{"Attack", "Move"}) {
 		t.Fatalf("types %v", got)
 	}
+}
+
+// recovered collects what the router's Recover handed over.
+type recovered struct {
+	mu   sync.Mutex
+	seen []string
+}
+
+func (r *recovered) handle(c *wsrouter.Context[*conn], e *panics.Error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.seen = append(r.seen, c.Message.Type+": "+e.Error())
+}
+
+func (r *recovered) got() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.seen...)
+}
+
+func boom(c *wsrouter.Context[*conn], in move) (any, error) { panic("boom") }
+
+func TestRecoverStopsAPanicInTheChain(t *testing.T) {
+	var rec recovered
+	r := wsrouter.New(mark("global"))
+	r.Recover(rec.handle)
+	wsrouter.Handle(r, "Move", boom, mark("route"))
+	s := &conn{}
+	r.Dispatch(s, wsrouter.Message{Type: "Move", Data: move{}})
+	if got := rec.got(); !reflect.DeepEqual(got, []string{"Move: panic: boom"}) {
+		t.Fatalf("recovered %v", got)
+	}
+	if got := s.got(); !reflect.DeepEqual(got, []string{"global", "route"}) {
+		t.Fatalf("trace %v: the steps after the panic must not run", got)
+	}
+	r.Dispatch(s, wsrouter.Message{Type: "Move", Data: move{}})
+	if n := len(rec.got()); n != 2 {
+		t.Fatalf("the router stopped recovering after one panic: %d", n)
+	}
+}
+
+func TestLaterRecoversOnTheGoroutineThatRunsTheRest(t *testing.T) {
+	var rec recovered
+	queue := make(chan func(), 1)
+	r := wsrouter.New[*conn]()
+	r.Recover(rec.handle)
+	wsrouter.Handle(r, "Move", boom, func(c *wsrouter.Context[*conn]) { queue <- c.Later() })
+	r.Dispatch(&conn{}, wsrouter.Message{Type: "Move", Data: move{}})
+	if got := rec.got(); len(got) != 0 {
+		t.Fatalf("recovered %v before the queue ran", got)
+	}
+	done := make(chan struct{})
+	go func() { defer close(done); (<-queue)() }()
+	<-done
+	if got := rec.got(); !reflect.DeepEqual(got, []string{"Move: panic: boom"}) {
+		t.Fatalf("recovered %v", got)
+	}
+}
+
+func TestWithoutRecoverAPanicGoesOn(t *testing.T) {
+	r := wsrouter.New[*conn]()
+	wsrouter.Handle(r, "Move", boom)
+	defer func() {
+		if p := recover(); p != "boom" {
+			t.Fatalf("recovered %v, want the handler's panic", p)
+		}
+	}()
+	r.Dispatch(&conn{}, wsrouter.Message{Type: "Move", Data: move{}})
+	t.Fatal("Dispatch returned")
 }

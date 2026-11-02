@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"finga/pkg/observability"
 )
@@ -48,5 +49,27 @@ func TestMetricsHandler(t *testing.T) {
 				t.Fatalf("/metrics lacks %q:\n%s", tt.want, body.String())
 			}
 		})
+	}
+}
+
+func TestPanicCounterCountsByFlow(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c, err := observability.NewPanicCounter(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Inc("ws")
+	c.Inc("ws")
+	c.Inc("grpc")
+	want := `# HELP panics_total Panics recovered, by flow.
+# TYPE panics_total counter
+panics_total{flow="grpc"} 1
+panics_total{flow="ws"} 2
+`
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "panics_total"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := observability.NewPanicCounter(reg); err == nil {
+		t.Fatal("a second counter registered panics_total again")
 	}
 }

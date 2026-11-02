@@ -11,6 +11,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/host"
 	"finga/pkg/dbx"
+	"finga/pkg/observability"
+	"finga/pkg/panics"
 	"finga/services/item/config"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/handler"
@@ -19,6 +21,11 @@ import (
 
 // Build wires the item service; it fails fast on bad game data or an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
+	panicCount, err := observability.NewPanicCounter(reg)
+	if err != nil {
+		return nil, err
+	}
+	rec := panics.NewRecorder(log, panicCount)
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -33,6 +40,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Settings: cfg.Host(),
 		Logger:   log,
 		Registry: reg,
+		Panics:   rec,
 		Errors:   handler.Errors,
 	})
 	itemv1.RegisterItemServiceServer(h.GRPC, handler.New(items))

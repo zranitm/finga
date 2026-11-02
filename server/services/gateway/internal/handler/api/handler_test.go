@@ -510,8 +510,10 @@ func TestPanicIsContained(t *testing.T) {
 		t.Fatal("panic text reached the response")
 	}
 	logs := h.logs.String()
-	if !strings.Contains(logs, "kaboom") || !strings.Contains(logs, "stack") {
-		t.Fatalf("the panic and its stack were not logged: %s", logs)
+	for _, want := range []string{`"msg":"panic recovered"`, `"flow":"http"`, `"panic":"kaboom: secret detail"`, `"stack":`, `"method":"GET"`, `"path":"/api/characters"`} {
+		if !strings.Contains(logs, want) {
+			t.Fatalf("log lacks %s: %s", want, logs)
+		}
 	}
 	if strings.Contains(logs, goodToken) {
 		t.Fatal("the token reached a log line")

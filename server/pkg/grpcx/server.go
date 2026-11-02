@@ -3,25 +3,31 @@ package grpcx
 import (
 	"context"
 	"log/slog"
-	"runtime/debug"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"finga/pkg/panics"
 )
 
 // ServerOptions configure NewServer.
 type ServerOptions struct {
 	Errors ErrorTable
-	// Logger records panics and unexplained errors; nil discards them.
+	// Logger records unexplained errors; nil discards them.
 	Logger *slog.Logger
+	// Panics records a recovered panic; nil logs it to Logger.
+	Panics *panics.Recorder
 }
 
 // NewServer is a gRPC server that propagates request IDs, recovers panics and maps errors.
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
+	}
+	if opts.Panics == nil {
+		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
 	i := interceptors{opts: opts}
 	all := append([]grpc.ServerOption{
@@ -60,7 +66,7 @@ func (i interceptors) status(ctx context.Context, method string, err error) erro
 
 func (i interceptors) recover(ctx context.Context, method string, err *error) {
 	if r := recover(); r != nil {
-		i.opts.Logger.ErrorContext(ctx, "rpc panicked", "method", method, "request_id", RequestID(ctx), "panic", r, "stack", string(debug.Stack()))
+		i.opts.Panics.Record(ctx, panics.FlowGRPC, panics.Of(r), "method", method, "request_id", RequestID(ctx))
 		*err = status.Error(codes.Internal, internalMessage)
 	}
 }

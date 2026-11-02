@@ -1,6 +1,7 @@
 package grpcx_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/hub"
+	"finga/pkg/panics"
 )
 
 var (
@@ -148,12 +150,21 @@ func TestAStatusWithoutAReasonKeepsItsCodeAndLosesItsText(t *testing.T) {
 }
 
 func TestAPanicIsInternalAndTheServerKeepsServing(t *testing.T) {
-	c := serve(t, &shop{})
-	if _, err := c.UnaryCall(context.Background(), &testpb.SimpleRequest{}); status.Code(err) != codes.Internal || strings.Contains(err.Error(), "boom") {
+	var logs bytes.Buffer
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)})
+	testpb.RegisterTestServiceServer(srv, &shop{})
+	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
+	ctx := grpcx.WithRequestID(context.Background(), "r-7")
+	if _, err := c.UnaryCall(ctx, &testpb.SimpleRequest{}); status.Code(err) != codes.Internal || strings.Contains(err.Error(), "boom") {
 		t.Fatalf("got %v", err)
 	}
 	if _, err := c.EmptyCall(context.Background(), &testpb.Empty{}); err != nil {
 		t.Fatalf("after the panic: %v", err)
+	}
+	for _, want := range []string{`"msg":"panic recovered"`, `"flow":"grpc"`, `"panic":"boom"`, `"method":"/grpc.testing.TestService/UnaryCall"`, `"request_id":"r-7"`} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("log %q lacks %s", logs.String(), want)
+		}
 	}
 }
 
@@ -314,3 +325,73 @@ func TestServeSubscription(t *testing.T) {
 		}
 	})
 }
+
+func TestAPanicInHandleBreaksTheStreamAndFollowResubscribes(t *testing.T) {
+	// Each subscription sends two messages and stays open, so only the panic can end the first.
+	var mu sync.Mutex
+	subscriptions := 0
+	ended := make(chan struct{}, 10)
+	c := serve(t, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
+		mu.Lock()
+		subscriptions++
+		n := subscriptions
+		mu.Unlock()
+		for i := range 2 {
+			if err := stream.Send(&testpb.StreamingOutputCallResponse{Payload: &testpb.Payload{Body: fmt.Appendf(nil, "%d.%d", n, i)}}); err != nil {
+				return err
+			}
+		}
+		<-stream.Context().Done()
+		ended <- struct{}{}
+		return nil
+	}})
+	var logs bytes.Buffer
+	var logsMu sync.Mutex
+	rec := panics.NewRecorder(slog.New(slog.NewJSONHandler(writerFunc(func(p []byte) (int, error) {
+		logsMu.Lock()
+		defer logsMu.Unlock()
+		return logs.Write(p)
+	}), nil)), nil)
+	ctx := t.Context()
+	got := make(chan string, 100)
+	breaks := make(chan error, 100)
+	go grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[testpb.StreamingOutputCallResponse], error) {
+		return c.StreamingOutputCall(ctx, &testpb.StreamingOutputCallRequest{})
+	}, func(m *testpb.StreamingOutputCallResponse) {
+		body := string(m.GetPayload().GetBody())
+		if body == "1.1" {
+			panic("bad delivery")
+		}
+		got <- body
+	}, grpcx.FollowOptions{OnBreak: func(err error) { breaks <- err }, Panics: rec, MinBackoff: time.Millisecond, MaxBackoff: 5 * time.Millisecond})
+
+	var seen []string
+	for len(seen) < 3 {
+		select {
+		case m := <-got:
+			seen = append(seen, m)
+		case <-time.After(5 * time.Second):
+			t.Fatalf("only %v", seen)
+		}
+	}
+	if strings.Join(seen, " ") != "1.0 2.0 2.1" {
+		t.Fatalf("messages %v", seen)
+	}
+	if err := <-breaks; err == nil || !strings.Contains(err.Error(), "panic: bad delivery") {
+		t.Fatalf("break %v", err)
+	}
+	select {
+	case <-ended:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the broken subscription's stream was left open")
+	}
+	logsMu.Lock()
+	defer logsMu.Unlock()
+	if !strings.Contains(logs.String(), `"flow":"stream"`) || !strings.Contains(logs.String(), `"panic":"bad delivery"`) {
+		t.Fatalf("log %q", logs.String())
+	}
+}
+
+type writerFunc func([]byte) (int, error)
+
+func (f writerFunc) Write(p []byte) (int, error) { return f(p) }

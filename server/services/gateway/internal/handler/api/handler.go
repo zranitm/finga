@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/model"
@@ -24,6 +25,8 @@ type Dependencies struct {
 	Lobby       *application.Lobby
 	Logger      *slog.Logger
 	CORSOrigins []string
+	// Panics records a panic in a request; nil logs it to Logger.
+	Panics *panics.Recorder
 }
 
 // Route is one endpoint, for the OpenAPI drift check.
@@ -52,13 +55,16 @@ type api struct {
 
 // Mount serves the REST API under /api; unrouted paths also pass the log and CORS, so any preflight is answered.
 func Mount(d Dependencies) func(e *gin.Engine) {
+	if d.Panics == nil {
+		d.Panics = panics.NewRecorder(d.Logger, nil)
+	}
 	return func(e *gin.Engine) {
 		h := &api{lobby: d.Lobby}
 		edge := func(last gin.HandlerFunc) []gin.HandlerFunc {
-			return []gin.HandlerFunc{requestLog(d.Logger), cors(d.CORSOrigins), last}
+			return []gin.HandlerFunc{requestLog(d.Logger, d.Panics), cors(d.CORSOrigins), last}
 		}
 
-		rest := e.Group("/api", requestLog(d.Logger), cors(d.CORSOrigins))
+		rest := e.Group("/api", requestLog(d.Logger, d.Panics), cors(d.CORSOrigins))
 		rest.POST("/accounts", h.register)
 		rest.POST("/sessions", h.login)
 

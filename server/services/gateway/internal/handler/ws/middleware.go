@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/model"
 )
@@ -41,8 +42,9 @@ func (h *Handler) limited(l limit) handler {
 
 // queued hands the rest of the chain to the command goroutine; a full queue refuses with rate_limited.
 func (h *Handler) queued(c *msgContext) {
+	rest := c.Later()
 	select {
-	case c.Session.queue <- func() { c.Ctx = c.Session.ctx; c.Next() }:
+	case c.Session.queue <- func() { c.Ctx = c.Session.ctx; rest() }:
 	default:
 		refuseWith(c, model.RateLimited)
 	}
@@ -86,6 +88,12 @@ func (h *Handler) refusals(label string) handler {
 			c.Session.reply(c.Message.ReqID, h.refuse(c, label))
 		}
 	}
+}
+
+// panicked answers a message whose chain panicked with internal; the connection stays open.
+func (h *Handler) panicked(c *msgContext, e *panics.Error) {
+	h.opts.Panics.Record(c.Ctx, panics.FlowWS, e, "conn", c.Session.ID(), "type", c.Message.Type, "req_id", c.Message.ReqID)
+	refuseWith(c, model.Internal)
 }
 
 func (h *Handler) notImplemented(c *msgContext) {

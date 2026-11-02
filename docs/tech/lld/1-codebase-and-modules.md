@@ -410,16 +410,19 @@ type Handler interface {
     OnMessage(Conn, Message)
     OnClose(Conn, error)
 }
+// A panic in a callback closes the connection with 1011, still calls OnClose once, and goes to Options.Panics.
 
 // pkg/wsrouter: decoded messages routed by type through middleware chains,
 // as an HTTP router routes requests; S is the connection's state
 func New[S any](middleware ...HandlerFunc[S]) *Router[S]
 func Handle[S, T any](r *Router[S], msgType string, h func(c *Context[S], in T) (any, error), middleware ...HandlerFunc[S])
 func (r *Router[S]) NoRoute(handlers ...HandlerFunc[S])
+func (r *Router[S]) Recover(onPanic PanicHandler[S]) // a panic in a chain goes to onPanic
 func (r *Router[S]) Dispatch(session S, m Message)
-// A middleware calls c.Next() to run the rest of the chain, possibly later
-// from another goroutine (the gateway's command queue); not calling it
-// stops the chain. c.Result and c.Err carry what the handler returned.
+// A middleware calls c.Next() to run the rest of the chain, or hands
+// c.Later() to another goroutine (the gateway's command queue), which runs
+// the rest under Recover; calling neither stops the chain. c.Result and
+// c.Err carry what the handler returned.
 ```
 
 ```go
@@ -445,14 +448,22 @@ func (ps Properties) Int(name string) (int, bool)
 // pkg/grpcx: gRPC servers and clients every service shares (step 22)
 type ErrorRow struct { Err error; Code codes.Code; Reason protoreflect.Enum } // a sentinel, its code, its proto reason
 type ErrorTable []ErrorRow
-func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, panic as Internal, errors through the table
+func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, a recorded panic as Internal, errors through the table
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID
 func ReasonOf(err error) (Reason, bool) // the ErrorInfo a failed call carries: the proto package and the value's name
 func Error(code codes.Code, reason protoreflect.Enum) error // a failure with a reason, for fakes and adapters
 func Reasons(d protoreflect.EnumDescriptor) []Reason      // every value of a reason enum but the zero one
 func IsRule(err error) bool             // a reason is present: retrying the same request cannot help
 func Follow[T any](ctx context.Context, open func(context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T), opts FollowOptions)
+// a panic in handle breaks the subscription like a stream error, and Follow resubscribes
 // grpcx/grpctest.Conn serves a *grpc.Server over bufconn for a test.
+
+// pkg/panics: a recovered panic as an error, logged and counted the same way in every flow
+type Error struct { Value any; Stack []byte }
+func Capture(err *error) // deferred: a panic becomes the *Error the goroutine returns
+type Counter interface{ Inc(flow string) } // observability.PanicCounter: panics_total by flow
+func NewRecorder(log *slog.Logger, count Counter) *Recorder // one per process; a nil count only logs
+func (r *Recorder) Record(ctx context.Context, flow string, e *Error, attrs ...any) // "panic recovered", with its stack
 
 // pkg/runner: one process's listeners and tasks (step 22)
 type Listener struct { Name, Addr string; Server Server } // runner.HTTP(handler) or runner.GRPC(server)
@@ -471,7 +482,7 @@ func Declared(dirs ...string) ([]string, error)
 func Referenced(files ...string) (map[string]bool, error)
 ```
 
-Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28), `observability` (Prometheus metrics setup; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
+Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28), `observability` (the Prometheus registry, its handler, and `panics_total` for `pkg/panics`; TD-21), and `pgtest` (a fresh Postgres database per test, imported by tests only).
 
 ## Configuration
 

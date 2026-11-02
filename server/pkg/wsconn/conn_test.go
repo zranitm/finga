@@ -1,9 +1,12 @@
 package wsconn_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 )
 
@@ -28,6 +32,7 @@ type recorder struct {
 	messages []wsconn.Message
 	onOpen   func(wsconn.Conn)
 	onMsg    func(wsconn.Conn, wsconn.Message)
+	onClose  func()
 	done     chan struct{} // closed on OnClose
 }
 
@@ -59,6 +64,9 @@ func (r *recorder) OnClose(_ wsconn.Conn, err error) {
 	r.mu.Unlock()
 	if n == 1 {
 		close(r.done)
+	}
+	if r.onClose != nil {
+		r.onClose()
 	}
 }
 
@@ -463,5 +471,102 @@ func TestSubprotocols(t *testing.T) {
 				t.Fatal("OnOpen ran")
 			}
 		})
+	}
+}
+
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestAPanicInACallbackClosesTheConnectionAndIsRecorded(t *testing.T) {
+	checkLeaks(t)
+	boom := func() { panic("boom") }
+	tests := []struct {
+		name  string
+		setup func(*recorder)
+		send  bool
+	}{
+		{"in OnOpen", func(r *recorder) { r.onOpen = func(wsconn.Conn) { boom() } }, false},
+		{"in OnMessage", func(r *recorder) { r.onMsg = func(wsconn.Conn, wsconn.Message) { boom() } }, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var logs lockedBuffer
+			rec := newRecorder()
+			tt.setup(rec)
+			s := start(t, rec, wsconn.Options{Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)})
+			c := dial(t, s, "")
+			if tt.send {
+				if err := c.Write(context.Background(), websocket.MessageText, []byte(`{"ping":{"client_time":1}}`)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := closeStatus(t, c); got != websocket.StatusInternalError {
+				t.Fatalf("close status %d, want 1011", got)
+			}
+			err := rec.waitClosed(t)
+			if ce, ok := errors.AsType[*wsconn.CloseError](err); !ok || ce.Code != wsconn.CloseInternal {
+				t.Fatalf("OnClose got %v, want CloseError %d", err, wsconn.CloseInternal)
+			}
+			for _, want := range []string{`"msg":"panic recovered"`, `"flow":"ws"`, `"panic":"boom"`, `"conn":`} {
+				if !strings.Contains(logs.String(), want) {
+					t.Fatalf("log %q lacks %s", logs.String(), want)
+				}
+			}
+		})
+	}
+}
+
+func TestAPanicInOnCloseIsRecorded(t *testing.T) {
+	checkLeaks(t)
+	var logs lockedBuffer
+	rec := newRecorder()
+	rec.onClose = func() { panic("late boom") }
+	s := start(t, rec, wsconn.Options{Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)})
+	c := dial(t, s, "")
+	_ = c.Close(websocket.StatusNormalClosure, "bye")
+	_ = rec.waitClosed(t)
+	eventually(t, func() bool { return strings.Contains(logs.String(), "late boom") })
+}
+
+func TestWithoutARecorderThePanicReachesTheHTTPServerAfterOnClose(t *testing.T) {
+	var serverLog lockedBuffer
+	rec := newRecorder()
+	rec.onOpen = func(wsconn.Conn) { panic("boom") }
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wsconn.Serve(w, r, rec, wsconn.Options{Codec: serverCodec(wsconn.JSON)})
+	}))
+	ts.Config.ErrorLog = log.New(&serverLog, "", 0)
+	ts.Start()
+	t.Cleanup(ts.Close)
+	c := dial(t, &server{ts: ts, rec: rec}, "")
+	if got := closeStatus(t, c); got != websocket.StatusInternalError {
+		t.Fatalf("close status %d, want 1011", got)
+	}
+	_ = rec.waitClosed(t)
+	eventually(t, func() bool { return strings.Contains(serverLog.String(), "boom") })
+}
+
+func eventually(t *testing.T, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !cond() {
+		if time.Now().After(deadline) {
+			t.Fatal("condition not met within 5 s")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

@@ -62,6 +62,11 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
+	for _, l := range listeners {
+		if s, ok := l.Server.(*httpServer); ok && s.srv.ErrorLog == nil {
+			s.srv.ErrorLog = slog.NewLogLogger(opts.Logger.Handler(), slog.LevelError) // a panic no handler recovered, among others
+		}
+	}
 	return &Runner{opts: opts, listeners: listeners, tasks: tasks, addrs: map[string]string{}}
 }
 
