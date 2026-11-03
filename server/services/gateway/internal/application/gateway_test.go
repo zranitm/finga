@@ -113,9 +113,7 @@ func (o *outbox) Welcome(w model.Welcome) {
 	defer o.mu.Unlock()
 	o.welcome = &w
 }
-func (o *outbox) MapChange(string, float64, float64) {}
-func (o *outbox) PartyGone()                         {}
-func (o *outbox) Deliver(model.Delivery)             {}
+func (o *outbox) Deliver(model.Delivery) {}
 func (o *outbox) End(r model.EndReason) {
 	select {
 	case o.ends <- r:
@@ -173,9 +171,9 @@ func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kerne
 		return model.Joined{}, err
 	}
 	for i := range flood {
-		d := model.Delivery{Type: "Delta"}
+		d := model.Delivery{Push: model.Delta{}}
 		if i == 0 {
-			d.Type = model.DeliverySnapshot
+			d.Push = model.Snapshot{}
 		}
 		deliver(model.WorldEvent{Character: c, Delivery: d})
 	}

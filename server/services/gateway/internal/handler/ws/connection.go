@@ -74,17 +74,9 @@ func (c *connection) Welcome(w model.Welcome) {
 	}})
 }
 
-// MapChange tells the player a rejoin put them on another map.
-func (c *connection) MapChange(mapID string, x, y float64) {
-	c.send(wsconn.Message{Data: &clientv1.MapChange{MapId: mapID, X: x, Y: y}})
-}
-
-// PartyGone tells the player they have no party.
-func (c *connection) PartyGone() { c.send(wsconn.Message{Data: &clientv1.PartyState{}}) }
-
-// Deliver forwards a service's push.
+// Deliver sends a push as its message.
 func (c *connection) Deliver(d model.Delivery) {
-	c.send(wsconn.Message{Type: d.Type, Tick: d.Tick, Data: d.Data})
+	c.send(wsconn.Message{Tick: d.Tick, Data: message(d.Push)})
 }
 
 // End kicks with the protocol's reason where it has one; any other end closes as internal, and the client reconnects.

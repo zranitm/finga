@@ -69,10 +69,6 @@ type Social interface {
 // Outbox is how the use cases reach one player; the handler picks the wire format. No method blocks.
 type Outbox interface {
 	Welcome(w model.Welcome)
-	// MapChange tells the player a rejoin put them on another map.
-	MapChange(mapID string, x, y float64)
-	// PartyGone tells the player their party is gone because the social service restarted.
-	PartyGone()
 	Deliver(d model.Delivery)
 	// End ends the player's session; the first End wins.
 	End(reason model.EndReason)

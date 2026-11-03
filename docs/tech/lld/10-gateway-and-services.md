@@ -190,7 +190,7 @@ A failure after the join leaves the world (`world.Leave`) before the connection 
 
 - At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process). It does not hold its listener for them: a Hello that comes before the world's stream is open (or while the world restarts) retries the join with backoff until the join timeout.
 - The world's sink for a player is the gateway's stream plus the character ID. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players. A slow player is still the gateway's to close (4001), as today.
-- The gateway turns each delivery into the protocol message it was before (`delivery.go`, from proto; it was `sink.go` over world types) and enqueues it on the player's connection.
+- The gateway's world and social clients turn each stream event into its push in the gateway's model (`model.Snapshot`, `model.Delta`, … built from the protocol's views, in `clients/delivery.go`); the use cases route it to the player's session, and the WebSocket handler turns it into its protocol message (`handler/ws/pushes.go`) on the player's connection, as it does a command's reply. A type switch over the pushes must name every one (`gochecksumtype`).
 - A Teleport moves the session to the target map, so later commands carry the new map ID.
 
 ### REST

@@ -12,51 +12,44 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// delivery turns a world stream event into its protocol message; false for an unknown event.
-func delivery(m *worldv1.DeliverResponse) (model.Delivery, bool) {
-	tick := m.GetTick()
+// worldPush turns a world stream event into its push; false for an unknown event.
+func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	switch {
 	case m.GetSnapshot() != nil:
 		ev := m.GetSnapshot()
-		return model.Delivery{Type: model.DeliverySnapshot, Tick: tick, Data: &clientv1.Snapshot{
-			Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops()),
-		}}, true
+		return model.Snapshot{Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops())}, true
 	case m.GetDelta() != nil:
 		ev := m.GetDelta()
-		return model.Delivery{Type: "Delta", Tick: tick, Data: &clientv1.Delta{
+		return model.Delta{
 			AckSeq: ev.GetAckSeq(), Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops()),
 			RemovedPlayers: ev.GetRemovedPlayers(), RemovedMobs: instanceIDs(ev.GetRemovedMobs()), RemovedDrops: instanceIDs(ev.GetRemovedDrops()),
-		}}, true
+		}, true
 	case m.GetTeleport() != nil:
 		ev := m.GetTeleport()
-		return model.Delivery{Type: "MapChange", Tick: tick, MapID: ev.GetMapId(), Data: &clientv1.MapChange{MapId: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}}, true
+		return model.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}, true
 	case m.GetDamage() != nil:
 		ev := m.GetDamage()
-		return model.Delivery{Type: "Damage", Tick: tick, Data: &clientv1.Damage{
-			Source: entityRef(ev.GetSource()), Target: entityRef(ev.GetTarget()), Amount: ev.GetAmount(), Crit: ev.GetCrit(), Miss: ev.GetMiss(),
-		}}, true
+		return model.Damage{Source: entityRef(ev.GetSource()), Target: entityRef(ev.GetTarget()), Amount: ev.GetAmount(), Crit: ev.GetCrit(), Miss: ev.GetMiss()}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
-		return model.Delivery{Type: "Died", Tick: tick, Data: &clientv1.Died{CharacterId: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}}, true
+		return model.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}, true
 	case m.GetRespawned() != nil:
 		ev := m.GetRespawned()
-		return model.Delivery{Type: "Respawned", Tick: tick, Data: &clientv1.Respawned{CharacterId: ev.GetCharacterId(), MapId: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), Hp: ev.GetHp()}}, true
+		return model.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: ev.GetHp()}, true
 	case m.GetExpGained() != nil:
 		ev := m.GetExpGained()
-		return model.Delivery{Type: "ExpGained", Tick: tick, Data: &clientv1.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}}, true
+		return model.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}, true
 	case m.GetLevelUp() != nil:
-		return model.Delivery{Type: "LevelUp", Tick: tick, Data: &clientv1.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}}, true
+		return model.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}, true
 	case m.GetChat() != nil:
 		ev := m.GetChat()
-		return model.Delivery{Type: "ChatMessage", Tick: tick, Data: &clientv1.ChatMessage{
-			Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText(),
-		}}, true
+		return model.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
 	case m.GetInventoryChanged() != nil:
-		return model.Delivery{Type: "InventoryChanged", Tick: tick, Data: &clientv1.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}}, true
+		return model.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}, true
 	case m.GetPickupFailed() != nil:
-		return model.Delivery{Type: "Response", Tick: tick, Data: refusal(pickupFailure(m.GetPickupFailed()))}, true
+		return model.PickupFailed{Why: pickupFailure(m.GetPickupFailed())}, true
 	}
-	return model.Delivery{}, false
+	return nil, false
 }
 
 // pickupFailure is a failed pickup as the player sees it; one without a reason is internal.
@@ -132,8 +125,4 @@ func instanceIDs(ids []uint64) []uint32 {
 		out = append(out, uint32(id))
 	}
 	return out
-}
-
-func refusal(p model.Public) *clientv1.Response {
-	return &clientv1.Response{Ok: false, Code: p.Code, Message: p.Message}
 }

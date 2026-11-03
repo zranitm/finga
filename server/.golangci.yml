@@ -7,6 +7,7 @@ linters:
     - depguard     # import direction: composition roots -> services -> the shared kernel -> pkg
     - errorlint
     - forbidigo    # every UUID is minted by pkg/uuidv7
+    - gochecksumtype # a type switch over a //sumtype:decl interface names every case
     - gocritic
     - misspell
     - modernize

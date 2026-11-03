@@ -63,7 +63,7 @@ func (o *out) deliver(d model.Delivery) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.awaiting {
-		if d.Type != model.DeliverySnapshot {
+		if _, ok := d.Push.(model.Snapshot); !ok {
 			return true
 		}
 		o.awaiting = false
@@ -102,7 +102,7 @@ func (o *out) abort() {
 
 // emit forwards a delivery with its tick shifted. Called with mu held.
 func (o *out) emit(d model.Delivery) {
-	if o.rebase && d.Type == model.DeliverySnapshot {
+	if _, ok := d.Push.(model.Snapshot); ok && o.rebase {
 		if d.Tick+o.offset <= o.lastTick {
 			o.offset = o.lastTick + 1 - d.Tick
 		}
@@ -110,8 +110,8 @@ func (o *out) emit(d model.Delivery) {
 	}
 	d.Tick += o.offset
 	o.lastTick = max(o.lastTick, d.Tick)
-	if d.MapID != "" {
-		o.mapID = d.MapID
+	if mc, ok := d.Push.(model.MapChange); ok {
+		o.mapID = mc.MapID
 	}
 	o.outbox.Deliver(d)
 }

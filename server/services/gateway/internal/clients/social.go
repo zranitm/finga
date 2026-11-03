@@ -108,20 +108,20 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 		if err != nil {
 			return
 		}
-		var d model.Delivery
+		var p model.Push
 		switch {
 		case m.GetPartyState() != nil:
-			d = model.Delivery{Type: "PartyState", Data: &clientv1.PartyState{Party: partyView(m.GetPartyState().GetParty())}}
+			p = model.PartyState{Party: partyView(m.GetPartyState().GetParty())}
 		case m.GetPartyInvited() != nil:
 			inv := m.GetPartyInvited()
-			d = model.Delivery{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: inv.GetInviteId(), From: inv.GetFromId(), FromName: inv.GetFromName()}}
+			p = model.PartyInvited{InviteID: inv.GetInviteId(), From: inv.GetFromId(), FromName: inv.GetFromName()}
 		case m.GetChatLine() != nil:
 			line := m.GetChatLine()
-			d = model.Delivery{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}}
+			p = model.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}
 		default:
 			return
 		}
-		deliver(model.SocialEvent{Character: id, Delivery: d})
+		deliver(model.SocialEvent{Character: id, Delivery: model.Delivery{Push: p}})
 	}, grpcx.FollowOptions{Panics: s.panics, OnBreak: func(err error) {
 		s.log.WarnContext(ctx, "social stream broke; subscribing again", "err", err)
 	}})

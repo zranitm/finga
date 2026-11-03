@@ -1,9 +1,12 @@
 package ws
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
@@ -41,6 +44,56 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 			}
 			if s.code != tt.code || s.why != tt.why {
 				t.Fatalf("closed %d %q, want %d %q", s.code, s.why, tt.code, tt.why)
+			}
+		})
+	}
+}
+
+func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
+	h := New(application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler)}), Options{})
+	players := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Vx: 200, Facing: -1, OnGround: true}}
+	mobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", Hp: 9, MaxHp: 30}}
+	drops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2}}
+	party := &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Online: true}}}
+	tests := []struct {
+		push model.Push
+		want proto.Message
+	}{
+		{model.Snapshot{Players: players, Mobs: mobs, Drops: drops}, &clientv1.Snapshot{Players: players, Mobs: mobs, Drops: drops}},
+		{
+			model.Delta{AckSeq: 3, Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
+			&clientv1.Delta{AckSeq: 3, Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
+		},
+		{model.MapChange{MapID: "forest", X: 64, Y: 608}, &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
+		{model.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true}, &clientv1.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true}},
+		{model.Died{CharacterID: "p-1", X: 1, Y: 2}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2}},
+		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 416, Y: 608, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 416, Y: 608, Hp: 102}},
+		{model.ExpGained{Amount: 5, Exp: 15}, &clientv1.ExpGained{Amount: 5, Exp: 15}},
+		{model.LevelUp{Character: &clientv1.CharacterView{Id: "p-1", Level: 2}}, &clientv1.LevelUp{Character: &clientv1.CharacterView{Id: "p-1", Level: 2}}},
+		{
+			model.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: "p-1", SenderName: "Robin", Text: "psst"},
+			&clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: "p-1", SenderName: "Robin", Text: "psst"},
+		},
+		{model.InventoryChanged{Slots: []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}}}, &clientv1.InventoryChanged{Slots: []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}}}},
+		{model.PickupFailed{Why: model.Public{Code: "inventory_full", Message: "your inventory is full"}}, &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
+		{model.PartyState{Party: party}, &clientv1.PartyState{Party: party}},
+		{model.PartyState{}, &clientv1.PartyState{}},
+		{model.PartyInvited{InviteID: "inv-2", From: "p-1", FromName: "Robin"}, &clientv1.PartyInvited{InviteId: "inv-2", From: "p-1", FromName: "Robin"}},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {
+			s := &socket{}
+			conn := newConnection(h, s)
+			conn.helloTimer.Stop()
+			conn.Deliver(model.Delivery{Tick: 9, Push: tt.push})
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if len(s.sent) != 1 {
+				t.Fatalf("sent %d messages", len(s.sent))
+			}
+			m := s.sent[0]
+			if name := string(tt.want.ProtoReflect().Descriptor().Name()); m.Type != name || m.Tick != 9 || !proto.Equal(m.Data.(proto.Message), tt.want) {
+				t.Fatalf("sent %s at tick %d: %v, want %s: %v", m.Type, m.Tick, m.Data, name, tt.want)
 			}
 		})
 	}

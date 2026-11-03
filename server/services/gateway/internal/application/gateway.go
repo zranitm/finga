@@ -424,7 +424,8 @@ func (g *Gateway) rejoin(s *Session) {
 	}
 	var first func()
 	if joined.MapID != before {
-		first = func() { s.outbox.MapChange(joined.MapID, joined.X, joined.Y) }
+		moved := model.Delivery{Push: model.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}}
+		first = func() { s.outbox.Deliver(moved) }
 	}
 	s.out.release(joined.MapID, first)
 	g.mu.Lock()
@@ -487,7 +488,7 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 			ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
 			defer cancel()
 			for _, s := range active {
-				s.outbox.PartyGone()
+				s.outbox.Deliver(model.Delivery{Push: model.PartyState{}})
 				g.online(ctx, s)
 			}
 		}
