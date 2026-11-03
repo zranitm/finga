@@ -93,7 +93,7 @@ func NewGateway(deps Dependencies) *Gateway {
 // Run follows the services' streams and periodically kicks expired sessions until ctx is done or one of them panics.
 func (g *Gateway) Run(ctx context.Context) error {
 	group, gctx := errgroup.WithContext(ctx)
-	loop := func(f func(ctx context.Context)) {
+	start := func(f func(ctx context.Context)) {
 		group.Go(func() (err error) {
 			defer panics.Capture(&err)
 			f(gctx)
@@ -101,15 +101,15 @@ func (g *Gateway) Run(ctx context.Context) error {
 		})
 	}
 	if g.deps.World != nil {
-		loop(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, g.deps.ID, g.worldDelivered) })
+		start(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, g.deps.ID, g.worldDelivered) })
 	}
 	if g.deps.Social != nil {
-		loop(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, g.deps.ID, g.socialDelivered) })
+		start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, g.deps.ID, g.socialDelivered) })
 	}
 	if g.deps.SessionEnds != nil {
-		loop(func(ctx context.Context) { g.deps.SessionEnds.FollowSessionEnds(ctx, g.deps.ID, g.sessionEnded) })
+		start(func(ctx context.Context) { g.deps.SessionEnds.FollowSessionEnds(ctx, g.deps.ID, g.sessionEnded) })
 	}
-	loop(g.checkSessionsEvery)
+	start(g.checkSessionsEvery)
 	return group.Wait()
 }
 
