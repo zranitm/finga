@@ -6,28 +6,29 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/internal/protocol"
+	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/model"
 )
 
 // hello checks the protocol version and character ID, then joins; a rejected Hello is kicked.
 func (h *Handler) hello(c *msgContext, in *clientv1.Hello) (any, error) {
-	cl := c.Session
+	conn := c.Session
 	if in.GetProtocolVersion() != protocol.Version {
-		cl.Kick(clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL)
+		conn.kick(clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL)
 		return nil, nil
 	}
 	id, err := kernel.ParseCharacterID(in.GetCharacterId())
 	if err != nil {
-		cl.Kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
+		conn.kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
 		return nil, nil
 	}
-	switch err := h.gw.Hello(c.Ctx, cl.session, in.GetToken(), id); {
+	switch err := h.gw.Hello(c.Ctx, conn.session, in.GetToken(), id); {
 	case err == nil:
-		cl.joined = true
+		conn.joined = true
 	case errors.Is(err, model.ErrHelloRejected):
-		cl.Kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
+		conn.kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
 	default:
-		cl.Close("hello")
+		conn.ws.Close(wsconn.CloseInternal, "hello")
 	}
 	return nil, nil
 }

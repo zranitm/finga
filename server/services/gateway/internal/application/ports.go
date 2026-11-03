@@ -66,19 +66,16 @@ type Social interface {
 	FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent))
 }
 
-// Conn is a client connection as the use cases see it; no method blocks.
-type Conn interface {
-	ID() string
+// Outbox is how the use cases reach one player; the handler picks the wire format. No method blocks.
+type Outbox interface {
 	Welcome(w model.Welcome)
 	// MapChange tells the player a rejoin put them on another map.
 	MapChange(mapID string, x, y float64)
 	// PartyGone tells the player their party is gone because the social service restarted.
 	PartyGone()
 	Deliver(d model.Delivery)
-	// Kick tells the player why the connection ends, then ends it; the client does not reconnect.
-	Kick(reason clientv1.KickReason)
-	// Close ends the connection so the client reconnects; the first Kick or Close wins.
-	Close(reason string)
+	// End ends the player's session; the first End wins.
+	End(reason model.EndReason)
 }
 
 // Observer counts the players online.

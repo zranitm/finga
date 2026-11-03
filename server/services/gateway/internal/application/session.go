@@ -14,7 +14,8 @@ const pendingMax = 128
 
 // Session is one connection's state from Open to Closed; Hello sets its identity once.
 type Session struct {
-	conn Conn
+	connID string
+	outbox Outbox
 	// ctx ends at Closed, so a rejoin in flight stops.
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -48,7 +49,7 @@ type out struct {
 	lastTick uint64
 	offset   uint64
 	rebase   bool // the next Snapshot may start the ticks again
-	conn     Conn
+	outbox   Outbox
 }
 
 func (o *out) hold() {
@@ -112,7 +113,7 @@ func (o *out) emit(d model.Delivery) {
 	if d.MapID != "" {
 		o.mapID = d.MapID
 	}
-	o.conn.Deliver(d)
+	o.outbox.Deliver(d)
 }
 
 func (s *Session) presence() model.Presence {

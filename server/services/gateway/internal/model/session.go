@@ -28,6 +28,18 @@ type Actor struct {
 	Character kernel.CharacterID
 }
 
+// EndReason is why the gateway ends a player's session; the handler decides what the client sees.
+type EndReason string
+
+// The reasons a session ends.
+const (
+	EndLoggedInElsewhere EndReason = "logged_in_elsewhere"
+	EndSessionExpired    EndReason = "session_expired"
+	EndServerRestart     EndReason = "server_restart"
+	EndDeliveryBacklog   EndReason = "delivery_backlog" // a join held more deliveries than it may
+	EndRejoinFailed      EndReason = "rejoin_failed"
+)
+
 // Welcome is what a joined player starts from; Token replaces the one Hello sent.
 type Welcome struct {
 	Token      string

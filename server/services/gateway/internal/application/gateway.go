@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
-	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/panics"
@@ -140,7 +139,7 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 	g.mu.Unlock()
 	for _, s := range active {
 		if err := g.deps.Sessions.Check(ctx, uuid.UUID(s.sessionID)); err != nil {
-			s.conn.Kick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
+			s.outbox.End(model.EndSessionExpired)
 		}
 	}
 }
@@ -154,17 +153,17 @@ func (g *Gateway) sessionEnded(ev model.SessionEnd) {
 	}
 }
 
-// KickSession closes the connection on a login session that ended.
+// KickSession ends the player session on a login session that ended.
 func (g *Gateway) KickSession(sessionID kernel.SessionID) {
 	g.mu.Lock()
 	s := g.bySession[sessionID]
 	g.mu.Unlock()
 	if s != nil {
-		s.conn.Kick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
+		s.outbox.End(model.EndSessionExpired)
 	}
 }
 
-// KickAccount closes an account's connection: logged_in_elsewhere on a new login, else session_expired.
+// KickAccount ends an account's player session: logged_in_elsewhere on a new login, else session_expired.
 func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	g.mu.Lock()
 	s := g.byAccount[accountID]
@@ -172,11 +171,11 @@ func (g *Gateway) KickAccount(accountID kernel.AccountID, newLogin bool) {
 	if s == nil {
 		return
 	}
-	why := clientv1.KickReason_KICK_REASON_SESSION_EXPIRED
+	why := model.EndSessionExpired
 	if newLogin {
-		why = clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE
+		why = model.EndLoggedInElsewhere
 	}
-	s.conn.Kick(why)
+	s.outbox.End(why)
 }
 
 func (g *Gateway) sessionOf(id kernel.CharacterID) *Session {
@@ -194,13 +193,13 @@ const drainPoll = 10 * time.Millisecond
 func (g *Gateway) Drain(ctx context.Context) {
 	g.draining.Store(true)
 	g.mu.Lock()
-	conns := make([]Conn, 0, len(g.byConn))
+	sessions := make([]*Session, 0, len(g.byConn))
 	for _, s := range g.byConn {
-		conns = append(conns, s.conn)
+		sessions = append(sessions, s)
 	}
 	g.mu.Unlock()
-	for _, c := range conns {
-		c.Kick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
+	for _, s := range sessions {
+		s.outbox.End(model.EndServerRestart)
 	}
 	t := time.NewTicker(drainPoll)
 	defer t.Stop()
@@ -220,16 +219,16 @@ func (g *Gateway) Drain(ctx context.Context) {
 	}
 }
 
-// Open starts a connection's session, which the handler passes to every use case.
-func (g *Gateway) Open(c Conn) *Session {
-	s := &Session{conn: c, out: out{conn: c}}
+// Open starts the session of the connection named connID, which the handler passes to every use case.
+func (g *Gateway) Open(connID string, o Outbox) *Session {
+	s := &Session{connID: connID, outbox: o, out: out{outbox: o}}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	g.mu.Lock()
-	g.byConn[c.ID()] = s
+	g.byConn[connID] = s
 	draining := g.draining.Load() // under the lock, so Drain cannot miss this connection
 	g.mu.Unlock()
 	if draining {
-		c.Kick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
+		o.End(model.EndServerRestart)
 	}
 	return s
 }
@@ -238,7 +237,7 @@ func (g *Gateway) Open(c Conn) *Session {
 func (g *Gateway) Closed(s *Session, reason string) {
 	s.cancel()
 	g.mu.Lock()
-	delete(g.byConn, s.conn.ID())
+	delete(g.byConn, s.connID)
 	s.closed = true
 	joined := !s.character.ID.IsZero()
 	if g.byAccount[s.account] == s {
@@ -264,13 +263,13 @@ func (g *Gateway) Closed(s *Session, reason string) {
 		}
 		g.deps.Observer.OnlineChanged(-1)
 	}
-	g.deps.Logger.Info("ws closed", "conn", s.conn.ID(), "reason", reason)
+	g.deps.Logger.Info("ws closed", "conn", s.connID, "reason", reason)
 }
 
 func (g *Gateway) leave(s *Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
 	defer cancel()
-	if err := g.deps.World.Leave(ctx, s.presence(), s.conn.ID()); err != nil {
+	if err := g.deps.World.Leave(ctx, s.presence(), s.connID); err != nil {
 		g.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.character.ID, "err", err)
 	}
 }
@@ -306,7 +305,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	subs := max(g.worldSubs, 1)
 	g.mu.Unlock()
 
-	joined, err := g.join(ctx, s.conn.ID(), account, charID)
+	joined, err := g.join(ctx, s.connID, account, charID)
 	if err != nil {
 		s.out.abort()
 		g.mu.Lock()
@@ -353,11 +352,11 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	s.setActive()
 	missed := g.worldSubs > subs // the stream broke during the join
 	g.mu.Unlock()
-	s.out.release(joined.MapID, func() { s.conn.Welcome(welcome) })
+	s.out.release(joined.MapID, func() { s.outbox.Welcome(welcome) })
 	// The newest connection wins.
 	for _, prev := range []*Session{old, sameSession, previous} {
 		if prev != nil && prev != s {
-			prev.conn.Kick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+			prev.outbox.End(model.EndLoggedInElsewhere)
 		}
 	}
 	if missed {
@@ -365,7 +364,7 @@ func (g *Gateway) Hello(ctx context.Context, s *Session, token string, charID ke
 	}
 	g.online(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
-	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.conn.ID(), "character_id", charID, "map_id", joined.MapID)
+	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.connID, "character_id", charID, "map_id", joined.MapID)
 	return nil
 }
 
@@ -395,7 +394,7 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 		return
 	}
 	if !s.out.deliver(ev.Delivery) {
-		s.conn.Close("deliveries")
+		s.outbox.End(model.EndDeliveryBacklog)
 	}
 }
 
@@ -407,7 +406,7 @@ func (g *Gateway) rejoin(s *Session) {
 	defer cancel()
 	before := s.mapID()
 	s.out.hold()
-	joined, err := g.join(ctx, s.conn.ID(), s.account, s.character.ID)
+	joined, err := g.join(ctx, s.connID, s.account, s.character.ID)
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
@@ -420,12 +419,12 @@ func (g *Gateway) rejoin(s *Session) {
 			return
 		}
 		g.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.character.ID, "err", err)
-		s.conn.Close("rejoin")
+		s.outbox.End(model.EndRejoinFailed)
 		return
 	}
 	var first func()
 	if joined.MapID != before {
-		first = func() { s.conn.MapChange(joined.MapID, joined.X, joined.Y) }
+		first = func() { s.outbox.MapChange(joined.MapID, joined.X, joined.Y) }
 	}
 	s.out.release(joined.MapID, first)
 	g.mu.Lock()
@@ -435,7 +434,7 @@ func (g *Gateway) rejoin(s *Session) {
 		g.leave(s)
 		return
 	}
-	g.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.conn.ID(), "character_id", s.character.ID, "map_id", joined.MapID)
+	g.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.character.ID, "map_id", joined.MapID)
 }
 
 // join retries while the world cannot take the join yet, until ctx ends; a join is safe to repeat.
@@ -488,7 +487,7 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 			ctx, cancel := context.WithTimeout(context.Background(), g.deps.JoinTimeout)
 			defer cancel()
 			for _, s := range active {
-				s.conn.PartyGone()
+				s.outbox.PartyGone()
 				g.online(ctx, s)
 			}
 		}
@@ -498,7 +497,7 @@ func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	if t == nil {
 		return
 	}
-	t.conn.Deliver(ev.Delivery)
+	t.outbox.Deliver(ev.Delivery)
 }
 
 type noopObserver struct{}

@@ -3,9 +3,9 @@ package ws
 import "finga/pkg/wsrouter"
 
 // handler is one step of a message's chain: a middleware, or its end.
-type handler = wsrouter.HandlerFunc[*client]
+type handler = wsrouter.HandlerFunc[*connection]
 
-type msgContext = wsrouter.Context[*client]
+type msgContext = wsrouter.Context[*connection]
 
 // limit is a per-message-type token bucket: a rate and a burst.
 type limit struct {
@@ -14,7 +14,7 @@ type limit struct {
 }
 
 // routes maps every client message to its middleware chain and handler.
-func (h *Handler) routes() *wsrouter.Router[*client] {
+func (h *Handler) routes() *wsrouter.Router[*connection] {
 	r := wsrouter.New(h.helloFirst)
 	r.Recover(h.panicked)
 	// Unrouted messages are refused in order, behind the commands queued before them.

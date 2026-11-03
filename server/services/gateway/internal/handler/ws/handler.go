@@ -46,10 +46,10 @@ type Handler struct {
 	gw           *application.Gateway
 	subprotocols []wsconn.Subprotocol
 	opts         Options
-	router       *wsrouter.Router[*client]
+	router       *wsrouter.Router[*connection]
 
-	mu      sync.Mutex
-	clients map[string]*client
+	mu          sync.Mutex
+	connections map[string]*connection
 }
 
 // New serves gw's connections.
@@ -72,7 +72,7 @@ func New(gw *application.Gateway, opts Options) *Handler {
 	if opts.Panics == nil {
 		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
-	h := &Handler{gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, clients: map[string]*client{}}
+	h := &Handler{gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, connections: map[string]*connection{}}
 	h.router = h.routes()
 	return h
 }
@@ -88,44 +88,44 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // OnOpen starts a connection's command goroutine and its gateway session.
 func (h *Handler) OnOpen(c wsconn.Conn) {
-	cl := newClient(h, c)
+	conn := newConnection(h, c)
 	h.mu.Lock()
-	h.clients[c.ID()] = cl
+	h.connections[c.ID()] = conn
 	h.mu.Unlock()
-	go cl.commands()
-	cl.session = h.gw.Open(cl)
+	go conn.commands()
+	conn.session = h.gw.Open(c.ID(), conn)
 }
 
 // OnMessage routes a message on the read loop; anything that calls a service is queued.
 func (h *Handler) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	h.opts.Observer.MessageIn(m.Type)
-	if cl := h.client(c.ID()); cl != nil {
-		h.router.Dispatch(cl, wsrouter.Message{Type: m.Type, ReqID: m.ReqID, Seq: m.Seq, Data: m.Data})
+	if conn := h.connection(c.ID()); conn != nil {
+		h.router.Dispatch(conn, wsrouter.Message{Type: m.Type, ReqID: m.ReqID, Seq: m.Seq, Data: m.Data})
 	}
 }
 
 // OnClose cancels and drains the connection's commands before ending its session.
 func (h *Handler) OnClose(c wsconn.Conn, err error) {
 	h.mu.Lock()
-	cl := h.clients[c.ID()]
-	delete(h.clients, c.ID())
+	conn := h.connections[c.ID()]
+	delete(h.connections, c.ID())
 	h.mu.Unlock()
-	if cl == nil {
+	if conn == nil {
 		return
 	}
-	cl.helloTimer.Stop()
-	cl.cancel()
-	<-cl.drained
+	conn.helloTimer.Stop()
+	conn.cancel()
+	<-conn.drained
 	if ce, ok := errors.AsType[*wsconn.CloseError](err); ok && ce.Code == wsconn.CloseSlowConsumer {
 		h.opts.Observer.SlowConsumer()
 	}
-	h.gw.Closed(cl.session, closeReason(err))
+	h.gw.Closed(conn.session, closeReason(err))
 }
 
-func (h *Handler) client(id string) *client {
+func (h *Handler) connection(id string) *connection {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.clients[id]
+	return h.connections[id]
 }
 
 func closeReason(err error) string {

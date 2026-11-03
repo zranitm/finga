@@ -13,17 +13,17 @@ import (
 
 // helloFirst accepts only Hello first, and closes the connection on a second one.
 func (h *Handler) helloFirst(c *msgContext) {
-	cl := c.Session
+	conn := c.Session
 	_, isHello := c.Message.Data.(*clientv1.Hello)
 	switch {
-	case !cl.helloSeen && !isHello:
-		cl.conn.Close(wsconn.CloseKicked, "hello expected")
+	case !conn.helloSeen && !isHello:
+		conn.ws.Close(wsconn.CloseKicked, "hello expected")
 		return
-	case !cl.helloSeen:
-		cl.helloSeen = true
-		cl.helloTimer.Stop()
+	case !conn.helloSeen:
+		conn.helloSeen = true
+		conn.helloTimer.Stop()
 	case isHello:
-		cl.conn.Close(wsconn.CloseKicked, "hello twice")
+		conn.ws.Close(wsconn.CloseKicked, "hello twice")
 		return
 	}
 	c.Next()
@@ -88,7 +88,7 @@ func (h *Handler) respondOnError(c *msgContext) {
 
 // panicked answers a message whose chain panicked with internal; the connection stays open.
 func (h *Handler) panicked(c *msgContext, e *panics.Error) {
-	h.opts.Panics.Record(c.Ctx, panics.FlowWS, e, "conn", c.Session.ID(), "type", c.Message.Type, "req_id", c.Message.ReqID)
+	h.opts.Panics.Record(c.Ctx, panics.FlowWS, e, "conn", c.Session.ws.ID(), "type", c.Message.Type, "req_id", c.Message.ReqID)
 	replyError(c, model.Internal)
 }
 
@@ -100,7 +100,7 @@ func (h *Handler) notImplemented(c *msgContext) {
 func (h *Handler) publicError(c *msgContext) model.Public {
 	p := model.PublicOf(c.Err)
 	if model.IsInternal(p) {
-		h.opts.Logger.Error("command failed", "conn", c.Session.ID(), "character_id", c.Session.session.Character(), "type", c.Message.Type, "err", c.Err)
+		h.opts.Logger.Error("command failed", "conn", c.Session.ws.ID(), "character_id", c.Session.session.Character(), "type", c.Message.Type, "err", c.Err)
 	}
 	return p
 }
