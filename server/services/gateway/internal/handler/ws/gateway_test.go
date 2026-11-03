@@ -744,8 +744,8 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 		t.Fatalf("response %+v; the cause must stay out of it", r)
 	}
 	got := logs.String()
-	if !strings.Contains(got, `"msg":"command failed"`) || !strings.Contains(got, "code = Internal") || !strings.Contains(got, `"command":"inventory"`) || strings.Contains(got, "connection reset") {
-		t.Fatalf("log %s, want the command and the service's Internal, without the cause the service kept", got)
+	if !strings.Contains(got, `"msg":"command failed"`) || !strings.Contains(got, "code = Internal") || !strings.Contains(got, `"type":"InventoryDiscard"`) || strings.Contains(got, "connection reset") {
+		t.Fatalf("log %s, want the message type and the service's Internal, without the cause the service kept", got)
 	}
 }
 

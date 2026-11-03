@@ -28,19 +28,17 @@ func (h *Handler) routes() *wsrouter.Router[*client] {
 	wsrouter.Handle(r, "PickUp", h.pickUp, h.command(limit{10, 10})...)
 	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.queued, h.joined, h.within)
 
-	inventory := h.respond("inventory")
-	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(limit{5, 5}, inventory)...)
-	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(limit{5, 5}, inventory)...)
+	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(limit{5, 5}, h.respond)...)
+	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(limit{5, 5}, h.respond)...)
 
-	party := h.respond("party")
-	wsrouter.Handle(r, "PartyInvite", h.partyInvite, h.command(limit{2, 2}, party)...)
-	wsrouter.Handle(r, "PartyRespond", h.partyRespond, h.command(limit{2, 2}, party)...)
-	wsrouter.Handle(r, "PartyLeave", h.partyLeave, h.command(limit{2, 2}, party)...)
-	wsrouter.Handle(r, "PartyKick", h.partyKick, h.command(limit{2, 2}, party)...)
-	wsrouter.Handle(r, "PartyPromote", h.partyPromote, h.command(limit{2, 2}, party)...)
+	wsrouter.Handle(r, "PartyInvite", h.partyInvite, h.command(limit{2, 2}, h.respond)...)
+	wsrouter.Handle(r, "PartyRespond", h.partyRespond, h.command(limit{2, 2}, h.respond)...)
+	wsrouter.Handle(r, "PartyLeave", h.partyLeave, h.command(limit{2, 2}, h.respond)...)
+	wsrouter.Handle(r, "PartyKick", h.partyKick, h.command(limit{2, 2}, h.respond)...)
+	wsrouter.Handle(r, "PartyPromote", h.partyPromote, h.command(limit{2, 2}, h.respond)...)
 
 	// No limit here: the social service answers chat_rate_limited itself.
-	wsrouter.Handle(r, "ChatSend", h.chatSend, h.queued, h.joined, h.within, h.refusals("ChatSend"))
+	wsrouter.Handle(r, "ChatSend", h.chatSend, h.queued, h.joined, h.within, h.respondOnError)
 	return r
 }
 
