@@ -16,7 +16,7 @@ import (
 	"finga/internal/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
-	"finga/services/item/invariants"
+	"finga/services/item/itemtest"
 )
 
 // looter is a player tracking its position and the drops on the ground from every message.
@@ -302,7 +302,7 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 
 func (s *stack) checkInvariants(t *testing.T) {
 	t.Helper()
-	mismatches, err := invariants.CheckInvariants(context.Background(), s.db)
+	mismatches, err := itemtest.CheckInvariants(context.Background(), s.db)
 	if err != nil {
 		t.Fatal(err)
 	}

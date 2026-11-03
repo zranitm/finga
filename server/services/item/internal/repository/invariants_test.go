@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,13 +15,13 @@ import (
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
-	"finga/services/item/invariants"
+	"finga/services/item/itemtest"
 )
 
 func checkInvariants(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx := context.Background()
-	mismatches, err := invariants.CheckInvariants(ctx, pool)
+	mismatches, err := itemtest.CheckInvariants(ctx, pool)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,10 +56,14 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 	if _, err := h.pool.Exec(ctx, `UPDATE items SET quantity = 11 WHERE id = $1`, inv[0].ID); err != nil {
 		t.Fatal(err)
 	}
-	m5, _ := invariants.CheckQuantityMatchesEvents(ctx, h.pool)
-	m6, _ := invariants.CheckTemplateTotals(ctx, h.pool)
-	if len(m5) != 1 || len(m6) != 1 {
-		t.Fatalf("checks 5 and 6 found %v and %v, want one mismatch each", m5, m6)
+	for range 5 { // the same order every run
+		got, err := itemtest.CheckInvariants(ctx, h.pool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || !strings.HasPrefix(got[0], "5 ") || !strings.HasPrefix(got[1], "6 ") {
+			t.Fatalf("found %v, want check 5's mismatch, then check 6's", got)
+		}
 	}
 }
 

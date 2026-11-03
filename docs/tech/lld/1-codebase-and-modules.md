@@ -49,7 +49,7 @@ server/                 the Go module: everything the server builds, reads and p
       internal/application/  add, move, discard, the starter grant, the inventory; ports.go
       internal/repository/   the Postgres store, its unit of work, classify; queries/, internal/db/
       internal/handler/ the ItemService gRPC server and its error table
-      invariants/       the item invariant checks, outside internal/ so the end-to-end tests and the auditor can run them
+      itemtest/         test support: the item invariant checks (5, 6 and 8, page 6), outside internal/ so the crash test in test/ can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
     account/            in layers (step 31): main.go, app/, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
     social/             in layers (step 34): config/, internal/model (parties, chat lines, the errors), internal/application (PartyService, ChatService, the PartyStore port), internal/repository (the in-memory PartyStore), its handler (SocialService, Deliver, WatchParties); no database

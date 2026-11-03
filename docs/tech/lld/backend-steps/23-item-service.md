@@ -7,6 +7,8 @@
 - **Status:** Done
 - **Step:** 23. Item service
 
+> **Changed 2026-11-03:** the checks are `services/item/itemtest`, a test-support package that only tests may import (depguard `test-support`); the Stage 2 auditor gets its own (page 6).
+
 **Goal:** items run as their own service. Pickups, inventory commands, Welcome's inventory and starter items reach it over gRPC, and no transaction spans two services.
 
 **Layers in this step:** the item module (moved), its gRPC handler, its binary; adapters in the game server's composition root.

@@ -1,5 +1,6 @@
-// Package invariants holds the item service's invariant checks, outside internal/ for the e2e tests.
-package invariants
+// Package itemtest is test support for the item service: its invariant checks over its database,
+// for the property, race and retry tests and the crash test in test/. Only tests import it.
+package itemtest
 
 import (
 	"context"
@@ -9,8 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// CheckQuantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
-func CheckQuantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+// quantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
+func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT i.id, i.quantity, coalesce(sum(e.quantity_delta), 0)
 		FROM items i LEFT JOIN item_events e ON e.item_id = i.id
@@ -32,9 +33,9 @@ func CheckQuantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]stri
 	return out, rows.Err()
 }
 
-// CheckTemplateTotals is check 6: per template, the quantity held equals its events' delta sum.
+// templateTotals is check 6: per template, the quantity held equals its events' delta sum.
 // Items and events are summed apart; a row join would multiply quantities by event count.
-func CheckTemplateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT held.template_id, held.quantity, coalesce(ev.delta, 0)
 		FROM (SELECT template_id, sum(quantity) AS quantity FROM items GROUP BY template_id) held
@@ -60,8 +61,8 @@ func CheckTemplateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, err
 	return out, rows.Err()
 }
 
-// CheckOneItemPerSlot is check 8: no two inventory items share a slot.
-func CheckOneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+// oneItemPerSlot is check 8: no two inventory items share a slot.
+func oneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT owner_id, tab, slot, count(*) FROM items
 		WHERE location = 'inventory'
@@ -83,20 +84,26 @@ func CheckOneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, err
 	return out, rows.Err()
 }
 
-// CheckInvariants runs every Stage 1 check and returns all mismatches.
+// checks are the Stage 1 checks of page 6, in its order.
+var checks = []struct {
+	name string
+	run  func(context.Context, *pgxpool.Pool) ([]string, error)
+}{
+	{"5 quantity matches events", quantityMatchesEvents},
+	{"6 template totals", templateTotals},
+	{"8 one item per slot", oneItemPerSlot},
+}
+
+// CheckInvariants runs every Stage 1 check and returns all mismatches, each named by its check, in check order.
 func CheckInvariants(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	var all []string
-	for name, check := range map[string]func(context.Context, *pgxpool.Pool) ([]string, error){
-		"5 quantity matches events": CheckQuantityMatchesEvents,
-		"6 template totals":         CheckTemplateTotals,
-		"8 one item per slot":       CheckOneItemPerSlot,
-	} {
-		mismatches, err := check(ctx, pool)
+	for _, c := range checks {
+		mismatches, err := c.run(ctx, pool)
 		if err != nil {
-			return nil, fmt.Errorf("check %s: %w", name, err)
+			return nil, fmt.Errorf("check %s: %w", c.name, err)
 		}
 		for _, m := range mismatches {
-			all = append(all, name+": "+m)
+			all = append(all, c.name+": "+m)
 		}
 	}
 	return all, nil

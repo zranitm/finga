@@ -198,8 +198,8 @@ generated code committed in `server/api/gen/`:
   to it. A new character's starter items are granted through the item
   service after the character commits.
 - **`item`** holds the items: append-only history, where every change is an
-  item event and three invariant checks (`services/item/invariants`) tie
-  quantities to events.
+  item event and three invariant checks, run by the tests
+  (`services/item/itemtest`), tie quantities to events.
 - **`world`** runs one actor per map at 20 Hz: inputs applied in sequence
   order, movement in fixed sub-steps shared with the client as test
   vectors, mobs, combat, EXP, drops, portals, and a delta to every player

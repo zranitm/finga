@@ -55,7 +55,7 @@ These are expensive to retrofit, so they're built to the target from day one:
 | Area | Stage 1 | Target | Seam that keeps the switch cheap |
 | --- | --- | --- | --- |
 | Event publishing | Events written to the outbox table; nothing publishes them yet | Outbox relay to Kafka (TD-14) | The outbox table and the `pkg/outbox` writer already exist |
-| Auditor | None. The item invariants are checked inside the property, race, retry, and crash tests | A Kafka consumer that checks continuously (HLD section 4) | The checks are plain functions in `services/item/invariants`, which an auditor process can run as they are |
+| Auditor | None. The item invariants are checked inside the property, race, retry, and crash tests | A Kafka consumer that checks continuously (HLD section 4) | The checks are test support in `services/item/itemtest`; the auditor gets its own, in `internal/application/audit` (Low-level design, page 6) |
 | Edge | nginx in Compose serves the built client on :4173 and passes `/api` and `/ws` to the gateway, so the browser sees one origin, and limits each client address (every request, and logins); plain http, and the gateway never reads the address | TLS and Cloudflare's real client IP on the same nginx, which the limits then key on, with Cloudflare in front (TD-12, TD-13) | The nginx configuration in `infra/nginx/`; the client calls `/api` and `/ws` on its own origin |
 | Observability | A `/metrics` endpoint and structured logs | Prometheus and Grafana, or OpenTelemetry (TD-21) | Metric names stay the same |
 | Load testing | None | Bot load tests to the TD-08 target | None needed |
