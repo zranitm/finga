@@ -37,7 +37,9 @@ server/                 the Go module: everything the server builds, reads and p
         errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
       internal/handler/
         api/            REST on Gin (TD-26): the /api group and its middleware (request log with recovery, CORS, bearer auth), DTOs, validation, over the Lobby
-        ws/             WebSocket on pkg/wsconn, as api/ is REST on Gin: routes.go, every client message with its middleware on pkg/wsrouter (Hello first, its rate limit, the connection's command queue, a deadline, the Response); messages.go, one handler per message, from the message to the use case's arguments and from its result to the reply; pushes.go, the message each push reaches the client as; connection.go, a connection's state and the application's Outbox in protocol messages and close codes
+        ws/             WebSocket on pkg/wsconn, as api/ is REST on Gin: the handshake and each connection's life, which opens its session with an outbox and starts its inbox
+          receive/      what the client sends: routes.go, every client message with its middleware on pkg/wsrouter (Hello first, its rate limit, the connection's command queue, a deadline, the Response); messages.go, one handler per message, from the message to the use case's arguments and from its result to the reply; inbox.go, a connection's Hello, rate limits and command queue
+          push/         what the client is sent: outbox.go, the connection's only writer and the application's Outbox (Welcome, Deliver, End in protocol messages and close codes), which also writes the replies receive chooses; pushes.go, the message each push reaches the client as
         engine.go       the Gin engine as the gateway runs it: release mode, no redirects, 405 for another method, no trusted proxy
         router.go       the route table on that engine: /api, /ws, /metrics, /healthz, /readyz
     item/

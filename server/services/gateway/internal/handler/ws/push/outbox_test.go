@@ -1,8 +1,7 @@
-package ws
+package push_test
 
 import (
 	"fmt"
-	"log/slog"
 	"sync"
 	"testing"
 
@@ -10,12 +9,11 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
-	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/handler/ws/push"
 	"finga/services/gateway/internal/model"
 )
 
 func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
-	h := New(application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler)}), Options{})
 	tests := []struct {
 		reason model.EndReason
 		kicked clientv1.KickReason // unspecified: no Kicked, the client reconnects
@@ -31,9 +29,7 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.reason), func(t *testing.T) {
 			s := &socket{}
-			conn := newConnection(h, s)
-			conn.helloTimer.Stop()
-			conn.End(tt.reason)
+			push.NewOutbox(s, s).End(tt.reason)
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			switch {
@@ -50,7 +46,6 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 }
 
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
-	h := New(application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler)}), Options{})
 	players := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Vx: 200, Facing: -1, OnGround: true}}
 	mobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", Hp: 9, MaxHp: 30}}
 	drops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2}}
@@ -83,28 +78,33 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {
 			s := &socket{}
-			conn := newConnection(h, s)
-			conn.helloTimer.Stop()
-			conn.Deliver(model.Delivery{Tick: 9, Push: tt.push})
+			push.NewOutbox(s, s).Deliver(model.Delivery{Tick: 9, Push: tt.push})
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			if len(s.sent) != 1 {
 				t.Fatalf("sent %d messages", len(s.sent))
 			}
 			m := s.sent[0]
-			if name := string(tt.want.ProtoReflect().Descriptor().Name()); m.Type != name || m.Tick != 9 || !proto.Equal(m.Data.(proto.Message), tt.want) {
+			if name := string(tt.want.ProtoReflect().Descriptor().Name()); m.Type != name || m.Tick != 9 || !proto.Equal(m.Data.(proto.Message), tt.want) || s.counted[0] != name {
 				t.Fatalf("sent %s at tick %d: %v, want %s: %v", m.Type, m.Tick, m.Data, name, tt.want)
 			}
 		})
 	}
 }
 
-// socket records what a connection sends and how it first closes.
+// socket records what a connection sends, how it first closes, and the types the outbox counted.
 type socket struct {
-	mu   sync.Mutex
-	sent []wsconn.Message
-	code int
-	why  string
+	mu      sync.Mutex
+	sent    []wsconn.Message
+	counted []string
+	code    int
+	why     string
+}
+
+func (s *socket) MessageOut(msgType string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.counted = append(s.counted, msgType)
 }
 
 func (s *socket) ID() string { return "c-1" }

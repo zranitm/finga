@@ -1,4 +1,4 @@
-package ws
+package push
 
 import (
 	"google.golang.org/protobuf/proto"
@@ -34,7 +34,7 @@ func message(p model.Push) proto.Message {
 	case model.InventoryChanged:
 		return &clientv1.InventoryChanged{Slots: p.Slots}
 	case model.PickupFailed:
-		return errorResponse(p.Why)
+		return ErrorResponse(p.Why)
 	case model.PartyState:
 		return &clientv1.PartyState{Party: p.Party}
 	case model.PartyInvited:

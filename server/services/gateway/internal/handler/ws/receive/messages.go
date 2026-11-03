@@ -1,4 +1,4 @@
-package ws
+package receive
 
 import (
 	"errors"
@@ -12,30 +12,30 @@ import (
 
 // hello checks the protocol version and character ID, then joins; a rejected Hello is kicked.
 func (h *Handler) hello(c *msgContext, in *clientv1.Hello) (any, error) {
-	conn := c.Session
+	inbox := c.Session
 	if in.GetProtocolVersion() != protocol.Version {
-		conn.kick(clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL)
+		inbox.out.Kick(clientv1.KickReason_KICK_REASON_OUTDATED_PROTOCOL)
 		return nil, nil
 	}
 	id, err := kernel.ParseCharacterID(in.GetCharacterId())
 	if err != nil {
-		conn.kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
+		inbox.out.Kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
 		return nil, nil
 	}
-	switch err := h.gw.Hello(c.Ctx, conn.session, in.GetToken(), id); {
+	switch err := h.gw.Hello(c.Ctx, inbox.session, in.GetToken(), id); {
 	case err == nil:
-		conn.joined = true
+		inbox.joined = true
 	case errors.Is(err, model.ErrHelloRejected):
-		conn.kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
+		inbox.out.Kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
 	default:
-		conn.ws.Close(wsconn.CloseInternal, "hello")
+		inbox.out.Close(wsconn.CloseInternal, "hello")
 	}
 	return nil, nil
 }
 
 // ping answers at once, on the read loop.
 func (h *Handler) ping(c *msgContext, p *clientv1.Ping) (any, error) {
-	c.Session.reply("", &clientv1.Pong{ClientTime: p.GetClientTime(), ServerTime: h.opts.Clock().UnixMilli()})
+	c.Session.out.Reply("", &clientv1.Pong{ClientTime: p.GetClientTime(), ServerTime: h.opts.Clock().UnixMilli()})
 	return nil, nil
 }
 

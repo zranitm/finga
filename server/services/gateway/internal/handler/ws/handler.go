@@ -1,4 +1,5 @@
-// Package ws serves the gateway's WebSocket at /ws, routing client messages to the Gateway's use cases.
+// Package ws serves the gateway's WebSocket at /ws: the handshake and each connection's life.
+// Package receive handles what a client sends, package push what it is sent.
 package ws
 
 import (
@@ -11,20 +12,15 @@ import (
 	"finga/internal/protocol"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
-	"finga/pkg/wsrouter"
 	"finga/services/gateway/internal/application"
-)
-
-const (
-	defaultHelloTimeout = 5 * time.Second
-	defaultCommandQueue = 64
-	commandTimeout      = 5 * time.Second
+	"finga/services/gateway/internal/handler/ws/push"
+	"finga/services/gateway/internal/handler/ws/receive"
 )
 
 // Observer counts the conversation's traffic.
 type Observer interface {
+	push.Observer
 	MessageIn(msgType string)
-	MessageOut(msgType string)
 	SlowConsumer()
 }
 
@@ -46,23 +42,20 @@ type Handler struct {
 	gw           *application.Gateway
 	subprotocols []wsconn.Subprotocol
 	opts         Options
-	router       *wsrouter.Router[*connection]
+	receive      *receive.Handler
 
 	mu          sync.Mutex
-	connections map[string]*connection
+	connections map[string]connection
+}
+
+// connection is one socket's receiving side and its session.
+type connection struct {
+	in      *receive.Inbox
+	session *application.Session
 }
 
 // New serves gw's connections.
 func New(gw *application.Gateway, opts Options) *Handler {
-	if opts.HelloTimeout <= 0 {
-		opts.HelloTimeout = defaultHelloTimeout
-	}
-	if opts.CommandQueue <= 0 {
-		opts.CommandQueue = defaultCommandQueue
-	}
-	if opts.Clock == nil {
-		opts.Clock = time.Now
-	}
 	if opts.Observer == nil {
 		opts.Observer = noopObserver{}
 	}
@@ -72,9 +65,10 @@ func New(gw *application.Gateway, opts Options) *Handler {
 	if opts.Panics == nil {
 		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
-	h := &Handler{gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, connections: map[string]*connection{}}
-	h.router = h.routes()
-	return h
+	return &Handler{
+		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, connections: map[string]connection{},
+		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Clock: opts.Clock, Logger: opts.Logger, Panics: opts.Panics}),
+	}
 }
 
 // ServeHTTP upgrades the request and runs the connection until it closes.
@@ -86,46 +80,41 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	wsconn.Serve(w, r, h, wsconn.Options{Subprotocols: h.subprotocols, AllowedOrigins: h.opts.Origins, Panics: h.opts.Panics})
 }
 
-// OnOpen starts a connection's command goroutine and its gateway session.
+// OnOpen opens the connection's session, written to through its outbox, and starts its receiving side.
 func (h *Handler) OnOpen(c wsconn.Conn) {
-	conn := newConnection(h, c)
+	out := push.NewOutbox(c, h.opts.Observer)
+	session := h.gw.Open(c.ID(), out)
+	conn := connection{in: h.receive.Open(out, session), session: session}
 	h.mu.Lock()
 	h.connections[c.ID()] = conn
 	h.mu.Unlock()
-	go conn.commands()
-	conn.session = h.gw.Open(c.ID(), conn)
 }
 
-// OnMessage routes a message on the read loop; anything that calls a service is queued.
+// OnMessage hands a message to the receiving side, on the read loop.
 func (h *Handler) OnMessage(c wsconn.Conn, m wsconn.Message) {
 	h.opts.Observer.MessageIn(m.Type)
-	if conn := h.connection(c.ID()); conn != nil {
-		h.router.Dispatch(conn, wsrouter.Message{Type: m.Type, ReqID: m.ReqID, Seq: m.Seq, Data: m.Data})
+	h.mu.Lock()
+	conn, ok := h.connections[c.ID()]
+	h.mu.Unlock()
+	if ok {
+		h.receive.Dispatch(conn.in, m)
 	}
 }
 
-// OnClose cancels and drains the connection's commands before ending its session.
+// OnClose stops the connection's commands before ending its session.
 func (h *Handler) OnClose(c wsconn.Conn, err error) {
 	h.mu.Lock()
-	conn := h.connections[c.ID()]
+	conn, ok := h.connections[c.ID()]
 	delete(h.connections, c.ID())
 	h.mu.Unlock()
-	if conn == nil {
+	if !ok {
 		return
 	}
-	conn.helloTimer.Stop()
-	conn.cancel()
-	<-conn.drained
+	conn.in.Stop()
 	if ce, ok := errors.AsType[*wsconn.CloseError](err); ok && ce.Code == wsconn.CloseSlowConsumer {
 		h.opts.Observer.SlowConsumer()
 	}
 	h.gw.Closed(conn.session, closeReason(err))
-}
-
-func (h *Handler) connection(id string) *connection {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.connections[id]
 }
 
 func closeReason(err error) string {
