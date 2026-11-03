@@ -116,7 +116,7 @@ func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll fl
 	workers := application.NewWorkers(2, nil, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
-	go func() { defer close(workersDone); workers.Run(ctx) }()
+	go func() { defer close(workersDone); _ = workers.Run(ctx) }()
 	opts := application.Options{Roll: scriptedRoll{roll}, Items: items, Workers: workers}
 	if len(extra) > 0 {
 		opts.Parties = extra[0].Parties

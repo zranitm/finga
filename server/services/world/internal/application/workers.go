@@ -3,7 +3,8 @@ package application
 import (
 	"context"
 	"log/slog"
-	"sync"
+
+	"golang.org/x/sync/errgroup"
 
 	"finga/pkg/panics"
 )
@@ -50,23 +51,24 @@ func (w *Workers) Submit(job func(ctx context.Context)) bool {
 	}
 }
 
-// Run serves jobs until ctx is done.
-func (w *Workers) Run(ctx context.Context) {
-	var wg sync.WaitGroup
+// Run serves jobs until ctx is done; a job's panic is recorded, and one outside a job stops the pool and is returned.
+func (w *Workers) Run(ctx context.Context) error {
+	g, gctx := errgroup.WithContext(ctx)
 	for range w.n {
-		wg.Go(func() {
+		g.Go(func() (err error) {
+			defer panics.Capture(&err)
 			for {
 				select {
-				case <-ctx.Done():
-					return
+				case <-gctx.Done():
+					return nil
 				case job := <-w.jobs:
-					w.panics.Do(ctx, panics.FlowJob, func() { job(ctx) }, "job", "economy")
+					w.panics.Do(gctx, panics.FlowJob, func() { job(gctx) }, "job", "economy")
 					w.obs.JobFinished()
 				}
 			}
 		})
 	}
-	wg.Wait()
+	return g.Wait()
 }
 
 type noopEconomy struct{}

@@ -65,7 +65,7 @@ func TestAPanickingJobIsRecordedAndTheWorkerGoesOn(t *testing.T) {
 	w := application.NewWorkers(1, obs, panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { defer close(done); w.Run(ctx) }()
+	go func() { defer close(done); _ = w.Run(ctx) }()
 	ran := make(chan struct{})
 	w.Submit(func(context.Context) { panic("bad pickup") })
 	w.Submit(func(context.Context) { close(ran) })
@@ -78,5 +78,26 @@ func TestAPanickingJobIsRecordedAndTheWorkerGoesOn(t *testing.T) {
 	<-done
 	if obs.finished.Load() != 2 || !strings.Contains(logs.String(), `"flow":"job"`) || !strings.Contains(logs.String(), `"panic":"bad pickup"`) {
 		t.Fatalf("finished %d, log %q", obs.finished.Load(), logs.String())
+	}
+}
+
+// finishPanics is an economy observer whose JobFinished panics, outside any job.
+type finishPanics struct{}
+
+func (finishPanics) JobStarted()  {}
+func (finishPanics) JobFinished() { panic("broken gauge") }
+
+func TestAPanicInAWorkerOutsideAJobStopsThePool(t *testing.T) {
+	w := application.NewWorkers(2, finishPanics{}, nil)
+	w.Submit(func(context.Context) {})
+	done := make(chan error, 1)
+	go func() { done <- w.Run(context.Background()) }()
+	select {
+	case err := <-done:
+		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "broken gauge" {
+			t.Fatalf("Run returned %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the pool kept running after a worker panicked")
 	}
 }

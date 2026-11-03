@@ -128,11 +128,7 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 func (w *World) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 	if w.workers != nil {
-		g.Go(func() (err error) {
-			defer panics.Capture(&err)
-			w.workers.Run(gctx)
-			return nil
-		})
+		g.Go(func() error { return w.workers.Run(gctx) })
 	}
 	for _, id := range w.order {
 		inst := w.instances[id]
