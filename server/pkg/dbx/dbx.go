@@ -32,32 +32,10 @@ const (
 )
 
 const (
-	defaultMaxAttempts = 3
-	retryFirst         = 20 * time.Millisecond
-	retryMax           = 200 * time.Millisecond
+	maxAttempts = 3
+	retryFirst  = 20 * time.Millisecond
+	retryMax    = 200 * time.Millisecond
 )
-
-// Option tunes InTx.
-type Option func(*options)
-
-type options struct {
-	maxAttempts int
-	onRetry     func(error)
-}
-
-// MaxAttempts caps how often InTx runs fn, 3 by default.
-func MaxAttempts(n int) Option {
-	return func(o *options) {
-		if n >= 1 {
-			o.maxAttempts = n
-		}
-	}
-}
-
-// OnRetry is called with each error about to be retried.
-func OnRetry(fn func(error)) Option {
-	return func(o *options) { o.onRetry = fn }
-}
 
 // NewPool connects to url with at most maxConns connections and pings it.
 func NewPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, error) {
@@ -79,11 +57,7 @@ func NewPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, er
 
 // InTx runs fn in a READ COMMITTED transaction and reruns it on deadlock or serialization failure,
 // so fn must have no side effects outside the transaction.
-func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Option) error {
-	o := options{maxAttempts: defaultMaxAttempts}
-	for _, opt := range opts {
-		opt(&o)
-	}
+func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error) error {
 	var last error
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		last = runOnce(ctx, db, fn)
@@ -93,13 +67,8 @@ func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Op
 		return struct{}{}, last
 	},
 		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: retryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: retryMax}),
-		backoff.WithMaxTries(uint(o.maxAttempts)), //nolint:gosec // MaxAttempts keeps it at least 1
+		backoff.WithMaxTries(maxAttempts),
 		backoff.WithMaxElapsedTime(0),
-		backoff.WithNotify(func(err error, _ time.Duration) {
-			if o.onRetry != nil {
-				o.onRetry(err)
-			}
-		}),
 	)
 	if err != nil && last != nil && !errors.Is(err, last) {
 		return fmt.Errorf("dbx: retry abandoned: %w (last error: %w)", err, last)

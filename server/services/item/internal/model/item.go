@@ -25,21 +25,6 @@ var (
 	ErrUnknownItem   = errors.New("item: unknown item template")
 )
 
-var rules = []error{
-	ErrNotFound, ErrSlotTaken, ErrDifferentItem, ErrInventoryFull, ErrKeyReused,
-	ErrBadQuantity, ErrBadSlot, ErrWrongTab, ErrUnknownItem,
-}
-
-// IsRule reports whether err is a rule error rather than a transient failure worth a retry.
-func IsRule(err error) bool {
-	for _, rule := range rules {
-		if errors.Is(err, rule) {
-			return true
-		}
-	}
-	return false
-}
-
 // SlotsPerTab is the inventory size of each tab.
 const SlotsPerTab = 24
 

@@ -69,7 +69,6 @@ func TestInTxAgainstPostgres(t *testing.T) {
 		}
 		// Opposite lock orders make Postgres kill one with 40P01; InTx reruns it and both updates land.
 		var runs [2]int
-		var retries [2]int
 		var mu sync.Mutex
 		started := make(chan struct{}, 2)
 		proceed := make(chan struct{})
@@ -92,7 +91,7 @@ func TestInTxAgainstPostgres(t *testing.T) {
 					}
 					_, err := tx.Exec(ctx, `UPDATE t SET n = n + 1 WHERE id = $1`, order[i][1])
 					return err
-				}, dbx.OnRetry(func(error) { mu.Lock(); retries[i]++; mu.Unlock() }))
+				})
 			})
 		}
 		<-started
@@ -103,9 +102,6 @@ func TestInTxAgainstPostgres(t *testing.T) {
 			if err != nil {
 				t.Fatalf("transaction %d: %v", i, err)
 			}
-		}
-		if retries[0]+retries[1] != 1 {
-			t.Fatalf("retries = %v, want exactly one", retries)
 		}
 		if runs[0]+runs[1] != 3 {
 			t.Fatalf("runs = %v, want 3 in total (one re-run)", runs)

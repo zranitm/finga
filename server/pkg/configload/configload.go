@@ -31,7 +31,6 @@ type Validator interface{ Validate() error }
 const (
 	tagKey       = "mapstructure"
 	tagEnvPrefix = "envprefix"
-	tagValidate  = "validate"
 	tagSkip      = "-"
 
 	envPathSep = "_"

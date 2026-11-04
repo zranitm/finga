@@ -18,9 +18,6 @@ import (
 
 // Close codes; the 4000s are the layer's own.
 const (
-	CloseNormal        = int(websocket.StatusNormalClosure)
-	CloseGoingAway     = int(websocket.StatusGoingAway)
-	CloseTooBig        = int(websocket.StatusMessageTooBig)
 	CloseInternal      = int(websocket.StatusInternalError)
 	CloseNoSubprotocol = int(websocket.StatusPolicyViolation) // the client asked for none of the server's subprotocols
 	CloseSlowConsumer  = 4001

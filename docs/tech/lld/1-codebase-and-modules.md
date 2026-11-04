@@ -313,8 +313,7 @@ type Beginner interface { // *pgxpool.Pool satisfies it; BeginTx so InTx can nam
 }
 // InTx commits fn's work; an error or a panic rolls back. A deadlock or
 // serialization failure runs the whole of fn again, up to 3 times.
-// Options (OnRetry, MaxAttempts) let a store count retries for its metrics.
-func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Option) error
+func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error) error
 
 // pkg/ledger (Stage 2): double-entry ledger over plain string account IDs
 type Posting struct {

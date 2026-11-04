@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/uuidv7"
 	"finga/services/world/internal/model"
@@ -174,5 +173,3 @@ func (i *Instance) dropViews() []model.DropView {
 	}
 	return out
 }
-
-var _ = gamedata.Etc // the drop table's items are validated by gamedata

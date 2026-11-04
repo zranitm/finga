@@ -129,31 +129,27 @@ func TestInTxRetries(t *testing.T) {
 		commitErrs   []error
 		wantAttempts int
 		wantCode     string // PgError code on the final error, empty for success
-		wantRetries  int
 	}{
-		{"serialization failure once, then success", []error{pgErr("40001")}, nil, 2, "", 1},
-		{"deadlock twice, then success", []error{pgErr("40P01"), pgErr("40P01")}, nil, 3, "", 2},
-		{"three failures exhaust the limit", []error{pgErr("40001"), pgErr("40001"), pgErr("40001")}, nil, 3, "40001", 2},
-		{"a retryable commit error is retried", nil, []error{pgErr("40001")}, 2, "", 1},
-		{"a unique violation is not retried", []error{pgErr("23505")}, nil, 1, "23505", 0},
-		{"a plain error is not retried", []error{errBoom}, nil, 1, "", 0},
+		{"serialization failure once, then success", []error{pgErr("40001")}, nil, 2, ""},
+		{"deadlock twice, then success", []error{pgErr("40P01"), pgErr("40P01")}, nil, 3, ""},
+		{"three failures exhaust the limit", []error{pgErr("40001"), pgErr("40001"), pgErr("40001")}, nil, 3, "40001"},
+		{"a retryable commit error is retried", nil, []error{pgErr("40001")}, 2, ""},
+		{"a unique violation is not retried", []error{pgErr("23505")}, nil, 1, "23505"},
+		{"a plain error is not retried", []error{errBoom}, nil, 1, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &fakeBeginner{commitErr: tt.commitErrs}
-			attempts, retries := 0, 0
+			attempts := 0
 			err := dbx.InTx(context.Background(), db, func(pgx.Tx) error {
 				attempts++
 				if attempts-1 < len(tt.fnErrs) {
 					return tt.fnErrs[attempts-1]
 				}
 				return nil
-			}, dbx.OnRetry(func(error) { retries++ }))
+			})
 			if attempts != tt.wantAttempts || len(db.txs) != tt.wantAttempts {
 				t.Fatalf("attempts = %d (txs %d), want %d", attempts, len(db.txs), tt.wantAttempts)
-			}
-			if retries != tt.wantRetries {
-				t.Fatalf("retries = %d, want %d", retries, tt.wantRetries)
 			}
 			var pe *pgconn.PgError
 			switch {
