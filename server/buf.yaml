@@ -8,7 +8,3 @@ lint:
 breaking:
   use:
     - FILE
-  # One time (the review's S6.8): world.proto's own Stats, Slot and Item replace the character and item
-  # services' messages, field for field, so the wire is the same. The next commit removes this.
-  ignore:
-    - api/proto/internal/world/v1/world.proto
