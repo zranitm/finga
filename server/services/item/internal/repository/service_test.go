@@ -32,7 +32,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool)
-	return &harness{pool: pool, store: store, svc: application.NewService(store, data, application.Options{}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
+	return &harness{pool: pool, store: store, svc: application.NewService(store, data), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 
 func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
@@ -455,7 +455,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 		t.Fatal("no ItemLooted row after a committed add")
 	}
 	// A transaction that fails after the add succeeds leaves no row.
-	svc := application.NewService(rollingBack{h.store}, h.data, application.Options{})
+	svc := application.NewService(rollingBack{h.store}, h.data)
 	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 	if err == nil {
 		t.Fatal("no error")

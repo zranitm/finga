@@ -39,11 +39,6 @@ type Result struct {
 	Changed []model.Slot `json:"changed"`
 }
 
-// Options tune the service.
-type Options struct {
-	Now func() time.Time
-}
-
 const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
@@ -57,15 +52,11 @@ const (
 type Service struct {
 	store   Store
 	content Content
-	now     func() time.Time
 }
 
 // NewService wires the service over its store and the game data.
-func NewService(store Store, content Content, opts Options) *Service {
-	if opts.Now == nil {
-		opts.Now = time.Now
-	}
-	return &Service{store: store, content: content, now: opts.Now}
+func NewService(store Store, content Content) *Service {
+	return &Service{store: store, content: content}
 }
 
 // Inventory lists the character's items.
@@ -98,7 +89,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 	if err != nil {
 		return Result{}, err
 	}
-	now := s.now()
+	now := time.Now()
 	var res Result
 	left := quantity
 	if tmpl.MaxStack > 1 {
@@ -180,7 +171,7 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	if src.Slot == in.Slot {
 		return Result{}, nil
 	}
-	now := s.now()
+	now := time.Now()
 	from := model.Slot{Tab: src.Tab, Slot: src.Slot}
 	dst := find(inv, func(it model.Item) bool { return it.Tab == in.Tab && it.Slot == in.Slot })
 	switch {
@@ -254,7 +245,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 	if in.Quantity > it.Quantity {
 		return Result{}, model.ErrBadQuantity
 	}
-	now := s.now()
+	now := time.Now()
 	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -in.Quantity, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}

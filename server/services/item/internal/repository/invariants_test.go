@@ -74,7 +74,7 @@ func TestInventoryProperties(t *testing.T) {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool)
-	svc := application.NewService(store, data, application.Options{})
+	svc := application.NewService(store, data)
 	templates := []string{"red_potion", "blue_potion", "slime_gel", "wooden_sword", "leather_cap"}
 	tabs := []gamedata.Tab{gamedata.Equip, gamedata.Use, gamedata.Etc}
 	ctx := context.Background()

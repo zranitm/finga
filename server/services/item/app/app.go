@@ -34,7 +34,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	items := application.NewService(repository.NewPostgres(pool), data, application.Options{})
+	items := application.NewService(repository.NewPostgres(pool), data)
 	h := host.New(host.Options{
 		Name:     "item",
 		Settings: cfg.Host(),
