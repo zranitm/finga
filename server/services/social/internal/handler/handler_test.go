@@ -280,6 +280,50 @@ func TestWatchParties(t *testing.T) {
 	})
 }
 
+// manyParties reports n two-member parties besides the real ones.
+type manyParties struct {
+	handler.Parties
+	n int
+}
+
+func (m manyParties) Memberships(ctx context.Context, visit func(members []kernel.CharacterID)) error {
+	for range m.n {
+		visit([]kernel.CharacterID{kernel.NewCharacterID(), kernel.NewCharacterID()})
+	}
+	return m.Parties.Memberships(ctx, visit)
+}
+
+// A snapshot larger than the stream's queue still arrives whole, and the changes after it.
+func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
+	const many = 5000 // the queue holds 4096
+	parties := application.NewPartyService(repository.NewMemory())
+	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(parties), "boot-1")
+	parties.Notify(srv)
+	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
+	socialv1.RegisterSocialServiceServer(g, srv)
+	ctx := t.Context()
+	s := &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx}
+	stream, err := s.c.WatchParties(ctx, &socialv1.WatchPartiesRequest{WorldId: "world-1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := recv(t, stream); m.GetSubscribed().GetBootId() != "boot-1" {
+		t.Fatalf("first %+v", m)
+	}
+	for i := range many {
+		if m := recv(t, stream); len(m.GetMembership().GetMembers()) != 2 {
+			t.Fatalf("snapshot message %d: %+v", i, m)
+		}
+	}
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+	s.online(t, "gw", ann, "Ann")
+	s.online(t, "gw", bo, "Bo")
+	s.party(t, ann, bo)
+	if ms := recv(t, stream).GetMembership(); len(ms.GetMembers()) != 2 {
+		t.Fatalf("the change after the snapshot: %+v", ms)
+	}
+}
+
 func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 	s := newStack(t)
 	d, err := s.c.Deliver(s.ctx, &socialv1.DeliverRequest{})

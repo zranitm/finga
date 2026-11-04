@@ -164,7 +164,7 @@ The world keeps a registry of presences: each joined character's map and the con
 | `PartyOf` | character_id | the party, if any (Welcome) |
 | `Invite`, `Respond`, `LeaveParty`, `Kick`, `Promote` | the caller's character_id and the command's fields | |
 | `Chat` | sender id and name, channel, text | the cleaned line; a map line is the caller's to hand to the world, a party line is already delivered |
-| `WatchParties` (stream) | world_id | Subscribed (boot_id), every party's membership, then each change |
+| `WatchParties` (stream) | world_id | Subscribed (boot_id), every party's membership (sent straight to the stream, so any number of parties fits), then each change since it subscribed |
 | `UpdateMember` | character_id, map, level, HP, max HP (from the world) | |
 
 The gateway serves no gRPC.

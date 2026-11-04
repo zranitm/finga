@@ -8,11 +8,14 @@ import (
 	"finga/pkg/hub"
 )
 
-// ServeSubscription streams first, then sub's messages; when sub ends it returns Unavailable.
-func ServeSubscription[T any](stream grpc.ServerStreamingServer[T], sub *hub.Sub[*T], first *T) error {
+// ServeSubscription streams first, then sub's messages; when sub ends it returns Unavailable. first (a
+// Subscribed, then any snapshot) goes straight to the stream, so it may be larger than sub's queue.
+func ServeSubscription[T any](stream grpc.ServerStreamingServer[T], sub *hub.Sub[*T], first ...*T) error {
 	defer sub.Close()
-	if err := stream.Send(first); err != nil {
-		return err
+	for _, m := range first {
+		if err := stream.Send(m); err != nil {
+			return err
+		}
 	}
 	for {
 		select {

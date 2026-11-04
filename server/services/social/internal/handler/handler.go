@@ -73,20 +73,22 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 	return grpcx.ServeSubscription(stream, s.deliver.Subscribe(req.GetGatewayId()), first)
 }
 
-// WatchParties streams a membership snapshot, queued under the party lock, then each change.
+// WatchParties streams Subscribed and a membership snapshot, then each change since it subscribed. The
+// snapshot may already hold the first changes; each sets its characters' party outright, so replaying
+// them in order ends at the current state.
 func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.ServerStreamingServer[socialv1.WatchPartiesResponse]) error {
 	if req.GetWorldId() == "" {
 		return status.Error(codes.InvalidArgument, "world_id is required")
 	}
 	sub := s.watchers.Subscribe(req.GetWorldId())
+	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}}
 	if err := s.parties.Memberships(stream.Context(), func(members []kernel.CharacterID) {
-		sub.Send(membership(members, members))
+		first = append(first, membership(members, members))
 	}); err != nil {
 		sub.Close()
 		return err
 	}
-	first := &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}
-	return grpcx.ServeSubscription(stream, sub, first)
+	return grpcx.ServeSubscription(stream, sub, first...)
 }
 
 // Online records a character as connected through a gateway.
