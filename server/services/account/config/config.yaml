@@ -16,3 +16,7 @@ log:
 database:
   url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
   max_conns: 20
+password:               # the Argon2id cost of a password hash; raise it as the hardware allows
+  time: 1
+  memory_kib: 65536
+  threads: 4

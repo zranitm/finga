@@ -34,30 +34,26 @@ type LoginInput struct {
 	Password string
 }
 
-// Options tune the service; zero values take the defaults.
+// Options tune the service.
 type Options struct {
-	IdleTTL            time.Duration // a session ends after this long unused
-	MaxLifetime        time.Duration // and never lives longer than this from login
-	ExtendEvery        time.Duration // the idle expiry is pushed at most this often
-	RotationGrace      time.Duration // the token retired by a rotation works once within this
-	LoginRatePerMinute float64       // per username
-	LoginBurst         int
-	Now                func() time.Time
-	Hash               password.Params
+	Hash password.Params // the Argon2id cost, from the config
 
 	// OnSessionRevoked and OnAccountRevoked, if set, hear of ended sessions so connections can close.
 	OnSessionRevoked func(ctx context.Context, sessionID uuid.UUID, reason string)
 	OnAccountRevoked func(ctx context.Context, accountID uuid.UUID, reason string)
 }
 
+// The session policy (step 16).
 const (
-	defaultIdleTTL       = 7 * 24 * time.Hour
-	defaultMaxLifetime   = 30 * 24 * time.Hour
-	defaultExtendEvery   = 10 * time.Minute
-	defaultRotationGrace = 60 * time.Second
-	defaultLoginRate     = 5
-	defaultLoginBurst    = 5
+	idleTTL            = 7 * 24 * time.Hour  // a session ends after this long unused
+	maxLifetime        = 30 * 24 * time.Hour // and never lives longer than this from login
+	extendEvery        = 10 * time.Minute    // the idle expiry is pushed at most this often
+	rotationGrace      = 60 * time.Second    // the token retired by a rotation works once within this
+	loginRatePerMinute = 5                   // per username
+	loginBurst         = 5
+)
 
+const (
 	tokenBytes      = 32
 	usernameMin     = 3
 	usernameMax     = 16
@@ -81,8 +77,6 @@ var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 type Service struct {
 	store      Store
 	opts       Options
-	now        func() time.Time
-	hash       password.Params
 	dummy      string            // verified for unknown usernames, so they take as long
 	byUser     ratelimit.Limiter // per-IP limits belong to the edge (nginx)
 	presetList []model.Preset
@@ -95,42 +89,15 @@ var (
 
 // NewService wires the service over its store.
 func NewService(store Store, opts Options) *Service {
-	if opts.IdleTTL <= 0 {
-		opts.IdleTTL = defaultIdleTTL
-	}
-	if opts.MaxLifetime <= 0 {
-		opts.MaxLifetime = defaultMaxLifetime
-	}
-	if opts.ExtendEvery <= 0 {
-		opts.ExtendEvery = defaultExtendEvery
-	}
-	if opts.RotationGrace <= 0 {
-		opts.RotationGrace = defaultRotationGrace
-	}
-	if opts.LoginRatePerMinute <= 0 {
-		opts.LoginRatePerMinute = defaultLoginRate
-	}
-	if opts.LoginBurst <= 0 {
-		opts.LoginBurst = defaultLoginBurst
-	}
-	if opts.Now == nil {
-		opts.Now = time.Now
-	}
-	if opts.Hash == (password.Params{}) {
-		opts.Hash = password.Default
-	}
 	dummy, err := password.Hash(dummySecret, opts.Hash)
 	if err != nil {
 		panic("account: dummy hash: " + err.Error()) // the parameters were just validated by Hash's caller
 	}
-	perSecond := opts.LoginRatePerMinute / 60
 	return &Service{
 		store:      store,
 		opts:       opts,
-		now:        opts.Now,
-		hash:       opts.Hash,
 		dummy:      dummy,
-		byUser:     ratelimit.NewBuckets(perSecond, opts.LoginBurst, ratelimit.WithClock(opts.Now)),
+		byUser:     ratelimit.NewBuckets(loginRatePerMinute/60.0, loginBurst),
 		presetList: []model.Preset{model.PresetClassic, model.PresetWASD},
 	}
 }
@@ -143,11 +110,11 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	if len(in.Password) < passwordMin || len(in.Password) > passwordMax {
 		return model.Account{}, model.ErrBadPassword
 	}
-	hash, err := password.Hash(in.Password, s.hash)
+	hash, err := password.Hash(in.Password, s.opts.Hash)
 	if err != nil {
 		return model.Account{}, err
 	}
-	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings(), CreatedAt: s.now()}
+	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings(), CreatedAt: time.Now()}
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Accounts().Insert(ctx, a)
 	})
@@ -197,7 +164,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 	if err != nil {
 		return "", err
 	}
-	now := s.now()
+	now := time.Now()
 	session := model.Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
 	for attempt := 0; ; attempt++ {
 		err = s.store.InTx(ctx, func(uow UnitOfWork) error {
@@ -233,13 +200,13 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 		}
 		return auth.Principal{}, err
 	}
-	now := s.now()
+	now := time.Now()
 	if !now.Before(session.ExpiresAt) {
 		return auth.Principal{}, model.ErrUnauthenticated
 	}
 	if !bytes.Equal(session.TokenHash, hash[:]) {
 		// The previous token: once, inside the grace; otherwise reuse.
-		if session.RotatedAt == nil || !now.Before(session.RotatedAt.Add(s.opts.RotationGrace)) {
+		if session.RotatedAt == nil || !now.Before(session.RotatedAt.Add(rotationGrace)) {
 			if err := s.revoke(ctx, session.ID, now, ReasonTokenReuse); err != nil {
 				return auth.Principal{}, err
 			}
@@ -264,7 +231,7 @@ func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 	if err != nil {
 		return "", err
 	}
-	now := s.now()
+	now := time.Now()
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Sessions().Rotate(ctx, kernel.SessionID(sessionID), hash, now)
 	})
@@ -286,7 +253,7 @@ func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
 		}
 		return err
 	}
-	if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) {
+	if session.RevokedAt != nil || !time.Now().Before(session.ExpiresAt) {
 		return model.ErrUnauthenticated
 	}
 	return nil
@@ -294,12 +261,12 @@ func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
 
 // Revoke implements auth.Sessions: logging out of one session.
 func (s *Service) Revoke(ctx context.Context, sessionID uuid.UUID) error {
-	return s.revoke(ctx, kernel.SessionID(sessionID), s.now(), ReasonLogout)
+	return s.revoke(ctx, kernel.SessionID(sessionID), time.Now(), ReasonLogout)
 }
 
 // RevokeAll implements auth.Sessions: logging out everywhere.
 func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
-	now := s.now()
+	now := time.Now()
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Sessions().RevokeAll(ctx, kernel.AccountID(accountID), now)
 	})
@@ -327,8 +294,8 @@ func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time
 
 // expiry is the idle period from now, capped at the lifetime from creation.
 func (s *Service) expiry(createdAt, now time.Time) time.Time {
-	until := now.Add(s.opts.IdleTTL)
-	if limit := createdAt.Add(s.opts.MaxLifetime); until.After(limit) {
+	until := now.Add(idleTTL)
+	if limit := createdAt.Add(maxLifetime); until.After(limit) {
 		until = limit
 	}
 	return until
@@ -336,8 +303,8 @@ func (s *Service) expiry(createdAt, now time.Time) time.Time {
 
 // extend slides the expiry, at most once every ExtendEvery.
 func (s *Service) extend(ctx context.Context, session model.Session, now time.Time) error {
-	lastExtended := session.ExpiresAt.Add(-s.opts.IdleTTL)
-	if now.Sub(lastExtended) < s.opts.ExtendEvery {
+	lastExtended := session.ExpiresAt.Add(-idleTTL)
+	if now.Sub(lastExtended) < extendEvery {
 		return nil
 	}
 	until := s.expiry(session.CreatedAt, now)

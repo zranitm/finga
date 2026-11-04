@@ -68,6 +68,9 @@ type stack struct {
 
 const grace = time.Second
 
+// cheapPasswords keeps the stack's hashing fast; production's cost is in the account's config.yaml.
+var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1}
+
 func newStack(t *testing.T) *stack {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -77,7 +80,7 @@ func newStack(t *testing.T) *stack {
 		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db}
 	}, itemapp.Build)
 	account := runService(t, func(at listen) accountconfig.Config {
-		return accountconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Database: db}
+		return accountconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Database: db, Password: cheapPasswords}
 	}, accountapp.Build)
 	character := runService(t, func(at listen) characterconfig.Config {
 		return characterconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,

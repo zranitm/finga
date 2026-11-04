@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,13 +21,11 @@ import (
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
 
-type clock struct{ t time.Time }
+// idleTTL is the session policy's idle lifetime (step 16); the tests that move time run under synctest.
+const idleTTL = 7 * 24 * time.Hour
 
-func (c *clock) now() time.Time { return c.t }
-
-func newService(store application.Store) (*application.Service, *clock) {
-	c := &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)}
-	return application.NewService(store, application.Options{IdleTTL: time.Hour, Now: c.now, Hash: cheapHash}), c
+func newService(store application.Store) *application.Service {
+	return application.NewService(store, application.Options{Hash: cheapHash})
 }
 
 func register(t *testing.T, svc *application.Service, username, pw string) model.Account {
@@ -42,9 +41,10 @@ func TestRegister(t *testing.T) {
 	ctx := context.Background()
 	t.Run("valid", func(t *testing.T) {
 		store := newFakeStore()
-		svc, c := newService(store)
+		svc := newService(store)
+		before := time.Now()
 		acc := register(t, svc, "Alice_01", "correct horse")
-		if acc.Username != "Alice_01" || acc.ID.IsZero() || !acc.CreatedAt.Equal(c.t) || acc.Settings != model.DefaultSettings() {
+		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.Before(before) || acc.CreatedAt.After(time.Now()) || acc.Settings != model.DefaultSettings() {
 			t.Fatalf("account = %+v", acc)
 		}
 		stored := store.accounts[acc.ID]
@@ -76,7 +76,7 @@ func TestRegister(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				store := newFakeStore()
-				svc, _ := newService(store)
+				svc := newService(store)
 				_, err := svc.Register(ctx, application.RegisterInput{Username: tt.username, Password: tt.password})
 				if !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
@@ -89,13 +89,13 @@ func TestRegister(t *testing.T) {
 	})
 
 	t.Run("boundary lengths are accepted", func(t *testing.T) {
-		svc, _ := newService(newFakeStore())
+		svc := newService(newFakeStore())
 		register(t, svc, "abc", "12345678")
 		register(t, svc, strings.Repeat("Z", 16), strings.Repeat("p", 128))
 	})
 
 	t.Run("a duplicate becomes conflict", func(t *testing.T) {
-		svc, _ := newService(newFakeStore())
+		svc := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		_, err := svc.Register(ctx, application.RegisterInput{Username: "ALICE", Password: "correct horse"})
 		if !errors.Is(err, model.ErrUsernameTaken) {
@@ -106,7 +106,7 @@ func TestRegister(t *testing.T) {
 
 func TestVerify(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := newService(newFakeStore())
+	svc := newService(newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
 	tests := []struct {
 		name     string
@@ -138,9 +138,11 @@ func TestVerify(t *testing.T) {
 func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 	ctx := context.Background()
 	store := newFakeStore()
-	svc, c := newService(store)
+	svc := newService(store)
 	acc := register(t, svc, "alice", "correct horse")
+	before := time.Now()
 	token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
+	after := time.Now()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +160,7 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 		if strings.Contains(string(se.TokenHash), token) {
 			t.Fatal("the token itself reached the repository")
 		}
-		if !se.ExpiresAt.Equal(c.t.Add(time.Hour)) || se.AccountID != acc.ID {
+		if se.ExpiresAt.Before(before.Add(idleTTL)) || se.ExpiresAt.After(after.Add(idleTTL)) || se.AccountID != acc.ID {
 			t.Fatalf("session = %+v", se)
 		}
 	}
@@ -185,11 +187,9 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 
 func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	ctx := context.Background()
-	store := newFakeStore()
-	svc, c := newService(store)
-	register(t, svc, "alice", "correct horse")
-	login := func(t *testing.T) string {
+	login := func(t *testing.T, svc *application.Service) string {
 		t.Helper()
+		register(t, svc, "alice", "correct horse")
 		token, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"})
 		if err != nil {
 			t.Fatal(err)
@@ -198,17 +198,17 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	}
 	tests := []struct {
 		name  string
-		token func(t *testing.T) string
+		token func(t *testing.T, svc *application.Service) string
 	}{
-		{"unknown token", func(*testing.T) string { return "not-a-token" }},
-		{"empty token", func(*testing.T) string { return "" }},
-		{"expired token", func(t *testing.T) string {
-			tok := login(t)
-			c.t = c.t.Add(time.Hour) // exactly the lifetime: no longer valid
+		{"unknown token", func(*testing.T, *application.Service) string { return "not-a-token" }},
+		{"empty token", func(*testing.T, *application.Service) string { return "" }},
+		{"expired token", func(t *testing.T, svc *application.Service) string {
+			tok := login(t, svc)
+			time.Sleep(idleTTL) // exactly the lifetime: no longer valid
 			return tok
 		}},
-		{"revoked token", func(t *testing.T) string {
-			tok := login(t)
+		{"revoked token", func(t *testing.T, svc *application.Service) string {
+			tok := login(t, svc)
 			p, err := svc.Validate(ctx, tok)
 			if err != nil {
 				t.Fatal(err)
@@ -221,42 +221,50 @@ func TestValidateFailsTheSameWayForEveryBadToken(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := svc.Validate(ctx, tt.token(t))
-			if !errors.Is(err, model.ErrUnauthenticated) {
-				t.Fatalf("err = %v, want ErrUnauthenticated", err)
-			}
+			synctest.Test(t, func(t *testing.T) {
+				svc := newService(newFakeStore())
+				_, err := svc.Validate(ctx, tt.token(t, svc))
+				if !errors.Is(err, model.ErrUnauthenticated) {
+					t.Fatalf("err = %v, want ErrUnauthenticated", err)
+				}
+			})
 		})
 	}
 	t.Run("a token just before expiry still validates", func(t *testing.T) {
-		tok := login(t)
-		c.t = c.t.Add(time.Hour - time.Second)
-		if _, err := svc.Validate(ctx, tok); err != nil {
-			t.Fatal(err)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			svc := newService(newFakeStore())
+			tok := login(t, svc)
+			time.Sleep(idleTTL - time.Second)
+			if _, err := svc.Validate(ctx, tok); err != nil {
+				t.Fatal(err)
+			}
+		})
 	})
 }
 
 func TestLoginThrottling(t *testing.T) {
 	ctx := context.Background()
 	t.Run("too many attempts for one username give rate_limited, which resets after the window", func(t *testing.T) {
-		svc, c := newService(newFakeStore())
-		register(t, svc, "alice", "correct horse")
-		for i := range 5 {
-			if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong"}); !errors.Is(err, model.ErrUnauthenticated) {
-				t.Fatalf("attempt %d: %v", i, err)
+		synctest.Test(t, func(t *testing.T) {
+			svc := newService(newFakeStore())
+			register(t, svc, "alice", "correct horse")
+			for i := range 5 {
+				if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong"}); !errors.Is(err, model.ErrUnauthenticated) {
+					t.Fatalf("attempt %d: %v", i, err)
+				}
 			}
-		}
-		_, err := svc.Login(ctx, application.LoginInput{Username: "ALICE", Password: "correct horse"})
-		if !errors.Is(err, model.ErrRateLimited) {
-			t.Fatalf("sixth attempt: %v, want rate_limited even with the right password", err)
-		}
-		c.t = c.t.Add(time.Minute)
-		if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"}); err != nil {
-			t.Fatalf("after the window: %v", err)
-		}
+			_, err := svc.Login(ctx, application.LoginInput{Username: "ALICE", Password: "correct horse"})
+			if !errors.Is(err, model.ErrRateLimited) {
+				t.Fatalf("sixth attempt: %v, want rate_limited even with the right password", err)
+			}
+			time.Sleep(time.Minute)
+			if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"}); err != nil {
+				t.Fatalf("after the window: %v", err)
+			}
+		})
 	})
 	t.Run("one username's throttle leaves the others alone: per-IP limits are the edge's (nginx)", func(t *testing.T) {
-		svc, _ := newService(newFakeStore())
+		svc := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for i := range 5 {
 			_, _ = svc.Login(ctx, application.LoginInput{Username: fmt.Sprintf("user%d", i), Password: "wrong"})
@@ -266,7 +274,7 @@ func TestLoginThrottling(t *testing.T) {
 		}
 	})
 	t.Run("Verify itself is not throttled: the handler's job", func(t *testing.T) {
-		svc, _ := newService(newFakeStore())
+		svc := newService(newFakeStore())
 		register(t, svc, "alice", "correct horse")
 		for range 10 {
 			if _, err := svc.Verify(ctx, "alice", "correct horse"); err != nil {
@@ -278,7 +286,7 @@ func TestLoginThrottling(t *testing.T) {
 
 func TestSettings(t *testing.T) {
 	ctx := context.Background()
-	svc, _ := newService(newFakeStore())
+	svc := newService(newFakeStore())
 	acc := register(t, svc, "alice", "correct horse")
 	tests := []struct {
 		name    string
@@ -311,14 +319,14 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 	var _ auth.Authenticator = (*application.Service)(nil)
 	var _ auth.Sessions = (*application.Service)(nil)
 	t.Run("Issue for an unknown account fails", func(t *testing.T) {
-		svc, _ := newService(newFakeStore())
+		svc := newService(newFakeStore())
 		if _, err := svc.Issue(context.Background(), uuidv7.New()); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("a store failure surfaces", func(t *testing.T) {
 		store := newFakeStore()
-		svc, _ := newService(store)
+		svc := newService(store)
 		store.failInTx = errors.New("db down")
 		if _, err := svc.Register(context.Background(), application.RegisterInput{Username: "alice", Password: "correct horse"}); err == nil || !strings.Contains(err.Error(), "db down") {
 			t.Fatalf("err = %v", err)

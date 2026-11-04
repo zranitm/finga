@@ -10,6 +10,7 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
+	"finga/pkg/auth/password"
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
 	"finga/pkg/panics"
@@ -33,6 +34,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	}
 	var srv *handler.Server // built below; the hooks only fire once requests arrive
 	accounts := application.NewService(repository.NewPostgres(pool), application.Options{
+		Hash:             hashCost(cfg.Password),
 		OnSessionRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.SessionRevoked(ctx, id, reason) },
 		OnAccountRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.AccountRevoked(ctx, id, reason) },
 	})
@@ -48,4 +50,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	accountv1.RegisterAccountServiceServer(h.GRPC, srv)
 	h.OnClose(pool.Close)
 	return h, nil
+}
+
+// hashCost is the configured Argon2id cost, with the library's salt and key lengths.
+func hashCost(p config.Password) password.Params {
+	return password.Params{Time: p.Time, Memory: p.MemoryKiB, Threads: p.Threads, SaltLen: password.Default.SaltLen, KeyLen: password.Default.KeyLen}
 }

@@ -118,7 +118,7 @@ console, `source`, `sampling`), and each internal service `grpc.listen` and
 | Binary      | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
 | `gateway`   | `http.addr`, `http.cors_origins`; `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `dependencies` on the five services |
-| `account`   | `database.url`, `database.max_conns`                                              |
+| `account`   | `database.url`, `database.max_conns`; `password` (`time`, `memory_kib`, `threads`), the Argon2id cost |
 | `character` | `database`, `data_dir`, `dependencies.item`                                       |
 | `item`      | `database`, `data_dir`                                                            |
 | `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `economy.workers` (8), `dependencies` on character, item and social |

@@ -16,6 +16,14 @@ type Config struct {
 	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config    `mapstructure:"log"`
 	Database      dbx.Config       `mapstructure:"database"`
+	Password      Password         `mapstructure:"password"`
+}
+
+// Password is the Argon2id cost of a password hash, raised as the hardware allows.
+type Password struct {
+	Time      uint32 `mapstructure:"time" validate:"min=1"`          // passes over the memory
+	MemoryKiB uint32 `mapstructure:"memory_kib" validate:"min=8192"` // the memory each hash fills
+	Threads   uint8  `mapstructure:"threads" validate:"min=1"`       // lanes hashed in parallel
 }
 
 // Host is the part of the configuration the host runs the service with.

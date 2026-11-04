@@ -41,6 +41,7 @@ func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace: time.Second,
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
+		Password:      config.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1},
 	}
 	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
 	if err != nil {
