@@ -19,10 +19,16 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// World is what the handler needs from the world module.
+// World is what the handler needs from the world module: a join, and the commands of a character
+// joined through a connection, each ErrBusy when the character's map cannot take it.
 type World interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error)
-	Instance(mapID string) (*application.Instance, error)
+	Leave(id kernel.CharacterID, conn string) error
+	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
+	Attack(id kernel.CharacterID, conn string) error
+	PickUp(id kernel.CharacterID, conn string) error
+	EnterPortal(id kernel.CharacterID, conn string) error
+	Say(id kernel.CharacterID, conn, name, text string) error
 }
 
 // queue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
@@ -78,68 +84,79 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	if req.GetConnectionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
 	}
-	v, err := s.world.Join(ctx, account, id, req.GetConnectionId(), &streamSink{sub: sub, character: id.String(), log: s.log})
+	v, err := s.world.Join(ctx, account, id, req.GetConnectionId(), &streamSink{sub: sub, character: id.String(), conn: req.GetConnectionId(), log: s.log})
 	if err != nil {
 		return nil, err
 	}
 	return &worldv1.JoinResponse{Character: characterView(v)}, nil
 }
 
-// Leave removes the player if it joined through the named connection.
+// Leave removes the player if it joined through the presence's connection.
 func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
-	if req.GetConnectionId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
 	}
-	return &worldv1.LeaveResponse{}, s.command(req.GetPresence(), func(i *application.Instance, id kernel.CharacterID) bool {
-		return i.LeaveConnection(id, req.GetConnectionId())
-	})
+	return &worldv1.LeaveResponse{}, s.world.Leave(id, conn)
 }
 
 // Input queues held keys.
 func (s *Server) Input(_ context.Context, req *worldv1.InputRequest) (*worldv1.InputResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
 	k := req.GetKeys()
 	in := sim.Input{Left: k.GetLeft(), Right: k.GetRight(), Up: k.GetUp(), Down: k.GetDown(), Jump: k.GetJump()}
-	return &worldv1.InputResponse{}, s.command(req.GetPresence(), func(i *application.Instance, id kernel.CharacterID) bool {
-		return i.Input(id, req.GetSeq(), in)
-	})
+	return &worldv1.InputResponse{}, s.world.Input(id, conn, req.GetSeq(), in)
 }
 
 // Attack queues a basic attack.
 func (s *Server) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
-	return &worldv1.AttackResponse{}, s.command(req.GetPresence(), (*application.Instance).Attack)
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	return &worldv1.AttackResponse{}, s.world.Attack(id, conn)
 }
 
 // PickUp asks for the nearest eligible drop.
 func (s *Server) PickUp(_ context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
-	return &worldv1.PickUpResponse{}, s.command(req.GetPresence(), (*application.Instance).PickUp)
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	return &worldv1.PickUpResponse{}, s.world.PickUp(id, conn)
 }
 
 // EnterPortal takes the portal the character stands in.
 func (s *Server) EnterPortal(_ context.Context, req *worldv1.EnterPortalRequest) (*worldv1.EnterPortalResponse, error) {
-	return &worldv1.EnterPortalResponse{}, s.command(req.GetPresence(), (*application.Instance).EnterPortal)
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	return &worldv1.EnterPortalResponse{}, s.world.EnterPortal(id, conn)
 }
 
 // Say is a map chat line for everyone on the map.
 func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayResponse, error) {
-	return &worldv1.SayResponse{}, s.command(req.GetPresence(), func(i *application.Instance, id kernel.CharacterID) bool {
-		return i.Chat(id, req.GetSenderName(), req.GetText())
-	})
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	return &worldv1.SayResponse{}, s.world.Say(id, conn, req.GetSenderName(), req.GetText())
 }
 
-// command posts to the instance of the presence's map; a full inbox is ErrBusy.
-func (s *Server) command(p *worldv1.Presence, post func(*application.Instance, kernel.CharacterID) bool) error {
+// presence is the character a command is for and the connection it comes from.
+func presence(p *worldv1.Presence) (kernel.CharacterID, string, error) {
 	id, err := kernel.ParseCharacterID(p.GetCharacterId())
 	if err != nil {
-		return err
+		return kernel.CharacterID{}, "", err
 	}
-	inst, err := s.world.Instance(p.GetMapId())
-	if err != nil {
-		return err
+	if p.GetConnectionId() == "" {
+		return kernel.CharacterID{}, "", status.Error(codes.InvalidArgument, "presence.connection_id is required")
 	}
-	if !post(inst, id) {
-		return model.ErrBusy
-	}
-	return nil
+	return id, p.GetConnectionId(), nil
 }
 
 func characterView(v model.View) *worldv1.CharacterView {

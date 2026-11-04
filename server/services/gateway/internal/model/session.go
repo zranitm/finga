@@ -15,10 +15,10 @@ type Player struct {
 	MaxHP int
 }
 
-// Presence is where a connected player is; every world command carries it.
+// Presence is a connected player: its character and the connection it joined through; every world command carries it.
 type Presence struct {
-	Character kernel.CharacterID
-	MapID     string
+	Character  kernel.CharacterID
+	Connection string
 }
 
 // Actor is who acts on items: the account scopes idempotency keys, the character owns the items.

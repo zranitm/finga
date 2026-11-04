@@ -48,7 +48,10 @@ enum Reason {
 // Presence routes a command to the map the caller believes the character is on.
 message Presence {
   string character_id = 1;
-  string map_id = 2;
+  // Ignored: the world knows each character's map; buf's FILE rules keep a published field.
+  string map_id = 2 [deprecated = true];
+  // The connection the character joined through; a command from any other is ignored.
+  string connection_id = 3;
 }
 
 message Keys {
@@ -83,8 +86,10 @@ message DeliverRequest {
 
 // DeliverResponse is one event for one player.
 message DeliverResponse {
-  // Empty only for Subscribed.
+  // Empty only for Subscribed, as is connection_id.
   string character_id = 1;
+  // The connection the character joined through; the gateway routes by it.
+  string connection_id = 15;
   // The instance's tick when the event happened.
   uint64 tick = 2;
   oneof event {
@@ -250,7 +255,8 @@ message JoinResponse {
 
 message LeaveRequest {
   Presence presence = 1;
-  string connection_id = 2;
+  // Ignored: the presence names the connection; buf's FILE rules keep a published field.
+  string connection_id = 2 [deprecated = true];
 }
 
 message LeaveResponse {}

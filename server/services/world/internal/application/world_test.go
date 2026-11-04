@@ -64,41 +64,62 @@ func (f *fakeSaver) count() int {
 	return len(f.saved)
 }
 
+// testWorld is a World whose characters each test saves as it joins them.
+type testWorld struct {
+	*application.World
+	chars *fakeCharacters
+}
+
+func newWorld(t *testing.T, saver application.Saver, opts application.Options) *testWorld {
+	t.Helper()
+	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{}}
+	opts.Characters = chars
+	return &testWorld{World: application.New(loadData(t), saver, slog.New(slog.DiscardHandler), deps(opts)), chars: chars}
+}
+
+// enter saves p on mapID and joins it there through conn; the World must be running.
+func (w *testWorld) enter(t *testing.T, p model.Player, mapID, conn string, s application.Sink) {
+	t.Helper()
+	if err := w.join(p, mapID, conn, s); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func (w *testWorld) join(p model.Player, mapID, conn string, s application.Sink) error {
+	w.chars.chars[p.ID] = model.Character{ID: p.ID, Account: p.Account, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP, MapID: mapID, X: p.X, Y: p.Y}
+	_, err := w.Join(context.Background(), p.Account, p.ID, conn, s)
+	return err
+}
+
+// at is a new player at mapID's spawn.
+func at(t *testing.T, name, mapID string) model.Player {
+	t.Helper()
+	m, ok := loadData(t).Map(mapID)
+	if !ok {
+		t.Fatalf("no map %s", mapID)
+	}
+	return newPlayer(name, m.PlayerSpawn.X, m.PlayerSpawn.Y)
+}
+
 func TestWorld(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
 		saver := &fakeSaver{}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{}))
+		w := newWorld(t, saver, application.Options{})
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
 		go w.RunPersistence(ctx)
 
-		{ // one instance per map
-			for _, m := range data.Maps() {
-				inst, err := w.Instance(m.ID)
-				if err != nil || inst == nil {
-					t.Fatalf("%s: %v", m.ID, err)
-				}
-			}
-			if _, err := w.Instance("nowhere"); !errors.Is(err, model.ErrNoMap) {
+		{ // a character joins the map it was saved on; an unknown map is refused
+			if err := w.join(at(t, "Cass", "town"), "nowhere", "c-0", &sink{}); !errors.Is(err, model.ErrNoMap) {
 				t.Fatalf("unknown map: %v", err)
 			}
 		}
 
 		{ // instances run independently
-			town, _ := w.Instance("town")
-			forest, _ := w.Instance("forest")
-			a := newPlayer("Ayla", data.Town().PlayerSpawn.X, data.Town().PlayerSpawn.Y)
-			fm, _ := data.Map("forest")
-			b := newPlayer("Robin", fm.PlayerSpawn.X, fm.PlayerSpawn.Y)
 			sa, sb := &sink{}, &sink{}
-			if err := town.Join(ctx, a, sa); err != nil {
-				t.Fatal(err)
-			}
-			if err := forest.Join(ctx, b, sb); err != nil {
-				t.Fatal(err)
-			}
+			w.enter(t, at(t, "Ayla", "town"), "town", "c-1", sa)
+			w.enter(t, at(t, "Robin", "forest"), "forest", "c-2", sb)
 			time.Sleep(2 * tickInterval)
 			synctest.Wait()
 			if snap := sa.all()[0].(model.Snapshot); snap.MapID != "town" || len(snap.Players) != 1 {
@@ -135,25 +156,22 @@ func TestWorld(t *testing.T) {
 // "cp town" then "cp forest"; persist then saves them.
 func leaveAndRun(t *testing.T, saver *fakeSaver, persist func(ctx context.Context, w *application.World)) {
 	t.Helper()
-	data := loadData(t)
-	w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{CheckpointInterval: time.Hour}))
+	w := newWorld(t, saver, application.Options{CheckpointInterval: time.Hour})
 	ctx, cancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() { runDone <- w.Run(ctx) }()
 	for _, mapID := range []string{"town", "forest"} {
-		inst, _ := w.Instance(mapID)
-		m, _ := data.Map(mapID)
-		p := newPlayer("Ayla", m.PlayerSpawn.X, m.PlayerSpawn.Y)
-		if err := inst.Join(ctx, p, &sink{}); err != nil {
+		p := at(t, "Ayla", mapID)
+		w.enter(t, p, mapID, "c-1", &sink{})
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		if err := w.Leave(p.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		inst.LeaveConnection(p.ID, "")
-		time.Sleep(tickInterval)
-		synctest.Wait()
 	}
-	persist(ctx, w)
+	persist(ctx, w.World)
 	cancel()
 	if err := <-runDone; err != nil {
 		t.Fatal(err)
@@ -218,16 +236,12 @@ func TestShutdownFlushesWithoutRetrying(t *testing.T) {
 
 func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
 		saver := &fakeSaver{err: errors.New("db down")}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{CheckpointInterval: time.Second}))
+		w := newWorld(t, saver, application.Options{CheckpointInterval: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() { _ = w.Run(ctx) }()
 		go w.RunPersistence(ctx)
-		town, _ := w.Instance("town")
-		if err := town.Join(ctx, newPlayer("Ayla", data.Town().PlayerSpawn.X, data.Town().PlayerSpawn.Y), &sink{}); err != nil {
-			t.Fatal(err)
-		}
+		w.enter(t, at(t, "Ayla", "town"), "town", "c-1", &sink{})
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
 		if saver.count() < 2 {
@@ -267,3 +281,78 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 }
 
 func sim0() sim.Input { return sim.Input{} }
+
+// A join through a newer connection on another map takes the character off the old one.
+func TestAJoinElsewhereRemovesTheOlderPresence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t, &fakeSaver{}, application.Options{CheckpointInterval: time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { _ = w.Run(ctx) }()
+		ayla, bo := at(t, "Ayla", "town"), at(t, "Bo", "town")
+		watcher := &sink{}
+		w.enter(t, bo, "town", "c-bo", watcher)
+		w.enter(t, ayla, "town", "c-1", &sink{})
+		time.Sleep(tickInterval)
+		synctest.Wait()
+
+		forest := &sink{}
+		there := at(t, "Ayla", "forest")
+		there.ID = ayla.ID
+		w.enter(t, there, "forest", "c-2", forest)
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		if _, removed := seenIn(watcher, ayla.ID); removed != 1 {
+			t.Fatalf("the town removed her %d times, want once", removed)
+		}
+		if snaps := snapshots(forest); len(snaps) != 1 || snaps[0].MapID != "forest" {
+			t.Fatalf("forest snapshots %+v", snaps)
+		}
+		if err := w.Leave(ayla.ID, "c-1"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		if _, removed := seenIn(forest, ayla.ID); removed != 0 {
+			t.Fatal("the older connection's Leave removed her from the forest")
+		}
+	})
+}
+
+// A portal taken by a presence a newer join replaced moves nobody.
+func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		w := newWorld(t, &fakeSaver{}, application.Options{CheckpointInterval: time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func() { _ = w.Run(ctx) }()
+		townMap, _ := data.Map("town")
+		toForest := portalNamed(t, townMap, "to_forest")
+		ayla := newPlayer("Ayla", toForest.Arrival().X, toForest.Arrival().Y)
+		old := &sink{}
+		w.enter(t, ayla, "town", "c-1", old)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+
+		// The old connection takes the portal while the newer one joins the forest, before the town's tick.
+		if err := w.EnterPortal(ayla.ID, "c-1"); err != nil {
+			t.Fatal(err)
+		}
+		newer := &sink{}
+		there := at(t, "Ayla", "forest")
+		there.ID = ayla.ID
+		w.enter(t, there, "forest", "c-2", newer)
+		time.Sleep(3 * tickInterval)
+		synctest.Wait()
+		if snaps := snapshots(old); len(snaps) != 1 {
+			t.Fatalf("the old connection got %d snapshots: its presence was moved", len(snaps))
+		}
+		before := len(newer.deltas())
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		if len(newer.deltas()) == before {
+			t.Fatal("the newer connection stopped receiving deltas: the stale transfer replaced it")
+		}
+	})
+}

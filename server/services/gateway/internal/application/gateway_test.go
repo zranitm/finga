@@ -182,7 +182,7 @@ type world struct {
 	following   chan struct{} // closed once the gateway follows the stream
 }
 
-func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
+func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
 	w.mu.Lock()
 	err, flood, deliver := w.joinErr, w.flood, w.deliver
 	w.mu.Unlock()
@@ -194,7 +194,7 @@ func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kerne
 		if i == 0 {
 			d.Push = model.Snapshot{}
 		}
-		deliver(model.WorldEvent{Character: c, Delivery: d})
+		deliver(model.WorldEvent{Connection: conn, Delivery: d})
 	}
 	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
 }
@@ -212,7 +212,7 @@ func (w *world) reconnect() {
 	w.mu.Unlock()
 	deliver(model.WorldEvent{Subscribed: true})
 }
-func (w *world) Leave(context.Context, model.Presence, string) error             { return nil }
+func (w *world) Leave(context.Context, model.Presence) error                     { return nil }
 func (w *world) Input(context.Context, model.Presence, uint32, model.Keys) error { return nil }
 func (w *world) Attack(context.Context, model.Presence) error                    { return nil }
 func (w *world) EnterPortal(context.Context, model.Presence) error               { return nil }

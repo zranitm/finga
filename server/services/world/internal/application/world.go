@@ -4,6 +4,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -27,12 +28,14 @@ const (
 	saveRetryMax   = 5 * time.Second
 )
 
-// World is the registry of map instances, their shared persistence worker and transfers.
+// World is the registry of map instances and of where each joined character is, their shared
+// persistence worker and transfers.
 type World struct {
 	data      *gamedata.Data
 	opts      Options
 	instances map[string]*Instance
 	order     []string
+	presences presences
 	persist   chan model.Job
 	saver     Saver
 	log       *slog.Logger
@@ -41,7 +44,10 @@ type World struct {
 
 // New builds an instance for every map in data.
 func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *World {
-	w := &World{data: data, opts: opts, instances: map[string]*Instance{}, persist: make(chan model.Job, persistQueue), saver: saver, log: log, workers: opts.Workers}
+	w := &World{
+		data: data, opts: opts, instances: map[string]*Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
+		persist: make(chan model.Job, persistQueue), saver: saver, log: log, workers: opts.Workers,
+	}
 	opts.Transfer = w
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = NewInstance(m, data, w.persist, opts)
@@ -50,8 +56,8 @@ func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *Worl
 	return w
 }
 
-// Instance finds a map's actor.
-func (w *World) Instance(mapID string) (*Instance, error) {
+// instance finds a map's actor.
+func (w *World) instance(mapID string) (*Instance, error) {
 	i, ok := w.instances[mapID]
 	if !ok {
 		return nil, model.ErrNoMap
@@ -59,7 +65,8 @@ func (w *World) Instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-// Join loads the account's character, grants its starter items and joins its saved map.
+// Join loads the account's character, grants its starter items and joins its saved map through conn.
+// An older presence of the character on another map leaves it; one on the same map is replaced there.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	c, err := w.opts.Characters.Load(ctx, id, account)
 	if err != nil {
@@ -68,7 +75,7 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err := w.opts.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
 		return model.View{}, fmt.Errorf("starter items: %w", err)
 	}
-	inst, err := w.Instance(c.MapID)
+	inst, err := w.instance(c.MapID)
 	if err != nil {
 		return model.View{}, err
 	}
@@ -78,7 +85,17 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{})
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
-	if err := inst.Join(ctx, p, sink); err != nil {
+	at := presence{inst: inst, conn: conn}
+	prev, had := w.presences.place(id, at)
+	err = inst.Join(ctx, p, sink)
+	if errors.Is(err, model.ErrBusy) {
+		w.presences.undo(id, at, prev, had) // never posted
+		return model.View{}, err
+	}
+	if had && prev.inst != inst {
+		prev.inst.LeaveConnection(id, prev.conn)
+	}
+	if err != nil {
 		return model.View{}, err
 	}
 	return model.View{
@@ -89,12 +106,16 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 }
 
 // Transfer joins the player to another map on its own goroutine, so the calling tick never waits.
+// A presence that a newer join replaced, or whose connection left, is not moved.
 func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	target, ok := w.instances[mapID]
 	if !ok {
 		if w.log != nil {
 			w.log.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
 		}
+		return
+	}
+	if !w.presences.move(p.ID, p.Connection, target) {
 		return
 	}
 	w.opts.Panics.Go(context.Background(), panics.FlowJob, func() {

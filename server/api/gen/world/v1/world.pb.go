@@ -96,9 +96,14 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 
 // Presence routes a command to the map the caller believes the character is on.
 type Presence struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
-	MapId         string                 `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	// Ignored: the world knows each character's map; buf's FILE rules keep a published field.
+	//
+	// Deprecated: Marked as deprecated in internal/world/v1/world.proto.
+	MapId string `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	// The connection the character joined through; a command from any other is ignored.
+	ConnectionId  string `protobuf:"bytes,3,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -140,9 +145,17 @@ func (x *Presence) GetCharacterId() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in internal/world/v1/world.proto.
 func (x *Presence) GetMapId() string {
 	if x != nil {
 		return x.MapId
+	}
+	return ""
+}
+
+func (x *Presence) GetConnectionId() string {
+	if x != nil {
+		return x.ConnectionId
 	}
 	return ""
 }
@@ -412,8 +425,10 @@ func (x *DeliverRequest) GetGatewayId() string {
 // DeliverResponse is one event for one player.
 type DeliverResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Empty only for Subscribed.
+	// Empty only for Subscribed, as is connection_id.
 	CharacterId string `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	// The connection the character joined through; the gateway routes by it.
+	ConnectionId string `protobuf:"bytes,15,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	// The instance's tick when the event happened.
 	Tick uint64 `protobuf:"varint,2,opt,name=tick,proto3" json:"tick,omitempty"`
 	// Types that are valid to be assigned to Event:
@@ -468,6 +483,13 @@ func (*DeliverResponse) Descriptor() ([]byte, []int) {
 func (x *DeliverResponse) GetCharacterId() string {
 	if x != nil {
 		return x.CharacterId
+	}
+	return ""
+}
+
+func (x *DeliverResponse) GetConnectionId() string {
+	if x != nil {
+		return x.ConnectionId
 	}
 	return ""
 }
@@ -1935,9 +1957,12 @@ func (x *JoinResponse) GetCharacter() *CharacterView {
 }
 
 type LeaveRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Presence      *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
-	ConnectionId  string                 `protobuf:"bytes,2,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	// Ignored: the presence names the connection; buf's FILE rules keep a published field.
+	//
+	// Deprecated: Marked as deprecated in internal/world/v1/world.proto.
+	ConnectionId  string `protobuf:"bytes,2,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1979,6 +2004,7 @@ func (x *LeaveRequest) GetPresence() *Presence {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in internal/world/v1/world.proto.
 func (x *LeaveRequest) GetConnectionId() string {
 	if x != nil {
 		return x.ConnectionId
@@ -2458,10 +2484,11 @@ var File_internal_world_v1_world_proto protoreflect.FileDescriptor
 
 const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\n" +
-	"\x1dinternal/world/v1/world.proto\x12\x11internal.world.v1\x1a%internal/character/v1/character.proto\x1a\x1binternal/item/v1/item.proto\"D\n" +
+	"\x1dinternal/world/v1/world.proto\x12\x11internal.world.v1\x1a%internal/character/v1/character.proto\x1a\x1binternal/item/v1/item.proto\"m\n" +
 	"\bPresence\x12!\n" +
-	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
-	"\x06map_id\x18\x02 \x01(\tR\x05mapId\"h\n" +
+	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x19\n" +
+	"\x06map_id\x18\x02 \x01(\tB\x02\x18\x01R\x05mapId\x12#\n" +
+	"\rconnection_id\x18\x03 \x01(\tR\fconnectionId\"h\n" +
 	"\x04Keys\x12\x12\n" +
 	"\x04left\x18\x01 \x01(\bR\x04left\x12\x14\n" +
 	"\x05right\x18\x02 \x01(\bR\x05right\x12\x0e\n" +
@@ -2485,9 +2512,10 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x01y\x18\r \x01(\x01R\x01y\"/\n" +
 	"\x0eDeliverRequest\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\x9f\x06\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\xc4\x06\n" +
 	"\x0fDeliverResponse\x12!\n" +
-	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x12\n" +
+	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12#\n" +
+	"\rconnection_id\x18\x0f \x01(\tR\fconnectionId\x12\x12\n" +
 	"\x04tick\x18\x02 \x01(\x04R\x04tick\x12?\n" +
 	"\n" +
 	"subscribed\x18\x03 \x01(\v2\x1d.internal.world.v1.SubscribedH\x00R\n" +
@@ -2601,10 +2629,10 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"account_id\x18\x03 \x01(\tR\taccountId\x12!\n" +
 	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"N\n" +
 	"\fJoinResponse\x12>\n" +
-	"\tcharacter\x18\x01 \x01(\v2 .internal.world.v1.CharacterViewR\tcharacter\"l\n" +
+	"\tcharacter\x18\x01 \x01(\v2 .internal.world.v1.CharacterViewR\tcharacter\"p\n" +
 	"\fLeaveRequest\x127\n" +
-	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12#\n" +
-	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\"\x0f\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12'\n" +
+	"\rconnection_id\x18\x02 \x01(\tB\x02\x18\x01R\fconnectionId\"\x0f\n" +
 	"\rLeaveResponse\"\x86\x01\n" +
 	"\fInputRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x10\n" +

@@ -16,6 +16,7 @@ import (
 type streamSink struct {
 	sub       *hub.Sub[*worldv1.DeliverResponse]
 	character string
+	conn      string
 	log       *slog.Logger
 }
 
@@ -25,7 +26,7 @@ func (s *streamSink) Send(e model.Event) bool {
 	if m == nil {
 		return true // nothing the contract carries; not a reason to drop the player
 	}
-	m.CharacterId = s.character
+	m.CharacterId, m.ConnectionId = s.character, s.conn
 	return s.sub.Send(m)
 }
 

@@ -30,15 +30,13 @@ type Join struct {
 	subs     uint64   // the world subscriptions when the join began
 }
 
-// Join claims character for s and joins it to the world, retrying while the world cannot take it yet.
-// Deliveries wait until Finish sends Welcome; on an error nothing stays held or claimed.
+// Join joins character to the world through s's connection, retrying while the world cannot take it
+// yet, then claims it for s. Deliveries wait until Finish sends Welcome; on an error nothing stays held or claimed.
 func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountID, sessionID kernel.SessionID, character kernel.CharacterID) (*Join, error) {
 	// Rejoins wait, and deliveries are held so a Snapshot that beats the join follows Welcome.
 	s.joinMu.Lock()
 	s.out.hold()
 	r.mu.Lock()
-	previous := r.byCharacter[character]
-	r.byCharacter[character] = s
 	s.account, s.sessionID, s.character.ID = account, sessionID, character
 	// A join succeeds only once the world has our stream, so the first subscription is never a break.
 	subs := max(r.worldSubs, 1)
@@ -48,18 +46,16 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	if err != nil {
 		s.out.abort()
 		r.mu.Lock()
-		if r.byCharacter[character] == s {
-			if previous != nil {
-				r.byCharacter[character] = previous
-			} else {
-				delete(r.byCharacter, character)
-			}
-		}
 		s.character.ID = kernel.CharacterID{}
 		r.mu.Unlock()
 		s.joinMu.Unlock()
 		return nil, err
 	}
+	// Only once the world has loaded the character as the account's may its social deliveries reach s.
+	r.mu.Lock()
+	previous := r.byCharacter[character]
+	r.byCharacter[character] = s
+	r.mu.Unlock()
 	return &Join{Joined: joined, r: r, s: s, previous: previous, subs: subs}, nil
 }
 
@@ -167,7 +163,7 @@ func waitable(err error) bool {
 func (r *Registry) Leave(s *Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaveTimeout)
 	defer cancel()
-	if err := r.deps.World.Leave(ctx, s.Presence(), s.connID); err != nil {
+	if err := r.deps.World.Leave(ctx, s.Presence()); err != nil {
 		r.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.character.ID, "err", err)
 	}
 }

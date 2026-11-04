@@ -188,21 +188,21 @@ func TestJoinSendsTheSnapshotThenDeltasOnTheGatewaysStream(t *testing.T) {
 		t.Fatal(err)
 	}
 	snap := first.GetSnapshot()
-	if first.GetCharacterId() != ayla.ID.String() || snap.GetMapId() != "town" {
+	if first.GetCharacterId() != ayla.ID.String() || first.GetConnectionId() != "conn-1" || snap.GetMapId() != "town" {
 		t.Fatalf("first delivery %+v", first)
 	}
 	if _, ok := playerIn(snap.GetPlayers(), ayla.ID.String()); !ok {
 		t.Fatalf("snapshot %+v", snap)
 	}
 
-	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), MapId: "town"}
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "conn-1"}
 	if _, err := s.c.Input(s.ctx, &worldv1.InputRequest{Presence: presence, Seq: 1, Keys: &worldv1.Keys{Right: true}}); err != nil {
 		t.Fatal(err)
 	}
 	var last uint64
 	for range 3 {
 		m := until(t, gw, "a delta", func(m *worldv1.DeliverResponse) bool { return m.GetDelta() != nil })
-		if m.GetCharacterId() != ayla.ID.String() || m.GetTick() <= last {
+		if m.GetCharacterId() != ayla.ID.String() || m.GetConnectionId() != "conn-1" || m.GetTick() <= last {
 			t.Fatalf("delta %+v after tick %d", m, last)
 		}
 		last = m.GetTick()
@@ -212,18 +212,18 @@ func TestJoinSendsTheSnapshotThenDeltasOnTheGatewaysStream(t *testing.T) {
 	}
 }
 
-func TestACommandGoesToTheMapItNames(t *testing.T) {
+func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
 	until(t, gw, "the snapshot", func(m *worldv1.DeliverResponse) bool { return m.GetSnapshot() != nil })
 
-	// The forest ignores her seq 1, so the town's input with the same seq applies.
-	if _, err := s.c.Input(s.ctx, &worldv1.InputRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), MapId: "forest"}, Seq: 1, Keys: &worldv1.Keys{Right: true}}); err != nil {
+	// The world ignores an older connection's seq 1, so the joined one's input with the same seq applies.
+	if _, err := s.c.Input(s.ctx, &worldv1.InputRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "conn-old"}, Seq: 1, Keys: &worldv1.Keys{Right: true}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.c.Input(s.ctx, &worldv1.InputRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), MapId: "town"}, Seq: 1, Keys: &worldv1.Keys{Left: true}}); err != nil {
+	if _, err := s.c.Input(s.ctx, &worldv1.InputRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "conn-1"}, Seq: 1, Keys: &worldv1.Keys{Left: true}}); err != nil {
 		t.Fatal(err)
 	}
 	m := until(t, gw, "her move", func(m *worldv1.DeliverResponse) bool {
@@ -231,18 +231,24 @@ func TestACommandGoesToTheMapItNames(t *testing.T) {
 		return ok && p.GetX() != ayla.X
 	})
 	if p, _ := playerIn(m.GetDelta().GetPlayers(), ayla.ID.String()); p.GetX() >= ayla.X {
-		t.Fatalf("moved right to %v from %v: the forest's input reached the town", p.GetX(), ayla.X)
+		t.Fatalf("moved right to %v from %v: the older connection's input counted", p.GetX(), ayla.X)
 	}
 
-	t.Run("a map the world does not run", func(t *testing.T) {
-		_, err := s.c.Attack(s.ctx, &worldv1.AttackRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), MapId: "limbo"}})
-		if r, _ := grpcx.ReasonOf(err); r != grpcx.Key(worldv1.Reason_REASON_NO_MAP) {
+	t.Run("a character that has not joined is ignored", func(t *testing.T) {
+		bo := s.character("Bo")
+		if _, err := s.c.Attack(s.ctx, &worldv1.AttackRequest{Presence: &worldv1.Presence{CharacterId: bo.ID.String(), ConnectionId: "conn-1"}}); err != nil {
 			t.Fatalf("err = %v", err)
 		}
 	})
 	t.Run("a bad character ID", func(t *testing.T) {
-		_, err := s.c.PickUp(s.ctx, &worldv1.PickUpRequest{Presence: &worldv1.Presence{CharacterId: "nope", MapId: "town"}})
+		_, err := s.c.PickUp(s.ctx, &worldv1.PickUpRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "conn-1"}})
 		if r, _ := grpcx.ReasonOf(err); r != grpcx.Key(worldv1.Reason_REASON_BAD_ID) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("no connection", func(t *testing.T) {
+		_, err := s.c.EnterPortal(s.ctx, &worldv1.EnterPortalRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String()}})
+		if status.Code(err) != codes.InvalidArgument {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -257,11 +263,10 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 	until(t, gw, "Bo's snapshot", func(m *worldv1.DeliverResponse) bool {
 		return m.GetCharacterId() == bo.ID.String() && m.GetSnapshot() != nil
 	})
-	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), MapId: "town"}
-	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: presence, ConnectionId: "conn-old"}); err != nil {
+	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "conn-old"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: presence, ConnectionId: "conn-a"}); err != nil {
+	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "conn-a"}}); err != nil {
 		t.Fatal(err)
 	}
 	// The first Leave changes nothing, the second removes her, and Bo sees her go once.
@@ -271,7 +276,7 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 	if got := m.GetDelta().GetRemovedPlayers(); len(got) != 1 || got[0] != ayla.ID.String() {
 		t.Fatalf("removed %v", got)
 	}
-	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: presence}); status.Code(err) != codes.InvalidArgument {
+	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String()}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("leave without a connection: %v", err)
 	}
 }

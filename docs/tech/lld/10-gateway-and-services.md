@@ -146,12 +146,14 @@ One proto package per service under `api/proto/internal/`. A request names its o
 
 | RPC | Request | Response |
 | --- | --- | --- |
-| `Deliver` (stream) | gateway_id | Subscribed (boot_id), then one message per event for a player who joined through this gateway: character_id, tick, and one of Snapshot, Delta, Teleport, Damage, Died, Respawned, ExpGained, LevelUp, Chat, InventoryChanged, PickupFailed (with the item service's reason) |
+| `Deliver` (stream) | gateway_id | Subscribed (boot_id), then one message per event for a player who joined through this gateway: character_id, connection_id (the connection it joined through), tick, and one of Snapshot, Delta, Teleport, Damage, Died, Respawned, ExpGained, LevelUp, Chat, InventoryChanged, PickupFailed (with the item service's reason) |
 | `Join` | gateway_id, connection_id, account_id, character_id | the character as the player sees it (stats, HP and MP with their maximums, map, position) |
-| `Leave` | character_id, map_id, connection_id | |
-| `Input` | character_id, map_id, seq, keys | |
-| `Attack`, `PickUp`, `EnterPortal` | character_id, map_id | |
-| `Say` | character_id, map_id, sender name, text (already cleaned by social) | |
+| `Leave` | the presence: character_id, connection_id | |
+| `Input` | the presence, seq, keys | |
+| `Attack`, `PickUp`, `EnterPortal` | the presence | |
+| `Say` | the presence, sender name, text (already cleaned by social) | |
+
+The world keeps a registry of presences: each joined character's map and the connection it joined through. A command or Leave goes to the character's map; one from any other connection is ignored, so an older connection can never move or remove a newer presence. A join through a newer connection on another map takes the character off the old map, and a transfer of a presence a newer join replaced, or whose connection left, is dropped. `Presence.map_id` and `LeaveRequest.connection_id` are deprecated and ignored (buf's FILE rules keep a published field).
 
 **`internal.social.v1.SocialService`**
 
@@ -174,24 +176,24 @@ The gateway serves no gRPC.
 1. The gateway's per-player queue runs Hello (the read loop only decodes and routes). Version check as today.
 2. `account.Validate`, then `account.Rotate`: the token in Welcome is the rotated one (step 16).
 3. `world.Join(gateway_id, connection_id, account_id, character_id)`. The world loads the character from the character service (ownership checked there: someone else's character is `not found`, and the gateway kicks `unauthenticated` as today), asks the item service for the starter items (idempotent, keyed by the character ID: a no-op unless character creation crashed before granting them), and joins the map instance, which sends the Snapshot through the delivery stream. The reply is the character as the player sees it.
-4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order. The join's answer and its Snapshot travel on different calls, so the Snapshot can also come after Welcome; until it does, anything else for the character belongs to an older presence and is dropped.
+4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order. World deliveries are routed by connection ID, so a session only ever receives its own presence's; social deliveries go by character, and a joining session takes the character for them only once the world join returns, so a Hello naming someone else's character takes nothing from them.
 5. `social.Online` with the gateway's ID, so party traffic finds this gateway.
 
-A failure after the join leaves the world (`world.Leave`) before the connection closes. A newer connection of the same account still kicks the older one with `logged_in_elsewhere`; the older one's `Leave` carries its own connection ID, so it can never remove the newer presence.
+A failure after the join leaves the world (`world.Leave`) before the connection closes. A newer connection of the same account still kicks the older one with `logged_in_elsewhere`; the older one's `Leave` and commands carry its own connection ID, so they can never touch the newer presence.
 
 ### Commands
 
 - The read loop decodes, applies the per-account rate limits, and puts the message on the player's command queue. It never blocks on a service. A full queue answers `rate_limited` when the message has a request ID, as an over-limit command does.
-- One goroutine per player drains the queue in order, with a context that ends when the connection closes. Input, Attack, PickUp and EnterPortal become unary world calls carrying the character and the map; inventory commands call the item service; party commands call social; ChatSend asks social, and a map line goes on to `world.Say`.
+- One goroutine per player drains the queue in order, with a context that ends when the connection closes. Input, Attack, PickUp and EnterPortal become unary world calls carrying the presence (the character and the connection); inventory commands call the item service; party commands call social; ChatSend asks social, and a map line goes on to `world.Say`.
 - Inputs are unary calls, as the plan says: ordered by the queue and by the world's sequence numbers. A client-streamed input channel is the Stage 2 option if the call rate shows in the tick p99.
 - Ping never leaves the gateway.
 
 ### Deliveries
 
 - At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process). It does not hold its listener for them: a Hello that comes before the world's stream is open (or while the world restarts) retries the join with backoff until the join timeout.
-- The world's sink for a player is the gateway's stream plus the character ID. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players. A slow player is still the gateway's to close (4001), as today.
-- The gateway's world and social clients turn each stream event into its push in the gateway's model (`model.Snapshot`, `model.Delta`, … built from the model's views, in `clients/delivery.go`); the use cases route it to the player's session, and the WebSocket handler turns it into its protocol message (`handler/ws/push`) on the player's connection, as it does a command's reply. A type switch over the pushes must name every one (`gochecksumtype`).
-- A Teleport moves the session to the target map, so later commands carry the new map ID.
+- The world's sink for a player is the gateway's stream plus the character and connection IDs. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players. A slow player is still the gateway's to close (4001), as today.
+- The gateway's world and social clients turn each stream event into its push in the gateway's model (`model.Snapshot`, `model.Delta`, … built from the model's views, in `clients/delivery.go`); the use cases route it to the player's session (a world delivery by its connection ID, a social one by character), and the WebSocket handler turns it into its protocol message (`handler/ws/push`) on the player's connection, as it does a command's reply. A type switch over the pushes must name every one (`gochecksumtype`).
+- A Teleport moves the session to the target map; commands need no map, since the world knows where each character is.
 
 ### REST
 

@@ -46,8 +46,9 @@ type fakeWorld struct {
 	worldv1.UnimplementedWorldServiceServer
 	mu         sync.Mutex
 	chars      map[kernel.CharacterID]fakeCharacter
+	conns      map[kernel.CharacterID]string // the connection each character last joined through
 	joinErr    error
-	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot
+	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot, as an older connection's
 	joined     []*worldv1.JoinRequest
 	left       []*worldv1.LeaveRequest
 	inputs     []*worldv1.InputRequest
@@ -57,6 +58,8 @@ type fakeWorld struct {
 	says       []*worldv1.SayRequest
 	calls      []string      // commands in arrival order
 	hold       chan struct{} // set: Subscribed goes out only during the first join
+	joinGate   chan struct{} // set: a join reports on joining, then waits for the gate to close
+	joining    chan struct{}
 	block      chan struct{} // when set, Attack waits for it (or its context)
 	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
 	tick       uint64
@@ -79,7 +82,8 @@ func newFakeWorld() *fakeWorld {
 			robinID: {alice, &worldv1.CharacterView{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608}},
 			brunoID: {bob, &worldv1.CharacterView{Id: brunoID.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608}},
 		},
-		boot: "boot-1", events: make(chan *worldv1.DeliverResponse, 256), end: make(chan struct{}), subscribed: make(chan struct{}, 8),
+		conns: map[kernel.CharacterID]string{},
+		boot:  "boot-1", events: make(chan *worldv1.DeliverResponse, 256), end: make(chan struct{}), subscribed: make(chan struct{}, 8),
 	}
 }
 
@@ -139,6 +143,13 @@ func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.
 		time.Sleep(100 * time.Millisecond)
 	}
 	f.mu.Lock()
+	gate, joining := f.joinGate, f.joining
+	f.mu.Unlock()
+	if gate != nil {
+		joining <- struct{}{}
+		<-gate
+	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.joinErr != nil {
 		return nil, f.joinErr
@@ -152,13 +163,14 @@ func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.
 		return nil, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
 	f.joined = append(f.joined, req)
+	f.conns[id] = req.GetConnectionId()
 	for _, m := range f.before {
-		m.CharacterId = id.String()
+		m.CharacterId, m.ConnectionId = id.String(), "conn-older"
 		f.events <- m
 	}
 	f.tick++
 	v := c.view
-	f.events <- &worldv1.DeliverResponse{CharacterId: id.String(), Tick: f.tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
+	f.events <- &worldv1.DeliverResponse{CharacterId: id.String(), ConnectionId: req.GetConnectionId(), Tick: f.tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
 		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
 	}}}
 	return &worldv1.JoinResponse{Character: v}, nil
@@ -287,7 +299,9 @@ func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.Sa
 }
 
 func (f *fakeWorld) push(to kernel.CharacterID, m *worldv1.DeliverResponse) {
-	m.CharacterId = to.String()
+	f.mu.Lock()
+	m.CharacterId, m.ConnectionId = to.String(), f.conns[to]
+	f.mu.Unlock()
 	f.events <- m
 }
 

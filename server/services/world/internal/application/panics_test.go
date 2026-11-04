@@ -29,18 +29,13 @@ func (p *panicsOn) ObserveTick(mapID string, _, _ time.Duration) {
 
 func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
 		saver := &fakeSaver{}
 		obs := &panicsOn{mapID: "cave"}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{Observer: obs}))
+		w := newWorld(t, saver, application.Options{Observer: obs})
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(context.Background()) }()
 
-		forest, _ := w.Instance("forest")
-		fm, _ := data.Map("forest")
-		if err := forest.Join(context.Background(), newPlayer("Robin", fm.PlayerSpawn.X, fm.PlayerSpawn.Y), &sink{}); err != nil {
-			t.Fatal(err)
-		}
+		w.enter(t, at(t, "Robin", "forest"), "forest", "c-1", &sink{})
 		obs.armed.Store(true)
 
 		err := <-runDone

@@ -13,7 +13,7 @@ func (g *Gateway) worldDelivered(ev model.WorldEvent) {
 		}
 		return
 	}
-	if s := g.sessions.ByCharacter(ev.Character); s != nil {
+	if s := g.sessions.ByConn(ev.Connection); s != nil {
 		s.Deliver(ev.Delivery)
 	}
 }

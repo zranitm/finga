@@ -36,9 +36,9 @@ func (w World) Join(ctx context.Context, gateway, conn string, account kernel.Ac
 	return model.Joined{Character: characterView(c), MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY()}, nil
 }
 
-// Leave removes the player if it joined through conn.
-func (w World) Leave(ctx context.Context, p model.Presence, conn string) error {
-	_, err := w.c.Leave(ctx, &worldv1.LeaveRequest{Presence: presence(p), ConnectionId: conn})
+// Leave removes the player if it joined through the presence's connection.
+func (w World) Leave(ctx context.Context, p model.Presence) error {
+	_, err := w.c.Leave(ctx, &worldv1.LeaveRequest{Presence: presence(p)})
 	return errmap.Wrap(err)
 }
 
@@ -81,23 +81,19 @@ func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver fun
 			deliver(model.WorldEvent{Subscribed: true})
 			return
 		}
-		id, err := kernel.ParseCharacterID(m.GetCharacterId())
-		if err != nil {
-			return
-		}
 		p, ok := worldPush(m)
 		if !ok {
 			return
 		}
 		if f := m.GetPickupFailed(); f != nil && f.GetErrorReason() == "" {
-			w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", id)
+			w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", m.GetCharacterId())
 		}
-		deliver(model.WorldEvent{Character: id, Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
+		deliver(model.WorldEvent{Connection: m.GetConnectionId(), Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
 	}, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})
 }
 
 func presence(p model.Presence) *worldv1.Presence {
-	return &worldv1.Presence{CharacterId: p.Character.String(), MapId: p.MapID}
+	return &worldv1.Presence{CharacterId: p.Character.String(), ConnectionId: p.Connection}
 }

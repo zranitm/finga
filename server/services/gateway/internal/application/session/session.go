@@ -64,13 +64,12 @@ func (s *Session) DeliverNow(d model.Delivery) { s.outbox.Deliver(d) }
 // End ends the player's session; the first End wins.
 func (s *Session) End(reason model.EndReason) { s.outbox.End(reason) }
 
-// out holds deliveries until a join's Welcome or MapChange is out, drops those before its Snapshot
-// (an older presence's), and shifts ticks so they never go back after a world restart.
+// out holds deliveries until a join's Welcome or MapChange is out, and shifts ticks so they never go
+// back after a world restart. The world routes by connection, so every delivery is this session's.
 type out struct {
 	mu       sync.Mutex
 	mapID    string
 	holding  bool
-	awaiting bool // the join's Snapshot has not arrived yet
 	pending  []model.Delivery
 	lastTick uint64
 	offset   uint64
@@ -81,19 +80,13 @@ type out struct {
 func (o *out) hold() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.holding, o.awaiting, o.pending, o.rebase = true, true, nil, true
+	o.holding, o.pending, o.rebase = true, nil, true
 }
 
-// deliver emits, holds or drops a delivery; false means too much is waiting.
+// deliver emits or holds a delivery; false means too much is waiting.
 func (o *out) deliver(d model.Delivery) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	if o.awaiting {
-		if _, ok := d.Push.(model.Snapshot); !ok {
-			return true
-		}
-		o.awaiting = false
-	}
 	if !o.holding {
 		o.emit(d)
 		return true
@@ -119,11 +112,11 @@ func (o *out) release(mapID string, first func()) {
 	o.holding, o.pending = false, nil
 }
 
-// abort ends a join that failed: nothing it held, or awaited, is coming.
+// abort ends a join that failed: nothing it held is coming.
 func (o *out) abort() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
-	o.holding, o.awaiting, o.pending, o.rebase = false, false, nil, false
+	o.holding, o.pending, o.rebase = false, nil, false
 }
 
 // emit forwards a delivery with its tick shifted. Called with mu held.
@@ -142,11 +135,9 @@ func (o *out) emit(d model.Delivery) {
 	o.outbox.Deliver(d)
 }
 
-// Presence is where the player is; every world command carries it.
+// Presence is the player and its connection; every world command carries it.
 func (s *Session) Presence() model.Presence {
-	s.out.mu.Lock()
-	defer s.out.mu.Unlock()
-	return model.Presence{Character: s.character.ID, MapID: s.out.mapID}
+	return model.Presence{Character: s.character.ID, Connection: s.connID}
 }
 
 // Actor is who acts on items.

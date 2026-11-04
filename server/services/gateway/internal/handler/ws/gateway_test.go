@@ -200,7 +200,11 @@ func (c *client) read() (wsconn.Message, websocket.StatusCode) {
 	defer cancel()
 	frame, data, err := c.c.Read(ctx)
 	if err != nil {
-		return wsconn.Message{}, websocket.CloseStatus(err)
+		status := websocket.CloseStatus(err)
+		if status == -1 {
+			c.t.Fatalf("read: %v", err)
+		}
+		return wsconn.Message{}, status
 	}
 	if frame != c.frame {
 		c.t.Fatalf("a %v frame on a %s connection", frame, c.c.Subprotocol())
@@ -371,7 +375,7 @@ func TestIdentityComesFromTheConnection(t *testing.T) {
 	h.world.mu.Lock()
 	in := append([]*worldv1.InputRequest(nil), h.world.inputs...)
 	h.world.mu.Unlock()
-	if len(in) != 1 || in[0].GetPresence().GetCharacterId() != aylaID.String() || in[0].GetPresence().GetMapId() != "town" || in[0].GetSeq() != 5 || !in[0].GetKeys().GetRight() {
+	if len(in) != 1 || in[0].GetPresence().GetCharacterId() != aylaID.String() || in[0].GetPresence().GetConnectionId() != h.world.joins()[0].GetConnectionId() || in[0].GetSeq() != 5 || !in[0].GetKeys().GetRight() {
 		t.Fatalf("inputs %+v", in)
 	}
 	t.Run("a second Hello on an active session is refused", func(t *testing.T) {
@@ -392,7 +396,7 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 	second.expect("Snapshot")
 	first.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 	left := waitFor(t, "Ayla's leave", h.world.leaves, 1)
-	if left[0].GetPresence().GetCharacterId() != aylaID.String() || left[0].GetConnectionId() != h.world.joins()[0].GetConnectionId() {
+	if left[0].GetPresence().GetCharacterId() != aylaID.String() || left[0].GetPresence().GetConnectionId() != h.world.joins()[0].GetConnectionId() {
 		t.Fatalf("left %+v, want Ayla's, through her connection", left)
 	}
 	second.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
@@ -462,7 +466,7 @@ func TestCloseLeavesTheMap(t *testing.T) {
 	c.expect("Snapshot")
 	_ = c.c.Close(websocket.StatusNormalClosure, "bye")
 	left := waitFor(t, "the leave", h.world.leaves, 1)
-	if p := left[0].GetPresence(); p.GetCharacterId() != aylaID.String() || p.GetMapId() != "town" || left[0].GetConnectionId() != h.world.joins()[0].GetConnectionId() {
+	if p := left[0].GetPresence(); p.GetCharacterId() != aylaID.String() || p.GetConnectionId() != h.world.joins()[0].GetConnectionId() {
 		t.Fatalf("left %+v", left)
 	}
 	deadline := time.Now().Add(2 * time.Second)
@@ -574,7 +578,7 @@ func TestAttackIsRoutedAsTheSender(t *testing.T) {
 	waitFor(t, "the attack", h.world.attackList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
-	if len(h.world.attacks) != 1 || h.world.attacks[0].GetCharacterId() != aylaID.String() || h.world.attacks[0].GetMapId() != "town" {
+	if len(h.world.attacks) != 1 || h.world.attacks[0].GetCharacterId() != aylaID.String() || h.world.attacks[0].GetConnectionId() != h.world.joined[0].GetConnectionId() {
 		t.Fatalf("attacks %v", h.world.attacks)
 	}
 }
@@ -624,7 +628,7 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 	}
 }
 
-func TestTeleportRepointsTheSession(t *testing.T) {
+func TestCommandsAfterATeleportStillCarryTheConnection(t *testing.T) {
 	h := newHarness(t)
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
@@ -635,8 +639,8 @@ func TestTeleportRepointsTheSession(t *testing.T) {
 	waitFor(t, "the input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
-	if len(h.world.inputs) != 1 || h.world.inputs[0].GetPresence().GetMapId() != "forest" {
-		t.Fatalf("inputs %+v; the session still points at the town", h.world.inputs)
+	if len(h.world.inputs) != 1 || h.world.inputs[0].GetPresence().GetConnectionId() != h.world.joined[0].GetConnectionId() {
+		t.Fatalf("inputs %+v", h.world.inputs)
 	}
 }
 
@@ -842,6 +846,33 @@ func social(t *testing.T, fs *fakeSocial) *harness {
 	return h
 }
 
+// A Hello naming another account's character takes none of its player's deliveries while the world checks it.
+func TestAHelloForAnotherAccountsCharacterLeavesItsPlayerAlone(t *testing.T) {
+	fs := newFakeSocial()
+	h := social(t, fs)
+	ayla := h.dial(t)
+	ayla.hello(tokenAlice, aylaID)
+	ayla.expect("Snapshot")
+	gate, joining := make(chan struct{}), make(chan struct{}, 1)
+	h.world.mu.Lock()
+	h.world.joinGate, h.world.joining = gate, joining
+	h.world.mu.Unlock()
+
+	intruder := h.dial(t)
+	intruder.hello(tokenBob, aylaID)
+	<-joining
+	fs.push(aylaID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{InviteId: "inv-1", FromId: brunoID.String(), FromName: "Bruno"}}})
+	if inv := ayla.expect("PartyInvited").Data.(*clientv1.PartyInvited); inv.GetInviteId() != "inv-1" {
+		t.Fatalf("invited %+v", inv)
+	}
+	close(gate)
+	intruder.expectKick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
+	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 7}}})
+	if d := ayla.expect("Delta").Data.(*clientv1.Delta); d.AckSeq != 7 {
+		t.Fatalf("delta %+v", d)
+	}
+}
+
 func TestChatRouting(t *testing.T) {
 	fs := newFakeSocial()
 	fs.recipients = []kernel.CharacterID{aylaID, brunoID}
@@ -858,7 +889,7 @@ func TestChatRouting(t *testing.T) {
 		waitFor(t, "the map line", h.world.sayList, 1)
 		h.world.mu.Lock()
 		defer h.world.mu.Unlock()
-		if len(h.world.says) != 1 || h.world.says[0].GetPresence().GetCharacterId() != aylaID.String() || h.world.says[0].GetPresence().GetMapId() != "town" || h.world.says[0].GetSenderName() != "Ayla" || h.world.says[0].GetText() != "hello map" {
+		if len(h.world.says) != 1 || h.world.says[0].GetPresence().GetCharacterId() != aylaID.String() || h.world.says[0].GetPresence().GetConnectionId() == "" || h.world.says[0].GetSenderName() != "Ayla" || h.world.says[0].GetText() != "hello map" {
 			t.Fatalf("says %+v", h.world.says)
 		}
 	})
@@ -1194,7 +1225,7 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 
 func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 	h := newHarness(t)
-	// Before Join answers: an older presence's Delta (dropped), the Snapshot, a Delta; the rest follow Welcome.
+	// Before Join answers: an older connection's Delta (not this session's), the Snapshot, a Delta; the rest follow Welcome.
 	h.world.before = []*worldv1.DeliverResponse{{Tick: 1, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 99}}}}
 	h.world.mu.Lock()
 	h.world.tick = 40
@@ -1260,8 +1291,8 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 	waitFor(t, "Bruno's input", h.world.inputList, 1)
 	h.world.mu.Lock()
 	defer h.world.mu.Unlock()
-	if in := h.world.inputs; len(in) != 1 || in[0].GetPresence().GetMapId() != "forest" {
-		t.Fatalf("inputs %+v: commands must follow the rejoined map", in)
+	if in := h.world.inputs; len(in) != 1 || in[0].GetPresence().GetConnectionId() != h.world.joined[1].GetConnectionId() {
+		t.Fatalf("inputs %+v: commands must carry the rejoined connection", in)
 	}
 	if online := h.obs.onlineAfter(t, 2); online != 2 {
 		t.Fatalf("players online %d; a rejoin is not a new player", online)

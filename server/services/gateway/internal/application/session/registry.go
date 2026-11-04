@@ -27,8 +27,8 @@ type Outbox interface {
 type World interface {
 	// Join fails with model.ErrUnavailable or model.ErrNotSubscribed while the world cannot take it yet.
 	Join(ctx context.Context, gateway, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error)
-	// Leave removes the player, if it joined through conn.
-	Leave(ctx context.Context, p model.Presence, conn string) error
+	// Leave removes the player, if it joined through the presence's connection.
+	Leave(ctx context.Context, p model.Presence) error
 }
 
 // Social is the social service as joins use it: who is online, and on which map.
@@ -112,6 +112,13 @@ func (r *Registry) Remove(s *Session) (joined bool) {
 	return !s.character.ID.IsZero()
 }
 
+// ByConn is the session of the connection named connID; nil when none.
+func (r *Registry) ByConn(connID string) *Session {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.byConn[connID]
+}
+
 // ByCharacter is the session playing the character; nil when none.
 func (r *Registry) ByCharacter(id kernel.CharacterID) *Session {
 	r.mu.Lock()
@@ -133,7 +140,7 @@ func (r *Registry) BySession(id kernel.SessionID) *Session {
 	return r.bySession[id]
 }
 
-// Playing is every session that claimed a character, joined or still joining.
+// Playing is every session that claimed a character: its world join succeeded.
 func (r *Registry) Playing() []*Session {
 	r.mu.Lock()
 	defer r.mu.Unlock()

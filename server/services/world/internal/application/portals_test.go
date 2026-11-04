@@ -2,7 +2,6 @@ package application_test
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -74,7 +73,7 @@ func TestPortals(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{CheckpointInterval: time.Hour}))
+		w := newWorld(t, saver, application.Options{CheckpointInterval: time.Hour})
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
@@ -86,8 +85,6 @@ func TestPortals(t *testing.T) {
 			}
 			synctest.Wait()
 		}()
-		town, _ := w.Instance("town")
-		forest, _ := w.Instance("forest")
 		townMap, _ := data.Map("town")
 		forestMap, _ := data.Map("forest")
 		toForest := portalNamed(t, townMap, "to_forest")
@@ -98,20 +95,16 @@ func TestPortals(t *testing.T) {
 
 		robin := newPlayer("Robin", townMap.PlayerSpawn.X, townMap.PlayerSpawn.Y)
 		sr := &sink{}
-		if err := town.Join(ctx, robin, sr); err != nil {
-			t.Fatal(err)
-		}
+		w.enter(t, robin, "town", "c-robin", sr)
 
 		{ // a portal takes the player to the linked spot on the target map, with HP as it was
 			ayla := newPlayer("Ayla", toForest.Arrival().X, toForest.Arrival().Y)
 			ayla.HP = 150
 			sa := &sink{}
-			if err := town.Join(ctx, ayla, sa); err != nil {
-				t.Fatal(err)
-			}
+			w.enter(t, ayla, "town", "c-ayla", sa)
 			time.Sleep(tickInterval)
 			synctest.Wait()
-			town.EnterPortal(ayla.ID)
+			_ = w.EnterPortal(ayla.ID, "c-ayla")
 			time.Sleep(2 * tickInterval)
 			synctest.Wait()
 			tel := teleports(sa)
@@ -151,18 +144,18 @@ func TestPortals(t *testing.T) {
 				t.Fatalf("robin saw ayla %d times and removed %d times", present, removed)
 			}
 			for range 20 {
-				town.EnterPortal(ayla.ID)
+				_ = w.EnterPortal(ayla.ID, "c-other") // she stands on the forest's way back
 			}
 			time.Sleep(2 * tickInterval)
 			synctest.Wait()
 			if len(teleports(sa)) != 1 {
-				t.Fatal("a second teleport after the player had left")
+				t.Fatal("a command from a connection that does not hold her moved her")
 			}
 		}
 
 		{ // off a portal, EnterPortal does nothing
 			before := len(sr.all())
-			town.EnterPortal(robin.ID)
+			_ = w.EnterPortal(robin.ID, "c-robin")
 			time.Sleep(2 * tickInterval)
 			synctest.Wait()
 			if len(teleports(sr)) != 0 {
@@ -179,14 +172,11 @@ func TestPortals(t *testing.T) {
 		{ // spamming EnterPortal: one hop, present in exactly one instance at a time
 			cass := newPlayer("Cass", toForest.Arrival().X, toForest.Arrival().Y)
 			sc := &sink{}
-			if err := town.Join(ctx, cass, sc); err != nil {
-				t.Fatal(err)
-			}
+			w.enter(t, cass, "town", "c-cass", sc)
 			time.Sleep(tickInterval)
 			synctest.Wait()
-			for range 50 {
-				town.EnterPortal(cass.ID)
-				forest.EnterPortal(cass.ID) // arrives before the join, so it is ignored
+			for range 100 {
+				_ = w.EnterPortal(cass.ID, "c-cass") // the town takes the first; she has left when the rest arrive
 			}
 			time.Sleep(3 * tickInterval)
 			synctest.Wait()
@@ -209,7 +199,7 @@ func TestPortals(t *testing.T) {
 				}
 			}
 			// The handoff works both ways from the forest's arrival portal.
-			forest.EnterPortal(cass.ID)
+			_ = w.EnterPortal(cass.ID, "c-cass")
 			time.Sleep(3 * tickInterval)
 			synctest.Wait()
 			tel = teleports(sc)

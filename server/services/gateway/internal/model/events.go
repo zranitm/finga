@@ -9,10 +9,11 @@ type Joined struct {
 	X, Y      float64
 }
 
-// WorldEvent is Subscribed (the stream opened, perhaps after a break) or a delivery for one player.
+// WorldEvent is Subscribed (the stream opened, perhaps after a break) or a delivery for the player
+// joined through one connection.
 type WorldEvent struct {
 	Subscribed bool
-	Character  kernel.CharacterID
+	Connection string
 	Delivery   Delivery
 }
 
