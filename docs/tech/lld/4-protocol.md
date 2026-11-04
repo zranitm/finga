@@ -96,13 +96,14 @@ Every failure has its own code, so a client and a log line both say exactly what
 
 ## Rate limits
 
-Token buckets per account in the gateway (a `golang.org/x/time/rate` limiter per message type on each connection), enforced on the connection, which equals the account while one active session per account holds. Each limit is declared on its message's route in the WebSocket handler's message table (`handler/ws/receive/routes.go`, page 3), as a middleware that runs on the read loop. An over-limit Input is dropped; an over-limit command with a request ID is answered `rate_limited`.
+Token buckets per account in the gateway (a `golang.org/x/time/rate` limiter per message group on each connection), enforced on the connection, which equals the account while one active session per account holds. Each limit is declared on its message's route in the WebSocket handler's message table (`handler/ws/receive/routes.go`, page 3), as a middleware that runs on the read loop; the messages of a group share one bucket. An over-limit Input is dropped; an over-limit command with a request ID is answered `rate_limited`.
 
 - Input: 30 per second: one per tick, plus room for a burst after a stall (backend step 18).
 - Attack and PickUp: 10 per second. Attack cooldowns are also enforced in the simulation.
 - ChatSend: 1 per second, burst of 3 (E1), enforced by the chat service per character rather than by the gateway's buckets, so a refused line is answered with a Response (`ok: false`, `chat_rate_limited`, no request ID) instead of being dropped silently.
-- Party commands: 2 per second.
-- Inventory and market commands: 5 per second.
+- EnterPortal: 2 per second.
+- Party commands: 2 per second for the five together, a burst of 5.
+- Inventory and market commands: 5 per second together.
 - Login (REST): 5 per minute per username, in the account service, which alone reads the username.
 
 Limits per client address are the edge's alone: the gateway and the services never read the address, so nothing behind nginx can be fooled by a forwarding header or limit every player behind one proxy as one. nginx (`infra/nginx/finga.conf`) counts every request to the gateway at 10 per second with a burst of 20, a WebSocket upgrade included, and each login (POST `/api/sessions`) also at 5 per minute. Its refusal is the gateway's own: 429, `application/json`, `rate_limited` or `login_rate_limited` with the same message, so the client handles both alike. From Stage 2, with Cloudflare in front, the limits key on the real client IP Cloudflare passes (TD-13), not the peer.

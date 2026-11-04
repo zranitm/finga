@@ -96,12 +96,12 @@ func (in *Inbox) commands() {
 	}
 }
 
-// allow takes a token from the connection's bucket for msgType; limits are per connection.
-func (in *Inbox) allow(msgType string, l limit, now time.Time) bool {
-	b, ok := in.limiters[msgType]
+// allow takes a token from the connection's bucket for l's group.
+func (in *Inbox) allow(l limit, now time.Time) bool {
+	b, ok := in.limiters[l.group]
 	if !ok {
 		b = rate.NewLimiter(rate.Limit(l.perSecond), l.burst)
-		in.limiters[msgType] = b
+		in.limiters[l.group] = b
 	}
 	return b.AllowN(now, 1)
 }

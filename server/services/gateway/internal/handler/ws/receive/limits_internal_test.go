@@ -37,3 +37,46 @@ func TestALimitedCommandAllowsItsBurstThenRefills(t *testing.T) {
 		}
 	})
 }
+
+// A limit is a budget a group of messages shares, per connection: party commands a burst of 5,
+// inventory commands 5, and a portal 2 of its own.
+func TestGroupedCommandsShareOneBudget(t *testing.T) {
+	tests := []struct {
+		name string
+		msgs []wsconn.Message
+		want int
+	}{
+		{"four party invites and four leaves at one instant", append(
+			repeat(wsconn.Message{Type: "PartyInvite", Data: &clientv1.PartyInvite{}}, 4),
+			repeat(wsconn.Message{Type: "PartyLeave", Data: &clientv1.PartyLeave{}}, 4)...,
+		), 5},
+		{"five moves and five discards at one instant", append(
+			repeat(wsconn.Message{Type: "InventoryMove", Data: &clientv1.InventoryMove{}}, 5),
+			repeat(wsconn.Message{Type: "InventoryDiscard", Data: &clientv1.InventoryDiscard{}}, 5)...,
+		), 5},
+		{"five portals at one instant", repeat(wsconn.Message{Type: "EnterPortal", Data: &clientv1.EnterPortal{}}, 5), 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				log := slog.New(slog.DiscardHandler)
+				h := New(send.New(send.Deps{Logger: log}, session.NewRegistry(session.Deps{Logger: log})), Options{Logger: log})
+				in := &Inbox{helloSeen: true, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
+				for _, m := range tt.msgs {
+					h.Dispatch(in, m)
+				}
+				if len(in.queue) != tt.want {
+					t.Fatalf("%d of %d passed, want %d", len(in.queue), len(tt.msgs), tt.want)
+				}
+			})
+		})
+	}
+}
+
+func repeat(m wsconn.Message, n int) []wsconn.Message {
+	out := make([]wsconn.Message, n)
+	for i := range out {
+		out[i] = m
+	}
+	return out
+}

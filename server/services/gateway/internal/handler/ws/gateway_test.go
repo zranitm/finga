@@ -1002,6 +1002,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		}
 	})
 	t.Run("errors map to the Response code", func(t *testing.T) {
+		time.Sleep(time.Second) // the five above spent the party budget's burst; two more refill in a second
 		ayla.send(wsconn.Message{ReqID: "p-x", Data: &clientv1.PartyInvite{CharacterId: "nope"}})
 		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
 			t.Fatalf("malformed id: %+v", r)

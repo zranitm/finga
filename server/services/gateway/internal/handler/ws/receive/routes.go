@@ -7,11 +7,22 @@ type handler = wsrouter.HandlerFunc[*Inbox]
 
 type msgContext = wsrouter.Context[*Inbox]
 
-// limit is a per-message-type token bucket: a rate and a burst.
+// limit is a token bucket each connection keeps per group: the messages of a group share it.
 type limit struct {
+	group     string
 	perSecond float64
 	burst     int
 }
+
+// The limits, per connection.
+var (
+	inputs    = limit{"input", 30, 30} // 20 ticks a second, plus headroom for a burst after a stall
+	attacks   = limit{"attack", 10, 10}
+	pickups   = limit{"pickup", 10, 10}
+	portals   = limit{"portal", 2, 2}
+	inventory = limit{"inventory", 5, 5} // moves and discards together
+	party     = limit{"party", 2, 5}     // the five party commands together; a leader may use each at once
+)
 
 // routes maps every client message to its middleware chain and handler.
 func (h *Handler) routes() *wsrouter.Router[*Inbox] {
@@ -23,19 +34,19 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "Hello", h.hello, h.queued)
 	wsrouter.Handle(r, "Ping", h.ping)
 
-	wsrouter.Handle(r, "Input", h.input, h.command(limit{30, 30})...) // 20 ticks a second, plus headroom for a burst after a stall
-	wsrouter.Handle(r, "Attack", h.attack, h.command(limit{10, 10})...)
-	wsrouter.Handle(r, "PickUp", h.pickUp, h.command(limit{10, 10})...)
-	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.queued, h.joined, h.within)
+	wsrouter.Handle(r, "Input", h.input, h.command(inputs)...)
+	wsrouter.Handle(r, "Attack", h.attack, h.command(attacks)...)
+	wsrouter.Handle(r, "PickUp", h.pickUp, h.command(pickups)...)
+	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals)...)
 
-	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(limit{5, 5}, h.respond)...)
-	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(limit{5, 5}, h.respond)...)
+	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)
+	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(inventory, h.respond)...)
 
-	wsrouter.Handle(r, "PartyInvite", h.partyInvite, h.command(limit{2, 2}, h.respond)...)
-	wsrouter.Handle(r, "PartyRespond", h.partyRespond, h.command(limit{2, 2}, h.respond)...)
-	wsrouter.Handle(r, "PartyLeave", h.partyLeave, h.command(limit{2, 2}, h.respond)...)
-	wsrouter.Handle(r, "PartyKick", h.partyKick, h.command(limit{2, 2}, h.respond)...)
-	wsrouter.Handle(r, "PartyPromote", h.partyPromote, h.command(limit{2, 2}, h.respond)...)
+	wsrouter.Handle(r, "PartyInvite", h.partyInvite, h.command(party, h.respond)...)
+	wsrouter.Handle(r, "PartyRespond", h.partyRespond, h.command(party, h.respond)...)
+	wsrouter.Handle(r, "PartyLeave", h.partyLeave, h.command(party, h.respond)...)
+	wsrouter.Handle(r, "PartyKick", h.partyKick, h.command(party, h.respond)...)
+	wsrouter.Handle(r, "PartyPromote", h.partyPromote, h.command(party, h.respond)...)
 
 	// No limit here: the social service answers chat_rate_limited itself.
 	wsrouter.Handle(r, "ChatSend", h.chatSend, h.queued, h.joined, h.within, h.respondOnError)
