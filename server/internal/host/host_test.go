@@ -2,7 +2,6 @@ package host_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -61,14 +60,9 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	})
 	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 		t.Run("ops "+path, func(t *testing.T) {
-			res, err := http.Get("http://" + opsAddr + path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer res.Body.Close()
-			body, _ := io.ReadAll(res.Body)
-			if res.StatusCode != http.StatusOK || (path == "/metrics" && !strings.Contains(string(body), "go_goroutines")) {
-				t.Fatalf("%s: %d %s", path, res.StatusCode, body)
+			status, body := runnertest.Get(t, "http://"+opsAddr+path)
+			if status != http.StatusOK || (path == "/metrics" && !strings.Contains(body, "go_goroutines")) {
+				t.Fatalf("%s: %d %s", path, status, body)
 			}
 		})
 	}

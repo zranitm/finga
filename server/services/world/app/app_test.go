@@ -2,10 +2,8 @@ package app_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
-	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -142,13 +140,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 			if time.Now().After(deadline) {
 				t.Fatalf("no tick metrics in\n%s", body)
 			}
-			resp, err := http.Get("http://" + opsAddr + "/metrics")
-			if err != nil {
-				t.Fatal(err)
-			}
-			b, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-			body = string(b)
+			_, body = runnertest.Get(t, "http://"+opsAddr+"/metrics")
 		}
 	})
 	if err := stop(); err != nil {

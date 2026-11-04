@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -30,14 +29,9 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 
 	for _, path := range []string{"/readyz", "/healthz"} {
 		t.Run(path+" answers on the real listener", func(t *testing.T) {
-			res, err := http.Get("http://" + addr + path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer res.Body.Close()
-			body, _ := io.ReadAll(res.Body)
-			if res.StatusCode != http.StatusOK || (path == "/readyz" && !strings.Contains(string(body), "ready")) {
-				t.Fatalf("status %d body %s", res.StatusCode, body)
+			status, body := runnertest.Get(t, "http://"+addr+path)
+			if status != http.StatusOK || (path == "/readyz" && !strings.Contains(body, "ready")) {
+				t.Fatalf("status %d body %s", status, body)
 			}
 		})
 	}

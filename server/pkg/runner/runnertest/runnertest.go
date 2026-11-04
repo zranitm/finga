@@ -3,6 +3,7 @@ package runnertest
 
 import (
 	"context"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -14,6 +15,9 @@ const (
 	readyWithin = 10 * time.Second
 	pollEvery   = 5 * time.Millisecond
 )
+
+// client closes every connection after its request: a spare one it dialed would hold a shutdown for 5 s.
+var client = &http.Client{Transport: &http.Transport{DisableKeepAlives: true}, Timeout: 5 * time.Second}
 
 // Addr is a free loopback address to listen on: the kernel picks the port and the probe releases it.
 func Addr(t testing.TB) string {
@@ -49,17 +53,33 @@ func Start(t testing.TB, readyURL string, run func(ctx context.Context) error) (
 	return stop
 }
 
+// Get fetches url on a connection it closes, so a process started here shuts down within its grace.
+func Get(t testing.TB, url string) (status int, body string) {
+	t.Helper()
+	status, body, err := get(t.Context(), url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return status, body
+}
+
 func ready(url string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
+	status, _, err := get(ctx, url)
+	return err == nil && status == http.StatusOK
+}
+
+func get(ctx context.Context, url string) (int, string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return false
+		return 0, "", err
 	}
-	res, err := http.DefaultClient.Do(req)
+	res, err := client.Do(req)
 	if err != nil {
-		return false
+		return 0, "", err
 	}
-	_ = res.Body.Close()
-	return res.StatusCode == http.StatusOK
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	return res.StatusCode, string(body), err
 }
