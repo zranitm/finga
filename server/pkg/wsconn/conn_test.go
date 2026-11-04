@@ -338,6 +338,64 @@ func TestServerSideClose(t *testing.T) {
 	}
 }
 
+// gatedCodec encodes only once its gate opens.
+type gatedCodec struct {
+	wsconn.Codec
+	gate chan struct{}
+}
+
+func (g gatedCodec) Encode(m wsconn.Message) ([]byte, error) {
+	<-g.gate
+	return g.Codec.Encode(m)
+}
+
+// The world's stream sends every player's frames from one goroutine, so a Send must not wait on encoding.
+func TestSendLeavesEncodingToTheWriter(t *testing.T) {
+	checkLeaks(t)
+	gate := make(chan struct{})
+	rec := newRecorder()
+	sent := make(chan error, 1)
+	rec.onOpen = func(c wsconn.Conn) {
+		go func() { sent <- c.Send(wsconn.Message{Data: &clientv1.Pong{ServerTime: 7}}) }()
+	}
+	s := start(t, rec, wsconn.Options{Subprotocols: []wsconn.Subprotocol{{Name: textProtocol, Codec: gatedCodec{Codec: serverCodec(wsconn.JSON), gate: gate}}}})
+	c := dial(t, s, "")
+	defer c.CloseNow() //nolint:errcheck // test teardown
+	select {
+	case err := <-sent:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Send waited for the codec")
+	}
+	close(gate)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, data, err := c.Read(ctx)
+	if err != nil || !strings.Contains(string(data), `"server_time":"7"`) {
+		t.Fatalf("read %s, %v", data, err)
+	}
+}
+
+func TestAMessageTheCodecCannotEncodeClosesTheConnection(t *testing.T) {
+	checkLeaks(t)
+	rec := newRecorder()
+	rec.onOpen = func(c wsconn.Conn) {
+		_ = c.Send(wsconn.Message{Data: &clientv1.Ping{}}) // a client message: the server's envelope has no field for it
+	}
+	s := start(t, rec, wsconn.Options{})
+	c := dial(t, s, "")
+	defer c.CloseNow() //nolint:errcheck // test teardown
+	if got := closeStatus(t, c); got != websocket.StatusInternalError {
+		t.Fatalf("closed with %v, want 1011", got)
+	}
+	var ce *wsconn.CloseError
+	if err := rec.waitClosed(t); !errors.As(err, &ce) || ce.Code != wsconn.CloseInternal || ce.Reason != "encode failed" {
+		t.Fatalf("OnClose got %v", err)
+	}
+}
+
 func TestSendAfterCloseFails(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()

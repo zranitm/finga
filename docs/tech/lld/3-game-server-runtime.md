@@ -26,7 +26,7 @@ Shared state is owned by one goroutine (an actor) that receives commands on a bu
 
 | Component | Goroutines | Owns |
 | --- | --- | --- |
-| WebSocket connection | 2 per connection: read loop and write loop | Its send queue (bounded at 256 messages; a full queue closes the connection) |
+| WebSocket connection | 2 per connection: read loop and write loop, which encodes each queued message, so a sender never waits on encoding | Its send queue (bounded at 256 messages; a full queue closes the connection, as does a message that cannot be encoded) |
 | Command queue (in the gateway, step 28) | 1 per connection, with a context that ends when the connection closes. Each message runs its route in the WebSocket handler's message table (`handler/ws/receive/routes.go`, on `pkg/wsrouter`): on the read loop, the Hello-first rule, the message's rate limit, and Ping's answer; then a `queued` middleware hands the rest of the chain to this goroutine, which runs Hello and then each command in order, through its use case in `application/send`, which calls the service that owns it. The queue holds 64; when it is full, a command with a request ID is answered `rate_limited` and the rest are dropped. | The connection's commands in flight, in arrival order |
 | Gateway session registry | A mutex-guarded map, not an actor: its critical sections are two map writes | Which account and character each connection belongs to |
 | Map instance | 1 per map and channel, ticking at 20 Hz | Players' positions and combat state, mobs, ground drops |

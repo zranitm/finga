@@ -406,7 +406,7 @@ type Subprotocol struct {
 }
 type Conn interface {
     ID() string
-    Send(Message) error // non-blocking; a full send queue closes the connection
+    Send(Message) error // non-blocking; the write loop encodes it, so it must not change once sent; a full send queue closes the connection
     Close(code int, reason string)
 }
 type Handler interface {

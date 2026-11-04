@@ -52,8 +52,9 @@ func (e *CloseError) Error() string { return fmt.Sprintf("wsconn: closed %d: %s"
 // Conn is a live connection as the handler sees it.
 type Conn interface {
 	ID() string
-	// Send enqueues without blocking; a full queue closes the connection.
-	Send(Message) error
+	// Send enqueues m without blocking, and the writer encodes it, so m must not change once sent;
+	// a full queue closes the connection, as does a message the codec cannot encode.
+	Send(m Message) error
 	// Close ends the connection; the first call wins.
 	Close(code int, reason string)
 }
@@ -122,7 +123,7 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	if codec.Binary() {
 		frame = websocket.MessageBinary
 	}
-	c := &conn{id: uuidv7.NewString(), ws: ws, codec: codec, frame: frame, send: make(chan []byte, opts.SendQueue), closed: make(chan struct{})}
+	c := &conn{id: uuidv7.NewString(), ws: ws, codec: codec, frame: frame, send: make(chan Message, opts.SendQueue), closed: make(chan struct{})}
 	c.run(r.Context(), h, opts)
 }
 
@@ -151,7 +152,7 @@ type conn struct {
 	ws    *websocket.Conn
 	codec Codec
 	frame websocket.MessageType
-	send  chan []byte
+	send  chan Message // encoded by the writer, so a sender never waits on the codec
 
 	once     sync.Once
 	closed   chan struct{}
@@ -168,12 +169,8 @@ func (c *conn) Send(m Message) error {
 		return ErrClosed
 	default:
 	}
-	b, err := c.codec.Encode(m)
-	if err != nil {
-		return err
-	}
 	select {
-	case c.send <- b:
+	case c.send <- m:
 		return nil
 	case <-c.closed:
 		return ErrClosed
@@ -226,12 +223,9 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		defer close(writerDone)
 		for {
 			select {
-			case b := <-c.send:
-				wctx, wcancel := context.WithTimeout(ctx, writeTimeout)
-				err := c.ws.Write(wctx, c.frame, b)
-				wcancel()
-				if err != nil {
-					c.Close(CloseInternal, "write failed")
+			case m := <-c.send:
+				if err := c.write(ctx, m); err != nil {
+					c.Close(CloseInternal, err.Error())
 					return
 				}
 			case <-c.closed:
@@ -356,15 +350,31 @@ func closeReason(ours *CloseError, readErr error) error {
 func (c *conn) flush(ctx context.Context) {
 	for {
 		select {
-		case b := <-c.send:
-			wctx, wcancel := context.WithTimeout(ctx, writeTimeout)
-			err := c.ws.Write(wctx, c.frame, b)
-			wcancel()
-			if err != nil {
+		case m := <-c.send:
+			if c.write(ctx, m) != nil {
 				return
 			}
 		default:
 			return
 		}
 	}
+}
+
+var (
+	errEncode = errors.New("encode failed")
+	errWrite  = errors.New("write failed")
+)
+
+// write encodes m and writes it as one frame; the error is the close reason.
+func (c *conn) write(ctx context.Context, m Message) error {
+	b, err := c.codec.Encode(m)
+	if err != nil {
+		return errEncode
+	}
+	wctx, cancel := context.WithTimeout(ctx, writeTimeout)
+	defer cancel()
+	if c.ws.Write(wctx, c.frame, b) != nil {
+		return errWrite
+	}
+	return nil
 }
