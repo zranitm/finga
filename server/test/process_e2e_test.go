@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"maps"
 	"net/http"
@@ -12,8 +13,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // process is a binary in its own process, so it can be killed and restarted on the same addresses.
@@ -183,4 +187,43 @@ func (p *process) kill() {
 	}
 	_ = p.cmd.Process.Kill()
 	<-p.done
+}
+
+// terminate sends SIGTERM and waits up to d for the process to exit, reporting how long it took.
+func (p *process) terminate(d time.Duration) time.Duration {
+	p.t.Helper()
+	start := time.Now()
+	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		p.t.Fatal(err)
+	}
+	select {
+	case <-p.done:
+		return time.Since(start)
+	case <-time.After(d):
+		p.kill()
+		p.t.Fatalf("%s still running %s after SIGTERM:\n%s", p.name, d, p.out.String())
+		return 0
+	}
+}
+
+// processStack runs every service and the gateway as their own processes, by name; world adds to the world's settings.
+func processStack(t *testing.T, world ...string) (*stack, map[string]*process) {
+	t.Helper()
+	bins := buildBinaries(t)
+	dbURL := cluster.URL(t)
+	procs := map[string]*process{}
+	for _, name := range []string{"item", "account", "social"} {
+		procs[name] = startServiceProcess(t, name, bins[name], dbURL)
+	}
+	procs["character"] = startServiceProcess(t, "character", bins["character"], dbURL, dependency("item", procs["item"]))
+	world = append([]string{dependency("character", procs["character"]), dependency("item", procs["item"]), dependency("social", procs["social"])}, world...)
+	procs["world"] = startServiceProcess(t, "world", bins["world"], dbURL, world...)
+	gateway := startGateway(t, bins["gateway"], dbURL, maps.Clone(procs))
+	procs["gateway"] = gateway
+	db, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(db.Close)
+	return &stack{t: t, url: gateway.url, db: db}, procs
 }

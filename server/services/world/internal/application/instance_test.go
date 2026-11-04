@@ -115,6 +115,7 @@ func discardPanics() *panics.Recorder { return panics.NewRecorder(slog.New(slog.
 type options struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
+	FlushTimeout       time.Duration
 	NewRoll            func() model.Roll
 	Observer           application.TickObserver
 	Transfer           application.Mover // an instance's; the World moves players itself
@@ -129,6 +130,7 @@ type options struct {
 func (o options) fill() options {
 	o.TickInterval = cmp.Or(o.TickInterval, tickInterval)
 	o.CheckpointInterval = cmp.Or(o.CheckpointInterval, 30*time.Second)
+	o.FlushTimeout = cmp.Or(o.FlushTimeout, 10*time.Second)
 	if o.NewRoll == nil {
 		o.NewRoll = rolls(0.5)
 	}
@@ -160,7 +162,7 @@ func (o options) fill() options {
 }
 
 func (o options) tuning() application.Tuning {
-	return application.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval}
+	return application.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout}
 }
 
 func (o options) deps() application.Deps {

@@ -30,6 +30,7 @@ const (
 type Tuning struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
+	FlushTimeout       time.Duration // the World's last saves on shutdown, all together
 }
 
 // Deps are the services every map instance calls; all are required.

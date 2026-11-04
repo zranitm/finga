@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,15 @@ type empty struct {
 
 func (empty) EmptyCall(context.Context, *testpb.Empty) (*testpb.Empty, error) {
 	return &testpb.Empty{}, nil
+}
+
+// StreamingOutputCall is a subscription: one message, then nothing until the stream ends.
+func (empty) StreamingOutputCall(_ *testpb.StreamingOutputCallRequest, stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
+	if err := stream.Send(&testpb.StreamingOutputCallResponse{}); err != nil {
+		return err
+	}
+	<-stream.Context().Done()
+	return nil
 }
 
 func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
@@ -78,4 +88,40 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 		res.Body.Close()
 		t.Fatal("ops still answers after shutdown")
 	}
+}
+
+// A subscriber's stream never ends on its own; shutdown ends it rather than wait out the grace.
+func TestAnOpenStreamDoesNotHoldTheShutdown(t *testing.T) {
+	log := runnertest.NewLog()
+	h := host.New(host.Options{
+		Name:     "shop",
+		Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: 30 * time.Second},
+		Logger:   log.Logger(),
+		Registry: observability.NewRegistry(),
+	})
+	testpb.RegisterTestServiceServer(h.GRPC, empty{})
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	conn, err := grpcx.Dial(p.Addr("grpc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	stream, err := testpb.NewTestServiceClient(conn).StreamingOutputCall(context.Background(), &testpb.StreamingOutputCallRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stream.Recv(); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	if err := p.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took > 5*time.Second {
+		t.Fatalf("shutdown took %s with a stream open", took)
+	}
+	if _, err := stream.Recv(); status.Code(err) != codes.Unavailable {
+		t.Fatalf("the subscriber got %v", err)
+	}
+	h.Close()
 }

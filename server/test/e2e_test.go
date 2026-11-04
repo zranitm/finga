@@ -91,7 +91,7 @@ func newStack(t *testing.T) *stack {
 	}, socialapp.Build)
 	world := runService(t, func(at listen) worldconfig.Config {
 		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data",
-			TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: worldconfig.Economy{Workers: 2},
+			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, Economy: worldconfig.Economy{Workers: 2},
 			Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}
 	}, worldapp.Build)
 	itemConn, err := grpcx.Dial(item.addr)

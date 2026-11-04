@@ -18,6 +18,7 @@ type Config struct {
 	DataDir            string           `mapstructure:"data_dir" validate:"required"`
 	TickRateHz         int              `mapstructure:"tick_rate_hz" validate:"min=1,max=60"`
 	CheckpointInterval time.Duration    `mapstructure:"checkpoint_interval" validate:"gt=0"`
+	FlushTimeout       time.Duration    `mapstructure:"flush_timeout" validate:"gt=0"`
 	Economy            Economy          `mapstructure:"economy"`
 	Dependencies       Dependencies     `mapstructure:"dependencies"`
 }

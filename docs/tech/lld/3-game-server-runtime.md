@@ -65,7 +65,7 @@ Only one player can hold a reservation, so two players can never both get a drop
 ## Character state and checkpoints
 
 - While a character is online, its position, HP, MP, and EXP live in the map instance.
-- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up. The worker is the queue's only consumer and runs inside `World.Run`: on shutdown it gives each save still waiting one last try, the one it was retrying included, once the maps have checkpointed.
+- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up. Each save has 5 s. The worker is the queue's only consumer and runs inside `World.Run`: on shutdown it gives each save still waiting one last try, the one it was retrying included, until the maps have checkpointed; those last tries share `flush_timeout` (10 s), so a down character service can't hold the shutdown, and each save lost is logged.
 - Items and coins never wait for a checkpoint: each change is its own transaction.
 
 ## Joining, leaving, and changing maps
@@ -79,7 +79,7 @@ Only one player can hold a reservation, so two players can never both get a drop
 
 ## Shutdown and crashes
 
-- **Graceful (SIGTERM):** each process turns unready first. The gateway then refuses new connections, tells every client the server is restarting (Kicked `server_restart`) and closes its connections; the world flushes every queued checkpoint before it exits. A service other than the gateway restarts without closing a socket (page 10, Restarts and failures).
+- **Graceful (SIGTERM):** each process turns unready first. The gateway then refuses new connections, tells every client the server is restarting (Kicked `server_restart`) and closes its connections. A gRPC service ends its open streams with Unavailable (the subscribers resubscribe), so its listener waits only for the calls in flight, within `shutdown_grace`; the world then stops its maps, which checkpoint the players on them, and saves what is queued within `flush_timeout`. Compose's `stop_grace_period` covers both: 15 s for a service, 25 s for the world. A service other than the gateway restarts without closing a socket (page 10, Restarts and failures).
 - **Crash:** in-memory state since the last checkpoint is lost (positions, mobs, ground drops, parties). Committed items and coins are unaffected. A world crash keeps the sockets: the gateway rejoins its players when the world is back.
 
 ## Panics

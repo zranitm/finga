@@ -251,6 +251,34 @@ func TestShutdownTriesEachSaveOnceMore(t *testing.T) {
 	})
 }
 
+// The last saves share the flush budget: a character service that never answers can't hold the
+// shutdown past it, and each save it costs is logged.
+func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		w := newWorld(t, &fakeSaver{hangs: 100}, options{CheckpointInterval: time.Hour, FlushTimeout: 7 * time.Second, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		ctx, cancel := context.WithCancel(context.Background())
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		w.enter(t, at(t, "Ayla", "town"), "town", "c-1", &sink{})
+		w.enter(t, at(t, "Bo", "forest"), "forest", "c-2", &sink{})
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		start := time.Now()
+		cancel()
+		if err := <-runDone; err != nil {
+			t.Fatal(err)
+		}
+		// The first save gives up at its call timeout (5 s), the second at the budget.
+		if took := time.Since(start); took > 7*time.Second+tickInterval {
+			t.Fatalf("shutdown took %s", took)
+		}
+		if n := strings.Count(logs.String(), `"msg":"persistence failed"`); n != 2 {
+			t.Fatalf("%d lost saves logged: %s", n, logs.String())
+		}
+	})
+}
+
 func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{err: errors.New("db down")}

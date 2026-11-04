@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
@@ -505,23 +504,8 @@ func TestCrashDuringPickups(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and runs every service as its own process")
 	}
-	bins := buildBinaries(t)
-	dbURL := cluster.URL(t)
-	itemProc := startServiceProcess(t, "item", bins["item"], dbURL)
-	accountProc := startServiceProcess(t, "account", bins["account"], dbURL)
-	socialProc := startServiceProcess(t, "social", bins["social"], dbURL)
-	characterProc := startServiceProcess(t, "character", bins["character"], dbURL, dependency("item", itemProc))
-	worldProc := startServiceProcess(t, "world", bins["world"], dbURL,
-		dependency("character", characterProc), dependency("item", itemProc), dependency("social", socialProc))
-	proc := startGateway(t, bins["gateway"], dbURL, map[string]*process{
-		"item": itemProc, "account": accountProc, "social": socialProc, "character": characterProc, "world": worldProc,
-	})
-	db, err := pgxpool.New(context.Background(), dbURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(db.Close)
-	s := &stack{t: t, url: proc.url, db: db}
+	s, procs := processStack(t)
+	itemProc, worldProc := procs["item"], procs["world"]
 
 	names := [][2]string{{"pat", "Pat"}, {"quinn", "Quinn"}, {"rae", "Rae"}}
 	var hunters []*looter
@@ -571,7 +555,7 @@ func TestCrashDuringPickups(t *testing.T) {
 			t.Fatalf("%s is welcomed with %v, the database holds %v", n[1], held, want)
 		}
 	}
-	for _, p := range []*process{proc, itemProc, accountProc, socialProc, characterProc, worldProc} {
+	for _, p := range procs {
 		if out := p.out.String(); strings.Contains(out, `"level":"ERROR"`) {
 			t.Fatalf("%s logged errors:\n%s", p.name, out)
 		}

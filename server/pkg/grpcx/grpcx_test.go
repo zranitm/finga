@@ -201,6 +201,39 @@ func TestStreamErrorsUseTheTableToo(t *testing.T) {
 	}
 }
 
+// Draining ends a subscription that would never end on its own, so GracefulStop returns at once.
+func TestDrainingEndsOpenStreamsWithUnavailable(t *testing.T) {
+	draining := make(chan struct{})
+	var logs bytes.Buffer
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Logger: slog.New(slog.NewTextHandler(&logs, nil)), Draining: draining})
+	subs := hub.New[*testpb.StreamingOutputCallResponse](4)
+	testpb.RegisterTestServiceServer(srv, &shop{stream: func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
+		return grpcx.ServeSubscription(stream, subs.Subscribe("gateway"), &testpb.StreamingOutputCallResponse{})
+	}})
+	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
+	stream, err := c.StreamingOutputCall(context.Background(), &testpb.StreamingOutputCallRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := stream.Recv(); err != nil {
+		t.Fatal(err)
+	}
+	close(draining)
+	if _, err := stream.Recv(); status.Code(err) != codes.Unavailable {
+		t.Fatalf("after the drain the stream got %v", err)
+	}
+	stopped := make(chan struct{})
+	go func() { srv.GracefulStop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("GracefulStop still waits for the stream")
+	}
+	if logs.Len() > 0 {
+		t.Fatalf("a drain is no failure, yet it logged %s", logs.String())
+	}
+}
+
 func TestFollow(t *testing.T) {
 	// Each subscription sends three messages and ends; Follow must resubscribe.
 	var mu sync.Mutex

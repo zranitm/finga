@@ -2,6 +2,7 @@ package grpcx
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"google.golang.org/grpc"
@@ -20,6 +21,9 @@ type ServerOptions struct {
 	Logger *slog.Logger
 	// Panics records a recovered panic; nil logs it to Logger.
 	Panics *panics.Recorder
+	// Draining, once closed, ends every open stream with Unavailable, so GracefulStop need not wait for
+	// streams that never end on their own; their clients resubscribe. Nil never drains.
+	Draining <-chan struct{}
 }
 
 // NewServer is a gRPC server that propagates request IDs, recovers panics, maps errors, and keeps its
@@ -50,11 +54,34 @@ func (i interceptors) unary(ctx context.Context, req any, info *grpc.UnaryServer
 	return resp, i.status(ctx, info.FullMethod, err)
 }
 
+var errDraining = errors.New("server draining")
+
 func (i interceptors) stream(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
-	ctx := requestIDFromIncoming(ss.Context())
+	ctx, cancel := context.WithCancelCause(requestIDFromIncoming(ss.Context()))
+	defer cancel(nil)
+	defer i.endOnDrain(cancel)()
 	defer i.recover(ctx, info.FullMethod, &err)
 	err = handler(srv, &contextStream{ServerStream: ss, ctx: ctx})
+	if errors.Is(context.Cause(ctx), errDraining) {
+		return status.Error(codes.Unavailable, "server shutting down")
+	}
 	return i.status(ctx, info.FullMethod, err)
+}
+
+// endOnDrain cancels a stream's context once the server drains, until the returned stop.
+func (i interceptors) endOnDrain(cancel context.CancelCauseFunc) (stop func()) {
+	if i.opts.Draining == nil {
+		return func() {}
+	}
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-i.opts.Draining:
+			cancel(errDraining)
+		case <-done:
+		}
+	}()
+	return func() { close(done) }
 }
 
 func (i interceptors) status(ctx context.Context, method string, err error) error {

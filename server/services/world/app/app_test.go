@@ -90,6 +90,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 		DataDir:            "../../../data",
 		TickRateHz:         20,
 		CheckpointInterval: 30 * time.Second,
+		FlushTimeout:       5 * time.Second,
 		Economy:            config.Economy{Workers: 2},
 		Dependencies: config.Dependencies{
 			Character: serve(t, func(s *grpc.Server) { characterv1.RegisterCharacterServiceServer(s, chars) }),

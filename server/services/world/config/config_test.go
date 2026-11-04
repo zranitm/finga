@@ -23,7 +23,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config.Config{GRPC: host.GRPCSection{Listen: ":9004"}, Ops: host.OpsSection{Addr: ":9104"}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, DataDir: "data", TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: config.Economy{Workers: 8}, Dependencies: config.Dependencies{Character: "localhost:9002", Item: "localhost:9003", Social: "localhost:9005"}}
+	want := config.Config{GRPC: host.GRPCSection{Listen: ":9004"}, Ops: host.OpsSection{Addr: ":9104"}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, DataDir: "data", TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, Economy: config.Economy{Workers: 8}, Dependencies: config.Dependencies{Character: "localhost:9002", Item: "localhost:9003", Social: "localhost:9005"}}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
 	}

@@ -37,6 +37,7 @@ services:
   # gRPC on 9001, ops on 9101.
   account:
     restart: unless-stopped
+    stop_grace_period: 15s   # shutdown_grace (10s) and a margin, before SIGKILL
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -54,6 +55,7 @@ services:
   # gRPC on 9002, ops on 9102.
   character:
     restart: unless-stopped
+    stop_grace_period: 15s   # shutdown_grace (10s) and a margin
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -73,6 +75,7 @@ services:
   # gRPC on 9003, ops on 9103.
   item:
     restart: unless-stopped
+    stop_grace_period: 15s   # shutdown_grace (10s) and a margin
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -90,6 +93,7 @@ services:
   # gRPC on 9005, ops on 9105; parties live in memory, so no database.
   social:
     restart: unless-stopped
+    stop_grace_period: 15s   # shutdown_grace (10s) and a margin
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -103,6 +107,7 @@ services:
   # gRPC on 9004, ops on 9104 (published for make bots); it saves through character and item.
   world:
     restart: unless-stopped
+    stop_grace_period: 25s   # shutdown_grace (10s), flush_timeout (10s) and a margin
     build:
       context: ../server
       dockerfile: Dockerfile
@@ -129,6 +134,7 @@ services:
   # REST under /api, the WebSocket at /ws and ops, all on 8080.
   gateway:
     restart: unless-stopped
+    stop_grace_period: 15s   # shutdown_grace (10s) and a margin
     build:
       context: ../server
       dockerfile: Dockerfile

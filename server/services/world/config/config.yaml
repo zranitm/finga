@@ -16,6 +16,7 @@ log:
 data_dir: data           # the game data, relative to server/
 tick_rate_hz: 20         # divides 60; the web client assumes 20
 checkpoint_interval: 30s
+flush_timeout: 10s       # the last saves on shutdown, all together; after shutdown_grace
 economy:
   workers: 8             # the pool that runs pickups and inventory actions
 dependencies:            # where this service dials the ones it calls

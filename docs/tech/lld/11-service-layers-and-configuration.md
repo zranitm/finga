@@ -89,6 +89,7 @@ log:
 data_dir: data
 tick_rate_hz: 20           # divides 60; the web client assumes 20
 checkpoint_interval: 30s   # TD-02
+flush_timeout: 10s         # the last saves on shutdown, all together; after shutdown_grace
 economy:
   workers: 8
 dependencies:              # where this service dials the ones it calls
@@ -103,7 +104,7 @@ dependencies:              # where this service dials the ones it calls
 | `account` | `database`, `password` (the Argon2id cost: `time` 1, `memory_kib` 65536, `threads` 4) |
 | `character` | `database`, `data_dir`, `dependencies.item` |
 | `item` | `database`, `data_dir` |
-| `world` | `data_dir`, `tick_rate_hz`, `checkpoint_interval`, `economy.workers`, `dependencies` on character, item and social |
+| `world` | `data_dir`, `tick_rate_hz`, `checkpoint_interval`, `flush_timeout`, `economy.workers`, `dependencies` on character, item and social |
 | `social` | none |
 | `migrate` | `database` and `log` only |
 

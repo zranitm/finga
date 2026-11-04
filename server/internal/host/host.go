@@ -47,9 +47,12 @@ func New(opts Options) *Host {
 	if opts.Panics == nil {
 		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
-	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics})}
+	draining := make(chan struct{})
+	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics, Draining: draining})}
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
-	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace, Panics: opts.Panics}, []runner.Listener{
+	// Subscriptions never end on their own; the drain ends them so GracefulStop waits only for calls.
+	drain := func(context.Context) { close(draining) }
+	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace, Panics: opts.Panics, Drain: drain}, []runner.Listener{
 		{Name: grpcListener, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},
 		{Name: opsListener, Addr: opts.Settings.Ops, Server: runner.HTTP(ops)},
 	}, opts.Tasks)
