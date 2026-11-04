@@ -2,9 +2,6 @@ syntax = "proto3";
 
 package internal.world.v1;
 
-import "internal/character/v1/character.proto";
-import "internal/item/v1/item.proto";
-
 option go_package = "finga/api/gen/world/v1;worldv1";
 
 // WorldService runs the map instances at 20 Hz; commands return once queued and their effects arrive on Deliver.
@@ -62,6 +59,15 @@ message Keys {
   bool jump = 5;
 }
 
+// Stats are a character's base stats; the same fields as the character service's, owned here.
+message Stats {
+  int32 strength = 1;
+  int32 dexterity = 2;
+  int32 intelligence = 3;
+  int32 agility = 4;
+  int32 vitality = 5;
+}
+
 // CharacterView is the player's own character, for Welcome and LevelUp.
 message CharacterView {
   string id = 1;
@@ -69,7 +75,7 @@ message CharacterView {
   string class = 3;
   int32 level = 4;
   int64 exp = 5;
-  internal.character.v1.Stats stats = 6;
+  Stats stats = 6;
   int32 hp = 7;
   int32 max_hp = 8;
   int32 mp = 9;
@@ -230,7 +236,25 @@ message Chat {
 
 // InventoryChanged is the slots a committed pickup changed.
 message InventoryChanged {
-  repeated internal.item.v1.Slot slots = 1;
+  repeated Slot slots = 1;
+}
+
+// Slot is one changed inventory slot; item is unset when it emptied. The same fields as the item
+// service's, owned here.
+message Slot {
+  string tab = 1;
+  int32 slot = 2;
+  Item item = 3;
+}
+
+// Item is one stack in a slot.
+message Item {
+  string id = 1;
+  string template_id = 2;
+  // equip, use or etc.
+  string tab = 3;
+  int32 slot = 4;
+  int32 quantity = 5;
 }
 
 // PickupFailed says why a pickup did not happen; the drop stays.

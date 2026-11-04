@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	accountv1 "finga/api/gen/account/v1"
-	characterv1 "finga/api/gen/character/v1"
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
@@ -613,7 +612,7 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		t.Fatalf("exp %+v", e)
 	}
 	h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 10, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
-		Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 2, Exp: 3, Stats: &characterv1.Stats{Strength: 15, Vitality: 12}, Hp: 252, MaxHp: 252, Mp: 32, MaxMp: 32,
+		Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 2, Exp: 3, Stats: &worldv1.Stats{Strength: 15, Vitality: 12}, Hp: 252, MaxHp: 252, Mp: 32, MaxMp: 32,
 	}}}})
 	lu := c.expect("LevelUp").Data.(*clientv1.LevelUp)
 	if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetMaxHp() != 252 || lu.GetCharacter().GetStats().GetStr() != 15 || lu.GetCharacter().GetName() != "Ayla" {
@@ -717,8 +716,8 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		if r.GetOk() || r.Code != "inventory_full" || r.Message != "your inventory is full" {
 			t.Fatalf("response %+v", r)
 		}
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: []*itemv1.Slot{
-			{Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: []*worldv1.Slot{
+			{Tab: "etc", Slot: 1, Item: &worldv1.Item{Id: kernel.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
 		}}}})
 		ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
 		if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetTemplate() != "slime_gel" {

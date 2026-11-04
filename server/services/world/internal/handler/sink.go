@@ -3,8 +3,6 @@ package handler
 import (
 	"log/slog"
 
-	characterv1 "finga/api/gen/character/v1"
-	itemv1 "finga/api/gen/item/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
 	"finga/pkg/grpcx"
@@ -91,8 +89,8 @@ func entityRef(r model.EntityRef) *worldv1.EntityRef {
 	return &worldv1.EntityRef{Ref: &worldv1.EntityRef_CharacterId{CharacterId: r.Player.String()}}
 }
 
-func stats(s gamedata.Stats) *characterv1.Stats {
-	return &characterv1.Stats{Strength: int32(s.STR), Dexterity: int32(s.DEX), Intelligence: int32(s.INT), Agility: int32(s.AGI), Vitality: int32(s.VIT)}
+func stats(s gamedata.Stats) *worldv1.Stats {
+	return &worldv1.Stats{Strength: int32(s.STR), Dexterity: int32(s.DEX), Intelligence: int32(s.INT), Agility: int32(s.AGI), Vitality: int32(s.VIT)}
 }
 
 func playerViews(ps []model.PlayerView) []*worldv1.PlayerView {
@@ -133,12 +131,12 @@ func dropViews(ds []model.DropView) []*worldv1.DropView {
 	return out
 }
 
-func slots(in []model.Slot) []*itemv1.Slot {
-	out := make([]*itemv1.Slot, 0, len(in))
+func slots(in []model.Slot) []*worldv1.Slot {
+	out := make([]*worldv1.Slot, 0, len(in))
 	for _, s := range in {
-		slot := &itemv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}
+		slot := &worldv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}
 		if s.Item != nil {
-			slot.Item = &itemv1.Item{Id: s.Item.ID.String(), TemplateId: s.Item.Template, Tab: string(s.Tab), Slot: int32(s.Slot), Quantity: int32(s.Item.Quantity)}
+			slot.Item = &worldv1.Item{Id: s.Item.ID.String(), TemplateId: s.Item.Template, Tab: string(s.Tab), Slot: int32(s.Slot), Quantity: int32(s.Item.Quantity)}
 		}
 		out = append(out, slot)
 	}

@@ -78,7 +78,7 @@ type fakeCharacter struct {
 func newFakeWorld() *fakeWorld {
 	return &fakeWorld{
 		chars: map[kernel.CharacterID]fakeCharacter{
-			aylaID:  {alice, &worldv1.CharacterView{Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &characterv1.Stats{Strength: 12}}},
+			aylaID:  {alice, &worldv1.CharacterView{Id: aylaID.String(), Name: "Ayla", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, Stats: &worldv1.Stats{Strength: 12}}},
 			robinID: {alice, &worldv1.CharacterView{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 1, Hp: 105, MaxHp: 105, Mp: 33, MaxMp: 33, MapId: "town", X: 400, Y: 608}},
 			brunoID: {bob, &worldv1.CharacterView{Id: brunoID.String(), Name: "Bruno", Class: "warrior", Level: 1, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 500, Y: 608}},
 		},

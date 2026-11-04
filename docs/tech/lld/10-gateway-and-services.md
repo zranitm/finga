@@ -106,7 +106,7 @@ A service the gateway cannot reach answers `internal`, as a database failure doe
 
 ## Contracts
 
-One proto package per service under `api/proto/internal/`. A request names its owner (`account_id`, `character_id`) and every response is its own message, so a field can be added later. The sketch, written in full in step 22:
+One proto package per service under `api/proto/internal/`. A request names its owner (`account_id`, `character_id`) and every response is its own message, so a field can be added later. No contract imports another service's: the world's Stats, Slot and Item are its own, so one service's message can change without touching another's release (`api/contracts_test.go` checks). The sketch, written in full in step 22:
 
 **`internal.account.v1.AccountService`**
 

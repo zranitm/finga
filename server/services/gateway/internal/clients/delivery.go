@@ -42,7 +42,7 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		ev := m.GetChat()
 		return model.ChatMessage{Channel: model.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
 	case m.GetInventoryChanged() != nil:
-		return model.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}, true
+		return model.InventoryChanged{Slots: worldSlots(m.GetInventoryChanged().GetSlots())}, true
 	case m.GetPickupFailed() != nil:
 		return model.PickupFailed{Why: pickupFailure(m.GetPickupFailed())}, true
 	}
@@ -104,6 +104,19 @@ func dropViews(ds []*worldv1.DropView) []model.DropView {
 	out := make([]model.DropView, 0, len(ds))
 	for _, d := range ds {
 		out = append(out, model.DropView{ID: d.GetId(), Template: d.GetTemplate(), Quantity: int(d.GetQuantity()), X: d.GetX(), Y: d.GetY()})
+	}
+	return out
+}
+
+// worldSlots are the slots a pickup changed, as the world's contract carries them.
+func worldSlots(slots []*worldv1.Slot) []model.InventorySlot {
+	out := make([]model.InventorySlot, 0, len(slots))
+	for _, s := range slots {
+		slot := model.InventorySlot{Tab: s.GetTab(), Slot: int(s.GetSlot())}
+		if it := s.GetItem(); it != nil {
+			slot.Item = &model.ItemView{ID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
+		}
+		out = append(out, slot)
 	}
 	return out
 }
