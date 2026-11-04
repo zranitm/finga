@@ -6,8 +6,11 @@ import (
 	"log/slog"
 	"slices"
 
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
@@ -37,6 +40,7 @@ type Options struct {
 type Host struct {
 	// GRPC is the server to register the service's handlers on.
 	GRPC    *grpc.Server
+	metrics *grpcprom.ServerMetrics
 	run     *runner.Runner
 	closers []func()
 }
@@ -47,11 +51,22 @@ func New(opts Options) *Host {
 	if opts.Panics == nil {
 		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
+	metrics := grpcx.NewServerMetrics()
+	opts.Registry.MustRegister(metrics) // a fresh registry per process: only a second Host on it fails
 	draining := make(chan struct{})
-	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics, Draining: draining})}
+	h := &Host{
+		GRPC:    grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics, Metrics: metrics, Draining: draining}),
+		metrics: metrics,
+	}
+	healthy := health.NewServer()
+	healthpb.RegisterHealthServer(h.GRPC, healthy)
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
-	// Subscriptions never end on their own; the drain ends them so GracefulStop waits only for calls.
-	drain := func(context.Context) { close(draining) }
+	// Health watchers hear NOT_SERVING first; then subscriptions, which never end on their own, are
+	// ended so GracefulStop waits only for calls.
+	drain := func(context.Context) {
+		healthy.Shutdown()
+		close(draining)
+	}
 	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace, Panics: opts.Panics, Drain: drain}, []runner.Listener{
 		{Name: grpcListener, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},
 		{Name: opsListener, Addr: opts.Settings.Ops, Server: runner.HTTP(ops)},
@@ -59,8 +74,11 @@ func New(opts Options) *Host {
 	return h
 }
 
-// Run serves until ctx ends, then shuts down gracefully.
-func (h *Host) Run(ctx context.Context) error { return h.run.Run(ctx) }
+// Run serves until ctx ends, then shuts down gracefully; every registered method's metrics start at 0.
+func (h *Host) Run(ctx context.Context) error {
+	h.metrics.InitializeMetrics(h.GRPC)
+	return h.run.Run(ctx)
+}
 
 // OnClose adds something Close releases (a pool, a client connection).
 func (h *Host) OnClose(f func()) { h.closers = append(h.closers, f) }

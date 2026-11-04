@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 	"google.golang.org/grpc/status"
 
@@ -68,6 +69,30 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 			t.Fatalf("an unimplemented call: %v", err)
 		}
 	})
+	t.Run("the gRPC health service answers SERVING", func(t *testing.T) {
+		conn, err := grpcx.Dial(grpcAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		res, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{})
+		if err != nil || res.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			t.Fatalf("health %v %v", res, err)
+		}
+	})
+	t.Run("every call is counted and timed by method and code, and every method starts at 0", func(t *testing.T) {
+		_, body := runnertest.Get(t, "http://"+opsAddr+"/metrics")
+		for _, want := range []string{
+			`grpc_server_handled_total{grpc_code="OK",grpc_method="EmptyCall",grpc_service="grpc.testing.TestService",grpc_type="unary"} 1`,
+			`grpc_server_handled_total{grpc_code="Unimplemented",grpc_method="UnaryCall",grpc_service="grpc.testing.TestService",grpc_type="unary"} 1`,
+			`grpc_server_handling_seconds_count{grpc_method="EmptyCall",grpc_service="grpc.testing.TestService",grpc_type="unary"} 1`,
+			`grpc_server_started_total{grpc_method="FullDuplexCall",grpc_service="grpc.testing.TestService",grpc_type="bidi_stream"} 0`,
+		} {
+			if !strings.Contains(body, want) {
+				t.Errorf("/metrics lacks %s", want)
+			}
+		}
+	})
 	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 		t.Run("ops "+path, func(t *testing.T) {
 			status, body := runnertest.Get(t, "http://"+opsAddr+path)
@@ -113,6 +138,13 @@ func TestAnOpenStreamDoesNotHoldTheShutdown(t *testing.T) {
 	if _, err := stream.Recv(); err != nil {
 		t.Fatal(err)
 	}
+	watch, err := healthpb.NewHealthClient(conn).Watch(context.Background(), &healthpb.HealthCheckRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res, err := watch.Recv(); err != nil || res.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+		t.Fatalf("health %v %v", res, err)
+	}
 	start := time.Now()
 	if err := p.Stop(); err != nil {
 		t.Fatal(err)
@@ -122,6 +154,9 @@ func TestAnOpenStreamDoesNotHoldTheShutdown(t *testing.T) {
 	}
 	if _, err := stream.Recv(); status.Code(err) != codes.Unavailable {
 		t.Fatalf("the subscriber got %v", err)
+	}
+	if res, err := watch.Recv(); err != nil || res.GetStatus() != healthpb.HealthCheckResponse_NOT_SERVING {
+		t.Fatalf("health at shutdown %v %v", res, err)
 	}
 	h.Close()
 }

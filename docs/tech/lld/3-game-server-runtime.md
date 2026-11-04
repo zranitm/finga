@@ -14,7 +14,7 @@ And the tools:
 - `cmd/bot` drives test players against a running game for the proof session and prints the tick percentiles from the world's `/metrics` (its ops address, `-metrics`).
 - `cmd/auditor` (Stage 2) checks the invariants continuously, as a Kafka consumer.
 
-The gateway starts one HTTP server and follows the services' streams. Routes: REST under `/api`, WebSocket at `/ws`, `/healthz` for liveness, `/readyz` for readiness, and metrics at `/metrics`. Every other service serves gRPC on its listen address and the same three probes on its ops address.
+The gateway starts one HTTP server and follows the services' streams. Routes: REST under `/api`, WebSocket at `/ws`, `/healthz` for liveness, `/readyz` for readiness, and metrics at `/metrics`. Every other service serves gRPC on its listen address and the same three probes on its ops address; its gRPC listener also answers `grpc.health.v1`, SERVING until shutdown starts.
 
 **Readiness** means this process can take traffic: `/readyz` is 200 from the moment it listens (game data loaded, everything wired) until shutdown starts, and 503 before and after, so a load balancer stops sending new connections while in-flight requests drain. On SIGTERM the gateway then drains: it refuses new WebSocket connections, tells every connection the server is restarting (Kicked `server_restart`; the client reconnects with jitter), and closes them before its listener shuts down, within the grace period (step 28). It checks no dependency. The database is shared by every instance, so failing readiness on it would pull them all out of rotation at once and turn a database blip into a full outage; startup already fails without the database, and a later outage shows in the logs, the request errors and `db_tx_duration_seconds` instead (changed 2026-10-23 at the user's request; until then `/readyz` also pinged the database).
 
@@ -100,3 +100,4 @@ Only one player can hold a reservation, so two players can never both get a drop
 - `economy_jobs_inflight`
 - `outbox_unpublished`: grows in Stage 1, then shows relay lag in Stage 2
 - `panics_total` by flow (`http`, `grpc`, `ws`, `stream`, `job`, `task`), on every binary
+- `grpc_server_handled_total` by service, method and code (the code the caller sees), `grpc_server_handling_seconds` and `grpc_server_started_total`, on every gRPC service, each method's series from 0 (go-grpc-middleware's Prometheus provider)

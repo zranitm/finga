@@ -453,6 +453,7 @@ func (ps Properties) Int(name string) (int, bool)
 type ErrorRow struct { Err error; Code codes.Code; Reason protoreflect.Enum } // a sentinel, its code, its proto reason
 type ErrorTable []ErrorRow
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, a recorded panic as Internal, errors through the table, a ping every 10 s allowed
+func NewServerMetrics() *grpcprom.ServerMetrics // per-call counts and latency by method and code, for ServerOptions.Metrics
 // ServerOptions.Draining, once closed, ends every open stream with Unavailable; internal/host closes it on
 // shutdown, so GracefulStop waits only for the calls in flight
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID; pings an idle connection every 20 s

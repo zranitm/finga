@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
@@ -232,6 +233,41 @@ func TestDrainingEndsOpenStreamsWithUnavailable(t *testing.T) {
 	if logs.Len() > 0 {
 		t.Fatalf("a drain is no failure, yet it logged %s", logs.String())
 	}
+}
+
+// The metrics see a call as it leaves: a sentinel counts under the code the table gives it.
+func TestMetricsCountTheCodeTheCallerSees(t *testing.T) {
+	metrics := grpcx.NewServerMetrics()
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(metrics)
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Metrics: metrics})
+	testpb.RegisterTestServiceServer(srv, &shop{err: func(context.Context) error { return errFull }})
+	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
+	if _, err := c.EmptyCall(context.Background(), &testpb.Empty{}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v", err)
+	}
+	families, err := reg.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range families {
+		if f.GetName() != "grpc_server_handled_total" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			labels := map[string]string{}
+			for _, l := range m.GetLabel() {
+				labels[l.GetName()] = l.GetValue()
+			}
+			if labels["grpc_method"] == "EmptyCall" && m.GetCounter().GetValue() == 1 {
+				if labels["grpc_code"] != "FailedPrecondition" {
+					t.Fatalf("counted as %s", labels["grpc_code"])
+				}
+				return
+			}
+		}
+	}
+	t.Fatal("the call was not counted")
 }
 
 func TestFollow(t *testing.T) {

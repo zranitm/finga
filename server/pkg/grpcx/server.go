@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
@@ -21,6 +22,8 @@ type ServerOptions struct {
 	Logger *slog.Logger
 	// Panics records a recovered panic; nil logs it to Logger.
 	Panics *panics.Recorder
+	// Metrics count and time every call by service, method and code, as the caller sees it; nil records none.
+	Metrics *grpcprom.ServerMetrics
 	// Draining, once closed, ends every open stream with Unavailable, so GracefulStop need not wait for
 	// streams that never end on their own; their clients resubscribe. Nil never drains.
 	Draining <-chan struct{}
@@ -39,13 +42,38 @@ func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	all := append([]grpc.ServerOption{
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: keepaliveMinTime, PermitWithoutStream: true}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{Time: keepaliveTime, Timeout: keepaliveTimeout}),
-		grpc.ChainUnaryInterceptor(i.unary),
-		grpc.ChainStreamInterceptor(i.stream),
+		grpc.ChainUnaryInterceptor(i.unaries()...),
+		grpc.ChainStreamInterceptor(i.streams()...),
 	}, extra...)
 	return grpc.NewServer(all...)
 }
 
+// rpcBuckets span a sub-millisecond world command to a slow database call, in seconds.
+var rpcBuckets = []float64{.0002, .0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}
+
+// NewServerMetrics are grpc_server_started_total, grpc_server_handled_total and grpc_server_handling_seconds
+// by service and method (handled by code too); register them, pass them in ServerOptions, then call
+// InitializeMetrics once the services are registered, so every method's series starts at 0.
+func NewServerMetrics() *grpcprom.ServerMetrics {
+	return grpcprom.NewServerMetrics(grpcprom.WithServerHandlingTimeHistogram(grpcprom.WithHistogramBuckets(rpcBuckets)))
+}
+
 type interceptors struct{ opts ServerOptions }
+
+// unaries and streams put the metrics outermost, so they count the code the error table gave.
+func (i interceptors) unaries() []grpc.UnaryServerInterceptor {
+	if i.opts.Metrics == nil {
+		return []grpc.UnaryServerInterceptor{i.unary}
+	}
+	return []grpc.UnaryServerInterceptor{i.opts.Metrics.UnaryServerInterceptor(), i.unary}
+}
+
+func (i interceptors) streams() []grpc.StreamServerInterceptor {
+	if i.opts.Metrics == nil {
+		return []grpc.StreamServerInterceptor{i.stream}
+	}
+	return []grpc.StreamServerInterceptor{i.opts.Metrics.StreamServerInterceptor(), i.stream}
+}
 
 func (i interceptors) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 	ctx = requestIDFromIncoming(ctx)
