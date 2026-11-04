@@ -12,7 +12,7 @@ import (
 )
 
 func TestPublicOf(t *testing.T) {
-	refused := &model.ServiceError{Public: model.Public{Code: "party_full", Status: 409, Message: "the party is full"}, Err: errors.New("rpc error")}
+	refused := &model.ServiceError{Public: model.PartyFull, Err: errors.New("rpc error")}
 	tests := []struct {
 		name string
 		err  error

@@ -6,7 +6,6 @@ import (
 
 	"google.golang.org/grpc"
 
-	clientv1 "finga/api/gen/client/v1"
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
@@ -28,7 +27,7 @@ func NewSocial(c socialv1.SocialServiceClient, log *slog.Logger, rec *panics.Rec
 }
 
 // PartyOf is the character's party, nil when it has none.
-func (s Social) PartyOf(ctx context.Context, character kernel.CharacterID) (*clientv1.PartyView, error) {
+func (s Social) PartyOf(ctx context.Context, character kernel.CharacterID) (*model.PartyView, error) {
 	res, err := s.c.PartyOf(ctx, &socialv1.PartyOfRequest{CharacterId: character.String()})
 	return partyView(res.GetParty()), errmap.Wrap(err)
 }
@@ -46,21 +45,21 @@ func (s Social) Offline(ctx context.Context, character kernel.CharacterID) error
 	return errmap.Wrap(err)
 }
 
-// chatChannels maps client channels to the contract's; the service refuses anything else, unspecified included.
-var chatChannels = map[clientv1.ChatChannel]socialv1.ChatChannel{
-	clientv1.ChatChannel_CHAT_CHANNEL_MAP:   socialv1.ChatChannel_CHAT_CHANNEL_MAP,
-	clientv1.ChatChannel_CHAT_CHANNEL_PARTY: socialv1.ChatChannel_CHAT_CHANNEL_PARTY,
+// chatChannels maps the gateway's channels to the contract's; the service refuses anything else, unspecified included.
+var chatChannels = map[model.ChatChannel]socialv1.ChatChannel{
+	model.ChatMap:   socialv1.ChatChannel_CHAT_CHANNEL_MAP,
+	model.ChatParty: socialv1.ChatChannel_CHAT_CHANNEL_PARTY,
 }
 
 // Chat cleans and limits a line.
-func (s Social) Chat(ctx context.Context, sender model.Player, channel clientv1.ChatChannel, text string) (model.ChatLine, error) {
+func (s Social) Chat(ctx context.Context, sender model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	res, err := s.c.Chat(ctx, &socialv1.ChatRequest{SenderId: sender.ID.String(), SenderName: sender.Name, Channel: chatChannels[channel], Text: text})
 	if err != nil {
 		return model.ChatLine{}, errmap.Wrap(err)
 	}
-	line := model.ChatLine{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: res.GetText()}
+	line := model.ChatLine{Channel: model.ChatParty, Text: res.GetText()}
 	if res.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_MAP {
-		line.Channel = clientv1.ChatChannel_CHAT_CHANNEL_MAP
+		line.Channel = model.ChatMap
 	}
 	return line, nil
 }
@@ -117,7 +116,7 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 			p = model.PartyInvited{InviteID: inv.GetInviteId(), From: inv.GetFromId(), FromName: inv.GetFromName()}
 		case m.GetChatLine() != nil:
 			line := m.GetChatLine()
-			p = model.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}
+			p = model.ChatMessage{Channel: model.ChatParty, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}
 		default:
 			return
 		}
@@ -127,13 +126,15 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 	}})
 }
 
-func partyView(p *socialv1.Party) *clientv1.PartyView {
+func partyView(p *socialv1.Party) *model.PartyView {
 	if p == nil {
 		return nil
 	}
-	v := &clientv1.PartyView{Leader: p.GetLeaderId(), Members: make([]*clientv1.PartyMember, 0, len(p.GetMembers()))}
+	v := &model.PartyView{Leader: p.GetLeaderId(), Members: make([]model.PartyMember, 0, len(p.GetMembers()))}
 	for _, m := range p.GetMembers() {
-		v.Members = append(v.Members, &clientv1.PartyMember{CharacterId: m.GetId(), Name: m.GetName(), Level: m.GetLevel(), Hp: m.GetHp(), MaxHp: m.GetMaxHp(), MapId: m.GetMapId(), Online: m.GetOnline()})
+		v.Members = append(v.Members, model.PartyMember{
+			CharacterID: m.GetId(), Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Online: m.GetOnline(),
+		})
 	}
 	return v
 }

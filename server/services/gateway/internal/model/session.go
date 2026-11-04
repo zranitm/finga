@@ -3,7 +3,6 @@ package model
 import (
 	"time"
 
-	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 )
 
@@ -43,9 +42,9 @@ const (
 // Welcome is what a joined player starts from; Token replaces the one Hello sent.
 type Welcome struct {
 	Token      string
-	Character  *clientv1.CharacterView
-	Inventory  []*clientv1.ItemView
-	Party      *clientv1.PartyView
+	Character  CharacterView
+	Inventory  []ItemView
+	Party      *PartyView
 	MapID      string
 	ServerTime time.Time
 }

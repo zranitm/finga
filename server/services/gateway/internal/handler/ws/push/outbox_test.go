@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -46,32 +47,47 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 }
 
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
-	players := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Vx: 200, Facing: -1, OnGround: true}}
-	mobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", Hp: 9, MaxHp: 30}}
-	drops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2}}
-	party := &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Online: true}}}
+	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, VX: 200, VY: -5, Facing: -1, OnGround: true, Climbing: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true}}
+	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Vx: 200, Vy: -5, Facing: -1, OnGround: true, Climbing: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true}}
+	mobs := []model.MobView{{ID: 7, Type: "green_slime", X: 3, Y: 4, Facing: 1, HP: 9, MaxHP: 30}}
+	wireMobs := []*clientv1.MobView{{Id: 7, Type: "green_slime", X: 3, Y: 4, Facing: 1, Hp: 9, MaxHp: 30}}
+	drops := []model.DropView{{ID: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
+	wireDrops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
+	party := &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Level: 3, HP: 50, MaxHP: 105, MapID: "forest", Online: true}}}
+	wireParty := &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Level: 3, Hp: 50, MaxHp: 105, MapId: "forest", Online: true}}}
+	character := model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33}
+	wireCharacter := &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33}
+	slots := []model.InventorySlot{{Tab: "etc", Slot: 1}, {Tab: "etc", Slot: 2, Item: &model.ItemView{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}}}
+	wireSlots := []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}, {Tab: "etc", Slot: 2, Item: &clientv1.ItemView{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}}}
 	tests := []struct {
 		push model.Push
 		want proto.Message
 	}{
-		{model.Snapshot{Players: players, Mobs: mobs, Drops: drops}, &clientv1.Snapshot{Players: players, Mobs: mobs, Drops: drops}},
+		{model.Snapshot{Players: players, Mobs: mobs, Drops: drops}, &clientv1.Snapshot{Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops}},
 		{
-			model.Delta{AckSeq: 3, Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
-			&clientv1.Delta{AckSeq: 3, Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
+			model.Delta{AckSeq: 3, Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}},
+			&clientv1.Delta{AckSeq: 3, Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
 		},
 		{model.MapChange{MapID: "forest", X: 64, Y: 608}, &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
-		{model.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true}, &clientv1.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true}},
+		{
+			model.Damage{Source: model.Entity{Character: "p-1"}, Target: model.Entity{Mob: 7}, Amount: 21, Crit: true, Miss: true},
+			&clientv1.Damage{Source: "p:p-1", Target: "m:7", Amount: 21, Crit: true, Miss: true},
+		},
 		{model.Died{CharacterID: "p-1", X: 1, Y: 2}, &clientv1.Died{CharacterId: "p-1", X: 1, Y: 2}},
 		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 416, Y: 608, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 416, Y: 608, Hp: 102}},
 		{model.ExpGained{Amount: 5, Exp: 15}, &clientv1.ExpGained{Amount: 5, Exp: 15}},
-		{model.LevelUp{Character: &clientv1.CharacterView{Id: "p-1", Level: 2}}, &clientv1.LevelUp{Character: &clientv1.CharacterView{Id: "p-1", Level: 2}}},
+		{model.LevelUp{Character: character}, &clientv1.LevelUp{Character: wireCharacter}},
 		{
-			model.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: "p-1", SenderName: "Robin", Text: "psst"},
+			model.ChatMessage{Channel: model.ChatParty, Sender: "p-1", SenderName: "Robin", Text: "psst"},
 			&clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: "p-1", SenderName: "Robin", Text: "psst"},
 		},
-		{model.InventoryChanged{Slots: []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}}}, &clientv1.InventoryChanged{Slots: []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}}}},
-		{model.PickupFailed{Why: model.Public{Code: "inventory_full", Message: "your inventory is full"}}, &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
-		{model.PartyState{Party: party}, &clientv1.PartyState{Party: party}},
+		{
+			model.ChatMessage{Channel: model.ChatMap, Sender: "p-1", SenderName: "Robin", Text: "hi"},
+			&clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: "p-1", SenderName: "Robin", Text: "hi"},
+		},
+		{model.InventoryChanged{Slots: slots}, &clientv1.InventoryChanged{Slots: wireSlots}},
+		{model.PickupFailed{Why: model.InventoryFull}, &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
+		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
 		{model.PartyInvited{InviteID: "inv-2", From: "p-1", FromName: "Robin"}, &clientv1.PartyInvited{InviteId: "inv-2", From: "p-1", FromName: "Robin"}},
 	}
@@ -89,6 +105,32 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 				t.Fatalf("sent %s at tick %d: %v, want %s: %v", m.Type, m.Tick, m.Data, name, tt.want)
 			}
 		})
+	}
+}
+
+func TestWelcomeCarriesTheCharacterItsItemsAndItsParty(t *testing.T) {
+	s := &socket{}
+	at := time.UnixMilli(1_700_000_000_000)
+	push.NewOutbox(s, s).Welcome(model.Welcome{
+		Token:      "t-2",
+		Character:  model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33},
+		Inventory:  []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		Party:      &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Level: 2, HP: 50, MaxHP: 105, MapID: "town", Online: true}}},
+		MapID:      "town",
+		ServerTime: at,
+	})
+	want := &clientv1.Welcome{
+		Token:      "t-2",
+		Character:  &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33},
+		Inventory:  []*clientv1.ItemView{{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		Party:      &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Level: 2, Hp: 50, MaxHp: 105, MapId: "town", Online: true}}},
+		MapId:      "town",
+		ServerTime: at.UnixMilli(),
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.sent) != 1 || s.sent[0].Type != "Welcome" || !proto.Equal(s.sent[0].Data.(proto.Message), want) {
+		t.Fatalf("sent %+v, want %v", s.sent, want)
 	}
 }
 

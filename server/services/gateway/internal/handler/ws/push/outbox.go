@@ -37,7 +37,7 @@ func (o *Outbox) ID() string { return o.ws.ID() }
 // Welcome answers a Hello that joined.
 func (o *Outbox) Welcome(w model.Welcome) {
 	o.send(wsconn.Message{Data: &clientv1.Welcome{
-		Token: w.Token, Character: w.Character, Inventory: w.Inventory, Party: w.Party, MapId: w.MapID, ServerTime: w.ServerTime.UnixMilli(),
+		Token: w.Token, Character: characterView(w.Character), Inventory: itemViews(w.Inventory), Party: partyView(w.Party), MapId: w.MapID, ServerTime: w.ServerTime.UnixMilli(),
 	}})
 }
 

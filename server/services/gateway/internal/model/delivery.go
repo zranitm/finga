@@ -1,7 +1,5 @@
 package model
 
-import clientv1 "finga/api/gen/client/v1"
-
 // Delivery is a push for one player at a tick; the use cases route it, hold it and shift its Tick.
 type Delivery struct {
 	Tick uint64
@@ -15,19 +13,19 @@ type Push interface{ push() }
 
 // Snapshot is everything on the player's map; a join waits for it.
 type Snapshot struct {
-	Players []*clientv1.PlayerView
-	Mobs    []*clientv1.MobView
-	Drops   []*clientv1.DropView
+	Players []PlayerView
+	Mobs    []MobView
+	Drops   []DropView
 }
 
 // Delta is what changed on the map since the last tick; AckSeq is the last input the world applied.
 type Delta struct {
 	AckSeq                    uint32
-	Players                   []*clientv1.PlayerView
-	Mobs                      []*clientv1.MobView
-	Drops                     []*clientv1.DropView
+	Players                   []PlayerView
+	Mobs                      []MobView
+	Drops                     []DropView
 	RemovedPlayers            []string
-	RemovedMobs, RemovedDrops []uint32
+	RemovedMobs, RemovedDrops []uint64
 }
 
 // MapChange moves the player to another map.
@@ -36,10 +34,10 @@ type MapChange struct {
 	X, Y  float64
 }
 
-// Damage is a hit; Source and Target are p:<character id> or m:<mob id>, as the client names them.
+// Damage is a hit.
 type Damage struct {
-	Source, Target string
-	Amount         int32
+	Source, Target Entity
+	Amount         int
 	Crit, Miss     bool
 }
 
@@ -54,7 +52,7 @@ type Respawned struct {
 	CharacterID string
 	MapID       string
 	X, Y        float64
-	HP          int32
+	HP          int
 }
 
 // ExpGained is experience earned, and the total.
@@ -64,19 +62,19 @@ type ExpGained struct {
 
 // LevelUp is the player's character after it levelled up.
 type LevelUp struct {
-	Character *clientv1.CharacterView
+	Character CharacterView
 }
 
 // ChatMessage is a map or party line.
 type ChatMessage struct {
-	Channel            clientv1.ChatChannel
+	Channel            ChatChannel
 	Sender, SenderName string
 	Text               string
 }
 
 // InventoryChanged is the slots a pickup or another move changed.
 type InventoryChanged struct {
-	Slots []*clientv1.InventorySlot
+	Slots []InventorySlot
 }
 
 // PickupFailed is a pickup the item service refused, as the player sees it.
@@ -86,7 +84,7 @@ type PickupFailed struct {
 
 // PartyState is the player's party; nil means none.
 type PartyState struct {
-	Party *clientv1.PartyView
+	Party *PartyView
 }
 
 // PartyInvited is an invite to the sender's party.

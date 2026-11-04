@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 
-	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/panics"
@@ -62,7 +61,7 @@ func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
 		{"leaving a party", g.LeaveParty(ctx, s), model.ErrNoParties},
 		{"kicking from a party", g.KickFromParty(ctx, s, other), model.ErrNoParties},
 		{"promoting", g.PromoteInParty(ctx, s, other), model.ErrNoParties},
-		{"chatting", g.Chat(ctx, s, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "hi"), model.ErrNoChat},
+		{"chatting", g.Chat(ctx, s, model.ChatMap, "hi"), model.ErrNoChat},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -83,7 +82,7 @@ func TestHello(t *testing.T) {
 			t.Fatal(err)
 		}
 		welcome := c.welcomed()
-		if welcome == nil || welcome.Token != "rotated" || welcome.Character.GetId() != ayla.String() || welcome.MapID != "town" ||
+		if welcome == nil || welcome.Token != "rotated" || welcome.Character.ID != ayla.String() || welcome.MapID != "town" ||
 			welcome.ServerTime.Before(before) || welcome.ServerTime.After(time.Now()) {
 			t.Fatalf("welcome %+v", welcome)
 		}
@@ -97,7 +96,7 @@ func TestHello(t *testing.T) {
 		join  error
 	}{
 		{"a token that is not valid", "nope", nil},
-		{"a character that is not the account's", token, &model.ServiceError{Public: model.Public{Code: model.CharacterNotFound}, Err: errors.New("not found")}},
+		{"a character that is not the account's", token, &model.ServiceError{Public: model.CharacterNotFound, Err: errors.New("not found")}},
 	} {
 		t.Run(tt.name+" is rejected, and nobody is welcomed", func(t *testing.T) {
 			g := newGateway(&world{joinErr: tt.join})
@@ -197,7 +196,7 @@ func (w *world) Join(_ context.Context, _, _ string, _ kernel.AccountID, c kerne
 		}
 		deliver(model.WorldEvent{Character: c, Delivery: d})
 	}
-	return model.Joined{Character: &clientv1.CharacterView{Id: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
+	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
 }
 
 func (w *world) failJoins(err error) {

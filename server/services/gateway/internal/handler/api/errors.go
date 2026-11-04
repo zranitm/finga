@@ -25,7 +25,7 @@ func writeError(c *gin.Context, err error) {
 // writePublic sends p and notes its code for the request log.
 func writePublic(c *gin.Context, p model.Public) {
 	c.Set(codeKey, p.Code)
-	writeJSON(c, p.Status, ErrorResponse{Code: p.Code, Message: p.Message})
+	writeJSON(c, status(p), ErrorResponse{Code: p.Code, Message: p.Message})
 }
 
 // writeJSON sends body as exactly application/json; Gin's renderer would add a charset.

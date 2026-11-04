@@ -94,24 +94,10 @@ linters:
             - pkg: finga/internal/host
               desc: a module knows nothing of how its process runs
         modules-no-contracts:
-          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/gateway/internal/model/**", "!**/services/gateway/internal/application/**"]
+          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
           deny:
             - pkg: finga/api/gen
               desc: a module returns its own types; its handler turns them into the contract's
-        # The client protocol is the gateway's model vocabulary; the services' contracts stay its clients'.
-        gateway-no-service-contracts:
-          files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
-          deny:
-            - pkg: finga/api/gen/account
-              desc: the gateway's clients turn a service's contract into the gateway's model
-            - pkg: finga/api/gen/character
-              desc: the gateway's clients turn a service's contract into the gateway's model
-            - pkg: finga/api/gen/item
-              desc: the gateway's clients turn a service's contract into the gateway's model
-            - pkg: finga/api/gen/social
-              desc: the gateway's clients turn a service's contract into the gateway's model
-            - pkg: finga/api/gen/world
-              desc: the gateway's clients turn a service's contract into the gateway's model
         services-no-client-protocol:
           files: ["**/services/**", "!**/services/gateway/**"]
           deny:
@@ -132,10 +118,10 @@ linters:
             - pkg: finga/services/gateway/internal/handler
               desc: the handler calls the application, never the reverse
         gateway-application-no-http:
-          files: ["**/services/gateway/internal/application/**"]
+          files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
           deny:
             - pkg: net/http
-              desc: the REST handler speaks HTTP; the Lobby takes plain values
+              desc: the REST handler speaks HTTP and gives each failure its status; the Lobby takes plain values
         # Only a service's repository layer and sqlc's output talk to the database.
         services-no-sql:
           files: ["**/services/*/internal/**", "!**/internal/repository/**", "!**/repository.go", "!**/internal/db/**", "!$test"]

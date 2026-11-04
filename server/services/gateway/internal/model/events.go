@@ -1,13 +1,10 @@
 package model
 
-import (
-	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/kernel"
-)
+import "finga/internal/kernel"
 
 // Joined is a player the world has joined, and where it is.
 type Joined struct {
-	Character *clientv1.CharacterView
+	Character CharacterView
 	MapID     string
 	X, Y      float64
 }
@@ -36,6 +33,6 @@ type SessionEnd struct {
 
 // ChatLine is a chat line the social service accepted and cleaned.
 type ChatLine struct {
-	Channel clientv1.ChatChannel
+	Channel ChatChannel
 	Text    string
 }

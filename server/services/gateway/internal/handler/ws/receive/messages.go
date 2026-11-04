@@ -8,6 +8,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
+	"finga/services/gateway/internal/handler/ws/push"
 	"finga/services/gateway/internal/model"
 )
 
@@ -74,11 +75,11 @@ func (h *Handler) inventoryDiscard(c *msgContext, in *clientv1.InventoryDiscard)
 }
 
 // changed is an inventory command's follow-up: the changed slots, if any.
-func changed(slots []*clientv1.InventorySlot, err error) (any, error) {
+func changed(slots []model.InventorySlot, err error) (any, error) {
 	if err != nil || len(slots) == 0 {
 		return nil, err
 	}
-	return &clientv1.InventoryChanged{Slots: slots}, nil
+	return push.InventoryChanged(slots), nil
 }
 
 func (h *Handler) partyInvite(c *msgContext, in *clientv1.PartyInvite) (any, error) {
@@ -114,5 +115,11 @@ func (h *Handler) partyPromote(c *msgContext, in *clientv1.PartyPromote) (any, e
 }
 
 func (h *Handler) chatSend(c *msgContext, in *clientv1.ChatSend) (any, error) {
-	return nil, h.gw.Chat(c.Ctx, c.Session.session, in.GetChannel(), in.GetText())
+	return nil, h.gw.Chat(c.Ctx, c.Session.session, chatChannels[in.GetChannel()], in.GetText())
+}
+
+// chatChannels maps the client's channels to the gateway's; any other is no channel, which the social service refuses.
+var chatChannels = map[clientv1.ChatChannel]model.ChatChannel{
+	clientv1.ChatChannel_CHAT_CHANNEL_MAP:   model.ChatMap,
+	clientv1.ChatChannel_CHAT_CHANNEL_PARTY: model.ChatParty,
 }

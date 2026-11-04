@@ -3,7 +3,6 @@ package model
 
 import (
 	"errors"
-	"net/http"
 
 	"finga/internal/kernel"
 )
@@ -11,30 +10,8 @@ import (
 // Public is a failure as a client sees it; Message is the gateway's own, never an error's text, so causes never leak.
 type Public struct {
 	Code    string
-	Status  int
 	Message string
 }
-
-// The failures the gateway raises itself.
-var (
-	MalformedBody        = Public{"malformed_body", http.StatusBadRequest, "malformed request body"}
-	MissingField         = Public{"missing_field", http.StatusBadRequest, "missing a required field"}
-	BodyTooLarge         = Public{"body_too_large", http.StatusRequestEntityTooLarge, "request body too large"}
-	NoSuchEndpoint       = Public{"no_such_endpoint", http.StatusNotFound, "no such endpoint"}
-	MethodNotAllowed     = Public{"method_not_allowed", http.StatusMethodNotAllowed, "method not allowed"}
-	RateLimited          = Public{"rate_limited", http.StatusTooManyRequests, "slow down"}
-	NotImplemented       = Public{"not_implemented", http.StatusNotImplemented, "not available yet"}
-	ChatUnavailable      = Public{"chat_unavailable", http.StatusServiceUnavailable, "chat is not available"}
-	PartiesUnavailable   = Public{"parties_unavailable", http.StatusServiceUnavailable, "parties are not available"}
-	InventoryUnavailable = Public{"inventory_unavailable", http.StatusServiceUnavailable, "the inventory is not available"}
-	Unauthenticated      = Public{"unauthenticated", http.StatusUnauthorized, "invalid credentials or session"}
-	BadID                = Public{"bad_id", http.StatusBadRequest, "malformed ID"}
-	UnknownClass         = Public{"unknown_class", http.StatusBadRequest, "unknown class"}
-	Internal             = Public{"internal", http.StatusInternalServerError, "something went wrong"}
-)
-
-// CharacterNotFound is the code of a character that is not the account's; a Hello naming one is rejected.
-const CharacterNotFound = "character_not_found"
 
 // The failures of the gateway's own use cases.
 var (

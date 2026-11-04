@@ -99,7 +99,7 @@ R1's model stays: services return plain sentinel errors named for the failure, a
 1. Each service's proto declares `enum Reason` with one value per sentinel its clients can meet (`REASON_PARTY_FULL`, `REASON_INVENTORY_FULL`).
 2. Each service's gRPC handler has a table from its sentinels to a gRPC code and a `Reason`. A failure leaves as a status whose details carry `google.rpc.ErrorInfo`, with the reason's name and the proto package as its domain. An error the table does not know leaves as `Internal`, its text kept in the service's log, never sent.
 3. `pkg/grpcx` reads the reason back on the calling side, and tells a rule (a reason is present) from a transient failure (none), which is what the world's pickup retry needs.
-4. The gateway's `errmap` maps each (domain, reason) to the client's own code, HTTP status and player message, as it maps sentinels today. The codes, `testdata/errors/codes.json`, and every word a player reads stay the same.
+4. The gateway's `errmap` maps each (domain, reason) to one of the gateway's failures, the client's own code and player message; the REST handler adds the HTTP status. The codes, `testdata/errors/codes.json`, and every word a player reads stay the same.
 5. Guard tests close the loop: in each service, every exported `Err` of its modules has a row; in the gateway, every value of every service's `Reason` enum has a row.
 
 A service the gateway cannot reach answers `internal`, as a database failure does today.
@@ -190,7 +190,7 @@ A failure after the join leaves the world (`world.Leave`) before the connection 
 
 - At start, the gateway opens `world.Deliver`, `social.Deliver` and `account.WatchSessions` with its own ID (random per process). It does not hold its listener for them: a Hello that comes before the world's stream is open (or while the world restarts) retries the join with backoff until the join timeout.
 - The world's sink for a player is the gateway's stream plus the character ID. `Send` never blocks: it queues on the stream. The queue is bounded; if it fills, the world closes that stream and the gateway rejoins its players. A slow player is still the gateway's to close (4001), as today.
-- The gateway's world and social clients turn each stream event into its push in the gateway's model (`model.Snapshot`, `model.Delta`, … built from the protocol's views, in `clients/delivery.go`); the use cases route it to the player's session, and the WebSocket handler turns it into its protocol message (`handler/ws/push`) on the player's connection, as it does a command's reply. A type switch over the pushes must name every one (`gochecksumtype`).
+- The gateway's world and social clients turn each stream event into its push in the gateway's model (`model.Snapshot`, `model.Delta`, … built from the model's views, in `clients/delivery.go`); the use cases route it to the player's session, and the WebSocket handler turns it into its protocol message (`handler/ws/push`) on the player's connection, as it does a command's reply. A type switch over the pushes must name every one (`gochecksumtype`).
 - A Teleport moves the session to the target map, so later commands carry the new map ID.
 
 ### REST

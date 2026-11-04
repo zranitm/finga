@@ -35,7 +35,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 
 	join, err := g.sessions.Join(ctx, s, kernel.AccountID(p.AccountID), kernel.SessionID(p.SessionID), charID)
 	if err != nil {
-		if model.PublicOf(err).Code == model.CharacterNotFound {
+		if model.PublicOf(err) == model.CharacterNotFound {
 			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
 		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "err", err)
@@ -61,7 +61,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		welcome.Party = party
 	}
 
-	player := model.Player{ID: charID, Name: c.GetName(), Level: int(c.GetLevel()), HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp())}
+	player := model.Player{ID: charID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
 	// The newest connection wins.
 	for _, older := range join.Finish(player, welcome) {
 		older.End(model.EndLoggedInElsewhere)

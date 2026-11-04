@@ -878,6 +878,12 @@ func TestChatRouting(t *testing.T) {
 			}
 		}
 	})
+	t.Run("a line on no channel is refused", func(t *testing.T) {
+		ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Text: "where?"}})
+		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_chat_channel" {
+			t.Fatalf("response %+v", r)
+		}
+	})
 	t.Run("a refused line answers a Response without a request ID", func(t *testing.T) {
 		fs.mu.Lock()
 		fs.chatErr = grpctest.Error(codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG)

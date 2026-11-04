@@ -510,6 +510,9 @@ func (f *fakeSocial) Chat(_ context.Context, req *socialv1.ChatRequest) (*social
 	if err != nil {
 		return nil, err
 	}
+	if req.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_UNSPECIFIED {
+		return nil, grpctest.Error(codes.InvalidArgument, socialv1.Reason_REASON_BAD_CHAT_CHANNEL)
+	}
 	if req.GetChannel() == socialv1.ChatChannel_CHAT_CHANNEL_PARTY {
 		for _, id := range recipients {
 			f.push(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: &socialv1.ChatLine{SenderId: req.GetSenderId(), SenderName: req.GetSenderName(), Text: req.GetText()}}})

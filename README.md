@@ -184,12 +184,12 @@ generated code committed in `server/api/gen/`:
   world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.
   Its adapters' `errmap` turns the reason a service's failure carries into
-  what a client sees: an HTTP status, a code of its own (`party_full`) and
-  the player message; a failure it does not know answers `internal` and is
-  logged. In layers, the client protocol's views are its model's
-  vocabulary: its use cases (the REST API's Lobby, the connections'
-  Gateway) know neither gRPC nor HTTP nor the socket, nor any client
-  message. On
+  what a client sees: a code of its own (`party_full`) and the player
+  message, to which the REST handler adds an HTTP status; a failure it does
+  not know answers `internal` and is logged. In layers, its model has its
+  own views of what a player is shown, and its use cases (the REST API's
+  Lobby, the connections' Gateway) know neither gRPC nor HTTP nor the
+  socket, nor any client message. On
   SIGTERM the gateway turns unready, tells every connection to reconnect
   (Kicked `server_restart`), then stops.
 - **`account`** holds accounts and sessions. The gateway checks tokens

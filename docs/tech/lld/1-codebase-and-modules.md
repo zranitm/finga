@@ -31,13 +31,13 @@ server/                 the Go module: everything the server builds, reads and p
     gateway/            the only public entry; no database, no game rules
       main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
       config/           its own configuration: config.yaml (http, the five dependencies) and its type
-      internal/model/   in layers (step 36): a failure as a client sees it (Public), the commands' inputs, Welcome, a connection's player and presence, the services' pushes (Delivery) and stream events, the REST API's accounts and characters; the client protocol's views are its vocabulary
+      internal/model/   in layers (step 36): a failure as a client sees it (Public), the commands' inputs, Welcome, a connection's player and presence, the services' pushes (Delivery) and stream events, the REST API's accounts and characters, and its own views of what a player is shown, which handler/ws turns into the client protocol's messages
       internal/application/  the Lobby (the REST API's use cases), and the Gateway as two flows over one package they share; each package declares the ports it uses
         session/      what both flows share: a connection's Session (the hold, release and tick shift), the Registry that finds it by connection, account, character and login session, the joins and the rejoin, and Outbox, what the gateway tells a player
         send/         the send flow, what a connection asks for: hello.go (Open, Hello, Closed), world.go, items.go, party.go, chat.go
         push/         the push flow, what the services' streams and the gateway's timers start: push.go (Run), world.go, social.go, account.go (ended sessions and the minute check), drain.go
       internal/clients/ the ports over the services' generated clients, the services' stream events turned into the model's pushes, the account service as pkg/auth's Guard
-        errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
+        errmap/         each service failure's reason to the model's failure (own code and player message); Wrap hands a failure to the use cases
       internal/handler/
         api/            REST on Gin (TD-26): the /api group and its middleware (request log with recovery, CORS, bearer auth), DTOs, validation, over the Lobby
         ws/             WebSocket on pkg/wsconn, as api/ is REST on Gin: the handshake and each connection's life, which opens its session with an outbox and starts its inbox
@@ -63,7 +63,7 @@ server/                 the Go module: everything the server builds, reads and p
   testdata/             the contracts the client's tests check too
     movement/           movement vectors shared by Go and TypeScript
     contracts/          golden REST and WebSocket messages
-    errors/             codes.json: every error code with its status and message, written by errmap's test
+    errors/             codes.json: every error code with its status and message, written by handler/api's test
   Dockerfile            one file for every binary; the CMD build arg picks which
   .env.example  .golangci.yml  buf.yaml  buf.gen.yaml  go.mod  go.sum  sqlc.yaml
 web/                    the client: Phaser 4, React, Vite, TypeScript; layout on page 7
@@ -88,7 +88,7 @@ tools/                  developer tools; empty in Stage 1
 - Imports flow one way: composition roots (`services/*/app`, `cmd/migrate/app`) → each service's handler and clients → its application → its model → the shared kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`; a service's repository implements its application's ports and imports application and model (page 11, Layers). Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry, configuration or `internal/host` (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it; `internal/model` became `internal/kernel` in step 30, so every service's own layer can be called `model`).
 - A service never imports another: Go's `internal/` rule keeps it out of the other's internals, and depguard out of the rest (its migrations, its composition root). It reaches another only through the client generated from `api/proto/internal/` (page 10).
 - A service's layers are packages (page 11; each service moves into them in steps 31 to 36, and until its step keeps them as files of one module package, `services/<name>/internal/<module>`): `model` imports none of the others; `application` imports `model`; `repository` imports `application` and `model`; `handler` and `clients` import `application` and `model`, never `repository` or each other. depguard has one rule per layer (`layer-model`, ..., `layer-clients`), naming every service's packages, since it matches a denied path by prefix with no wildcard; a new service is added to each list.
-- The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, a configuration package or `internal/host`; the gateway's `model` and `application` alone use the client protocol's messages (`api/gen/client/v1`, page 11):
+- The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC, `protocol`, `telemetry`, a configuration package or `internal/host`:
   - It returns its own result types, for example the world's `model.Delta`; its service's handler turns them into the contract's messages, and the gateway turns those into protocol messages.
   - It reports metrics through small observer interfaces it declares, and `internal/telemetry` implements them.
   - It takes plain option structs, and its service's composition root fills them from configuration.

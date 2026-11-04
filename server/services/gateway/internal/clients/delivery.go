@@ -1,11 +1,8 @@
 package clients
 
 import (
-	"strconv"
-
 	"google.golang.org/grpc/codes"
 
-	clientv1 "finga/api/gen/client/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/pkg/grpcx"
 	"finga/services/gateway/internal/clients/errmap"
@@ -22,20 +19,20 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		ev := m.GetDelta()
 		return model.Delta{
 			AckSeq: ev.GetAckSeq(), Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops()),
-			RemovedPlayers: ev.GetRemovedPlayers(), RemovedMobs: instanceIDs(ev.GetRemovedMobs()), RemovedDrops: instanceIDs(ev.GetRemovedDrops()),
+			RemovedPlayers: ev.GetRemovedPlayers(), RemovedMobs: ev.GetRemovedMobs(), RemovedDrops: ev.GetRemovedDrops(),
 		}, true
 	case m.GetTeleport() != nil:
 		ev := m.GetTeleport()
 		return model.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}, true
 	case m.GetDamage() != nil:
 		ev := m.GetDamage()
-		return model.Damage{Source: entityRef(ev.GetSource()), Target: entityRef(ev.GetTarget()), Amount: ev.GetAmount(), Crit: ev.GetCrit(), Miss: ev.GetMiss()}, true
+		return model.Damage{Source: entity(ev.GetSource()), Target: entity(ev.GetTarget()), Amount: int(ev.GetAmount()), Crit: ev.GetCrit(), Miss: ev.GetMiss()}, true
 	case m.GetDied() != nil:
 		ev := m.GetDied()
 		return model.Died{CharacterID: ev.GetCharacterId(), X: ev.GetX(), Y: ev.GetY()}, true
 	case m.GetRespawned() != nil:
 		ev := m.GetRespawned()
-		return model.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: ev.GetHp()}, true
+		return model.Respawned{CharacterID: ev.GetCharacterId(), MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY(), HP: int(ev.GetHp())}, true
 	case m.GetExpGained() != nil:
 		ev := m.GetExpGained()
 		return model.ExpGained{Amount: ev.GetAmount(), Exp: ev.GetExp()}, true
@@ -43,7 +40,7 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.LevelUp{Character: characterView(m.GetLevelUp().GetCharacter())}, true
 	case m.GetChat() != nil:
 		ev := m.GetChat()
-		return model.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
+		return model.ChatMessage{Channel: model.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
 	case m.GetInventoryChanged() != nil:
 		return model.InventoryChanged{Slots: inventorySlots(m.GetInventoryChanged().GetSlots())}, true
 	case m.GetPickupFailed() != nil:
@@ -60,69 +57,53 @@ func pickupFailure(f *worldv1.PickupFailed) model.Public {
 	return errmap.For(grpcx.ErrorFor(codes.Unknown, grpcx.Reason{Domain: f.GetErrorDomain(), Name: f.GetErrorReason()}))
 }
 
-// entityRef is the wire form p:<character id> or m:<mob id>.
-func entityRef(r *worldv1.EntityRef) string {
-	if id := r.GetCharacterId(); id != "" {
-		return "p:" + id
-	}
-	return "m:" + strconv.FormatUint(r.GetMobId(), 10)
+func entity(r *worldv1.EntityRef) model.Entity {
+	return model.Entity{Character: r.GetCharacterId(), Mob: r.GetMobId()}
 }
 
-func characterView(c *worldv1.CharacterView) *clientv1.CharacterView {
+func characterView(c *worldv1.CharacterView) model.CharacterView {
 	st := c.GetStats()
-	return &clientv1.CharacterView{
-		Id: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: c.GetLevel(), Exp: c.GetExp(),
-		Stats: &clientv1.Stats{Str: st.GetStrength(), Dex: st.GetDexterity(), Int: st.GetIntelligence(), Agi: st.GetAgility(), Vit: st.GetVitality()},
-		Hp:    c.GetHp(), MaxHp: c.GetMaxHp(), Mp: c.GetMp(), MaxMp: c.GetMaxMp(),
+	return model.CharacterView{
+		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
+		Stats: model.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
+		HP:    int(c.GetHp()), MaxHP: int(c.GetMaxHp()), MP: int(c.GetMp()), MaxMP: int(c.GetMaxMp()),
 	}
 }
 
-func playerViews(ps []*worldv1.PlayerView) []*clientv1.PlayerView {
+func playerViews(ps []*worldv1.PlayerView) []model.PlayerView {
 	if len(ps) == 0 {
 		return nil
 	}
-	out := make([]*clientv1.PlayerView, 0, len(ps))
+	out := make([]model.PlayerView, 0, len(ps))
 	for _, p := range ps {
-		out = append(out, &clientv1.PlayerView{
-			Id: p.GetId(), Name: p.GetName(), Class: p.GetClass(), Level: p.GetLevel(),
-			X: p.GetX(), Y: p.GetY(), Vx: p.GetVx(), Vy: p.GetVy(), Facing: p.GetFacing(),
-			OnGround: p.GetOnGround(), Climbing: p.GetClimbing(), Hp: p.GetHp(), MaxHp: p.GetMaxHp(), Dead: p.GetDead(),
+		out = append(out, model.PlayerView{
+			ID: p.GetId(), Name: p.GetName(), Class: p.GetClass(), Level: int(p.GetLevel()),
+			X: p.GetX(), Y: p.GetY(), VX: p.GetVx(), VY: p.GetVy(), Facing: int(p.GetFacing()),
+			OnGround: p.GetOnGround(), Climbing: p.GetClimbing(), HP: int(p.GetHp()), MaxHP: int(p.GetMaxHp()), Dead: p.GetDead(),
 			Invulnerable: p.GetInvulnerable(),
 		})
 	}
 	return out
 }
 
-func mobViews(ms []*worldv1.MobView) []*clientv1.MobView {
+func mobViews(ms []*worldv1.MobView) []model.MobView {
 	if len(ms) == 0 {
 		return nil
 	}
-	out := make([]*clientv1.MobView, 0, len(ms))
+	out := make([]model.MobView, 0, len(ms))
 	for _, m := range ms {
-		out = append(out, &clientv1.MobView{Id: uint32(m.GetId()), Type: m.GetType(), X: m.GetX(), Y: m.GetY(), Facing: m.GetFacing(), Hp: m.GetHp(), MaxHp: m.GetMaxHp()})
+		out = append(out, model.MobView{ID: m.GetId(), Type: m.GetType(), X: m.GetX(), Y: m.GetY(), Facing: int(m.GetFacing()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp())})
 	}
 	return out
 }
 
-func dropViews(ds []*worldv1.DropView) []*clientv1.DropView {
+func dropViews(ds []*worldv1.DropView) []model.DropView {
 	if len(ds) == 0 {
 		return nil
 	}
-	out := make([]*clientv1.DropView, 0, len(ds))
+	out := make([]model.DropView, 0, len(ds))
 	for _, d := range ds {
-		out = append(out, &clientv1.DropView{Id: uint32(d.GetId()), Template: d.GetTemplate(), Quantity: d.GetQuantity(), X: d.GetX(), Y: d.GetY()})
-	}
-	return out
-}
-
-// instanceIDs are mob or drop IDs, which count up within one map instance and fit the wire's 32 bits.
-func instanceIDs(ids []uint64) []uint32 {
-	if len(ids) == 0 {
-		return nil
-	}
-	out := make([]uint32, 0, len(ids))
-	for _, id := range ids {
-		out = append(out, uint32(id))
+		out = append(out, model.DropView{ID: d.GetId(), Template: d.GetTemplate(), Quantity: int(d.GetQuantity()), X: d.GetX(), Y: d.GetY()})
 	}
 	return out
 }

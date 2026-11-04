@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 
-	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/services/gateway/internal/application/session"
@@ -35,18 +34,18 @@ type World interface {
 
 // Items is the item service: the inventory and its commands.
 type Items interface {
-	Inventory(ctx context.Context, character kernel.CharacterID) ([]*clientv1.ItemView, error)
-	Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]*clientv1.InventorySlot, error)
-	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]*clientv1.InventorySlot, error)
+	Inventory(ctx context.Context, character kernel.CharacterID) ([]model.ItemView, error)
+	Move(ctx context.Context, a model.Actor, in model.ItemMove) ([]model.InventorySlot, error)
+	Discard(ctx context.Context, a model.Actor, in model.ItemDiscard) ([]model.InventorySlot, error)
 }
 
 // Social is the social service's commands: parties and chat.
 type Social interface {
 	// PartyOf is the character's party; nil when it has none.
-	PartyOf(ctx context.Context, character kernel.CharacterID) (*clientv1.PartyView, error)
+	PartyOf(ctx context.Context, character kernel.CharacterID) (*model.PartyView, error)
 	Offline(ctx context.Context, character kernel.CharacterID) error
 	// Chat cleans and rate-limits a line; the caller hands map lines to the world.
-	Chat(ctx context.Context, sender model.Player, channel clientv1.ChatChannel, text string) (model.ChatLine, error)
+	Chat(ctx context.Context, sender model.Player, channel model.ChatChannel, text string) (model.ChatLine, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) error
 	Respond(ctx context.Context, who kernel.CharacterID, inviteID string, accept bool) error
 	Leave(ctx context.Context, who kernel.CharacterID) error
