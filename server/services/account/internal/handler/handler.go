@@ -79,7 +79,7 @@ func (s *Server) Validate(ctx context.Context, req *accountv1.ValidateRequest) (
 
 // Rotate issues a session's next token.
 func (s *Server) Rotate(ctx context.Context, req *accountv1.RotateRequest) (*accountv1.RotateResponse, error) {
-	id, err := parse(req.GetSessionId())
+	id, err := parseSession(req.GetSessionId())
 	if err != nil {
 		return nil, err
 	}
@@ -92,38 +92,47 @@ func (s *Server) Rotate(ctx context.Context, req *accountv1.RotateRequest) (*acc
 
 // Check reports whether a session is still active.
 func (s *Server) Check(ctx context.Context, req *accountv1.CheckRequest) (*accountv1.CheckResponse, error) {
-	id, err := parse(req.GetSessionId())
+	id, err := parseSession(req.GetSessionId())
 	if err != nil {
 		return nil, err
 	}
-	return &accountv1.CheckResponse{}, s.svc.Check(ctx, id)
+	if err := s.svc.Check(ctx, id); err != nil {
+		return nil, err
+	}
+	return &accountv1.CheckResponse{}, nil
 }
 
 // Revoke ends one session.
 func (s *Server) Revoke(ctx context.Context, req *accountv1.RevokeRequest) (*accountv1.RevokeResponse, error) {
-	id, err := parse(req.GetSessionId())
+	id, err := parseSession(req.GetSessionId())
 	if err != nil {
 		return nil, err
 	}
-	return &accountv1.RevokeResponse{}, s.svc.Revoke(ctx, id)
+	if err := s.svc.Revoke(ctx, id); err != nil {
+		return nil, err
+	}
+	return &accountv1.RevokeResponse{}, nil
 }
 
 // RevokeAll ends every session of an account.
 func (s *Server) RevokeAll(ctx context.Context, req *accountv1.RevokeAllRequest) (*accountv1.RevokeAllResponse, error) {
-	id, err := parse(req.GetAccountId())
+	id, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
-	return &accountv1.RevokeAllResponse{}, s.svc.RevokeAll(ctx, id)
+	if err := s.svc.RevokeAll(ctx, uuid.UUID(id)); err != nil {
+		return nil, err
+	}
+	return &accountv1.RevokeAllResponse{}, nil
 }
 
 // GetSettings reads an account's settings.
 func (s *Server) GetSettings(ctx context.Context, req *accountv1.GetSettingsRequest) (*accountv1.GetSettingsResponse, error) {
-	id, err := parse(req.GetAccountId())
+	id, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
-	st, err := s.svc.Settings(ctx, kernel.AccountID(id))
+	st, err := s.svc.Settings(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -132,12 +141,15 @@ func (s *Server) GetSettings(ctx context.Context, req *accountv1.GetSettingsRequ
 
 // UpdateSettings saves an account's settings.
 func (s *Server) UpdateSettings(ctx context.Context, req *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
-	id, err := parse(req.GetAccountId())
+	id, err := kernel.ParseAccountID(req.GetAccountId())
 	if err != nil {
 		return nil, err
 	}
 	st := model.Settings{ControlPreset: model.Preset(req.GetSettings().GetControlPreset())}
-	return &accountv1.UpdateSettingsResponse{}, s.svc.UpdateSettings(ctx, kernel.AccountID(id), st)
+	if err := s.svc.UpdateSettings(ctx, id, st); err != nil {
+		return nil, err
+	}
+	return &accountv1.UpdateSettingsResponse{}, nil
 }
 
 // WatchSessions streams session ends to one gateway.
@@ -179,11 +191,8 @@ func settingsOf(s model.Settings) *accountv1.Settings {
 	return &accountv1.Settings{ControlPreset: string(s.ControlPreset)}
 }
 
-// parse reads an ID the gateway sent; a malformed one is a caller's bug.
-func parse(s string) (uuid.UUID, error) {
-	id, err := uuid.Parse(s)
-	if err != nil {
-		return uuid.Nil, status.Error(codes.InvalidArgument, "malformed ID")
-	}
-	return id, nil
+// parseSession reads a session ID the gateway sent; a malformed one is kernel.ErrBadID.
+func parseSession(s string) (uuid.UUID, error) {
+	id, err := kernel.ParseSessionID(s)
+	return uuid.UUID(id), err
 }

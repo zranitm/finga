@@ -33,6 +33,8 @@ enum Reason {
   REASON_UNKNOWN_ITEM = 9;
   REASON_BAD_ID = 10;
   REASON_UNKNOWN_CLASS = 11;
+  // A move onto a stack of the same item with no room left.
+  REASON_STACK_FULL = 12;
 }
 
 enum CauseType {

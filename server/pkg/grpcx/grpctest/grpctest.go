@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/descriptorpb"
 
 	"finga/pkg/grpcx"
 )
@@ -39,16 +40,22 @@ func Error(code codes.Code, reason protoreflect.Enum) error {
 	return grpcx.ErrorFor(code, grpcx.Key(reason))
 }
 
-// Reasons lists a reason enum's non-zero values in order: what a calling side's table must cover.
+// Reasons lists the reasons a service still sends, in order: every value of its enum but the zero one and
+// the deprecated ones. Its own table and its callers' must cover them all.
 func Reasons(d protoreflect.EnumDescriptor) []grpcx.Reason {
 	values := d.Values()
 	out := make([]grpcx.Reason, 0, values.Len())
 	for i := range values.Len() {
 		v := values.Get(i)
-		if v.Number() == 0 {
+		if v.Number() == 0 || deprecated(v) {
 			continue
 		}
 		out = append(out, grpcx.Reason{Domain: string(d.ParentFile().Package()), Name: string(v.Name())})
 	}
 	return out
+}
+
+func deprecated(v protoreflect.EnumValueDescriptor) bool {
+	opts, ok := v.Options().(*descriptorpb.EnumValueOptions)
+	return ok && opts.GetDeprecated()
 }

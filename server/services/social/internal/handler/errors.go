@@ -25,6 +25,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrChannel, Code: codes.InvalidArgument, Reason: socialv1.Reason_REASON_BAD_CHAT_CHANNEL},
 	{Err: model.ErrChatNoParty, Code: codes.NotFound, Reason: socialv1.Reason_REASON_CHAT_NO_PARTY},
 	{Err: model.ErrRate, Code: codes.ResourceExhausted, Reason: socialv1.Reason_REASON_CHAT_RATE_LIMITED},
-	{Err: model.ErrNoParties, Code: codes.Unavailable, Reason: socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: socialv1.Reason_REASON_BAD_ID},
 }

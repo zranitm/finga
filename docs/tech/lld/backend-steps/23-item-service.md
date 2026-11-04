@@ -40,7 +40,7 @@
 
 ## Tests first
 
-- item: `GrantStarter` twice for one character grants once and the second call returns the same slots; for an unknown class it is `unknown_item` and writes nothing
+- item: `GrantStarter` twice for one character grants once and the second call returns the same slots; for a class the game data lacks it is `unknown_class` and writes nothing (`unknown_item` until the review's S6.7)
 - handler, over `bufconn` with the real module on Postgres: each RPC maps its fields and its result (table); every item error arrives with its reason (table); the guard: every exported `Err` in the module has a row
 - character: creation commits and then grants; a grant that fails twice then succeeds is retried; a grant that never succeeds before the deadline still returns the character
 - world adapter: `Add` with a reason is not retried, one without is retried once

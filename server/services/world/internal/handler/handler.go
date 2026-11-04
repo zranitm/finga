@@ -97,7 +97,10 @@ func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.L
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.LeaveResponse{}, s.world.Leave(id, conn)
+	if err := s.world.Leave(id, conn); err != nil {
+		return nil, err
+	}
+	return &worldv1.LeaveResponse{}, nil
 }
 
 // Input queues held keys.
@@ -108,7 +111,10 @@ func (s *Server) Input(_ context.Context, req *worldv1.InputRequest) (*worldv1.I
 	}
 	k := req.GetKeys()
 	in := sim.Input{Left: k.GetLeft(), Right: k.GetRight(), Up: k.GetUp(), Down: k.GetDown(), Jump: k.GetJump()}
-	return &worldv1.InputResponse{}, s.world.Input(id, conn, req.GetSeq(), in)
+	if err := s.world.Input(id, conn, req.GetSeq(), in); err != nil {
+		return nil, err
+	}
+	return &worldv1.InputResponse{}, nil
 }
 
 // Attack queues a basic attack.
@@ -117,7 +123,10 @@ func (s *Server) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.AttackResponse{}, s.world.Attack(id, conn)
+	if err := s.world.Attack(id, conn); err != nil {
+		return nil, err
+	}
+	return &worldv1.AttackResponse{}, nil
 }
 
 // PickUp asks for the nearest eligible drop.
@@ -126,7 +135,10 @@ func (s *Server) PickUp(_ context.Context, req *worldv1.PickUpRequest) (*worldv1
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.PickUpResponse{}, s.world.PickUp(id, conn)
+	if err := s.world.PickUp(id, conn); err != nil {
+		return nil, err
+	}
+	return &worldv1.PickUpResponse{}, nil
 }
 
 // EnterPortal takes the portal the character stands in.
@@ -135,7 +147,10 @@ func (s *Server) EnterPortal(_ context.Context, req *worldv1.EnterPortalRequest)
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.EnterPortalResponse{}, s.world.EnterPortal(id, conn)
+	if err := s.world.EnterPortal(id, conn); err != nil {
+		return nil, err
+	}
+	return &worldv1.EnterPortalResponse{}, nil
 }
 
 // Say is a map chat line for everyone on the map.
@@ -144,7 +159,10 @@ func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayRe
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.SayResponse{}, s.world.Say(id, conn, req.GetSenderName(), req.GetText())
+	if err := s.world.Say(id, conn, req.GetSenderName(), req.GetText()); err != nil {
+		return nil, err
+	}
+	return &worldv1.SayResponse{}, nil
 }
 
 // presence is the character a command is for and the connection it comes from.

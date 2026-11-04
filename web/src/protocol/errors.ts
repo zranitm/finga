@@ -46,6 +46,7 @@ export const errorCodes = [
   'session_race',
   'slot_holds_other_item',
   'slot_taken',
+  'stack_full',
   'target_not_on_map',
   'unauthenticated',
   'unknown_class',

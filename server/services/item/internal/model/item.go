@@ -17,6 +17,7 @@ var (
 	ErrNotFound      = errors.New("item: not found")
 	ErrSlotTaken     = errors.New("item: slot taken")
 	ErrDifferentItem = errors.New("item: slot holds a different item")
+	ErrStackFull     = errors.New("item: the stack in that slot is full")
 	ErrInventoryFull = errors.New("item: inventory full")
 	ErrKeyReused     = errors.New("item: idempotency key reused with other arguments")
 	ErrBadQuantity   = errors.New("item: bad quantity")

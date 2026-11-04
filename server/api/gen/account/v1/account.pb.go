@@ -34,6 +34,7 @@ const (
 	Reason_REASON_BAD_PASSWORD       Reason = 6
 	Reason_REASON_BAD_CONTROL_PRESET Reason = 7
 	Reason_REASON_SESSION_RACE       Reason = 8
+	Reason_REASON_BAD_ID             Reason = 9
 )
 
 // Enum value maps for Reason.
@@ -48,6 +49,7 @@ var (
 		6: "REASON_BAD_PASSWORD",
 		7: "REASON_BAD_CONTROL_PRESET",
 		8: "REASON_SESSION_RACE",
+		9: "REASON_BAD_ID",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":        0,
@@ -59,6 +61,7 @@ var (
 		"REASON_BAD_PASSWORD":       6,
 		"REASON_BAD_CONTROL_PRESET": 7,
 		"REASON_SESSION_RACE":       8,
+		"REASON_BAD_ID":             9,
 	}
 )
 
@@ -1436,7 +1439,7 @@ const file_internal_account_v1_account_proto_rawDesc = "" +
 	"\x0eAccountRevoked\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x129\n" +
-	"\x06reason\x18\x02 \x01(\x0e2!.internal.account.v1.RevokeReasonR\x06reason*\xfe\x01\n" +
+	"\x06reason\x18\x02 \x01(\x0e2!.internal.account.v1.RevokeReasonR\x06reason*\x91\x02\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18REASON_ACCOUNT_NOT_FOUND\x10\x01\x12\x19\n" +
@@ -1446,7 +1449,8 @@ const file_internal_account_v1_account_proto_rawDesc = "" +
 	"\x13REASON_BAD_USERNAME\x10\x05\x12\x17\n" +
 	"\x13REASON_BAD_PASSWORD\x10\x06\x12\x1d\n" +
 	"\x19REASON_BAD_CONTROL_PRESET\x10\a\x12\x17\n" +
-	"\x13REASON_SESSION_RACE\x10\b*\x83\x01\n" +
+	"\x13REASON_SESSION_RACE\x10\b\x12\x11\n" +
+	"\rREASON_BAD_ID\x10\t*\x83\x01\n" +
 	"\fRevokeReason\x12\x1d\n" +
 	"\x19REVOKE_REASON_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19REVOKE_REASON_TOKEN_REUSE\x10\x01\x12\x18\n" +

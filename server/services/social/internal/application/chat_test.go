@@ -106,10 +106,4 @@ func TestSend(t *testing.T) {
 			}
 		}
 	})
-	t.Run("without a party service the party channel is unavailable", func(t *testing.T) {
-		solo := application.NewChatService(nil)
-		if _, _, err := solo.Send(ctx, from, model.ChannelParty, "hi"); !errors.Is(err, model.ErrNoParties) {
-			t.Fatalf("err %v", err)
-		}
-	})
 }

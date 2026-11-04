@@ -37,6 +37,8 @@ const (
 	Reason_REASON_UNKNOWN_ITEM           Reason = 9
 	Reason_REASON_BAD_ID                 Reason = 10
 	Reason_REASON_UNKNOWN_CLASS          Reason = 11
+	// A move onto a stack of the same item with no room left.
+	Reason_REASON_STACK_FULL Reason = 12
 )
 
 // Enum value maps for Reason.
@@ -54,6 +56,7 @@ var (
 		9:  "REASON_UNKNOWN_ITEM",
 		10: "REASON_BAD_ID",
 		11: "REASON_UNKNOWN_CLASS",
+		12: "REASON_STACK_FULL",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":            0,
@@ -68,6 +71,7 @@ var (
 		"REASON_UNKNOWN_ITEM":           9,
 		"REASON_BAD_ID":                 10,
 		"REASON_UNKNOWN_CLASS":          11,
+		"REASON_STACK_FULL":             12,
 	}
 )
 
@@ -987,7 +991,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12\x14\n" +
 	"\x05class\x18\x02 \x01(\tR\x05class\"H\n" +
 	"\x14GrantStarterResponse\x120\n" +
-	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged*\xbc\x02\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged*\xd3\x02\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -1001,7 +1005,8 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x13REASON_UNKNOWN_ITEM\x10\t\x12\x11\n" +
 	"\rREASON_BAD_ID\x10\n" +
 	"\x12\x18\n" +
-	"\x14REASON_UNKNOWN_CLASS\x10\v*k\n" +
+	"\x14REASON_UNKNOWN_CLASS\x10\v\x12\x15\n" +
+	"\x11REASON_STACK_FULL\x10\f*k\n" +
 	"\tCauseType\x12\x1a\n" +
 	"\x16CAUSE_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fCAUSE_TYPE_DROP\x10\x01\x12\x15\n" +

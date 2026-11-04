@@ -39,6 +39,7 @@ enum Reason {
   REASON_BAD_PASSWORD = 6;
   REASON_BAD_CONTROL_PRESET = 7;
   REASON_SESSION_RACE = 8;
+  REASON_BAD_ID = 9;
 }
 
 // RevokeReason says why sessions ended.

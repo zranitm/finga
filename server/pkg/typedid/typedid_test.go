@@ -46,6 +46,9 @@ func TestParseRejects(t *testing.T) {
 		{"too short", "0192f0a0-0000-7000-8000-00000000000"},
 		{"too long", "0192f0a0-0000-7000-8000-0000000000000"},
 		{"words", "an order"},
+		{"the nil UUID", "00000000-0000-0000-0000-000000000000"},
+		{"version 4", "9b2d3c4e-5f60-4a71-8b92-a3b4c5d6e7f8"},
+		{"version 1", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

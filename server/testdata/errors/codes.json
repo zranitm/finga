@@ -230,6 +230,11 @@
     "message": "that slot is taken"
   },
   {
+    "code": "stack_full",
+    "status": 409,
+    "message": "that stack is full"
+  },
+  {
     "code": "target_not_on_map",
     "status": 404,
     "message": "that character is not on your map"

@@ -34,10 +34,12 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(accountv1.Reason_REASON_BAD_PASSWORD):       model.BadPassword,
 	grpcx.Key(accountv1.Reason_REASON_BAD_CONTROL_PRESET): model.BadControlPreset,
 	grpcx.Key(accountv1.Reason_REASON_SESSION_RACE):       model.SessionRace,
+	grpcx.Key(accountv1.Reason_REASON_BAD_ID):             model.BadID,
 
 	grpcx.Key(itemv1.Reason_REASON_ITEM_NOT_FOUND):         model.ItemNotFound,
 	grpcx.Key(itemv1.Reason_REASON_SLOT_TAKEN):             model.SlotTaken,
 	grpcx.Key(itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM):  model.SlotHoldsOtherItem,
+	grpcx.Key(itemv1.Reason_REASON_STACK_FULL):             model.StackFull,
 	grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL):         model.InventoryFull,
 	grpcx.Key(itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED): model.IdempotencyKeyReused,
 	grpcx.Key(itemv1.Reason_REASON_BAD_QUANTITY):           model.BadQuantity,

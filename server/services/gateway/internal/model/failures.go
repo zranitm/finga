@@ -35,6 +35,7 @@ var (
 	ItemNotFound         = Public{"item_not_found", "item not found"}
 	SlotTaken            = Public{"slot_taken", "that slot is taken"}
 	SlotHoldsOtherItem   = Public{"slot_holds_other_item", "that slot holds a different item"}
+	StackFull            = Public{"stack_full", "that stack is full"}
 	InventoryFull        = Public{"inventory_full", "your inventory is full"}
 	IdempotencyKeyReused = Public{"idempotency_key_reused", "that request was already made with other arguments"}
 	BadQuantity          = Public{"bad_quantity", "quantity must be at least 1 and no more than the item holds"}

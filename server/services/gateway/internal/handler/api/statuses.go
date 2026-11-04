@@ -38,6 +38,7 @@ var statuses = map[model.Public]int{
 	model.ItemNotFound:         http.StatusNotFound,
 	model.SlotTaken:            http.StatusConflict,
 	model.SlotHoldsOtherItem:   http.StatusConflict,
+	model.StackFull:            http.StatusConflict,
 	model.InventoryFull:        http.StatusConflict,
 	model.IdempotencyKeyReused: http.StatusConflict,
 	model.BadQuantity:          http.StatusBadRequest,

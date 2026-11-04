@@ -46,7 +46,6 @@ var (
 	ErrChannel     = errors.New("chat: unknown channel")
 	ErrChatNoParty = errors.New("chat: party line from a player with no party")
 	ErrRate        = errors.New("chat: rate limited")
-	ErrNoParties   = errors.New("chat: party chat not wired")
 )
 
 // CleanLine strips control characters and trims the ends; the client renders it as plain text.

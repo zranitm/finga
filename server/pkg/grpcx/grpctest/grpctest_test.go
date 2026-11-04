@@ -7,6 +7,8 @@ import (
 	"google.golang.org/grpc/codes"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/reflect/protodesc"
+	"google.golang.org/protobuf/types/descriptorpb"
 
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
@@ -19,6 +21,25 @@ func TestReasonsListsEveryValueButTheZeroOne(t *testing.T) {
 		{Domain: "grpc.testing", Name: "GRPCLB_ROUTE_TYPE_BACKEND"},
 	}
 	if !slices.Equal(got, want) {
+		t.Fatalf("got %v", got)
+	}
+}
+
+// A deprecated reason is one the service no longer sends, so its table needs no row for it.
+func TestReasonsLeavesOutTheDeprecatedOnes(t *testing.T) {
+	file, err := protodesc.NewFile(&descriptorpb.FileDescriptorProto{
+		Name: new("shop.proto"), Package: new("shop.v1"), Syntax: new("proto3"),
+		EnumType: []*descriptorpb.EnumDescriptorProto{{Name: new("Reason"), Value: []*descriptorpb.EnumValueDescriptorProto{
+			{Name: new("REASON_UNSPECIFIED"), Number: new(int32(0))},
+			{Name: new("REASON_SOLD_OUT"), Number: new(int32(1))},
+			{Name: new("REASON_CLOSED"), Number: new(int32(2)), Options: &descriptorpb.EnumValueOptions{Deprecated: new(true)}},
+		}}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := grpctest.Reasons(file.Enums().Get(0))
+	if want := []grpcx.Reason{{Domain: "shop.v1", Name: "REASON_SOLD_OUT"}}; !slices.Equal(got, want) {
 		t.Fatalf("got %v", got)
 	}
 }

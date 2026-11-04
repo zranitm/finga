@@ -164,7 +164,10 @@ func (s *Server) Respond(ctx context.Context, req *socialv1.RespondRequest) (*so
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.RespondResponse{}, s.parties.Respond(ctx, who, invite, req.GetAccept())
+	if err := s.parties.Respond(ctx, who, invite, req.GetAccept()); err != nil {
+		return nil, err
+	}
+	return &socialv1.RespondResponse{}, nil
 }
 
 // LeaveParty removes the caller from its party.
@@ -173,7 +176,10 @@ func (s *Server) LeaveParty(ctx context.Context, req *socialv1.LeavePartyRequest
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.LeavePartyResponse{}, s.parties.Leave(ctx, who)
+	if err := s.parties.Leave(ctx, who); err != nil {
+		return nil, err
+	}
+	return &socialv1.LeavePartyResponse{}, nil
 }
 
 // Kick removes a member.
@@ -182,7 +188,10 @@ func (s *Server) Kick(ctx context.Context, req *socialv1.KickRequest) (*socialv1
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.KickResponse{}, s.parties.Kick(ctx, leader, target)
+	if err := s.parties.Kick(ctx, leader, target); err != nil {
+		return nil, err
+	}
+	return &socialv1.KickResponse{}, nil
 }
 
 // Promote hands leadership to another member.
@@ -191,7 +200,10 @@ func (s *Server) Promote(ctx context.Context, req *socialv1.PromoteRequest) (*so
 	if err != nil {
 		return nil, err
 	}
-	return &socialv1.PromoteResponse{}, s.parties.Promote(ctx, leader, target)
+	if err := s.parties.Promote(ctx, leader, target); err != nil {
+		return nil, err
+	}
+	return &socialv1.PromoteResponse{}, nil
 }
 
 var channels = map[socialv1.ChatChannel]model.Channel{

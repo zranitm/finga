@@ -175,7 +175,7 @@ func TestAMalformedIDNeverReachesTheModule(t *testing.T) {
 		},
 	}
 	for i, call := range calls {
-		if err := call(); status.Code(err) != codes.InvalidArgument || grpcx.IsRule(err) {
+		if err := call(); status.Code(err) != codes.InvalidArgument || reasonOf(err) != grpcx.Key(accountv1.Reason_REASON_BAD_ID) {
 			t.Fatalf("call %d: %v", i, err)
 		}
 	}
@@ -292,4 +292,9 @@ func TestWatchSessions(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+}
+
+func reasonOf(err error) grpcx.Reason {
+	r, _ := grpcx.ReasonOf(err)
+	return r
 }

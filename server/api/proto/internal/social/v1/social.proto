@@ -45,7 +45,8 @@ enum Reason {
   REASON_BAD_CHAT_CHANNEL = 12;
   REASON_CHAT_NO_PARTY = 13;
   REASON_CHAT_RATE_LIMITED = 14;
-  REASON_PARTY_CHAT_UNAVAILABLE = 15;
+  // Never sent: chat always has the party module; buf's FILE rules keep a published value.
+  REASON_PARTY_CHAT_UNAVAILABLE = 15 [deprecated = true];
   REASON_BAD_ID = 16;
 }
 

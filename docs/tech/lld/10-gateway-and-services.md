@@ -100,7 +100,7 @@ R1's model stays: services return plain sentinel errors named for the failure, a
 2. Each service's gRPC handler has a table from its sentinels to a gRPC code and a `Reason`. A failure leaves as a status whose details carry `google.rpc.ErrorInfo`, with the reason's name and the proto package as its domain. An error the table does not know leaves as `Internal`, its text kept in the service's log, never sent. A status from a service it called passes on with its code and its reason, never its text.
 3. `pkg/grpcx` reads the reason back on the calling side, and tells a rule (a reason is present) from a transient failure (none), which is what the world's pickup retry needs.
 4. The gateway's `errmap` maps each (domain, reason) to one of the gateway's failures, the client's own code and player message; the REST handler adds the HTTP status. The codes, `testdata/errors/codes.json`, and every word a player reads stay the same.
-5. Guard tests close the loop: in each service, every exported `Err` of its modules has a row; in the gateway, every value of every service's `Reason` enum has a row.
+5. Guard tests close the loop: in each service, every exported `Err` of its modules has a row; in the gateway, every value of every service's `Reason` enum has a row. A value no service sends any more is deprecated, not deleted (buf's FILE rules), and needs no row; the gateway keeps its row for an older service still running in a rolling deploy.
 
 A service the gateway cannot reach answers `internal`, as a database failure does today.
 

@@ -438,7 +438,7 @@ func NewString() string
 // pkg/typedid: typed UUIDv7 identifiers, one Go type per kind (step 20)
 type ID[K any] uuid.UUID
 func New[K any]() ID[K] // from pkg/uuidv7
-func Parse[K any](s string) (ID[K], error) // ErrMalformed
+func Parse[K any](s string) (ID[K], error) // a version 7 UUID; anything else, the nil UUID included, is ErrMalformed
 // kernel.CharacterID is typedid.ID[characterKind]: an item ID where a character ID is expected does not compile.
 
 // pkg/tiled: Tiled's JSON map format, with no game's layer rules (step 20)

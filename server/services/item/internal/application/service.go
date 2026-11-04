@@ -193,7 +193,7 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	}
 	room := tmpl.MaxStack - dst.Quantity
 	if room <= 0 {
-		return Result{}, model.ErrDifferentItem
+		return Result{}, model.ErrStackFull
 	}
 	take := min(room, src.Quantity)
 	dst.Quantity += take
@@ -270,7 +270,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (Result, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
-		return Result{}, model.ErrUnknownItem
+		return Result{}, kernel.ErrUnknownClass
 	}
 	tmpls := make([]gamedata.Item, 0, len(c.StarterItems))
 	for _, g := range c.StarterItems {

@@ -29,7 +29,8 @@ enum Reason {
   REASON_CLASS_UNAVAILABLE = 4;
   REASON_CHARACTER_SLOTS_FULL = 5;
   REASON_BAD_ID = 6;
-  REASON_UNKNOWN_CLASS = 7;
+  // Never sent: an unknown class answers REASON_CLASS_UNAVAILABLE; buf's FILE rules keep a published value.
+  REASON_UNKNOWN_CLASS = 7 [deprecated = true];
 }
 
 message Stats {

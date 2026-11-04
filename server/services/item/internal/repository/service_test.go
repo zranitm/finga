@@ -239,6 +239,17 @@ func TestMove(t *testing.T) {
 			}
 		}
 	})
+	t.Run("onto a full stack of the same item is stack_full, not a different item", func(t *testing.T) {
+		var rest model.Item
+		for _, it := range h.inventory(t) {
+			if it.TemplateID == "red_potion" && it.ID != red.ID {
+				rest = it
+			}
+		}
+		if _, err := move("m5", rest.ID, 5); !errors.Is(err, model.ErrStackFull) {
+			t.Fatalf("err = %v, want ErrStackFull", err)
+		}
+	})
 	t.Run("bad moves", func(t *testing.T) {
 		tests := []struct {
 			name string
@@ -435,10 +446,10 @@ func TestGrantStarter(t *testing.T) {
 			t.Fatalf("bowman inventory %+v", inv)
 		}
 	})
-	t.Run("a class the game data does not have is unknown_item and writes nothing", func(t *testing.T) {
+	t.Run("a class the game data does not have is unknown_class and writes nothing", func(t *testing.T) {
 		thief := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		if _, err := h.svc.GrantStarter(ctx, thief, kernel.Thief); !errors.Is(err, model.ErrUnknownItem) {
-			t.Fatalf("err = %v, want ErrUnknownItem", err)
+		if _, err := h.svc.GrantStarter(ctx, thief, kernel.Thief); !errors.Is(err, kernel.ErrUnknownClass) {
+			t.Fatalf("err = %v, want ErrUnknownClass", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items WHERE owner_id = $1`, thief.Character) != 0 {
 			t.Fatal("items written")

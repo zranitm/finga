@@ -20,7 +20,7 @@ type ChatService struct {
 	limiter *ratelimit.Buckets
 }
 
-// NewChatService makes the service; parties may be nil (no party channel).
+// NewChatService makes the service over the party module.
 func NewChatService(parties Parties) *ChatService {
 	return &ChatService{parties: parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
 }
@@ -43,9 +43,6 @@ func (s *ChatService) Send(ctx context.Context, from model.Sender, channel model
 	msg := model.Message{Channel: channel, Sender: from.ID, SenderName: from.Name, Text: text}
 	if channel == model.ChannelMap {
 		return msg, nil, nil
-	}
-	if s.parties == nil {
-		return model.Message{}, nil, model.ErrNoParties
 	}
 	members, err := s.parties.Members(ctx, from.ID)
 	if err != nil {

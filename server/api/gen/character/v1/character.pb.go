@@ -32,7 +32,10 @@ const (
 	Reason_REASON_CLASS_UNAVAILABLE    Reason = 4
 	Reason_REASON_CHARACTER_SLOTS_FULL Reason = 5
 	Reason_REASON_BAD_ID               Reason = 6
-	Reason_REASON_UNKNOWN_CLASS        Reason = 7
+	// Never sent: an unknown class answers REASON_CLASS_UNAVAILABLE; buf's FILE rules keep a published value.
+	//
+	// Deprecated: Marked as deprecated in internal/character/v1/character.proto.
+	Reason_REASON_UNKNOWN_CLASS Reason = 7
 )
 
 // Enum value maps for Reason.
@@ -935,7 +938,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x05stats\x18\x04 \x01(\v2\x1c.internal.character.v1.StatsR\x05stats\x12\x0e\n" +
 	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
 	"\x02mp\x18\x06 \x01(\x05R\x02mp\"\x15\n" +
-	"\x13SaveLevelUpResponse*\xe2\x01\n" +
+	"\x13SaveLevelUpResponse*\xe6\x01\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aREASON_CHARACTER_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -943,8 +946,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x19REASON_BAD_CHARACTER_NAME\x10\x03\x12\x1c\n" +
 	"\x18REASON_CLASS_UNAVAILABLE\x10\x04\x12\x1f\n" +
 	"\x1bREASON_CHARACTER_SLOTS_FULL\x10\x05\x12\x11\n" +
-	"\rREASON_BAD_ID\x10\x06\x12\x18\n" +
-	"\x14REASON_UNKNOWN_CLASS\x10\a2\xe0\x03\n" +
+	"\rREASON_BAD_ID\x10\x06\x12\x1c\n" +
+	"\x14REASON_UNKNOWN_CLASS\x10\a\x1a\x02\b\x012\xe0\x03\n" +
 	"\x10CharacterService\x12U\n" +
 	"\x06Create\x12$.internal.character.v1.CreateRequest\x1a%.internal.character.v1.CreateResponse\x12O\n" +
 	"\x04List\x12\".internal.character.v1.ListRequest\x1a#.internal.character.v1.ListResponse\x12O\n" +

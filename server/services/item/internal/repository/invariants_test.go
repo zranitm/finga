@@ -139,7 +139,7 @@ func TestInventoryProperties(t *testing.T) {
 
 // isRule reports whether err is a rule error, which random sequences are expected to hit.
 func isRule(err error) bool {
-	for _, rule := range []error{model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrNotFound} {
+	for _, rule := range []error{model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrStackFull, model.ErrNotFound} {
 		if errorsIs(err, rule) {
 			return true
 		}

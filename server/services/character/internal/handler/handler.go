@@ -91,7 +91,10 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 		return nil, err
 	}
 	cp := model.Checkpoint{ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()), Exp: req.GetExp()}
-	return &characterv1.SaveCheckpointResponse{}, s.svc.SaveCheckpoint(ctx, cp)
+	if err := s.svc.SaveCheckpoint(ctx, cp); err != nil {
+		return nil, err
+	}
+	return &characterv1.SaveCheckpointResponse{}, nil
 }
 
 // SaveLevelUp saves a level-up.
@@ -101,7 +104,10 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 		return nil, err
 	}
 	lu := model.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Stats: statsOf(req.GetStats()), HP: int(req.GetHp()), MP: int(req.GetMp())}
-	return &characterv1.SaveLevelUpResponse{}, s.svc.SaveLevelUp(ctx, lu)
+	if err := s.svc.SaveLevelUp(ctx, lu); err != nil {
+		return nil, err
+	}
+	return &characterv1.SaveLevelUpResponse{}, nil
 }
 
 // view leaves the maximums 0 when the class has no formulas (Load refuses that case).
