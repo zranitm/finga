@@ -9,7 +9,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/wsconn"
-	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/model"
 )
 
@@ -18,13 +18,13 @@ type Observer interface {
 	MessageOut(msgType string)
 }
 
-// Outbox is one connection's writing side, and its session's application.Outbox.
+// Outbox is one connection's writing side: the session.Outbox the gateway reaches the player through.
 type Outbox struct {
 	ws  wsconn.Conn
 	obs Observer
 }
 
-var _ application.Outbox = (*Outbox)(nil)
+var _ session.Outbox = (*Outbox)(nil)
 
 // NewOutbox writes to ws and counts every message on obs.
 func NewOutbox(ws wsconn.Conn, obs Observer) *Outbox {

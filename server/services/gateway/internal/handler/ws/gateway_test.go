@@ -33,7 +33,9 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/wsconn"
-	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/application/push"
+	"finga/services/gateway/internal/application/send"
+	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/ws"
 )
@@ -54,15 +56,15 @@ var (
 )
 
 type observer interface {
-	application.Observer
+	send.Observer
 	ws.Observer
 }
 
 type harness struct {
-	ts    *httptest.Server
-	world *fakeWorld
-	obs   *fakeObserver
-	gw    *application.Gateway
+	ts      *httptest.Server
+	world   *fakeWorld
+	obs     *fakeObserver
+	streams *push.Gateway
 }
 
 type deps struct {
@@ -82,26 +84,24 @@ type deps struct {
 	SessionCheckInterval time.Duration
 }
 
-// build wires d; an unset service stays nil, as the gateway expects.
-func (d deps) build() (*application.Gateway, http.Handler) {
-	app := application.Dependencies{
-		ID: d.ID, Sessions: d.Sessions, Logger: d.Logger, Observer: d.Observer, Clock: d.Clock,
-		JoinTimeout: d.JoinTimeout, SessionCheckInterval: d.SessionCheckInterval,
-	}
-	if d.World != nil {
-		app.World = clients.NewWorld(d.World, d.Logger, nil)
-	}
+// build wires d as the composition root does: one registry under both flows; an unset service stays nil.
+func (d deps) build() (*push.Gateway, http.Handler) {
+	world := clients.NewWorld(d.World, d.Logger, nil)
+	reg := session.Deps{Gateway: d.ID, World: world, Logger: d.Logger, JoinTimeout: d.JoinTimeout}
+	sends := send.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, Observer: d.Observer, Clock: d.Clock, JoinTimeout: d.JoinTimeout}
+	pushes := push.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, SessionCheckInterval: d.SessionCheckInterval}
 	if d.Items != nil {
-		app.Items = clients.NewItems(d.Items)
+		sends.Items = clients.NewItems(d.Items)
 	}
 	if d.Social != nil {
-		app.Social = clients.NewSocial(d.Social, d.Logger, nil)
+		social := clients.NewSocial(d.Social, d.Logger, nil)
+		reg.Social, sends.Social, pushes.Social = social, social, social
 	}
 	if d.Watcher != nil {
-		app.SessionEnds = clients.NewSessionEnds(d.Watcher, d.Logger, nil)
+		pushes.Account = clients.NewSessionEnds(d.Watcher, d.Logger, nil)
 	}
-	gw := application.NewGateway(app)
-	return gw, ws.New(gw, ws.Options{
+	sessions := session.NewRegistry(reg)
+	return push.New(pushes, sessions), ws.New(send.New(sends, sessions), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Clock: d.Clock, Observer: d.Observer, Logger: d.Logger,
 	})
 }
@@ -130,19 +130,19 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	for _, o := range opts {
 		o(&d)
 	}
-	gw, handler := d.build()
+	streams, handler := d.build()
 	ts := httptest.NewServer(handler)
 	t.Cleanup(ts.Close)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
-	go func() { defer close(done); _ = gw.Run(ctx) }()
+	go func() { defer close(done); _ = streams.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
 	select {
 	case <-fw.subscribed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("the gateway never subscribed to the world")
 	}
-	return &harness{ts: ts, world: fw, obs: obs, gw: gw}
+	return &harness{ts: ts, world: fw, obs: obs, streams: streams}
 }
 
 // client speaks one subprotocol: binary frames, or protojson text frames as finga.v1.json.
@@ -1096,34 +1096,6 @@ func TestExpiredSessionIsKicked(t *testing.T) {
 	c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 }
 
-func TestRevokedSessionsAndAccountsAreKicked(t *testing.T) {
-	h := newHarness(t)
-	t.Run("a session ended by reuse or logout", func(t *testing.T) {
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		c.expect("Snapshot")
-		h.gw.KickSession(sessAlice)
-		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
-	})
-	t.Run("logging out everywhere", func(t *testing.T) {
-		c := h.dial(t)
-		c.hello(tokenBob, brunoID)
-		c.expect("Snapshot")
-		h.gw.KickAccount(bob, false)
-		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
-		h.gw.KickAccount(bob, false) // nobody left: nothing happens
-	})
-}
-
-func TestANewLoginElsewhereKicksAsLoggedInElsewhere(t *testing.T) {
-	h := newHarness(t)
-	c := h.dial(t)
-	c.hello(tokenAlice, aylaID)
-	c.expect("Snapshot")
-	h.gw.KickAccount(alice, true)
-	c.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
-}
-
 type watcher struct {
 	accountv1.UnimplementedAccountServiceServer
 	mu            sync.Mutex
@@ -1183,6 +1155,17 @@ func TestTheGatewayFollowsTheAccountServicesSessionEnds(t *testing.T) {
 		w.events <- &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{SessionRevoked: &accountv1.SessionRevoked{
 			SessionId: sessBob.String(), Reason: accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE,
 		}}}
+		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
+	})
+	t.Run("logging out everywhere kicks as session_expired; an account with nobody connected changes nothing", func(t *testing.T) {
+		c := h.dial(t)
+		c.hello(tokenAlice, robinID)
+		c.expect("Snapshot")
+		for _, account := range []kernel.AccountID{kernel.NewAccountID(), alice} {
+			w.events <- &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{AccountRevoked: &accountv1.AccountRevoked{
+				AccountId: account.String(), Reason: accountv1.RevokeReason_REVOKE_REASON_LOGOUT,
+			}}}
+		}
 		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 	})
 	t.Run("after the stream breaks the gateway subscribes again, under its ID", func(t *testing.T) {
@@ -1391,7 +1374,7 @@ func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
 	bruno.expect("Snapshot")
 	silent := h.dial(t) // connected, no Hello yet
 	drained := make(chan struct{})
-	go func() { defer close(drained); h.gw.Drain(context.Background()) }()
+	go func() { defer close(drained); h.streams.Drain(context.Background()) }()
 	for _, c := range []*client{ayla, bruno, silent} {
 		c.expectKick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
 	}

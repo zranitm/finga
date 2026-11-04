@@ -20,6 +20,9 @@ import (
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/application/push"
+	"finga/services/gateway/internal/application/send"
+	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
@@ -52,23 +55,30 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	guard := clients.NewGuard(accounts)
 
 	lobby := application.NewLobby(clients.NewAccounts(accounts), clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)), guard)
-	gateway := application.NewGateway(application.Dependencies{
-		ID:          uuidv7.NewString(),
-		Sessions:    guard,
-		SessionEnds: clients.NewSessionEnds(accounts, opts.Logger, rec),
-		World:       clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger, rec),
-		Items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
-		Social:      clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger, rec),
-		Logger:      opts.Logger,
-		Panics:      rec,
-		Observer:    metrics,
-	})
+	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger, rec)
+	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger, rec)
+	sessions := session.NewRegistry(session.Deps{Gateway: uuidv7.NewString(), World: world, Social: social, Logger: opts.Logger, Panics: rec})
+	sendFlow := send.New(send.Deps{
+		Sessions: guard,
+		World:    world,
+		Items:    clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
+		Social:   social,
+		Logger:   opts.Logger,
+		Observer: metrics,
+	}, sessions)
+	pushFlow := push.New(push.Deps{
+		Sessions: guard,
+		World:    world,
+		Social:   social,
+		Account:  clients.NewSessionEnds(accounts, opts.Logger, rec),
+		Logger:   opts.Logger,
+	}, sessions)
 	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger, Panics: rec}, Deps{
 		API:     api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
-		Gateway: ws.New(gateway, ws.Options{Origins: cfg.HTTP.CORSOrigins, Observer: metrics, Logger: opts.Logger, Panics: rec}),
+		Gateway: ws.New(sendFlow, ws.Options{Origins: cfg.HTTP.CORSOrigins, Observer: metrics, Logger: opts.Logger, Panics: rec}),
 		Metrics: observability.MetricsHandler(opts.Registry),
-		Tasks:   []Task{{Name: "streams", Run: gateway.Run}},
-		Drain:   gateway.Drain,
+		Tasks:   []Task{{Name: "streams", Run: pushFlow.Run}},
+		Drain:   pushFlow.Drain,
 	})
 	s.closers = append(s.closers, conns.close)
 	opts.Logger.InfoContext(ctx, "built")

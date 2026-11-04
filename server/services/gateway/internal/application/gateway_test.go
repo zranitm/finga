@@ -14,7 +14,9 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/panics"
-	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/application/push"
+	"finga/services/gateway/internal/application/send"
+	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/model"
 )
 
@@ -26,8 +28,23 @@ var (
 
 const token = "tok"
 
+// gateway is both flows over one registry, as the composition root builds them.
+type gateway struct {
+	*send.Gateway
+	pushes *push.Gateway
+}
+
+func newGateway(w *world, clock func() time.Time) gateway {
+	log := slog.New(slog.DiscardHandler)
+	sessions := session.NewRegistry(session.Deps{World: w, Logger: log})
+	return gateway{
+		Gateway: send.New(send.Deps{Sessions: guard{}, World: w, Logger: log, Clock: clock}, sessions),
+		pushes:  push.New(push.Deps{Sessions: guard{}, World: w, Logger: log, SessionCheckInterval: time.Hour}, sessions),
+	}
+}
+
 func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
-	g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: &world{}})
+	g := newGateway(&world{}, nil)
 	s := g.Open("c-1", &outbox{})
 	ctx := t.Context()
 	other := kernel.NewCharacterID()
@@ -56,8 +73,7 @@ func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
 
 func TestHello(t *testing.T) {
 	t.Run("a Hello that joins welcomes the player through the Outbox with the rotated token", func(t *testing.T) {
-		w := &world{}
-		g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: w, Clock: func() time.Time { return time.UnixMilli(1000) }})
+		g := newGateway(&world{}, func() time.Time { return time.UnixMilli(1000) })
 		c := &outbox{}
 		s := g.Open("c-1", c)
 		if err := g.Hello(t.Context(), s, token, ayla); err != nil {
@@ -80,7 +96,7 @@ func TestHello(t *testing.T) {
 		{"a character that is not the account's", token, &model.ServiceError{Public: model.Public{Code: model.CharacterNotFound}, Err: errors.New("not found")}},
 	} {
 		t.Run(tt.name+" is rejected, and nobody is welcomed", func(t *testing.T) {
-			g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: &world{joinErr: tt.join}})
+			g := newGateway(&world{joinErr: tt.join}, nil)
 			c := &outbox{}
 			if err := g.Hello(t.Context(), g.Open("c-1", c), tt.token, ayla); !errors.Is(err, model.ErrHelloRejected) {
 				t.Fatalf("err = %v, want ErrHelloRejected", err)
@@ -91,7 +107,7 @@ func TestHello(t *testing.T) {
 		})
 	}
 	t.Run("a world that cannot join is a failure the client retries, not a rejection", func(t *testing.T) {
-		g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: &world{joinErr: errors.New("boom")}})
+		g := newGateway(&world{joinErr: errors.New("boom")}, nil)
 		err := g.Hello(t.Context(), g.Open("c-1", &outbox{}), token, ayla)
 		if err == nil || errors.Is(err, model.ErrHelloRejected) {
 			t.Fatalf("err = %v", err)
@@ -211,12 +227,12 @@ func (w *world) FollowDeliveries(ctx context.Context, _ string, deliver func(mod
 	<-ctx.Done()
 }
 
-// running runs a gateway on w until the test ends.
-func running(t *testing.T, w *world) *application.Gateway {
+// running runs a gateway's push flow on w until the test ends.
+func running(t *testing.T, w *world) gateway {
 	t.Helper()
 	w.following = make(chan struct{})
-	g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: w, SessionCheckInterval: time.Hour})
-	go func() { _ = g.Run(t.Context()) }()
+	g := newGateway(w, nil)
+	go func() { _ = g.pushes.Run(t.Context()) }()
 	select {
 	case <-w.following:
 	case <-time.After(5 * time.Second):
@@ -252,9 +268,9 @@ func TestSessionsTheGatewayEnds(t *testing.T) {
 }
 
 func TestAPanickingFollowerStopsRun(t *testing.T) {
-	g := application.NewGateway(application.Dependencies{Logger: slog.New(slog.DiscardHandler), Sessions: guard{}, World: &world{followPanic: "bad stream"}, SessionCheckInterval: time.Hour})
+	g := newGateway(&world{followPanic: "bad stream"}, nil)
 	done := make(chan error, 1)
-	go func() { done <- g.Run(context.Background()) }()
+	go func() { done <- g.pushes.Run(context.Background()) }()
 	select {
 	case err := <-done:
 		if e, ok := errors.AsType[*panics.Error](err); !ok || e.Value != "bad stream" {

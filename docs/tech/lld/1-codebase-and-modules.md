@@ -32,7 +32,10 @@ server/                 the Go module: everything the server builds, reads and p
       main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
       config/           its own configuration: config.yaml (http, the five dependencies) and its type
       internal/model/   in layers (step 36): a failure as a client sees it (Public), the commands' inputs, Welcome, a connection's player and presence, the services' pushes (Delivery) and stream events, the REST API's accounts and characters; the client protocol's views are its vocabulary
-      internal/application/  the Lobby (the REST API's use cases) and the Gateway (a connection's Session, Hello, join and rejoin, the players' commands in commands.go, kicks, the drain); ports.go, with Outbox: what the use cases tell a player, and why a session ends
+      internal/application/  the Lobby (the REST API's use cases), and the Gateway as two flows over one package they share; each package declares the ports it uses
+        session/      what both flows share: a connection's Session (the hold, release and tick shift), the Registry that finds it by connection, account, character and login session, the joins and the rejoin, and Outbox, what the gateway tells a player
+        send/         the send flow, what a connection asks for: hello.go (Open, Hello, Closed), world.go, items.go, party.go, chat.go
+        push/         the push flow, what the services' streams and the gateway's timers start: push.go (Run), world.go, social.go, account.go (ended sessions and the minute check), drain.go
       internal/clients/ the ports over the services' generated clients, the services' stream events turned into the model's pushes, the account service as pkg/auth's Guard
         errmap/         each service failure's reason to its status, own code and player message; Wrap hands a failure to the use cases
       internal/handler/

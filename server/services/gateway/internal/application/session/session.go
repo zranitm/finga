@@ -1,4 +1,6 @@
-package application
+// Package session holds what the gateway's send and push flows share: each connection's Session,
+// the Registry that finds a player's, and the joins that put a player on its map.
+package session
 
 import (
 	"context"
@@ -12,31 +14,55 @@ import (
 // pendingMax bounds deliveries held during a join; more means something is wrong.
 const pendingMax = 128
 
-// Session is one connection's state from Open to Closed; Hello sets its identity once.
+// Session is one connection's state from Open to Remove; its first join sets its identity.
 type Session struct {
 	connID string
 	outbox Outbox
-	// ctx ends at Closed, so a rejoin in flight stops.
+	// ctx ends at Remove, so a rejoin in flight stops.
 	ctx      context.Context
 	cancel   context.CancelFunc
 	isActive atomic.Bool
 
-	// Set by Hello under the gateway's lock, before the session is active.
+	// Set by a join under the registry's lock, before the session is active.
 	account   kernel.AccountID
 	sessionID kernel.SessionID
 	character model.Player
-	closed    bool // a rejoin finishing after Closed leaves again
+	closed    bool // a rejoin finishing after Remove leaves again
 
-	rejoinMu sync.Mutex // one join at a time
+	joinMu sync.Mutex // one join at a time
 
 	out out
 }
 
-// Character is the character the session plays; zero until Hello joins.
+// ConnID names the session's connection.
+func (s *Session) ConnID() string { return s.connID }
+
+// Character is the character the session plays; zero until a join claims one.
 func (s *Session) Character() kernel.CharacterID { return s.character.ID }
 
-func (s *Session) active() bool { return s.isActive.Load() }
-func (s *Session) setActive()   { s.isActive.Store(true) }
+// Player is the character as its party sees it, once a join finished.
+func (s *Session) Player() model.Player { return s.character }
+
+// LoginSession is the login session the player's token belongs to.
+func (s *Session) LoginSession() kernel.SessionID { return s.sessionID }
+
+// Active reports whether a join finished: the player is on its map.
+func (s *Session) Active() bool { return s.isActive.Load() }
+
+func (s *Session) setActive() { s.isActive.Store(true) }
+
+// Deliver hands a world delivery to the player through the join's hold; too many held ends the session.
+func (s *Session) Deliver(d model.Delivery) {
+	if !s.out.deliver(d) {
+		s.outbox.End(model.EndDeliveryBacklog)
+	}
+}
+
+// DeliverNow hands a delivery straight to the player, past the join's hold.
+func (s *Session) DeliverNow(d model.Delivery) { s.outbox.Deliver(d) }
+
+// End ends the player's session; the first End wins.
+func (s *Session) End(reason model.EndReason) { s.outbox.End(reason) }
 
 // out holds deliveries until a join's Welcome or MapChange is out, drops those before its Snapshot
 // (an older presence's), and shifts ticks so they never go back after a world restart.
@@ -116,13 +142,15 @@ func (o *out) emit(d model.Delivery) {
 	o.outbox.Deliver(d)
 }
 
-func (s *Session) presence() model.Presence {
+// Presence is where the player is; every world command carries it.
+func (s *Session) Presence() model.Presence {
 	s.out.mu.Lock()
 	defer s.out.mu.Unlock()
 	return model.Presence{Character: s.character.ID, MapID: s.out.mapID}
 }
 
-func (s *Session) actor() model.Actor {
+// Actor is who acts on items.
+func (s *Session) Actor() model.Actor {
 	return model.Actor{Account: s.account, Character: s.character.ID}
 }
 

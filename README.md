@@ -176,8 +176,10 @@ generated code committed in `server/api/gen/`:
   on `pkg/wsrouter`, a router for WebSocket messages as Gin is for HTTP, and
   one handler that turns the message into a use case's arguments and its
   result into the reply; the read loop only decodes, limits and routes. The
-  use cases tell the player what happened through an `Outbox` port (Welcome,
-  the services' pushes, and why the session ends), which the handler puts in
+  application is two flows over the sessions they share: `send`, what a
+  connection asks for, and `push`, what the services' streams start. They
+  tell the player what happened through an `Outbox` port (Welcome, the
+  services' pushes, and why the session ends), which the handler puts in
   protocol messages and close codes. Players join through the
   world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.

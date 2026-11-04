@@ -12,7 +12,8 @@ import (
 	"finga/internal/protocol"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
-	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/application/send"
+	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/handler/ws/push"
 	"finga/services/gateway/internal/handler/ws/receive"
 )
@@ -39,7 +40,7 @@ type Options struct {
 
 // Handler serves /ws.
 type Handler struct {
-	gw           *application.Gateway
+	gw           *send.Gateway
 	subprotocols []wsconn.Subprotocol
 	opts         Options
 	receive      *receive.Handler
@@ -51,11 +52,11 @@ type Handler struct {
 // connection is one socket's receiving side and its session.
 type connection struct {
 	in      *receive.Inbox
-	session *application.Session
+	session *session.Session
 }
 
 // New serves gw's connections.
-func New(gw *application.Gateway, opts Options) *Handler {
+func New(gw *send.Gateway, opts Options) *Handler {
 	if opts.Observer == nil {
 		opts.Observer = noopObserver{}
 	}
@@ -83,8 +84,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // OnOpen opens the connection's session, written to through its outbox, and starts its receiving side.
 func (h *Handler) OnOpen(c wsconn.Conn) {
 	out := push.NewOutbox(c, h.opts.Observer)
-	session := h.gw.Open(c.ID(), out)
-	conn := connection{in: h.receive.Open(out, session), session: session}
+	s := h.gw.Open(c.ID(), out)
+	conn := connection{in: h.receive.Open(out, s), session: s}
 	h.mu.Lock()
 	h.connections[c.ID()] = conn
 	h.mu.Unlock()

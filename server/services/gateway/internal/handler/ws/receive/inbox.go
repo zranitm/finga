@@ -12,7 +12,8 @@ import (
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/pkg/wsrouter"
-	"finga/services/gateway/internal/application"
+	"finga/services/gateway/internal/application/send"
+	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/handler/ws/push"
 )
 
@@ -34,13 +35,13 @@ type Options struct {
 
 // Handler routes every connection's messages to gw's use cases.
 type Handler struct {
-	gw     *application.Gateway
+	gw     *send.Gateway
 	opts   Options
 	router *wsrouter.Router[*Inbox]
 }
 
 // New routes messages to gw.
-func New(gw *application.Gateway, opts Options) *Handler {
+func New(gw *send.Gateway, opts Options) *Handler {
 	if opts.HelloTimeout <= 0 {
 		opts.HelloTimeout = defaultHelloTimeout
 	}
@@ -58,7 +59,7 @@ func New(gw *application.Gateway, opts Options) *Handler {
 // Inbox is one connection's receiving side: Hello first, the rate limits and the command queue.
 type Inbox struct {
 	out        *push.Outbox
-	session    *application.Session
+	session    *session.Session
 	helloTimer *time.Timer
 
 	// Owned by the read loop.
@@ -73,9 +74,9 @@ type Inbox struct {
 	joined  bool // owned by the command goroutine
 }
 
-// Open starts a connection's receiving side for session: its Hello deadline and its command goroutine.
-func (h *Handler) Open(out *push.Outbox, session *application.Session) *Inbox {
-	in := &Inbox{out: out, session: session, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), h.opts.CommandQueue), drained: make(chan struct{})}
+// Open starts a connection's receiving side for s: its Hello deadline and its command goroutine.
+func (h *Handler) Open(out *push.Outbox, s *session.Session) *Inbox {
+	in := &Inbox{out: out, session: s, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), h.opts.CommandQueue), drained: make(chan struct{})}
 	in.ctx, in.cancel = context.WithCancel(context.Background())
 	in.helloTimer = time.AfterFunc(h.opts.HelloTimeout, func() { out.Close(wsconn.CloseKicked, "no hello") })
 	go in.commands()
