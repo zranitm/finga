@@ -71,11 +71,23 @@ linters:
               desc: the shared kernel is below telemetry
             - pkg: finga/internal/host
               desc: the shared kernel takes plain values, never configuration or the host
+            - pkg: google.golang.org/grpc
+              desc: the shared kernel knows no transport
+            - pkg: finga/pkg/grpcx
+              desc: the shared kernel knows no transport
+            - pkg: net/http
+              desc: the shared kernel knows no transport
+            - pkg: github.com/jackc/pgx
+              desc: the shared kernel knows no database
+            - pkg: finga/pkg/dbx
+              desc: the shared kernel knows no database
         # A service's inner layers are business logic; only its handler and clients speak the contracts.
         modules:
           files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
           deny:
             - pkg: google.golang.org/grpc
+              desc: a module knows no transport; its handler and clients do
+            - pkg: finga/pkg/grpcx
               desc: a module knows no transport; its handler and clients do
             - pkg: finga/internal/telemetry
               desc: a module declares observer interfaces; telemetry implements them
@@ -117,14 +129,22 @@ linters:
               desc: per-message rate limits are the WebSocket handler's
             - pkg: finga/services/gateway/internal/handler
               desc: the handler calls the application, never the reverse
+            - pkg: finga/internal/protocol
+              desc: the client protocol is the WebSocket handler's alone; the model has its own views
         gateway-application-no-http:
           files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
           deny:
             - pkg: net/http
               desc: the REST handler speaks HTTP and gives each failure its status; the Lobby takes plain values
+        # A service's model is its vocabulary: no transport reaches it.
+        models-no-http:
+          files: ["**/services/*/internal/model/**"]
+          deny:
+            - pkg: net/http
+              desc: a model knows no transport; the handlers speak HTTP
         # Only a service's repository layer and sqlc's output talk to the database.
         services-no-sql:
-          files: ["**/services/*/internal/**", "!**/internal/repository/**", "!**/repository.go", "!**/internal/db/**", "!$test"]
+          files: ["**/services/*/internal/**", "!**/internal/repository/**", "!**/internal/db/**", "!$test"]
           deny:
             - pkg: github.com/jackc/pgx
               desc: only the repository layer talks to the database
