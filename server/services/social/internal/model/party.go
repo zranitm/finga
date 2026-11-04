@@ -8,10 +8,10 @@ import (
 	"finga/internal/kernel"
 )
 
-// Defaults.
+// The party rules.
 const (
-	DefaultMaxMembers = 4
-	DefaultInviteTTL  = 30 * time.Second
+	MaxMembers = 4
+	InviteTTL  = 30 * time.Second
 )
 
 // Member is a party member as the others see them, fed by the gateway and the world.

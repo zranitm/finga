@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"time"
 	"unicode/utf8"
 
 	"finga/internal/kernel"
@@ -15,11 +14,6 @@ type Parties interface {
 	Members(ctx context.Context, id kernel.CharacterID) ([]kernel.CharacterID, error)
 }
 
-// ChatOptions tune the service. Zero values take the defaults.
-type ChatOptions struct {
-	Clock func() time.Time
-}
-
 // ChatService cleans, limits and routes.
 type ChatService struct {
 	parties Parties
@@ -27,12 +21,8 @@ type ChatService struct {
 }
 
 // NewChatService makes the service; parties may be nil (no party channel).
-func NewChatService(parties Parties, opts ChatOptions) *ChatService {
-	var lopts []ratelimit.Option
-	if opts.Clock != nil {
-		lopts = append(lopts, ratelimit.WithClock(opts.Clock))
-	}
-	return &ChatService{parties: parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst, lopts...)}
+func NewChatService(parties Parties) *ChatService {
+	return &ChatService{parties: parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
 }
 
 // Send cleans and rate-limits a line; map lines have nil recipients, party lines the whole party.

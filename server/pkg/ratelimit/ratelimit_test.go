@@ -2,16 +2,14 @@ package ratelimit_test
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"finga/pkg/ratelimit"
 )
 
-type clock struct{ t time.Time }
+// The tests run under synctest: time stands still until a test sleeps.
 
-func (c *clock) now() time.Time          { return c.t }
-func (c *clock) advance(d time.Duration) { c.t = c.t.Add(d) }
-func newClock() *clock                   { return &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)} }
 func allowN(b *ratelimit.Buckets, key string, n int) (allowed int) {
 	for range n {
 		if b.Allow(key) {
@@ -55,41 +53,44 @@ func TestBurstAndRefill(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := newClock()
-			b := ratelimit.NewBuckets(tt.rate, tt.burst, ratelimit.WithClock(c.now))
-			for i, step := range tt.steps {
-				c.advance(step.wait)
-				if got := allowN(b, "k", step.tries); got != step.want {
-					t.Fatalf("step %d: allowed %d of %d, want %d", i, got, step.tries, step.want)
+			synctest.Test(t, func(t *testing.T) {
+				b := ratelimit.NewBuckets(tt.rate, tt.burst)
+				for i, step := range tt.steps {
+					time.Sleep(step.wait)
+					if got := allowN(b, "k", step.tries); got != step.want {
+						t.Fatalf("step %d: allowed %d of %d, want %d", i, got, step.tries, step.want)
+					}
 				}
-			}
+			})
 		})
 	}
 }
 
 func TestKeysAreIndependent(t *testing.T) {
-	c := newClock()
-	b := ratelimit.NewBuckets(1, 2, ratelimit.WithClock(c.now))
-	if got := allowN(b, "alice", 5); got != 2 {
-		t.Fatalf("alice: %d", got)
-	}
-	if got := allowN(b, "bob", 5); got != 2 {
-		t.Fatalf("bob: %d, alice's bucket leaked", got)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		b := ratelimit.NewBuckets(1, 2)
+		if got := allowN(b, "alice", 5); got != 2 {
+			t.Fatalf("alice: %d", got)
+		}
+		if got := allowN(b, "bob", 5); got != 2 {
+			t.Fatalf("bob: %d, alice's bucket leaked", got)
+		}
+	})
 }
 
 func TestConcurrentUse(t *testing.T) {
-	c := newClock()
-	b := ratelimit.NewBuckets(1000, 1000, ratelimit.WithClock(c.now)) // a frozen clock: no refill during the test
-	done := make(chan int)
-	for range 8 {
-		go func() { done <- allowN(b, "shared", 250) }()
-	}
-	total := 0
-	for range 8 {
-		total += <-done
-	}
-	if total > 1000 || total < 999 {
-		t.Fatalf("allowed %d of 2000 with a burst of 1000", total)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		b := ratelimit.NewBuckets(1000, 1000) // no refill: time stands still
+		done := make(chan int)
+		for range 8 {
+			go func() { done <- allowN(b, "shared", 250) }()
+		}
+		total := 0
+		for range 8 {
+			total += <-done
+		}
+		if total != 1000 {
+			t.Fatalf("allowed %d of 2000 with a burst of 1000", total)
+		}
+	})
 }

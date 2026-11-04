@@ -14,14 +14,6 @@ type Limiter interface {
 	Allow(key string) bool
 }
 
-// Option tunes NewBuckets.
-type Option func(*Buckets)
-
-// WithClock replaces time.Now, for tests.
-func WithClock(now func() time.Time) Option {
-	return func(b *Buckets) { b.now = now }
-}
-
 const (
 	idleTTL    = 10 * time.Minute // an untouched key is evicted after this
 	sweepEvery = 4096             // Allow calls between sweeps
@@ -31,7 +23,6 @@ const (
 type Buckets struct {
 	limit rate.Limit
 	burst int
-	now   func() time.Time
 
 	mu    sync.Mutex
 	keys  map[string]*entry
@@ -44,17 +35,13 @@ type entry struct {
 }
 
 // NewBuckets makes buckets refilling at perSecond tokens a second, up to burst.
-func NewBuckets(perSecond float64, burst int, opts ...Option) *Buckets {
-	b := &Buckets{limit: rate.Limit(perSecond), burst: burst, now: time.Now, keys: map[string]*entry{}}
-	for _, opt := range opts {
-		opt(b)
-	}
-	return b
+func NewBuckets(perSecond float64, burst int) *Buckets {
+	return &Buckets{limit: rate.Limit(perSecond), burst: burst, keys: map[string]*entry{}}
 }
 
 // Allow takes a token from key's bucket, creating it full.
 func (b *Buckets) Allow(key string) bool {
-	now := b.now()
+	now := time.Now()
 	b.mu.Lock()
 	b.calls++
 	if b.calls >= sweepEvery {

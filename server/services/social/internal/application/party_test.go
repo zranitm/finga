@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"finga/internal/kernel"
@@ -52,15 +53,14 @@ type fixture struct {
 	store *fakeStore
 	svc   *application.PartyService
 	rec   *recorder
-	now   time.Time
 	ids   map[string]kernel.CharacterID
 	name  map[kernel.CharacterID]string
 }
 
 func newFixture(t *testing.T, names ...string) *fixture {
 	t.Helper()
-	f := &fixture{ctx: t.Context(), store: newFakeStore(), rec: &recorder{}, now: time.Unix(1_700_000_000, 0), ids: map[string]kernel.CharacterID{}, name: map[kernel.CharacterID]string{}}
-	f.svc = application.NewPartyService(f.store, application.PartyOptions{Clock: func() time.Time { return f.now }})
+	f := &fixture{ctx: t.Context(), store: newFakeStore(), rec: &recorder{}, ids: map[string]kernel.CharacterID{}, name: map[kernel.CharacterID]string{}}
+	f.svc = application.NewPartyService(f.store)
 	f.svc.Notify(f.rec)
 	for k, n := range names {
 		id := kernel.NewCharacterID()
@@ -148,8 +148,10 @@ func TestPartyLifecycle(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin", "Cass", "Dinh", "Eve")
 
 	t.Run("an invite reaches the target and nothing exists until it is accepted", func(t *testing.T) {
+		before := time.Now()
 		inv, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Robin"))
-		if err != nil || inv.From != f.id("Ayla") || inv.To != f.id("Robin") || inv.FromName != "Ayla" || !inv.Expires.Equal(f.now.Add(30*time.Second)) {
+		if err != nil || inv.From != f.id("Ayla") || inv.To != f.id("Robin") || inv.FromName != "Ayla" ||
+			inv.Expires.Before(before.Add(30*time.Second)) || inv.Expires.After(time.Now().Add(30*time.Second)) {
 			t.Fatalf("invite %+v, %v", inv, err)
 		}
 		if len(f.rec.invites) != 1 || f.rec.invites[0].ID != inv.ID {
@@ -282,43 +284,45 @@ func TestPartyLifecycle(t *testing.T) {
 }
 
 func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
-	f := newFixture(t, "Ayla", "Robin", "Cass")
-	inv, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Robin"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.now = f.now.Add(30 * time.Second)
-	if err := f.svc.Respond(f.ctx, f.id("Robin"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
-		t.Fatalf("after 30 s: %v", err)
-	}
-	inv, err = f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Robin"))
-	if err != nil {
-		t.Fatalf("a new invite after the old one expired: %v", err)
-	}
-	if err := f.svc.Respond(f.ctx, f.id("Cass"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
-		t.Fatalf("someone else's invite: %v", err)
-	}
-	f.now = f.now.Add(29 * time.Second)
-	if err := f.svc.Respond(f.ctx, f.id("Robin"), inv.ID, true); err != nil {
-		t.Fatalf("at 29 s: %v", err)
-	}
-	// Cass is on another map: not invitable; back on the forest she is.
-	must(t, f.svc.Update(f.ctx, f.id("Cass"), "town", 3, 50, 100))
-	if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
-		t.Fatalf("another map: %v", err)
-	}
-	must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", 3, 50, 100))
-	if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); err != nil {
-		t.Fatalf("same map: %v", err)
-	}
-	must(t, f.svc.Offline(f.ctx, f.id("Cass")))
-	f.now = f.now.Add(time.Minute)
-	if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
-		t.Fatalf("offline: %v", err)
-	}
-	if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), kernel.NewCharacterID()); !errors.Is(err, model.ErrNotHere) {
-		t.Fatalf("unknown: %v", err)
-	}
+	synctest.Test(t, func(t *testing.T) {
+		f := newFixture(t, "Ayla", "Robin", "Cass")
+		inv, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Robin"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(30 * time.Second)
+		if err := f.svc.Respond(f.ctx, f.id("Robin"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
+			t.Fatalf("after 30 s: %v", err)
+		}
+		inv, err = f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Robin"))
+		if err != nil {
+			t.Fatalf("a new invite after the old one expired: %v", err)
+		}
+		if err := f.svc.Respond(f.ctx, f.id("Cass"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
+			t.Fatalf("someone else's invite: %v", err)
+		}
+		time.Sleep(29 * time.Second)
+		if err := f.svc.Respond(f.ctx, f.id("Robin"), inv.ID, true); err != nil {
+			t.Fatalf("at 29 s: %v", err)
+		}
+		// Cass is on another map: not invitable; back on the forest she is.
+		must(t, f.svc.Update(f.ctx, f.id("Cass"), "town", 3, 50, 100))
+		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
+			t.Fatalf("another map: %v", err)
+		}
+		must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", 3, 50, 100))
+		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); err != nil {
+			t.Fatalf("same map: %v", err)
+		}
+		must(t, f.svc.Offline(f.ctx, f.id("Cass")))
+		time.Sleep(time.Minute)
+		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
+			t.Fatalf("offline: %v", err)
+		}
+		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), kernel.NewCharacterID()); !errors.Is(err, model.ErrNotHere) {
+			t.Fatalf("unknown: %v", err)
+		}
+	})
 }
 
 func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {

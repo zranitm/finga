@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,9 +28,8 @@ type stack struct {
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
-	now := time.Unix(1_700_000_000, 0)
-	parties := application.NewPartyService(repository.NewMemory(), application.PartyOptions{Clock: func() time.Time { return now }})
-	srv := handler.New(parties, application.NewChatService(parties, application.ChatOptions{Clock: func() time.Time { return now }}), "boot-1")
+	parties := application.NewPartyService(repository.NewMemory())
+	srv := handler.New(parties, application.NewChatService(parties), "boot-1")
 	parties.Notify(srv)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)

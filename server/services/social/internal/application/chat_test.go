@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"finga/internal/kernel"
@@ -38,8 +39,7 @@ func TestClean(t *testing.T) {
 func TestSend(t *testing.T) {
 	ayla, robin, cass := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
 	parties := fakeParties{members: map[kernel.CharacterID][]kernel.CharacterID{ayla: {ayla, robin}, robin: {ayla, robin}}}
-	now := time.Unix(1_700_000_000, 0)
-	svc := application.NewChatService(parties, application.ChatOptions{Clock: func() time.Time { return now }})
+	svc := application.NewChatService(parties)
 	from := model.Sender{ID: ayla, Name: "Ayla"}
 	ctx := t.Context()
 
@@ -62,28 +62,32 @@ func TestSend(t *testing.T) {
 		}
 	})
 	t.Run("the fourth line inside a second is rate limited, and a second later one more fits", func(t *testing.T) {
-		// Ayla sent two lines above; the burst is three.
-		if _, _, err := svc.Send(ctx, from, model.ChannelMap, "three"); err != nil {
-			t.Fatalf("third line: %v", err)
-		}
-		_, _, err := svc.Send(ctx, from, model.ChannelMap, "four")
-		if !errors.Is(err, model.ErrRate) {
-			t.Fatalf("fourth line: %v", err)
-		}
-		now = now.Add(time.Second)
-		if _, _, err := svc.Send(ctx, from, model.ChannelMap, "five"); err != nil {
-			t.Fatalf("after a second: %v", err)
-		}
-		if _, _, err := svc.Send(ctx, from, model.ChannelMap, "six"); !errors.Is(err, model.ErrRate) {
-			t.Fatalf("sixth line: %v", err)
-		}
-		// Another sender has their own bucket.
-		if _, _, err := svc.Send(ctx, model.Sender{ID: robin, Name: "Robin"}, model.ChannelMap, "me too"); err != nil {
-			t.Fatalf("another sender: %v", err)
-		}
+		synctest.Test(t, func(t *testing.T) {
+			svc := application.NewChatService(parties)
+			for _, line := range []string{"one", "two", "three"} { // the burst is three
+				if _, _, err := svc.Send(ctx, from, model.ChannelMap, line); err != nil {
+					t.Fatalf("line %s: %v", line, err)
+				}
+			}
+			_, _, err := svc.Send(ctx, from, model.ChannelMap, "four")
+			if !errors.Is(err, model.ErrRate) {
+				t.Fatalf("fourth line: %v", err)
+			}
+			time.Sleep(time.Second)
+			if _, _, err := svc.Send(ctx, from, model.ChannelMap, "five"); err != nil {
+				t.Fatalf("after a second: %v", err)
+			}
+			if _, _, err := svc.Send(ctx, from, model.ChannelMap, "six"); !errors.Is(err, model.ErrRate) {
+				t.Fatalf("sixth line: %v", err)
+			}
+			// Another sender has their own bucket.
+			if _, _, err := svc.Send(ctx, model.Sender{ID: robin, Name: "Robin"}, model.ChannelMap, "me too"); err != nil {
+				t.Fatalf("another sender: %v", err)
+			}
+		})
 	})
-	now = now.Add(time.Minute)
 	t.Run("length and emptiness are checked after cleaning, and never charge the limit", func(t *testing.T) {
+		svc := application.NewChatService(parties)
 		if _, _, err := svc.Send(ctx, from, model.ChannelMap, strings.Repeat("é", 120)); err != nil {
 			t.Fatalf("120 characters: %v", err)
 		}
@@ -96,14 +100,14 @@ func TestSend(t *testing.T) {
 		if _, _, err := svc.Send(ctx, from, model.Channel("global"), "hi"); !errors.Is(err, model.ErrChannel) {
 			t.Fatalf("unknown channel: %v", err)
 		}
-		for range 2 { // the two refused lines cost nothing: two more fit the burst
+		for range 2 { // the refused lines cost nothing: two more fit the burst
 			if _, _, err := svc.Send(ctx, from, model.ChannelMap, "ok"); err != nil {
 				t.Fatalf("after refused lines: %v", err)
 			}
 		}
 	})
 	t.Run("without a party service the party channel is unavailable", func(t *testing.T) {
-		solo := application.NewChatService(nil, application.ChatOptions{})
+		solo := application.NewChatService(nil)
 		if _, _, err := solo.Send(ctx, from, model.ChannelParty, "hi"); !errors.Is(err, model.ErrNoParties) {
 			t.Fatalf("err %v", err)
 		}

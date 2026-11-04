@@ -11,17 +11,9 @@ import (
 	"finga/services/social/internal/model"
 )
 
-// PartyOptions tune the service. Zero values take the defaults.
-type PartyOptions struct {
-	MaxMembers int
-	InviteTTL  time.Duration
-	Clock      func() time.Time
-}
-
 // PartyService runs the party rules over a PartyStore.
 type PartyService struct {
 	store PartyStore
-	opts  PartyOptions
 
 	// mu orders each change with its notifications, so members never hear an older state last.
 	mu       sync.Mutex
@@ -29,17 +21,8 @@ type PartyService struct {
 }
 
 // NewPartyService makes the service over store; Notify sets where state changes go.
-func NewPartyService(store PartyStore, opts PartyOptions) *PartyService {
-	if opts.MaxMembers <= 0 {
-		opts.MaxMembers = model.DefaultMaxMembers
-	}
-	if opts.InviteTTL <= 0 {
-		opts.InviteTTL = model.DefaultInviteTTL
-	}
-	if opts.Clock == nil {
-		opts.Clock = time.Now
-	}
-	return &PartyService{store: store, opts: opts}
+func NewPartyService(store PartyStore) *PartyService {
+	return &PartyService{store: store}
 }
 
 // Notify sets the notifier; nil means nobody is told.
@@ -106,7 +89,7 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 			if p.Leader != from {
 				return model.ErrNotLeader
 			}
-			if len(p.Members) >= s.opts.MaxMembers {
+			if len(p.Members) >= model.MaxMembers {
 				return model.ErrFull
 			}
 		}
@@ -120,7 +103,7 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 		if slices.ContainsFunc(tx.Invites(), func(i model.Invite) bool { return i.From == from && i.To == to }) {
 			return model.ErrAlreadyAsked
 		}
-		inv = model.Invite{ID: model.NewInviteID(), From: from, FromName: inviter.Name, To: to, Expires: s.opts.Clock().Add(s.opts.InviteTTL)}
+		inv = model.Invite{ID: model.NewInviteID(), From: from, FromName: inviter.Name, To: to, Expires: time.Now().Add(model.InviteTTL)}
 		tx.PutInvite(inv)
 		n.invited(to, inv)
 		return nil
@@ -168,7 +151,7 @@ func (s *PartyService) join(tx PartyTx, n *notes, inv model.Invite) error {
 		}
 		p = add(tx, model.Party{ID: model.NewPartyID(), Leader: inv.From}, leader)
 	}
-	if len(p.Members) >= s.opts.MaxMembers {
+	if len(p.Members) >= model.MaxMembers {
 		return model.ErrFull
 	}
 	p = add(tx, p, member)
@@ -284,7 +267,7 @@ func (s *PartyService) update(ctx context.Context, fn func(tx PartyTx, n *notes)
 }
 
 func (s *PartyService) expire(tx PartyTx) {
-	now := s.opts.Clock()
+	now := time.Now()
 	for _, inv := range tx.Invites() {
 		if !inv.Expires.After(now) {
 			tx.DeleteInvite(inv.ID)
