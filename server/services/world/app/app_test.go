@@ -21,6 +21,7 @@ import (
 	"finga/internal/host"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
+	"finga/pkg/runner/runnertest"
 	"finga/services/world/app"
 	"finga/services/world/config"
 )
@@ -78,16 +79,16 @@ func serve(t *testing.T, register func(*grpc.Server)) string {
 }
 
 func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	chars := &characters{c: &characterv1.Character{
 		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10},
 		Hp: 204, Mp: 28, MapId: "town", X: 416, Y: 608,
 	}}
 	itemSvc := &items{}
+	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
 	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+		GRPC: host.GRPCSection{Listen: grpcAddr}, Ops: host.OpsSection{Addr: opsAddr},
 		ShutdownGrace:      time.Second,
 		DataDir:            "../../../data",
 		TickRateHz:         20,
@@ -103,15 +104,9 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer h.Close()
-	done := make(chan error, 1)
-	go func() { done <- h.Run(ctx) }()
-	for deadline := time.Now().Add(5 * time.Second); !h.Ready(); time.Sleep(5 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("never ready")
-		}
-	}
-	conn, err := grpcx.Dial(h.Addr(host.GRPC))
+	t.Cleanup(h.Close)
+	stop := runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
+	conn, err := grpcx.Dial(grpcAddr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +142,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 			if time.Now().After(deadline) {
 				t.Fatalf("no tick metrics in\n%s", body)
 			}
-			resp, err := http.Get("http://" + h.Addr(host.Ops) + "/metrics")
+			resp, err := http.Get("http://" + opsAddr + "/metrics")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -156,8 +151,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 			body = string(b)
 		}
 	})
-	cancel()
-	if err := <-done; err != nil {
+	if err := stop(); err != nil {
 		t.Fatal(err)
 	}
 }

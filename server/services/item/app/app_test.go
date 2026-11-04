@@ -15,6 +15,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
+	"finga/pkg/runner/runnertest"
 	"finga/services/item/app"
 	"finga/services/item/config"
 	"finga/services/item/migrations"
@@ -37,7 +38,7 @@ func TestMain(m *testing.M) {
 func cfgFor(t *testing.T) config.Config {
 	t.Helper()
 	return config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+		GRPC: host.GRPCSection{Listen: runnertest.Addr(t)}, Ops: host.OpsSection{Addr: runnertest.Addr(t)},
 		ShutdownGrace: time.Second,
 		DataDir:       "../../../data",
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
@@ -45,21 +46,15 @@ func cfgFor(t *testing.T) config.Config {
 }
 
 func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	h, err := app.Build(ctx, cfgFor(t), slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	ctx := t.Context()
+	cfg := cfgFor(t)
+	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer h.Close()
-	done := make(chan error, 1)
-	go func() { done <- h.Run(ctx) }()
-	for deadline := time.Now().Add(5 * time.Second); !h.Ready(); time.Sleep(5 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("never ready")
-		}
-	}
-	conn, err := grpcx.Dial(h.Addr(host.GRPC))
+	t.Cleanup(h.Close)
+	stop := runnertest.Start(t, "http://"+cfg.Ops.Addr+"/readyz", h.Run)
+	conn, err := grpcx.Dial(cfg.GRPC.Listen)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +68,7 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	if err != nil || len(inv.GetItems()) != 2 {
 		t.Fatalf("inventory %+v, err %v", inv.GetItems(), err)
 	}
-	cancel()
-	if err := <-done; err != nil {
+	if err := stop(); err != nil {
 		t.Fatal(err)
 	}
 }

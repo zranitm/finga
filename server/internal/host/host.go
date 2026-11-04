@@ -15,10 +15,10 @@ import (
 	"finga/pkg/runner"
 )
 
-// The listener names, for Addr.
+// The listener names, as the logs show them.
 const (
-	GRPC = "grpc"
-	Ops  = "ops"
+	grpcListener = "grpc"
+	opsListener  = "ops"
 )
 
 // Options describe one service.
@@ -50,20 +50,14 @@ func New(opts Options) *Host {
 	h := &Host{GRPC: grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics})}
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
 	h.run = runner.New(runner.Options{Logger: logger, ShutdownGrace: opts.Settings.ShutdownGrace, Panics: opts.Panics}, []runner.Listener{
-		{Name: GRPC, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},
-		{Name: Ops, Addr: opts.Settings.Ops, Server: runner.HTTP(ops)},
+		{Name: grpcListener, Addr: opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)},
+		{Name: opsListener, Addr: opts.Settings.Ops, Server: runner.HTTP(ops)},
 	}, opts.Tasks)
 	return h
 }
 
 // Run serves until ctx ends, then shuts down gracefully.
 func (h *Host) Run(ctx context.Context) error { return h.run.Run(ctx) }
-
-// Ready reports whether the service is serving.
-func (h *Host) Ready() bool { return h.run.Ready() }
-
-// Addr is a listener's bound address (GRPC or Ops) once serving.
-func (h *Host) Addr(listener string) string { return h.run.Addr(listener) }
 
 // OnClose adds something Close releases (a pool, a client connection).
 func (h *Host) OnClose(f func()) { h.closers = append(h.closers, f) }

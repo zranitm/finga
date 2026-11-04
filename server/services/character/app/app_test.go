@@ -18,6 +18,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
+	"finga/pkg/runner/runnertest"
 	"finga/services/character/app"
 	"finga/services/character/config"
 	"finga/services/character/migrations"
@@ -62,8 +63,9 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	go func() { _ = itemSrv.Serve(ln) }()
 	defer itemSrv.Stop()
 
+	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
 	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+		GRPC: host.GRPCSection{Listen: grpcAddr}, Ops: host.OpsSection{Addr: opsAddr},
 		ShutdownGrace: time.Second,
 		DataDir:       "../../../data",
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
@@ -73,15 +75,9 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer h.Close()
-	done := make(chan error, 1)
-	go func() { done <- h.Run(ctx) }()
-	for deadline := time.Now().Add(5 * time.Second); !h.Ready(); time.Sleep(5 * time.Millisecond) {
-		if time.Now().After(deadline) {
-			t.Fatal("never ready")
-		}
-	}
-	conn, err := grpcx.Dial(h.Addr(host.GRPC))
+	t.Cleanup(h.Close)
+	runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
+	conn, err := grpcx.Dial(grpcAddr)
 	if err != nil {
 		t.Fatal(err)
 	}

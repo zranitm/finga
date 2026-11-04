@@ -17,6 +17,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
 	"finga/pkg/runner"
+	"finga/pkg/runner/runnertest"
 )
 
 type empty struct {
@@ -30,9 +31,10 @@ func (empty) EmptyCall(context.Context, *testpb.Empty) (*testpb.Empty, error) {
 func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	ran := make(chan struct{})
 	closed := false
+	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
 	h := host.New(host.Options{
 		Name:     "shop",
-		Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second},
+		Settings: host.Settings{GRPC: grpcAddr, Ops: opsAddr, ShutdownGrace: time.Second},
 		Logger:   slog.New(slog.DiscardHandler),
 		Registry: observability.NewRegistry(), // with the Go collectors, as every binary builds it
 		Tasks:    []runner.Task{{Name: "worker", Run: func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil }}},
@@ -40,20 +42,12 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	testpb.RegisterTestServiceServer(h.GRPC, empty{})
 	h.OnClose(func() { closed = true })
 
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- h.Run(ctx) }()
-	deadline := time.Now().Add(5 * time.Second)
-	for !h.Ready() {
-		if time.Now().After(deadline) {
-			t.Fatal("never ready")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	stop := runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
 	<-ran
+	ctx := context.Background()
 
 	t.Run("the gRPC listener serves the registered service", func(t *testing.T) {
-		conn, err := grpcx.Dial(h.Addr(host.GRPC))
+		conn, err := grpcx.Dial(grpcAddr)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +61,7 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	})
 	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 		t.Run("ops "+path, func(t *testing.T) {
-			res, err := http.Get("http://" + h.Addr(host.Ops) + path)
+			res, err := http.Get("http://" + opsAddr + path)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -79,12 +73,15 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 		})
 	}
 
-	cancel()
-	if err := <-done; err != nil {
+	if err := stop(); err != nil {
 		t.Fatal(err)
 	}
 	h.Close()
-	if !closed || h.Ready() {
-		t.Fatalf("closed %v, ready %v after shutdown", closed, h.Ready())
+	if !closed {
+		t.Fatal("Close released nothing")
+	}
+	if res, err := http.Get("http://" + opsAddr + "/readyz"); err == nil {
+		res.Body.Close()
+		t.Fatal("ops still answers after shutdown")
 	}
 }

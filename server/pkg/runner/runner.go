@@ -56,9 +56,6 @@ type Runner struct {
 	listeners []Listener
 	tasks     []Task
 	ready     atomic.Bool
-
-	mu    sync.Mutex
-	addrs map[string]string
 }
 
 // New makes a runner; Run starts it.
@@ -74,23 +71,13 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 			s.srv.ErrorLog = slog.NewLogLogger(opts.Logger.Handler(), slog.LevelError) // a panic no handler recovered, among others
 		}
 	}
-	return &Runner{opts: opts, listeners: listeners, tasks: tasks, addrs: map[string]string{}}
+	return &Runner{opts: opts, listeners: listeners, tasks: tasks}
 }
 
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
-// Addr is a listener's bound address once Run serves; it turns non-empty together with Ready.
-func (r *Runner) Addr(name string) string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.addrs[name]
-}
-
-// RunTasks runs the background tasks until ctx ends and they all return; Run calls it.
-func (r *Runner) RunTasks(ctx context.Context) { r.runTasks(ctx, func(error) {}) }
-
-// runTasks hands a task's panic to fatal, after recording it.
+// runTasks runs the background tasks until ctx ends and they all return; a task's panic goes to fatal, after it is recorded.
 func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
@@ -136,14 +123,9 @@ func (r *Runner) Run(ctx context.Context) error {
 			return nil
 		})
 	}
-	r.mu.Lock()
-	for i, l := range r.listeners {
-		r.addrs[l.Name] = lns[i].Addr().String()
-	}
 	r.ready.Store(true)
-	r.mu.Unlock()
-	for _, l := range r.listeners {
-		r.opts.Logger.InfoContext(ctx, "listening", "listener", l.Name, "addr", r.Addr(l.Name))
+	for i, l := range r.listeners {
+		r.opts.Logger.InfoContext(ctx, "listening", "listener", l.Name, "addr", lns[i].Addr().String())
 	}
 
 	<-servingCtx.Done()

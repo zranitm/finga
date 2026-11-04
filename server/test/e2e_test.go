@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -24,6 +23,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/pgtest"
+	"finga/pkg/runner/runnertest"
 	"finga/pkg/wsconn"
 	accountapp "finga/services/account/app"
 	accountconfig "finga/services/account/config"
@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// stack is the game over a fresh database, its gateway handler served by httptest.
+// stack is the game over a fresh database, every process on loopback ports.
 type stack struct {
 	t      *testing.T
 	url    string
@@ -63,11 +63,6 @@ type stack struct {
 	world  *service                 // likewise
 }
 
-var (
-	loopbackGRPC = host.GRPCSection{Listen: "127.0.0.1:0"}
-	loopbackOps  = host.OpsSection{Addr: "127.0.0.1:0"}
-)
-
 const grace = time.Second
 
 func newStack(t *testing.T) *stack {
@@ -75,27 +70,24 @@ func newStack(t *testing.T) *stack {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
-	item := runService(t, itemconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, DataDir: "../data", Database: db},
-		func(c itemconfig.Config, at string) itemconfig.Config { c.GRPC.Listen = at; return c }, itemapp.Build)
-	account := runService(t, accountconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, Database: db},
-		func(c accountconfig.Config, at string) accountconfig.Config { c.GRPC.Listen = at; return c }, accountapp.Build)
-	character := runService(t, characterconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, DataDir: "../data", Database: db,
-		Dependencies: characterconfig.Dependencies{Item: item.addr}},
-		func(c characterconfig.Config, at string) characterconfig.Config { c.GRPC.Listen = at; return c }, characterapp.Build)
-	social := runService(t, socialconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace},
-		func(c socialconfig.Config, at string) socialconfig.Config { c.GRPC.Listen = at; return c }, socialapp.Build)
-	world := runService(t, worldconfig.Config{GRPC: loopbackGRPC, Ops: loopbackOps, ShutdownGrace: grace, DataDir: "../data",
+	itemAt, accountAt, characterAt, socialAt, worldAt := reserve(t), reserve(t), reserve(t), reserve(t), reserve(t)
+	item := runService(t, itemAt, itemconfig.Config{GRPC: itemAt.grpc(), Ops: itemAt.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db}, itemapp.Build)
+	account := runService(t, accountAt, accountconfig.Config{GRPC: accountAt.grpc(), Ops: accountAt.ops(), ShutdownGrace: grace, Database: db}, accountapp.Build)
+	character := runService(t, characterAt, characterconfig.Config{GRPC: characterAt.grpc(), Ops: characterAt.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,
+		Dependencies: characterconfig.Dependencies{Item: item.addr}}, characterapp.Build)
+	social := runService(t, socialAt, socialconfig.Config{GRPC: socialAt.grpc(), Ops: socialAt.ops(), ShutdownGrace: grace}, socialapp.Build)
+	world := runService(t, worldAt, worldconfig.Config{GRPC: worldAt.grpc(), Ops: worldAt.ops(), ShutdownGrace: grace, DataDir: "../data",
 		TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: worldconfig.Economy{Workers: 2},
-		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}},
-		func(c worldconfig.Config, at string) worldconfig.Config { c.GRPC.Listen = at; return c }, worldapp.Build)
+		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}, worldapp.Build)
 	itemConn, err := grpcx.Dial(item.addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = itemConn.Close() })
+	addr := runnertest.Addr(t)
 	srv, err := app.Build(ctx, app.BuildOptions{
 		Config: gatewayconfig.Config{
-			HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
+			HTTP:          gatewayconfig.HTTP{Addr: addr, CORSOrigins: []string{"http://localhost:5173"}},
 			ShutdownGrace: grace,
 			Dependencies: gatewayconfig.Dependencies{
 				Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
@@ -108,75 +100,67 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	// The gateway's streams run beside the httptest handler, as Run would start them.
-	taskCtx, stopTasks := context.WithCancel(context.Background())
-	tasksDone := make(chan struct{})
-	go func() { defer close(tasksDone); srv.RunTasks(taskCtx) }()
-	t.Cleanup(func() { stopTasks(); <-tasksDone })
-	ts := httptest.NewServer(srv.Handler())
-	t.Cleanup(ts.Close)
+	runnertest.Start(t, "http://"+addr+"/readyz", srv.Run)
 	pool, err := pgxpool.New(ctx, db.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	return &stack{t: t, url: ts.URL, db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
+	return &stack{t: t, url: "http://" + addr, db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
 }
+
+// addrs is where a service's two listeners bind, kept across restarts.
+type addrs struct{ grpcAddr, opsAddr string }
+
+func reserve(t *testing.T) addrs {
+	return addrs{grpcAddr: runnertest.Addr(t), opsAddr: runnertest.Addr(t)}
+}
+
+func (a addrs) grpc() host.GRPCSection { return host.GRPCSection{Listen: a.grpcAddr} }
+func (a addrs) ops() host.OpsSection   { return host.OpsSection{Addr: a.opsAddr} }
 
 type service struct {
 	t     *testing.T
-	build func(ctx context.Context, listen string) (*host.Host, error) // on that gRPC address
-	addr  string                                                       // where its gRPC listener bound
+	build func(ctx context.Context) (*host.Host, error)
+	at    addrs
+	addr  string // its gRPC address
 	stop  func()
 }
 
-// runService starts a service on a free port until the test ends; listen lets a restart reuse the address.
-func runService[C any](t *testing.T, cfg C, listen func(C, string) C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
+// runService starts a service listening at at until the test ends.
+func runService[C any](t *testing.T, at addrs, cfg C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
 	t.Helper()
-	svc := &service{t: t, build: func(ctx context.Context, at string) (*host.Host, error) {
-		return build(ctx, listen(cfg, at), slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	svc := &service{t: t, at: at, addr: at.grpcAddr, build: func(ctx context.Context) (*host.Host, error) {
+		return build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
 	}}
-	svc.start(loopbackGRPC.Listen)
+	svc.start()
 	t.Cleanup(func() { svc.stop() })
 	return svc
 }
 
-func (s *service) start(listen string) {
+func (s *service) start() {
 	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	h, err := s.build(ctx, listen)
+	h, err := s.build(ctx)
 	if err != nil {
 		s.t.Fatal(err)
 	}
-	runCtx, stop := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() { done <- h.Run(runCtx) }()
+	stop := runnertest.Start(s.t, "http://"+s.at.opsAddr+"/readyz", h.Run)
 	s.stop = func() {
-		stop()
-		if err := <-done; err != nil {
+		if err := stop(); err != nil {
 			s.t.Errorf("service stopped with %v", err)
 		}
 		h.Close()
 		s.stop = func() {}
 	}
-	for !h.Ready() {
-		select {
-		case err := <-done:
-			s.t.Fatalf("service stopped before it was ready: %v", err)
-		case <-ctx.Done():
-			s.t.Fatal("service not ready in time")
-		case <-time.After(5 * time.Millisecond):
-		}
-	}
-	s.addr = h.Addr(host.GRPC)
 }
 
-// restart replaces the service with a fresh process on the same address, losing its memory.
+// restart replaces the service with a fresh process on the same addresses, losing its memory.
 func (s *service) restart() {
 	s.t.Helper()
 	s.stop()
-	s.start(s.addr)
+	s.start()
 }
 
 type response struct {
