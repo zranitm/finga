@@ -26,7 +26,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up)
+	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migrations.FS, migrations.Table))
 	if err != nil {
 		panic(err)
 	}

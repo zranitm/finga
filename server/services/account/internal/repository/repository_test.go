@@ -22,7 +22,7 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrations.Up) // the account service's set only
+	cluster, err = pgtest.Start(ctx, pgtest.Migrations(migrations.FS, migrations.Table)) // the account service's set only
 	if err != nil {
 		panic(err)
 	}

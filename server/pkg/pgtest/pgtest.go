@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"strings"
@@ -17,6 +18,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+
+	"finga/pkg/dbx"
 )
 
 const (
@@ -31,6 +34,14 @@ const (
 
 // MigrateFunc prepares the template database; nil leaves it empty.
 type MigrateFunc func(ctx context.Context, pool *pgxpool.Pool) error
+
+// Migrations applies one goose set, as cmd/migrate applies each service's.
+func Migrations(fsys fs.FS, table string) MigrateFunc {
+	return func(ctx context.Context, pool *pgxpool.Pool) error {
+		_, err := dbx.Migrate(ctx, pool, fsys, table)
+		return err
+	}
+}
 
 // Cluster is one Postgres server with a prepared template database.
 type Cluster struct {

@@ -1,14 +1,7 @@
 // Package migrations embeds the character service's goose migrations.
 package migrations
 
-import (
-	"context"
-	"embed"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"finga/pkg/dbx"
-)
+import "embed"
 
 // Table is where goose records this set's versions.
 const Table = "goose_character_version"
@@ -17,14 +10,3 @@ const Table = "goose_character_version"
 //
 //go:embed *.sql
 var FS embed.FS
-
-// Apply runs every pending migration and reports how many it applied.
-func Apply(ctx context.Context, pool *pgxpool.Pool) (int, error) {
-	return dbx.Migrate(ctx, pool, FS, Table)
-}
-
-// Up is Apply without the count, in the shape pgtest.MigrateFunc wants.
-func Up(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := Apply(ctx, pool)
-	return err
-}

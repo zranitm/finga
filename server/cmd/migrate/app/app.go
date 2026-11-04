@@ -56,9 +56,3 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
 	}
 	return applied, nil
 }
-
-// Up is Apply without the counts, in the shape pgtest.MigrateFunc wants.
-func Up(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := Apply(ctx, pool)
-	return err
-}

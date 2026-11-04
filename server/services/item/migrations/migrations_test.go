@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 func TestTheLibraryTablesMatchTheirSchemas(t *testing.T) {
 	ctx := context.Background()
 	migrated := cluster.DB(t)
-	if err := migrations.Up(ctx, migrated); err != nil {
+	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, migrated); err != nil {
 		t.Fatal(err)
 	}
 	reference := cluster.DB(t)

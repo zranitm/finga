@@ -44,7 +44,10 @@ var cluster *pgtest.Cluster
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
-	cluster, err = pgtest.Start(ctx, migrateapp.Up) // every service's set, as cmd/migrate applies them
+	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
+		_, err := migrateapp.Apply(ctx, pool) // every service's set, as cmd/migrate applies them
+		return err
+	})
 	if err != nil {
 		panic(err)
 	}
