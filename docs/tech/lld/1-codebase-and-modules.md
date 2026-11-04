@@ -63,7 +63,7 @@ server/                 the Go module: everything the server builds, reads and p
   testdata/             the contracts the client's tests check too
     movement/           movement vectors shared by Go and TypeScript
     contracts/          golden REST and WebSocket messages
-    errors/             codes.json: every error code with its status and message, written from errmap
+    errors/             codes.json: every error code with its status and message, written by errmap's test
   Dockerfile            one file for every binary; the CMD build arg picks which
   .env.example  .golangci.yml  buf.yaml  buf.gen.yaml  go.mod  go.sum  sqlc.yaml
 web/                    the client: Phaser 4, React, Vite, TypeScript; layout on page 7
@@ -525,7 +525,7 @@ dependencies:              # where this service dials the ones it calls
   social: localhost:9005
 ```
 
-The other services' files have the same shape with their own keys (README, Configuration); the gateway's has `http` (`addr`, `cors_origins`) in place of `grpc` and `ops`.
+The other services' files have the same shape with their own keys (README, Configuration); the gateway's has `http` (`addr`, `cors_origins`) in place of `grpc` and `ops`, plus `ws` (`hello_timeout`, `command_queue`) and `sessions` (`join_timeout`, `check_interval`).
 
 ## Tooling and conventions
 

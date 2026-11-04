@@ -1,15 +1,10 @@
 package errmap_test
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
-	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -27,11 +22,6 @@ import (
 	"finga/services/gateway/internal/clients/errmap"
 	"finga/services/gateway/internal/model"
 )
-
-var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
-
-// codesFile is the list the client checks its own code list against.
-var codesFile = filepath.Join("..", "..", "..", "..", "..", "testdata", "errors", "codes.json")
 
 func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 	tests := []struct {
@@ -124,12 +114,21 @@ var contracts = []protoreflect.EnumDescriptor{
 	worldv1.Reason(0).Descriptor(),
 }
 
+// handledByTheGateway are the reasons the gateway acts on itself by closing the connection; a client sees internal.
+var handledByTheGateway = []grpcx.Reason{
+	grpcx.Key(worldv1.Reason_REASON_BUSY),
+	grpcx.Key(worldv1.Reason_REASON_NO_MAP),
+	grpcx.Key(worldv1.Reason_REASON_STOPPED),
+	grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED),
+	grpcx.Key(worldv1.Reason_REASON_CLASS_UNAVAILABLE),
+}
+
 func TestEveryReasonIsMapped(t *testing.T) {
 	for _, d := range contracts {
 		for _, r := range grpctest.Reasons(d) {
 			internal := model.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r)))
-			if internal != errmap.IsInternalOnly(r) {
-				t.Errorf("%s: internal %v, listed as internal only %v", r, internal, errmap.IsInternalOnly(r))
+			if handled := slices.Contains(handledByTheGateway, r); internal != handled {
+				t.Errorf("%s: internal %v, handled by the gateway %v", r, internal, handled)
 			}
 		}
 	}
@@ -169,43 +168,5 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 	}
 	if errmap.Wrap(nil) != nil {
 		t.Fatal("Wrap(nil) is not nil")
-	}
-}
-
-func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
-	codes := errmap.Codes()
-	snake := regexp.MustCompile(`^[a-z]+(_[a-z]+)*$`)
-	seen := map[string]bool{}
-	for _, p := range codes {
-		if !snake.MatchString(p.Code) {
-			t.Errorf("code %q is not snake_case", p.Code)
-		}
-		if seen[p.Code] {
-			t.Errorf("code %q is used twice; every failure gets its own", p.Code)
-		}
-		seen[p.Code] = true
-		if p.Status < 400 || p.Status > 599 || p.Message == "" {
-			t.Errorf("%+v needs an error status and a message", p)
-		}
-	}
-	got, err := json.MarshalIndent(codes, "", "  ")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got = append(got, '\n')
-	if *update {
-		if err := os.MkdirAll(filepath.Dir(codesFile), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(codesFile, got, 0o600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	want, err := os.ReadFile(codesFile)
-	if err != nil {
-		t.Fatalf("%v (run go test ./services/gateway/internal/clients/errmap -update)", err)
-	}
-	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), got) {
-		t.Fatalf("%s is stale; run go test ./services/gateway/internal/clients/errmap -update", codesFile)
 	}
 }

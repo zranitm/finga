@@ -67,14 +67,10 @@ type Deps struct {
 	Social      Social // nil: no parties or chat
 	Logger      *slog.Logger
 	Observer    Observer
-	Clock       func() time.Time
-	JoinTimeout time.Duration
+	JoinTimeout time.Duration // a Hello's whole join, retries included
 }
 
-const (
-	defaultJoinTimeout = 5 * time.Second
-	offlineTimeout     = 5 * time.Second
-)
+const offlineTimeout = 5 * time.Second
 
 // Gateway runs the send flow's use cases over the registry's sessions.
 type Gateway struct {
@@ -84,12 +80,6 @@ type Gateway struct {
 
 // New builds the send flow over sessions, defaulting unset dependencies.
 func New(deps Deps, sessions *session.Registry) *Gateway {
-	if deps.Clock == nil {
-		deps.Clock = time.Now
-	}
-	if deps.JoinTimeout <= 0 {
-		deps.JoinTimeout = defaultJoinTimeout
-	}
 	if deps.Observer == nil {
 		deps.Observer = noopObserver{}
 	}

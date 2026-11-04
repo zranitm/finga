@@ -2,6 +2,7 @@ package receive
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -33,7 +34,7 @@ func (h *Handler) helloFirst(c *msgContext) {
 // limited charges the message type's bucket; over the limit, the message is refused or dropped.
 func (h *Handler) limited(l limit) handler {
 	return func(c *msgContext) {
-		if !c.Session.allow(c.Message.Type, l, h.opts.Clock()) {
+		if !c.Session.allow(c.Message.Type, l, time.Now()) {
 			replyError(c, model.RateLimited)
 			return
 		}

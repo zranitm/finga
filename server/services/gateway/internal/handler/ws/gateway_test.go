@@ -77,7 +77,6 @@ type deps struct {
 	Logger               *slog.Logger
 	Observer             observer
 	CORSOrigins          []string
-	Clock                func() time.Time
 	HelloTimeout         time.Duration
 	JoinTimeout          time.Duration
 	CommandQueue         int
@@ -88,7 +87,7 @@ type deps struct {
 func (d deps) build() (*push.Gateway, http.Handler) {
 	world := clients.NewWorld(d.World, d.Logger, nil)
 	reg := session.Deps{Gateway: d.ID, World: world, Logger: d.Logger, JoinTimeout: d.JoinTimeout}
-	sends := send.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, Observer: d.Observer, Clock: d.Clock, JoinTimeout: d.JoinTimeout}
+	sends := send.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, Observer: d.Observer, JoinTimeout: d.JoinTimeout}
 	pushes := push.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, SessionCheckInterval: d.SessionCheckInterval}
 	if d.Items != nil {
 		sends.Items = clients.NewItems(d.Items)
@@ -102,7 +101,7 @@ func (d deps) build() (*push.Gateway, http.Handler) {
 	}
 	sessions := session.NewRegistry(reg)
 	return push.New(pushes, sessions), ws.New(send.New(sends, sessions), ws.Options{
-		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Clock: d.Clock, Observer: d.Observer, Logger: d.Logger,
+		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger,
 	})
 }
 
@@ -121,11 +120,13 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 			tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)},
 			tokenBob:   {AccountID: uuid.UUID(bob), SessionID: uuid.UUID(sessBob)},
 		}},
-		World:        fw.client(t),
-		Logger:       slog.New(slog.DiscardHandler),
-		Observer:     obs,
-		HelloTimeout: 200 * time.Millisecond,
-		JoinTimeout:  time.Second, // room for two jittered backoffs: the stream's resubscribe and the join's retries
+		World:                fw.client(t),
+		Logger:               slog.New(slog.DiscardHandler),
+		Observer:             obs,
+		HelloTimeout:         200 * time.Millisecond,
+		JoinTimeout:          time.Second, // room for two jittered backoffs: the stream's resubscribe and the join's retries
+		CommandQueue:         64,
+		SessionCheckInterval: time.Minute,
 	}
 	for _, o := range opts {
 		o(&d)
@@ -402,9 +403,9 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 	}
 }
 
+// The exact burst at one instant is checked in package receive, under a fake clock.
 func TestRateLimits(t *testing.T) {
-	frozen := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	h := newHarness(t, func(d *deps) { d.Clock = func() time.Time { return frozen } })
+	h := newHarness(t)
 	c := h.dial(t)
 	c.hello(tokenAlice, aylaID)
 	c.expect("Snapshot")
@@ -414,8 +415,8 @@ func TestRateLimits(t *testing.T) {
 	// Commands reach the world in order: once the Attack is in, every input before it was handled.
 	c.send(wsconn.Message{Seq: 41, Data: &clientv1.Attack{}})
 	waitFor(t, "the attack", h.world.attackList, 1)
-	if got := h.world.inputCount(); got != 30 {
-		t.Fatalf("%d inputs forwarded of 40 in one instant, want 30 (the burst)", got)
+	if got := h.world.inputCount(); got < 30 || got >= 40 {
+		t.Fatalf("%d inputs forwarded of 40 sent at once, want the burst of 30 and what refilled meanwhile", got)
 	}
 	t.Run("a limited command with a request ID is answered rate_limited", func(t *testing.T) {
 		for i := range 6 {

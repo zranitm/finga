@@ -25,13 +25,12 @@ type Observer interface {
 	SlowConsumer()
 }
 
-// Options tune the handler. Zero values take the defaults.
+// Options tune the handler.
 type Options struct {
 	// Origins are browser origins allowed besides the page's own.
 	Origins      []string
 	HelloTimeout time.Duration
 	CommandQueue int
-	Clock        func() time.Time
 	Observer     Observer
 	Logger       *slog.Logger
 	// Panics records a panic in a message's chain or a connection's callbacks; nil logs it to Logger.
@@ -68,7 +67,7 @@ func New(gw *send.Gateway, opts Options) *Handler {
 	}
 	return &Handler{
 		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, connections: map[string]connection{},
-		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Clock: opts.Clock, Logger: opts.Logger, Panics: opts.Panics}),
+		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Logger: opts.Logger, Panics: opts.Panics}),
 	}
 }
 

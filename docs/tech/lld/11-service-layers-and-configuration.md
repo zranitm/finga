@@ -99,7 +99,7 @@ dependencies:              # where this service dials the ones it calls
 
 | Service | Keys besides `grpc`, `ops`, `shutdown_grace`, `log` |
 | --- | --- |
-| `gateway` | `http.addr` (:8080) and `http.cors_origins` instead of `grpc`; `dependencies` on all five |
+| `gateway` | `http.addr` (:8080) and `http.cors_origins` instead of `grpc`; `ws.hello_timeout` (5s) and `ws.command_queue` (64); `sessions.join_timeout` (5s) and `sessions.check_interval` (1m); `dependencies` on all five |
 | `account` | `database` |
 | `character` | `database`, `data_dir`, `dependencies.item` |
 | `item` | `database`, `data_dir` |

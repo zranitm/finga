@@ -11,6 +11,8 @@ import (
 // Config is services/gateway/config/config.yaml.
 type Config struct {
 	HTTP          HTTP          `mapstructure:"http"`
+	WS            WS            `mapstructure:"ws"`
+	Sessions      Sessions      `mapstructure:"sessions"`
 	ShutdownGrace time.Duration `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config `mapstructure:"log"`
 	Dependencies  Dependencies  `mapstructure:"dependencies"`
@@ -20,6 +22,18 @@ type Config struct {
 type HTTP struct {
 	Addr        string   `mapstructure:"addr" validate:"required"`
 	CORSOrigins []string `mapstructure:"cors_origins" validate:"dive,url"` // empty: same origin only
+}
+
+// WS is how each WebSocket connection runs.
+type WS struct {
+	HelloTimeout time.Duration `mapstructure:"hello_timeout" validate:"gt=0"`
+	CommandQueue int           `mapstructure:"command_queue" validate:"min=1"`
+}
+
+// Sessions is how the gateway keeps its players' sessions.
+type Sessions struct {
+	JoinTimeout   time.Duration `mapstructure:"join_timeout" validate:"gt=0"`
+	CheckInterval time.Duration `mapstructure:"check_interval" validate:"gt=0"`
 }
 
 // Dependencies are the addresses of the services the gateway dials.

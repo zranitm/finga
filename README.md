@@ -117,7 +117,7 @@ console, `source`, `sampling`), and each internal service `grpc.listen` and
 
 | Binary      | Keys                                                                              |
 |-------------|-----------------------------------------------------------------------------------|
-| `gateway`   | `http.addr`, `http.cors_origins`; `dependencies` on the five services             |
+| `gateway`   | `http.addr`, `http.cors_origins`; `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `dependencies` on the five services |
 | `account`   | `database.url`, `database.max_conns`                                              |
 | `character` | `database`, `data_dir`, `dependencies.item`                                       |
 | `item`      | `database`, `data_dir`                                                            |

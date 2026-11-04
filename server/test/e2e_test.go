@@ -97,6 +97,8 @@ func newStack(t *testing.T) *stack {
 	srv, err := app.Build(ctx, app.BuildOptions{
 		Config: gatewayconfig.Config{
 			HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
+			WS:            gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
+			Sessions:      gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
 			ShutdownGrace: grace,
 			Dependencies: gatewayconfig.Dependencies{
 				Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,

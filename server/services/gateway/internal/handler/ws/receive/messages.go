@@ -2,6 +2,7 @@ package receive
 
 import (
 	"errors"
+	"time"
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/kernel"
@@ -35,7 +36,7 @@ func (h *Handler) hello(c *msgContext, in *clientv1.Hello) (any, error) {
 
 // ping answers at once, on the read loop.
 func (h *Handler) ping(c *msgContext, p *clientv1.Ping) (any, error) {
-	c.Session.out.Reply("", &clientv1.Pong{ClientTime: p.GetClientTime(), ServerTime: h.opts.Clock().UnixMilli()})
+	c.Session.out.Reply("", &clientv1.Pong{ClientTime: p.GetClientTime(), ServerTime: time.Now().UnixMilli()})
 	return nil, nil
 }
 

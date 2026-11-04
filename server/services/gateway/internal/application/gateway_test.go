@@ -34,17 +34,19 @@ type gateway struct {
 	pushes *push.Gateway
 }
 
-func newGateway(w *world, clock func() time.Time) gateway {
+const joinTimeout = 5 * time.Second
+
+func newGateway(w *world) gateway {
 	log := slog.New(slog.DiscardHandler)
-	sessions := session.NewRegistry(session.Deps{World: w, Logger: log})
+	sessions := session.NewRegistry(session.Deps{World: w, Logger: log, JoinTimeout: joinTimeout})
 	return gateway{
-		Gateway: send.New(send.Deps{Sessions: guard{}, World: w, Logger: log, Clock: clock}, sessions),
+		Gateway: send.New(send.Deps{Sessions: guard{}, World: w, Logger: log, JoinTimeout: joinTimeout}, sessions),
 		pushes:  push.New(push.Deps{Sessions: guard{}, World: w, Logger: log, SessionCheckInterval: time.Hour}, sessions),
 	}
 }
 
 func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
-	g := newGateway(&world{}, nil)
+	g := newGateway(&world{})
 	s := g.Open("c-1", &outbox{})
 	ctx := t.Context()
 	other := kernel.NewCharacterID()
@@ -73,14 +75,16 @@ func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
 
 func TestHello(t *testing.T) {
 	t.Run("a Hello that joins welcomes the player through the Outbox with the rotated token", func(t *testing.T) {
-		g := newGateway(&world{}, func() time.Time { return time.UnixMilli(1000) })
+		g := newGateway(&world{})
 		c := &outbox{}
 		s := g.Open("c-1", c)
+		before := time.Now()
 		if err := g.Hello(t.Context(), s, token, ayla); err != nil {
 			t.Fatal(err)
 		}
 		welcome := c.welcomed()
-		if welcome == nil || welcome.Token != "rotated" || welcome.Character.GetId() != ayla.String() || welcome.MapID != "town" || !welcome.ServerTime.Equal(time.UnixMilli(1000)) {
+		if welcome == nil || welcome.Token != "rotated" || welcome.Character.GetId() != ayla.String() || welcome.MapID != "town" ||
+			welcome.ServerTime.Before(before) || welcome.ServerTime.After(time.Now()) {
 			t.Fatalf("welcome %+v", welcome)
 		}
 		if s.Character() != ayla {
@@ -96,7 +100,7 @@ func TestHello(t *testing.T) {
 		{"a character that is not the account's", token, &model.ServiceError{Public: model.Public{Code: model.CharacterNotFound}, Err: errors.New("not found")}},
 	} {
 		t.Run(tt.name+" is rejected, and nobody is welcomed", func(t *testing.T) {
-			g := newGateway(&world{joinErr: tt.join}, nil)
+			g := newGateway(&world{joinErr: tt.join})
 			c := &outbox{}
 			if err := g.Hello(t.Context(), g.Open("c-1", c), tt.token, ayla); !errors.Is(err, model.ErrHelloRejected) {
 				t.Fatalf("err = %v, want ErrHelloRejected", err)
@@ -107,7 +111,7 @@ func TestHello(t *testing.T) {
 		})
 	}
 	t.Run("a world that cannot join is a failure the client retries, not a rejection", func(t *testing.T) {
-		g := newGateway(&world{joinErr: errors.New("boom")}, nil)
+		g := newGateway(&world{joinErr: errors.New("boom")})
 		err := g.Hello(t.Context(), g.Open("c-1", &outbox{}), token, ayla)
 		if err == nil || errors.Is(err, model.ErrHelloRejected) {
 			t.Fatalf("err = %v", err)
@@ -231,7 +235,7 @@ func (w *world) FollowDeliveries(ctx context.Context, _ string, deliver func(mod
 func running(t *testing.T, w *world) gateway {
 	t.Helper()
 	w.following = make(chan struct{})
-	g := newGateway(w, nil)
+	g := newGateway(w)
 	go func() { _ = g.pushes.Run(t.Context()) }()
 	select {
 	case <-w.following:
@@ -268,7 +272,7 @@ func TestSessionsTheGatewayEnds(t *testing.T) {
 }
 
 func TestAPanickingFollowerStopsRun(t *testing.T) {
-	g := newGateway(&world{followPanic: "bad stream"}, nil)
+	g := newGateway(&world{followPanic: "bad stream"})
 	done := make(chan error, 1)
 	go func() { done <- g.pushes.Run(context.Background()) }()
 	select {

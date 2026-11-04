@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"log/slog"
 	"os"
 	"reflect"
 	"sort"
@@ -9,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/handler/api"
 )
 
@@ -45,9 +47,13 @@ func TestRoutesMatchOpenAPI(t *testing.T) {
 			inSpec = append(inSpec, strings.ToUpper(method)+" "+path)
 		}
 	}
+	e := handler.NewEngine()
+	api.Mount(api.Dependencies{Logger: slog.New(slog.DiscardHandler)})(e)
 	var inCode []string
-	for _, r := range api.Routes() {
-		inCode = append(inCode, r.Method+" "+r.Path)
+	for _, r := range e.Routes() {
+		if strings.HasPrefix(r.Path, "/api/") {
+			inCode = append(inCode, r.Method+" "+r.Path)
+		}
 	}
 	sort.Strings(inSpec)
 	sort.Strings(inCode)

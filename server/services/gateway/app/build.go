@@ -57,25 +57,30 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	lobby := application.NewLobby(clients.NewAccounts(accounts), clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)), guard)
 	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger, rec)
 	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger, rec)
-	sessions := session.NewRegistry(session.Deps{Gateway: uuidv7.NewString(), World: world, Social: social, Logger: opts.Logger, Panics: rec})
+	sessions := session.NewRegistry(session.Deps{Gateway: uuidv7.NewString(), World: world, Social: social, Logger: opts.Logger, Panics: rec, JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
-		Sessions: guard,
-		World:    world,
-		Items:    clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
-		Social:   social,
-		Logger:   opts.Logger,
-		Observer: metrics,
+		Sessions:    guard,
+		World:       world,
+		Items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
+		Social:      social,
+		Logger:      opts.Logger,
+		Observer:    metrics,
+		JoinTimeout: cfg.Sessions.JoinTimeout,
 	}, sessions)
 	pushFlow := push.New(push.Deps{
-		Sessions: guard,
-		World:    world,
-		Social:   social,
-		Account:  clients.NewSessionEnds(accounts, opts.Logger, rec),
-		Logger:   opts.Logger,
+		Sessions:             guard,
+		World:                world,
+		Social:               social,
+		Account:              clients.NewSessionEnds(accounts, opts.Logger, rec),
+		Logger:               opts.Logger,
+		SessionCheckInterval: cfg.Sessions.CheckInterval,
 	}, sessions)
 	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger, Panics: rec}, Deps{
-		API:     api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
-		Gateway: ws.New(sendFlow, ws.Options{Origins: cfg.HTTP.CORSOrigins, Observer: metrics, Logger: opts.Logger, Panics: rec}),
+		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
+		Gateway: ws.New(sendFlow, ws.Options{
+			Origins: cfg.HTTP.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
+			Observer: metrics, Logger: opts.Logger, Panics: rec,
+		}),
 		Metrics: observability.MetricsHandler(opts.Registry),
 		Tasks:   []Task{{Name: "streams", Run: pushFlow.Run}},
 		Drain:   pushFlow.Drain,

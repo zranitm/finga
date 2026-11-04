@@ -4,6 +4,12 @@
 http:
   addr: ":8080"
   cors_origins: []      # browser origins allowed for REST and WebSocket; empty: same origin only
+ws:
+  hello_timeout: 5s     # a connection that sends no Hello in this long is closed
+  command_queue: 64     # a connection's commands waiting their turn; one more answers rate_limited
+sessions:
+  join_timeout: 5s      # a Hello's or a rejoin's whole join, retries included
+  check_interval: 1m    # how often every session is checked with the account service
 shutdown_grace: 10s
 log:
   level: info

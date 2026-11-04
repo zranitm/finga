@@ -10,9 +10,9 @@ import (
 
 // Public is a failure as a client sees it; Message is the gateway's own, never an error's text, so causes never leak.
 type Public struct {
-	Code    string `json:"code"`
-	Status  int    `json:"status"`
-	Message string `json:"message"`
+	Code    string
+	Status  int
+	Message string
 }
 
 // The failures the gateway raises itself.
@@ -32,15 +32,6 @@ var (
 	UnknownClass         = Public{"unknown_class", http.StatusBadRequest, "unknown class"}
 	Internal             = Public{"internal", http.StatusInternalServerError, "something went wrong"}
 )
-
-// Raised lists the failures the gateway raises itself.
-func Raised() []Public {
-	return []Public{
-		MalformedBody, MissingField, BodyTooLarge, NoSuchEndpoint, MethodNotAllowed, RateLimited,
-		NotImplemented, ChatUnavailable, PartiesUnavailable, InventoryUnavailable, Unauthenticated,
-		BadID, UnknownClass, Internal,
-	}
-}
 
 // CharacterNotFound is the code of a character that is not the account's; a Hello naming one is rejected.
 const CharacterNotFound = "character_not_found"

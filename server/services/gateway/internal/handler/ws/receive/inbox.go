@@ -17,17 +17,12 @@ import (
 	"finga/services/gateway/internal/handler/ws/push"
 )
 
-const (
-	defaultHelloTimeout = 5 * time.Second
-	defaultCommandQueue = 64
-	commandTimeout      = 5 * time.Second
-)
+const commandTimeout = 5 * time.Second
 
-// Options tune the receiving side. Zero values take the defaults; Logger and Panics are required.
+// Options tune the receiving side; Logger and Panics are required.
 type Options struct {
-	HelloTimeout time.Duration
-	CommandQueue int
-	Clock        func() time.Time
+	HelloTimeout time.Duration // a connection that sends no Hello in this long is closed
+	CommandQueue int           // commands waiting their turn; one more answers rate_limited
 	Logger       *slog.Logger
 	// Panics records a panic in a message's chain.
 	Panics *panics.Recorder
@@ -42,15 +37,6 @@ type Handler struct {
 
 // New routes messages to gw.
 func New(gw *send.Gateway, opts Options) *Handler {
-	if opts.HelloTimeout <= 0 {
-		opts.HelloTimeout = defaultHelloTimeout
-	}
-	if opts.CommandQueue <= 0 {
-		opts.CommandQueue = defaultCommandQueue
-	}
-	if opts.Clock == nil {
-		opts.Clock = time.Now
-	}
 	h := &Handler{gw: gw, opts: opts}
 	h.router = h.routes()
 	return h

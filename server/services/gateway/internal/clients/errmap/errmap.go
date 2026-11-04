@@ -2,10 +2,8 @@
 package errmap
 
 import (
-	"cmp"
 	"errors"
 	"net/http"
-	"slices"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -75,18 +73,6 @@ var reasons = map[grpcx.Reason]Public{
 	grpcx.Key(worldv1.Reason_REASON_BAD_ID):              model.BadID,
 }
 
-// internalOnly are reasons the gateway handles itself by closing the connection; For answers them Internal.
-var internalOnly = map[grpcx.Reason]bool{
-	grpcx.Key(worldv1.Reason_REASON_BUSY):              true,
-	grpcx.Key(worldv1.Reason_REASON_NO_MAP):            true,
-	grpcx.Key(worldv1.Reason_REASON_STOPPED):           true,
-	grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED):    true,
-	grpcx.Key(worldv1.Reason_REASON_CLASS_UNAVAILABLE): true,
-}
-
-// IsInternalOnly reports whether r is a reason the gateway handles itself and never shows a client.
-func IsInternalOnly(r grpcx.Reason) bool { return internalOnly[r] }
-
 // For is the Public form of a failed call: its reason's row, else Internal; the zero value for nil.
 func For(err error) Public {
 	if err == nil {
@@ -117,17 +103,4 @@ func Wrap(err error) error {
 		e.Kind = model.ErrUnavailable
 	}
 	return e
-}
-
-// Codes is every Public a client can receive, sorted by code, for testdata/errors/codes.json.
-func Codes() []Public {
-	raised := model.Raised()
-	out := make([]Public, 0, len(reasons)+len(raised))
-	for _, pub := range reasons {
-		out = append(out, pub)
-	}
-	out = append(out, raised...)
-	slices.SortFunc(out, func(a, b Public) int { return cmp.Compare(a.Code, b.Code) })
-	// bad_id, unknown_class and unauthenticated each have more than one row.
-	return slices.CompactFunc(out, func(a, b Public) bool { return a == b })
 }

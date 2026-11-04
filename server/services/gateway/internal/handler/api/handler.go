@@ -13,7 +13,6 @@ import (
 
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
-	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/model"
 )
 
@@ -27,26 +26,6 @@ type Dependencies struct {
 	CORSOrigins []string
 	// Panics records a panic in a request; nil logs it to Logger.
 	Panics *panics.Recorder
-}
-
-// Route is one endpoint, for the OpenAPI drift check.
-type Route struct {
-	Method string
-	Path   string
-}
-
-// Routes lists every endpoint the handler serves.
-func Routes() []Route {
-	return []Route{
-		{http.MethodPost, "/api/accounts"},
-		{http.MethodPost, "/api/sessions"},
-		{http.MethodDelete, "/api/sessions/current"},
-		{http.MethodDelete, "/api/sessions"},
-		{http.MethodGet, "/api/characters"},
-		{http.MethodPost, "/api/characters"},
-		{http.MethodGet, "/api/settings"},
-		{http.MethodPut, "/api/settings"},
-	}
 }
 
 type api struct {
@@ -79,13 +58,6 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 		e.NoRoute(edge(func(c *gin.Context) { writePublic(c, model.NoSuchEndpoint) })...)
 		e.NoMethod(edge(func(c *gin.Context) { writePublic(c, model.MethodNotAllowed) })...)
 	}
-}
-
-// NewHandler serves the REST API alone on its own engine, for tests.
-func NewHandler(d Dependencies) http.Handler {
-	e := handler.NewEngine()
-	Mount(d)(e)
-	return e
 }
 
 var errMalformed = errors.New("api: malformed request body")

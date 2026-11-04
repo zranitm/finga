@@ -3,6 +3,7 @@ package send
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"finga/internal/kernel"
 	"finga/services/gateway/internal/application/session"
@@ -41,7 +42,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		return fmt.Errorf("join: %w", err)
 	}
 	c := join.Joined.Character
-	welcome := model.Welcome{Token: rotated, Character: c, MapID: join.Joined.MapID, ServerTime: g.deps.Clock()}
+	welcome := model.Welcome{Token: rotated, Character: c, MapID: join.Joined.MapID, ServerTime: time.Now()}
 	if g.deps.Items != nil {
 		items, err := g.deps.Items.Inventory(ctx, charID)
 		if err != nil {

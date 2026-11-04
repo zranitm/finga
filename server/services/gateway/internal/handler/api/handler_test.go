@@ -27,6 +27,7 @@ import (
 	"finga/pkg/grpcx/grpctest"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
+	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/handler/api"
 )
 
@@ -56,10 +57,12 @@ func newHarness(origins ...string) *harness {
 		sessions:   &fakeSessions{token: goodToken, principal: principal},
 		logs:       &bytes.Buffer{},
 	}
-	h.handler = api.NewHandler(api.Dependencies{
+	e := handler.NewEngine()
+	api.Mount(api.Dependencies{
 		Lobby:  application.NewLobby(clients.NewAccounts(h.accounts), clients.NewCharacters(h.characters), h.sessions),
 		Logger: slog.New(slog.NewJSONHandler(h.logs, nil)), CORSOrigins: origins,
-	})
+	})(e)
+	h.handler = e
 	return h
 }
 

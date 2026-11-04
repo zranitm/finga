@@ -44,10 +44,8 @@ type Deps struct {
 	Social               Social  // nil: no party stream
 	Account              Account // nil: only the periodic session check runs
 	Logger               *slog.Logger
-	SessionCheckInterval time.Duration
+	SessionCheckInterval time.Duration // how often every session is checked with Sessions
 }
-
-const defaultSessionCheckInterval = time.Minute
 
 // Gateway runs the push flow over the registry's sessions.
 type Gateway struct {
@@ -56,11 +54,8 @@ type Gateway struct {
 	socialBoot string // owned by the social stream; a new boot ID means the service restarted
 }
 
-// New builds the push flow over sessions, defaulting unset dependencies.
+// New builds the push flow over sessions.
 func New(deps Deps, sessions *session.Registry) *Gateway {
-	if deps.SessionCheckInterval <= 0 {
-		deps.SessionCheckInterval = defaultSessionCheckInterval
-	}
 	return &Gateway{deps: deps, sessions: sessions}
 }
 

@@ -43,10 +43,8 @@ type Deps struct {
 	Social      Social // nil: no parties
 	Logger      *slog.Logger
 	Panics      *panics.Recorder // a rejoin's panic; nil logs it to Logger
-	JoinTimeout time.Duration
+	JoinTimeout time.Duration    // a rejoin's whole join, retries included
 }
-
-const defaultJoinTimeout = 5 * time.Second
 
 // Registry is the gateway's sessions, found by connection, account, character and login session.
 type Registry struct {
@@ -65,9 +63,6 @@ type Registry struct {
 func NewRegistry(deps Deps) *Registry {
 	if deps.Gateway == "" {
 		deps.Gateway = uuidv7.NewString()
-	}
-	if deps.JoinTimeout <= 0 {
-		deps.JoinTimeout = defaultJoinTimeout
 	}
 	if deps.Panics == nil {
 		deps.Panics = panics.NewRecorder(deps.Logger, nil)
