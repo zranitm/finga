@@ -42,6 +42,13 @@ func get(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 	return rec
 }
 
+// serve runs r, which logs into log, and returns where its listener named name listens.
+func serve(t *testing.T, log *runnertest.Log, r *runner.Runner, name string) (addr string, stop func() error) {
+	t.Helper()
+	p := runnertest.Start(t, log, r.Run, name)
+	return p.Addr(name), p.Stop
+}
+
 func start(t *testing.T, r *runner.Runner) (stop func() error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,13 +88,13 @@ func TestProbes(t *testing.T) {
 func TestReadinessFollowsTheProcess(t *testing.T) {
 	var r *runner.Runner
 	ops := runner.Probes(func() bool { return r.Ready() }, http.NotFoundHandler())
-	addr := runnertest.Addr(t)
-	r = newRunner(t, runner.Options{}, []runner.Listener{{Name: "ops", Addr: addr, Server: runner.HTTP(ops)}})
+	log := runnertest.NewLog()
+	r = newRunner(t, runner.Options{Logger: log.Logger()}, []runner.Listener{{Name: "ops", Addr: "127.0.0.1:0", Server: runner.HTTP(ops)}})
 
 	if r.Ready() {
 		t.Fatal("ready before Run")
 	}
-	stop := start(t, r)
+	addr, stop := serve(t, log, r, "ops")
 	res, err := http.Get("http://" + addr + "/readyz")
 	if err != nil {
 		t.Fatal(err)
@@ -112,12 +119,9 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 		<-release
 		_, _ = w.Write([]byte("done"))
 	})
-	addr := runnertest.Addr(t)
-	r := newRunner(t, runner.Options{}, []runner.Listener{{Name: "http", Addr: addr, Server: runner.HTTP(slow)}})
-	ctx, cancel := context.WithCancel(context.Background())
-	runDone := make(chan error, 1)
-	go func() { runDone <- r.Run(ctx) }()
-	waitFor(t, r.Ready)
+	log := runnertest.NewLog()
+	r := newRunner(t, runner.Options{Logger: log.Logger()}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(slow)}})
+	addr, stop := serve(t, log, r, "http")
 
 	got := make(chan string, 1)
 	go func() {
@@ -131,7 +135,8 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 		got <- string(body)
 	}()
 	<-entered
-	cancel()                                      // shutdown starts while the request is in flight
+	runDone := make(chan error, 1)
+	go func() { runDone <- stop() }()             // shutdown starts while the request is in flight
 	waitFor(t, func() bool { return !r.Ready() }) // readiness drops first
 	select {
 	case err := <-runDone:
@@ -152,10 +157,9 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 }
 
 func TestRunFailsOnABusyAddress(t *testing.T) {
-	busy := runnertest.Addr(t)
-	first := newRunner(t, runner.Options{}, []runner.Listener{{Name: "http", Addr: busy, Server: runner.HTTP(http.NotFoundHandler())}})
-	stop := start(t, first)
-	defer func() { _ = stop() }()
+	log := runnertest.NewLog()
+	first := newRunner(t, runner.Options{Logger: log.Logger()}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}})
+	busy, _ := serve(t, log, first, "http")
 	ran := atomic.Bool{}
 	second := newRunner(t, runner.Options{}, []runner.Listener{
 		{Name: "free", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())},
@@ -187,16 +191,17 @@ func TestTasksStopWithTheRunner(t *testing.T) {
 func TestDrainRunsAfterReadinessDropsAndBeforeTheListenersClose(t *testing.T) {
 	var r *runner.Runner
 	var readyDuringDrain, listeningDuringDrain atomic.Bool
-	addr := runnertest.Addr(t)
-	r = newRunner(t, runner.Options{Drain: func(context.Context) {
+	var addr string // set before the drain runs
+	log := runnertest.NewLog()
+	r = newRunner(t, runner.Options{Logger: log.Logger(), Drain: func(context.Context) {
 		readyDuringDrain.Store(r.Ready())
 		res, err := http.Get("http://" + addr + "/")
 		if err == nil {
 			res.Body.Close()
 			listeningDuringDrain.Store(true)
 		}
-	}}, []runner.Listener{{Name: "http", Addr: addr, Server: runner.HTTP(http.NotFoundHandler())}})
-	stop := start(t, r)
+	}}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}})
+	addr, stop := serve(t, log, r, "http")
 	if err := stop(); err != nil {
 		t.Fatal(err)
 	}
@@ -225,9 +230,9 @@ func TestAGRPCServerStopsGracefully(t *testing.T) {
 	b := &blocking{entered: make(chan struct{}), release: make(chan struct{})}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	testpb.RegisterTestServiceServer(srv, b)
-	addr := runnertest.Addr(t)
-	r := newRunner(t, runner.Options{}, []runner.Listener{{Name: "grpc", Addr: addr, Server: runner.GRPC(srv)}})
-	stop := start(t, r)
+	log := runnertest.NewLog()
+	r := newRunner(t, runner.Options{Logger: log.Logger()}, []runner.Listener{{Name: "grpc", Addr: "127.0.0.1:0", Server: runner.GRPC(srv)}})
+	addr, stop := serve(t, log, r, "grpc")
 	conn, err := grpcx.Dial(addr)
 	if err != nil {
 		t.Fatal(err)
@@ -260,9 +265,9 @@ func TestAGRPCServerPastTheGraceIsStopped(t *testing.T) {
 	defer close(b.release)
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	testpb.RegisterTestServiceServer(srv, b)
-	addr := runnertest.Addr(t)
-	r := newRunner(t, runner.Options{ShutdownGrace: 50 * time.Millisecond}, []runner.Listener{{Name: "grpc", Addr: addr, Server: runner.GRPC(srv)}})
-	stop := start(t, r)
+	log := runnertest.NewLog()
+	r := newRunner(t, runner.Options{Logger: log.Logger(), ShutdownGrace: 50 * time.Millisecond}, []runner.Listener{{Name: "grpc", Addr: "127.0.0.1:0", Server: runner.GRPC(srv)}})
+	addr, stop := serve(t, log, r, "grpc")
 	conn, err := grpcx.Dial(addr, grpc.WithDefaultCallOptions(grpc.WaitForReady(false)))
 	if err != nil {
 		t.Fatal(err)
@@ -334,11 +339,10 @@ func TestAListenerThatFailsStopsTheRunner(t *testing.T) {
 func TestAnHTTPServersOwnErrorsReachTheLogger(t *testing.T) {
 	var logs lockedBuffer
 	panicky := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("handler without its own recovery") })
-	addr := runnertest.Addr(t)
-	r := newRunner(t, runner.Options{Logger: slog.New(slog.NewJSONHandler(&logs, nil))},
-		[]runner.Listener{{Name: "http", Addr: addr, Server: runner.HTTP(panicky)}})
-	stop := start(t, r)
-	defer func() { _ = stop() }()
+	log := runnertest.NewLog()
+	r := newRunner(t, runner.Options{Logger: slog.New(slog.NewMultiHandler(log.Handler(), slog.NewJSONHandler(&logs, nil)))},
+		[]runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(panicky)}})
+	addr, _ := serve(t, log, r, "http")
 	if res, err := http.Get("http://" + addr); err == nil {
 		res.Body.Close()
 	}

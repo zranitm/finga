@@ -280,7 +280,7 @@ dependencies:
 - Each gRPC handler is tested over an in-memory connection (`bufconn`) with a fake service: proto in, the right call, proto or the right status and reason out, with the guard test over its error table.
 - Each client adapter is tested against a fake gRPC server the same way.
 - The gateway's tests run against fake services served over `bufconn`, so they exercise the real clients.
-- The end-to-end tests in `server/test/` build every service in one test process from their composition roots and run each as its binary does, on loopback ports the test reserves, until its `/readyz` answers. The rows keep their names.
+- The end-to-end tests in `server/test/` build every service in one test process from their composition roots and run each as its binary does, on ports the kernel picks, which the test reads from the runner's `listening` log record, as the crash test reads them from the binaries' output. The rows keep their names.
 - New end-to-end rows: the world restarts while two players are connected, both sockets stay open and both see a Snapshot again; social restarts and each player gets PartyState with no party.
 - The crash test runs every service as its own process, kills the world and the item service without warning in the middle of pickups, restarts them, and checks the item invariants and each hunter's inventory.
 

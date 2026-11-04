@@ -70,85 +70,95 @@ func newStack(t *testing.T) *stack {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
-	itemAt, accountAt, characterAt, socialAt, worldAt := reserve(t), reserve(t), reserve(t), reserve(t), reserve(t)
-	item := runService(t, itemAt, itemconfig.Config{GRPC: itemAt.grpc(), Ops: itemAt.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db}, itemapp.Build)
-	account := runService(t, accountAt, accountconfig.Config{GRPC: accountAt.grpc(), Ops: accountAt.ops(), ShutdownGrace: grace, Database: db}, accountapp.Build)
-	character := runService(t, characterAt, characterconfig.Config{GRPC: characterAt.grpc(), Ops: characterAt.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,
-		Dependencies: characterconfig.Dependencies{Item: item.addr}}, characterapp.Build)
-	social := runService(t, socialAt, socialconfig.Config{GRPC: socialAt.grpc(), Ops: socialAt.ops(), ShutdownGrace: grace}, socialapp.Build)
-	world := runService(t, worldAt, worldconfig.Config{GRPC: worldAt.grpc(), Ops: worldAt.ops(), ShutdownGrace: grace, DataDir: "../data",
-		TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: worldconfig.Economy{Workers: 2},
-		Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}, worldapp.Build)
+	item := runService(t, func(at listen) itemconfig.Config {
+		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db}
+	}, itemapp.Build)
+	account := runService(t, func(at listen) accountconfig.Config {
+		return accountconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Database: db}
+	}, accountapp.Build)
+	character := runService(t, func(at listen) characterconfig.Config {
+		return characterconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,
+			Dependencies: characterconfig.Dependencies{Item: item.addr}}
+	}, characterapp.Build)
+	social := runService(t, func(at listen) socialconfig.Config {
+		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace}
+	}, socialapp.Build)
+	world := runService(t, func(at listen) worldconfig.Config {
+		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data",
+			TickRateHz: 20, CheckpointInterval: 30 * time.Second, Economy: worldconfig.Economy{Workers: 2},
+			Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}
+	}, worldapp.Build)
 	itemConn, err := grpcx.Dial(item.addr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = itemConn.Close() })
-	addr := runnertest.Addr(t)
+	log := runnertest.NewLog()
 	srv, err := app.Build(ctx, app.BuildOptions{
 		Config: gatewayconfig.Config{
-			HTTP:          gatewayconfig.HTTP{Addr: addr, CORSOrigins: []string{"http://localhost:5173"}},
+			HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
 			ShutdownGrace: grace,
 			Dependencies: gatewayconfig.Dependencies{
 				Account: account.addr, Character: character.addr, Item: item.addr, World: world.addr, Social: social.addr,
 			},
 		},
-		Logger:   slog.New(slog.DiscardHandler),
+		Logger:   log.Logger(),
 		Registry: prometheus.NewRegistry(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	runnertest.Start(t, "http://"+addr+"/readyz", srv.Run)
+	gateway := runnertest.Start(t, log, srv.Run, "http")
 	pool, err := pgxpool.New(ctx, db.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	return &stack{t: t, url: "http://" + addr, db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
+	return &stack{t: t, url: "http://" + gateway.Addr("http"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
 }
 
-// addrs is where a service's two listeners bind, kept across restarts.
-type addrs struct{ grpcAddr, opsAddr string }
+// listen is where a service's listeners bind: where the kernel picks at first, the same addresses on a restart.
+type listen struct{ grpcAddr, opsAddr string }
 
-func reserve(t *testing.T) addrs {
-	return addrs{grpcAddr: runnertest.Addr(t), opsAddr: runnertest.Addr(t)}
-}
+var anyPort = listen{grpcAddr: "127.0.0.1:0", opsAddr: "127.0.0.1:0"}
 
-func (a addrs) grpc() host.GRPCSection { return host.GRPCSection{Listen: a.grpcAddr} }
-func (a addrs) ops() host.OpsSection   { return host.OpsSection{Addr: a.opsAddr} }
+func (l listen) grpc() host.GRPCSection { return host.GRPCSection{Listen: l.grpcAddr} }
+func (l listen) ops() host.OpsSection   { return host.OpsSection{Addr: l.opsAddr} }
 
 type service struct {
 	t     *testing.T
-	build func(ctx context.Context) (*host.Host, error)
-	at    addrs
+	build func(ctx context.Context, at listen, log *slog.Logger) (*host.Host, error)
+	at    listen // where it listens once started
 	addr  string // its gRPC address
 	stop  func()
 }
 
-// runService starts a service listening at at until the test ends.
-func runService[C any](t *testing.T, at addrs, cfg C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
+// runService starts a service on free ports until the test ends.
+func runService[C any](t *testing.T, cfg func(listen) C, build func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error)) *service {
 	t.Helper()
-	svc := &service{t: t, at: at, addr: at.grpcAddr, build: func(ctx context.Context) (*host.Host, error) {
-		return build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	svc := &service{t: t, build: func(ctx context.Context, at listen, log *slog.Logger) (*host.Host, error) {
+		return build(ctx, cfg(at), log, prometheus.NewRegistry())
 	}}
-	svc.start()
+	svc.start(anyPort)
 	t.Cleanup(func() { svc.stop() })
 	return svc
 }
 
-func (s *service) start() {
+func (s *service) start(at listen) {
 	s.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	h, err := s.build(ctx)
+	log := runnertest.NewLog()
+	h, err := s.build(ctx, at, log.Logger())
 	if err != nil {
 		s.t.Fatal(err)
 	}
-	stop := runnertest.Start(s.t, "http://"+s.at.opsAddr+"/readyz", h.Run)
+	p := runnertest.Start(s.t, log, h.Run, "grpc", "ops")
+	s.at = listen{grpcAddr: p.Addr("grpc"), opsAddr: p.Addr("ops")}
+	s.addr = s.at.grpcAddr
 	s.stop = func() {
-		if err := stop(); err != nil {
+		if err := p.Stop(); err != nil {
 			s.t.Errorf("service stopped with %v", err)
 		}
 		h.Close()
@@ -160,7 +170,7 @@ func (s *service) start() {
 func (s *service) restart() {
 	s.t.Helper()
 	s.stop()
-	s.start()
+	s.start(s.at)
 }
 
 type response struct {

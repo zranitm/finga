@@ -2,7 +2,6 @@ package host_test
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -30,18 +29,19 @@ func (empty) EmptyCall(context.Context, *testpb.Empty) (*testpb.Empty, error) {
 func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	ran := make(chan struct{})
 	closed := false
-	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
+	log := runnertest.NewLog()
 	h := host.New(host.Options{
 		Name:     "shop",
-		Settings: host.Settings{GRPC: grpcAddr, Ops: opsAddr, ShutdownGrace: time.Second},
-		Logger:   slog.New(slog.DiscardHandler),
+		Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second},
+		Logger:   log.Logger(),
 		Registry: observability.NewRegistry(), // with the Go collectors, as every binary builds it
 		Tasks:    []runner.Task{{Name: "worker", Run: func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil }}},
 	})
 	testpb.RegisterTestServiceServer(h.GRPC, empty{})
 	h.OnClose(func() { closed = true })
 
-	stop := runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	grpcAddr, opsAddr := p.Addr("grpc"), p.Addr("ops")
 	<-ran
 	ctx := context.Background()
 
@@ -67,7 +67,7 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 		})
 	}
 
-	if err := stop(); err != nil {
+	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}
 	h.Close()

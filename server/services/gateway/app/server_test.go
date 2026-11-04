@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"strings"
 	"testing"
@@ -13,19 +12,20 @@ import (
 	"finga/services/gateway/config"
 )
 
-func newServer(addr string, deps app.Deps) *app.Server {
+func newServer(log *runnertest.Log, deps app.Deps) *app.Server {
 	deps.Metrics = http.NotFoundHandler()
 	return app.New(app.Options{
-		HTTP:          config.HTTP{Addr: addr},
+		HTTP:          config.HTTP{Addr: "127.0.0.1:0"},
 		ShutdownGrace: 2 * time.Second,
-		Logger:        slog.New(slog.DiscardHandler),
+		Logger:        log.Logger(),
 	}, deps)
 }
 
 // Readiness checks no dependency, so a shared outage cannot pull every instance out of rotation at once.
 func TestReadinessFollowsTheProcess(t *testing.T) {
-	addr := runnertest.Addr(t)
-	stop := runnertest.Start(t, "http://"+addr+"/readyz", newServer(addr, app.Deps{}).Run)
+	log := runnertest.NewLog()
+	p := runnertest.Start(t, log, newServer(log, app.Deps{}).Run, "http")
+	addr := p.Addr("http")
 
 	for _, path := range []string{"/readyz", "/healthz"} {
 		t.Run(path+" answers on the real listener", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 		})
 	}
 
-	if err := stop(); err != nil {
+	if err := p.Stop(); err != nil {
 		t.Fatalf("Run returned %v", err)
 	}
 	if res, err := http.Get("http://" + addr + "/healthz"); err == nil {
@@ -47,9 +47,10 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 
 // The drain runs after readiness turns 503, so the load balancer stops sending new connections first.
 func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
-	addr := runnertest.Addr(t)
+	log := runnertest.NewLog()
+	var addr string // set before the drain runs
 	drained := make(chan int, 1)
-	srv := newServer(addr, app.Deps{Drain: func(context.Context) {
+	srv := newServer(log, app.Deps{Drain: func(context.Context) {
 		res, err := http.Get("http://" + addr + "/readyz") // the listener still serves while draining
 		if err != nil {
 			drained <- 0
@@ -58,8 +59,9 @@ func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
 		res.Body.Close()
 		drained <- res.StatusCode
 	}})
-	stop := runnertest.Start(t, "http://"+addr+"/readyz", srv.Run)
-	if err := stop(); err != nil {
+	p := runnertest.Start(t, log, srv.Run, "http")
+	addr = p.Addr("http")
+	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}
 	if code := <-drained; code != http.StatusServiceUnavailable {

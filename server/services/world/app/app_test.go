@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -84,9 +83,9 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 		Hp: 204, Mp: 28, MapId: "town", X: 416, Y: 608,
 	}}
 	itemSvc := &items{}
-	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
+	log := runnertest.NewLog()
 	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: grpcAddr}, Ops: host.OpsSection{Addr: opsAddr},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace:      time.Second,
 		DataDir:            "../../../data",
 		TickRateHz:         20,
@@ -98,13 +97,13 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 			Social:    serve(t, func(s *grpc.Server) { socialv1.RegisterSocialServiceServer(s, social{}) }),
 		},
 	}
-	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
-	stop := runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
-	conn, err := grpcx.Dial(grpcAddr)
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,10 +139,10 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 			if time.Now().After(deadline) {
 				t.Fatalf("no tick metrics in\n%s", body)
 			}
-			_, body = runnertest.Get(t, "http://"+opsAddr+"/metrics")
+			_, body = runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics")
 		}
 	})
-	if err := stop(); err != nil {
+	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}
 }

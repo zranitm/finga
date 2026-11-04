@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"os"
 	"sync"
@@ -63,21 +62,21 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	go func() { _ = itemSrv.Serve(ln) }()
 	defer itemSrv.Stop()
 
-	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
+	log := runnertest.NewLog()
 	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: grpcAddr}, Ops: host.OpsSection{Addr: opsAddr},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace: time.Second,
 		DataDir:       "../../../data",
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
 		Dependencies:  config.Dependencies{Item: ln.Addr().String()},
 	}
-	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
-	runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
-	conn, err := grpcx.Dial(grpcAddr)
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
 		t.Fatal(err)
 	}

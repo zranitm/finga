@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 func cfgFor(t *testing.T) config.Config {
 	t.Helper()
 	return config.Config{
-		GRPC: host.GRPCSection{Listen: runnertest.Addr(t)}, Ops: host.OpsSection{Addr: runnertest.Addr(t)},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace: time.Second,
 		DataDir:       "../../../data",
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
@@ -48,13 +48,14 @@ func cfgFor(t *testing.T) config.Config {
 func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	ctx := t.Context()
 	cfg := cfgFor(t)
-	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	log := runnertest.NewLog()
+	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
-	stop := runnertest.Start(t, "http://"+cfg.Ops.Addr+"/readyz", h.Run)
-	conn, err := grpcx.Dial(cfg.GRPC.Listen)
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	if err != nil || len(inv.GetItems()) != 2 {
 		t.Fatalf("inventory %+v, err %v", inv.GetItems(), err)
 	}
-	if err := stop(); err != nil {
+	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -36,19 +36,19 @@ func TestMain(m *testing.M) {
 
 func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 	ctx := t.Context()
-	grpcAddr, opsAddr := runnertest.Addr(t), runnertest.Addr(t)
+	log := runnertest.NewLog()
 	cfg := config.Config{
-		GRPC: host.GRPCSection{Listen: grpcAddr}, Ops: host.OpsSection{Addr: opsAddr},
+		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
 		ShutdownGrace: time.Second,
 		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
 	}
-	h, err := app.Build(ctx, cfg, slog.New(slog.DiscardHandler), prometheus.NewRegistry())
+	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(h.Close)
-	stop := runnertest.Start(t, "http://"+opsAddr+"/readyz", h.Run)
-	conn, err := grpcx.Dial(grpcAddr)
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	conn, err := grpcx.Dial(p.Addr("grpc"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestASecondLoginReachesAWatchingGateway(t *testing.T) {
 	if ev := m.GetAccountRevoked(); ev.GetAccountId() != reg.GetAccount().GetId() || ev.GetReason() != accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN {
 		t.Fatalf("event %+v", m)
 	}
-	if err := stop(); err != nil {
+	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}
 }
