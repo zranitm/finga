@@ -1,9 +1,11 @@
 package wsconn
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,6 +35,7 @@ const (
 	DefaultPingInterval = 20 * time.Second
 	DefaultPongTimeout  = 10 * time.Second
 	writeTimeout        = 10 * time.Second
+	goodbyeTimeout      = 2 * time.Second // the last frames, the close frame and the peer's answer
 )
 
 // The connection's errors.
@@ -109,7 +112,8 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	for _, sp := range opts.Subprotocols {
 		names = append(names, sp.Name)
 	}
-	ws, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: originPatterns(opts.AllowedOrigins), Subprotocols: names})
+	hj := &hijackKeeper{ResponseWriter: w}
+	ws, err := websocket.Accept(hj, r, &websocket.AcceptOptions{OriginPatterns: originPatterns(opts.AllowedOrigins), Subprotocols: names})
 	if err != nil {
 		return // Accept has written the HTTP error
 	}
@@ -123,9 +127,32 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	if codec.Binary() {
 		frame = websocket.MessageBinary
 	}
-	c := &conn{id: uuidv7.NewString(), ws: ws, codec: codec, frame: frame, send: make(chan Message, opts.SendQueue), closed: make(chan struct{})}
+	c := &conn{id: uuidv7.NewString(), ws: ws, raw: hj.conn, codec: codec, frame: frame, send: make(chan Message, opts.SendQueue), closed: make(chan struct{})}
 	c.run(r.Context(), h, opts)
 }
+
+// hijackKeeper keeps the connection the upgrade takes over, so a goodbye past its deadline can drop it.
+type hijackKeeper struct {
+	http.ResponseWriter
+	conn net.Conn
+}
+
+// Hijack takes the connection over and keeps it.
+func (h *hijackKeeper) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	c, brw, err := http.NewResponseController(h.ResponseWriter).Hijack()
+	h.conn = c
+	return c, brw, err
+}
+
+// WriteHeaderNow sends the 101 before the hijack on a writer that buffers it, as Gin's does.
+func (h *hijackKeeper) WriteHeaderNow() {
+	if w, ok := h.ResponseWriter.(interface{ WriteHeaderNow() }); ok {
+		w.WriteHeaderNow()
+	}
+}
+
+// Unwrap is the writer it wraps.
+func (h *hijackKeeper) Unwrap() http.ResponseWriter { return h.ResponseWriter }
 
 func chosen(subprotocols []Subprotocol, name string) Codec {
 	for _, sp := range subprotocols {
@@ -150,6 +177,7 @@ func originPatterns(origins []string) []string {
 type conn struct {
 	id    string
 	ws    *websocket.Conn
+	raw   net.Conn // under ws: closing it ends whatever ws is waiting on
 	codec Codec
 	frame websocket.MessageType
 	send  chan Message // encoded by the writer, so a sender never waits on the codec
@@ -259,17 +287,17 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 
 	failure, readErr := c.callbacks(h, frames)
 
-	// A peer that stopped reading never answers the close handshake, so drop it at once.
+	// A peer that stopped reading never takes the last frames or answers the close frame, so the goodbye
+	// has one deadline; past it the socket is dropped. A peer that still reads hears our code.
 	if c.closeErr != nil {
-		switch c.closeErr.Code {
-		case CloseSlowConsumer, CloseTimeout:
-			_ = c.ws.CloseNow()
-		default:
-			// Flush what the handler queued before closing (a Kicked message) ahead of the close frame.
+		stop := time.AfterFunc(goodbyeTimeout, func() { _ = c.raw.Close() })
+		if c.closeErr.Code != CloseSlowConsumer && c.closeErr.Code != CloseTimeout {
+			// What the handler queued before closing (a Kicked message) goes ahead of the close frame.
 			<-writerDone
 			c.flush(ctx)
-			_ = c.ws.Close(websocket.StatusCode(c.closeErr.Code), c.closeErr.Reason) //nolint:gosec // close codes are small
 		}
+		_ = c.ws.Close(websocket.StatusCode(c.closeErr.Code), c.closeErr.Reason)
+		stop.Stop()
 	}
 	cancel()
 	_ = c.ws.CloseNow()

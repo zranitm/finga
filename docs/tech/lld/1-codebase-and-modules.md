@@ -407,7 +407,7 @@ type Subprotocol struct {
 type Conn interface {
     ID() string
     Send(Message) error // non-blocking; the write loop encodes it, so it must not change once sent; a full send queue closes the connection
-    Close(code int, reason string)
+    Close(code int, reason string) // what was queued, then the close frame and the peer's answer, within 2 s
 }
 type Handler interface {
     OnOpen(Conn)

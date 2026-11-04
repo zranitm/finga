@@ -286,6 +286,50 @@ func TestSlowConsumerIsDropped(t *testing.T) {
 	}
 }
 
+// The queue filled while the writer was busy, but the client still reads: it hears 4001, not 1006.
+func TestASlowConsumerThatStillReadsHearsItsCloseCode(t *testing.T) {
+	checkLeaks(t)
+	gate := make(chan struct{})
+	rec := newRecorder()
+	rec.onOpen = func(c wsconn.Conn) {
+		for range 4 { // the writer holds the first in the codec, two fill the queue, the last overflows it
+			_ = c.Send(wsconn.Message{Data: &clientv1.Pong{ServerTime: 1}})
+		}
+	}
+	s := start(t, rec, wsconn.Options{SendQueue: 2, Subprotocols: []wsconn.Subprotocol{{Name: textProtocol, Codec: gatedCodec{Codec: serverCodec(wsconn.JSON), gate: gate}}}})
+	c := dial(t, s, "")
+	defer c.CloseNow() //nolint:errcheck // test teardown
+	got := closeStatus(t, c)
+	close(gate)
+	if got != websocket.StatusCode(wsconn.CloseSlowConsumer) {
+		t.Fatalf("close status %d, want %d", got, wsconn.CloseSlowConsumer)
+	}
+	_ = rec.waitClosed(t)
+}
+
+// A kicked client that stopped reading never takes the queued frames or answers the close: the
+// connection still ends within the goodbye's deadline, not a write deadline per frame.
+func TestAKickToAClientThatStoppedReadingEndsInTime(t *testing.T) {
+	checkLeaks(t)
+	rec := newRecorder()
+	big := &clientv1.ChatMessage{Text: strings.Repeat("x", 8<<10)}
+	kicked := make(chan time.Time, 1)
+	rec.onOpen = func(c wsconn.Conn) {
+		for range 4000 { // 32 MB: more than the socket buffers hold
+			_ = c.Send(wsconn.Message{Data: big})
+		}
+		kicked <- time.Now()
+		c.Close(wsconn.CloseKicked, "server_restart")
+	}
+	s := start(t, rec, wsconn.Options{SendQueue: 8192})
+	c := dial(t, s, "")
+	defer c.CloseNow() //nolint:errcheck // test teardown
+	_ = rec.waitClosed(t)
+	if took := time.Since(<-kicked); took > 4*time.Second {
+		t.Fatalf("the kick took %s to close the connection", took)
+	}
+}
+
 func TestMissedPongClosesTheConnection(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()
