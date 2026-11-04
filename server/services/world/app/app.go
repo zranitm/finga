@@ -76,17 +76,17 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 
 	nodeID := uuidv7.NewString()
 	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log, rec)
-	maps := application.New(data, clients.NewSaver(characters), log, application.Options{
-		TickInterval:       cfg.TickInterval(),
-		CheckpointInterval: cfg.CheckpointInterval,
-		NewRoll:            newRoll,
-		Observer:           metrics,
-		Items:              clients.NewPickups(items),
-		Workers:            application.NewWorkers(cfg.Economy.Workers, metrics, rec),
-		Parties:            parties,
-		Characters:         clients.NewCharacters(characters),
-		Starter:            clients.NewStarter(items),
-		Panics:             rec,
+	maps := application.New(data, application.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval}, application.WorldDeps{
+		NewRoll:    newRoll,
+		Observer:   metrics,
+		Items:      clients.NewPickups(items),
+		Workers:    application.NewWorkers(cfg.Economy.Workers, metrics, rec),
+		Parties:    parties,
+		Saver:      clients.NewSaver(characters),
+		Characters: clients.NewCharacters(characters),
+		Starter:    clients.NewStarter(items),
+		Panics:     rec,
+		Logger:     log,
 	})
 	h := host.New(host.Options{
 		Name:     "world",
@@ -98,7 +98,6 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Tasks: []runner.Task{
 			{Name: "parties", Run: parties.Run},
 			{Name: "world", Run: maps.Run},
-			{Name: "persistence", Run: func(ctx context.Context) error { maps.RunPersistence(ctx); return nil }},
 		},
 	})
 	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, Logger: log}))

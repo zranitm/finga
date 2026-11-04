@@ -10,7 +10,6 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
-	"finga/pkg/panics"
 	"finga/pkg/tick"
 	"finga/services/world/internal/model"
 )
@@ -27,20 +26,19 @@ const (
 	knockbackVY      = -250.0
 )
 
-// Options are the instances' settings and the services they call. All are required; Characters,
-// Starter and Panics by World only.
-type Options struct {
+// Tuning is how often the instances tick and checkpoint.
+type Tuning struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
-	NewRoll            func() model.Roll // each instance's random source, used only on its tick goroutine
-	Observer           TickObserver
-	Transfer           Mover // moves players between maps; World sets its own
-	Items              Pickups
-	Workers            *Workers
-	Parties            Parties
-	Characters         Characters
-	Starter            Starter
-	Panics             *panics.Recorder // a transfer's panic
+}
+
+// Deps are the services every map instance calls; all are required.
+type Deps struct {
+	NewRoll  func() model.Roll // each instance's random source, used only on its tick goroutine
+	Observer TickObserver
+	Items    Pickups
+	Workers  *Workers
+	Parties  Parties
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -49,7 +47,9 @@ type Instance struct {
 	data     *gamedata.Data
 	params   sim.Params
 	subSteps int // sim steps per tick
-	opts     Options
+	tuning   Tuning
+	deps     Deps
+	mover    Mover
 	roll     model.Roll
 	inbox    chan message
 	persist  chan<- model.Job
@@ -71,17 +71,31 @@ type Instance struct {
 	events       []model.Event // map-wide events of the current tick
 }
 
-type message struct {
-	join      *joinMsg
-	leave     kernel.CharacterID
-	leaveConn string // the connection the Leave came from; empty: any
-	input     *inputMsg
-	attack    kernel.CharacterID
-	pickup    *pickupResult
-	pick      kernel.CharacterID
-	portal    kernel.CharacterID
-	chat      *chatMsg
+// message is what the tick drains from the inbox.
+//
+//sumtype:decl
+type message interface{ message() }
+
+// leaveMsg removes a player, only if it joined through conn (empty: any).
+type leaveMsg struct {
+	id   kernel.CharacterID
+	conn string
 }
+
+type (
+	attackMsg struct{ id kernel.CharacterID }
+	pickMsg   struct{ id kernel.CharacterID }
+	portalMsg struct{ id kernel.CharacterID }
+)
+
+func (*joinMsg) message()      {}
+func (leaveMsg) message()      {}
+func (inputMsg) message()      {}
+func (attackMsg) message()     {}
+func (*pickupResult) message() {}
+func (pickMsg) message()       {}
+func (portalMsg) message()     {}
+func (chatMsg) message()       {}
 
 type joinMsg struct {
 	player model.Player
@@ -117,16 +131,17 @@ type player struct {
 	private       []model.Event // events for this player only
 }
 
-// NewInstance builds the actor for m; its checkpoints and level-ups go to persist. Run starts it.
-func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, opts Options) *Instance {
-	ticksPer := uint64(opts.CheckpointInterval / opts.TickInterval)
+// NewInstance builds the actor for m; its checkpoints and level-ups go to persist, and mover takes its
+// players to other maps. Run starts it.
+func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, mover Mover, t Tuning, d Deps) *Instance {
+	ticksPer := uint64(t.CheckpointInterval / t.TickInterval)
 	if ticksPer == 0 {
 		ticksPer = 1
 	}
 	params := data.Movement()
 	return &Instance{
-		m: m, data: data, params: params, opts: opts, roll: opts.NewRoll(),
-		subSteps: max(1, int(math.Round(opts.TickInterval.Seconds()/params.Dt))),
+		m: m, data: data, params: params, tuning: t, deps: d, mover: mover, roll: d.NewRoll(),
+		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inbox:    make(chan message, inboxSize),
 		persist:  persist,
 		players:  map[kernel.CharacterID]*player{},
@@ -138,8 +153,8 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job,
 // Run ticks until ctx is done, then checkpoints the players still on the map.
 func (i *Instance) Run(ctx context.Context) error {
 	mapID := i.m.ID
-	err := tick.Run(ctx, i.opts.TickInterval, i, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
-		i.opts.Observer.ObserveTick(mapID, took, interval)
+	err := tick.Run(ctx, i.tuning.TickInterval, i, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
+		i.deps.Observer.ObserveTick(mapID, took, interval)
 	}))
 	for _, id := range i.order {
 		i.checkpoint(i.players[id])
@@ -150,7 +165,7 @@ func (i *Instance) Run(ctx context.Context) error {
 // Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full.
 func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 	done := make(chan error, 1)
-	if !i.post(message{join: &joinMsg{player: p, sink: sink, done: done}}) {
+	if !i.post(&joinMsg{player: p, sink: sink, done: done}) {
 		return model.ErrBusy
 	}
 	select {
@@ -163,27 +178,27 @@ func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 
 // LeaveConnection removes a player only if it joined through conn, so a stale Leave is a no-op.
 func (i *Instance) LeaveConnection(id kernel.CharacterID, conn string) bool {
-	return i.post(message{leave: id, leaveConn: conn})
+	return i.post(leaveMsg{id: id, conn: conn})
 }
 
 // Input queues held keys without blocking; a dropped input is superseded by the next.
 func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) bool {
-	return i.post(message{input: &inputMsg{id: id, seq: seq, in: in}})
+	return i.post(inputMsg{id: id, seq: seq, in: in})
 }
 
 // Attack queues a basic attack; the tick enforces the cooldown.
 func (i *Instance) Attack(id kernel.CharacterID) bool {
-	return i.post(message{attack: id})
+	return i.post(attackMsg{id: id})
 }
 
 // PickUp asks for the nearest eligible drop within reach.
 func (i *Instance) PickUp(id kernel.CharacterID) bool {
-	return i.post(message{pick: id})
+	return i.post(pickMsg{id: id})
 }
 
 // EnterPortal takes the portal the character stands in, if any.
 func (i *Instance) EnterPortal(id kernel.CharacterID) bool {
-	return i.post(message{portal: id})
+	return i.post(portalMsg{id: id})
 }
 
 func (i *Instance) post(m message) bool {
@@ -226,37 +241,37 @@ func (i *Instance) drain() []kernel.CharacterID {
 		default:
 			return removed
 		}
-		switch {
-		case m.join != nil:
-			i.join(m.join)
-		case m.input != nil:
-			if p, ok := i.players[m.input.id]; ok {
-				p.pending = enqueueInput(p.pending, *m.input, p.lastSeq)
+		switch m := m.(type) {
+		case *joinMsg:
+			i.join(m)
+		case inputMsg:
+			if p, ok := i.players[m.id]; ok {
+				p.pending = enqueueInput(p.pending, m, p.lastSeq)
 			}
-		case !m.attack.IsZero():
-			if p, ok := i.players[m.attack]; ok {
+		case attackMsg:
+			if p, ok := i.players[m.id]; ok {
 				p.attackQueued = true
 			}
-		case m.pickup != nil:
-			i.finishPickup(m.pickup)
-		case !m.pick.IsZero():
-			if p, ok := i.players[m.pick]; ok {
+		case *pickupResult:
+			i.finishPickup(m)
+		case pickMsg:
+			if p, ok := i.players[m.id]; ok {
 				i.pickUp(p)
 			}
-		case !m.portal.IsZero():
-			if p, ok := i.players[m.portal]; ok && i.enterPortal(p) {
-				removed = append(removed, m.portal)
+		case portalMsg:
+			if p, ok := i.players[m.id]; ok && i.enterPortal(p) {
+				removed = append(removed, m.id)
 			}
-		case m.chat != nil:
-			if _, ok := i.players[m.chat.from]; ok {
-				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.chat.from, SenderName: m.chat.name, Text: m.chat.text})
+		case chatMsg:
+			if _, ok := i.players[m.from]; ok {
+				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})
 			}
-		case !m.leave.IsZero():
-			if p, ok := i.players[m.leave]; ok && m.leaveConn != "" && p.Connection != m.leaveConn {
+		case leaveMsg:
+			if p, ok := i.players[m.id]; ok && m.conn != "" && p.Connection != m.conn {
 				continue // a newer connection holds the character now
 			}
-			if i.remove(m.leave) {
-				removed = append(removed, m.leave)
+			if i.remove(m.id) {
+				removed = append(removed, m.id)
 			}
 		}
 	}
@@ -419,7 +434,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) ticksFor(d time.Duration) uint64 {
-	n := uint64((d + i.opts.TickInterval - 1) / i.opts.TickInterval)
+	n := uint64((d + i.tuning.TickInterval - 1) / i.tuning.TickInterval)
 	if n == 0 {
 		return 1
 	}
@@ -447,7 +462,7 @@ func (i *Instance) detach(id kernel.CharacterID) {
 func (i *Instance) checkpointOn(p *player, mapID string) {
 	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
 	select {
-	case i.persist <- model.Job{Checkpoint: &cp}:
+	case i.persist <- cp:
 	default:
 	}
 }

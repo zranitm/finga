@@ -175,7 +175,7 @@ The gateway serves no gRPC.
 
 1. The gateway's per-player queue runs Hello (the read loop only decodes and routes). Version check as today.
 2. `account.Validate`, then `account.Rotate`: the token in Welcome is the rotated one (step 16).
-3. `world.Join(gateway_id, connection_id, account_id, character_id)`. The world loads the character from the character service (ownership checked there: someone else's character is `not found`, and the gateway kicks `unauthenticated` as today), asks the item service for the starter items (idempotent, keyed by the character ID: a no-op unless character creation crashed before granting them), and joins the map instance, which sends the Snapshot through the delivery stream. The reply is the character as the player sees it.
+3. `world.Join(gateway_id, connection_id, account_id, character_id)`. The world loads the character from the character service (ownership checked there: someone else's character is `not found`, and the gateway kicks `unauthenticated` as today), asks the item service for the starter items (idempotent, keyed by the character ID: a no-op unless character creation crashed before granting them; best effort, so a failure is logged and the next join tries again), and joins the map instance, which sends the Snapshot through the delivery stream. The reply is the character as the player sees it.
 4. `item.Inventory` and `social.PartyOf`, then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order. World deliveries are routed by connection ID, so a session only ever receives its own presence's; social deliveries go by character, and a joining session takes the character for them only once the world join returns, so a Hello naming someone else's character takes nothing from them.
 5. `social.Online` with the gateway's ID, so party traffic finds this gateway.
 
@@ -201,7 +201,7 @@ The REST handler moves into the gateway as it is. It authenticates with `account
 
 ### Character creation and starter items
 
-No transaction spans two services (rule 1 below). The character service commits the character, then calls `item.GrantStarter` with the character ID as the idempotency key, retrying with backoff until it succeeds or the request's deadline ends. The world calls it again on every join, as a safety net for a crash in between. Character creation answers success once the character is committed: a client that saw an error would retry and meet `name_taken`.
+No transaction spans two services (rule 1 below). The character service commits the character, then calls `item.GrantStarter` with the character ID as the idempotency key, retrying with backoff until it succeeds or the request's deadline ends. The world calls it again on every join, as a safety net for a crash in between; that call is best effort, so the item service being down never blocks a join. Character creation answers success once the character is committed: a client that saw an error would retry and meet `name_taken`.
 
 `Starter()` through `Within` stays a pattern for modules inside one service (page 1); character creation no longer uses it.
 
@@ -212,7 +212,7 @@ Every retry and resubscribe waits on `github.com/cenkalti/backoff/v5`, doubling 
 ### Pickups, checkpoints and the tick
 
 - **Pickups** already run on the world's economy workers: the worker calls the item service's `Add`, keyed by the drop ID, and retries once when the failure carries no reason. The result returns through the instance's inbox, as today.
-- **Checkpoints and level-ups** go to the character service from the persistence worker, which retries a failed save with backoff, in order, for up to a minute before logging it.
+- **Checkpoints and level-ups** go to the character service from the persistence worker, which retries a failed save with backoff, in order, for up to a minute before logging it with the job's kind and character.
 - **Parties.** The world keeps a local copy of party membership, fed by social's `WatchParties` stream; loot windows and EXP sharing read the copy. When a member's map, level or HP changes, the world queues `social.UpdateMember` for a worker; the tick never waits for it.
 
 ### Party and chat

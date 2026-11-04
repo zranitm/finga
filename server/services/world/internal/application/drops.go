@@ -85,7 +85,7 @@ func (i *Instance) pickUp(p *player) {
 		if !d.reservedBy.IsZero() {
 			continue
 		}
-		if d.windowEnd > i.tick && d.killer != p.ID && !i.opts.Parties.SameParty(d.killer, p.ID) {
+		if d.windowEnd > i.tick && d.killer != p.ID && !i.deps.Parties.SameParty(d.killer, p.ID) {
 			continue // someone else's loot for now (the killer's party may)
 		}
 		dist := math.Hypot(d.x-cx, d.y-cy)
@@ -98,7 +98,7 @@ func (i *Instance) pickUp(p *player) {
 	}
 	best.reservedBy = p.ID
 	job := pickupJob{drop: *best, account: p.Account, character: p.ID}
-	if !i.opts.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
+	if !i.deps.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
 		best.reservedBy = kernel.CharacterID{}
 		p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: model.ErrPickupBusy})
 	}
@@ -113,14 +113,14 @@ type pickupJob struct {
 // runPickup runs on a worker and posts the result back to the inbox.
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	in := model.Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
-	slots, err := i.opts.Items.Add(ctx, in)
-	if err != nil && i.opts.Items.Retryable(err) {
-		slots, err = i.opts.Items.Add(ctx, in) // the key makes a retry harmless
-		if err != nil && i.opts.Items.Retryable(err) {
+	slots, err := i.deps.Items.Add(ctx, in)
+	if err != nil && i.deps.Items.Retryable(err) {
+		slots, err = i.deps.Items.Add(ctx, in) // the key makes a retry harmless
+		if err != nil && i.deps.Items.Retryable(err) {
 			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
 		}
 	}
-	i.inbox <- message{pickup: &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}}
+	i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}
 }
 
 type pickupResult struct {

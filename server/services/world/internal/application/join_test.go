@@ -1,9 +1,11 @@
 package application_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -42,10 +44,14 @@ func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id ker
 	return f.err
 }
 
-func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter) (*application.World, func()) {
+func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter, log ...*slog.Logger) (*application.World, func()) {
 	t.Helper()
 	data := loadData(t)
-	w := application.New(data, &fakeSaver{}, slog.New(slog.DiscardHandler), deps(application.Options{Characters: chars, Starter: starter}))
+	o := options{Characters: chars, Starter: starter}
+	if len(log) > 0 {
+		o.Logger = log[0]
+	}
+	w := newWorldOf(data, &fakeSaver{}, o)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
@@ -86,19 +92,23 @@ func TestJoinByID(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a failed grant fails the join, and nobody joins", func(t *testing.T) {
+	t.Run("a failed grant is logged, and the join goes on", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			starter := &fakeStarter{err: errors.New("item service unavailable")}
-			w, stop := joinWorld(t, chars, starter)
+			var logs bytes.Buffer
+			w, stop := joinWorld(t, chars, starter, slog.New(slog.NewJSONHandler(&logs, nil)))
 			defer stop()
 			s := &sink{}
-			if _, err := w.Join(context.Background(), account, ayla.ID, "conn-1", s); err == nil {
-				t.Fatal("joined although the grant failed")
+			if _, err := w.Join(context.Background(), account, ayla.ID, "conn-1", s); err != nil {
+				t.Fatal(err)
 			}
-			time.Sleep(2 * tickInterval)
+			time.Sleep(tickInterval)
 			synctest.Wait()
-			if len(s.all()) != 0 {
-				t.Fatalf("events %+v", s.all())
+			if snap, ok := s.all()[0].(model.Snapshot); !ok || snap.MapID != "town" {
+				t.Fatalf("first event %+v", s.all())
+			}
+			if !strings.Contains(logs.String(), `"msg":"starter items not granted; the next join tries again"`) || !strings.Contains(logs.String(), `"character_id":"`+ayla.ID.String()+`"`) {
+				t.Fatalf("log %q", logs.String())
 			}
 		})
 	})
@@ -130,7 +140,7 @@ func TestJoinByID(t *testing.T) {
 func TestLeaveNamesItsConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := run(t, data, nil, application.Options{})
+		inst, stop := run(t, data, nil, options{})
 		defer stop()
 		x, y := townSpawn(t, data)
 		p := newPlayer("Ayla", x, y)

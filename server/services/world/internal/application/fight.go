@@ -49,7 +49,7 @@ func (i *Instance) stepMobs() {
 	for s := range i.m.Spawns {
 		i.fillSpawn(s)
 	}
-	dt := i.opts.TickInterval.Seconds()
+	dt := i.tuning.TickInterval.Seconds()
 	for _, mb := range i.mobs {
 		if mb.pauseUntil > i.tick || mb.maxX <= mb.minX {
 			continue
@@ -202,7 +202,7 @@ func (i *Instance) award(p *player, amount int64) {
 	i.tellParty(p, i.m.ID)
 	lu := model.LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
 	select {
-	case i.persist <- model.Job{LevelUp: &lu}:
+	case i.persist <- lu:
 	default:
 	}
 }

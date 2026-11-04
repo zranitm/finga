@@ -101,6 +101,8 @@ type EntityRef struct {
 func (e EntityRef) IsMob() bool { return e.Player.IsZero() }
 
 // Event is something an instance tells a player.
+//
+//sumtype:decl
 type Event interface{ event() }
 
 // Snapshot is the whole map, sent to a player on join.
@@ -215,11 +217,13 @@ type LevelUpSave struct {
 	MP    int
 }
 
-// Job is one unit of work for the persistence worker: exactly one field set.
-type Job struct {
-	Checkpoint *Checkpoint
-	LevelUp    *LevelUpSave
-}
+// Job is one unit of work for the persistence worker: a Checkpoint or a LevelUpSave.
+//
+//sumtype:decl
+type Job interface{ job() }
+
+func (Checkpoint) job()  {}
+func (LevelUpSave) job() {}
 
 // DropView is an item on the ground as everyone sees it.
 type DropView struct {

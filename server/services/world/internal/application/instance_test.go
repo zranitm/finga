@@ -111,50 +111,87 @@ func rolls(v float64) func() model.Roll {
 
 func discardPanics() *panics.Recorder { return panics.NewRecorder(slog.New(slog.DiscardHandler), nil) }
 
-// deps fills what a test leaves out: its tick, rolls of 0.5, and services that do nothing.
-func deps(opts application.Options) application.Options {
-	opts.TickInterval = cmp.Or(opts.TickInterval, tickInterval)
-	opts.CheckpointInterval = cmp.Or(opts.CheckpointInterval, 30*time.Second)
-	if opts.NewRoll == nil {
-		opts.NewRoll = rolls(0.5)
+// options are what a test sets; fill gives the rest a 50 ms tick, rolls of 0.5 and services that do nothing.
+type options struct {
+	TickInterval       time.Duration
+	CheckpointInterval time.Duration
+	NewRoll            func() model.Roll
+	Observer           application.TickObserver
+	Transfer           application.Mover // an instance's; the World moves players itself
+	Items              application.Pickups
+	Workers            *application.Workers
+	Parties            application.Parties
+	Characters         application.Characters
+	Starter            application.Starter
+	Logger             *slog.Logger // the World's
+}
+
+func (o options) fill() options {
+	o.TickInterval = cmp.Or(o.TickInterval, tickInterval)
+	o.CheckpointInterval = cmp.Or(o.CheckpointInterval, 30*time.Second)
+	if o.NewRoll == nil {
+		o.NewRoll = rolls(0.5)
 	}
-	if opts.Observer == nil {
-		opts.Observer = &observer{}
+	if o.Observer == nil {
+		o.Observer = &observer{}
 	}
-	if opts.Transfer == nil {
-		opts.Transfer = &transferRecorder{}
+	if o.Transfer == nil {
+		o.Transfer = &transferRecorder{}
 	}
-	if opts.Items == nil {
-		opts.Items = newFakePickups()
+	if o.Items == nil {
+		o.Items = newFakePickups()
 	}
-	if opts.Panics == nil {
-		opts.Panics = discardPanics()
+	if o.Workers == nil {
+		o.Workers = application.NewWorkers(1, &economy{}, discardPanics())
 	}
-	if opts.Workers == nil {
-		opts.Workers = application.NewWorkers(1, &economy{}, opts.Panics)
+	if o.Parties == nil {
+		o.Parties = &fakeParties{}
 	}
-	if opts.Parties == nil {
-		opts.Parties = &fakeParties{}
+	if o.Characters == nil {
+		o.Characters = &fakeCharacters{}
 	}
-	if opts.Characters == nil {
-		opts.Characters = &fakeCharacters{}
+	if o.Starter == nil {
+		o.Starter = &fakeStarter{}
 	}
-	if opts.Starter == nil {
-		opts.Starter = &fakeStarter{}
+	if o.Logger == nil {
+		o.Logger = slog.New(slog.DiscardHandler)
 	}
-	return opts
+	return o
+}
+
+func (o options) tuning() application.Tuning {
+	return application.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval}
+}
+
+func (o options) deps() application.Deps {
+	return application.Deps{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties}
+}
+
+// newInstance builds m's instance with o filled in.
+func newInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, o options) *application.Instance {
+	o = o.fill()
+	return application.NewInstance(m, data, persist, o.Transfer, o.tuning(), o.deps())
+}
+
+// newWorldOf builds a World over data with o filled in.
+func newWorldOf(data *gamedata.Data, saver application.Saver, o options) *application.World {
+	o = o.fill()
+	return application.New(data, o.tuning(), application.WorldDeps{
+		Deps: o.deps(), Saver: saver, Characters: o.Characters, Starter: o.Starter,
+		Panics: discardPanics(), Logger: o.Logger,
+	})
 }
 
 // run starts a town instance in the synctest bubble; stop waits for Run so nothing outlives it.
-func run(t *testing.T, data *gamedata.Data, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
+func run(t *testing.T, data *gamedata.Data, persist chan<- model.Job, opts options) (*application.Instance, func()) {
 	t.Helper()
 	return runMap(t, data, data.Town(), persist, opts)
 }
 
 // runMap starts m's instance in the synctest bubble, as run does the town's.
-func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
+func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts options) (*application.Instance, func()) {
 	t.Helper()
-	inst := application.NewInstance(m, data, persist, deps(opts))
+	inst := newInstance(m, data, persist, opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = inst.Run(ctx) }()
@@ -166,7 +203,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 
 		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x+100, y)
@@ -251,7 +288,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -340,7 +377,7 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 				data := loadData(t)
 				m := arena(time.Hour)
 				m.Spawns = nil
-				inst, stop := runMap(t, data, m, nil, application.Options{TickInterval: interval})
+				inst, stop := runMap(t, data, m, nil, options{TickInterval: interval})
 				defer stop()
 				p := warriorAt(100)
 				s := &sink{}
@@ -367,7 +404,7 @@ func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -396,7 +433,7 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -461,7 +498,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -546,7 +583,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -587,7 +624,7 @@ func TestTickObserver(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		obs := &observer{}
-		_, cancel := run(t, data, nil, application.Options{Observer: obs})
+		_, cancel := run(t, data, nil, options{Observer: obs})
 		defer cancel()
 		time.Sleep(5 * tickInterval)
 		synctest.Wait()
@@ -604,7 +641,7 @@ func TestCheckpoints(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
 		persist := make(chan model.Job, 100)
-		inst, cancel := run(t, data, persist, application.Options{CheckpointInterval: 30 * time.Second})
+		inst, cancel := run(t, data, persist, options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		p.Exp = 12
@@ -621,8 +658,8 @@ func TestCheckpoints(t *testing.T) {
 			for {
 				select {
 				case j := <-persist:
-					if j.Checkpoint != nil {
-						out = append(out, *j.Checkpoint)
+					if cp, ok := j.(model.Checkpoint); ok {
+						out = append(out, cp)
 					}
 				default:
 					return out
@@ -686,7 +723,7 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x, y)
 		sa, sr := &sink{}, &sink{}
@@ -722,7 +759,7 @@ func TestReplayMatchesSim(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{})
+		inst, cancel := run(t, data, nil, options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}

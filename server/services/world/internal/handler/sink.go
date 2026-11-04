@@ -23,9 +23,6 @@ type streamSink struct {
 // Send turns one world event into a delivery and queues it.
 func (s *streamSink) Send(e model.Event) bool {
 	m := s.delivery(e)
-	if m == nil {
-		return true // nothing the contract carries; not a reason to drop the player
-	}
 	m.CharacterId, m.ConnectionId = s.character, s.conn
 	return s.sub.Send(m)
 }

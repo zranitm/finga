@@ -8,7 +8,6 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/application"
 	"finga/services/world/internal/model"
 )
 
@@ -64,6 +63,7 @@ func seenIn(s *sink, id kernel.CharacterID) (present, removed int) {
 					removed++
 				}
 			}
+		default: // the rest change nothing on the map
 		}
 	}
 	return present, removed
@@ -73,11 +73,10 @@ func TestPortals(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{}
-		w := newWorld(t, saver, application.Options{CheckpointInterval: time.Hour})
+		w := newWorld(t, saver, options{CheckpointInterval: time.Hour})
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
-		go w.RunPersistence(ctx)
 		defer func() {
 			cancel()
 			if err := <-runDone; err != nil {

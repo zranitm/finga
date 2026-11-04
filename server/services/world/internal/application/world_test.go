@@ -1,9 +1,11 @@
 package application_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -70,11 +72,11 @@ type testWorld struct {
 	chars *fakeCharacters
 }
 
-func newWorld(t *testing.T, saver application.Saver, opts application.Options) *testWorld {
+func newWorld(t *testing.T, saver application.Saver, opts options) *testWorld {
 	t.Helper()
 	chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{}}
 	opts.Characters = chars
-	return &testWorld{World: application.New(loadData(t), saver, slog.New(slog.DiscardHandler), deps(opts)), chars: chars}
+	return &testWorld{World: newWorldOf(loadData(t), saver, opts), chars: chars}
 }
 
 // enter saves p on mapID and joins it there through conn; the World must be running.
@@ -104,11 +106,10 @@ func at(t *testing.T, name, mapID string) model.Player {
 func TestWorld(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{}
-		w := newWorld(t, saver, application.Options{})
+		w := newWorld(t, saver, options{})
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
-		go w.RunPersistence(ctx)
 
 		{ // a character joins the map it was saved on; an unknown map is refused
 			if err := w.join(at(t, "Cass", "town"), "nowhere", "c-0", &sink{}); !errors.Is(err, model.ErrNoMap) {
@@ -152,11 +153,11 @@ func TestWorld(t *testing.T) {
 	})
 }
 
-// leaveAndRun has a player leave town, then one leave the forest, so the persistence queue holds
-// "cp town" then "cp forest"; persist then saves them.
-func leaveAndRun(t *testing.T, saver *fakeSaver, persist func(ctx context.Context, w *application.World)) {
+// leaveAndRun has a player leave town, then one leave the forest, so the World saves "cp town" then
+// "cp forest"; then it runs before and shuts the World down.
+func leaveAndRun(t *testing.T, saver *fakeSaver, before func()) {
 	t.Helper()
-	w := newWorld(t, saver, application.Options{CheckpointInterval: time.Hour})
+	w := newWorld(t, saver, options{CheckpointInterval: time.Hour})
 	ctx, cancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() { runDone <- w.Run(ctx) }()
@@ -171,7 +172,7 @@ func leaveAndRun(t *testing.T, saver *fakeSaver, persist func(ctx context.Contex
 		time.Sleep(tickInterval)
 		synctest.Wait()
 	}
-	persist(ctx, w.World)
+	before()
 	cancel()
 	if err := <-runDone; err != nil {
 		t.Fatal(err)
@@ -183,8 +184,7 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 	run := func(t *testing.T, saver *fakeSaver) []string {
 		t.Helper()
 		var attempts []string
-		leaveAndRun(t, saver, func(ctx context.Context, w *application.World) {
-			go w.RunPersistence(ctx)
+		leaveAndRun(t, saver, func() {
 			time.Sleep(2 * time.Minute)
 			synctest.Wait()
 			attempts = saver.attemptsSoFar()
@@ -223,13 +223,16 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 	})
 }
 
-func TestShutdownFlushesWithoutRetrying(t *testing.T) {
+// At shutdown each save still waiting, the one being retried included, gets one last try and no more.
+func TestShutdownTriesEachSaveOnceMore(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{err: errors.New("unavailable")}
-		start := time.Now()
-		leaveAndRun(t, saver, func(context.Context, *application.World) { start = time.Now() })
-		if time.Since(start) > time.Second || len(saver.attemptsSoFar()) != 2 {
-			t.Fatalf("flush took %s with attempts %v", time.Since(start), saver.attemptsSoFar())
+		var start time.Time
+		before := 0
+		leaveAndRun(t, saver, func() { start, before = time.Now(), len(saver.attemptsSoFar()) })
+		after := saver.attemptsSoFar()[before:]
+		if time.Since(start) > time.Second || len(after) != 2 || after[0] != "cp town" || after[1] != "cp forest" {
+			t.Fatalf("shutdown took %s with attempts %v after it began", time.Since(start), after)
 		}
 	})
 }
@@ -237,10 +240,9 @@ func TestShutdownFlushesWithoutRetrying(t *testing.T) {
 func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{err: errors.New("db down")}
-		w := newWorld(t, saver, application.Options{CheckpointInterval: time.Second})
+		w := newWorld(t, saver, options{CheckpointInterval: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() { _ = w.Run(ctx) }()
-		go w.RunPersistence(ctx)
 		w.enter(t, at(t, "Ayla", "town"), "town", "c-1", &sink{})
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
@@ -254,7 +256,7 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 
 func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	data := loadData(t)
-	inst := application.NewInstance(data.Town(), data, nil, deps(application.Options{}))
+	inst := newInstance(data.Town(), data, nil, options{})
 	// Not running: 4096 posts fill the inbox, the next is refused.
 	for seq := range uint32(4096) {
 		if !inst.Input(kernel.NewCharacterID(), seq, sim0()) {
@@ -271,7 +273,7 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 		t.Fatal("leave accepted with a full inbox")
 	}
 	t.Run("a join on a stopped instance gives up when the caller's context ends", func(t *testing.T) {
-		inst := application.NewInstance(data.Town(), data, nil, deps(application.Options{}))
+		inst := newInstance(data.Town(), data, nil, options{})
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancel()
 		if err := inst.Join(ctx, newPlayer("Ayla", 0, 0), &sink{}); !errors.Is(err, context.DeadlineExceeded) {
@@ -285,7 +287,7 @@ func sim0() sim.Input { return sim.Input{} }
 // A join through a newer connection on another map takes the character off the old one.
 func TestAJoinElsewhereRemovesTheOlderPresence(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		w := newWorld(t, &fakeSaver{}, application.Options{CheckpointInterval: time.Hour})
+		w := newWorld(t, &fakeSaver{}, options{CheckpointInterval: time.Hour})
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { _ = w.Run(ctx) }()
@@ -323,7 +325,7 @@ func TestAJoinElsewhereRemovesTheOlderPresence(t *testing.T) {
 func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		w := newWorld(t, &fakeSaver{}, application.Options{CheckpointInterval: time.Hour})
+		w := newWorld(t, &fakeSaver{}, options{CheckpointInterval: time.Hour})
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { _ = w.Run(ctx) }()
@@ -353,6 +355,34 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 		synctest.Wait()
 		if len(newer.deltas()) == before {
 			t.Fatal("the newer connection stopped receiving deltas: the stale transfer replaced it")
+		}
+	})
+}
+
+func TestAFailedSaveIsLoggedWithItsJobAndCharacter(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		w := newWorld(t, &fakeSaver{err: errRefused}, options{CheckpointInterval: time.Hour, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		ctx, cancel := context.WithCancel(context.Background())
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		p := at(t, "Ayla", "town")
+		w.enter(t, p, "town", "c-1", &sink{})
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		if err := w.Leave(p.ID, "c-1"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		cancel()
+		if err := <-runDone; err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{`"msg":"persistence failed"`, `"job":"checkpoint"`, `"character_id":"` + p.ID.String() + `"`, `"map_id":"town"`} {
+			if !strings.Contains(logs.String(), want) {
+				t.Fatalf("log %q lacks %s", logs.String(), want)
+			}
 		}
 	})
 }

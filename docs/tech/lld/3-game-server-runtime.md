@@ -5,7 +5,7 @@
 One binary per job, as in docviewer. The game runs as six services (page 10), each a binary of its own, `services/<name>` (its `main.go` at the service's root):
 
 - `gateway` is the only public entry: REST and the WebSocket gateway, with no database and no game rules (step 28).
-- `world` runs the map instances, the persistence worker and the economy workers (step 27).
+- `world` runs the map instances, the persistence worker and the economy workers (step 27), all from `World.Run`.
 - `account`, `character`, `item` and `social` hold their modules and tables, served over gRPC.
 
 And the tools:
@@ -65,12 +65,12 @@ Only one player can hold a reservation, so two players can never both get a drop
 ## Character state and checkpoints
 
 - While a character is online, its position, HP, MP, and EXP live in the map instance.
-- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up; on shutdown the queue is flushed with one try each.
+- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up. The worker is the queue's only consumer and runs inside `World.Run`: on shutdown it gives each save still waiting one last try, the one it was retrying included, once the maps have checkpointed.
 - Items and coins never wait for a checkpoint: each change is its own transaction.
 
 ## Joining, leaving, and changing maps
 
-- **Join:** the connection's command goroutine runs Hello: the gateway validates it and asks the world service to join the character (step 27). The world loads it from the character service (which checks it is the account's), grants its starter items if creation never did, and joins it to its saved map's instance, which sends the Snapshot on the gateway's delivery stream. The gateway sends Welcome, with the inventory and the party, and then the Snapshot: deliveries that arrive before Welcome wait in the session; the world routes them by connection, so the session only gets its own presence's. A character that is not the account's is a bad Hello (Kicked `unauthenticated`); a world that cannot answer is waited for up to the join timeout (5 s), then the connection closes as a server fault and the client reconnects.
+- **Join:** the connection's command goroutine runs Hello: the gateway validates it and asks the world service to join the character (step 27). The world loads it from the character service (which checks it is the account's), grants its starter items if creation never did (best effort: a failure is logged), and joins it to its saved map's instance, which sends the Snapshot on the gateway's delivery stream. The gateway sends Welcome, with the inventory and the party, and then the Snapshot: deliveries that arrive before Welcome wait in the session; the world routes them by connection, so the session only gets its own presence's. A character that is not the account's is a bad Hello (Kicked `unauthenticated`); a world that cannot answer is waited for up to the join timeout (5 s), then the connection closes as a server fault and the client reconnects.
 - **Portal:** the instance removes the player, saves a checkpoint, sends Join to the target instance with the player's in-memory state, and sends the client MapChange.
 - **Disconnect:** the gateway sends Leave with its connection ID; the world removes the player only if it joined through that connection, and saves it immediately. Reconnecting joins again at the saved position.
 - **World restart:** the gateway's delivery stream breaks and every socket stays open. When the stream is back, the gateway joins each player again from their last checkpoint: MapChange first when that is another map, then the Snapshot. Ticks on a connection never go back: the gateway shifts a restarted world's ticks past the last one it sent.

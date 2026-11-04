@@ -17,13 +17,13 @@ type chatMsg struct {
 
 // Chat says an already cleaned line to everyone on the map, the sender included.
 func (i *Instance) Chat(from kernel.CharacterID, name, text string) bool {
-	return i.post(message{chat: &chatMsg{from: from, name: name, text: text}})
+	return i.post(chatMsg{from: from, name: name, text: text})
 }
 
 // shareExp splits a kill's EXP, plus 10% per extra member, among the live party on this map.
 func (i *Instance) shareExp(killer *player, base int64) {
 	sharers := []*player{killer}
-	for _, id := range i.opts.Parties.Members(killer.ID) {
+	for _, id := range i.deps.Parties.Members(killer.ID) {
 		if id == killer.ID {
 			continue
 		}
@@ -49,5 +49,5 @@ func (i *Instance) shareExp(killer *player, base int64) {
 }
 
 func (i *Instance) tellParty(p *player, mapID string) {
-	i.opts.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
+	i.deps.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
 }

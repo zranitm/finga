@@ -89,6 +89,7 @@ func dropsIn(s *sink) map[uint64]model.DropView {
 			for _, id := range ev.RemovedDrops {
 				delete(seen, id)
 			}
+		default: // the rest change nothing on the map
 		}
 	}
 	return seen
@@ -114,13 +115,13 @@ func pickupFailures(s *sink) []model.PickupFailed {
 	return out
 }
 
-func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...application.Options) (*application.Instance, func()) {
+func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...options) (*application.Instance, func()) {
 	t.Helper()
 	workers := application.NewWorkers(2, &economy{}, discardPanics())
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); _ = workers.Run(ctx) }()
-	opts := application.Options{NewRoll: rolls(roll), Items: items, Workers: workers}
+	opts := options{NewRoll: rolls(roll), Items: items, Workers: workers}
 	if len(extra) > 0 {
 		opts.Parties = extra[0].Parties
 	}

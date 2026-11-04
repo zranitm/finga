@@ -16,7 +16,7 @@
 **World service**
 
 - `internal/application/world` and `combat` move to `services/world/internal/world` and `combat` as they are.
-- Join by ID: `World.Join(ctx, account, character, sink)` loads the character from the character service (ownership checked there), grants the starter items through the item service (the safety net; a failure fails the join, and the client's retry tries again), joins the character's map instance, and returns the character as the player sees it.
+- Join by ID: `World.Join(ctx, account, character, sink)` loads the character from the character service (ownership checked there), grants the starter items through the item service (the safety net; a failure fails the join, and the client's retry tries again; since the review's S5 a failure is only logged, and the next join tries again), joins the character's map instance, and returns the character as the player sees it.
 - A presence remembers its connection ID; a `Leave` naming another connection removes nothing.
 - `services/world/internal/handler`: `WorldService`. `Deliver` keeps one bounded queue per gateway (`pkg/hub`); a player's sink queues on its gateway's stream and never blocks; a full queue closes that stream. Commands carry the map ID and go to that instance.
 - `services/world/internal/clients`: the character client (load, checkpoints, level-ups), the item client (pickups, starter items) and the party copy, moved from the game server.

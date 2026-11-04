@@ -99,6 +99,7 @@ func mobsIn(s *sink) map[uint64]model.MobView {
 			for _, id := range ev.RemovedMobs {
 				delete(seen, id)
 			}
+		default: // the rest change nothing on the map
 		}
 	}
 	return seen
@@ -107,7 +108,7 @@ func mobsIn(s *sink) map[uint64]model.MobView {
 func TestMobsSpawnAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runMap(t, data, arena(2*time.Second), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(2*time.Second), nil, options{})
 		defer stop()
 		time.Sleep(tickInterval) // tick 1: the area fills
 		synctest.Wait()
@@ -169,7 +170,7 @@ func (s *sink) id(t *testing.T, _ *application.Instance) kernel.CharacterID {
 func TestAttacks(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runMap(t, data, arena(time.Second), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Second), nil, options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -251,7 +252,7 @@ func TestAttacks(t *testing.T) {
 func TestContactDamageAndInvulnerability(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runMap(t, data, arena(time.Hour), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Hour), nil, options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -307,7 +308,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		data := loadData(t)
 		persist := make(chan model.Job, 100)
 		tr := &transferRecorder{}
-		inst, stop := runMap(t, data, arena(time.Hour), persist, application.Options{Transfer: tr})
+		inst, stop := runMap(t, data, arena(time.Hour), persist, options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -370,7 +371,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			found := false
 			for _, j := range cps {
-				if j.Checkpoint != nil && j.Checkpoint.ID == p.ID && j.Checkpoint.Exp == 9 && j.Checkpoint.MapID == data.Town().ID && j.Checkpoint.X == data.Town().PlayerSpawn.X {
+				if cp, ok := j.(model.Checkpoint); ok && cp.ID == p.ID && cp.Exp == 9 && cp.MapID == data.Town().ID && cp.X == data.Town().PlayerSpawn.X {
 					found = true
 				}
 			}
@@ -385,7 +386,7 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		persist := make(chan model.Job, 100)
-		inst, stop := runMap(t, data, arena(time.Hour), persist, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Hour), persist, options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -421,7 +422,7 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		}
 		found := false
 		for _, j := range saved {
-			if j.LevelUp != nil && j.LevelUp.ID == p.ID && j.LevelUp.Level == 2 && j.LevelUp.HP == 252 && j.LevelUp.Stats.STR == 15 {
+			if lu, ok := j.(model.LevelUpSave); ok && lu.ID == p.ID && lu.Level == 2 && lu.HP == 252 && lu.Stats.STR == 15 {
 				found = true
 			}
 		}
@@ -437,7 +438,7 @@ func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 		var out []model.Damage
 		synctest.Test(t, func(t *testing.T) {
 			data := loadData(t)
-			inst, stop := runMap(t, data, arena(time.Second), nil, application.Options{NewRoll: func() model.Roll { return rand.New(rand.NewPCG(42, 42)) }})
+			inst, stop := runMap(t, data, arena(time.Second), nil, options{NewRoll: func() model.Roll { return rand.New(rand.NewPCG(42, 42)) }})
 			defer stop()
 			time.Sleep(tickInterval)
 			synctest.Wait()
@@ -479,7 +480,7 @@ func TestNoCombatInTown(t *testing.T) {
 		m := arena(time.Hour)
 		m.ID, m.Kind, m.Town = "town", gamedata.Town, "town" // a town with a mob, for the test only
 		tr := &transferRecorder{}
-		inst, stop := runMap(t, data, m, nil, application.Options{Transfer: tr})
+		inst, stop := runMap(t, data, m, nil, options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -513,7 +514,7 @@ func TestNoCombatInTown(t *testing.T) {
 func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runMap(t, data, arena(time.Hour), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Hour), nil, options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -536,7 +537,7 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		m := arena(time.Hour)
 		m.Town = m.ID
 		tr := &transferRecorder{}
-		inst, stop := runMap(t, data, m, nil, application.Options{Transfer: tr})
+		inst, stop := runMap(t, data, m, nil, options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()

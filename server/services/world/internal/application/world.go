@@ -32,25 +32,31 @@ const (
 // persistence worker and transfers.
 type World struct {
 	data      *gamedata.Data
-	opts      Options
+	deps      WorldDeps
 	instances map[string]*Instance
 	order     []string
 	presences presences
 	persist   chan model.Job
-	saver     Saver
-	log       *slog.Logger
-	workers   *Workers
 }
 
-// New builds an instance for every map in data.
-func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *World {
+// WorldDeps are the services the World calls besides its instances'; all are required.
+type WorldDeps struct {
+	Deps
+	Saver      Saver
+	Characters Characters
+	Starter    Starter
+	Panics     *panics.Recorder // a transfer's panic
+	Logger     *slog.Logger
+}
+
+// New builds an instance for every map in data; the World moves their players between maps.
+func New(data *gamedata.Data, t Tuning, d WorldDeps) *World {
 	w := &World{
-		data: data, opts: opts, instances: map[string]*Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
-		persist: make(chan model.Job, persistQueue), saver: saver, log: log, workers: opts.Workers,
+		data: data, deps: d, instances: map[string]*Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
+		persist: make(chan model.Job, persistQueue),
 	}
-	opts.Transfer = w
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = NewInstance(m, data, w.persist, opts)
+		w.instances[m.ID] = NewInstance(m, data, w.persist, w, t, d.Deps)
 		w.order = append(w.order, m.ID)
 	}
 	return w
@@ -65,15 +71,16 @@ func (w *World) instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-// Join loads the account's character, grants its starter items and joins its saved map through conn.
+// Join loads the account's character, grants its starter items (best effort: a failure is logged, and
+// the next join tries again) and joins its saved map through conn.
 // An older presence of the character on another map leaves it; one on the same map is replaced there.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
-	c, err := w.opts.Characters.Load(ctx, id, account)
+	c, err := w.deps.Characters.Load(ctx, id, account)
 	if err != nil {
 		return model.View{}, err
 	}
-	if err := w.opts.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
-		return model.View{}, fmt.Errorf("starter items: %w", err)
+	if err := w.deps.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
+		w.deps.Logger.WarnContext(ctx, "starter items not granted; the next join tries again", "character_id", id, "err", err)
 	}
 	inst, err := w.instance(c.MapID)
 	if err != nil {
@@ -110,28 +117,33 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	target, ok := w.instances[mapID]
 	if !ok {
-		if w.log != nil {
-			w.log.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
-		}
+		w.deps.Logger.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
 		return
 	}
 	if !w.presences.move(p.ID, p.Connection, target) {
 		return
 	}
-	w.opts.Panics.Go(context.Background(), panics.FlowJob, func() {
+	w.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
 		defer cancel()
-		if err := target.Join(ctx, p, sink); err != nil && w.log != nil {
-			w.log.ErrorContext(ctx, "transfer failed", "character_id", p.ID, "map_id", mapID, "err", err)
+		if err := target.Join(ctx, p, sink); err != nil {
+			w.deps.Logger.ErrorContext(ctx, "transfer failed", "character_id", p.ID, "map_id", mapID, "err", err)
 		}
 	}, "job", "transfer", "character_id", p.ID, "map_id", mapID)
 }
 
-// Run ticks every instance and the economy workers until ctx is done, then flushes queued jobs.
-// A map that panics stops them all; the others still checkpoint, but its own state is suspect and is not saved.
+// Run ticks every instance, runs the economy workers and saves what the maps queue, until ctx is done.
+// The maps then checkpoint the players still on them, and what is left in the queue is saved once a job,
+// so a down character service can't hold the shutdown. A map that panics stops them all; the others still
+// checkpoint, but its own state is suspect and is not saved.
 func (w *World) Run(ctx context.Context) error {
+	retrying, stopRetrying := context.WithCancel(ctx)
+	defer stopRetrying()
+	stopped, saved := make(chan struct{}), make(chan struct{})
+	go func() { defer close(saved); w.persistence(retrying, stopped) }()
+
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return w.workers.Run(gctx) })
+	g.Go(func() error { return w.deps.Workers.Run(gctx) })
 	for _, id := range w.order {
 		inst := w.instances[id]
 		g.Go(func() (err error) {
@@ -145,36 +157,40 @@ func (w *World) Run(ctx context.Context) error {
 		})
 	}
 	err := g.Wait()
-	// No more jobs can arrive; drain the queue with a context that is not cancelled.
-	w.flush(context.WithoutCancel(ctx))
+	stopRetrying()
+	close(stopped) // no more jobs can arrive
+	<-saved
 	return err
 }
 
-// RunPersistence saves queued jobs in order, so an older checkpoint never lands after a newer one.
-func (w *World) RunPersistence(ctx context.Context) {
+// persistence is the queue's one consumer: it saves jobs in order, so an older checkpoint never lands
+// after a newer one, retrying a transient failure while ctx lasts. Once the maps have stopped it saves
+// what is left, once a job.
+func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) {
+	last := context.WithoutCancel(ctx)
 	for {
 		select {
-		case <-ctx.Done():
-			return
 		case job := <-w.persist:
-			w.save(ctx, job, saveRetryFor)
+			if ctx.Err() == nil && (w.save(ctx, job, saveRetryFor) || ctx.Err() == nil) {
+				continue // saved, or given up and logged
+			}
+			w.save(last, job, 0) // shutting down: one try, also for a job whose retries it cut short
+		case <-stopped:
+			for {
+				select {
+				case job := <-w.persist:
+					w.save(last, job, 0)
+				default:
+					return
+				}
+			}
 		}
 	}
 }
 
-// flush saves each queued job once, so a down character service can't hold the shutdown.
-func (w *World) flush(ctx context.Context) {
-	for {
-		select {
-		case job := <-w.persist:
-			w.save(ctx, job, 0)
-		default:
-			return
-		}
-	}
-}
-
-func (w *World) save(ctx context.Context, job model.Job, retryFor time.Duration) {
+// save saves job, retrying a transient failure for up to retryFor, and reports whether it was saved.
+// A failure is logged unless ctx ended, which only cuts the retries short.
+func (w *World) save(ctx context.Context, job model.Job, retryFor time.Duration) bool {
 	opts := []backoff.RetryOption{
 		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}),
 		backoff.WithMaxElapsedTime(retryFor),
@@ -184,22 +200,37 @@ func (w *World) save(ctx context.Context, job model.Job, retryFor time.Duration)
 	}
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		err := w.saveOnce(ctx, job)
-		if err != nil && !w.saver.Retryable(err) {
+		if err != nil && !w.deps.Saver.Retryable(err) {
 			return struct{}{}, backoff.Permanent(err)
 		}
 		return struct{}{}, err
 	}, opts...)
-	if err != nil && ctx.Err() == nil && w.log != nil {
-		w.log.ErrorContext(ctx, "persistence failed", "err", err)
+	if err == nil {
+		return true
 	}
+	if ctx.Err() == nil {
+		w.deps.Logger.ErrorContext(ctx, "persistence failed", append(jobAttrs(job), "err", err)...)
+	}
+	return false
+}
+
+// jobAttrs name a job in the log: its kind and its character.
+func jobAttrs(job model.Job) []any {
+	switch j := job.(type) {
+	case model.Checkpoint:
+		return []any{"job", "checkpoint", "character_id", j.ID, "map_id", j.MapID}
+	case model.LevelUpSave:
+		return []any{"job", "level_up", "character_id", j.ID, "level", j.Level}
+	}
+	return nil
 }
 
 func (w *World) saveOnce(ctx context.Context, job model.Job) error {
-	switch {
-	case job.LevelUp != nil:
-		return w.saver.SaveLevelUp(ctx, *job.LevelUp)
-	case job.Checkpoint != nil:
-		return w.saver.SaveCheckpoint(ctx, *job.Checkpoint)
+	switch j := job.(type) {
+	case model.LevelUpSave:
+		return w.deps.Saver.SaveLevelUp(ctx, j)
+	case model.Checkpoint:
+		return w.deps.Saver.SaveCheckpoint(ctx, j)
 	}
 	return nil
 }

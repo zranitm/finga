@@ -31,7 +31,7 @@ func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		saver := &fakeSaver{}
 		obs := &panicsOn{mapID: "cave"}
-		w := newWorld(t, saver, application.Options{Observer: obs})
+		w := newWorld(t, saver, options{Observer: obs})
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(context.Background()) }()
 
