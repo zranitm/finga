@@ -36,7 +36,8 @@ func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.Ser
 		MaxInterval:         opts.MaxBackoff,
 	}
 	for {
-		delivered, err := follow(ctx, open, handle)
+		start := time.Now()
+		err := follow(ctx, open, handle)
 		if ctx.Err() != nil {
 			return
 		}
@@ -46,8 +47,8 @@ func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.Ser
 		if opts.OnBreak != nil {
 			opts.OnBreak(err)
 		}
-		if delivered {
-			b.Reset()
+		if time.Since(start) > opts.MaxBackoff {
+			b.Reset() // it held, so this is no crash loop; every stream's Subscribed comes at once
 		}
 		t := time.NewTimer(b.NextBackOff())
 		select {
@@ -59,20 +60,19 @@ func Follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.Ser
 	}
 }
 
-func follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T)) (delivered bool, err error) {
+func follow[T any](ctx context.Context, open func(ctx context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T)) (err error) {
 	defer panics.Capture(&err)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel() // ends a stream a panic left open
 	stream, err := open(ctx)
 	if err != nil {
-		return false, err
+		return err
 	}
 	for {
 		m, err := stream.Recv()
 		if err != nil {
-			return delivered, err
+			return err
 		}
-		delivered = true
 		handle(m)
 	}
 }

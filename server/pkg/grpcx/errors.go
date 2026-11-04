@@ -43,8 +43,9 @@ type ErrorTable []ErrorRow
 
 const internalMessage = "internal error"
 
-// Status is err as it leaves the service, and whether it was explained (else log it).
-// A status without a reason keeps only its code; an unknown error is Internal.
+// Status is err as it leaves the service, and whether it was explained (else log it). A downstream
+// status keeps its code and its reason, if any, never its text: a dependency's Unavailable or
+// DeadlineExceeded tells the caller to retry, and its rules travel as reasons. An unknown error is Internal.
 func (t ErrorTable) Status(err error) (*status.Status, bool) {
 	if err == nil {
 		return status.New(codes.OK, ""), true
@@ -55,8 +56,8 @@ func (t ErrorTable) Status(err error) (*status.Status, bool) {
 		}
 	}
 	if st, ok := status.FromError(err); ok {
-		if _, has := reasonIn(st); has {
-			return st, true
+		if r, has := reasonIn(st); has {
+			return withReason(st.Code(), r), true
 		}
 		return status.New(st.Code(), st.Code().String()), st.Code() == codes.Canceled
 	}

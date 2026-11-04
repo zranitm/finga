@@ -31,6 +31,7 @@ type fakePickups struct {
 	failFirst error // returned by the first call of each drop
 	full      bool  // every add is refused with errFull
 	down      bool  // every add fails with errDown
+	hang      bool  // every add waits until its context ends
 	seen      map[uuid.UUID]int
 }
 
@@ -38,10 +39,15 @@ func newFakePickups() *fakePickups {
 	return &fakePickups{byDrop: map[uuid.UUID][]model.Slot{}, seen: map[uuid.UUID]int{}}
 }
 
-func (f *fakePickups) Add(_ context.Context, in model.Pickup) ([]model.Slot, error) {
+func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.calls = append(f.calls, in)
+	if f.hang {
+		f.mu.Unlock()
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	defer f.mu.Unlock()
 	f.seen[in.DropID]++
 	if f.full {
 		return nil, errFull
@@ -403,6 +409,39 @@ func TestDropsVanishAfterAMinute(t *testing.T) {
 		}
 		if !removed {
 			t.Fatal("no RemovedDrops in any delta")
+		}
+	})
+}
+
+// An item service that never answers costs a pickup two call timeouts; then it fails and the drop can be taken again.
+func TestAPickupFromAHungItemServiceFailsInTime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		items := newFakePickups()
+		items.hang = true
+		inst, stop := runLootArena(t, data, items, 0.3)
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(250)
+		s := join(t, inst, p)
+		killSlime(t, inst, p.ID)
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 5) // walk under the drop
+		walk(inst, p.ID, seq, sim.Input{}, 1)
+		inst.PickUp(p.ID)
+		time.Sleep(15 * time.Second)
+		synctest.Wait()
+		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) || items.callCount() != 2 {
+			t.Fatalf("failures %+v after %d calls", f, items.callCount())
+		}
+		items.mu.Lock()
+		items.hang = false
+		items.mu.Unlock()
+		inst.PickUp(p.ID)
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		if items.items() != 1 {
+			t.Fatalf("%d items once the service answers", items.items())
 		}
 	})
 }

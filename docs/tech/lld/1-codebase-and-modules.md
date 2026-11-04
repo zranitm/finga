@@ -452,12 +452,13 @@ func (ps Properties) Int(name string) (int, bool)
 // pkg/grpcx: gRPC servers and clients every service shares (step 22)
 type ErrorRow struct { Err error; Code codes.Code; Reason protoreflect.Enum } // a sentinel, its code, its proto reason
 type ErrorTable []ErrorRow
-func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, a recorded panic as Internal, errors through the table
-func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID
+func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, a recorded panic as Internal, errors through the table, a ping every 10 s allowed
+func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID; pings an idle connection every 20 s
 func ReasonOf(err error) (Reason, bool) // the ErrorInfo a failed call carries: the proto package and the value's name
 func IsRule(err error) bool             // a reason is present: retrying the same request cannot help
 func Follow[T any](ctx context.Context, open func(context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T), opts FollowOptions)
-// a panic in handle breaks the subscription like a stream error, and Follow resubscribes
+// a panic in handle breaks the subscription like a stream error, and Follow resubscribes; its backoff starts
+// over only after a subscription that held longer than MaxBackoff
 // grpcx/grpctest, test support: Conn serves a *grpc.Server over bufconn; Error is a failure with a reason,
 // for fakes; Reasons lists a reason enum's values but the zero one, for the guard tests.
 

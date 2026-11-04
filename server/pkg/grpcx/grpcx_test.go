@@ -122,6 +122,10 @@ func TestAReasonFromDownstreamPassesThrough(t *testing.T) {
 	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_FALLBACK) || status.Code(err) != codes.NotFound {
 		t.Fatalf("got %v, reason %+v", err, r)
 	}
+	// The upstream's own wrapping is its text, which never leaves it.
+	if strings.Contains(err.Error(), "asking downstream") {
+		t.Fatalf("the upstream's text crossed the call: %v", err)
+	}
 }
 
 func TestAnUnavailableDownstreamStaysUnavailable(t *testing.T) {

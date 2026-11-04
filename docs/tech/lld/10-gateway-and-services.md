@@ -97,7 +97,7 @@ Three things the plan's tree did not have, because Go's `internal/` rule needs t
 R1's model stays: services return plain sentinel errors named for the failure, and the gateway owns the mapping to what a client sees. `pkg/errs` stays deleted.
 
 1. Each service's proto declares `enum Reason` with one value per sentinel its clients can meet (`REASON_PARTY_FULL`, `REASON_INVENTORY_FULL`).
-2. Each service's gRPC handler has a table from its sentinels to a gRPC code and a `Reason`. A failure leaves as a status whose details carry `google.rpc.ErrorInfo`, with the reason's name and the proto package as its domain. An error the table does not know leaves as `Internal`, its text kept in the service's log, never sent.
+2. Each service's gRPC handler has a table from its sentinels to a gRPC code and a `Reason`. A failure leaves as a status whose details carry `google.rpc.ErrorInfo`, with the reason's name and the proto package as its domain. An error the table does not know leaves as `Internal`, its text kept in the service's log, never sent. A status from a service it called passes on with its code and its reason, never its text.
 3. `pkg/grpcx` reads the reason back on the calling side, and tells a rule (a reason is present) from a transient failure (none), which is what the world's pickup retry needs.
 4. The gateway's `errmap` maps each (domain, reason) to one of the gateway's failures, the client's own code and player message; the REST handler adds the HTTP status. The codes, `testdata/errors/codes.json`, and every word a player reads stay the same.
 5. Guard tests close the loop: in each service, every exported `Err` of its modules has a row; in the gateway, every value of every service's `Reason` enum has a row.
@@ -207,12 +207,14 @@ No transaction spans two services (rule 1 below). The character service commits 
 
 ### Retries
 
-Every retry and resubscribe waits on `github.com/cenkalti/backoff/v5`, doubling and jittered by ±50%, so a restarted service is not hit by every caller at once: the gateway's join and its streams, the starter grant, the persistence worker, and `pkg/dbx`'s rerun of a deadlocked or serialization-failed transaction.
+Every retry and resubscribe waits on `github.com/cenkalti/backoff/v5`, doubling and jittered by ±50%, so a restarted service is not hit by every caller at once: the gateway's join and its streams, the starter grant, the persistence worker, and `pkg/dbx`'s rerun of a deadlocked or serialization-failed transaction. A resubscribe starts its backoff over only after a subscription that held longer than the longest wait, since every stream sends Subscribed first: one that breaks right after it is not reopened every 100 ms.
+
+Every call to another service has a deadline: the request's own for a call made while serving one, 5 s for each of the world's item adds and saves. Clients ping an idle connection every 20 s and drop it after 5 s without an answer; servers accept a ping every 10 s. A half-open link under a long-lived stream breaks within half a minute, and the stream resubscribes.
 
 ### Pickups, checkpoints and the tick
 
-- **Pickups** already run on the world's economy workers: the worker calls the item service's `Add`, keyed by the drop ID, and retries once when the failure carries no reason. The result returns through the instance's inbox, as today.
-- **Checkpoints and level-ups** go to the character service from the persistence worker, which retries a failed save with backoff, in order, for up to a minute before logging it with the job's kind and character.
+- **Pickups** already run on the world's economy workers: the worker calls the item service's `Add`, keyed by the drop ID, with a 5 s deadline, and retries once when the failure carries no reason. The result returns through the instance's inbox, as today.
+- **Checkpoints and level-ups** go to the character service from the persistence worker, which gives each save a 5 s deadline and retries a failed one with backoff, in order, for up to a minute before logging it with the job's kind and character.
 - **Parties.** The world keeps a local copy of party membership, fed by social's `WatchParties` stream; loot windows and EXP sharing read the copy. When a member's map, level or HP changes, the world queues `social.UpdateMember` for a worker; the tick never waits for it.
 
 ### Party and chat

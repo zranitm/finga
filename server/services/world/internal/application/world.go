@@ -22,6 +22,7 @@ import (
 const (
 	persistQueue    = 4096
 	transferTimeout = 5 * time.Second
+	callTimeout     = 5 * time.Second // one call to another service; past it the call counts as failed
 
 	saveRetryFor   = time.Minute // how long a transiently failing save is retried
 	saveRetryFirst = 100 * time.Millisecond
@@ -226,6 +227,8 @@ func jobAttrs(job model.Job) []any {
 }
 
 func (w *World) saveOnce(ctx context.Context, job model.Job) error {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
 	switch j := job.(type) {
 	case model.LevelUpSave:
 		return w.deps.Saver.SaveLevelUp(ctx, j)

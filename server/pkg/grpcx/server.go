@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -21,7 +22,8 @@ type ServerOptions struct {
 	Panics *panics.Recorder
 }
 
-// NewServer is a gRPC server that propagates request IDs, recovers panics and maps errors.
+// NewServer is a gRPC server that propagates request IDs, recovers panics, maps errors, and keeps its
+// clients' connections alive as Dial's do.
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
@@ -31,6 +33,8 @@ func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	}
 	i := interceptors{opts: opts}
 	all := append([]grpc.ServerOption{
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: keepaliveMinTime, PermitWithoutStream: true}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{Time: keepaliveTime, Timeout: keepaliveTimeout}),
 		grpc.ChainUnaryInterceptor(i.unary),
 		grpc.ChainStreamInterceptor(i.stream),
 	}, extra...)

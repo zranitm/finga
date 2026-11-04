@@ -28,28 +28,34 @@ type fakeSaver struct {
 	attempts []string // "cp <map>" or "lu <level>", one per attempt
 	err      error
 	failures int
+	hangs    int // the first hangs attempts wait until their context ends
 }
 
-func (f *fakeSaver) attempt(what string) error {
+// attempt records what is tried; f.mu is held and attempt unlocks it.
+func (f *fakeSaver) attempt(ctx context.Context, what string) error {
 	f.attempts = append(f.attempts, what)
-	if f.err != nil && (f.failures == 0 || len(f.attempts) <= f.failures) {
-		return f.err
+	n, err := len(f.attempts), f.err
+	f.mu.Unlock()
+	if n <= f.hangs {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	if err != nil && (f.failures == 0 || n <= f.failures) {
+		return err
 	}
 	return nil
 }
 
-func (f *fakeSaver) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
+func (f *fakeSaver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.saved = append(f.saved, cp)
-	return f.attempt("cp " + cp.MapID)
+	return f.attempt(ctx, "cp "+cp.MapID)
 }
 
-func (f *fakeSaver) SaveLevelUp(_ context.Context, lu model.LevelUpSave) error {
+func (f *fakeSaver) SaveLevelUp(ctx context.Context, lu model.LevelUpSave) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.levelUps = append(f.levelUps, lu)
-	return f.attempt("lu " + string(rune('0'+lu.Level)))
+	return f.attempt(ctx, "lu "+string(rune('0'+lu.Level)))
 }
 
 func (f *fakeSaver) Retryable(err error) bool { return !errors.Is(err, errRefused) }
@@ -211,6 +217,14 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 			// About fifteen tries fit in a minute; then the first save is dropped and the next tried.
 			if first < 3 || first > 20 || got[first] != "cp forest" {
 				t.Fatalf("%d attempts at the first save, then %v", first, got[first:])
+			}
+		})
+	})
+	t.Run("a save the character service never answers is cut off and retried", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			got := run(t, &fakeSaver{hangs: 1})
+			if len(got) != 3 || got[0] != "cp town" || got[1] != "cp town" || got[2] != "cp forest" {
+				t.Fatalf("attempts %v", got)
 			}
 		})
 	})

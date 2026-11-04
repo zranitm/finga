@@ -113,14 +113,20 @@ type pickupJob struct {
 // runPickup runs on a worker and posts the result back to the inbox.
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	in := model.Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
-	slots, err := i.deps.Items.Add(ctx, in)
+	slots, err := i.addItem(ctx, in)
 	if err != nil && i.deps.Items.Retryable(err) {
-		slots, err = i.deps.Items.Add(ctx, in) // the key makes a retry harmless
+		slots, err = i.addItem(ctx, in) // the key makes a retry harmless
 		if err != nil && i.deps.Items.Retryable(err) {
 			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
 		}
 	}
 	i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}
+}
+
+func (i *Instance) addItem(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return i.deps.Items.Add(ctx, in)
 }
 
 type pickupResult struct {
