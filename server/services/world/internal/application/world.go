@@ -1,11 +1,9 @@
-// Package application runs the map instances: one actor per map, ticking at 20 Hz.
+// Package application runs the map instances: one actor per map, ticking at the configured rate.
 // Services are called from worker goroutines, never inside a tick.
 package application
 
 import (
-	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -24,10 +22,9 @@ const (
 	persistQueue    = 4096
 	transferTimeout = 5 * time.Second
 
-	// DefaultSaveRetryFor is how long a transiently failing save is retried.
-	DefaultSaveRetryFor = time.Minute
-	saveRetryFirst      = 100 * time.Millisecond
-	saveRetryMax        = 5 * time.Second
+	saveRetryFor   = time.Minute // how long a transiently failing save is retried
+	saveRetryFirst = 100 * time.Millisecond
+	saveRetryMax   = 5 * time.Second
 )
 
 // World is the registry of map instances, their shared persistence worker and transfers.
@@ -40,18 +37,11 @@ type World struct {
 	saver     Saver
 	log       *slog.Logger
 	workers   *Workers
-	retryFor  time.Duration
 }
 
 // New builds an instance for every map in data.
 func New(data *gamedata.Data, saver Saver, log *slog.Logger, opts Options) *World {
-	if opts.SaveRetryFor <= 0 {
-		opts.SaveRetryFor = DefaultSaveRetryFor
-	}
-	if opts.Panics == nil {
-		opts.Panics = panics.NewRecorder(cmp.Or(log, slog.New(slog.DiscardHandler)), nil)
-	}
-	w := &World{data: data, opts: opts, instances: map[string]*Instance{}, persist: make(chan model.Job, persistQueue), saver: saver, log: log, workers: opts.Workers, retryFor: opts.SaveRetryFor}
+	w := &World{data: data, opts: opts, instances: map[string]*Instance{}, persist: make(chan model.Job, persistQueue), saver: saver, log: log, workers: opts.Workers}
 	opts.Transfer = w
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = NewInstance(m, data, w.persist, opts)
@@ -69,21 +59,14 @@ func (w *World) Instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-var errNoCharacters = errors.New("world: characters not wired")
-
 // Join loads the account's character, grants its starter items and joins its saved map.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
-	if w.opts.Characters == nil {
-		return model.View{}, errNoCharacters
-	}
 	c, err := w.opts.Characters.Load(ctx, id, account)
 	if err != nil {
 		return model.View{}, err
 	}
-	if w.opts.Starter != nil {
-		if err := w.opts.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
-			return model.View{}, fmt.Errorf("starter items: %w", err)
-		}
+	if err := w.opts.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
+		return model.View{}, fmt.Errorf("starter items: %w", err)
 	}
 	inst, err := w.Instance(c.MapID)
 	if err != nil {
@@ -127,9 +110,7 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 // A map that panics stops them all; the others still checkpoint, but its own state is suspect and is not saved.
 func (w *World) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
-	if w.workers != nil {
-		g.Go(func() error { return w.workers.Run(gctx) })
-	}
+	g.Go(func() error { return w.workers.Run(gctx) })
 	for _, id := range w.order {
 		inst := w.instances[id]
 		g.Go(func() (err error) {
@@ -148,16 +129,6 @@ func (w *World) Run(ctx context.Context) error {
 	return err
 }
 
-// Persist queues a job without blocking; false when the queue is full.
-func (w *World) Persist(job model.Job) bool {
-	select {
-	case w.persist <- job:
-		return true
-	default:
-		return false
-	}
-}
-
 // RunPersistence saves queued jobs in order, so an older checkpoint never lands after a newer one.
 func (w *World) RunPersistence(ctx context.Context) {
 	for {
@@ -165,7 +136,7 @@ func (w *World) RunPersistence(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case job := <-w.persist:
-			w.save(ctx, job, w.retryFor)
+			w.save(ctx, job, saveRetryFor)
 		}
 	}
 }

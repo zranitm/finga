@@ -13,6 +13,19 @@ import (
 	"finga/internal/sim"
 )
 
+// pageFiveMovement are the movement constants of page 5.
+var pageFiveMovement = sim.Params{
+	Dt:           1.0 / 60,
+	WalkSpeed:    200,
+	JumpVelocity: 620,
+	Gravity:      1900,
+	MaxFallSpeed: 900,
+	ClimbSpeed:   140,
+	DropThrough:  0.25,
+	Width:        24,
+	Height:       56,
+}
+
 // fixture is a minimal valid data folder; each rejection row breaks one thing in it.
 func fixture() map[string]string {
 	return map[string]string{
@@ -269,7 +282,7 @@ func TestValidDataLoads(t *testing.T) {
 		}
 	})
 	t.Run("movement", func(t *testing.T) {
-		if d.Movement() != sim.DefaultParams() {
+		if d.Movement() != pageFiveMovement {
 			t.Fatalf("movement = %+v", d.Movement())
 		}
 	})
@@ -466,7 +479,7 @@ func TestRealDataLoads(t *testing.T) {
 		{"three maps: one town and two hunting maps", len(d.Maps()) == 3 && d.Town() != nil},
 		{"three to four mobs", len(d.Mobs()) >= 3 && len(d.Mobs()) <= 4},
 		{"about ten items", len(d.Items()) >= 8 && len(d.Items()) <= 14},
-		{"movement constants are page 5's", d.Movement() == sim.DefaultParams()},
+		{"movement constants are page 5's", d.Movement() == pageFiveMovement},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

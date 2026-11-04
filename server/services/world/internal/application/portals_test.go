@@ -74,7 +74,7 @@ func TestPortals(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, CheckpointInterval: time.Hour})
+		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{CheckpointInterval: time.Hour}))
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()

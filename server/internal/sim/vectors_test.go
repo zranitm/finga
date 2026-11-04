@@ -81,7 +81,7 @@ func TestVectors(t *testing.T) {
 }
 
 func replay(v vector) []sim.State {
-	p := sim.DefaultParams()
+	p := params()
 	s := v.Start
 	var out []sim.State
 	for _, run := range v.Inputs {

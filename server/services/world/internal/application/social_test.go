@@ -78,7 +78,7 @@ func TestExpSharing(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := loadData(t)
 				parties := &fakeParties{}
-				inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{Parties: parties})
+				inst, stop := runMap(t, data, arena(time.Hour), nil, application.Options{Parties: parties})
 				defer stop()
 				time.Sleep(tickInterval)
 				synctest.Wait()
@@ -164,11 +164,11 @@ func chats(s *sink) []model.Chat {
 func TestMapChatReachesOnlyTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		here, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
+		here, stop := runMap(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		other := arena(time.Hour)
 		other.ID = "arena2"
-		there, stop2 := runArena(t, data, other, nil, application.Options{})
+		there, stop2 := runMap(t, data, other, nil, application.Options{})
 		defer stop2()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -195,7 +195,7 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		data := loadData(t)
 		parties := &fakeParties{}
 		tr := &transferRecorder{}
-		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{Parties: parties, Transfer: tr})
+		inst, stop := runMap(t, data, arena(time.Hour), nil, application.Options{Parties: parties, Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()

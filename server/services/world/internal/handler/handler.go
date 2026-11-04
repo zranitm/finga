@@ -25,8 +25,8 @@ type World interface {
 	Instance(mapID string) (*application.Instance, error)
 }
 
-// DefaultQueue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
-const DefaultQueue = 8192
+// queue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
+const queue = 8192
 
 // ErrNotSubscribed is a Join from a gateway with no Deliver stream open.
 var ErrNotSubscribed = errors.New("world: gateway has no deliver stream")
@@ -44,19 +44,12 @@ type Server struct {
 type Options struct {
 	// BootID is random per process start, so a gateway can tell its players are gone.
 	BootID string
-	Queue  int
 	Logger *slog.Logger
 }
 
 // New builds the server.
 func New(w World, opts Options) *Server {
-	if opts.Queue <= 0 {
-		opts.Queue = DefaultQueue
-	}
-	if opts.Logger == nil {
-		opts.Logger = slog.New(slog.DiscardHandler)
-	}
-	return &Server{world: w, bootID: opts.BootID, deliver: hub.New[*worldv1.DeliverResponse](opts.Queue), log: opts.Logger}
+	return &Server{world: w, bootID: opts.BootID, deliver: hub.New[*worldv1.DeliverResponse](queue), log: opts.Logger}
 }
 
 // Deliver streams one gateway's events, starting with Subscribed.

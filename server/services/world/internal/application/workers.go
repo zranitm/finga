@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"log/slog"
 
 	"golang.org/x/sync/errgroup"
 
@@ -23,21 +22,12 @@ type Workers struct {
 	panics *panics.Recorder
 }
 
-// DefaultEconomyQueue is how many jobs may wait for a worker.
-const DefaultEconomyQueue = 1024
+// economyQueue is how many jobs may wait for a worker.
+const economyQueue = 1024
 
-// NewWorkers makes a pool of n workers with a queue of DefaultEconomyQueue; a job's panic goes to rec.
+// NewWorkers makes a pool of n workers; a job's panic goes to rec.
 func NewWorkers(n int, obs EconomyObserver, rec *panics.Recorder) *Workers {
-	if n < 1 {
-		n = 1
-	}
-	if obs == nil {
-		obs = noopEconomy{}
-	}
-	if rec == nil {
-		rec = panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
-	}
-	return &Workers{jobs: make(chan func(ctx context.Context), DefaultEconomyQueue), n: n, obs: obs, panics: rec}
+	return &Workers{jobs: make(chan func(ctx context.Context), economyQueue), n: n, obs: obs, panics: rec}
 }
 
 // Submit queues a job; false when the queue is full.
@@ -70,11 +60,3 @@ func (w *Workers) Run(ctx context.Context) error {
 	}
 	return g.Wait()
 }
-
-type noopEconomy struct{}
-
-// JobStarted does nothing.
-func (noopEconomy) JobStarted() {}
-
-// JobFinished does nothing.
-func (noopEconomy) JobFinished() {}

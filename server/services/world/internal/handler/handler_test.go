@@ -20,6 +20,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/panics"
 	"finga/pkg/sentineltest"
 	"finga/services/world/internal/application"
 	"finga/services/world/internal/handler"
@@ -56,6 +57,22 @@ func (saver) SaveCheckpoint(context.Context, model.Checkpoint) error { return ni
 func (saver) SaveLevelUp(context.Context, model.LevelUpSave) error   { return nil }
 func (saver) Retryable(error) bool                                   { return false }
 
+// idle stands in for every world service these tests leave alone.
+type idle struct{}
+
+func (idle) Members(kernel.CharacterID) []kernel.CharacterID  { return nil }
+func (idle) SameParty(_, _ kernel.CharacterID) bool           { return false }
+func (idle) Update(kernel.CharacterID, string, int, int, int) {}
+func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+	return nil
+}
+func (idle) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, nil }
+func (idle) Retryable(error) bool                                    { return false }
+func (idle) ObserveTick(string, time.Duration, time.Duration)        {}
+func (idle) JobStarted()                                             {}
+func (idle) JobFinished()                                            {}
+func (idle) Float64() float64                                        { return 0.5 }
+
 // capturing hands the test each joined sink, to send events the world rarely sends.
 type capturing struct {
 	*application.World
@@ -79,21 +96,26 @@ type stack struct {
 	data    *gamedata.Data
 }
 
-func newStack(t *testing.T, queue int) *stack {
+func newStack(t *testing.T) *stack {
 	t.Helper()
 	data, err := gamedata.Load(filepath.Join("..", "..", "..", "..", "data"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
-	w := application.New(data, saver{}, slog.New(slog.DiscardHandler), application.Options{TickInterval: tick, Characters: chars})
+	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
+	w := application.New(data, saver{}, slog.New(slog.DiscardHandler), application.Options{
+		TickInterval: tick, CheckpointInterval: time.Minute, NewRoll: func() model.Roll { return idle{} },
+		Observer: idle{}, Items: idle{}, Workers: application.NewWorkers(1, idle{}, rec), Parties: idle{},
+		Characters: chars, Starter: idle{}, Panics: rec,
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
 
 	sinks := make(chan application.Sink, 1)
-	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", Queue: queue})
+	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", Logger: slog.New(slog.DiscardHandler)})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)
 	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: kernel.NewAccountID(), data: data}
@@ -154,7 +176,7 @@ func playerIn(ps []*worldv1.PlayerView, id string) (*worldv1.PlayerView, bool) {
 }
 
 func TestJoinSendsTheSnapshotThenDeltasOnTheGatewaysStream(t *testing.T) {
-	s := newStack(t, 0)
+	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "conn-1", ayla)
@@ -191,7 +213,7 @@ func TestJoinSendsTheSnapshotThenDeltasOnTheGatewaysStream(t *testing.T) {
 }
 
 func TestACommandGoesToTheMapItNames(t *testing.T) {
-	s := newStack(t, 0)
+	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
@@ -227,7 +249,7 @@ func TestACommandGoesToTheMapItNames(t *testing.T) {
 }
 
 func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
-	s := newStack(t, 0)
+	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla, bo := s.character("Ayla"), s.character("Bo")
 	s.join(t, "gw-1", "conn-a", ayla)
@@ -255,7 +277,7 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 }
 
 func TestJoinFailures(t *testing.T) {
-	s := newStack(t, 0)
+	s := newStack(t)
 	ayla := s.character("Ayla")
 	t.Run("no stream for the gateway", func(t *testing.T) {
 		_, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: "gw-none", ConnectionId: "c", AccountId: s.account.String(), CharacterId: ayla.ID.String()})
@@ -282,7 +304,7 @@ func TestJoinFailures(t *testing.T) {
 }
 
 func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
-	s := newStack(t, 4)
+	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)
@@ -319,7 +341,7 @@ func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
 }
 
 func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
-	s := newStack(t, 0)
+	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	s.join(t, "gw-1", "conn-1", ayla)

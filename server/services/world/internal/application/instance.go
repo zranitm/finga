@@ -2,7 +2,7 @@ package application
 
 import (
 	"context"
-	"math/rand/v2"
+	"math"
 	"slices"
 	"time"
 
@@ -15,72 +15,44 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Defaults for Options.
 const (
-	DefaultTickInterval       = 50 * time.Millisecond
-	DefaultSubSteps           = 3
-	DefaultDrainLimit         = 1024
-	DefaultInboxSize          = 4096
-	DefaultCheckpointInterval = 30 * time.Second
+	drainLimit = 1024 // inbox messages handled per tick; the rest wait
+	inboxSize  = 4096
 
 	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
 	invulnerability  = time.Second // after contact damage
+	mobPause         = time.Second // at a platform edge
 	knockbackX       = 16.0        // px away from the mob
 	knockbackVY      = -250.0
 )
 
-// Options tune the instances. Zero values take the defaults.
+// Options are the instances' settings and the services they call. All are required; Characters,
+// Starter and Panics by World only.
 type Options struct {
 	TickInterval       time.Duration
-	SubSteps           int
-	DrainLimit         int // inbox messages handled per tick; the rest wait
-	InboxSize          int
 	CheckpointInterval time.Duration
-	Observer           TickObserver // nil: no metrics
-	Seed               uint64
-	Roll               model.Roll // overrides the seeded generator, for tests
-	Transfer           Mover      // moves players between maps; nil respawns in place
-	Items              Pickups    // nil: pickups are unavailable
-	Workers            *Workers   // nil: pickups are unavailable
-	Parties            Parties    // nil: nobody has a party
+	NewRoll            func() model.Roll // each instance's random source, used only on its tick goroutine
+	Observer           TickObserver
+	Transfer           Mover // moves players between maps; World sets its own
+	Items              Pickups
+	Workers            *Workers
+	Parties            Parties
 	Characters         Characters
-	Starter            Starter          // nil grants nothing
-	SaveRetryFor       time.Duration    // a minute by default (World only)
-	Panics             *panics.Recorder // a transfer's panic (World only); nil logs it
-}
-
-func (o Options) withDefaults() Options {
-	if o.TickInterval <= 0 {
-		o.TickInterval = DefaultTickInterval
-	}
-	if o.SubSteps <= 0 {
-		o.SubSteps = DefaultSubSteps
-	}
-	if o.DrainLimit <= 0 {
-		o.DrainLimit = DefaultDrainLimit
-	}
-	if o.InboxSize <= 0 {
-		o.InboxSize = DefaultInboxSize
-	}
-	if o.CheckpointInterval <= 0 {
-		o.CheckpointInterval = DefaultCheckpointInterval
-	}
-	if o.Seed == 0 {
-		o.Seed = rand.Uint64() //nolint:gosec // a game seed, recorded for replays
-	}
-	return o
+	Starter            Starter
+	Panics             *panics.Recorder // a transfer's panic
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
 type Instance struct {
-	m       *gamedata.Map
-	data    *gamedata.Data
-	params  sim.Params
-	opts    Options
-	roll    model.Roll
-	inbox   chan message
-	persist chan<- model.Job
+	m        *gamedata.Map
+	data     *gamedata.Data
+	params   sim.Params
+	subSteps int // sim steps per tick
+	opts     Options
+	roll     model.Roll
+	inbox    chan message
+	persist  chan<- model.Job
 
 	tick     uint64
 	players  map[kernel.CharacterID]*player
@@ -145,20 +117,17 @@ type player struct {
 	private       []model.Event // events for this player only
 }
 
-// NewInstance builds the actor for m. Run starts it.
+// NewInstance builds the actor for m; its checkpoints and level-ups go to persist. Run starts it.
 func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, opts Options) *Instance {
-	opts = opts.withDefaults()
 	ticksPer := uint64(opts.CheckpointInterval / opts.TickInterval)
 	if ticksPer == 0 {
 		ticksPer = 1
 	}
-	roll := opts.Roll
-	if roll == nil {
-		roll = rand.New(rand.NewPCG(opts.Seed, opts.Seed^0x9E3779B97F4A7C15)) //nolint:gosec // game randomness, seeded for replays
-	}
+	params := data.Movement()
 	return &Instance{
-		m: m, data: data, params: data.Movement(), opts: opts, roll: roll,
-		inbox:    make(chan message, opts.InboxSize),
+		m: m, data: data, params: params, opts: opts, roll: opts.NewRoll(),
+		subSteps: max(1, int(math.Round(opts.TickInterval.Seconds()/params.Dt))),
+		inbox:    make(chan message, inboxSize),
 		persist:  persist,
 		players:  map[kernel.CharacterID]*player{},
 		spawns:   make([]spawnState, len(m.Spawns)),
@@ -166,22 +135,12 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job,
 	}
 }
 
-// MapID is the map this instance runs.
-func (i *Instance) MapID() string { return i.m.ID }
-
-// Seed is the random seed this instance runs with, for replaying a tick.
-func (i *Instance) Seed() uint64 { return i.opts.Seed }
-
 // Run ticks until ctx is done, then checkpoints the players still on the map.
 func (i *Instance) Run(ctx context.Context) error {
-	var opts []tick.Option
-	if i.opts.Observer != nil {
-		mapID := i.m.ID
-		opts = append(opts, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
-			i.opts.Observer.ObserveTick(mapID, took, interval)
-		}))
-	}
-	err := tick.Run(ctx, i.opts.TickInterval, i, opts...)
+	mapID := i.m.ID
+	err := tick.Run(ctx, i.opts.TickInterval, i, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
+		i.opts.Observer.ObserveTick(mapID, took, interval)
+	}))
 	for _, id := range i.order {
 		i.checkpoint(i.players[id])
 	}
@@ -200,11 +159,6 @@ func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
-}
-
-// Leave removes a player; its checkpoint is saved. Unknown IDs are ignored.
-func (i *Instance) Leave(id kernel.CharacterID) bool {
-	return i.post(message{leave: id})
 }
 
 // LeaveConnection removes a player only if it joined through conn, so a stale Leave is a no-op.
@@ -265,7 +219,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 
 func (i *Instance) drain() []kernel.CharacterID {
 	var removed []kernel.CharacterID
-	for handled := 0; handled < i.opts.DrainLimit; handled++ {
+	for range drainLimit {
 		var m message
 		select {
 		case m = <-i.inbox:
@@ -404,7 +358,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		}
 		before := p.state
 		if !p.dead && !hold {
-			for range i.opts.SubSteps {
+			for range i.subSteps {
 				p.state = sim.Step(p.state, p.held, i.m.Geometry, i.params)
 			}
 		}
@@ -491,9 +445,6 @@ func (i *Instance) detach(id kernel.CharacterID) {
 }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	if i.persist == nil {
-		return
-	}
 	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
 	select {
 	case i.persist <- model.Job{Checkpoint: &cp}:

@@ -2,7 +2,7 @@ package application
 
 import "finga/internal/kernel"
 
-// Parties answers party questions from inside a tick; nil means nobody has a party.
+// Parties answers party questions from inside a tick.
 type Parties interface {
 	Members(id kernel.CharacterID) []kernel.CharacterID
 	SameParty(a, b kernel.CharacterID) bool
@@ -23,14 +23,12 @@ func (i *Instance) Chat(from kernel.CharacterID, name, text string) bool {
 // shareExp splits a kill's EXP, plus 10% per extra member, among the live party on this map.
 func (i *Instance) shareExp(killer *player, base int64) {
 	sharers := []*player{killer}
-	if i.opts.Parties != nil {
-		for _, id := range i.opts.Parties.Members(killer.ID) {
-			if id == killer.ID {
-				continue
-			}
-			if m, ok := i.players[id]; ok && !m.dead {
-				sharers = append(sharers, m)
-			}
+	for _, id := range i.opts.Parties.Members(killer.ID) {
+		if id == killer.ID {
+			continue
+		}
+		if m, ok := i.players[id]; ok && !m.dead {
+			sharers = append(sharers, m)
 		}
 	}
 	n := int64(len(sharers))
@@ -51,7 +49,5 @@ func (i *Instance) shareExp(killer *player, base int64) {
 }
 
 func (i *Instance) tellParty(p *player, mapID string) {
-	if i.opts.Parties != nil {
-		i.opts.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
-	}
+	i.opts.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
 }

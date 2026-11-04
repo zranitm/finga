@@ -45,7 +45,7 @@ func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id ker
 func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter) (*application.World, func()) {
 	t.Helper()
 	data := loadData(t)
-	w := application.New(data, &fakeSaver{}, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, Characters: chars, Starter: starter})
+	w := application.New(data, &fakeSaver{}, slog.New(slog.DiscardHandler), deps(application.Options{Characters: chars, Starter: starter}))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()

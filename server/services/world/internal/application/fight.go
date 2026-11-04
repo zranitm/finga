@@ -29,8 +29,6 @@ type spawnState struct {
 	returns []uint64 // ticks at which a replacement spawns
 }
 
-const mobPause = 20 // ticks a mob pauses at an edge (1 s at 20 Hz)
-
 func (mb *mob) box() model.Rect {
 	return model.Rect{X: mb.x - mb.def.Width/2, Y: mb.y - mb.def.Height, W: mb.def.Width, H: mb.def.Height}
 }
@@ -59,9 +57,9 @@ func (i *Instance) stepMobs() {
 		mb.x += float64(mb.facing) * mb.def.Speed * dt
 		switch {
 		case mb.x >= mb.maxX:
-			mb.x, mb.facing, mb.pauseUntil = mb.maxX, -1, i.tick+mobPause
+			mb.x, mb.facing, mb.pauseUntil = mb.maxX, -1, i.tick+i.ticksFor(mobPause)
 		case mb.x <= mb.minX:
-			mb.x, mb.facing, mb.pauseUntil = mb.minX, 1, i.tick+mobPause
+			mb.x, mb.facing, mb.pauseUntil = mb.minX, 1, i.tick+i.ticksFor(mobPause)
 		}
 		mb.changed = true
 	}
@@ -202,12 +200,10 @@ func (i *Instance) award(p *player, amount int64) {
 	p.changed = true
 	p.private = append(p.private, model.LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 	i.tellParty(p, i.m.ID)
-	if i.persist != nil {
-		lu := model.LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
-		select {
-		case i.persist <- model.Job{LevelUp: &lu}:
-		default:
-		}
+	lu := model.LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
+	select {
+	case i.persist <- model.Job{LevelUp: &lu}:
+	default:
 	}
 }
 
@@ -269,7 +265,6 @@ func (i *Instance) kill(p *player) {
 // deathsAndRespawns revives the dead at the town spawn and returns those handed off.
 func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 	var left []kernel.CharacterID
-	town, hasTown := i.data.Map(i.m.Town)
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
 		if !p.dead || p.deadUntil > i.tick {
@@ -278,7 +273,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		p.dead = false
 		p.HP = max(1, p.derived.MaxHP*respawnHPPercent/100)
 		p.changed = true
-		if !hasTown || town.ID == i.m.ID || i.opts.Transfer == nil {
+		if i.m.Town == i.m.ID { // a town revives its own dead
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
 			p.state = sim.State{X: x, Y: y, Facing: 1, Ground: -1, DropPlatform: -1}
@@ -287,6 +282,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 			continue
 		}
 		// The player leaves before the broadcast, so tell them directly.
+		town, _ := i.data.Map(i.m.Town) // loading checks that every map names a town
 		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
 		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
 		i.events = append(i.events, respawned)

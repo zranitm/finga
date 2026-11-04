@@ -1,7 +1,9 @@
 package application_test
 
 import (
+	"cmp"
 	"context"
+	"log/slog"
 	"math"
 	"slices"
 	"sync"
@@ -12,6 +14,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
+	"finga/pkg/panics"
 	"finga/services/world/internal/application"
 	"finga/services/world/internal/model"
 )
@@ -101,11 +104,57 @@ func newPlayer(name string, x, y float64) model.Player {
 	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
 }
 
+// rolls gives each instance a fixedRoll of v.
+func rolls(v float64) func() model.Roll {
+	return func() model.Roll { return fixedRoll{v} }
+}
+
+func discardPanics() *panics.Recorder { return panics.NewRecorder(slog.New(slog.DiscardHandler), nil) }
+
+// deps fills what a test leaves out: its tick, rolls of 0.5, and services that do nothing.
+func deps(opts application.Options) application.Options {
+	opts.TickInterval = cmp.Or(opts.TickInterval, tickInterval)
+	opts.CheckpointInterval = cmp.Or(opts.CheckpointInterval, 30*time.Second)
+	if opts.NewRoll == nil {
+		opts.NewRoll = rolls(0.5)
+	}
+	if opts.Observer == nil {
+		opts.Observer = &observer{}
+	}
+	if opts.Transfer == nil {
+		opts.Transfer = &transferRecorder{}
+	}
+	if opts.Items == nil {
+		opts.Items = newFakePickups()
+	}
+	if opts.Panics == nil {
+		opts.Panics = discardPanics()
+	}
+	if opts.Workers == nil {
+		opts.Workers = application.NewWorkers(1, &economy{}, opts.Panics)
+	}
+	if opts.Parties == nil {
+		opts.Parties = &fakeParties{}
+	}
+	if opts.Characters == nil {
+		opts.Characters = &fakeCharacters{}
+	}
+	if opts.Starter == nil {
+		opts.Starter = &fakeStarter{}
+	}
+	return opts
+}
+
 // run starts a town instance in the synctest bubble; stop waits for Run so nothing outlives it.
 func run(t *testing.T, data *gamedata.Data, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
 	t.Helper()
-	opts.TickInterval = tickInterval
-	inst := application.NewInstance(data.Town(), data, persist, opts)
+	return runMap(t, data, data.Town(), persist, opts)
+}
+
+// runMap starts m's instance in the synctest bubble, as run does the town's.
+func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
+	t.Helper()
+	inst := application.NewInstance(m, data, persist, deps(opts))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = inst.Run(ctx) }()
@@ -173,7 +222,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 		}
 
 		{ // others see the leave
-			inst.Leave(robin.ID)
+			inst.LeaveConnection(robin.ID, "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			d := sa.last()
@@ -283,11 +332,42 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	})
 }
 
-func TestInputFloodCarriesOverToTheNextTick(t *testing.T) {
+// A player walks 200 px a second whatever the tick rate, as the client predicts.
+func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
+	for _, interval := range []time.Duration{50 * time.Millisecond, 100 * time.Millisecond} {
+		t.Run(interval.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := loadData(t)
+				m := arena(time.Hour)
+				m.Spawns = nil
+				inst, stop := runMap(t, data, m, nil, application.Options{TickInterval: interval})
+				defer stop()
+				p := warriorAt(100)
+				s := &sink{}
+				if err := inst.Join(context.Background(), p, s); err != nil {
+					t.Fatal(err)
+				}
+				time.Sleep(interval)
+				synctest.Wait()
+				ticks := int(time.Second / interval)
+				for seq := range uint32(ticks) {
+					inst.Input(p.ID, seq+1, sim.Input{Right: true})
+					time.Sleep(interval)
+					synctest.Wait()
+				}
+				if v, _ := s.own(p.ID); math.Abs(v.State.X-300) > 1 {
+					t.Fatalf("x = %.1f after a second, want 300", v.State.X)
+				}
+			})
+		})
+	}
+}
+
+func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, application.Options{DrainLimit: 2})
+		inst, cancel := run(t, data, nil, application.Options{})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		s := &sink{}
@@ -296,20 +376,18 @@ func TestInputFloodCarriesOverToTheNextTick(t *testing.T) {
 		}
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		for seq := uint32(1); seq <= 5; seq++ {
-			inst.Input(p.ID, seq, sim.Input{Right: true})
+		for seq := range uint32(1024) { // a tick's whole drain, for nobody
+			inst.Input(kernel.NewCharacterID(), seq, sim.Input{})
 		}
+		inst.Input(p.ID, 1, sim.Input{Right: true})
 		var acks []uint32
-		for range 4 {
+		for range 2 {
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			acks = append(acks, s.last().AckSeq)
 		}
-		want := []uint32{1, 2, 3, 4} // one applied per tick, whatever the drain brings
-		for i := range want {
-			if acks[i] != want[i] {
-				t.Fatalf("acks %v, want %v", acks, want)
-			}
+		if acks[0] != 0 || acks[1] != 1 {
+			t.Fatalf("acks %v, want [0 1]: the input waits a tick behind the flood", acks)
 		}
 	})
 }
@@ -579,7 +657,7 @@ func TestCheckpoints(t *testing.T) {
 			}
 		}
 		{ // on leave, right away
-			inst.Leave(p.ID)
+			inst.LeaveConnection(p.ID, "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			got := collect()

@@ -7,6 +7,21 @@ import (
 	"finga/internal/sim"
 )
 
+// params are the movement constants data/movement.yaml sets.
+func params() sim.Params {
+	return sim.Params{
+		Dt:           1.0 / 60,
+		WalkSpeed:    200,
+		JumpVelocity: 620,
+		Gravity:      1900,
+		MaxFallSpeed: 900,
+		ClimbSpeed:   140,
+		DropThrough:  0.25,
+		Width:        24,
+		Height:       56,
+	}
+}
+
 var flat = sim.Geometry{
 	Solids: []sim.Rect{
 		{X: 0, Y: 500, W: 1000, H: 32},  // floor
@@ -20,7 +35,7 @@ func standing(x float64) sim.State {
 }
 
 func run(s sim.State, in sim.Input, g sim.Geometry, n int) sim.State {
-	p := sim.DefaultParams()
+	p := params()
 	for range n {
 		s = sim.Step(s, in, g, p)
 	}
@@ -60,7 +75,7 @@ func TestWalkOnFlatGround(t *testing.T) {
 }
 
 func TestJump(t *testing.T) {
-	p := sim.DefaultParams()
+	p := params()
 	s := standing(200)
 	peak := s.Y
 	landed := -1
@@ -87,7 +102,7 @@ func TestJump(t *testing.T) {
 }
 
 func TestJumpOnlyFromTheGround(t *testing.T) {
-	p := sim.DefaultParams()
+	p := params()
 	s := sim.Step(standing(200), sim.Input{Jump: true}, flat, p)
 	vyAfterJump := s.VY
 	s = sim.Step(s, sim.Input{Jump: true}, flat, p) // still held in the air
@@ -111,7 +126,7 @@ func TestWalkingOffALedge(t *testing.T) {
 }
 
 func TestFallSpeedIsClamped(t *testing.T) {
-	p := sim.DefaultParams()
+	p := params()
 	s := sim.State{X: 100, Y: 0, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
 	s = run(s, sim.Input{}, sim.Geometry{}, 120) // two seconds of free fall, nothing to land on
 	if s.VY != p.MaxFallSpeed {
@@ -133,7 +148,7 @@ func TestWallsAndCeilings(t *testing.T) {
 		}
 	})
 	t.Run("jumping into a ceiling stops at its underside", func(t *testing.T) {
-		p := sim.DefaultParams()
+		p := params()
 		s := standing(350) // under the low ceiling: head at 444, ceiling underside at 440
 		minY := s.Y
 		hitCeiling := false
@@ -162,7 +177,7 @@ func TestOneWayPlatforms(t *testing.T) {
 		Solids:    []sim.Rect{{X: 0, Y: 500, W: 1000, H: 32}},
 		Platforms: []sim.Rect{{X: 100, Y: 420, W: 200, H: 8}},
 	}
-	p := sim.DefaultParams()
+	p := params()
 
 	t.Run("landing on it from above", func(t *testing.T) {
 		s := sim.State{X: 200, Y: 300, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
@@ -247,7 +262,7 @@ func TestRopes(t *testing.T) {
 		Platforms: []sim.Rect{{X: 0, Y: 300, W: 400, H: 8}},
 		Ropes:     []sim.Rect{{X: 196, Y: 300, W: 8, H: 200}},
 	}
-	p := sim.DefaultParams()
+	p := params()
 
 	t.Run("Up on a rope starts climbing, snapped to its centre, without gravity", func(t *testing.T) {
 		s := run(standing(190), sim.Input{Up: true}, g, 30) // half a second
@@ -316,7 +331,7 @@ func TestRopes(t *testing.T) {
 
 func TestStepIsPure(t *testing.T) {
 	// Same inputs, same state; Step never changes its arguments.
-	p := sim.DefaultParams()
+	p := params()
 	start := standing(200)
 	in := sim.Input{Right: true, Jump: true}
 	a := sim.Step(start, in, flat, p)

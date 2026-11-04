@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"math/rand/v2"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -63,20 +64,6 @@ func damages(s *sink) []model.Damage {
 	return out
 }
 
-func runArena(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts application.Options) (*application.Instance, func()) {
-	t.Helper()
-	opts.TickInterval = tickInterval
-	if opts.Roll == nil {
-		opts.Roll = fixedRoll{0.5}
-	}
-	inst := application.NewInstance(m, data, persist, opts)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { defer close(done); _ = inst.Run(ctx) }()
-	var once sync.Once
-	return inst, func() { once.Do(func() { cancel(); <-done }) }
-}
-
 func warriorAt(x float64) model.Player {
 	p := newPlayer("Ayla", x, 608)
 	return p
@@ -120,7 +107,7 @@ func mobsIn(s *sink) map[uint64]model.MobView {
 func TestMobsSpawnAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(2*time.Second), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(2*time.Second), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval) // tick 1: the area fills
 		synctest.Wait()
@@ -182,7 +169,7 @@ func (s *sink) id(t *testing.T, _ *application.Instance) kernel.CharacterID {
 func TestAttacks(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Second), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Second), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -195,7 +182,7 @@ func TestAttacks(t *testing.T) {
 			if len(damages(far)) != 0 {
 				t.Fatal("a Warrior hit a mob 184 px away")
 			}
-			inst.Leave(far.id(t, inst))
+			inst.LeaveConnection(far.id(t, inst), "")
 			behind := join(t, inst, warriorAt(340)) // the mob is behind, facing right
 			inst.Attack(behind.id(t, inst))
 			time.Sleep(tickInterval)
@@ -203,7 +190,7 @@ func TestAttacks(t *testing.T) {
 			if len(damages(behind)) != 0 {
 				t.Fatal("a Warrior hit a mob behind their back")
 			}
-			inst.Leave(behind.id(t, inst))
+			inst.LeaveConnection(behind.id(t, inst), "")
 			near := join(t, inst, warriorAt(250))
 			inst.Attack(near.id(t, inst))
 			time.Sleep(tickInterval)
@@ -212,7 +199,7 @@ func TestAttacks(t *testing.T) {
 			if len(got) != 1 || got[0].Amount != 21 || got[0].Crit || got[0].Miss || got[0].Source.Player != near.id(t, inst) || !got[0].Target.IsMob() {
 				t.Fatalf("damages %+v", got)
 			}
-			inst.Leave(near.id(t, inst))
+			inst.LeaveConnection(near.id(t, inst), "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 		}
@@ -226,7 +213,7 @@ func TestAttacks(t *testing.T) {
 			if len(got) != 1 || got[0].Amount != 21 {
 				t.Fatalf("damages %+v", got)
 			}
-			inst.Leave(s.id(t, inst))
+			inst.LeaveConnection(s.id(t, inst), "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 		}
@@ -264,7 +251,7 @@ func TestAttacks(t *testing.T) {
 func TestContactDamageAndInvulnerability(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -320,7 +307,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		data := loadData(t)
 		persist := make(chan model.Job, 100)
 		tr := &transferRecorder{}
-		inst, stop := runArena(t, data, arena(time.Hour), persist, application.Options{Transfer: tr})
+		inst, stop := runMap(t, data, arena(time.Hour), persist, application.Options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -398,7 +385,7 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		persist := make(chan model.Job, 100)
-		inst, stop := runArena(t, data, arena(time.Hour), persist, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Hour), persist, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -444,12 +431,13 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 	})
 }
 
-func TestReplayingASeedGivesTheSameFight(t *testing.T) {
+// The tick draws on nothing random but its roll, so the same rolls replay a fight.
+func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 	fight := func() []model.Damage {
 		var out []model.Damage
 		synctest.Test(t, func(t *testing.T) {
 			data := loadData(t)
-			inst, stop := runArena(t, data, arena(time.Second), nil, application.Options{Seed: 42, Roll: nil})
+			inst, stop := runMap(t, data, arena(time.Second), nil, application.Options{NewRoll: func() model.Roll { return rand.New(rand.NewPCG(42, 42)) }})
 			defer stop()
 			time.Sleep(tickInterval)
 			synctest.Wait()
@@ -491,7 +479,7 @@ func TestNoCombatInTown(t *testing.T) {
 		m := arena(time.Hour)
 		m.ID, m.Kind, m.Town = "town", gamedata.Town, "town" // a town with a mob, for the test only
 		tr := &transferRecorder{}
-		inst, stop := runArena(t, data, m, nil, application.Options{Transfer: tr})
+		inst, stop := runMap(t, data, m, nil, application.Options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -525,7 +513,7 @@ func TestNoCombatInTown(t *testing.T) {
 func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
+		inst, stop := runMap(t, data, arena(time.Hour), nil, application.Options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -542,10 +530,13 @@ func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 	})
 }
 
-func TestRespawnInPlaceWithoutAMover(t *testing.T) {
+func TestATownRevivesItsOwnDead(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{})
+		m := arena(time.Hour)
+		m.Town = m.ID
+		tr := &transferRecorder{}
+		inst, stop := runMap(t, data, m, nil, application.Options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -563,8 +554,8 @@ func TestRespawnInPlaceWithoutAMover(t *testing.T) {
 		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
-		if len(s.ofType(func(e model.Event) bool { _, ok := e.(model.Teleport); return ok })) != 0 {
-			t.Fatal("a respawn without a mover teleported")
+		if len(s.ofType(func(e model.Event) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
+			t.Fatal("a town's dead were moved")
 		}
 	})
 }

@@ -44,7 +44,7 @@ Shared state is owned by one goroutine (an actor) that receives commands on a bu
 Every 50 ms:
 
 1. Drain the inbox (joins, leaves, inputs, actions, results from economy workers), up to a per-tick limit.
-2. Take each player's next queued input, one per tick in sequence order (with none, the player waits up to 5 ticks, then the last keys are held; a backlog past 4 is cut to the newest 2), and simulate movement in 3 fixed sub-steps of 1/60 s with it. The client predicts with the same inputs in the same ticks (page 7, Frame loop; backend step 18).
+2. Take each player's next queued input, one per tick in sequence order (with none, the player waits up to 5 ticks, then the last keys are held; a backlog past 4 is cut to the newest 2), and simulate movement with it in fixed sub-steps of 1/60 s, 3 per tick at 20 Hz. The client predicts with the same inputs in the same ticks (page 7, Frame loop; backend step 18).
 3. Run mob behavior and spawns.
 4. Resolve the attacks queued this tick.
 5. Apply deaths, respawns, EXP, and new drops.

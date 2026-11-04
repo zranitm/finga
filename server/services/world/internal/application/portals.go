@@ -10,7 +10,7 @@ import (
 
 // enterPortal reports whether the player left through a portal.
 func (i *Instance) enterPortal(p *player) bool {
-	if p.dead || i.opts.Transfer == nil {
+	if p.dead {
 		return false
 	}
 	for _, portal := range i.m.Portals {

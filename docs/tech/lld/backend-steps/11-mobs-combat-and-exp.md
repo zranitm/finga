@@ -20,7 +20,7 @@
 
 ## Design notes
 
-- Each instance records its random seed, so a tick can be replayed exactly in a test.
+- Each instance takes its random source from the world, so a test can fix it and replay a fight exactly.
 
 ## Tests first
 
@@ -31,7 +31,7 @@
 - contact damage, then no damage during the invulnerability window
 - death, then respawn after 3 seconds at the town spawn with 50% HP, with the penalty applied (none in town)
 - a kill gives EXP and a LevelUp, and the level is saved
-- replaying a seed gives the same fight
+- the same rolls give the same fight
 - end-to-end rows for C1 to C4
 
 ## Done when

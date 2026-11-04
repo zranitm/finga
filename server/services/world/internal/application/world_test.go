@@ -68,7 +68,7 @@ func TestWorld(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, CheckpointInterval: 30 * time.Second})
+		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{}))
 		ctx, cancel := context.WithCancel(context.Background())
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(ctx) }()
@@ -77,7 +77,7 @@ func TestWorld(t *testing.T) {
 		{ // one instance per map
 			for _, m := range data.Maps() {
 				inst, err := w.Instance(m.ID)
-				if err != nil || inst.MapID() != m.ID {
+				if err != nil || inst == nil {
 					t.Fatalf("%s: %v", m.ID, err)
 				}
 			}
@@ -131,56 +131,74 @@ func TestWorld(t *testing.T) {
 	})
 }
 
-// A character service restart must not lose a level-up, which no later checkpoint carries.
-func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
-	run := func(t *testing.T, saver *fakeSaver, jobs ...model.Job) {
-		t.Helper()
-		data := loadData(t)
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, SaveRetryFor: time.Minute})
-		for _, j := range jobs {
-			if !w.Persist(j) {
-				t.Fatal("queue refused a job")
-			}
+// leaveAndRun has a player leave town, then one leave the forest, so the persistence queue holds
+// "cp town" then "cp forest"; persist then saves them.
+func leaveAndRun(t *testing.T, saver *fakeSaver, persist func(ctx context.Context, w *application.World)) {
+	t.Helper()
+	data := loadData(t)
+	w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{CheckpointInterval: time.Hour}))
+	ctx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan error, 1)
+	go func() { runDone <- w.Run(ctx) }()
+	for _, mapID := range []string{"town", "forest"} {
+		inst, _ := w.Instance(mapID)
+		m, _ := data.Map(mapID)
+		p := newPlayer("Ayla", m.PlayerSpawn.X, m.PlayerSpawn.Y)
+		if err := inst.Join(ctx, p, &sink{}); err != nil {
+			t.Fatal(err)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go w.RunPersistence(ctx)
-		time.Sleep(2 * time.Minute)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		inst.LeaveConnection(p.ID, "")
+		time.Sleep(tickInterval)
 		synctest.Wait()
 	}
-	levelUp := model.Job{LevelUp: &model.LevelUpSave{ID: kernel.NewCharacterID(), Level: 3}}
-	checkpoint := model.Job{Checkpoint: &model.Checkpoint{ID: kernel.NewCharacterID(), MapID: "forest"}}
+	persist(ctx, w)
+	cancel()
+	if err := <-runDone; err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A character service restart must not lose a save, and an older one must land first.
+func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
+	run := func(t *testing.T, saver *fakeSaver) []string {
+		t.Helper()
+		var attempts []string
+		leaveAndRun(t, saver, func(ctx context.Context, w *application.World) {
+			go w.RunPersistence(ctx)
+			time.Sleep(2 * time.Minute)
+			synctest.Wait()
+			attempts = saver.attemptsSoFar()
+		})
+		return attempts
+	}
 	t.Run("a save that fails twice is retried, and the next job waits for it", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			saver := &fakeSaver{err: errors.New("unavailable"), failures: 2}
-			run(t, saver, levelUp, checkpoint)
-			if got := saver.attemptsSoFar(); len(got) != 4 || got[0] != "lu 3" || got[2] != "lu 3" || got[3] != "cp forest" {
+			got := run(t, &fakeSaver{err: errors.New("unavailable"), failures: 2})
+			if len(got) != 4 || got[0] != "cp town" || got[2] != "cp town" || got[3] != "cp forest" {
 				t.Fatalf("attempts %v", got)
 			}
 		})
 	})
 	t.Run("one that keeps failing is given up after the limit, and the worker goes on", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			saver := &fakeSaver{err: errors.New("unavailable")}
-			run(t, saver, levelUp, checkpoint)
-			got := saver.attemptsSoFar()
-			levelUps := 0
+			got := run(t, &fakeSaver{err: errors.New("unavailable")})
+			first := 0
 			for _, a := range got {
-				if a == "lu 3" {
-					levelUps++
+				if a == "cp town" {
+					first++
 				}
 			}
-			// About fifteen tries fit in a minute; then the level-up is dropped and the checkpoint tried.
-			if levelUps < 3 || levelUps > 20 || got[levelUps] != "cp forest" {
-				t.Fatalf("%d level-up attempts, then %v", levelUps, got[levelUps:])
+			// About fifteen tries fit in a minute; then the first save is dropped and the next tried.
+			if first < 3 || first > 20 || got[first] != "cp forest" {
+				t.Fatalf("%d attempts at the first save, then %v", first, got[first:])
 			}
 		})
 	})
 	t.Run("a refused save is not retried", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			saver := &fakeSaver{err: errRefused}
-			run(t, saver, levelUp, checkpoint)
-			if got := saver.attemptsSoFar(); len(got) != 2 {
+			if got := run(t, &fakeSaver{err: errRefused}); len(got) != 2 {
 				t.Fatalf("attempts %v", got)
 			}
 		})
@@ -189,18 +207,11 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 
 func TestShutdownFlushesWithoutRetrying(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
 		saver := &fakeSaver{err: errors.New("unavailable")}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, SaveRetryFor: time.Minute})
-		w.Persist(model.Job{Checkpoint: &model.Checkpoint{ID: kernel.NewCharacterID(), MapID: "town"}})
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
 		start := time.Now()
-		if err := w.Run(ctx); err != nil {
-			t.Fatal(err)
-		}
-		if time.Since(start) > time.Second || len(saver.attemptsSoFar()) != 1 {
-			t.Fatalf("flush took %s with %d attempts", time.Since(start), len(saver.attemptsSoFar()))
+		leaveAndRun(t, saver, func(context.Context, *application.World) { start = time.Now() })
+		if time.Since(start) > time.Second || len(saver.attemptsSoFar()) != 2 {
+			t.Fatalf("flush took %s with attempts %v", time.Since(start), saver.attemptsSoFar())
 		}
 	})
 }
@@ -209,7 +220,7 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{err: errors.New("db down")}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, CheckpointInterval: time.Second})
+		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{CheckpointInterval: time.Second}))
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() { _ = w.Run(ctx) }()
 		go w.RunPersistence(ctx)
@@ -229,22 +240,24 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 
 func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	data := loadData(t)
-	inst := application.NewInstance(data.Town(), data, nil, application.Options{InboxSize: 1})
-	// Not running: the first post fills the inbox, the second is refused.
-	if !inst.Input(kernel.NewCharacterID(), 1, sim0()) {
-		t.Fatal("first post refused")
+	inst := application.NewInstance(data.Town(), data, nil, deps(application.Options{}))
+	// Not running: 4096 posts fill the inbox, the next is refused.
+	for seq := range uint32(4096) {
+		if !inst.Input(kernel.NewCharacterID(), seq, sim0()) {
+			t.Fatalf("post %d refused", seq)
+		}
 	}
-	if inst.Input(kernel.NewCharacterID(), 2, sim0()) {
-		t.Fatal("second post accepted with a full inbox")
+	if inst.Input(kernel.NewCharacterID(), 1, sim0()) {
+		t.Fatal("a post accepted with a full inbox")
 	}
 	if err := inst.Join(context.Background(), newPlayer("Ayla", 0, 0), &sink{}); !errors.Is(err, model.ErrBusy) {
 		t.Fatalf("join with a full inbox: %v", err)
 	}
-	if inst.Leave(kernel.NewCharacterID()) {
+	if inst.LeaveConnection(kernel.NewCharacterID(), "") {
 		t.Fatal("leave accepted with a full inbox")
 	}
 	t.Run("a join on a stopped instance gives up when the caller's context ends", func(t *testing.T) {
-		inst := application.NewInstance(data.Town(), data, nil, application.Options{})
+		inst := application.NewInstance(data.Town(), data, nil, deps(application.Options{}))
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancel()
 		if err := inst.Join(ctx, newPlayer("Ayla", 0, 0), &sink{}); !errors.Is(err, context.DeadlineExceeded) {

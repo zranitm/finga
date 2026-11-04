@@ -32,7 +32,7 @@ func TestAPanickingMapStopsTheWorldAndTheOtherMapsSave(t *testing.T) {
 		data := loadData(t)
 		saver := &fakeSaver{}
 		obs := &panicsOn{mapID: "cave"}
-		w := application.New(data, saver, slog.New(slog.DiscardHandler), application.Options{TickInterval: tickInterval, CheckpointInterval: 30 * time.Second, Observer: obs})
+		w := application.New(data, saver, slog.New(slog.DiscardHandler), deps(application.Options{Observer: obs}))
 		runDone := make(chan error, 1)
 		go func() { runDone <- w.Run(context.Background()) }()
 
@@ -88,7 +88,7 @@ func (finishPanics) JobStarted()  {}
 func (finishPanics) JobFinished() { panic("broken gauge") }
 
 func TestAPanicInAWorkerOutsideAJobStopsThePool(t *testing.T) {
-	w := application.NewWorkers(2, finishPanics{}, nil)
+	w := application.NewWorkers(2, finishPanics{}, discardPanics())
 	w.Submit(func(context.Context) {})
 	done := make(chan error, 1)
 	go func() { done <- w.Run(context.Background()) }()

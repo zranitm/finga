@@ -143,8 +143,8 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
 
 - property tests over the inventory rules (`pgregory.net/rapid`) with the
   Stage 1 item invariants checked after every run;
-- the map tick under `testing/synctest`, with a seeded random generator so a
-  fight replays exactly;
+- the map tick under `testing/synctest`, with the instance's random source
+  fixed so a fight replays exactly;
 - end-to-end rows per Stage 1 feature in `server/test/`, each named after
   its feature, against the server built the way production builds it;
 - the crash test (`TestCrashDuringPickups`): every service built and run as

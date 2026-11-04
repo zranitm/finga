@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"time"
 
@@ -84,7 +85,7 @@ func (i *Instance) pickUp(p *player) {
 		if !d.reservedBy.IsZero() {
 			continue
 		}
-		if d.windowEnd > i.tick && d.killer != p.ID && (i.opts.Parties == nil || !i.opts.Parties.SameParty(d.killer, p.ID)) {
+		if d.windowEnd > i.tick && d.killer != p.ID && !i.opts.Parties.SameParty(d.killer, p.ID) {
 			continue // someone else's loot for now (the killer's party may)
 		}
 		dist := math.Hypot(d.x-cx, d.y-cy)
@@ -93,10 +94,6 @@ func (i *Instance) pickUp(p *player) {
 		}
 	}
 	if best == nil {
-		return
-	}
-	if i.opts.Items == nil || i.opts.Workers == nil {
-		p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: model.ErrPickupsUnavailable})
 		return
 	}
 	best.reservedBy = p.ID
@@ -119,6 +116,9 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	slots, err := i.opts.Items.Add(ctx, in)
 	if err != nil && i.opts.Items.Retryable(err) {
 		slots, err = i.opts.Items.Add(ctx, in) // the key makes a retry harmless
+		if err != nil && i.opts.Items.Retryable(err) {
+			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
+		}
 	}
 	i.inbox <- message{pickup: &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}}
 }

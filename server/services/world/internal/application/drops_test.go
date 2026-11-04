@@ -17,8 +17,11 @@ import (
 	"github.com/google/uuid"
 )
 
-// errFull is a rule, so the world never retries it.
-var errFull = errors.New("inventory full")
+// errFull is a rule, so the world never retries it; errDown is not.
+var (
+	errFull = errors.New("inventory full")
+	errDown = errors.New("item service unavailable")
+)
 
 // fakePickups is idempotent by drop, with an optional failure on each drop's first call.
 type fakePickups struct {
@@ -27,6 +30,7 @@ type fakePickups struct {
 	byDrop    map[uuid.UUID][]model.Slot
 	failFirst error // returned by the first call of each drop
 	full      bool  // every add is refused with errFull
+	down      bool  // every add fails with errDown
 	seen      map[uuid.UUID]int
 }
 
@@ -41,6 +45,9 @@ func (f *fakePickups) Add(_ context.Context, in model.Pickup) ([]model.Slot, err
 	f.seen[in.DropID]++
 	if f.full {
 		return nil, errFull
+	}
+	if f.down {
+		return nil, errDown
 	}
 	if f.failFirst != nil && f.seen[in.DropID] == 1 {
 		return nil, f.failFirst
@@ -66,10 +73,6 @@ func (f *fakePickups) callCount() int {
 	defer f.mu.Unlock()
 	return len(f.calls)
 }
-
-type scriptedRoll struct{ v float64 }
-
-func (r scriptedRoll) Float64() float64 { return r.v }
 
 func dropsIn(s *sink) map[uint64]model.DropView {
 	seen := map[uint64]model.DropView{}
@@ -113,15 +116,15 @@ func pickupFailures(s *sink) []model.PickupFailed {
 
 func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...application.Options) (*application.Instance, func()) {
 	t.Helper()
-	workers := application.NewWorkers(2, nil, nil)
+	workers := application.NewWorkers(2, &economy{}, discardPanics())
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); _ = workers.Run(ctx) }()
-	opts := application.Options{Roll: scriptedRoll{roll}, Items: items, Workers: workers}
+	opts := application.Options{NewRoll: rolls(roll), Items: items, Workers: workers}
 	if len(extra) > 0 {
 		opts.Parties = extra[0].Parties
 	}
-	inst, stop := runArena(t, data, arena(time.Hour), nil, opts)
+	inst, stop := runMap(t, data, arena(time.Hour), nil, opts)
 	return inst, func() { stop(); cancel(); <-workersDone }
 }
 
@@ -403,10 +406,12 @@ func TestDropsVanishAfterAMinute(t *testing.T) {
 	})
 }
 
-func TestPickupsUnavailableWithoutTheItemModule(t *testing.T) {
+func TestPickupsUnavailableWhileTheItemServiceStaysDown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		inst, stop := runArena(t, data, arena(time.Hour), nil, application.Options{Roll: scriptedRoll{0.3}})
+		items := newFakePickups()
+		items.down = true
+		inst, stop := runLootArena(t, data, items, 0.3)
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -418,9 +423,9 @@ func TestPickupsUnavailableWithoutTheItemModule(t *testing.T) {
 		inst.PickUp(p.ID)
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
-		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) {
+		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) || items.callCount() != 2 {
 			v, _ := s.own(p.ID)
-			t.Fatalf("failures %+v; drops %+v; player %+v; damages %d", f, dropsIn(s), v.State, len(damages(s)))
+			t.Fatalf("failures %+v after %d calls; drops %+v; player %+v", f, items.callCount(), dropsIn(s), v.State)
 		}
 	})
 }

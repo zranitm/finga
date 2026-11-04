@@ -87,7 +87,7 @@ log:
     initial: 100
     thereafter: 100
 data_dir: data
-tick_rate_hz: 20
+tick_rate_hz: 20           # divides 60; the web client assumes 20
 checkpoint_interval: 30s   # TD-02
 economy:
   workers: 8

@@ -18,21 +18,6 @@ type Params struct {
 	Height       float64 `json:"height"`
 }
 
-// DefaultParams are the starting constants.
-func DefaultParams() Params {
-	return Params{
-		Dt:           1.0 / 60,
-		WalkSpeed:    200,
-		JumpVelocity: 620,
-		Gravity:      1900,
-		MaxFallSpeed: 900,
-		ClimbSpeed:   140,
-		DropThrough:  0.25,
-		Width:        24,
-		Height:       56,
-	}
-}
-
 // Rect is an axis-aligned rectangle with its top-left corner at (X, Y).
 type Rect struct {
 	X float64 `json:"x"`

@@ -18,7 +18,7 @@ The rules come from Product → Systems; this page turns them into algorithms. N
 
 The same algorithm exists in Go (`internal/sim`) and TypeScript (`web/src/sim`). In Go every product added to a position or velocity is converted with `float64(...)`, which rounds it and stops the compiler fusing it into a multiply-add on arm64, so both architectures and the browser compute the same bits. Shared test vectors in `testdata/movement/` must pass in both.
 
-- Fixed sub-step of 1/60 s. The server runs 3 sub-steps per 20 Hz tick.
+- Fixed sub-step of 1/60 s. The server runs 60 ÷ `tick_rate_hz` sub-steps per tick: 3 at 20 Hz.
 - Starting constants: walk 200 px/s, jump velocity 620 px/s, gravity 1,900 px/s², max fall speed 900 px/s, climb 140 px/s.
 - Character box: 24 × 56 px.
 - **Solids:** axis-separated collision: move on X and resolve, then move on Y and resolve.
@@ -79,7 +79,7 @@ damage     = max(1, round(raw × 100 / (100 + defense)))
 on crit (random below crit_rate): damage = round(damage × (1 + crit_damage))
 ```
 
-- Randomness comes from a per-map-instance generator with a recorded seed, so a tick can be replayed exactly in tests.
+- Randomness comes from a generator each map instance owns, seeded afresh; a test gives the instance a fixed source, so a fight replays exactly.
 
 ## Mobs
 
@@ -87,7 +87,7 @@ on crit (random below crit_rate): damage = round(damage × (1 + crit_damage))
 - **Behavior:** patrol on the platform they spawned on: walk, pause, turn at edges. No chasing in Stage 1's content.
 - **Contact damage:** touching a mob hurts the player through the same damage formula; the player is then knocked back (16 px away from the mob with a small hop) and invulnerable for 1 s, whether or not the hit landed. One mob can touch a player per tick.
 - **Patrol bounds:** a mob walks the solid or platform directly under its spawn point, cut to its spawn area's width and trimmed by half its own width; with no room it stands still. So a spawn area's width is the patrol: the slimes stay in the slime field and the mushrooms in theirs. A spawn area fills on the first tick, then one mob returns per expired respawn timer.
-- **Attack geometry:** the Warrior's box stands on the feet line in front of the character; the Bowman's shot leaves at chest height (half the character box) and hits the first mob crossed within 420 px. Randomness is drawn in a fixed order (hit, variation, crit; a miss draws once) from the instance's seeded generator.
+- **Attack geometry:** the Warrior's box stands on the feet line in front of the character; the Bowman's shot leaves at chest height (half the character box) and hits the first mob crossed within 420 px. Randomness is drawn in a fixed order (hit, variation, crit; a miss draws once) from the instance's generator.
 - **Spawns:** each spawn area keeps up to `max` mobs; a missing mob returns after `respawn_seconds`.
 
 ## Death and EXP

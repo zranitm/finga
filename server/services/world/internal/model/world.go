@@ -257,7 +257,7 @@ type PickupFailed struct {
 
 // The pickup errors the world raises itself.
 var (
-	ErrPickupsUnavailable = errors.New("world: pickups not wired")
+	ErrPickupsUnavailable = errors.New("world: pickups unavailable")
 	ErrPickupBusy         = errors.New("world: pickup workers busy")
 )
 

@@ -14,7 +14,7 @@ log:
     initial: 100
     thereafter: 100
 data_dir: data           # the game data, relative to server/
-tick_rate_hz: 20
+tick_rate_hz: 20         # divides 60; the web client assumes 20
 checkpoint_interval: 30s
 economy:
   workers: 8             # the pool that runs pickups and inventory actions

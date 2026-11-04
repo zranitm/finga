@@ -20,7 +20,7 @@
 - `pkg/tick`: a fixed-timestep runner with an overrun metric, testable with `testing/synctest`.
 - `internal/application/world`:
   - `Instance`, one actor per map: an inbox channel, a per-tick drain limit, join and leave.
-  - Inputs queued by sequence number, then 3 movement sub-steps per tick through `sim` (TD-18: the server simulates from inputs).
+  - Inputs queued by sequence number, then 60 ÷ tick rate movement sub-steps per tick (3 at 20 Hz) through `sim` (TD-18: the server simulates from inputs).
   - The world's own result types: a full view on join, a change set every tick with `ack_seq`, and a teleport notice for respawns and portals. The gateway turns them into Snapshot, Delta, and Correction messages in step 10, so this package never imports the protocol.
   - A registry with one instance per map, on one channel.
   - The persistence worker: checkpoints batched every 30 seconds (TD-02), and on leave, saved through the character service.

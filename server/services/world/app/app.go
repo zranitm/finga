@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
@@ -25,6 +26,7 @@ import (
 	"finga/services/world/internal/application"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/handler"
+	"finga/services/world/internal/model"
 )
 
 // Build wires the world service from cfg.
@@ -77,6 +79,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	maps := application.New(data, clients.NewSaver(characters), log, application.Options{
 		TickInterval:       cfg.TickInterval(),
 		CheckpointInterval: cfg.CheckpointInterval,
+		NewRoll:            newRoll,
 		Observer:           metrics,
 		Items:              clients.NewPickups(items),
 		Workers:            application.NewWorkers(cfg.Economy.Workers, metrics, rec),
@@ -102,4 +105,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	h.OnClose(closeAll)
 	log.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
 	return h, nil
+}
+
+// newRoll is a map's random source, seeded afresh: combat and drops are a game's chance, not a secret.
+func newRoll() model.Roll {
+	return rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())) //nolint:gosec // game randomness
 }
