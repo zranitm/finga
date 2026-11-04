@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"finga/internal/gamedata"
@@ -11,10 +12,6 @@ import (
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/model"
 )
-
-type clock struct{ t time.Time }
-
-func (c *clock) now() time.Time { return c.t }
 
 func newService(t *testing.T) (*application.Service, *fakeStore, *gamedata.Data) {
 	t.Helper()
@@ -25,8 +22,6 @@ func newServiceWith(t *testing.T, opts application.Options) (*application.Servic
 	t.Helper()
 	data := loadData(t)
 	store := newFakeStore()
-	c := &clock{t: time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)}
-	opts.Now = c.now
 	return application.NewService(store, data, opts), store, data
 }
 
@@ -275,30 +270,36 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 			t.Fatalf("calls %+v, committed first %v", starter.calls, starter.committedFirst)
 		}
 	})
+	// The retries wait on fake time.
 	t.Run("a grant that fails twice is retried until it succeeds", func(t *testing.T) {
-		starter := &fakeStarter{failures: 2, err: errors.New("item service unavailable"), retryable: true}
-		svc, _, _ := newServiceWith(t, application.Options{Starter: starter, StarterBackoff: time.Millisecond})
-		if _, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior}); err != nil {
-			t.Fatal(err)
-		}
-		if len(starter.calls) != 3 {
-			t.Fatalf("%d calls, want 3", len(starter.calls))
-		}
+		synctest.Test(t, func(t *testing.T) {
+			starter := &fakeStarter{failures: 2, err: errors.New("item service unavailable"), retryable: true}
+			svc, _, _ := newServiceWith(t, application.Options{Starter: starter})
+			if _, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior}); err != nil {
+				t.Fatal(err)
+			}
+			if len(starter.calls) != 3 {
+				t.Fatalf("%d calls, want 3", len(starter.calls))
+			}
+		})
 	})
-	t.Run("a grant that never succeeds before the deadline still returns the committed character", func(t *testing.T) {
-		starter := &fakeStarter{failures: 1 << 30, err: errors.New("item service unavailable"), retryable: true}
-		svc, store, _ := newServiceWith(t, application.Options{Starter: starter, StarterBackoff: time.Millisecond, StarterTimeout: 30 * time.Millisecond})
-		c, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior})
-		if err != nil {
-			t.Fatalf("create failed although the character committed: %v", err)
-		}
-		if _, ok := store.chars[c.ID]; !ok || len(starter.calls) < 2 {
-			t.Fatalf("character kept %v after %d calls", ok, len(starter.calls))
-		}
+	t.Run("a grant that never succeeds within 5 s still returns the committed character", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			starter := &fakeStarter{failures: 1 << 30, err: errors.New("item service unavailable"), retryable: true}
+			svc, store, _ := newServiceWith(t, application.Options{Starter: starter})
+			start := time.Now()
+			c, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior})
+			if err != nil {
+				t.Fatalf("create failed although the character committed: %v", err)
+			}
+			if _, ok := store.chars[c.ID]; !ok || len(starter.calls) < 2 || time.Since(start) != 5*time.Second {
+				t.Fatalf("character kept %v after %d calls in %v", ok, len(starter.calls), time.Since(start))
+			}
+		})
 	})
 	t.Run("a refusal by rule is not retried, and the character stays", func(t *testing.T) {
 		starter := &fakeStarter{failures: 1 << 30, err: errors.New("unknown item"), retryable: false}
-		svc, store, _ := newServiceWith(t, application.Options{Starter: starter, StarterBackoff: time.Millisecond})
+		svc, store, _ := newServiceWith(t, application.Options{Starter: starter})
 		c, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 		if err != nil || len(starter.calls) != 1 {
 			t.Fatalf("err %v after %d calls", err, len(starter.calls))

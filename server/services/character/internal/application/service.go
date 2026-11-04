@@ -20,22 +20,18 @@ type CreateInput struct {
 	Class kernel.Class
 }
 
-// Options tune the service. Zero values take the defaults.
+// Options tune the service.
 type Options struct {
-	Now func() time.Time
 	// Starter grants a new character its starter items after it commits; nil grants nothing.
 	Starter StarterItems
-	// StarterTimeout bounds a grant's retries (5 s); the world grants missed items on join.
-	StarterTimeout time.Duration
-	// StarterBackoff is the first retry wait (50 ms), doubling up to a second.
-	StarterBackoff time.Duration
-	Logger         *slog.Logger
+	Logger  *slog.Logger
 }
 
+// A starter grant retries from 50 ms, doubling up to a second, for 5 s; the world grants missed items on join.
 const (
-	defaultStarterTimeout = 5 * time.Second
-	defaultStarterBackoff = 50 * time.Millisecond
-	maxStarterBackoff     = time.Second
+	starterTimeout    = 5 * time.Second
+	starterBackoff    = 50 * time.Millisecond
+	maxStarterBackoff = time.Second
 )
 
 const (
@@ -50,25 +46,15 @@ var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
 type Service struct {
 	store   Store
 	content Content
-	now     func() time.Time
 	opts    Options
 }
 
 // NewService wires the service over its store and the game data.
 func NewService(store Store, content Content, opts Options) *Service {
-	if opts.Now == nil {
-		opts.Now = time.Now
-	}
-	if opts.StarterTimeout <= 0 {
-		opts.StarterTimeout = defaultStarterTimeout
-	}
-	if opts.StarterBackoff <= 0 {
-		opts.StarterBackoff = defaultStarterBackoff
-	}
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
 	}
-	return &Service{store: store, content: content, now: opts.Now, opts: opts}
+	return &Service{store: store, content: content, opts: opts}
 }
 
 // Create makes a level 1 character at the town spawn, then grants its starter items.
@@ -97,7 +83,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
-		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: s.now(),
+		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: time.Now(),
 	}
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().Insert(ctx, c)
@@ -109,12 +95,12 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	return c, nil
 }
 
-// grantStarter retries until StarterTimeout; keyed by character ID, a retry never grants twice.
+// grantStarter retries until starterTimeout; keyed by character ID, a retry never grants twice.
 func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	if s.opts.Starter == nil {
 		return
 	}
-	ctx, cancel := context.WithTimeout(ctx, s.opts.StarterTimeout)
+	ctx, cancel := context.WithTimeout(ctx, starterTimeout)
 	defer cancel()
 	var last error
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
@@ -124,7 +110,7 @@ func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 		}
 		return struct{}{}, last
 	},
-		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: s.opts.StarterBackoff, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: maxStarterBackoff}),
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: starterBackoff, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: maxStarterBackoff}),
 		backoff.WithMaxElapsedTime(0),
 	)
 	switch {
@@ -148,7 +134,7 @@ func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kerne
 
 // SaveCheckpoint persists position, HP, MP and EXP. At is set here.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
-	cp.At = s.now()
+	cp.At = time.Now()
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)
 	})
@@ -156,7 +142,7 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 
 // SaveLevelUp persists a level-up right away. At is set here.
 func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
-	lu.At = s.now()
+	lu.At = time.Now()
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveLevelUp(ctx, lu)
 	})
