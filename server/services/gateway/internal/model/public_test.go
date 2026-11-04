@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"finga/internal/kernel"
-	"finga/pkg/sentinels"
+	"finga/pkg/sentineltest"
 	"finga/services/gateway/internal/model"
 )
 
@@ -39,11 +39,11 @@ func TestPublicOf(t *testing.T) {
 
 // TestEveryKernelErrorIsMapped fails when a kernel Err variable would reach a player as internal.
 func TestEveryKernelErrorIsMapped(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "..", "..", "..", "internal", "kernel"))
+	declared, err := sentineltest.Declared(filepath.Join("..", "..", "..", "..", "internal", "kernel"))
 	if err != nil || len(declared) == 0 {
 		t.Fatalf("declared %v, err %v: is the walk broken?", declared, err)
 	}
-	mapped, err := sentinels.Referenced("public.go")
+	mapped, err := sentineltest.Referenced("public.go")
 	if err != nil {
 		t.Fatal(err)
 	}

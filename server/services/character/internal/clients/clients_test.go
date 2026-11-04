@@ -37,7 +37,7 @@ func TestStarterAsksForTheCharactersClass(t *testing.T) {
 	if g := f.grants[0]; g.GetClass() != "bowman" || g.GetActor().GetAccountId() != account.String() || g.GetActor().GetCharacterId() != id.String() {
 		t.Fatalf("grant %+v", g)
 	}
-	f.err = grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_UNKNOWN_ITEM)
+	f.err = grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_UNKNOWN_ITEM)
 	err := s.GrantStarter(context.Background(), account, id, kernel.Bowman)
 	if err == nil || s.Retryable(err) {
 		t.Fatalf("a refusal: %v, retryable %v", err, s.Retryable(err))

@@ -1,7 +1,6 @@
 package ratelimit_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -77,38 +76,6 @@ func TestKeysAreIndependent(t *testing.T) {
 	if got := allowN(b, "bob", 5); got != 2 {
 		t.Fatalf("bob: %d, alice's bucket leaked", got)
 	}
-	if b.Len() != 2 {
-		t.Fatalf("Len = %d, want 2", b.Len())
-	}
-}
-
-func TestIdleKeysAreEvicted(t *testing.T) {
-	c := newClock()
-	b := ratelimit.NewBuckets(1, 1, ratelimit.WithClock(c.now), ratelimit.WithIdleTTL(time.Minute))
-	b.Allow("old")
-	c.advance(30 * time.Second)
-	b.Allow("fresh")
-	c.advance(31 * time.Second) // old idle 61 s, fresh idle 31 s
-	b.Sweep()
-	if b.Len() != 1 {
-		t.Fatalf("Len = %d after the sweep, want 1 (fresh only)", b.Len())
-	}
-	// An evicted key starts over with a full bucket.
-	if !b.Allow("old") {
-		t.Fatal("old should have a fresh bucket")
-	}
-	t.Run("Allow sweeps by itself as keys pile up", func(t *testing.T) {
-		for i := range 5000 {
-			b.Allow(fmt.Sprintf("k%d", i))
-		}
-		c.advance(2 * time.Minute)
-		for i := range 5000 {
-			b.Allow(fmt.Sprintf("j%d", i)) // crosses the automatic sweep threshold
-		}
-		if n := b.Len(); n >= 10000 {
-			t.Fatalf("Len = %d: idle keys were never swept", n)
-		}
-	})
 }
 
 func TestConcurrentUse(t *testing.T) {

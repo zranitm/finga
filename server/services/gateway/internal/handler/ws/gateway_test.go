@@ -319,8 +319,8 @@ func TestHelloFailures(t *testing.T) {
 		err  error
 	}{
 		// Internal, not unauthenticated (which would log the client out), so it reconnects.
-		{"a full instance", grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY)},
-		{"a character on a map the world does not run", grpcx.Error(codes.NotFound, worldv1.Reason_REASON_NO_MAP)},
+		{"a full instance", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY)},
+		{"a character on a map the world does not run", grpctest.Error(codes.NotFound, worldv1.Reason_REASON_NO_MAP)},
 		{"a world that cannot answer", status.Error(codes.Unavailable, "connection refused")},
 	} {
 		t.Run(tt.name+" closes as internal without a Welcome", func(t *testing.T) {
@@ -681,7 +681,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		}
 	})
 	t.Run("InventoryDiscard maps a rule error to the Response code", func(t *testing.T) {
-		items.err = grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_QUANTITY)
+		items.err = grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_QUANTITY)
 		c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-2", ItemId: potion.GetId(), Quantity: 9}})
 		r := c.expect("Response").Data.(*clientv1.Response)
 		if r.GetOk() || r.Code != "bad_quantity" || r.Message == "" {
@@ -879,7 +879,7 @@ func TestChatRouting(t *testing.T) {
 	})
 	t.Run("a refused line answers a Response without a request ID", func(t *testing.T) {
 		fs.mu.Lock()
-		fs.chatErr = grpcx.Error(codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG)
+		fs.chatErr = grpctest.Error(codes.InvalidArgument, socialv1.Reason_REASON_CHAT_TOO_LONG)
 		fs.mu.Unlock()
 		ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "..."}})
 		r := ayla.expect("Response")
@@ -970,7 +970,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 			t.Fatalf("malformed id: %+v", r)
 		}
 		fs.mu.Lock()
-		fs.err = grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER)
+		fs.err = grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER)
 		fs.mu.Unlock()
 		ayla.send(wsconn.Message{ReqID: "p-y", Data: &clientv1.PartyKick{CharacterId: brunoID.String()}})
 		if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "not_party_leader" || r.Message == "" {

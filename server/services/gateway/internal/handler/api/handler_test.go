@@ -24,7 +24,7 @@ import (
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/kernel"
 	"finga/pkg/auth"
-	"finga/pkg/grpcx"
+	"finga/pkg/grpcx/grpctest"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/api"
@@ -104,13 +104,13 @@ var errorRows = []struct {
 	status int
 	code   string
 }{
-	{"bad input is 400 with its own code", grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
-	{"unauthenticated is 401", grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, "unauthenticated"},
-	{"a missing character is 404 character_not_found", grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, "character_not_found"},
-	{"a taken username is 409 username_taken", grpcx.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
-	{"too many logins is 429 login_rate_limited", grpcx.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
+	{"bad input is 400 with its own code", grpctest.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
+	{"unauthenticated is 401", grpctest.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, "unauthenticated"},
+	{"a missing character is 404 character_not_found", grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, "character_not_found"},
+	{"a taken username is 409 username_taken", grpctest.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
+	{"too many logins is 429 login_rate_limited", grpctest.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
 	{"a service that cannot be reached is 500 internal", status.Error(codes.Unavailable, "connection refused"), http.StatusInternalServerError, "internal"},
-	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", grpcx.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), errInternal)), http.StatusConflict, "name_taken"},
+	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", grpctest.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), errInternal)), http.StatusConflict, "name_taken"},
 	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, "internal"},
 }
 
@@ -347,7 +347,7 @@ func TestCharacters(t *testing.T) {
 	t.Run("create passes an unknown class to the service, which owns that rule", func(t *testing.T) {
 		h := newHarness()
 		h.characters.create = func(context.Context, *characterv1.CreateRequest) (*characterv1.CreateResponse, error) {
-			return nil, grpcx.Error(codes.InvalidArgument, characterv1.Reason_REASON_CLASS_UNAVAILABLE)
+			return nil, grpctest.Error(codes.InvalidArgument, characterv1.Reason_REASON_CLASS_UNAVAILABLE)
 		}
 		assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla","class":"paladin"}`, authed()), http.StatusBadRequest, "class_unavailable")
 	})
@@ -409,7 +409,7 @@ func TestSettings(t *testing.T) {
 	t.Run("an unknown preset is the service's rule", func(t *testing.T) {
 		h := newHarness()
 		h.accounts.updateSettings = func(context.Context, *accountv1.UpdateSettingsRequest) (*accountv1.UpdateSettingsResponse, error) {
-			return nil, grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_CONTROL_PRESET)
+			return nil, grpctest.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_CONTROL_PRESET)
 		}
 		assertError(t, h.do("PUT", "/api/settings", `{"control_preset":"vim"}`, authed()), http.StatusBadRequest, "bad_control_preset")
 	})

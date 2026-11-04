@@ -249,8 +249,8 @@ func TestFollow(t *testing.T) {
 	}
 }
 
-func TestErrorBuildsAFailureWithAReason(t *testing.T) {
-	err := grpcx.Error(codes.FailedPrecondition, testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND)
+func TestErrorForBuildsAFailureWithAReason(t *testing.T) {
+	err := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND))
 	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND) || status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("got %v", err)
 	}
@@ -259,17 +259,6 @@ func TestErrorBuildsAFailureWithAReason(t *testing.T) {
 	_, got := c.EmptyCall(context.Background(), &testpb.Empty{})
 	if r, ok := grpcx.ReasonOf(got); !ok || r.Name != "GRPCLB_ROUTE_TYPE_BACKEND" {
 		t.Fatalf("after a call: %v", got)
-	}
-}
-
-func TestReasonsListsEveryValueButTheZeroOne(t *testing.T) {
-	got := grpcx.Reasons(testpb.GrpclbRouteType(0).Descriptor())
-	want := []grpcx.Reason{
-		{Domain: "grpc.testing", Name: "GRPCLB_ROUTE_TYPE_FALLBACK"},
-		{Domain: "grpc.testing", Name: "GRPCLB_ROUTE_TYPE_BACKEND"},
-	}
-	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
-		t.Fatalf("got %v", got)
 	}
 }
 

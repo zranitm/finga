@@ -1,4 +1,4 @@
-package sentinels_test
+package sentineltest_test
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"finga/pkg/sentinels"
+	"finga/pkg/sentineltest"
 )
 
 func write(t *testing.T, dir, name, src string) {
@@ -35,7 +35,7 @@ var (
 	write(t, dir, "shop/shop_test.go", "package shop\nimport \"errors\"\nvar ErrTestOnly = errors.New(\"test\")\n")
 	write(t, dir, "shop/internal/db/models.go", "package db\nimport \"errors\"\nvar ErrGenerated = errors.New(\"generated\")\n")
 	write(t, dir, "till/till.go", "package till\nimport \"errors\"\nvar ErrClosed = errors.New(\"closed\")\n")
-	got, err := sentinels.Declared(filepath.Join(dir, "shop"), filepath.Join(dir, "till"))
+	got, err := sentineltest.Declared(filepath.Join(dir, "shop"), filepath.Join(dir, "till"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ var (
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	if _, err := sentinels.Declared(filepath.Join(dir, "missing")); err == nil {
+	if _, err := sentineltest.Declared(filepath.Join(dir, "missing")); err == nil {
 		t.Fatal("a missing directory is not an error")
 	}
 }
@@ -55,7 +55,7 @@ func TestReferenced(t *testing.T) {
 var rows = []any{shop.ErrFull, till.ErrClosed, shop.Other}
 func f() error { return shop.ErrGone }
 `)
-	got, err := sentinels.Referenced(filepath.Join(dir, "table.go"))
+	got, err := sentineltest.Referenced(filepath.Join(dir, "table.go"))
 	if err != nil {
 		t.Fatal(err)
 	}

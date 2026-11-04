@@ -23,6 +23,7 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/pkg/grpcx"
+	"finga/pkg/grpcx/grpctest"
 	"finga/services/gateway/internal/clients/errmap"
 	"finga/services/gateway/internal/model"
 )
@@ -38,25 +39,25 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 		status int
 		code   string
 	}{
-		{grpcx.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
-		{grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, "unauthenticated"},
-		{grpcx.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
-		{grpcx.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
-		{grpcx.Error(codes.Aborted, accountv1.Reason_REASON_SESSION_RACE), http.StatusConflict, "session_race"},
-		{grpcx.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), http.StatusConflict, "name_taken"},
-		{grpcx.Error(codes.FailedPrecondition, characterv1.Reason_REASON_CHARACTER_SLOTS_FULL), http.StatusConflict, "character_slots_full"},
-		{grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, "character_not_found"},
-		{grpcx.Error(codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED), http.StatusTooManyRequests, "chat_rate_limited"},
-		{grpcx.Error(codes.Unavailable, socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE), http.StatusServiceUnavailable, "party_chat_unavailable"},
-		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), http.StatusConflict, "inventory_full"},
-		{grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED), http.StatusConflict, "idempotency_key_reused"},
-		{fmt.Errorf("pickup: %w", grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM)), http.StatusConflict, "slot_holds_other_item"},
-		{grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_ID), http.StatusBadRequest, "bad_id"},
-		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), http.StatusConflict, "party_full"},
-		{grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), http.StatusConflict, "not_party_leader"},
-		{grpcx.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), http.StatusNotFound, "invite_expired"},
-		{grpcx.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), http.StatusServiceUnavailable, "pickups_unavailable"},
-		{grpcx.Error(codes.ResourceExhausted, worldv1.Reason_REASON_PICKUP_BUSY), http.StatusServiceUnavailable, "pickup_busy"},
+		{grpctest.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
+		{grpctest.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED), http.StatusUnauthorized, "unauthenticated"},
+		{grpctest.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
+		{grpctest.Error(codes.InvalidArgument, accountv1.Reason_REASON_BAD_PASSWORD), http.StatusBadRequest, "bad_password"},
+		{grpctest.Error(codes.Aborted, accountv1.Reason_REASON_SESSION_RACE), http.StatusConflict, "session_race"},
+		{grpctest.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), http.StatusConflict, "name_taken"},
+		{grpctest.Error(codes.FailedPrecondition, characterv1.Reason_REASON_CHARACTER_SLOTS_FULL), http.StatusConflict, "character_slots_full"},
+		{grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, "character_not_found"},
+		{grpctest.Error(codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED), http.StatusTooManyRequests, "chat_rate_limited"},
+		{grpctest.Error(codes.Unavailable, socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE), http.StatusServiceUnavailable, "party_chat_unavailable"},
+		{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), http.StatusConflict, "inventory_full"},
+		{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED), http.StatusConflict, "idempotency_key_reused"},
+		{fmt.Errorf("pickup: %w", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM)), http.StatusConflict, "slot_holds_other_item"},
+		{grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_ID), http.StatusBadRequest, "bad_id"},
+		{grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), http.StatusConflict, "party_full"},
+		{grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), http.StatusConflict, "not_party_leader"},
+		{grpctest.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), http.StatusNotFound, "invite_expired"},
+		{grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), http.StatusServiceUnavailable, "pickups_unavailable"},
+		{grpctest.Error(codes.ResourceExhausted, worldv1.Reason_REASON_PICKUP_BUSY), http.StatusServiceUnavailable, "pickup_busy"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.code, func(t *testing.T) {
@@ -70,7 +71,7 @@ func TestForGivesEachServiceErrorItsOwnCode(t *testing.T) {
 
 func TestForFindsTheErrorThroughWrappingAndNeverShowsTheCause(t *testing.T) {
 	cause := errors.New(`duplicate key value violates unique constraint "characters_name_key"`)
-	err := fmt.Errorf("create character: %w", fmt.Errorf("%w: %w", grpcx.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), cause))
+	err := fmt.Errorf("create character: %w", fmt.Errorf("%w: %w", grpctest.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), cause))
 	got := errmap.For(err)
 	if got.Code != "name_taken" || got.Status != http.StatusConflict {
 		t.Fatalf("For = %+v, want name_taken 409", got)
@@ -91,7 +92,7 @@ func TestForTurnsAnUnknownErrorIntoInternalWithoutItsText(t *testing.T) {
 	if got := errmap.For(nil); got != (errmap.Public{}) {
 		t.Fatalf("For(nil) = %+v, want the zero value", got)
 	}
-	if model.IsInternal(errmap.For(grpcx.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_SLOT))) || !model.IsInternal(errmap.For(errors.New("boom"))) {
+	if model.IsInternal(errmap.For(grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_SLOT))) || !model.IsInternal(errmap.For(errors.New("boom"))) {
 		t.Fatal("IsInternal disagrees with For")
 	}
 }
@@ -125,7 +126,7 @@ var contracts = []protoreflect.EnumDescriptor{
 
 func TestEveryReasonIsMapped(t *testing.T) {
 	for _, d := range contracts {
-		for _, r := range grpcx.Reasons(d) {
+		for _, r := range grpctest.Reasons(d) {
 			internal := model.IsInternal(errmap.For(grpcx.ErrorFor(codes.Unknown, r)))
 			if internal != errmap.IsInternalOnly(r) {
 				t.Errorf("%s: internal %v, listed as internal only %v", r, internal, errmap.IsInternalOnly(r))
@@ -141,8 +142,8 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 		kind error // nil: none
 		code string
 	}{
-		{"a reason is its Public", grpcx.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, "party_full"},
-		{"the world not holding the stream", grpcx.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, "internal"},
+		{"a reason is its Public", grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, "party_full"},
+		{"the world not holding the stream", grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, "internal"},
 		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "internal"},
 		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, "internal"},
 	}

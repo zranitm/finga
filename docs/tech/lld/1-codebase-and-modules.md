@@ -455,12 +455,11 @@ type ErrorTable []ErrorRow
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server // request ID in, a recorded panic as Internal, errors through the table
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error)   // insecure in Stage 1; sends the request ID
 func ReasonOf(err error) (Reason, bool) // the ErrorInfo a failed call carries: the proto package and the value's name
-func Error(code codes.Code, reason protoreflect.Enum) error // a failure with a reason, for fakes and adapters
-func Reasons(d protoreflect.EnumDescriptor) []Reason      // every value of a reason enum but the zero one
 func IsRule(err error) bool             // a reason is present: retrying the same request cannot help
 func Follow[T any](ctx context.Context, open func(context.Context) (grpc.ServerStreamingClient[T], error), handle func(*T), opts FollowOptions)
 // a panic in handle breaks the subscription like a stream error, and Follow resubscribes
-// grpcx/grpctest.Conn serves a *grpc.Server over bufconn for a test.
+// grpcx/grpctest, test support: Conn serves a *grpc.Server over bufconn; Error is a failure with a reason,
+// for fakes; Reasons lists a reason enum's values but the zero one, for the guard tests.
 
 // pkg/panics: a recovered panic as an error, logged and counted the same way in every flow
 type Error struct { Value any; Stack []byte }
@@ -483,7 +482,7 @@ func New[T any](queue int) *Hub[T]
 func (h *Hub[T]) Subscribe(id string) *Sub[T] // replaces and ends an older one with the same ID
 func (s *Sub[T]) Send(v T) bool               // never blocks; a full queue ends the subscription
 
-// pkg/sentinels: reads Go source for the sentinel errors a package declares (step 23),
+// pkg/sentineltest, test support: reads Go source for the sentinel errors a package declares (step 23),
 // so each error table's guard test checks it maps every one
 func Declared(dirs ...string) ([]string, error)
 func Referenced(files ...string) (map[string]bool, error)

@@ -90,10 +90,15 @@ type server struct {
 	rec *recorder
 }
 
+// textProtocol is the subprotocol the tests' clients ask for: text frames, so a test can write them by hand.
+const textProtocol = "finga.v1.json"
+
+var textOnly = []wsconn.Subprotocol{{Name: textProtocol, Codec: serverCodec(wsconn.JSON)}}
+
 func start(t *testing.T, rec *recorder, opts wsconn.Options) *server {
 	t.Helper()
-	if opts.Codec == nil {
-		opts.Codec = serverCodec(wsconn.JSON) // text frames, so a test can write them by hand
+	if opts.Subprotocols == nil {
+		opts.Subprotocols = textOnly
 	}
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		wsconn.Serve(w, r, rec, opts)
@@ -108,7 +113,7 @@ func dial(t *testing.T, s *server, origin string) *websocket.Conn {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	opts := &websocket.DialOptions{}
+	opts := &websocket.DialOptions{Subprotocols: []string{textProtocol}}
 	if origin != "" {
 		opts.HTTPHeader = http.Header{"Origin": []string{origin}}
 	}
@@ -152,7 +157,7 @@ func TestOriginCheck(t *testing.T) {
 			s := start(t, rec, wsconn.Options{AllowedOrigins: tt.allowed})
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			opts := &websocket.DialOptions{}
+			opts := &websocket.DialOptions{Subprotocols: []string{textProtocol}}
 			if tt.origin != "" {
 				opts.HTTPHeader = http.Header{"Origin": []string{tt.origin}}
 			}
@@ -547,7 +552,7 @@ func TestWithoutARecorderThePanicReachesTheHTTPServerAfterOnClose(t *testing.T) 
 	rec := newRecorder()
 	rec.onOpen = func(wsconn.Conn) { panic("boom") }
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		wsconn.Serve(w, r, rec, wsconn.Options{Codec: serverCodec(wsconn.JSON)})
+		wsconn.Serve(w, r, rec, wsconn.Options{Subprotocols: textOnly})
 	}))
 	ts.Config.ErrorLog = log.New(&serverLog, "", 0)
 	ts.Start()

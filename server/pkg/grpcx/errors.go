@@ -104,26 +104,7 @@ func IsRule(err error) bool {
 	return ok
 }
 
-// Error is a failure carrying a reason, as a table row would send it.
-func Error(code codes.Code, reason protoreflect.Enum) error {
-	return ErrorFor(code, Key(reason))
-}
-
-// ErrorFor is Error from a Reason.
+// ErrorFor is a failure carrying r, as a table row would send it.
 func ErrorFor(code codes.Code, r Reason) error {
 	return withReason(code, r).Err()
-}
-
-// Reasons lists a reason enum's non-zero values in order: what a calling side's table must cover.
-func Reasons(d protoreflect.EnumDescriptor) []Reason {
-	values := d.Values()
-	out := make([]Reason, 0, values.Len())
-	for i := range values.Len() {
-		v := values.Get(i)
-		if v.Number() == 0 {
-			continue
-		}
-		out = append(out, Reason{Domain: string(d.ParentFile().Package()), Name: string(v.Name())})
-	}
-	return out
 }

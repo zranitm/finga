@@ -20,7 +20,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/sentinels"
+	"finga/pkg/sentineltest"
 	"finga/services/world/internal/application"
 	"finga/services/world/internal/handler"
 	"finga/services/world/internal/model"
@@ -39,7 +39,7 @@ func (c *characters) Load(_ context.Context, id kernel.CharacterID, account kern
 	defer c.mu.Unlock()
 	ch, ok := c.chars[id]
 	if !ok || ch.Account != account {
-		return model.Character{}, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+		return model.Character{}, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
 	return ch, nil
 }
@@ -330,7 +330,7 @@ func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
 		err  error
 		want grpcx.Reason
 	}{
-		{"the item service's, passed through", grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)},
+		{"the item service's, passed through", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)},
 		{"the world's own", model.ErrPickupBusy, grpcx.Key(worldv1.Reason_REASON_PICKUP_BUSY)},
 		{"one nobody expected crosses empty", errors.New("disk on fire"), grpcx.Reason{}},
 	}
@@ -347,11 +347,11 @@ func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
 }
 
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "model"))
+	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) < 2 {
 		t.Fatalf("declared %v, err %v", declared, err)
 	}
-	mapped, err := sentinels.Referenced("errors.go")
+	mapped, err := sentineltest.Referenced("errors.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +364,7 @@ func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 	for _, row := range handler.Errors {
 		used[grpcx.Key(row.Reason)] = true
 	}
-	for _, r := range grpcx.Reasons(worldv1.Reason(0).Descriptor()) {
+	for _, r := range grpctest.Reasons(worldv1.Reason(0).Descriptor()) {
 		if !used[r] {
 			t.Errorf("%s has no row in Errors", r)
 		}

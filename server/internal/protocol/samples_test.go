@@ -1,12 +1,13 @@
-package protocol
+package protocol_test
 
 import (
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
 
-// Samples is one full message per type: the source of the golden files the client's tests also read.
-func Samples() []wsconn.Message {
+// samples is one full message per type: the source of the golden files the client's tests also read.
+func samples() []wsconn.Message {
 	const (
 		charA = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b"
 		charB = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c"
@@ -34,7 +35,7 @@ func Samples() []wsconn.Message {
 		}}
 	}
 	return []wsconn.Message{
-		{Type: "Hello", Data: &clientv1.Hello{Token: "opaque-session-token", ProtocolVersion: Version, CharacterId: charA}},
+		{Type: "Hello", Data: &clientv1.Hello{Token: "opaque-session-token", ProtocolVersion: protocol.Version, CharacterId: charA}},
 		{Type: "Input", Seq: 117, Data: &clientv1.Input{Right: true, Jump: true}},
 		{Type: "Attack", Seq: 118, Data: &clientv1.Attack{}},
 		{Type: "PickUp", Seq: 119, Data: &clientv1.PickUp{}},

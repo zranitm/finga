@@ -22,9 +22,25 @@ var update = flag.Bool("update", false, "rewrite testdata/contracts from the sam
 
 const contractsDir = "../../testdata/contracts"
 
+// bodies are the message names an envelope's oneof body carries, sorted.
+func bodies(envelope proto.Message) []string {
+	fields := envelope.ProtoReflect().Descriptor().Oneofs().ByName("body").Fields()
+	out := make([]string, 0, fields.Len())
+	for i := range fields.Len() {
+		out = append(out, string(fields.Get(i).Message().Name()))
+	}
+	slices.Sort(out)
+	return out
+}
+
+var (
+	clientMessages = bodies(&clientv1.ClientMessage{})
+	serverMessages = bodies(&clientv1.ServerMessage{})
+)
+
 // codecFor is the codec that writes m: the client's for its messages, the server's for the rest.
 func codecFor(m wsconn.Message, f wsconn.Format) *wsconn.ProtoCodec {
-	if slices.Contains(protocol.ClientMessages(), m.Type) {
+	if slices.Contains(clientMessages, m.Type) {
 		return protocol.ClientCodec(f)
 	}
 	return protocol.ServerCodec(f)
@@ -32,14 +48,14 @@ func codecFor(m wsconn.Message, f wsconn.Format) *wsconn.ProtoCodec {
 
 // readerFor decodes what codecFor wrote.
 func readerFor(m wsconn.Message, f wsconn.Format) *wsconn.ProtoCodec {
-	if slices.Contains(protocol.ClientMessages(), m.Type) {
+	if slices.Contains(clientMessages, m.Type) {
 		return protocol.ServerCodec(f)
 	}
 	return protocol.ClientCodec(f)
 }
 
 func TestGoldenFiles(t *testing.T) {
-	samples := protocol.Samples()
+	samples := samples()
 	seen := map[string]bool{}
 	for _, m := range samples {
 		if seen[m.Type] {
@@ -47,7 +63,7 @@ func TestGoldenFiles(t *testing.T) {
 		}
 		seen[m.Type] = true
 	}
-	for _, name := range append(protocol.ClientMessages(), protocol.ServerMessages()...) {
+	for _, name := range slices.Concat(clientMessages, serverMessages) {
 		if !seen[name] {
 			t.Errorf("message %s has no sample, so no golden file", name)
 		}
@@ -101,7 +117,7 @@ func TestGoldenFiles(t *testing.T) {
 }
 
 func TestEverySampleSurvivesTheBinaryFormat(t *testing.T) {
-	for _, m := range protocol.Samples() {
+	for _, m := range samples() {
 		b, err := codecFor(m, wsconn.Binary).Encode(m)
 		if err != nil {
 			t.Fatalf("%s: %v", m.Type, err)
@@ -121,10 +137,10 @@ func TestCatalogueCoversPage4(t *testing.T) {
 		"server": {"ChatMessage", "Correction", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
 			"LevelUp", "MapChange", "PartyInvited", "PartyState", "Pong", "Respawned", "Response", "Snapshot", "Welcome"},
 	}
-	if got := protocol.ClientMessages(); !slices.Equal(got, want["client"]) {
+	if got := clientMessages; !slices.Equal(got, want["client"]) {
 		t.Errorf("client messages %v", got)
 	}
-	if got := protocol.ServerMessages(); !slices.Equal(got, want["server"]) {
+	if got := serverMessages; !slices.Equal(got, want["server"]) {
 		t.Errorf("server messages %v", got)
 	}
 }

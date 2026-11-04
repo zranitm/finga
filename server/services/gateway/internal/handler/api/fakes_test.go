@@ -11,7 +11,7 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	characterv1 "finga/api/gen/character/v1"
 	"finga/pkg/auth"
-	"finga/pkg/grpcx"
+	"finga/pkg/grpcx/grpctest"
 	"finga/services/gateway/internal/clients/errmap"
 )
 
@@ -71,7 +71,7 @@ func (f *fakeCharacters) List(ctx context.Context, in *characterv1.ListRequest, 
 	return f.list(ctx, in)
 }
 
-var errUnauthenticated = errmap.Wrap(grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED))
+var errUnauthenticated = errmap.Wrap(grpctest.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED))
 
 // fakeSessions knows one good token.
 type fakeSessions struct {

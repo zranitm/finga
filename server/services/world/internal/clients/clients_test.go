@@ -79,7 +79,7 @@ func TestPickupsRetryOnlyWhatMayPass(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"a full inventory is a rule", grpcx.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), false},
+		{"a full inventory is a rule", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), false},
 		{"an unreachable service may pass", status.Error(codes.Unavailable, "connection refused"), true},
 		{"an unexplained failure may pass", status.Error(codes.Internal, "internal error"), true},
 		{"a malformed item ID in a reply", errors.New("bad item ID"), true},
@@ -128,7 +128,7 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	if lu := f.levelUps[0]; lu.GetLevel() != 4 || lu.GetExp() != 6 || lu.GetStats().GetStrength() != 21 || lu.GetStats().GetVitality() != 16 || lu.GetHp() != 280 || lu.GetMp() != 31 {
 		t.Fatalf("level-up %+v", lu)
 	}
-	if s.Retryable(grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || !s.Retryable(status.Error(codes.Unavailable, "down")) {
+	if s.Retryable(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || !s.Retryable(status.Error(codes.Unavailable, "down")) {
 		t.Fatal("only a failure without a reason is retried")
 	}
 }
@@ -142,7 +142,7 @@ type loads struct {
 func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characterv1.LoadResponse, error) {
 	f.req = req
 	if f.char == nil {
-		return nil, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+		return nil, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
 	return &characterv1.LoadResponse{Character: f.char}, nil
 }

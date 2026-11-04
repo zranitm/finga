@@ -14,23 +14,20 @@ import (
 
 // HandlerOptions tune a Handler.
 type HandlerOptions struct {
-	AddSource   bool                // write the caller's file:line
-	ErrorOutput zapcore.WriteSyncer // where failed writes are reported; nil is stderr
+	AddSource bool // write the caller's file:line
 }
 
 // Handler is a slog.Handler that encodes and writes records through a zapcore.Core.
 type Handler struct {
 	core   zapcore.Core
 	opts   HandlerOptions
-	groups []string // opened by WithGroup, written once a field lands in them
+	errs   zapcore.WriteSyncer // where failed writes are reported: stderr
+	groups []string            // opened by WithGroup, written once a field lands in them
 }
 
 // NewHandler writes through core.
 func NewHandler(core zapcore.Core, opts HandlerOptions) *Handler {
-	if opts.ErrorOutput == nil {
-		opts.ErrorOutput = zapcore.Lock(os.Stderr)
-	}
-	return &Handler{core: core, opts: opts}
+	return &Handler{core: core, opts: opts, errs: zapcore.Lock(os.Stderr)}
 }
 
 // Enabled reports whether the core writes records at level.
@@ -44,7 +41,7 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	if ce == nil {
 		return nil
 	}
-	ce.ErrorOutput = h.opts.ErrorOutput
+	ce.ErrorOutput = h.errs
 	if h.opts.AddSource && r.PC != 0 {
 		frame, _ := runtime.CallersFrames([]uintptr{r.PC}).Next()
 		ce.Caller = zapcore.EntryCaller{Defined: true, PC: frame.PC, File: frame.File, Line: frame.Line, Function: frame.Function}
@@ -89,7 +86,7 @@ func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	if len(fields) == 0 {
 		return h
 	}
-	return &Handler{core: h.core.With(h.inGroups(fields)), opts: h.opts}
+	return &Handler{core: h.core.With(h.inGroups(fields)), opts: h.opts, errs: h.errs}
 }
 
 // WithGroup nests the attributes that follow under name.
@@ -97,7 +94,7 @@ func (h *Handler) WithGroup(name string) slog.Handler {
 	if name == "" {
 		return h
 	}
-	return &Handler{core: h.core, opts: h.opts, groups: append(slices.Clip(h.groups), name)}
+	return &Handler{core: h.core, opts: h.opts, errs: h.errs, groups: append(slices.Clip(h.groups), name)}
 }
 
 func (h *Handler) inGroups(fields []zapcore.Field) []zapcore.Field {

@@ -161,16 +161,6 @@ func TestATypeIsRoutedOnce(t *testing.T) {
 	wsrouter.Handle(r, "Move", h)
 }
 
-func TestTypesListsTheRoutes(t *testing.T) {
-	r := wsrouter.New[*conn]()
-	h := func(*wsrouter.Context[*conn], move) (any, error) { return nil, nil }
-	wsrouter.Handle(r, "Move", h)
-	wsrouter.Handle(r, "Attack", h)
-	if got := r.Types(); !reflect.DeepEqual(got, []string{"Attack", "Move"}) {
-		t.Fatalf("types %v", got)
-	}
-}
-
 // recovered collects what the router's Recover handed over.
 type recovered struct {
 	mu   sync.Mutex

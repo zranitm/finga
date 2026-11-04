@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"os"
 	"reflect"
 	"runtime"
 	"slices"
@@ -167,13 +168,23 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("disk full") }
 
-func TestAFailedWriteIsReportedToTheErrorOutput(t *testing.T) {
+func TestAFailedWriteIsReportedOnStderr(t *testing.T) {
+	stderr, err := os.CreateTemp(t.TempDir(), "stderr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := os.Stderr
+	os.Stderr = stderr // the handler takes stderr when it is built
+	t.Cleanup(func() { os.Stderr = saved })
 	core := zapcore.NewCore(zapcore.NewJSONEncoder(zapcore.EncoderConfig{MessageKey: "msg"}), zapcore.AddSync(failingWriter{}), zapcore.DebugLevel)
-	var errs bytes.Buffer
-	log := slog.New(logger.NewHandler(core, logger.HandlerOptions{ErrorOutput: zapcore.AddSync(&errs)}))
+	log := slog.New(logger.NewHandler(core, logger.HandlerOptions{}))
 	log.Info("lost")
-	if !strings.Contains(errs.String(), "disk full") {
-		t.Fatalf("error output %q", errs.String())
+	errs, err := os.ReadFile(stderr.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(errs), "disk full") {
+		t.Fatalf("stderr %q", errs)
 	}
 }
 

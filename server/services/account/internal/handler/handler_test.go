@@ -18,7 +18,7 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/sentinels"
+	"finga/pkg/sentineltest"
 	"finga/pkg/uuidv7"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
@@ -197,11 +197,11 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 }
 
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "model"))
+	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) == 0 {
 		t.Fatalf("declared %v, err %v", declared, err)
 	}
-	mapped, err := sentinels.Referenced("errors.go")
+	mapped, err := sentineltest.Referenced("errors.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -214,7 +214,7 @@ func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 	for _, row := range handler.Errors {
 		used[grpcx.Key(row.Reason)] = true
 	}
-	for _, r := range grpcx.Reasons(accountv1.Reason(0).Descriptor()) {
+	for _, r := range grpctest.Reasons(accountv1.Reason(0).Descriptor()) {
 		if !used[r] {
 			t.Errorf("%s has no row in Errors", r)
 		}

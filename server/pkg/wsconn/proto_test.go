@@ -120,16 +120,6 @@ func TestProtoCodecRefuses(t *testing.T) {
 	})
 }
 
-func TestProtoCodecLists(t *testing.T) {
-	c := serverCodec(wsconn.Binary)
-	if got := c.Reads(); len(got) != 14 || got[0] != "Attack" || got[len(got)-1] != "Ping" {
-		t.Fatalf("Reads = %v, want the ClientMessage bodies sorted", got)
-	}
-	if got := c.Writes(); len(got) != 17 || got[0] != "ChatMessage" || got[len(got)-1] != "Welcome" {
-		t.Fatalf("Writes = %v, want the ServerMessage bodies sorted", got)
-	}
-}
-
 func TestProtoCodecPanicsOnAnEnvelopeWithoutABody(t *testing.T) {
 	defer func() {
 		if recover() == nil {

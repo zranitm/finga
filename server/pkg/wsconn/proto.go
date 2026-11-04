@@ -2,7 +2,6 @@ package wsconn
 
 import (
 	"fmt"
-	"slices"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -65,21 +64,6 @@ func newEnvelope(m proto.Message) protoEnvelope {
 
 // Binary reports whether frames are binary.
 func (c *ProtoCodec) Binary() bool { return c.format == Binary }
-
-// Reads lists the message types Decode yields, sorted.
-func (c *ProtoCodec) Reads() []string { return c.in.types() }
-
-// Writes lists the message types Encode takes, sorted.
-func (c *ProtoCodec) Writes() []string { return c.out.types() }
-
-func (e protoEnvelope) types() []string {
-	out := make([]string, 0, len(e.byName))
-	for name := range e.byName {
-		out = append(out, name)
-	}
-	slices.Sort(out)
-	return out
-}
 
 // Encode wraps m.Data, a message of the out envelope's body, with m's envelope fields.
 func (c *ProtoCodec) Encode(m Message) ([]byte, error) {

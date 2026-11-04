@@ -73,9 +73,7 @@ type Subprotocol struct {
 
 // Options tune Serve. Zero values take the defaults.
 type Options struct {
-	// Codec serves every connection when Subprotocols is empty.
-	Codec Codec
-	// Subprotocols are the codecs a client picks from, in the server's order of preference.
+	// Subprotocols are the codecs a client picks from, in the server's order of preference; a client that asks for none is closed.
 	Subprotocols   []Subprotocol
 	AllowedOrigins []string // full origins, like http://localhost:5173; empty: same host only
 	ReadLimit      int64
@@ -114,13 +112,10 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 	if err != nil {
 		return // Accept has written the HTTP error
 	}
-	codec := opts.Codec
-	if len(names) > 0 {
-		codec = chosen(opts.Subprotocols, ws.Subprotocol())
-		if codec == nil {
-			_ = ws.Close(websocket.StatusCode(CloseNoSubprotocol), "ask for a subprotocol: "+strings.Join(names, ", "))
-			return
-		}
+	codec := chosen(opts.Subprotocols, ws.Subprotocol())
+	if codec == nil {
+		_ = ws.Close(websocket.StatusCode(CloseNoSubprotocol), "ask for a subprotocol: "+strings.Join(names, ", "))
+		return
 	}
 	ws.SetReadLimit(opts.ReadLimit)
 	frame := websocket.MessageText

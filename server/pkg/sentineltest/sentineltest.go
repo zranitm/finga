@@ -1,5 +1,5 @@
-// Package sentinels lists sentinel errors in Go source, for error-table completeness tests.
-package sentinels
+// Package sentineltest lists sentinel errors in Go source, for error-table completeness tests.
+package sentineltest
 
 import (
 	"go/ast"

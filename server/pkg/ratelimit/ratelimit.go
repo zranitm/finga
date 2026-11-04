@@ -22,22 +22,16 @@ func WithClock(now func() time.Time) Option {
 	return func(b *Buckets) { b.now = now }
 }
 
-// WithIdleTTL sets how long an untouched key stays before a sweep evicts it.
-func WithIdleTTL(d time.Duration) Option {
-	return func(b *Buckets) { b.idleTTL = d }
-}
-
 const (
-	defaultIdleTTL = 10 * time.Minute
-	sweepEvery     = 4096 // Allow calls between automatic sweeps
+	idleTTL    = 10 * time.Minute // an untouched key is evicted after this
+	sweepEvery = 4096             // Allow calls between sweeps
 )
 
 // Buckets is a Limiter over a map of keys. Safe for concurrent use.
 type Buckets struct {
-	limit   rate.Limit
-	burst   int
-	idleTTL time.Duration
-	now     func() time.Time
+	limit rate.Limit
+	burst int
+	now   func() time.Time
 
 	mu    sync.Mutex
 	keys  map[string]*entry
@@ -51,7 +45,7 @@ type entry struct {
 
 // NewBuckets makes buckets refilling at perSecond tokens a second, up to burst.
 func NewBuckets(perSecond float64, burst int, opts ...Option) *Buckets {
-	b := &Buckets{limit: rate.Limit(perSecond), burst: burst, idleTTL: defaultIdleTTL, now: time.Now, keys: map[string]*entry{}}
+	b := &Buckets{limit: rate.Limit(perSecond), burst: burst, now: time.Now, keys: map[string]*entry{}}
 	for _, opt := range opts {
 		opt(b)
 	}
@@ -77,22 +71,9 @@ func (b *Buckets) Allow(key string) bool {
 	return e.limiter.AllowN(now, 1)
 }
 
-// Len is the number of keys held.
-func (b *Buckets) Len() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return len(b.keys)
-}
-
-// Sweep evicts keys idle longer than the TTL; Allow also sweeps every few thousand calls.
-func (b *Buckets) Sweep() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.sweep(b.now())
-}
-
+// sweep evicts keys idle longer than idleTTL.
 func (b *Buckets) sweep(now time.Time) {
-	cutoff := now.Add(-b.idleTTL)
+	cutoff := now.Add(-idleTTL)
 	for key, e := range b.keys {
 		if e.last.Before(cutoff) {
 			delete(b.keys, key)

@@ -144,12 +144,12 @@ func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.
 		return nil, f.joinErr
 	}
 	if !f.live {
-		return nil, grpcx.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED)
+		return nil, grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED)
 	}
 	id, _ := kernel.ParseCharacterID(req.GetCharacterId())
 	c, ok := f.chars[id]
 	if !ok || c.account.String() != req.GetAccountId() {
-		return nil, grpcx.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
+		return nil, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
 	f.joined = append(f.joined, req)
 	for _, m := range f.before {

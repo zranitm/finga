@@ -79,7 +79,7 @@ func TestGuardOverTheAccountService(t *testing.T) {
 		t.Fatalf("calls %v", f.seen)
 	}
 	t.Run("an unauthenticated answer keeps its reason", func(t *testing.T) {
-		f.err = grpcx.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED)
+		f.err = grpctest.Error(codes.Unauthenticated, accountv1.Reason_REASON_UNAUTHENTICATED)
 		_, err := g.Validate(ctx, "bad")
 		if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(accountv1.Reason_REASON_UNAUTHENTICATED) {
 			t.Fatalf("got %v", err)

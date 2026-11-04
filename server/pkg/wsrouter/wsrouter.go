@@ -106,13 +106,3 @@ func (r *Router[S]) Dispatch(session S, m Message) {
 	c := &Context[S]{Session: session, Message: m, Ctx: context.Background(), chain: append(slices.Clone(r.global), route...), index: -1, onPanic: r.onPanic}
 	c.run()
 }
-
-// Types lists the routed message types, sorted.
-func (r *Router[S]) Types() []string {
-	types := make([]string, 0, len(r.routes))
-	for t := range r.routes {
-		types = append(types, t)
-	}
-	slices.Sort(types)
-	return types
-}

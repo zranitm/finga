@@ -15,7 +15,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/sentinels"
+	"finga/pkg/sentineltest"
 	"finga/pkg/uuidv7"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
@@ -304,11 +304,11 @@ func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 }
 
 func TestTheTableCoversTheModulesAndTheContract(t *testing.T) {
-	declared, err := sentinels.Declared(filepath.Join("..", "model"))
+	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) < 2 {
 		t.Fatalf("declared %v, err %v", declared, err)
 	}
-	mapped, err := sentinels.Referenced("errors.go")
+	mapped, err := sentineltest.Referenced("errors.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +321,7 @@ func TestTheTableCoversTheModulesAndTheContract(t *testing.T) {
 	for _, row := range handler.Errors {
 		used[grpcx.Key(row.Reason)] = true
 	}
-	for _, r := range grpcx.Reasons(socialv1.Reason(0).Descriptor()) {
+	for _, r := range grpctest.Reasons(socialv1.Reason(0).Descriptor()) {
 		if !used[r] {
 			t.Errorf("%s has no row in Errors", r)
 		}

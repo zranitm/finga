@@ -32,9 +32,3 @@ func ServerCodec(f wsconn.Format) *wsconn.ProtoCodec {
 func ClientCodec(f wsconn.Format) *wsconn.ProtoCodec {
 	return wsconn.NewProtoCodec(&clientv1.ServerMessage{}, &clientv1.ClientMessage{}, f)
 }
-
-// ClientMessages are the sorted names of the client's messages; each has a gateway route.
-func ClientMessages() []string { return ServerCodec(wsconn.Binary).Reads() }
-
-// ServerMessages are the sorted names of the server's messages.
-func ServerMessages() []string { return ServerCodec(wsconn.Binary).Writes() }
