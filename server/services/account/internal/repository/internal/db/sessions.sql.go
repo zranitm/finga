@@ -132,6 +132,40 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 	return err
 }
 
+const lockSession = `-- name: LockSession :one
+SELECT id, account_id, token_hash, previous_token_hash, rotated_at, created_at, expires_at, revoked_at
+FROM sessions
+WHERE id = $1
+FOR UPDATE
+`
+
+type LockSessionRow struct {
+	ID                uuid.UUID
+	AccountID         uuid.UUID
+	TokenHash         []byte
+	PreviousTokenHash []byte
+	RotatedAt         *time.Time
+	CreatedAt         time.Time
+	ExpiresAt         time.Time
+	RevokedAt         *time.Time
+}
+
+func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (LockSessionRow, error) {
+	row := q.db.QueryRow(ctx, lockSession, id)
+	var i LockSessionRow
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.TokenHash,
+		&i.PreviousTokenHash,
+		&i.RotatedAt,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
 const revokeAccountSessions = `-- name: RevokeAccountSessions :execrows
 UPDATE sessions SET revoked_at = $2 WHERE account_id = $1 AND revoked_at IS NULL
 `

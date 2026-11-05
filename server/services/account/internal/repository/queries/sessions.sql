@@ -13,6 +13,12 @@ SELECT id, account_id, token_hash, previous_token_hash, rotated_at, created_at, 
 FROM sessions
 WHERE id = $1;
 
+-- name: LockSession :one
+SELECT id, account_id, token_hash, previous_token_hash, rotated_at, created_at, expires_at, revoked_at
+FROM sessions
+WHERE id = $1
+FOR UPDATE;
+
 -- name: RotateSessionToken :execrows
 UPDATE sessions SET previous_token_hash = token_hash, token_hash = $2, rotated_at = $3
 WHERE id = $1 AND revoked_at IS NULL;

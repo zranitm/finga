@@ -41,6 +41,8 @@ type SessionRepository interface {
 	Revoke(ctx context.Context, id kernel.SessionID, at time.Time) error
 	// Rotate retires the current token as the previous one; ErrNotFound when the session is not active.
 	Rotate(ctx context.Context, id kernel.SessionID, newHash []byte, at time.Time) error
+	// Lock reads the session and holds its row until the transaction ends.
+	Lock(ctx context.Context, id kernel.SessionID) (model.Session, error)
 	ConsumePrevious(ctx context.Context, id kernel.SessionID) error
 	Extend(ctx context.Context, id kernel.SessionID, until time.Time) error
 }

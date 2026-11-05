@@ -171,6 +171,15 @@ func (r fakeSessions) Rotate(_ context.Context, id kernel.SessionID, newHash []b
 	return model.ErrNotFound
 }
 
+func (r fakeSessions) Lock(_ context.Context, id kernel.SessionID) (model.Session, error) {
+	for _, s := range r.s.sessions {
+		if s.ID == id {
+			return s, nil
+		}
+	}
+	return model.Session{}, model.ErrNotFound
+}
+
 func (r fakeSessions) ConsumePrevious(_ context.Context, id kernel.SessionID) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].ID == id {

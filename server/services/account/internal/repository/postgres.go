@@ -173,11 +173,15 @@ func (p *Postgres) FindSession(ctx context.Context, id kernel.SessionID) (model.
 	if err != nil {
 		return model.Session{}, classify(err)
 	}
+	return sessionOf(row), nil
+}
+
+func sessionOf(row db.FindSessionByIDRow) model.Session {
 	return model.Session{
 		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
 		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
-	}, nil
+	}
 }
 
 // Rotate retires the current token and installs a new hash.
@@ -190,6 +194,15 @@ func (r sessionRepo) Rotate(ctx context.Context, id kernel.SessionID, newHash []
 		return model.ErrNotFound
 	}
 	return nil
+}
+
+// Lock reads the session FOR UPDATE.
+func (r sessionRepo) Lock(ctx context.Context, id kernel.SessionID) (model.Session, error) {
+	row, err := r.q.LockSession(ctx, uuid.UUID(id))
+	if err != nil {
+		return model.Session{}, classify(err)
+	}
+	return sessionOf(db.FindSessionByIDRow(row)), nil
 }
 
 // ConsumePrevious ends the grace for the previous token.

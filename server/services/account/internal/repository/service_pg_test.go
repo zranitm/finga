@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -85,5 +86,47 @@ func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 	}
 	if valid != 1 {
 		t.Fatalf("%d tokens validate, want 1", valid)
+	}
+}
+
+// The retired token works once within the grace, however many requests race with it; the rest are reuse.
+func TestTheRetiredTokenWorksOnceUnderARace(t *testing.T) {
+	ctx := context.Background()
+	svc, store := newPGService(t)
+	acc, err := svc.Register(ctx, application.RegisterInput{Username: "alice", Password: "correct horse"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := svc.Issue(ctx, uuid.UUID(acc.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := svc.Validate(ctx, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Rotate(ctx, p.SessionID); err != nil {
+		t.Fatal(err)
+	}
+	const n = 8
+	var wg sync.WaitGroup
+	var ok atomic.Int32
+	for range n {
+		wg.Go(func() {
+			if _, err := svc.Validate(ctx, old); err == nil {
+				ok.Add(1)
+			}
+		})
+	}
+	wg.Wait()
+	if got := ok.Load(); got != 1 {
+		t.Fatalf("the retired token validated %d times, want once", got)
+	}
+	var revoked bool
+	if err := store.pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id = $1`, p.SessionID).Scan(&revoked); err != nil {
+		t.Fatal(err)
+	}
+	if !revoked {
+		t.Fatal("the reuse left the session active")
 	}
 }

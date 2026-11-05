@@ -206,17 +206,7 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 		return auth.Principal{}, model.ErrUnauthenticated
 	}
 	if !bytes.Equal(session.TokenHash, hash[:]) {
-		// The previous token: once, inside the grace; otherwise reuse.
-		if session.RotatedAt == nil || !now.Before(session.RotatedAt.Add(rotationGrace)) {
-			if err := s.revoke(ctx, session.ID, now, ReasonTokenReuse); err != nil {
-				return auth.Principal{}, err
-			}
-			return auth.Principal{}, model.ErrUnauthenticated
-		}
-		err := s.store.InTx(ctx, func(uow UnitOfWork) error {
-			return uow.Sessions().ConsumePrevious(ctx, session.ID)
-		})
-		if err != nil {
+		if err := s.consumePrevious(ctx, session.ID, hash[:], now); err != nil {
 			return auth.Principal{}, err
 		}
 	}
@@ -224,6 +214,36 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 		return auth.Principal{}, err
 	}
 	return auth.Principal{AccountID: uuid.UUID(session.AccountID), SessionID: uuid.UUID(session.ID)}, nil
+}
+
+// consumePrevious lets the retired token through once inside the grace, deciding under the session's row
+// lock so racing requests cannot all pass; any other use is reuse and revokes the session.
+func (s *Service) consumePrevious(ctx context.Context, id kernel.SessionID, hash []byte, now time.Time) error {
+	reuse := false
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		cur, err := uow.Sessions().Lock(ctx, id)
+		if err != nil {
+			return err
+		}
+		if cur.RevokedAt != nil || !bytes.Equal(cur.PreviousTokenHash, hash) {
+			return model.ErrUnauthenticated // revoked, or rotated again, since the read
+		}
+		if cur.RotatedAt == nil || !now.Before(cur.RotatedAt.Add(rotationGrace)) {
+			reuse = true
+			return nil
+		}
+		return uow.Sessions().ConsumePrevious(ctx, id)
+	})
+	if errors.Is(err, model.ErrNotFound) {
+		return model.ErrUnauthenticated
+	}
+	if err != nil || !reuse {
+		return err
+	}
+	if err := s.revoke(ctx, id, now, ReasonTokenReuse); err != nil {
+		return err
+	}
+	return model.ErrUnauthenticated
 }
 
 // Rotate implements auth.Sessions; the old token stays valid once within the grace period.
