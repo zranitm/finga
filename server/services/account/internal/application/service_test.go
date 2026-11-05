@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -25,7 +27,7 @@ var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 
 const idleTTL = 7 * 24 * time.Hour
 
 func newService(store application.Store) *application.Service {
-	return application.NewService(store, application.Options{Hash: cheapHash})
+	return application.NewService(store, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 }
 
 func register(t *testing.T, svc *application.Service, username, pw string) model.Account {
@@ -332,4 +334,29 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+}
+
+// A burst of sign-ups past the hash slots answers busy once the wait runs out, instead of taking
+// 64 MiB a hash.
+func TestSignUpsPastTheHashSlotsAreBusy(t *testing.T) {
+	svc := application.NewService(newFakeStore(), application.Options{Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
+	var wg sync.WaitGroup
+	var ok, busy atomic.Int32
+	for k := range 16 {
+		wg.Go(func() {
+			_, err := svc.Register(context.Background(), application.RegisterInput{Username: fmt.Sprintf("player_%d", k), Password: "correct horse"})
+			switch {
+			case err == nil:
+				ok.Add(1)
+			case errors.Is(err, model.ErrBusy):
+				busy.Add(1)
+			default:
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if ok.Load() == 0 || busy.Load() == 0 {
+		t.Fatalf("%d signed up, %d busy; want some of each with one slot", ok.Load(), busy.Load())
+	}
 }

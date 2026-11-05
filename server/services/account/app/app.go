@@ -28,13 +28,13 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	rec := panics.NewRecorder(log, panicCount)
-	pool, err := dbx.NewPool(ctx, cfg.Database.URL, cfg.Database.MaxConns)
+	pool, err := dbx.NewPool(ctx, cfg.Database)
 	if err != nil {
 		return nil, err
 	}
 	var srv *handler.Server // built below; the hooks only fire once requests arrive
 	accounts := application.NewService(repository.NewPostgres(pool), application.Options{
-		Hash:             hashCost(cfg.Password),
+		Hasher:           password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 		OnSessionRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.SessionRevoked(ctx, id, reason) },
 		OnAccountRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.AccountRevoked(ctx, id, reason) },
 	})

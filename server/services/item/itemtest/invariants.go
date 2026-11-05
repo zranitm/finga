@@ -33,7 +33,8 @@ func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, e
 	return out, rows.Err()
 }
 
-// templateTotals is check 6: per template, the quantity held equals its events' delta sum.
+// templateTotals is check 6: per template, the quantity held equals what drops and starter grants
+// created or stacked, less what was discarded. Moves, stacks and splits by the player only shift it.
 // Items and events are summed apart; a row join would multiply quantities by event count.
 func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
@@ -42,6 +43,7 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		LEFT JOIN (
 			SELECT i.template_id, sum(e.quantity_delta) AS delta
 			FROM item_events e JOIN items i ON i.id = e.item_id
+			WHERE (e.kind IN ('created', 'stacked') AND e.cause_type IN ('drop', 'starter')) OR e.kind = 'discarded'
 			GROUP BY i.template_id
 		) ev USING (template_id)
 		WHERE held.quantity <> coalesce(ev.delta, 0)`)
@@ -56,7 +58,32 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		if err := rows.Scan(&template, &quantity, &delta); err != nil {
 			return nil, err
 		}
-		out = append(out, fmt.Sprintf("template %s: holds %d, events sum to %d", template, quantity, delta))
+		out = append(out, fmt.Sprintf("template %s: holds %d, drops and starters less discards come to %d", template, quantity, delta))
+	}
+	return out, rows.Err()
+}
+
+// stacksAndSplitsBalance is check 6's other half: per template, what the player stacked equals what
+// they split off, as a merge takes from one stack what it puts on another.
+func stacksAndSplitsBalance(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT i.template_id, sum(e.quantity_delta)
+		FROM item_events e JOIN items i ON i.id = e.item_id
+		WHERE e.kind IN ('stacked', 'split') AND e.cause_type = 'player'
+		GROUP BY i.template_id
+		HAVING sum(e.quantity_delta) <> 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var template string
+		var net int64
+		if err := rows.Scan(&template, &net); err != nil {
+			return nil, err
+		}
+		out = append(out, fmt.Sprintf("template %s: the player's stacks and splits net %d", template, net))
 	}
 	return out, rows.Err()
 }
@@ -91,6 +118,7 @@ var checks = []struct {
 }{
 	{"5 quantity matches events", quantityMatchesEvents},
 	{"6 template totals", templateTotals},
+	{"6 stacks and splits balance", stacksAndSplitsBalance},
 	{"8 one item per slot", oneItemPerSlot},
 }
 

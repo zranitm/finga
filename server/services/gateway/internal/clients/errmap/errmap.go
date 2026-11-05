@@ -35,6 +35,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(accountv1.Reason_REASON_BAD_CONTROL_PRESET): model.BadControlPreset,
 	grpcx.Key(accountv1.Reason_REASON_SESSION_RACE):       model.SessionRace,
 	grpcx.Key(accountv1.Reason_REASON_BAD_ID):             model.BadID,
+	grpcx.Key(accountv1.Reason_REASON_BUSY):               model.RateLimited,
 
 	grpcx.Key(itemv1.Reason_REASON_ITEM_NOT_FOUND):         model.ItemNotFound,
 	grpcx.Key(itemv1.Reason_REASON_SLOT_TAKEN):             model.SlotTaken,

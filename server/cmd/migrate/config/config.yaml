@@ -11,3 +11,4 @@ log:
 database:
   url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
   max_conns: 2
+  lock_timeout: 10s                 # a migration waiting on a lock would queue every query behind it; a long one may run

@@ -2,14 +2,17 @@
 package password
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/sync/semaphore"
 )
 
 // Params tune argon2id. Memory is in KiB.
@@ -68,4 +71,51 @@ func Verify(hash, password string) (bool, error) {
 	}
 	got := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Threads, uint32(len(want))) //nolint:gosec // length of a decoded hash
 	return subtle.ConstantTimeCompare(got, want) == 1, nil
+}
+
+// ErrBusy is a hash that found every slot taken for its whole wait.
+var ErrBusy = errors.New("password: too many hashes at once")
+
+// Hasher runs Hash and Verify at most slots at a time: each run holds Params.Memory, so the slots bound
+// what a burst of logins can take. A call waits up to wait for a slot, then fails with ErrBusy.
+type Hasher struct {
+	params Params
+	slots  *semaphore.Weighted
+	wait   time.Duration
+}
+
+// NewHasher hashes with p, slots at a time.
+func NewHasher(p Params, slots int64, wait time.Duration) *Hasher {
+	return &Hasher{params: p, slots: semaphore.NewWeighted(slots), wait: wait}
+}
+
+// Hash is Hash with the hasher's params, once a slot is free.
+func (h *Hasher) Hash(ctx context.Context, password string) (string, error) {
+	if err := h.acquire(ctx); err != nil {
+		return "", err
+	}
+	defer h.slots.Release(1)
+	return Hash(password, h.params)
+}
+
+// Verify is Verify, once a slot is free.
+func (h *Hasher) Verify(ctx context.Context, hash, password string) (bool, error) {
+	if err := h.acquire(ctx); err != nil {
+		return false, err
+	}
+	defer h.slots.Release(1)
+	return Verify(hash, password)
+}
+
+// acquire takes a slot within the wait; a caller whose own context ended gets its error.
+func (h *Hasher) acquire(ctx context.Context) error {
+	waitCtx, cancel := context.WithTimeout(ctx, h.wait)
+	defer cancel()
+	if err := h.slots.Acquire(waitCtx, 1); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return ErrBusy
+	}
+	return nil
 }

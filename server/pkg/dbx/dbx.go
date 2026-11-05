@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -37,13 +38,22 @@ const (
 	retryMax    = 200 * time.Millisecond
 )
 
-// NewPool connects to url with at most maxConns connections and pings it.
-func NewPool(ctx context.Context, url string, maxConns int32) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(url)
+// NewPool connects with c's limits on every connection and pings the database.
+func NewPool(ctx context.Context, c Config) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(c.URL)
 	if err != nil {
 		return nil, fmt.Errorf("dbx: parse database url: %w", err)
 	}
-	cfg.MaxConns = maxConns
+	cfg.MaxConns = c.MaxConns
+	for name, d := range map[string]time.Duration{
+		"statement_timeout":                   c.StatementTimeout,
+		"lock_timeout":                        c.LockTimeout,
+		"idle_in_transaction_session_timeout": c.IdleInTransactionTimeout,
+	} {
+		if d > 0 {
+			cfg.ConnConfig.RuntimeParams[name] = strconv.FormatInt(d.Milliseconds(), 10)
+		}
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("dbx: connect: %w", err)

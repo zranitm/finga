@@ -48,12 +48,13 @@ var (
 	ErrRate        = errors.New("chat: rate limited")
 )
 
-// CleanLine strips control characters and trims the ends; the client renders it as plain text.
+// CleanLine strips control and format characters (bidi overrides, zero-width marks) and trims the ends;
+// the client renders it as plain text.
 func CleanLine(text string) string {
 	var b strings.Builder
 	b.Grow(len(text))
 	for _, r := range text {
-		if unicode.IsControl(r) || r == utf8.RuneError {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) || r == utf8.RuneError {
 			continue
 		}
 		b.WriteRune(r)

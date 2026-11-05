@@ -38,7 +38,7 @@ func run() int {
 	defer stop()
 	connectCtx, cancel := context.WithTimeout(ctx, connTimeout)
 	defer cancel()
-	pool, err := dbx.NewPool(connectCtx, cfg.Database.URL, cfg.Database.MaxConns)
+	pool, err := dbx.NewPool(connectCtx, cfg.Database)
 	if err != nil {
 		log.Error("database connection failed", "err", err)
 		return 1

@@ -1,8 +1,13 @@
 package password_test
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"finga/pkg/auth/password"
 )
@@ -76,5 +81,46 @@ func TestDefaultParamsVerify(t *testing.T) {
 	ok, err := password.Verify(h, "a passphrase")
 	if err != nil || !ok {
 		t.Fatalf("verify = %v, %v", ok, err)
+	}
+}
+
+// Each run holds 64 MiB, so a burst of logins waits for a slot, and past the wait answers ErrBusy
+// instead of taking the memory.
+func TestTheHasherCapsConcurrentHashes(t *testing.T) {
+	h := password.NewHasher(password.Default, 1, time.Millisecond)
+	var wg sync.WaitGroup
+	var ok, busy atomic.Int32
+	for range 16 {
+		wg.Go(func() {
+			_, err := h.Hash(context.Background(), "a passphrase")
+			switch {
+			case err == nil:
+				ok.Add(1)
+			case errors.Is(err, password.ErrBusy):
+				busy.Add(1)
+			default:
+				t.Error(err)
+			}
+		})
+	}
+	wg.Wait()
+	if ok.Load() == 0 || busy.Load() == 0 {
+		t.Fatalf("%d hashed, %d busy; want some of each with one slot", ok.Load(), busy.Load())
+	}
+}
+
+func TestTheHasherVerifiesWhatItHashed(t *testing.T) {
+	h := password.NewHasher(cheap, 2, time.Second)
+	hash, err := h.Hash(context.Background(), "hunter22")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := h.Verify(context.Background(), hash, "hunter22"); err != nil || !ok {
+		t.Fatalf("verify %v %v", ok, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := h.Verify(ctx, hash, "hunter22"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("a cancelled caller got %v, want its own error", err)
 	}
 }

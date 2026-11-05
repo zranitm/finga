@@ -24,6 +24,9 @@ type Password struct {
 	Time      uint32 `mapstructure:"time" validate:"min=1"`          // passes over the memory
 	MemoryKiB uint32 `mapstructure:"memory_kib" validate:"min=8192"` // the memory each hash fills
 	Threads   uint8  `mapstructure:"threads" validate:"min=1"`       // lanes hashed in parallel
+	// Concurrent hashes at most, each holding MemoryKiB; past them a login waits up to Wait, then is refused.
+	Concurrent int64         `mapstructure:"concurrent" validate:"min=1"`
+	Wait       time.Duration `mapstructure:"wait" validate:"gt=0"`
 }
 
 // Host is the part of the configuration the host runs the service with.

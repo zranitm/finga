@@ -16,7 +16,12 @@ log:
 database:
   url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
   max_conns: 20
+  statement_timeout: 5s             # a statement that runs longer is cancelled
+  lock_timeout: 2s                  # so is one that waits longer for a lock
+  idle_in_transaction_timeout: 10s  # and a session left idle in a transaction is ended
 password:               # the Argon2id cost of a password hash; raise it as the hardware allows
   time: 1
   memory_kib: 65536
   threads: 4
+  concurrent: 4           # hashes at once, 64 MiB each; a login past them waits, then answers rate_limited
+  wait: 1s

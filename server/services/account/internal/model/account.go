@@ -20,6 +20,7 @@ var (
 
 	// ErrSessionRace means two logins raced; it escapes only once the login retries run out.
 	ErrSessionRace = errors.New("account: another session became active during login")
+	ErrBusy        = errors.New("account: too many password checks at once")
 )
 
 // Preset is a control preset.

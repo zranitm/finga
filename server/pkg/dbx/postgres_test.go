@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
@@ -122,7 +123,7 @@ func TestNewPool(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	t.Run("connects and pings", func(t *testing.T) {
-		pool, err := dbx.NewPool(ctx, cluster.URL(t), 3)
+		pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 3})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -131,13 +132,42 @@ func TestNewPool(t *testing.T) {
 			t.Fatalf("max_conns = %d, want 3", got)
 		}
 	})
+	// A stuck lock or a forgotten transaction must not park a connection, and the workers on it, forever.
+	t.Run("every connection has the timeouts", func(t *testing.T) {
+		pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 2, StatementTimeout: 300 * time.Millisecond, LockTimeout: 200 * time.Millisecond, IdleInTransactionTimeout: 2 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		for setting, want := range map[string]string{"statement_timeout": "300ms", "lock_timeout": "200ms", "idle_in_transaction_session_timeout": "2s"} {
+			var got string
+			if err := pool.QueryRow(ctx, "SHOW "+setting).Scan(&got); err != nil || got != want {
+				t.Errorf("%s = %q (%v), want %s", setting, got, err, want)
+			}
+		}
+		var pgErr *pgconn.PgError
+		if _, err := pool.Exec(ctx, "SELECT pg_sleep(2)"); !errors.As(err, &pgErr) || pgErr.Code != "57014" {
+			t.Fatalf("a 2 s statement: %v, want query_canceled", err)
+		}
+	})
+	t.Run("zero leaves the server's default", func(t *testing.T) {
+		pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		var got string
+		if err := pool.QueryRow(ctx, "SHOW statement_timeout").Scan(&got); err != nil || got != "0" {
+			t.Fatalf("statement_timeout = %q (%v)", got, err)
+		}
+	})
 	t.Run("a bad URL is rejected", func(t *testing.T) {
-		if _, err := dbx.NewPool(ctx, "postgres://finga:wrong@127.0.0.1:1/nope?sslmode=disable&connect_timeout=1", 1); err == nil {
+		if _, err := dbx.NewPool(ctx, dbx.Config{URL: "postgres://finga:wrong@127.0.0.1:1/nope?sslmode=disable&connect_timeout=1", MaxConns: 1}); err == nil {
 			t.Fatal("no error")
 		}
 	})
 	t.Run("malformed URL is rejected", func(t *testing.T) {
-		if _, err := dbx.NewPool(ctx, "::not a url", 1); err == nil {
+		if _, err := dbx.NewPool(ctx, dbx.Config{URL: "::not a url", MaxConns: 1}); err == nil {
 			t.Fatal("no error")
 		}
 	})

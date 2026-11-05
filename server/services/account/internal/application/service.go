@@ -36,7 +36,7 @@ type LoginInput struct {
 
 // Options tune the service.
 type Options struct {
-	Hash password.Params // the Argon2id cost, from the config
+	Hasher *password.Hasher // the Argon2id cost and how many hashes run at once, from the config
 
 	// OnSessionRevoked and OnAccountRevoked, if set, hear of ended sessions so connections can close.
 	OnSessionRevoked func(ctx context.Context, sessionID uuid.UUID, reason string)
@@ -89,7 +89,7 @@ var (
 
 // NewService wires the service over its store.
 func NewService(store Store, opts Options) *Service {
-	dummy, err := password.Hash(dummySecret, opts.Hash)
+	dummy, err := opts.Hasher.Hash(context.Background(), dummySecret)
 	if err != nil {
 		panic("account: dummy hash: " + err.Error()) // the parameters were just validated by Hash's caller
 	}
@@ -110,9 +110,9 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	if len(in.Password) < passwordMin || len(in.Password) > passwordMax {
 		return model.Account{}, model.ErrBadPassword
 	}
-	hash, err := password.Hash(in.Password, s.opts.Hash)
+	hash, err := s.opts.Hasher.Hash(ctx, in.Password)
 	if err != nil {
-		return model.Account{}, err
+		return model.Account{}, busy(err)
 	}
 	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings(), CreatedAt: time.Now()}
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
@@ -142,12 +142,17 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			_, _ = password.Verify(s.dummy, pw)
+			if _, err := s.opts.Hasher.Verify(ctx, s.dummy, pw); errors.Is(err, password.ErrBusy) {
+				return uuid.Nil, model.ErrBusy
+			}
 			return uuid.Nil, model.ErrUnauthenticated
 		}
 		return uuid.Nil, err
 	}
-	ok, err := password.Verify(creds.PasswordHash, pw)
+	ok, err := s.opts.Hasher.Verify(ctx, creds.PasswordHash, pw)
+	if errors.Is(err, password.ErrBusy) {
+		return uuid.Nil, model.ErrBusy
+	}
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("account %s: %w", creds.Account.ID, err)
 	}
@@ -343,4 +348,12 @@ func newToken() (token string, hash []byte, err error) {
 	token = base64.RawURLEncoding.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(token))
 	return token, sum[:], nil
+}
+
+// busy turns a hash that found no free slot into the module's error.
+func busy(err error) error {
+	if errors.Is(err, password.ErrBusy) {
+		return model.ErrBusy
+	}
+	return err
 }

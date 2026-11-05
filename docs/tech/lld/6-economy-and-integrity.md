@@ -73,7 +73,7 @@ Each check returns a list of mismatches; any mismatch is a failure.
 3. Each transfer's postings sum to zero.
 4. No wallet balance is negative.
 5. Each item's quantity equals the sum of its item events' quantity deltas.
-6. Per item template, total quantity equals what drops created minus what was discarded.
+6. Per item template, total quantity equals what drops and starter grants created or stacked, minus what was discarded; and what the player stacked equals what they split off, since a merge only moves quantity between two stacks.
 7. Every listed item has exactly one open listing (active or expired), and every open listing points to a listed item.
 8. No two items share an inventory slot.
 9. Every sold listing has exactly one `market_purchase` transfer and one TradeSettled event.

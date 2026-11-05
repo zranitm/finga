@@ -40,6 +40,8 @@ enum Reason {
   REASON_BAD_CONTROL_PRESET = 7;
   REASON_SESSION_RACE = 8;
   REASON_BAD_ID = 9;
+  // Every password hash slot stayed taken for the whole wait; try again shortly.
+  REASON_BUSY = 10;
 }
 
 // RevokeReason says why sessions ended.

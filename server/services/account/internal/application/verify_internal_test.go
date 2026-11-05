@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"finga/internal/kernel"
 	"finga/pkg/auth/password"
@@ -21,7 +22,7 @@ func (noAccounts) Settings(context.Context, kernel.AccountID) (model.Settings, e
 }
 
 func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
-	svc := NewService(noAccounts{}, Options{Hash: password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}})
+	svc := NewService(noAccounts{}, Options{Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
 	if svc.dummy == "" {
 		t.Fatal("no dummy hash")
 	}

@@ -29,6 +29,8 @@ func TestClean(t *testing.T) {
 		{"<b>not html</b>", "<b>not html</b>"},                 // the client renders plain text; nothing to strip
 		{"ünïcödé ✓", "ünïcödé ✓"},
 		{"\x00\x7f", ""},
+		{"left\u202Eright", "leftright"},       // a bidi override would turn what follows around
+		{"zero\u200Bwidth\uFEFF", "zerowidth"}, // invisible characters hide what a line says
 	} {
 		if got := model.CleanLine(tt.in); got != tt.want {
 			t.Errorf("Clean(%q) = %q, want %q", tt.in, got, tt.want)

@@ -114,5 +114,5 @@ on crit (random below crit_rate): damage = round(damage × (1 + crit_damage))
 
 ## Chat and party
 
-- **Chat:** up to 120 characters, control characters stripped, always shown as plain text on the client, never as HTML.
+- **Chat:** up to 120 characters, control and format characters stripped (bidi overrides and zero-width marks too, so a line shows what it says), always shown as plain text on the client, never as HTML.
 - **Party:** up to 4; invites expire after 30 s; one party per character; if the leader leaves, the longest-standing member becomes leader; offline members stay and show as offline. Parties live in memory (TD-19). There is no create command: a character without a party invites someone on the same map, and the party exists, with the inviter as leader, when the invite is accepted. Only the leader invites, kicks and promotes. PartyState goes to every member after a membership change and after a change the world reports (level-up, respawn, map change, connect, disconnect), not after every hit.

@@ -67,6 +67,52 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 	}
 }
 
+// Corruptions whose events still sum to each item's quantity pass check 5; check 6 sees them.
+func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
+	ctx := context.Background()
+	t.Run("a drop recorded as the player's own", func(t *testing.T) {
+		h := newHarness(t)
+		h.add(t, "c1", "red_potion", 10)
+		if _, err := h.pool.Exec(ctx, `UPDATE item_events SET cause_type = 'player' WHERE kind = 'created'`); err != nil {
+			t.Fatal(err)
+		}
+		got, err := itemtest.CheckInvariants(ctx, h.pool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || !strings.HasPrefix(got[0], "6 template totals") {
+			t.Fatalf("found %v, want check 6's template totals alone", got)
+		}
+	})
+	t.Run("a merge whose split half is no longer the player's", func(t *testing.T) {
+		h := newHarness(t)
+		h.add(t, "c2", "red_potion", 100) // a full stack in slot 0
+		h.add(t, "c3", "red_potion", 30)  // 30 more open slot 1
+		if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "c4", ItemID: h.inventory(t)[0].ID, Quantity: 20}); err != nil {
+			t.Fatal(err)
+		}
+		var small model.Item
+		for _, it := range h.inventory(t) {
+			if it.Quantity == 30 {
+				small = it
+			}
+		}
+		if _, err := h.svc.Move(ctx, h.actor, application.MoveInput{Key: "c5", ItemID: small.ID, Tab: gamedata.Use, Slot: 0}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.pool.Exec(ctx, `UPDATE item_events SET cause_type = 'drop' WHERE kind = 'split'`); err != nil {
+			t.Fatal(err)
+		}
+		got, err := itemtest.CheckInvariants(ctx, h.pool)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || !strings.HasPrefix(got[0], "6 stacks and splits") {
+			t.Fatalf("found %v, want check 6's stacks and splits alone", got)
+		}
+	})
+}
+
 func TestInventoryProperties(t *testing.T) {
 	data, err := gamedata.Load("../../../../data")
 	if err != nil {

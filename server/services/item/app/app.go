@@ -30,7 +30,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	pool, err := dbx.NewPool(ctx, cfg.Database.URL, cfg.Database.MaxConns)
+	pool, err := dbx.NewPool(ctx, cfg.Database)
 	if err != nil {
 		return nil, err
 	}

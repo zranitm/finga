@@ -69,7 +69,7 @@ type stack struct {
 const grace = time.Second
 
 // cheapPasswords keeps the stack's hashing fast; production's cost is in the account's config.yaml.
-var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1}
+var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Threads: 1, Concurrent: 2, Wait: time.Second}
 
 func newStack(t *testing.T) *stack {
 	t.Helper()

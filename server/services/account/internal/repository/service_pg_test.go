@@ -5,9 +5,11 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
+	"finga/pkg/auth/password"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
 )
@@ -17,7 +19,7 @@ import (
 func newPGService(t *testing.T) (*application.Service, *Postgres) {
 	t.Helper()
 	store := NewPostgres(cluster.DB(t))
-	svc := application.NewService(store, application.Options{Hash: cheapHash})
+	svc := application.NewService(store, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 	return svc, store
 }
 

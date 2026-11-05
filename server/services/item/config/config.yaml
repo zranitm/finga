@@ -17,3 +17,6 @@ data_dir: data           # the game data, relative to server/
 database:
   url: postgres://finga:finga@localhost:5432/finga?sslmode=disable
   max_conns: 20
+  statement_timeout: 5s             # a statement that runs longer is cancelled
+  lock_timeout: 2s                  # so is one that waits longer for a lock
+  idle_in_transaction_timeout: 10s  # and a session left idle in a transaction is ended

@@ -20,4 +20,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrBadPreset, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_CONTROL_PRESET},
 	{Err: model.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_ID},
+	{Err: model.ErrBusy, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_BUSY},
 }

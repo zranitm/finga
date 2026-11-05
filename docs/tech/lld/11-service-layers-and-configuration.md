@@ -101,7 +101,7 @@ dependencies:              # where this service dials the ones it calls
 | Service | Keys besides `grpc`, `ops`, `shutdown_grace`, `log` |
 | --- | --- |
 | `gateway` | `http.addr` (:8080) and `http.cors_origins` instead of `grpc`; `ws.hello_timeout` (5s) and `ws.command_queue` (64); `sessions.join_timeout` (5s) and `sessions.check_interval` (1m); `dependencies` on all five |
-| `account` | `database`, `password` (the Argon2id cost: `time` 1, `memory_kib` 65536, `threads` 4) |
+| `account` | `database`, `password` (the Argon2id cost: `time` 1, `memory_kib` 65536, `threads` 4; and `concurrent` 4 hashes at once, a login past them waiting up to `wait` 1s, then answered `rate_limited`) |
 | `character` | `database`, `data_dir`, `dependencies.item` |
 | `item` | `database`, `data_dir` |
 | `world` | `data_dir`, `tick_rate_hz`, `checkpoint_interval`, `flush_timeout`, `economy.workers`, `dependencies` on character, item and social |
@@ -110,6 +110,7 @@ dependencies:              # where this service dials the ones it calls
 
 - **Overrides keep their form:** `FINGA_` and the key's path in upper case, read by the one binary that has the key: `FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM`, `FINGA_HTTP_ADDR` (was `FINGA_SERVER_ADDR`). Compose sets each service's own.
 - **Paths stay relative to `server/`,** as `data/` is: a binary run from `server/` (`make run`, the process tests) reads `services/<name>/config/config.yaml`, and the image puts the file at the same path under `/app`. `CONFIG_PATH` still names any file, and a git-ignored `config.local.yaml` next to the defaults still replaces them.
+- **Database timeouts:** each pooled connection gets `statement_timeout` (5s), `lock_timeout` (2s) and `idle_in_transaction_timeout` (10s) from the `database` section, so a stuck lock or a forgotten transaction cannot park the workers that hold a connection; `migrate` sets only `lock_timeout` (10s), since a migration may run long but must not queue every query behind a lock. A zero leaves Postgres's default, which is none.
 - **Shared parts are types, not a shared file:** `internal/host` has the types of the sections every service has (`GRPCSection`, `OpsSection`), `pkg/dbx` the database section's (`dbx.Config`), and `pkg/logger` the log section's (`logger.Config`, TD-28); each service's `Config` lists its keys with them and hands the host its part (`Host()`), and `host.Main` loads the service's own file for it.
 
 ## Steps
