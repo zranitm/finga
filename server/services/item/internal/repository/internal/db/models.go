@@ -53,3 +53,8 @@ type Outbox struct {
 	OccurredAt  time.Time
 	PublishedAt *time.Time
 }
+
+type StarterGrant struct {
+	CharacterID uuid.UUID
+	GrantedAt   time.Time
+}

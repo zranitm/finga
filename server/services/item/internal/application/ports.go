@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -29,6 +30,8 @@ type Repository interface {
 	// slot), then locks the rows in ID order and returns them by tab and slot.
 	LockInventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
 	LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error)
+	// RecordStarterGrant records that owner got its starter kit; false when it already had.
+	RecordStarterGrant(ctx context.Context, owner kernel.CharacterID, at time.Time) (bool, error)
 	Insert(ctx context.Context, it model.Item) error
 	SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error
 	SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error

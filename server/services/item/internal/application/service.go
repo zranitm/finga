@@ -43,7 +43,6 @@ const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
 	scopeDiscard = "item.discard"
-	scopeStarter = "item.starter"
 
 	topic = "item"
 )
@@ -267,7 +266,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 	return Result{Changed: []model.Slot{slotOf(it)}}, nil
 }
 
-// GrantStarter gives a new character its starter items once, keyed by the character ID.
+// GrantStarter gives a new character its starter items once, recorded in starter_grants; later calls change nothing.
 func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (Result, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
@@ -283,21 +282,23 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
-		var err error
-		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeStarter, actor.Character.String(), class, func() (Result, error) {
-			var all Result
-			for k, g := range c.StarterItems {
-				r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, model.Cause{Type: model.CauseStarter})
-				if err != nil {
-					return Result{}, err
-				}
-				all.Changed = append(all.Changed, r.Changed...)
+		first, err := uow.Items().RecordStarterGrant(ctx, actor.Character, time.Now())
+		if err != nil || !first {
+			return err // a second grant changes nothing
+		}
+		for k, g := range c.StarterItems {
+			r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, model.Cause{Type: model.CauseStarter})
+			if err != nil {
+				return err
 			}
-			return all, nil
-		})
-		return err
+			res.Changed = append(res.Changed, r.Changed...)
+		}
+		return nil
 	})
-	return res, err
+	if err != nil {
+		return Result{}, err
+	}
+	return res, nil
 }
 
 func slotOf(it model.Item) model.Slot {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -420,21 +421,46 @@ func TestGrantStarter(t *testing.T) {
 		t.Fatal("ItemGranted outbox events missing")
 	}
 
-	t.Run("a second grant for the same character changes nothing and returns the first one's slots", func(t *testing.T) {
-		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
+	unchanged := func(t *testing.T, again application.Result, err error) {
+		t.Helper()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(again.Changed) != len(first.Changed) || again.Changed[0].Item.ID != first.Changed[0].Item.ID {
-			t.Fatalf("replay %+v, first %+v", again.Changed, first.Changed)
+		if len(again.Changed) != 0 {
+			t.Fatalf("a second grant changed %+v", again.Changed)
 		}
 		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 2 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
 			t.Fatal("the second grant wrote again")
 		}
+	}
+	t.Run("a second grant for the same character changes nothing", func(t *testing.T) {
+		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
+		unchanged(t, again, err)
 	})
-	t.Run("another class for the same character reuses the key", func(t *testing.T) {
-		if _, err := h.svc.GrantStarter(ctx, warrior, kernel.Bowman); !errors.Is(err, model.ErrKeyReused) {
-			t.Fatalf("err = %v, want ErrKeyReused", err)
+	t.Run("nor does one for another class", func(t *testing.T) {
+		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Bowman)
+		unchanged(t, again, err)
+	})
+	t.Run("the grant is recorded for good, not only while its idempotency key is kept", func(t *testing.T) {
+		if _, err := h.pool.Exec(ctx, `DELETE FROM idempotency_keys`); err != nil {
+			t.Fatal(err)
+		}
+		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
+		unchanged(t, again, err)
+	})
+	t.Run("concurrent grants give one kit", func(t *testing.T) {
+		mage := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		var wg sync.WaitGroup
+		for range 4 {
+			wg.Go(func() {
+				if _, err := h.svc.GrantStarter(ctx, mage, kernel.Warrior); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		wg.Wait()
+		if n := h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, mage.Character); n != 2 {
+			t.Fatalf("%d starter events, want one kit's 2", n)
 		}
 	})
 	t.Run("a bowman gets a bow", func(t *testing.T) {

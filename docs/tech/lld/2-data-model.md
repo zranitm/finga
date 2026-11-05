@@ -17,7 +17,7 @@
 | --- | --- |
 | `account` | `accounts`, `sessions` |
 | `character` | `characters` |
-| `item` | `items`, `item_events`, and, through `pkg/outbox` and `pkg/idempotency`, `outbox` and `idempotency_keys` |
+| `item` | `items`, `item_events`, `starter_grants`, and, through `pkg/outbox` and `pkg/idempotency`, `outbox` and `idempotency_keys` |
 | `economy`, through `pkg/ledger` (Stage 2) | `ledger_accounts`, `ledger_transfers`, `ledger_postings` |
 | `market` (Stage 2) | `listings` |
 
@@ -101,6 +101,13 @@ CREATE TABLE item_events (
   cause_type     text NOT NULL,   -- drop | market | player | starter
   cause_id       uuid,            -- drop, listing, or request ID
   occurred_at    timestamptz NOT NULL
+);
+
+-- one row per character given its starter kit, so a kit is granted once whatever happens to the
+-- idempotency keys; GrantStarter runs on every join
+CREATE TABLE starter_grants (
+  character_id uuid PRIMARY KEY,
+  granted_at   timestamptz NOT NULL
 );
 ```
 
@@ -190,7 +197,7 @@ CREATE TABLE idempotency_keys (
 );
 ```
 
-Nothing deletes idempotency keys or ended sessions yet, so both tables only grow. A cleanup must keep the starter grants' keys, or first record the grants elsewhere: GrantStarter runs on every join and gives the kit once only because its key (the character ID) is still there.
+Nothing deletes idempotency keys or ended sessions yet, so both tables only grow. A cleanup of old keys is safe: no rule depends on a key outliving the retries it serves (starter kits are recorded in `starter_grants`).
 
 ## Not in the database
 

@@ -87,6 +87,12 @@ type repo struct {
 	now func() time.Time
 }
 
+// RecordStarterGrant inserts the owner's grant unless it has one.
+func (r repo) RecordStarterGrant(ctx context.Context, owner kernel.CharacterID, at time.Time) (bool, error) {
+	n, err := r.q.RecordStarterGrant(ctx, db.RecordStarterGrantParams{CharacterID: uuid.UUID(owner), GrantedAt: at})
+	return n == 1, err
+}
+
 // LockInventory takes the owner's lock, then locks the owner's inventory rows in ID order.
 func (r repo) LockInventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) {
 	if err := r.q.LockOwner(ctx, owner.String()); err != nil {

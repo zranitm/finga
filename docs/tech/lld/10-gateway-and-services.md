@@ -251,7 +251,7 @@ After a world restart the HUD's EXP can show more than the reloaded checkpoint u
 
 ## Migrations
 
-- Each service with tables embeds its own goose files: account (`citext`, `accounts`, `sessions`, the rotation columns), character (`citext`, `characters`), item (`items`, `item_events`, `outbox`, `idempotency_keys`). `citext` is created by both account and character with `IF NOT EXISTS`, and neither drops it.
+- Each service with tables embeds its own goose files: account (`citext`, `accounts`, `sessions`, the rotation columns), character (`citext`, `characters`), item (`items`, `item_events`, `starter_grants`, `outbox`, `idempotency_keys`). `citext` is created by both account and character with `IF NOT EXISTS`, and neither drops it.
 - `cmd/migrate` applies every service's set, each with its own version table (`goose_account_version`, `goose_character_version`, `goose_item_version`).
 - A database migrated before the split (it has goose's default `goose_db_version`) is refused with a message saying to recreate it (`make down`); Stage 1 has no data worth carrying over.
 - The tests of a module apply only its own service's migrations, so a test that reads another service's table fails.

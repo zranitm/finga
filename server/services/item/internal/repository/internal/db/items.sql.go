@@ -195,6 +195,25 @@ func (q *Queries) LockOwner(ctx context.Context, ownerID string) error {
 	return err
 }
 
+const recordStarterGrant = `-- name: RecordStarterGrant :execrows
+INSERT INTO starter_grants (character_id, granted_at) VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type RecordStarterGrantParams struct {
+	CharacterID uuid.UUID
+	GrantedAt   time.Time
+}
+
+// Zero rows: the character already has its kit.
+func (q *Queries) RecordStarterGrant(ctx context.Context, arg RecordStarterGrantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordStarterGrant, arg.CharacterID, arg.GrantedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setQuantity = `-- name: SetQuantity :execrows
 UPDATE items SET quantity = $2, updated_at = $3 WHERE id = $1
 `

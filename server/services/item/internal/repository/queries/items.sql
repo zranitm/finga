@@ -34,3 +34,8 @@ UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL, 
 -- name: InsertItemEvent :exec
 INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+
+-- name: RecordStarterGrant :execrows
+-- Zero rows: the character already has its kit.
+INSERT INTO starter_grants (character_id, granted_at) VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
