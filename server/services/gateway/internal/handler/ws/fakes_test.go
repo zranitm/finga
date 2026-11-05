@@ -361,6 +361,7 @@ type fakeItems struct {
 	discards  []*itemv1.DiscardRequest
 	changed   []*itemv1.Slot
 	err       error
+	gate      chan struct{} // when set, Inventory waits for it to close
 }
 
 func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
@@ -370,7 +371,14 @@ func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
 	return itemv1.NewItemServiceClient(grpctest.Conn(t, srv))
 }
 
-func (f *fakeItems) Inventory(context.Context, *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
+func (f *fakeItems) Inventory(ctx context.Context, _ *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
+	if f.gate != nil {
+		select {
+		case <-f.gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	return &itemv1.InventoryResponse{Items: f.inventory}, nil
 }
 
@@ -400,7 +408,8 @@ type fakeSocial struct {
 	mu         sync.Mutex
 	boot       string
 	online     []*socialv1.OnlineRequest
-	offline    []string
+	offline    []*socialv1.OfflineRequest
+	hang       map[string]bool // Online for these character IDs waits until its context ends
 	calls      []string
 	of         map[string]*socialv1.Party
 	err        error // for party commands
@@ -471,11 +480,22 @@ func (f *fakeSocial) lastCall() string {
 	return f.calls[len(f.calls)-1]
 }
 
-func (f *fakeSocial) Online(_ context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
+func (f *fakeSocial) Online(ctx context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
+	f.mu.Lock()
+	f.online = append(f.online, req)
+	hang := f.hang[req.GetMember().GetId()]
+	f.mu.Unlock()
+	if hang {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	return &socialv1.OnlineResponse{}, nil
+}
+
+func (f *fakeSocial) set(change func(f *fakeSocial)) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.online = append(f.online, req)
-	return &socialv1.OnlineResponse{}, nil
+	change(f)
 }
 
 func (f *fakeSocial) onlineCalls() []*socialv1.OnlineRequest {
@@ -487,7 +507,7 @@ func (f *fakeSocial) onlineCalls() []*socialv1.OnlineRequest {
 func (f *fakeSocial) Offline(_ context.Context, req *socialv1.OfflineRequest) (*socialv1.OfflineResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.offline = append(f.offline, req.GetCharacterId())
+	f.offline = append(f.offline, req)
 	return &socialv1.OfflineResponse{}, nil
 }
 

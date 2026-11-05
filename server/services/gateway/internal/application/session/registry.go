@@ -33,7 +33,7 @@ type World interface {
 
 // Social is the social service as joins use it: who is online, and on which map.
 type Social interface {
-	Online(ctx context.Context, gateway string, p model.Player, mapID string) error
+	Online(ctx context.Context, gateway, conn string, p model.Player, mapID string) error
 }
 
 // Deps are what the registry and its joins are built from.

@@ -63,14 +63,16 @@ func (s *Session) Active() bool { return s.isActive.Load() }
 func (s *Session) setActive() { s.isActive.Store(true) }
 
 // Deliver hands a world delivery to the player through the join's hold; too many held ends the session.
-func (s *Session) Deliver(d model.Delivery) {
-	if !s.out.deliver(d) {
+func (s *Session) Deliver(d model.Delivery) { s.deliver(d, true) }
+
+// DeliverSocial hands a social delivery to the player through the join's hold; it has no world tick to shift.
+func (s *Session) DeliverSocial(d model.Delivery) { s.deliver(d, false) }
+
+func (s *Session) deliver(d model.Delivery, world bool) {
+	if !s.out.deliver(held{d, world}) {
 		s.outbox.End(model.EndDeliveryBacklog)
 	}
 }
-
-// DeliverNow hands a delivery straight to the player, past the join's hold.
-func (s *Session) DeliverNow(d model.Delivery) { s.outbox.Deliver(d) }
 
 // End ends the player's session; the first End wins.
 func (s *Session) End(reason model.EndReason) { s.outbox.End(reason) }
@@ -81,7 +83,7 @@ type out struct {
 	mu       sync.Mutex
 	mapID    string
 	holding  bool
-	pending  []model.Delivery
+	pending  []held
 	lastTick uint64
 	offset   uint64
 	rebase   bool // the next Snapshot may start the ticks again
@@ -94,8 +96,14 @@ func (o *out) hold() {
 	o.holding, o.pending, o.rebase = true, nil, true
 }
 
+// held is a delivery waiting for the join; a world one has its tick shifted when it goes out.
+type held struct {
+	d     model.Delivery
+	world bool
+}
+
 // deliver emits or holds a delivery; false means too much is waiting.
-func (o *out) deliver(d model.Delivery) bool {
+func (o *out) deliver(d held) bool {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if !o.holding {
@@ -130,8 +138,13 @@ func (o *out) abort() {
 	o.holding, o.pending, o.rebase = false, nil, false
 }
 
-// emit forwards a delivery with its tick shifted. Called with mu held.
-func (o *out) emit(d model.Delivery) {
+// emit forwards a delivery, a world one with its tick shifted. Called with mu held.
+func (o *out) emit(h held) {
+	d := h.d
+	if !h.world {
+		o.outbox.Deliver(d)
+		return
+	}
 	if _, ok := d.Push.(model.Snapshot); ok && o.rebase {
 		if d.Tick+o.offset <= o.lastTick {
 			o.offset = o.lastTick + 1 - d.Tick

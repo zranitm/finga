@@ -23,6 +23,8 @@ type Member struct {
 	MaxHP  int
 	MapID  string
 	Online bool
+	// Connection is the one the member is online through; an Offline naming another is stale.
+	Connection string
 	// JoinOrder is lowest for the longest-standing member, who leads when the leader goes.
 	JoinOrder uint64
 }

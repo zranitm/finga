@@ -207,7 +207,7 @@ func (r *Registry) Online(ctx context.Context, s *Session) {
 	if r.deps.Social == nil {
 		return
 	}
-	if err := r.deps.Social.Online(ctx, r.deps.Gateway, s.Player(), s.mapID()); err != nil {
+	if err := r.deps.Social.Online(ctx, r.deps.Gateway, s.connID, s.Player(), s.mapID()); err != nil {
 		r.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.Character(), "err", err)
 	}
 }

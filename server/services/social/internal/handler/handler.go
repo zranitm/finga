@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -17,7 +18,7 @@ import (
 // Parties is what the handler needs from the party module.
 type Parties interface {
 	Online(ctx context.Context, m model.Member) error
-	Offline(ctx context.Context, id kernel.CharacterID) error
+	Offline(ctx context.Context, id kernel.CharacterID, conn string) error
 	Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error)
 	Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error
@@ -52,7 +53,27 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
 	first := &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}
-	return grpcx.ServeSubscription(stream, s.streams.deliver.Subscribe(req.GetGatewayId()), first)
+	err := grpcx.ServeSubscription(stream, s.streams.deliver.Subscribe(req.GetGatewayId()), first)
+	s.gatewayLeft(req.GetGatewayId())
+	return err
+}
+
+// gatewayLeft takes the gateway's players offline once its stream has stayed gone for gatewayGrace: it
+// died without telling. A gateway that comes back registers its players again.
+func (s *Server) gatewayLeft(gateway string) {
+	time.AfterFunc(gatewayGrace, func() {
+		if _, back := s.streams.deliver.Get(gateway); back {
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
+		defer cancel()
+		for id, conn := range s.streams.on(gateway) {
+			if err := s.parties.Offline(ctx, id, conn); err != nil {
+				return // the store is failing; the gateway's next subscription or Offline catches up
+			}
+			s.streams.offline(id, conn)
+		}
+	})
 }
 
 // WatchParties streams Subscribed and a membership snapshot, then each change since it subscribed. The
@@ -75,31 +96,35 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 
 // Online records a character as connected through a gateway.
 func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
-	if req.GetGatewayId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "gateway_id is required")
+	if req.GetGatewayId() == "" || req.GetConnectionId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "gateway_id and connection_id are required")
 	}
 	m := req.GetMember()
 	id, err := kernel.ParseCharacterID(m.GetId())
 	if err != nil {
 		return nil, err
 	}
-	s.streams.online(id, req.GetGatewayId())
-	if err := s.parties.Online(ctx, model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()}); err != nil {
+	s.streams.online(id, req.GetGatewayId(), req.GetConnectionId())
+	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId()}
+	if err := s.parties.Online(ctx, member); err != nil {
 		return nil, err
 	}
 	return &socialv1.OnlineResponse{}, nil
 }
 
-// Offline marks a character as disconnected.
+// Offline marks a character as disconnected, unless they reconnected through another connection since.
 func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*socialv1.OfflineResponse, error) {
+	if req.GetConnectionId() == "" {
+		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
+	}
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.parties.Offline(ctx, id); err != nil {
+	if err := s.parties.Offline(ctx, id, req.GetConnectionId()); err != nil {
 		return nil, err
 	}
-	s.streams.offline(id)
+	s.streams.offline(id, req.GetConnectionId())
 	return &socialv1.OfflineResponse{}, nil
 }
 

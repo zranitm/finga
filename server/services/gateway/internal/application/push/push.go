@@ -51,12 +51,13 @@ type Deps struct {
 type Gateway struct {
 	deps       Deps
 	sessions   *session.Registry
-	socialBoot string // owned by the social stream; a new boot ID means the service restarted
+	socialBoot string        // owned by the social stream; a new boot ID means the service restarted
+	reregister chan struct{} // a social subscription asks for every player to be registered again
 }
 
 // New builds the push flow over sessions.
 func New(deps Deps, sessions *session.Registry) *Gateway {
-	return &Gateway{deps: deps, sessions: sessions}
+	return &Gateway{deps: deps, sessions: sessions, reregister: make(chan struct{}, 1)}
 }
 
 // Run follows the services' streams and periodically checks the sessions, until ctx is done or one of them panics.
@@ -73,6 +74,7 @@ func (g *Gateway) Run(ctx context.Context) error {
 	start(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, id, g.worldDelivered) })
 	if g.deps.Social != nil {
 		start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, id, g.socialDelivered) })
+		start(g.registerAgain)
 	}
 	if g.deps.Account != nil {
 		start(func(ctx context.Context) { g.deps.Account.FollowSessionEnds(ctx, id, g.sessionEnded) })

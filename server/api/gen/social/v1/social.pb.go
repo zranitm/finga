@@ -691,9 +691,11 @@ func (x *ChatLine) GetText() string {
 }
 
 type OnlineRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	GatewayId     string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
-	Member        *Member                `protobuf:"bytes,2,opt,name=member,proto3" json:"member,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	GatewayId string                 `protobuf:"bytes,1,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	Member    *Member                `protobuf:"bytes,2,opt,name=member,proto3" json:"member,omitempty"`
+	// The player's connection, on that gateway; an Offline naming another one is stale.
+	ConnectionId  string `protobuf:"bytes,3,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -742,6 +744,13 @@ func (x *OnlineRequest) GetMember() *Member {
 	return nil
 }
 
+func (x *OnlineRequest) GetConnectionId() string {
+	if x != nil {
+		return x.ConnectionId
+	}
+	return ""
+}
+
 type OnlineResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -779,8 +788,10 @@ func (*OnlineResponse) Descriptor() ([]byte, []int) {
 }
 
 type OfflineRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	// The connection that closed; if the character is online through a newer one, nothing changes.
+	ConnectionId  string `protobuf:"bytes,2,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -818,6 +829,13 @@ func (*OfflineRequest) Descriptor() ([]byte, []int) {
 func (x *OfflineRequest) GetCharacterId() string {
 	if x != nil {
 		return x.CharacterId
+	}
+	return ""
+}
+
+func (x *OfflineRequest) GetConnectionId() string {
+	if x != nil {
+		return x.ConnectionId
 	}
 	return ""
 }
@@ -1851,14 +1869,16 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\tsender_id\x18\x01 \x01(\tR\bsenderId\x12\x1f\n" +
 	"\vsender_name\x18\x02 \x01(\tR\n" +
 	"senderName\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04text\"b\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\"\x87\x01\n" +
 	"\rOnlineRequest\x12\x1d\n" +
 	"\n" +
 	"gateway_id\x18\x01 \x01(\tR\tgatewayId\x122\n" +
-	"\x06member\x18\x02 \x01(\v2\x1a.internal.social.v1.MemberR\x06member\"\x10\n" +
-	"\x0eOnlineResponse\"3\n" +
+	"\x06member\x18\x02 \x01(\v2\x1a.internal.social.v1.MemberR\x06member\x12#\n" +
+	"\rconnection_id\x18\x03 \x01(\tR\fconnectionId\"\x10\n" +
+	"\x0eOnlineResponse\"X\n" +
 	"\x0eOfflineRequest\x12!\n" +
-	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\"\x11\n" +
+	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12#\n" +
+	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\"\x11\n" +
 	"\x0fOfflineResponse\"3\n" +
 	"\x0ePartyOfRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\"B\n" +

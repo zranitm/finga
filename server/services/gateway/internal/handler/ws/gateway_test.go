@@ -947,6 +947,68 @@ func social(t *testing.T, fs *fakeSocial) *harness {
 	return h
 }
 
+// connectionOf is the connection the character's last world join came through.
+func connectionOf(fw *fakeWorld, id kernel.CharacterID) string {
+	conn := ""
+	for _, j := range fw.joins() {
+		if j.GetCharacterId() == id.String() {
+			conn = j.GetConnectionId()
+		}
+	}
+	return conn
+}
+
+// A party delivery that comes while a Hello is still under way waits for Welcome, as the world's do.
+func TestASocialDeliveryDuringHelloFollowsWelcome(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		items := &fakeItems{gate: make(chan struct{})}
+		h := newHarness(t, func(d *deps) { d.Social, d.Items = fs.client(t), items.client(t) })
+		<-fs.subscribed
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		synctest.Wait() // joined, waiting for the inventory
+		fs.push(aylaID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{InviteId: "inv-1", FromId: brunoID.String(), FromName: "Bruno"}}})
+		synctest.Wait()
+		close(items.gate)
+		if m, _ := c.read(); m.Type != "Welcome" {
+			t.Fatalf("first %s, want Welcome", m.Type)
+		}
+		c.expect("PartyInvited")
+	})
+}
+
+// Registering players again runs beside the social stream: one that hangs holds up no other player.
+func TestAHungRegistrationHoldsUpNobody(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		h := social(t, fs)
+		ayla, bruno := h.dial(t), h.dial(t)
+		ayla.hello(tokenAlice, aylaID)
+		ayla.expect("Snapshot")
+		bruno.hello(tokenBob, brunoID)
+		bruno.expect("Snapshot")
+		synctest.Wait()
+		fs.set(func(f *fakeSocial) { f.hang = map[string]bool{aylaID.String(): true} })
+		fs.restart("boot-2")
+		<-fs.subscribed
+		synctest.Wait()
+		start := time.Now()
+		fs.push(brunoID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{InviteId: "inv-1", FromId: aylaID.String(), FromName: "Ayla"}}})
+		bruno.expect("PartyInvited")
+		if waited := time.Since(start); waited > time.Second {
+			t.Fatalf("Bruno's invite waited %v behind Ayla's registration", waited)
+		}
+		registered := false
+		for _, req := range fs.onlineCalls() {
+			registered = registered || req.GetMember().GetId() == brunoID.String() && req.GetConnectionId() != ""
+		}
+		if !registered {
+			t.Fatal("Bruno was not registered again")
+		}
+	})
+}
+
 // A Hello naming another account's character takes none of its player's deliveries while the world checks it.
 func TestAHelloForAnotherAccountsCharacterLeavesItsPlayerAlone(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -1081,7 +1143,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 				mine = req
 			}
 		}
-		if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" {
+		if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" || mine.GetConnectionId() != connectionOf(h.world, aylaID) {
 			t.Fatalf("online %+v", fs.onlineCalls())
 		}
 
@@ -1147,6 +1209,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		part(t, "a social restart clears every party and registers everyone again", func() {
 			before := len(fs.onlineCalls())
 			fs.restart("boot-2")
+			<-fs.subscribed
 			for _, c := range []*client{ayla, bruno} {
 				if ps := c.expect("PartyState").Data.(*clientv1.PartyState); ps.Party != nil {
 					t.Fatalf("party state after the restart %+v", ps)
@@ -1159,7 +1222,8 @@ func TestPartyCommandsAndState(t *testing.T) {
 			ayla.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 9}})
 			ayla.expect("Pong") // the socket stayed up
 		})
-		part(t, "a stream that breaks without a restart changes nothing", func() {
+		part(t, "a stream that breaks without a restart registers everyone again, and sends no PartyState", func() {
+			before := len(fs.onlineCalls())
 			fs.restart("boot-2")
 			select {
 			case <-fs.subscribed:
@@ -1167,8 +1231,12 @@ func TestPartyCommandsAndState(t *testing.T) {
 				t.Fatal("no new subscription")
 			}
 			ayla.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 10}})
-			if m := ayla.expect("Pong"); m.Type != "Pong" {
+			if m, _ := ayla.read(); m.Type != "Pong" {
 				t.Fatalf("got %+v; a PartyState was sent although the parties survived", m)
+			}
+			synctest.Wait()
+			if len(fs.onlineCalls()) < before+2 {
+				t.Fatalf("online calls %d, want %d: the social service may have taken them offline", len(fs.onlineCalls()), before+2)
 			}
 		})
 		part(t, "closing the connection tells the social service", func() {
@@ -1176,8 +1244,8 @@ func TestPartyCommandsAndState(t *testing.T) {
 			synctest.Wait()
 			fs.mu.Lock()
 			defer fs.mu.Unlock()
-			if len(fs.offline) != 1 {
-				t.Fatalf("Offline calls %v, want one", fs.offline)
+			if len(fs.offline) != 1 || fs.offline[0].GetCharacterId() != brunoID.String() || fs.offline[0].GetConnectionId() != connectionOf(h.world, brunoID) {
+				t.Fatalf("Offline calls %v, want one naming Bruno's connection", fs.offline)
 			}
 		})
 	})

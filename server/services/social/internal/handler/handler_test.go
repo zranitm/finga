@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -40,7 +42,13 @@ func newStack(t *testing.T) *stack {
 
 func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[socialv1.DeliverResponse] {
 	t.Helper()
-	stream, err := s.c.Deliver(s.ctx, &socialv1.DeliverRequest{GatewayId: id})
+	return s.gatewayUntil(t, s.ctx, id)
+}
+
+// gatewayUntil subscribes as the gateway named id until ctx ends.
+func (s *stack) gatewayUntil(t *testing.T, ctx context.Context, id string) grpc.ServerStreamingClient[socialv1.DeliverResponse] {
+	t.Helper()
+	stream, err := s.c.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: id})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,11 +58,34 @@ func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[soci
 	return stream
 }
 
+// online registers the character through the connection named conn-<name>.
 func (s *stack) online(t *testing.T, gateway string, id kernel.CharacterID, name string) {
 	t.Helper()
-	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: gateway, Member: &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}}); err != nil {
+	s.onlineThrough(t, gateway, "conn-"+name, id, name)
+}
+
+func (s *stack) onlineThrough(t *testing.T, gateway, conn string, id kernel.CharacterID, name string) {
+	t.Helper()
+	member := &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// isOnline is whether the character's party shows them online.
+func (s *stack) isOnline(t *testing.T, id kernel.CharacterID) bool {
+	t.Helper()
+	res, err := s.c.PartyOf(s.ctx, &socialv1.PartyOfRequest{CharacterId: id.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range res.GetParty().GetMembers() {
+		if m.GetId() == id.String() {
+			return m.GetOnline()
+		}
+	}
+	t.Fatalf("%s has no party", id)
+	return false
 }
 
 func (s *stack) party(t *testing.T, leader, member kernel.CharacterID) {
@@ -142,7 +173,7 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 		}
 	})
 	t.Run("going offline is told to the party, and is the next thing it hears", func(t *testing.T) {
-		if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String()}); err != nil {
+		if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: "conn-Bo"}); err != nil {
 			t.Fatal(err)
 		}
 		// The map line above delivered nothing, so this is the PartyState.
@@ -340,9 +371,78 @@ func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 	if _, err := w.Recv(); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("watch: %v", err)
 	}
-	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{ConnectionId: "c-1", Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("online without a gateway: %v", err)
 	}
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw", Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("online without a connection: %v", err)
+	}
+	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: kernel.NewCharacterID().String()}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("offline without a connection: %v", err)
+	}
+}
+
+// The old connection's Offline, arriving after the player reconnected, leaves them online and reachable.
+func TestAStaleOfflineLeavesTheNewConnectionOnline(t *testing.T) {
+	s := newStack(t)
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second) // a line that never comes fails, not hangs
+	defer cancel()
+	gwA, gwB := s.gateway(t, "gw-a"), s.gatewayUntil(t, ctx, "gw-b")
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+	s.online(t, "gw-a", ann, "Ann")
+	s.online(t, "gw-a", bo, "Bo")
+	s.party(t, ann, bo)
+	recv(t, gwA) // the invite
+	recv(t, gwA)
+	recv(t, gwA) // the PartyState, for each
+	s.onlineThrough(t, "gw-b", "conn-Bo-2", bo, "Bo")
+	recv(t, gwA)
+	recv(t, gwB)
+	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: "conn-Bo"}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.isOnline(t, bo) {
+		t.Fatal("the old connection's Offline took Bo offline")
+	}
+	if _, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: ann.String(), SenderName: "Ann", Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "still there?"}); err != nil {
+		t.Fatal(err)
+	}
+	if line := recv(t, gwB).GetChatLine(); line.GetText() != "still there?" {
+		t.Fatalf("Bo's new gateway got %+v", line)
+	}
+}
+
+// A gateway whose stream stays gone past the grace takes its players offline; one back in time does not.
+func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newStack(t)
+		s.gateway(t, "gw-a")
+		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
+		s.online(t, "gw-a", ann, "Ann")
+		s.online(t, "gw-a", cy, "Cy")
+		ctxB, endB := context.WithCancel(s.ctx)
+		s.gatewayUntil(t, ctxB, "gw-b")
+		s.online(t, "gw-b", bo, "Bo")
+		s.party(t, ann, bo)
+		ctxC, endC := context.WithCancel(s.ctx)
+		s.gatewayUntil(t, ctxC, "gw-c")
+		s.onlineThrough(t, "gw-c", "conn-Cy-2", cy, "Cy")
+		s.party(t, ann, cy)
+
+		endB()
+		endC()
+		synctest.Wait()
+		time.Sleep(time.Second)
+		s.gateway(t, "gw-c") // back within the grace
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if s.isOnline(t, bo) {
+			t.Fatal("Bo is online through a gateway gone for a minute")
+		}
+		if !s.isOnline(t, cy) || !s.isOnline(t, ann) {
+			t.Fatal("a player of a gateway that came back, or of one that never left, went offline")
+		}
+	})
 }
 
 func TestTheTableCoversTheModulesAndTheContract(t *testing.T) {

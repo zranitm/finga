@@ -65,7 +65,7 @@ func newFixture(t *testing.T, names ...string) *fixture {
 		id := kernel.NewCharacterID()
 		f.ids[n] = id
 		f.name[id] = n
-		must(t, f.svc.Online(f.ctx, model.Member{ID: id, Name: n, Level: 1 + k, HP: 100, MaxHP: 100, MapID: "forest"}))
+		must(t, f.svc.Online(f.ctx, model.Member{ID: id, Name: n, Level: 1 + k, HP: 100, MaxHP: 100, MapID: "forest", Connection: "c-" + n}))
 	}
 	return f
 }
@@ -313,7 +313,7 @@ func TestInvitesExpireAndNeedTheSameMap(t *testing.T) {
 		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); err != nil {
 			t.Fatalf("same map: %v", err)
 		}
-		must(t, f.svc.Offline(f.ctx, f.id("Cass")))
+		must(t, f.svc.Offline(f.ctx, f.id("Cass"), "c-Cass"))
 		time.Sleep(time.Minute)
 		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass")); !errors.Is(err, model.ErrNotHere) {
 			t.Fatalf("offline: %v", err)
@@ -328,7 +328,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")
 	f.invite(t, "Ayla", "Robin")
 	f.rec.reset()
-	must(t, f.svc.Offline(f.ctx, f.id("Robin")))
+	must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
 	last := f.rec.last()
 	if last.party == nil || last.party.Members[1].Online || !equal(f.names(last.to), []string{"Ayla", "Robin"}) {
 		t.Fatalf("after Robin went offline: %+v", last)
@@ -337,7 +337,7 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 		t.Fatal("Robin left the party by disconnecting")
 	}
 	// Reconnecting on another map at a new level: the row follows.
-	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", Level: 5, HP: 10, MaxHP: 300, MapID: "cave"}))
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", Level: 5, HP: 10, MaxHP: 300, MapID: "cave", Connection: "c-Robin-2"}))
 	last = f.rec.last()
 	if m := last.party.Members[1]; !m.Online || m.Level != 5 || m.MapID != "cave" || m.HP != 10 || m.MaxHP != 300 {
 		t.Fatalf("after Robin came back: %+v", m)
@@ -351,7 +351,23 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 		t.Fatal("a stranger has a party")
 	}
 	must(t, f.svc.Update(f.ctx, cass, "cave", 1, 1, 1)) // unknown: ignored
-	must(t, f.svc.Offline(f.ctx, cass))
+	must(t, f.svc.Offline(f.ctx, cass, "c-cass"))
+}
+
+// A connection that closes after the player reconnected through another one does not take them offline.
+func TestAnOfflineFromAReplacedConnectionChangesNothing(t *testing.T) {
+	f := newFixture(t, "Ayla", "Robin")
+	f.invite(t, "Ayla", "Robin")
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "forest", Connection: "c-Robin-2"}))
+	f.rec.reset()
+	must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
+	if n := len(f.rec.states); n != 0 {
+		t.Fatalf("the party was told of %d changes by a stale Offline", n)
+	}
+	must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin-2"))
+	if last := f.rec.last(); last.party == nil || last.party.Members[1].Online {
+		t.Fatalf("after the current connection closed: %+v", last)
+	}
 }
 
 func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {

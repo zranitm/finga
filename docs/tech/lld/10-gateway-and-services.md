@@ -160,7 +160,7 @@ The world keeps a registry of presences: each joined character's map and the con
 | RPC | Request | Response |
 | --- | --- | --- |
 | `Deliver` (stream) | gateway_id | Subscribed (boot_id), then PartyState, PartyInvited and party chat lines, each for one character |
-| `Online` / `Offline` | gateway_id and the member (id, name, level, HP, max HP, map) / character_id | |
+| `Online` / `Offline` | gateway_id, connection_id and the member (id, name, level, HP, max HP, map) / character_id and connection_id | An `Offline` for a connection the character has since been replaced on changes nothing |
 | `PartyOf` | character_id | the party, if any (Welcome) |
 | `Invite`, `Respond`, `LeaveParty`, `Kick`, `Promote` | the caller's character_id and the command's fields | |
 | `Chat` | sender id and name, channel, text | the cleaned line; a map line is the caller's to hand to the world, a party line is already delivered |
@@ -177,7 +177,7 @@ The gateway serves no gRPC.
 2. `account.Validate`. Only its `unauthenticated` rejects the Hello (Kicked `unauthenticated`, back to login); the account service being down fails it as a server fault (1011), and the client retries with the same token.
 3. `world.Join(gateway_id, connection_id, account_id, character_id)`. The world loads the character from the character service (ownership checked there: someone else's character is `not found`, and the gateway kicks `unauthenticated` as today), asks the item service for the starter items (idempotent, keyed by the character ID: a no-op unless character creation crashed before granting them; best effort, so a failure is logged and the next join tries again), and joins the map instance, which sends the Snapshot through the delivery stream. The reply is the character as the player sees it.
 4. `item.Inventory` and `social.PartyOf`, then `account.Rotate`, last, so a Hello that fails earlier leaves the client's token as it was: rotating before a join that then failed spent the old token's one grace, and a third try logged the player out. The token in Welcome is the rotated one (step 16). Then Welcome. Deliveries that reach the gateway before Welcome is sent (the Snapshot, a first Delta) wait in the session and follow Welcome in order. World deliveries are routed by connection ID, so a session only ever receives its own presence's; social deliveries go by character, and a joining session takes the character for them only once the world join returns, so a Hello naming someone else's character takes nothing from them.
-5. `social.Online` with the gateway's ID, so party traffic finds this gateway.
+5. `social.Online` with the gateway's and the connection's IDs, so party traffic finds this gateway. When the connection closes, `social.Offline` names it too: a reconnect's new connection may already be online, perhaps on another gateway, and the old one's late `Offline` must not take the player offline.
 
 A failure after the join leaves the world (`world.Leave`) before the connection closes. A newer connection of the same account still kicks the older one with `logged_in_elsewhere`; the older one's `Leave` and commands carry its own connection ID, so they can never touch the newer presence.
 
@@ -220,7 +220,8 @@ Every call to another service has a deadline: the request's own for a call made 
 
 ### Party and chat
 
-- Party commands go from the gateway to social with the caller's character ID; social pushes PartyState and PartyInvited to each member through its delivery stream, to the gateway that holds that member (it learns which from `Online`).
+- Party commands go from the gateway to social with the caller's character ID; social pushes PartyState and PartyInvited to each member through its delivery stream, to the gateway that holds that member (it learns which from `Online`). Those deliveries wait in the session during a join, as the world's do, so none reaches a client before its Welcome.
+- The gateway registers its active players with `Online` again on every subscription to social's stream, at most 16 at a time with 5 s each, beside the stream so a slow call holds up no delivery. Social takes a gateway's players offline once its stream has stayed gone for 30 s (the gateway died without telling); a gateway that comes back registers them again.
 - A party chat line is delivered by social to every member, on any map. A map line comes back to the gateway, which hands it to the world (`Say`), and the map instance sends it to everyone on the map with the next tick's events, as today.
 
 ## Restarts and failures
@@ -228,7 +229,7 @@ Every call to another service has a deadline: the request's own for a call made 
 | What restarts | What players see | How |
 | --- | --- | --- |
 | world | A short freeze, then play resumes at the last checkpoint; sockets stay up | The gateway's `Deliver` stream breaks. It keeps every socket, re-subscribes with backoff, and calls `world.Join` again for each connected player, each after a random pause of up to half a second and at most 32 at a time, so the restarted world is not hit by every player at once; the world reloads them from the character service. A character's joins run one at a time: a rejoin still in flight when the player reconnects finishes before the new connection's join, and a rejoin for a connection that has since been replaced does not join at all. A player whose saved map differs from the one they were on gets MapChange, then the Snapshot. Mobs and ground drops reset, as after a crash today. The gateway shifts the restarted world's ticks so they never go back on a connection. |
-| social | Parties are gone (in memory, as after a crash today); sockets stay up | A new boot ID on Subscribed tells the gateway the parties are gone: each player gets PartyState with no party, and the gateway registers its players with `Online` again. The world's `WatchParties` copy is rebuilt from the new, empty table. |
+| social | Parties are gone (in memory, as after a crash today); sockets stay up | A new boot ID on Subscribed tells the gateway the parties are gone: each player gets PartyState with no party, and the gateway registers its players with `Online` again, as it does on every new subscription. The world's `WatchParties` copy is rebuilt from the new, empty table. |
 | account, character, item | Calls fail while it is down (the client sees `internal` for a command, or a Hello fails and the client retries) | gRPC clients reconnect on their own. Session ends missed during an account restart are caught by the gateway's minute check, which ends a session only when the account service answers `unauthenticated`: an outage or a slow answer (5 s each, 16 checks at a time) ends nobody. |
 | gateway | Each client reconnects | Rolling, one node at a time, draining first: readiness turns 503, a new WebSocket upgrade is refused with 503, every connection gets Kicked `server_restart` (the client reconnects with jitter), then the listener closes (step 28). |
 | Postgres | As today | |

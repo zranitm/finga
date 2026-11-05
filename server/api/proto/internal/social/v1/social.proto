@@ -116,12 +116,16 @@ message ChatLine {
 message OnlineRequest {
   string gateway_id = 1;
   Member member = 2;
+  // The player's connection, on that gateway; an Offline naming another one is stale.
+  string connection_id = 3;
 }
 
 message OnlineResponse {}
 
 message OfflineRequest {
   string character_id = 1;
+  // The connection that closed; if the character is online through a newer one, nothing changes.
+  string connection_id = 2;
 }
 
 message OfflineResponse {}

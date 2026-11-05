@@ -2,6 +2,7 @@ package handler
 
 import (
 	"sync"
+	"time"
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
@@ -16,6 +17,13 @@ const (
 	watchQueue   = 4096
 )
 
+// A gateway's players go offline once its stream has stayed gone gatewayGrace; marking them takes up to
+// sweepTimeout.
+const (
+	gatewayGrace = 30 * time.Second
+	sweepTimeout = 10 * time.Second
+)
+
 // Streams are the gateways' delivery streams and the worlds' membership watch, with the gateway each
 // character is online on; they are the party module's notifier.
 type Streams struct {
@@ -24,8 +32,11 @@ type Streams struct {
 	watchers *hub.Hub[*socialv1.WatchPartiesResponse]
 
 	mu       sync.Mutex
-	presence map[kernel.CharacterID]string
+	presence map[kernel.CharacterID]presence
 }
+
+// presence is where a character is online: the gateway and the connection.
+type presence struct{ gateway, conn string }
 
 var _ application.Notifier = (*Streams)(nil)
 
@@ -35,7 +46,7 @@ func NewStreams(bootID string) *Streams {
 		bootID:   bootID,
 		deliver:  hub.New[*socialv1.DeliverResponse](deliverQueue),
 		watchers: hub.New[*socialv1.WatchPartiesResponse](watchQueue),
-		presence: map[kernel.CharacterID]string{},
+		presence: map[kernel.CharacterID]presence{},
 	}
 }
 
@@ -61,27 +72,43 @@ func (s *Streams) Invited(to kernel.CharacterID, inv model.Invite) {
 	}}})
 }
 
-func (s *Streams) online(id kernel.CharacterID, gateway string) {
+func (s *Streams) online(id kernel.CharacterID, gateway, conn string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.presence[id] = gateway
+	s.presence[id] = presence{gateway, conn}
 }
 
-func (s *Streams) offline(id kernel.CharacterID) {
+// offline forgets where the character is, if still through conn.
+func (s *Streams) offline(id kernel.CharacterID, conn string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.presence, id)
+	if s.presence[id].conn == conn {
+		delete(s.presence, id)
+	}
+}
+
+// on is each character online through the gateway, with its connection.
+func (s *Streams) on(gateway string) map[kernel.CharacterID]string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[kernel.CharacterID]string{}
+	for id, p := range s.presence {
+		if p.gateway == gateway {
+			out[id] = p.conn
+		}
+	}
+	return out
 }
 
 // send delivers to the character's gateway, if it is online there with a stream.
 func (s *Streams) send(to kernel.CharacterID, ev *socialv1.DeliverResponse) {
 	s.mu.Lock()
-	gateway, ok := s.presence[to]
+	p, ok := s.presence[to]
 	s.mu.Unlock()
 	if !ok {
 		return
 	}
-	if sub, ok := s.deliver.Get(gateway); ok {
+	if sub, ok := s.deliver.Get(p.gateway); ok {
 		ev.CharacterId = to.String()
 		sub.Send(ev)
 	}

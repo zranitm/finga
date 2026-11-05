@@ -95,7 +95,7 @@ func (g *Gateway) Closed(s *session.Session, reason string) {
 	if s.Active() {
 		if g.deps.Social != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), offlineTimeout)
-			if err := g.deps.Social.Offline(ctx, s.Character()); err != nil {
+			if err := g.deps.Social.Offline(ctx, s.Character(), s.ConnID()); err != nil {
 				g.deps.Logger.WarnContext(ctx, "social offline failed", "character_id", s.Character(), "err", err)
 			}
 			cancel()

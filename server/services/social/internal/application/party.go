@@ -39,11 +39,12 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	})
 }
 
-// Offline marks a character as disconnected; their party keeps them.
-func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID) error {
+// Offline marks a character as disconnected when conn is the connection they are online through; their
+// party keeps them. A connection that closed after the character reconnected through another changes nothing.
+func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		m, ok := tx.Member(id)
-		if !ok {
+		if !ok || m.Connection != conn {
 			return nil
 		}
 		m.Online = false

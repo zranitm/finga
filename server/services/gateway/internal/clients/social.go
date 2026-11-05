@@ -32,16 +32,16 @@ func (s Social) PartyOf(ctx context.Context, character kernel.CharacterID) (*mod
 	return partyView(res.GetParty()), errmap.Wrap(err)
 }
 
-// Online registers a player connected through this gateway.
-func (s Social) Online(ctx context.Context, gateway string, p model.Player, mapID string) error {
+// Online registers a player connected to this gateway through conn.
+func (s Social) Online(ctx context.Context, gateway, conn string, p model.Player, mapID string) error {
 	member := &socialv1.Member{Id: p.ID.String(), Name: p.Name, Level: int32(p.Level), Hp: int32(p.HP), MaxHp: int32(p.MaxHP), MapId: mapID}
-	_, err := s.c.Online(ctx, &socialv1.OnlineRequest{GatewayId: gateway, Member: member})
+	_, err := s.c.Online(ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member})
 	return errmap.Wrap(err)
 }
 
-// Offline tells the service the player disconnected.
-func (s Social) Offline(ctx context.Context, character kernel.CharacterID) error {
-	_, err := s.c.Offline(ctx, &socialv1.OfflineRequest{CharacterId: character.String()})
+// Offline tells the service the player's connection conn closed.
+func (s Social) Offline(ctx context.Context, character kernel.CharacterID, conn string) error {
+	_, err := s.c.Offline(ctx, &socialv1.OfflineRequest{CharacterId: character.String(), ConnectionId: conn})
 	return errmap.Wrap(err)
 }
 

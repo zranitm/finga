@@ -16,13 +16,13 @@
 **Social service**
 
 - `internal/application/party` and `chat` move to `services/social/internal/party` and `chat` as they are.
-- `services/social/internal/handler`: `SocialService` with its error table; presence (which gateway each online character is on, from `Online` and `Offline`); `Deliver` over `pkg/hub`, as the party module's notifier (PartyState to each member, PartyInvited to the invitee) and for party chat lines; `WatchParties` (Subscribed, every party's membership, then each change); `UpdateMember`.
+- `services/social/internal/handler`: `SocialService` with its error table; presence (which gateway and connection each online character is on, from `Online` and `Offline`; an `Offline` for an older connection is ignored, and a gateway's players go offline once its stream has stayed gone for 30 s); `Deliver` over `pkg/hub`, as the party module's notifier (PartyState to each member, PartyInvited to the invitee) and for party chat lines; `WatchParties` (Subscribed, every party's membership, then each change); `UpdateMember`.
 - `services/social/cmd/social` and `app`.
 
 **Game server**
 
 - The gateway calls social for party commands, `Online` and `Offline`, `PartyOf` for Welcome, and `Chat`; a map line goes on to the map instance. It follows `social.Deliver` and turns each event into PartyState, PartyInvited or ChatMessage.
-- A new boot ID on Subscribed means social restarted and the parties are gone: every player gets PartyState with no party, and is registered again with `Online`.
+- Every subscription registers the gateway's players again with `Online`; a new boot ID on Subscribed also means social restarted and the parties are gone, so every player first gets PartyState with no party.
 - The world's `Parties` becomes a party copy (an adapter in the composition root until step 27): a mutex-guarded table fed by `WatchParties`, cleared when the stream breaks, read by the loot window and EXP sharing; member updates go to a bounded queue and a worker calls `UpdateMember`, so the tick never waits (a full queue drops the update; the next one corrects it).
 - `errmap` maps the party and chat reasons to the same codes. Compose and the end-to-end stack run social.
 
