@@ -9,6 +9,13 @@ INSERT INTO characters (
   $13, $14, $15, $16, $17, $18
 );
 
+-- name: LockAccountCharacters :exec
+-- Serialises one account's creates until the transaction ends.
+SELECT pg_advisory_xact_lock(hashtextextended('character.account:' || sqlc.arg(account_id)::text, 0));
+
+-- name: CountCharactersByAccount :one
+SELECT count(*) FROM characters WHERE account_id = $1;
+
 -- name: ListCharactersByAccount :many
 SELECT * FROM characters WHERE account_id = $1 ORDER BY updated_at, id;
 

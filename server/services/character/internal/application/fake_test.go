@@ -102,6 +102,16 @@ func (f *fakeStarter) Retryable(error) bool { return f.retryable }
 
 type fakeRepo struct{ s *fakeStore }
 
+func (r fakeRepo) CountLocked(_ context.Context, account kernel.AccountID) (int, error) {
+	n := 0
+	for _, c := range r.s.chars {
+		if c.AccountID == account {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (r fakeRepo) Insert(_ context.Context, c model.Character) error {
 	for _, existing := range r.s.chars {
 		if strings.EqualFold(existing.Name, c.Name) {

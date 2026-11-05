@@ -79,6 +79,15 @@ func (u unitOfWork) Characters() application.Repository { return repo(u) }
 
 type repo struct{ q *db.Queries }
 
+// CountLocked takes the account's advisory lock, then counts its characters.
+func (r repo) CountLocked(ctx context.Context, account kernel.AccountID) (int, error) {
+	if err := r.q.LockAccountCharacters(ctx, account.String()); err != nil {
+		return 0, classify(err)
+	}
+	n, err := r.q.CountCharactersByAccount(ctx, uuid.UUID(account))
+	return int(n), classify(err)
+}
+
 // Insert adds a character row.
 func (r repo) Insert(ctx context.Context, c model.Character) error {
 	return r.q.InsertCharacter(ctx, db.InsertCharacterParams{

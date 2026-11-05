@@ -12,6 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countCharactersByAccount = `-- name: CountCharactersByAccount :one
+SELECT count(*) FROM characters WHERE account_id = $1
+`
+
+func (q *Queries) CountCharactersByAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCharactersByAccount, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getOwnedCharacter = `-- name: GetOwnedCharacter :one
 SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at FROM characters WHERE id = $1 AND account_id = $2
 `
@@ -145,6 +156,16 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockAccountCharacters = `-- name: LockAccountCharacters :exec
+SELECT pg_advisory_xact_lock(hashtextextended('character.account:' || $1::text, 0))
+`
+
+// Serialises one account's creates until the transaction ends.
+func (q *Queries) LockAccountCharacters(ctx context.Context, accountID string) error {
+	_, err := q.db.Exec(ctx, lockAccountCharacters, accountID)
+	return err
 }
 
 const saveCheckpoint = `-- name: SaveCheckpoint :execrows

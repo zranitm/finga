@@ -71,13 +71,6 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	if !ok {
 		return model.Character{}, model.ErrClassUnavailable
 	}
-	existing, err := s.store.List(ctx, account)
-	if err != nil {
-		return model.Character{}, err
-	}
-	if len(existing) >= maxCharacters {
-		return model.Character{}, model.ErrSlotsFull
-	}
 	town := s.content.Town()
 	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{})
 	c := model.Character{
@@ -85,7 +78,14 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: time.Now(),
 	}
-	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		n, err := uow.Characters().CountLocked(ctx, account)
+		if err != nil {
+			return err
+		}
+		if n >= maxCharacters {
+			return model.ErrSlotsFull
+		}
 		return uow.Characters().Insert(ctx, c)
 	})
 	if err != nil {
