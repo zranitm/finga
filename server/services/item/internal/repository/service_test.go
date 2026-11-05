@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -489,4 +490,32 @@ func (r rollingBack) InTx(ctx context.Context, fn func(uow application.UnitOfWor
 		}
 		return errors.New("roll it back")
 	})
+}
+
+// Each outbox row carries its own slot's change, so one command's rows add up to what it added.
+func TestEachOutboxRowCarriesItsSlotsChange(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	h.add(t, "seed", "red_potion", 60)
+	h.add(t, "more", "red_potion", 70) // +40 onto the stack of 60, and a new stack of 30
+	rows, err := h.pool.Query(ctx, `
+		SELECT (convert_from(o.payload, 'UTF8')::jsonb->>'quantity')::int,
+		       (SELECT sum(e.quantity_delta) FROM item_events e WHERE e.item_id::text = o.key AND e.occurred_at = o.occurred_at)
+		FROM outbox o WHERE o.type = 'ItemLooted' ORDER BY o.id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	var got [][2]int
+	for rows.Next() {
+		var q, delta int
+		if err := rows.Scan(&q, &delta); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, [2]int{q, delta})
+	}
+	want := [][2]int{{60, 60}, {40, 40}, {30, 30}}
+	if !slices.Equal(got, want) {
+		t.Fatalf("outbox quantity and its event's delta per row: %v, want %v", got, want)
+	}
 }

@@ -90,6 +90,16 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 		return Result{}, err
 	}
 	now := time.Now()
+	eventType := "ItemGranted"
+	if cause.Type == model.CauseDrop {
+		eventType = "ItemLooted"
+	}
+	record := func(it *model.Item, kind model.EventKind, delta int) error {
+		if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: kind, QuantityDelta: delta, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+			return err
+		}
+		return uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: eventType, Payload: model.OutboxPayload(it, delta, cause), OccurredAt: now})
+	}
 	var res Result
 	left := quantity
 	if tmpl.MaxStack > 1 {
@@ -104,7 +114,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 			if err := uow.Items().SetQuantity(ctx, it.ID, it.Quantity); err != nil {
 				return Result{}, err
 			}
-			if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventStacked, QuantityDelta: take, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+			if err := record(it, model.EventStacked, take); err != nil {
 				return Result{}, err
 			}
 			res.Changed = append(res.Changed, slotOf(*it))
@@ -123,19 +133,10 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 		if err := uow.Items().Insert(ctx, it); err != nil {
 			return Result{}, err
 		}
-		if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventCreated, QuantityDelta: left, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+		if err := record(&it, model.EventCreated, left); err != nil {
 			return Result{}, err
 		}
 		res.Changed = append(res.Changed, slotOf(it))
-	}
-	eventType := "ItemGranted"
-	if cause.Type == model.CauseDrop {
-		eventType = "ItemLooted"
-	}
-	for _, c := range res.Changed {
-		if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: c.Item.ID.String(), Type: eventType, Payload: model.OutboxPayload(c.Item, quantity, cause), OccurredAt: now}); err != nil {
-			return Result{}, err
-		}
 	}
 	return res, nil
 }

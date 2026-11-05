@@ -10,7 +10,7 @@ type itemEvent struct {
 	ItemID     kernel.ItemID      `json:"item_id"`
 	TemplateID string             `json:"template_id"`
 	Owner      kernel.CharacterID `json:"owner_id"`
-	Quantity   int                `json:"quantity"` // the quantity the command moved
+	Quantity   int                `json:"quantity"` // this item's change, as its item event's quantity_delta
 	Tab        string             `json:"tab"`
 	Slot       int                `json:"slot"`
 	Cause      string             `json:"cause"`
