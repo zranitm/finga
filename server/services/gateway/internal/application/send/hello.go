@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"finga/internal/kernel"
 	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/model"
@@ -21,16 +23,11 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 	defer cancel()
 	p, err := g.deps.Sessions.Validate(ctx, token)
 	if err != nil {
-		return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
-	}
-	// The client keeps Welcome's token; the one it sent works once more for a minute.
-	rotated, err := g.deps.Sessions.Rotate(ctx, p.SessionID)
-	if err != nil {
 		if model.PublicOf(err) == model.Unauthenticated {
 			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
-		g.deps.Logger.ErrorContext(ctx, "token rotation failed", "session_id", p.SessionID, "err", err)
-		return fmt.Errorf("rotate: %w", err)
+		g.deps.Logger.WarnContext(ctx, "token check failed", "err", err)
+		return fmt.Errorf("validate: %w", err) // the account service is down: the client keeps its token and retries
 	}
 
 	join, err := g.sessions.Join(ctx, s, kernel.AccountID(p.AccountID), kernel.SessionID(p.SessionID), charID)
@@ -42,7 +39,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		return fmt.Errorf("join: %w", err)
 	}
 	c := join.Joined.Character
-	welcome := model.Welcome{Token: rotated, Character: c, MapID: join.Joined.MapID, ServerTime: time.Now()}
+	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now()}
 	if g.deps.Items != nil {
 		items, err := g.deps.Items.Inventory(ctx, charID)
 		if err != nil {
@@ -60,6 +57,17 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		}
 		welcome.Party = party
 	}
+	// Last, so a Hello that fails before here leaves the client's token as it was; the one it sent works
+	// once more for a minute, and Welcome's from now on.
+	welcome.Token, err = g.rotate(ctx, p.SessionID)
+	if err != nil {
+		join.Cancel()
+		if model.PublicOf(err) == model.Unauthenticated {
+			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
+		}
+		g.deps.Logger.ErrorContext(ctx, "token rotation failed", "session_id", p.SessionID, "err", err)
+		return fmt.Errorf("rotate: %w", err)
+	}
 
 	player := model.Player{ID: charID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
 	// The newest connection wins.
@@ -70,6 +78,13 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.ConnID(), "character_id", charID, "map_id", join.Joined.MapID)
 	return nil
+}
+
+// rotate has its own budget: a join that retried may have spent the Hello's.
+func (g *Gateway) rotate(ctx context.Context, sessionID uuid.UUID) (string, error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rotateTimeout)
+	defer cancel()
+	return g.deps.Sessions.Rotate(ctx, sessionID)
 }
 
 // Closed ends a session once its connection closed and none of its commands still runs.

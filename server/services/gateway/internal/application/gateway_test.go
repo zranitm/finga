@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,12 +36,14 @@ type gateway struct {
 
 const joinTimeout = 5 * time.Second
 
-func newGateway(w *world) gateway {
+func newGateway(w *world) gateway { return newGatewayWith(w, &guard{}, time.Hour) }
+
+func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
 	log := slog.New(slog.DiscardHandler)
 	sessions := session.NewRegistry(session.Deps{World: w, Logger: log, JoinTimeout: joinTimeout})
 	return gateway{
-		Gateway: send.New(send.Deps{Sessions: guard{}, World: w, Logger: log, JoinTimeout: joinTimeout}, sessions),
-		pushes:  push.New(push.Deps{Sessions: guard{}, World: w, Logger: log, SessionCheckInterval: time.Hour}, sessions),
+		Gateway: send.New(send.Deps{Sessions: g, World: w, Logger: log, JoinTimeout: joinTimeout}, sessions),
+		pushes:  push.New(push.Deps{Sessions: g, World: w, Logger: log, SessionCheckInterval: checkEvery}, sessions),
 	}
 }
 
@@ -118,6 +121,98 @@ func TestHello(t *testing.T) {
 	})
 }
 
+// The account service's answers as the guard's client gives them.
+var (
+	unauthenticated = &model.ServiceError{Public: model.Unauthenticated, Err: errors.New("session ended")}
+	unavailable     = &model.ServiceError{Public: model.Internal, Kind: model.ErrUnavailable, Err: errors.New("connection refused")}
+)
+
+// Only the account service saying unauthenticated rejects a Hello; anything else is a failure the client retries.
+func TestHelloAndTheAccountService(t *testing.T) {
+	t.Run("an account service that is down fails the Hello without rejecting it", func(t *testing.T) {
+		g := newGatewayWith(&world{}, &guard{validate: unavailable}, time.Hour)
+		c := &outbox{}
+		err := g.Hello(t.Context(), g.Open("c-1", c), token, ayla)
+		if err == nil || errors.Is(err, model.ErrHelloRejected) || c.welcomed() != nil {
+			t.Fatalf("err = %v, welcomed %v", err, c.welcomed() != nil)
+		}
+	})
+	t.Run("a join that fails rotates no token, so the client's still works", func(t *testing.T) {
+		auth := &guard{}
+		g := newGatewayWith(&world{joinErr: errors.New("boom")}, auth, time.Hour)
+		if err := g.Hello(t.Context(), g.Open("c-1", &outbox{}), token, ayla); err == nil {
+			t.Fatal("the Hello joined")
+		}
+		if auth.rotated() != 0 {
+			t.Fatalf("%d rotations before any join succeeded", auth.rotated())
+		}
+	})
+	for _, tt := range []struct {
+		name     string
+		err      error
+		rejected bool
+	}{
+		{"a rotation the account service cannot make", unavailable, false},
+		{"a rotation of a session that ended", unauthenticated, true},
+	} {
+		t.Run(tt.name+" welcomes nobody and takes the player off the map", func(t *testing.T) {
+			w := &world{}
+			g := newGatewayWith(w, &guard{rotate: tt.err}, time.Hour)
+			c := &outbox{}
+			s := g.Open("c-1", c)
+			err := g.Hello(t.Context(), s, token, ayla)
+			if err == nil || errors.Is(err, model.ErrHelloRejected) != tt.rejected || c.welcomed() != nil {
+				t.Fatalf("err = %v, welcomed %v", err, c.welcomed() != nil)
+			}
+			g.Closed(s, "hello failed")
+			if w.left() != 1 {
+				t.Fatalf("%d leaves after the Hello failed past its join", w.left())
+			}
+		})
+	}
+}
+
+// The minute check ends a session only when the account service says it ended; an outage or a hung call ends nobody.
+func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		auth := &guard{check: unavailable}
+		w := &world{following: make(chan struct{})}
+		g := newGatewayWith(w, auth, time.Minute)
+		go func() { _ = g.pushes.Run(t.Context()) }()
+		<-w.following
+		o := &outbox{ends: make(chan model.EndReason, 1)}
+		if err := g.Hello(t.Context(), g.Open("c-1", o), token, ayla); err != nil {
+			t.Fatal(err)
+		}
+		still := func(when string) {
+			t.Helper()
+			select {
+			case r := <-o.ends:
+				t.Fatalf("ended as %s %s", r, when)
+			default:
+			}
+		}
+		time.Sleep(time.Minute + time.Second)
+		synctest.Wait()
+		still("while the account service was down")
+		auth.set(func(g *guard) { g.check, g.hang = nil, true })
+		time.Sleep(time.Minute + 10*time.Second)
+		synctest.Wait()
+		still("while its check hung")
+		auth.set(func(g *guard) { g.check, g.hang = unauthenticated, false })
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		select {
+		case r := <-o.ends:
+			if r != model.EndSessionExpired {
+				t.Fatalf("ended as %s", r)
+			}
+		default:
+			t.Fatal("a session the account service ended is still open")
+		}
+	})
+}
+
 func second[T any](_ T, err error) error { return err }
 
 // outbox keeps the Welcome and how the session first ended.
@@ -157,19 +252,63 @@ func (o *outbox) ended(t *testing.T) model.EndReason {
 	}
 }
 
-// guard knows one token, and rotates it to "rotated".
-type guard struct{}
+// guard knows one token, and rotates it to "rotated"; each set error is what that call fails with.
+type guard struct {
+	mu        sync.Mutex
+	validate  error
+	rotate    error
+	check     error
+	hang      bool // Check waits until its context ends
+	rotations int
+}
 
-func (guard) Validate(_ context.Context, tok string) (auth.Principal, error) {
+func (g *guard) set(change func(g *guard)) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	change(g)
+}
+
+func (g *guard) rotated() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.rotations
+}
+
+func (g *guard) Validate(_ context.Context, tok string) (auth.Principal, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.validate != nil {
+		return auth.Principal{}, g.validate
+	}
 	if tok != token {
-		return auth.Principal{}, errors.New("unknown token")
+		return auth.Principal{}, unauthenticated
 	}
 	return auth.Principal{AccountID: uuid.UUID(account), SessionID: uuid.UUID(sessionID)}, nil
 }
-func (guard) Revoke(context.Context, uuid.UUID) error           { return nil }
-func (guard) Rotate(context.Context, uuid.UUID) (string, error) { return "rotated", nil }
-func (guard) Check(context.Context, uuid.UUID) error            { return nil }
-func (guard) RevokeAll(context.Context, uuid.UUID) error        { return nil }
+
+func (g *guard) Rotate(context.Context, uuid.UUID) (string, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.rotate != nil {
+		return "", g.rotate
+	}
+	g.rotations++
+	return "rotated", nil
+}
+
+func (g *guard) Check(ctx context.Context, _ uuid.UUID) error {
+	g.mu.Lock()
+	err, hang := g.check, g.hang
+	g.mu.Unlock()
+	if hang {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	return err
+}
+
+func (*guard) Revoke(context.Context, uuid.UUID) error    { return nil }
+func (*guard) RevokeAll(context.Context, uuid.UUID) error { return nil }
 
 // world joins every character on the town, or fails with joinErr; a join first delivers flood
 // deliveries, its Snapshot first, through the stream the gateway follows.
@@ -180,6 +319,13 @@ type world struct {
 	followPanic string
 	deliver     func(model.WorldEvent)
 	following   chan struct{} // closed once the gateway follows the stream
+	leaves      int
+}
+
+func (w *world) left() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.leaves
 }
 
 func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
@@ -212,7 +358,12 @@ func (w *world) reconnect() {
 	w.mu.Unlock()
 	deliver(model.WorldEvent{Subscribed: true})
 }
-func (w *world) Leave(context.Context, model.Presence) error                     { return nil }
+func (w *world) Leave(context.Context, model.Presence) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.leaves++
+	return nil
+}
 func (w *world) Input(context.Context, model.Presence, uint32, model.Keys) error { return nil }
 func (w *world) Attack(context.Context, model.Presence) error                    { return nil }
 func (w *world) EnterPortal(context.Context, model.Presence) error               { return nil }

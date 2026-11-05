@@ -24,6 +24,7 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/services/gateway/internal/model"
 )
 
 type fakeSessions struct {
@@ -37,7 +38,7 @@ func (f *fakeSessions) Revoke(context.Context, uuid.UUID) error { return nil }
 func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal, error) {
 	p, ok := f.tokens[token]
 	if !ok {
-		return auth.Principal{}, errors.New("unauthenticated: bad token")
+		return auth.Principal{}, &model.ServiceError{Public: model.Unauthenticated, Err: errors.New("bad token")} // as the account client says it
 	}
 	return p, nil
 }
@@ -539,7 +540,7 @@ func (f *fakeSessions) Check(_ context.Context, sessionID uuid.UUID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.expired[sessionID] {
-		return errors.New("unauthenticated: session expired")
+		return &model.ServiceError{Public: model.Unauthenticated, Err: errors.New("session expired")}
 	}
 	return nil
 }

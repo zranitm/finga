@@ -69,7 +69,10 @@ type Deps struct {
 	JoinTimeout time.Duration // a Hello's whole join, retries included
 }
 
-const offlineTimeout = 5 * time.Second
+const (
+	offlineTimeout = 5 * time.Second
+	rotateTimeout  = 5 * time.Second
+)
 
 // Gateway runs the send flow's use cases over the registry's sessions.
 type Gateway struct {
