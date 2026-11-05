@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -32,6 +33,9 @@ type drop struct {
 	windowEnd  uint64 // tick until which only the killer may take it
 	expiresAt  uint64
 	reservedBy kernel.CharacterID // zero when free
+	// unsettled: its pickup failed with the outcome unknown, so it stays reservedBy's to retry under the
+	// same key; the item service's key is per account, and anyone else's pickup could grant it again.
+	unsettled bool
 }
 
 func (d *drop) view() model.DropView {
@@ -64,7 +68,7 @@ func (i *Instance) rollDrops(mb *mob, killer *player) {
 func (i *Instance) expireDrops() {
 	kept := i.drops[:0]
 	for _, d := range i.drops {
-		if d.expiresAt <= i.tick && d.reservedBy.IsZero() {
+		if d.expiresAt <= i.tick && (d.reservedBy.IsZero() || d.unsettled) {
 			i.removedDrops = append(i.removedDrops, d.id)
 			continue
 		}
@@ -82,7 +86,7 @@ func (i *Instance) pickUp(p *player) {
 	var best *drop
 	bestDist := math.Inf(1)
 	for _, d := range i.drops {
-		if !d.reservedBy.IsZero() {
+		if !d.reservedBy.IsZero() && (!d.unsettled || d.reservedBy != p.ID) {
 			continue
 		}
 		if d.windowEnd > i.tick && d.killer != p.ID && !i.deps.Parties.SameParty(d.killer, p.ID) {
@@ -96,10 +100,13 @@ func (i *Instance) pickUp(p *player) {
 	if best == nil {
 		return
 	}
-	best.reservedBy = p.ID
+	unsettled := best.unsettled
+	best.reservedBy, best.unsettled = p.ID, false
 	job := pickupJob{drop: *best, account: p.Account, character: p.ID}
 	if !i.deps.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
-		best.reservedBy = kernel.CharacterID{}
+		if best.unsettled = unsettled; !unsettled {
+			best.reservedBy = kernel.CharacterID{}
+		}
 		p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: model.ErrPickupBusy})
 	}
 }
@@ -150,7 +157,11 @@ func (i *Instance) finishPickup(r *pickupResult) {
 	p := i.players[r.who]
 	if r.err != nil {
 		if d != nil && d.reservedBy == r.who {
-			d.reservedBy = kernel.CharacterID{}
+			if errors.Is(r.err, model.ErrPickupsUnavailable) {
+				d.unsettled = true // the add may have committed before its reply was lost
+			} else {
+				d.reservedBy = kernel.CharacterID{}
+			}
 		}
 		if p != nil {
 			p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: r.err})

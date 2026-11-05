@@ -27,17 +27,23 @@ var (
 type fakePickups struct {
 	mu        sync.Mutex
 	calls     []model.Pickup
-	byDrop    map[uuid.UUID][]model.Slot
-	failFirst error         // returned by the first call of each drop
-	full      bool          // every add is refused with errFull
-	down      bool          // every add fails with errDown
-	hang      bool          // every add waits until its context ends
-	gate      chan struct{} // when set, every add waits for it to close
+	granted   map[pickupKey][]model.Slot // the item service's idempotency keys are per account
+	failFirst error                      // returned by the first call of each drop
+	full      bool                       // every add is refused with errFull
+	down      bool                       // every add fails with errDown
+	lostReply bool                       // every add commits, then fails with errDown
+	hang      bool                       // every add waits until its context ends
+	gate      chan struct{}              // when set, every add waits for it to close
 	seen      map[uuid.UUID]int
 }
 
+type pickupKey struct {
+	account kernel.AccountID
+	drop    uuid.UUID
+}
+
 func newFakePickups() *fakePickups {
-	return &fakePickups{byDrop: map[uuid.UUID][]model.Slot{}, seen: map[uuid.UUID]int{}}
+	return &fakePickups{granted: map[pickupKey][]model.Slot{}, seen: map[uuid.UUID]int{}}
 }
 
 func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
@@ -64,11 +70,15 @@ func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, e
 	if f.failFirst != nil && f.seen[in.DropID] == 1 {
 		return nil, f.failFirst
 	}
-	if slots, ok := f.byDrop[in.DropID]; ok {
-		return slots, nil
+	key := pickupKey{in.Account, in.DropID}
+	slots, ok := f.granted[key]
+	if !ok {
+		slots = []model.Slot{{Tab: gamedata.Etc, Slot: len(f.granted), Item: &model.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
+		f.granted[key] = slots
 	}
-	slots := []model.Slot{{Tab: gamedata.Etc, Slot: len(f.byDrop), Item: &model.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
-	f.byDrop[in.DropID] = slots
+	if f.lostReply {
+		return nil, errDown
+	}
 	return slots, nil
 }
 
@@ -77,7 +87,13 @@ func (f *fakePickups) Retryable(err error) bool { return !errors.Is(err, errFull
 func (f *fakePickups) items() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return len(f.byDrop)
+	return len(f.granted)
+}
+
+func (f *fakePickups) set(change func(f *fakePickups)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	change(f)
 }
 
 func (f *fakePickups) callCount() int {
@@ -472,6 +488,52 @@ func TestPickupsUnavailableWhileTheItemServiceStaysDown(t *testing.T) {
 		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) || items.callCount() != 2 {
 			v, _ := s.own(p.ID)
 			t.Fatalf("failures %+v after %d calls; drops %+v; player %+v", f, items.callCount(), dropsIn(s), v.State)
+		}
+	})
+}
+
+// A pickup whose reply was lost may have committed, so the drop stays its player's: their retry, under the same
+// key, settles it, and nobody else can be granted it again.
+func TestALostPickupReplyKeepsTheDropForItsPlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		items := newFakePickups()
+		items.lostReply = true
+		inst, stop := runLootArena(t, data, items, 0.3)
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		ayla := warriorAt(250)
+		ayla.Account = kernel.NewAccountID()
+		sa := join(t, inst, ayla)
+		killSlime(t, inst, ayla.ID)
+		seq := walk(inst, ayla.ID, 0, sim.Input{Right: true}, 5)
+		walk(inst, ayla.ID, seq, sim.Input{}, 1)
+		inst.PickUp(ayla.ID)
+		time.Sleep(3 * tickInterval)
+		synctest.Wait()
+		if f := pickupFailures(sa); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) {
+			t.Fatalf("failures %+v", f)
+		}
+		time.Sleep(11 * time.Second) // past the loot window, so anyone may try
+		synctest.Wait()
+		robin := warriorAt(300)
+		robin.Account = kernel.NewAccountID()
+		join(t, inst, robin)
+		inst.PickUp(robin.ID)
+		time.Sleep(3 * tickInterval)
+		synctest.Wait()
+		for _, c := range items.calls {
+			if c.Account == robin.Account {
+				t.Fatal("another account was let pick up a drop whose grant may have committed")
+			}
+		}
+		items.set(func(f *fakePickups) { f.lostReply = false })
+		inst.PickUp(ayla.ID)
+		time.Sleep(3 * tickInterval)
+		synctest.Wait()
+		if items.items() != 1 || len(inventoryChanges(sa)) != 1 || len(dropsIn(sa)) != 0 {
+			t.Fatalf("%d grants, %d inventory changes, drops %v; want the one grant settled", items.items(), len(inventoryChanges(sa)), dropsIn(sa))
 		}
 	})
 }
