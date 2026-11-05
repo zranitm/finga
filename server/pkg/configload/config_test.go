@@ -227,6 +227,24 @@ func TestLoadFrom(t *testing.T) {
 			errIs:   errReservedPort,
 		},
 		{
+			name:    "a_bare_number_is_no_duration",
+			yaml:    strings.Replace(baseYAML, "timeout: 3s", "timeout: 30", 1),
+			wantErr: true,
+			errHas:  []string{"server.timeout", "unit"},
+		},
+		{
+			name:    "a_bare_zero_is_no_duration",
+			yaml:    strings.Replace(baseYAML, "read: 1s", "read: 0", 1),
+			wantErr: true,
+			errHas:  []string{"limits", "unit"},
+		},
+		{
+			name:    "a_bare_number_from_env_is_no_duration",
+			env:     map[string]string{"APP_SERVER_TIMEOUT": "30"},
+			wantErr: true,
+			errHas:  []string{"server.timeout", "unit"},
+		},
+		{
 			name:    "invalid_yaml",
 			yaml:    "server: [",
 			wantErr: true,

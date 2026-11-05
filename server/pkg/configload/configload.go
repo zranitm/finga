@@ -28,6 +28,8 @@ type Options struct {
 // Validator is implemented by a schema with rules no validate tag can express.
 type Validator interface{ Validate() error }
 
+var errDurationUnit = errors.New("a duration needs a unit, such as 30s")
+
 const (
 	tagKey       = "mapstructure"
 	tagEnvPrefix = "envprefix"
@@ -79,6 +81,7 @@ func loadFrom[T any](r io.Reader, opts Options) (*T, error) {
 		ErrorUnused:      opts.Strict,
 		WeaklyTypedInput: true, // environment values are strings
 		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			numberToDurationHook,
 			mapstructure.StringToTimeDurationHookFunc(),
 			mapstructure.StringToSliceHookFunc(listSep),
 			stringToMapHook,
@@ -151,6 +154,19 @@ func isSection(t reflect.Type) bool {
 		t = t.Elem()
 	}
 	return t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Time]()
+}
+
+// numberToDurationHook refuses a bare number for a duration, which would otherwise be nanoseconds.
+func numberToDurationHook(from, to reflect.Type, data any) (any, error) {
+	if to != reflect.TypeFor[time.Duration]() {
+		return data, nil
+	}
+	switch from.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
+		return nil, errDurationUnit
+	}
+	return data, nil
 }
 
 func stringToMapHook(from, to reflect.Type, data any) (any, error) {
