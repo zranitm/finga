@@ -28,10 +28,11 @@ type fakePickups struct {
 	mu        sync.Mutex
 	calls     []model.Pickup
 	byDrop    map[uuid.UUID][]model.Slot
-	failFirst error // returned by the first call of each drop
-	full      bool  // every add is refused with errFull
-	down      bool  // every add fails with errDown
-	hang      bool  // every add waits until its context ends
+	failFirst error         // returned by the first call of each drop
+	full      bool          // every add is refused with errFull
+	down      bool          // every add fails with errDown
+	hang      bool          // every add waits until its context ends
+	gate      chan struct{} // when set, every add waits for it to close
 	seen      map[uuid.UUID]int
 }
 
@@ -46,6 +47,11 @@ func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, e
 		f.mu.Unlock()
 		<-ctx.Done()
 		return nil, ctx.Err()
+	}
+	if gate := f.gate; gate != nil {
+		f.mu.Unlock()
+		<-gate
+		f.mu.Lock()
 	}
 	defer f.mu.Unlock()
 	f.seen[in.DropID]++
@@ -466,6 +472,42 @@ func TestPickupsUnavailableWhileTheItemServiceStaysDown(t *testing.T) {
 		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) || items.callCount() != 2 {
 			v, _ := s.own(p.ID)
 			t.Fatalf("failures %+v after %d calls; drops %+v; player %+v", f, items.callCount(), dropsIn(s), v.State)
+		}
+	})
+}
+
+// A pickup that finishes after its map stopped, with the map's inbox full, does not hold up the shutdown.
+func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		items := newFakePickups()
+		items.gate = make(chan struct{})
+		workers := application.NewWorkers(2, &economy{}, discardPanics())
+		ctx, cancel := context.WithCancel(context.Background())
+		workersDone := make(chan struct{})
+		go func() { defer close(workersDone); _ = workers.Run(ctx) }()
+		inst, stop := runMap(t, data, arena(time.Hour), nil, options{NewRoll: rolls(0.3), Items: items, Workers: workers})
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(250)
+		join(t, inst, p)
+		killSlime(t, inst, p.ID)
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
+		walk(inst, p.ID, seq, sim.Input{}, 1)
+		inst.PickUp(p.ID)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		stop()
+		for n := uint32(100); inst.Input(p.ID, n, sim.Input{}); n++ {
+		}
+		close(items.gate)
+		synctest.Wait()
+		cancel()
+		synctest.Wait()
+		select {
+		case <-workersDone:
+		default:
+			t.Fatal("the workers are stuck posting a pickup result to a stopped map")
 		}
 	})
 }

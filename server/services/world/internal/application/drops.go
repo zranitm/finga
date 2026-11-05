@@ -120,7 +120,10 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
 		}
 	}
-	i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}
+	select {
+	case i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}:
+	case <-ctx.Done(): // the map stopped first; its inbox may never drain
+	}
 }
 
 func (i *Instance) addItem(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
