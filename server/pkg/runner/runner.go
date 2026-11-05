@@ -178,11 +178,15 @@ func (r *Runner) bind() ([]net.Listener, error) {
 	return lns, nil
 }
 
-const readHeaderTimeout = 10 * time.Second
+// No whole-request read or write timeout: either would end a WebSocket; a handler sets its own deadlines.
+const (
+	readHeaderTimeout = 10 * time.Second
+	idleTimeout       = 2 * time.Minute // a kept-alive connection between requests
+)
 
 // HTTP serves h.
 func HTTP(h http.Handler) Server {
-	return &httpServer{srv: &http.Server{Handler: h, ReadHeaderTimeout: readHeaderTimeout}}
+	return &httpServer{srv: &http.Server{Handler: h, ReadHeaderTimeout: readHeaderTimeout, IdleTimeout: idleTimeout}}
 }
 
 type httpServer struct{ srv *http.Server }

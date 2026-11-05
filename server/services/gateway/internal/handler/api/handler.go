@@ -7,7 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -16,8 +18,10 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// maxBodyBytes caps a request body; the largest legitimate one holds a 128-character password.
-const maxBodyBytes = 64 << 10
+const (
+	maxBodyBytes    = 64 << 10         // the largest legitimate body holds a 128-character password
+	bodyReadTimeout = 10 * time.Second // from the end of the headers, which the server's own timeout covers
+)
 
 // Dependencies are the use cases and settings the handler is built from.
 type Dependencies struct {
@@ -62,14 +66,21 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 
 var errMalformed = errors.New("api: malformed request body")
 
-// decode reads one JSON document into v; unlike Gin's binding it refuses trailing data and unknown fields.
+// decode reads one JSON document into v within bodyReadTimeout; unlike Gin's binding it refuses trailing data
+// and unknown fields.
 func decode(c *gin.Context, v any) error {
+	// net/http lifts the deadline when the body ends; a recorder in tests has no connection to set it on.
+	_ = http.NewResponseController(c.Writer).SetReadDeadline(time.Now().Add(bodyReadTimeout))
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
 	dec := json.NewDecoder(c.Request.Body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			writePublic(c, model.BodyTooLarge)
+			return err
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			writePublic(c, model.BodyTimeout)
 			return err
 		}
 		writePublic(c, model.MalformedBody)

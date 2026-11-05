@@ -11,6 +11,7 @@ export const errorCodes = [
   'bad_quantity',
   'bad_slot',
   'bad_username',
+  'body_timeout',
   'body_too_large',
   'character_not_found',
   'character_slots_full',

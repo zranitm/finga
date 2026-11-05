@@ -5,6 +5,7 @@ var (
 	MalformedBody        = Public{"malformed_body", "malformed request body"}
 	MissingField         = Public{"missing_field", "missing a required field"}
 	BodyTooLarge         = Public{"body_too_large", "request body too large"}
+	BodyTimeout          = Public{"body_timeout", "request body not received in time"}
 	NoSuchEndpoint       = Public{"no_such_endpoint", "no such endpoint"}
 	MethodNotAllowed     = Public{"method_not_allowed", "method not allowed"}
 	RateLimited          = Public{"rate_limited", "slow down"}

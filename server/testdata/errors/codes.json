@@ -55,6 +55,11 @@
     "message": "username must be 3 to 16 letters, digits or underscores"
   },
   {
+    "code": "body_timeout",
+    "status": 408,
+    "message": "request body not received in time"
+  },
+  {
     "code": "body_too_large",
     "status": 413,
     "message": "request body too large"

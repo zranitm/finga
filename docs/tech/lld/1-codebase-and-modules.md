@@ -476,6 +476,8 @@ func (r *Recorder) Go(ctx context.Context, flow string, fn func(), attrs ...any)
 
 // pkg/runner: one process's listeners and tasks (step 22)
 type Listener struct { Name, Addr string; Server Server } // runner.HTTP(handler) or runner.GRPC(server)
+// runner.HTTP times out headers (10 s) and kept-alive idle connections (2 min), but not a whole request,
+// which would end a WebSocket; a handler sets its own read deadline, as the REST decoder does for a body
 func New(opts Options, listeners []Listener, tasks []Task) *Runner
 func (r *Runner) Run(ctx context.Context) error // ready while listening; on shutdown: not ready, Drain, listeners stop within the grace, tasks stop
 // A task's panic is recorded and shuts the process down the same way; Run then returns it.
