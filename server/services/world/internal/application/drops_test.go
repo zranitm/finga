@@ -538,6 +538,47 @@ func TestALostPickupReplyKeepsTheDropForItsPlayer(t *testing.T) {
 	})
 }
 
+// A pickup that finishes after its player took a portal still tells them what they got.
+func TestAPickupResultReachesAPlayerWhoLeftThroughAPortal(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		items := newFakePickups()
+		items.gate = make(chan struct{})
+		workers := application.NewWorkers(2, &economy{}, discardPanics())
+		ctx, cancel := context.WithCancel(context.Background())
+		workersDone := make(chan struct{})
+		go func() { defer close(workersDone); _ = workers.Run(ctx) }()
+		defer func() { cancel(); <-workersDone }()
+		m := arena(time.Hour)
+		m.Portals = []gamedata.Portal{{Name: "to_town", Area: sim.Rect{X: 200, Y: 560, W: 200, H: 48}, TargetMap: "town", TargetPortal: "to_forest"}}
+		tr := &transferRecorder{}
+		inst, stop := runMap(t, data, m, nil, options{NewRoll: rolls(0.3), Items: items, Workers: workers, Transfer: tr})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(250)
+		s := join(t, inst, p)
+		killSlime(t, inst, p.ID)
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
+		walk(inst, p.ID, seq, sim.Input{}, 1)
+		inst.PickUp(p.ID)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		inst.EnterPortal(p.ID)
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		if len(teleports(s)) != 1 {
+			t.Fatalf("teleports %+v", teleports(s))
+		}
+		close(items.gate)
+		time.Sleep(2 * tickInterval)
+		synctest.Wait()
+		if ic := inventoryChanges(s); len(ic) != 1 || items.items() != 1 {
+			t.Fatalf("inventory changes %+v after %d grants", ic, items.items())
+		}
+	})
+}
+
 // A pickup that finishes after its map stopped, with the map's inbox full, does not hold up the shutdown.
 func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

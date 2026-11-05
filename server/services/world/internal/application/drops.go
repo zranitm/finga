@@ -102,7 +102,7 @@ func (i *Instance) pickUp(p *player) {
 	}
 	unsettled := best.unsettled
 	best.reservedBy, best.unsettled = p.ID, false
-	job := pickupJob{drop: *best, account: p.Account, character: p.ID}
+	job := pickupJob{drop: *best, account: p.Account, character: p.ID, sink: p.sink}
 	if !i.deps.Workers.Submit(func(ctx context.Context) { i.runPickup(ctx, job) }) {
 		if best.unsettled = unsettled; !unsettled {
 			best.reservedBy = kernel.CharacterID{}
@@ -115,6 +115,7 @@ type pickupJob struct {
 	drop      drop
 	account   kernel.AccountID
 	character kernel.CharacterID
+	sink      Sink // the player's, for a result that arrives after they left the map
 }
 
 // runPickup runs on a worker and posts the result back to the inbox.
@@ -128,7 +129,7 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 		}
 	}
 	select {
-	case i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, slots: slots, err: err}:
+	case i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, sink: job.sink, slots: slots, err: err}:
 	case <-ctx.Done(): // the map stopped first; its inbox may never drain
 	}
 }
@@ -142,6 +143,7 @@ func (i *Instance) addItem(ctx context.Context, in model.Pickup) ([]model.Slot, 
 type pickupResult struct {
 	dropID uint64
 	who    kernel.CharacterID
+	sink   Sink
 	slots  []model.Slot
 	err    error
 }
@@ -154,7 +156,13 @@ func (i *Instance) finishPickup(r *pickupResult) {
 			break
 		}
 	}
-	p := i.players[r.who]
+	tell := func(e model.Event) {
+		if p, ok := i.players[r.who]; ok {
+			p.private = append(p.private, e)
+		} else {
+			r.sink.Send(e) // they left through a portal or a death since; the connection is the same
+		}
+	}
 	if r.err != nil {
 		if d != nil && d.reservedBy == r.who {
 			if errors.Is(r.err, model.ErrPickupsUnavailable) {
@@ -163,18 +171,14 @@ func (i *Instance) finishPickup(r *pickupResult) {
 				d.reservedBy = kernel.CharacterID{}
 			}
 		}
-		if p != nil {
-			p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: r.err})
-		}
+		tell(model.PickupFailed{Tick: i.tick, Err: r.err})
 		return
 	}
 	if d != nil {
 		i.drops = removeDrop(i.drops, d.id)
 		i.removedDrops = append(i.removedDrops, d.id)
 	}
-	if p != nil {
-		p.private = append(p.private, model.InventoryChanged{Tick: i.tick, Slots: r.slots})
-	}
+	tell(model.InventoryChanged{Tick: i.tick, Slots: r.slots})
 }
 
 func removeDrop(drops []*drop, id uint64) []*drop {

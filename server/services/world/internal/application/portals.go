@@ -39,6 +39,10 @@ func standsIn(r sim.Rect, x, y float64) bool {
 
 // handOff checkpoints the player on the target map before detaching, so a crash still lands them there.
 func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
+	for _, e := range p.private { // this tick's, which the broadcast would have sent
+		p.sink.Send(e)
+	}
+	p.private = nil
 	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
 	moved := p.Player
 	moved.X, moved.Y = x, y
