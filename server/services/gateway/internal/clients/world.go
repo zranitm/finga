@@ -33,7 +33,7 @@ func (w World) Join(ctx context.Context, gateway, conn string, account kernel.Ac
 		return model.Joined{}, errmap.Wrap(err)
 	}
 	c := res.GetCharacter()
-	return model.Joined{Character: characterView(c), MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY()}, nil
+	return model.Joined{Character: characterView(c), MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY(), TickRateHz: int(res.GetTickRateHz())}, nil
 }
 
 // Leave removes the player if it joined through the presence's connection.

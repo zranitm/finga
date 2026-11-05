@@ -10,7 +10,13 @@ import { REGISTRY } from './registry';
 
 vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
 
-const world = { mapId: 'town', characterId: 'c-ayla', cls: 'warrior', name: 'Ayla' };
+const world = {
+  mapId: 'town',
+  characterId: 'c-ayla',
+  cls: 'warrior',
+  name: 'Ayla',
+  tickRateHz: 20,
+};
 
 describe('GameHandle', () => {
   let socket: GameSocket;

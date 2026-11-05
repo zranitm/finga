@@ -546,7 +546,7 @@ log:
     initial: 100
     thereafter: 100
 data_dir: data             # the game data, relative to server/
-tick_rate_hz: 20           # divides 60; the web client assumes 20
+tick_rate_hz: 20           # divides 60; sent to the client in Welcome
 checkpoint_interval: 30s   # TD-02
 economy:
   workers: 8               # the pool that runs pickups and inventory actions

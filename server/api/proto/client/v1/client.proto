@@ -206,6 +206,8 @@ message Welcome {
   uint32 tick = 6;
   // Unix milliseconds.
   int64 server_time = 7;
+  // The world's ticks per second: each tick holds 60 / tick_rate_hz physics steps. 0 from an older server means 20.
+  uint32 tick_rate_hz = 8;
 }
 
 // PlayerView is a character on the map as everyone sees it.

@@ -100,7 +100,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 			{Name: "world", Run: maps.Run},
 		},
 	})
-	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, Logger: log}))
+	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz, Logger: log}))
 	h.OnClose(closeAll)
 	log.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
 	return h, nil

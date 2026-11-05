@@ -79,6 +79,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
                 const me = welcome.character ?? c; // always sent, but a message field is optional
                 svc.game.enter({
                   mapId: welcome.mapId,
+                  tickRateHz: welcome.tickRateHz,
                   characterId: me.id,
                   cls: me.class,
                   name: me.name,

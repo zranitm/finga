@@ -37,6 +37,8 @@ export class MobTracker {
   private readonly buffers = new Map<number, RemoteBuffer>();
   private readonly info = new Map<number, { type: string; hp: number; maxHp: number }>();
 
+  constructor(private readonly tickMs: number) {}
+
   applySnapshot(t: number, mobs: readonly MobWire[]): void {
     const seen = new Set<number>();
     for (const m of mobs) {
@@ -71,7 +73,7 @@ export class MobTracker {
   private put(t: number, m: MobWire): void {
     let b = this.buffers.get(m.id);
     if (!b) {
-      b = new RemoteBuffer();
+      b = new RemoteBuffer(this.tickMs);
       this.buffers.set(m.id, b);
     }
     b.push(

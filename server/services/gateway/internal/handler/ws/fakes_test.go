@@ -179,7 +179,7 @@ func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv
 	f.events <- &worldv1.DeliverResponse{CharacterId: id.String(), ConnectionId: req.GetConnectionId(), Tick: f.tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
 		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
 	}}}
-	return &worldv1.JoinResponse{Character: v}, nil
+	return &worldv1.JoinResponse{Character: v, TickRateHz: 30}, nil
 }
 
 // save is the character's checkpoint, which the next join loads.

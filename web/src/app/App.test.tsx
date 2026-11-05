@@ -25,6 +25,7 @@ const welcome = {
   character: { id, name, class: sampleCharacter.class, level, hp, maxHp: hp, mp, maxMp: mp },
   mapId: 'town',
   tick: 1,
+  tickRateHz: 30,
 };
 
 function services(script: Script) {
@@ -86,7 +87,10 @@ describe('App', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument(); // connected: no notice
     await waitFor(() =>
       expect(game.started).toEqual([
-        [SCENES.World, { mapId: 'town', characterId: 'c-ayla', cls: 'warrior', name: 'Ayla' }],
+        [
+          SCENES.World,
+          { mapId: 'town', characterId: 'c-ayla', cls: 'warrior', name: 'Ayla', tickRateHz: 30 },
+        ],
       ]),
     );
 

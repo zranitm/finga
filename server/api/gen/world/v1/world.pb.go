@@ -2182,8 +2182,10 @@ func (x *JoinRequest) GetCharacterId() string {
 }
 
 type JoinResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Character     *CharacterView         `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Character *CharacterView         `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
+	// The world's ticks per second; the client times its prediction and interpolation by it.
+	TickRateHz    uint32 `protobuf:"varint,2,opt,name=tick_rate_hz,json=tickRateHz,proto3" json:"tick_rate_hz,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2223,6 +2225,13 @@ func (x *JoinResponse) GetCharacter() *CharacterView {
 		return x.Character
 	}
 	return nil
+}
+
+func (x *JoinResponse) GetTickRateHz() uint32 {
+	if x != nil {
+		return x.TickRateHz
+	}
+	return 0
 }
 
 type LeaveRequest struct {
@@ -2916,9 +2925,11 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\x12!\n" +
-	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"N\n" +
+	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"p\n" +
 	"\fJoinResponse\x12>\n" +
-	"\tcharacter\x18\x01 \x01(\v2 .internal.world.v1.CharacterViewR\tcharacter\"p\n" +
+	"\tcharacter\x18\x01 \x01(\v2 .internal.world.v1.CharacterViewR\tcharacter\x12 \n" +
+	"\ftick_rate_hz\x18\x02 \x01(\rR\n" +
+	"tickRateHz\"p\n" +
 	"\fLeaveRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12'\n" +
 	"\rconnection_id\x18\x02 \x01(\tB\x02\x18\x01R\fconnectionId\"\x0f\n" +

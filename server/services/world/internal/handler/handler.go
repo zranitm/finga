@@ -40,22 +40,25 @@ var ErrNotSubscribed = errors.New("world: gateway has no deliver stream")
 // Server serves WorldService.
 type Server struct {
 	worldv1.UnimplementedWorldServiceServer
-	world   World
-	bootID  string
-	deliver *hub.Hub[*worldv1.DeliverResponse]
-	log     *slog.Logger
+	world    World
+	bootID   string
+	tickRate uint32
+	deliver  *hub.Hub[*worldv1.DeliverResponse]
+	log      *slog.Logger
 }
 
 // Options configure the server.
 type Options struct {
 	// BootID is random per process start, so a gateway can tell its players are gone.
 	BootID string
-	Logger *slog.Logger
+	// TickRateHz is the maps' ticks per second, told to each joining client.
+	TickRateHz int
+	Logger     *slog.Logger
 }
 
 // New builds the server.
 func New(w World, opts Options) *Server {
-	return &Server{world: w, bootID: opts.BootID, deliver: hub.New[*worldv1.DeliverResponse](queue), log: opts.Logger}
+	return &Server{world: w, bootID: opts.BootID, tickRate: uint32(opts.TickRateHz), deliver: hub.New[*worldv1.DeliverResponse](queue), log: opts.Logger}
 }
 
 // Deliver streams one gateway's events, starting with Subscribed.
@@ -88,7 +91,7 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.JoinResponse{Character: characterView(v)}, nil
+	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate}, nil
 }
 
 // Leave removes the player if it joined through the presence's connection.

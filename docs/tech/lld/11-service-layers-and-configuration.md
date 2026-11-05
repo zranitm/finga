@@ -89,7 +89,7 @@ log:
     initial: 100
     thereafter: 100
 data_dir: data
-tick_rate_hz: 20           # divides 60; the web client assumes 20
+tick_rate_hz: 20           # divides 60; sent to the client in Welcome
 checkpoint_interval: 30s   # TD-02
 flush_timeout: 10s         # the last saves on shutdown, all together; after shutdown_grace
 economy:

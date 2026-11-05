@@ -47,6 +47,7 @@ type Welcome struct {
 	Party      *PartyView
 	MapID      string
 	ServerTime time.Time
+	TickRateHz int
 }
 
 // Keys are the keys a player holds.

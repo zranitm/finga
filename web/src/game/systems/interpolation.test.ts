@@ -1,16 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  RENDER_DELAY_MS,
-  RemoteBuffer,
-  RemotePlayers,
-  RenderClock,
-  TICK_MS,
-  blend,
-  sample,
-} from './interpolation';
+import { RemoteBuffer, RemotePlayers, RenderClock, blend, sample } from './interpolation';
 import type { RemoteWire, Timed } from './interpolation';
 import type { WireState } from './prediction';
+
+const TICK_MS = 50; // the 20 Hz tick these states are spaced by
 
 const at = (x: number, y: number, vx = 0, vy = 0, extra: Partial<WireState> = {}): WireState => ({
   x,
@@ -55,7 +49,7 @@ describe('sample', () => {
       want: at(130, 585, 200, -300, { on_ground: false, facing: -1 }),
     },
   ])('$name', ({ time, want }) => {
-    const got = sample(buffer, time)!;
+    const got = sample(buffer, time, TICK_MS)!;
     for (const k of ['x', 'y', 'vx', 'vy'] as const) {
       expect(got[k]).toBeCloseTo(want[k], 6);
     }
@@ -64,7 +58,7 @@ describe('sample', () => {
   });
 
   it('an empty buffer samples nothing', () => {
-    expect(sample([], 1000)).toBeUndefined();
+    expect(sample([], 1000, TICK_MS)).toBeUndefined();
   });
 
   it('blend at 0 and 1 returns the ends', () => {
@@ -75,7 +69,7 @@ describe('sample', () => {
 
 describe('RemoteBuffer', () => {
   it('keeps states in order, replaces a repeat for the same tick, and drops states older than a second', () => {
-    const b = new RemoteBuffer();
+    const b = new RemoteBuffer(TICK_MS);
     b.push(1000, at(1, 0));
     b.push(1050, at(2, 0));
     b.push(1050, at(3, 0));
@@ -88,7 +82,7 @@ describe('RemoteBuffer', () => {
   });
 
   it('a removed player stays visible until the buffer has drained past the removal tick', () => {
-    const b = new RemoteBuffer();
+    const b = new RemoteBuffer(TICK_MS);
     b.push(1000, at(1, 0));
     b.push(1050, at(2, 0));
     b.remove(1100);
@@ -114,7 +108,7 @@ const wire = (id: string, x: number, name = id, cls = 'warrior'): RemoteWire => 
 
 describe('RemotePlayers', () => {
   it('a Snapshot sets the map, skipping the local player, and drops anyone not in it', () => {
-    const r = new RemotePlayers('me');
+    const r = new RemotePlayers('me', TICK_MS);
     r.applySnapshot(1000, [wire('me', 1), wire('a', 10, 'Ayla'), wire('b', 20, 'Bruno', 'bowman')]);
     expect(r.size).toBe(2);
     expect(r.nameOf('a')).toBe('Ayla');
@@ -125,7 +119,7 @@ describe('RemotePlayers', () => {
   });
 
   it('Deltas add states, and a removal is drawn until drained then reported once', () => {
-    const r = new RemotePlayers('me');
+    const r = new RemotePlayers('me', TICK_MS);
     r.applySnapshot(1000, [wire('a', 10)]);
     r.applyDelta(1050, [wire('a', 20), wire('me', 5)], []);
     r.applyDelta(1100, [wire('a', 30)], []);
@@ -141,7 +135,7 @@ describe('RemotePlayers', () => {
   });
 
   it('a removal for an unknown player is ignored, and clear forgets everyone', () => {
-    const r = new RemotePlayers('me');
+    const r = new RemotePlayers('me', TICK_MS);
     r.applyDelta(1000, [wire('a', 1)], ['nobody']);
     expect(r.size).toBe(1);
     r.clear();
@@ -151,17 +145,23 @@ describe('RemotePlayers', () => {
 });
 
 describe('RenderClock', () => {
-  it('sits RENDER_DELAY_MS behind the newest tick and advances with local time between messages', () => {
-    const c = new RenderClock();
+  it('sits two ticks behind the newest tick and advances with local time between messages', () => {
+    const c = new RenderClock(TICK_MS);
     expect(c.renderTime(0)).toBeNull();
     c.update(100, 5000);
-    expect(c.renderTime(5000)).toBe(100 * TICK_MS - RENDER_DELAY_MS);
-    expect(c.renderTime(5030)).toBe(100 * TICK_MS - RENDER_DELAY_MS + 30);
+    expect(c.renderTime(5000)).toBe(100 * TICK_MS - 2 * TICK_MS);
+    expect(c.renderTime(5030)).toBe(100 * TICK_MS - 2 * TICK_MS + 30);
     c.update(101, 5050);
-    expect(c.renderTime(5050)).toBe(101 * TICK_MS - RENDER_DELAY_MS);
+    expect(c.renderTime(5050)).toBe(101 * TICK_MS - 2 * TICK_MS);
     c.update(99, 5060); // an older tick does not move the clock back
-    expect(c.renderTime(5060)).toBe(101 * TICK_MS - RENDER_DELAY_MS + 10);
+    expect(c.renderTime(5060)).toBe(101 * TICK_MS - 2 * TICK_MS + 10);
     c.reset();
     expect(c.renderTime(5100)).toBeNull();
+  });
+
+  it('at 30 Hz sits two of its shorter ticks behind', () => {
+    const c = new RenderClock(1000 / 30);
+    c.update(90, 7000);
+    expect(c.renderTime(7000)).toBeCloseTo(88 * (1000 / 30), 6);
   });
 });

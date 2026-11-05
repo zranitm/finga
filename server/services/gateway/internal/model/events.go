@@ -4,9 +4,10 @@ import "finga/internal/kernel"
 
 // Joined is a player the world has joined, and where it is.
 type Joined struct {
-	Character CharacterView
-	MapID     string
-	X, Y      float64
+	Character  CharacterView
+	MapID      string
+	X, Y       float64
+	TickRateHz int // the world's ticks per second
 }
 
 // WorldEvent is Subscribed (the stream opened, perhaps after a break) or a delivery for the player

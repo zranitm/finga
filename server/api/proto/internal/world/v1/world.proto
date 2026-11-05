@@ -280,6 +280,8 @@ message JoinRequest {
 
 message JoinResponse {
   CharacterView character = 1;
+  // The world's ticks per second; the client times its prediction and interpolation by it.
+  uint32 tick_rate_hz = 2;
 }
 
 message LeaveRequest {

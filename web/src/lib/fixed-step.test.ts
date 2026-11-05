@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FixedStep } from './fixed-step';
+import { FixedStep, tickTiming } from './fixed-step';
 
 describe('FixedStep', () => {
   it.each([
@@ -15,7 +15,7 @@ describe('FixedStep', () => {
     { name: 'a 1 s frame is capped and the rest dropped', frames: [1000, 16.7], want: [15, 1] },
     { name: 'a zero frame yields nothing', frames: [0], want: [0] },
   ])('$name', ({ frames, want }) => {
-    const fs = new FixedStep();
+    const fs = new FixedStep(3);
     expect(frames.map((f) => fs.advance(f).length)).toEqual(want);
   });
 
@@ -24,7 +24,7 @@ describe('FixedStep', () => {
     { name: 'three steps per frame', frames: [50, 50, 50] },
     { name: 'mixed frames', frames: [16.7, 33.4, 50, 8, 8.7, 100] },
   ])('every third step starts a tick across $name', ({ frames }) => {
-    const fs = new FixedStep();
+    const fs = new FixedStep(3);
     const flags = frames.flatMap((f) => fs.advance(f).map((s) => s.tickStart));
     expect(flags.length).toBeGreaterThan(3);
     flags.forEach((flag, k) => {
@@ -33,21 +33,49 @@ describe('FixedStep', () => {
   });
 
   it('a long frame that hits the cap keeps the tick boundary where the steps left it', () => {
-    const fs = new FixedStep(4); // 4 steps: the 5th would have started a tick
+    const fs = new FixedStep(3, 4); // 4 steps: the 5th would have started a tick
     const first = fs.advance(1000);
     expect(first.map((s) => s.tickStart)).toEqual([true, false, false, true]);
     expect(fs.advance(50).map((s) => s.tickStart)).toEqual([false, false, true]);
   });
 
   it.each([-1, Number.NaN])('refuses frame time %s', (frameMs) => {
-    expect(() => new FixedStep().advance(frameMs)).toThrow(RangeError);
+    expect(() => new FixedStep(3).advance(frameMs)).toThrow(RangeError);
+  });
+
+  it('at 30 Hz every second step starts a tick', () => {
+    const fs = new FixedStep(2);
+    expect(fs.advance(100).map((s) => s.tickStart)).toEqual([
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+  });
+
+  it('refuses fewer than one step per tick', () => {
+    expect(() => new FixedStep(0)).toThrow(RangeError);
   });
 
   it('refuses a cap below one', () => {
-    expect(() => new FixedStep(0)).toThrow(RangeError);
+    expect(() => new FixedStep(3, 0)).toThrow(RangeError);
   });
 
   it('exposes the step length for the simulation', () => {
     expect(FixedStep.stepMs).toBeCloseTo(16.6667, 3);
+  });
+});
+
+describe('tickTiming', () => {
+  it.each([
+    { hz: 20, tickMs: 50, stepsPerTick: 3 },
+    { hz: 30, tickMs: 1000 / 30, stepsPerTick: 2 },
+    { hz: 60, tickMs: 1000 / 60, stepsPerTick: 1 },
+    { hz: 0, tickMs: 50, stepsPerTick: 3 },
+    { hz: 7, tickMs: 50, stepsPerTick: 3 },
+  ])('$hz Hz paces $stepsPerTick steps a tick', ({ hz, tickMs, stepsPerTick }) => {
+    expect(tickTiming(hz)).toEqual({ tickMs, stepsPerTick });
   });
 });

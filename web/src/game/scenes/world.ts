@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
-import { FixedStep } from '@/lib/fixed-step';
+import { FixedStep, tickTiming } from '@/lib/fixed-step';
+import type { TickTiming } from '@/lib/fixed-step';
 import type { GameSocket } from '@/net/socket';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
@@ -26,7 +27,7 @@ import {
   parseRef,
 } from '../systems/combat-view';
 import { InputSender } from '../systems/input-sender';
-import { RemotePlayers, RenderClock, TICK_MS } from '../systems/interpolation';
+import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
@@ -41,6 +42,8 @@ export interface WorldData {
   readonly characterId: string;
   readonly cls: string;
   readonly name: string;
+  /** The world's ticks per second, from Welcome. */
+  readonly tickRateHz: number;
   /** After a MapChange: shown until the Snapshot confirms it. */
   readonly arrival?: { readonly x: number; readonly y: number };
 }
@@ -60,7 +63,14 @@ const ARROW_RANGE = 420;
 const ARROW_MS = 300;
 
 export class World extends Phaser.Scene {
-  private entry: WorldData = { mapId: 'town', characterId: '', cls: 'warrior', name: '' };
+  private entry: WorldData = {
+    mapId: 'town',
+    characterId: '',
+    cls: 'warrior',
+    name: '',
+    tickRateHz: 20,
+  };
+  private timing: TickTiming = tickTiming(20);
   private player: PlayerView | null = null;
   private background: Phaser.GameObjects.Image | null = null;
   private offs: (() => void)[] = [];
@@ -68,15 +78,15 @@ export class World extends Phaser.Scene {
   private socket: GameSocket | null = null;
   private predictor: Predictor | null = null;
   private sender: InputSender | null = null;
-  private readonly clock = new FixedStep();
+  private clock = new FixedStep(this.timing.stepsPerTick);
   private placed = false; // set by the first Snapshot that names the local player
 
   private remotes: RemotePlayers | null = null;
   private readonly remoteViews = new Map<string, PlayerView>();
-  private readonly renderClock = new RenderClock();
+  private renderClock = new RenderClock(this.timing.tickMs);
   private lastTick = 0;
 
-  private readonly mobs = new MobTracker();
+  private mobs = new MobTracker(this.timing.tickMs);
   private readonly mobViews = new Map<number, MobView>();
   private readonly numbers = new DamageNumbers();
   private numberLayer: DamageNumberLayer | null = null;
@@ -98,6 +108,10 @@ export class World extends Phaser.Scene {
 
   init(data: WorldData): void {
     this.entry = data;
+    this.timing = tickTiming(data.tickRateHz);
+    this.clock = new FixedStep(this.timing.stepsPerTick);
+    this.renderClock = new RenderClock(this.timing.tickMs);
+    this.mobs = new MobTracker(this.timing.tickMs);
     this.placed = false;
     this.transitionState = initialTransition;
   }
@@ -180,7 +194,7 @@ export class World extends Phaser.Scene {
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
     this.socket = socket;
     this.predictor = new Predictor(view.geometry);
-    this.remotes = new RemotePlayers(this.entry.characterId);
+    this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.renderClock.reset();
     this.mobs.clear();
     this.drops.clear();
@@ -256,7 +270,7 @@ export class World extends Phaser.Scene {
         ),
       ),
       socket.on('correction', (m) => this.onCorrection(m.d)),
-      socket.on('welcome', (m) => this.onWelcome(m.d.mapId)),
+      socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('damage', (m) => this.onDamage(m.d)),
       socket.on('died', (m) => this.onTransition({ t: 'died', d: m.d })),
       socket.on('respawned', (m) => this.onTransition({ t: 'respawned', d: m.d })),
@@ -397,8 +411,8 @@ export class World extends Phaser.Scene {
     tick: number,
   ): void {
     this.renderClock.update(tick, this.time.now);
-    this.remotes?.applySnapshot(tick * TICK_MS, players);
-    this.mobs.applySnapshot(tick * TICK_MS, mobs);
+    this.remotes?.applySnapshot(tick * this.timing.tickMs, players);
+    this.mobs.applySnapshot(tick * this.timing.tickMs, mobs);
     const changed = this.drops.applySnapshot(drops);
     this.applyDrops(changed.added, changed.removed);
     const me = this.me(players);
@@ -423,8 +437,8 @@ export class World extends Phaser.Scene {
     tick: number,
   ): void {
     this.renderClock.update(tick, this.time.now);
-    this.remotes?.applyDelta(tick * TICK_MS, players, removed);
-    this.mobs.applyDelta(tick * TICK_MS, mobs, removedMobs);
+    this.remotes?.applyDelta(tick * this.timing.tickMs, players, removed);
+    this.mobs.applyDelta(tick * this.timing.tickMs, mobs, removedMobs);
     const changed = this.drops.applyDelta(drops, removedDrops);
     this.applyDrops(changed.added, changed.removed);
     const me = this.me(players);
@@ -449,10 +463,10 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** After a reconnect: the same map waits for the next Snapshot; another map restarts the scene. */
-  private onWelcome(mapId: string): void {
-    if (mapId !== this.entry.mapId) {
-      this.scene.restart({ ...this.entry, mapId });
+  /** After a reconnect: the same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
+  private onWelcome(mapId: string, tickRateHz: number): void {
+    if (mapId !== this.entry.mapId || tickRateHz !== this.entry.tickRateHz) {
+      this.scene.restart({ ...this.entry, mapId, tickRateHz });
       return;
     }
     this.placed = false;

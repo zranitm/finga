@@ -39,7 +39,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		return fmt.Errorf("join: %w", err)
 	}
 	c := join.Joined.Character
-	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now()}
+	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now(), TickRateHz: join.Joined.TickRateHz}
 	if g.deps.Items != nil {
 		items, err := g.deps.Items.Inventory(ctx, charID)
 		if err != nil {

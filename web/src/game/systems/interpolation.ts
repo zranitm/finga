@@ -1,13 +1,11 @@
-// Remote players are drawn RENDER_DELAY_MS behind the newest server state, blended between buffered states.
+// Remote players are drawn two ticks behind the newest server state, blended between buffered states.
 import { wireState } from './prediction';
 import type { ServerState, WireState } from './prediction';
 
-export const TICK_MS = 50;
-export const RENDER_DELAY_MS = 100;
 const KEEP_MS = 1000;
 
 export interface Timed {
-  /** Server tick clock: tick * TICK_MS. */
+  /** Server tick clock: tick * the tick's length in ms. */
   readonly t: number;
   readonly state: WireState;
 }
@@ -26,8 +24,12 @@ export function blend(a: WireState, b: WireState, f: number): WireState {
   };
 }
 
-/** Past the last state, extrapolates along its velocity for at most one tick. */
-export function sample(buffer: readonly Timed[], renderTime: number): WireState | undefined {
+/** Past the last state, extrapolates along its velocity for at most one tick of tickMs. */
+export function sample(
+  buffer: readonly Timed[],
+  renderTime: number,
+  tickMs: number,
+): WireState | undefined {
   const first = buffer[0];
   if (!first) {
     return undefined;
@@ -37,7 +39,7 @@ export function sample(buffer: readonly Timed[], renderTime: number): WireState 
   }
   const last = buffer[buffer.length - 1]!;
   if (renderTime >= last.t) {
-    const dt = Math.min(renderTime - last.t, TICK_MS) / 1000;
+    const dt = Math.min(renderTime - last.t, tickMs) / 1000;
     const s = last.state;
     return { ...s, x: s.x + s.vx * dt, y: s.y + s.vy * dt };
   }
@@ -54,6 +56,8 @@ export function sample(buffer: readonly Timed[], renderTime: number): WireState 
 export class RemoteBuffer {
   private items: Timed[] = [];
   private removedAt: number | null = null;
+
+  constructor(private readonly tickMs: number) {}
 
   push(t: number, state: WireState): void {
     const last = this.items[this.items.length - 1];
@@ -85,7 +89,7 @@ export class RemoteBuffer {
   }
 
   sample(renderTime: number): WireState | undefined {
-    return sample(this.items, renderTime);
+    return sample(this.items, renderTime, this.tickMs);
   }
 
   get size(): number {
@@ -103,7 +107,10 @@ export class RemotePlayers {
   private readonly buffers = new Map<string, RemoteBuffer>();
   private readonly info = new Map<string, { name: string; cls: string }>();
 
-  constructor(private readonly localId: string) {}
+  constructor(
+    private readonly localId: string,
+    private readonly tickMs: number,
+  ) {}
 
   /** Players missing from a Snapshot are gone at once. */
   applySnapshot(t: number, players: readonly RemoteWire[]): void {
@@ -137,7 +144,7 @@ export class RemotePlayers {
   private put(t: number, p: RemoteWire): void {
     let b = this.buffers.get(p.id);
     if (!b) {
-      b = new RemoteBuffer();
+      b = new RemoteBuffer(this.tickMs);
       this.buffers.set(p.id, b);
       this.info.set(p.id, { name: p.name, cls: p.class });
     }
@@ -180,11 +187,13 @@ export class RemotePlayers {
   }
 }
 
-/** Advances smoothly between messages, RENDER_DELAY_MS behind the newest tick seen. */
+/** Advances smoothly between messages, two ticks behind the newest tick seen. */
 export class RenderClock {
   private latestTick = 0;
   private latestAt = 0;
   private started = false;
+
+  constructor(private readonly tickMs: number) {}
 
   update(tick: number, now: number): void {
     if (!this.started || tick > this.latestTick) {
@@ -198,7 +207,7 @@ export class RenderClock {
     if (!this.started) {
       return null;
     }
-    return this.latestTick * TICK_MS - RENDER_DELAY_MS + (now - this.latestAt);
+    return (this.latestTick - 2) * this.tickMs + (now - this.latestAt);
   }
 
   reset(): void {

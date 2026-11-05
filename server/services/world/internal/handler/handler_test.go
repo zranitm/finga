@@ -114,7 +114,7 @@ func newStack(t *testing.T) *stack {
 	t.Cleanup(func() { cancel(); <-done })
 
 	sinks := make(chan application.Sink, 1)
-	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", Logger: slog.New(slog.DiscardHandler)})
+	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", TickRateHz: 20, Logger: slog.New(slog.DiscardHandler)})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)
 	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: kernel.NewAccountID(), data: data}
@@ -148,6 +148,9 @@ func (s *stack) join(t *testing.T, gateway, conn string, ch model.Character) *wo
 	res, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: gateway, ConnectionId: conn, AccountId: s.account.String(), CharacterId: ch.ID.String()})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if res.GetTickRateHz() != 20 {
+		t.Fatalf("tick rate %d, want the world's 20 Hz, which the client times its steps by", res.GetTickRateHz())
 	}
 	return res.GetCharacter()
 }

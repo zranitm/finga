@@ -253,7 +253,7 @@ func TestHelloHappyPath(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		w := c.expect("Welcome")
 		welcome := w.Data.(*clientv1.Welcome)
-		if welcome.GetCharacter().GetId() != aylaID.String() || welcome.GetCharacter().GetName() != "Ayla" || welcome.GetCharacter().GetMaxHp() != 204 || welcome.GetMapId() != "town" || welcome.ServerTime == 0 {
+		if welcome.GetCharacter().GetId() != aylaID.String() || welcome.GetCharacter().GetName() != "Ayla" || welcome.GetCharacter().GetMaxHp() != 204 || welcome.GetMapId() != "town" || welcome.ServerTime == 0 || welcome.GetTickRateHz() != 30 {
 			t.Fatalf("welcome %+v", welcome)
 		}
 		s := c.expect("Snapshot")

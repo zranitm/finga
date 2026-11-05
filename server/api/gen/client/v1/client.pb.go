@@ -1896,7 +1896,9 @@ type Welcome struct {
 	MapId string     `protobuf:"bytes,5,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	Tick  uint32     `protobuf:"varint,6,opt,name=tick,proto3" json:"tick,omitempty"`
 	// Unix milliseconds.
-	ServerTime    int64 `protobuf:"varint,7,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
+	ServerTime int64 `protobuf:"varint,7,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
+	// The world's ticks per second: each tick holds 60 / tick_rate_hz physics steps. 0 from an older server means 20.
+	TickRateHz    uint32 `protobuf:"varint,8,opt,name=tick_rate_hz,json=tickRateHz,proto3" json:"tick_rate_hz,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1976,6 +1978,13 @@ func (x *Welcome) GetTick() uint32 {
 func (x *Welcome) GetServerTime() int64 {
 	if x != nil {
 		return x.ServerTime
+	}
+	return 0
+}
+
+func (x *Welcome) GetTickRateHz() uint32 {
+	if x != nil {
+		return x.TickRateHz
 	}
 	return 0
 }
@@ -3493,7 +3502,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06online\x18\a \x01(\bR\x06online\"U\n" +
 	"\tPartyView\x12\x16\n" +
 	"\x06leader\x18\x01 \x01(\tR\x06leader\x120\n" +
-	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\x82\x02\n" +
+	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xa4\x02\n" +
 	"\aWelcome\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x126\n" +
 	"\tcharacter\x18\x02 \x01(\v2\x18.client.v1.CharacterViewR\tcharacter\x121\n" +
@@ -3502,7 +3511,9 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06map_id\x18\x05 \x01(\tR\x05mapId\x12\x12\n" +
 	"\x04tick\x18\x06 \x01(\rR\x04tick\x12\x1f\n" +
 	"\vserver_time\x18\a \x01(\x03R\n" +
-	"serverTime\"\xc8\x02\n" +
+	"serverTime\x12 \n" +
+	"\ftick_rate_hz\x18\b \x01(\rR\n" +
+	"tickRateHz\"\xc8\x02\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
