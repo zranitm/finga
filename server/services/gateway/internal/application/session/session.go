@@ -27,8 +27,6 @@ type Session struct {
 	id     atomic.Pointer[identity]
 	closed bool // under the registry's lock: a rejoin finishing after Remove leaves again
 
-	joinMu sync.Mutex // one join at a time
-
 	out out
 }
 

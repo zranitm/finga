@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -17,6 +18,10 @@ const (
 	leaveTimeout   = 5 * time.Second
 	joinRetryFirst = 20 * time.Millisecond
 	joinRetryMax   = 500 * time.Millisecond
+	// After the world's stream breaks every player rejoins: each after a random pause up to rejoinSpread,
+	// and no more than rejoinsAtOnce at a time, so a world that just restarted is not hit by all at once.
+	rejoinSpread  = 500 * time.Millisecond
+	rejoinsAtOnce = 32
 )
 
 // Join is a Hello's join in progress: the session holds the character and its deliveries wait,
@@ -28,13 +33,17 @@ type Join struct {
 	s        *Session
 	previous *Session // the character's session before this one
 	subs     uint64   // the world subscriptions when the join began
+	unlock   func()   // lets the character's next join go
 }
 
 // Join joins character to the world through s's connection, retrying while the world cannot take it
 // yet, then claims it for s. Deliveries wait until Finish sends Welcome; on an error nothing stays held or claimed.
 func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountID, sessionID kernel.SessionID, character kernel.CharacterID) (*Join, error) {
-	// Rejoins wait, and deliveries are held so a Snapshot that beats the join follows Welcome.
-	s.joinMu.Lock()
+	// The character's other joins wait, and deliveries are held so a Snapshot that beats the join follows Welcome.
+	unlock, err := r.lockCharacter(ctx, character)
+	if err != nil {
+		return nil, err
+	}
 	s.out.hold()
 	r.mu.Lock()
 	s.id.Store(&identity{account: account, sessionID: sessionID, character: model.Player{ID: character}})
@@ -48,7 +57,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 		r.mu.Lock()
 		s.id.Store(nil)
 		r.mu.Unlock()
-		s.joinMu.Unlock()
+		unlock()
 		return nil, err
 	}
 	// Only once the world has loaded the character as the account's may its social deliveries reach s.
@@ -56,7 +65,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	previous := r.byCharacter[character]
 	r.byCharacter[character] = s
 	r.mu.Unlock()
-	return &Join{Joined: joined, r: r, s: s, previous: previous, subs: subs}, nil
+	return &Join{Joined: joined, r: r, s: s, previous: previous, subs: subs, unlock: unlock}, nil
 }
 
 // Finish makes s the account's, the login session's and the character's active session as player,
@@ -64,7 +73,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 // world's stream broke during the join, s rejoins.
 func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*Session) {
 	r, s := j.r, j.s
-	defer s.joinMu.Unlock()
+	defer j.unlock()
 	r.mu.Lock()
 	who := s.who()
 	old := r.byAccount[who.account]
@@ -88,17 +97,40 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 }
 
 // Cancel gives up a join whose Hello failed after the world joined; the handler then closes the connection.
-func (j *Join) Cancel() { j.s.joinMu.Unlock() }
+func (j *Join) Cancel() { j.unlock() }
 
 // Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing.
 func (r *Registry) Rejoin(s *Session) {
-	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() { r.rejoin(s) }, "job", "rejoin", "character_id", s.Character())
+	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
+		select {
+		case <-time.After(rand.N(rejoinSpread)):
+		case <-s.ctx.Done():
+			return
+		}
+		select {
+		case r.rejoins <- struct{}{}:
+			defer func() { <-r.rejoins }()
+			r.rejoin(s)
+		case <-s.ctx.Done():
+		}
+	}, "job", "rejoin", "character_id", s.Character())
 }
 
-// rejoin joins a player again after the world's stream broke; other failures end the session.
+// rejoin joins a player again after the world's stream broke, unless a newer connection joined the
+// character since; other failures end the session.
 func (r *Registry) rejoin(s *Session) {
-	s.joinMu.Lock()
-	defer s.joinMu.Unlock()
+	character := s.Character()
+	unlock, err := r.lockCharacter(s.ctx, character)
+	if err != nil {
+		return // closed while another join ran
+	}
+	defer unlock()
+	r.mu.Lock()
+	current := r.byCharacter[character] == s
+	r.mu.Unlock()
+	if !current {
+		return
+	}
 	ctx, cancel := context.WithTimeout(s.ctx, r.deps.JoinTimeout)
 	defer cancel()
 	before := s.mapID()

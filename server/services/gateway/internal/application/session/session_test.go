@@ -2,9 +2,12 @@ package session_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"finga/internal/kernel"
@@ -58,4 +61,114 @@ func TestTheIdentityCanBeReadWhileAJoinSetsIt(t *testing.T) {
 	if s.Character() != character || s.Player().Name != "Ayla" || s.LoginSession() != login || s.Presence().Connection != "conn-1" {
 		t.Fatalf("after the join: %v %+v %v %+v", s.Character(), s.Player(), s.LoginSession(), s.Presence())
 	}
+}
+
+// recordingWorld joins after a pause, recording each join's connection and how many ran at once; a join
+// through a held connection waits until it is let go.
+type recordingWorld struct {
+	mu            sync.Mutex
+	held          map[string]chan struct{}
+	conns         []string
+	running, most int
+}
+
+func (w *recordingWorld) Join(ctx context.Context, _, conn string, _ kernel.AccountID, _ kernel.CharacterID) (model.Joined, error) {
+	w.mu.Lock()
+	gate := w.held[conn]
+	w.running++
+	w.most = max(w.most, w.running)
+	w.mu.Unlock()
+	defer func() {
+		w.mu.Lock()
+		w.running--
+		w.conns = append(w.conns, conn)
+		w.mu.Unlock()
+	}()
+	time.Sleep(10 * time.Millisecond)
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return model.Joined{}, ctx.Err()
+		}
+	}
+	return model.Joined{MapID: "town"}, nil
+}
+
+func (*recordingWorld) Leave(context.Context, model.Presence) error { return nil }
+
+func (w *recordingWorld) hold(conn string) chan struct{} {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.held == nil {
+		w.held = map[string]chan struct{}{}
+	}
+	w.held[conn] = make(chan struct{})
+	return w.held[conn]
+}
+
+func (w *recordingWorld) joined() (conns []string, most int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return append([]string(nil), w.conns...), w.most
+}
+
+func play(t *testing.T, r *session.Registry, conn string, character kernel.CharacterID) *session.Session {
+	t.Helper()
+	s := r.Open(conn, outbox{})
+	j, err := r.Join(t.Context(), s, kernel.NewAccountID(), kernel.NewSessionID(), character)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.Finish(model.Player{ID: character}, model.Welcome{})
+	return s
+}
+
+// After the world's stream breaks every player rejoins, but only a few at a time, so a world that just
+// restarted is not hit by all of them at once.
+func TestRejoinsRunAFewAtATime(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := &recordingWorld{}
+		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Minute})
+		r.WorldSubscribed()
+		for i := range 100 {
+			play(t, r, fmt.Sprint("c-", i), kernel.NewCharacterID())
+		}
+		_, active := r.WorldSubscribed()
+		for _, s := range active {
+			r.Rejoin(s)
+		}
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if conns, most := w.joined(); len(conns) != 200 || most > 32 {
+			t.Fatalf("%d joins, %d at once; want 100 rejoins, at most 32 at once", len(conns)-100, most)
+		}
+	})
+}
+
+// A rejoin still in flight when the player reconnects cannot undo the newer connection's join, and one that
+// starts after it does not join at all.
+func TestANewerJoinOutlastsAStaleRejoin(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := &recordingWorld{}
+		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Minute})
+		r.WorldSubscribed()
+		ayla := kernel.NewCharacterID()
+		old := play(t, r, "c-old", ayla)
+		release := w.hold("c-old")
+		_, active := r.WorldSubscribed()
+		r.Rejoin(active[0])
+		time.Sleep(time.Second) // the rejoin is in the world, held there
+		joined := make(chan struct{})
+		go func() { defer close(joined); play(t, r, "c-new", ayla) }()
+		synctest.Wait()
+		close(release)
+		<-joined
+		r.Rejoin(old) // a rejoin the old connection's last break asked for
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if conns, _ := w.joined(); !slices.Equal(conns, []string{"c-old", "c-old", "c-new"}) {
+			t.Fatalf("joins %v; the newer connection's must be the last", conns)
+		}
+	})
 }
