@@ -409,10 +409,10 @@ type Conn interface {
     Send(Message) error // non-blocking; the write loop encodes it, so it must not change once sent; a full send queue closes the connection
     Close(code int, reason string) // what was queued, then the close frame and the peer's answer, within 2 s
 }
-type Handler interface {
-    OnOpen(Conn)
-    OnMessage(Conn, Message)
-    OnClose(Conn, error)
+type Handler[S any] interface {
+    OnOpen(Conn) S // the connection's state, handed back to the others, so a handler keeps no map of connections
+    OnMessage(Conn, S, Message)
+    OnClose(Conn, S, error) // a *CloseError for our closes; its Err is our side's cause, ErrEncode for a message the codec refused
 }
 // A panic in a callback closes the connection with 1011, still calls OnClose once, and goes to Options.Panics.
 

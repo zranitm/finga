@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"sync"
 	"time"
 
 	"finga/internal/protocol"
@@ -43,13 +42,10 @@ type Handler struct {
 	subprotocols []wsconn.Subprotocol
 	opts         Options
 	receive      *receive.Handler
-
-	mu          sync.Mutex
-	connections map[string]connection
 }
 
-// connection is one socket's receiving side and its session.
-type connection struct {
+// Connection is one socket's receiving side and its session: the state wsconn hands back to each callback.
+type Connection struct {
 	in      *receive.Inbox
 	session *session.Session
 }
@@ -66,7 +62,7 @@ func New(gw *send.Gateway, opts Options) *Handler {
 		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
 	return &Handler{
-		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, connections: map[string]connection{},
+		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts,
 		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Logger: opts.Logger, Panics: opts.Panics}),
 	}
 }
@@ -77,40 +73,32 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "server restarting", http.StatusServiceUnavailable)
 		return
 	}
-	wsconn.Serve(w, r, h, wsconn.Options{Subprotocols: h.subprotocols, AllowedOrigins: h.opts.Origins, Panics: h.opts.Panics})
+	wsconn.Serve[Connection](w, r, h, wsconn.Options{Subprotocols: h.subprotocols, AllowedOrigins: h.opts.Origins, Panics: h.opts.Panics})
 }
 
 // OnOpen opens the connection's session, written to through its outbox, and starts its receiving side.
-func (h *Handler) OnOpen(c wsconn.Conn) {
+func (h *Handler) OnOpen(c wsconn.Conn) Connection {
 	out := push.NewOutbox(c, h.opts.Observer)
 	s := h.gw.Open(c.ID(), out)
-	conn := connection{in: h.receive.Open(out, s), session: s}
-	h.mu.Lock()
-	h.connections[c.ID()] = conn
-	h.mu.Unlock()
+	return Connection{in: h.receive.Open(out, s), session: s}
 }
 
 // OnMessage hands a message to the receiving side, on the read loop.
-func (h *Handler) OnMessage(c wsconn.Conn, m wsconn.Message) {
+func (h *Handler) OnMessage(_ wsconn.Conn, conn Connection, m wsconn.Message) {
 	h.opts.Observer.MessageIn(m.Type)
-	h.mu.Lock()
-	conn, ok := h.connections[c.ID()]
-	h.mu.Unlock()
-	if ok {
-		h.receive.Dispatch(conn.in, m)
-	}
+	h.receive.Dispatch(conn.in, m)
 }
 
-// OnClose stops the connection's commands before ending its session.
-func (h *Handler) OnClose(c wsconn.Conn, err error) {
-	h.mu.Lock()
-	conn, ok := h.connections[c.ID()]
-	delete(h.connections, c.ID())
-	h.mu.Unlock()
-	if !ok {
-		return
+// OnClose stops the connection's commands before ending its session; a push that could not be encoded
+// is a bug, so it is logged as one.
+func (h *Handler) OnClose(c wsconn.Conn, conn Connection, err error) {
+	if conn.in == nil {
+		return // OnOpen panicked
 	}
 	conn.in.Stop()
+	if errors.Is(err, wsconn.ErrEncode) {
+		h.opts.Logger.Error("a message could not be encoded", "conn", c.ID(), "err", err)
+	}
 	if ce, ok := errors.AsType[*wsconn.CloseError](err); ok && ce.Code == wsconn.CloseSlowConsumer {
 		h.opts.Observer.SlowConsumer()
 	}

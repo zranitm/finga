@@ -1448,3 +1448,27 @@ func TestTheFirstSubscriptionIsNotABreak(t *testing.T) {
 		t.Fatalf("%d joins: the first subscription was taken for a break", n)
 	}
 }
+
+// fakeConn is a connection the test drives the handler's callbacks with.
+type fakeConn struct{ id string }
+
+func (c fakeConn) ID() string                  { return c.id }
+func (fakeConn) Send(wsconn.Message) error     { return nil }
+func (fakeConn) Close(code int, reason string) {}
+
+// A push the codec cannot encode is a programming error: its close is logged as one, with the type.
+func TestAnEncodeFailureIsLoggedAsAnError(t *testing.T) {
+	logs := &lockedBuffer{}
+	d := deps{ID: "gw-test", Logger: slog.New(slog.NewJSONHandler(logs, nil)), HelloTimeout: time.Minute, CommandQueue: 4}
+	_, handler := d.build()
+	h := handler.(*ws.Handler)
+	c := fakeConn{id: "conn-1"}
+	state := h.OnOpen(c)
+	h.OnClose(c, state, &wsconn.CloseError{Code: wsconn.CloseInternal, Reason: "internal error", Err: fmt.Errorf("%w: Snapshot: invalid UTF-8", wsconn.ErrEncode)})
+	got := logs.String()
+	for _, want := range []string{`"level":"ERROR"`, `"conn":"conn-1"`, `Snapshot: invalid UTF-8`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("log lacks %s: %s", want, got)
+		}
+	}
+}

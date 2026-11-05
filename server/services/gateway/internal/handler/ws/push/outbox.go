@@ -85,5 +85,5 @@ func (o *Outbox) send(m wsconn.Message) {
 		m.Type = string(data.ProtoReflect().Descriptor().Name())
 	}
 	o.obs.MessageOut(m.Type)
-	_ = o.ws.Send(m)
+	_ = o.ws.Send(m) // a full queue or a closed connection ends in OnClose, which reports it
 }

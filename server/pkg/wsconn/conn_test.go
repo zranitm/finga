@@ -29,6 +29,7 @@ type recorder struct {
 	opened   int
 	closed   int
 	closeErr error
+	states   []string // the state each OnMessage and OnClose got
 	messages []wsconn.Message
 	onOpen   func(wsconn.Conn)
 	onMsg    func(wsconn.Conn, wsconn.Message)
@@ -38,28 +39,32 @@ type recorder struct {
 
 func newRecorder() *recorder { return &recorder{done: make(chan struct{})} }
 
-func (r *recorder) OnOpen(c wsconn.Conn) {
+// OnOpen's state is the connection's ID with a mark, so a test sees it come back.
+func (r *recorder) OnOpen(c wsconn.Conn) string {
 	r.mu.Lock()
 	r.opened++
 	r.mu.Unlock()
 	if r.onOpen != nil {
 		r.onOpen(c)
 	}
+	return "state of " + c.ID()
 }
 
-func (r *recorder) OnMessage(c wsconn.Conn, m wsconn.Message) {
+func (r *recorder) OnMessage(c wsconn.Conn, state string, m wsconn.Message) {
 	r.mu.Lock()
 	r.messages = append(r.messages, m)
+	r.states = append(r.states, state)
 	r.mu.Unlock()
 	if r.onMsg != nil {
 		r.onMsg(c, m)
 	}
 }
 
-func (r *recorder) OnClose(_ wsconn.Conn, err error) {
+func (r *recorder) OnClose(_ wsconn.Conn, state string, err error) {
 	r.mu.Lock()
 	r.closed++
 	r.closeErr = err
+	r.states = append(r.states, state)
 	n := r.closed
 	r.mu.Unlock()
 	if n == 1 {
@@ -434,9 +439,33 @@ func TestAMessageTheCodecCannotEncodeClosesTheConnection(t *testing.T) {
 	if got := closeStatus(t, c); got != websocket.StatusInternalError {
 		t.Fatalf("closed with %v, want 1011", got)
 	}
+	// A programming error: the handler's log gets the cause and the message's type; the client only 1011.
+	err := rec.waitClosed(t)
 	var ce *wsconn.CloseError
-	if err := rec.waitClosed(t); !errors.As(err, &ce) || ce.Code != wsconn.CloseInternal || ce.Reason != "encode failed" {
+	if !errors.As(err, &ce) || ce.Code != wsconn.CloseInternal || ce.Reason != "internal error" || !errors.Is(err, wsconn.ErrEncode) || !strings.Contains(err.Error(), "Ping") {
 		t.Fatalf("OnClose got %v", err)
+	}
+}
+
+func TestTheStateOnOpenReturnsReachesTheOtherCallbacks(t *testing.T) {
+	checkLeaks(t)
+	rec := newRecorder()
+	var id string
+	rec.onOpen = func(c wsconn.Conn) { id = c.ID() }
+	got := make(chan struct{})
+	rec.onMsg = func(wsconn.Conn, wsconn.Message) { close(got) }
+	s := start(t, rec, wsconn.Options{})
+	c := dial(t, s, "")
+	if err := c.Write(context.Background(), websocket.MessageText, []byte(`{"attack":{}}`)); err != nil {
+		t.Fatal(err)
+	}
+	<-got
+	_ = c.Close(websocket.StatusNormalClosure, "")
+	_ = rec.waitClosed(t)
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.states) != 2 || rec.states[0] != "state of "+id || rec.states[1] != "state of "+id {
+		t.Fatalf("states %q, want OnOpen's for the message and the close", rec.states)
 	}
 }
 
@@ -490,7 +519,7 @@ func TestConnIDsAreDistinct(t *testing.T) {
 
 func TestNoHelloTimeoutIsTheHandlersJob(t *testing.T) {
 	// wsconn knows no Hello; the handler owns that timer.
-	var _ wsconn.Handler = newRecorder()
+	var _ wsconn.Handler[string] = newRecorder()
 }
 
 // checkLeaks must be registered first so it runs after the server's cleanup.

@@ -42,15 +42,26 @@ const (
 var (
 	ErrQueueFull = errors.New("wsconn: send queue full")
 	ErrClosed    = errors.New("wsconn: connection closed")
+	// ErrEncode is a message the codec could not encode, a programming error; it closes with 1011.
+	ErrEncode = errors.New("wsconn: message cannot be encoded")
 )
 
 // CloseError is why we closed a connection; a peer's normal closure gives OnClose nil.
 type CloseError struct {
 	Code   int
-	Reason string
+	Reason string // sent in the close frame
+	Err    error  // our side's cause, for the logs; never sent
 }
 
-func (e *CloseError) Error() string { return fmt.Sprintf("wsconn: closed %d: %s", e.Code, e.Reason) }
+func (e *CloseError) Error() string {
+	if e.Err != nil {
+		return fmt.Sprintf("wsconn: closed %d: %s: %v", e.Code, e.Reason, e.Err)
+	}
+	return fmt.Sprintf("wsconn: closed %d: %s", e.Code, e.Reason)
+}
+
+// Unwrap is the cause.
+func (e *CloseError) Unwrap() error { return e.Err }
 
 // Conn is a live connection as the handler sees it.
 type Conn interface {
@@ -62,11 +73,13 @@ type Conn interface {
 	Close(code int, reason string)
 }
 
-// Handler callbacks run on the read goroutine one at a time; OnClose runs last, exactly once.
-type Handler interface {
-	OnOpen(Conn)
-	OnMessage(Conn, Message)
-	OnClose(Conn, error)
+// Handler callbacks run on the read goroutine one at a time; OnClose runs last, exactly once. OnOpen
+// returns the connection's state, which the others get back, so a handler keeps no map of its own;
+// OnClose gets the zero state if OnOpen panicked.
+type Handler[S any] interface {
+	OnOpen(Conn) S
+	OnMessage(Conn, S, Message)
+	OnClose(Conn, S, error)
 }
 
 // Subprotocol is a codec a client asks for by name when it connects.
@@ -106,7 +119,7 @@ func (o Options) withDefaults() Options {
 }
 
 // Serve upgrades the request and runs the connection until it closes.
-func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
+func Serve[S any](w http.ResponseWriter, r *http.Request, h Handler[S], opts Options) {
 	opts = opts.withDefaults()
 	names := make([]string, 0, len(opts.Subprotocols))
 	for _, sp := range opts.Subprotocols {
@@ -128,7 +141,7 @@ func Serve(w http.ResponseWriter, r *http.Request, h Handler, opts Options) {
 		frame = websocket.MessageBinary
 	}
 	c := &conn{id: uuidv7.NewString(), ws: ws, raw: hj.conn, codec: codec, frame: frame, send: make(chan Message, opts.SendQueue), closed: make(chan struct{})}
-	c.run(r.Context(), h, opts)
+	run(c, r.Context(), h, opts)
 }
 
 // hijackKeeper keeps the connection the upgrade takes over, so a goodbye past its deadline can drop it.
@@ -209,9 +222,11 @@ func (c *conn) Send(m Message) error {
 }
 
 // Close records the reason and wakes the run loop.
-func (c *conn) Close(code int, reason string) {
+func (c *conn) Close(code int, reason string) { c.closeWith(&CloseError{Code: code, Reason: reason}) }
+
+func (c *conn) closeWith(ce *CloseError) {
 	c.once.Do(func() {
-		c.closeErr = &CloseError{Code: code, Reason: reason}
+		c.closeErr = ce
 		close(c.closed)
 	})
 }
@@ -225,7 +240,7 @@ type frame struct {
 	err  error
 }
 
-func (c *conn) run(parent context.Context, h Handler, opts Options) {
+func run[S any](c *conn, parent context.Context, h Handler[S], opts Options) {
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	var wg sync.WaitGroup
@@ -252,8 +267,8 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		for {
 			select {
 			case m := <-c.send:
-				if err := c.write(ctx, m); err != nil {
-					c.Close(CloseInternal, err.Error())
+				if ce := c.write(ctx, m); ce != nil {
+					c.closeWith(ce)
 					return
 				}
 			case <-c.closed:
@@ -285,7 +300,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 		}
 	})
 
-	failure, readErr := c.callbacks(h, frames)
+	state, failure, readErr := callbacks(c, h, frames)
 
 	// A peer that stopped reading never takes the last frames or answers the close frame, so the goodbye
 	// has one deadline; past it the socket is dropped. A peer that still reads hears our code.
@@ -305,7 +320,7 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 	if failure != nil && opts.Panics != nil {
 		opts.Panics.Record(parent, panics.FlowWS, failure, "conn", c.id)
 	}
-	if late := onClose(c, h, closeReason(c.closeErr, readErr)); late != nil {
+	if late := onClose(c, h, state, closeReason(c.closeErr, readErr)); late != nil {
 		if opts.Panics != nil {
 			opts.Panics.Record(parent, panics.FlowWS, late, "conn", c.id)
 		} else if failure == nil {
@@ -318,29 +333,29 @@ func (c *conn) run(parent context.Context, h Handler, opts Options) {
 }
 
 // callbacks runs OnOpen, then OnMessage for each frame; a panic in either closes the connection with 1011.
-func (c *conn) callbacks(h Handler, frames <-chan frame) (failure *panics.Error, readErr error) {
+func callbacks[S any](c *conn, h Handler[S], frames <-chan frame) (state S, failure *panics.Error, readErr error) {
 	defer func() {
 		if p := recover(); p != nil {
 			failure = panics.Of(p)
 			c.Close(CloseInternal, "internal error")
 		}
 	}()
-	h.OnOpen(c)
-	return nil, c.dispatch(h, frames)
+	state = h.OnOpen(c)
+	return state, nil, dispatch(c, h, state, frames)
 }
 
-func onClose(c *conn, h Handler, err error) (failure *panics.Error) {
+func onClose[S any](c *conn, h Handler[S], state S, err error) (failure *panics.Error) {
 	defer func() {
 		if p := recover(); p != nil {
 			failure = panics.Of(p)
 		}
 	}()
-	h.OnClose(c, err)
+	h.OnClose(c, state, err)
 	return nil
 }
 
 // dispatch returns the read error if the peer ended the connection, else nil.
-func (c *conn) dispatch(h Handler, frames <-chan frame) error {
+func dispatch[S any](c *conn, h Handler[S], state S, frames <-chan frame) error {
 	for {
 		select {
 		case <-c.closed:
@@ -355,7 +370,7 @@ func (c *conn) dispatch(h Handler, frames <-chan frame) error {
 				c.Close(CloseBadMessage, "bad message")
 				return nil
 			}
-			h.OnMessage(c, m)
+			h.OnMessage(c, state, m)
 		}
 	}
 }
@@ -388,21 +403,16 @@ func (c *conn) flush(ctx context.Context) {
 	}
 }
 
-var (
-	errEncode = errors.New("encode failed")
-	errWrite  = errors.New("write failed")
-)
-
-// write encodes m and writes it as one frame; the error is the close reason.
-func (c *conn) write(ctx context.Context, m Message) error {
+// write encodes m and writes it as one frame; a failure is how the connection closes.
+func (c *conn) write(ctx context.Context, m Message) *CloseError {
 	b, err := c.codec.Encode(m)
 	if err != nil {
-		return errEncode
+		return &CloseError{Code: CloseInternal, Reason: "internal error", Err: fmt.Errorf("%w: %s: %w", ErrEncode, m.Type, err)}
 	}
 	wctx, cancel := context.WithTimeout(ctx, writeTimeout)
 	defer cancel()
-	if c.ws.Write(wctx, c.frame, b) != nil {
-		return errWrite
+	if err := c.ws.Write(wctx, c.frame, b); err != nil {
+		return &CloseError{Code: CloseInternal, Reason: "write failed", Err: err}
 	}
 	return nil
 }
