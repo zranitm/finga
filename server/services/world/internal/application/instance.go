@@ -230,7 +230,19 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 			i.checkpoint(i.players[id])
 		}
 	}
-	i.dropped = i.broadcast(changed, removed)
+	i.dropped = i.broadcast(changed, i.gone(removed))
+}
+
+// gone keeps the removed players who are not back: a Leave and a rejoin in one tick is an update, and the
+// client applies removals after updates.
+func (i *Instance) gone(removed []kernel.CharacterID) []kernel.CharacterID {
+	out := removed[:0]
+	for _, id := range removed {
+		if _, back := i.players[id]; !back && !slices.Contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 func (i *Instance) drain() []kernel.CharacterID {

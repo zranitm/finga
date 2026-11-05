@@ -812,3 +812,42 @@ func walk(inst *application.Instance, id kernel.CharacterID, seq uint32, in sim.
 	}
 	return seq
 }
+
+// A Leave and a rejoin in one tick leave the player on everyone's screen: the Delta lists them, not as removed.
+func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		x, y := townSpawn(t, data)
+		inst, cancel := run(t, data, nil, options{})
+		defer cancel()
+		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x+100, y)
+		ayla.Connection = "c-1"
+		join(t, inst, ayla)
+		sr := join(t, inst, robin)
+		before := len(sr.all())
+		inst.LeaveConnection(ayla.ID, "c-1")
+		ayla.Connection = "c-2"
+		joined := make(chan error, 1)
+		go func() { joined <- inst.Join(context.Background(), ayla, &sink{}) }()
+		synctest.Wait()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		if err := <-joined; err != nil {
+			t.Fatal(err)
+		}
+		shown := false
+		for _, e := range sr.all()[before:] {
+			d, ok := e.(model.Delta)
+			if !ok {
+				continue
+			}
+			if slices.Contains(d.Removed, ayla.ID) {
+				t.Fatalf("Robin was told Ayla left: %+v", d)
+			}
+			shown = shown || slices.ContainsFunc(d.Players, func(v model.PlayerView) bool { return v.ID == ayla.ID })
+		}
+		if !shown {
+			t.Fatal("Robin was not shown Ayla after the rejoin")
+		}
+	})
+}
