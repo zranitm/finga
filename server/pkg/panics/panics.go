@@ -18,6 +18,9 @@ const (
 	FlowTask   = "task"   // a background loop; the process shuts down
 )
 
+// Flows lists every flow, so a counter can start each at 0.
+func Flows() []string { return []string{FlowHTTP, FlowGRPC, FlowWS, FlowStream, FlowJob, FlowTask} }
+
 // Error is a recovered panic and the stack it happened on.
 type Error struct {
 	Value any

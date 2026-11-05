@@ -468,7 +468,8 @@ func Follow[T any](ctx context.Context, open func(context.Context) (grpc.ServerS
 // pkg/panics: a recovered panic as an error, logged and counted the same way in every flow
 type Error struct { Value any; Stack []byte }
 func Capture(err *error) // deferred: a panic becomes the *Error the goroutine returns
-type Counter interface{ Inc(flow string) } // observability.PanicCounter: panics_total by flow
+type Counter interface{ Inc(flow string) } // observability.PanicCounter: panics_total by flow, each at 0 from the start
+func Flows() []string                      // FlowHTTP, FlowGRPC, FlowWS, FlowStream, FlowJob, FlowTask
 func NewRecorder(log *slog.Logger, count Counter) *Recorder // one per process; a nil count only logs
 func (r *Recorder) Record(ctx context.Context, flow string, e *Error, attrs ...any) // "panic recovered", with its stack
 func (r *Recorder) Do(ctx context.Context, flow string, fn func(), attrs ...any)     // one-off work: recorded, not fatal

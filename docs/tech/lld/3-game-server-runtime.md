@@ -99,5 +99,5 @@ Only one player can hold a reservation, so two players can never both get a drop
 - `db_tx_duration_seconds` by operation; `db_tx_retries_total`
 - `economy_jobs_inflight`
 - `outbox_unpublished`: grows in Stage 1, then shows relay lag in Stage 2
-- `panics_total` by flow (`http`, `grpc`, `ws`, `stream`, `job`, `task`), on every binary
+- `panics_total` by flow (`http`, `grpc`, `ws`, `stream`, `job`, `task`), on every binary; each flow starts at 0, so an alert on its rate sees the first panic
 - `grpc_server_handled_total` by service, method and code (the code the caller sees), `grpc_server_handling_seconds` and `grpc_server_started_total`, on every gRPC service, each method's series from 0 (go-grpc-middleware's Prometheus provider)

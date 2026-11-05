@@ -52,6 +52,7 @@ func TestMetricsHandler(t *testing.T) {
 	}
 }
 
+// Every flow is a series from the start, so an alert on its rate sees the first panic.
 func TestPanicCounterCountsByFlow(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	c, err := observability.NewPanicCounter(reg)
@@ -64,6 +65,10 @@ func TestPanicCounterCountsByFlow(t *testing.T) {
 	want := `# HELP panics_total Panics recovered, by flow.
 # TYPE panics_total counter
 panics_total{flow="grpc"} 1
+panics_total{flow="http"} 0
+panics_total{flow="job"} 0
+panics_total{flow="stream"} 0
+panics_total{flow="task"} 0
 panics_total{flow="ws"} 2
 `
 	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "panics_total"); err != nil {

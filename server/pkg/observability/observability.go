@@ -8,6 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"finga/pkg/panics"
 )
 
 // NewRegistry is a fresh registry with the Go runtime and process collectors.
@@ -25,11 +27,14 @@ func MetricsHandler(reg *prometheus.Registry) http.Handler {
 // PanicCounter is panics_total by flow, which a panics.Recorder counts in.
 type PanicCounter struct{ vec *prometheus.CounterVec }
 
-// NewPanicCounter registers panics_total in reg.
+// NewPanicCounter registers panics_total in reg, every flow at 0.
 func NewPanicCounter(reg prometheus.Registerer) (*PanicCounter, error) {
 	vec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "panics_total", Help: "Panics recovered, by flow."}, []string{"flow"})
 	if err := reg.Register(vec); err != nil {
 		return nil, fmt.Errorf("panics_total: %w", err)
+	}
+	for _, flow := range panics.Flows() {
+		vec.WithLabelValues(flow)
 	}
 	return &PanicCounter{vec: vec}, nil
 }
