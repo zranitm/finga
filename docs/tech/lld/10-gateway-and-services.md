@@ -185,6 +185,7 @@ A failure after the join leaves the world (`world.Leave`) before the connection 
 
 - The read loop decodes, applies the per-account rate limits, and puts the message on the player's command queue. It never blocks on a service. A full queue answers `rate_limited` when the message has a request ID, as an over-limit command does.
 - One goroutine per player drains the queue in order, with a context that ends when the connection closes. Input, Attack, PickUp and EnterPortal become unary world calls carrying the presence (the character and the connection); inventory commands call the item service; party commands call social; ChatSend asks social, and a map line goes on to `world.Say`.
+- Those four answer nothing; an unexpected failure is logged at most every 10 s per gateway, so a world bug under 20 inputs a second does not flood the log. A world that is restarting is not logged there: the world stream's warnings tell of it.
 - Inputs are unary calls, as the plan says: ordered by the queue and by the world's sequence numbers. A client-streamed input channel is the Stage 2 option if the call rate shows in the tick p99.
 - Ping never leaves the gateway.
 

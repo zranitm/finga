@@ -17,7 +17,10 @@ import (
 	"finga/services/gateway/internal/handler/ws/push"
 )
 
-const commandTimeout = 5 * time.Second
+const (
+	commandTimeout = 5 * time.Second
+	failureLogGap  = 10 * time.Second // a command that answers nothing logs its unexpected failures at most this often
+)
 
 // Options tune the receiving side; Logger and Panics are required.
 type Options struct {
@@ -30,14 +33,15 @@ type Options struct {
 
 // Handler routes every connection's messages to gw's use cases.
 type Handler struct {
-	gw     *send.Gateway
-	opts   Options
-	router *wsrouter.Router[*Inbox]
+	gw       *send.Gateway
+	opts     Options
+	router   *wsrouter.Router[*Inbox]
+	failures *rate.Sometimes
 }
 
 // New routes messages to gw.
 func New(gw *send.Gateway, opts Options) *Handler {
-	h := &Handler{gw: gw, opts: opts}
+	h := &Handler{gw: gw, opts: opts, failures: &rate.Sometimes{First: 1, Interval: failureLogGap}}
 	h.router = h.routes()
 	return h
 }

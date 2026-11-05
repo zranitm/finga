@@ -2,6 +2,7 @@ package receive
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -88,6 +89,16 @@ func (h *Handler) respondOnError(c *msgContext) {
 	}
 }
 
+// logged ends a command that answers nothing; its unexpected failures are logged, sampled, as inputs come
+// 20 a second. A world that is restarting is not one: the world stream's warnings tell of it.
+func (h *Handler) logged(c *msgContext) {
+	c.Next()
+	restarting := errors.Is(c.Err, model.ErrUnavailable) || errors.Is(c.Err, model.ErrNotSubscribed)
+	if model.IsInternal(model.PublicOf(c.Err)) && !restarting {
+		h.failures.Do(func() { h.logFailure(c) })
+	}
+}
+
 // panicked answers a message whose chain panicked with internal; the connection stays open.
 func (h *Handler) panicked(c *msgContext, e *panics.Error) {
 	h.opts.Panics.Record(c.Ctx, panics.FlowWS, e, "conn", c.Session.out.ID(), "type", c.Message.Type, "req_id", c.Message.ReqID)
@@ -102,9 +113,13 @@ func (h *Handler) notImplemented(c *msgContext) {
 func (h *Handler) publicError(c *msgContext) model.Public {
 	p := model.PublicOf(c.Err)
 	if model.IsInternal(p) {
-		h.opts.Logger.Error("command failed", "conn", c.Session.out.ID(), "character_id", c.Session.session.Character(), "type", c.Message.Type, "err", c.Err)
+		h.logFailure(c)
 	}
 	return p
+}
+
+func (h *Handler) logFailure(c *msgContext) {
+	h.opts.Logger.Error("command failed", "conn", c.Session.out.ID(), "character_id", c.Session.session.Character(), "type", c.Message.Type, "err", c.Err)
 }
 
 // replyError answers p to a message that has a request ID; without one nobody is waiting.

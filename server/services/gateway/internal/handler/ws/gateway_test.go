@@ -823,6 +823,49 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 	})
 }
 
+// failingPickUps is a world whose PickUp fails in a way the gateway cannot name, and that cannot be reached
+// for an Attack.
+type failingPickUps struct{ worldv1.WorldServiceClient }
+
+func (failingPickUps) PickUp(context.Context, *worldv1.PickUpRequest, ...grpc.CallOption) (*worldv1.PickUpResponse, error) {
+	return nil, status.Error(codes.Internal, "world bug")
+}
+
+func (failingPickUps) Attack(context.Context, *worldv1.AttackRequest, ...grpc.CallOption) (*worldv1.AttackResponse, error) {
+	return nil, status.Error(codes.Unavailable, "connection refused")
+}
+
+func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		logs := &lockedBuffer{}
+		fw := newFakeWorld()
+		h := newHarnessOn(t, fw, func(d *deps) {
+			d.World = failingPickUps{fw.client(t)}
+			d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
+		})
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		c.expect("Snapshot")
+		failures := func() int {
+			synctest.Wait()
+			return strings.Count(logs.String(), `"msg":"command failed"`)
+		}
+		c.send(wsconn.Message{Data: &clientv1.Attack{}}) // a world restarting is no bug: its stream's warnings tell
+		for range 3 {
+			c.send(wsconn.Message{Data: &clientv1.PickUp{}})
+		}
+		if n := failures(); n != 1 || !strings.Contains(logs.String(), `"type":"PickUp"`) || !strings.Contains(logs.String(), "world bug") {
+			t.Fatalf("%d failures logged, want the first pickup of a burst with its cause: %s", n, logs.String())
+		}
+		time.Sleep(15 * time.Second) // past the log's gap, before a ping this client is not reading to answer
+		c.send(wsconn.Message{Data: &clientv1.PickUp{}})
+		if n := failures(); n != 2 {
+			t.Fatalf("%d failures logged, want one more once the burst is long past", n)
+		}
+	})
+}
+
 // lockedBuffer is a log destination the gateway's goroutines can share.
 type lockedBuffer struct {
 	mu  sync.Mutex

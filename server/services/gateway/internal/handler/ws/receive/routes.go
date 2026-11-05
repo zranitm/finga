@@ -34,10 +34,10 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "Hello", h.hello, h.queued)
 	wsrouter.Handle(r, "Ping", h.ping)
 
-	wsrouter.Handle(r, "Input", h.input, h.command(inputs)...)
-	wsrouter.Handle(r, "Attack", h.attack, h.command(attacks)...)
-	wsrouter.Handle(r, "PickUp", h.pickUp, h.command(pickups)...)
-	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals)...)
+	wsrouter.Handle(r, "Input", h.input, h.command(inputs, h.logged)...)
+	wsrouter.Handle(r, "Attack", h.attack, h.command(attacks, h.logged)...)
+	wsrouter.Handle(r, "PickUp", h.pickUp, h.command(pickups, h.logged)...)
+	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals, h.logged)...)
 
 	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(inventory, h.respond)...)
