@@ -76,8 +76,9 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
-		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y, UpdatedAt: time.Now(),
+		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
+	var stored model.Character
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		n, err := uow.Characters().CountLocked(ctx, account)
 		if err != nil {
@@ -86,13 +87,14 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 		if n >= maxCharacters {
 			return model.ErrSlotsFull
 		}
-		return uow.Characters().Insert(ctx, c)
+		stored, err = uow.Characters().Insert(ctx, c)
+		return err
 	})
 	if err != nil {
 		return model.Character{}, err
 	}
-	s.grantStarter(ctx, c)
-	return c, nil
+	s.grantStarter(ctx, stored)
+	return stored, nil
 }
 
 // grantStarter retries until starterTimeout; keyed by character ID, a retry never grants twice.
@@ -132,17 +134,15 @@ func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kerne
 	return s.store.Load(ctx, id, account)
 }
 
-// SaveCheckpoint persists position, HP, MP and EXP. At is set here.
+// SaveCheckpoint persists position, HP, MP and EXP.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
-	cp.At = time.Now()
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)
 	})
 }
 
-// SaveLevelUp persists a level-up right away. At is set here.
+// SaveLevelUp persists a level-up right away.
 func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
-	lu.At = time.Now()
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveLevelUp(ctx, lu)
 	})

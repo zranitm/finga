@@ -34,16 +34,23 @@ func TestMain(m *testing.M) {
 var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 
 func newAccount(name string) model.NewAccount {
-	return model.NewAccount{ID: kernel.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: model.DefaultSettings(), CreatedAt: t0}
+	return model.NewAccount{ID: kernel.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: model.DefaultSettings()}
 }
 
-func insertAccount(t *testing.T, store *Postgres, name string) kernel.AccountID {
+// insertAccount returns the account's ID and the created_at the database gave it.
+func insertAccount(t *testing.T, store *Postgres, name string) (kernel.AccountID, time.Time) {
 	t.Helper()
 	acc := newAccount(name)
-	if err := store.InTx(context.Background(), func(uow application.UnitOfWork) error { return uow.Accounts().Insert(context.Background(), acc) }); err != nil {
+	var created time.Time
+	err := store.InTx(context.Background(), func(uow application.UnitOfWork) error {
+		var err error
+		created, err = uow.Accounts().Insert(context.Background(), acc)
+		return err
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	return acc.ID
+	return acc.ID, created
 }
 
 func hashOf(s string) []byte { h := sha256.Sum256([]byte(s)); return h[:] }
@@ -53,18 +60,24 @@ func TestAccounts(t *testing.T) {
 	store := NewPostgres(cluster.DB(t))
 
 	t.Run("insert and find by username, ignoring letter case", func(t *testing.T) {
-		id := insertAccount(t, store, "Alice")
+		id, created := insertAccount(t, store, "Alice")
+		if created.IsZero() {
+			t.Fatal("no created_at from the insert")
+		}
 		creds, err := store.FindByUsername(ctx, "aLiCe")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if creds.Account.ID != id || creds.Account.Username != "Alice" || creds.PasswordHash != "$argon2id$fake" || creds.Account.Settings != model.DefaultSettings() {
+		if creds.Account.ID != id || creds.Account.Username != "Alice" || creds.PasswordHash != "$argon2id$fake" || creds.Account.Settings != model.DefaultSettings() || !creds.Account.CreatedAt.Equal(created) {
 			t.Fatalf("creds = %+v", creds)
 		}
 	})
 
 	t.Run("a duplicate username in different letter case gives ErrUsernameTaken", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().Insert(ctx, newAccount("ALICE")) })
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			_, err := uow.Accounts().Insert(ctx, newAccount("ALICE"))
+			return err
+		})
 		if !errors.Is(err, model.ErrUsernameTaken) {
 			t.Fatalf("err = %v", err)
 		}
@@ -78,7 +91,7 @@ func TestAccounts(t *testing.T) {
 	})
 
 	t.Run("settings are read and written", func(t *testing.T) {
-		id := insertAccount(t, store, "bob")
+		id, _ := insertAccount(t, store, "bob")
 		want := model.Settings{ControlPreset: model.PresetWASD}
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, id, want) })
 		if err != nil {
@@ -100,7 +113,7 @@ func TestAccounts(t *testing.T) {
 	})
 
 	t.Run("locking an account row", func(t *testing.T) {
-		id := insertAccount(t, store, "carol")
+		id, _ := insertAccount(t, store, "carol")
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().Lock(ctx, id) }); err != nil {
 			t.Fatal(err)
 		}
@@ -114,9 +127,9 @@ func TestAccounts(t *testing.T) {
 func TestSessions(t *testing.T) {
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t))
-	acc := insertAccount(t, store, "dave")
+	acc, _ := insertAccount(t, store, "dave")
 	session := func(token string) model.Session {
-		return model.Session{ID: kernel.NewSessionID(), AccountID: acc, TokenHash: hashOf(token), CreatedAt: t0, ExpiresAt: t0.Add(time.Hour)}
+		return model.Session{ID: kernel.NewSessionID(), AccountID: acc, TokenHash: hashOf(token), ExpiresAt: t0.Add(time.Hour)}
 	}
 
 	t.Run("insert and find an active session by token hash", func(t *testing.T) {
@@ -128,7 +141,7 @@ func TestSessions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.ID != s.ID || got.AccountID != acc || !got.ExpiresAt.Equal(s.ExpiresAt) || got.RevokedAt != nil {
+		if got.ID != s.ID || got.AccountID != acc || !got.ExpiresAt.Equal(s.ExpiresAt) || got.RevokedAt != nil || got.CreatedAt.IsZero() {
 			t.Fatalf("got %+v", got)
 		}
 	})

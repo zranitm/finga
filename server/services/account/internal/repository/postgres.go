@@ -91,14 +91,14 @@ func (u unitOfWork) Sessions() application.SessionRepository { return sessionRep
 
 type accountRepo struct{ q *db.Queries }
 
-// Insert adds an account row.
-func (r accountRepo) Insert(ctx context.Context, a model.NewAccount) error {
+// Insert adds an account row and returns the created_at the database gave it.
+func (r accountRepo) Insert(ctx context.Context, a model.NewAccount) (time.Time, error) {
 	settings, err := json.Marshal(a.Settings)
 	if err != nil {
-		return err
+		return time.Time{}, err
 	}
 	return r.q.InsertAccount(ctx, db.InsertAccountParams{
-		ID: uuid.UUID(a.ID), Username: a.Username, PasswordHash: a.PasswordHash, Settings: settings, CreatedAt: a.CreatedAt,
+		ID: uuid.UUID(a.ID), Username: a.Username, PasswordHash: a.PasswordHash, Settings: settings,
 	})
 }
 
@@ -129,7 +129,7 @@ type sessionRepo struct{ q *db.Queries }
 // Insert adds a session row.
 func (r sessionRepo) Insert(ctx context.Context, s model.Session) error {
 	return r.q.InsertSession(ctx, db.InsertSessionParams{
-		ID: uuid.UUID(s.ID), AccountID: uuid.UUID(s.AccountID), TokenHash: s.TokenHash, CreatedAt: s.CreatedAt, ExpiresAt: s.ExpiresAt,
+		ID: uuid.UUID(s.ID), AccountID: uuid.UUID(s.AccountID), TokenHash: s.TokenHash, ExpiresAt: s.ExpiresAt,
 	})
 }
 

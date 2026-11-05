@@ -112,14 +112,17 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	if err != nil {
 		return model.Account{}, busy(err)
 	}
-	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings(), CreatedAt: time.Now()}
+	a := model.NewAccount{ID: kernel.NewAccountID(), Username: in.Username, PasswordHash: hash, Settings: model.DefaultSettings()}
+	var created time.Time
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Accounts().Insert(ctx, a)
+		var err error
+		created, err = uow.Accounts().Insert(ctx, a)
+		return err
 	})
 	if err != nil {
 		return model.Account{}, err
 	}
-	return model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: a.CreatedAt}, nil
+	return model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: created}, nil
 }
 
 // Login throttles per username, verifies the credentials and issues a session token.
@@ -168,7 +171,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 		return "", err
 	}
 	now := time.Now()
-	session := model.Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, CreatedAt: now, ExpiresAt: s.expiry(now, now)}
+	session := model.Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, ExpiresAt: s.expiry(now, now)}
 	for attempt := 0; ; attempt++ {
 		err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 			if err := uow.Accounts().Lock(ctx, session.AccountID); err != nil {

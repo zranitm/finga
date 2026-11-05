@@ -88,22 +88,26 @@ func (r repo) CountLocked(ctx context.Context, account kernel.AccountID) (int, e
 	return int(n), classify(err)
 }
 
-// Insert adds a character row.
-func (r repo) Insert(ctx context.Context, c model.Character) error {
-	return r.q.InsertCharacter(ctx, db.InsertCharacterParams{
+// Insert adds a character row and returns it as stored.
+func (r repo) Insert(ctx context.Context, c model.Character) (model.Character, error) {
+	row, err := r.q.InsertCharacter(ctx, db.InsertCharacterParams{
 		ID: uuid.UUID(c.ID), AccountID: uuid.UUID(c.AccountID), Name: c.Name, Class: string(c.Class),
 		Level: int32(c.Level), Exp: c.Exp, //nolint:gosec // levels are small
 		Strength: int32(c.Stats.STR), Dexterity: int32(c.Stats.DEX), Intelligence: int32(c.Stats.INT), //nolint:gosec // stats are small
 		Agility: int32(c.Stats.AGI), Vitality: int32(c.Stats.VIT), UnspentPoints: int32(c.UnspentPoints), //nolint:gosec // stats are small
-		Hp: int32(c.HP), Mp: int32(c.MP), MapID: c.MapID, PosX: float32(c.X), PosY: float32(c.Y), UpdatedAt: c.UpdatedAt, //nolint:gosec // HP fits
+		Hp: int32(c.HP), Mp: int32(c.MP), MapID: c.MapID, PosX: float32(c.X), PosY: float32(c.Y), //nolint:gosec // HP fits
 	})
+	if err != nil {
+		return model.Character{}, err
+	}
+	return toCharacter(row), nil
 }
 
 // SaveCheckpoint updates position, HP, MP and EXP; no row is pgx.ErrNoRows.
 func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	n, err := r.q.SaveCheckpoint(ctx, db.SaveCheckpointParams{
 		ID: uuid.UUID(cp.ID), MapID: cp.MapID, PosX: float32(cp.X), PosY: float32(cp.Y),
-		Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp, UpdatedAt: cp.At, //nolint:gosec // HP fits
+		Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp, //nolint:gosec // HP fits
 	})
 	return rowsOrNotFound(n, err)
 }
@@ -114,7 +118,7 @@ func (r repo) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 		ID: uuid.UUID(lu.ID), Level: int32(lu.Level), Exp: lu.Exp, //nolint:gosec // levels are small
 		Strength: int32(lu.Stats.STR), Dexterity: int32(lu.Stats.DEX), Intelligence: int32(lu.Stats.INT), //nolint:gosec // stats are small
 		Agility: int32(lu.Stats.AGI), Vitality: int32(lu.Stats.VIT), //nolint:gosec // stats are small
-		Hp: int32(lu.HP), Mp: int32(lu.MP), UpdatedAt: lu.At, //nolint:gosec // HP fits
+		Hp: int32(lu.HP), Mp: int32(lu.MP), //nolint:gosec // HP fits
 	})
 	return rowsOrNotFound(n, err)
 }

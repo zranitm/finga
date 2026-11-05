@@ -128,7 +128,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 		if !ok {
 			return Result{}, model.ErrInventoryFull
 		}
-		it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, UpdatedAt: now}
+		it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left}
 		if err := uow.Items().Insert(ctx, it); err != nil {
 			return Result{}, err
 		}
@@ -176,7 +176,7 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	dst := find(inv, func(it model.Item) bool { return it.Tab == in.Tab && it.Slot == in.Slot })
 	switch {
 	case dst == nil:
-		src.Slot, src.UpdatedAt = in.Slot, now
+		src.Slot = in.Slot
 		if err := uow.Items().SetSlot(ctx, src.ID, in.Tab, in.Slot); err != nil {
 			return Result{}, err
 		}
@@ -197,7 +197,6 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	}
 	take := min(room, src.Quantity)
 	dst.Quantity += take
-	dst.UpdatedAt = now
 	if err := uow.Items().SetQuantity(ctx, dst.ID, dst.Quantity); err != nil {
 		return Result{}, err
 	}
@@ -208,7 +207,6 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 		return Result{}, err
 	}
 	src.Quantity -= take
-	src.UpdatedAt = now
 	if src.Quantity == 0 {
 		if err := uow.Items().Destroy(ctx, src.ID); err != nil {
 			return Result{}, err
@@ -253,7 +251,6 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 		return Result{}, err
 	}
 	it.Quantity -= in.Quantity
-	it.UpdatedAt = now
 	if it.Quantity == 0 {
 		if err := uow.Items().Destroy(ctx, it.ID); err != nil {
 			return Result{}, err
@@ -282,7 +279,7 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
-		first, err := uow.Items().RecordStarterGrant(ctx, actor.Character, time.Now())
+		first, err := uow.Items().RecordStarterGrant(ctx, actor.Character)
 		if err != nil || !first {
 			return err // a second grant changes nothing
 		}

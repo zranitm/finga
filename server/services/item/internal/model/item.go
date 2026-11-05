@@ -45,7 +45,6 @@ type Item struct {
 	Tab        gamedata.Tab
 	Slot       int
 	Quantity   int
-	UpdatedAt  time.Time
 }
 
 // CauseType says what caused an item change.

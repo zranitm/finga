@@ -11,7 +11,9 @@ CREATE TABLE outbox (
   content_type text NOT NULL,
   payload      bytea NOT NULL,
   occurred_at  timestamptz NOT NULL,
-  published_at timestamptz
+  published_at timestamptz,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX outbox_unpublished ON outbox (id) WHERE published_at IS NULL;
 `

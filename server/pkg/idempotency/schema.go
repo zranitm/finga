@@ -8,7 +8,8 @@ CREATE TABLE idempotency_keys (
   key          text NOT NULL,
   request_hash bytea NOT NULL,
   response     bytea NOT NULL,
-  created_at   timestamptz NOT NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (owner, scope, key)
 );
 `

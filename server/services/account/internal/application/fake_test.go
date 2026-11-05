@@ -15,7 +15,7 @@ import (
 // fakeStore is an in-memory Store; the one-active-session index is only tested on real Postgres.
 type fakeStore struct {
 	mu       sync.Mutex
-	accounts map[kernel.AccountID]model.NewAccount
+	accounts map[kernel.AccountID]model.Credentials
 	sessions []model.Session
 	// what reached the repository, for assertions
 	insertedTokenHashes [][]byte
@@ -24,7 +24,7 @@ type fakeStore struct {
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{accounts: map[kernel.AccountID]model.NewAccount{}}
+	return &fakeStore{accounts: map[kernel.AccountID]model.Credentials{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
@@ -40,9 +40,9 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) 
 func (s *fakeStore) FindByUsername(_ context.Context, username string) (model.Credentials, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, a := range s.accounts {
-		if strings.EqualFold(a.Username, username) {
-			return model.Credentials{Account: toAccount(a), PasswordHash: a.PasswordHash}, nil
+	for _, c := range s.accounts {
+		if strings.EqualFold(c.Account.Username, username) {
+			return c, nil
 		}
 	}
 	return model.Credentials{}, model.ErrNotFound
@@ -66,7 +66,7 @@ func (s *fakeStore) Settings(_ context.Context, id kernel.AccountID) (model.Sett
 	if !ok {
 		return model.Settings{}, model.ErrNotFound
 	}
-	return a.Settings, nil
+	return a.Account.Settings, nil
 }
 
 func (s *fakeStore) activeSessions(id kernel.AccountID) int {
@@ -81,10 +81,6 @@ func (s *fakeStore) activeSessions(id kernel.AccountID) int {
 	return n
 }
 
-func toAccount(a model.NewAccount) model.Account {
-	return model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: a.CreatedAt}
-}
-
 type fakeUOW struct{ s *fakeStore }
 
 func (u fakeUOW) Accounts() application.Repository        { return fakeAccounts(u) }
@@ -92,14 +88,16 @@ func (u fakeUOW) Sessions() application.SessionRepository { return fakeSessions(
 
 type fakeAccounts struct{ s *fakeStore }
 
-func (r fakeAccounts) Insert(_ context.Context, a model.NewAccount) error {
+// Insert stamps created_at, as the database does.
+func (r fakeAccounts) Insert(_ context.Context, a model.NewAccount) (time.Time, error) {
 	for _, existing := range r.s.accounts {
-		if strings.EqualFold(existing.Username, a.Username) {
-			return model.ErrUsernameTaken
+		if strings.EqualFold(existing.Account.Username, a.Username) {
+			return time.Time{}, model.ErrUsernameTaken
 		}
 	}
-	r.s.accounts[a.ID] = a
-	return nil
+	created := time.Now()
+	r.s.accounts[a.ID] = model.Credentials{Account: model.Account{ID: a.ID, Username: a.Username, Settings: a.Settings, CreatedAt: created}, PasswordHash: a.PasswordHash}
+	return created, nil
 }
 
 func (r fakeAccounts) Lock(_ context.Context, id kernel.AccountID) error {
@@ -114,14 +112,16 @@ func (r fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, st 
 	if !ok {
 		return model.ErrNotFound
 	}
-	a.Settings = st
+	a.Account.Settings = st
 	r.s.accounts[id] = a
 	return nil
 }
 
 type fakeSessions struct{ s *fakeStore }
 
+// Insert stamps created_at, as the database does.
 func (r fakeSessions) Insert(_ context.Context, se model.Session) error {
+	se.CreatedAt = time.Now()
 	r.s.sessions = append(r.s.sessions, se)
 	r.s.insertedTokenHashes = append(r.s.insertedTokenHashes, se.TokenHash)
 	return nil

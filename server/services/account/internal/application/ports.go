@@ -28,7 +28,8 @@ type UnitOfWork interface {
 
 // Repository writes the accounts table.
 type Repository interface {
-	Insert(ctx context.Context, a model.NewAccount) error
+	// Insert returns the created_at the database gave the account.
+	Insert(ctx context.Context, a model.NewAccount) (time.Time, error)
 	// Lock takes the account's row lock, serialising logins per account.
 	Lock(ctx context.Context, id kernel.AccountID) error
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error

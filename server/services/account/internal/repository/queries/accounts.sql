@@ -1,6 +1,7 @@
--- name: InsertAccount :exec
-INSERT INTO accounts (id, username, password_hash, settings, created_at)
-VALUES ($1, $2, $3, $4, $5);
+-- name: InsertAccount :one
+INSERT INTO accounts (id, username, password_hash, settings)
+VALUES ($1, $2, $3, $4)
+RETURNING created_at;
 
 -- name: FindAccountByUsername :one
 -- username is citext, so the comparison ignores letter case.

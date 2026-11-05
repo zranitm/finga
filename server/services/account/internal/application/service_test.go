@@ -50,12 +50,12 @@ func TestRegister(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		store := newFakeStore()
 		svc := newService(store)
-		before := time.Now()
 		acc := register(t, svc, "Alice_01", "correct horse")
-		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.Before(before) || acc.CreatedAt.After(time.Now()) || acc.Settings != model.DefaultSettings() {
+		stored := store.accounts[acc.ID]
+		// created_at is the store's, not a clock the service reads.
+		if acc.Username != "Alice_01" || acc.ID.IsZero() || acc.CreatedAt.IsZero() || !acc.CreatedAt.Equal(stored.Account.CreatedAt) || acc.Settings != model.DefaultSettings() {
 			t.Fatalf("account = %+v", acc)
 		}
-		stored := store.accounts[acc.ID]
 		if !strings.HasPrefix(stored.PasswordHash, "$argon2id$v=19$") {
 			t.Fatalf("stored hash is not argon2id PHC: %q", stored.PasswordHash)
 		}

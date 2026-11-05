@@ -17,6 +17,7 @@ type IdempotencyKey struct {
 	RequestHash []byte
 	Response    []byte
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type Item struct {
@@ -28,6 +29,7 @@ type Item struct {
 	Slot       *int32
 	Quantity   int32
 	UpdatedAt  time.Time
+	CreatedAt  time.Time
 }
 
 type ItemEvent struct {
@@ -40,6 +42,8 @@ type ItemEvent struct {
 	CauseType     string
 	CauseID       *uuid.UUID
 	OccurredAt    time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type Outbox struct {
@@ -52,9 +56,12 @@ type Outbox struct {
 	Payload     []byte
 	OccurredAt  time.Time
 	PublishedAt *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type StarterGrant struct {
 	CharacterID uuid.UUID
-	GrantedAt   time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }

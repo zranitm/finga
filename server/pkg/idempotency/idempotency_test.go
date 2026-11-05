@@ -128,3 +128,19 @@ func TestConcurrentSameKeyRunsOnce(t *testing.T) {
 		}
 	}
 }
+
+func TestTheDatabaseStampsAKey(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	var stamped bool
+	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
+		if _, err := idempotency.NewStore(tx).Do(ctx, "acc-1", "discard", "k-1", []byte("h"), func() ([]byte, error) { return nil, nil }); err != nil {
+			return err
+		}
+		// now() is the transaction's start, which no clock the store reads could give.
+		return tx.QueryRow(ctx, `SELECT created_at = now() AND updated_at = now() FROM idempotency_keys WHERE key = 'k-1'`).Scan(&stamped)
+	})
+	if err != nil || !stamped {
+		t.Fatalf("stamped by the database: %v (%v)", stamped, err)
+	}
+}

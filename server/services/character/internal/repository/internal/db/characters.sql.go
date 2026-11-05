@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -24,7 +23,7 @@ func (q *Queries) CountCharactersByAccount(ctx context.Context, accountID uuid.U
 }
 
 const getOwnedCharacter = `-- name: GetOwnedCharacter :one
-SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at FROM characters WHERE id = $1 AND account_id = $2
+SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at FROM characters WHERE id = $1 AND account_id = $2
 `
 
 type GetOwnedCharacterParams struct {
@@ -54,20 +53,22 @@ func (q *Queries) GetOwnedCharacter(ctx context.Context, arg GetOwnedCharacterPa
 		&i.PosX,
 		&i.PosY,
 		&i.UpdatedAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
-const insertCharacter = `-- name: InsertCharacter :exec
+const insertCharacter = `-- name: InsertCharacter :one
 INSERT INTO characters (
   id, account_id, name, class, level, exp,
   strength, dexterity, intelligence, agility, vitality, unspent_points,
-  hp, mp, map_id, pos_x, pos_y, updated_at
+  hp, mp, map_id, pos_x, pos_y
 ) VALUES (
   $1, $2, $3, $4, $5, $6,
   $7, $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17, $18
+  $13, $14, $15, $16, $17
 )
+RETURNING id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at
 `
 
 type InsertCharacterParams struct {
@@ -88,11 +89,10 @@ type InsertCharacterParams struct {
 	MapID         string
 	PosX          float32
 	PosY          float32
-	UpdatedAt     time.Time
 }
 
-func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams) error {
-	_, err := q.db.Exec(ctx, insertCharacter,
+func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams) (Character, error) {
+	row := q.db.QueryRow(ctx, insertCharacter,
 		arg.ID,
 		arg.AccountID,
 		arg.Name,
@@ -110,13 +110,34 @@ func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams
 		arg.MapID,
 		arg.PosX,
 		arg.PosY,
-		arg.UpdatedAt,
 	)
-	return err
+	var i Character
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Name,
+		&i.Class,
+		&i.Level,
+		&i.Exp,
+		&i.Strength,
+		&i.Dexterity,
+		&i.Intelligence,
+		&i.Agility,
+		&i.Vitality,
+		&i.UnspentPoints,
+		&i.Hp,
+		&i.Mp,
+		&i.MapID,
+		&i.PosX,
+		&i.PosY,
+		&i.UpdatedAt,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const listCharactersByAccount = `-- name: ListCharactersByAccount :many
-SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at FROM characters WHERE account_id = $1 ORDER BY updated_at, id
+SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at FROM characters WHERE account_id = $1 ORDER BY updated_at, id
 `
 
 func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UUID) ([]Character, error) {
@@ -147,6 +168,7 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 			&i.PosX,
 			&i.PosY,
 			&i.UpdatedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -170,19 +192,18 @@ func (q *Queries) LockAccountCharacters(ctx context.Context, accountID string) e
 
 const saveCheckpoint = `-- name: SaveCheckpoint :execrows
 UPDATE characters
-SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6, exp = $7, updated_at = $8
+SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6, exp = $7
 WHERE id = $1
 `
 
 type SaveCheckpointParams struct {
-	ID        uuid.UUID
-	MapID     string
-	PosX      float32
-	PosY      float32
-	Hp        int32
-	Mp        int32
-	Exp       int64
-	UpdatedAt time.Time
+	ID    uuid.UUID
+	MapID string
+	PosX  float32
+	PosY  float32
+	Hp    int32
+	Mp    int32
+	Exp   int64
 }
 
 func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) (int64, error) {
@@ -194,7 +215,6 @@ func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) 
 		arg.Hp,
 		arg.Mp,
 		arg.Exp,
-		arg.UpdatedAt,
 	)
 	if err != nil {
 		return 0, err
@@ -206,7 +226,7 @@ const saveLevelUp = `-- name: SaveLevelUp :execrows
 UPDATE characters
 SET level = $2, exp = $3,
     strength = $4, dexterity = $5, intelligence = $6, agility = $7, vitality = $8,
-    hp = $9, mp = $10, updated_at = $11
+    hp = $9, mp = $10
 WHERE id = $1
 `
 
@@ -221,7 +241,6 @@ type SaveLevelUpParams struct {
 	Vitality     int32
 	Hp           int32
 	Mp           int32
-	UpdatedAt    time.Time
 }
 
 func (q *Queries) SaveLevelUp(ctx context.Context, arg SaveLevelUpParams) (int64, error) {
@@ -236,7 +255,6 @@ func (q *Queries) SaveLevelUp(ctx context.Context, arg SaveLevelUpParams) (int64
 		arg.Vitality,
 		arg.Hp,
 		arg.Mp,
-		arg.UpdatedAt,
 	)
 	if err != nil {
 		return 0, err

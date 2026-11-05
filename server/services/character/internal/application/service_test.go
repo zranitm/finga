@@ -49,6 +49,7 @@ func TestCreate(t *testing.T) {
 			{"HP and MP full: 204 and 28 for a level 1 warrior", c.HP == 204 && c.MP == 28},
 			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
 			{"stored", len(store.chars) == 1},
+			{"returned as stored, with the store's updated_at", c == store.chars[c.ID] && !c.UpdatedAt.IsZero()},
 		}
 		for _, ck := range checks {
 			if !ck.ok {
@@ -191,9 +192,6 @@ func TestSaves(t *testing.T) {
 		got := store.chars[c.ID]
 		if got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 1 {
 			t.Fatalf("after checkpoint: %+v", got)
-		}
-		if !got.UpdatedAt.After(c.UpdatedAt) && !got.UpdatedAt.Equal(c.UpdatedAt) {
-			t.Fatal("updated_at went backwards")
 		}
 	})
 

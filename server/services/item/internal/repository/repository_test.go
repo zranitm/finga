@@ -46,8 +46,8 @@ func TestRepository(t *testing.T) {
 	ctx := context.Background()
 	store := NewPostgres(cluster.DB(t))
 	alice, bob := kernel.NewCharacterID(), kernel.NewCharacterID()
-	sword := model.Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0}
-	potions := model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40, UpdatedAt: t0}
+	sword := model.Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1}
+	potions := model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40}
 	insertItem(t, store, sword)
 	insertItem(t, store, potions)
 
@@ -100,7 +100,7 @@ func TestRepository(t *testing.T) {
 	t.Run("a full tab", func(t *testing.T) {
 		full := kernel.NewCharacterID()
 		for slot := range model.SlotsPerTab {
-			insertItem(t, store, model.Item{ID: kernel.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100, UpdatedAt: t0})
+			insertItem(t, store, model.Item{ID: kernel.NewItemID(), TemplateID: "slime_gel", Owner: full, Tab: gamedata.Etc, Slot: slot, Quantity: 100})
 		}
 		// The lock returns the full tab in slot order, which the free-slot search relies on.
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
@@ -124,7 +124,7 @@ func TestRepository(t *testing.T) {
 	})
 	t.Run("two items in one slot are rejected as ErrSlotTaken", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
-			return uow.Items().Insert(ctx, model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1, UpdatedAt: t0})
+			return uow.Items().Insert(ctx, model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1})
 		})
 		if !errors.Is(err, model.ErrSlotTaken) {
 			t.Fatalf("err = %v", err)

@@ -54,7 +54,6 @@ type NewAccount struct {
 	Username     string
 	PasswordHash string
 	Settings     Settings
-	CreatedAt    time.Time
 }
 
 // Credentials are an account with its password hash, for verification.

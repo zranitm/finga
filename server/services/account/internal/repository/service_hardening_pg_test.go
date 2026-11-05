@@ -165,6 +165,10 @@ func TestSlidingExpiry(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The database stamps created_at by its real clock; the 30-day cap needs it on the bubble's.
+		if _, err := store.pool.Exec(ctx, `UPDATE sessions SET created_at = $2 WHERE id = $1`, p.SessionID, start); err != nil {
+			t.Fatal(err)
+		}
 		expiresAt := func() time.Time {
 			t.Helper()
 			s, err := store.FindSession(ctx, kernel.SessionID(p.SessionID))

@@ -253,7 +253,8 @@ After a world restart the HUD's EXP can show more than the reloaded checkpoint u
 
 ## Migrations
 
-- Each service with tables embeds its own goose files: account (`citext`, `accounts`, `sessions`, the rotation columns), character (`citext`, `characters`), item (`items`, `item_events`, `starter_grants`, `outbox`, `idempotency_keys`). `citext` is created by both account and character with `IF NOT EXISTS`, and neither drops it.
+- Each service with tables embeds its own goose files: account (`citext`, `accounts`, `sessions`, the rotation columns, the timestamps), character (`citext`, `characters`, the timestamps), item (`items`, `item_events`, `starter_grants`, `outbox`, `idempotency_keys`, the timestamps). `citext` is created by both account and character with `IF NOT EXISTS`, and neither drops it; `set_updated_at()`, the trigger that keeps every table's `updated_at` (page 2, Timestamps), is created by all three with `CREATE OR REPLACE`, and none drops it.
+- Each service's migration tests check that every one of its tables has `created_at` and `updated_at` kept by the database (`pgtest.CheckTimestamps`).
 - `cmd/migrate` applies every service's set, each with its own version table (`goose_account_version`, `goose_character_version`, `goose_item_version`).
 - A database migrated before the split (it has goose's default `goose_db_version`) is refused with a message saying to recreate it (`make down`); Stage 1 has no data worth carrying over.
 - The tests of a module apply only its own service's migrations, so a test that reads another service's table fails.

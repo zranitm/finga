@@ -29,4 +29,5 @@ type Character struct {
 	PosX          float32
 	PosY          float32
 	UpdatedAt     time.Time
+	CreatedAt     time.Time
 }

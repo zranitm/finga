@@ -16,6 +16,7 @@ type Account struct {
 	PasswordHash string
 	Settings     []byte
 	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Session struct {
@@ -27,4 +28,5 @@ type Session struct {
 	RevokedAt         *time.Time
 	PreviousTokenHash []byte
 	RotatedAt         *time.Time
+	UpdatedAt         time.Time
 }

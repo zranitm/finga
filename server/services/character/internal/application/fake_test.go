@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"finga/internal/kernel"
 	"finga/services/character/internal/application"
@@ -112,15 +113,17 @@ func (r fakeRepo) CountLocked(_ context.Context, account kernel.AccountID) (int,
 	return n, nil
 }
 
-func (r fakeRepo) Insert(_ context.Context, c model.Character) error {
+// Insert, SaveCheckpoint and SaveLevelUp stamp updated_at, as the database does.
+func (r fakeRepo) Insert(_ context.Context, c model.Character) (model.Character, error) {
 	for _, existing := range r.s.chars {
 		if strings.EqualFold(existing.Name, c.Name) {
-			return model.ErrNameTaken
+			return model.Character{}, model.ErrNameTaken
 		}
 	}
+	c.UpdatedAt = time.Now()
 	r.s.chars[c.ID] = c
 	r.s.order = append(r.s.order, c.ID)
-	return nil
+	return c, nil
 }
 
 func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
@@ -128,7 +131,7 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	if !ok {
 		return model.ErrNotFound
 	}
-	c.MapID, c.X, c.Y, c.HP, c.MP, c.Exp, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Exp, cp.At
+	c.MapID, c.X, c.Y, c.HP, c.MP, c.Exp, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Exp, time.Now()
 	r.s.chars[cp.ID] = c
 	return nil
 }
@@ -138,7 +141,7 @@ func (r fakeRepo) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
 	if !ok {
 		return model.ErrNotFound
 	}
-	c.Level, c.Exp, c.Stats, c.HP, c.MP, c.UpdatedAt = lu.Level, lu.Exp, lu.Stats, lu.HP, lu.MP, lu.At
+	c.Level, c.Exp, c.Stats, c.HP, c.MP, c.UpdatedAt = lu.Level, lu.Exp, lu.Stats, lu.HP, lu.MP, time.Now()
 	r.s.chars[lu.ID] = c
 	return nil
 }

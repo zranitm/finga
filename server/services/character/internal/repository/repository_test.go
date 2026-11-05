@@ -32,21 +32,27 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-var t0 = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-
 func sample(account kernel.AccountID, name string) model.Character {
 	return model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Warrior, Level: 1, Exp: 0,
 		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
-		MapID: "town", X: 416, Y: 608, UpdatedAt: t0,
+		MapID: "town", X: 416, Y: 608,
 	}
 }
 
-func insert(t *testing.T, store *Postgres, c model.Character) {
+// insert returns the character as stored, with the updated_at the database gave it.
+func insert(t *testing.T, store *Postgres, c model.Character) model.Character {
 	t.Helper()
-	if err := store.InTx(context.Background(), func(uow application.UnitOfWork) error { return uow.Characters().Insert(context.Background(), c) }); err != nil {
+	var stored model.Character
+	err := store.InTx(context.Background(), func(uow application.UnitOfWork) error {
+		var err error
+		stored, err = uow.Characters().Insert(context.Background(), c)
+		return err
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
+	return stored
 }
 
 func TestRepository(t *testing.T) {
@@ -54,24 +60,32 @@ func TestRepository(t *testing.T) {
 	store := NewPostgres(cluster.DB(t))
 	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
 	ayla := sample(alice, "Ayla")
-	insert(t, store, ayla)
+	stored := insert(t, store, ayla)
+	load := func(t *testing.T) model.Character {
+		t.Helper()
+		got, err := store.Load(ctx, ayla.ID, alice)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
 
 	t.Run("a duplicate name in different letter case gives ErrNameTaken", func(t *testing.T) {
-		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().Insert(ctx, sample(bob, "AYLA")) })
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			_, err := uow.Characters().Insert(ctx, sample(bob, "AYLA"))
+			return err
+		})
 		if !errors.Is(err, model.ErrNameTaken) {
 			t.Fatalf("err = %v", err)
 		}
 	})
 
 	t.Run("load by ID and owning account round-trips every column", func(t *testing.T) {
-		got, err := store.Load(ctx, ayla.ID, alice)
-		if err != nil {
-			t.Fatal(err)
+		got := load(t)
+		if stored.UpdatedAt.IsZero() || !got.UpdatedAt.Equal(stored.UpdatedAt) {
+			t.Fatalf("updated_at %v, want the insert's %v", got.UpdatedAt, stored.UpdatedAt)
 		}
-		if !got.UpdatedAt.Equal(ayla.UpdatedAt) {
-			t.Fatalf("updated_at %v, want %v", got.UpdatedAt, ayla.UpdatedAt)
-		}
-		got.UpdatedAt, ayla.UpdatedAt = time.Time{}, time.Time{}
+		got.UpdatedAt = time.Time{}
 		if got != ayla {
 			t.Fatalf("got %+v\nwant %+v", got, ayla)
 		}
@@ -87,7 +101,6 @@ func TestRepository(t *testing.T) {
 	t.Run("list by account, oldest first", func(t *testing.T) {
 		robin := sample(alice, "Robin")
 		robin.Class = kernel.Bowman
-		robin.UpdatedAt = t0.Add(time.Minute)
 		insert(t, store, robin)
 		insert(t, store, sample(bob, "Bruno"))
 		list, err := store.List(ctx, alice)
@@ -103,16 +116,14 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
-	t.Run("a checkpoint saved, then loaded, matches", func(t *testing.T) {
-		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Exp: 12, At: t0.Add(time.Hour)}
+	t.Run("a checkpoint saved, then loaded, matches and moves updated_at", func(t *testing.T) {
+		before := load(t)
+		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Exp: 12}
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
 			t.Fatal(err)
 		}
-		got, err := store.Load(ctx, ayla.ID, alice)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.MapID != "forest" || got.X != 300.5 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || !got.UpdatedAt.Equal(cp.At) {
+		got := load(t)
+		if got.MapID != "forest" || got.X != 300.5 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || !got.UpdatedAt.After(before.UpdatedAt) {
 			t.Fatalf("got %+v", got)
 		}
 		if got.Level != 1 || got.Stats != ayla.Stats {
@@ -120,16 +131,14 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
-	t.Run("a level-up saved, then loaded, matches", func(t *testing.T) {
-		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MP: 32, At: t0.Add(2 * time.Hour)}
+	t.Run("a level-up saved, then loaded, matches and moves updated_at", func(t *testing.T) {
+		before := load(t)
+		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MP: 32}
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveLevelUp(ctx, lu) }); err != nil {
 			t.Fatal(err)
 		}
-		got, err := store.Load(ctx, ayla.ID, alice)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got.Level != 2 || got.Exp != 3 || got.Stats != lu.Stats || got.HP != 250 || got.MP != 32 || !got.UpdatedAt.Equal(lu.At) {
+		got := load(t)
+		if got.Level != 2 || got.Exp != 3 || got.Stats != lu.Stats || got.HP != 250 || got.MP != 32 || !got.UpdatedAt.After(before.UpdatedAt) {
 			t.Fatalf("got %+v", got)
 		}
 		if got.MapID != "forest" {
@@ -139,13 +148,13 @@ func TestRepository(t *testing.T) {
 
 	t.Run("saves for an unknown character give ErrNotFound", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
-			return uow.Characters().SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), MapID: "town", At: t0})
+			return uow.Characters().SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), MapID: "town"})
 		})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("checkpoint: %v", err)
 		}
 		err = store.InTx(ctx, func(uow application.UnitOfWork) error {
-			return uow.Characters().SaveLevelUp(ctx, model.LevelUp{ID: kernel.NewCharacterID(), Level: 2, At: t0})
+			return uow.Characters().SaveLevelUp(ctx, model.LevelUp{ID: kernel.NewCharacterID(), Level: 2})
 		})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("level-up: %v", err)

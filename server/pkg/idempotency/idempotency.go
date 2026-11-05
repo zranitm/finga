@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -25,18 +24,17 @@ type Store interface {
 
 // NewStore binds a store to db, usually a transaction.
 func NewStore(db dbx.DBTX) Store {
-	return &store{db: db, now: time.Now}
+	return &store{db: db}
 }
 
 type store struct {
-	db  dbx.DBTX
-	now func() time.Time
+	db dbx.DBTX
 }
 
 const (
 	lockSQL   = `SELECT pg_advisory_xact_lock($1)`
 	findSQL   = `SELECT request_hash, response FROM idempotency_keys WHERE owner = $1 AND scope = $2 AND key = $3`
-	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at) VALUES ($1, $2, $3, $4, $5, $6)`
+	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response) VALUES ($1, $2, $3, $4, $5)`
 )
 
 // Do implements Store.
@@ -63,7 +61,7 @@ func (s *store) Do(ctx context.Context, owner, scope, key string, requestHash []
 	if response == nil {
 		response = []byte{}
 	}
-	if _, err := s.db.Exec(ctx, insertSQL, owner, scope, key, requestHash, response, s.now()); err != nil {
+	if _, err := s.db.Exec(ctx, insertSQL, owner, scope, key, requestHash, response); err != nil {
 		return nil, fmt.Errorf("idempotency: store: %w", err)
 	}
 	return response, nil

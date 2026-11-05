@@ -43,7 +43,6 @@ type Checkpoint struct {
 	HP    int
 	MP    int
 	Exp   int64
-	At    time.Time
 }
 
 // LevelUp is saved right away when a character gains a level.
@@ -54,5 +53,4 @@ type LevelUp struct {
 	Stats gamedata.Stats
 	HP    int
 	MP    int
-	At    time.Time
 }

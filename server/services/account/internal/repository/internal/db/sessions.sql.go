@@ -109,15 +109,14 @@ func (q *Queries) FindSessionByID(ctx context.Context, id uuid.UUID) (FindSessio
 }
 
 const insertSession = `-- name: InsertSession :exec
-INSERT INTO sessions (id, account_id, token_hash, created_at, expires_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO sessions (id, account_id, token_hash, expires_at)
+VALUES ($1, $2, $3, $4)
 `
 
 type InsertSessionParams struct {
 	ID        uuid.UUID
 	AccountID uuid.UUID
 	TokenHash []byte
-	CreatedAt time.Time
 	ExpiresAt time.Time
 }
 
@@ -126,7 +125,6 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.ID,
 		arg.AccountID,
 		arg.TokenHash,
-		arg.CreatedAt,
 		arg.ExpiresAt,
 	)
 	return err

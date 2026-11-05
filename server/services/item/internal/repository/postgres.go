@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -28,12 +27,11 @@ import (
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
-	now  func() time.Time
 }
 
 // NewPostgres builds the store over a pool.
 func NewPostgres(pool *pgxpool.Pool) *Postgres {
-	return &Postgres{pool: pool, q: db.New(pool), now: time.Now}
+	return &Postgres{pool: pool, q: db.New(pool)}
 }
 
 // InTx runs fn in one transaction; fn may be retried, so it must have no outside side effects.
@@ -47,7 +45,7 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 	q := db.New(tx)
 	return unitOfWork{
-		items:  repo{q: q, now: p.now},
+		items:  repo{q: q},
 		events: eventRepo{q: q},
 		outbox: outbox.NewWriter(tx),
 		idem:   idem{store: idempotency.NewStore(tx)},
@@ -82,14 +80,11 @@ func (u unitOfWork) Outbox() outbox.Writer { return u.outbox }
 // Idempotency is the idempotency store bound to the transaction.
 func (u unitOfWork) Idempotency() application.Idempotency { return u.idem }
 
-type repo struct {
-	q   *db.Queries
-	now func() time.Time
-}
+type repo struct{ q *db.Queries }
 
 // RecordStarterGrant inserts the owner's grant unless it has one.
-func (r repo) RecordStarterGrant(ctx context.Context, owner kernel.CharacterID, at time.Time) (bool, error) {
-	n, err := r.q.RecordStarterGrant(ctx, db.RecordStarterGrantParams{CharacterID: uuid.UUID(owner), GrantedAt: at})
+func (r repo) RecordStarterGrant(ctx context.Context, owner kernel.CharacterID) (bool, error) {
+	n, err := r.q.RecordStarterGrant(ctx, uuid.UUID(owner))
 	return n == 1, err
 }
 
@@ -124,26 +119,26 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 	tab, slot := string(it.Tab), int32(it.Slot) //nolint:gosec // slots are small
 	return r.q.InsertItem(ctx, db.InsertItemParams{
 		ID: uuid.UUID(it.ID), TemplateID: it.TemplateID, OwnerID: uuid.UUID(it.Owner), Tab: &tab, Slot: &slot,
-		Quantity: int32(it.Quantity), UpdatedAt: it.UpdatedAt, //nolint:gosec // quantities are small
+		Quantity: int32(it.Quantity), //nolint:gosec // quantities are small
 	})
 }
 
 // SetQuantity changes a quantity.
 func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error {
-	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity), UpdatedAt: r.now()}) //nolint:gosec // quantities are small
+	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity)}) //nolint:gosec // quantities are small
 	return rowsOrNotFound(n, err)
 }
 
 // SetSlot moves an item to a slot.
 func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
-	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, UpdatedAt: r.now()})
+	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s})
 	return rowsOrNotFound(n, err)
 }
 
 // Destroy marks an item destroyed with quantity 0 rather than deleting the row.
 func (r repo) Destroy(ctx context.Context, id kernel.ItemID) error {
-	n, err := r.q.DestroyItem(ctx, db.DestroyItemParams{ID: uuid.UUID(id), UpdatedAt: r.now()})
+	n, err := r.q.DestroyItem(ctx, uuid.UUID(id))
 	return rowsOrNotFound(n, err)
 }
 
@@ -211,7 +206,7 @@ func toItems(rows []db.Item) []model.Item {
 }
 
 func toItem(r db.Item) model.Item {
-	it := model.Item{ID: kernel.ItemID(r.ID), TemplateID: r.TemplateID, Owner: kernel.CharacterID(r.OwnerID), Quantity: int(r.Quantity), UpdatedAt: r.UpdatedAt}
+	it := model.Item{ID: kernel.ItemID(r.ID), TemplateID: r.TemplateID, Owner: kernel.CharacterID(r.OwnerID), Quantity: int(r.Quantity)}
 	if r.Tab != nil {
 		it.Tab = gamedata.Tab(*r.Tab)
 	}

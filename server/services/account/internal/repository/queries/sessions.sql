@@ -1,6 +1,6 @@
 -- name: InsertSession :exec
-INSERT INTO sessions (id, account_id, token_hash, created_at, expires_at)
-VALUES ($1, $2, $3, $4, $5);
+INSERT INTO sessions (id, account_id, token_hash, expires_at)
+VALUES ($1, $2, $3, $4);
 
 -- name: FindActiveSessionByTokenHash :one
 -- Matches the current token or the one retired by the last rotation.

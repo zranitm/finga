@@ -18,10 +18,18 @@ FROM accounts
 WHERE username = $1
 `
 
+type FindAccountByUsernameRow struct {
+	ID           uuid.UUID
+	Username     string
+	PasswordHash string
+	Settings     []byte
+	CreatedAt    time.Time
+}
+
 // username is citext, so the comparison ignores letter case.
-func (q *Queries) FindAccountByUsername(ctx context.Context, username string) (Account, error) {
+func (q *Queries) FindAccountByUsername(ctx context.Context, username string) (FindAccountByUsernameRow, error) {
 	row := q.db.QueryRow(ctx, findAccountByUsername, username)
-	var i Account
+	var i FindAccountByUsernameRow
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
@@ -43,9 +51,10 @@ func (q *Queries) GetSettings(ctx context.Context, id uuid.UUID) ([]byte, error)
 	return settings, err
 }
 
-const insertAccount = `-- name: InsertAccount :exec
-INSERT INTO accounts (id, username, password_hash, settings, created_at)
-VALUES ($1, $2, $3, $4, $5)
+const insertAccount = `-- name: InsertAccount :one
+INSERT INTO accounts (id, username, password_hash, settings)
+VALUES ($1, $2, $3, $4)
+RETURNING created_at
 `
 
 type InsertAccountParams struct {
@@ -53,18 +62,18 @@ type InsertAccountParams struct {
 	Username     string
 	PasswordHash string
 	Settings     []byte
-	CreatedAt    time.Time
 }
 
-func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) error {
-	_, err := q.db.Exec(ctx, insertAccount,
+func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, insertAccount,
 		arg.ID,
 		arg.Username,
 		arg.PasswordHash,
 		arg.Settings,
-		arg.CreatedAt,
 	)
-	return err
+	var created_at time.Time
+	err := row.Scan(&created_at)
+	return created_at, err
 }
 
 const lockAccount = `-- name: LockAccount :one
