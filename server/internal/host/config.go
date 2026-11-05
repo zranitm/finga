@@ -23,7 +23,7 @@ type OpsSection struct {
 // Settings holds the sections every service's configuration has.
 type Settings struct {
 	GRPC          string // empty for the gateway, which serves HTTP
-	Ops           string // empty for the gateway, whose HTTP listener serves them
+	Ops           string
 	ShutdownGrace time.Duration
 	Log           logger.Config
 }

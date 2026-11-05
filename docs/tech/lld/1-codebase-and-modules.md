@@ -44,7 +44,7 @@ server/                 the Go module: everything the server builds, reads and p
           receive/      what the client sends: routes.go, every client message with its middleware on pkg/wsrouter (Hello first, its rate limit, the connection's command queue, a deadline, the Response); messages.go, one handler per message, from the message to the use case's arguments and from its result to the reply; inbox.go, a connection's Hello, rate limits and command queue
           push/         what the client is sent: outbox.go, the connection's only writer and the application's Outbox (Welcome, Deliver, End in protocol messages and close codes), which also writes the replies receive chooses; pushes.go, the message each push reaches the client as
         engine.go       the Gin engine as the gateway runs it: release mode, no redirects, 405 for another method, no trusted proxy
-        router.go       the route table on that engine: /api, /ws, /metrics, /healthz, /readyz
+        router.go       the route table on that engine: /api and /ws (the probes and /metrics are on the ops listener, app/server.go)
     item/
       main.go, app/     the entry point and its composition root
       config/           its own configuration: config.yaml, with only its keys (page 11), and its type

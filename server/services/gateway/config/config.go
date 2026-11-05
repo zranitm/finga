@@ -10,15 +10,16 @@ import (
 
 // Config is services/gateway/config/config.yaml.
 type Config struct {
-	HTTP          HTTP          `mapstructure:"http"`
-	WS            WS            `mapstructure:"ws"`
-	Sessions      Sessions      `mapstructure:"sessions"`
-	ShutdownGrace time.Duration `mapstructure:"shutdown_grace" validate:"gt=0"`
-	Log           logger.Config `mapstructure:"log"`
-	Dependencies  Dependencies  `mapstructure:"dependencies"`
+	HTTP          HTTP            `mapstructure:"http"`
+	Ops           host.OpsSection `mapstructure:"ops"`
+	WS            WS              `mapstructure:"ws"`
+	Sessions      Sessions        `mapstructure:"sessions"`
+	ShutdownGrace time.Duration   `mapstructure:"shutdown_grace" validate:"gt=0"`
+	Log           logger.Config   `mapstructure:"log"`
+	Dependencies  Dependencies    `mapstructure:"dependencies"`
 }
 
-// HTTP is where the gateway serves clients.
+// HTTP is where the gateway serves players.
 type HTTP struct {
 	Addr        string   `mapstructure:"addr" validate:"required"`
 	CORSOrigins []string `mapstructure:"cors_origins" validate:"dive,url"` // empty: same origin only
@@ -47,5 +48,5 @@ type Dependencies struct {
 
 // Host is the part of the configuration the host runs the service with.
 func (c Config) Host() host.Settings {
-	return host.Settings{ShutdownGrace: c.ShutdownGrace, Log: c.Log}
+	return host.Settings{Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log}
 }

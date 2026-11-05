@@ -59,7 +59,8 @@ func TestMain(m *testing.M) {
 // stack is the game over a fresh database, every process on loopback ports.
 type stack struct {
 	t      *testing.T
-	url    string
+	url    string // the players' listener
+	ops    string // the gateway's /healthz, /readyz and /metrics
 	db     *pgxpool.Pool
 	items  itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
 	social *service                 // restarted by the rows that check the gateway survives it
@@ -103,6 +104,7 @@ func newStack(t *testing.T) *stack {
 	srv, err := app.Build(ctx, app.BuildOptions{
 		Config: gatewayconfig.Config{
 			HTTP:          gatewayconfig.HTTP{Addr: "127.0.0.1:0", CORSOrigins: []string{"http://localhost:5173"}},
+			Ops:           anyPort.ops(),
 			WS:            gatewayconfig.WS{HelloTimeout: 5 * time.Second, CommandQueue: 64},
 			Sessions:      gatewayconfig.Sessions{JoinTimeout: 5 * time.Second, CheckInterval: time.Minute},
 			ShutdownGrace: grace,
@@ -117,13 +119,13 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	gateway := runnertest.Start(t, log, srv.Run, "http")
+	gateway := runnertest.Start(t, log, srv.Run, "http", "ops")
 	pool, err := pgxpool.New(ctx, db.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	return &stack{t: t, url: "http://" + gateway.Addr("http"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
+	return &stack{t: t, url: "http://" + gateway.Addr("http"), ops: "http://" + gateway.Addr("ops"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
 }
 
 // listen is where a service's listeners bind: where the kernel picks at first, the same addresses on a restart.
@@ -326,17 +328,13 @@ func TestAcceptance(t *testing.T) {
 		}
 	})
 
-	t.Run("probes/healthz-readyz-metrics", func(t *testing.T) {
+	t.Run("probes/on-the-ops-listener-only", func(t *testing.T) {
 		s := newStack(t)
-		s.mustStatus(s.call("GET", "/healthz", "", nil), http.StatusOK)
-		// No /readyz: this stack never calls Run, so it is rightly not ready.
-		res, err := http.Get(s.url + "/metrics")
-		if err != nil {
-			t.Fatal(err)
-		}
-		res.Body.Close()
-		if res.StatusCode != http.StatusOK {
-			t.Fatalf("metrics status %d", res.StatusCode)
+		for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
+			if status, _ := runnertest.Get(t, s.ops+path); status != http.StatusOK {
+				t.Errorf("ops %s: status %d", path, status)
+			}
+			s.mustStatus(s.call("GET", path, "", nil), http.StatusNotFound)
 		}
 	})
 }

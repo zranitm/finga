@@ -10,7 +10,7 @@ services:
     restart: unless-stopped
     image: postgres:17-alpine
     ports:
-      - "${FINGA_POSTGRES_PORT:-5432}:5432"   # host port; set FINGA_POSTGRES_PORT when 5432 is taken
+      - "127.0.0.1:${FINGA_POSTGRES_PORT:-5432}:5432"   # host port; set FINGA_POSTGRES_PORT when 5432 is taken
     environment:
       POSTGRES_USER: finga
       POSTGRES_PASSWORD: finga
@@ -115,7 +115,7 @@ services:
         SERVICE: world
         VERSION: ${VERSION:-dev}
     ports:
-      - "${FINGA_WORLD_OPS_PORT:-9104}:9104"
+      - "127.0.0.1:${FINGA_WORLD_OPS_PORT:-9104}:9104"
     environment:
       FINGA_DEPENDENCIES_CHARACTER: character:9002
       FINGA_DEPENDENCIES_ITEM: item:9003
@@ -142,7 +142,8 @@ services:
         SERVICE: gateway
         VERSION: ${VERSION:-dev}
     ports:
-      - "${FINGA_PORT:-8080}:8080"
+      - "127.0.0.1:${FINGA_PORT:-8080}:8080"   # this machine only; players come through web
+      - "127.0.0.1:${FINGA_GATEWAY_OPS_PORT:-9100}:9100"
     environment:
       FINGA_HTTP_CORS_ORIGINS: http://localhost:5173
       FINGA_DEPENDENCIES_ACCOUNT: account:9001

@@ -260,7 +260,7 @@ After a world restart the HUD's EXP can show more than the reloaded checkpoint u
 
 - **Binaries:** `services/<service>` for the six services, with `main.go` at the service's root (until 2026-10-29, `services/<service>/cmd/<service>`); `cmd/migrate` and `cmd/bot` stay. `cmd/gameserver` is gone after step 28.
 - **Composition roots:** each in `services/<service>/app` (R5's rule), which the end-to-end tests import to build the whole game in one test process.
-- **Listeners:** the gateway serves `/api`, `/ws`, `/healthz`, `/readyz` and `/metrics` on `server.addr` (:8080). Every other service serves gRPC on its `listen` address and `/healthz`, `/readyz` and `/metrics` on its `ops` address, so Prometheus scrapes every process and the bot reads the tick percentiles from the world. `pkg/runner` runs a binary's listeners and background tasks with readiness and graceful shutdown (today's `app.Server`, made generic).
+- **Listeners:** the gateway serves `/api` and `/ws` on `http.addr` (:8080), and `/healthz`, `/readyz` and `/metrics` on `ops.addr` (:9100), which players never reach. Every other service serves gRPC on its `listen` address and the same three on its `ops` address, so Prometheus scrapes every process and the bot reads the tick percentiles from the world. `pkg/runner` runs a binary's listeners and background tasks with readiness and graceful shutdown (today's `app.Server`, made generic).
 - **Configuration:** each binary has its own file and type inside it, `services/<name>/config/` (page 11, step 29; until then one schema, `internal/config`, and one `configs/config.yaml` served every binary). An internal service's file has its gRPC listener (`grpc.listen`, :9001 to :9005) and its ops listener (`ops.addr`, :9101 to :9105); a service that calls others has their addresses under `dependencies`, which Compose sets to the services' names:
 
 ```yaml
@@ -273,7 +273,7 @@ dependencies:
   item: localhost:9003     # Stage 1: one node each
 ```
 
-- **Compose:** Postgres, `migrate`, and the six services, each built from the one Dockerfile with `SERVICE` set; the gateway publishes :8080 and the world its ops port for the bots. Builds share Go's caches through BuildKit cache mounts.
+- **Compose:** Postgres, `migrate`, and the six services, each built from the one Dockerfile with `SERVICE` set; the gateway publishes :8080 and its ops port (CI waits on its `/readyz`) and the world its ops port for the bots, all on 127.0.0.1 like Postgres; only the client's port is open to the network. Builds share Go's caches through BuildKit cache mounts.
 - **Make:** `up`, `down`, `test`, `cover`, `lint` and `smoke` keep their meaning for the whole game; `make test-service SERVICE=item` builds and tests one service; `make breaking` runs `buf breaking` against the previous commit; `make run` starts the migrations and the six binaries without Docker; `make gen` runs sqlc and `buf generate`.
 - **CI:** the go job runs lint (golangci-lint and `buf lint`), every test and coverage, and checks the generated code is current; a matrix job tests each service on its own; the compose job runs `make up` and the smoke test against the gateway; `buf breaking` against the previous commit from step 28.
 - **Tools:** `buf`, `protoc-gen-go` and `protoc-gen-go-grpc` are pinned as Go tools in `server/go.mod` (`go get -tool`), so a laptop and CI generate with the same versions.

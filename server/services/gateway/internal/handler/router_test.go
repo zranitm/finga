@@ -20,17 +20,10 @@ func named(name string) http.Handler {
 func restAPI(e *gin.Engine) { e.POST("/api/accounts", gin.WrapH(named("api"))) }
 
 func TestRouter(t *testing.T) {
-	ready := false
-	routes := handler.Routes{
-		API:     restAPI,
-		Gateway: named("gateway"),
-		Metrics: named("metrics"),
-		Ready:   func() bool { return ready },
-	}
+	routes := handler.Routes{API: restAPI, Gateway: named("gateway")}
 	tests := []struct {
 		name     string
 		routes   handler.Routes
-		ready    bool
 		method   string
 		path     string
 		wantCode int
@@ -39,16 +32,14 @@ func TestRouter(t *testing.T) {
 		{name: "rest_under_api", routes: routes, method: "POST", path: "/api/accounts", wantCode: http.StatusOK, wantBody: "api"},
 		{name: "gateway_at_ws", routes: routes, method: "GET", path: "/ws", wantCode: http.StatusOK, wantBody: "gateway"},
 		{name: "gateway_is_get_only", routes: routes, method: "POST", path: "/ws", wantCode: http.StatusMethodNotAllowed},
-		{name: "no_gateway_mounts_nothing", routes: handler.Routes{API: restAPI, Metrics: named("metrics"), Ready: func() bool { return true }}, method: "GET", path: "/ws", wantCode: http.StatusNotFound},
-		{name: "metrics", routes: routes, method: "GET", path: "/metrics", wantCode: http.StatusOK, wantBody: "metrics"},
-		{name: "healthz_is_always_200", routes: routes, method: "GET", path: "/healthz", wantCode: http.StatusOK, wantBody: `"ok"`},
-		{name: "readyz_is_503_when_not_ready", routes: routes, method: "GET", path: "/readyz", wantCode: http.StatusServiceUnavailable, wantBody: `"not ready"`},
-		{name: "readyz_is_200_when_ready", routes: routes, ready: true, method: "GET", path: "/readyz", wantCode: http.StatusOK, wantBody: `"ready"`},
+		{name: "no_gateway_mounts_nothing", routes: handler.Routes{API: restAPI}, method: "GET", path: "/ws", wantCode: http.StatusNotFound},
+		{name: "no_metrics", routes: routes, method: "GET", path: "/metrics", wantCode: http.StatusNotFound},
+		{name: "no_healthz", routes: routes, method: "GET", path: "/healthz", wantCode: http.StatusNotFound},
+		{name: "no_readyz", routes: routes, method: "GET", path: "/readyz", wantCode: http.StatusNotFound},
 		{name: "unknown_path", routes: routes, method: "GET", path: "/nope", wantCode: http.StatusNotFound},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ready = tt.ready
 			rec := httptest.NewRecorder()
 			handler.NewRouter(tt.routes).ServeHTTP(rec, httptest.NewRequest(tt.method, tt.path, nil))
 			if rec.Code != tt.wantCode {

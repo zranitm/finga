@@ -13,9 +13,10 @@ import (
 )
 
 func newServer(log *runnertest.Log, deps app.Deps) *app.Server {
-	deps.Metrics = http.NotFoundHandler()
+	deps.Metrics = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("metrics")) })
 	return app.New(app.Options{
 		HTTP:          config.HTTP{Addr: "127.0.0.1:0"},
+		Ops:           "127.0.0.1:0",
 		ShutdownGrace: 2 * time.Second,
 		Logger:        log.Logger(),
 	}, deps)
@@ -24,12 +25,12 @@ func newServer(log *runnertest.Log, deps app.Deps) *app.Server {
 // Readiness checks no dependency, so a shared outage cannot pull every instance out of rotation at once.
 func TestReadinessFollowsTheProcess(t *testing.T) {
 	log := runnertest.NewLog()
-	p := runnertest.Start(t, log, newServer(log, app.Deps{}).Run, "http")
-	addr := p.Addr("http")
+	p := runnertest.Start(t, log, newServer(log, app.Deps{}).Run, "http", "ops")
+	ops := p.Addr("ops")
 
 	for _, path := range []string{"/readyz", "/healthz"} {
-		t.Run(path+" answers on the real listener", func(t *testing.T) {
-			status, body := runnertest.Get(t, "http://"+addr+path)
+		t.Run(path+" answers on the ops listener", func(t *testing.T) {
+			status, body := runnertest.Get(t, "http://"+ops+path)
 			if status != http.StatusOK || (path == "/readyz" && !strings.Contains(body, "ready")) {
 				t.Fatalf("status %d body %s", status, body)
 			}
@@ -39,9 +40,23 @@ func TestReadinessFollowsTheProcess(t *testing.T) {
 	if err := p.Stop(); err != nil {
 		t.Fatalf("Run returned %v", err)
 	}
-	if res, err := http.Get("http://" + addr + "/healthz"); err == nil {
+	if res, err := http.Get("http://" + ops + "/healthz"); err == nil {
 		res.Body.Close()
 		t.Fatal("the listener still answers after shutdown")
+	}
+}
+
+// Players reach only the public listener, so the probes and the metrics are not on it.
+func TestTheOpsEndpointsAreOnlyOnTheOpsListener(t *testing.T) {
+	log := runnertest.NewLog()
+	p := runnertest.Start(t, log, newServer(log, app.Deps{}).Run, "http", "ops")
+	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
+		if status, _ := runnertest.Get(t, "http://"+p.Addr("http")+path); status != http.StatusNotFound {
+			t.Errorf("the public listener answered %s with %d", path, status)
+		}
+	}
+	if status, body := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics"); status != http.StatusOK || body != "metrics" {
+		t.Errorf("ops /metrics: status %d body %q", status, body)
 	}
 }
 
@@ -59,8 +74,8 @@ func TestTheDrainRunsAfterReadinessTurnsOff(t *testing.T) {
 		res.Body.Close()
 		drained <- res.StatusCode
 	}})
-	p := runnertest.Start(t, log, srv.Run, "http")
-	addr = p.Addr("http")
+	p := runnertest.Start(t, log, srv.Run, "http", "ops")
+	addr = p.Addr("ops")
 	if err := p.Stop(); err != nil {
 		t.Fatal(err)
 	}

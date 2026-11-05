@@ -18,9 +18,10 @@ import (
 // Task is a background job that stops when the server's context ends.
 type Task = runner.Task
 
-// Options are the listener's settings.
+// Options are the listeners' settings.
 type Options struct {
 	HTTP          config.HTTP
+	Ops           string // where /healthz, /readyz and /metrics are served
 	ShutdownGrace time.Duration
 	Logger        *slog.Logger
 	Panics        *panics.Recorder // a task's panic, which shuts the gateway down; nil logs it
@@ -30,15 +31,19 @@ type Options struct {
 type Deps struct {
 	API     func(e *gin.Engine) // nil mounts nothing
 	Gateway http.Handler        // /ws; nil mounts nothing
-	Metrics http.Handler        // /metrics
+	Metrics http.Handler        // /metrics on the ops listener
 	Tasks   []Task
 	// Drain runs on shutdown after readiness turns 503, before the listener closes; nil skips it.
 	Drain func(ctx context.Context)
 }
 
-const listener = "http"
+// The listener names, as the logs show them.
+const (
+	httpListener = "http"
+	opsListener  = "ops"
+)
 
-// Server is the gateway's process: one HTTP listener and the background tasks.
+// Server is the gateway's process: the players' listener, the ops listener and the background tasks.
 type Server struct {
 	run     *runner.Runner
 	closers []func()
@@ -47,14 +52,12 @@ type Server struct {
 // New builds the router over the handlers; Run starts listening.
 func New(opts Options, deps Deps) *Server {
 	s := &Server{}
-	router := handler.NewRouter(handler.Routes{
-		API:     deps.API,
-		Gateway: deps.Gateway,
-		Metrics: deps.Metrics,
-		Ready:   func() bool { return s.run.Ready() },
-	})
-	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.ShutdownGrace, Drain: deps.Drain, Panics: opts.Panics},
-		[]runner.Listener{{Name: listener, Addr: opts.HTTP.Addr, Server: runner.HTTP(router)}}, deps.Tasks)
+	router := handler.NewRouter(handler.Routes{API: deps.API, Gateway: deps.Gateway})
+	ops := runner.Probes(func() bool { return s.run.Ready() }, deps.Metrics)
+	s.run = runner.New(runner.Options{Logger: opts.Logger, ShutdownGrace: opts.ShutdownGrace, Drain: deps.Drain, Panics: opts.Panics}, []runner.Listener{
+		{Name: httpListener, Addr: opts.HTTP.Addr, Server: runner.HTTP(router)},
+		{Name: opsListener, Addr: opts.Ops, Server: runner.HTTP(ops)},
+	}, deps.Tasks)
 	return s
 }
 

@@ -40,8 +40,9 @@ Compose only, the client included. The `web` image builds the client with
 Node and serves it with nginx, which passes `/api` and `/ws` to the gateway,
 so the browser sees one origin. Testers on the same network open
 `http://<this machine's LAN address>:4173`. When another program owns a port
-the stack publishes, set `FINGA_WEB_PORT` (4173), `FINGA_PORT` (8080) or
-`FINGA_POSTGRES_PORT` (5432) in `infra/.env` (copy `infra/.env.example`).
+the stack publishes, set `FINGA_WEB_PORT` (4173), `FINGA_PORT` (8080),
+`FINGA_GATEWAY_OPS_PORT` (9100) or `FINGA_POSTGRES_PORT` (5432) in
+`infra/.env` (copy `infra/.env.example`).
 Without Docker, run Postgres yourself, start the binaries, and serve the
 client with the Vite dev server (see Client):
 
@@ -50,24 +51,25 @@ make run                   # exports server/.env, applies every service's migrat
 ```
 
 The browser talks to nginx, and nginx to the gateway. The gateway serves
-REST under /api, the WebSocket at /ws, /healthz, /readyz and /metrics on
-:8080; every other service serves gRPC on one port and its own /healthz,
-/readyz and /metrics on another (its ops port):
+REST under /api and the WebSocket at /ws on :8080, and /healthz, /readyz and
+/metrics on its ops port; every other service serves gRPC on one port and the
+same three on its ops port:
 
-| Process         | gRPC | HTTP / ops                                  | On the host with `make up`                            |
-|-----------------|------|---------------------------------------------|-------------------------------------------------------|
-| web (nginx)     |      | 80: the client; /api and /ws to the gateway | 4173 (`FINGA_WEB_PORT`): open this one                |
-| gateway         |      | 8080: /api, /ws, probes, /metrics           | 8080 (`FINGA_PORT`), for `make smoke` and `make bots` |
-| account         | 9001 | 9101                                        |                                                       |
-| character       | 9002 | 9102                                        |                                                       |
-| item            | 9003 | 9103                                        |                                                       |
-| world           | 9004 | 9104                                        | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots`        |
-| social          | 9005 | 9105                                        |                                                       |
-| Postgres        |      | 5432                                        | 5432 (`FINGA_POSTGRES_PORT`)                          |
-| Vite dev server |      | 5173 (`npm run dev`)                        | not in Compose; for working on the client             |
+| Process         | gRPC | HTTP / ops                                  | On the host with `make up`                                                             |
+|-----------------|------|---------------------------------------------|----------------------------------------------------------------------------------------|
+| web (nginx)     |      | 80: the client; /api and /ws to the gateway | 4173 (`FINGA_WEB_PORT`): open this one                                                 |
+| gateway         |      | 8080: /api, /ws; 9100                       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_GATEWAY_OPS_PORT`) |
+| account         | 9001 | 9101                                        |                                                                                        |
+| character       | 9002 | 9102                                        |                                                                                        |
+| item            | 9003 | 9103                                        |                                                                                        |
+| world           | 9004 | 9104                                        | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots`                                         |
+| social          | 9005 | 9105                                        |                                                                                        |
+| Postgres        |      | 5432                                        | 5432 (`FINGA_POSTGRES_PORT`)                                                           |
+| Vite dev server |      | 5173 (`npm run dev`)                        | not in Compose; for working on the client                                              |
 
 Under `make up` the services reach each other on the Compose network by
-name (`world:9004`), and only the ports in the last column are published;
+name (`world:9004`), and only the ports in the last column are published,
+all but the client's on 127.0.0.1;
 under `make run` every port is on localhost. The defaults live in each
 service's own configuration (see Configuration).
 

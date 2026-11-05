@@ -72,7 +72,7 @@ jobs:
       - name: wait for the gateway
         run: |
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8080/readyz >/dev/null; then exit 0; fi
+            if curl -fsS http://localhost:9100/readyz >/dev/null; then exit 0; fi
             sleep 2
           done
           docker compose -f infra/docker-compose.yml logs

@@ -17,8 +17,6 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': server,
-      '/healthz': server,
-      '/readyz': server,
       '/ws': { target: server.replace('http', 'ws'), ws: true },
     },
   },

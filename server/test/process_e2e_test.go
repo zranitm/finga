@@ -27,7 +27,6 @@ type process struct {
 	bin       string
 	env       []string
 	listeners map[string]string // listener name → the setting of its address
-	healthOn  string            // the listener that serves /healthz
 	addrs     map[string]string // bound on the first start, kept for restarts
 	url       string            // the gateway's base URL
 	grpc      string            // a service's gRPC address
@@ -39,7 +38,7 @@ type process struct {
 // The binaries' listeners, each with the setting of its address.
 var (
 	serviceListeners = map[string]string{"grpc": "FINGA_GRPC_LISTEN", "ops": "FINGA_OPS_ADDR"}
-	gatewayListeners = map[string]string{"http": "FINGA_HTTP_ADDR"}
+	gatewayListeners = map[string]string{"http": "FINGA_HTTP_ADDR", "ops": "FINGA_OPS_ADDR"}
 )
 
 // lockedBuffer is a bytes.Buffer safe for one writer and one reader.
@@ -104,7 +103,7 @@ func baseEnv(dbURL string) []string {
 // startServiceProcess runs a service binary on ports it picks; extra names the services it dials.
 func startServiceProcess(t *testing.T, name, bin, dbURL string, extra ...string) *process {
 	t.Helper()
-	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL), extra...), listeners: serviceListeners, healthOn: "ops"}
+	p := &process{t: t, name: name, bin: bin, env: append(baseEnv(dbURL), extra...), listeners: serviceListeners}
 	p.start()
 	p.grpc = p.addrs["grpc"]
 	return p
@@ -117,7 +116,7 @@ func dependency(name string, svc *process) string {
 
 func startGateway(t *testing.T, bin, dbURL string, services map[string]*process) *process {
 	t.Helper()
-	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL), listeners: gatewayListeners, healthOn: "http"}
+	p := &process{t: t, name: "gateway", bin: bin, env: baseEnv(dbURL), listeners: gatewayListeners}
 	for name, svc := range services {
 		p.env = append(p.env, dependency(name, svc))
 	}
@@ -170,7 +169,7 @@ func (p *process) start() {
 }
 
 func (p *process) healthy() bool {
-	res, err := http.Get("http://" + p.addrs[p.healthOn] + "/healthz")
+	res, err := http.Get("http://" + p.addrs["ops"] + "/healthz")
 	if err != nil {
 		return false
 	}

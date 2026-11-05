@@ -100,7 +100,7 @@ dependencies:              # where this service dials the ones it calls
 
 | Service | Keys besides `grpc`, `ops`, `shutdown_grace`, `log` |
 | --- | --- |
-| `gateway` | `http.addr` (:8080) and `http.cors_origins` instead of `grpc`; `ws.hello_timeout` (5s) and `ws.command_queue` (64); `sessions.join_timeout` (5s) and `sessions.check_interval` (1m); `dependencies` on all five |
+| `gateway` | `http.addr` (:8080) and `http.cors_origins` instead of `grpc`, and `ops.addr` (:9100); `ws.hello_timeout` (5s) and `ws.command_queue` (64); `sessions.join_timeout` (5s) and `sessions.check_interval` (1m); `dependencies` on all five |
 | `account` | `database`, `password` (the Argon2id cost: `time` 1, `memory_kib` 65536, `threads` 4; and `concurrent` 4 hashes at once, a login past them waiting up to `wait` 1s, then answered `rate_limited`) |
 | `character` | `database`, `data_dir`, `dependencies.item` |
 | `item` | `database`, `data_dir` |

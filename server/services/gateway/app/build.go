@@ -75,7 +75,7 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Logger:               opts.Logger,
 		SessionCheckInterval: cfg.Sessions.CheckInterval,
 	}, sessions)
-	s := New(Options{HTTP: cfg.HTTP, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger, Panics: rec}, Deps{
+	s := New(Options{HTTP: cfg.HTTP, Ops: cfg.Ops.Addr, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger, Panics: rec}, Deps{
 		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
 		Gateway: ws.New(sendFlow, ws.Options{
 			Origins: cfg.HTTP.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,

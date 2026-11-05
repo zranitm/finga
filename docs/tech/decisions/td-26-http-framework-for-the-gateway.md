@@ -8,7 +8,7 @@
 
 ## Where it is used
 
-The gateway's HTTP edge only: one Gin engine (`services/gateway/internal/handler`) serves the REST API under `/api` as a route group, with an authenticated subgroup, and mounts the WebSocket at `/ws`, `/metrics` and the probes. The application layer never sees Gin (depguard `gin-at-the-edge`); the handlers adapt a request to one Lobby use case. The internal services speak gRPC and use no HTTP framework.
+The gateway's HTTP edge only: one Gin engine (`services/gateway/internal/handler`) serves the REST API under `/api` as a route group, with an authenticated subgroup, and mounts the WebSocket at `/ws`; the probes and `/metrics` are on a separate ops listener. The application layer never sees Gin (depguard `gin-at-the-edge`); the handlers adapt a request to one Lobby use case. The internal services speak gRPC and use no HTTP framework.
 
 ## How it is configured
 
