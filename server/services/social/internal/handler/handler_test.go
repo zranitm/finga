@@ -28,9 +28,9 @@ type stack struct {
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
-	parties := application.NewPartyService(repository.NewMemory())
-	srv := handler.New(parties, application.NewChatService(parties), "boot-1")
-	parties.Notify(srv)
+	streams := handler.NewStreams("boot-1")
+	parties := application.NewPartyService(repository.NewMemory(), streams)
+	srv := handler.New(parties, application.NewChatService(parties), streams)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -296,9 +296,9 @@ func (m manyParties) Memberships(ctx context.Context, visit func(members []kerne
 // A snapshot larger than the stream's queue still arrives whole, and the changes after it.
 func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	const many = 5000 // the queue holds 4096
-	parties := application.NewPartyService(repository.NewMemory())
-	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(parties), "boot-1")
-	parties.Notify(srv)
+	streams := handler.NewStreams("boot-1")
+	parties := application.NewPartyService(repository.NewMemory(), streams)
+	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(parties), streams)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx := t.Context()

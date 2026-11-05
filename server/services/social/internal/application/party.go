@@ -15,21 +15,15 @@ import (
 type PartyService struct {
 	store PartyStore
 
-	// mu orders each change with its notifications, so members never hear an older state last.
-	mu       sync.Mutex
 	notifier Notifier
+
+	// mu orders each change with its notifications, so members never hear an older state last.
+	mu sync.Mutex
 }
 
-// NewPartyService makes the service over store; Notify sets where state changes go.
-func NewPartyService(store PartyStore) *PartyService {
-	return &PartyService{store: store}
-}
-
-// Notify sets the notifier; nil means nobody is told.
-func (s *PartyService) Notify(n Notifier) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.notifier = n
+// NewPartyService makes the service over store; notifier hears every change members must know of.
+func NewPartyService(store PartyStore, notifier Notifier) *PartyService {
+	return &PartyService{store: store, notifier: notifier}
 }
 
 // Online records a character as connected and refreshes their party row.
@@ -258,10 +252,8 @@ func (s *PartyService) update(ctx context.Context, fn func(tx PartyTx, n *notes)
 	}); err != nil {
 		return err
 	}
-	if s.notifier != nil {
-		for _, send := range n {
-			send(s.notifier)
-		}
+	for _, send := range n {
+		send(s.notifier)
 	}
 	return nil
 }

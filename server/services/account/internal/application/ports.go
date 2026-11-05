@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
+
 	"finga/internal/kernel"
 	"finga/services/account/internal/model"
 )
@@ -41,4 +43,10 @@ type SessionRepository interface {
 	Rotate(ctx context.Context, id kernel.SessionID, newHash []byte, at time.Time) error
 	ConsumePrevious(ctx context.Context, id kernel.SessionID) error
 	Extend(ctx context.Context, id kernel.SessionID, until time.Time) error
+}
+
+// Notifier hears of ended sessions, after they commit, so their connections close; it must not block.
+type Notifier interface {
+	SessionRevoked(ctx context.Context, sessionID uuid.UUID, reason string)
+	AccountRevoked(ctx context.Context, accountID uuid.UUID, reason string)
 }

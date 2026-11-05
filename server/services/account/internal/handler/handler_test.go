@@ -86,12 +86,12 @@ func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s 
 	return f.call()
 }
 
-func serve(t *testing.T, f *fakeAccounts) (accountv1.AccountServiceClient, *handler.Server) {
+func serve(t *testing.T, f *fakeAccounts) (accountv1.AccountServiceClient, *handler.Streams) {
 	t.Helper()
 	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
-	h := handler.New(f, "boot-1")
-	accountv1.RegisterAccountServiceServer(srv, h)
-	return accountv1.NewAccountServiceClient(grpctest.Conn(t, srv)), h
+	streams := handler.NewStreams("boot-1")
+	accountv1.RegisterAccountServiceServer(srv, handler.New(f, streams))
+	return accountv1.NewAccountServiceClient(grpctest.Conn(t, srv)), streams
 }
 
 func TestEachCallMapsItsFields(t *testing.T) {

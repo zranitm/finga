@@ -14,7 +14,6 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
-	"finga/pkg/hub"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
 )
@@ -32,20 +31,16 @@ type Service interface {
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
 }
 
-// watchQueue bounds the session ends queued for a slow gateway before its stream is dropped.
-const watchQueue = 1024
-
 // Server serves AccountService over the module.
 type Server struct {
 	accountv1.UnimplementedAccountServiceServer
-	svc      Service
-	bootID   string
-	watchers *hub.Hub[*accountv1.WatchSessionsResponse]
+	svc     Service
+	streams *Streams
 }
 
-// New builds the server; a per-process bootID lets a gateway tell a restart from a broken stream.
-func New(svc Service, bootID string) *Server {
-	return &Server{svc: svc, bootID: bootID, watchers: hub.New[*accountv1.WatchSessionsResponse](watchQueue)}
+// New builds the server over the module and the streams it notifies.
+func New(svc Service, streams *Streams) *Server {
+	return &Server{svc: svc, streams: streams}
 }
 
 // Register creates an account.
@@ -157,34 +152,8 @@ func (s *Server) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.
 	if req.GetGatewayId() == "" {
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
-	first := &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_Subscribed{Subscribed: &accountv1.Subscribed{BootId: s.bootID}}}
-	return grpcx.ServeSubscription(stream, s.watchers.Subscribe(req.GetGatewayId()), first)
-}
-
-// SessionRevoked is the module's OnSessionRevoked hook, broadcast to every gateway.
-func (s *Server) SessionRevoked(_ context.Context, id uuid.UUID, reason string) {
-	s.watchers.Broadcast(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{
-		SessionRevoked: &accountv1.SessionRevoked{SessionId: id.String(), Reason: revokeReason(reason)},
-	}})
-}
-
-// AccountRevoked is the module's OnAccountRevoked hook, broadcast to every gateway.
-func (s *Server) AccountRevoked(_ context.Context, id uuid.UUID, reason string) {
-	s.watchers.Broadcast(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{
-		AccountRevoked: &accountv1.AccountRevoked{AccountId: id.String(), Reason: revokeReason(reason)},
-	}})
-}
-
-func revokeReason(reason string) accountv1.RevokeReason {
-	switch reason {
-	case application.ReasonTokenReuse:
-		return accountv1.RevokeReason_REVOKE_REASON_TOKEN_REUSE
-	case application.ReasonLogout:
-		return accountv1.RevokeReason_REVOKE_REASON_LOGOUT
-	case application.ReasonNewLogin:
-		return accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN
-	}
-	return accountv1.RevokeReason_REVOKE_REASON_UNSPECIFIED
+	first := &accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_Subscribed{Subscribed: &accountv1.Subscribed{BootId: s.streams.bootID}}}
+	return grpcx.ServeSubscription(stream, s.streams.watchers.Subscribe(req.GetGatewayId()), first)
 }
 
 func settingsOf(s model.Settings) *accountv1.Settings {

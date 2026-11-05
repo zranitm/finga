@@ -5,7 +5,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 
 	accountv1 "finga/api/gen/account/v1"
@@ -32,13 +31,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	var srv *handler.Server // built below; the hooks only fire once requests arrive
-	accounts := application.NewService(repository.NewPostgres(pool), application.Options{
-		Hasher:           password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
-		OnSessionRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.SessionRevoked(ctx, id, reason) },
-		OnAccountRevoked: func(ctx context.Context, id uuid.UUID, reason string) { srv.AccountRevoked(ctx, id, reason) },
+	streams := handler.NewStreams(uuidv7.NewString())
+	accounts := application.NewService(repository.NewPostgres(pool), streams, application.Options{
+		Hasher: password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
-	srv = handler.New(accounts, uuidv7.NewString())
+	srv := handler.New(accounts, streams)
 	h := host.New(host.Options{
 		Name:     "account",
 		Settings: cfg.Host(),

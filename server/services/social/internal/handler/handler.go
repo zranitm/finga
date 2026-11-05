@@ -1,9 +1,8 @@
-// Package handler is the social service's SocialService gRPC server and the party module's notifier.
+// Package handler is the social service's SocialService gRPC server and its streams, the party module's notifier.
 package handler
 
 import (
 	"context"
-	"sync"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -12,7 +11,6 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
-	"finga/pkg/hub"
 	"finga/services/social/internal/model"
 )
 
@@ -35,33 +33,17 @@ type Chat interface {
 	Send(ctx context.Context, from model.Sender, channel model.Channel, text string) (model.Message, []kernel.CharacterID, error)
 }
 
-// Queue sizes for a slow gateway or world node before its stream is dropped.
-const (
-	deliverQueue = 4096
-	watchQueue   = 4096
-)
-
 // Server serves SocialService.
 type Server struct {
 	socialv1.UnimplementedSocialServiceServer
-	parties  Parties
-	chat     Chat
-	bootID   string
-	deliver  *hub.Hub[*socialv1.DeliverResponse]
-	watchers *hub.Hub[*socialv1.WatchPartiesResponse]
-
-	mu       sync.Mutex
-	presence map[kernel.CharacterID]string // the gateway each online character is on
+	parties Parties
+	chat    Chat
+	streams *Streams
 }
 
-// New builds the server for the party module's Notify; a new bootID tells gateways the parties are gone.
-func New(parties Parties, chat Chat, bootID string) *Server {
-	return &Server{
-		parties: parties, chat: chat, bootID: bootID,
-		deliver:  hub.New[*socialv1.DeliverResponse](deliverQueue),
-		watchers: hub.New[*socialv1.WatchPartiesResponse](watchQueue),
-		presence: map[kernel.CharacterID]string{},
-	}
+// New builds the server over the modules and the streams the party module notifies.
+func New(parties Parties, chat Chat, streams *Streams) *Server {
+	return &Server{parties: parties, chat: chat, streams: streams}
 }
 
 // Deliver streams one gateway's party traffic.
@@ -69,8 +51,8 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 	if req.GetGatewayId() == "" {
 		return status.Error(codes.InvalidArgument, "gateway_id is required")
 	}
-	first := &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}
-	return grpcx.ServeSubscription(stream, s.deliver.Subscribe(req.GetGatewayId()), first)
+	first := &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}
+	return grpcx.ServeSubscription(stream, s.streams.deliver.Subscribe(req.GetGatewayId()), first)
 }
 
 // WatchParties streams Subscribed and a membership snapshot, then each change since it subscribed. The
@@ -80,8 +62,8 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 	if req.GetWorldId() == "" {
 		return status.Error(codes.InvalidArgument, "world_id is required")
 	}
-	sub := s.watchers.Subscribe(req.GetWorldId())
-	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.bootID}}}}
+	sub := s.streams.watchers.Subscribe(req.GetWorldId())
+	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}}
 	if err := s.parties.Memberships(stream.Context(), func(members []kernel.CharacterID) {
 		first = append(first, membership(members, members))
 	}); err != nil {
@@ -101,9 +83,7 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 	if err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	s.presence[id] = req.GetGatewayId()
-	s.mu.Unlock()
+	s.streams.online(id, req.GetGatewayId())
 	if err := s.parties.Online(ctx, model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId()}); err != nil {
 		return nil, err
 	}
@@ -119,9 +99,7 @@ func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*so
 	if err := s.parties.Offline(ctx, id); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
-	delete(s.presence, id)
-	s.mu.Unlock()
+	s.streams.offline(id)
 	return &socialv1.OfflineResponse{}, nil
 }
 
@@ -224,7 +202,7 @@ func (s *Server) Chat(ctx context.Context, req *socialv1.ChatRequest) (*socialv1
 	if msg.Channel == model.ChannelParty {
 		line := &socialv1.ChatLine{SenderId: msg.Sender.String(), SenderName: msg.SenderName, Text: msg.Text}
 		for _, id := range to {
-			s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: line}})
+			s.streams.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_ChatLine{ChatLine: line}})
 		}
 	}
 	return &socialv1.ChatResponse{Channel: req.GetChannel(), Text: msg.Text}, nil
@@ -240,42 +218,6 @@ func (s *Server) UpdateMember(ctx context.Context, req *socialv1.UpdateMemberReq
 		return nil, err
 	}
 	return &socialv1.UpdateMemberResponse{}, nil
-}
-
-// PartyChanged implements party.Notifier; it runs under the party lock and never blocks.
-func (s *Server) PartyChanged(members []kernel.CharacterID, p *model.Party) {
-	state := &socialv1.PartyState{Party: partyOf(p)}
-	for _, id := range members {
-		s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: state}})
-	}
-	var now []kernel.CharacterID
-	if p != nil {
-		for _, m := range p.Members {
-			now = append(now, m.ID)
-		}
-	}
-	s.watchers.Broadcast(membership(members, now))
-}
-
-// Invited implements party.Notifier.
-func (s *Server) Invited(to kernel.CharacterID, inv model.Invite) {
-	s.send(to, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{
-		InviteId: inv.ID.String(), FromId: inv.From.String(), FromName: inv.FromName,
-	}}})
-}
-
-// send delivers to the character's gateway, if it is online there with a stream.
-func (s *Server) send(to kernel.CharacterID, ev *socialv1.DeliverResponse) {
-	s.mu.Lock()
-	gateway, ok := s.presence[to]
-	s.mu.Unlock()
-	if !ok {
-		return
-	}
-	if sub, ok := s.deliver.Get(gateway); ok {
-		ev.CharacterId = to.String()
-		sub.Send(ev)
-	}
 }
 
 func membership(characters, members []kernel.CharacterID) *socialv1.WatchPartiesResponse {

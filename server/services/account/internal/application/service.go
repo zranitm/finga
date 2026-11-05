@@ -37,10 +37,6 @@ type LoginInput struct {
 // Options tune the service.
 type Options struct {
 	Hasher *password.Hasher // the Argon2id cost and how many hashes run at once, from the config
-
-	// OnSessionRevoked and OnAccountRevoked, if set, hear of ended sessions so connections can close.
-	OnSessionRevoked func(ctx context.Context, sessionID uuid.UUID, reason string)
-	OnAccountRevoked func(ctx context.Context, accountID uuid.UUID, reason string)
 }
 
 // The session policy (step 16).
@@ -64,7 +60,7 @@ const (
 	dummySecret = "finga-dummy-password-for-timing" // hashed once; verified for unknown usernames
 )
 
-// The reasons OnSessionRevoked and OnAccountRevoked give.
+// The reasons the Notifier is given.
 const (
 	ReasonTokenReuse = "token reuse"
 	ReasonLogout     = "logged out"
@@ -76,6 +72,7 @@ var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 // Service is the account service's use cases. It implements pkg/auth.
 type Service struct {
 	store      Store
+	notifier   Notifier
 	opts       Options
 	dummy      string            // verified for unknown usernames, so they take as long
 	byUser     ratelimit.Limiter // per-IP limits belong to the edge (nginx)
@@ -87,14 +84,15 @@ var (
 	_ auth.Sessions      = (*Service)(nil)
 )
 
-// NewService wires the service over its store.
-func NewService(store Store, opts Options) *Service {
+// NewService wires the service over its store; notifier hears of every ended session.
+func NewService(store Store, notifier Notifier, opts Options) *Service {
 	dummy, err := opts.Hasher.Hash(context.Background(), dummySecret)
 	if err != nil {
 		panic("account: dummy hash: " + err.Error()) // the parameters were just validated by Hash's caller
 	}
 	return &Service{
 		store:      store,
+		notifier:   notifier,
 		opts:       opts,
 		dummy:      dummy,
 		byUser:     ratelimit.NewBuckets(loginRatePerMinute/60.0, loginBurst),
@@ -187,9 +185,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 		if err != nil {
 			return "", err
 		}
-		if s.opts.OnAccountRevoked != nil {
-			s.opts.OnAccountRevoked(ctx, accountID, ReasonNewLogin) // the older session's connection, if any
-		}
+		s.notifier.AccountRevoked(ctx, accountID, ReasonNewLogin) // the older session's connection, if any
 		return token, nil
 	}
 }
@@ -278,9 +274,7 @@ func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if s.opts.OnAccountRevoked != nil {
-		s.opts.OnAccountRevoked(ctx, accountID, ReasonLogout)
-	}
+	s.notifier.AccountRevoked(ctx, accountID, ReasonLogout)
 	return nil
 }
 
@@ -291,9 +285,7 @@ func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time
 	if err != nil {
 		return err
 	}
-	if s.opts.OnSessionRevoked != nil {
-		s.opts.OnSessionRevoked(ctx, uuid.UUID(id), reason)
-	}
+	s.notifier.SessionRevoked(ctx, uuid.UUID(id), reason)
 	return nil
 }
 

@@ -17,7 +17,7 @@ import (
 	"finga/services/account/internal/model"
 )
 
-type hookRecorder struct {
+type notices struct {
 	mu             sync.Mutex
 	sessions       []uuid.UUID
 	reasons        []string
@@ -25,14 +25,14 @@ type hookRecorder struct {
 	accountReasons []string
 }
 
-func (h *hookRecorder) sessionRevoked(_ context.Context, id uuid.UUID, reason string) {
+func (h *notices) SessionRevoked(_ context.Context, id uuid.UUID, reason string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sessions = append(h.sessions, id)
 	h.reasons = append(h.reasons, reason)
 }
 
-func (h *hookRecorder) accountRevoked(_ context.Context, id uuid.UUID, reason string) {
+func (h *notices) AccountRevoked(_ context.Context, id uuid.UUID, reason string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.accounts = append(h.accounts, id)
@@ -43,7 +43,7 @@ var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 
 
 // underSynctest runs f on fake time against a fresh database, with the service's hooks recorded.
 // The pool opens inside the bubble, as everything a bubble uses must be its own.
-func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, store *Postgres, hooks *hookRecorder)) {
+func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, store *Postgres, hooks *notices)) {
 	t.Helper()
 	url := cluster.URL(t)
 	synctest.Test(t, func(t *testing.T) {
@@ -53,8 +53,8 @@ func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, 
 		}
 		t.Cleanup(pool.Close)
 		store := NewPostgres(pool)
-		hooks := &hookRecorder{}
-		svc := application.NewService(store, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second), OnSessionRevoked: hooks.sessionRevoked, OnAccountRevoked: hooks.accountRevoked})
+		hooks := &notices{}
+		svc := application.NewService(store, hooks, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 		f(t, svc, store, hooks)
 	})
 }
@@ -77,7 +77,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("the retired token works once inside the grace; a second use is reuse and ends the session", func(t *testing.T) {
-		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *hookRecorder) {
+		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
 			token, _ := loginAs(t, svc, "alice")
 			p, err := svc.Validate(ctx, token)
 			if err != nil {
@@ -113,7 +113,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 	})
 
 	t.Run("the retired token used after the grace is reuse too", func(t *testing.T) {
-		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *hookRecorder) {
+		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
 			token, _ := loginAs(t, svc, "bob")
 			p, err := svc.Validate(ctx, token)
 			if err != nil {
@@ -137,7 +137,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 	})
 
 	t.Run("a second rotation retires the current token, not the one before", func(t *testing.T) {
-		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, _ *hookRecorder) {
+		underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, _ *notices) {
 			token, _ := loginAs(t, svc, "carol")
 			p, _ := svc.Validate(ctx, token)
 			second, _ := svc.Rotate(ctx, p.SessionID)
@@ -156,7 +156,7 @@ func TestRotationGraceAndReuse(t *testing.T) {
 }
 
 func TestSlidingExpiry(t *testing.T) {
-	underSynctest(t, func(t *testing.T, svc *application.Service, store *Postgres, _ *hookRecorder) {
+	underSynctest(t, func(t *testing.T, svc *application.Service, store *Postgres, _ *notices) {
 		ctx := context.Background()
 		start := time.Now()
 		at := func(d time.Duration) { time.Sleep(time.Until(start.Add(d))) }
@@ -222,7 +222,7 @@ func TestSlidingExpiry(t *testing.T) {
 }
 
 func TestLogOutEverywhere(t *testing.T) {
-	underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *hookRecorder) {
+	underSynctest(t, func(t *testing.T, svc *application.Service, _ *Postgres, hooks *notices) {
 		ctx := context.Background()
 		token, accountID := loginAs(t, svc, "alice")
 		p, err := svc.Validate(ctx, token)

@@ -25,9 +25,9 @@ func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *promethe
 		return nil, err
 	}
 	rec := panics.NewRecorder(log, panicCount)
-	parties := application.NewPartyService(repository.NewMemory())
-	srv := handler.New(parties, application.NewChatService(parties), uuidv7.NewString())
-	parties.Notify(srv)
+	streams := handler.NewStreams(uuidv7.NewString())
+	parties := application.NewPartyService(repository.NewMemory(), streams)
+	srv := handler.New(parties, application.NewChatService(parties), streams)
 	h := host.New(host.Options{
 		Name:     "social",
 		Settings: cfg.Host(),

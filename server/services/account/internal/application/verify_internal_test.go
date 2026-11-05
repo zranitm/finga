@@ -9,6 +9,8 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/auth/password"
 	"finga/services/account/internal/model"
+
+	"github.com/google/uuid"
 )
 
 type noAccounts struct{ Store }
@@ -21,8 +23,11 @@ func (noAccounts) Settings(context.Context, kernel.AccountID) (model.Settings, e
 	return model.Settings{}, model.ErrNotFound
 }
 
+func (noAccounts) SessionRevoked(context.Context, uuid.UUID, string) {}
+func (noAccounts) AccountRevoked(context.Context, uuid.UUID, string) {}
+
 func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
-	svc := NewService(noAccounts{}, Options{Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
+	svc := NewService(noAccounts{}, noAccounts{}, Options{Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
 	if svc.dummy == "" {
 		t.Fatal("no dummy hash")
 	}

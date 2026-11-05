@@ -54,8 +54,8 @@ server/                 the Go module: everything the server builds, reads and p
       internal/handler/ the ItemService gRPC server and its error table
       itemtest/         test support: the item invariant checks (5, 6 and 8, page 6), outside internal/ so the crash test in test/ can run them
       migrations/       its goose SQL files, embedded, with its own version table (step 21)
-    account/            in layers (step 31): main.go, app/, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService and WatchSessions), migrations/
-    social/             in layers (step 34): config/, internal/model (parties, chat lines, the errors), internal/application (PartyService, ChatService, the PartyStore port), internal/repository (the in-memory PartyStore), its handler (SocialService, Deliver, WatchParties); no database
+    account/            in layers (step 31): main.go, app/, config/, internal/model, internal/application, internal/repository, internal/handler (AccountService, and Streams: the WatchSessions subscriptions, which the module notifies), migrations/
+    social/             in layers (step 34): config/, internal/model (parties, chat lines, the errors), internal/application (PartyService, ChatService, the PartyStore and Notifier ports), internal/repository (the in-memory PartyStore), its handler (SocialService, and Streams: the Deliver and WatchParties subscriptions, which the party module notifies); no database
     character/          the same shape as item, in layers (step 33), and internal/clients/ for the item service (starter items): the application's StarterItems port over gRPC
     world/              in layers (step 35): internal/model (what a player and a character carry, views and events, saves, pickups, the combat rules, the errors), internal/application (the World, the map instances' actors and their tick, the workers, the ports), internal/clients (character, item, the party copy), its handler (WorldService, Deliver; the Sink port); no database, no repository
   pkg/                  generic libraries with no game knowledge
@@ -291,7 +291,7 @@ Every module below lives in its service, `services/<name>/internal/<module>`; th
 | `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
 | `economy` (Stage 2, in the item service) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
 | `market` (Stage 2, in the item service) | Listings, purchase settlement, expiry | item, economy, `pkg/idempotency`, `pkg/outbox` |
-| `party` (the social service, `services/social`) | Parties and invites, in memory | A notifier interface (the social handler) |
+| `party` (the social service, `services/social`) | Parties and invites, in memory | A notifier interface (the social handler's `Streams`) |
 | `chat` (the social service) | Message validation and routing | party |
 | the gateway's `application` (the gateway service) | The connections (sessions, a command queue per connection, routing, the delivery streams, fan-out to clients) and the REST API's use cases | its ports for the five services, `pkg/auth`, `pkg/ratelimit` |
 | the gateway's `handler/ws` and `handler/api` | The socket and HTTP: decoding, validation, error responses (`model.PublicOf`) | the application, `pkg/wsconn` |

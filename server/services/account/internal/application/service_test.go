@@ -26,8 +26,14 @@ var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 
 // idleTTL is the session policy's idle lifetime (step 16); the tests that move time run under synctest.
 const idleTTL = 7 * 24 * time.Hour
 
+// unheard is a notifier for the tests that do not look at ended sessions.
+type unheard struct{}
+
+func (unheard) SessionRevoked(context.Context, uuid.UUID, string) {}
+func (unheard) AccountRevoked(context.Context, uuid.UUID, string) {}
+
 func newService(store application.Store) *application.Service {
-	return application.NewService(store, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	return application.NewService(store, unheard{}, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 }
 
 func register(t *testing.T, svc *application.Service, username, pw string) model.Account {
@@ -339,7 +345,7 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 // A burst of sign-ups past the hash slots answers busy once the wait runs out, instead of taking
 // 64 MiB a hash.
 func TestSignUpsPastTheHashSlotsAreBusy(t *testing.T) {
-	svc := application.NewService(newFakeStore(), application.Options{Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
+	svc := application.NewService(newFakeStore(), unheard{}, application.Options{Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
 	var wg sync.WaitGroup
 	var ok, busy atomic.Int32
 	for k := range 16 {
