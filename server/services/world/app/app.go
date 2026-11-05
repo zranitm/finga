@@ -75,7 +75,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	items := itemv1.NewItemServiceClient(itemConn)
 
 	nodeID := uuidv7.NewString()
-	parties := clients.NewPartyCopy(socialv1.NewSocialServiceClient(socialConn), nodeID, log, rec)
+	parties := application.NewPartyCopy(clients.NewSocial(socialv1.NewSocialServiceClient(socialConn), rec), nodeID, log)
 	maps := application.New(data, application.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout}, application.WorldDeps{
 		NewRoll:    newRoll,
 		Observer:   metrics,

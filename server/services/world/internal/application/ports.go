@@ -45,6 +45,15 @@ type TickObserver interface {
 	ObserveTick(mapID string, took, budget time.Duration)
 }
 
+// Social is the social service as the party copy sees it.
+type Social interface {
+	// FollowParties tells on each event of the party stream, subscribed as world, until ctx ends; a
+	// broken subscription is PartiesLost, and another follows.
+	FollowParties(ctx context.Context, world string, on func(model.PartyEvent))
+	// UpdateMember tells the service what a map saw of a member.
+	UpdateMember(ctx context.Context, u model.MemberUpdate) error
+}
+
 // Pickups is the item service, called from economy workers, never inside a tick.
 type Pickups interface {
 	Add(ctx context.Context, p model.Pickup) ([]model.Slot, error)
