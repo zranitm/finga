@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
@@ -328,25 +329,16 @@ func (o *fakeObserver) OnlineChanged(d int) {
 	o.mu.Unlock()
 }
 
-// onlineAfter waits for the n-th online count change and returns the count then.
+// onlineAfter lets every goroutine run until it blocks, expects n online count changes, and returns the count.
 func (o *fakeObserver) onlineAfter(t *testing.T, n int) int {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		o.mu.Lock()
-		changes, online := o.changes, o.online
-		o.mu.Unlock()
-		if changes >= n {
-			if changes > n {
-				t.Fatalf("%d changes of the online count, want %d", changes, n)
-			}
-			return online
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("%d changes of the online count after 2s, want %d", changes, n)
-		}
-		time.Sleep(5 * time.Millisecond)
+	synctest.Wait()
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.changes != n {
+		t.Fatalf("%d changes of the online count, want %d", o.changes, n)
 	}
+	return o.online
 }
 
 // fakeItems serves the item service over in-memory gRPC, recording inventory commands.
