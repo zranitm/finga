@@ -417,11 +417,11 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 			mb.changed = false
 		}
 	}
+	frame := &model.Frame{Tick: i.tick, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
 	var dropped []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		d := model.Delta{Tick: i.tick, AckSeq: p.lastSeq, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
-		ok := p.sink.Send(d)
+		ok := p.sink.Send(model.Delta{Frame: frame, AckSeq: p.lastSeq})
 		for _, e := range i.events {
 			ok = ok && p.sink.Send(e)
 		}

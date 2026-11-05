@@ -32,12 +32,10 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 			MapId: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops),
 		}}}
 	case model.Delta:
+		shared := ev.Encoded(func(f *model.Frame) any { return encodeFrame(f) }).(*worldv1.Delta)
 		d := &worldv1.Delta{
-			AckSeq: ev.AckSeq, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops),
-			RemovedMobs: ev.RemovedMobs, RemovedDrops: ev.RemovedDrops,
-		}
-		for _, id := range ev.Removed {
-			d.RemovedPlayers = append(d.RemovedPlayers, id.String())
+			AckSeq: ev.AckSeq, Players: shared.Players, Mobs: shared.Mobs, Drops: shared.Drops,
+			RemovedPlayers: shared.RemovedPlayers, RemovedMobs: shared.RemovedMobs, RemovedDrops: shared.RemovedDrops,
 		}
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Delta{Delta: d}}
 	case model.Teleport:
@@ -141,4 +139,17 @@ func slots(in []model.Slot) []*worldv1.Slot {
 		out = append(out, slot)
 	}
 	return out
+}
+
+// encodeFrame is the frame as a Delta every player on the map shares, read-only; each gets a copy with its
+// own AckSeq.
+func encodeFrame(f *model.Frame) *worldv1.Delta {
+	d := &worldv1.Delta{
+		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),
+		RemovedMobs: f.RemovedMobs, RemovedDrops: f.RemovedDrops,
+	}
+	for _, id := range f.Removed {
+		d.RemovedPlayers = append(d.RemovedPlayers, id.String())
+	}
+	return d
 }

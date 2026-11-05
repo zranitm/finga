@@ -3,6 +3,7 @@ package model
 
 import (
 	"errors"
+	"sync"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -114,16 +115,31 @@ type Snapshot struct {
 	Drops   []DropView
 }
 
-// Delta is what changed in one tick, for one player; AckSeq is the latest input applied.
+// Delta is what changed in one tick, for one player: the map's frame, and AckSeq, the latest input applied.
 type Delta struct {
+	*Frame
+	AckSeq uint32
+}
+
+// Frame is what changed on a map in one tick, the same for every player there; it is shared, and read-only
+// once sent.
+type Frame struct {
 	Tick         uint64
-	AckSeq       uint32
 	Players      []PlayerView
 	Mobs         []MobView
 	Drops        []DropView // new on the ground
 	Removed      []kernel.CharacterID
 	RemovedMobs  []uint64
 	RemovedDrops []uint64
+
+	once    sync.Once
+	encoded any
+}
+
+// Encoded is encode's result for the frame, computed once however many players it goes to.
+func (f *Frame) Encoded(encode func(*Frame) any) any {
+	f.once.Do(func() { f.encoded = encode(f) })
+	return f.encoded
 }
 
 // Teleport moves the player to another map, whose instance sends the Snapshot.

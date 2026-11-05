@@ -48,7 +48,7 @@ Every 50 ms:
 4. Resolve the attacks queued this tick.
 5. Apply deaths, respawns, EXP, and new drops.
 6. Expire old ground drops and loot windows.
-7. Send each player a delta with the latest input sequence it has applied for them. In Stage 1 a delta goes to every player every tick, even when empty, so `ack_seq` stays fresh; Stage 2 may switch to interest-managed deltas.
+7. Send each player a delta with the latest input sequence it has applied for them. What changed is the same for everyone on the map: it is built and encoded for the wire once per tick, and each player's delta adds only its own sequence number. In Stage 1 a delta goes to every player every tick, even when empty, so `ack_seq` stays fresh; Stage 2 may switch to interest-managed deltas.
 8. Record the tick duration.
 
 **Rule:** a tick never waits on the database. Anything that needs a transaction goes to an economy worker, and the result comes back as an inbox message.

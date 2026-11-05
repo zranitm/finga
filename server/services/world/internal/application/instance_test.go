@@ -56,7 +56,7 @@ func (s *sink) deltas() []model.Delta {
 func (s *sink) last() model.Delta {
 	ds := s.deltas()
 	if len(ds) == 0 {
-		return model.Delta{}
+		return model.Delta{Frame: &model.Frame{}}
 	}
 	return ds[len(ds)-1]
 }
