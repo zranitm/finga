@@ -92,11 +92,11 @@ Only one player can hold a reservation, so two players can never both get a drop
 
 ## Metrics
 
-- `tick_duration_seconds` histogram per map; `tick_overruns_total` (on the world's ops `/metrics`)
-- `players_online`
-- `ws_messages_total` by direction and type; `ws_slow_consumer_disconnects_total`
-- `db_tx_duration_seconds` by operation and `db_tx_retries_total`: registered by the gateway and the world, which have no database, and recorded nowhere yet; the services with a database register no game metrics
-- `economy_jobs_inflight`
-- `outbox_unpublished`: registered like the two above but never set; meant to grow in Stage 1, then show relay lag in Stage 2
+Each binary registers only the metrics it records (`internal/telemetry`, one constructor per binary):
+
+- world: `tick_duration_seconds` histogram per map, `tick_overruns_total`, `economy_jobs_inflight`
+- gateway: `players_online`, `ws_messages_total` by direction and type, `ws_slow_consumer_disconnects_total`
+- account, character and item: `db_tx_duration_seconds` and `db_tx_retries_total`, by operation (the gRPC method the transaction served, such as `Add`; `other` outside a call). `dbx.InTx` reports each transaction to its store's observer, so a database outage after startup shows here
+- item: `outbox_unpublished`, counted every 15 s; it grows in Stage 1, then shows relay lag in Stage 2
 - `panics_total` by flow (`http`, `grpc`, `ws`, `stream`, `job`, `task`), on every binary; each flow starts at 0, so an alert on its rate sees the first panic
 - `grpc_server_handled_total` by service, method and code (the code the caller sees), `grpc_server_handling_seconds` and `grpc_server_started_total`, on every gRPC service, each method's series from 0 (go-grpc-middleware's Prometheus provider)

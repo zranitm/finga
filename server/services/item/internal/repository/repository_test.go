@@ -44,7 +44,7 @@ func insertItem(t *testing.T, store *Postgres, it model.Item) {
 
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t))
+	store := NewPostgres(cluster.DB(t), nil)
 	alice, bob := kernel.NewCharacterID(), kernel.NewCharacterID()
 	sword := model.Item{ID: kernel.NewItemID(), TemplateID: "wooden_sword", Owner: alice, Tab: gamedata.Equip, Slot: 0, Quantity: 1}
 	potions := model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: alice, Tab: gamedata.Use, Slot: 3, Quantity: 40}

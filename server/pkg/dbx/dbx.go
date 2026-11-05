@@ -65,11 +65,33 @@ func NewPool(ctx context.Context, c Config) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
+// Observer hears how each transaction went: its time, retries included, and how many times it ran.
+type Observer interface {
+	TxDone(ctx context.Context, took time.Duration, runs int)
+}
+
+// TxOption tunes InTx.
+type TxOption func(*txOptions)
+
+type txOptions struct{ obs Observer }
+
+// Observed tells obs about the transaction once it is done, whatever its outcome.
+func Observed(obs Observer) TxOption { return func(o *txOptions) { o.obs = obs } }
+
 // InTx runs fn in a READ COMMITTED transaction and reruns it on deadlock or serialization failure,
 // so fn must have no side effects outside the transaction.
-func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error) error {
+func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...TxOption) error {
+	var o txOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	start, runs := time.Now(), 0
+	if o.obs != nil {
+		defer func() { o.obs.TxDone(ctx, time.Since(start), runs) }()
+	}
 	var last error
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		runs++
 		last = runOnce(ctx, db, fn)
 		if last != nil && !retryable(last) {
 			return struct{}{}, backoff.Permanent(last)

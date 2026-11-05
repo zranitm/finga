@@ -52,7 +52,7 @@ func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, 
 			t.Fatal(err)
 		}
 		t.Cleanup(pool.Close)
-		store := NewPostgres(pool)
+		store := NewPostgres(pool, nil)
 		hooks := &notices{}
 		svc := application.NewService(store, hooks, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 		f(t, svc, store, hooks)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +69,12 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	inv, err := c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: actor.GetCharacterId()})
 	if err != nil || len(inv.GetItems()) != 2 {
 		t.Fatalf("inventory %+v, err %v", inv.GetItems(), err)
+	}
+	_, metrics := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics")
+	for _, want := range []string{`db_tx_duration_seconds_count{operation="GrantStarter"} 1`, "outbox_unpublished "} {
+		if !strings.Contains(metrics, want) {
+			t.Fatalf("metrics lack %s:\n%s", want, metrics)
+		}
 	}
 	if err := p.Stop(); err != nil {
 		t.Fatal(err)

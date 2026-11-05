@@ -40,7 +40,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	metrics, err := telemetry.NewMetrics(reg)
+	metrics, err := telemetry.NewWorldMetrics(reg)
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}

@@ -38,7 +38,7 @@ type BuildOptions struct {
 // Build wires the gateway as production runs it; services are dialed lazily, so a call fails while one is down.
 func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 	cfg := opts.Config
-	metrics, err := telemetry.NewMetrics(opts.Registry)
+	metrics, err := telemetry.NewGatewayMetrics(opts.Registry)
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}

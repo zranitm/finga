@@ -12,6 +12,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/host"
+	"finga/internal/telemetry"
 	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
@@ -30,6 +31,10 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	rec := panics.NewRecorder(log, panicCount)
+	dbMetrics, err := telemetry.NewDBMetrics(reg)
+	if err != nil {
+		return nil, err
+	}
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -43,7 +48,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		pool.Close()
 		return nil, fmt.Errorf("item service: %w", err)
 	}
-	characters := application.NewService(repository.NewPostgres(pool), data, application.Options{
+	characters := application.NewService(repository.NewPostgres(pool, dbMetrics), data, application.Options{
 		Starter: clients.NewStarter(itemv1.NewItemServiceClient(itemConn)),
 		Logger:  log,
 	})

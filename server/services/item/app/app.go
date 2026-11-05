@@ -4,20 +4,27 @@ package app
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/host"
+	"finga/internal/telemetry"
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
+	"finga/pkg/outbox"
 	"finga/pkg/panics"
+	"finga/pkg/runner"
 	"finga/services/item/config"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/handler"
 	"finga/services/item/internal/repository"
 )
+
+// outboxCountEvery is how often the outbox_unpublished gauge is counted again.
+const outboxCountEvery = 15 * time.Second
 
 // Build wires the item service; it fails fast on bad game data or an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
@@ -26,6 +33,14 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	rec := panics.NewRecorder(log, panicCount)
+	dbMetrics, err := telemetry.NewDBMetrics(reg)
+	if err != nil {
+		return nil, err
+	}
+	outboxMetrics, err := telemetry.NewOutboxMetrics(reg)
+	if err != nil {
+		return nil, err
+	}
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -34,7 +49,8 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	items := application.NewService(repository.NewPostgres(pool), data)
+	items := application.NewService(repository.NewPostgres(pool, dbMetrics), data)
+	countOutbox := func(ctx context.Context) (int64, error) { return outbox.Unpublished(ctx, pool) }
 	h := host.New(host.Options{
 		Name:     "item",
 		Settings: cfg.Host(),
@@ -42,6 +58,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Registry: reg,
 		Panics:   rec,
 		Errors:   handler.Errors,
+		Tasks: []runner.Task{{Name: "outbox gauge", Run: func(ctx context.Context) error {
+			return outboxMetrics.Track(ctx, outboxCountEvery, countOutbox, log)
+		}}},
 	})
 	itemv1.RegisterItemServiceServer(h.GRPC, handler.New(items))
 	h.OnClose(pool.Close)

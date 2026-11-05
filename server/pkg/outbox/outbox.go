@@ -41,6 +41,13 @@ type writer struct {
 	now func() time.Time
 }
 
+// Unpublished counts the rows a relay has not published yet.
+func Unpublished(ctx context.Context, db dbx.DBTX) (int64, error) {
+	var n int64
+	err := db.QueryRow(ctx, `SELECT count(*) FROM outbox WHERE published_at IS NULL`).Scan(&n)
+	return n, err
+}
+
 const insertSQL = `INSERT INTO outbox (event_id, topic, key, type, content_type, payload, occurred_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
 
 // Add implements Writer.

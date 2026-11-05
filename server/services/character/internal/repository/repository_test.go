@@ -57,7 +57,7 @@ func insert(t *testing.T, store *Postgres, c model.Character) model.Character {
 
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t))
+	store := NewPostgres(cluster.DB(t), nil)
 	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
 	ayla := sample(alice, "Ayla")
 	stored := insert(t, store, ayla)

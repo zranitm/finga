@@ -121,3 +121,17 @@ func TestAdd(t *testing.T) {
 		}
 	})
 }
+
+func TestUnpublishedCountsWhatNoRelayHasPublished(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if err := outbox.NewWriter(pool).Add(ctx, outbox.Event{Topic: "item", Key: "a", Type: "A"}, outbox.Event{Topic: "item", Key: "b", Type: "B"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE outbox SET published_at = now() WHERE key = 'a'`); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := outbox.Unpublished(ctx, pool); err != nil || n != 1 {
+		t.Fatalf("unpublished %d, %v; want 1", n, err)
+	}
+}

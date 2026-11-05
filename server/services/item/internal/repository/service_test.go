@@ -33,7 +33,7 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	pool := cluster.DB(t)
-	store := NewPostgres(pool)
+	store := NewPostgres(pool, nil)
 	return &harness{pool: pool, store: store, svc: application.NewService(store, data), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 

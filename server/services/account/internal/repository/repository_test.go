@@ -57,7 +57,7 @@ func hashOf(s string) []byte { h := sha256.Sum256([]byte(s)); return h[:] }
 
 func TestAccounts(t *testing.T) {
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t))
+	store := NewPostgres(cluster.DB(t), nil)
 
 	t.Run("insert and find by username, ignoring letter case", func(t *testing.T) {
 		id, created := insertAccount(t, store, "Alice")
@@ -126,7 +126,7 @@ func TestAccounts(t *testing.T) {
 
 func TestSessions(t *testing.T) {
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t))
+	store := NewPostgres(cluster.DB(t), nil)
 	acc, _ := insertAccount(t, store, "dave")
 	session := func(token string) model.Session {
 		return model.Session{ID: kernel.NewSessionID(), AccountID: acc, TokenHash: hashOf(token), ExpiresAt: t0.Add(time.Hour)}

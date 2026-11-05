@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -41,6 +42,13 @@ func (b *fakeBeginner) BeginTx(_ context.Context, opts pgx.TxOptions) (pgx.Tx, e
 	b.txs = append(b.txs, tx)
 	b.isoLevels = append(b.isoLevels, opts.IsoLevel)
 	return tx, nil
+}
+
+// txObserver records how many times each observed transaction ran.
+type txObserver struct{ runs []int }
+
+func (o *txObserver) TxDone(_ context.Context, _ time.Duration, runs int) {
+	o.runs = append(o.runs, runs)
 }
 
 func pgErr(code string) *pgconn.PgError { return &pgconn.PgError{Code: code, Message: "fake"} }
@@ -141,15 +149,19 @@ func TestInTxRetries(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			db := &fakeBeginner{commitErr: tt.commitErrs}
 			attempts := 0
+			obs := &txObserver{}
 			err := dbx.InTx(context.Background(), db, func(pgx.Tx) error {
 				attempts++
 				if attempts-1 < len(tt.fnErrs) {
 					return tt.fnErrs[attempts-1]
 				}
 				return nil
-			})
+			}, dbx.Observed(obs))
 			if attempts != tt.wantAttempts || len(db.txs) != tt.wantAttempts {
 				t.Fatalf("attempts = %d (txs %d), want %d", attempts, len(db.txs), tt.wantAttempts)
+			}
+			if len(obs.runs) != 1 || obs.runs[0] != tt.wantAttempts {
+				t.Fatalf("observed %v, want one transaction that ran %d times", obs.runs, tt.wantAttempts)
 			}
 			var pe *pgconn.PgError
 			switch {

@@ -27,18 +27,19 @@ import (
 type Postgres struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
+	obs  dbx.Observer // hears each transaction; nil hears none
 }
 
-// NewPostgres builds the store over a pool.
-func NewPostgres(pool *pgxpool.Pool) *Postgres {
-	return &Postgres{pool: pool, q: db.New(pool)}
+// NewPostgres builds the store over a pool, telling obs about each transaction.
+func NewPostgres(pool *pgxpool.Pool, obs dbx.Observer) *Postgres {
+	return &Postgres{pool: pool, q: db.New(pool), obs: obs}
 }
 
 // InTx runs fn in one transaction; fn may be retried, so it must have no outside side effects.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(p.unitOfWork(tx))
-	})
+	}, dbx.Observed(p.obs))
 	return classify(err)
 }
 

@@ -1,112 +1,103 @@
 package telemetry_test
 
 import (
+	"context"
+	"errors"
+	"log/slog"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 
 	"finga/internal/telemetry"
 )
 
-func TestNewMetricsRegistersEveryMetricFromPage3(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	m, err := telemetry.NewMetrics(reg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Touch every metric so it has a series to gather.
-	m.TickDuration.WithLabelValues("town").Observe(0.004)
-	m.TickOverruns.WithLabelValues("town").Inc()
-	m.PlayersOnline.Set(3)
-	m.WSMessages.WithLabelValues("in", "Input").Inc()
-	m.WSSlowConsumerDisconnects.Inc()
-	m.DBTxDuration.WithLabelValues("pickup").Observe(0.002)
-	m.DBTxRetries.WithLabelValues("pickup").Inc()
-	m.EconomyJobsInflight.Set(1)
-	m.OutboxUnpublished.Set(12)
-
-	tests := []struct {
-		name string
-	}{
-		{"tick_duration_seconds"},
-		{"tick_overruns_total"},
-		{"players_online"},
-		{"ws_messages_total"},
-		{"ws_slow_consumer_disconnects_total"},
-		{"db_tx_duration_seconds"},
-		{"db_tx_retries_total"},
-		{"economy_jobs_inflight"},
-		{"outbox_unpublished"},
-	}
+// sample is the value of the series name{labels} on reg: a counter's or gauge's value, a histogram's count.
+func sample(t *testing.T, reg *prometheus.Registry, name string, labels ...string) float64 {
+	t.Helper()
 	families, err := reg.Gather()
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := map[string]bool{}
 	for _, f := range families {
-		names[f.GetName()] = true
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if !names[tt.name] {
-				t.Fatalf("%s is not registered; have %v", tt.name, names)
+		if f.GetName() != name {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			if matches(m, labels) {
+				switch {
+				case m.GetCounter() != nil:
+					return m.GetCounter().GetValue()
+				case m.GetGauge() != nil:
+					return m.GetGauge().GetValue()
+				case m.GetHistogram() != nil:
+					return float64(m.GetHistogram().GetSampleCount())
+				}
 			}
-		})
+		}
 	}
-	if got := testutil.ToFloat64(m.PlayersOnline); got != 3 {
-		t.Fatalf("players_online = %v", got)
-	}
-	if got := testutil.ToFloat64(m.WSMessages.WithLabelValues("in", "Input")); got != 1 {
-		t.Fatalf("ws_messages_total{in,Input} = %v", got)
-	}
+	return 0
 }
 
-func TestNewMetricsTwiceOnOneRegistryFails(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	if _, err := telemetry.NewMetrics(reg); err != nil {
-		t.Fatal(err)
+func matches(m *dto.Metric, labels []string) bool {
+	have := map[string]string{}
+	for _, l := range m.GetLabel() {
+		have[l.GetName()] = l.GetValue()
 	}
-	if _, err := telemetry.NewMetrics(reg); err == nil {
-		t.Fatal("second registration succeeded")
+	for i := 0; i+1 < len(labels); i += 2 {
+		if have[labels[i]] != labels[i+1] {
+			return false
+		}
 	}
+	return true
 }
 
-func TestObserveTick(t *testing.T) {
-	reg := prometheus.NewRegistry()
-	m, err := telemetry.NewMetrics(reg)
+func names(t *testing.T, reg *prometheus.Registry) map[string]bool {
+	t.Helper()
+	families, err := reg.Gather()
 	if err != nil {
 		t.Fatal(err)
 	}
-	tests := []struct {
-		name         string
-		took         time.Duration
-		budget       time.Duration
-		wantOverruns float64
-	}{
-		{"within budget", 10 * time.Millisecond, 50 * time.Millisecond, 0},
-		{"exactly the budget", 50 * time.Millisecond, 50 * time.Millisecond, 0},
-		{"over budget", 51 * time.Millisecond, 50 * time.Millisecond, 1},
+	out := map[string]bool{}
+	for _, f := range families {
+		out[f.GetName()] = true
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			before := testutil.ToFloat64(m.TickOverruns.WithLabelValues(tt.name))
-			m.ObserveTick(tt.name, tt.took, tt.budget)
-			got := testutil.ToFloat64(m.TickOverruns.WithLabelValues(tt.name)) - before
-			if got != tt.wantOverruns {
-				t.Fatalf("overruns = %v, want %v", got, tt.wantOverruns)
-			}
-			if n := testutil.CollectAndCount(m.TickDuration); n == 0 {
-				t.Fatal("tick duration was not observed")
-			}
-		})
+	return out
+}
+
+func TestWorldMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := telemetry.NewWorldMetrics(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.ObserveTick("town", 10*time.Millisecond, 50*time.Millisecond)
+	m.ObserveTick("town", 50*time.Millisecond, 50*time.Millisecond)
+	m.ObserveTick("town", 51*time.Millisecond, 50*time.Millisecond)
+	m.JobStarted()
+	m.JobStarted()
+	m.JobFinished()
+	if got := sample(t, reg, "tick_duration_seconds", "map", "town"); got != 3 {
+		t.Fatalf("ticks observed %v, want 3", got)
+	}
+	if got := sample(t, reg, "tick_overruns_total", "map", "town"); got != 1 {
+		t.Fatalf("overruns %v, want only the one past the budget", got)
+	}
+	if got := sample(t, reg, "economy_jobs_inflight"); got != 1 {
+		t.Fatalf("economy_jobs_inflight = %v, want 1", got)
+	}
+	if _, err := telemetry.NewWorldMetrics(reg); err == nil {
+		t.Fatal("a second registration succeeded")
 	}
 }
 
-func TestGatewayObserver(t *testing.T) {
+func TestGatewayMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	m, err := telemetry.NewMetrics(reg)
+	m, err := telemetry.NewGatewayMetrics(reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,30 +107,92 @@ func TestGatewayObserver(t *testing.T) {
 	m.SlowConsumer()
 	m.OnlineChanged(2)
 	m.OnlineChanged(-1)
-	if got := testutil.ToFloat64(m.WSMessages.WithLabelValues("in", "Input")); got != 2 {
-		t.Fatalf("in Input = %v", got)
+	for _, c := range []struct {
+		name   string
+		labels []string
+		want   float64
+	}{
+		{"ws_messages_total", []string{"direction", "in", "type", "Input"}, 2},
+		{"ws_messages_total", []string{"direction", "out", "type", "Delta"}, 1},
+		{"ws_slow_consumer_disconnects_total", nil, 1},
+		{"players_online", nil, 1},
+	} {
+		if got := sample(t, reg, c.name, c.labels...); got != c.want {
+			t.Fatalf("%s%v = %v, want %v", c.name, c.labels, got, c.want)
+		}
 	}
-	if got := testutil.ToFloat64(m.WSMessages.WithLabelValues("out", "Delta")); got != 1 {
-		t.Fatalf("out Delta = %v", got)
-	}
-	if got := testutil.ToFloat64(m.WSSlowConsumerDisconnects); got != 1 {
-		t.Fatalf("slow consumers = %v", got)
-	}
-	if got := testutil.ToFloat64(m.PlayersOnline); got != 1 {
-		t.Fatalf("players online = %v", got)
+	if have := names(t, reg); have["tick_duration_seconds"] || have["db_tx_duration_seconds"] {
+		t.Fatalf("the gateway registers metrics it never records: %v", have)
 	}
 }
 
-func TestEconomyObserver(t *testing.T) {
+// grpcMethod is a context as a gRPC server hands it to a handler of method.
+type grpcMethod string
+
+func (m grpcMethod) Method() string             { return string(m) }
+func (grpcMethod) SetHeader(metadata.MD) error  { return nil }
+func (grpcMethod) SendHeader(metadata.MD) error { return nil }
+func (grpcMethod) SetTrailer(metadata.MD) error { return nil }
+
+func TestDBMetricsNameTheTransactionByItsMethod(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	m, err := telemetry.NewMetrics(reg)
+	m, err := telemetry.NewDBMetrics(reg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m.JobStarted()
-	m.JobStarted()
-	m.JobFinished()
-	if got := testutil.ToFloat64(m.EconomyJobsInflight); got != 1 {
-		t.Fatalf("economy_jobs_inflight = %v, want 1", got)
+	ctx := grpc.NewContextWithServerTransportStream(context.Background(), grpcMethod("/finga.item.v1.ItemService/Add"))
+	m.TxDone(ctx, 2*time.Millisecond, 1)
+	m.TxDone(ctx, 9*time.Millisecond, 3)
+	m.TxDone(context.Background(), time.Millisecond, 1)
+	if got := sample(t, reg, "db_tx_duration_seconds", "operation", "Add"); got != 2 {
+		t.Fatalf("Add transactions %v, want 2", got)
 	}
+	if got := sample(t, reg, "db_tx_retries_total", "operation", "Add"); got != 2 {
+		t.Fatalf("Add retries %v, want the two re-runs", got)
+	}
+	if got := sample(t, reg, "db_tx_duration_seconds", "operation", "other"); got != 1 {
+		t.Fatalf("transactions outside a call %v, want 1", got)
+	}
+}
+
+func TestTheOutboxGaugeFollowsItsCount(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reg := prometheus.NewRegistry()
+		m, err := telemetry.NewOutboxMetrics(reg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts := []int64{12, -1, 30}
+		count := func(context.Context) (int64, error) {
+			n := counts[0]
+			if len(counts) > 1 {
+				counts = counts[1:]
+			}
+			if n < 0 {
+				return 0, errors.New("database down")
+			}
+			return n, nil
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan error)
+		go func() { done <- m.Track(ctx, time.Minute, count, slog.New(slog.DiscardHandler)) }()
+		synctest.Wait()
+		if got := sample(t, reg, "outbox_unpublished"); got != 12 {
+			t.Fatalf("outbox_unpublished = %v, want 12", got)
+		}
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if got := sample(t, reg, "outbox_unpublished"); got != 12 {
+			t.Fatalf("after a failed count %v, want the last good one", got)
+		}
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if got := sample(t, reg, "outbox_unpublished"); got != 30 {
+			t.Fatalf("outbox_unpublished = %v, want 30", got)
+		}
+		cancel()
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	})
 }

@@ -9,6 +9,7 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
+	"finga/internal/telemetry"
 	"finga/pkg/auth/password"
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
@@ -27,12 +28,16 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	rec := panics.NewRecorder(log, panicCount)
+	dbMetrics, err := telemetry.NewDBMetrics(reg)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := dbx.NewPool(ctx, cfg.Database)
 	if err != nil {
 		return nil, err
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
-	accounts := application.NewService(repository.NewPostgres(pool), streams, application.Options{
+	accounts := application.NewService(repository.NewPostgres(pool, dbMetrics), streams, application.Options{
 		Hasher: password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
 	srv := handler.New(accounts, streams)
