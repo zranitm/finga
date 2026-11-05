@@ -37,7 +37,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	s.joinMu.Lock()
 	s.out.hold()
 	r.mu.Lock()
-	s.account, s.sessionID, s.character.ID = account, sessionID, character
+	s.id.Store(&identity{account: account, sessionID: sessionID, character: model.Player{ID: character}})
 	// A join succeeds only once the world has our stream, so the first subscription is never a break.
 	subs := max(r.worldSubs, 1)
 	r.mu.Unlock()
@@ -46,7 +46,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	if err != nil {
 		s.out.abort()
 		r.mu.Lock()
-		s.character.ID = kernel.CharacterID{}
+		s.id.Store(nil)
 		r.mu.Unlock()
 		s.joinMu.Unlock()
 		return nil, err
@@ -66,11 +66,12 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 	r, s := j.r, j.s
 	defer s.joinMu.Unlock()
 	r.mu.Lock()
-	old := r.byAccount[s.account]
-	sameSession := r.bySession[s.sessionID]
-	r.byAccount[s.account] = s
-	r.bySession[s.sessionID] = s
-	s.character = player
+	who := s.who()
+	old := r.byAccount[who.account]
+	sameSession := r.bySession[who.sessionID]
+	r.byAccount[who.account] = s
+	r.bySession[who.sessionID] = s
+	s.id.Store(&identity{account: who.account, sessionID: who.sessionID, character: player})
 	s.setActive()
 	missed := r.worldSubs > j.subs
 	r.mu.Unlock()
@@ -102,7 +103,8 @@ func (r *Registry) rejoin(s *Session) {
 	defer cancel()
 	before := s.mapID()
 	s.out.hold()
-	joined, err := r.join(ctx, s.connID, s.account, s.character.ID)
+	who := s.who()
+	joined, err := r.join(ctx, s.connID, who.account, who.character.ID)
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
@@ -111,10 +113,10 @@ func (r *Registry) rejoin(s *Session) {
 		}
 		if errors.Is(err, model.ErrNotSubscribed) {
 			// The stream broke again: the next subscription rejoins.
-			r.deps.Logger.WarnContext(ctx, "rejoin waits for the world's stream", "character_id", s.character.ID)
+			r.deps.Logger.WarnContext(ctx, "rejoin waits for the world's stream", "character_id", s.Character())
 			return
 		}
-		r.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.character.ID, "err", err)
+		r.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.Character(), "err", err)
 		s.outbox.End(model.EndRejoinFailed)
 		return
 	}
@@ -131,7 +133,7 @@ func (r *Registry) rejoin(s *Session) {
 		r.Leave(s)
 		return
 	}
-	r.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.character.ID, "map_id", joined.MapID)
+	r.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.Character(), "map_id", joined.MapID)
 }
 
 // join retries while the world cannot take the join yet, until ctx ends; a join is safe to repeat.
@@ -164,7 +166,7 @@ func (r *Registry) Leave(s *Session) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaveTimeout)
 	defer cancel()
 	if err := r.deps.World.Leave(ctx, s.Presence()); err != nil {
-		r.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.character.ID, "err", err)
+		r.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.Character(), "err", err)
 	}
 }
 
@@ -173,7 +175,7 @@ func (r *Registry) Online(ctx context.Context, s *Session) {
 	if r.deps.Social == nil {
 		return
 	}
-	if err := r.deps.Social.Online(ctx, r.deps.Gateway, s.character, s.mapID()); err != nil {
-		r.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.character.ID, "err", err)
+	if err := r.deps.Social.Online(ctx, r.deps.Gateway, s.Player(), s.mapID()); err != nil {
+		r.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.Character(), "err", err)
 	}
 }

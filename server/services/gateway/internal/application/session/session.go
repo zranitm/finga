@@ -23,28 +23,41 @@ type Session struct {
 	cancel   context.CancelFunc
 	isActive atomic.Bool
 
-	// Set by a join under the registry's lock, before the session is active.
-	account   kernel.AccountID
-	sessionID kernel.SessionID
-	character model.Player
-	closed    bool // a rejoin finishing after Remove leaves again
+	// who the session plays: set whole by a join, never changed in place, so reading it takes no lock
+	id     atomic.Pointer[identity]
+	closed bool // under the registry's lock: a rejoin finishing after Remove leaves again
 
 	joinMu sync.Mutex // one join at a time
 
 	out out
 }
 
+// identity is who a session plays; a join replaces it whole.
+type identity struct {
+	account   kernel.AccountID
+	sessionID kernel.SessionID
+	character model.Player
+}
+
+// who is the session's identity; zero until a join begins.
+func (s *Session) who() identity {
+	if p := s.id.Load(); p != nil {
+		return *p
+	}
+	return identity{}
+}
+
 // ConnID names the session's connection.
 func (s *Session) ConnID() string { return s.connID }
 
 // Character is the character the session plays; zero until a join claims one.
-func (s *Session) Character() kernel.CharacterID { return s.character.ID }
+func (s *Session) Character() kernel.CharacterID { return s.who().character.ID }
 
 // Player is the character as its party sees it, once a join finished.
-func (s *Session) Player() model.Player { return s.character }
+func (s *Session) Player() model.Player { return s.who().character }
 
 // LoginSession is the login session the player's token belongs to.
-func (s *Session) LoginSession() kernel.SessionID { return s.sessionID }
+func (s *Session) LoginSession() kernel.SessionID { return s.who().sessionID }
 
 // Active reports whether a join finished: the player is on its map.
 func (s *Session) Active() bool { return s.isActive.Load() }
@@ -137,12 +150,13 @@ func (o *out) emit(d model.Delivery) {
 
 // Presence is the player and its connection; every world command carries it.
 func (s *Session) Presence() model.Presence {
-	return model.Presence{Character: s.character.ID, Connection: s.connID}
+	return model.Presence{Character: s.Character(), Connection: s.connID}
 }
 
 // Actor is who acts on items.
 func (s *Session) Actor() model.Actor {
-	return model.Actor{Account: s.account, Character: s.character.ID}
+	who := s.who()
+	return model.Actor{Account: who.account, Character: who.character.ID}
 }
 
 func (s *Session) mapID() string {

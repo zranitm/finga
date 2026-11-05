@@ -100,16 +100,17 @@ func (r *Registry) Remove(s *Session) (joined bool) {
 	defer r.mu.Unlock()
 	delete(r.byConn, s.connID)
 	s.closed = true
-	if r.byAccount[s.account] == s {
-		delete(r.byAccount, s.account)
+	who := s.who()
+	if r.byAccount[who.account] == s {
+		delete(r.byAccount, who.account)
 	}
-	if r.byCharacter[s.character.ID] == s {
-		delete(r.byCharacter, s.character.ID)
+	if r.byCharacter[who.character.ID] == s {
+		delete(r.byCharacter, who.character.ID)
 	}
-	if r.bySession[s.sessionID] == s {
-		delete(r.bySession, s.sessionID)
+	if r.bySession[who.sessionID] == s {
+		delete(r.bySession, who.sessionID)
 	}
-	return !s.character.ID.IsZero()
+	return !who.character.ID.IsZero()
 }
 
 // ByConn is the session of the connection named connID; nil when none.
