@@ -2,13 +2,11 @@
 
 A browser-based 2D side-scrolling MMORPG-lite: pick a class, hunt mobs, level
 up, team up in parties of up to 4, and loot. Go services, Postgres, and a
-Phaser client. The design lives in `docs/`: the product (what the game is) and
-the tech design (how it is built), starting at `docs/README.md`.
+Phaser client. The product design (what the game is) lives in `docs/`,
+starting at `docs/README.md`.
 
 This repository holds Stage 1, the proof of concept: the backend and the
-client, built in the steps of `docs/tech/lld/8-backend-implementation-steps.md`
-and `docs/tech/lld/9-client-implementation-steps.md`, one commit per step,
-with the proof-session checklist in `docs/proof-session.md`.
+client, with the proof-session checklist in `docs/proof-session.md`.
 
 ## Repository layout
 
@@ -18,7 +16,7 @@ server/   the Go module: the six services (services/), their tools, configuratio
 web/      the browser client: Phaser 4, React, Vite, TypeScript
 infra/    how it runs: Docker Compose and the nginx config today; infrastructure
           as code and the Grafana dashboards join here
-docs/     the design (product and tech), the proof-session checklist
+docs/     the product design, the proof-session checklist
 ```
 
 The server is the reference for everything the two sides share: the client

@@ -6,13 +6,9 @@ Repository: `finga` (formerly named Infinite Gacha).
 
 **Where things are**
 
-- **Product:** what the game is and how it plays. Start with Overview.
-- **Tech:** how it's built, starting with the High-level design.
-
-Each section owns its own decisions: Product decisions under Product, Tech decisions under Tech.
+- **Product:** what the game is and how it plays, with its decisions. Start with Overview.
 
 - [Product](./product/README.md)
-- [Tech](./tech/README.md)
 
 Beside the design:
 

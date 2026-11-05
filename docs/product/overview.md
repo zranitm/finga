@@ -54,5 +54,3 @@ The first public version includes: accounts and characters in all four classes, 
 4. [Features](./features/README.md): what players can do, with acceptance criteria and priority.
 5. [Screens and controls](./screens-and-controls.md): the screen list and key bindings, input for the design phase.
 6. [Product decisions](./decisions/README.md): open questions, defaults, and outcomes.
-
-The technical design lives in the Tech section, starting with [High-level design](../tech/high-level-design.md).
