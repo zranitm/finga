@@ -83,13 +83,16 @@ func cors(origins []string) gin.HandlerFunc {
 	}
 }
 
-// requestLog logs each request without headers or bodies (no tokens or passwords) and recovers panics as 500.
+// requestLog logs each request without headers or bodies (no tokens or passwords) and recovers panics as 500;
+// http.ErrAbortHandler goes on to net/http, which drops the connection.
 func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		defer func() {
 			r := c.Request
-			if p := recover(); p != nil {
+			p := recover()
+			aborted := p == http.ErrAbortHandler //nolint:errorlint // net/http compares the sentinel itself
+			if p != nil && !aborted {
 				if !c.Writer.Written() {
 					writePublic(c, model.Internal)
 				}
@@ -107,7 +110,13 @@ func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 					level = slog.LevelError
 				}
 			}
+			if aborted {
+				args = append(args, "aborted", true)
+			}
 			log.Log(r.Context(), level, "request", args...)
+			if aborted {
+				panic(p)
+			}
 		}()
 		c.Next()
 	}

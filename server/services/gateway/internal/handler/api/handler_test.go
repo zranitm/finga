@@ -502,6 +502,30 @@ func TestCORS(t *testing.T) {
 	})
 }
 
+// http.ErrAbortHandler aborts the response on purpose; net/http closes the connection and logs nothing.
+func TestAnAbortedHandlerIsLeftToNetHTTP(t *testing.T) {
+	h := newHarness()
+	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+		panic(http.ErrAbortHandler)
+	}
+	var rec *httptest.ResponseRecorder
+	func() {
+		defer func() {
+			if p := recover(); p != http.ErrAbortHandler { //nolint:errorlint // the sentinel itself, as net/http checks it
+				t.Fatalf("recovered %v, want http.ErrAbortHandler passed on", p)
+			}
+		}()
+		rec = h.do("GET", "/api/characters", "", authed())
+	}()
+	if rec != nil {
+		t.Fatalf("answered %d; an aborted response gets no body", rec.Code)
+	}
+	logs := h.logs.String()
+	if strings.Contains(logs, "panic recovered") || !strings.Contains(logs, `"aborted":true`) {
+		t.Fatalf("log %s, want the request marked aborted and no panic recorded", logs)
+	}
+}
+
 func TestPanicIsContained(t *testing.T) {
 	h := newHarness()
 	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
