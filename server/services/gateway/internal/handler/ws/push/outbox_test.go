@@ -2,6 +2,7 @@ package push_test
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -43,6 +44,29 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 				t.Fatalf("closed %d %q, want %d %q", s.code, s.why, tt.code, tt.why)
 			}
 		})
+	}
+}
+
+// The first end wins: racing ends (a session end and a newer Hello) send one Kicked, whose reason the close repeats.
+func TestOnlyTheFirstEndIsSent(t *testing.T) {
+	s := &socket{}
+	o := push.NewOutbox(s, s)
+	var wg sync.WaitGroup
+	for _, r := range []model.EndReason{model.EndSessionExpired, model.EndLoggedInElsewhere, model.EndServerRestart, model.EndRejoinFailed} {
+		wg.Go(func() { o.End(r) })
+	}
+	wg.Go(func() { o.Kick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED) })
+	wg.Wait()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.sent) > 1 {
+		t.Fatalf("sent %d messages, want at most one Kicked: %+v", len(s.sent), s.sent)
+	}
+	if len(s.sent) == 1 {
+		why := strings.ToLower(strings.TrimPrefix(s.sent[0].Data.(*clientv1.Kicked).GetReason().String(), "KICK_REASON_"))
+		if s.why != why {
+			t.Fatalf("Kicked %s, but closed as %q", why, s.why)
+		}
 	}
 }
 

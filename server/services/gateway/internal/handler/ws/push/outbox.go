@@ -4,6 +4,7 @@ package push
 
 import (
 	"strings"
+	"sync/atomic"
 
 	"google.golang.org/protobuf/proto"
 
@@ -20,8 +21,9 @@ type Observer interface {
 
 // Outbox is one connection's writing side: the session.Outbox the gateway reaches the player through.
 type Outbox struct {
-	ws  wsconn.Conn
-	obs Observer
+	ws     wsconn.Conn
+	obs    Observer
+	ending atomic.Bool // the first End, Kick or Close wins; the rest send nothing
 }
 
 var _ session.Outbox = (*Outbox)(nil)
@@ -48,16 +50,25 @@ func (o *Outbox) Deliver(d model.Delivery) {
 
 // End kicks with the protocol's reason where it has one; any other end closes as internal, and the client reconnects.
 func (o *Outbox) End(reason model.EndReason) {
+	if !o.ending.CompareAndSwap(false, true) {
+		return
+	}
 	switch reason {
 	case model.EndLoggedInElsewhere:
-		o.Kick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+		o.kick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
 	case model.EndSessionExpired:
-		o.Kick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
+		o.kick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 	case model.EndServerRestart:
-		o.Kick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
+		o.kick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
 	default:
 		o.ws.Close(wsconn.CloseInternal, string(reason))
 	}
+}
+
+// kick sends Kicked, then closes with the reason's short name.
+func (o *Outbox) kick(reason clientv1.KickReason) {
+	o.send(wsconn.Message{Data: &clientv1.Kicked{Reason: reason}})
+	o.ws.Close(wsconn.CloseKicked, strings.ToLower(strings.TrimPrefix(reason.String(), "KICK_REASON_")))
 }
 
 // Reply answers a client message; reqID is empty when nobody waits for the answer.
@@ -67,12 +78,17 @@ func (o *Outbox) Reply(reqID string, data proto.Message) {
 
 // Kick sends Kicked with the reason, then closes with the reason's short name, like logged_in_elsewhere.
 func (o *Outbox) Kick(reason clientv1.KickReason) {
-	o.send(wsconn.Message{Data: &clientv1.Kicked{Reason: reason}})
-	o.ws.Close(wsconn.CloseKicked, strings.ToLower(strings.TrimPrefix(reason.String(), "KICK_REASON_")))
+	if o.ending.CompareAndSwap(false, true) {
+		o.kick(reason)
+	}
 }
 
 // Close closes the connection without a message.
-func (o *Outbox) Close(code int, reason string) { o.ws.Close(code, reason) }
+func (o *Outbox) Close(code int, reason string) {
+	if o.ending.CompareAndSwap(false, true) {
+		o.ws.Close(code, reason)
+	}
+}
 
 // ErrorResponse is a failure as the client reads it, for a command or a push.
 func ErrorResponse(p model.Public) *clientv1.Response {
