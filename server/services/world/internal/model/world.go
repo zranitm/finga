@@ -149,6 +149,9 @@ type Teleport struct {
 	X, Y  float64
 }
 
+// Detached tells a connection its character is on no map any more (a transfer failed); the gateway joins it again.
+type Detached struct{}
+
 // Damage is one resolved hit, sent to everyone on the map.
 type Damage struct {
 	Tick   uint64
@@ -202,6 +205,7 @@ func (Snapshot) event() {}
 func (Delta) event() {}
 
 func (Teleport) event() {}
+func (Detached) event() {}
 
 func (Damage) event() {}
 

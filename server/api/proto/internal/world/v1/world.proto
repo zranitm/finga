@@ -111,8 +111,13 @@ message DeliverResponse {
     Chat chat = 12;
     InventoryChanged inventory_changed = 13;
     PickupFailed pickup_failed = 14;
+    Detached detached = 16;
   }
 }
+
+// Detached is the character off every map through this connection: a portal's transfer failed. The
+// gateway joins it again, which puts it where it was last saved.
+message Detached {}
 
 // Subscribed is a stream's first message.
 message Subscribed {

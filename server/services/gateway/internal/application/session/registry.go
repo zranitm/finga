@@ -60,6 +60,7 @@ type Registry struct {
 
 	joining map[kernel.CharacterID]*characterLock // under mu: each character's joins, one at a time
 	rejoins chan struct{}                         // a slot per rejoin running
+	ghosts  map[string]time.Time                  // under mu: until when a ghost connection gets no other Leave
 }
 
 type characterLock struct {
@@ -109,6 +110,7 @@ func NewRegistry(deps Deps) *Registry {
 		bySession:   map[kernel.SessionID]*Session{},
 		joining:     map[kernel.CharacterID]*characterLock{},
 		rejoins:     make(chan struct{}, rejoinsAtOnce),
+		ghosts:      map[string]time.Time{},
 	}
 }
 

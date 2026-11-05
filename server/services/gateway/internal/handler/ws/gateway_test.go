@@ -947,6 +947,93 @@ func social(t *testing.T, fs *fakeSocial) *harness {
 	return h
 }
 
+// A connection the world detached (a portal's transfer failed) joins again, where the player was saved.
+func TestADetachedConnectionJoinsAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		h.world.push(aylaID, &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}})
+		c.expect("Snapshot")
+		if joins := h.world.joins(); len(joins) != 2 || joins[1].GetConnectionId() != joins[0].GetConnectionId() {
+			t.Fatalf("joins %v, want the same connection joined again", joins)
+		}
+	})
+}
+
+// Deliveries for a connection the gateway does not have are a presence nothing would remove: the gateway
+// takes it off its map, once.
+func TestAPresenceWithoutAConnectionIsTakenOffItsMap(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		for range 5 {
+			h.world.events <- &worldv1.DeliverResponse{CharacterId: brunoID.String(), ConnectionId: "c-ghost", Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}}
+		}
+		time.Sleep(time.Second)
+		left := waitFor(t, "the ghost's leave", h.world.leaves, 1)
+		if p := left[0].GetPresence(); len(left) != 1 || p.GetConnectionId() != "c-ghost" || p.GetCharacterId() != brunoID.String() {
+			t.Fatalf("leaves %v, want one for the ghost", left)
+		}
+	})
+}
+
+// A Leave the world was too busy to take is tried again.
+func TestALeaveTheWorldRefusedIsTriedAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		h.world.mu.Lock()
+		h.world.leaveFails = 1
+		h.world.mu.Unlock()
+		_ = c.c.Close(websocket.StatusNormalClosure, "bye")
+		time.Sleep(time.Second)
+		if left := waitFor(t, "the leaves", h.world.leaves, 2); len(left) != 2 {
+			t.Fatalf("leaves %v, want the refused one and its retry", left)
+		}
+	})
+}
+
+// A Hello that fails after its world join took the character from the older connection, which ends.
+func TestAHelloFailingAfterItsJoinEndsTheOlderConnection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		items := &fakeItems{}
+		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
+		older := h.dial(t)
+		older.hello(tokenAlice, aylaID)
+		older.expect("Snapshot")
+		items.mu.Lock()
+		items.invErr = status.Error(codes.Internal, "inventory down")
+		items.mu.Unlock()
+		newer := h.dial(t)
+		newer.hello(tokenAlice, aylaID)
+		older.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+	})
+}
+
+// A Hello whose world join outlived its deadline may have taken the character from the older connection.
+func TestAHelloWhoseJoinTimedOutEndsTheOlderConnection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		older := h.dial(t)
+		older.hello(tokenAlice, aylaID)
+		older.expect("Snapshot")
+		gate := make(chan struct{})
+		defer close(gate)
+		h.world.mu.Lock()
+		h.world.joinGate, h.world.joining = gate, make(chan struct{}, 1)
+		h.world.mu.Unlock()
+		newer := h.dial(t)
+		newer.hello(tokenAlice, aylaID)
+		older.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+	})
+}
+
 // connectionOf is the connection the character's last world join came through.
 func connectionOf(fw *fakeWorld, id kernel.CharacterID) string {
 	conn := ""

@@ -372,6 +372,21 @@ func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
 	}
 }
 
+// Detached reaches the gateway on the connection's stream, so it joins the player again.
+func TestDetachedCrossesToTheConnection(t *testing.T) {
+	s := newStack(t)
+	gw := s.gateway(t, "gw-1")
+	ayla := s.character("Ayla")
+	s.join(t, "gw-1", "conn-1", ayla)
+	sink := <-s.sinks
+	until(t, gw, "the snapshot", func(m *worldv1.DeliverResponse) bool { return m.GetSnapshot() != nil })
+	sink.Send(model.Detached{})
+	m := until(t, gw, "Detached", func(m *worldv1.DeliverResponse) bool { return m.GetDetached() != nil })
+	if m.GetConnectionId() != "conn-1" || m.GetCharacterId() != ayla.ID.String() {
+		t.Fatalf("got %+v", m)
+	}
+}
+
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
 	if err != nil || len(declared) < 2 {

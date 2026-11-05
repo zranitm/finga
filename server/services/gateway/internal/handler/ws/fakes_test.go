@@ -51,6 +51,7 @@ type fakeWorld struct {
 	chars      map[kernel.CharacterID]fakeCharacter
 	conns      map[kernel.CharacterID]string // the connection each character last joined through
 	joinErr    error
+	leaveFails int                        // the next Leave calls fail as a world too busy to take them
 	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot, as an older connection's
 	joined     []*worldv1.JoinRequest
 	left       []*worldv1.LeaveRequest
@@ -208,6 +209,10 @@ func (f *fakeWorld) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.left = append(f.left, req)
+	if f.leaveFails > 0 {
+		f.leaveFails--
+		return nil, grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY)
+	}
 	return &worldv1.LeaveResponse{}, nil
 }
 
@@ -362,6 +367,7 @@ type fakeItems struct {
 	changed   []*itemv1.Slot
 	err       error
 	gate      chan struct{} // when set, Inventory waits for it to close
+	invErr    error         // Inventory fails with it
 }
 
 func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
@@ -378,6 +384,9 @@ func (f *fakeItems) Inventory(ctx context.Context, _ *itemv1.InventoryRequest) (
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
+	}
+	if f.invErr != nil {
+		return nil, f.invErr
 	}
 	return &itemv1.InventoryResponse{Items: f.inventory}, nil
 }

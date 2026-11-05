@@ -81,6 +81,11 @@ func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver fun
 			deliver(model.WorldEvent{Subscribed: true})
 			return
 		}
+		character, _ := kernel.ParseCharacterID(m.GetCharacterId()) // zero if bad: the delivery still routes by connection
+		if m.GetDetached() != nil {
+			deliver(model.WorldEvent{Connection: m.GetConnectionId(), Character: character, Detached: true})
+			return
+		}
 		p, ok := worldPush(m)
 		if !ok {
 			return
@@ -88,7 +93,7 @@ func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver fun
 		if f := m.GetPickupFailed(); f != nil && f.GetErrorReason() == "" {
 			w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", m.GetCharacterId())
 		}
-		deliver(model.WorldEvent{Connection: m.GetConnectionId(), Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
+		deliver(model.WorldEvent{Connection: m.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
 	}, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})

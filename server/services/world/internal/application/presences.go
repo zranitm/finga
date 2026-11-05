@@ -63,13 +63,22 @@ func (ps *presences) move(id kernel.CharacterID, conn string, inst *Instance) bo
 	return true
 }
 
-// forget drops the character's presence, unless another placement came since.
-func (ps *presences) forget(id kernel.CharacterID, at presence) {
+// forget drops the character's presence, unless another placement came since; false when one did.
+func (ps *presences) forget(id kernel.CharacterID, at presence) bool {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if ps.by[id] == at {
-		delete(ps.by, id)
+	if ps.by[id] != at {
+		return false
 	}
+	delete(ps.by, id)
+	return true
+}
+
+// holds reports whether the character is still at at.
+func (ps *presences) holds(id kernel.CharacterID, at presence) bool {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	return ps.by[id] == at
 }
 
 // Leave removes the character if it joined through conn; a Leave from any other connection is a no-op.

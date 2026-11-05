@@ -16,6 +16,7 @@ import (
 
 const (
 	leaveTimeout   = 5 * time.Second
+	ghostQuiet     = time.Second
 	joinRetryFirst = 20 * time.Millisecond
 	joinRetryMax   = 500 * time.Millisecond
 	// After the world's stream breaks every player rejoins: each after a random pause up to rejoinSpread,
@@ -56,8 +57,12 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 		s.out.abort()
 		r.mu.Lock()
 		s.id.Store(nil)
+		older := r.byCharacter[character]
 		r.mu.Unlock()
 		unlock()
+		if ctx.Err() != nil && older != nil && older != s {
+			older.End(model.EndLoggedInElsewhere) // the world may have joined us anyway, taking the character from it
+		}
 		return nil, err
 	}
 	// Only once the world has loaded the character as the account's may its social deliveries reach s.
@@ -97,7 +102,13 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 }
 
 // Cancel gives up a join whose Hello failed after the world joined; the handler then closes the connection.
-func (j *Join) Cancel() { j.unlock() }
+// The character's older connection lost its presence to this join, so it ends too.
+func (j *Join) Cancel() {
+	j.unlock()
+	if j.previous != nil && j.previous != j.s {
+		j.previous.End(model.EndLoggedInElsewhere)
+	}
+}
 
 // Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing.
 func (r *Registry) Rejoin(s *Session) {
@@ -193,12 +204,57 @@ func waitable(err error) bool {
 	return errors.Is(err, model.ErrNotSubscribed) || errors.Is(err, model.ErrUnavailable)
 }
 
-// Leave takes the player off its map; a failure is only logged.
-func (r *Registry) Leave(s *Session) {
+// Leave takes the player off its map.
+func (r *Registry) Leave(s *Session) { r.leave(s.Presence()) }
+
+// LeaveGhost takes off its map a presence whose connection this gateway does not have: its deliveries
+// still come, so its Leave went missing. One at a time per connection, then none for ghostQuiet while
+// the deliveries already on their way drain.
+func (r *Registry) LeaveGhost(p model.Presence) {
+	if p.Character.IsZero() {
+		return
+	}
+	now := time.Now()
+	r.mu.Lock()
+	_, known := r.byConn[p.Connection]
+	waiting := now.Before(r.ghosts[p.Connection])
+	if !known && !waiting {
+		for conn, until := range r.ghosts {
+			if !now.Before(until) {
+				delete(r.ghosts, conn)
+			}
+		}
+		r.ghosts[p.Connection] = now.Add(leaveTimeout + ghostQuiet)
+	}
+	r.mu.Unlock()
+	if known || waiting {
+		return
+	}
+	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
+		r.leave(p)
+		r.mu.Lock()
+		r.ghosts[p.Connection] = time.Now().Add(ghostQuiet)
+		r.mu.Unlock()
+	}, "job", "leave_ghost", "character_id", p.Character)
+}
+
+// leave takes the presence off its map, trying again while the world is too busy, for up to
+// leaveTimeout; a failure is only logged.
+func (r *Registry) leave(p model.Presence) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaveTimeout)
 	defer cancel()
-	if err := r.deps.World.Leave(ctx, s.Presence()); err != nil {
-		r.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", s.Character(), "err", err)
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		err := r.deps.World.Leave(ctx, p)
+		if err != nil && !errors.Is(err, model.ErrUnavailable) {
+			return struct{}{}, backoff.Permanent(err)
+		}
+		return struct{}{}, err
+	},
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: joinRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: joinRetryMax}),
+		backoff.WithMaxElapsedTime(0),
+	)
+	if err != nil {
+		r.deps.Logger.WarnContext(ctx, "world leave failed", "character_id", p.Character, "conn", p.Connection, "err", err)
 	}
 }
 

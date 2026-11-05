@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"math"
 	"slices"
 	"time"
@@ -99,10 +100,14 @@ func (portalMsg) message()     {}
 func (chatMsg) message()       {}
 
 type joinMsg struct {
-	player model.Player
-	sink   Sink
-	done   chan error
+	player   model.Player
+	sink     Sink
+	done     chan error
+	transfer bool // a transfer never replaces the character's presence through another connection
 }
+
+// errReplaced is a transfer that found its character held through a newer connection.
+var errReplaced = errors.New("a newer connection holds the character")
 
 type inputMsg struct {
 	id  kernel.CharacterID
@@ -165,8 +170,13 @@ func (i *Instance) Run(ctx context.Context) error {
 
 // Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full.
 func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
+	return i.join(ctx, &joinMsg{player: p, sink: sink})
+}
+
+func (i *Instance) join(ctx context.Context, j *joinMsg) error {
 	done := make(chan error, 1)
-	if !i.post(&joinMsg{player: p, sink: sink, done: done}) {
+	j.done = done
+	if !i.post(j) {
 		return model.ErrBusy
 	}
 	select {
@@ -256,7 +266,7 @@ func (i *Instance) drain() []kernel.CharacterID {
 		}
 		switch m := m.(type) {
 		case *joinMsg:
-			i.join(m)
+			i.add(m)
 		case inputMsg:
 			if p, ok := i.players[m.id]; ok {
 				p.pending = enqueueInput(p.pending, m, p.lastSeq)
@@ -291,8 +301,12 @@ func (i *Instance) drain() []kernel.CharacterID {
 	return removed
 }
 
-func (i *Instance) join(j *joinMsg) {
-	if _, dup := i.players[j.player.ID]; dup {
+func (i *Instance) add(j *joinMsg) {
+	if old, dup := i.players[j.player.ID]; dup {
+		if j.transfer && old.Connection != j.player.Connection {
+			j.done <- errReplaced
+			return
+		}
 		i.remove(j.player.ID) // a stale presence; the new connection wins
 	}
 	class, ok := i.data.Class(j.player.Class)

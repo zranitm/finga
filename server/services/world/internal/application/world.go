@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -20,9 +21,11 @@ import (
 )
 
 const (
-	persistQueue    = 4096
-	transferTimeout = 5 * time.Second
-	callTimeout     = 5 * time.Second // one call to another service; past it the call counts as failed
+	persistQueue       = 4096
+	transferTimeout    = 5 * time.Second // a transfer's join, retries included
+	transferRetryFirst = 20 * time.Millisecond
+	transferRetryMax   = 500 * time.Millisecond
+	callTimeout        = 5 * time.Second // one call to another service; past it the call counts as failed
 
 	saveRetryFor   = time.Minute // how long a transiently failing save is retried
 	saveRetryFirst = 100 * time.Millisecond
@@ -40,6 +43,10 @@ type World struct {
 	persist   chan model.Job
 	// flushTimeout bounds the last saves on shutdown, all together.
 	flushTimeout time.Duration
+	// Transfers run beside the ticks until Run stops them.
+	transfers     sync.WaitGroup
+	jobs          context.Context
+	stopTransfers context.CancelFunc
 }
 
 // WorldDeps are the services the World calls besides its instances'; all are required.
@@ -58,6 +65,7 @@ func New(data *gamedata.Data, t Tuning, d WorldDeps) *World {
 		data: data, deps: d, instances: map[string]*Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
 		persist: make(chan model.Job, persistQueue), flushTimeout: t.FlushTimeout,
 	}
+	w.jobs, w.stopTransfers = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = NewInstance(m, data, w.persist, w, t, d.Deps)
 		w.order = append(w.order, m.ID)
@@ -106,6 +114,10 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		prev.inst.LeaveConnection(id, prev.conn)
 	}
 	if err != nil {
+		if ctx.Err() != nil {
+			inst.LeaveConnection(id, conn) // posted, and may still land, though the caller counts it failed
+		}
+		w.presences.forget(id, at)
 		return model.View{}, err
 	}
 	return model.View{
@@ -126,13 +138,51 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	if !w.presences.move(p.ID, p.Connection, target) {
 		return
 	}
-	w.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), transferTimeout)
-		defer cancel()
-		if err := target.Join(ctx, p, sink); err != nil {
-			w.deps.Logger.ErrorContext(ctx, "transfer failed", "character_id", p.ID, "map_id", mapID, "err", err)
+	w.transfers.Go(func() {
+		w.deps.Panics.Do(w.jobs, panics.FlowJob, func() { w.transfer(p, sink, target) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
+	})
+}
+
+// errMoved is a transfer whose presence left, or was replaced, before it landed.
+var errMoved = errors.New("the presence moved on")
+
+// transfer joins the player to target, retrying while its inbox is full. One that cannot land within
+// transferTimeout detaches the connection, so the gateway joins the player again where it was saved.
+func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
+	ctx, cancel := context.WithTimeout(w.jobs, transferTimeout)
+	defer cancel()
+	at := presence{inst: target, conn: p.Connection}
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		if !w.presences.holds(p.ID, at) {
+			return struct{}{}, backoff.Permanent(errMoved)
 		}
-	}, "job", "transfer", "character_id", p.ID, "map_id", mapID)
+		err := target.join(ctx, &joinMsg{player: p, sink: sink, transfer: true})
+		if errors.Is(err, errReplaced) {
+			return struct{}{}, backoff.Permanent(errMoved)
+		}
+		if err != nil && !errors.Is(err, model.ErrBusy) {
+			return struct{}{}, backoff.Permanent(err)
+		}
+		return struct{}{}, err
+	},
+		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: transferRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: transferRetryMax}),
+		backoff.WithMaxElapsedTime(0),
+	)
+	switch {
+	case errors.Is(err, errMoved):
+	case err == nil:
+		if !w.presences.holds(p.ID, at) {
+			target.LeaveConnection(p.ID, p.Connection) // it left while the join landed
+		}
+	case w.jobs.Err() != nil:
+		// Shutting down: the player was saved on target, and the gateway joins them again after the restart.
+	default:
+		target.LeaveConnection(p.ID, p.Connection) // a join posted as time ran out may still land
+		if w.presences.forget(p.ID, at) {
+			w.deps.Logger.ErrorContext(ctx, "transfer failed; the gateway joins the player again", "character_id", p.ID, "map_id", target.m.ID, "err", err)
+			sink.Send(model.Detached{})
+		}
+	}
 }
 
 // Run ticks every instance, runs the economy workers and saves what the maps queue, until ctx is done.
@@ -160,6 +210,8 @@ func (w *World) Run(ctx context.Context) error {
 		})
 	}
 	err := g.Wait()
+	w.stopTransfers()
+	w.transfers.Wait()
 	stopRetrying()
 	close(stopped) // no more jobs can arrive
 	<-saved

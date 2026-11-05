@@ -14,7 +14,10 @@ type Joined struct {
 type WorldEvent struct {
 	Subscribed bool
 	Connection string
+	Character  kernel.CharacterID
 	Delivery   Delivery
+	// Detached: the world has the character on no map through Connection any more; it must join again.
+	Detached bool
 }
 
 // SocialEvent is Subscribed with the service's boot ID, or a delivery for one player.
