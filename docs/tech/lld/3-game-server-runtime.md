@@ -16,7 +16,7 @@ And the tools:
 
 The gateway starts two HTTP servers and follows the services' streams. The players' listener has REST under `/api` and the WebSocket at `/ws`; the ops listener has `/healthz` for liveness, `/readyz` for readiness, and metrics at `/metrics`, so a player cannot read the metrics or reach the probes past nginx's limits. Every other service serves gRPC on its listen address and the same three on its ops address; its gRPC listener also answers `grpc.health.v1`, SERVING until shutdown starts.
 
-**Readiness** means this process can take traffic: `/readyz` is 200 from the moment it listens (game data loaded, everything wired) until shutdown starts, and 503 before and after, so a load balancer stops sending new connections while in-flight requests drain. On SIGTERM the gateway then drains: it refuses new WebSocket connections, tells every connection the server is restarting (Kicked `server_restart`; the client reconnects with jitter), and closes them before its listener shuts down, within the grace period (step 28). It checks no dependency. The database is shared by every instance, so failing readiness on it would pull them all out of rotation at once and turn a database blip into a full outage; startup already fails without the database, and a later outage shows in the logs, the request errors and `db_tx_duration_seconds` instead (changed 2026-10-23 at the user's request; until then `/readyz` also pinged the database).
+**Readiness** means this process can take traffic: `/readyz` is 200 from the moment it listens (game data loaded, everything wired) until shutdown starts, and 503 before and after, so a load balancer stops sending new connections while in-flight requests drain. On SIGTERM the gateway then drains: it refuses new WebSocket connections, tells every connection the server is restarting (Kicked `server_restart`; the client reconnects with jitter), and closes them before its listener shuts down, within the grace period (step 28). It checks no dependency. The database is shared by every instance, so failing readiness on it would pull them all out of rotation at once and turn a database blip into a full outage; startup already fails without the database, and a later outage shows in the logs and the request errors instead (changed 2026-10-23 at the user's request; until then `/readyz` also pinged the database).
 
 The client is static files served by nginx, never by the gateway. In development, Vite serves it and proxies `/api` and `/ws`.
 
@@ -37,7 +37,6 @@ Shared state is owned by one goroutine (an actor) that receives commands on a bu
 | Economy workers | Pool of 8 | Database transactions for pickups and inventory actions |
 | Market (Stage 2) | Runs on the caller's goroutine, request and response | Nothing in memory |
 | Expiry job (Stage 2) | 1, every minute | Marking expired listings |
-| Cleanup job | 1, every hour | Old idempotency keys and sessions |
 
 ## Map instance tick
 
@@ -58,9 +57,9 @@ Every 50 ms:
 
 1. The player sends PickUp. The tick finds the nearest eligible drop in range, marks it reserved for that player, and hands a job to an economy worker: character, drop contents, and the drop ID as the idempotency key.
 2. The worker calls the item service's `Add` (gRPC, page 10), which runs one transaction: add the item (new item or existing stack) with an item event, or, from Stage 2, move coins from `system:mint` to the wallet; write the outbox event; commit.
-3. The result goes back to the map instance. On success the drop is removed and the player gets InventoryChanged or WalletChanged. On failure, such as a full inventory, the reservation is released and the drop stays.
+3. The result goes back to the map instance. On success the drop is removed and the player gets InventoryChanged or WalletChanged. On any failure the reservation is released and the drop stays: a rule error such as a full inventory, or a transient one after the retry.
 
-Only one player can hold a reservation, so two players can never both get a drop. Using the drop ID as the idempotency key makes a retried job harmless: a worker retries once on a transient error, one that carries no reason across the call (never on a rule error such as a full inventory, which does). The pool's queue holds 1,024 jobs and submitting never blocks the tick; when the queue is full the reservation is released at once and the player gets a Response asking them to try again. InventoryMove and InventoryDiscard do not pass through a tick at all: the gateway calls the item service for them on the connection's own goroutine, with a 5 s timeout, and answers with a Response plus InventoryChanged.
+Only one player can hold a reservation, so two players cannot both get a drop through it. The idempotency key is the drop ID within the account, though, and a transient failure releases the drop even when the outcome is unknown: if the item service committed and the reply was lost, another account can pick the drop up and be granted it again. Releasing only on a rule error, and keeping the drop reserved while the outcome is unknown, would close that. Using the drop ID as the idempotency key makes a retried job harmless: a worker retries once on a transient error, one that carries no reason across the call (never on a rule error such as a full inventory, which does). The pool's queue holds 1,024 jobs and submitting never blocks the tick; when the queue is full the reservation is released at once and the player gets a Response asking them to try again. InventoryMove and InventoryDiscard do not pass through a tick at all: the gateway calls the item service for them on the connection's own goroutine, with a 5 s timeout, and answers with a Response plus InventoryChanged.
 
 ## Character state and checkpoints
 
@@ -96,8 +95,8 @@ Only one player can hold a reservation, so two players can never both get a drop
 - `tick_duration_seconds` histogram per map; `tick_overruns_total` (on the world's ops `/metrics`)
 - `players_online`
 - `ws_messages_total` by direction and type; `ws_slow_consumer_disconnects_total`
-- `db_tx_duration_seconds` by operation; `db_tx_retries_total`
+- `db_tx_duration_seconds` by operation and `db_tx_retries_total`: registered by the gateway and the world, which have no database, and recorded nowhere yet; the services with a database register no game metrics
 - `economy_jobs_inflight`
-- `outbox_unpublished`: grows in Stage 1, then shows relay lag in Stage 2
+- `outbox_unpublished`: registered like the two above but never set; meant to grow in Stage 1, then show relay lag in Stage 2
 - `panics_total` by flow (`http`, `grpc`, `ws`, `stream`, `job`, `task`), on every binary; each flow starts at 0, so an alert on its rate sees the first panic
 - `grpc_server_handled_total` by service, method and code (the code the caller sees), `grpc_server_handling_seconds` and `grpc_server_started_total`, on every gRPC service, each method's series from 0 (go-grpc-middleware's Prometheus provider)

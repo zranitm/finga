@@ -26,7 +26,7 @@ server/                 the Go module: everything the server builds, reads and p
     sim/                the movement simulation, shared with the client through testdata/movement
     progression/        derived stats, EXP awards, the death penalty: pure rules the character module and the world's tick both run
     host/               how every service runs: its gRPC and ops listeners on pkg/runner, the binaries' shared main that loads each one's own configuration, and the sections every service's configuration has
-    telemetry/          metrics and logging; implements the services' observer interfaces
+    telemetry/          the game's metrics; implements the services' observer interfaces (logging is pkg/logger)
   services/             one folder per service (page 10); each module lives in its service
     gateway/            the only public entry; no database, no game rules
       main.go, app/     the entry point and the composition root: Build dials every service; Server listens, drains on SIGTERM, runs the tasks
@@ -87,7 +87,7 @@ tools/                  developer tools; empty in Stage 1
 
 - Imports flow one way: composition roots (`services/*/app`, `cmd/migrate/app`) → each service's handler and clients → its application → its model → the shared kernel (`internal/kernel`, `internal/gamedata`, `internal/sim`, `internal/progression`) → `pkg`; a service's repository implements its application's ports and imports application and model (page 11, Layers). Never the other way round: nothing in `internal`, `pkg` or a service's `internal/` imports a composition root, and the shared kernel imports no service, contract, protocol, telemetry, configuration, `internal/host`, transport (gRPC, `pkg/grpcx`, `net/http`) or database (pgx, `pkg/dbx`) (moved out of the modules on 2026-10-27, step 20, so every service of page 10 can import it; `internal/model` became `internal/kernel` in step 30, so every service's own layer can be called `model`).
 - A service never imports another: Go's `internal/` rule keeps it out of the other's internals, and depguard out of the rest (its migrations, its composition root). It reaches another only through the client generated from `api/proto/internal/` (page 10).
-- A service's layers are packages (page 11; each service moves into them in steps 31 to 36, and until its step keeps them as files of one module package, `services/<name>/internal/<module>`): `model` imports none of the others; `application` imports `model`; `repository` imports `application` and `model`; `handler` and `clients` import `application` and `model`, never `repository` or each other. depguard has one rule per layer (`layer-model`, ..., `layer-clients`), naming every service's packages, since it matches a denied path by prefix with no wildcard; a new service is added to each list.
+- A service's layers are packages (page 11): `model` imports none of the others; `application` imports `model`; `repository` imports `application` and `model`; `handler` and `clients` import `application` and `model`, never `repository` or each other. depguard has one rule per layer (`layer-model`, ..., `layer-clients`), naming every service's packages, since it matches a denied path by prefix with no wildcard; a new service is added to each list.
 - The inner layers (`model`, `application`, `repository`, and a module not yet moved) hold only business logic and its storage. They never import the contracts (`api/gen`), gRPC or `pkg/grpcx`, `protocol`, `telemetry`, a configuration package or `internal/host`, and a model never imports `net/http`:
   - It returns its own result types, for example the world's `model.Delta`; its service's handler turns them into the contract's messages, and the gateway turns those into protocol messages.
   - It reports metrics through small observer interfaces it declares, and `internal/telemetry` implements them.
@@ -103,7 +103,7 @@ tools/                  developer tools; empty in Stage 1
 
 Every request passes through three layers, and each has one job. Nothing skips a layer: a handler never calls a repository, and a repository never makes a business decision.
 
-Each layer is a package of the service (page 11). The model below them holds the entities, value types and domain errors every layer uses. Steps 31 to 36 move each service into these packages; until its step, a service keeps the same layers as files of one module package (`internal/<module>/service.go`, `repository.go`, with the model in `api.go` and the ports in `deps.go`).
+Each layer is a package of the service (page 11). The model below them holds the entities, value types and domain errors every layer uses.
 
 <table>
 <tr>
@@ -200,64 +200,87 @@ type UnitOfWork interface { // everything bound to one transaction
 }
 
 // services/item/internal/application/service.go: rules, and where the transaction starts
-func (s *Service) Discard(ctx context.Context, actor kernel.CharacterID, in DiscardInput) error {
-    return s.store.InTx(ctx, func(uow UnitOfWork) error {
-        return uow.Idempotency().Run(ctx, actor, "discard", in.Key, in, func() error {
-            it, err := uow.Items().LockOwned(ctx, in.ItemID, actor)
-            if err != nil {
-                return err // no row, also when it isn't yours: ErrNotFound after classify
-            }
-            if in.Quantity < 1 || in.Quantity > it.Quantity {
-                return model.ErrBadQuantity // a sentinel from the model; errmap answers it bad_quantity
-            }
-            if err := uow.Items().Reduce(ctx, it.ID, in.Quantity); err != nil {
-                return err
-            }
-            if err := uow.Events().Append(ctx, discarded(it, in.Quantity, actor)); err != nil {
-                return err
-            }
-            return uow.Outbox().Add(ctx, itemDiscarded(it, in.Quantity))
+func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInput) (Result, error) {
+    if in.Quantity < 1 {
+        return Result{}, model.ErrBadQuantity // a sentinel from the model; errmap answers it bad_quantity
+    }
+    var res Result
+    err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+        var err error
+        // The key is the account's: a retry replays the stored Result instead of discarding again.
+        res, err = uow.Idempotency().Run(ctx, actor.Account, scopeDiscard, in.Key, in, func() (Result, error) {
+            return s.discard(ctx, uow, actor.Character, in)
         })
+        return err
     })
+    return res, err
+}
+
+func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in DiscardInput) (Result, error) {
+    it, err := uow.Items().LockOwned(ctx, in.ItemID, owner)
+    if err != nil {
+        return Result{}, err // no row, also when it isn't yours: ErrNotFound after classify
+    }
+    if in.Quantity > it.Quantity {
+        return Result{}, model.ErrBadQuantity
+    }
+    // The event and the outbox row commit with the change, or nothing does.
+    if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -in.Quantity, ...}); err != nil {
+        return Result{}, err
+    }
+    if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: "ItemDiscarded", ...}); err != nil {
+        return Result{}, err
+    }
+    if it.Quantity == in.Quantity {
+        return Result{Changed: []model.Slot{{Tab: it.Tab, Slot: it.Slot}}}, uow.Items().Destroy(ctx, it.ID)
+    }
+    ... // otherwise SetQuantity, and the slot's new state
 }
 
 // services/item/internal/repository/postgres.go: the store, its unit of work, classify, and SQL
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
     err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
-        return fn(p.newUnitOfWork(tx))
+        return fn(p.unitOfWork(tx))
     })
     return classify(err)
 }
 
-func (p *Postgres) newUnitOfWork(tx pgx.Tx) *unitOfWork {
+func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
     q := db.New(tx)
-    return &unitOfWork{
-        items:  itemRepo{q: q},
+    return unitOfWork{
+        items:  repo{q: q, now: p.now},
         events: eventRepo{q: q},
         outbox: outbox.NewWriter(tx),
-        idem:   newIdempotency(idempotency.NewStore(tx)),
+        idem:   idem{store: idempotency.NewStore(tx)},
     }
 }
 
-// classify turns database errors into the model's errors. Unknown ones pass
+// classify turns database errors into the model's errors, keeping the cause. Unknown ones pass
 // through: retries still see 40001, and handlers report the rest as internal.
 func classify(err error) error {
     var pgErr *pgconn.PgError
     switch {
+    case err == nil:
+        return nil
     case errors.Is(err, pgx.ErrNoRows):
-        return model.ErrNotFound
-    case errors.As(err, &pgErr) && pgErr.ConstraintName == "one_item_per_slot":
-        return model.ErrSlotTaken
+        return fmt.Errorf("%w: %w", model.ErrNotFound, err)
+    case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintSlot:
+        return fmt.Errorf("%w: %w", model.ErrSlotTaken, err)
+    case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintQuantity:
+        return fmt.Errorf("%w: %w", model.ErrBadQuantity, err)
     default:
         return err
     }
 }
 
 // SQL only, on whatever connection the repository was built with
-func (r itemRepo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error) {
-    row, err := r.q.LockOwnedItem(ctx, id, owner) // ... WHERE id = $1 AND owner_id = $2 FOR UPDATE
+func (r repo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error) {
+    row, err := r.q.LockOwnedItem(ctx, db.LockOwnedItemParams{ID: uuid.UUID(id), OwnerID: uuid.UUID(owner)}) // ... FOR UPDATE
     if err != nil {
         return model.Item{}, err
+    }
+    if row.Location != "inventory" {
+        return model.Item{}, pgx.ErrNoRows // a listed or destroyed item is not in the bag
     }
     return toItem(row), nil
 }

@@ -53,11 +53,11 @@ Fee = floor(price × fee_bps / 10,000), with fee_bps 500 (5%, OD-10 default), st
 
 - **Two buyers, one listing:** the listing's row lock serializes them; the second sees sold and gets listing_unavailable.
 - **Retried command:** the same idempotency key returns the stored response with no second effect. The same key with a different request returns idempotency_key_reused.
-- **Double pickup:** the map instance's reservation stops it, and the drop ID as idempotency key makes a retried job harmless.
+- **Double pickup:** the map instance's reservation stops it, and the drop ID as idempotency key makes a retried job harmless. The key is per account, and a failed pickup releases the drop even when its outcome is unknown, so a grant whose reply was lost can be granted again to another account (page 3).
 
 ## Events
 
-- Written to the outbox in the same transaction as the change: CoinsLooted, ItemLooted, ItemListed, ListingCancelled, ListingExpired, ListingReclaimed, TradeSettled, ItemDiscarded, CharacterLeveledUp.
+- Written to the outbox in the same transaction as the change: CoinsLooted, ItemLooted, ItemGranted (starter items), ItemListed, ListingCancelled, ListingExpired, ListingReclaimed, TradeSettled, ItemDiscarded, CharacterLeveledUp.
 - One topic per domain (TD-04): economy, item, market, character. Keyed by the aggregate ID.
 - Every event has a unique event ID for deduplication by consumers (Stage 2).
 

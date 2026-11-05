@@ -94,11 +94,11 @@ CREATE UNIQUE INDEX one_item_per_slot
 CREATE TABLE item_events (
   id             bigserial PRIMARY KEY,
   item_id        uuid NOT NULL REFERENCES items(id),
-  kind           text NOT NULL,   -- created | stacked | split | listed | unlisted | sold | discarded
+  kind           text NOT NULL,   -- created | stacked | split | moved | listed | unlisted | sold | discarded
   quantity_delta int NOT NULL,    -- change to this item's quantity
   from_owner     uuid,
   to_owner       uuid,
-  cause_type     text NOT NULL,   -- drop | market | player
+  cause_type     text NOT NULL,   -- drop | market | player | starter
   cause_id       uuid,            -- drop, listing, or request ID
   occurred_at    timestamptz NOT NULL
 );
@@ -190,7 +190,7 @@ CREATE TABLE idempotency_keys (
 );
 ```
 
-Idempotency keys and revoked or expired sessions are deleted by an hourly cleanup job after 24 hours.
+Nothing deletes idempotency keys or ended sessions yet, so both tables only grow. A cleanup must keep the starter grants' keys, or first record the grants elsewhere: GrantStarter runs on every join and gives the kit once only because its key (the character ID) is still there.
 
 ## Not in the database
 
