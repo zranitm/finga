@@ -425,3 +425,37 @@ func TestAPanickingTaskStopsTheProcessGracefully(t *testing.T) {
 		t.Fatalf("count %d, log %q", count.get(panics.FlowTask), logs.String())
 	}
 }
+
+// A task that ends before shutdown, with or without an error, leaves a dead loop behind a ready process.
+func TestATaskThatEndsEarlyStopsTheProcess(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		err  error
+	}{{"nil", nil}, {"an error", errors.New("stream gone")}} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRunner(t, runner.Options{}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}},
+				runner.Task{Name: "loop", Run: func(context.Context) error { return tt.err }})
+			done := make(chan error, 1)
+			go func() { done <- r.Run(context.Background()) }()
+			select {
+			case err := <-done:
+				if err == nil || !strings.Contains(err.Error(), "loop") || (tt.err != nil && !errors.Is(err, tt.err)) {
+					t.Fatalf("Run returned %v", err)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("Run kept serving after its task ended")
+			}
+		})
+	}
+}
+
+// A panic while the process shuts down is still its exit error.
+func TestAPanicDuringShutdownIsReturned(t *testing.T) {
+	r := newRunner(t, runner.Options{Panics: panics.NewRecorder(slog.New(slog.DiscardHandler), nil)},
+		[]runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}},
+		runner.Task{Name: "flusher", Run: func(ctx context.Context) error { <-ctx.Done(); panic("flush failed") }})
+	stop := start(t, r)
+	if err := stop(); err == nil || !strings.Contains(err.Error(), "flush failed") {
+		t.Fatalf("Run returned %v", err)
+	}
+}

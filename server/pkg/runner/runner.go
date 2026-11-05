@@ -77,24 +77,28 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
-// runTasks runs the background tasks until ctx ends and they all return; a task's panic goes to fatal, after it is recorded.
+// runTasks runs the background tasks until ctx ends and they all return. A task's panic, or a task that
+// returns before ctx ends, goes to fatal: the process would otherwise stay ready with a dead loop.
 func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {
 		wg.Go(func() {
 			err := run(ctx, t)
-			if e, ok := errors.AsType[*panics.Error](err); ok {
+			switch e, ok := errors.AsType[*panics.Error](err); {
+			case ok:
 				r.opts.Panics.Record(ctx, panics.FlowTask, e, "task", t.Name, "err", err.Error())
 				fatal(fmt.Errorf("task %s: %w", t.Name, err))
-				return
-			}
-			if err != nil {
+			case ctx.Err() == nil:
+				fatal(fmt.Errorf("task %s: %w", t.Name, errors.Join(errTaskEnded, err)))
+			case err != nil:
 				r.opts.Logger.ErrorContext(ctx, "task stopped with an error", "task", t.Name, "err", err)
 			}
 		})
 	}
 	wg.Wait()
 }
+
+var errTaskEnded = errors.New("stopped before shutdown")
 
 func run(ctx context.Context, t Task) (err error) {
 	defer panics.Capture(&err)
@@ -109,9 +113,17 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 	runCtx, stop := context.WithCancelCause(ctx)
 	defer stop(nil)
+	var (
+		once     sync.Once
+		fatalErr error // read after tasks.Wait
+	)
+	fatal := func(err error) {
+		once.Do(func() { fatalErr = err })
+		stop(err)
+	}
 	taskCtx, stopTasks := context.WithCancel(context.WithoutCancel(ctx))
 	var tasks sync.WaitGroup
-	tasks.Go(func() { r.runTasks(taskCtx, stop) })
+	tasks.Go(func() { r.runTasks(taskCtx, fatal) })
 
 	serving, servingCtx := errgroup.WithContext(runCtx)
 	for i, ln := range lns {
@@ -129,10 +141,6 @@ func (r *Runner) Run(ctx context.Context) error {
 	}
 
 	<-servingCtx.Done()
-	panicked := context.Cause(runCtx)
-	if ctx.Err() != nil || runCtx.Err() == nil {
-		panicked = nil
-	}
 	failed := runCtx.Err() == nil // the serving context ended on its own: a listener failed
 	r.ready.Store(false)
 	r.opts.Logger.InfoContext(ctx, "shutting down", "grace", r.opts.ShutdownGrace)
@@ -154,8 +162,8 @@ func (r *Runner) Run(ctx context.Context) error {
 	servingErr := serving.Wait()
 	stopTasks()
 	tasks.Wait()
-	if panicked != nil {
-		return panicked
+	if fatalErr != nil {
+		return fatalErr
 	}
 	if servingErr != nil {
 		return servingErr

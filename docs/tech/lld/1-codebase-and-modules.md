@@ -504,7 +504,8 @@ type Listener struct { Name, Addr string; Server Server } // runner.HTTP(handler
 // which would end a WebSocket; a handler sets its own read deadline, as the REST decoder does for a body
 func New(opts Options, listeners []Listener, tasks []Task) *Runner
 func (r *Runner) Run(ctx context.Context) error // ready while listening; on shutdown: not ready, Drain, listeners stop within the grace, tasks stop
-// A task's panic is recorded and shuts the process down the same way; Run then returns it.
+// A task's panic, or a task that returns before shutdown, shuts the process down the same way; Run then
+// returns the first such error, a panic during the shutdown included.
 func Probes(ready func() bool, metrics http.Handler) http.Handler // /healthz, /readyz, /metrics
 
 // pkg/hub: subscribers with bounded queues, behind the delivery streams (step 22)
