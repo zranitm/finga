@@ -66,15 +66,6 @@ func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	return err
 }
 
-// SaveLevelUp saves a level-up.
-func (s Saver) SaveLevelUp(ctx context.Context, lu model.LevelUpSave) error {
-	_, err := s.c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{
-		CharacterId: lu.ID.String(), Level: int32(lu.Level), Exp: lu.Exp, Stats: statsOf(lu.Stats),
-		Hp: int32(lu.HP), Mp: int32(lu.MP),
-	})
-	return err
-}
-
 func statsOf(st gamedata.Stats) *characterv1.Stats {
 	return &characterv1.Stats{Strength: int32(st.STR), Dexterity: int32(st.DEX), Intelligence: int32(st.INT), Agility: int32(st.AGI), Vitality: int32(st.VIT)}
 }

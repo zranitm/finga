@@ -54,7 +54,6 @@ func (c *characters) add(ch model.Character) {
 type saver struct{}
 
 func (saver) SaveCheckpoint(context.Context, model.Checkpoint) error { return nil }
-func (saver) SaveLevelUp(context.Context, model.LevelUpSave) error   { return nil }
 func (saver) Retryable(error) bool                                   { return false }
 
 // idle stands in for every world service these tests leave alone.

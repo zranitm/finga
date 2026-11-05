@@ -96,17 +96,11 @@ func TestPickupsRetryOnlyWhatMayPass(t *testing.T) {
 type characters struct {
 	characterv1.UnimplementedCharacterServiceServer
 	checkpoints []*characterv1.SaveCheckpointRequest
-	levelUps    []*characterv1.SaveLevelUpRequest
 }
 
 func (f *characters) SaveCheckpoint(_ context.Context, req *characterv1.SaveCheckpointRequest) (*characterv1.SaveCheckpointResponse, error) {
 	f.checkpoints = append(f.checkpoints, req)
 	return &characterv1.SaveCheckpointResponse{}, nil
-}
-
-func (f *characters) SaveLevelUp(_ context.Context, req *characterv1.SaveLevelUpRequest) (*characterv1.SaveLevelUpResponse, error) {
-	f.levelUps = append(f.levelUps, req)
-	return &characterv1.SaveLevelUpResponse{}, nil
 }
 
 func TestSaverOverTheCharacterService(t *testing.T) {
@@ -122,12 +116,6 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 ||
 		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetStats().GetStrength() != 21 || cp.GetStats().GetVitality() != 16 {
 		t.Fatalf("checkpoint %+v", cp)
-	}
-	if err := s.SaveLevelUp(ctx, model.LevelUpSave{ID: id, Level: 4, Exp: 6, Stats: gamedata.Stats{STR: 21, VIT: 16}, HP: 280, MP: 31}); err != nil {
-		t.Fatal(err)
-	}
-	if lu := f.levelUps[0]; lu.GetLevel() != 4 || lu.GetExp() != 6 || lu.GetStats().GetStrength() != 21 || lu.GetStats().GetVitality() != 16 || lu.GetHp() != 280 || lu.GetMp() != 31 {
-		t.Fatalf("level-up %+v", lu)
 	}
 	if s.Retryable(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || !s.Retryable(status.Error(codes.Unavailable, "down")) {
 		t.Fatal("only a failure without a reason is retried")

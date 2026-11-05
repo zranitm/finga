@@ -15,10 +15,13 @@ service CharacterService {
   rpc List(ListRequest) returns (ListResponse);
   // Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
   rpc Load(LoadRequest) returns (LoadResponse);
-  // SaveCheckpoint saves position, HP, MP and EXP.
+  // SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
   rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
-  // SaveLevelUp saves a level-up right away.
-  rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse);
+  // SaveLevelUp saves a level-up. The world no longer calls it; it is served for a world not yet upgraded,
+  // and buf's FILE rules keep a published RPC.
+  rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse) {
+    option deprecated = true;
+  }
 }
 
 enum Reason {

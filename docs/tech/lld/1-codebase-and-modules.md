@@ -309,7 +309,7 @@ Every module below lives in its service, `services/<name>/internal/<module>`; th
 | --- | --- | --- |
 | `account` (the account service, `services/account`) | Accounts, sessions, account settings | `pkg/auth`, `pkg/ratelimit` |
 | `character` (the character service, `services/character`) | Characters, stats, levels, EXP | gamedata, progression, the item service (starter items) |
-| `world` (the world service, `services/world`) | Map instances, movement, mobs, ground drops, portals | combat, the character service (load, checkpoints, level-ups), the item service (pickups, starter items), the social service (a party copy), gamedata, sim, progression, `pkg/tick` |
+| `world` (the world service, `services/world`) | Map instances, movement, mobs, ground drops, portals | combat, the character service (load, checkpoints), the item service (pickups, starter items), the social service (a party copy), gamedata, sim, progression, `pkg/tick`, `pkg/coalesce` |
 | `combat` (in the world service) | Hit and damage resolution, EXP awards; pure functions | gamedata |
 | `item` (the item service, `services/item`) | Item instances, inventory, item events | gamedata, `pkg/outbox`, `pkg/idempotency` |
 | `economy` (Stage 2, in the item service) | Wallets on the ledger | `pkg/ledger`, `pkg/outbox` |
@@ -512,6 +512,14 @@ func Probes(ready func() bool, metrics http.Handler) http.Handler // /healthz, /
 func New[T any](queue int) *Hub[T]
 func (h *Hub[T]) Subscribe(id string) *Sub[T] // replaces and ends an older one with the same ID
 func (s *Sub[T]) Send(v T) bool               // never blocks; a full queue ends the subscription
+
+// pkg/coalesce: a work queue that keeps each key's newest value, behind the world's saves
+func New[K comparable, V any](key func(V) K) *Queue[K, V]
+func (q *Queue[K, V]) Put(v V)              // replaces the key's value still waiting; never blocks or drops
+func (q *Queue[K, V]) Take() (V, bool)      // the value that has waited longest; its key is out until Done
+func (q *Queue[K, V]) Done(v V, retry bool) // a newer value, or with retry v, joins the end of the line
+func (q *Queue[K, V]) Get(k K) (V, bool)    // the key's newest value, waiting or taken
+func (q *Queue[K, V]) Ready() <-chan struct{}
 
 // pkg/sentineltest, test support: reads Go source for the sentinel errors a package declares (step 23),
 // so each error table's guard test checks it maps every one

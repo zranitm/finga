@@ -306,9 +306,9 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 func TestDeathAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		persist := make(chan model.Job, 100)
+		cps := &checkpoints{}
 		tr := &transferRecorder{}
-		inst, stop := runMap(t, data, arena(time.Hour), persist, options{Transfer: tr})
+		inst, stop := runMap(t, data, arena(time.Hour), cps, options{Transfer: tr})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -365,18 +365,15 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 		}
 		{ // the arena checkpointed the player on the way out, with the penalized EXP
-			var cps []model.Job
-			for len(persist) > 0 {
-				cps = append(cps, <-persist)
-			}
+			saved := cps.drain()
 			found := false
-			for _, j := range cps {
-				if cp, ok := j.(model.Checkpoint); ok && cp.ID == p.ID && cp.Exp == 9 && cp.MapID == data.Town().ID && cp.X == data.Town().PlayerSpawn.X {
+			for _, cp := range saved {
+				if cp.ID == p.ID && cp.Exp == 9 && cp.MapID == data.Town().ID && cp.X == data.Town().PlayerSpawn.X {
 					found = true
 				}
 			}
 			if !found {
-				t.Fatalf("no checkpoint with the penalty among %+v", cps)
+				t.Fatalf("no checkpoint with the penalty among %+v", saved)
 			}
 		}
 	})
@@ -385,8 +382,8 @@ func TestDeathAndRespawn(t *testing.T) {
 func TestKillGivesExpAndLevelsUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
-		persist := make(chan model.Job, 100)
-		inst, stop := runMap(t, data, arena(time.Hour), persist, options{})
+		cps := &checkpoints{}
+		inst, stop := runMap(t, data, arena(time.Hour), cps, options{})
 		defer stop()
 		time.Sleep(tickInterval)
 		synctest.Wait()
@@ -416,24 +413,9 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		if v.Level != 2 || v.HP != 252 || v.MaxHP != 252 {
 			t.Fatalf("view after level-up %+v", v)
 		}
-		var saved []model.Job
-		for len(persist) > 0 {
-			saved = append(saved, <-persist)
-		}
-		found := false
-		for _, j := range saved {
-			if lu, ok := j.(model.LevelUpSave); ok && lu.ID == p.ID && lu.Level == 2 && lu.HP == 252 && lu.Stats.STR == 15 {
-				found = true
-			}
-		}
-		if !found {
-			t.Fatalf("no level-up job among %+v", saved)
-		}
-		inst.LeaveConnection(p.ID, "")
-		time.Sleep(tickInterval)
-		synctest.Wait()
-		if cp, ok := (<-persist).(model.Checkpoint); !ok || cp.Level != 2 || cp.Exp != 3 || cp.Stats != lu.Stats {
-			t.Fatalf("checkpoint %+v: it carries the level-up, so a lost level-up save is repaired", cp)
+		// The level-up is checkpointed right away, with the whole progression.
+		if saved := cps.drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 252 || saved[0].Stats != lu.Stats {
+			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
 	})
 }

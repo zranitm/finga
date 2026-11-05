@@ -20,15 +20,18 @@ import (
 // errRefused is a save the character service refuses by rule: never retried.
 var errRefused = errors.New("refused")
 
+// errUnavailable is a transient failure.
+var errUnavailable = errors.New("unavailable")
+
 // fakeSaver records saves; the first failures attempts fail with err.
 type fakeSaver struct {
 	mu       sync.Mutex
 	saved    []model.Checkpoint
-	levelUps []model.LevelUpSave
-	attempts []string // "cp <map>" or "lu <level>", one per attempt
+	attempts []string // "cp <map>", one per attempt
 	err      error
 	failures int
-	hangs    int // the first hangs attempts wait until their context ends
+	hangs    int    // the first hangs attempts wait until their context ends
+	failing  string // a map whose saves always fail with err, whatever failures says
 }
 
 // attempt records what is tried; f.mu is held and attempt unlocks it.
@@ -40,7 +43,11 @@ func (f *fakeSaver) attempt(ctx context.Context, what string) error {
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	if err != nil && (f.failures == 0 || n <= f.failures) {
+	fails := f.failures == 0 || n <= f.failures
+	if f.failing != "" {
+		fails = what == "cp "+f.failing
+	}
+	if err != nil && fails {
 		return err
 	}
 	return nil
@@ -50,12 +57,6 @@ func (f *fakeSaver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) err
 	f.mu.Lock()
 	f.saved = append(f.saved, cp)
 	return f.attempt(ctx, "cp "+cp.MapID)
-}
-
-func (f *fakeSaver) SaveLevelUp(ctx context.Context, lu model.LevelUpSave) error {
-	f.mu.Lock()
-	f.levelUps = append(f.levelUps, lu)
-	return f.attempt(ctx, "lu "+string(rune('0'+lu.Level)))
 }
 
 func (f *fakeSaver) Retryable(err error) bool { return !errors.Is(err, errRefused) }
@@ -185,8 +186,20 @@ func leaveAndRun(t *testing.T, saver *fakeSaver, before func()) {
 	}
 }
 
-// A character service restart must not lose a save, and an older one must land first.
-func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
+// count is how many of attempts are what.
+func count(attempts []string, what string) int {
+	n := 0
+	for _, a := range attempts {
+		if a == what {
+			n++
+		}
+	}
+	return n
+}
+
+// A failed save is retried behind the others until it lands: it holds up no other save, and the world
+// never gives it up while it runs, so a character service outage loses no level-up.
+func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	run := func(t *testing.T, saver *fakeSaver) []string {
 		t.Helper()
 		var attempts []string
@@ -197,34 +210,36 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 		})
 		return attempts
 	}
-	t.Run("a save that fails twice is retried, and the next job waits for it", func(t *testing.T) {
+	t.Run("the first two attempts fail, and each save then lands once", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			got := run(t, &fakeSaver{err: errors.New("unavailable"), failures: 2})
-			if len(got) != 4 || got[0] != "cp town" || got[2] != "cp town" || got[3] != "cp forest" {
+			got := run(t, &fakeSaver{err: errUnavailable, failures: 2})
+			if len(got) != 4 || count(got[2:], "cp town") != 1 || count(got[2:], "cp forest") != 1 {
 				t.Fatalf("attempts %v", got)
 			}
 		})
 	})
-	t.Run("one that keeps failing is given up after the limit, and the worker goes on", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			got := run(t, &fakeSaver{err: errors.New("unavailable")})
-			first := 0
-			for _, a := range got {
-				if a == "cp town" {
-					first++
-				}
-			}
-			// About fifteen tries fit in a minute; then the first save is dropped and the next tried.
-			if first < 3 || first > 20 || got[first] != "cp forest" {
-				t.Fatalf("%d attempts at the first save, then %v", first, got[first:])
-			}
-		})
-	})
-	t.Run("a save the character service never answers is cut off and retried", func(t *testing.T) {
+	t.Run("a save the character service never answers is cut off, and the next goes first", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			got := run(t, &fakeSaver{hangs: 1})
-			if len(got) != 3 || got[0] != "cp town" || got[1] != "cp town" || got[2] != "cp forest" {
+			if len(got) != 3 || got[0] != "cp town" || got[1] != "cp forest" || got[2] != "cp town" {
 				t.Fatalf("attempts %v", got)
+			}
+		})
+	})
+	t.Run("one that keeps failing is still tried after a minute, and holds up no other", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			saver := &fakeSaver{err: errUnavailable, failing: "town"}
+			var atOne, atTwo []string
+			leaveAndRun(t, saver, func() {
+				time.Sleep(time.Minute)
+				synctest.Wait()
+				atOne = saver.attemptsSoFar()
+				time.Sleep(time.Minute)
+				synctest.Wait()
+				atTwo = saver.attemptsSoFar()
+			})
+			if count(atOne, "cp forest") != 1 || count(atTwo, "cp town") <= count(atOne, "cp town") {
+				t.Fatalf("attempts after a minute %v, after two %v", atOne, atTwo)
 			}
 		})
 	})
@@ -240,12 +255,12 @@ func TestThePersistenceWorkerRetriesInOrder(t *testing.T) {
 // At shutdown each save still waiting, the one being retried included, gets one last try and no more.
 func TestShutdownTriesEachSaveOnceMore(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		saver := &fakeSaver{err: errors.New("unavailable")}
+		saver := &fakeSaver{err: errUnavailable}
 		var start time.Time
 		before := 0
 		leaveAndRun(t, saver, func() { start, before = time.Now(), len(saver.attemptsSoFar()) })
 		after := saver.attemptsSoFar()[before:]
-		if time.Since(start) > time.Second || len(after) != 2 || after[0] != "cp town" || after[1] != "cp forest" {
+		if time.Since(start) > time.Second || len(after) != 2 || count(after, "cp town") != 1 || count(after, "cp forest") != 1 {
 			t.Fatalf("shutdown took %s with attempts %v after it began", time.Since(start), after)
 		}
 	})
@@ -281,7 +296,7 @@ func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
 
 func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		saver := &fakeSaver{err: errors.New("db down")}
+		saver := &fakeSaver{err: errUnavailable}
 		w := newWorld(t, saver, options{CheckpointInterval: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() { _ = w.Run(ctx) }()
@@ -401,7 +416,7 @@ func TestATransferOfAReplacedPresenceIsDropped(t *testing.T) {
 	})
 }
 
-func TestAFailedSaveIsLoggedWithItsJobAndCharacter(t *testing.T) {
+func TestARefusedSaveIsLoggedWithItsCharacter(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var logs bytes.Buffer
 		w := newWorld(t, &fakeSaver{err: errRefused}, options{CheckpointInterval: time.Hour, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
@@ -421,7 +436,7 @@ func TestAFailedSaveIsLoggedWithItsJobAndCharacter(t *testing.T) {
 		if err := <-runDone; err != nil {
 			t.Fatal(err)
 		}
-		for _, want := range []string{`"msg":"persistence failed"`, `"job":"checkpoint"`, `"character_id":"` + p.ID.String() + `"`, `"map_id":"town"`} {
+		for _, want := range []string{`"msg":"persistence failed"`, `"character_id":"` + p.ID.String() + `"`, `"map_id":"town"`} {
 			if !strings.Contains(logs.String(), want) {
 				t.Fatalf("log %q lacks %s", logs.String(), want)
 			}

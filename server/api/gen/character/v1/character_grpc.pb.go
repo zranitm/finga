@@ -39,9 +39,11 @@ type CharacterServiceClient interface {
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
 	// Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
 	Load(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (*LoadResponse, error)
-	// SaveCheckpoint saves position, HP, MP and EXP.
+	// SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
 	SaveCheckpoint(ctx context.Context, in *SaveCheckpointRequest, opts ...grpc.CallOption) (*SaveCheckpointResponse, error)
-	// SaveLevelUp saves a level-up right away.
+	// Deprecated: Do not use.
+	// SaveLevelUp saves a level-up. The world no longer calls it; it is served for a world not yet upgraded,
+	// and buf's FILE rules keep a published RPC.
 	SaveLevelUp(ctx context.Context, in *SaveLevelUpRequest, opts ...grpc.CallOption) (*SaveLevelUpResponse, error)
 }
 
@@ -93,6 +95,7 @@ func (c *characterServiceClient) SaveCheckpoint(ctx context.Context, in *SaveChe
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *characterServiceClient) SaveLevelUp(ctx context.Context, in *SaveLevelUpRequest, opts ...grpc.CallOption) (*SaveLevelUpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveLevelUpResponse)
@@ -116,9 +119,11 @@ type CharacterServiceServer interface {
 	List(context.Context, *ListRequest) (*ListResponse, error)
 	// Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
 	Load(context.Context, *LoadRequest) (*LoadResponse, error)
-	// SaveCheckpoint saves position, HP, MP and EXP.
+	// SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
 	SaveCheckpoint(context.Context, *SaveCheckpointRequest) (*SaveCheckpointResponse, error)
-	// SaveLevelUp saves a level-up right away.
+	// Deprecated: Do not use.
+	// SaveLevelUp saves a level-up. The world no longer calls it; it is served for a world not yet upgraded,
+	// and buf's FILE rules keep a published RPC.
 	SaveLevelUp(context.Context, *SaveLevelUpRequest) (*SaveLevelUpResponse, error)
 	mustEmbedUnimplementedCharacterServiceServer()
 }

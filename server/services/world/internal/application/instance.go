@@ -54,7 +54,7 @@ type Instance struct {
 	mover    Mover
 	roll     model.Roll
 	inbox    chan message
-	persist  chan<- model.Job
+	saves    Checkpoints
 
 	tick     uint64
 	players  map[kernel.CharacterID]*player
@@ -139,9 +139,9 @@ type player struct {
 	private       []model.Event // events for this player only
 }
 
-// NewInstance builds the actor for m; its checkpoints and level-ups go to persist, and mover takes its
-// players to other maps. Run starts it.
-func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, mover Mover, t Tuning, d Deps) *Instance {
+// NewInstance builds the actor for m; its checkpoints go to saves, and mover takes its players to other
+// maps. Run starts it.
+func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover Mover, t Tuning, d Deps) *Instance {
 	ticksPer := uint64(t.CheckpointInterval / t.TickInterval)
 	if ticksPer == 0 {
 		ticksPer = 1
@@ -151,7 +151,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job,
 		m: m, data: data, params: params, tuning: t, deps: d, mover: mover, roll: d.NewRoll(),
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inbox:    make(chan message, inboxSize),
-		persist:  persist,
+		saves:    saves,
 		players:  map[kernel.CharacterID]*player{},
 		spawns:   make([]spawnState, len(m.Spawns)),
 		ticksPer: ticksPer,
@@ -461,7 +461,7 @@ func (i *Instance) view(p *player) model.PlayerView {
 	return model.PlayerView{ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP, Dead: p.dead, Invulnerable: p.invulnUntil > i.tick, State: p.state}
 }
 
-// checkpoint never blocks: a full queue drops it and the next sweep retries.
+// checkpoint never blocks: saves keeps each character's newest checkpoint until it is saved.
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) ticksFor(d time.Duration) uint64 {
@@ -491,9 +491,5 @@ func (i *Instance) detach(id kernel.CharacterID) {
 }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Stats: p.Stats}
-	select {
-	case i.persist <- cp:
-	default:
-	}
+	i.saves.Put(model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Stats: p.Stats})
 }

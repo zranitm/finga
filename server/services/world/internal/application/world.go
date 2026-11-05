@@ -16,19 +16,18 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
+	"finga/pkg/coalesce"
 	"finga/pkg/panics"
 	"finga/services/world/internal/model"
 )
 
 const (
-	persistQueue       = 4096
 	transferTimeout    = 5 * time.Second // a transfer's join, retries included
 	transferRetryFirst = 20 * time.Millisecond
 	transferRetryMax   = 500 * time.Millisecond
 	callTimeout        = 5 * time.Second // one call to another service; past it the call counts as failed
 
-	saveRetryFor   = time.Minute // how long a transiently failing save is retried
-	saveRetryFirst = 100 * time.Millisecond
+	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
 	saveRetryMax   = 5 * time.Second
 )
 
@@ -40,7 +39,8 @@ type World struct {
 	instances map[string]*Instance
 	order     []string
 	presences presences
-	persist   chan model.Job
+	// saves holds each character's newest checkpoint until the persistence worker has saved it.
+	saves *coalesce.Queue[kernel.CharacterID, model.Checkpoint]
 	// flushTimeout bounds the last saves on shutdown, all together.
 	flushTimeout time.Duration
 	// Transfers run beside the ticks until Run stops them.
@@ -63,11 +63,12 @@ type WorldDeps struct {
 func New(data *gamedata.Data, t Tuning, d WorldDeps) *World {
 	w := &World{
 		data: data, deps: d, instances: map[string]*Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
-		persist: make(chan model.Job, persistQueue), flushTimeout: t.FlushTimeout,
+		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
+		flushTimeout: t.FlushTimeout,
 	}
 	w.jobs, w.stopTransfers = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = NewInstance(m, data, w.persist, w, t, d.Deps)
+		w.instances[m.ID] = NewInstance(m, data, w.saves, w, t, d.Deps)
 		w.order = append(w.order, m.ID)
 	}
 	return w
@@ -218,95 +219,83 @@ func (w *World) Run(ctx context.Context) error {
 	return err
 }
 
-// persistence is the queue's one consumer: it saves jobs in order, so an older checkpoint never lands
-// after a newer one, retrying a transient failure while ctx lasts. Then each job left, the one whose
-// retries ctx cut short first, gets one try within the flush budget, until the maps have stopped.
+// persistence is the save queue's one consumer, so each character's checkpoints land in the order its map
+// put them. While ctx lasts it saves with retries; then each checkpoint left gets one try within the flush
+// budget, until the maps have stopped.
 func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) {
-	cut := w.saveUntilDone(ctx)
+	w.saveWhile(ctx)
 	final, cancel := context.WithTimeout(context.WithoutCancel(ctx), w.flushTimeout)
 	defer cancel()
-	if cut != nil {
-		w.lastTry(final, cut)
-	}
 	for {
+		if cp, ok := w.saves.Take(); ok {
+			w.lastTry(final, cp)
+			continue
+		}
 		select {
-		case job := <-w.persist:
-			w.lastTry(final, job)
+		case <-w.saves.Ready():
 		case <-stopped:
-			for {
-				select {
-				case job := <-w.persist:
-					w.lastTry(final, job)
-				default:
-					return
-				}
+			for cp, ok := w.saves.Take(); ok; cp, ok = w.saves.Take() {
+				w.lastTry(final, cp)
 			}
+			return
 		}
 	}
 }
 
-// saveUntilDone saves the queue's jobs until ctx ends, and returns the one whose retries it cut short.
-func (w *World) saveUntilDone(ctx context.Context) model.Job {
-	for {
-		select {
-		case job := <-w.persist:
-			if !w.save(ctx, job) && ctx.Err() != nil {
-				return job
+// saveWhile saves the queue's checkpoints until ctx ends. A save that fails transiently goes back in line
+// behind the others, and failures in a row back the worker off, up to saveRetryMax: one failing save holds
+// up no other, and an outage costs every save the same wait. A refused save is dropped and logged.
+func (w *World) saveWhile(ctx context.Context) {
+	wait := &backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}
+	for ctx.Err() == nil {
+		cp, ok := w.saves.Take()
+		if !ok {
+			select {
+			case <-w.saves.Ready():
+			case <-ctx.Done():
 			}
-		case <-ctx.Done():
-			return nil
+			continue
+		}
+		err := w.saveOnce(ctx, cp)
+		retry := err != nil && w.deps.Saver.Retryable(err)
+		w.saves.Done(cp, retry)
+		switch {
+		case err == nil:
+			wait.Reset()
+		case !retry:
+			w.deps.Logger.ErrorContext(ctx, "persistence failed", append(saveAttrs(cp), "err", err)...)
+		case ctx.Err() == nil:
+			w.deps.Logger.WarnContext(ctx, "save failed; retrying", append(saveAttrs(cp), "err", err)...)
+			pause(ctx, wait.NextBackOff())
 		}
 	}
 }
 
-// save saves job, retrying a transient failure for up to saveRetryFor, and reports whether it was saved.
-// A failure is logged unless ctx ended, which only cuts the retries short.
-func (w *World) save(ctx context.Context, job model.Job) bool {
-	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		err := w.saveOnce(ctx, job)
-		if err != nil && !w.deps.Saver.Retryable(err) {
-			return struct{}{}, backoff.Permanent(err)
-		}
-		return struct{}{}, err
-	},
-		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}),
-		backoff.WithMaxElapsedTime(saveRetryFor),
-	)
-	if err == nil {
-		return true
+// lastTry saves cp once on shutdown; a failure is logged, as the save is lost.
+func (w *World) lastTry(ctx context.Context, cp model.Checkpoint) {
+	if err := w.saveOnce(ctx, cp); err != nil {
+		w.deps.Logger.ErrorContext(ctx, "persistence failed", append(saveAttrs(cp), "shutdown", true, "err", err)...)
 	}
-	if ctx.Err() == nil {
-		w.deps.Logger.ErrorContext(ctx, "persistence failed", append(jobAttrs(job), "err", err)...)
-	}
-	return false
+	w.saves.Done(cp, false)
 }
 
-// lastTry saves job once on shutdown; a failure is logged, as the save is lost.
-func (w *World) lastTry(ctx context.Context, job model.Job) {
-	if err := w.saveOnce(ctx, job); err != nil {
-		w.deps.Logger.ErrorContext(ctx, "persistence failed", append(jobAttrs(job), "shutdown", true, "err", err)...)
-	}
+// saveAttrs name a save in the log.
+func saveAttrs(cp model.Checkpoint) []any {
+	return []any{"character_id", cp.ID, "map_id", cp.MapID, "level", cp.Level}
 }
 
-// jobAttrs name a job in the log: its kind and its character.
-func jobAttrs(job model.Job) []any {
-	switch j := job.(type) {
-	case model.Checkpoint:
-		return []any{"job", "checkpoint", "character_id", j.ID, "map_id", j.MapID}
-	case model.LevelUpSave:
-		return []any{"job", "level_up", "character_id", j.ID, "level", j.Level}
-	}
-	return nil
-}
-
-func (w *World) saveOnce(ctx context.Context, job model.Job) error {
+func (w *World) saveOnce(ctx context.Context, cp model.Checkpoint) error {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	switch j := job.(type) {
-	case model.LevelUpSave:
-		return w.deps.Saver.SaveLevelUp(ctx, j)
-	case model.Checkpoint:
-		return w.deps.Saver.SaveCheckpoint(ctx, j)
+	return w.deps.Saver.SaveCheckpoint(ctx, cp)
+}
+
+// pause waits d, or until ctx ends.
+func pause(ctx context.Context, d time.Duration) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-ctx.Done():
 	}
-	return nil
 }

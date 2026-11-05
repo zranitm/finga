@@ -23,11 +23,16 @@ type Sink interface {
 	Send(model.Event) bool
 }
 
-// Saver persists checkpoints and level-ups, from the persistence worker, never from a tick.
+// Saver persists checkpoints, from the persistence worker, never from a tick.
 type Saver interface {
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
-	SaveLevelUp(ctx context.Context, lu model.LevelUpSave) error
 	Retryable(err error) bool
+}
+
+// Checkpoints takes a map's checkpoints for saving. Put must not block or drop one; a newer checkpoint of a
+// character may replace an older one not yet saved.
+type Checkpoints interface {
+	Put(cp model.Checkpoint)
 }
 
 // Mover moves a player to another map's instance; it must not block the calling tick.

@@ -130,7 +130,7 @@ One proto package per service under `api/proto/internal/`. A request names its o
 | `List` | account_id | characters |
 | `Load` | character_id, account_id (ownership) | character, with max HP and MP |
 | `SaveCheckpoint` | character_id, map_id, x, y, hp, mp, level, exp, stats | |
-| `SaveLevelUp` | character_id, level, exp, stats, hp, mp | |
+| `SaveLevelUp` (deprecated) | character_id, level, exp, stats, hp, mp | Served for a world not yet upgraded; the world saves a level-up as a checkpoint |
 
 **`internal.item.v1.ItemService`**
 
@@ -217,7 +217,7 @@ Every call to another service has a deadline: the request's own for a call made 
 ### Pickups, checkpoints and the tick
 
 - **Pickups** already run on the world's economy workers: the worker calls the item service's `Add`, keyed by the drop ID, with a 5 s deadline, and retries once when the failure carries no reason. The result returns through the instance's inbox, as today.
-- **Checkpoints and level-ups** go to the character service from the persistence worker, which gives each save a 5 s deadline and retries a failed one with backoff, in order, for up to a minute before logging it with the job's kind and character.
+- **Checkpoints**, a level-up's included, go to the character service from the persistence worker, which keeps each character's newest one until it is saved. It gives each save a 5 s deadline; a failed one goes back in line behind the others, the worker backing off while failures run on, and is never given up while the world runs. A refused one is logged with its character.
 - **Parties.** The world keeps a local copy of party membership, fed by social's `WatchParties` stream; loot windows and EXP sharing read the copy. When a member's map, level or HP changes, the world queues `social.UpdateMember` for a worker; the tick never waits for it.
 
 ### Party and chat

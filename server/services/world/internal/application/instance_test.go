@@ -169,10 +169,34 @@ func (o options) deps() application.Deps {
 	return application.Deps{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties}
 }
 
-// newInstance builds m's instance with o filled in.
-func newInstance(m *gamedata.Map, data *gamedata.Data, persist chan<- model.Job, o options) *application.Instance {
+// checkpoints records what an instance puts for saving.
+type checkpoints struct {
+	mu  sync.Mutex
+	cps []model.Checkpoint
+}
+
+func (c *checkpoints) Put(cp model.Checkpoint) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cps = append(c.cps, cp)
+}
+
+// drain is what was put since the last drain.
+func (c *checkpoints) drain() []model.Checkpoint {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := c.cps
+	c.cps = nil
+	return out
+}
+
+// newInstance builds m's instance with o filled in; cps may be nil.
+func newInstance(m *gamedata.Map, data *gamedata.Data, cps *checkpoints, o options) *application.Instance {
 	o = o.fill()
-	return application.NewInstance(m, data, persist, o.Transfer, o.tuning(), o.deps())
+	if cps == nil {
+		cps = &checkpoints{}
+	}
+	return application.NewInstance(m, data, cps, o.Transfer, o.tuning(), o.deps())
 }
 
 // newWorldOf builds a World over data with o filled in.
@@ -185,15 +209,15 @@ func newWorldOf(data *gamedata.Data, saver application.Saver, o options) *applic
 }
 
 // run starts a town instance in the synctest bubble; stop waits for Run so nothing outlives it.
-func run(t *testing.T, data *gamedata.Data, persist chan<- model.Job, opts options) (*application.Instance, func()) {
+func run(t *testing.T, data *gamedata.Data, cps *checkpoints, opts options) (*application.Instance, func()) {
 	t.Helper()
-	return runMap(t, data, data.Town(), persist, opts)
+	return runMap(t, data, data.Town(), cps, opts)
 }
 
 // runMap starts m's instance in the synctest bubble, as run does the town's.
-func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, persist chan<- model.Job, opts options) (*application.Instance, func()) {
+func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, cps *checkpoints, opts options) (*application.Instance, func()) {
 	t.Helper()
-	inst := newInstance(m, data, persist, opts)
+	inst := newInstance(m, data, cps, opts)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = inst.Run(ctx) }()
@@ -642,8 +666,8 @@ func TestCheckpoints(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		persist := make(chan model.Job, 100)
-		inst, cancel := run(t, data, persist, options{CheckpointInterval: 30 * time.Second})
+		cps := &checkpoints{}
+		inst, cancel := run(t, data, cps, options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
 		p := newPlayer("Ayla", x, y)
 		p.Exp = 12
@@ -655,19 +679,7 @@ func TestCheckpoints(t *testing.T) {
 		synctest.Wait()
 		inst.Input(p.ID, 1, sim.Input{Right: true})
 
-		collect := func() []model.Checkpoint {
-			var out []model.Checkpoint
-			for {
-				select {
-				case j := <-persist:
-					if cp, ok := j.(model.Checkpoint); ok {
-						out = append(out, cp)
-					}
-				default:
-					return out
-				}
-			}
-		}
+		collect := cps.drain
 
 		{ // nothing before the interval
 			time.Sleep(29 * time.Second)
@@ -726,13 +738,13 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		persist := make(chan model.Job, 100)
-		inst, cancel := run(t, data, persist, options{CheckpointInterval: 4 * tickInterval})
+		cps := &checkpoints{}
+		inst, cancel := run(t, data, cps, options{CheckpointInterval: 4 * tickInterval})
 		defer cancel()
 		drain := func() []kernel.CharacterID {
 			var out []kernel.CharacterID
-			for len(persist) > 0 {
-				out = append(out, (<-persist).(model.Checkpoint).ID)
+			for _, cp := range cps.drain() {
+				out = append(out, cp.ID)
 			}
 			return out
 		}

@@ -217,7 +217,8 @@ func (ExpGained) event() {}
 
 func (LevelUp) event() {}
 
-// Checkpoint is a character's periodically saved, non-economic state.
+// Checkpoint is a character's non-economic state, saved every interval and right away on a level-up, a map
+// change or a leave.
 type Checkpoint struct {
 	ID    kernel.CharacterID
 	MapID string // the map it is on, or moving to
@@ -228,24 +229,6 @@ type Checkpoint struct {
 	Exp   int64
 	Stats gamedata.Stats
 }
-
-// LevelUpSave is saved right away when a character gains a level.
-type LevelUpSave struct {
-	ID    kernel.CharacterID
-	Level int
-	Exp   int64
-	Stats gamedata.Stats
-	HP    int
-	MP    int
-}
-
-// Job is one unit of work for the persistence worker: a Checkpoint or a LevelUpSave.
-//
-//sumtype:decl
-type Job interface{ job() }
-
-func (Checkpoint) job()  {}
-func (LevelUpSave) job() {}
 
 // DropView is an item on the ground as everyone sees it.
 type DropView struct {

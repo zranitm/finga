@@ -200,11 +200,7 @@ func (i *Instance) award(p *player, amount int64) {
 	p.changed = true
 	p.private = append(p.private, model.LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 	i.tellParty(p, i.m.ID)
-	lu := model.LevelUpSave{ID: p.ID, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MP: p.MP}
-	select {
-	case i.persist <- lu:
-	default:
-	}
+	i.checkpoint(p)
 }
 
 // contactDamage hurts, knocks back and briefly protects a player touching a mob.

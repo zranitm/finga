@@ -966,13 +966,13 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x18REASON_CLASS_UNAVAILABLE\x10\x04\x12\x1f\n" +
 	"\x1bREASON_CHARACTER_SLOTS_FULL\x10\x05\x12\x11\n" +
 	"\rREASON_BAD_ID\x10\x06\x12\x1c\n" +
-	"\x14REASON_UNKNOWN_CLASS\x10\a\x1a\x02\b\x012\xe0\x03\n" +
+	"\x14REASON_UNKNOWN_CLASS\x10\a\x1a\x02\b\x012\xe5\x03\n" +
 	"\x10CharacterService\x12U\n" +
 	"\x06Create\x12$.internal.character.v1.CreateRequest\x1a%.internal.character.v1.CreateResponse\x12O\n" +
 	"\x04List\x12\".internal.character.v1.ListRequest\x1a#.internal.character.v1.ListResponse\x12O\n" +
 	"\x04Load\x12\".internal.character.v1.LoadRequest\x1a#.internal.character.v1.LoadResponse\x12m\n" +
-	"\x0eSaveCheckpoint\x12,.internal.character.v1.SaveCheckpointRequest\x1a-.internal.character.v1.SaveCheckpointResponse\x12d\n" +
-	"\vSaveLevelUp\x12).internal.character.v1.SaveLevelUpRequest\x1a*.internal.character.v1.SaveLevelUpResponseB(Z&finga/api/gen/character/v1;characterv1b\x06proto3"
+	"\x0eSaveCheckpoint\x12,.internal.character.v1.SaveCheckpointRequest\x1a-.internal.character.v1.SaveCheckpointResponse\x12i\n" +
+	"\vSaveLevelUp\x12).internal.character.v1.SaveLevelUpRequest\x1a*.internal.character.v1.SaveLevelUpResponse\"\x03\x88\x02\x01B(Z&finga/api/gen/character/v1;characterv1b\x06proto3"
 
 var (
 	file_internal_character_v1_character_proto_rawDescOnce sync.Once
