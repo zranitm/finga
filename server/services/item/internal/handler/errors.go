@@ -17,6 +17,8 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrStackFull, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_STACK_FULL},
 	{Err: model.ErrInventoryFull, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_INVENTORY_FULL},
 	{Err: model.ErrKeyReused, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED},
+	{Err: model.ErrBadKey, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
+	{Err: model.ErrBadCause, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_CAUSE},
 	{Err: model.ErrBadQuantity, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_QUANTITY},
 	{Err: model.ErrBadSlot, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_SLOT},
 	{Err: model.ErrWrongTab, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_WRONG_TAB},

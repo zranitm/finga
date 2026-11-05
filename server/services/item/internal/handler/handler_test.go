@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -91,6 +92,8 @@ var (
 	character = kernel.NewCharacterID()
 	actor     = &itemv1.Actor{AccountId: account.String(), CharacterId: character.String()}
 	potion    = model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: character, Tab: gamedata.Use, Slot: 3, Quantity: 5}
+	key1      = "k-" + uuidv7.NewString() // as the client sends one
+	key2      = "k-" + uuidv7.NewString()
 	// changed is a move's result: slot 0 emptied, slot 3 holds the potion.
 	changed = application.Result{Changed: []model.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &potion}}}
 )
@@ -134,7 +137,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantChanged(t, res.GetChanged())
 	})
 	t.Run("Add without a cause ID", func(t *testing.T) {
-		if _, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: "k", TemplateId: "slime_gel", Quantity: 1,
+		if _, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1,
 			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_PLAYER}}); err != nil {
 			t.Fatal(err)
 		}
@@ -143,21 +146,21 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 	})
 	t.Run("Move", func(t *testing.T) {
-		res, err := c.Move(ctx, &itemv1.MoveRequest{Actor: actor, IdempotencyKey: "k-1", ItemId: potion.ID.String(), Tab: "use", Slot: 3})
+		res, err := c.Move(ctx, &itemv1.MoveRequest{Actor: actor, IdempotencyKey: key1, ItemId: potion.ID.String(), Tab: "use", Slot: 3})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.move != (application.MoveInput{Key: "k-1", ItemID: potion.ID, Tab: gamedata.Use, Slot: 3}) {
+		if f.move != (application.MoveInput{Key: key1, ItemID: potion.ID, Tab: gamedata.Use, Slot: 3}) {
 			t.Fatalf("move %+v", f.move)
 		}
 		wantChanged(t, res.GetChanged())
 	})
 	t.Run("Discard", func(t *testing.T) {
-		res, err := c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: "k-2", ItemId: potion.ID.String(), Quantity: 2})
+		res, err := c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: key2, ItemId: potion.ID.String(), Quantity: 2})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.discard != (application.DiscardInput{Key: "k-2", ItemID: potion.ID, Quantity: 2}) {
+		if f.discard != (application.DiscardInput{Key: key2, ItemID: potion.ID, Quantity: 2}) {
 			t.Fatalf("discard %+v", f.discard)
 		}
 		wantChanged(t, res.GetChanged())
@@ -189,7 +192,7 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			return err
 		}, itemv1.Reason_REASON_BAD_ID},
 		{"an actor's account", func() error {
-			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: bad, IdempotencyKey: "k", TemplateId: "slime_gel", Quantity: 1})
+			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: bad, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1})
 			return err
 		}, itemv1.Reason_REASON_BAD_ID},
 		{"an actor's character", func() error {
@@ -201,9 +204,25 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			return err
 		}, itemv1.Reason_REASON_BAD_ID},
 		{"a cause", func() error {
-			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: "k", TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: "nope"}})
+			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: "nope"}})
 			return err
 		}, itemv1.Reason_REASON_BAD_ID},
+		{"an empty idempotency key", func() error {
+			_, err := c.Move(ctx, &itemv1.MoveRequest{Actor: actor, ItemId: potion.ID.String(), Tab: "use", Slot: 1})
+			return err
+		}, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
+		{"an idempotency key that is no UUID", func() error {
+			_, err := c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: "discard-1", ItemId: potion.ID.String(), Quantity: 1})
+			return err
+		}, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
+		{"an idempotency key of 4 KiB", func() error {
+			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1 + strings.Repeat("x", 4096), TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP}})
+			return err
+		}, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
+		{"a cause with no type", func() error {
+			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{}})
+			return err
+		}, itemv1.Reason_REASON_BAD_CAUSE},
 		{"a class", func() error {
 			_, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "paladin"})
 			return err
@@ -226,7 +245,7 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 	for _, row := range handler.Errors {
 		t.Run(grpcx.Key(row.Reason).Name, func(t *testing.T) {
 			c := client(t, &fakeItems{err: row.Err})
-			_, err := c.Move(context.Background(), &itemv1.MoveRequest{Actor: actor, IdempotencyKey: "k", ItemId: potion.ID.String(), Tab: "use", Slot: 1})
+			_, err := c.Move(context.Background(), &itemv1.MoveRequest{Actor: actor, IdempotencyKey: key1, ItemId: potion.ID.String(), Tab: "use", Slot: 1})
 			if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(row.Reason) || status.Code(err) != row.Code {
 				t.Fatalf("got %v", err)
 			}

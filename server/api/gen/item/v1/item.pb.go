@@ -39,6 +39,10 @@ const (
 	Reason_REASON_UNKNOWN_CLASS          Reason = 11
 	// A move onto a stack of the same item with no room left.
 	Reason_REASON_STACK_FULL Reason = 12
+	// An idempotency key that is not a UUID, with or without the client's k- prefix.
+	Reason_REASON_BAD_IDEMPOTENCY_KEY Reason = 13
+	// A cause with no type, or one this service does not know.
+	Reason_REASON_BAD_CAUSE Reason = 14
 )
 
 // Enum value maps for Reason.
@@ -57,6 +61,8 @@ var (
 		10: "REASON_BAD_ID",
 		11: "REASON_UNKNOWN_CLASS",
 		12: "REASON_STACK_FULL",
+		13: "REASON_BAD_IDEMPOTENCY_KEY",
+		14: "REASON_BAD_CAUSE",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":            0,
@@ -72,6 +78,8 @@ var (
 		"REASON_BAD_ID":                 10,
 		"REASON_UNKNOWN_CLASS":          11,
 		"REASON_STACK_FULL":             12,
+		"REASON_BAD_IDEMPOTENCY_KEY":    13,
+		"REASON_BAD_CAUSE":              14,
 	}
 )
 
@@ -488,12 +496,13 @@ func (x *InventoryResponse) GetItems() []*Item {
 }
 
 type AddRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Actor          *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	TemplateId     string                 `protobuf:"bytes,3,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
-	Quantity       int32                  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
-	Cause          *Cause                 `protobuf:"bytes,5,opt,name=cause,proto3" json:"cause,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Actor *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	// A UUID, optionally prefixed k- (the client's request ID, or the drop's ID); scoped by account.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	TemplateId     string `protobuf:"bytes,3,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	Quantity       int32  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Cause          *Cause `protobuf:"bytes,5,opt,name=cause,proto3" json:"cause,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -608,12 +617,13 @@ func (x *AddResponse) GetChanged() []*Slot {
 }
 
 type MoveRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Actor          *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	ItemId         string                 `protobuf:"bytes,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
-	Tab            string                 `protobuf:"bytes,4,opt,name=tab,proto3" json:"tab,omitempty"`
-	Slot           int32                  `protobuf:"varint,5,opt,name=slot,proto3" json:"slot,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Actor *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	// A UUID, optionally prefixed k- (the client's request ID, or the drop's ID); scoped by account.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ItemId         string `protobuf:"bytes,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	Tab            string `protobuf:"bytes,4,opt,name=tab,proto3" json:"tab,omitempty"`
+	Slot           int32  `protobuf:"varint,5,opt,name=slot,proto3" json:"slot,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -728,11 +738,12 @@ func (x *MoveResponse) GetChanged() []*Slot {
 }
 
 type DiscardRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Actor          *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	IdempotencyKey string                 `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	ItemId         string                 `protobuf:"bytes,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
-	Quantity       int32                  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Actor *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	// A UUID, optionally prefixed k- (the client's request ID, or the drop's ID); scoped by account.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ItemId         string `protobuf:"bytes,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	Quantity       int32  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -991,7 +1002,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12\x14\n" +
 	"\x05class\x18\x02 \x01(\tR\x05class\"H\n" +
 	"\x14GrantStarterResponse\x120\n" +
-	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged*\xd3\x02\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged*\x89\x03\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -1006,7 +1017,9 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\rREASON_BAD_ID\x10\n" +
 	"\x12\x18\n" +
 	"\x14REASON_UNKNOWN_CLASS\x10\v\x12\x15\n" +
-	"\x11REASON_STACK_FULL\x10\f*k\n" +
+	"\x11REASON_STACK_FULL\x10\f\x12\x1e\n" +
+	"\x1aREASON_BAD_IDEMPOTENCY_KEY\x10\r\x12\x14\n" +
+	"\x10REASON_BAD_CAUSE\x10\x0e*k\n" +
 	"\tCauseType\x12\x1a\n" +
 	"\x16CAUSE_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fCAUSE_TYPE_DROP\x10\x01\x12\x15\n" +

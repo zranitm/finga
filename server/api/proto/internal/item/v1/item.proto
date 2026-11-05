@@ -35,6 +35,10 @@ enum Reason {
   REASON_UNKNOWN_CLASS = 11;
   // A move onto a stack of the same item with no room left.
   REASON_STACK_FULL = 12;
+  // An idempotency key that is not a UUID, with or without the client's k- prefix.
+  REASON_BAD_IDEMPOTENCY_KEY = 13;
+  // A cause with no type, or one this service does not know.
+  REASON_BAD_CAUSE = 14;
 }
 
 enum CauseType {
@@ -83,6 +87,7 @@ message InventoryResponse {
 
 message AddRequest {
   Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID, or the drop's ID); scoped by account.
   string idempotency_key = 2;
   string template_id = 3;
   int32 quantity = 4;
@@ -95,6 +100,7 @@ message AddResponse {
 
 message MoveRequest {
   Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID, or the drop's ID); scoped by account.
   string idempotency_key = 2;
   string item_id = 3;
   string tab = 4;
@@ -107,6 +113,7 @@ message MoveResponse {
 
 message DiscardRequest {
   Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID, or the drop's ID); scoped by account.
   string idempotency_key = 2;
   string item_id = 3;
   int32 quantity = 4;

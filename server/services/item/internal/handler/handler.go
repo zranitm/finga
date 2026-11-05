@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -58,7 +59,11 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: req.GetIdempotencyKey(), TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause})
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause})
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +80,11 @@ func (s *Server) Move(ctx context.Context, req *itemv1.MoveRequest) (*itemv1.Mov
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Move(ctx, actor, application.MoveInput{Key: req.GetIdempotencyKey(), ItemID: id, Tab: gamedata.Tab(req.GetTab()), Slot: int(req.GetSlot())})
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Move(ctx, actor, application.MoveInput{Key: key, ItemID: id, Tab: gamedata.Tab(req.GetTab()), Slot: int(req.GetSlot())})
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +101,11 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Discard(ctx, actor, application.DiscardInput{Key: req.GetIdempotencyKey(), ItemID: id, Quantity: int(req.GetQuantity())})
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Discard(ctx, actor, application.DiscardInput{Key: key, ItemID: id, Quantity: int(req.GetQuantity())})
 	if err != nil {
 		return nil, err
 	}
@@ -134,8 +147,25 @@ var causeTypes = map[itemv1.CauseType]model.CauseType{
 	itemv1.CauseType_CAUSE_TYPE_STARTER: model.CauseStarter,
 }
 
+// keyOf accepts a UUID in canonical form, optionally prefixed k- as the client sends it; it is stored as
+// sent, so a retry across a deploy still finds it.
+func keyOf(key string) (string, error) {
+	id := strings.TrimPrefix(key, "k-")
+	if len(id) != 36 {
+		return "", model.ErrBadKey
+	}
+	if _, err := uuid.Parse(id); err != nil {
+		return "", model.ErrBadKey
+	}
+	return key, nil
+}
+
 func causeOf(c *itemv1.Cause) (model.Cause, error) {
-	out := model.Cause{Type: causeTypes[c.GetType()]}
+	t, ok := causeTypes[c.GetType()]
+	if !ok {
+		return model.Cause{}, model.ErrBadCause
+	}
+	out := model.Cause{Type: t}
 	if c.GetId() != "" {
 		id, err := uuid.Parse(c.GetId())
 		if err != nil {

@@ -463,7 +463,11 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("starter potions %+v in %+v", potions, welcome.Inventory)
 		}
 
-		p.send(wsconn.Message{ReqID: "m-1", Data: &clientv1.InventoryMove{IdempotencyKey: "move-1", ItemId: potions.GetItemId(), Tab: "use", Slot: 3}})
+		keys := map[string]string{} // each command's key, as the client makes them: k- and a UUID
+		for _, name := range []string{"move-1", "move-3", "discard-1", "discard-2"} {
+			keys[name] = "k-" + uuidv7.NewString()
+		}
+		p.send(wsconn.Message{ReqID: "m-1", Data: &clientv1.InventoryMove{IdempotencyKey: keys["move-1"], ItemId: potions.GetItemId(), Tab: "use", Slot: 3}})
 		r := p.expect("Response")
 		if r.ReqID != "m-1" || !r.Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("move response %+v", r)
@@ -472,16 +476,16 @@ func TestLootAndKeep(t *testing.T) {
 		if len(ic.Slots) != 2 || ic.Slots[0].Slot != 0 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].GetItem().GetQuantity() != 5 {
 			t.Fatalf("after move %+v", ic)
 		}
-		p.send(wsconn.Message{ReqID: "m-2", Data: &clientv1.InventoryMove{IdempotencyKey: "move-1", ItemId: potions.GetItemId(), Tab: "use", Slot: 3}})
+		p.send(wsconn.Message{ReqID: "m-2", Data: &clientv1.InventoryMove{IdempotencyKey: keys["move-1"], ItemId: potions.GetItemId(), Tab: "use", Slot: 3}})
 		if r := p.expect("Response"); r.ReqID != "m-2" || !r.Data.(*clientv1.Response).GetOk() {
 			t.Fatalf("replayed move %+v", r)
 		}
 		p.expect("InventoryChanged")
-		p.send(wsconn.Message{ReqID: "m-3", Data: &clientv1.InventoryMove{IdempotencyKey: "move-3", ItemId: potions.GetItemId(), Tab: "etc", Slot: 1}})
+		p.send(wsconn.Message{ReqID: "m-3", Data: &clientv1.InventoryMove{IdempotencyKey: keys["move-3"], ItemId: potions.GetItemId(), Tab: "etc", Slot: 1}})
 		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "wrong_tab" {
 			t.Fatalf("cross-tab move %+v", r)
 		}
-		p.send(wsconn.Message{ReqID: "d-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "discard-1", ItemId: potions.GetItemId(), Quantity: 2}})
+		p.send(wsconn.Message{ReqID: "d-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: keys["discard-1"], ItemId: potions.GetItemId(), Quantity: 2}})
 		if r := p.expect("Response").Data.(*clientv1.Response); !r.GetOk() {
 			t.Fatalf("discard %+v", r)
 		}
@@ -489,7 +493,7 @@ func TestLootAndKeep(t *testing.T) {
 		if len(ic.Slots) != 1 || ic.Slots[0].Slot != 3 || ic.Slots[0].Item == nil || ic.Slots[0].GetItem().GetQuantity() != 3 {
 			t.Fatalf("after discard %+v", ic)
 		}
-		p.send(wsconn.Message{ReqID: "d-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "discard-2", ItemId: potions.GetItemId(), Quantity: 9}})
+		p.send(wsconn.Message{ReqID: "d-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: keys["discard-2"], ItemId: potions.GetItemId(), Quantity: 9}})
 		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_quantity" {
 			t.Fatalf("over-discard %+v", r)
 		}

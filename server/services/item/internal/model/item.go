@@ -20,6 +20,8 @@ var (
 	ErrStackFull     = errors.New("item: the stack in that slot is full")
 	ErrInventoryFull = errors.New("item: inventory full")
 	ErrKeyReused     = errors.New("item: idempotency key reused with other arguments")
+	ErrBadKey        = errors.New("item: idempotency key is not a UUID")
+	ErrBadCause      = errors.New("item: unknown cause type")
 	ErrBadQuantity   = errors.New("item: bad quantity")
 	ErrBadSlot       = errors.New("item: slot outside the tab")
 	ErrWrongTab      = errors.New("item: item moved to another tab")
