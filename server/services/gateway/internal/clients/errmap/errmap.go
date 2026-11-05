@@ -95,12 +95,10 @@ func Wrap(err error) error {
 		return err
 	}
 	e := &model.ServiceError{Public: For(err), Err: err}
-	if r, ok := grpcx.ReasonOf(err); ok {
-		if r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED) {
-			e.Kind = model.ErrNotSubscribed
-		}
+	if r, ok := grpcx.ReasonOf(err); ok && r == grpcx.Key(worldv1.Reason_REASON_NOT_SUBSCRIBED) {
+		e.Kind = model.ErrNotSubscribed
 	} else if status.Code(err) == codes.Unavailable {
-		e.Kind = model.ErrUnavailable
+		e.Kind = model.ErrUnavailable // with a reason too: a busy or stopping world is worth waiting for
 	}
 	return e
 }

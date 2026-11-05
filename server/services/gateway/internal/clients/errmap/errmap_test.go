@@ -143,6 +143,9 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 		{"a reason is its Public", grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, "party_full"},
 		{"the world not holding the stream", grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, "internal"},
 		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "internal"},
+		{"a world too busy to take a join", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), model.ErrUnavailable, "internal"},
+		{"a world that is stopping", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_STOPPED), model.ErrUnavailable, "internal"},
+		{"pickups unavailable keep their own code", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), model.ErrUnavailable, "pickups_unavailable"},
 		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, "internal"},
 	}
 	for _, tt := range tests {
