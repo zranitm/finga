@@ -28,10 +28,14 @@ type Process interface {
 // Build is a binary's composition root.
 type Build[C Config] func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (Process, error)
 
-// Main runs Start until SIGINT or SIGTERM and returns the exit code.
+// Main runs Start until SIGINT or SIGTERM and returns the exit code; a second signal kills the process.
 func Main[C Config](name, version string, build Build[C]) int {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalled, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	// The shutdown starts only once the handler is gone, so the next signal gets the default action.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	context.AfterFunc(signalled, func() { stop(); cancel() })
 	return Start(ctx, os.Stdout, os.Stderr, name, version, build)
 }
 

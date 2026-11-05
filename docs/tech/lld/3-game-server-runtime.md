@@ -78,7 +78,7 @@ Only one player can hold a reservation, so two players cannot both get a drop th
 
 ## Shutdown and crashes
 
-- **Graceful (SIGTERM):** each process turns unready first. The gateway then refuses new connections, tells every client the server is restarting (Kicked `server_restart`) and closes its connections. A gRPC service ends its open streams with Unavailable (the subscribers resubscribe), so its listener waits only for the calls in flight, within `shutdown_grace`; the world then stops its maps, which checkpoint the players on them, and saves what is queued within `flush_timeout`. Compose's `stop_grace_period` covers both: 15 s for a service, 25 s for the world. A service other than the gateway restarts without closing a socket (page 10, Restarts and failures).
+- **Graceful (SIGTERM):** each process turns unready first. The gateway then refuses new connections, tells every client the server is restarting (Kicked `server_restart`) and closes its connections. A gRPC service ends its open streams with Unavailable (the subscribers resubscribe), so its listener waits only for the calls in flight, within `shutdown_grace`; the world then stops its maps, which checkpoint the players on them, and saves what is queued within `flush_timeout`. Compose's `stop_grace_period` covers both: 15 s for a service, 25 s for the world. A service other than the gateway restarts without closing a socket (page 10, Restarts and failures). A second SIGINT or SIGTERM during the shutdown kills the process at once.
 - **Crash:** in-memory state since the last checkpoint is lost (positions, mobs, ground drops, parties). Committed items and coins are unaffected. A world crash keeps the sockets: the gateway rejoins its players when the world is back.
 
 ## Panics
