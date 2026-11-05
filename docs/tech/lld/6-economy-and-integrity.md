@@ -52,6 +52,7 @@ Fee = floor(price × fee_bps / 10,000), with fee_bps 500 (5%, OD-10 default), st
 ## Concurrency guarantees
 
 - **Two buyers, one listing:** the listing's row lock serializes them; the second sees sold and gets listing_unavailable.
+- **Two changes to one inventory** (adjacent pickups, a pickup beside the starter grant, a move): a per-owner advisory lock, taken before the inventory's rows, orders them, so the second sees the first's new item and picks another slot. Row locks alone cannot, since an empty slot has no row.
 - **Retried command:** the same idempotency key returns the stored response with no second effect. The same key with a different request returns idempotency_key_reused.
 - **Double pickup:** the map instance's reservation stops it, and the drop ID as idempotency key makes a retried job harmless. The key is per account, and a failed pickup releases the drop even when its outcome is unknown, so a grant whose reply was lost can be granted again to another account (page 3).
 

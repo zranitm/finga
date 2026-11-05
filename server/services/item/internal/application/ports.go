@@ -25,7 +25,8 @@ type UnitOfWork interface {
 
 // Repository reads and writes the items table; owned methods put the owner in the WHERE clause.
 type Repository interface {
-	// LockInventory locks the owner's rows in ID order and returns them by tab and slot.
+	// LockInventory takes the owner's lock, which orders that owner's changes (two would pick the same empty
+	// slot), then locks the rows in ID order and returns them by tab and slot.
 	LockInventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
 	LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error)
 	Insert(ctx context.Context, it model.Item) error

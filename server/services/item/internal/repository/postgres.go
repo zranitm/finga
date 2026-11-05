@@ -87,8 +87,11 @@ type repo struct {
 	now func() time.Time
 }
 
-// LockInventory locks the owner's inventory rows in ID order.
+// LockInventory takes the owner's lock, then locks the owner's inventory rows in ID order.
 func (r repo) LockInventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) {
+	if err := r.q.LockOwner(ctx, owner.String()); err != nil {
+		return nil, err
+	}
 	rows, err := r.q.LockInventory(ctx, uuid.UUID(owner))
 	if err != nil {
 		return nil, err

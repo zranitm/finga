@@ -1,3 +1,7 @@
+-- name: LockOwner :exec
+-- Orders one owner's inventory changes: a row lock cannot cover the empty slot two of them would pick.
+SELECT pg_advisory_xact_lock(hashtextextended('item.inventory:' || sqlc.arg(owner_id)::text, 0));
+
 -- name: LockInventory :many
 -- Every inventory row of the owner, locked in ID order so concurrent
 -- actions on one inventory never deadlock.

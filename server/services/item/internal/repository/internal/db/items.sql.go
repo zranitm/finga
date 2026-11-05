@@ -185,6 +185,16 @@ func (q *Queries) LockOwnedItem(ctx context.Context, arg LockOwnedItemParams) (I
 	return i, err
 }
 
+const lockOwner = `-- name: LockOwner :exec
+SELECT pg_advisory_xact_lock(hashtextextended('item.inventory:' || $1::text, 0))
+`
+
+// Orders one owner's inventory changes: a row lock cannot cover the empty slot two of them would pick.
+func (q *Queries) LockOwner(ctx context.Context, ownerID string) error {
+	_, err := q.db.Exec(ctx, lockOwner, ownerID)
+	return err
+}
+
 const setQuantity = `-- name: SetQuantity :execrows
 UPDATE items SET quantity = $2, updated_at = $3 WHERE id = $1
 `
