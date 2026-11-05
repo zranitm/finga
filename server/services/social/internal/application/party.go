@@ -138,6 +138,9 @@ func (s *PartyService) join(tx PartyTx, n *notes, inv model.Invite) error {
 		return model.ErrNotHere
 	}
 	p, ok := tx.PartyOf(inv.From)
+	if ok && p.Leader != inv.From {
+		return model.ErrInviteExpired // the inviter no longer leads the party it invited to
+	}
 	if !ok {
 		leader, ok := tx.Member(inv.From)
 		if !ok {

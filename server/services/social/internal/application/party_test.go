@@ -419,3 +419,32 @@ func TestAStoreFailureIsReturnedAndNobodyIsTold(t *testing.T) {
 		t.Fatalf("notified %+v %+v", f.rec.states, f.rec.invites)
 	}
 }
+
+// An invite holds only while its inviter leads the party it would join, or still leads none.
+func TestAnInviteNeedsItsInviterToStillLead(t *testing.T) {
+	t.Run("the inviter handed the lead on", func(t *testing.T) {
+		f := newFixture(t, "Ayla", "Robin", "Cass")
+		f.invite(t, "Ayla", "Robin")
+		inv, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Cass"))
+		must(t, err)
+		must(t, f.svc.Promote(f.ctx, f.id("Ayla"), f.id("Robin")))
+		if err := f.svc.Respond(f.ctx, f.id("Cass"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
+			t.Fatalf("accepting after the promotion: %v", err)
+		}
+		if _, ok := f.of(t, f.id("Cass")); ok {
+			t.Fatal("Cass joined a party whose leader never invited her")
+		}
+	})
+	t.Run("the inviter joined someone else's party", func(t *testing.T) {
+		f := newFixture(t, "Dana", "Eli", "Ayla")
+		inv, err := f.svc.Invite(f.ctx, f.id("Dana"), f.id("Eli"))
+		must(t, err)
+		f.invite(t, "Ayla", "Dana")
+		if err := f.svc.Respond(f.ctx, f.id("Eli"), inv.ID, true); !errors.Is(err, model.ErrInviteExpired) {
+			t.Fatalf("accepting after the inviter joined Ayla: %v", err)
+		}
+		if _, ok := f.of(t, f.id("Eli")); ok {
+			t.Fatal("Eli joined Ayla's party, which Ayla never invited him to")
+		}
+	})
+}
