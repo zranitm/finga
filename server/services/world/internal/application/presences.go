@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"sync"
 
 	"finga/internal/kernel"
@@ -8,10 +9,11 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// presence is where a joined character is, and the connection it joined through.
+// presence is where a joined character is, the connection it joined through and its account.
 type presence struct {
-	inst *Instance
-	conn string
+	inst    *Instance
+	conn    string
+	account kernel.AccountID
 }
 
 // presences is the world's registry of joined characters; the gateway's commands are routed through it.
@@ -59,7 +61,7 @@ func (ps *presences) move(id kernel.CharacterID, conn string, inst *Instance) bo
 	if !ok || p.conn != conn {
 		return false
 	}
-	ps.by[id] = presence{inst: inst, conn: conn}
+	ps.by[id] = presence{inst: inst, conn: conn, account: p.account}
 	return true
 }
 
@@ -74,6 +76,27 @@ func (ps *presences) forget(id kernel.CharacterID, at presence) bool {
 	return true
 }
 
+// take removes the character's presence, if it is the account's, and returns it.
+func (ps *presences) take(id kernel.CharacterID, account kernel.AccountID) (presence, bool) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	p, ok := ps.by[id]
+	if !ok || p.account != account {
+		return presence{}, false
+	}
+	delete(ps.by, id)
+	return p, true
+}
+
+// restore puts back a presence take removed, unless another was placed since.
+func (ps *presences) restore(id kernel.CharacterID, at presence) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if _, ok := ps.by[id]; !ok {
+		ps.by[id] = at
+	}
+}
+
 // holds reports whether the character is still at at.
 func (ps *presences) holds(id kernel.CharacterID, at presence) bool {
 	ps.mu.Lock()
@@ -81,14 +104,21 @@ func (ps *presences) holds(id kernel.CharacterID, at presence) bool {
 	return ps.by[id] == at
 }
 
-// Leave removes the character if it joined through conn; a Leave from any other connection is a no-op.
-func (w *World) Leave(id kernel.CharacterID, conn string) error {
+// Leave removes the character if it joined through conn, and returns once its map has, with its last
+// checkpoint queued, so a join after it starts from there. A Leave from any other connection is a no-op.
+func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) error {
 	at, ok := w.presences.at(id, conn)
 	if !ok {
 		return nil
 	}
-	if !at.inst.LeaveConnection(id, conn) {
+	left := make(chan struct{})
+	if !at.inst.post(leaveMsg{id: id, conn: conn, done: left}) {
 		return model.ErrBusy
+	}
+	select {
+	case <-left:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 	w.presences.forget(id, at)
 	return nil

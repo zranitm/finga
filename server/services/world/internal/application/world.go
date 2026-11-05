@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	transferTimeout    = 5 * time.Second // a transfer's join, retries included
-	transferRetryFirst = 20 * time.Millisecond
-	transferRetryMax   = 500 * time.Millisecond
-	callTimeout        = 5 * time.Second // one call to another service; past it the call counts as failed
+	busyRetryFirst  = 20 * time.Millisecond // a post to a map whose inbox is full
+	busyRetryMax    = 500 * time.Millisecond
+	transferTimeout = 5 * time.Second // a transfer's join, retries included
+	callTimeout     = 5 * time.Second // one call to another service; past it the call counts as failed
 
 	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
 	saveRetryMax   = 5 * time.Second
@@ -83,13 +83,21 @@ func (w *World) instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-// Join loads the account's character, grants its starter items (best effort: a failure is logged, and
-// the next join tries again) and joins its saved map through conn.
-// An older presence of the character on another map leaves it; one on the same map is replaced there.
+// Join takes the account's character off the map it is on, loads it with its newest checkpoint not yet
+// saved laid over it, grants its starter items (best effort: a failure is logged, and the next join tries
+// again) and joins its map through conn. So a login elsewhere, or a rejoin, starts where the character
+// was, never at an older save.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
+	if err := w.takeOff(ctx, id, account); err != nil {
+		return model.View{}, err
+	}
+	unsaved, pending := w.saves.Get(id) // before the load, so a save that lands between them is not missed
 	c, err := w.deps.Characters.Load(ctx, id, account)
 	if err != nil {
 		return model.View{}, err
+	}
+	if pending {
+		c = withCheckpoint(c, unsaved)
 	}
 	if err := w.deps.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
 		w.deps.Logger.WarnContext(ctx, "starter items not granted; the next join tries again", "character_id", id, "err", err)
@@ -104,7 +112,7 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{})
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
-	at := presence{inst: inst, conn: conn}
+	at := presence{inst: inst, conn: conn, account: account}
 	prev, had := w.presences.place(id, at)
 	err = inst.Join(ctx, p, sink)
 	if errors.Is(err, model.ErrBusy) {
@@ -126,6 +134,42 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
 		MapID: c.MapID, X: c.X, Y: c.Y,
 	}, nil
+}
+
+// takeOff removes the account's character from its map, if it is on one, and waits until the map has
+// queued its last checkpoint. Another account's character is left where it is.
+func (w *World) takeOff(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) error {
+	at, ok := w.presences.take(id, account)
+	if !ok {
+		return nil
+	}
+	left := make(chan struct{})
+	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+		if !at.inst.post(leaveMsg{id: id, conn: at.conn, done: left}) {
+			return struct{}{}, model.ErrBusy
+		}
+		return struct{}{}, nil
+	}, backoff.WithBackOff(busyBackOff()), backoff.WithMaxElapsedTime(0))
+	if err != nil {
+		w.presences.restore(id, at)
+		return err
+	}
+	select {
+	case <-left:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// withCheckpoint is c as cp left it.
+func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
+	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Stats = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Stats
+	return c
+}
+
+func busyBackOff() *backoff.ExponentialBackOff {
+	return &backoff.ExponentialBackOff{InitialInterval: busyRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: busyRetryMax}
 }
 
 // Transfer joins the player to another map on its own goroutine, so the calling tick never waits.
@@ -152,27 +196,22 @@ var errMoved = errors.New("the presence moved on")
 func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
 	ctx, cancel := context.WithTimeout(w.jobs, transferTimeout)
 	defer cancel()
-	at := presence{inst: target, conn: p.Connection}
+	at := presence{inst: target, conn: p.Connection, account: p.Account}
+	held := func() bool { return w.presences.holds(p.ID, at) }
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		if !w.presences.holds(p.ID, at) {
+		if !held() {
 			return struct{}{}, backoff.Permanent(errMoved)
 		}
-		err := target.join(ctx, &joinMsg{player: p, sink: sink, transfer: true})
-		if errors.Is(err, errReplaced) {
-			return struct{}{}, backoff.Permanent(errMoved)
-		}
+		err := target.join(ctx, &joinMsg{player: p, sink: sink, held: held})
 		if err != nil && !errors.Is(err, model.ErrBusy) {
 			return struct{}{}, backoff.Permanent(err)
 		}
 		return struct{}{}, err
-	},
-		backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: transferRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: transferRetryMax}),
-		backoff.WithMaxElapsedTime(0),
-	)
+	}, backoff.WithBackOff(busyBackOff()), backoff.WithMaxElapsedTime(0))
 	switch {
 	case errors.Is(err, errMoved):
 	case err == nil:
-		if !w.presences.holds(p.ID, at) {
+		if !held() {
 			target.LeaveConnection(p.ID, p.Connection) // it left while the join landed
 		}
 	case w.jobs.Err() != nil:

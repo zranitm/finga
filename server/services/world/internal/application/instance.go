@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"math"
 	"slices"
 	"time"
@@ -79,10 +78,11 @@ type Instance struct {
 //sumtype:decl
 type message interface{ message() }
 
-// leaveMsg removes a player, only if it joined through conn (empty: any).
+// leaveMsg removes a player, only if it joined through conn (empty: any), then closes done if set.
 type leaveMsg struct {
 	id   kernel.CharacterID
 	conn string
+	done chan struct{}
 }
 
 type (
@@ -101,14 +101,13 @@ func (portalMsg) message()     {}
 func (chatMsg) message()       {}
 
 type joinMsg struct {
-	player   model.Player
-	sink     Sink
-	done     chan error
-	transfer bool // a transfer never replaces the character's presence through another connection
+	player model.Player
+	sink   Sink
+	done   chan error
+	// held, when set, reports whether the join's presence still holds the character; a transfer's may
+	// have been replaced by a newer join, or have left.
+	held func() bool
 }
-
-// errReplaced is a transfer that found its character held through a newer connection.
-var errReplaced = errors.New("a newer connection holds the character")
 
 type inputMsg struct {
 	id  kernel.CharacterID
@@ -292,11 +291,11 @@ func (i *Instance) drain() []kernel.CharacterID {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})
 			}
 		case leaveMsg:
-			if p, ok := i.players[m.id]; ok && m.conn != "" && p.Connection != m.conn {
-				continue // a newer connection holds the character now
-			}
-			if i.remove(m.id) {
+			if p, ok := i.players[m.id]; (!ok || m.conn == "" || p.Connection == m.conn) && i.remove(m.id) {
 				removed = append(removed, m.id)
+			}
+			if m.done != nil {
+				close(m.done)
 			}
 		}
 	}
@@ -304,11 +303,11 @@ func (i *Instance) drain() []kernel.CharacterID {
 }
 
 func (i *Instance) add(j *joinMsg) {
-	if old, dup := i.players[j.player.ID]; dup {
-		if j.transfer && old.Connection != j.player.Connection {
-			j.done <- errReplaced
-			return
-		}
+	if j.held != nil && !j.held() {
+		j.done <- errMoved
+		return
+	}
+	if _, dup := i.players[j.player.ID]; dup {
 		i.remove(j.player.ID) // a stale presence; the new connection wins
 	}
 	class, ok := i.data.Class(j.player.Class)

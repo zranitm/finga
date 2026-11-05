@@ -23,7 +23,7 @@ import (
 // joined through a connection, each ErrBusy when the character's map cannot take it.
 type World interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error)
-	Leave(id kernel.CharacterID, conn string) error
+	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
 	Attack(id kernel.CharacterID, conn string) error
 	PickUp(id kernel.CharacterID, conn string) error
@@ -94,13 +94,13 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate}, nil
 }
 
-// Leave removes the player if it joined through the presence's connection.
-func (s *Server) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
+// Leave removes the player if it joined through the presence's connection, once its map has.
+func (s *Server) Leave(ctx context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
 	id, conn, err := presence(req.GetPresence())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.world.Leave(id, conn); err != nil {
+	if err := s.world.Leave(ctx, id, conn); err != nil {
 		return nil, err
 	}
 	return &worldv1.LeaveResponse{}, nil

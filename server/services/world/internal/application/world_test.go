@@ -173,7 +173,7 @@ func leaveAndRun(t *testing.T, saver *fakeSaver, before func()) {
 		w.enter(t, p, mapID, "c-1", &sink{})
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		if err := w.Leave(p.ID, "c-1"); err != nil {
+		if err := w.Leave(context.Background(), p.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(tickInterval)
@@ -341,39 +341,44 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 
 func sim0() sim.Input { return sim.Input{} }
 
-// A join through a newer connection on another map takes the character off the old one.
-func TestAJoinElsewhereRemovesTheOlderPresence(t *testing.T) {
+// A join through a newer connection takes the character off its map once and joins it there again; the
+// older connection then gets nothing, and its Leave removes nothing.
+func TestAJoinThroughANewerConnectionReplacesTheOlder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t, &fakeSaver{}, options{CheckpointInterval: time.Hour})
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { _ = w.Run(ctx) }()
 		ayla, bo := at(t, "Ayla", "town"), at(t, "Bo", "town")
-		watcher := &sink{}
+		watcher, old := &sink{}, &sink{}
 		w.enter(t, bo, "town", "c-bo", watcher)
-		w.enter(t, ayla, "town", "c-1", &sink{})
+		w.enter(t, ayla, "town", "c-1", old)
 		time.Sleep(tickInterval)
 		synctest.Wait()
 
-		forest := &sink{}
-		there := at(t, "Ayla", "forest")
-		there.ID = ayla.ID
-		w.enter(t, there, "forest", "c-2", forest)
+		newer := &sink{}
+		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", newer); err != nil {
+			t.Fatal(err)
+		}
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
 		if _, removed := seenIn(watcher, ayla.ID); removed != 1 {
 			t.Fatalf("the town removed her %d times, want once", removed)
 		}
-		if snaps := snapshots(forest); len(snaps) != 1 || snaps[0].MapID != "forest" {
-			t.Fatalf("forest snapshots %+v", snaps)
+		if snaps := snapshots(newer); len(snaps) != 1 || snaps[0].MapID != "town" {
+			t.Fatalf("snapshots %+v", snaps)
 		}
-		if err := w.Leave(ayla.ID, "c-1"); err != nil {
+		before := len(old.deltas())
+		if err := w.Leave(context.Background(), ayla.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
-		if _, removed := seenIn(forest, ayla.ID); removed != 0 {
-			t.Fatal("the older connection's Leave removed her from the forest")
+		if _, removed := seenIn(newer, ayla.ID); removed != 0 {
+			t.Fatal("the older connection's Leave removed her")
+		}
+		if len(old.deltas()) != before {
+			t.Fatal("the older connection still gets deltas")
 		}
 	})
 }
@@ -427,7 +432,7 @@ func TestARefusedSaveIsLoggedWithItsCharacter(t *testing.T) {
 		w.enter(t, p, "town", "c-1", &sink{})
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		if err := w.Leave(p.ID, "c-1"); err != nil {
+		if err := w.Leave(context.Background(), p.ID, "c-1"); err != nil {
 			t.Fatal(err)
 		}
 		time.Sleep(tickInterval)
