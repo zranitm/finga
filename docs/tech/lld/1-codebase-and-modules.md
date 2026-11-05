@@ -196,7 +196,7 @@ type UnitOfWork interface { // everything bound to one transaction
     Items() Repository // the module's own aggregate is just Repository (item.ItemRepository would stutter, and revive rejects it)
     Events() EventRepository
     Outbox() outbox.Writer
-    Idempotency() Idempotency // pkg/idempotency, plus hashing the input and storing the response
+    Idempotency() Idempotency // pkg/idempotency, plus the stored reply's format
 }
 
 // services/item/internal/application/service.go: rules, and where the transaction starts
@@ -373,10 +373,13 @@ func NewWriter(db dbx.DBTX) Writer
 
 // pkg/idempotency: run a command at most once per key
 type Store interface {
-    Do(ctx context.Context, owner, scope, key string, requestHash []byte,
+    Do(ctx context.Context, owner, scope, key string, fingerprint []byte,
         fn func() ([]byte, error)) ([]byte, error) // ErrKeyReused
 }
 func NewStore(db dbx.DBTX) Store
+// Fingerprint identifies a request: SHA-256 over version and values as netstrings, so it changes only
+// when a value does or version is bumped, never with a Go struct
+func Fingerprint(version string, values ...string) []byte
 
 // pkg/ratelimit: a token bucket per key on golang.org/x/time/rate (the
 // bucket is the library's; the package adds the keys and evicts idle ones)

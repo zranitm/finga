@@ -235,13 +235,15 @@ CREATE TABLE idempotency_keys (
   owner        text NOT NULL,                  -- account ID
   scope        text NOT NULL,                  -- command type
   key          text NOT NULL,
-  request_hash bytea NOT NULL,
-  response     bytea NOT NULL,
+  request_hash bytea NOT NULL,                  -- the request's fingerprint
+  response     bytea NOT NULL,                  -- the stored reply
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (owner, scope, key)
 );
 ```
+
+Both columns outlive a deploy, so neither depends on a Go struct's shape. A request's fingerprint is `idempotency.Fingerprint` over a versioned list of the command's values, the character included, in a fixed order: a value added later goes in only when set, and a change of meaning bumps the version, so a retry made before a deploy still matches after it. A golden test pins each command's bytes. The reply is the item repository's own JSON, whose names are those the first replies were written with: a name is never renamed or removed, and a new one is read beside the old while rows that hold the old can exist; a golden test decodes a reply stored by the first version.
 
 Nothing deletes idempotency keys or ended sessions yet, so both tables only grow. A cleanup of old keys is safe: no rule depends on a key outliving the retries it serves (starter kits are recorded in `starter_grants`).
 

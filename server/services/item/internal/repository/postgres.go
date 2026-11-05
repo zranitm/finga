@@ -3,8 +3,6 @@ package repository
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -166,22 +164,17 @@ func (r eventRepo) Append(ctx context.Context, e model.Event) error {
 	return r.q.InsertItemEvent(ctx, params)
 }
 
-// idem adapts pkg/idempotency, hashing the request and storing the Result as JSON.
+// idem adapts pkg/idempotency, storing the Result as a reply.
 type idem struct{ store idempotency.Store }
 
 // Run runs fn once per key for the account.
-func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string, request any, fn func() (application.Result, error)) (application.Result, error) {
-	reqJSON, err := json.Marshal(request)
-	if err != nil {
-		return application.Result{}, err
-	}
-	hash := sha256.Sum256(reqJSON)
-	raw, err := i.store.Do(ctx, owner.String(), scope, key, hash[:], func() ([]byte, error) {
+func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (application.Result, error)) (application.Result, error) {
+	raw, err := i.store.Do(ctx, owner.String(), scope, key, fingerprint, func() ([]byte, error) {
 		res, err := fn()
 		if err != nil {
 			return nil, err
 		}
-		return json.Marshal(res)
+		return encodeReply(res)
 	})
 	if err != nil {
 		if errors.Is(err, idempotency.ErrKeyReused) {
@@ -189,13 +182,7 @@ func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string
 		}
 		return application.Result{}, err
 	}
-	var res application.Result
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &res); err != nil {
-			return application.Result{}, fmt.Errorf("item: stored response: %w", err)
-		}
-	}
-	return res, nil
+	return decodeReply(raw)
 }
 
 func toItems(rows []db.Item) []model.Item {

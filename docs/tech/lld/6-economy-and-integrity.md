@@ -53,7 +53,7 @@ Fee = floor(price × fee_bps / 10,000), with fee_bps 500 (5%, OD-10 default), st
 
 - **Two buyers, one listing:** the listing's row lock serializes them; the second sees sold and gets listing_unavailable.
 - **Two changes to one inventory** (adjacent pickups, a pickup beside the starter grant, a move): a per-owner advisory lock, taken before the inventory's rows, orders them, so the second sees the first's new item and picks another slot. Row locks alone cannot, since an empty slot has no row.
-- **Retried command:** the same idempotency key returns the stored response with no second effect. The same key with a different request returns idempotency_key_reused.
+- **Retried command:** the same idempotency key returns the stored response with no second effect. The same key with a different request (another fingerprint: the command's values and the character, page 2) returns idempotency_key_reused.
 - **Double pickup:** the map instance's reservation stops it, and the drop ID as idempotency key makes a retried job harmless. The key is per account, so a drop whose pickup failed with an unknown outcome stays reserved to its player until their retry settles it or it expires (page 3).
 
 ## Events

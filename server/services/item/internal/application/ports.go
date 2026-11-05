@@ -42,9 +42,10 @@ type EventRepository interface {
 	Append(ctx context.Context, e model.Event) error
 }
 
-// Idempotency runs a command once per key; the same key with another request is ErrKeyReused.
+// Idempotency runs a command once per key and replays its Result; the same key with another fingerprint
+// is ErrKeyReused.
 type Idempotency interface {
-	Run(ctx context.Context, owner kernel.AccountID, scope, key string, request any, fn func() (Result, error)) (Result, error)
+	Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (Result, error)) (Result, error)
 }
 
 // Content is what the use cases need from game data.

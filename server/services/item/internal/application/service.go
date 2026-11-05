@@ -3,10 +3,12 @@ package application
 
 import (
 	"context"
+	"strconv"
 	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/idempotency"
 	"finga/pkg/outbox"
 	"finga/services/item/internal/model"
 )
@@ -34,9 +36,25 @@ type DiscardInput struct {
 	Quantity int
 }
 
-// Result is what a command changed; it is stored for idempotent replays.
+// Result is what a command changed; the repository stores it for idempotent replays.
 type Result struct {
-	Changed []model.Slot `json:"changed"`
+	Changed []model.Slot
+}
+
+// A fingerprint lists the values that identify a command, the character included, in a fixed order. A
+// value added later goes in only when set, so a retry made before it still matches; a change of meaning
+// bumps the version.
+
+func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
+	return idempotency.Fingerprint("item.add/1", c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String())
+}
+
+func (in MoveInput) fingerprint(c kernel.CharacterID) []byte {
+	return idempotency.Fingerprint("item.move/1", c.String(), in.ItemID.String(), string(in.Tab), strconv.Itoa(in.Slot))
+}
+
+func (in DiscardInput) fingerprint(c kernel.CharacterID) []byte {
+	return idempotency.Fingerprint("item.discard/1", c.String(), in.ItemID.String(), strconv.Itoa(in.Quantity))
 }
 
 const (
@@ -75,7 +93,7 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
-		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in, func() (Result, error) {
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
 			return s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Cause)
 		})
 		return err
@@ -148,7 +166,7 @@ func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Re
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
-		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeMove, in.Key, in, func() (Result, error) {
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeMove, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
 			return s.move(ctx, uow, actor.Character, in)
 		})
 		return err
@@ -227,7 +245,7 @@ func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInpu
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
-		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeDiscard, in.Key, in, func() (Result, error) {
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeDiscard, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
 			return s.discard(ctx, uow, actor.Character, in)
 		})
 		return err

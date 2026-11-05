@@ -88,9 +88,9 @@ type Event struct {
 
 // Slot is one changed inventory slot: Item is nil when it emptied.
 type Slot struct {
-	Tab  gamedata.Tab `json:"tab"`
-	Slot int          `json:"slot"`
-	Item *Item        `json:"item,omitempty"`
+	Tab  gamedata.Tab
+	Slot int
+	Item *Item
 }
 
 // Grant is a starter item for a class (classes.yaml).

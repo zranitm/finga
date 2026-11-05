@@ -18,8 +18,9 @@ var ErrKeyReused = errors.New("idempotency: key reused with a different request"
 
 // Store runs commands once per (owner, scope, key).
 type Store interface {
-	// Do runs fn once per key and replays its stored response; fn's error stores nothing.
-	Do(ctx context.Context, owner, scope, key string, requestHash []byte, fn func() ([]byte, error)) ([]byte, error)
+	// Do runs fn once per key and replays its stored response; fn's error stores nothing. fingerprint
+	// identifies the request (see Fingerprint): a key replayed with another is ErrKeyReused.
+	Do(ctx context.Context, owner, scope, key string, fingerprint []byte, fn func() ([]byte, error)) ([]byte, error)
 }
 
 // NewStore binds a store to db, usually a transaction.
@@ -38,7 +39,7 @@ const (
 )
 
 // Do implements Store.
-func (s *store) Do(ctx context.Context, owner, scope, key string, requestHash []byte, fn func() ([]byte, error)) ([]byte, error) {
+func (s *store) Do(ctx context.Context, owner, scope, key string, fingerprint []byte, fn func() ([]byte, error)) ([]byte, error) {
 	// Serialise uses of one key: the second waits for the first to commit, then sees its row.
 	if _, err := s.db.Exec(ctx, lockSQL, lockID(owner, scope, key)); err != nil {
 		return nil, fmt.Errorf("idempotency: lock: %w", err)
@@ -47,7 +48,7 @@ func (s *store) Do(ctx context.Context, owner, scope, key string, requestHash []
 	err := s.db.QueryRow(ctx, findSQL, owner, scope, key).Scan(&storedHash, &response)
 	switch {
 	case err == nil:
-		if !bytes.Equal(storedHash, requestHash) {
+		if !bytes.Equal(storedHash, fingerprint) {
 			return nil, ErrKeyReused
 		}
 		return response, nil
@@ -61,7 +62,7 @@ func (s *store) Do(ctx context.Context, owner, scope, key string, requestHash []
 	if response == nil {
 		response = []byte{}
 	}
-	if _, err := s.db.Exec(ctx, insertSQL, owner, scope, key, requestHash, response); err != nil {
+	if _, err := s.db.Exec(ctx, insertSQL, owner, scope, key, fingerprint, response); err != nil {
 		return nil, fmt.Errorf("idempotency: store: %w", err)
 	}
 	return response, nil
