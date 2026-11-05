@@ -519,7 +519,7 @@ func Declared(dirs ...string) ([]string, error)
 func Referenced(files ...string) (map[string]bool, error)
 ```
 
-Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28), `observability` (the Prometheus registry, its handler, and `panics_total` for `pkg/panics`; TD-21), `pgtest` (a fresh Postgres database per test) and `runner/runnertest` (a process run in a test as its binary runs it, on ports the kernel picks, read from its `listening` log record); tests alone import those two.
+Also in `/pkg`: `configload` (copied from docviewer, see Configuration), `logger` (the `*slog.Logger` every binary logs through, written by zapcore; TD-28; a record whose context carries a request ID, from `reqid`, gets it as `request_id`), `reqid` (a request's ID in its context, which `grpcx` sends and takes from metadata), `observability` (the Prometheus registry, its handler, and `panics_total` for `pkg/panics`; TD-21), `pgtest` (a fresh Postgres database per test) and `runner/runnertest` (a process run in a test as its binary runs it, on ports the kernel picks, read from its `listening` log record); tests alone import those two.
 
 ## Configuration
 

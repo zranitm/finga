@@ -12,6 +12,8 @@ import (
 
 	"finga/pkg/auth"
 	"finga/pkg/panics"
+	"finga/pkg/reqid"
+	"finga/pkg/uuidv7"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
 )
@@ -26,6 +28,7 @@ const (
 	headerOrigin   = "Origin"
 	headerVary     = "Vary"
 	headerAllowOrg = "Access-Control-Allow-Origin"
+	headerReqID    = "X-Request-ID"
 )
 
 func principalFrom(c *gin.Context) auth.Principal {
@@ -66,6 +69,7 @@ func cors(origins []string) gin.HandlerFunc {
 		allowed := origin != "" && slices.Contains(origins, origin)
 		if allowed {
 			c.Header(headerAllowOrg, origin)
+			c.Header("Access-Control-Expose-Headers", headerReqID)
 			c.Writer.Header().Add(headerVary, headerOrigin)
 		}
 		if c.Request.Method == http.MethodOptions && c.GetHeader("Access-Control-Request-Method") != "" {
@@ -83,11 +87,15 @@ func cors(origins []string) gin.HandlerFunc {
 	}
 }
 
-// requestLog logs each request without headers or bodies (no tokens or passwords) and recovers panics as 500;
-// http.ErrAbortHandler goes on to net/http, which drops the connection.
+// requestLog gives each request an ID, which the response names, and logs the request without headers or
+// bodies (no tokens or passwords). It recovers panics as 500; http.ErrAbortHandler goes on to net/http,
+// which drops the connection.
 func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
+		id := uuidv7.NewString()
+		c.Request = c.Request.WithContext(reqid.With(c.Request.Context(), id))
+		c.Header(headerReqID, id)
 		defer func() {
 			r := c.Request
 			p := recover()

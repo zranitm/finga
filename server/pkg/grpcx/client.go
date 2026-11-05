@@ -8,6 +8,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
+
+	"finga/pkg/reqid"
 )
 
 // Keepalive: a client pings an idle connection every keepaliveTime and drops it when no answer comes
@@ -19,21 +21,8 @@ const (
 	keepaliveMinTime = 10 * time.Second
 )
 
-// RequestIDHeader is the metadata key the request ID travels under.
+// RequestIDHeader is the metadata key the request ID (package reqid) travels under.
 const RequestIDHeader = "x-request-id"
-
-type requestIDKey struct{}
-
-// WithRequestID returns ctx carrying id; a call made with it sends the ID.
-func WithRequestID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, requestIDKey{}, id)
-}
-
-// RequestID is the request ID in ctx, or empty.
-func RequestID(ctx context.Context) string {
-	id, _ := ctx.Value(requestIDKey{}).(string)
-	return id
-}
 
 // Dial makes a plain-text (internal network) client connection that sends the request ID.
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
@@ -47,7 +36,7 @@ func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
 }
 
 func outgoing(ctx context.Context) context.Context {
-	if id := RequestID(ctx); id != "" {
+	if id := reqid.From(ctx); id != "" {
 		return metadata.AppendToOutgoingContext(ctx, RequestIDHeader, id)
 	}
 	return ctx

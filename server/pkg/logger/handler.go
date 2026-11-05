@@ -10,6 +10,8 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"finga/pkg/reqid"
 )
 
 // HandlerOptions tune a Handler.
@@ -35,8 +37,11 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 	return h.core.Enabled(zapLevel(level))
 }
 
-// Handle writes r unless the core's level or sampling drops it.
-func (h *Handler) Handle(_ context.Context, r slog.Record) error {
+// requestIDKey is the field a record's request ID, from its context, is written under.
+const requestIDKey = "request_id"
+
+// Handle writes r unless the core's level or sampling drops it, with the request ID ctx carries.
+func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	ce := h.core.Check(zapcore.Entry{Level: zapLevel(r.Level), Time: r.Time, Message: r.Message}, nil)
 	if ce == nil {
 		return nil
@@ -48,6 +53,10 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	}
 	pooled := fieldPool.Get().(*[]zapcore.Field)
 	fields := *pooled
+	if id := reqid.From(ctx); id != "" {
+		fields = append(fields, zap.String(requestIDKey, id))
+	}
+	top := len(fields)
 	for _, g := range h.groups {
 		fields = append(fields, zap.Namespace(g))
 	}
@@ -58,7 +67,7 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	})
 	written := fields
 	if len(fields) == opened {
-		written = nil
+		written = fields[:top]
 	}
 	ce.Write(written...)
 	putFields(pooled, fields)

@@ -24,6 +24,7 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/reqid"
 	"finga/services/gateway/internal/model"
 )
 
@@ -59,6 +60,7 @@ type fakeWorld struct {
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
 	calls      []string      // commands in arrival order
+	requestIDs []string      // each Join's and Attack's, in arrival order
 	hold       chan struct{} // set: Subscribed goes out only during the first join
 	joinGate   chan struct{} // set: a join reports on joining, then waits for the gate to close
 	joining    chan struct{}
@@ -134,8 +136,9 @@ func (f *fakeWorld) restart(boot string) {
 	f.boot, f.live, f.tick = boot, false, 0
 }
 
-func (f *fakeWorld) Join(_ context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
+func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
 	f.mu.Lock()
+	f.requestIDs = append(f.requestIDs, reqid.From(ctx))
 	hold := f.hold
 	f.hold = nil
 	f.mu.Unlock()
@@ -254,6 +257,7 @@ func (f *fakeWorld) inputCount() int {
 
 func (f *fakeWorld) Attack(ctx context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
 	f.mu.Lock()
+	f.requestIDs = append(f.requestIDs, reqid.From(ctx))
 	f.attacks = append(f.attacks, req.GetPresence())
 	f.calls = append(f.calls, "attack")
 	block, blocked := f.block, f.blocked
@@ -269,6 +273,12 @@ func (f *fakeWorld) Attack(ctx context.Context, req *worldv1.AttackRequest) (*wo
 		}
 	}
 	return &worldv1.AttackResponse{}, nil
+}
+
+func (f *fakeWorld) requestIDList() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.requestIDs...)
 }
 
 func (f *fakeWorld) callList() []string {

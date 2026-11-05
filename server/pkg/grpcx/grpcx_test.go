@@ -21,7 +21,9 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/hub"
+	"finga/pkg/logger"
 	"finga/pkg/panics"
+	"finga/pkg/reqid"
 )
 
 var (
@@ -45,7 +47,7 @@ type shop struct {
 
 func (s *shop) EmptyCall(ctx context.Context, _ *testpb.Empty) (*testpb.Empty, error) {
 	if s.sawID != nil {
-		s.sawID <- grpcx.RequestID(ctx)
+		s.sawID <- reqid.From(ctx)
 	}
 	if s.err != nil {
 		if err := s.err(ctx); err != nil {
@@ -156,10 +158,14 @@ func TestAStatusWithoutAReasonKeepsItsCodeAndLosesItsText(t *testing.T) {
 
 func TestAPanicIsInternalAndTheServerKeepsServing(t *testing.T) {
 	var logs bytes.Buffer
-	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)})
+	log, err := logger.New(&logs, logger.Config{Level: "info", Format: logger.FormatJSON})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Panics: panics.NewRecorder(log, nil)})
 	testpb.RegisterTestServiceServer(srv, &shop{})
 	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
-	ctx := grpcx.WithRequestID(context.Background(), "r-7")
+	ctx := reqid.With(context.Background(), "r-7")
 	if _, err := c.UnaryCall(ctx, &testpb.SimpleRequest{}); status.Code(err) != codes.Internal || strings.Contains(err.Error(), "boom") {
 		t.Fatalf("got %v", err)
 	}
@@ -176,7 +182,7 @@ func TestAPanicIsInternalAndTheServerKeepsServing(t *testing.T) {
 func TestTheRequestIDCrossesTheCall(t *testing.T) {
 	s := &shop{sawID: make(chan string, 2)}
 	c := serve(t, s)
-	if _, err := c.EmptyCall(grpcx.WithRequestID(context.Background(), "r-42"), &testpb.Empty{}); err != nil {
+	if _, err := c.EmptyCall(reqid.With(context.Background(), "r-42"), &testpb.Empty{}); err != nil {
 		t.Fatal(err)
 	}
 	if got := <-s.sawID; got != "r-42" {

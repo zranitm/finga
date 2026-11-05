@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"finga/pkg/logger"
+	"finga/pkg/reqid"
 )
 
 func TestTheHandlerPassesSlogtest(t *testing.T) {
@@ -143,6 +144,21 @@ func TestGroupsOpenOnlyOnceTheyHoldAField(t *testing.T) {
 	want := map[string]any{"id": 1.0, "db": map[string]any{"rows": 2.0}}
 	if !reflect.DeepEqual(got[1]["req"], want) {
 		t.Fatalf("req = %v, want %v", got[1]["req"], want)
+	}
+}
+
+func TestARecordCarriesItsContextsRequestID(t *testing.T) {
+	log, buf := newLogger(t, jsonAt("info"))
+	ctx := reqid.With(context.Background(), "r-1")
+	log.InfoContext(ctx, "with", "n", 1)
+	log.WithGroup("req").InfoContext(ctx, "nothing in the group")
+	log.Info("without")
+	got := entries(t, buf)
+	if len(got) != 3 || got[0]["request_id"] != "r-1" || got[1]["request_id"] != "r-1" {
+		t.Fatalf("entries %v, want the request ID on the first two, outside any group", got)
+	}
+	if _, ok := got[2]["request_id"]; ok {
+		t.Fatalf("a record with no request ID wrote one: %v", got[2])
 	}
 }
 

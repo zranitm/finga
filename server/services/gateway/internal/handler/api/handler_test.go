@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/reqid"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler"
@@ -500,6 +502,25 @@ func TestCORS(t *testing.T) {
 			t.Fatalf("foreign preflight status %d", pre.Code)
 		}
 	})
+}
+
+// Each request has an ID of its own: the services' calls and log lines carry it, and the response names it.
+func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
+	h := newHarness("http://localhost:5173")
+	var seen []string
+	h.characters.list = func(ctx context.Context, _ *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+		seen = append(seen, reqid.From(ctx))
+		return &characterv1.ListResponse{}, nil
+	}
+	headers := map[string]string{"Authorization": "Bearer " + goodToken, "Origin": "http://localhost:5173"}
+	first, second := h.do("GET", "/api/characters", "", headers), h.do("GET", "/api/characters", "", headers)
+	ids := []string{first.Header().Get("X-Request-ID"), second.Header().Get("X-Request-ID")}
+	if ids[0] == "" || ids[0] == ids[1] || !slices.Equal(seen, ids) {
+		t.Fatalf("responses named %q, the service saw %q", ids, seen)
+	}
+	if !strings.Contains(first.Header().Get("Access-Control-Expose-Headers"), "X-Request-ID") {
+		t.Fatalf("the browser may not read the ID: %v", first.Header())
+	}
 }
 
 // http.ErrAbortHandler aborts the response on purpose; net/http closes the connection and logs nothing.

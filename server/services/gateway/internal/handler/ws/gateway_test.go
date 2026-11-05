@@ -823,6 +823,23 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 	})
 }
 
+// Each message gets a request ID of its own, which the world's calls and log lines carry.
+func TestEachMessageCarriesItsOwnRequestID(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		c.expect("Snapshot")
+		c.send(wsconn.Message{Data: &clientv1.Attack{}})
+		c.send(wsconn.Message{Data: &clientv1.Attack{}})
+		ids := waitFor(t, "the attacks", h.world.requestIDList, 3)
+		if ids[0] == "" || ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
+			t.Fatalf("the Hello's join and two attacks carried %q", ids)
+		}
+	})
+}
+
 // failingPickUps is a world whose PickUp fails in a way the gateway cannot name, and that cannot be reached
 // for an Attack.
 type failingPickUps struct{ worldv1.WorldServiceClient }

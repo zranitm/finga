@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"finga/pkg/panics"
+	"finga/pkg/reqid"
 )
 
 // ServerOptions configure NewServer.
@@ -118,14 +119,14 @@ func (i interceptors) status(ctx context.Context, method string, err error) erro
 	}
 	st, explained := i.opts.Errors.Status(err)
 	if !explained {
-		i.opts.Logger.ErrorContext(ctx, "rpc failed", "method", method, "request_id", RequestID(ctx), "err", err)
+		i.opts.Logger.ErrorContext(ctx, "rpc failed", "method", method, "err", err)
 	}
 	return st.Err()
 }
 
 func (i interceptors) recover(ctx context.Context, method string, err *error) {
 	if r := recover(); r != nil {
-		i.opts.Panics.Record(ctx, panics.FlowGRPC, panics.Of(r), "method", method, "request_id", RequestID(ctx))
+		i.opts.Panics.Record(ctx, panics.FlowGRPC, panics.Of(r), "method", method)
 		*err = status.Error(codes.Internal, internalMessage)
 	}
 }
@@ -141,7 +142,7 @@ func (s *contextStream) Context() context.Context { return s.ctx }
 func requestIDFromIncoming(ctx context.Context) context.Context {
 	if md, ok := metadata.FromIncomingContext(ctx); ok {
 		if ids := md.Get(RequestIDHeader); len(ids) > 0 && ids[0] != "" {
-			return WithRequestID(ctx, ids[0])
+			return reqid.With(ctx, ids[0])
 		}
 	}
 	return ctx
