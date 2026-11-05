@@ -224,7 +224,9 @@ type Checkpoint struct {
 	X, Y  float64
 	HP    int
 	MP    int
+	Level int
 	Exp   int64
+	Stats gamedata.Stats
 }
 
 // LevelUpSave is saved right away when a character gains a level.

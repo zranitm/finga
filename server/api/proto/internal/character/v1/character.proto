@@ -101,6 +101,9 @@ message SaveCheckpointRequest {
   int32 hp = 5;
   int32 mp = 6;
   int64 exp = 7;
+  // The whole progression, so any checkpoint repairs a level-up save that was lost.
+  int32 level = 8;
+  Stats stats = 9;
 }
 
 message SaveCheckpointResponse {}

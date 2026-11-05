@@ -64,7 +64,8 @@ type Instance struct {
 	nextMob  uint64
 	drops    []*drop
 	nextDrop uint64
-	ticksPer uint64 // ticks between checkpoint sweeps
+	ticksPer uint64 // ticks between a player's checkpoints
+	nextSlot uint64 // the sweep tick, mod ticksPer, the next player to join gets
 
 	dropped      []kernel.CharacterID // removed during the last broadcast, reported next tick
 	removedMobs  []uint64
@@ -125,6 +126,7 @@ type player struct {
 	starved int // ticks in a row with no queued input
 	moved   bool
 	joined  bool
+	slot    uint64 // checkpointed on the ticks equal to it mod ticksPer
 
 	class         gamedata.Class
 	derived       progression.Derived
@@ -235,9 +237,9 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
 	i.expireDrops()
-	if n%i.ticksPer == 0 {
-		for _, id := range i.order {
-			i.checkpoint(i.players[id])
+	for _, id := range i.order {
+		if p := i.players[id]; p.slot == n%i.ticksPer {
+			i.checkpoint(p)
 		}
 	}
 	i.dropped = i.broadcast(changed, i.gone(removed))
@@ -320,11 +322,13 @@ func (i *Instance) add(j *joinMsg) {
 		sink:    j.sink,
 		state:   sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
 		joined:  true,
+		slot:    i.nextSlot,
 		class:   class,
 		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, progression.Equipment{}),
 	}
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)
+	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks
 	i.players[p.ID] = p
 	i.order = append(i.order, p.ID)
 	snap := model.Snapshot{Tick: i.tick, MapID: i.m.ID, Players: make([]model.PlayerView, 0, len(i.order)), Mobs: make([]model.MobView, 0, len(i.mobs)), Drops: i.dropViews()}
@@ -487,7 +491,7 @@ func (i *Instance) detach(id kernel.CharacterID) {
 }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Exp: p.Exp}
+	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Stats: p.Stats}
 	select {
 	case i.persist <- cp:
 	default:

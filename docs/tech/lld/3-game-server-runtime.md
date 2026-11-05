@@ -63,8 +63,8 @@ Only one player can hold a reservation, so two players can never both get a drop
 
 ## Character state and checkpoints
 
-- While a character is online, its position, HP, MP, and EXP live in the map instance.
-- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up. Each save has 5 s. The worker is the queue's only consumer and runs inside `World.Run`: on shutdown it gives each save still waiting one last try, the one it was retrying included, until the maps have checkpointed; those last tries share `flush_timeout` (10 s), so a down character service can't hold the shutdown, and each save lost is logged.
+- While a character is online, its position, HP, MP, level, EXP and stats live in the map instance.
+- The persistence worker saves them every 30 seconds (TD-02), and right away on level-up, map change, and logout, through the character service (step 26). Each player has its own tick within the 30 seconds, handed out in turn as players join, so a map full of players who joined together (after a world restart, say) doesn't queue all its checkpoints on one tick. A checkpoint carries the whole progression (level, EXP and stats), so when the queue is full and a level-up save is dropped, the player's next checkpoint repairs it. A save that fails transiently is retried with backoff, in order, for up to a minute, so a character service restart loses no level-up. Each save has 5 s. The worker is the queue's only consumer and runs inside `World.Run`: on shutdown it gives each save still waiting one last try, the one it was retrying included, until the maps have checkpointed; those last tries share `flush_timeout` (10 s), so a down character service can't hold the shutdown, and each save lost is logged.
 - Items and coins never wait for a checkpoint: each change is its own transaction.
 
 ## Joining, leaving, and changing maps

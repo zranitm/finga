@@ -118,7 +118,7 @@ func TestRepository(t *testing.T) {
 
 	t.Run("a checkpoint saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
-		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Exp: 12}
+		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}}
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
 			t.Fatal(err)
 		}
@@ -126,8 +126,8 @@ func TestRepository(t *testing.T) {
 		if got.MapID != "forest" || got.X != 300.5 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || !got.UpdatedAt.After(before.UpdatedAt) {
 			t.Fatalf("got %+v", got)
 		}
-		if got.Level != 1 || got.Stats != ayla.Stats {
-			t.Fatal("a checkpoint touched level or stats")
+		if got.Level != 2 || got.Stats != cp.Stats {
+			t.Fatalf("level %d, stats %+v: a checkpoint saves the whole progression", got.Level, got.Stats)
 		}
 	})
 

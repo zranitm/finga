@@ -116,10 +116,11 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	s := clients.NewSaver(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
 	id := kernel.NewCharacterID()
 	ctx := context.Background()
-	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Exp: 5}); err != nil {
+	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Stats: gamedata.Stats{STR: 21, VIT: 16}}); err != nil {
 		t.Fatal(err)
 	}
-	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 || cp.GetExp() != 5 {
+	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 ||
+		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetStats().GetStrength() != 21 || cp.GetStats().GetVitality() != 16 {
 		t.Fatalf("checkpoint %+v", cp)
 	}
 	if err := s.SaveLevelUp(ctx, model.LevelUpSave{ID: id, Level: 4, Exp: 6, Stats: gamedata.Stats{STR: 21, VIT: 16}, HP: 280, MP: 31}); err != nil {

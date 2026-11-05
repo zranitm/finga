@@ -134,7 +134,7 @@ func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kerne
 	return s.store.Load(ctx, id, account)
 }
 
-// SaveCheckpoint persists position, HP, MP and EXP.
+// SaveCheckpoint persists position, HP, MP and the whole progression.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)

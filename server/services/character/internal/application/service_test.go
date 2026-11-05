@@ -184,13 +184,13 @@ func TestSaves(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("a checkpoint updates position, HP, MP and EXP", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Exp: 12}
+	t.Run("a checkpoint updates position, HP, MP and the whole progression", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
 		got := store.chars[c.ID]
-		if got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 1 {
+		if got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 2 || got.Stats != cp.Stats {
 			t.Fatalf("after checkpoint: %+v", got)
 		}
 	})

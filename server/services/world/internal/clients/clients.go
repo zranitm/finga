@@ -57,23 +57,26 @@ type Saver struct {
 // NewSaver adapts the character client.
 func NewSaver(c characterv1.CharacterServiceClient) Saver { return Saver{c: c} }
 
-// SaveCheckpoint saves position, HP, MP and EXP.
+// SaveCheckpoint saves position, HP, MP and the whole progression.
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
-		CharacterId: cp.ID.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp,
+		CharacterId: cp.ID.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP),
+		Level: int32(cp.Level), Exp: cp.Exp, Stats: statsOf(cp.Stats),
 	})
 	return err
 }
 
 // SaveLevelUp saves a level-up.
 func (s Saver) SaveLevelUp(ctx context.Context, lu model.LevelUpSave) error {
-	st := lu.Stats
 	_, err := s.c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{
-		CharacterId: lu.ID.String(), Level: int32(lu.Level), Exp: lu.Exp,
-		Stats: &characterv1.Stats{Strength: int32(st.STR), Dexterity: int32(st.DEX), Intelligence: int32(st.INT), Agility: int32(st.AGI), Vitality: int32(st.VIT)},
-		Hp:    int32(lu.HP), Mp: int32(lu.MP),
+		CharacterId: lu.ID.String(), Level: int32(lu.Level), Exp: lu.Exp, Stats: statsOf(lu.Stats),
+		Hp: int32(lu.HP), Mp: int32(lu.MP),
 	})
 	return err
+}
+
+func statsOf(st gamedata.Stats) *characterv1.Stats {
+	return &characterv1.Stats{Strength: int32(st.STR), Dexterity: int32(st.DEX), Intelligence: int32(st.INT), Agility: int32(st.AGI), Vitality: int32(st.VIT)}
 }
 
 // Retryable is a failure that carries no reason.

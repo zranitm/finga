@@ -25,7 +25,9 @@ SELECT * FROM characters WHERE id = $1 AND account_id = $2;
 
 -- name: SaveCheckpoint :execrows
 UPDATE characters
-SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6, exp = $7
+SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6,
+    level = $7, exp = $8,
+    strength = $9, dexterity = $10, intelligence = $11, agility = $12, vitality = $13
 WHERE id = $1;
 
 -- name: SaveLevelUp :execrows

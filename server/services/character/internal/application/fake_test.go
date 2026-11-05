@@ -131,7 +131,7 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	if !ok {
 		return model.ErrNotFound
 	}
-	c.MapID, c.X, c.Y, c.HP, c.MP, c.Exp, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Exp, time.Now()
+	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Stats, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Stats, time.Now()
 	r.s.chars[cp.ID] = c
 	return nil
 }

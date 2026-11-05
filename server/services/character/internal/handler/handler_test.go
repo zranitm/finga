@@ -122,10 +122,11 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantAyla(t, res.GetCharacter(), true)
 	})
 	t.Run("SaveCheckpoint", func(t *testing.T) {
-		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Exp: 7}); err != nil {
+		stats := &characterv1.Stats{Strength: 21, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 16}
+		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 4, Exp: 7, Stats: stats}); err != nil {
 			t.Fatal(err)
 		}
-		if f.checkpoint != (model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Exp: 7}) {
+		if f.checkpoint != (model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 4, Exp: 7, Stats: gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}}) {
 			t.Fatalf("checkpoint %+v", f.checkpoint)
 		}
 	})

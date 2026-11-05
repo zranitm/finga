@@ -626,12 +626,15 @@ type SaveCheckpointRequest struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	CharacterId string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
 	// The map the character is on, or is moving to on a map change.
-	MapId         string  `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
-	X             float64 `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64 `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
-	Hp            int32   `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
-	Mp            int32   `protobuf:"varint,6,opt,name=mp,proto3" json:"mp,omitempty"`
-	Exp           int64   `protobuf:"varint,7,opt,name=exp,proto3" json:"exp,omitempty"`
+	MapId string  `protobuf:"bytes,2,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
+	X     float64 `protobuf:"fixed64,3,opt,name=x,proto3" json:"x,omitempty"`
+	Y     float64 `protobuf:"fixed64,4,opt,name=y,proto3" json:"y,omitempty"`
+	Hp    int32   `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
+	Mp    int32   `protobuf:"varint,6,opt,name=mp,proto3" json:"mp,omitempty"`
+	Exp   int64   `protobuf:"varint,7,opt,name=exp,proto3" json:"exp,omitempty"`
+	// The whole progression, so any checkpoint repairs a level-up save that was lost.
+	Level         int32  `protobuf:"varint,8,opt,name=level,proto3" json:"level,omitempty"`
+	Stats         *Stats `protobuf:"bytes,9,opt,name=stats,proto3" json:"stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -713,6 +716,20 @@ func (x *SaveCheckpointRequest) GetExp() int64 {
 		return x.Exp
 	}
 	return 0
+}
+
+func (x *SaveCheckpointRequest) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *SaveCheckpointRequest) GetStats() *Stats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
 }
 
 type SaveCheckpointResponse struct {
@@ -921,7 +938,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\"N\n" +
 	"\fLoadResponse\x12>\n" +
-	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\"\x9f\x01\n" +
+	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\"\xe9\x01\n" +
 	"\x15SaveCheckpointRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
@@ -929,7 +946,9 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x01y\x18\x04 \x01(\x01R\x01y\x12\x0e\n" +
 	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
 	"\x02mp\x18\x06 \x01(\x05R\x02mp\x12\x10\n" +
-	"\x03exp\x18\a \x01(\x03R\x03exp\"\x18\n" +
+	"\x03exp\x18\a \x01(\x03R\x03exp\x12\x14\n" +
+	"\x05level\x18\b \x01(\x05R\x05level\x122\n" +
+	"\x05stats\x18\t \x01(\v2\x1c.internal.character.v1.StatsR\x05stats\"\x18\n" +
 	"\x16SaveCheckpointResponse\"\xb3\x01\n" +
 	"\x12SaveLevelUpRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x14\n" +
@@ -991,22 +1010,23 @@ var file_internal_character_v1_character_proto_depIdxs = []int32{
 	2,  // 2: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
 	2,  // 3: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
 	2,  // 4: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
-	1,  // 5: internal.character.v1.SaveLevelUpRequest.stats:type_name -> internal.character.v1.Stats
-	3,  // 6: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
-	5,  // 7: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
-	7,  // 8: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
-	9,  // 9: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
-	11, // 10: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
-	4,  // 11: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
-	6,  // 12: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
-	8,  // 13: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
-	10, // 14: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
-	12, // 15: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	1,  // 5: internal.character.v1.SaveCheckpointRequest.stats:type_name -> internal.character.v1.Stats
+	1,  // 6: internal.character.v1.SaveLevelUpRequest.stats:type_name -> internal.character.v1.Stats
+	3,  // 7: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
+	5,  // 8: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
+	7,  // 9: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
+	9,  // 10: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
+	11, // 11: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
+	4,  // 12: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
+	6,  // 13: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
+	8,  // 14: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
+	10, // 15: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
+	12, // 16: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_internal_character_v1_character_proto_init() }

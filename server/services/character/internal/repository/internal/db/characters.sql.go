@@ -192,18 +192,26 @@ func (q *Queries) LockAccountCharacters(ctx context.Context, accountID string) e
 
 const saveCheckpoint = `-- name: SaveCheckpoint :execrows
 UPDATE characters
-SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6, exp = $7
+SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6,
+    level = $7, exp = $8,
+    strength = $9, dexterity = $10, intelligence = $11, agility = $12, vitality = $13
 WHERE id = $1
 `
 
 type SaveCheckpointParams struct {
-	ID    uuid.UUID
-	MapID string
-	PosX  float32
-	PosY  float32
-	Hp    int32
-	Mp    int32
-	Exp   int64
+	ID           uuid.UUID
+	MapID        string
+	PosX         float32
+	PosY         float32
+	Hp           int32
+	Mp           int32
+	Level        int32
+	Exp          int64
+	Strength     int32
+	Dexterity    int32
+	Intelligence int32
+	Agility      int32
+	Vitality     int32
 }
 
 func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) (int64, error) {
@@ -214,7 +222,13 @@ func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) 
 		arg.PosY,
 		arg.Hp,
 		arg.Mp,
+		arg.Level,
 		arg.Exp,
+		arg.Strength,
+		arg.Dexterity,
+		arg.Intelligence,
+		arg.Agility,
+		arg.Vitality,
 	)
 	if err != nil {
 		return 0, err

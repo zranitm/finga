@@ -84,13 +84,16 @@ func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*chara
 	return &characterv1.LoadResponse{Character: s.view(c)}, nil
 }
 
-// SaveCheckpoint saves position, HP, MP and EXP.
+// SaveCheckpoint saves position, HP, MP and the whole progression.
 func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckpointRequest) (*characterv1.SaveCheckpointResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
 		return nil, err
 	}
-	cp := model.Checkpoint{ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()), Exp: req.GetExp()}
+	cp := model.Checkpoint{
+		ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()),
+		Level: int(req.GetLevel()), Exp: req.GetExp(), Stats: statsOf(req.GetStats()),
+	}
 	if err := s.svc.SaveCheckpoint(ctx, cp); err != nil {
 		return nil, err
 	}

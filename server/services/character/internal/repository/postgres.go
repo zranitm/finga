@@ -104,11 +104,13 @@ func (r repo) Insert(ctx context.Context, c model.Character) (model.Character, e
 	return toCharacter(row), nil
 }
 
-// SaveCheckpoint updates position, HP, MP and EXP; no row is pgx.ErrNoRows.
+// SaveCheckpoint updates position, HP, MP, level, EXP and stats; no row is pgx.ErrNoRows.
 func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	n, err := r.q.SaveCheckpoint(ctx, db.SaveCheckpointParams{
 		ID: uuid.UUID(cp.ID), MapID: cp.MapID, PosX: float32(cp.X), PosY: float32(cp.Y),
-		Hp: int32(cp.HP), Mp: int32(cp.MP), Exp: cp.Exp, //nolint:gosec // HP fits
+		Hp: int32(cp.HP), Mp: int32(cp.MP), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP and levels fit
+		Strength: int32(cp.Stats.STR), Dexterity: int32(cp.Stats.DEX), Intelligence: int32(cp.Stats.INT), //nolint:gosec // stats are small
+		Agility: int32(cp.Stats.AGI), Vitality: int32(cp.Stats.VIT), //nolint:gosec // stats are small
 	})
 	return rowsOrNotFound(n, err)
 }

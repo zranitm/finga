@@ -129,7 +129,7 @@ One proto package per service under `api/proto/internal/`. A request names its o
 | `Create` | account_id, name, class | character |
 | `List` | account_id | characters |
 | `Load` | character_id, account_id (ownership) | character, with max HP and MP |
-| `SaveCheckpoint` | character_id, map_id, x, y, hp, mp, exp | |
+| `SaveCheckpoint` | character_id, map_id, x, y, hp, mp, level, exp, stats | |
 | `SaveLevelUp` | character_id, level, exp, stats, hp, mp | |
 
 **`internal.item.v1.ItemService`**

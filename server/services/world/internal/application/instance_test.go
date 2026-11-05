@@ -684,7 +684,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 204 || cp.MP != 28 {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 204 || cp.MP != 28 || cp.Level != 1 || cp.Stats != p.Stats {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}
@@ -716,6 +716,52 @@ func TestCheckpoints(t *testing.T) {
 			got := collect()
 			if len(got) != 1 || got[0].ID != q.ID {
 				t.Fatalf("checkpoints on shutdown %+v", got)
+			}
+		}
+	})
+}
+
+// Players joining together are checkpointed on different ticks, each once an interval.
+func TestCheckpointSweepsAreStaggered(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		x, y := townSpawn(t, data)
+		persist := make(chan model.Job, 100)
+		inst, cancel := run(t, data, persist, options{CheckpointInterval: 4 * tickInterval})
+		defer cancel()
+		drain := func() []kernel.CharacterID {
+			var out []kernel.CharacterID
+			for len(persist) > 0 {
+				out = append(out, (<-persist).(model.Checkpoint).ID)
+			}
+			return out
+		}
+		saves := map[kernel.CharacterID]int{}
+		var joins sync.WaitGroup
+		for _, name := range []string{"Ayla", "Robin", "Kai", "Mira"} {
+			p := newPlayer(name, x, y)
+			saves[p.ID] = 0
+			joins.Go(func() {
+				if err := inst.Join(context.Background(), p, &sink{}); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		joins.Wait()
+		synctest.Wait() // the tick that took the joins has finished
+		drain()
+		for tick := range 8 {
+			time.Sleep(tickInterval)
+			synctest.Wait()
+			got := drain()
+			if len(got) != 1 {
+				t.Fatalf("tick %d: %d checkpoints, want one player's", tick, len(got))
+			}
+			saves[got[0]]++
+		}
+		for id, n := range saves {
+			if n != 2 {
+				t.Fatalf("%v checkpointed %d times in two intervals", id, n)
 			}
 		}
 	})

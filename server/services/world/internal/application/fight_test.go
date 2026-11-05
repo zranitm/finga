@@ -429,6 +429,12 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		if !found {
 			t.Fatalf("no level-up job among %+v", saved)
 		}
+		inst.LeaveConnection(p.ID, "")
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		if cp, ok := (<-persist).(model.Checkpoint); !ok || cp.Level != 2 || cp.Exp != 3 || cp.Stats != lu.Stats {
+			t.Fatalf("checkpoint %+v: it carries the level-up, so a lost level-up save is repaired", cp)
+		}
 	})
 }
 
