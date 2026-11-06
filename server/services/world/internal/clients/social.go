@@ -12,7 +12,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Social is the application's Social over the social service.
+// Social adapts the social service to party.Social.
 type Social struct {
 	c      socialv1.SocialServiceClient
 	panics *panics.Recorder
