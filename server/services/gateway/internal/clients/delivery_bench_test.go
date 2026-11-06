@@ -28,8 +28,7 @@ func busyFrame(n int) *worldv1.Frame {
 	return f
 }
 
-// One tick's frame on the gateway's side of the world stream, for n players: unmarshaled once and handed
-// to each recipient, on the stream's one goroutine.
+// One tick's frame off the world stream for n players: unmarshaled once and handed to each, on one goroutine.
 func BenchmarkAMapsFrameOffTheWorldStream(b *testing.B) {
 	for _, n := range []int{10, 50, 200} {
 		b.Run(fmt.Sprintf("players=%d", n), func(b *testing.B) {

@@ -1,5 +1,4 @@
-// Package tracing sets up OpenTelemetry traces: every process mints trace IDs and propagates them, samples
-// only the traces its entry points start, and exports those over OTLP when an endpoint is configured.
+// Package tracing sets up OpenTelemetry traces: IDs everywhere, sampled only at entry points, sent over OTLP if set.
 package tracing
 
 import (

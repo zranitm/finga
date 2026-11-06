@@ -56,8 +56,7 @@ func NewService(deps Deps) *Service {
 	return &Service{store: deps.Store, content: deps.Content, starter: deps.Starter, log: deps.Logger}
 }
 
-// Create makes a level 1 character at the town spawn, then grants its starter items.
-// It succeeds even if the grant fails: a client retry would only meet name_taken.
+// Create makes a level 1 character with starter items; a failed grant still succeeds, as a retry would meet name_taken.
 func (s *Service) Create(ctx context.Context, account kernel.AccountID, in CreateInput) (model.Character, error) {
 	if len(in.Name) < nameMin || len(in.Name) > nameMax || !nameRe.MatchString(in.Name) {
 		return model.Character{}, model.ErrBadName

@@ -22,8 +22,7 @@ func (s *Shared) bytes() ([]byte, error) {
 	return s.wire, s.err
 }
 
-// Spliced is a Message's body made of a Shared one and Own, a message of the same type with the fields only
-// this message has. A binary codec writes Own's bytes after the shared ones, which protobuf reads as one message.
+// Spliced is a Shared body plus Own, of the same type with only this message's fields; protobuf reads both as one.
 type Spliced struct {
 	Shared *Shared
 	Own    proto.Message

@@ -17,15 +17,13 @@ const (
 	watchQueue   = 4096
 )
 
-// A gateway's players go offline once its stream has stayed gone gatewayGrace; marking them takes up to
-// sweepTimeout.
+// A gateway's players go offline once its stream has stayed gone gatewayGrace; marking them takes up to sweepTimeout.
 const (
 	gatewayGrace = 30 * time.Second
 	sweepTimeout = 10 * time.Second
 )
 
-// Streams are the gateways' delivery streams and the worlds' membership watch, with the gateway each
-// character is online on; they are the party module's notifier.
+// Streams are the gateway delivery and world membership streams, with each character's gateway: the party notifier.
 type Streams struct {
 	bootID   string
 	deliver  *hub.Hub[*socialv1.DeliverResponse]

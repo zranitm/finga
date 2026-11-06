@@ -24,8 +24,7 @@ func busyFrame(n int) *model.Frame {
 	return f
 }
 
-// One tick's frame going out to its n players: each one's message made (on the stream's goroutine) and
-// encoded (on its connection's writer).
+// One tick's frame going out to its n players: each message made on the stream's goroutine, encoded on its writer.
 func BenchmarkAMapsFrameToThePlayers(b *testing.B) {
 	codec := protocol.ServerCodec(wsconn.Binary)
 	for _, n := range []int{10, 50, 200} {

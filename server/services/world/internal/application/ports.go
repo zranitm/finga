@@ -36,8 +36,7 @@ type Saver interface {
 	Retryable(err error) bool
 }
 
-// Checkpoints takes a map's checkpoints for saving. Put must not block or drop one; a newer checkpoint of a
-// character may replace an older one not yet saved.
+// Checkpoints takes a map's checkpoints to save; Put must not block or lose one, though a newer one may replace it.
 type Checkpoints interface {
 	Put(cp model.Checkpoint)
 }
@@ -56,8 +55,7 @@ type TickObserver interface {
 
 // Social is the social service as the party copy sees it.
 type Social interface {
-	// FollowParties tells on each event of the party stream, subscribed as world, until ctx ends; a
-	// broken subscription is PartiesLost, and another follows.
+	// FollowParties tells on each party stream event until ctx ends; a broken one tells PartiesLost, then resubscribes.
 	FollowParties(ctx context.Context, world string, on func(model.PartyEvent))
 	// UpdateMember tells the service what a map saw of a member.
 	UpdateMember(ctx context.Context, u model.MemberUpdate) error

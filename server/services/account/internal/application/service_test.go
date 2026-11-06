@@ -386,8 +386,7 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 	})
 }
 
-// A burst of sign-ups past the hash slots answers busy once the wait runs out, instead of taking
-// 64 MiB a hash.
+// A burst of sign-ups past the hash slots answers busy once the wait runs out, instead of taking 64 MiB a hash.
 func TestSignUpsPastTheHashSlotsAreBusy(t *testing.T) {
 	svc := build(t, application.Deps{Store: newFakeStore(), Notifier: unheard{}, Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
 	var wg sync.WaitGroup

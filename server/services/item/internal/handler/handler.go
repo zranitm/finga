@@ -147,8 +147,7 @@ var causeTypes = map[itemv1.CauseType]model.CauseType{
 	itemv1.CauseType_CAUSE_TYPE_STARTER: model.CauseStarter,
 }
 
-// keyOf accepts a UUID in canonical form, optionally prefixed k- as the client sends it; it is stored as
-// sent, so a retry across a deploy still finds it.
+// keyOf accepts a canonical UUID, optionally k- prefixed, kept as sent so a retry across a deploy still finds it.
 func keyOf(key string) (string, error) {
 	id := strings.TrimPrefix(key, "k-")
 	if len(id) != 36 {

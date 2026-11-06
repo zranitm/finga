@@ -18,8 +18,7 @@ type Snapshot struct {
 	Drops   []DropView
 }
 
-// Delta is what changed on the player's map since the last tick: the map's Frame, shared by every player
-// there, and AckSeq, the last input the world applied for this one.
+// Delta is what changed on the player's map since the last tick, and AckSeq, the player's last input the world applied.
 type Delta struct {
 	*Frame
 	AckSeq uint32

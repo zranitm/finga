@@ -29,8 +29,7 @@ func (outbox) Welcome(model.Welcome)  {}
 func (outbox) Deliver(model.Delivery) {}
 func (outbox) End(model.EndReason)    {}
 
-// Pushes and logs read who a session plays while its join sets it: the identity is replaced whole,
-// never written in place, so the race detector has nothing to find.
+// Pushes and logs read who a session plays while its join sets it, so the identity is replaced whole, never in place.
 func TestTheIdentityCanBeReadWhileAJoinSetsIt(t *testing.T) {
 	r := session.NewRegistry(session.Deps{World: world{}, Logger: slog.New(slog.DiscardHandler)}, session.Options{JoinTimeout: time.Second})
 	s := r.Open("conn-1", outbox{})
@@ -63,8 +62,7 @@ func TestTheIdentityCanBeReadWhileAJoinSetsIt(t *testing.T) {
 	}
 }
 
-// recordingWorld joins after a pause, recording each join's connection and how many ran at once; a join
-// through a held connection waits until it is let go.
+// recordingWorld joins after a pause, recording each join's connection and how many ran at once; held ones wait.
 type recordingWorld struct {
 	mu            sync.Mutex
 	held          map[string]chan struct{}
@@ -162,8 +160,7 @@ func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 	}
 }
 
-// After the world's stream breaks every player rejoins, but only a few at a time, so a world that just
-// restarted is not hit by all of them at once.
+// After the world's stream breaks every player rejoins, a few at a time, so a restarted world is not hit all at once.
 func TestRejoinsRunAFewAtATime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}
@@ -184,8 +181,7 @@ func TestRejoinsRunAFewAtATime(t *testing.T) {
 	})
 }
 
-// A rejoin still in flight when the player reconnects cannot undo the newer connection's join, and one that
-// starts after it does not join at all.
+// A rejoin in flight when the player reconnects cannot undo the newer join, and one that starts after it does not join.
 func TestANewerJoinOutlastsAStaleRejoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}

@@ -8,9 +8,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-// Keepalive: a client pings an idle connection every keepaliveTime and drops it when no answer comes
-// within keepaliveTimeout, so a half-open link on a long-lived stream breaks in seconds, not minutes.
-// A server accepts pings no more often than keepaliveMinTime.
+// Keepalive pings an idle connection so a half-open link on a long-lived stream breaks in seconds, not minutes.
 const (
 	keepaliveTime    = 20 * time.Second
 	keepaliveTimeout = 5 * time.Second

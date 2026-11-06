@@ -1,5 +1,4 @@
-// Mirrors server/internal/sim operation for operation, so testdata/movement replays exactly on both.
-// (x, y) is the centre of the feet, y grows downward, and rectangles are half-open.
+// Mirrors server/internal/sim op for op, so testdata/movement replays on both; (x, y) is the feet's centre, y down.
 import { movement } from '@/gamedata/movement';
 
 import type { Input } from './input';

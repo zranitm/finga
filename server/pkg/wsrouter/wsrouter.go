@@ -1,5 +1,4 @@
-// Package wsrouter routes decoded WebSocket messages by type through middleware chains.
-// A middleware calls c.Next to continue, hands c.Later to another goroutine, or skips both to stop.
+// Package wsrouter routes decoded WebSocket messages by type through middleware; skipping c.Next stops the chain.
 package wsrouter
 
 import (

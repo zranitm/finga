@@ -40,9 +40,7 @@ type Result struct {
 	Changed []model.Slot
 }
 
-// A fingerprint lists the values that identify a command, the character included, in a fixed order. A
-// value added later goes in only when set, so a retry made before it still matches; a change of meaning
-// bumps the version.
+// A fingerprint is a command's values in fixed order; a value added later goes in only when set, so old retries match.
 
 func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.add/1", c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String())

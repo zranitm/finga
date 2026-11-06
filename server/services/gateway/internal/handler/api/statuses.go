@@ -6,8 +6,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// statuses is every failure's HTTP status, by its class: 400 bad input, 401, 404, 408, 409 a rule the
-// request ran into, 429, 503, 500. testdata/errors/codes.json is written from it.
+// statuses is every failure's HTTP status, by its class; testdata/errors/codes.json is written from it.
 var statuses = map[model.Public]int{
 	model.MalformedBody:        http.StatusBadRequest,
 	model.MissingField:         http.StatusBadRequest,

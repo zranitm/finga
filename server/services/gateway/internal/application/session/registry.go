@@ -227,8 +227,7 @@ func (r *Registry) LoggedIn() []*Session {
 	return out
 }
 
-// WorldSubscribed counts a subscription to the world's stream. Past the first, the stream broke: it
-// returns the active sessions, which must rejoin, since their Snapshots arrive on the new stream.
+// WorldSubscribed reports whether the world's stream broke, past its first subscription, and the sessions to rejoin.
 func (r *Registry) WorldSubscribed() (broke bool, active []*Session) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -260,8 +259,7 @@ func (r *Registry) Drain() []*Session {
 	return out
 }
 
-// Pending is what the drain waits for: sessions not yet closed (open, or still taking their player off
-// the map and offline) and background jobs still running.
+// Pending is what the drain waits for: sessions not yet closed, including those still leaving, and running jobs.
 func (r *Registry) Pending() (sessions, jobs int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

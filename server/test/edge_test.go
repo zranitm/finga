@@ -11,8 +11,7 @@ import (
 	"time"
 )
 
-// TestEdge checks per-address limits are nginx's alone, against FINGA_EDGE_URL and FINGA_GATEWAY_URL.
-// It uses up its address's login allowance for a minute, so CI runs it after the smoke tests.
+// TestEdge checks per-address limits are nginx's alone; it uses up a minute's logins, so CI runs it after smoke tests.
 func TestEdge(t *testing.T) {
 	url, gateway := os.Getenv("FINGA_EDGE_URL"), os.Getenv("FINGA_GATEWAY_URL")
 	if url == "" || gateway == "" {

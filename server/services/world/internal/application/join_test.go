@@ -200,8 +200,7 @@ func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ ke
 	return ctx.Err()
 }
 
-// The starter grant is best effort: an item service that never answers costs a join a moment, never the
-// join itself.
+// The starter grant is best effort: an item service that never answers delays a join, never fails it.
 func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ayla := at(t, "Ayla", "town")

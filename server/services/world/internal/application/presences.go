@@ -8,8 +8,7 @@ import (
 	"finga/internal/sim"
 )
 
-// presence is where a joined character is, the connection it joined through and its account. One whose
-// left is set is a tombstone: its leave is on the way, and left closes once the map has handled it.
+// presence is where a joined character is; a set left marks a tombstone, closing once the map has handled the leave.
 type presence struct {
 	inst    *Instance
 	conn    string
@@ -38,8 +37,7 @@ func (ps *presences) at(id kernel.CharacterID, conn string) (presence, bool) {
 	return p, ok && p.conn == conn && p.left == nil
 }
 
-// move puts the character on inst if conn still holds it; false means a newer join replaced it, or it is
-// leaving.
+// move puts the character on inst if conn still holds it; false when a newer join replaced it, or it is leaving.
 func (ps *presences) move(id kernel.CharacterID, conn string, inst *Instance) bool {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -71,8 +69,7 @@ func (ps *presences) drop(id kernel.CharacterID, inst *Instance, conn string) {
 	}
 }
 
-// depart returns the character's presence if want accepts it. A live one is replaced by a tombstone whose
-// left is the one given; one already leaving is returned as it is, to wait on.
+// depart returns the presence if want accepts it, tombstoning a live one with left; a leaving one stays, to wait on.
 func (ps *presences) depart(id kernel.CharacterID, want func(presence) bool, left <-chan struct{}) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
@@ -104,9 +101,7 @@ func (ps *presences) holds(id kernel.CharacterID, at presence) bool {
 	return ps.by[id] == at
 }
 
-// Leave takes the character off its map if it joined through conn, following it through a portal or a
-// respawn under way, and returns once the map has, its last checkpoint queued. A Leave from any other
-// connection is a no-op.
+// Leave takes the character off its map, even mid-transfer, if conn holds it; it returns once its checkpoint is queued.
 func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) error {
 	_, err := w.depart(ctx, id, func(p presence) bool { return p.conn == conn })
 	return err
@@ -137,8 +132,7 @@ func (w *World) Say(id kernel.CharacterID, conn, name, text string) error {
 	return w.command(id, conn, func(i *Instance) error { return i.Chat(id, name, text) })
 }
 
-// command posts to the character's map; one from a connection that does not hold the character is
-// ignored, as the instance ignores one for a player it does not have. A full inbox is ErrBusy.
+// command posts to the character's map; one from a connection not holding the character is ignored, not an error.
 func (w *World) command(id kernel.CharacterID, conn string, post func(*Instance) error) error {
 	at, ok := w.presences.at(id, conn)
 	if !ok {

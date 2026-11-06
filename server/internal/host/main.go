@@ -32,8 +32,7 @@ type Process interface {
 // Build is a binary's composition root.
 type Build[C Config] func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (Process, error)
 
-// Main runs Start until SIGINT or SIGTERM and returns the exit code; a second signal kills the process.
-// With healthcheckArg it probes the running service instead.
+// Main runs Start until SIGINT or SIGTERM (a second one kills the process), or with healthcheckArg probes the service.
 func Main[C Config](name, version string, build Build[C]) int {
 	if slices.Equal(os.Args[1:], []string{healthcheckArg}) {
 		ctx, cancel := context.WithTimeout(context.Background(), healthcheckTimeout)

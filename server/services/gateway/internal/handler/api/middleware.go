@@ -42,8 +42,7 @@ func principalFrom(c *gin.Context) auth.Principal {
 	return p
 }
 
-// traced starts each request's trace as a root, since a caller's trace context is not to be trusted; its span is
-// named for the route, as GET /api/characters.
+// traced starts each request's trace as a root, since a caller's trace context is not to be trusted.
 func traced(tp trace.TracerProvider) gin.HandlerFunc {
 	return otelgin.Middleware(serverName,
 		otelgin.WithTracerProvider(tp),
@@ -108,9 +107,7 @@ func cors(origins []string) gin.HandlerFunc {
 	}
 }
 
-// requestLog names the request's trace ID in the response, and logs the request without headers or bodies (no
-// tokens or passwords). It recovers panics as 500; http.ErrAbortHandler goes on to net/http, which drops the
-// connection.
+// requestLog logs each request without headers or bodies (no tokens or passwords) and recovers its panics as 500.
 func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()

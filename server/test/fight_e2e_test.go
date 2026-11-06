@@ -177,8 +177,7 @@ func TestFightAndGrow(t *testing.T) {
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.join(t, token, id)
-		// No settling drain: a slime may stand on the spawn point, and a discarded Died is never seen again.
-		// Contacts miss 22% of the time, so flip every 1.5 s to stay in the slime field (x 216..784).
+		// No settling drain, lest a Died be discarded; flip every 1.5 s to stay in the slime field (x 216..784).
 		right := true
 		seq := uint32(1)
 		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}})

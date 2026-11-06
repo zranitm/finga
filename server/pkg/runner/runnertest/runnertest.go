@@ -1,5 +1,4 @@
-// Package runnertest runs a process in a test as its binary runs: on ports the kernel picks,
-// which the test reads from the "listening" records the runner logs once it is ready.
+// Package runnertest runs a process in a test as its binary runs, on ports the kernel picks and its log reports.
 package runnertest
 
 import (
@@ -104,8 +103,7 @@ func (p *Process) Addr(listener string) string { return p.addrs[listener] }
 // Stop cancels the run and returns its error; cleanup calls it if the test does not.
 func (p *Process) Stop() error { return p.stop() }
 
-// Start calls run, which logs into log, until each of listeners has logged where it listens;
-// the test fails if run returns first.
+// Start calls run, which logs into log, until each of listeners has logged where it listens; run returning first fails.
 func Start(t testing.TB, log *Log, run func(ctx context.Context) error, listeners ...string) *Process {
 	t.Helper()
 	log.reset()

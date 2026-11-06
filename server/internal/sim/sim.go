@@ -1,5 +1,4 @@
 // Package sim is the deterministic movement simulation, mirrored by web/src/sim: no clock, randomness or map iteration.
-// Positions are pixels with y down, at the centre of a character's feet; rectangles are half-open.
 package sim
 
 // NoPlatform is the Ground and DropPlatform value when no one-way platform is involved.
@@ -18,7 +17,7 @@ type Params struct {
 	Height       float64 `json:"height"`
 }
 
-// Rect is an axis-aligned rectangle with its top-left corner at (X, Y).
+// Rect is a half-open axis-aligned rectangle in pixels, y down, with its top-left corner at (X, Y).
 type Rect struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -42,7 +41,7 @@ type Input struct {
 	Jump  bool `json:"jump,omitempty"`
 }
 
-// State is a character's movement state; Step returns a new one.
+// State is a character's movement state, (X, Y) at the centre of its feet; Step returns a new one.
 type State struct {
 	X            float64 `json:"x"`
 	Y            float64 `json:"y"`
@@ -56,8 +55,7 @@ type State struct {
 	DropTimer    float64 `json:"drop_timer"`    // seconds left of the drop-through
 }
 
-// Step advances s by one sub-step of p.Dt; web/src/sim must keep the same order of operations.
-// Products are wrapped in float64(...) so arm64 cannot fuse them into FMA, which JavaScript never does.
+// Step advances s by one sub-step in web/src/sim's order; float64(...) on products stops arm64 fusing them into FMA.
 func Step(s State, in Input, g Geometry, p Params) State {
 	switch {
 	case in.Right:

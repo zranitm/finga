@@ -16,8 +16,7 @@ import (
 	_ "finga/api/gen/world/v1"
 )
 
-// A message one service's contract borrows from another's ties their releases together, so each
-// contract declares its own.
+// A message borrowed from another service's contract ties their releases together, so each contract declares its own.
 func TestNoServiceContractImportsAnother(t *testing.T) {
 	for _, path := range contracts(t) {
 		f, err := protoregistry.GlobalFiles.FindFileByPath(path)

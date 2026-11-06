@@ -25,8 +25,7 @@ func (f Format) String() string {
 	return "binary"
 }
 
-// ProtoCodec reads one envelope message and writes another. Each envelope has a oneof named body,
-// whose message names are the Message types, and may have seq, req and tick fields.
+// ProtoCodec reads one envelope and writes another: a oneof body named by Message type, and optional seq, req, tick.
 type ProtoCodec struct {
 	in, out protoEnvelope
 	format  Format

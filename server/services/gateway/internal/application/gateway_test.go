@@ -309,8 +309,7 @@ func (g *guard) Check(ctx context.Context, _ uuid.UUID) error {
 func (*guard) Revoke(context.Context, uuid.UUID) error    { return nil }
 func (*guard) RevokeAll(context.Context, uuid.UUID) error { return nil }
 
-// world joins every character on the town, or fails with joinErr; a join first delivers flood
-// deliveries, its Snapshot first, through the stream the gateway follows.
+// world joins every character on the town, or fails with joinErr; a join delivers flood deliveries, Snapshot first.
 type world struct {
 	mu          sync.Mutex
 	joinErr     error

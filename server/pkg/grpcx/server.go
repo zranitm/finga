@@ -23,15 +23,13 @@ type ServerOptions struct {
 	Panics *panics.Recorder
 	// Metrics count and time every call by service, method and code, as the caller sees it; nil records none.
 	Metrics *grpcprom.ServerMetrics
-	// Draining, once closed, ends every open stream with Unavailable, so GracefulStop need not wait for
-	// streams that never end on their own; their clients resubscribe. Nil never drains.
+	// Draining, once closed, ends every open stream with Unavailable so GracefulStop need not wait; nil never drains.
 	Draining <-chan struct{}
 	// Tracing gives calls spans under the caller's trace; nil traces none.
 	Tracing *Tracing
 }
 
-// NewServer is a gRPC server that recovers panics, maps errors, and keeps its clients' connections alive as
-// Dial's do.
+// NewServer is a gRPC server that recovers panics, maps errors, and keeps its clients' connections alive as Dial's do.
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
@@ -55,15 +53,12 @@ func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 // rpcBuckets span a sub-millisecond world command to a slow database call, in seconds.
 var rpcBuckets = []float64{.0002, .0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}
 
-// NewServerMetrics are grpc_server_started_total, grpc_server_handled_total and grpc_server_handling_seconds
-// by service and method (handled by code too); register them, pass them in ServerOptions, then call
-// InitializeMetrics once the services are registered, so every method's series starts at 0.
+// NewServerMetrics are the grpc_server_* metrics; InitializeMetrics, once services are registered, starts each at 0.
 func NewServerMetrics() *grpcprom.ServerMetrics {
 	return grpcprom.NewServerMetrics(grpcprom.WithServerHandlingTimeHistogram(grpcprom.WithHistogramBuckets(rpcBuckets)))
 }
 
-// NewClientMetrics are grpc_client_started_total, grpc_client_handled_total and grpc_client_handling_seconds
-// by service and method (handled by code too), for ClientMetrics.
+// NewClientMetrics are the grpc_client_* counters and handling-time histogram by service and method, for ClientMetrics.
 func NewClientMetrics() *grpcprom.ClientMetrics {
 	return grpcprom.NewClientMetrics(grpcprom.WithClientHandlingTimeHistogram(grpcprom.WithHistogramBuckets(rpcBuckets)))
 }

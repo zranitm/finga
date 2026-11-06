@@ -123,8 +123,7 @@ var contracts = []protoreflect.EnumDescriptor{
 	worldv1.Reason(0).Descriptor(),
 }
 
-// handledByTheGateway are the reasons a client sees as internal: the gateway acts on them itself by closing the
-// connection, or no client request can cause them (only the world sets a pickup's cause).
+// handledByTheGateway are reasons a client sees as internal: the gateway acts on them, or no request causes them.
 var handledByTheGateway = []grpcx.Reason{
 	grpcx.Key(itemv1.Reason_REASON_BAD_CAUSE),
 	grpcx.Key(worldv1.Reason_REASON_BUSY),

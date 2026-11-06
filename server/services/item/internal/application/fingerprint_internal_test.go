@@ -11,8 +11,7 @@ import (
 	"finga/services/item/internal/model"
 )
 
-// Each command's fingerprint is stored with its key: a change refuses every retry made before the deploy.
-// Computed once; a deliberate change bumps the command's version and its value here.
+// A changed fingerprint refuses every retry stored before the deploy; a deliberate change bumps the version and value.
 func TestFingerprintsAreStable(t *testing.T) {
 	c, err := kernel.ParseCharacterID("0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012")
 	if err != nil {

@@ -10,8 +10,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// sessionEnded ends the player session on a login session that ended, or on an account's:
-// logged_in_elsewhere on a new login, else session_expired.
+// sessionEnded ends the player session of a login session or account that ended.
 func (g *Gateway) sessionEnded(ev model.SessionEnd) {
 	switch ev := ev.(type) {
 	case model.SessionRevoked:
@@ -50,8 +49,7 @@ const (
 	checksAtOnce = 16
 )
 
-// checkSessions ends every player session whose login session no longer holds, which a broken stream
-// missed; any other failure (the account service down or slow) is logged and ends nothing.
+// checkSessions ends player sessions whose login session ended while the stream was broken; a failed check ends none.
 func (g *Gateway) checkSessions(ctx context.Context) {
 	var round errgroup.Group
 	round.SetLimit(checksAtOnce)

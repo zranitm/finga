@@ -537,8 +537,7 @@ func TestPickupsUnavailableWhileTheItemServiceStaysDown(t *testing.T) {
 	})
 }
 
-// A pickup whose reply was lost may have committed, so the drop stays its player's: their retry, under the same
-// key, settles it, and nobody else can be granted it again.
+// A pickup whose reply was lost may have committed, so the drop stays its player's to retry under the same key.
 func TestALostPickupReplyKeepsTheDropForItsPlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
@@ -660,8 +659,7 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 	})
 }
 
-// A pickup refused because its key already served another fingerprint was granted by an earlier try whose
-// reply was lost: the drop is gone, never released to someone else.
+// A key that already served another fingerprint means an earlier try was granted: the drop is gone, never released.
 func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)

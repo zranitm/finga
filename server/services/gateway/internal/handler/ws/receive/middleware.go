@@ -110,8 +110,7 @@ func (h *Handler) respondOnError(c *msgContext) {
 	}
 }
 
-// logged ends a command that answers nothing; its unexpected failures are logged, sampled, as inputs come
-// 20 a second. A world that is restarting is not one: the world stream's warnings tell of it.
+// logged ends a command that answers nothing; its unexpected failures are logged sampled, as inputs come 20 a second.
 func (h *Handler) logged(c *msgContext) {
 	c.Next()
 	restarting := errors.Is(c.Err, model.ErrUnavailable) || errors.Is(c.Err, model.ErrNotSubscribed)

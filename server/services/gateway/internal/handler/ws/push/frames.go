@@ -8,8 +8,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// Frames shares each frame's encoding among the players it goes to. It keeps the latest frame's only, as a
-// frame goes to all its players in turn; another is encoded again, which is only slower.
+// Frames shares each frame's encoding among its players; it keeps only the latest, as a frame goes to all in turn.
 type Frames struct {
 	mu      sync.Mutex
 	frame   *model.Frame

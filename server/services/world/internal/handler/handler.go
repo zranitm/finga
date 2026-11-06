@@ -19,8 +19,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// World is what the handler needs from the world module: a join, and the commands of a character
-// joined through a connection, each ErrBusy when the character's map cannot take it.
+// World is what the handler needs from the world module; a command is ErrBusy when the character's map can't take it.
 type World interface {
 	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error)
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error

@@ -14,8 +14,7 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// db is the character service: Load returns what was saved. Down, a save fails; stuck, it waits out its
-// deadline; loadErr fails every Load.
+// db is the character service: down, a save fails; stuck, it waits out its deadline; loadErr fails every Load.
 type db struct {
 	mu      sync.Mutex
 	chars   map[kernel.CharacterID]model.Character
@@ -81,8 +80,7 @@ func dbWorld(t *testing.T, d *db) *application.World {
 	return w
 }
 
-// walkAway joins Ayla, saved at the town's spawn, through c-1 and walks her right, then stops her. It
-// returns her, the sink she joined with and where she stands.
+// walkAway joins Ayla, saved at the town's spawn, through c-1 and walks her right, then stops her.
 func walkAway(t *testing.T, w *application.World, d *db) (model.Character, *sink, float64) {
 	t.Helper()
 	p := at(t, "Ayla", "town")
@@ -110,8 +108,7 @@ func walkAway(t *testing.T, w *application.World, d *db) (model.Character, *sink
 	return ayla, s, v.State.X
 }
 
-// A join for a character still in the world starts from where the character is, not from its last save,
-// whether that save has landed, waits on a character service that is down, or is stuck in one.
+// A rejoin starts where the character is, not at its last save, whether that save landed, waits or is stuck.
 func TestARejoinStartsFromTheNewestState(t *testing.T) {
 	services := []struct {
 		name        string
@@ -214,8 +211,7 @@ func TestLeaveWaitsForTheMap(t *testing.T) {
 	})
 }
 
-// Two joins of one character at once each wait for the other's take-off, so both start from the live
-// state, and the newest save is never one from before.
+// Two joins of one character at once each wait for the other's take-off, so neither starts from an older save.
 func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		d := &db{chars: map[kernel.CharacterID]model.Character{}}
@@ -247,8 +243,7 @@ func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
 	})
 }
 
-// A login elsewhere that fails after taking the character off its map tells the older connection, so the
-// gateway joins it again rather than leaving it on no map.
+// A login elsewhere that fails after the take-off detaches the older connection, so the gateway joins it again.
 func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		d := &db{chars: map[kernel.CharacterID]model.Character{}}

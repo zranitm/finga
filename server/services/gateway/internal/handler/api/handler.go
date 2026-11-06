@@ -67,8 +67,7 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 
 var errMalformed = errors.New("api: malformed request body")
 
-// decode reads one JSON document into v within bodyReadTimeout; unlike Gin's binding it refuses trailing data
-// and unknown fields.
+// decode reads one JSON document into v within bodyReadTimeout, refusing trailing data and unknown fields.
 func decode(c *gin.Context, v any) error {
 	// net/http lifts the deadline when the body ends; a recorder in tests has no connection to set it on.
 	_ = http.NewResponseController(c.Writer).SetReadDeadline(time.Now().Add(bodyReadTimeout))

@@ -12,8 +12,7 @@ import (
 	"finga/internal/sim"
 )
 
-// The vectors in testdata/movement must be reproduced exactly here and in the TypeScript port.
-// -update regenerates them after a deliberate rule change; sim_test.go keeps them honest.
+// The vectors in testdata/movement must be reproduced exactly here and by the TypeScript port; -update rewrites them.
 var update = flag.Bool("update", false, "rewrite the expected states in testdata/movement")
 
 const vectorsDir = "../../testdata/movement"

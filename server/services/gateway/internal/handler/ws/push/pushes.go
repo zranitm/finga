@@ -6,8 +6,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// body is the protocol message a push reaches the client as; a Delta's is its frame's shared encoding with
-// the player's own ack.
+// body is the protocol message a push reaches the client as; a Delta's reuses its frame's shared encoding.
 func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:

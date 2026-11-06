@@ -14,8 +14,7 @@ import (
 	"finga/pkg/tracing"
 )
 
-// Tracing makes calls carry the trace context and get spans, as Provider samples them. A stream, whose span
-// would last for hours, gets neither.
+// Tracing gives calls trace context and spans, as Provider samples; not streams, whose spans would last hours.
 type Tracing struct {
 	Provider trace.TracerProvider
 }

@@ -1,6 +1,4 @@
-// Package coalesce is a work queue that keeps only each key's newest value. A Put replaces the value its
-// key has waiting, so the queue grows with the keys, never with the puts, and a Put never blocks or drops.
-// A key is handed out once at a time, so its values come out in the order they were put.
+// Package coalesce is a work queue that keeps only each key's newest value, so it grows with keys and Put never blocks.
 package coalesce
 
 import "sync"
@@ -59,8 +57,7 @@ func (q *Queue[K, V]) Take() (V, bool) {
 	return v, true
 }
 
-// Done gives back the key of v, which Take handed out. A newer value put meanwhile joins the end of the
-// line; failing that, with retry, v does.
+// Done gives back v's key from Take; a value put meanwhile joins the end of the line, else v does if retry.
 func (q *Queue[K, V]) Done(v V, retry bool) {
 	k := q.key(v)
 	q.mu.Lock()

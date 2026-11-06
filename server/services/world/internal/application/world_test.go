@@ -169,8 +169,7 @@ func TestWorld(t *testing.T) {
 	})
 }
 
-// leaveAndRun has a player leave town, then one leave the forest, so the World saves "cp town" then
-// "cp forest"; then it runs before and shuts the World down.
+// leaveAndRun has the World save "cp town" then "cp forest", then runs before and shuts the World down.
 func leaveAndRun(t *testing.T, saver *fakeSaver, before func()) {
 	t.Helper()
 	w := newWorld(t, saver, options{CheckpointInterval: time.Hour})
@@ -206,8 +205,7 @@ func count(attempts []string, what string) int {
 	return n
 }
 
-// A failed save is retried behind the others until it lands: it holds up no other save, and the world
-// never gives it up while it runs, so a character service outage loses no level-up.
+// A failed save is retried behind the others until it lands, so a character service outage loses no level-up.
 func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 	run := func(t *testing.T, saver *fakeSaver) []string {
 		t.Helper()
@@ -275,8 +273,7 @@ func TestShutdownTriesEachSaveOnceMore(t *testing.T) {
 	})
 }
 
-// The last saves share the flush budget: a character service that never answers can't hold the
-// shutdown past it, and each save it costs is logged.
+// The last saves share the flush budget: a character service that never answers can't hold the shutdown past it.
 func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var logs bytes.Buffer
@@ -377,8 +374,7 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 
 func sim0() sim.Input { return sim.Input{} }
 
-// A join through a newer connection takes the character off its map once and joins it there again; the
-// older connection then gets nothing, and its Leave removes nothing.
+// A join through a newer connection takes the character over: the older one gets nothing, and its Leave is a no-op.
 func TestAJoinThroughANewerConnectionReplacesTheOlder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t, &fakeSaver{}, options{CheckpointInterval: time.Hour})
@@ -485,8 +481,7 @@ func TestARefusedSaveIsLoggedWithItsCharacter(t *testing.T) {
 	})
 }
 
-// Once its maps have stopped, the world answers at once: joins, leaves and commands are ErrStopped, never
-// a wait for the caller's deadline.
+// Once its maps have stopped, joins, leaves and commands are ErrStopped at once, not a wait for the caller's deadline.
 func TestAStoppedWorldAnswersStopped(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := newWorld(t, &fakeSaver{}, options{CheckpointInterval: time.Hour})

@@ -1,5 +1,4 @@
-// Package send is the gateway's send flow: what a player's connection asks for, from its Hello to its
-// close. Each use case answers with its result or error, and the handler decides the reply.
+// Package send is the gateway's send flow, from a connection's Hello to its close; the handler chooses each reply.
 package send
 
 import (

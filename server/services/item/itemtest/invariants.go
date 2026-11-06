@@ -1,5 +1,4 @@
-// Package itemtest is test support for the item service: its invariant checks over its database,
-// for the property, race and retry tests and the crash test in test/. Only tests import it.
+// Package itemtest is the item service's database invariant checks, for its property, race, retry and crash tests.
 package itemtest
 
 import (
@@ -33,9 +32,7 @@ func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, e
 	return out, rows.Err()
 }
 
-// templateTotals is check 6: per template, the quantity held equals what drops and starter grants
-// created or stacked, less what was discarded. Moves, stacks and splits by the player only shift it.
-// Items and events are summed apart; a row join would multiply quantities by event count.
+// templateTotals is check 6: per template, held equals drops and starters less discards; a join would multiply sums.
 func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT held.template_id, held.quantity, coalesce(ev.delta, 0)
@@ -63,8 +60,7 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	return out, rows.Err()
 }
 
-// stacksAndSplitsBalance is check 6's other half: per template, what the player stacked equals what
-// they split off, as a merge takes from one stack what it puts on another.
+// stacksAndSplitsBalance is check 6's other half: per template, the player's stacks and splits net to zero.
 func stacksAndSplitsBalance(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT i.template_id, sum(e.quantity_delta)

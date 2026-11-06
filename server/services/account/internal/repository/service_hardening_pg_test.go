@@ -41,8 +41,7 @@ func (h *notices) AccountRevoked(_ context.Context, id uuid.UUID, reason string)
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
 
-// underSynctest runs f on fake time against a fresh database, with the service's hooks recorded.
-// The pool opens inside the bubble, as everything a bubble uses must be its own.
+// underSynctest runs f on fake time against a fresh database, opening the pool inside the bubble as synctest requires.
 func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, store *Postgres, hooks *notices)) {
 	t.Helper()
 	url := cluster.URL(t)

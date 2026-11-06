@@ -1,5 +1,4 @@
-// Package grpcx is the shared gRPC plumbing: server, client, tracing and error reasons.
-// Errors cross calls as a status with an ErrorInfo reason; their text never leaves the service.
+// Package grpcx is the shared gRPC plumbing; errors cross calls as a status with an ErrorInfo reason, never their text.
 package grpcx
 
 import (
@@ -44,9 +43,7 @@ type ErrorTable []ErrorRow
 
 const internalMessage = "internal error"
 
-// Status is err as it leaves the service, and whether it was explained (else log it). A downstream
-// status keeps its code and its reason, if any, never its text: a dependency's Unavailable or
-// DeadlineExceeded tells the caller to retry, and its rules travel as reasons. An unknown error is Internal.
+// Status is err as it leaves the service and whether it was explained; downstream ones keep code and reason, not text.
 func (t ErrorTable) Status(err error) (*status.Status, bool) {
 	if err == nil {
 		return status.New(codes.OK, ""), true
@@ -110,8 +107,7 @@ func IsRule(err error) bool {
 	return ok
 }
 
-// IsTransient reports whether a failed call may pass if made again: the callee was unreachable, busy or
-// out of time, or the call was aborted or cancelled. A rule, an Internal or an unknown failure won't.
+// IsTransient reports whether a failed call may pass if retried: unreachable, busy, out of time, aborted or cancelled.
 func IsTransient(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 		return true

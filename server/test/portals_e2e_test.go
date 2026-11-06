@@ -85,8 +85,7 @@ func TestTravel(t *testing.T) {
 	})
 
 	t.Run("B3-B5/walk-from-the-town-to-the-cave-and-back", func(t *testing.T) {
-		// Portals: town to_forest x 1200..1232, forest from_town 48..80 and to_cave 1840..1872,
-		// cave from_forest 48..80; arrivals are their bottom centres.
+		// Portal centres, where hops start and arrivals land: town to_forest 1216, forest 64 and to_cave 1856, cave 64.
 		forest := l.hop(t, 1216, "forest", 64)
 		if len(forest.Mobs) == 0 {
 			t.Fatal("no mobs in the forest snapshot")

@@ -36,8 +36,7 @@ type drop struct {
 	windowEnd  uint64 // tick until which only the killer may take it
 	expiresAt  uint64
 	reservedBy kernel.CharacterID // zero when free
-	// unsettled: its pickup failed with the outcome unknown, so it stays reservedBy's to retry under the
-	// same key; the item service's key is per account, and anyone else's pickup could grant it again.
+	// unsettled: its pickup's outcome is unknown, so only reservedBy retries it, as the item service keys per account.
 	unsettled bool
 }
 

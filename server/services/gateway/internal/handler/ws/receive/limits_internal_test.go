@@ -40,8 +40,7 @@ func TestALimitedCommandAllowsItsBurstThenRefills(t *testing.T) {
 	})
 }
 
-// A limit is a budget a group of messages shares, per connection: party commands a burst of 5,
-// inventory commands 5, and a portal 2 of its own.
+// A limit is a budget a group of messages shares, per connection: party commands 5, inventory 5, a portal 2.
 func TestGroupedCommandsShareOneBudget(t *testing.T) {
 	tests := []struct {
 		name string

@@ -9,8 +9,7 @@ import (
 
 const drainPoll = 10 * time.Millisecond
 
-// Drain refuses new connections, ends open ones with server_restart and waits, until ctx ends, for each to
-// close and its player to leave, and for the registry's background jobs.
+// Drain refuses new connections, ends open ones with server_restart, and waits until ctx ends for them to close.
 func (g *Gateway) Drain(ctx context.Context) {
 	for _, s := range g.sessions.Drain() {
 		s.End(model.EndServerRestart)

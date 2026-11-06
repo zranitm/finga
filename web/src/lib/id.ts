@@ -1,5 +1,4 @@
-// UUIDv7, like every ID the server mints. Not crypto.randomUUID: it is v4, and exists only in secure contexts.
-// Keys must not be counters: the server keeps them 24 h, so a counter reset by a reload would collide.
+// UUIDv7 like the server's: crypto.randomUUID is v4 and secure-context only, and a counter repeats after a reload.
 export type RandomBytes = (bytes: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>;
 
 const hex = Array.from({ length: 256 }, (_, n) => n.toString(16).padStart(2, '0'));

@@ -126,8 +126,7 @@ func TestATransferStopsOnceANewerJoinTakesTheCharacter(t *testing.T) {
 	})
 }
 
-// A Leave posted just behind a portal or a respawn follows the player: the transfer never lands, and no
-// ghost stays on the target map.
+// A Leave posted just behind a portal or a respawn follows the player: no ghost stays on the target map.
 func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)

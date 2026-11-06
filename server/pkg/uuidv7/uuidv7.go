@@ -1,5 +1,4 @@
-// Package uuidv7 mints every UUID the server makes: version 7 leads with the time, so IDs sort by
-// creation and new keys land at the end of an index.
+// Package uuidv7 mints every UUID the server makes: version 7 leads with the time, so IDs sort by creation.
 package uuidv7
 
 import "github.com/google/uuid"

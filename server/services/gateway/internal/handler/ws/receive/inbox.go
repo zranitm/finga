@@ -1,5 +1,4 @@
-// Package receive routes each client message through its middleware to the gateway's use cases,
-// and chooses the reply; the push package writes it.
+// Package receive routes each client message through its middleware to the use cases, and chooses the reply.
 package receive
 
 import (

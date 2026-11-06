@@ -148,8 +148,7 @@ func (h *Host) Database(ctx context.Context, cfg dbx.Config) (*pgxpool.Pool, *te
 	return pool, metrics, nil
 }
 
-// Run serves until ctx ends, then shuts down gracefully; every registered gRPC service reports SERVING,
-// and every method's metrics start at 0.
+// Run serves until ctx ends, then shuts down gracefully; each gRPC service reports SERVING and its metrics start at 0.
 func (h *Host) Run(ctx context.Context) error {
 	if h.GRPC != nil {
 		h.metrics.InitializeMetrics(h.GRPC)

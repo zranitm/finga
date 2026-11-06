@@ -68,8 +68,7 @@ func TestProblems(t *testing.T) {
 	}
 }
 
-// The database fills no stamp: an insert that names neither fails, but an update that forgets updated_at
-// would keep a stale time, so every query is checked here.
+// The database fills no stamp, and an update that forgets updated_at keeps a stale time, so every query is checked.
 func TestEveryWriteStampsItsRows(t *testing.T) {
 	files, err := filepath.Glob("../../services/*/internal/repository/queries/*.sql")
 	if err != nil || len(files) == 0 {

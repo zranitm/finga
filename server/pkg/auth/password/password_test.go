@@ -84,8 +84,7 @@ func TestDefaultParamsVerify(t *testing.T) {
 	}
 }
 
-// Each run holds 64 MiB, so a burst of logins waits for a slot, and past the wait answers ErrBusy
-// instead of taking the memory.
+// Each run holds 64 MiB, so a burst of logins waits for a slot, then answers ErrBusy instead of taking the memory.
 func TestTheHasherCapsConcurrentHashes(t *testing.T) {
 	h := password.NewHasher(password.Default, 1, time.Millisecond)
 	var wg sync.WaitGroup

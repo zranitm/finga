@@ -114,8 +114,7 @@ type Snapshot struct {
 	Drops   []DropView
 }
 
-// Frame is what changed on a map in one tick, the same for every player there; it is shared, and read-only
-// once sent.
+// Frame is what changed on a map in one tick, shared by every player there and read-only once sent.
 type Frame struct {
 	Tick         uint64
 	Players      []PlayerView
@@ -206,8 +205,7 @@ func (ExpGained) event() {}
 
 func (LevelUp) event() {}
 
-// Checkpoint is a character's non-economic state, saved every interval and right away on a level-up, a map
-// change or a leave.
+// Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {
 	ID    kernel.CharacterID
 	MapID string // the map it is on, or moving to

@@ -920,8 +920,7 @@ func TestEachCommandCarriesItsOwnTraceID(t *testing.T) {
 	})
 }
 
-// A command that answers after its calls keeps its trace, with those calls as its children; one that only
-// queues work for a tick keeps none.
+// A command that answers after its calls keeps its trace, with the calls as children; one that only queues keeps none.
 func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
@@ -968,8 +967,7 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 	})
 }
 
-// failingPickUps is a world whose PickUp fails in a way the gateway cannot name, and that cannot be reached
-// for an Attack.
+// failingPickUps is a world whose PickUp fails in a way the gateway cannot name, and whose Attack is unreachable.
 type failingPickUps struct{ worldv1.WorldServiceClient }
 
 func (failingPickUps) PickUp(context.Context, *worldv1.PickUpRequest, ...grpc.CallOption) (*worldv1.PickUpResponse, error) {
@@ -1092,8 +1090,7 @@ func TestADetachedConnectionJoinsAgain(t *testing.T) {
 	})
 }
 
-// Deliveries for a connection the gateway does not have are a presence nothing would remove: the gateway
-// takes it off its map, once.
+// Deliveries for a connection the gateway does not have mean a stray presence: the gateway takes it off its map, once.
 func TestAPresenceWithoutAConnectionIsTakenOffItsMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)

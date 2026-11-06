@@ -10,9 +10,7 @@ import (
 	"finga/services/item/internal/model"
 )
 
-// reply is a command's Result as idempotency_keys stores it for replays. Its names are a stored format, as
-// the first replies were written: never rename or remove one; add a field beside it, and keep reading the
-// old one while rows that hold it can exist.
+// reply is a Result as idempotency_keys stores it; its JSON names are stored, so never rename or remove one, only add.
 type reply struct {
 	Changed []replySlot `json:"changed"`
 }

@@ -44,8 +44,7 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 	}
 }
 
-// SIGTERM ends the gateway's subscription at once, so the world stops its maps and saves the players
-// on them well within its grace; a stream left open would hold the shutdown for all of it.
+// SIGTERM ends the gateway's subscription at once, so the world saves its players well within its shutdown grace.
 func TestASigtermedWorldSavesItsPlayers(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds and runs every service as its own process")

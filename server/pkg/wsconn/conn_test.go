@@ -312,8 +312,7 @@ func TestASlowConsumerThatStillReadsHearsItsCloseCode(t *testing.T) {
 	_ = rec.waitClosed(t)
 }
 
-// A kicked client that stopped reading never takes the queued frames or answers the close: the
-// connection still ends within the goodbye's deadline, not a write deadline per frame.
+// A kicked client that stopped reading still ends within the goodbye's deadline, not a write deadline per frame.
 func TestAKickToAClientThatStoppedReadingEndsInTime(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()

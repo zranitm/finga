@@ -40,8 +40,7 @@ func Error(code codes.Code, reason protoreflect.Enum) error {
 	return grpcx.ErrorFor(code, grpcx.Key(reason))
 }
 
-// Reasons lists the reasons a service still sends, in order: every value of its enum but the zero one and
-// the deprecated ones. Its own table and its callers' must cover them all.
+// Reasons lists what a service still sends: its enum values but the zero and deprecated ones, which tables must cover.
 func Reasons(d protoreflect.EnumDescriptor) []grpcx.Reason {
 	values := d.Values()
 	out := make([]grpcx.Reason, 0, values.Len())

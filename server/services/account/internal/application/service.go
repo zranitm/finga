@@ -183,8 +183,7 @@ func (s *Service) rehash(ctx context.Context, creds model.Credentials, pw string
 	})
 }
 
-// Issue implements auth.Sessions, replacing the account's older sessions in one transaction.
-// The account row lock queues concurrent logins; a unique-index race retries once.
+// Issue implements auth.Sessions, replacing older sessions under the account lock; a unique-index race retries once.
 func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
@@ -213,8 +212,7 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 	}
 }
 
-// Validate implements auth.Sessions and slides the expiry on success.
-// The last rotated-out token works once within the grace; any other use revokes the session.
+// Validate implements auth.Sessions and slides the expiry; the rotated-out token passes once in the grace period.
 func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, error) {
 	hash := sha256.Sum256([]byte(token))
 	session, err := s.store.FindActiveSession(ctx, hash[:])
@@ -239,8 +237,7 @@ func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, e
 	return auth.Principal{AccountID: uuid.UUID(session.AccountID), SessionID: uuid.UUID(session.ID)}, nil
 }
 
-// consumePrevious lets the retired token through once inside the grace, deciding under the session's row
-// lock so racing requests cannot all pass; any other use is reuse and revokes the session.
+// consumePrevious lets the old token through once in the grace, under the row lock; any other use revokes the session.
 func (s *Service) consumePrevious(ctx context.Context, id kernel.SessionID, hash []byte, now time.Time) error {
 	reuse := false
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {

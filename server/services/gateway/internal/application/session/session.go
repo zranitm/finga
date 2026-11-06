@@ -1,5 +1,4 @@
-// Package session holds what the gateway's send and push flows share: each connection's Session,
-// the Registry that finds a player's, and the joins that put a player on its map.
+// Package session holds what the send and push flows share: each connection's Session, the Registry and the joins.
 package session
 
 import (
@@ -81,8 +80,7 @@ func (s *Session) deliver(d model.Delivery, world bool) {
 // End ends the player's session; the first End wins.
 func (s *Session) End(reason model.EndReason) { s.outbox.End(reason) }
 
-// out holds deliveries until a join's Welcome or MapChange is out, and shifts ticks so they never go
-// back after a world restart. The world routes by connection, so every delivery is this session's.
+// out holds deliveries until a join's Welcome or MapChange is out, and shifts ticks so they never go back on a restart.
 type out struct {
 	mu       sync.Mutex
 	mapID    string

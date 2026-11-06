@@ -1,5 +1,4 @@
-// Package telemetry defines the game's metrics, each binary registering its own, and implements the
-// application modules' observers.
+// Package telemetry defines the game's metrics, which each binary registers, and the application modules' observers.
 package telemetry
 
 import (
@@ -169,8 +168,7 @@ func NewOutboxMetrics(reg prometheus.Registerer) (*OutboxMetrics, error) {
 	return m, register(reg, m.unpublished)
 }
 
-// Track sets the gauge from count now and every interval until ctx ends; a failed count is logged and
-// leaves the gauge as it was.
+// Track sets the gauge from count now and every interval until ctx ends; a failed count leaves the gauge as it was.
 func (m *OutboxMetrics) Track(ctx context.Context, every time.Duration, count func(context.Context) (int64, error), log *slog.Logger) error {
 	t := time.NewTicker(every)
 	defer t.Stop()

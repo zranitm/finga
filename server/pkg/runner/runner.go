@@ -1,5 +1,4 @@
-// Package runner runs a process's listeners and background tasks with readiness and graceful shutdown.
-// Shutdown order: readiness drops, Drain runs, listeners stop within the grace period, then tasks stop.
+// Package runner runs listeners and tasks; shutdown drops readiness, runs Drain, stops the listeners, then the tasks.
 package runner
 
 import (
@@ -78,8 +77,7 @@ func New(opts Options, listeners []Listener, tasks []Task) *Runner {
 // Ready reports whether the process can take traffic now.
 func (r *Runner) Ready() bool { return r.ready.Load() }
 
-// runTasks runs the background tasks until ctx ends and they all return. A task's panic, or a task that
-// returns before ctx ends, goes to fatal: the process would otherwise stay ready with a dead loop.
+// runTasks runs the tasks until ctx ends; a task that panics or returns early is fatal, lest the process stay ready.
 func (r *Runner) runTasks(ctx context.Context, fatal func(error)) {
 	var wg sync.WaitGroup
 	for _, t := range r.tasks {

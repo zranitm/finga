@@ -34,8 +34,7 @@ func MigrationsBefore(fsys fs.FS, table, file string) MigrateFunc {
 
 const stampShape = "timestamp with time zone NOT NULL"
 
-// A row per table and stamp: the column's shape, and the table's BEFORE row triggers on INSERT or UPDATE,
-// which could fill a stamp the app left out.
+// A row per table and stamp: the column's shape, and the BEFORE INSERT or UPDATE row triggers that could fill it.
 const stampsSQL = `
 SELECT c.relname, col.name,
   coalesce(format_type(a.atttypid, a.atttypmod)
@@ -50,8 +49,7 @@ LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
 WHERE c.relnamespace = to_regnamespace(current_schema()) AND c.relkind IN ('r', 'p') AND c.relname <> ALL ($1)
 ORDER BY c.relname, col.name`
 
-// CheckTimestamps checks that every table of the current schema, but those in skip, has created_at and
-// updated_at as timestamptz NOT NULL with nothing in the database to fill them, so a write must stamp both.
+// CheckTimestamps checks each table but skip has created_at and updated_at as timestamptz NOT NULL that nothing fills.
 func CheckTimestamps(ctx context.Context, pool *pgxpool.Pool, skip ...string) error {
 	rows, err := pool.Query(ctx, stampsSQL, append([]string{}, skip...))
 	if err != nil {

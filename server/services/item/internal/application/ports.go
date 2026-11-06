@@ -24,8 +24,7 @@ type UnitOfWork interface {
 
 // Repository reads and writes the items table; owned methods put the owner in the WHERE clause.
 type Repository interface {
-	// LockInventory takes the owner's lock, which orders that owner's changes (two would pick the same empty
-	// slot), then locks the rows in ID order and returns them by tab and slot.
+	// LockInventory takes the owner's lock so two changes can't pick one empty slot, then locks rows in ID order.
 	LockInventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
 	LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.CharacterID) (model.Item, error)
 	// RecordStarterGrant records that owner got its starter kit; false when it already had.
@@ -46,8 +45,7 @@ type Notices interface {
 	Send(ctx context.Context, n model.Notice) error
 }
 
-// Idempotency runs a command once per key and replays its Result; the same key with another fingerprint
-// is ErrKeyReused.
+// Idempotency runs a command once per key and replays its Result; one key with another fingerprint is ErrKeyReused.
 type Idempotency interface {
 	Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (Result, error)) (Result, error)
 }

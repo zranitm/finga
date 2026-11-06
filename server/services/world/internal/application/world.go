@@ -1,5 +1,4 @@
-// Package application runs the map instances: one actor per map, ticking at the configured rate.
-// Services are called from worker goroutines, never inside a tick.
+// Package application runs the map instances, one actor per map; workers call the services, never a tick.
 package application
 
 import (
@@ -33,8 +32,7 @@ const (
 	flushWorkers   = 8 // the last saves made at once; the queue still hands out one character's at a time
 )
 
-// World is the registry of map instances and of where each joined character is, their shared
-// persistence worker and transfers.
+// World is the registry of map instances and of where each joined character is; it runs their saves and transfers.
 type World struct {
 	data      *gamedata.Data
 	deps      WorldDeps
@@ -87,10 +85,7 @@ func (w *World) instance(mapID string) (*Instance, error) {
 	return i, nil
 }
 
-// Join takes the account's character off the map it is on, loads it with its newest checkpoint not yet
-// saved laid over it, grants its starter items and joins its map through conn. So a login elsewhere, or
-// a rejoin, starts where the character was, never at an older save; one that fails after the take-off
-// detaches the older connection.
+// Join takes the character off any map it is on first, so a login elsewhere or a rejoin never starts at an older save.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	d, err := w.depart(ctx, id, func(p presence) bool { return p.account == account })
 	if err != nil {
@@ -153,8 +148,7 @@ func (w *World) load(ctx context.Context, id kernel.CharacterID, account kernel.
 	return w.deps.Characters.Load(ctx, id, account)
 }
 
-// grantStarter is a safety net for a creation whose grant failed: a failure is logged, and the next join
-// tries again.
+// grantStarter is a safety net for a creation whose grant failed: a failure is logged, and the next join tries again.
 func (w *World) grantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) {
 	ctx, cancel := context.WithTimeout(ctx, starterTimeout)
 	defer cancel()
@@ -169,9 +163,7 @@ type departure struct {
 	ok   bool // the player was on the map
 }
 
-// depart takes the character off its map, if want accepts its presence, and returns once the map has, its
-// last checkpoint queued. Until then a tombstone stands in the registry: a transfer can't land, and
-// another depart waits for this one before it looks again.
+// depart takes the character off its map if want accepts it, behind a tombstone that holds off transfers and departs.
 func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(presence) bool) (departure, error) {
 	for {
 		left := make(chan struct{})
@@ -202,8 +194,7 @@ func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(pre
 	}
 }
 
-// leaveLater posts a leave for a join that may still land, retrying while the map is busy, until it is
-// posted or the world stops.
+// leaveLater posts a leave for a join that may still land, retrying while the map is busy, until the world stops.
 func (w *World) leaveLater(inst *Instance, id kernel.CharacterID, conn string) {
 	w.background.Go(func() { _ = postBusy(w.jobs, inst, leaveMsg{id: id, conn: conn}) })
 }
@@ -247,7 +238,6 @@ func busyBackOff() *backoff.ExponentialBackOff {
 }
 
 // Transfer joins the player to another map on its own goroutine, so the calling tick never waits.
-// A presence that a newer join replaced, or whose connection left, is not moved.
 func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	target, ok := w.instances[mapID]
 	if !ok {
@@ -270,8 +260,7 @@ func (w *World) Dropped(from *Instance, id kernel.CharacterID, conn string) {
 // errMoved is a transfer whose presence left, or was replaced, before it landed.
 var errMoved = errors.New("the presence moved on")
 
-// transfer joins the player to target, retrying while its inbox is full. One that cannot land within
-// transferTimeout detaches the connection, so the gateway joins the player again where it was saved.
+// transfer joins the player to target; one that can't land in transferTimeout detaches, so the gateway joins it again.
 func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
 	ctx, cancel := context.WithTimeout(w.jobs, transferTimeout)
 	defer cancel()
@@ -300,10 +289,7 @@ func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
 	}
 }
 
-// Run ticks every instance, runs the economy workers and saves what the maps queue, until ctx is done.
-// The maps then checkpoint the players still on them, and the saves left get one try each within the
-// flush budget, so a down character service can't hold the shutdown. A map that panics stops them all;
-// the others still checkpoint, but its own state is suspect and is not saved.
+// Run ticks every instance and saves until ctx is done or a map panics; a panicked map's suspect state is not saved.
 func (w *World) Run(ctx context.Context) error {
 	retrying, stopRetrying := context.WithCancel(ctx)
 	defer stopRetrying()
@@ -363,9 +349,7 @@ func (w *World) flush(ctx context.Context, stopped <-chan struct{}) {
 	}
 }
 
-// saveWhile saves the queue's checkpoints until ctx ends. A save that fails transiently goes back in line
-// behind the others, and failures in a row back the worker off, up to saveRetryMax: one failing save holds
-// up no other, and an outage costs every save the same wait. A refused save is dropped and logged.
+// saveWhile saves until ctx ends; a failed save retries behind the others, so one failing save holds up no other.
 func (w *World) saveWhile(ctx context.Context) {
 	wait := &backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}
 	for ctx.Err() == nil {

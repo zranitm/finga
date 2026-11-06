@@ -26,8 +26,7 @@ type Config struct {
 	Sampling Sampling `mapstructure:"sampling"`
 }
 
-// Sampling caps one message at one level per second: the first Initial, then every Thereafter-th.
-// Initial 0 turns it off; Thereafter 0 drops the rest of the second.
+// Sampling caps one message at one level per second: the first Initial, then every Thereafter-th; Initial 0 is off.
 type Sampling struct {
 	Initial    int `mapstructure:"initial" validate:"min=0"`
 	Thereafter int `mapstructure:"thereafter" validate:"min=0"`

@@ -1,5 +1,4 @@
 // Package ws serves the gateway's WebSocket at /ws: the handshake and each connection's life.
-// Package receive handles what a client sends, package push what it is sent.
 package ws
 
 import (
@@ -85,8 +84,7 @@ func (h *Handler) OnMessage(_ wsconn.Conn, conn Connection, m wsconn.Message) {
 	h.receive.Dispatch(conn.in, m)
 }
 
-// OnClose stops the connection's commands before ending its session; a push that could not be encoded
-// is a bug, so it is logged as one.
+// OnClose stops the connection's commands before ending its session; a push that failed to encode is logged as a bug.
 func (h *Handler) OnClose(c wsconn.Conn, conn Connection, err error) {
 	if conn.in == nil {
 		return // OnOpen panicked

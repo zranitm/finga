@@ -566,8 +566,7 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 	})
 }
 
-// Leaving within the respawn delay saves the respawn the death is owed, not the body: alive in town, at
-// half HP, the penalty taken once.
+// Leaving in the respawn delay saves the respawn the death is owed: alive in town, at half HP, the penalty taken once.
 func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)

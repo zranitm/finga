@@ -61,8 +61,7 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 	return err
 }
 
-// gatewayLeft takes the gateway's players offline once its stream has stayed gone for gatewayGrace: it
-// died without telling. A gateway that comes back registers its players again.
+// gatewayLeft takes a dead gateway's players offline after gatewayGrace; a gateway that returns re-registers them.
 func (s *Server) gatewayLeft(gateway string) {
 	time.AfterFunc(gatewayGrace, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
@@ -91,9 +90,7 @@ func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterI
 	return true
 }
 
-// WatchParties streams Subscribed and a membership snapshot, then each change since it subscribed. The
-// snapshot may already hold the first changes; each sets its characters' party outright, so replaying
-// them in order ends at the current state.
+// WatchParties streams a snapshot, then each change since; each sets parties outright, so an overlap is harmless.
 func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.ServerStreamingServer[socialv1.WatchPartiesResponse]) error {
 	if req.GetWorldId() == "" {
 		return status.Error(codes.InvalidArgument, "world_id is required")

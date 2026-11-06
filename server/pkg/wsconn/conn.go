@@ -66,16 +66,13 @@ func (e *CloseError) Unwrap() error { return e.Err }
 // Conn is a live connection as the handler sees it.
 type Conn interface {
 	ID() string
-	// Send enqueues m without blocking, and the writer encodes it, so m must not change once sent;
-	// a full queue closes the connection, as does a message the codec cannot encode.
+	// Send enqueues m without blocking, so m must not change after; a full queue or unencodable m ends the connection.
 	Send(m Message) error
 	// Close ends the connection; the first call wins.
 	Close(code int, reason string)
 }
 
-// Handler callbacks run on the read goroutine one at a time; OnClose runs last, exactly once. OnOpen
-// returns the connection's state, which the others get back, so a handler keeps no map of its own;
-// OnClose gets the zero state if OnOpen panicked.
+// Handler callbacks run serially on the read goroutine; OnClose runs last, once, with a zero state if OnOpen panicked.
 type Handler[S any] interface {
 	OnOpen(Conn) S
 	OnMessage(Conn, S, Message)
@@ -97,8 +94,7 @@ type Options struct {
 	SendQueue      int
 	PingInterval   time.Duration
 	PongTimeout    time.Duration
-	// Panics records a panic in a Handler callback, which closes the connection with 1011;
-	// nil passes the panic on to the HTTP server once the connection is closed.
+	// Panics records a Handler panic, which closes the connection with 1011; nil re-panics once the connection closes.
 	Panics *panics.Recorder
 }
 
@@ -302,8 +298,7 @@ func run[S any](c *conn, parent context.Context, h Handler[S], opts Options) {
 
 	state, failure, readErr := callbacks(c, h, frames)
 
-	// A peer that stopped reading never takes the last frames or answers the close frame, so the goodbye
-	// has one deadline; past it the socket is dropped. A peer that still reads hears our code.
+	// A peer that stopped reading never answers the close, so the goodbye has one deadline; then the socket is dropped.
 	if c.closeErr != nil {
 		stop := time.AfterFunc(goodbyeTimeout, func() { _ = c.raw.Close() })
 		if c.closeErr.Code != CloseSlowConsumer && c.closeErr.Code != CloseTimeout {

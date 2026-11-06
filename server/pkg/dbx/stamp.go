@@ -7,8 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// Stamp is a row's created_at or updated_at from the app's clock; a zero Stamp writes NULL, so a NOT NULL
-// column refuses a write that left it out.
+// Stamp is a row's created_at or updated_at from the app's clock; a zero Stamp writes NULL, which NOT NULL refuses.
 type Stamp time.Time
 
 // Now is the app clock's stamp, at the database's microsecond precision.

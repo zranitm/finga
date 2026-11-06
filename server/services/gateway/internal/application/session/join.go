@@ -19,8 +19,7 @@ const (
 	ghostQuiet     = time.Second
 	joinRetryFirst = 20 * time.Millisecond
 	joinRetryMax   = 500 * time.Millisecond
-	// After the world's stream breaks every player rejoins: each after a random pause up to rejoinSpread,
-	// and no more than rejoinsAtOnce at a time, so a world that just restarted is not hit by all at once.
+	// Rejoins after a stream break are spread and capped, so a world that just restarted is not hit by all at once.
 	rejoinSpread  = 500 * time.Millisecond
 	rejoinsAtOnce = 32
 )
@@ -37,8 +36,7 @@ type Join struct {
 	done     bool     // Finish or Release ran
 }
 
-// Join joins character to the world through s's connection, retrying while the world cannot take it
-// yet, then claims it for s. Deliveries wait until Finish sends Welcome; on an error nothing stays held or claimed.
+// Join joins character to the world and claims it for s, holding deliveries until Finish; an error undoes both.
 func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountID, sessionID kernel.SessionID, character kernel.CharacterID) (*Join, error) {
 	// The character's other joins wait, and deliveries are held so a Snapshot that beats the join follows Welcome.
 	unlock, err := r.lockCharacter(ctx, character)
@@ -79,9 +77,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	return &Join{Joined: joined, r: r, s: s, previous: previous, subs: subs, unlock: unlock}, nil
 }
 
-// Finish makes s the account's, the login session's and the character's active session as player,
-// sends welcome ahead of the held deliveries, and returns the older sessions s replaced. If the
-// world's stream broke during the join, s rejoins.
+// Finish makes s the active session, sends welcome ahead of the held deliveries, and returns the sessions s replaced.
 func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*Session) {
 	r, s := j.r, j.s
 	j.done = true
@@ -137,8 +133,7 @@ func (r *Registry) Rejoin(s *Session) {
 	}, "job", "rejoin", "character_id", s.Character())
 }
 
-// rejoin joins a player again after the world's stream broke, unless a newer connection joined the
-// character since; other failures end the session.
+// rejoin joins a player again after the world's stream broke, unless a newer connection joined the character since.
 func (r *Registry) rejoin(s *Session) {
 	character := s.Character()
 	unlock, err := r.lockCharacter(s.ctx, character)
@@ -214,9 +209,7 @@ func waitable(err error) bool {
 	return errors.Is(err, model.ErrNotSubscribed) || errors.Is(err, model.ErrUnavailable)
 }
 
-// LeaveGhost takes off its map a presence whose connection this gateway does not have: its deliveries
-// still come, so its Leave went missing. One at a time per connection, then none for ghostQuiet while
-// the deliveries already on their way drain.
+// LeaveGhost takes off its map a presence whose Leave went missing: its connection is gone, its deliveries still come.
 func (r *Registry) LeaveGhost(p model.Presence) {
 	if p.Character.IsZero() {
 		return
@@ -250,8 +243,7 @@ func (r *Registry) quiet(conn string, now time.Time) {
 	r.ghosts[conn] = now.Add(leaveTimeout + ghostQuiet)
 }
 
-// leave takes the presence off its map, trying again while the world is too busy, for up to
-// leaveTimeout; a failure is only logged.
+// leave takes the presence off its map, retrying while the world is busy, for up to leaveTimeout; failures are logged.
 func (r *Registry) leave(p model.Presence) {
 	ctx, cancel := context.WithTimeout(context.Background(), leaveTimeout)
 	defer cancel()

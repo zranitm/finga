@@ -343,8 +343,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("the watcher never saw drop %d", drop.GetId())
 		}
 
-		// Pick it up twice in one tick: the second PickUp finds it reserved, or takes another drop in range.
-		// A slime's touch can bounce the character out of range, so the pair is resent as a client would.
+		// Two PickUps in one tick: the second finds it reserved or takes another drop; resent if a slime knocks us off.
 		got := false
 		for attempt := 0; attempt < 20 && !got; attempt++ {
 			if !killer.walkTo(drop.X, 15*time.Second) {
@@ -373,8 +372,7 @@ func TestLootAndKeep(t *testing.T) {
 		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.GetId()]; return !seen }) {
 			t.Fatal("the watcher still sees the drop")
 		}
-		// Re-send the same PickUp, as after a lost reply; with no request ID it is a new pickup.
-		// It takes nothing already taken, so every InventoryChanged is still one drop leaving the ground.
+		// Re-sending a PickUp, as after a lost reply, is a new pickup that takes nothing already taken.
 		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: &clientv1.PickUp{}}); err != nil {
 			t.Fatal(err)
 		}

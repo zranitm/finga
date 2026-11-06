@@ -76,8 +76,7 @@ func statsOf(st gamedata.Stats) *characterv1.Stats {
 	return &characterv1.Stats{Strength: int32(st.STR), Dexterity: int32(st.DEX), Intelligence: int32(st.INT), Agility: int32(st.AGI), Vitality: int32(st.VIT)}
 }
 
-// Retryable is a failure the character service may yet get past: anything else, a bug's Internal
-// included, would be retried forever.
+// Retryable is a failure the character service may yet get past; any other would be retried forever.
 func (Saver) Retryable(err error) bool { return grpcx.IsTransient(err) }
 
 // Characters is the world's Characters over the character service.

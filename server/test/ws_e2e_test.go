@@ -16,8 +16,7 @@ import (
 	"finga/pkg/wsconn"
 )
 
-// player is one test client: a REST session plus a WebSocket speaking binary Protobuf, as the browser does.
-// A background reader decodes frames, since a timed-out Read would close the socket.
+// player is a REST session plus a binary Protobuf WebSocket, read in the background since a timed-out Read closes it.
 type player struct {
 	t     *testing.T
 	id    string
@@ -192,8 +191,7 @@ func TestWalkTogether(t *testing.T) {
 	t.Run("B2/faster-inputs-do-not-move-faster", func(t *testing.T) {
 		ayla.drain(400 * time.Millisecond)
 		robin.drain(400 * time.Millisecond)
-		// For 20 ticks Ayla sends one input per tick and Robin ten (the excess is dropped).
-		// Both should cover about the same distance, bounded by walk speed, not input count.
+		// For 20 ticks Ayla sends one input a tick and Robin ten; both cover the same distance, bounded by walk speed.
 		seqA, seqR := uint32(10), uint32(10)
 		var startA, startR *clientv1.PlayerView
 		for i := range 20 {

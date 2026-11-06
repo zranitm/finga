@@ -1,5 +1,4 @@
-// Package configload loads a typed config from YAML plus environment overrides and validates it.
-// An envprefix tag renames a subtree's variables; slices are comma-separated, maps k=v pairs or JSON.
+// Package configload loads a typed config from YAML plus env overrides, renamed by envprefix tags, and validates it.
 package configload
 
 import (

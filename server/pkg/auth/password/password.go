@@ -92,8 +92,7 @@ func decode(hash string) (decoded, error) {
 // ErrBusy is a hash that found every slot taken for its whole wait.
 var ErrBusy = errors.New("password: too many hashes at once")
 
-// Hasher runs Hash and Verify at most slots at a time: each run holds Params.Memory, so the slots bound
-// what a burst of logins can take. A call waits up to wait for a slot, then fails with ErrBusy.
+// Hasher runs at most slots hashes at once, each holding Params.Memory; a call waits up to wait, then gets ErrBusy.
 type Hasher struct {
 	params Params
 	slots  *semaphore.Weighted

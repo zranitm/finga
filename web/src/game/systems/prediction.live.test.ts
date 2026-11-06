@@ -1,6 +1,5 @@
 // @vitest-environment node
-// Runs only against a live server:
-//   FINGA_LIVE_URL=http://localhost:8080 FINGA_LIVE_DELAY_MS=100 npx vitest run prediction.live
+// Live server only: FINGA_LIVE_URL=http://localhost:8080 FINGA_LIVE_DELAY_MS=100 npx vitest run prediction.live
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 

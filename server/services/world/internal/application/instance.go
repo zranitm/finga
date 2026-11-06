@@ -84,8 +84,7 @@ type Instance struct {
 //sumtype:decl
 type message interface{ message() }
 
-// leaveMsg removes a player, only if it joined through conn (empty: any), tells took about it, then closes
-// done; either may be nil.
+// leaveMsg removes a player if it joined through conn (empty: any), then fills took and closes done, if set.
 type leaveMsg struct {
 	id   kernel.CharacterID
 	conn string
@@ -112,8 +111,7 @@ type joinMsg struct {
 	player model.Player
 	sink   Sink
 	done   chan error
-	// held, when set, reports whether the join's presence still holds the character; a transfer's may
-	// have been replaced by a newer join, or have left.
+	// held, when set, reports whether the join's presence still holds the character; a transfer's may have moved on.
 	held func() bool
 }
 
@@ -146,8 +144,7 @@ type player struct {
 	private       []model.Event // events for this player only
 }
 
-// NewInstance builds the actor for m; its checkpoints go to saves, and mover takes its players to other
-// maps. Run starts it.
+// NewInstance builds the actor for m; checkpoints go to saves, mover takes players to other maps, and Run starts it.
 func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover Mover, t Tuning, d Deps) *Instance {
 	ticksPer := uint64(t.CheckpointInterval / t.TickInterval)
 	if ticksPer == 0 {
@@ -182,8 +179,7 @@ func (i *Instance) Run(ctx context.Context) error {
 	return err
 }
 
-// Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full, ErrStopped
-// once the map has stopped.
+// Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full, ErrStopped once stopped.
 func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 	return i.join(ctx, &joinMsg{player: p, sink: sink})
 }
@@ -288,8 +284,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.dropped = i.broadcast(changed, i.gone(removed))
 }
 
-// gone keeps the removed players who are not back: a Leave and a rejoin in one tick is an update, and the
-// client applies removals after updates.
+// gone keeps the removed players not back: a rejoin in one tick is an update, and the client applies removals last.
 func (i *Instance) gone(removed []kernel.CharacterID) []kernel.CharacterID {
 	out := removed[:0]
 	for _, id := range removed {
@@ -431,8 +426,7 @@ func cutInputs(q []inputMsg) []inputMsg {
 	return q
 }
 
-// simulate applies one queued input per player per tick. With none queued the player holds
-// still for inputHoldTicks, so each seq matches the client's prediction, then the held keys run.
+// simulate applies one queued input per player per tick; a short gap holds still to match the client's prediction.
 func (i *Instance) simulate() (changed []kernel.CharacterID) {
 	for _, id := range i.order {
 		p := i.players[id]
@@ -508,8 +502,7 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 	return dropped
 }
 
-// sendFrame sends the frame once to each stream the players are on, and returns the players on a stream
-// that refused it.
+// sendFrame sends the frame once per stream the players are on; it returns the players whose stream refused it.
 func (i *Instance) sendFrame(frame *model.Frame) map[kernel.CharacterID]bool {
 	type group struct {
 		stream Stream

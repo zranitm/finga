@@ -19,8 +19,7 @@ var ErrMalformed = errors.New("typedid: malformed ID")
 // New mints an ID; it panics only if the system's random source fails.
 func New[K any]() ID[K] { return ID[K](uuidv7.New()) }
 
-// Parse reads a version 7 UUID in any text form google/uuid accepts; anything else, the nil UUID
-// included, is ErrMalformed, as New never mints it.
+// Parse reads a version 7 UUID in any form google/uuid accepts; anything else, the nil UUID included, is ErrMalformed.
 func Parse[K any](s string) (ID[K], error) {
 	u, err := uuid.Parse(s)
 	if err != nil || u.Version() != 7 {

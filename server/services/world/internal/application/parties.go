@@ -13,13 +13,10 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// partyUpdateQueue bounds the member updates waiting to be sent; a full queue drops one, as the
-// member's next change carries the latest state.
+// partyUpdateQueue bounds the member updates to send; a full queue drops one, as the member's next carries the latest.
 const partyUpdateQueue = 1024
 
-// PartyCopy is the world's Parties: its copy of party membership, which the social service's stream
-// keeps current, so a tick reads it without waiting. It also sends what the maps see of members, from a
-// queue no tick waits on.
+// PartyCopy is the world's Parties, kept current from the social stream so no read or update makes a tick wait.
 type PartyCopy struct {
 	social  Social
 	worldID string

@@ -31,8 +31,7 @@ var (
 // spanPrefix starts the name of a command's span: ws.Hello.
 const spanPrefix = "ws."
 
-// sampled are the commands whose traces are kept: each answers after calls across services. The others only
-// queue work for a tick, so their traces are dropped, though their calls and log lines still carry the ID.
+// sampled are the commands whose traces are kept: each answers after calls across services; the rest only queue work.
 var sampled = map[string]bool{
 	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,

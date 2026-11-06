@@ -1,5 +1,4 @@
-// Package push is the gateway's push flow: what the services' streams and the gateway's own timers
-// start, each routed to the player's session it is for.
+// Package push is the gateway's push flow: what the services' streams and its timers start, routed to each session.
 package push
 
 import (

@@ -15,8 +15,7 @@ const (
 	onlineAtOnce  = 16
 )
 
-// socialDelivered forwards a delivery. Each subscription registers the players again, since the service
-// takes a gateway's players offline once its stream stays gone; a new boot ID also means every party is gone.
+// socialDelivered forwards a delivery; each subscription registers the players again, as the service may drop them.
 func (g *Gateway) socialDelivered(ev model.SocialEvent) {
 	switch ev := ev.(type) {
 	case model.SocialSubscribed:
@@ -44,8 +43,7 @@ func (g *Gateway) socialSubscribed(bootID string) {
 	}
 }
 
-// registerAgain registers every active player with the social service each time a subscription asks, off
-// the stream's goroutine, so a slow service holds up no delivery.
+// registerAgain registers every active player with the social service off the stream's goroutine, delaying no delivery.
 func (g *Gateway) registerAgain(ctx context.Context) {
 	for {
 		select {

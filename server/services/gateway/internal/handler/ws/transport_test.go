@@ -8,8 +8,7 @@ import (
 	"testing"
 )
 
-// pipes is a listener whose connections are net.Pipe ends: a gateway on it runs inside a synctest bubble,
-// where a read on a real socket would not count as blocked.
+// pipes is a listener of net.Pipe ends: inside a synctest bubble, a read on a real socket would not count as blocked.
 type pipes struct {
 	conns chan net.Conn
 	done  chan struct{}

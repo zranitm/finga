@@ -1,6 +1,4 @@
 // Command bot drives test players against a running game, then prints what happened and the tick p99.
-//
-//	go run ./cmd/bot -url http://localhost:8080 -metrics http://localhost:9104 -bots 4 -duration 30m
 package main
 
 import (

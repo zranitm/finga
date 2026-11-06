@@ -1,5 +1,4 @@
-// Package push writes everything one connection is sent: the application's Welcome, pushes and ends,
-// and the replies the receiving side chooses.
+// Package push writes everything one connection is sent: Welcome, pushes, ends, and the replies receive chooses.
 package push
 
 import (

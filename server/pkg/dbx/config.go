@@ -2,8 +2,7 @@ package dbx
 
 import "time"
 
-// Config is a pool's settings from a configuration file's database section. A zero timeout leaves the
-// server's default, which is none.
+// Config is a pool's settings from a config file's database section; a zero timeout keeps the server's default, none.
 type Config struct {
 	URL      string `mapstructure:"url" validate:"required,url,startswith=postgres"`
 	MaxConns int32  `mapstructure:"max_conns" validate:"min=1"`
