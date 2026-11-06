@@ -90,9 +90,9 @@ message DeliverRequest {
   string gateway_id = 1;
 }
 
-// DeliverResponse is one event for one player.
+// DeliverResponse is one event for one player, or a Frame for the gateway's players on a map.
 message DeliverResponse {
-  // Empty only for Subscribed, as is connection_id.
+  // Empty for Subscribed and Frame, as is connection_id.
   string character_id = 1;
   // The connection the character joined through; the gateway routes by it.
   string connection_id = 15;
@@ -101,7 +101,8 @@ message DeliverResponse {
   oneof event {
     Subscribed subscribed = 3;
     Snapshot snapshot = 4;
-    Delta delta = 5;
+    // Replaced by frame, which carries each tick's Delta once for all the gateway's players on the map.
+    Delta delta = 5 [deprecated = true];
     Teleport teleport = 6;
     Damage damage = 7;
     Died died = 8;
@@ -112,7 +113,25 @@ message DeliverResponse {
     InventoryChanged inventory_changed = 13;
     PickupFailed pickup_failed = 14;
     Detached detached = 16;
+    Frame frame = 17;
   }
+}
+
+// Frame is a map's Delta for one tick, sent once to each gateway with players there; each recipient
+// gets it with its own ack_seq.
+message Frame {
+  // What changed on the map; its ack_seq is unset.
+  Delta delta = 1;
+  repeated Recipient recipients = 2;
+}
+
+// Recipient is a player a Frame goes to.
+message Recipient {
+  string character_id = 1;
+  // The connection the character joined through; the gateway routes by it.
+  string connection_id = 2;
+  // The latest input sequence applied for this player.
+  uint32 ack_seq = 3;
 }
 
 // Detached is the character off every map through this connection: a portal's transfer failed. The

@@ -84,7 +84,7 @@ func TestNothingFollowsTheEnd(t *testing.T) {
 					return
 				default:
 				}
-				o.Deliver(model.Delivery{Push: model.Delta{}})
+				o.Deliver(model.Delivery{Push: model.Delta{Frame: &model.Frame{}}})
 				o.Reply("", &clientv1.Pong{})
 			}
 		})
@@ -92,7 +92,7 @@ func TestNothingFollowsTheEnd(t *testing.T) {
 	o.End(model.EndServerRestart)
 	close(stop)
 	wg.Wait()
-	o.Deliver(model.Delivery{Push: model.Delta{}})
+	o.Deliver(model.Delivery{Push: model.Delta{Frame: &model.Frame{}}})
 	o.Reply("r-1", &clientv1.Response{Ok: true})
 	o.Welcome(model.Welcome{})
 	s.mu.Lock()
@@ -121,7 +121,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	}{
 		{model.Snapshot{Players: players, Mobs: mobs, Drops: drops}, &clientv1.Snapshot{Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops}},
 		{
-			model.Delta{AckSeq: 3, Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}},
+			model.Delta{AckSeq: 3, Frame: &model.Frame{Players: players, Mobs: mobs, Drops: drops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{2}}},
 			&clientv1.Delta{AckSeq: 3, Players: wirePlayers, Mobs: wireMobs, Drops: wireDrops, RemovedPlayers: []string{"p-2"}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{2}},
 		},
 		{model.MapChange{MapID: "forest", X: 64, Y: 608}, &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},

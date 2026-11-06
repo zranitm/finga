@@ -155,6 +155,16 @@ func (s *stack) join(t *testing.T, gateway, conn string, ch model.Character) *wo
 	return res.GetCharacter()
 }
 
+// recipientIn is the frame's recipient for the character; nil when the frame does not go to it.
+func recipientIn(f *worldv1.Frame, id string) *worldv1.Recipient {
+	for _, r := range f.GetRecipients() {
+		if r.GetCharacterId() == id {
+			return r
+		}
+	}
+	return nil
+}
+
 func until(t *testing.T, stream grpc.ServerStreamingClient[worldv1.DeliverResponse], what string, match func(*worldv1.DeliverResponse) bool) *worldv1.DeliverResponse {
 	t.Helper()
 	for {
@@ -177,7 +187,7 @@ func playerIn(ps []*worldv1.PlayerView, id string) (*worldv1.PlayerView, bool) {
 	return nil, false
 }
 
-func TestJoinSendsTheSnapshotThenDeltasOnTheGatewaysStream(t *testing.T) {
+func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 	s := newStack(t)
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
@@ -203,12 +213,13 @@ func TestJoinSendsTheSnapshotThenDeltasOnTheGatewaysStream(t *testing.T) {
 	}
 	var last uint64
 	for range 3 {
-		m := until(t, gw, "a delta", func(m *worldv1.DeliverResponse) bool { return m.GetDelta() != nil })
-		if m.GetCharacterId() != ayla.ID.String() || m.GetConnectionId() != "conn-1" || m.GetTick() <= last {
-			t.Fatalf("delta %+v after tick %d", m, last)
+		m := until(t, gw, "a frame", func(m *worldv1.DeliverResponse) bool { return m.GetFrame() != nil })
+		r := recipientIn(m.GetFrame(), ayla.ID.String())
+		if r == nil || r.GetConnectionId() != "conn-1" || m.GetTick() <= last {
+			t.Fatalf("frame %+v after tick %d", m, last)
 		}
 		last = m.GetTick()
-		if p, ok := playerIn(m.GetDelta().GetPlayers(), ayla.ID.String()); ok && m.GetDelta().GetAckSeq() == 1 && p.GetX() <= ayla.X {
+		if p, ok := playerIn(m.GetFrame().GetDelta().GetPlayers(), ayla.ID.String()); ok && r.GetAckSeq() == 1 && p.GetX() <= ayla.X {
 			t.Fatalf("held right but at %v from %v", p.GetX(), ayla.X)
 		}
 	}
@@ -229,10 +240,10 @@ func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := until(t, gw, "her move", func(m *worldv1.DeliverResponse) bool {
-		p, ok := playerIn(m.GetDelta().GetPlayers(), ayla.ID.String())
+		p, ok := playerIn(m.GetFrame().GetDelta().GetPlayers(), ayla.ID.String())
 		return ok && p.GetX() != ayla.X
 	})
-	if p, _ := playerIn(m.GetDelta().GetPlayers(), ayla.ID.String()); p.GetX() >= ayla.X {
+	if p, _ := playerIn(m.GetFrame().GetDelta().GetPlayers(), ayla.ID.String()); p.GetX() >= ayla.X {
 		t.Fatalf("moved right to %v from %v: the older connection's input counted", p.GetX(), ayla.X)
 	}
 
@@ -273,9 +284,9 @@ func TestLeaveRemovesOnlyThroughTheConnectionThatJoined(t *testing.T) {
 	}
 	// The first Leave changes nothing, the second removes her, and Bo sees her go once.
 	m := until(t, gw, "her removal", func(m *worldv1.DeliverResponse) bool {
-		return m.GetCharacterId() == bo.ID.String() && len(m.GetDelta().GetRemovedPlayers()) > 0
+		return recipientIn(m.GetFrame(), bo.ID.String()) != nil && len(m.GetFrame().GetDelta().GetRemovedPlayers()) > 0
 	})
-	if got := m.GetDelta().GetRemovedPlayers(); len(got) != 1 || got[0] != ayla.ID.String() {
+	if got := m.GetFrame().GetDelta().GetRemovedPlayers(); len(got) != 1 || got[0] != ayla.ID.String() {
 		t.Fatalf("removed %v", got)
 	}
 	if _, err := s.c.Leave(s.ctx, &worldv1.LeaveRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String()}}); status.Code(err) != codes.InvalidArgument {

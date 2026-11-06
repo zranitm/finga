@@ -335,7 +335,7 @@ func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c ke
 		return model.Joined{}, err
 	}
 	for i := range flood {
-		d := model.Delivery{Push: model.Delta{}}
+		d := model.Delivery{Push: model.Delta{Frame: &model.Frame{}}}
 		if i == 0 {
 			d.Push = model.Snapshot{}
 		}

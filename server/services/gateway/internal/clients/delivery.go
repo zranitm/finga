@@ -15,12 +15,6 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	case m.GetSnapshot() != nil:
 		ev := m.GetSnapshot()
 		return model.Snapshot{Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops())}, true
-	case m.GetDelta() != nil:
-		ev := m.GetDelta()
-		return model.Delta{
-			AckSeq: ev.GetAckSeq(), Players: playerViews(ev.GetPlayers()), Mobs: mobViews(ev.GetMobs()), Drops: dropViews(ev.GetDrops()),
-			RemovedPlayers: ev.GetRemovedPlayers(), RemovedMobs: ev.GetRemovedMobs(), RemovedDrops: ev.GetRemovedDrops(),
-		}, true
 	case m.GetTeleport() != nil:
 		ev := m.GetTeleport()
 		return model.MapChange{MapID: ev.GetMapId(), X: ev.GetX(), Y: ev.GetY()}, true
@@ -47,6 +41,14 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.PickupFailed{Why: pickupFailure(m.GetPickupFailed())}, true
 	}
 	return nil, false
+}
+
+// frameOf is a Frame's Delta, which every recipient shares.
+func frameOf(d *worldv1.Delta) *model.Frame {
+	return &model.Frame{
+		Players: playerViews(d.GetPlayers()), Mobs: mobViews(d.GetMobs()), Drops: dropViews(d.GetDrops()),
+		RemovedPlayers: d.GetRemovedPlayers(), RemovedMobs: d.GetRemovedMobs(), RemovedDrops: d.GetRemovedDrops(),
+	}
 }
 
 // pickupFailure is a failed pickup as the player sees it; one without a reason is internal.

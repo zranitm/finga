@@ -7,6 +7,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
+	"finga/services/world/internal/application"
 	"finga/services/world/internal/model"
 )
 
@@ -17,6 +18,9 @@ type streamSink struct {
 	conn      string
 	log       *slog.Logger
 }
+
+// Stream is the player's gateway's stream, which every player joined through that gateway shares.
+func (s *streamSink) Stream() application.Stream { return gatewayStream{sub: s.sub} }
 
 // Send turns one world event into a delivery and queues it.
 func (s *streamSink) Send(e model.Event) bool {
@@ -31,13 +35,6 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
 			MapId: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops),
 		}}}
-	case model.Delta:
-		shared := ev.Encoded(func(f *model.Frame) any { return encodeFrame(f) }).(*worldv1.Delta)
-		d := &worldv1.Delta{
-			AckSeq: ev.AckSeq, Players: shared.Players, Mobs: shared.Mobs, Drops: shared.Drops,
-			RemovedPlayers: shared.RemovedPlayers, RemovedMobs: shared.RemovedMobs, RemovedDrops: shared.RemovedDrops,
-		}
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Delta{Delta: d}}
 	case model.Teleport:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: ev.MapID, X: ev.X, Y: ev.Y}}}
 	case model.Damage:
@@ -143,8 +140,21 @@ func slots(in []model.Slot) []*worldv1.Slot {
 	return out
 }
 
-// encodeFrame is the frame as a Delta every player on the map shares, read-only; each gets a copy with its
-// own AckSeq.
+// gatewayStream is one gateway's delivery stream.
+type gatewayStream struct {
+	sub *hub.Sub[*worldv1.DeliverResponse]
+}
+
+// SendFrame queues the frame once for all its recipients on the gateway.
+func (g gatewayStream) SendFrame(f *model.Frame, to []model.Recipient) bool {
+	recipients := make([]*worldv1.Recipient, 0, len(to))
+	for _, r := range to {
+		recipients = append(recipients, &worldv1.Recipient{CharacterId: r.Character.String(), ConnectionId: r.Connection, AckSeq: r.AckSeq})
+	}
+	return g.sub.Send(&worldv1.DeliverResponse{Tick: f.Tick, Event: &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{Delta: encodeFrame(f), Recipients: recipients}}})
+}
+
+// encodeFrame is the frame as a Delta without an AckSeq; each recipient has its own.
 func encodeFrame(f *model.Frame) *worldv1.Delta {
 	d := &worldv1.Delta{
 		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),

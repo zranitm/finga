@@ -5,52 +5,55 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
+	"finga/pkg/hub"
 	"finga/services/world/internal/model"
 )
 
-// A tick's Delta is encoded once for everyone on the map; each recipient gets only its own AckSeq.
-func TestATicksDeltaIsEncodedOnceForEveryRecipient(t *testing.T) {
-	frame := &model.Frame{Tick: 9, Players: []model.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla"}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}}
-	a, b := &streamSink{character: "a", conn: "c-a"}, &streamSink{character: "b", conn: "c-b"}
-	ma := a.delivery(model.Delta{Frame: frame, AckSeq: 1}).GetDelta()
-	mb := b.delivery(model.Delta{Frame: frame, AckSeq: 2}).GetDelta()
-	if ma.GetAckSeq() != 1 || mb.GetAckSeq() != 2 {
-		t.Fatalf("ack seqs %d, %d", ma.GetAckSeq(), mb.GetAckSeq())
+// A tick's frame reaches its gateway's stream once, whole, with each recipient's own ack.
+func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](8).Subscribe("gw")
+	a, b := &streamSink{sub: sub, character: "a", conn: "c-a"}, &streamSink{sub: sub, character: "b", conn: "c-b"}
+	if a.Stream() != b.Stream() {
+		t.Fatal("two players on one gateway have two streams")
 	}
-	if ma.GetPlayers()[0] != mb.GetPlayers()[0] || &ma.GetRemovedPlayers()[0] != &mb.GetRemovedPlayers()[0] {
-		t.Fatal("each recipient's Delta was encoded again")
-	}
-}
-
-// Each recipient's copy of the shared Delta carries every field of it.
-func TestARecipientsDeltaCarriesTheWholeFrame(t *testing.T) {
 	frame := &model.Frame{
 		Tick: 3, Players: []model.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla"}}, Mobs: []model.MobView{{ID: 4}},
 		Drops: []model.DropView{{ID: 5}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{7},
 	}
-	got := (&streamSink{}).delivery(model.Delta{Frame: frame, AckSeq: 8}).GetDelta()
-	want := encodeFrame(frame)
-	want.AckSeq = 8
+	ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
+	if !a.Stream().SendFrame(frame, []model.Recipient{{Character: ayla, Connection: "c-a", AckSeq: 8}, {Character: robin, Connection: "c-b"}}) {
+		t.Fatal("the stream refused the frame")
+	}
+	if n := len(sub.C()); n != 1 {
+		t.Fatalf("%d messages on the stream, want 1", n)
+	}
+	got := <-sub.C()
+	want := &worldv1.DeliverResponse{Tick: 3, Event: &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{
+		Delta: encodeFrame(frame),
+		Recipients: []*worldv1.Recipient{
+			{CharacterId: ayla.String(), ConnectionId: "c-a", AckSeq: 8},
+			{CharacterId: robin.String(), ConnectionId: "c-b"},
+		},
+	}}}
 	if !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
+	if d := got.GetFrame().GetDelta(); len(d.GetPlayers()) != 1 || len(d.GetMobs()) != 1 || len(d.GetDrops()) != 1 || len(d.GetRemovedPlayers()) != 1 ||
+		len(d.GetRemovedMobs()) != 1 || len(d.GetRemovedDrops()) != 1 {
+		t.Fatalf("the frame lost a part: %v", d)
+	}
 }
 
-func BenchmarkADeltaToTwoHundredPlayers(b *testing.B) {
-	views := make([]model.PlayerView, 200)
-	for i := range views {
-		views[i] = model.PlayerView{ID: kernel.NewCharacterID(), Name: "player"}
+// A gateway whose stream is full refuses the frame, which drops its players.
+func TestAFullStreamRefusesTheFrame(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub}
+	if !s.Send(model.Detached{}) {
+		t.Fatal("the first message was refused")
 	}
-	sinks := make([]*streamSink, len(views))
-	for i := range sinks {
-		sinks[i] = &streamSink{character: views[i].ID.String(), conn: "c"}
-	}
-	b.ReportAllocs()
-	for b.Loop() {
-		frame := &model.Frame{Tick: 1, Players: views}
-		for _, s := range sinks {
-			_ = s.delivery(model.Delta{Frame: frame, AckSeq: 1})
-		}
+	if s.Stream().SendFrame(&model.Frame{}, []model.Recipient{{Character: kernel.NewCharacterID()}}) {
+		t.Fatal("a full stream took the frame")
 	}
 }

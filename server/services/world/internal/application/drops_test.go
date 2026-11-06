@@ -115,7 +115,7 @@ func dropsIn(s *sink) map[uint64]model.DropView {
 			for _, d := range ev.Drops {
 				seen[d.ID] = d
 			}
-		case model.Delta:
+		case delta:
 			for _, d := range ev.Drops {
 				seen[d.ID] = d
 			}

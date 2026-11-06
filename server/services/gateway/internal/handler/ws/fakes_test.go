@@ -174,6 +174,9 @@ func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv
 	f.conns[id] = req.GetConnectionId()
 	for _, m := range f.before {
 		m.CharacterId, m.ConnectionId = id.String(), "conn-older"
+		for _, r := range m.GetFrame().GetRecipients() {
+			r.CharacterId, r.ConnectionId = id.String(), "conn-older"
+		}
 		f.events <- m
 	}
 	f.tick++
@@ -324,6 +327,21 @@ func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.Sa
 	defer f.mu.Unlock()
 	f.says = append(f.says, req)
 	return &worldv1.SayResponse{}, nil
+}
+
+// delta sends a tick's Delta to the character, in a Frame as the world does.
+func (f *fakeWorld) delta(to kernel.CharacterID, tick uint64, d *worldv1.Delta) {
+	f.mu.Lock()
+	conn := f.conns[to]
+	f.mu.Unlock()
+	f.events <- frameTo(to, conn, tick, d)
+}
+
+// frameTo is a Frame whose one recipient is the character through conn, with d's AckSeq as its own.
+func frameTo(to kernel.CharacterID, conn string, tick uint64, d *worldv1.Delta) *worldv1.DeliverResponse {
+	r := &worldv1.Recipient{CharacterId: to.String(), ConnectionId: conn, AckSeq: d.GetAckSeq()}
+	d.AckSeq = 0
+	return &worldv1.DeliverResponse{Tick: tick, Event: &worldv1.DeliverResponse_Frame{Frame: &worldv1.Frame{Delta: d, Recipients: []*worldv1.Recipient{r}}}}
 }
 
 func (f *fakeWorld) push(to kernel.CharacterID, m *worldv1.DeliverResponse) {

@@ -461,10 +461,10 @@ func TestWorldEventsReachTheClient(t *testing.T) {
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{
+		h.world.delta(aylaID, 9, &worldv1.Delta{
 			AckSeq: 3, Players: []*worldv1.PlayerView{{Id: robinID.String(), Name: "Robin", Class: "bowman", Level: 2, Hp: 100, MaxHp: 105, X: 10, Y: 20, Vx: 200, Facing: -1, OnGround: true}},
 			RemovedPlayers: []string{brunoID.String()},
-		}}})
+		})
 		m := c.expect("Delta")
 		d := m.Data.(*clientv1.Delta)
 		if m.Tick != 9 || d.AckSeq != 3 || len(d.Players) != 1 || d.Players[0].GetId() != robinID.String() || d.Players[0].GetVx() != 200 || d.Players[0].Facing != -1 || !d.Players[0].OnGround || d.RemovedPlayers[0] != brunoID.String() {
@@ -506,7 +506,7 @@ func TestACloseLeavesTheMapOnce(t *testing.T) {
 		_ = c.c.Close(websocket.StatusNormalClosure, "bye")
 		waitFor(t, "the leave", h.world.leaves, 1)
 		for range 3 {
-			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}})
+			h.world.delta(aylaID, 9, &worldv1.Delta{})
 		}
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
@@ -667,9 +667,9 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetMaxHp() != 252 || lu.GetCharacter().GetStats().GetStr() != 15 || lu.GetCharacter().GetName() != "Ayla" {
 			t.Fatalf("level-up %+v", lu)
 		}
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 11, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{
+		h.world.delta(aylaID, 11, &worldv1.Delta{
 			Mobs: []*worldv1.MobView{{Id: 7, Type: "green_slime", X: 300, Y: 608, Facing: -1, Hp: 9, MaxHp: 30}}, RemovedMobs: []uint64{6},
-		}}})
+		})
 		dl := c.expect("Delta").Data.(*clientv1.Delta)
 		if len(dl.Mobs) != 1 || dl.Mobs[0].Type != "green_slime" || dl.Mobs[0].GetHp() != 9 || len(dl.RemovedMobs) != 1 || dl.RemovedMobs[0] != 6 {
 			t.Fatalf("delta %+v", dl)
@@ -758,7 +758,7 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			}
 		})
 		part(t, "drops and pickup results reach the client", func() {
-			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 12, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}}}})
+			h.world.delta(aylaID, 12, &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}})
 			d := c.expect("Delta").Data.(*clientv1.Delta)
 			if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
 				t.Fatalf("delta %+v", d)
@@ -1047,7 +1047,7 @@ func TestAPresenceWithoutAConnectionIsTakenOffItsMap(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		for range 5 {
-			h.world.events <- &worldv1.DeliverResponse{CharacterId: brunoID.String(), ConnectionId: "c-ghost", Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}}
+			h.world.events <- frameTo(brunoID, "c-ghost", 9, &worldv1.Delta{})
 		}
 		time.Sleep(time.Second)
 		left := waitFor(t, "the ghost's leave", h.world.leaves, 1)
@@ -1216,7 +1216,7 @@ func TestAHelloForAnotherAccountsCharacterLeavesItsPlayerAlone(t *testing.T) {
 		}
 		close(gate)
 		intruder.expectKick(clientv1.KickReason_KICK_REASON_UNAUTHENTICATED)
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 7}}})
+		h.world.delta(aylaID, 9, &worldv1.Delta{AckSeq: 7})
 		if d := ayla.expect("Delta").Data.(*clientv1.Delta); d.AckSeq != 7 {
 			t.Fatalf("delta %+v", d)
 		}
@@ -1569,7 +1569,7 @@ func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		// Before Join answers: an older connection's Delta (not this session's), the Snapshot, a Delta; the rest follow Welcome.
-		h.world.before = []*worldv1.DeliverResponse{{Tick: 1, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 99}}}}
+		h.world.before = []*worldv1.DeliverResponse{frameTo(kernel.CharacterID{}, "", 1, &worldv1.Delta{AckSeq: 99})}
 		h.world.mu.Lock()
 		h.world.tick = 40
 		h.world.mu.Unlock()
@@ -1589,7 +1589,7 @@ func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 		if got[0] != "Welcome" || got[1] != "Snapshot" {
 			t.Fatalf("order %v, want Welcome then the Snapshot", got)
 		}
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 42, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{AckSeq: 1}}})
+		h.world.delta(aylaID, 42, &worldv1.Delta{AckSeq: 1})
 		if d := c.expect("Delta"); d.Data.(*clientv1.Delta).AckSeq != 1 {
 			t.Fatalf("delta %+v: the older presence's came through", d)
 		}
@@ -1605,7 +1605,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		bruno := h.dial(t)
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Snapshot")
-		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 500, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}})
+		h.world.delta(aylaID, 500, &worldv1.Delta{})
 		if d := ayla.expect("Delta"); d.Tick != 500 {
 			t.Fatalf("delta tick %d", d.Tick)
 		}
@@ -1824,7 +1824,7 @@ func TestDrainWaitsForAGhostsLeave(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.leaveGate = gate
 		h.world.mu.Unlock()
-		h.world.events <- &worldv1.DeliverResponse{CharacterId: brunoID.String(), ConnectionId: "c-ghost", Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}}
+		h.world.events <- frameTo(brunoID, "c-ghost", 9, &worldv1.Delta{})
 		synctest.Wait()
 		drained := make(chan struct{})
 		go func() { defer close(drained); h.streams.Drain(context.Background()) }()

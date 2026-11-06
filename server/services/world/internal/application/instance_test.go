@@ -21,13 +21,28 @@ import (
 
 const tickInterval = 50 * time.Millisecond
 
-type sink struct {
-	mu     sync.Mutex
-	events []model.Event
-	full   bool // when set, Send refuses: a slow consumer
+// delta is a tick's frame as one player got it.
+type delta struct {
+	*model.Frame
+	AckSeq uint32
 }
 
-func (s *sink) Send(e model.Event) bool {
+// sink records a player's events, and each frame as its delta: the player has a stream of its own.
+type sink struct {
+	mu     sync.Mutex
+	events []any // model.Event, or delta
+	full   bool  // when set, sends are refused: a slow consumer
+}
+
+func (s *sink) Send(e model.Event) bool { return s.record(e) }
+
+func (s *sink) Stream() application.Stream { return s }
+
+func (s *sink) SendFrame(f *model.Frame, to []model.Recipient) bool {
+	return s.record(delta{Frame: f, AckSeq: to[0].AckSeq})
+}
+
+func (s *sink) record(e any) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.full {
@@ -37,26 +52,26 @@ func (s *sink) Send(e model.Event) bool {
 	return true
 }
 
-func (s *sink) all() []model.Event {
+func (s *sink) all() []any {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return append([]model.Event(nil), s.events...)
+	return slices.Clone(s.events)
 }
 
-func (s *sink) deltas() []model.Delta {
-	var out []model.Delta
+func (s *sink) deltas() []delta {
+	var out []delta
 	for _, e := range s.all() {
-		if d, ok := e.(model.Delta); ok {
+		if d, ok := e.(delta); ok {
 			out = append(out, d)
 		}
 	}
 	return out
 }
 
-func (s *sink) last() model.Delta {
+func (s *sink) last() delta {
 	ds := s.deltas()
 	if len(ds) == 0 {
-		return model.Delta{Frame: &model.Frame{}}
+		return delta{Frame: &model.Frame{}}
 	}
 	return ds[len(ds)-1]
 }
@@ -225,6 +240,59 @@ func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, cps *checkpoints
 	return inst, func() { once.Do(func() { cancel(); <-done }) }
 }
 
+// onStream is a player's sink whose frames go to a stream shared with others, as a gateway's.
+type onStream struct {
+	*sink
+	stream *frames
+}
+
+func (s onStream) Stream() application.Stream { return s.stream }
+
+// frames records each frame's recipients.
+type frames struct {
+	mu   sync.Mutex
+	sent [][]model.Recipient
+}
+
+func (f *frames) SendFrame(_ *model.Frame, to []model.Recipient) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.sent = append(f.sent, slices.Clone(to))
+	return true
+}
+
+// A tick's frame goes once to each stream, naming each of its players with the last input applied for it.
+func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		x, y := townSpawn(t, data)
+		inst, stop := runMap(t, data, data.Town(), nil, options{})
+		defer stop()
+		gateway := &frames{}
+		ayla, robin, bruno := newPlayer("Ayla", x, y), newPlayer("Robin", x, y), newPlayer("Bruno", x, y)
+		ayla.Connection, robin.Connection = "c-ayla", "c-robin"
+		for _, j := range []struct {
+			p model.Player
+			s application.Sink
+		}{{ayla, onStream{&sink{}, gateway}}, {robin, onStream{&sink{}, gateway}}, {bruno, &sink{}}} {
+			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := inst.Input(ayla.ID, 7, sim.Input{}); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		gateway.mu.Lock()
+		defer gateway.mu.Unlock()
+		want := []model.Recipient{{Character: ayla.ID, Connection: "c-ayla", AckSeq: 7}, {Character: robin.ID, Connection: "c-robin"}}
+		if len(gateway.sent) == 0 || !slices.Equal(gateway.sent[len(gateway.sent)-1], want) {
+			t.Fatalf("frames to the shared stream %+v, want each tick's once to %+v", gateway.sent, want)
+		}
+	})
+}
+
 func TestJoinSnapshotAndDeltas(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
@@ -249,7 +317,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 			if !ok || snap.MapID != "town" || len(snap.Players) != 1 || snap.Players[0].ID != ayla.ID || snap.Players[0].State.X != x {
 				t.Fatalf("first event %+v", events[0])
 			}
-			if _, ok := events[1].(model.Delta); !ok {
+			if _, ok := events[1].(delta); !ok {
 				t.Fatalf("second event %T", events[1])
 			}
 		}
@@ -903,7 +971,7 @@ func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 		}
 		shown := false
 		for _, e := range sr.all()[before:] {
-			d, ok := e.(model.Delta)
+			d, ok := e.(delta)
 			if !ok {
 				continue
 			}

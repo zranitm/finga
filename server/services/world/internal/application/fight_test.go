@@ -53,8 +53,8 @@ func (r *transferRecorder) Transfer(p model.Player, _ application.Sink, mapID st
 	r.to = append(r.to, mapID)
 }
 
-func (s *sink) ofType(want func(model.Event) bool) []model.Event {
-	var out []model.Event
+func (s *sink) ofType(want func(any) bool) []any {
+	var out []any
 	for _, e := range s.all() {
 		if want(e) {
 			out = append(out, e)
@@ -65,7 +65,7 @@ func (s *sink) ofType(want func(model.Event) bool) []model.Event {
 
 func damages(s *sink) []model.Damage {
 	var out []model.Damage
-	for _, e := range s.ofType(func(e model.Event) bool { _, ok := e.(model.Damage); return ok }) {
+	for _, e := range s.ofType(func(e any) bool { _, ok := e.(model.Damage); return ok }) {
 		out = append(out, e.(model.Damage))
 	}
 	return out
@@ -99,7 +99,7 @@ func mobsIn(s *sink) map[uint64]model.MobView {
 			for _, m := range ev.Mobs {
 				seen[m.ID] = m
 			}
-		case model.Delta:
+		case delta:
 			for _, m := range ev.Mobs {
 				seen[m.ID] = m
 			}
@@ -335,7 +335,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		s := join(t, inst, p)
 		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
 		{ // the touch kills: Died to everyone, the player is marked dead and frozen
-			died := s.ofType(func(e model.Event) bool { _, ok := e.(model.Died); return ok })
+			died := s.ofType(func(e any) bool { _, ok := e.(model.Died); return ok })
 			if len(died) != 1 || died[0].(model.Died).ID != p.ID {
 				t.Fatalf("died events %+v", died)
 			}
@@ -343,7 +343,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			if !v.Dead || v.HP != 0 {
 				t.Fatalf("view after death %+v", v)
 			}
-			lost := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok })
+			lost := s.ofType(func(e any) bool { _, ok := e.(model.ExpGained); return ok })
 			if len(lost) != 1 || lost[0].(model.ExpGained).Amount != -1 || lost[0].(model.ExpGained).Exp != 9 {
 				t.Fatalf("the death penalty as ExpGained: %+v, want amount -1 and exp 9", lost)
 			}
@@ -362,7 +362,7 @@ func TestDeathAndRespawn(t *testing.T) {
 		{ // after 3 seconds: Respawned at the town spawn with 50% HP, the penalty applied, handed to the town
 			time.Sleep(3 * time.Second)
 			synctest.Wait()
-			resp := s.ofType(func(e model.Event) bool { _, ok := e.(model.Respawned); return ok })
+			resp := s.ofType(func(e any) bool { _, ok := e.(model.Respawned); return ok })
 			if len(resp) != 1 {
 				t.Fatalf("respawned events %+v", resp)
 			}
@@ -371,7 +371,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 102 {
 				t.Fatalf("respawned %+v", r)
 			}
-			tel := s.ofType(func(e model.Event) bool { _, ok := e.(model.Teleport); return ok })
+			tel := s.ofType(func(e any) bool { _, ok := e.(model.Teleport); return ok })
 			if len(tel) != 1 || tel[0].(model.Teleport).MapID != town.ID {
 				t.Fatalf("teleport events %+v", tel)
 			}
@@ -413,11 +413,11 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		_ = inst.Attack(p.ID)
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		exp := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok })
+		exp := s.ofType(func(e any) bool { _, ok := e.(model.ExpGained); return ok })
 		if len(exp) != 1 || exp[0].(model.ExpGained).Amount != 5 || exp[0].(model.ExpGained).Exp != 3 {
 			t.Fatalf("exp events %+v", exp)
 		}
-		lus := s.ofType(func(e model.Event) bool { _, ok := e.(model.LevelUp); return ok })
+		lus := s.ofType(func(e any) bool { _, ok := e.(model.LevelUp); return ok })
 		if len(lus) != 1 {
 			t.Fatalf("level-up events %+v", lus)
 		}
@@ -510,7 +510,7 @@ func TestNoCombatInTown(t *testing.T) {
 				t.Fatalf("a mob was hurt in a town: %+v", mb)
 			}
 		}
-		if len(s.ofType(func(e model.Event) bool { _, ok := e.(model.Died); return ok })) != 0 {
+		if len(s.ofType(func(e any) bool { _, ok := e.(model.Died); return ok })) != 0 {
 			t.Fatal("died in a town")
 		}
 	})
@@ -527,10 +527,10 @@ func TestDeathWithNothingToLoseSendsNoExpGained(t *testing.T) {
 		p.HP, p.Exp = 1, 0 // at the start of the level: the penalty takes nothing
 		s := join(t, inst, p)
 		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
-		if died := s.ofType(func(e model.Event) bool { _, ok := e.(model.Died); return ok }); len(died) != 1 {
+		if died := s.ofType(func(e any) bool { _, ok := e.(model.Died); return ok }); len(died) != 1 {
 			t.Fatalf("died events %+v", died)
 		}
-		if lost := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok }); len(lost) != 0 {
+		if lost := s.ofType(func(e any) bool { _, ok := e.(model.ExpGained); return ok }); len(lost) != 0 {
 			t.Fatalf("an ExpGained with nothing lost: %+v", lost)
 		}
 	})
@@ -552,7 +552,7 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
 		time.Sleep(3 * time.Second)
 		synctest.Wait()
-		resp := s.ofType(func(e model.Event) bool { _, ok := e.(model.Respawned); return ok })
+		resp := s.ofType(func(e any) bool { _, ok := e.(model.Respawned); return ok })
 		if len(resp) != 1 || resp[0].(model.Respawned).MapID != "arena" {
 			t.Fatalf("respawned %+v", resp)
 		}
@@ -560,7 +560,7 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
-		if len(s.ofType(func(e model.Event) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
+		if len(s.ofType(func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
 			t.Fatal("a town's dead were moved")
 		}
 	})

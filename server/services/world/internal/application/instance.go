@@ -480,10 +480,11 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		}
 	}
 	frame := &model.Frame{Tick: i.tick, Players: views, Mobs: mobViews, Drops: slices.Clone(i.newDrops), Removed: removed, RemovedMobs: slices.Clone(i.removedMobs), RemovedDrops: slices.Clone(i.removedDrops)}
+	refused := i.sendFrame(frame)
 	var dropped []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		ok := p.sink.Send(model.Delta{Frame: frame, AckSeq: p.lastSeq})
+		ok := !refused[id]
 		for _, e := range i.events {
 			ok = ok && p.sink.Send(e)
 		}
@@ -500,6 +501,36 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		}
 	}
 	return dropped
+}
+
+// sendFrame sends the frame once to each stream the players are on, and returns the players on a stream
+// that refused it.
+func (i *Instance) sendFrame(frame *model.Frame) map[kernel.CharacterID]bool {
+	type group struct {
+		stream Stream
+		to     []model.Recipient
+	}
+	var groups []group
+	for _, id := range i.order {
+		p := i.players[id]
+		r := model.Recipient{Character: id, Connection: p.Connection, AckSeq: p.lastSeq}
+		stream := p.sink.Stream()
+		k := slices.IndexFunc(groups, func(g group) bool { return g.stream == stream })
+		if k < 0 {
+			groups = append(groups, group{stream: stream})
+			k = len(groups) - 1
+		}
+		groups[k].to = append(groups[k].to, r)
+	}
+	refused := map[kernel.CharacterID]bool{}
+	for _, g := range groups {
+		if !g.stream.SendFrame(frame, g.to) {
+			for _, r := range g.to {
+				refused[r.Character] = true
+			}
+		}
+	}
+	return refused
 }
 
 func (i *Instance) view(p *player) model.PlayerView {

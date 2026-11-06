@@ -52,7 +52,7 @@ func seenIn(s *sink, id kernel.CharacterID) (present, removed int) {
 					present++
 				}
 			}
-		case model.Delta:
+		case delta:
 			for _, v := range ev.Players {
 				if v.ID == id {
 					present++
@@ -189,7 +189,7 @@ func TestPortals(t *testing.T) {
 			}
 			// After the teleport the town never sent her another delta.
 			for _, e := range sc.all() {
-				if d, ok := e.(model.Delta); ok && d.Tick > tel[0].Tick+1 {
+				if d, ok := e.(delta); ok && d.Tick > tel[0].Tick+1 {
 					for _, r := range d.Removed {
 						if r == cass.ID {
 							t.Fatal("cass was removed from a map she was on")

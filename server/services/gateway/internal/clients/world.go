@@ -76,27 +76,38 @@ func (w World) Say(ctx context.Context, p model.Presence, name, text string) err
 func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent)) {
 	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[worldv1.DeliverResponse], error) {
 		return w.c.Deliver(ctx, &worldv1.DeliverRequest{GatewayId: gateway})
-	}, func(m *worldv1.DeliverResponse) {
-		if m.GetSubscribed() != nil {
-			deliver(model.WorldSubscribed{})
-			return
-		}
-		character, _ := kernel.ParseCharacterID(m.GetCharacterId()) // zero if bad: the delivery still routes by connection
-		if m.GetDetached() != nil {
-			deliver(model.Detached{Connection: m.GetConnectionId(), Character: character})
-			return
-		}
-		p, ok := worldPush(m)
-		if !ok {
-			return
-		}
-		if f := m.GetPickupFailed(); f != nil && f.GetErrorReason() == "" {
-			w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", m.GetCharacterId())
-		}
-		deliver(model.WorldDelivery{Connection: m.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
-	}, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
+	}, func(m *worldv1.DeliverResponse) { w.delivered(ctx, m, deliver) }, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})
+}
+
+// delivered turns one message of the stream into its events: a Frame into one per recipient, all sharing it.
+func (w World) delivered(ctx context.Context, m *worldv1.DeliverResponse, deliver func(model.WorldEvent)) {
+	if m.GetSubscribed() != nil {
+		deliver(model.WorldSubscribed{})
+		return
+	}
+	if f := m.GetFrame(); f != nil {
+		frame := frameOf(f.GetDelta())
+		for _, r := range f.GetRecipients() {
+			character, _ := kernel.ParseCharacterID(r.GetCharacterId()) // zero if bad: the delivery still routes by connection
+			deliver(model.WorldDelivery{Connection: r.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: model.Delta{Frame: frame, AckSeq: r.GetAckSeq()}}})
+		}
+		return
+	}
+	character, _ := kernel.ParseCharacterID(m.GetCharacterId()) // zero if bad: the delivery still routes by connection
+	if m.GetDetached() != nil {
+		deliver(model.Detached{Connection: m.GetConnectionId(), Character: character})
+		return
+	}
+	p, ok := worldPush(m)
+	if !ok {
+		return
+	}
+	if f := m.GetPickupFailed(); f != nil && f.GetErrorReason() == "" {
+		w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", m.GetCharacterId())
+	}
+	deliver(model.WorldDelivery{Connection: m.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
 }
 
 func presence(p model.Presence) *worldv1.Presence {

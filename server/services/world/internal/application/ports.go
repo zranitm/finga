@@ -21,6 +21,13 @@ type Starter interface {
 // Sink is where an instance sends a player's events. Send must not block; false drops the player.
 type Sink interface {
 	Send(model.Event) bool
+	// Stream is what the sink sends on; a tick's frame goes once to each stream, for all its players.
+	Stream() Stream
+}
+
+// Stream carries the frames of every player on it. SendFrame must not block; false drops every recipient.
+type Stream interface {
+	SendFrame(f *model.Frame, to []model.Recipient) bool
 }
 
 // Saver persists checkpoints, from the persistence worker, never from a tick.
