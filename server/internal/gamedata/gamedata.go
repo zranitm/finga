@@ -217,9 +217,6 @@ func (d *Data) Formulas(id kernel.Class) (Formulas, bool) {
 	return f, ok
 }
 
-// Items lists every item template in file order.
-func (d *Data) Items() []Item { return d.items }
-
 // Item finds an item template.
 func (d *Data) Item(id string) (Item, bool) {
 	i, ok := d.itemIdx[id]

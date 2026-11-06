@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
@@ -464,12 +466,44 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	})
 }
 
+// realItems are the item IDs data/items.yaml lists.
+func realItems(t *testing.T) []string {
+	t.Helper()
+	raw, err := os.ReadFile("../../data/items.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Items []struct {
+			ID string `yaml:"id"`
+		} `yaml:"items"`
+	}
+	if err := yaml.Unmarshal(raw, &f); err != nil {
+		t.Fatal(err)
+	}
+	ids := make([]string, len(f.Items))
+	for i, it := range f.Items {
+		ids[i] = it.ID
+	}
+	return ids
+}
+
+func allLoaded(d *gamedata.Data, ids []string) bool {
+	for _, id := range ids {
+		if _, ok := d.Item(id); !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // The real content is checked on every run, so a broken reference fails CI.
 func TestRealDataLoads(t *testing.T) {
 	d, err := gamedata.Load("../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
+	items := realItems(t)
 	tests := []struct {
 		name string
 		ok   bool
@@ -478,7 +512,7 @@ func TestRealDataLoads(t *testing.T) {
 		{"level cap 30", d.LevelCap() == 30},
 		{"three maps: one town and two hunting maps", len(d.Maps()) == 3 && d.Town() != nil},
 		{"three to four mobs", len(d.Mobs()) >= 3 && len(d.Mobs()) <= 4},
-		{"about ten items", len(d.Items()) >= 8 && len(d.Items()) <= 14},
+		{"about ten items, each loaded", len(items) >= 8 && len(items) <= 14 && allLoaded(d, items)},
 		{"movement constants are page 5's", d.Movement() == pageFiveMovement},
 	}
 	for _, tt := range tests {
