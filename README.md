@@ -82,7 +82,8 @@ service's own configuration (see Configuration).
 Prerequisites for working on the code: Go 1.27 or newer (a C compiler for the
 race detector; on Windows, for example `winget install
 BrechtSanders.WinLibs.POSIX.UCRT`), make, golangci-lint v2 for `make lint`,
-sqlc for `make gen` (which also runs `buf generate` through the Go tools pinned in `server/go.mod`, so nothing else needs installing), and Docker for the tests that run a real Postgres.
+and Docker for the tests that run a real Postgres. `make gen` runs sqlc and
+buf through the Go tools pinned in `server/go.mod`, so nothing else needs installing.
 
 ## Client
 

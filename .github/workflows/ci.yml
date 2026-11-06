@@ -21,7 +21,7 @@ jobs:
           args: --help   # install only; `make lint` runs it below with the repo's settings
       - run: make lint-go
       - name: generated Go code is current
-        run: cd server && go tool buf generate && git diff --exit-code -- api/gen
+        run: cd server && go tool buf generate && git diff --exit-code -- api/gen && go tool sqlc diff
       - name: no breaking change to the contracts
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}

@@ -75,7 +75,7 @@ edge:          ## against a running stack (make up): nginx limits per client add
 
 # Run after a query, migration or contract change.
 gen:           ## regenerate the sqlc queries and the Go code of the gRPC and client contracts
-	cd $(SERVER) && sqlc generate && $(GO) tool buf generate
+	cd $(SERVER) && $(GO) tool sqlc generate && $(GO) tool buf generate
 
 bots:          ## the proof session: 4 bots play for 30 minutes against SMOKE_URL and print the tick p99 from the world (METRICS_URL)
 	cd $(SERVER) && $(GO) run ./cmd/bot -url $(SMOKE_URL) -metrics $(METRICS_URL) -bots 4 -duration 30m
