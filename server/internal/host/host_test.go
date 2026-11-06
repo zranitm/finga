@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
 	"google.golang.org/grpc/status"
@@ -120,6 +121,21 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 			}
 		}
 	})
+	var dialed *grpc.ClientConn
+	t.Run("a dependency dialed through the host is counted from the caller's side", func(t *testing.T) {
+		conn, err := h.Dial("shop", grpcAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dialed = conn
+		if _, err := testpb.NewTestServiceClient(conn).EmptyCall(ctx, &testpb.Empty{}); err != nil {
+			t.Fatal(err)
+		}
+		_, body := runnertest.Get(t, "http://"+opsAddr+"/metrics")
+		if want := `grpc_client_handled_total{grpc_code="OK",grpc_method="EmptyCall",grpc_service="grpc.testing.TestService",grpc_type="unary"} 1`; !strings.Contains(body, want) {
+			t.Fatalf("/metrics lacks %s", want)
+		}
+	})
 	for _, path := range []string{"/healthz", "/readyz", "/metrics"} {
 		t.Run("ops "+path, func(t *testing.T) {
 			status, body := runnertest.Get(t, "http://"+opsAddr+path)
@@ -135,6 +151,9 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 	h.Close()
 	if !closed {
 		t.Fatal("Close released nothing")
+	}
+	if dialed == nil || dialed.GetState() != connectivity.Shutdown {
+		t.Fatal("Close left the dialed connection open")
 	}
 	if res, err := http.Get("http://" + opsAddr + "/readyz"); err == nil {
 		res.Body.Close()

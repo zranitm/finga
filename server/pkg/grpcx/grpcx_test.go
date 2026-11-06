@@ -263,12 +263,36 @@ func TestMetricsCountTheCodeTheCallerSees(t *testing.T) {
 	if _, err := c.EmptyCall(context.Background(), &testpb.Empty{}); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("got %v", err)
 	}
+	if code := handledAs(t, reg, "grpc_server_handled_total", "EmptyCall"); code != "FailedPrecondition" {
+		t.Fatalf("counted as %q", code)
+	}
+}
+
+// The caller counts its calls too, under the code it got: a service down shows on the caller's side.
+func TestClientMetricsCountTheCodeTheCallerGot(t *testing.T) {
+	metrics := grpcx.NewClientMetrics()
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(metrics)
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table})
+	testpb.RegisterTestServiceServer(srv, &shop{err: func(context.Context) error { return errFull }})
+	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv, grpcx.ClientMetrics(metrics)...))
+	if _, err := c.EmptyCall(context.Background(), &testpb.Empty{}); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v", err)
+	}
+	if code := handledAs(t, reg, "grpc_client_handled_total", "EmptyCall"); code != "FailedPrecondition" {
+		t.Fatalf("counted as %q", code)
+	}
+}
+
+// handledAs is the code the one call of method was counted under in family; empty when it was not.
+func handledAs(t *testing.T, reg *prometheus.Registry, family, method string) string {
+	t.Helper()
 	families, err := reg.Gather()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, f := range families {
-		if f.GetName() != "grpc_server_handled_total" {
+		if f.GetName() != family {
 			continue
 		}
 		for _, m := range f.GetMetric() {
@@ -276,15 +300,12 @@ func TestMetricsCountTheCodeTheCallerSees(t *testing.T) {
 			for _, l := range m.GetLabel() {
 				labels[l.GetName()] = l.GetValue()
 			}
-			if labels["grpc_method"] == "EmptyCall" && m.GetCounter().GetValue() == 1 {
-				if labels["grpc_code"] != "FailedPrecondition" {
-					t.Fatalf("counted as %s", labels["grpc_code"])
-				}
-				return
+			if labels["grpc_method"] == method && m.GetCounter().GetValue() == 1 {
+				return labels["grpc_code"]
 			}
 		}
 	}
-	t.Fatal("the call was not counted")
+	return ""
 }
 
 func TestFollow(t *testing.T) {

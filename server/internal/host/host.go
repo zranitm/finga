@@ -3,6 +3,7 @@ package host
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"slices"
@@ -47,6 +48,7 @@ type Host struct {
 	opts      Options
 	logger    *slog.Logger
 	metrics   *grpcprom.ServerMetrics
+	clients   *grpcprom.ClientMetrics
 	listeners []runner.Listener
 	tasks     []runner.Task
 	drains    []func(ctx context.Context)
@@ -62,7 +64,10 @@ func New(opts Options) (*Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	h := &Host{Panics: panics.NewRecorder(opts.Logger, panicCount), opts: opts, logger: opts.Logger.With("service", opts.Name)}
+	h := &Host{Panics: panics.NewRecorder(opts.Logger, panicCount), opts: opts, logger: opts.Logger.With("service", opts.Name), clients: grpcx.NewClientMetrics()}
+	if err := opts.Registry.Register(h.clients); err != nil {
+		return nil, err
+	}
 	if opts.Settings.GRPC != "" {
 		h.serveGRPC()
 	}
@@ -82,6 +87,16 @@ func (h *Host) serveGRPC() {
 		h.health.Shutdown()
 		close(draining)
 	}
+}
+
+// Dial connects to the named service at addr; its calls are counted on /metrics, and Close closes it.
+func (h *Host) Dial(name, addr string) (*grpc.ClientConn, error) {
+	conn, err := grpcx.Dial(addr, grpcx.ClientMetrics(h.clients)...)
+	if err != nil {
+		return nil, fmt.Errorf("%s service: %w", name, err)
+	}
+	h.OnClose(func() { _ = conn.Close() })
+	return conn, nil
 }
 
 // Serve adds a listener that serves handler over HTTP, as the gateway serves its players.

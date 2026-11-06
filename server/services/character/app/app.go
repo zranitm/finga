@@ -3,7 +3,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -12,7 +11,6 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/host"
-	"finga/pkg/grpcx"
 	"finga/services/character/config"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/clients"
@@ -34,12 +32,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	itemConn, err := grpcx.Dial(cfg.Dependencies.Item)
+	itemConn, err := h.Dial("item", cfg.Dependencies.Item)
 	if err != nil {
 		h.Close()
-		return nil, fmt.Errorf("item service: %w", err)
+		return nil, err
 	}
-	h.OnClose(func() { _ = itemConn.Close() })
 	characters := application.NewService(application.Deps{
 		Store:   repository.NewPostgres(pool, dbMetrics),
 		Content: data,

@@ -17,14 +17,14 @@ import (
 
 const bufSize = 1 << 20
 
-// Conn serves srv until the test ends and returns a grpcx.Dial client connection to it.
-func Conn(t testing.TB, srv *grpc.Server) *grpc.ClientConn {
+// Conn serves srv until the test ends and returns a grpcx.Dial client connection to it, with extra.
+func Conn(t testing.TB, srv *grpc.Server, extra ...grpc.DialOption) *grpc.ClientConn {
 	t.Helper()
 	lis := bufconn.Listen(bufSize)
 	go func() { _ = srv.Serve(lis) }()
-	conn, err := grpcx.Dial("passthrough:///bufconn", grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+	conn, err := grpcx.Dial("passthrough:///bufconn", append([]grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
 		return lis.DialContext(ctx)
-	}))
+	})}, extra...)...)
 	if err != nil {
 		t.Fatal(err)
 	}

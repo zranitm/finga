@@ -59,6 +59,20 @@ func NewServerMetrics() *grpcprom.ServerMetrics {
 	return grpcprom.NewServerMetrics(grpcprom.WithServerHandlingTimeHistogram(grpcprom.WithHistogramBuckets(rpcBuckets)))
 }
 
+// NewClientMetrics are grpc_client_started_total, grpc_client_handled_total and grpc_client_handling_seconds
+// by service and method (handled by code too), for ClientMetrics.
+func NewClientMetrics() *grpcprom.ClientMetrics {
+	return grpcprom.NewClientMetrics(grpcprom.WithClientHandlingTimeHistogram(grpcprom.WithHistogramBuckets(rpcBuckets)))
+}
+
+// ClientMetrics are the Dial options that count and time a connection's calls in m.
+func ClientMetrics(m *grpcprom.ClientMetrics) []grpc.DialOption {
+	return []grpc.DialOption{
+		grpc.WithChainUnaryInterceptor(m.UnaryClientInterceptor()),
+		grpc.WithChainStreamInterceptor(m.StreamClientInterceptor()),
+	}
+}
+
 type interceptors struct{ opts ServerOptions }
 
 // unaries and streams put the metrics outermost, so they count the code the error table gave.

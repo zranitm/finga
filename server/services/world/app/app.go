@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"google.golang.org/grpc"
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
@@ -19,7 +18,6 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/host"
 	"finga/internal/telemetry"
-	"finga/pkg/grpcx"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
 	"finga/services/world/internal/application"
@@ -55,31 +53,19 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
-	var conns []*grpc.ClientConn
-	closeAll := func() {
-		for _, c := range conns {
-			_ = c.Close()
-		}
-	}
-	dial := func(name, addr string) (*grpc.ClientConn, error) {
-		c, err := grpcx.Dial(addr)
-		if err != nil {
-			closeAll()
-			return nil, fmt.Errorf("%s service: %w", name, err)
-		}
-		conns = append(conns, c)
-		return c, nil
-	}
-	characterConn, err := dial("character", cfg.Dependencies.Character)
+	characterConn, err := h.Dial("character", cfg.Dependencies.Character)
 	if err != nil {
+		h.Close()
 		return nil, err
 	}
-	itemConn, err := dial("item", cfg.Dependencies.Item)
+	itemConn, err := h.Dial("item", cfg.Dependencies.Item)
 	if err != nil {
+		h.Close()
 		return nil, err
 	}
-	socialConn, err := dial("social", cfg.Dependencies.Social)
+	socialConn, err := h.Dial("social", cfg.Dependencies.Social)
 	if err != nil {
+		h.Close()
 		return nil, err
 	}
 	characters := characterv1.NewCharacterServiceClient(characterConn)
@@ -103,7 +89,6 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	h.Task("parties", parties.Run)
 	h.Task("world", maps.Run)
 	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz, Logger: log}))
-	h.OnClose(closeAll)
 	log.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
 	return h, nil
 }

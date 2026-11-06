@@ -15,7 +15,6 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/host"
 	"finga/internal/telemetry"
-	"finga/pkg/grpcx"
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
@@ -42,11 +41,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
 	rec := h.Panics
-	conns, err := dialAll(cfg.Dependencies)
+	conns, err := dialAll(h, cfg.Dependencies)
 	if err != nil {
+		h.Close()
 		return nil, err
 	}
-	h.OnClose(conns.close)
 	accounts := accountv1.NewAccountServiceClient(conns.account)
 	guard := clients.NewGuard(accounts)
 
@@ -92,8 +91,8 @@ type conns struct {
 	account, character, item, world, social *grpc.ClientConn
 }
 
-// dialAll makes a connection to each service; nothing connects until the first call.
-func dialAll(s config.Dependencies) (conns, error) {
+// dialAll makes a connection to each service, which h closes; nothing connects until the first call.
+func dialAll(h *host.Host, s config.Dependencies) (conns, error) {
 	var c conns
 	for _, d := range []struct {
 		name string
@@ -106,20 +105,11 @@ func dialAll(s config.Dependencies) (conns, error) {
 		{"world", s.World, &c.world},
 		{"social", s.Social, &c.social},
 	} {
-		conn, err := grpcx.Dial(d.addr)
+		conn, err := h.Dial(d.name, d.addr)
 		if err != nil {
-			c.close()
-			return conns{}, fmt.Errorf("%s service: %w", d.name, err)
+			return conns{}, err
 		}
 		*d.conn = conn
 	}
 	return c, nil
-}
-
-func (c conns) close() {
-	for _, conn := range []*grpc.ClientConn{c.account, c.character, c.item, c.world, c.social} {
-		if conn != nil {
-			_ = conn.Close()
-		}
-	}
 }
