@@ -34,11 +34,15 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
-	accounts := application.NewService(application.Deps{
+	accounts, err := application.NewService(application.Deps{
 		Store:    repository.NewPostgres(pool, dbMetrics),
 		Notifier: streams,
 		Hasher:   password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
+	if err != nil {
+		h.Close()
+		return nil, err
+	}
 	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch}
 	h.Task("session retention", func(ctx context.Context) error {
 		return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, log)

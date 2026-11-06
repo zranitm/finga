@@ -86,11 +86,11 @@ var (
 	_ auth.Sessions      = (*Service)(nil)
 )
 
-// NewService wires the service over deps.
-func NewService(deps Deps) *Service {
+// NewService wires the service over deps; it fails when the hasher cannot make the dummy hash.
+func NewService(deps Deps) (*Service, error) {
 	dummy, err := deps.Hasher.Hash(context.Background(), dummySecret)
 	if err != nil {
-		panic("account: dummy hash: " + err.Error()) // the parameters were just validated by Hash's caller
+		return nil, fmt.Errorf("account: dummy hash: %w", err)
 	}
 	return &Service{
 		store:      deps.Store,
@@ -99,7 +99,7 @@ func NewService(deps Deps) *Service {
 		dummy:      dummy,
 		byUser:     ratelimit.NewBuckets(loginRatePerMinute/60.0, loginBurst),
 		presetList: []model.Preset{model.PresetClassic, model.PresetWASD},
-	}
+	}, nil
 }
 
 // Register creates an account; the repository only ever sees the password hash.

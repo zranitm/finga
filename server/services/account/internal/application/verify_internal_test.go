@@ -27,11 +27,21 @@ func (noAccounts) SessionRevoked(context.Context, uuid.UUID, string) {}
 func (noAccounts) AccountRevoked(context.Context, uuid.UUID, string) {}
 
 func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
-	svc := NewService(Deps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
+	svc, err := NewService(Deps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if svc.dummy == "" {
 		t.Fatal("no dummy hash")
 	}
 	if _, err := svc.Verify(context.Background(), "nobody", "whatever"); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("unknown user: %v", err)
+	}
+}
+
+func TestAHasherThatCannotHashFailsTheBuild(t *testing.T) {
+	stuck := password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 0, time.Millisecond) // no slot ever frees
+	if _, err := NewService(Deps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: stuck}); !errors.Is(err, password.ErrBusy) {
+		t.Fatalf("NewService with a hasher that cannot hash: %v", err)
 	}
 }

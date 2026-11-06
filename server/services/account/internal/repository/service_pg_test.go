@@ -20,7 +20,10 @@ import (
 func newPGService(t *testing.T) (*application.Service, *Postgres) {
 	t.Helper()
 	store := NewPostgres(cluster.DB(t), nil)
-	svc := application.NewService(application.Deps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	svc, err := application.NewService(application.Deps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return svc, store
 }
 
