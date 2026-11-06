@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"finga/internal/protocol"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
@@ -34,6 +36,8 @@ type Options struct {
 	Logger       *slog.Logger
 	// Panics records a panic in a message's chain or a connection's callbacks.
 	Panics *panics.Recorder
+	// Traces starts each command's trace.
+	Traces trace.TracerProvider
 }
 
 // Handler serves /ws.
@@ -55,7 +59,7 @@ type Connection struct {
 func New(gw *send.Gateway, opts Options) *Handler {
 	return &Handler{
 		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, frames: push.NewFrames(),
-		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Logger: opts.Logger, Panics: opts.Panics}),
+		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Logger: opts.Logger, Panics: opts.Panics, Traces: opts.Traces}),
 	}
 }
 

@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"finga/pkg/auth"
 	"finga/pkg/panics"
@@ -19,6 +23,9 @@ import (
 )
 
 const principalKey = "finga.principal"
+
+// serverName is the server its spans name.
+const serverName = "gateway"
 
 const (
 	bearerScheme   = "bearer"
@@ -35,6 +42,22 @@ func principalFrom(c *gin.Context) auth.Principal {
 	v, _ := c.Get(principalKey)
 	p, _ := v.(auth.Principal)
 	return p
+}
+
+// traced starts each request's trace as a root, since a caller's trace context is not to be trusted; its span is
+// named for the route, as GET /api/characters.
+func traced(tp trace.TracerProvider) gin.HandlerFunc {
+	return otelgin.Middleware(serverName,
+		otelgin.WithTracerProvider(tp),
+		otelgin.WithPropagators(propagation.NewCompositeTextMapPropagator()),
+		otelgin.WithMeterProvider(noop.NewMeterProvider()), // the metrics are Prometheus's
+	)
+}
+
+// EntryPoint reports whether a root span of this name starts a trace that is kept: any /api route's.
+func EntryPoint(span string) bool {
+	_, path, ok := strings.Cut(span, " ")
+	return ok && strings.HasPrefix(path, "/api/")
 }
 
 // requireAuth resolves the bearer token; any bad token is 401 unauthenticated.

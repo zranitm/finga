@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/trace"
 
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
@@ -30,6 +31,8 @@ type Dependencies struct {
 	CORSOrigins []string
 	// Panics records a panic in a request.
 	Panics *panics.Recorder
+	// Traces starts each request's trace.
+	Traces trace.TracerProvider
 }
 
 type api struct {
@@ -40,11 +43,12 @@ type api struct {
 func Mount(d Dependencies) func(e *gin.Engine) {
 	return func(e *gin.Engine) {
 		h := &api{lobby: d.Lobby}
+		trace := traced(d.Traces)
 		edge := func(last gin.HandlerFunc) []gin.HandlerFunc {
-			return []gin.HandlerFunc{requestLog(d.Logger, d.Panics), cors(d.CORSOrigins), last}
+			return []gin.HandlerFunc{trace, requestLog(d.Logger, d.Panics), cors(d.CORSOrigins), last}
 		}
 
-		rest := e.Group("/api", requestLog(d.Logger, d.Panics), cors(d.CORSOrigins))
+		rest := e.Group("/api", trace, requestLog(d.Logger, d.Panics), cors(d.CORSOrigins))
 		rest.POST("/accounts", h.register)
 		rest.POST("/sessions", h.login)
 

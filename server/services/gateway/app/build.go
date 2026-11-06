@@ -25,6 +25,7 @@ import (
 	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
+	"finga/services/gateway/internal/handler/ws/receive"
 )
 
 // The players' listener's name, as the logs show it.
@@ -32,7 +33,7 @@ const httpListener = "http"
 
 // Build wires the gateway as production runs it; services are dialed lazily, so a call fails while one is down.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	h, err := host.New(host.Options{Name: "gateway", Settings: cfg.Host(), Logger: log, Registry: reg})
+	h, err := host.New(host.Options{Name: "gateway", Settings: cfg.Host(), Logger: log, Registry: reg, Roots: entryPoint})
 	if err != nil {
 		return nil, err
 	}
@@ -75,16 +76,21 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Logger:   log,
 	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
 	h.Serve(httpListener, cfg.HTTP.Addr, handler.NewRouter(handler.Routes{
-		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
+		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec, Traces: h.Traces}),
 		Gateway: ws.New(sendFlow, ws.Options{
 			Origins: cfg.HTTP.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
-			Observer: metrics, Logger: log, Panics: rec,
+			Observer: metrics, Logger: log, Panics: rec, Traces: h.Traces,
 		}),
 	}))
 	h.Task("streams", pushFlow.Run)
 	h.OnDrain(pushFlow.Drain)
 	log.InfoContext(ctx, "built")
 	return h, nil
+}
+
+// entryPoint keeps the traces of REST requests and of the commands that answer after calls across services.
+func entryPoint(span string) bool {
+	return api.EntryPoint(span) || receive.EntryPoint(span)
 }
 
 type conns struct {

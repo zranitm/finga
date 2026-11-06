@@ -5,6 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -53,6 +56,24 @@ func (h *Handler) queued(c *msgContext) {
 	case c.Session.queue <- func() { c.Ctx = reqid.With(c.Session.ctx, uuidv7.NewString()); rest() }:
 	default:
 		replyError(c, model.RateLimited)
+	}
+}
+
+// traced runs the rest of the chain in a trace of the command's own, which EntryPoint decides to keep.
+func (h *Handler) traced(c *msgContext) {
+	ctx, span := h.tracer.Start(c.Ctx, spanPrefix+c.Message.Type, trace.WithNewRoot())
+	defer span.End()
+	c.Ctx = ctx
+	c.Next()
+	if !span.IsRecording() {
+		return
+	}
+	span.SetAttributes(attribute.String("conn", c.Session.out.ID()))
+	if id := c.Session.session.Character(); !id.IsZero() {
+		span.SetAttributes(attribute.String("character_id", id.String()))
+	}
+	if c.Err != nil {
+		span.SetStatus(codes.Error, c.Err.Error())
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/time/rate"
 
 	"finga/pkg/panics"
@@ -17,18 +18,22 @@ import (
 	"finga/services/gateway/internal/handler/ws/push"
 )
 
+const tracerName = "finga/services/gateway/internal/handler/ws/receive"
+
 const (
 	commandTimeout = 5 * time.Second
 	failureLogGap  = 10 * time.Second // a command that answers nothing logs its unexpected failures at most this often
 )
 
-// Options tune the receiving side; Logger and Panics are required.
+// Options tune the receiving side; Logger, Panics and Traces are required.
 type Options struct {
 	HelloTimeout time.Duration // a connection that sends no Hello in this long is closed
 	CommandQueue int           // commands waiting their turn; one more answers rate_limited
 	Logger       *slog.Logger
 	// Panics records a panic in a message's chain.
 	Panics *panics.Recorder
+	// Traces starts each queued command's trace.
+	Traces trace.TracerProvider
 }
 
 // Handler routes every connection's messages to gw's use cases.
@@ -37,11 +42,12 @@ type Handler struct {
 	opts     Options
 	router   *wsrouter.Router[*Inbox]
 	failures *rate.Sometimes
+	tracer   trace.Tracer
 }
 
 // New routes messages to gw.
 func New(gw *send.Gateway, opts Options) *Handler {
-	h := &Handler{gw: gw, opts: opts, failures: &rate.Sometimes{First: 1, Interval: failureLogGap}}
+	h := &Handler{gw: gw, opts: opts, failures: &rate.Sometimes{First: 1, Interval: failureLogGap}, tracer: opts.Traces.Tracer(tracerName)}
 	h.router = h.routes()
 	return h
 }

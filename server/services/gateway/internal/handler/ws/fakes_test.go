@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -26,8 +28,32 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/reqid"
+	"finga/pkg/tracing"
+	"finga/services/gateway/internal/handler/ws/receive"
 	"finga/services/gateway/internal/model"
 )
+
+// traces samples as the gateway does, and spans records every span it samples.
+var traces, spans = gatewayTraces()
+
+func gatewayTraces() (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
+	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "gateway", Root: receive.EntryPoint})
+	if err != nil {
+		panic(err)
+	}
+	rec := tracetest.NewSpanRecorder()
+	tp.RegisterSpanProcessor(rec)
+	return tp, rec
+}
+
+// dialFake serves a fake and dials it, both ends traced as the host traces them.
+func dialFake(t *testing.T, register func(*grpc.Server)) *grpc.ClientConn {
+	t.Helper()
+	tr := grpcx.Tracing{Provider: traces}
+	srv := grpcx.NewServer(grpcx.ServerOptions{Tracing: &tr})
+	register(srv)
+	return grpctest.Conn(t, srv, grpcx.TraceCalls(tr))
+}
 
 type fakeSessions struct {
 	mu        sync.Mutex
@@ -96,9 +122,7 @@ func newFakeWorld() *fakeWorld {
 
 func (f *fakeWorld) client(t *testing.T) worldv1.WorldServiceClient {
 	t.Helper()
-	srv := grpcx.NewServer(grpcx.ServerOptions{})
-	worldv1.RegisterWorldServiceServer(srv, f)
-	return worldv1.NewWorldServiceClient(grpctest.Conn(t, srv))
+	return worldv1.NewWorldServiceClient(dialFake(t, func(srv *grpc.Server) { worldv1.RegisterWorldServiceServer(srv, f) }))
 }
 
 func (f *fakeWorld) Deliver(_ *worldv1.DeliverRequest, stream grpc.ServerStreamingServer[worldv1.DeliverResponse]) error {
@@ -401,9 +425,7 @@ type fakeItems struct {
 
 func (f *fakeItems) client(t *testing.T) itemv1.ItemServiceClient {
 	t.Helper()
-	srv := grpcx.NewServer(grpcx.ServerOptions{})
-	itemv1.RegisterItemServiceServer(srv, f)
-	return itemv1.NewItemServiceClient(grpctest.Conn(t, srv))
+	return itemv1.NewItemServiceClient(dialFake(t, func(srv *grpc.Server) { itemv1.RegisterItemServiceServer(srv, f) }))
 }
 
 func (f *fakeItems) Inventory(ctx context.Context, _ *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
@@ -466,9 +488,7 @@ func newFakeSocial() *fakeSocial {
 
 func (f *fakeSocial) client(t *testing.T) socialv1.SocialServiceClient {
 	t.Helper()
-	srv := grpcx.NewServer(grpcx.ServerOptions{})
-	socialv1.RegisterSocialServiceServer(srv, f)
-	return socialv1.NewSocialServiceClient(grpctest.Conn(t, srv))
+	return socialv1.NewSocialServiceClient(dialFake(t, func(srv *grpc.Server) { socialv1.RegisterSocialServiceServer(srv, f) }))
 }
 
 func (f *fakeSocial) Deliver(_ *socialv1.DeliverRequest, stream grpc.ServerStreamingServer[socialv1.DeliverResponse]) error {

@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"go.opentelemetry.io/otel/trace/noop"
+
 	"golang.org/x/time/rate"
 
 	clientv1 "finga/api/gen/client/v1"
@@ -15,7 +17,7 @@ import (
 // A protocol message without a route fails here rather than answering not_implemented in a game.
 func TestEveryClientMessageHasARoute(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
-	h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log}, session.Options{})}, send.Options{}), Options{Logger: log})
+	h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
 	var unrouted []string
 	h.router.NoRoute(func(c *msgContext) { unrouted = append(unrouted, c.Message.Type) })
 	// Past Hello, with no payload and a queue nobody drains, so no handler runs.

@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -28,6 +30,7 @@ import (
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
 	"finga/pkg/reqid"
+	"finga/pkg/tracing"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler"
@@ -44,6 +47,19 @@ var (
 	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
 	errInternal = errors.New("pq: connection reset")
 )
+
+// traces samples as the gateway does, and spans records every span it samples.
+var traces, spans = gatewayTraces()
+
+func gatewayTraces() (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
+	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "gateway", Root: api.EntryPoint})
+	if err != nil {
+		panic(err)
+	}
+	rec := tracetest.NewSpanRecorder()
+	tp.RegisterSpanProcessor(rec)
+	return tp, rec
+}
 
 type harness struct {
 	accounts   *fakeAccounts
@@ -64,7 +80,7 @@ func newHarness(origins ...string) *harness {
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
 		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: clients.NewAccounts(h.accounts), Characters: clients.NewCharacters(h.characters), Sessions: h.sessions}),
-		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil),
+		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil), Traces: traces,
 	})(e)
 	h.handler = e
 	return h
@@ -522,6 +538,25 @@ func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
 	}
 	if !strings.Contains(first.Header().Get("Access-Control-Expose-Headers"), "X-Request-ID") {
 		t.Fatalf("the browser may not read the ID: %v", first.Header())
+	}
+}
+
+// Each /api request starts a sampled trace of its own, whatever trace context the caller sends; other paths keep none.
+func TestEachAPIRequestStartsATraceOfItsOwn(t *testing.T) {
+	h := newHarness()
+	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+		return &characterv1.ListResponse{}, nil
+	}
+	const foreign = "0af7651916cd43dd8448eb211c80319c"
+	before := len(spans.Ended())
+	h.do("GET", "/api/characters", "", map[string]string{"Authorization": "Bearer " + goodToken, "traceparent": "00-" + foreign + "-b7ad6b7169203331-01"})
+	h.do("GET", "/nowhere", "", nil)
+	ended := spans.Ended()[before:]
+	if len(ended) != 1 {
+		t.Fatalf("%d spans kept, want the /api request's", len(ended))
+	}
+	if s := ended[0]; s.Name() != "GET /api/characters" || s.Parent().IsValid() || s.SpanContext().TraceID().String() == foreign {
+		t.Fatalf("kept %s, parent %v, in trace %s", s.Name(), s.Parent(), s.SpanContext().TraceID())
 	}
 }
 

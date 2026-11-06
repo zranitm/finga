@@ -17,6 +17,9 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/trace"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -85,6 +88,7 @@ type deps struct {
 	JoinTimeout          time.Duration
 	CommandQueue         int
 	SessionCheckInterval time.Duration
+	Traces               trace.TracerProvider
 }
 
 // build wires d as the composition root does: one registry under both flows.
@@ -96,7 +100,7 @@ func (d deps) build() (*push.Gateway, http.Handler) {
 	sends := send.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer}
 	pushes := push.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
-		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder,
+		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
 }
 
@@ -125,6 +129,7 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 		JoinTimeout:          time.Second, // room for two jittered backoffs: the stream's resubscribe and the join's retries
 		CommandQueue:         64,
 		SessionCheckInterval: time.Minute,
+		Traces:               traces,
 	}
 	for _, o := range opts {
 		o(&d)
@@ -910,6 +915,54 @@ func TestEachMessageCarriesItsOwnRequestID(t *testing.T) {
 		ids := waitFor(t, "the attacks", h.world.requestIDList, 3)
 		if ids[0] == "" || ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
 			t.Fatalf("the Hello's join and two attacks carried %q", ids)
+		}
+	})
+}
+
+// A command that answers after its calls keeps its trace, with those calls as its children; one that only
+// queues work for a tick keeps none.
+func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		before := len(spans.Ended())
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		c.expect("Snapshot")
+		synctest.Wait()
+		ended := spans.Ended()[before:]
+		var root sdktrace.ReadOnlySpan
+		for _, s := range ended {
+			if s.Name() == "ws.Hello" {
+				root = s
+			}
+		}
+		if root == nil || root.Parent().IsValid() || !root.SpanContext().IsSampled() {
+			t.Fatalf("no sampled ws.Hello root among %d spans", len(ended))
+		}
+		attrs := attribute.NewSet(root.Attributes()...)
+		if v, _ := attrs.Value("character_id"); v.AsString() != aylaID.String() {
+			t.Fatalf("the root's character_id is %q", v.AsString())
+		}
+		if v, _ := attrs.Value("conn"); v.AsString() == "" {
+			t.Fatal("the root names no connection")
+		}
+		children := map[string]bool{}
+		for _, s := range ended {
+			if s.Parent().SpanID() == root.SpanContext().SpanID() && s.SpanKind() == trace.SpanKindClient {
+				children[s.Name()] = true
+			}
+		}
+		for _, call := range []string{"internal.world.v1.WorldService/Join", "internal.item.v1.ItemService/Inventory"} {
+			if !children[call] {
+				t.Fatalf("the Hello's calls %v lack %s", children, call)
+			}
+		}
+		before, calls := len(spans.Ended()), len(h.world.callList())
+		c.send(wsconn.Message{Data: &clientv1.Attack{}})
+		waitFor(t, "the attack", h.world.callList, calls+1)
+		if got := spans.Ended()[before:]; len(got) != 0 {
+			t.Fatalf("an Attack kept %d spans, the first %s", len(got), got[0].Name())
 		}
 	})
 }
@@ -1876,7 +1929,7 @@ func (fakeConn) Close(code int, reason string) {}
 // A push the codec cannot encode is a programming error: its close is logged as one, with the type.
 func TestAnEncodeFailureIsLoggedAsAnError(t *testing.T) {
 	logs := &lockedBuffer{}
-	d := deps{ID: "gw-test", Logger: slog.New(slog.NewJSONHandler(logs, nil)), HelloTimeout: time.Minute, CommandQueue: 4}
+	d := deps{ID: "gw-test", Logger: slog.New(slog.NewJSONHandler(logs, nil)), HelloTimeout: time.Minute, CommandQueue: 4, Traces: traces}
 	_, handler := d.build()
 	h := handler.(*ws.Handler)
 	c := fakeConn{id: "conn-1"}
