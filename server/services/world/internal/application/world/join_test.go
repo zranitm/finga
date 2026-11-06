@@ -1,4 +1,4 @@
-package application_test
+package world_test
 
 import (
 	"bytes"
@@ -13,8 +13,9 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
+	"finga/services/world/worldtest"
 )
 
 var errNotYours = errors.New("not found")
@@ -44,14 +45,14 @@ func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id ker
 	return f.err
 }
 
-func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter, log ...*slog.Logger) (*application.World, func()) {
+func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter, log ...*slog.Logger) (*world.World, func()) {
 	t.Helper()
-	data := loadData(t)
-	o := options{Characters: chars, Starter: starter}
+	data := worldtest.LoadData(t)
+	o := worldtest.Options{Characters: chars, Starter: starter}
 	if len(log) > 0 {
 		o.Logger = log[0]
 	}
-	w := newWorldOf(data, &fakeSaver{}, o)
+	w := worldtest.NewWorld(data, &fakeSaver{}, o)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
@@ -73,7 +74,7 @@ func TestJoinByID(t *testing.T) {
 			starter := &fakeStarter{}
 			w, stop := joinWorld(t, chars, starter)
 			defer stop()
-			s := &sink{}
+			s := &worldtest.Sink{}
 			view, err := w.Join(context.Background(), account, ayla.ID, "conn-1", s)
 			if err != nil {
 				t.Fatal(err)
@@ -85,10 +86,10 @@ func TestJoinByID(t *testing.T) {
 			if len(starter.grants) != 1 || starter.grants[0] != ayla.ID {
 				t.Fatalf("grants %v", starter.grants)
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			if snap, ok := s.all()[0].(model.Snapshot); !ok || snap.MapID != "town" || len(snap.Players) != 1 {
-				t.Fatalf("first event %+v", s.all())
+			if snap, ok := s.All()[0].(model.Snapshot); !ok || snap.MapID != "town" || len(snap.Players) != 1 {
+				t.Fatalf("first event %+v", s.All())
 			}
 		})
 	})
@@ -98,14 +99,14 @@ func TestJoinByID(t *testing.T) {
 			var logs bytes.Buffer
 			w, stop := joinWorld(t, chars, starter, slog.New(slog.NewJSONHandler(&logs, nil)))
 			defer stop()
-			s := &sink{}
+			s := &worldtest.Sink{}
 			if _, err := w.Join(context.Background(), account, ayla.ID, "conn-1", s); err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			if snap, ok := s.all()[0].(model.Snapshot); !ok || snap.MapID != "town" {
-				t.Fatalf("first event %+v", s.all())
+			if snap, ok := s.All()[0].(model.Snapshot); !ok || snap.MapID != "town" {
+				t.Fatalf("first event %+v", s.All())
 			}
 			if !strings.Contains(logs.String(), `"msg":"starter items not granted; the next join tries again"`) || !strings.Contains(logs.String(), `"character_id":"`+ayla.ID.String()+`"`) {
 				t.Fatalf("log %q", logs.String())
@@ -117,7 +118,7 @@ func TestJoinByID(t *testing.T) {
 			starter := &fakeStarter{}
 			w, stop := joinWorld(t, chars, starter)
 			defer stop()
-			if _, err := w.Join(context.Background(), kernel.NewAccountID(), ayla.ID, "conn-1", &sink{}); !errors.Is(err, errNotYours) {
+			if _, err := w.Join(context.Background(), kernel.NewAccountID(), ayla.ID, "conn-1", &worldtest.Sink{}); !errors.Is(err, errNotYours) {
 				t.Fatalf("err = %v", err)
 			}
 			if len(starter.grants) != 0 {
@@ -129,7 +130,7 @@ func TestJoinByID(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			w, stop := joinWorld(t, chars, &fakeStarter{})
 			defer stop()
-			if _, err := w.Join(context.Background(), account, lost.ID, "conn-1", &sink{}); !errors.Is(err, model.ErrNoMap) {
+			if _, err := w.Join(context.Background(), account, lost.ID, "conn-1", &worldtest.Sink{}); !errors.Is(err, model.ErrNoMap) {
 				t.Fatalf("err = %v", err)
 			}
 		})
@@ -139,32 +140,32 @@ func TestJoinByID(t *testing.T) {
 // A stale connection's Leave, arriving after a rejoin, removes nothing.
 func TestLeaveNamesItsConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		inst, stop := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer stop()
-		x, y := townSpawn(t, data)
-		p := newPlayer("Ayla", x, y)
+		x, y := worldtest.TownSpawn(t, data)
+		p := worldtest.NewPlayer("Ayla", x, y)
 		p.Connection = "new"
-		s := &sink{}
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		_ = inst.LeaveConnection(p.ID, "old")
-		time.Sleep(2 * tickInterval)
+		_ = inst.Leave(p.ID, "old", nil, nil)
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		before := len(s.deltas())
-		time.Sleep(2 * tickInterval)
+		before := len(s.Deltas())
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		if len(s.deltas()) <= before {
+		if len(s.Deltas()) <= before {
 			t.Fatal("the player was removed by another connection's Leave")
 		}
-		_ = inst.LeaveConnection(p.ID, "new")
-		time.Sleep(2 * tickInterval)
+		_ = inst.Leave(p.ID, "new", nil, nil)
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		after := len(s.deltas())
-		time.Sleep(2 * tickInterval)
+		after := len(s.Deltas())
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		if len(s.deltas()) != after {
+		if len(s.Deltas()) != after {
 			t.Fatal("the player is still on the map after its own Leave")
 		}
 	})
@@ -173,7 +174,7 @@ func TestLeaveNamesItsConnection(t *testing.T) {
 // A character saved dead, before dead players were saved as respawned, joins as that respawn.
 func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
+		data := worldtest.LoadData(t)
 		forest, _ := data.Map("forest")
 		account := kernel.NewAccountID()
 		dead := model.Character{
@@ -182,7 +183,7 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 		}
 		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{dead.ID: dead}}, &fakeStarter{})
 		defer stop()
-		v, err := w.Join(context.Background(), account, dead.ID, "c-1", &sink{})
+		v, err := w.Join(context.Background(), account, dead.ID, "c-1", &worldtest.Sink{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +206,7 @@ func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ayla := at(t, "Ayla", "town")
 		chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: {ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Stats: ayla.Stats, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}}}
-		w := newWorldOf(loadData(t), &fakeSaver{}, options{Characters: chars, Starter: hangingStarter{}})
+		w := worldtest.NewWorld(worldtest.LoadData(t), &fakeSaver{}, worldtest.Options{Characters: chars, Starter: hangingStarter{}})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); _ = w.Run(ctx) }()
@@ -213,7 +214,7 @@ func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 		budget, stop := context.WithTimeout(context.Background(), 5*time.Second) // the gateway's join budget
 		defer stop()
 		start := time.Now()
-		if _, err := w.Join(budget, ayla.Account, ayla.ID, "c-1", &sink{}); err != nil {
+		if _, err := w.Join(budget, ayla.Account, ayla.ID, "c-1", &worldtest.Sink{}); err != nil {
 			t.Fatalf("join: %v", err)
 		}
 		if took := time.Since(start); took > 2*time.Second {

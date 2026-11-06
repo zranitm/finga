@@ -1,6 +1,7 @@
-package application_test
+package instance_test
 
 import (
+	"finga/services/world/worldtest"
 	"slices"
 	"sync"
 	"testing"
@@ -46,9 +47,9 @@ func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, max
 	f.updates = append(f.updates, partyUpdate{id, mapID, level, hp, maxHP})
 }
 
-func expGained(s *sink) []int64 {
+func expGained(s *worldtest.Sink) []int64 {
 	var out []int64
-	for _, e := range s.all() {
+	for _, e := range s.All() {
 		if g, ok := e.(model.ExpGained); ok {
 			out = append(out, g.Amount)
 		}
@@ -75,16 +76,16 @@ func TestExpSharing(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				data := loadData(t)
+				data := worldtest.LoadData(t)
 				parties := &fakeParties{}
-				inst, stop := runMap(t, data, arena(time.Hour), nil, options{Parties: parties})
+				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
 				defer stop()
-				time.Sleep(tickInterval)
+				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
 				killer := warriorAt(250)
 				party := []kernel.CharacterID{killer.ID}
 				sk := join(t, inst, killer)
-				var others []*sink
+				var others []*worldtest.Sink
 				for k := range tt.members {
 					m := warriorAt(150 + float64(k)*20)
 					if tt.dead && k == 0 {
@@ -123,26 +124,26 @@ func TestExpSharing(t *testing.T) {
 
 func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
+		data := worldtest.LoadData(t)
 		items := newFakePickups()
 		killer, member, stranger := warriorAt(250), warriorAt(300), warriorAt(300)
 		parties := &fakeParties{parties: [][]kernel.CharacterID{{killer.ID, member.ID}}}
-		inst, stop := runLootArena(t, data, items, 0.3, options{Parties: parties})
+		inst, stop := runLootArena(t, data, items, 0.3, worldtest.Options{Parties: parties})
 		defer stop()
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		join(t, inst, killer)
 		killSlime(t, inst, killer.ID)
 		ss := join(t, inst, stranger)
 		sm := join(t, inst, member)
 		_ = inst.PickUp(stranger.ID)
-		time.Sleep(3 * tickInterval)
+		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.callCount() != 0 || len(inventoryChanges(ss)) != 0 {
 			t.Fatal("a stranger looted inside the window")
 		}
 		_ = inst.PickUp(member.ID)
-		time.Sleep(3 * tickInterval)
+		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.callCount() != 1 || len(inventoryChanges(sm)) != 1 {
 			t.Fatalf("calls %d changes %d: a party member could not loot inside the window", items.callCount(), len(inventoryChanges(sm)))
@@ -150,9 +151,9 @@ func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 	})
 }
 
-func chats(s *sink) []model.Chat {
+func chats(s *worldtest.Sink) []model.Chat {
 	var out []model.Chat
-	for _, e := range s.all() {
+	for _, e := range s.All() {
 		if c, ok := e.(model.Chat); ok {
 			out = append(out, c)
 		}
@@ -162,22 +163,22 @@ func chats(s *sink) []model.Chat {
 
 func TestMapChatReachesOnlyTheMap(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		here, stop := runMap(t, data, arena(time.Hour), nil, options{})
+		data := worldtest.LoadData(t)
+		here, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		other := arena(time.Hour)
 		other.ID = "arena2"
-		there, stop2 := runMap(t, data, other, nil, options{})
+		there, stop2 := worldtest.RunMap(t, data, other, nil, worldtest.Options{})
 		defer stop2()
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		ayla, robin, cass := warriorAt(100), warriorAt(150), warriorAt(100)
 		sa, sr, sc := join(t, here, ayla), join(t, here, robin), join(t, there, cass)
 		_ = here.Chat(ayla.ID, "Ayla", "hello map")
 		_ = here.Chat(cass.ID, "Cass", "I am not here") // not on this map: dropped
-		time.Sleep(2 * tickInterval)
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		for _, s := range []*sink{sa, sr} {
+		for _, s := range []*worldtest.Sink{sa, sr} {
 			got := chats(s)
 			if len(got) != 1 || got[0].Sender != ayla.ID || got[0].SenderName != "Ayla" || got[0].Text != "hello map" {
 				t.Fatalf("chat %+v", got)
@@ -191,12 +192,12 @@ func TestMapChatReachesOnlyTheMap(t *testing.T) {
 
 func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
+		data := worldtest.LoadData(t)
 		parties := &fakeParties{}
 		tr := &transferRecorder{}
-		inst, stop := runMap(t, data, arena(time.Hour), nil, options{Parties: parties, Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties, Transfer: tr})
 		defer stop()
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(250)
 		p.Exp = 18 // two short of level 2

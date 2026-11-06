@@ -1,4 +1,4 @@
-package application_test
+package party_test
 
 import (
 	"bytes"
@@ -13,9 +13,11 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/panics"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/party"
 	"finga/services/world/internal/model"
 )
+
+var errUnavailable = errors.New("unavailable")
 
 // fakeSocial is the social service's party stream, fed by the test, and where member updates go.
 type fakeSocial struct {
@@ -64,9 +66,9 @@ func (f *fakeSocial) sent() []model.MemberUpdate {
 }
 
 // runCopy runs a party copy over social in the bubble until the test ends.
-func runCopy(t *testing.T, social *fakeSocial, log *slog.Logger) *application.PartyCopy {
+func runCopy(t *testing.T, social *fakeSocial, log *slog.Logger) *party.Copy {
 	t.Helper()
-	p := application.NewPartyCopy(social, "world-1", log)
+	p := party.NewCopy(social, "world-1", log)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- p.Run(ctx) }()
@@ -168,7 +170,7 @@ func TestMemberUpdates(t *testing.T) {
 		})
 	})
 	t.Run("a full queue drops one without blocking", func(t *testing.T) {
-		p := application.NewPartyCopy(newFakeSocial(), "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
+		p := party.NewCopy(newFakeSocial(), "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
 		start := time.Now()
 		for range 1024 + 10 {
 			p.Update(kernel.NewCharacterID(), "town", 1, 1, 1)
@@ -181,7 +183,7 @@ func TestMemberUpdates(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			social := newFakeSocial()
 			social.panics = true
-			p := application.NewPartyCopy(social, "world-1", slog.New(slog.DiscardHandler))
+			p := party.NewCopy(social, "world-1", slog.New(slog.DiscardHandler))
 			p.Update(kernel.NewCharacterID(), "town", 1, 10, 10)
 			if e, ok := errors.AsType[*panics.Error](p.Run(context.Background())); !ok || e.Value != "bad update" {
 				t.Fatal("Run kept going after its update loop panicked")

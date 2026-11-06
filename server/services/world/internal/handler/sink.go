@@ -7,7 +7,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
 )
 
@@ -20,7 +20,7 @@ type streamSink struct {
 }
 
 // Stream is the player's gateway's stream, which every player joined through that gateway shares.
-func (s *streamSink) Stream() application.Stream { return gatewayStream{sub: s.sub} }
+func (s *streamSink) Stream() instance.Stream { return gatewayStream{sub: s.sub} }
 
 // Send turns one world event into a delivery and queues it.
 func (s *streamSink) Send(e model.Event) bool {

@@ -1,6 +1,7 @@
-package application
+package world
 
 import (
+	"finga/services/world/internal/application/instance"
 	"testing"
 
 	"finga/internal/kernel"
@@ -8,7 +9,7 @@ import (
 
 // A map drops a player whose sink failed; the registry then forgets them, unless a newer join or a leave holds the entry.
 func TestDropForgetsOnlyTheLivePresenceItNames(t *testing.T) {
-	town, cave := &Instance{}, &Instance{}
+	town, cave := &instance.Instance{}, &instance.Instance{}
 	leaving := make(chan struct{})
 	tests := []struct {
 		name string

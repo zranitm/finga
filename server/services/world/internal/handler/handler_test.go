@@ -23,7 +23,9 @@ import (
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
 	"finga/pkg/sentineltest"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/instance"
+	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/handler"
 	"finga/services/world/internal/model"
 )
@@ -76,11 +78,11 @@ func (idle) Float64() float64                                        { return 0.
 
 // capturing hands the test each joined sink, to send events the world rarely sends.
 type capturing struct {
-	*application.World
-	sinks chan application.Sink
+	*world.World
+	sinks chan instance.Sink
 }
 
-func (c capturing) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error) {
+func (c capturing) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error) {
 	select {
 	case c.sinks <- sink:
 	default:
@@ -92,7 +94,7 @@ type stack struct {
 	c       worldv1.WorldServiceClient
 	ctx     context.Context
 	chars   *characters
-	sinks   chan application.Sink
+	sinks   chan instance.Sink
 	account kernel.AccountID
 	data    *gamedata.Data
 }
@@ -105,16 +107,16 @@ func newStack(t *testing.T) *stack {
 	}
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
-	w := application.New(application.WorldDeps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: application.NewWorkers(1, idle{}, rec), Parties: idle{}, Traces: noop.NewTracerProvider(),
+	w := world.New(world.Deps{
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: economy.NewWorkers(1, idle{}, rec), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
-	}, application.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
+	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
 
-	sinks := make(chan application.Sink, 1)
+	sinks := make(chan instance.Sink, 1)
 	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", TickRateHz: 20, Logger: slog.New(slog.DiscardHandler)})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)

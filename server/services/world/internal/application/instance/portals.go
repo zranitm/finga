@@ -1,4 +1,4 @@
-package application
+package instance
 
 import (
 	"slices"

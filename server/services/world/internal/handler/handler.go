@@ -15,13 +15,13 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
 )
 
 // World is what the handler needs from the world module; a command is ErrBusy when the character's map can't take it.
 type World interface {
-	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink application.Sink) (model.View, error)
+	Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error)
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
 	Attack(id kernel.CharacterID, conn string) error

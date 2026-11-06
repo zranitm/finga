@@ -1,4 +1,4 @@
-package application_test
+package world_test
 
 import (
 	"context"
@@ -10,8 +10,9 @@ import (
 
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
+	"finga/services/world/worldtest"
 )
 
 // db is the character service: down, a save fails; stuck, it waits out its deadline; loadErr fails every Load.
@@ -70,9 +71,9 @@ func (d *db) saved(id kernel.CharacterID) model.Character {
 }
 
 // dbWorld runs a World over d, with no sweeps, until the test ends.
-func dbWorld(t *testing.T, d *db) *application.World {
+func dbWorld(t *testing.T, d *db) *world.World {
 	t.Helper()
-	w := newWorldOf(loadData(t), d, options{Characters: d, CheckpointInterval: time.Hour})
+	w := worldtest.NewWorld(worldtest.LoadData(t), d, worldtest.Options{Characters: d, CheckpointInterval: time.Hour})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
@@ -81,14 +82,14 @@ func dbWorld(t *testing.T, d *db) *application.World {
 }
 
 // walkAway joins Ayla, saved at the town's spawn, through c-1 and walks her right, then stops her.
-func walkAway(t *testing.T, w *application.World, d *db) (model.Character, *sink, float64) {
+func walkAway(t *testing.T, w *world.World, d *db) (model.Character, *worldtest.Sink, float64) {
 	t.Helper()
 	p := at(t, "Ayla", "town")
 	ayla := model.Character{ID: p.ID, Account: kernel.NewAccountID(), Name: p.Name, Class: p.Class, Level: p.Level, Stats: p.Stats, HP: p.HP, MP: p.MP, MapID: "town", X: p.X, Y: p.Y}
 	d.mu.Lock()
 	d.chars[ayla.ID] = ayla
 	d.mu.Unlock()
-	s := &sink{}
+	s := &worldtest.Sink{}
 	if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", s); err != nil {
 		t.Fatal(err)
 	}
@@ -97,11 +98,11 @@ func walkAway(t *testing.T, w *application.World, d *db) (model.Character, *sink
 		if err := w.Input(ayla.ID, "c-1", seq, in); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 	}
-	time.Sleep(2 * tickInterval)
+	time.Sleep(2 * worldtest.TickInterval)
 	synctest.Wait()
-	v, _ := s.own(ayla.ID)
+	v, _ := s.Own(ayla.ID)
 	if v.State.X <= ayla.X {
 		t.Fatalf("Ayla did not move from %v", ayla.X)
 	}
@@ -121,16 +122,14 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 	departures := []struct {
 		name   string
 		conn   string // the new join's
-		depart func(t *testing.T, w *application.World, id kernel.CharacterID, s *sink)
+		depart func(t *testing.T, w *world.World, id kernel.CharacterID, s *worldtest.Sink)
 	}{
-		{name: "a login elsewhere", conn: "c-2", depart: func(*testing.T, *application.World, kernel.CharacterID, *sink) {}},
-		{name: "the gateway's stream broke", conn: "c-1", depart: func(_ *testing.T, _ *application.World, _ kernel.CharacterID, s *sink) {
-			s.mu.Lock()
-			s.full = true
-			s.mu.Unlock()
-			time.Sleep(tickInterval)
+		{name: "a login elsewhere", conn: "c-2", depart: func(*testing.T, *world.World, kernel.CharacterID, *worldtest.Sink) {}},
+		{name: "the gateway's stream broke", conn: "c-1", depart: func(_ *testing.T, _ *world.World, _ kernel.CharacterID, s *worldtest.Sink) {
+			s.Refuse()
+			time.Sleep(worldtest.TickInterval)
 		}},
-		{name: "a Leave, then a reconnect", conn: "c-2", depart: func(t *testing.T, w *application.World, id kernel.CharacterID, _ *sink) {
+		{name: "a Leave, then a reconnect", conn: "c-2", depart: func(t *testing.T, w *world.World, id kernel.CharacterID, _ *worldtest.Sink) {
 			if err := w.Leave(context.Background(), id, "c-1"); err != nil {
 				t.Fatal(err)
 			}
@@ -146,7 +145,7 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 					d.set(svc.down, svc.stuck)
 					dep.depart(t, w, ayla.ID, old)
 
-					s := &sink{}
+					s := &worldtest.Sink{}
 					v, err := w.Join(context.Background(), ayla.Account, ayla.ID, dep.conn, s)
 					if err != nil {
 						t.Fatal(err)
@@ -154,9 +153,9 @@ func TestARejoinStartsFromTheNewestState(t *testing.T) {
 					if v.X != x || v.MapID != "town" {
 						t.Fatalf("joined at %s %v, want town %v", v.MapID, v.X, x)
 					}
-					time.Sleep(tickInterval)
+					time.Sleep(worldtest.TickInterval)
 					synctest.Wait()
-					if snaps := snapshots(s); len(snaps) != 1 || snaps[0].Players[len(snaps[0].Players)-1].State.X != x {
+					if snaps := worldtest.Of[model.Snapshot](s); len(snaps) != 1 || snaps[0].Players[len(snaps[0].Players)-1].State.X != x {
 						t.Fatalf("snapshots %+v", snaps)
 					}
 
@@ -178,13 +177,13 @@ func TestAJoinForSomeoneElsesCharacterLeavesItBe(t *testing.T) {
 		d := &db{chars: map[kernel.CharacterID]model.Character{}}
 		w := dbWorld(t, d)
 		ayla, s, _ := walkAway(t, w, d)
-		if _, err := w.Join(context.Background(), kernel.NewAccountID(), ayla.ID, "c-x", &sink{}); !errors.Is(err, errNotYours) {
+		if _, err := w.Join(context.Background(), kernel.NewAccountID(), ayla.ID, "c-x", &worldtest.Sink{}); !errors.Is(err, errNotYours) {
 			t.Fatalf("err = %v", err)
 		}
-		before := len(s.deltas())
-		time.Sleep(2 * tickInterval)
+		before := len(s.Deltas())
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
-		if len(s.deltas()) == before {
+		if len(s.Deltas()) == before {
 			t.Fatal("Ayla left her map")
 		}
 	})
@@ -225,7 +224,7 @@ func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
 		out := make(chan joined, 2)
 		for _, conn := range []string{"c-2", "c-3"} {
 			go func() {
-				v, err := w.Join(context.Background(), ayla.Account, ayla.ID, conn, &sink{})
+				v, err := w.Join(context.Background(), ayla.Account, ayla.ID, conn, &worldtest.Sink{})
 				out <- joined{v, err}
 			}()
 		}
@@ -252,7 +251,7 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 		d.mu.Lock()
 		d.loadErr = errUnavailable // the character service fails this one Load
 		d.mu.Unlock()
-		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &sink{}); !errors.Is(err, errUnavailable) {
+		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, errUnavailable) {
 			t.Fatalf("join: %v", err)
 		}
 		d.mu.Lock()
@@ -261,7 +260,7 @@ func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
 		if n := detached(old); n != 1 {
 			t.Fatalf("%d Detached events to the older connection, want one", n)
 		}
-		v, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", &sink{})
+		v, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", &worldtest.Sink{})
 		if err != nil || v.X != x {
 			t.Fatalf("the gateway's rejoin of c-1: %+v, %v; want x %v", v, err, x)
 		}

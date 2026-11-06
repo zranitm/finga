@@ -1,4 +1,5 @@
-package application
+// Package economy runs the world's calls to the item service off the ticks, on a pool of workers.
+package economy
 
 import (
 	"context"
@@ -8,8 +9,8 @@ import (
 	"finga/pkg/panics"
 )
 
-// EconomyObserver counts jobs in flight.
-type EconomyObserver interface {
+// Observer counts jobs in flight.
+type Observer interface {
 	JobStarted()
 	JobFinished()
 }
@@ -18,16 +19,16 @@ type EconomyObserver interface {
 type Workers struct {
 	jobs   chan func(ctx context.Context)
 	n      int
-	obs    EconomyObserver
+	obs    Observer
 	panics *panics.Recorder
 }
 
-// economyQueue is how many jobs may wait for a worker.
-const economyQueue = 1024
+// queue is how many jobs may wait for a worker.
+const queue = 1024
 
 // NewWorkers makes a pool of n workers; a job's panic goes to rec.
-func NewWorkers(n int, obs EconomyObserver, rec *panics.Recorder) *Workers {
-	return &Workers{jobs: make(chan func(ctx context.Context), economyQueue), n: n, obs: obs, panics: rec}
+func NewWorkers(n int, obs Observer, rec *panics.Recorder) *Workers {
+	return &Workers{jobs: make(chan func(ctx context.Context), queue), n: n, obs: obs, panics: rec}
 }
 
 // Submit queues a job; false when the queue is full.

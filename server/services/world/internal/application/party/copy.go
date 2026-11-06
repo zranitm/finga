@@ -1,10 +1,12 @@
-package application
+// Package party keeps the world's copy of the social service's parties, which a tick reads without waiting.
+package party
 
 import (
 	"context"
 	"log/slog"
 	"slices"
 	"sync"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -13,11 +15,22 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// partyUpdateQueue bounds the member updates to send; a full queue drops one, as the member's next carries the latest.
-const partyUpdateQueue = 1024
+const (
+	// updateQueue bounds the member updates to send; a full queue drops one, as the member's next carries the latest.
+	updateQueue = 1024
+	callTimeout = 5 * time.Second // one update to the social service
+)
 
-// PartyCopy is the world's Parties, kept current from the social stream so no read or update makes a tick wait.
-type PartyCopy struct {
+// Social is the social service as the party copy sees it.
+type Social interface {
+	// FollowParties tells on each party stream event until ctx ends; a broken one tells PartiesLost, then resubscribes.
+	FollowParties(ctx context.Context, world string, on func(model.PartyEvent))
+	// UpdateMember tells the service what a map saw of a member.
+	UpdateMember(ctx context.Context, u model.MemberUpdate) error
+}
+
+// Copy is the world's parties, kept current from the social stream so no read or update makes a tick wait.
+type Copy struct {
 	social  Social
 	worldID string
 	log     *slog.Logger
@@ -27,27 +40,27 @@ type PartyCopy struct {
 	table map[kernel.CharacterID][]kernel.CharacterID
 }
 
-// NewPartyCopy builds the copy, which follows social's party stream as worldID once Run starts it.
-func NewPartyCopy(social Social, worldID string, log *slog.Logger) *PartyCopy {
-	return &PartyCopy{social: social, worldID: worldID, log: log, updates: make(chan model.MemberUpdate, partyUpdateQueue), table: map[kernel.CharacterID][]kernel.CharacterID{}}
+// NewCopy builds the copy, which follows social's party stream as worldID once Run starts it.
+func NewCopy(social Social, worldID string, log *slog.Logger) *Copy {
+	return &Copy{social: social, worldID: worldID, log: log, updates: make(chan model.MemberUpdate, updateQueue), table: map[kernel.CharacterID][]kernel.CharacterID{}}
 }
 
 // Members lists the IDs of a character's party, nil without one.
-func (p *PartyCopy) Members(id kernel.CharacterID) []kernel.CharacterID {
+func (p *Copy) Members(id kernel.CharacterID) []kernel.CharacterID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Clone(p.table[id])
 }
 
 // SameParty reports whether two characters share a party.
-func (p *PartyCopy) SameParty(a, b kernel.CharacterID) bool {
+func (p *Copy) SameParty(a, b kernel.CharacterID) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Contains(p.table[a], b)
 }
 
 // Update queues what a map saw of a member; it never blocks.
-func (p *PartyCopy) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
+func (p *Copy) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
 	select {
 	case p.updates <- model.MemberUpdate{ID: id, MapID: mapID, Level: level, HP: hp, MaxHP: maxHP}:
 	default:
@@ -55,7 +68,7 @@ func (p *PartyCopy) Update(id kernel.CharacterID, mapID string, level, hp, maxHP
 }
 
 // Run follows the party stream and sends the queued updates until ctx ends or either panics.
-func (p *PartyCopy) Run(ctx context.Context) error {
+func (p *Copy) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() (err error) {
 		defer panics.Capture(&err)
@@ -70,7 +83,7 @@ func (p *PartyCopy) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-func (p *PartyCopy) apply(ctx context.Context, e model.PartyEvent) {
+func (p *Copy) apply(ctx context.Context, e model.PartyEvent) {
 	switch e := e.(type) {
 	case model.PartiesSubscribed:
 		p.reset() // the memberships that follow are the whole table
@@ -90,13 +103,13 @@ func (p *PartyCopy) apply(ctx context.Context, e model.PartyEvent) {
 	}
 }
 
-func (p *PartyCopy) reset() {
+func (p *Copy) reset() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	clear(p.table)
 }
 
-func (p *PartyCopy) sendUpdates(ctx context.Context) {
+func (p *Copy) sendUpdates(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():

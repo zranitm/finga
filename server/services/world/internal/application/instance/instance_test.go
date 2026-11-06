@@ -1,9 +1,7 @@
-package application_test
+package instance_test
 
 import (
-	"cmp"
 	"context"
-	"log/slog"
 	"math"
 	"slices"
 	"sync"
@@ -11,264 +9,20 @@ import (
 	"testing/synctest"
 	"time"
 
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.opentelemetry.io/otel/trace"
-
-	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/pkg/panics"
-	"finga/pkg/tracing"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
+	"finga/services/world/worldtest"
 )
-
-const tickInterval = 50 * time.Millisecond
-
-// delta is a tick's frame as one player got it.
-type delta struct {
-	*model.Frame
-	AckSeq uint32
-}
-
-// sink records a player's events, and each frame as its delta: the player has a stream of its own.
-type sink struct {
-	mu     sync.Mutex
-	events []any // model.Event, or delta
-	full   bool  // when set, sends are refused: a slow consumer
-}
-
-func (s *sink) Send(e model.Event) bool { return s.record(e) }
-
-func (s *sink) Stream() application.Stream { return s }
-
-func (s *sink) SendFrame(f *model.Frame, to []model.Recipient) bool {
-	return s.record(delta{Frame: f, AckSeq: to[0].AckSeq})
-}
-
-func (s *sink) record(e any) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.full {
-		return false
-	}
-	s.events = append(s.events, e)
-	return true
-}
-
-func (s *sink) all() []any {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.events)
-}
-
-func (s *sink) deltas() []delta {
-	var out []delta
-	for _, e := range s.all() {
-		if d, ok := e.(delta); ok {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
-func (s *sink) last() delta {
-	ds := s.deltas()
-	if len(ds) == 0 {
-		return delta{Frame: &model.Frame{}}
-	}
-	return ds[len(ds)-1]
-}
-
-// own finds the player's own view in the latest delta that carries it.
-func (s *sink) own(id kernel.CharacterID) (model.PlayerView, bool) {
-	ds := s.deltas()
-	for _, d := range slices.Backward(ds) {
-		for _, p := range d.Players {
-			if p.ID == id {
-				return p, true
-			}
-		}
-	}
-	return model.PlayerView{}, false
-}
-
-type observer struct {
-	mu    sync.Mutex
-	ticks []time.Duration
-}
-
-func (o *observer) ObserveTick(_ string, took, _ time.Duration) {
-	o.mu.Lock()
-	o.ticks = append(o.ticks, took)
-	o.mu.Unlock()
-}
-
-func loadData(t *testing.T) *gamedata.Data {
-	t.Helper()
-	d, err := gamedata.Load("../../../../data")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return d
-}
-
-func townSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
-	t.Helper()
-	town := data.Town()
-	return town.PlayerSpawn.X, town.PlayerSpawn.Y
-}
-
-func newPlayer(name string, x, y float64) model.Player {
-	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
-}
-
-// rolls gives each instance a fixedRoll of v.
-func rolls(v float64) func() model.Roll {
-	return func() model.Roll { return fixedRoll{v} }
-}
-
-func discardPanics() *panics.Recorder { return panics.NewRecorder(slog.New(slog.DiscardHandler), nil) }
-
-// options are what a test sets; fill gives the rest a 50 ms tick, rolls of 0.5 and services that do nothing.
-type options struct {
-	TickInterval       time.Duration
-	CheckpointInterval time.Duration
-	FlushTimeout       time.Duration
-	NewRoll            func() model.Roll
-	Observer           application.TickObserver
-	Transfer           application.Mover // an instance's; the World moves players itself
-	Items              application.Pickups
-	Workers            *application.Workers
-	Parties            application.Parties
-	Characters         application.Characters
-	Starter            application.Starter
-	Logger             *slog.Logger // the World's
-	Traces             trace.TracerProvider
-}
-
-// traces samples as the world does, and spans records every span it samples.
-var traces, spans = worldTraces()
-
-func worldTraces() (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
-	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "world", Root: application.EntryPoint})
-	if err != nil {
-		panic(err)
-	}
-	rec := tracetest.NewSpanRecorder()
-	tp.RegisterSpanProcessor(rec)
-	return tp, rec
-}
-
-func (o options) fill() options {
-	o.TickInterval = cmp.Or(o.TickInterval, tickInterval)
-	o.CheckpointInterval = cmp.Or(o.CheckpointInterval, 30*time.Second)
-	o.FlushTimeout = cmp.Or(o.FlushTimeout, 10*time.Second)
-	if o.NewRoll == nil {
-		o.NewRoll = rolls(0.5)
-	}
-	if o.Observer == nil {
-		o.Observer = &observer{}
-	}
-	if o.Transfer == nil {
-		o.Transfer = &transferRecorder{}
-	}
-	if o.Items == nil {
-		o.Items = newFakePickups()
-	}
-	if o.Workers == nil {
-		o.Workers = application.NewWorkers(1, &economy{}, discardPanics())
-	}
-	if o.Parties == nil {
-		o.Parties = &fakeParties{}
-	}
-	if o.Characters == nil {
-		o.Characters = &fakeCharacters{}
-	}
-	if o.Starter == nil {
-		o.Starter = &fakeStarter{}
-	}
-	if o.Logger == nil {
-		o.Logger = slog.New(slog.DiscardHandler)
-	}
-	if o.Traces == nil {
-		o.Traces = traces
-	}
-	return o
-}
-
-func (o options) tuning() application.Tuning {
-	return application.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout}
-}
-
-func (o options) deps() application.Deps {
-	return application.Deps{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties, Traces: o.Traces}
-}
-
-// checkpoints records what an instance puts for saving.
-type checkpoints struct {
-	mu  sync.Mutex
-	cps []model.Checkpoint
-}
-
-func (c *checkpoints) Put(cp model.Checkpoint) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.cps = append(c.cps, cp)
-}
-
-// drain is what was put since the last drain.
-func (c *checkpoints) drain() []model.Checkpoint {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	out := c.cps
-	c.cps = nil
-	return out
-}
-
-// newInstance builds m's instance with o filled in; cps may be nil.
-func newInstance(m *gamedata.Map, data *gamedata.Data, cps *checkpoints, o options) *application.Instance {
-	o = o.fill()
-	if cps == nil {
-		cps = &checkpoints{}
-	}
-	return application.NewInstance(m, data, cps, o.Transfer, o.tuning(), o.deps())
-}
-
-// newWorldOf builds a World over data with o filled in.
-func newWorldOf(data *gamedata.Data, saver application.Saver, o options) *application.World {
-	o = o.fill()
-	return application.New(application.WorldDeps{
-		Deps: o.deps(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter,
-		Panics: discardPanics(), Logger: o.Logger,
-	}, o.tuning())
-}
-
-// run starts a town instance in the synctest bubble; stop waits for Run so nothing outlives it.
-func run(t *testing.T, data *gamedata.Data, cps *checkpoints, opts options) (*application.Instance, func()) {
-	t.Helper()
-	return runMap(t, data, data.Town(), cps, opts)
-}
-
-// runMap starts m's instance in the synctest bubble, as run does the town's.
-func runMap(t *testing.T, data *gamedata.Data, m *gamedata.Map, cps *checkpoints, opts options) (*application.Instance, func()) {
-	t.Helper()
-	inst := newInstance(m, data, cps, opts)
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() { defer close(done); _ = inst.Run(ctx) }()
-	var once sync.Once
-	return inst, func() { once.Do(func() { cancel(); <-done }) }
-}
 
 // onStream is a player's sink whose frames go to a stream shared with others, as a gateway's.
 type onStream struct {
-	*sink
+	*worldtest.Sink
 	stream *frames
 }
 
-func (s onStream) Stream() application.Stream { return s.stream }
+func (s onStream) Stream() instance.Stream { return s.stream }
 
 // frames records each frame's recipients.
 type frames struct {
@@ -286,17 +40,17 @@ func (f *frames) SendFrame(_ *model.Frame, to []model.Recipient) bool {
 // A tick's frame goes once to each stream, naming each of its players with the last input applied for it.
 func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, stop := runMap(t, data, data.Town(), nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, stop := worldtest.RunMap(t, data, data.Town(), nil, worldtest.Options{})
 		defer stop()
 		gateway := &frames{}
-		ayla, robin, bruno := newPlayer("Ayla", x, y), newPlayer("Robin", x, y), newPlayer("Bruno", x, y)
+		ayla, robin, bruno := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y), worldtest.NewPlayer("Bruno", x, y)
 		ayla.Connection, robin.Connection = "c-ayla", "c-robin"
 		for _, j := range []struct {
 			p model.Player
-			s application.Sink
-		}{{ayla, onStream{&sink{}, gateway}}, {robin, onStream{&sink{}, gateway}}, {bruno, &sink{}}} {
+			s instance.Sink
+		}{{ayla, onStream{&worldtest.Sink{}, gateway}}, {robin, onStream{&worldtest.Sink{}, gateway}}, {bruno, &worldtest.Sink{}}} {
 			if err := inst.Join(context.Background(), j.p, j.s); err != nil {
 				t.Fatal(err)
 			}
@@ -304,7 +58,7 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 		if err := inst.Input(ayla.ID, 7, sim.Input{}); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		gateway.mu.Lock()
 		defer gateway.mu.Unlock()
@@ -317,21 +71,21 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 
 func TestJoinSnapshotAndDeltas(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
 
-		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x+100, y)
-		sa, sr := &sink{}, &sink{}
+		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x+100, y)
+		sa, sr := &worldtest.Sink{}, &worldtest.Sink{}
 		if err := inst.Join(context.Background(), ayla, sa); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval) // the join is handled on the next tick
+		time.Sleep(worldtest.TickInterval) // the join is handled on the next tick
 		synctest.Wait()
 
 		{ // a joining player gets a Snapshot first, then Deltas
-			events := sa.all()
+			events := sa.All()
 			if len(events) == 0 {
 				t.Fatal("no events")
 			}
@@ -339,16 +93,16 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 			if !ok || snap.MapID != "town" || len(snap.Players) != 1 || snap.Players[0].ID != ayla.ID || snap.Players[0].State.X != x {
 				t.Fatalf("first event %+v", events[0])
 			}
-			if _, ok := events[1].(delta); !ok {
+			if _, ok := events[1].(worldtest.Delta); !ok {
 				t.Fatalf("second event %T", events[1])
 			}
 		}
 
 		{ // deltas arrive every tick
-			before := len(sa.deltas())
-			time.Sleep(10 * tickInterval)
+			before := len(sa.Deltas())
+			time.Sleep(10 * worldtest.TickInterval)
 			synctest.Wait()
-			if got := len(sa.deltas()) - before; got != 10 {
+			if got := len(sa.Deltas()) - before; got != 10 {
 				t.Fatalf("%d deltas in 10 ticks", got)
 			}
 		}
@@ -357,43 +111,43 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 			if err := inst.Join(context.Background(), robin, sr); err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			found := false
-			for _, d := range sa.deltas() {
+			for _, d := range sa.Deltas() {
 				for _, p := range d.Players {
 					found = found || (p.ID == robin.ID && p.Name == "Robin")
 				}
 			}
 			if !found {
-				t.Fatalf("no delta of Ayla's carries Robin: %+v", sa.last())
+				t.Fatalf("no delta of Ayla's carries Robin: %+v", sa.Last())
 			}
-			snap := sr.all()[0].(model.Snapshot)
+			snap := sr.All()[0].(model.Snapshot)
 			if len(snap.Players) != 2 {
 				t.Fatalf("Robin's snapshot has %d players", len(snap.Players))
 			}
 		}
 
 		{ // others see the leave
-			_ = inst.LeaveConnection(robin.ID, "")
-			time.Sleep(tickInterval)
+			_ = inst.Leave(robin.ID, "", nil, nil)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			d := sa.last()
+			d := sa.Last()
 			if len(d.Removed) != 1 || d.Removed[0] != robin.ID {
 				t.Fatalf("removed %v", d.Removed)
 			}
-			n := len(sr.all())
-			time.Sleep(3 * tickInterval)
+			n := len(sr.All())
+			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
-			if len(sr.all()) != n {
+			if len(sr.All()) != n {
 				t.Fatal("Robin kept receiving events after leaving")
 			}
 		}
 
-		{ // a player standing still is not in the delta
-			time.Sleep(20 * tickInterval) // long enough to land and settle
+		{ // a player standing still is not in the worldtest.Delta
+			time.Sleep(20 * worldtest.TickInterval) // long enough to land and settle
 			synctest.Wait()
-			if d := sa.last(); len(d.Players) != 0 {
+			if d := sa.Last(); len(d.Players) != 0 {
 				t.Fatalf("idle delta carries %d players", len(d.Players))
 			}
 		}
@@ -402,73 +156,73 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 
 func TestInputsApplyInSequenceOrder(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
-		s := &sink{}
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(25 * tickInterval) // land and settle
+		time.Sleep(25 * worldtest.TickInterval) // land and settle
 		synctest.Wait()
-		startX, _ := s.own(p.ID)
+		startX, _ := s.Own(p.ID)
 		if !startX.State.OnGround {
 			t.Fatalf("not on the ground: %+v", startX.State)
 		}
 
 		{ // one input per tick moves at walk speed
 			_ = inst.Input(p.ID, 1, sim.Input{Right: true})
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			v, _ := s.own(p.ID)
+			v, _ := s.Own(p.ID)
 			want := x + 3*data.Movement().WalkSpeed*data.Movement().Dt
 			if !near(v.State.X, want) {
 				t.Fatalf("x = %v, want %v after one tick of walking", v.State.X, want)
 			}
-			if s.last().AckSeq != 1 {
-				t.Fatalf("ack_seq %d, want 1", s.last().AckSeq)
+			if s.Last().AckSeq != 1 {
+				t.Fatalf("ack_seq %d, want 1", s.Last().AckSeq)
 			}
 		}
 
 		{ // two inputs in one tick apply over two ticks, in sequence order
-			before, _ := s.own(p.ID)
+			before, _ := s.Own(p.ID)
 			_ = inst.Input(p.ID, 3, sim.Input{})            // stop
 			_ = inst.Input(p.ID, 2, sim.Input{Right: true}) // arrives out of order but is older
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			after, _ := s.own(p.ID)
+			after, _ := s.Own(p.ID)
 			want := before.State.X + 3*data.Movement().WalkSpeed*data.Movement().Dt
-			if !near(after.State.X, want) || s.last().AckSeq != 2 {
-				t.Fatalf("x = %v ack %d, want %v and ack 2: the older input applies first", after.State.X, s.last().AckSeq, want)
+			if !near(after.State.X, want) || s.Last().AckSeq != 2 {
+				t.Fatalf("x = %v ack %d, want %v and ack 2: the older input applies first", after.State.X, s.Last().AckSeq, want)
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			stopped, _ := s.own(p.ID)
-			if stopped.State.X != after.State.X || s.last().AckSeq != 3 {
-				t.Fatalf("x %v -> %v ack %d, want a stop with ack 3 on the next tick", after.State.X, stopped.State.X, s.last().AckSeq)
+			stopped, _ := s.Own(p.ID)
+			if stopped.State.X != after.State.X || s.Last().AckSeq != 3 {
+				t.Fatalf("x %v -> %v ack %d, want a stop with ack 3 on the next tick", after.State.X, stopped.State.X, s.Last().AckSeq)
 			}
 		}
 
 		{ // old and duplicate sequence numbers are ignored
-			before, _ := s.own(p.ID)
+			before, _ := s.Own(p.ID)
 			_ = inst.Input(p.ID, 2, sim.Input{Right: true}) // old
 			_ = inst.Input(p.ID, 3, sim.Input{Left: true})  // duplicate seq
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			after, _ := s.own(p.ID)
-			if after.State.X != before.State.X || s.last().AckSeq != 3 {
-				t.Fatalf("state %+v ack %d; old inputs were applied", after.State, s.last().AckSeq)
+			after, _ := s.Own(p.ID)
+			if after.State.X != before.State.X || s.Last().AckSeq != 3 {
+				t.Fatalf("state %+v ack %d; old inputs were applied", after.State, s.Last().AckSeq)
 			}
 		}
 
 		{ // one input moves one tick; with none queued the player waits
-			before, _ := s.own(p.ID)
+			before, _ := s.Own(p.ID)
 			_ = inst.Input(p.ID, 4, sim.Input{Left: true})
-			time.Sleep(3 * tickInterval)
+			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
-			after, _ := s.own(p.ID)
+			after, _ := s.Own(p.ID)
 			want := before.State.X - 3*data.Movement().WalkSpeed*data.Movement().Dt
 			if !near(after.State.X, want) {
 				t.Fatalf("x = %v, want %v after one tick of walking left and two of waiting", after.State.X, want)
@@ -479,7 +233,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 			if inst.Input(kernel.NewCharacterID(), 1, sim.Input{Right: true}) != nil {
 				t.Fatal("the inbox refused")
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 		}
 	})
@@ -490,13 +244,13 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 	for _, interval := range []time.Duration{50 * time.Millisecond, 100 * time.Millisecond} {
 		t.Run(interval.String(), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				data := loadData(t)
+				data := worldtest.LoadData(t)
 				m := arena(time.Hour)
 				m.Spawns = nil
-				inst, stop := runMap(t, data, m, nil, options{TickInterval: interval})
+				inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{TickInterval: interval})
 				defer stop()
 				p := warriorAt(100)
-				s := &sink{}
+				s := &worldtest.Sink{}
 				if err := inst.Join(context.Background(), p, s); err != nil {
 					t.Fatal(err)
 				}
@@ -508,7 +262,7 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 					time.Sleep(interval)
 					synctest.Wait()
 				}
-				if v, _ := s.own(p.ID); math.Abs(v.State.X-300) > 1 {
+				if v, _ := s.Own(p.ID); math.Abs(v.State.X-300) > 1 {
 					t.Fatalf("x = %.1f after a second, want 300", v.State.X)
 				}
 			})
@@ -518,16 +272,16 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 
 func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
-		s := &sink{}
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		for seq := range uint32(1024) { // a tick's whole drain, for nobody
 			_ = inst.Input(kernel.NewCharacterID(), seq, sim.Input{})
@@ -535,9 +289,9 @@ func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 		_ = inst.Input(p.ID, 1, sim.Input{Right: true})
 		var acks []uint32
 		for range 2 {
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			acks = append(acks, s.last().AckSeq)
+			acks = append(acks, s.Last().AckSeq)
 		}
 		if acks[0] != 0 || acks[1] != 1 {
 			t.Fatalf("acks %v, want [0 1]: the input waits a tick behind the flood", acks)
@@ -547,30 +301,30 @@ func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 
 func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
-		s := &sink{}
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(25 * tickInterval) // land and settle
+		time.Sleep(25 * worldtest.TickInterval) // land and settle
 		synctest.Wait()
 
 		{ // three inputs arriving in one tick are applied over the next three ticks
-			start, _ := s.own(p.ID)
+			start, _ := s.Own(p.ID)
 			_ = inst.Input(p.ID, 1, sim.Input{Right: true})
 			_ = inst.Input(p.ID, 2, sim.Input{Right: true})
 			_ = inst.Input(p.ID, 3, sim.Input{Left: true})
 			var acks []uint32
 			var xs []float64
 			for range 3 {
-				time.Sleep(tickInterval)
+				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
-				acks = append(acks, s.last().AckSeq)
-				v, _ := s.own(p.ID)
+				acks = append(acks, s.Last().AckSeq)
+				v, _ := s.Own(p.ID)
 				xs = append(xs, v.State.X)
 			}
 			perTick := 3 * data.Movement().WalkSpeed * data.Movement().Dt
@@ -588,9 +342,9 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 			}
 			var acks []uint32
 			for range 3 {
-				time.Sleep(tickInterval)
+				time.Sleep(worldtest.TickInterval)
 				synctest.Wait()
-				acks = append(acks, s.last().AckSeq)
+				acks = append(acks, s.Last().AckSeq)
 			}
 			if acks[0] != 14 || acks[1] != 15 || acks[2] != 15 {
 				t.Fatalf("acks %v, want 14 15 15: the oldest four were dropped", acks)
@@ -601,10 +355,10 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 			_ = inst.Input(p.ID, 20, sim.Input{Right: true})
 			_ = inst.Input(p.ID, 20, sim.Input{Left: true})
 			_ = inst.Input(p.ID, 21, sim.Input{})
-			time.Sleep(2 * tickInterval)
+			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
-			if s.last().AckSeq != 21 {
-				t.Fatalf("ack %d, want 21: the duplicate did not take a tick of its own", s.last().AckSeq)
+			if s.Last().AckSeq != 21 {
+				t.Fatalf("ack %d, want 21: the duplicate did not take a tick of its own", s.Last().AckSeq)
 			}
 		}
 	})
@@ -612,18 +366,18 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 
 func TestInputGapHoldsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
-		s := &sink{}
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(25 * tickInterval) // land and settle
+		time.Sleep(25 * worldtest.TickInterval) // land and settle
 		synctest.Wait()
-		start, _ := s.own(p.ID)
+		start, _ := s.Own(p.ID)
 		state := start.State
 		geom := data.Town().Geometry
 		params := data.Movement()
@@ -631,9 +385,9 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 			if in != nil {
 				_ = inst.Input(p.ID, seq, *in)
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			v, _ := s.own(p.ID)
+			v, _ := s.Own(p.ID)
 			return v
 		}
 		right := sim.Input{Right: true}
@@ -646,15 +400,15 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 				}
 			}
 			held := tick(nil, 0)
-			if held.State != state || s.last().AckSeq != 3 {
-				t.Fatalf("during the gap: state %+v ack %d, want unmoved %+v and ack 3", held.State, s.last().AckSeq, state)
+			if held.State != state || s.Last().AckSeq != 3 {
+				t.Fatalf("during the gap: state %+v ack %d, want unmoved %+v and ack 3", held.State, s.Last().AckSeq, state)
 			}
 			after := tick(&right, 4)
 			for range 3 {
 				state = sim.Step(state, right, geom, params)
 			}
-			if after.State != state || s.last().AckSeq != 4 {
-				t.Fatalf("after the gap: state %+v ack %d, want the exact sim state %+v and ack 4", after.State, s.last().AckSeq, state)
+			if after.State != state || s.Last().AckSeq != 4 {
+				t.Fatalf("after the gap: state %+v ack %d, want the exact sim state %+v and ack 4", after.State, s.Last().AckSeq, state)
 			}
 		}
 
@@ -663,8 +417,8 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 			for range 6 {
 				v := tick(nil, 0)
 				moved = append(moved, v.State != state)
-				if s.last().AckSeq != 4 {
-					t.Fatalf("ack %d while starved, want 4 repeated", s.last().AckSeq)
+				if s.Last().AckSeq != 4 {
+					t.Fatalf("ack %d while starved, want 4 repeated", s.Last().AckSeq)
 				}
 			}
 			want := []bool{false, false, false, false, false, true}
@@ -676,7 +430,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 			for range 3 {
 				state = sim.Step(state, right, geom, params)
 			}
-			if v, _ := s.own(p.ID); v.State != state {
+			if v, _ := s.Own(p.ID); v.State != state {
 				t.Fatalf("after the hold: %+v, want one tick of the held keys %+v", v.State, state)
 			}
 			// the next input is applied as usual and the counter starts over
@@ -685,8 +439,8 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 			for range 3 {
 				state = sim.Step(state, stop, geom, params)
 			}
-			if v.State != state || s.last().AckSeq != 5 {
-				t.Fatalf("after the stall: %+v ack %d, want %+v ack 5", v.State, s.last().AckSeq, state)
+			if v.State != state || s.Last().AckSeq != 5 {
+				t.Fatalf("after the stall: %+v ack %d, want %+v ack 5", v.State, s.Last().AckSeq, state)
 			}
 			if held := tick(nil, 0); held.State != state {
 				t.Fatalf("one tick without input after the stall moved the player: %+v", held.State)
@@ -697,18 +451,18 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 
 func TestServerStateMatchesSimStepExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
-		s := &sink{}
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(25 * tickInterval) // land and settle
+		time.Sleep(25 * worldtest.TickInterval) // land and settle
 		synctest.Wait()
-		start, _ := s.own(p.ID)
+		start, _ := s.Own(p.ID)
 		state := start.State
 
 		inputs := []sim.Input{
@@ -720,17 +474,17 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 		params := data.Movement()
 		for n, in := range inputs {
 			_ = inst.Input(p.ID, uint32(n+1), in)
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 3 {
 				state = sim.Step(state, in, geom, params)
 			}
-			got, _ := s.own(p.ID)
+			got, _ := s.Own(p.ID)
 			if got.State != state { // == like the movement vectors: an exact match
 				t.Fatalf("tick %d: server %+v, sim %+v", n+1, got.State, state)
 			}
-			if s.last().AckSeq != uint32(n+1) {
-				t.Fatalf("tick %d: ack %d", n+1, s.last().AckSeq)
+			if s.Last().AckSeq != uint32(n+1) {
+				t.Fatalf("tick %d: ack %d", n+1, s.Last().AckSeq)
 			}
 		}
 	})
@@ -738,38 +492,36 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 
 func TestTickObserver(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		obs := &observer{}
-		_, cancel := run(t, data, nil, options{Observer: obs})
+		data := worldtest.LoadData(t)
+		obs := &worldtest.Observer{}
+		_, cancel := worldtest.Run(t, data, nil, worldtest.Options{Observer: obs})
 		defer cancel()
-		time.Sleep(5 * tickInterval)
+		time.Sleep(5 * worldtest.TickInterval)
 		synctest.Wait()
-		obs.mu.Lock()
-		defer obs.mu.Unlock()
-		if len(obs.ticks) != 5 {
-			t.Fatalf("%d observations in 5 ticks", len(obs.ticks))
+		if n := obs.Ticks(); n != 5 {
+			t.Fatalf("%d observations in 5 ticks", n)
 		}
 	})
 }
 
 func TestCheckpoints(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		cps := &checkpoints{}
-		inst, cancel := run(t, data, cps, options{CheckpointInterval: 30 * time.Second})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		cps := &worldtest.Checkpoints{}
+		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 30 * time.Second})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
+		p := worldtest.NewPlayer("Ayla", x, y)
 		p.Exp = 12
-		s := &sink{}
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		_ = inst.Input(p.ID, 1, sim.Input{Right: true})
 
-		collect := cps.drain
+		collect := cps.Drain
 
 		{ // nothing before the interval
 			time.Sleep(29 * time.Second)
@@ -798,8 +550,8 @@ func TestCheckpoints(t *testing.T) {
 			}
 		}
 		{ // on leave, right away
-			_ = inst.LeaveConnection(p.ID, "")
-			time.Sleep(tickInterval)
+			_ = inst.Leave(p.ID, "", nil, nil)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := collect()
 			if len(got) != 1 || got[0].ID != p.ID {
@@ -807,11 +559,11 @@ func TestCheckpoints(t *testing.T) {
 			}
 		}
 		{ // on shutdown, players still on the map
-			q := newPlayer("Robin", x, y)
-			if err := inst.Join(context.Background(), q, &sink{}); err != nil {
+			q := worldtest.NewPlayer("Robin", x, y)
+			if err := inst.Join(context.Background(), q, &worldtest.Sink{}); err != nil {
 				t.Fatal(err)
 			}
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			cancel()
 			synctest.Wait()
@@ -826,14 +578,14 @@ func TestCheckpoints(t *testing.T) {
 // Players joining together are checkpointed on different ticks, each once an interval.
 func TestCheckpointSweepsAreStaggered(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		cps := &checkpoints{}
-		inst, cancel := run(t, data, cps, options{CheckpointInterval: 4 * tickInterval})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		cps := &worldtest.Checkpoints{}
+		inst, cancel := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: 4 * worldtest.TickInterval})
 		defer cancel()
 		drain := func() []kernel.CharacterID {
 			var out []kernel.CharacterID
-			for _, cp := range cps.drain() {
+			for _, cp := range cps.Drain() {
 				out = append(out, cp.ID)
 			}
 			return out
@@ -841,10 +593,10 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 		saves := map[kernel.CharacterID]int{}
 		var joins sync.WaitGroup
 		for _, name := range []string{"Ayla", "Robin", "Kai", "Mira"} {
-			p := newPlayer(name, x, y)
+			p := worldtest.NewPlayer(name, x, y)
 			saves[p.ID] = 0
 			joins.Go(func() {
-				if err := inst.Join(context.Background(), p, &sink{}); err != nil {
+				if err := inst.Join(context.Background(), p, &worldtest.Sink{}); err != nil {
 					t.Error(err)
 				}
 			})
@@ -853,7 +605,7 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 		synctest.Wait() // the tick that took the joins has finished
 		drain()
 		for tick := range 8 {
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := drain()
 			if len(got) != 1 {
@@ -871,29 +623,27 @@ func TestCheckpointSweepsAreStaggered(t *testing.T) {
 
 func TestSlowConsumerIsRemoved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
 		tr := &transferRecorder{}
-		inst, cancel := run(t, data, nil, options{Transfer: tr})
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
 		defer cancel()
-		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x, y)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y)
 		robin.Connection = "c-robin"
-		sa, sr := &sink{}, &sink{}
+		sa, sr := &worldtest.Sink{}, &worldtest.Sink{}
 		if err := inst.Join(context.Background(), ayla, sa); err != nil {
 			t.Fatal(err)
 		}
 		if err := inst.Join(context.Background(), robin, sr); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		sr.mu.Lock()
-		sr.full = true
-		sr.mu.Unlock()
-		time.Sleep(2 * tickInterval)
+		sr.Refuse()
+		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		found := false
-		for _, d := range sa.deltas() {
+		for _, d := range sa.Deltas() {
 			for _, id := range d.Removed {
 				found = found || id == robin.ID
 			}
@@ -907,7 +657,7 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 		if len(dropped) != 1 || dropped[0] != robin.ID.String()+" c-robin" {
 			t.Fatalf("the world heard of drops %v, want Robin's through c-robin, so it forgets the presence", dropped)
 		}
-		if err := inst.Join(context.Background(), robin, &sink{full: true}); err == nil {
+		if err := inst.Join(context.Background(), robin, worldtest.Refusing()); err == nil {
 			t.Fatal("a join whose sink refuses the snapshot succeeded")
 		}
 	})
@@ -915,18 +665,18 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 
 func TestReplayMatchesSim(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		p := newPlayer("Ayla", x, y)
-		s := &sink{}
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		snap := s.all()[0].(model.Snapshot)
+		snap := s.All()[0].(model.Snapshot)
 		state := snap.Players[0].State
 		for range 3 { // the join tick itself ran 3 sub-steps with no input
 			state = sim.Step(state, sim.Input{}, data.Town().Geometry, data.Movement())
@@ -937,20 +687,20 @@ func TestReplayMatchesSim(t *testing.T) {
 		}
 		for i, in := range recorded {
 			_ = inst.Input(p.ID, uint32(i+1), in) //nolint:gosec // small test index
-			time.Sleep(tickInterval)
+			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 3 {
 				state = sim.Step(state, in, data.Town().Geometry, data.Movement())
 			}
-			got, ok := s.own(p.ID)
+			got, ok := s.Own(p.ID)
 			if !ok {
 				t.Fatalf("tick %d: no view", i+1)
 			}
 			if got.State != state {
 				t.Fatalf("tick %d: instance %+v, sim %+v", i+1, got.State, state)
 			}
-			if s.last().AckSeq != uint32(i+1) { //nolint:gosec // small test index
-				t.Fatalf("tick %d: ack %d", i+1, s.last().AckSeq)
+			if s.Last().AckSeq != uint32(i+1) { //nolint:gosec // small test index
+				t.Fatalf("tick %d: ack %d", i+1, s.Last().AckSeq)
 			}
 		}
 	})
@@ -958,42 +708,31 @@ func TestReplayMatchesSim(t *testing.T) {
 
 func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
-// walk sends the same Input once per tick for n ticks after seq, returning the last seq used.
-func walk(inst *application.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
-	for range ticks {
-		seq++
-		_ = inst.Input(id, seq, in)
-		time.Sleep(tickInterval)
-		synctest.Wait()
-	}
-	return seq
-}
-
 // A Leave and a rejoin in one tick leave the player on everyone's screen: the Delta lists them, not as removed.
 func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := loadData(t)
-		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{})
 		defer cancel()
-		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x+100, y)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x+100, y)
 		ayla.Connection = "c-1"
 		join(t, inst, ayla)
 		sr := join(t, inst, robin)
-		before := len(sr.all())
-		_ = inst.LeaveConnection(ayla.ID, "c-1")
+		before := len(sr.All())
+		_ = inst.Leave(ayla.ID, "c-1", nil, nil)
 		ayla.Connection = "c-2"
 		joined := make(chan error, 1)
-		go func() { joined <- inst.Join(context.Background(), ayla, &sink{}) }()
+		go func() { joined <- inst.Join(context.Background(), ayla, &worldtest.Sink{}) }()
 		synctest.Wait()
-		time.Sleep(tickInterval)
+		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		if err := <-joined; err != nil {
 			t.Fatal(err)
 		}
 		shown := false
-		for _, e := range sr.all()[before:] {
-			d, ok := e.(delta)
+		for _, e := range sr.All()[before:] {
+			d, ok := e.(worldtest.Delta)
 			if !ok {
 				continue
 			}

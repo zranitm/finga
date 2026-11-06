@@ -20,7 +20,10 @@ import (
 	"finga/internal/telemetry"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
-	"finga/services/world/internal/application"
+	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/loot"
+	"finga/services/world/internal/application/party"
+	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/handler"
 	"finga/services/world/internal/model"
@@ -44,7 +47,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err := wholeSteps(cfg.TickInterval(), data.Movement().Dt); err != nil {
 		return nil, err
 	}
-	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors, Roots: application.EntryPoint})
+	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors, Roots: loot.EntryPoint})
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +75,13 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	items := itemv1.NewItemServiceClient(itemConn)
 
 	nodeID := uuidv7.NewString()
-	parties := application.NewPartyCopy(clients.NewSocial(socialv1.NewSocialServiceClient(socialConn), rec), nodeID, log)
-	maps := application.New(application.WorldDeps{
+	parties := party.NewCopy(clients.NewSocial(socialv1.NewSocialServiceClient(socialConn), rec), nodeID, log)
+	maps := world.New(world.Deps{
 		Data:       data,
 		NewRoll:    newRoll,
 		Observer:   metrics,
 		Items:      clients.NewPickups(items),
-		Workers:    application.NewWorkers(cfg.Economy.Workers, metrics, rec),
+		Workers:    economy.NewWorkers(cfg.Economy.Workers, metrics, rec),
 		Parties:    parties,
 		Traces:     h.Traces,
 		Saver:      clients.NewSaver(characters),
@@ -86,7 +89,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Starter:    clients.NewStarter(items),
 		Panics:     rec,
 		Logger:     log,
-	}, application.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout})
+	}, world.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout})
 	h.Task("parties", parties.Run)
 	h.Task("world", maps.Run)
 	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz, Logger: log}))
