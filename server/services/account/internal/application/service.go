@@ -41,7 +41,7 @@ type Deps struct {
 	Hasher   *password.Hasher // the Argon2id cost and how many hashes run at once, from the config
 }
 
-// The session policy (step 16).
+// Session lifetimes, token rotation and login throttling.
 const (
 	idleTTL            = 7 * 24 * time.Hour  // a session ends after this long unused
 	maxLifetime        = 30 * 24 * time.Hour // and never lives longer than this from login

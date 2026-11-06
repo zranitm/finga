@@ -1,5 +1,5 @@
 -- +goose Up
--- The item module's tables (data model, page 2). owner_id has no foreign
+-- The item module's tables. owner_id has no foreign
 -- key: modules refer to each other by ID only.
 CREATE TABLE items (
   id          uuid PRIMARY KEY,

@@ -1,5 +1,5 @@
-# Playable classes. Stage 1 has Warrior and Bowman (S1-Q1); Thief and
-# Magician arrive in Stage 2. Attack shapes and cooldowns from page 5.
+# Playable classes. Stage 1 has Warrior and Bowman; Thief and
+# Magician arrive in Stage 2.
 # level_up_points is the Stage 1 preset (5 points per level-up); Stage 2
 # lets players allocate (OD-16). starter_items are granted at character
 # creation (A2), inside the same transaction as the character.

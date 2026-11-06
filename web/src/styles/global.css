@@ -1,4 +1,4 @@
-/* Design tokens and the shared component classes (page 7, styles/). */
+/* Design tokens and the shared component classes. */
 :root {
   --bg: #0f1220;
   --panel: #1b2033;
@@ -226,7 +226,7 @@ body {
   border-bottom: 1px solid var(--panel-border);
 }
 
-/* Over the canvas while in the world, until the HUD (C09). */
+/* Over the canvas while in the world. */
 .world-overlay {
   position: fixed;
   top: 12px;
@@ -242,7 +242,7 @@ body {
   font-size: 14px;
 }
 
-/* The HUD (C09): bars and level, top left over the canvas. */
+/* The HUD: bars and level, top left over the canvas. */
 .hud {
   position: fixed;
   top: 12px;
@@ -278,7 +278,7 @@ body {
   font-size: 14px;
 }
 
-/* Combat on the HUD (C10). */
+/* Combat on the HUD. */
 .exp-delta {
   font-size: 13px;
   font-weight: 600;
@@ -301,7 +301,7 @@ body {
   font-size: 20px;
 }
 
-/* The inventory window (C11). */
+/* The inventory window. */
 .inventory {
   display: flex;
   flex-direction: column;
@@ -372,7 +372,7 @@ body {
   flex: 1;
 }
 
-/* Toasts (C11). */
+/* Toasts. */
 .toasts {
   position: fixed;
   bottom: 64px;
@@ -397,7 +397,7 @@ body {
   border-color: var(--danger);
 }
 
-/* Chat and party (C13). */
+/* Chat and party. */
 .chat {
   position: fixed;
   left: 12px;

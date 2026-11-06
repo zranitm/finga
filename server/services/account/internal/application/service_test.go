@@ -23,7 +23,7 @@ import (
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
 
-// idleTTL is the session policy's idle lifetime (step 16); the tests that move time run under synctest.
+// idleTTL is the session policy's idle lifetime; the tests that move time run under synctest.
 const idleTTL = 7 * 24 * time.Hour
 
 // unheard is a notifier for the tests that do not look at ended sessions.

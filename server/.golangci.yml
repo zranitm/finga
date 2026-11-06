@@ -431,12 +431,12 @@ linters:
           files: ["$all", "!**/services/gateway/internal/handler/**", "!**/services/gateway/app/**"]
           deny:
             - pkg: github.com/gin-gonic/gin
-              desc: Gin stays in the gateway's handlers and composition root (TD-26)
+              desc: Gin stays in the gateway's handlers and composition root
         zap-behind-slog:
           files: ["$all", "!**/pkg/logger/**"]
           deny:
             - pkg: go.uber.org/zap
-              desc: everything logs through log/slog; zap is pkg/logger's backend (TD-28)
+              desc: everything logs through log/slog; zap is pkg/logger's backend
         # A binary's configuration is its keys and checks: the host's sections, the database's and the log's.
         config:
           list-mode: strict

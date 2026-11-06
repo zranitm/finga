@@ -111,7 +111,7 @@ func oneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	return out, rows.Err()
 }
 
-// checks are the Stage 1 checks of page 6, in its order.
+// checks are the Stage 1 item invariants, in check order.
 var checks = []struct {
 	name string
 	run  func(context.Context, *pgxpool.Pool) ([]string, error)

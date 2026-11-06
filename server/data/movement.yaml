@@ -1,4 +1,4 @@
-# Movement constants (Low-level design, page 5). Shared with the client,
+# Movement constants. Shared with the client,
 # which reads the same values; the vectors in testdata/movement pin them.
 dt: 0.016666666666666666   # one sub-step: 1/60 s
 walk_speed: 200            # px/s

@@ -1,5 +1,5 @@
 -- +goose Up
--- Case-insensitive text for usernames (data model, page 2). The account and
+-- Case-insensitive text for usernames. The account and
 -- character services both need it and both create it; neither drops it, so
 -- rolling one service back never breaks the other.
 CREATE EXTENSION IF NOT EXISTS citext;

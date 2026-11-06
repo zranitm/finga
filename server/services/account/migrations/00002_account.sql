@@ -1,5 +1,5 @@
 -- +goose Up
--- The account module's tables (data model, page 2).
+-- The account module's tables.
 CREATE TABLE accounts (
   id            uuid PRIMARY KEY,
   username      citext NOT NULL UNIQUE,
@@ -11,7 +11,7 @@ CREATE TABLE accounts (
 CREATE TABLE sessions (
   id          uuid PRIMARY KEY,
   account_id  uuid NOT NULL REFERENCES accounts(id),
-  token_hash  bytea NOT NULL UNIQUE,           -- SHA-256 of the opaque token (TD-01)
+  token_hash  bytea NOT NULL UNIQUE,           -- SHA-256 of the opaque token
   created_at  timestamptz NOT NULL,
   expires_at  timestamptz NOT NULL,
   revoked_at  timestamptz

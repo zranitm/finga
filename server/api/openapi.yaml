@@ -3,7 +3,7 @@ info:
   title: Finga REST API
   version: 0.1.0
   description: |
-    Accounts, sessions, characters and settings (Low-level design, page 4).
+    Accounts, sessions, characters and settings.
     Gameplay runs over the WebSocket at /ws, described in proto/client/v1/client.proto.
     Errors return an HTTP status and a body with `code` and `message`. The
     status is the class of failure (400 bad input, 401, 404, 409 a rule the

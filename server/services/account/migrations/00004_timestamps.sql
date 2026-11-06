@@ -1,5 +1,5 @@
 -- +goose Up
--- created_at and updated_at on every table, kept by the database (data model, page 2, Timestamps).
+-- created_at and updated_at on every table, kept by the database.
 -- The character and item services create set_updated_at() too; none drops it, so a rollback never breaks the others.
 -- +goose StatementBegin
 CREATE OR REPLACE FUNCTION set_updated_at() RETURNS trigger LANGUAGE plpgsql AS $$

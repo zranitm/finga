@@ -28,7 +28,7 @@ function forbiddenImports() {
         zones.push({
           target: `./src/${folder}`,
           from: `./src/${other}`,
-          message: `${folder} may not import from ${other} (page 7 layers)`,
+          message: `${folder} may not import from ${other} (its own or a lower layer)`,
         });
       }
     }

@@ -88,8 +88,7 @@ buf through the Go tools pinned in `server/go.mod`, so nothing else needs instal
 ## Client
 
 The browser client lives in `web/` (Phaser 4, React 19, Vite 8, TypeScript,
-Zustand, Vitest; page 7 of the design). It is built step by step after the
-backend, the same way.
+Zustand, Vitest). It is built step by step after the backend, the same way.
 
 `make up` already serves the client's production build on :4173. To work
 on the client with hot reload, run the dev server against the running stack:
@@ -102,7 +101,7 @@ npm --prefix web run dev        # the client on :5173, /api and /ws proxied to t
 `make test`, `make lint` and `make cover` run the client's scripts too
 (`npm --prefix web test`, `run lint`, `run coverage`), so one command checks
 both halves. The lint step includes a fixture that must be rejected by the
-layer rule (page 7's five layers, enforced with `import-x/no-restricted-paths`).
+layer rule (the client's five layers, enforced with `import-x/no-restricted-paths`).
 
 ## Configuration
 
@@ -165,17 +164,17 @@ Testcontainers (set `PGTEST_URL` to use a server you run yourself). Among them:
 
 ## Architecture at a glance
 
-Six services in one Go module in `server/` (Low-level design, page 10), each
+Six services in one Go module in `server/`, each
 a binary of its own (`server/services/<name>`, its `main.go` at the
 service's root), calling each
 other over gRPC with the contracts in `server/api/proto/internal/` and the
 generated code committed in `server/api/gen/`:
 
-- **`gateway`** is the only public entry, on Gin (TD-26): REST under `/api`
+- **`gateway`** is the only public entry, on Gin: REST under `/api`
   (contract in `server/api/openapi.yaml`, checked for drift by a test) and the WebSocket
   gateway at `/ws` (binary Protobuf messages defined once in
   `server/api/proto/client/v1/` and generated for Go and TypeScript, with an
-  example of each in `server/testdata/contracts/`; TD-27). It
+  example of each in `server/testdata/contracts/`). It
   holds no database and no game rules: the Hello handshake, one connection
   per account, token rotation, per-account rate limits, and a command queue
   per connection whose goroutine calls the service that owns each message,
@@ -227,7 +226,7 @@ generated code committed in `server/api/gen/`:
 Inside a service, `main.go` starts it and `app/` is its composition root (the end-to-end
 tests build the whole game from these, exactly as production does),
 `config/` its own configuration, and `internal/` its layers, one package
-each (Low-level design, page 11): `model` (entities, value types and the
+each: `model` (entities, value types and the
 errors), `application` (the use cases, and the ports they need),
 `repository` (Postgres through sqlc and pgx, no business rules in SQL),
 `handler` (its gRPC server and error table) and `clients` (its adapters for
@@ -244,19 +243,14 @@ gRPC plumbing, Testcontainers glue).
 - **Persistence**: character state checkpoints every 30 s and on level-up,
   map change and logout; items never wait for a checkpoint. Sessions are
   opaque tokens stored hashed, rotated on every Hello, with reuse detection
-  and a sliding expiry (page 4's Trust model).
+  and a sliding expiry.
 
 ## How this was built with AI
 
-The backend was written step by step with an AI coding assistant working from
-the design pages, under rules the design set: read the step page, write the
-listed tests first, build only the step's scope, keep `make test`, `make
-lint` and `make cover` green, one commit per step, and when a step shows a
-design page is wrong, fix the page in the same step so the pages always say
-what the code does.
+The backend was written step by step with an AI coding assistant, under a
+few rules: write the tests first, build only the step's scope, keep `make
+test`, `make lint` and `make cover` green, and make one commit per step.
 
 The git history is the trail: each step is one Conventional Commit
 (`feat:`, `fix:`, `refactor:`, `docs:`, ...) whose message says what changed,
-why, and how it was verified. The review happened at milestone ends, against
-the commits and the design pages, which moved from Notion into `docs/` on
-2026-10-23.
+why, and how it was verified.

@@ -15,8 +15,8 @@ import (
 	"finga/internal/sim"
 )
 
-// pageFiveMovement are the movement constants of page 5.
-var pageFiveMovement = sim.Params{
+// wantMovement are the movement constants data/movement.yaml and the fixture both hold.
+var wantMovement = sim.Params{
 	Dt:           1.0 / 60,
 	WalkSpeed:    200,
 	JumpVelocity: 620,
@@ -284,7 +284,7 @@ func TestValidDataLoads(t *testing.T) {
 		}
 	})
 	t.Run("movement", func(t *testing.T) {
-		if d.Movement() != pageFiveMovement {
+		if d.Movement() != wantMovement {
 			t.Fatalf("movement = %+v", d.Movement())
 		}
 	})
@@ -513,7 +513,7 @@ func TestRealDataLoads(t *testing.T) {
 		{"three maps: one town and two hunting maps", len(d.Maps()) == 3 && d.Town() != nil},
 		{"three to four mobs", len(d.Mobs()) >= 3 && len(d.Mobs()) <= 4},
 		{"about ten items, each loaded", len(items) >= 8 && len(items) <= 14 && allLoaded(d, items)},
-		{"movement constants are page 5's", d.Movement() == pageFiveMovement},
+		{"the expected movement constants", d.Movement() == wantMovement},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

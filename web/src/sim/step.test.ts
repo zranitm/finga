@@ -46,7 +46,7 @@ function normalise(s: State): State {
 }
 
 describe('movement vectors', () => {
-  it('include every scenario the step page lists', () => {
+  it('include every required scenario', () => {
     const names = vectors.map((v) => v.file.replace(/\.json$/, ''));
     for (const name of required) {
       expect(names).toContain(name);

@@ -75,7 +75,7 @@ describe('transition', () => {
     expect(state).toBe(initialTransition);
   });
 
-  it('a MapChange alone (a portal, C12) changes the map', () => {
+  it('a MapChange alone (a portal) changes the map', () => {
     const { actions } = run([mapChange('cave', 64, 608)]);
     expect(actions).toEqual([{ type: 'change-map', mapId: 'cave', x: 64, y: 608 }]);
   });

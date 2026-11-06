@@ -1,4 +1,4 @@
-# Item templates. tab is also the inventory tab (page 5): equip never
+# Item templates. tab is also the inventory tab: equip never
 # stacks; use and etc stack to 100. Equipment may need a class and a
 # minimum level (OD-19 default). No rarity (OD-14).
 items:

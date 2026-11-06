@@ -1,5 +1,5 @@
 -- +goose Up
--- Session rotation and reuse detection (step 16, TD-24's default).
+-- Session rotation and reuse detection.
 -- previous_token_hash is the token retired by the last rotation; rotated_at
 -- is when, and it is cleared once the previous token has been used, so a
 -- second use (or a use after the grace) is reuse.
