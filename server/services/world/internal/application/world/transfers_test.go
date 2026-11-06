@@ -1,16 +1,20 @@
 package world_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"finga/services/world/worldtest"
+	"log/slog"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"finga/internal/kernel"
 	"finga/internal/sim"
+	"finga/services/world/internal/application/economy"
 	"finga/services/world/internal/model"
+	"finga/services/world/worldtest"
 )
 
 // runningWorld runs a World in the bubble until the test ends.
@@ -151,6 +155,39 @@ func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
 		synctest.Wait()
 		if present, removed := seenIn(forest, ayla.ID); present > removed {
 			t.Fatalf("Ayla is in the forest after her Leave (seen %d, removed %d)", present, removed)
+		}
+	})
+}
+
+type idleJobs struct{}
+
+func (idleJobs) JobStarted()  {}
+func (idleJobs) JobFinished() {}
+
+// On shutdown a map can stop while another still runs its last tick; a transfer into it is no failure, as the player was saved there.
+func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		workers := economy.NewWorkers(1, idleJobs{}, worldtest.DiscardPanics())
+		w := newWorld(t, &fakeSaver{}, worldtest.Options{CheckpointInterval: time.Hour, Workers: workers, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { defer close(done); _ = w.Run(ctx) }()
+		ayla, s := at(t, "Ayla", "town"), &worldtest.Sink{}
+		w.enter(t, ayla, "town", "c-1", s)
+		release := make(chan struct{})
+		workers.Submit(func(context.Context) { <-release }) // holds the World's Run open after its maps stop
+		synctest.Wait()
+		cancel()
+		synctest.Wait()
+		moved := at(t, "Ayla", "forest")
+		moved.ID, moved.Connection = ayla.ID, "c-1"
+		w.Transfer(moved, s, "forest")
+		synctest.Wait()
+		close(release)
+		<-done
+		if n := detached(s); n != 0 || strings.Contains(logs.String(), "transfer failed") {
+			t.Fatalf("%d Detached events, logs %s", n, logs.String())
 		}
 	})
 }

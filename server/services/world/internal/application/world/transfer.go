@@ -48,8 +48,8 @@ func (w *World) transfer(p model.Player, sink instance.Sink, target *instance.In
 		if !held() {
 			w.leaveLater(target, p.ID, p.Connection) // it left while the join landed
 		}
-	case w.jobs.Err() != nil:
-		// Shutting down: the player was saved on target, and the gateway joins them again after the restart.
+	case w.jobs.Err() != nil, errors.Is(err, model.ErrStopped):
+		// Shutting down, maps stopping one by one: the player was saved on target, and the gateway joins them again after the restart.
 	default:
 		w.leaveLater(target, p.ID, p.Connection) // a join posted as time ran out may still land
 		if w.presences.forget(p.ID, at) {
