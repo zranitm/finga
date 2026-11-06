@@ -10,7 +10,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 
 	"finga/internal/kernel"
-	"finga/pkg/panics"
 	"finga/services/gateway/internal/model"
 )
 
@@ -123,7 +122,7 @@ func (j *Join) Release() {
 
 // Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing.
 func (r *Registry) Rejoin(s *Session) {
-	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
+	r.job(func() {
 		select {
 		case <-time.After(rand.N(rejoinSpread)):
 		case <-s.ctx.Done():
@@ -233,7 +232,7 @@ func (r *Registry) LeaveGhost(p model.Presence) {
 	if known || waiting {
 		return
 	}
-	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
+	r.job(func() {
 		r.leave(p)
 		r.mu.Lock()
 		r.ghosts[p.Connection] = time.Now().Add(ghostQuiet)

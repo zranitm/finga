@@ -1816,6 +1816,36 @@ func TestDrainWaitsForEachClosesLeave(t *testing.T) {
 	})
 }
 
+// Drain waits too for a ghost's Leave still on its way, so the exit cuts no background job short.
+func TestDrainWaitsForAGhostsLeave(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		gate := make(chan struct{})
+		h.world.mu.Lock()
+		h.world.leaveGate = gate
+		h.world.mu.Unlock()
+		h.world.events <- &worldv1.DeliverResponse{CharacterId: brunoID.String(), ConnectionId: "c-ghost", Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}}
+		synctest.Wait()
+		drained := make(chan struct{})
+		go func() { defer close(drained); h.streams.Drain(context.Background()) }()
+		time.Sleep(time.Second)
+		select {
+		case <-drained:
+			t.Fatal("Drain returned while a ghost's Leave was still on its way")
+		default:
+		}
+		close(gate)
+		select {
+		case <-drained:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Drain did not return once the ghost's Leave was in")
+		}
+		if left := waitFor(t, "the ghost's leave", h.world.leaves, 1); len(left) != 1 {
+			t.Fatalf("leaves %v, want the ghost's", left)
+		}
+	})
+}
+
 func TestTheFirstSubscriptionIsNotABreak(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// Subscribed arrives while the first join is in flight: one join, one Snapshot.

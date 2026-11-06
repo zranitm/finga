@@ -66,6 +66,7 @@ type Registry struct {
 	worldSubs   uint64 // more than one means the world's stream broke
 	draining    atomic.Bool
 	unclosed    int // under mu: sessions from Open until their Close returns
+	jobs        int // under mu: background jobs not yet returned
 
 	joining map[kernel.CharacterID]*characterLock // under mu: each character's joins, one at a time
 	rejoins chan struct{}                         // a slot per rejoin running
@@ -259,9 +260,25 @@ func (r *Registry) Drain() []*Session {
 	return out
 }
 
-// Len is the number of sessions not yet closed: open, or still taking their player off the map and offline.
-func (r *Registry) Len() int {
+// Pending is what the drain waits for: sessions not yet closed (open, or still taking their player off
+// the map and offline) and background jobs still running.
+func (r *Registry) Pending() (sessions, jobs int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.unclosed
+	return r.unclosed, r.jobs
+}
+
+// job runs fn on its own goroutine, counted in Pending until it returns.
+func (r *Registry) job(fn func(), attrs ...any) {
+	r.mu.Lock()
+	r.jobs++
+	r.mu.Unlock()
+	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
+		defer func() {
+			r.mu.Lock()
+			r.jobs--
+			r.mu.Unlock()
+		}()
+		fn()
+	}, attrs...)
 }
