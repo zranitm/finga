@@ -201,12 +201,20 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		synctest.Wait()
 		p := warriorAt(250)
 		p.Exp = 18 // two short of level 2
+		p.HP = 150
 		join(t, inst, p)
-		killSlime(t, inst, p.ID)
 		parties.mu.Lock()
 		ups := slices.Clone(parties.updates)
 		parties.mu.Unlock()
-		if len(ups) != 1 || ups[0].id != p.ID || ups[0].level != 2 || ups[0].mapID != "arena" || ups[0].hp != ups[0].maxHP {
+		// A join is a map change too; after a world restart it is what corrects the frames social kept.
+		if len(ups) != 1 || ups[0] != (partyUpdate{p.ID, "arena", 1, 150, 204}) {
+			t.Fatalf("updates after a join: %+v", ups)
+		}
+		killSlime(t, inst, p.ID)
+		parties.mu.Lock()
+		ups = slices.Clone(parties.updates)
+		parties.mu.Unlock()
+		if len(ups) != 2 || ups[1].id != p.ID || ups[1].level != 2 || ups[1].mapID != "arena" || ups[1].hp != ups[1].maxHP {
 			t.Fatalf("updates after a level-up: %+v", ups)
 		}
 	})

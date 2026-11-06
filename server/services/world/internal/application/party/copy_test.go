@@ -26,8 +26,10 @@ type fakeSocial struct {
 	mu       sync.Mutex
 	worlds   []string
 	updates  []model.MemberUpdate
-	failures int  // the first failures updates fail
-	panics   bool // an update panics
+	failures int           // the first failures updates fail
+	refused  error         // when set, every update fails with it
+	panics   bool          // an update panics
+	gate     chan struct{} // when set, every update waits for it to close
 }
 
 func newFakeSocial() *fakeSocial { return &fakeSocial{events: make(chan model.PartyEvent)} }
@@ -48,7 +50,17 @@ func (f *fakeSocial) FollowParties(ctx context.Context, world string, on func(mo
 
 func (f *fakeSocial) UpdateMember(_ context.Context, u model.MemberUpdate) error {
 	f.mu.Lock()
+	gate := f.gate
+	f.mu.Unlock()
+	if gate != nil {
+		<-gate
+	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.refused != nil {
+		f.updates = append(f.updates, u)
+		return f.refused
+	}
 	if f.panics {
 		panic("bad update")
 	}
@@ -58,6 +70,8 @@ func (f *fakeSocial) UpdateMember(_ context.Context, u model.MemberUpdate) error
 	}
 	return nil
 }
+
+func (f *fakeSocial) Retryable(err error) bool { return errors.Is(err, errUnavailable) }
 
 func (f *fakeSocial) sent() []model.MemberUpdate {
 	f.mu.Lock()
@@ -154,25 +168,79 @@ func TestMemberUpdates(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a failed one is logged, and the next still goes", func(t *testing.T) {
+	t.Run("one that may pass is retried behind the others, and logged", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			social := newFakeSocial()
 			social.failures = 1
 			var logs bytes.Buffer
 			p := runCopy(t, social, slog.New(slog.NewJSONHandler(&logs, nil)))
-			ann := kernel.NewCharacterID()
+			ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 			p.Update(ann, "cave", 5, 40, 120)
-			p.Update(ann, "cave", 5, 30, 120)
+			p.Update(bo, "town", 3, 60, 60)
+			time.Sleep(time.Second)
 			synctest.Wait()
-			if len(social.sent()) != 2 || !strings.Contains(logs.String(), `"msg":"member update failed"`) || !strings.Contains(logs.String(), ann.String()) {
+			got := social.sent()
+			if len(got) != 3 || got[1].ID != bo || got[2] != (model.MemberUpdate{ID: ann, MapID: "cave", Level: 5, HP: 40, MaxHP: 120}) {
+				t.Fatalf("updates %+v, want Ann's again after Bo's", got)
+			}
+			if !strings.Contains(logs.String(), `"msg":"member update failed; retrying"`) || !strings.Contains(logs.String(), ann.String()) {
+				t.Fatalf("log %q", logs.String())
+			}
+		})
+	})
+	t.Run("one refused for good is logged and not retried", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			social := newFakeSocial()
+			social.refused = errors.New("bad member")
+			var logs bytes.Buffer
+			p := runCopy(t, social, slog.New(slog.NewJSONHandler(&logs, nil)))
+			p.Update(kernel.NewCharacterID(), "cave", 5, 40, 120)
+			time.Sleep(time.Minute)
+			synctest.Wait()
+			if len(social.sent()) != 1 || !strings.Contains(logs.String(), `"msg":"member update failed"`) {
 				t.Fatalf("updates %+v, log %q", social.sent(), logs.String())
 			}
 		})
 	})
-	t.Run("a full queue drops one without blocking", func(t *testing.T) {
+	// A level-up's update must not be lost to a busy social service: nothing else corrects an idle member's frame.
+	t.Run("none is dropped, and a member's newest goes out", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			social := newFakeSocial()
+			social.gate = make(chan struct{})
+			p := runCopy(t, social, slog.New(slog.DiscardHandler))
+			ann := kernel.NewCharacterID()
+			p.Update(ann, "cave", 5, 40, 120) // taken, and held at the gate
+			synctest.Wait()
+			others := map[kernel.CharacterID]bool{}
+			for range 2000 {
+				id := kernel.NewCharacterID()
+				others[id] = true
+				p.Update(id, "town", 1, 1, 1)
+			}
+			p.Update(ann, "cave", 6, 30, 130)
+			p.Update(ann, "cave", 6, 20, 130)
+			start := time.Now()
+			close(social.gate)
+			synctest.Wait()
+			if time.Since(start) != 0 {
+				t.Fatal("sending waited on the clock")
+			}
+			var anns []model.MemberUpdate
+			for _, u := range social.sent() {
+				if u.ID == ann {
+					anns = append(anns, u)
+				}
+				delete(others, u.ID)
+			}
+			if len(others) != 0 || len(anns) != 2 || anns[1] != (model.MemberUpdate{ID: ann, MapID: "cave", Level: 6, HP: 20, MaxHP: 130}) {
+				t.Fatalf("%d members never sent; Ann's %+v", len(others), anns)
+			}
+		})
+	})
+	t.Run("Update never blocks", func(t *testing.T) {
 		p := party.NewCopy(newFakeSocial(), "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
 		start := time.Now()
-		for range 1024 + 10 {
+		for range 4096 {
 			p.Update(kernel.NewCharacterID(), "town", 1, 1, 1)
 		}
 		if time.Since(start) > time.Second {

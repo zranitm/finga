@@ -77,6 +77,7 @@ func (i *Instance) add(j *joinMsg) {
 		j.done <- ErrSinkClosed
 		return
 	}
+	i.tellParty(p, i.m.ID) // a join is a map change, and after a restart it corrects what social kept
 	j.done <- nil
 }
 

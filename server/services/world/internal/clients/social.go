@@ -44,6 +44,9 @@ func (s Social) UpdateMember(ctx context.Context, u model.MemberUpdate) error {
 	return err
 }
 
+// Retryable is a failure the social service may yet get past; any other would be retried forever.
+func (Social) Retryable(err error) bool { return grpcx.IsTransient(err) }
+
 // characterIDs parses ids, leaving out any that is not one.
 func characterIDs(ids []string) []kernel.CharacterID {
 	out := make([]kernel.CharacterID, 0, len(ids))
