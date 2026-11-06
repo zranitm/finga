@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2   # the previous commit, for buf breaking
+          fetch-depth: 0   # the whole history: buf breaking compares with the commit before the push or the PR's base
       - uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
@@ -23,7 +23,12 @@ jobs:
       - name: generated Go code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen
       - name: no breaking change to the contracts
-        run: make breaking BREAKING_AGAINST=HEAD~1
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A branch's first push has no commit before it.
+          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then BASE=HEAD~1; fi
+          make breaking BREAKING_AGAINST="$BASE"
       # Includes the crash test: the world and item service die mid-pickup and restart.
       - run: make test-go
       - run: make cover-go
