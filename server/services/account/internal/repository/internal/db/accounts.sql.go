@@ -87,6 +87,25 @@ func (q *Queries) LockAccount(ctx context.Context, id uuid.UUID) (uuid.UUID, err
 	return id_2, err
 }
 
+const replacePasswordHash = `-- name: ReplacePasswordHash :execrows
+UPDATE accounts SET password_hash = $1 WHERE id = $2 AND password_hash = $3
+`
+
+type ReplacePasswordHashParams struct {
+	NewHash string
+	ID      uuid.UUID
+	OldHash string
+}
+
+// Only while the hash is still the one verified, so a newer one is never overwritten.
+func (q *Queries) ReplacePasswordHash(ctx context.Context, arg ReplacePasswordHashParams) (int64, error) {
+	result, err := q.db.Exec(ctx, replacePasswordHash, arg.NewHash, arg.ID, arg.OldHash)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateSettings = `-- name: UpdateSettings :execrows
 UPDATE accounts SET settings = $2 WHERE id = $1
 `

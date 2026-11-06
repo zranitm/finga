@@ -125,6 +125,12 @@ func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s 
 	return nil
 }
 
+// ReplaceHash swaps the password hash while it is still old; zero rows means it changed since, which is fine.
+func (r accountRepo) ReplaceHash(ctx context.Context, id kernel.AccountID, old, hash string) error {
+	_, err := r.q.ReplacePasswordHash(ctx, db.ReplacePasswordHashParams{ID: uuid.UUID(id), OldHash: old, NewHash: hash})
+	return err
+}
+
 type sessionRepo struct{ q *db.Queries }
 
 // Insert adds a session row.

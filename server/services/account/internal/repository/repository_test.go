@@ -112,6 +112,19 @@ func TestAccounts(t *testing.T) {
 		}
 	})
 
+	t.Run("a hash is replaced only while it is still the one verified", func(t *testing.T) {
+		id, _ := insertAccount(t, store, "dave")
+		for _, swap := range [][2]string{{"$argon2id$fake", "$argon2id$upgraded"}, {"$argon2id$fake", "$argon2id$stale"}} {
+			if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().ReplaceHash(ctx, id, swap[0], swap[1]) }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		creds, err := store.FindByUsername(ctx, "dave")
+		if err != nil || creds.PasswordHash != "$argon2id$upgraded" {
+			t.Fatalf("hash %q (%v), want the first swap's and not the second's", creds.PasswordHash, err)
+		}
+	})
+
 	t.Run("locking an account row", func(t *testing.T) {
 		id, _ := insertAccount(t, store, "carol")
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().Lock(ctx, id) }); err != nil {

@@ -137,8 +137,7 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 	return s.Issue(ctx, id)
 }
 
-// Verify implements auth.Authenticator.
-// An unknown username is checked against a dummy hash, so timing reveals nothing.
+// Verify implements auth.Authenticator: an unknown username checks a dummy hash, and a match at another cost is rehashed.
 func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, error) {
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
@@ -160,7 +159,26 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 	if !ok {
 		return uuid.Nil, model.ErrUnauthenticated
 	}
+	if s.opts.Hasher.NeedsRehash(creds.PasswordHash) {
+		if err := s.rehash(ctx, creds, pw); err != nil {
+			return uuid.Nil, err
+		}
+	}
 	return uuid.UUID(creds.Account.ID), nil
+}
+
+// rehash stores the verified password at the configured cost; with no hash slot free, the next login does.
+func (s *Service) rehash(ctx context.Context, creds model.Credentials, pw string) error {
+	hash, err := s.opts.Hasher.Hash(ctx, pw)
+	if errors.Is(err, password.ErrBusy) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return s.store.InTx(ctx, func(uow UnitOfWork) error {
+		return uow.Accounts().ReplaceHash(ctx, creds.Account.ID, creds.PasswordHash, hash)
+	})
 }
 
 // Issue implements auth.Sessions, replacing the account's older sessions in one transaction.

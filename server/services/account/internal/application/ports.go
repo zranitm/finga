@@ -33,6 +33,8 @@ type Repository interface {
 	// Lock takes the account's row lock, serialising logins per account.
 	Lock(ctx context.Context, id kernel.AccountID) error
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
+	// ReplaceHash stores hash as the account's password hash while old is still it; otherwise nothing changes.
+	ReplaceHash(ctx context.Context, id kernel.AccountID, old, hash string) error
 }
 
 // SessionRepository writes the sessions table.

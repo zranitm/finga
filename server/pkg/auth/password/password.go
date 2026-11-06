@@ -49,28 +49,44 @@ func Hash(password string, p Params) (string, error) {
 
 // Verify reports in constant time whether password matches; an error means a bad hash.
 func Verify(hash, password string) (bool, error) {
+	d, err := decode(hash)
+	if err != nil {
+		return false, err
+	}
+	p := d.params
+	got := argon2.IDKey([]byte(password), d.salt, p.Time, p.Memory, p.Threads, p.KeyLen)
+	return subtle.ConstantTimeCompare(got, d.key) == 1, nil
+}
+
+// decoded is a PHC string's parts, its salt and key lengths in params.
+type decoded struct {
+	params    Params
+	salt, key []byte
+}
+
+func decode(hash string) (decoded, error) {
 	parts := strings.Split(hash, "$")
 	if len(parts) != phcFields || parts[0] != "" || parts[1] != algorithm {
-		return false, errMalformed
+		return decoded{}, errMalformed
 	}
 	var version int
 	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil || version != argon2.Version {
-		return false, errMalformed
+		return decoded{}, errMalformed
 	}
 	var p Params
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &p.Memory, &p.Time, &p.Threads); err != nil {
-		return false, errMalformed
+		return decoded{}, errMalformed
 	}
 	salt, err := enc.DecodeString(parts[4])
 	if err != nil {
-		return false, errMalformed
+		return decoded{}, errMalformed
 	}
-	want, err := enc.DecodeString(parts[5])
+	key, err := enc.DecodeString(parts[5])
 	if err != nil {
-		return false, errMalformed
+		return decoded{}, errMalformed
 	}
-	got := argon2.IDKey([]byte(password), salt, p.Time, p.Memory, p.Threads, uint32(len(want))) //nolint:gosec // length of a decoded hash
-	return subtle.ConstantTimeCompare(got, want) == 1, nil
+	p.SaltLen, p.KeyLen = uint32(len(salt)), uint32(len(key)) //nolint:gosec // lengths of a decoded hash
+	return decoded{params: p, salt: salt, key: key}, nil
 }
 
 // ErrBusy is a hash that found every slot taken for its whole wait.
@@ -105,6 +121,12 @@ func (h *Hasher) Verify(ctx context.Context, hash, password string) (bool, error
 	}
 	defer h.slots.Release(1)
 	return Verify(hash, password)
+}
+
+// NeedsRehash reports whether hash was made with other params than the hasher's, or cannot be read.
+func (h *Hasher) NeedsRehash(hash string) bool {
+	d, err := decode(hash)
+	return err != nil || d.params != h.params
 }
 
 // acquire takes a slot within the wait; a caller whose own context ended gets its error.

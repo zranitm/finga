@@ -19,7 +19,7 @@ type Config struct {
 	Password      Password         `mapstructure:"password"`
 }
 
-// Password is the Argon2id cost of a password hash, raised as the hardware allows.
+// Password is the Argon2id cost of a password hash, raised as the hardware allows; a login rehashes an older one.
 type Password struct {
 	Time      uint32 `mapstructure:"time" validate:"min=1"`          // passes over the memory
 	MemoryKiB uint32 `mapstructure:"memory_kib" validate:"min=8192"` // the memory each hash fills

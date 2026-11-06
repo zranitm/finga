@@ -143,6 +143,40 @@ func TestVerify(t *testing.T) {
 	}
 }
 
+// Once the cost is raised, an old hash checks faster than an unknown username's dummy, so a login upgrades it.
+func TestALoginUpgradesAHashMadeAtAnotherCost(t *testing.T) {
+	ctx := context.Background()
+	store := newFakeStore()
+	acc := register(t, newService(store), "alice", "correct horse")
+	old := store.accounts[acc.ID].PasswordHash
+	raised := cheapHash
+	raised.Time = 2
+	svc := application.NewService(store, unheard{}, application.Options{Hasher: password.NewHasher(raised, 4, time.Second)})
+
+	if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong horse"}); !errors.Is(err, model.ErrUnauthenticated) {
+		t.Fatalf("err = %v", err)
+	}
+	if store.accounts[acc.ID].PasswordHash != old {
+		t.Fatal("a failed login replaced the hash")
+	}
+	if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"}); err != nil {
+		t.Fatal(err)
+	}
+	upgraded := store.accounts[acc.ID].PasswordHash
+	if !strings.Contains(upgraded, "$m=8192,t=2,p=1$") {
+		t.Fatalf("after a login the hash is %q, want it at the configured cost", upgraded)
+	}
+	if ok, err := password.Verify(upgraded, "correct horse"); err != nil || !ok {
+		t.Fatalf("the upgraded hash does not verify: %v %v", ok, err)
+	}
+	if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "correct horse"}); err != nil {
+		t.Fatal(err)
+	}
+	if store.accounts[acc.ID].PasswordHash != upgraded {
+		t.Fatal("a hash already at the configured cost was made again")
+	}
+}
+
 func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 	ctx := context.Background()
 	store := newFakeStore()

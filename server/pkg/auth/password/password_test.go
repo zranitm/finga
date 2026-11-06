@@ -124,3 +124,44 @@ func TestTheHasherVerifiesWhatItHashed(t *testing.T) {
 		t.Fatalf("a cancelled caller got %v, want its own error", err)
 	}
 }
+
+// A hash made at another cost is upgraded at the next login, so raising the cost reaches every account.
+func TestAHashAtAnotherCostNeedsRehashing(t *testing.T) {
+	h := password.NewHasher(cheap, 1, time.Second)
+	current, err := h.Hash(context.Background(), "hunter22")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.NeedsRehash(current) {
+		t.Fatalf("a hash at the hasher's own cost needs rehashing: %q", current)
+	}
+	with := func(change func(*password.Params)) password.Params {
+		p := cheap
+		change(&p)
+		return p
+	}
+	tests := []struct {
+		name   string
+		params password.Params
+	}{
+		{"more passes", with(func(p *password.Params) { p.Time = 2 })},
+		{"more memory", with(func(p *password.Params) { p.Memory *= 2 })},
+		{"more lanes", with(func(p *password.Params) { p.Threads = 2 })},
+		{"a shorter salt", with(func(p *password.Params) { p.SaltLen = 8 })},
+		{"a longer key", with(func(p *password.Params) { p.KeyLen = 64 })},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			old, err := password.Hash("hunter22", tt.params)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !h.NeedsRehash(old) {
+				t.Fatalf("%q does not need rehashing at %+v", old, cheap)
+			}
+		})
+	}
+	if !h.NeedsRehash("plain") {
+		t.Fatal("a malformed hash does not need rehashing")
+	}
+}

@@ -17,3 +17,7 @@ SELECT settings FROM accounts WHERE id = $1;
 
 -- name: UpdateSettings :execrows
 UPDATE accounts SET settings = $2 WHERE id = $1;
+
+-- name: ReplacePasswordHash :execrows
+-- Only while the hash is still the one verified, so a newer one is never overwritten.
+UPDATE accounts SET password_hash = sqlc.arg(new_hash) WHERE id = sqlc.arg(id) AND password_hash = sqlc.arg(old_hash);

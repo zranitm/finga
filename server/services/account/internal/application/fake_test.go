@@ -117,6 +117,15 @@ func (r fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, st 
 	return nil
 }
 
+// ReplaceHash swaps the hash only while it is still old, as the query does.
+func (r fakeAccounts) ReplaceHash(_ context.Context, id kernel.AccountID, old, hash string) error {
+	if a, ok := r.s.accounts[id]; ok && a.PasswordHash == old {
+		a.PasswordHash = hash
+		r.s.accounts[id] = a
+	}
+	return nil
+}
+
 type fakeSessions struct{ s *fakeStore }
 
 // Insert stamps created_at, as the database does.
