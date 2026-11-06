@@ -100,7 +100,7 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 		return s.c.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: gateway})
 	}, func(m *socialv1.DeliverResponse) {
 		if sub := m.GetSubscribed(); sub != nil {
-			deliver(model.SocialEvent{Subscribed: true, BootID: sub.GetBootId()})
+			deliver(model.SocialSubscribed{BootID: sub.GetBootId()})
 			return
 		}
 		id, err := kernel.ParseCharacterID(m.GetCharacterId())
@@ -120,7 +120,7 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 		default:
 			return
 		}
-		deliver(model.SocialEvent{Character: id, Delivery: model.Delivery{Push: p}})
+		deliver(model.SocialDelivery{Character: id, Delivery: model.Delivery{Push: p}})
 	}, grpcx.FollowOptions{Panics: s.panics, OnBreak: func(err error) {
 		s.log.WarnContext(ctx, "social stream broke; subscribing again", "err", err)
 	}})

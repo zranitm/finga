@@ -339,7 +339,7 @@ func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c ke
 		if i == 0 {
 			d.Push = model.Snapshot{}
 		}
-		deliver(model.WorldEvent{Connection: conn, Delivery: d})
+		deliver(model.WorldDelivery{Connection: conn, Delivery: d})
 	}
 	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
 }
@@ -355,7 +355,7 @@ func (w *world) reconnect() {
 	w.mu.Lock()
 	deliver := w.deliver
 	w.mu.Unlock()
-	deliver(model.WorldEvent{Subscribed: true})
+	deliver(model.WorldSubscribed{})
 }
 func (w *world) Leave(context.Context, model.Presence) error {
 	w.mu.Lock()
@@ -375,7 +375,7 @@ func (w *world) FollowDeliveries(ctx context.Context, _ string, deliver func(mod
 	w.mu.Lock()
 	w.deliver = deliver
 	w.mu.Unlock()
-	deliver(model.WorldEvent{Subscribed: true})
+	deliver(model.WorldSubscribed{})
 	close(w.following)
 	<-ctx.Done()
 }

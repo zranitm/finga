@@ -10,31 +10,64 @@ type Joined struct {
 	TickRateHz int // the world's ticks per second
 }
 
-// WorldEvent is Subscribed (the stream opened, perhaps after a break) or a delivery for the player
-// joined through one connection.
-type WorldEvent struct {
-	Subscribed bool
+// WorldEvent is what the world's delivery stream brings.
+//
+//sumtype:decl
+type WorldEvent interface{ worldEvent() }
+
+// WorldSubscribed is the stream opening, perhaps after a break.
+type WorldSubscribed struct{}
+
+// WorldDelivery is a push for the player joined through Connection.
+type WorldDelivery struct {
 	Connection string
 	Character  kernel.CharacterID
 	Delivery   Delivery
-	// Detached: the world has the character on no map through Connection any more; it must join again.
-	Detached bool
 }
 
-// SocialEvent is Subscribed with the service's boot ID, or a delivery for one player.
-type SocialEvent struct {
-	Subscribed bool
-	BootID     string
+// Detached is the world having the character on no map through Connection any more; it must join again.
+type Detached struct {
+	Connection string
 	Character  kernel.CharacterID
-	Delivery   Delivery
 }
 
-// SessionEnd ends one login session (Session set) or all of an account's (Account set).
-type SessionEnd struct {
-	Session  kernel.SessionID
+func (WorldSubscribed) worldEvent() {}
+func (WorldDelivery) worldEvent()   {}
+func (Detached) worldEvent()        {}
+
+// SocialEvent is what the social service's delivery stream brings.
+//
+//sumtype:decl
+type SocialEvent interface{ socialEvent() }
+
+// SocialSubscribed is the stream opening; a new BootID means the service restarted and every party is gone.
+type SocialSubscribed struct{ BootID string }
+
+// SocialDelivery is a push for one player.
+type SocialDelivery struct {
+	Character kernel.CharacterID
+	Delivery  Delivery
+}
+
+func (SocialSubscribed) socialEvent() {}
+func (SocialDelivery) socialEvent()   {}
+
+// SessionEnd is what the account service's session stream brings.
+//
+//sumtype:decl
+type SessionEnd interface{ sessionEnd() }
+
+// SessionRevoked ends one login session.
+type SessionRevoked struct{ Session kernel.SessionID }
+
+// AccountRevoked ends all of an account's login sessions; NewLogin when a login elsewhere did it.
+type AccountRevoked struct {
 	Account  kernel.AccountID
 	NewLogin bool
 }
+
+func (SessionRevoked) sessionEnd() {}
+func (AccountRevoked) sessionEnd() {}
 
 // ChatLine is a chat line the social service accepted and cleaned.
 type ChatLine struct {

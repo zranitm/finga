@@ -18,24 +18,29 @@ const (
 // socialDelivered forwards a delivery. Each subscription registers the players again, since the service
 // takes a gateway's players offline once its stream stays gone; a new boot ID also means every party is gone.
 func (g *Gateway) socialDelivered(ev model.SocialEvent) {
-	if ev.Subscribed {
-		restarted := g.socialBoot != "" && g.socialBoot != ev.BootID
-		g.socialBoot = ev.BootID
-		if restarted {
-			for _, s := range g.sessions.Playing() {
-				if s.Active() {
-					s.DeliverSocial(model.Delivery{Push: model.PartyState{}})
-				}
+	switch ev := ev.(type) {
+	case model.SocialSubscribed:
+		g.socialSubscribed(ev.BootID)
+	case model.SocialDelivery:
+		if s := g.sessions.ByCharacter(ev.Character); s != nil {
+			s.DeliverSocial(ev.Delivery)
+		}
+	}
+}
+
+func (g *Gateway) socialSubscribed(bootID string) {
+	restarted := g.socialBoot != "" && g.socialBoot != bootID
+	g.socialBoot = bootID
+	if restarted {
+		for _, s := range g.sessions.Playing() {
+			if s.Active() {
+				s.DeliverSocial(model.Delivery{Push: model.PartyState{}})
 			}
 		}
-		select {
-		case g.reregister <- struct{}{}:
-		default: // one is already due, and will see these players
-		}
-		return
 	}
-	if s := g.sessions.ByCharacter(ev.Character); s != nil {
-		s.DeliverSocial(ev.Delivery)
+	select {
+	case g.reregister <- struct{}{}:
+	default: // one is already due, and will see these players
 	}
 }
 

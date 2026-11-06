@@ -13,12 +13,12 @@ import (
 // sessionEnded ends the player session on a login session that ended, or on an account's:
 // logged_in_elsewhere on a new login, else session_expired.
 func (g *Gateway) sessionEnded(ev model.SessionEnd) {
-	switch {
-	case !ev.Session.IsZero():
+	switch ev := ev.(type) {
+	case model.SessionRevoked:
 		if s := g.sessions.BySession(ev.Session); s != nil {
 			s.End(model.EndSessionExpired)
 		}
-	case !ev.Account.IsZero():
+	case model.AccountRevoked:
 		s := g.sessions.ByAccount(ev.Account)
 		if s == nil {
 			return

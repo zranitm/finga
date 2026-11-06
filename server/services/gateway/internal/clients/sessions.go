@@ -38,12 +38,12 @@ func (s SessionEnds) FollowSessionEnds(ctx context.Context, gateway string, deli
 		switch {
 		case m.GetSessionRevoked() != nil:
 			if id, err := kernel.ParseSessionID(m.GetSessionRevoked().GetSessionId()); err == nil {
-				deliver(model.SessionEnd{Session: id})
+				deliver(model.SessionRevoked{Session: id})
 			}
 		case m.GetAccountRevoked() != nil:
 			ev := m.GetAccountRevoked()
 			if id, err := kernel.ParseAccountID(ev.GetAccountId()); err == nil {
-				deliver(model.SessionEnd{Account: id, NewLogin: ev.GetReason() == accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN})
+				deliver(model.AccountRevoked{Account: id, NewLogin: ev.GetReason() == accountv1.RevokeReason_REVOKE_REASON_NEW_LOGIN})
 			}
 		}
 	}, grpcx.FollowOptions{Panics: s.panics, OnBreak: func(err error) {
