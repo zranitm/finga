@@ -9,7 +9,6 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/idempotency"
-	"finga/pkg/outbox"
 	"finga/services/item/internal/model"
 )
 
@@ -61,8 +60,6 @@ const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
 	scopeDiscard = "item.discard"
-
-	topic = "item"
 )
 
 // Service is the item service's use cases.
@@ -113,15 +110,15 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 		return Result{}, err
 	}
 	now := time.Now()
-	eventType := "ItemGranted"
+	notice := model.NoticeGranted
 	if cause.Type == model.CauseDrop {
-		eventType = "ItemLooted"
+		notice = model.NoticeLooted
 	}
 	record := func(it *model.Item, kind model.EventKind, delta int) error {
 		if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: kind, QuantityDelta: delta, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
 			return err
 		}
-		return uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: eventType, Payload: model.OutboxPayload(it, delta, cause), OccurredAt: now})
+		return uow.Notices().Send(ctx, model.Notice{Kind: notice, Item: *it, Quantity: delta, Cause: cause, OccurredAt: now})
 	}
 	var res Result
 	left := quantity
@@ -271,7 +268,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -in.Quantity, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
-	if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: "ItemDiscarded", Payload: model.OutboxPayload(&it, -in.Quantity, model.Cause{Type: model.CausePlayer}), OccurredAt: now}); err != nil {
+	if err := uow.Notices().Send(ctx, model.Notice{Kind: model.NoticeDiscarded, Item: it, Quantity: -in.Quantity, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
 	it.Quantity -= in.Quantity

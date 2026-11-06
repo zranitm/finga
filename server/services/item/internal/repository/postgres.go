@@ -15,7 +15,6 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
 	"finga/pkg/idempotency/idempotencypg"
-	"finga/pkg/outbox"
 	"finga/pkg/outbox/outboxpg"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
@@ -45,10 +44,10 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 	q := db.New(tx)
 	return unitOfWork{
-		items:  repo{q: q},
-		events: eventRepo{q: q},
-		outbox: outboxpg.NewWriter(tx),
-		idem:   idem{store: idempotencypg.NewStore(tx)},
+		items:   repo{q: q},
+		events:  eventRepo{q: q},
+		notices: notices{w: outboxpg.NewWriter(tx)},
+		idem:    idem{store: idempotencypg.NewStore(tx)},
 	}
 }
 
@@ -62,10 +61,10 @@ func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) ([]m
 }
 
 type unitOfWork struct {
-	items  repo
-	events eventRepo
-	outbox outbox.Writer
-	idem   idem
+	items   repo
+	events  eventRepo
+	notices notices
+	idem    idem
 }
 
 // Items is the item repository bound to the transaction.
@@ -74,8 +73,8 @@ func (u unitOfWork) Items() application.Repository { return u.items }
 // Events is the event repository bound to the transaction.
 func (u unitOfWork) Events() application.EventRepository { return u.events }
 
-// Outbox is the outbox writer bound to the transaction.
-func (u unitOfWork) Outbox() outbox.Writer { return u.outbox }
+// Notices sends notices in the transaction.
+func (u unitOfWork) Notices() application.Notices { return u.notices }
 
 // Idempotency is the idempotency store bound to the transaction.
 func (u unitOfWork) Idempotency() application.Idempotency { return u.idem }

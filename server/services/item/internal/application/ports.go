@@ -5,7 +5,6 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/pkg/outbox"
 	"finga/services/item/internal/model"
 )
 
@@ -19,7 +18,7 @@ type Store interface {
 type UnitOfWork interface {
 	Items() Repository
 	Events() EventRepository
-	Outbox() outbox.Writer
+	Notices() Notices
 	Idempotency() Idempotency
 }
 
@@ -40,6 +39,11 @@ type Repository interface {
 // EventRepository appends to the item history.
 type EventRepository interface {
 	Append(ctx context.Context, e model.Event) error
+}
+
+// Notices tells other services about item changes, in the change's transaction.
+type Notices interface {
+	Send(ctx context.Context, n model.Notice) error
 }
 
 // Idempotency runs a command once per key and replays its Result; the same key with another fingerprint
