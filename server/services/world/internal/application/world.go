@@ -26,6 +26,7 @@ const (
 	busyRetryMax    = 500 * time.Millisecond
 	transferTimeout = 5 * time.Second // a transfer's join, retries included
 	callTimeout     = 5 * time.Second // one call to another service; past it the call counts as failed
+	starterTimeout  = time.Second     // the join's best-effort starter grant
 
 	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
 	saveRetryMax   = 5 * time.Second
@@ -84,9 +85,9 @@ func (w *World) instance(mapID string) (*Instance, error) {
 }
 
 // Join takes the account's character off the map it is on, loads it with its newest checkpoint not yet
-// saved laid over it, grants its starter items (best effort: a failure is logged, and the next join tries
-// again) and joins its map through conn. So a login elsewhere, or a rejoin, starts where the character
-// was, never at an older save; one that fails after the take-off detaches the older connection.
+// saved laid over it, grants its starter items and joins its map through conn. So a login elsewhere, or
+// a rejoin, starts where the character was, never at an older save; one that fails after the take-off
+// detaches the older connection.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	d, err := w.depart(ctx, id, func(p presence) bool { return p.account == account })
 	if err != nil {
@@ -101,16 +102,14 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 
 func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	unsaved, pending := w.saves.Get(id) // before the load, so a save that lands between them is not missed
-	c, err := w.deps.Characters.Load(ctx, id, account)
+	c, err := w.load(ctx, id, account)
 	if err != nil {
 		return model.View{}, err
 	}
 	if pending {
 		c = withCheckpoint(c, unsaved)
 	}
-	if err := w.deps.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
-		w.deps.Logger.WarnContext(ctx, "starter items not granted; the next join tries again", "character_id", id, "err", err)
-	}
+	w.grantStarter(ctx, account, id, c.Class)
 	formulas, ok := w.data.Formulas(c.Class)
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
@@ -143,6 +142,22 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
 		MapID: c.MapID, X: c.X, Y: c.Y,
 	}, nil
+}
+
+func (w *World) load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return w.deps.Characters.Load(ctx, id, account)
+}
+
+// grantStarter is a safety net for a creation whose grant failed: a failure is logged, and the next join
+// tries again.
+func (w *World) grantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) {
+	ctx, cancel := context.WithTimeout(ctx, starterTimeout)
+	defer cancel()
+	if err := w.deps.Starter.GrantStarter(ctx, account, id, class); err != nil {
+		w.deps.Logger.WarnContext(ctx, "starter items not granted; the next join tries again", "character_id", id, "err", err)
+	}
 }
 
 // departure is a player that a leave took off its map.

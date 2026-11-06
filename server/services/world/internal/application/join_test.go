@@ -192,3 +192,33 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 		}
 	})
 }
+
+type hangingStarter struct{}
+
+func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ kernel.CharacterID, _ kernel.Class) error {
+	<-ctx.Done() // an item service that takes the call and never answers
+	return ctx.Err()
+}
+
+// The starter grant is best effort: an item service that never answers costs a join a moment, never the
+// join itself.
+func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ayla := at(t, "Ayla", "town")
+		chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: {ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Stats: ayla.Stats, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}}}
+		w := newWorldOf(loadData(t), &fakeSaver{}, options{Characters: chars, Starter: hangingStarter{}})
+		ctx, cancel := context.WithCancel(context.Background())
+		done := make(chan struct{})
+		go func() { defer close(done); _ = w.Run(ctx) }()
+		defer func() { cancel(); <-done }()
+		budget, stop := context.WithTimeout(context.Background(), 5*time.Second) // the gateway's join budget
+		defer stop()
+		start := time.Now()
+		if _, err := w.Join(budget, ayla.Account, ayla.ID, "c-1", &sink{}); err != nil {
+			t.Fatalf("join: %v", err)
+		}
+		if took := time.Since(start); took > 2*time.Second {
+			t.Fatalf("the join took %s", took)
+		}
+	})
+}
