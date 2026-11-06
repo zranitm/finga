@@ -9,7 +9,7 @@ import (
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/health"
+	grpchealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
 	"finga/pkg/grpcx"
@@ -58,11 +58,10 @@ func New(opts Options) *Host {
 		GRPC:    grpcx.NewServer(grpcx.ServerOptions{Errors: opts.Errors, Logger: logger, Panics: opts.Panics, Metrics: metrics, Draining: draining}),
 		metrics: metrics,
 	}
-	healthy := health.NewServer()
-	healthpb.RegisterHealthServer(h.GRPC, healthy)
+	healthy := grpchealth.NewServer()
+	healthpb.RegisterHealthServer(h.GRPC, health{Server: healthy, draining: draining})
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(opts.Registry))
-	// Health watchers hear NOT_SERVING first; then subscriptions, which never end on their own, are
-	// ended so GracefulStop waits only for calls.
+	// Health turns NOT_SERVING, which every watcher hears before its stream ends; subscriptions, which never end on their own, end so GracefulStop waits only for calls.
 	drain := func(context.Context) {
 		healthy.Shutdown()
 		close(draining)
