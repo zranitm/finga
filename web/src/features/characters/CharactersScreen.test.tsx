@@ -125,6 +125,30 @@ describe('CharactersScreen', () => {
     expect(getToken()).toBeNull();
   });
 
+  it('log out everywhere calls DELETE /api/sessions, clears the token, and leaves', async () => {
+    const { ff, onLoggedOut } = setup(({ method }) =>
+      method === 'DELETE' ? { status: 204 } : list([]),
+    );
+    await screen.findByRole('form', { name: 'Create a character' });
+    await userEvent.click(screen.getByRole('button', { name: 'Log out everywhere' }));
+    await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
+    expect(ff.of('DELETE', '/api/sessions')).toHaveLength(1);
+    expect(getToken()).toBeNull();
+  });
+
+  it('a failed log out everywhere stays, says why, and keeps the session', async () => {
+    const { onLoggedOut } = setup(({ method }) =>
+      method === 'DELETE'
+        ? { status: 503, body: { code: 'unavailable', message: 'the account service is down' } }
+        : list([]),
+    );
+    await screen.findByRole('form', { name: 'Create a character' });
+    await userEvent.click(screen.getByRole('button', { name: 'Log out everywhere' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('the account service is down');
+    expect(onLoggedOut).not.toHaveBeenCalled();
+    expect(getToken()).toBe('tok-1');
+  });
+
   it('opens settings, and shows a failure to load', async () => {
     const { onSettings } = setup(({ method }) =>
       method === 'GET'

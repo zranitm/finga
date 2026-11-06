@@ -60,6 +60,8 @@ export interface RestClient {
   register(username: string, password: string): Promise<Account>;
   login(username: string, password: string): Promise<void>;
   logout(): Promise<void>;
+  /** Ends every session of the account; a failure other than 401 keeps the token, as the others may still be open. */
+  logoutEverywhere(): Promise<void>;
   listCharacters(): Promise<Character[]>;
   createCharacter(name: string, cls: string): Promise<Character>;
   getSettings(): Promise<Settings>;
@@ -126,6 +128,17 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
       } finally {
         clearToken();
       }
+    },
+    async logoutEverywhere() {
+      try {
+        await call<void>('DELETE', '/api/sessions');
+      } catch (err) {
+        if (err instanceof RestError && err.status === 401) {
+          clearToken();
+        }
+        throw err;
+      }
+      clearToken();
     },
     listCharacters: async () =>
       (await call<{ characters: Character[] }>('GET', '/api/characters')).characters,

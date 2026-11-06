@@ -86,6 +86,20 @@ export function CharactersScreen({
     onLoggedOut();
   };
 
+  const logoutEverywhere = async () => {
+    setProblem(null);
+    try {
+      await rest.logoutEverywhere();
+    } catch (err) {
+      // A 401 means this session had already ended; any other failure may leave the others open.
+      if (!(err instanceof RestError && err.status === 401)) {
+        setProblem(err instanceof RestError ? err.message : 'Could not log out everywhere.');
+        return;
+      }
+    }
+    onLoggedOut();
+  };
+
   return (
     <div className="screen">
       <div className="panel">
@@ -96,6 +110,9 @@ export function CharactersScreen({
           </Button>
           <Button variant="quiet" onClick={() => void logout()}>
             Log out
+          </Button>
+          <Button variant="quiet" onClick={() => void logoutEverywhere()}>
+            Log out everywhere
           </Button>
         </header>
         {characters === null && !problem && <p>Loading…</p>}

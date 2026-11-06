@@ -213,6 +213,33 @@ describe('rest client', () => {
     expect(err.message).toBe('connection refused');
   });
 
+  it.each([
+    { name: 'ends every session and forgets the token', status: 204, rejects: false, kept: null },
+    { name: 'forgets a token whose session already ended', status: 401, rejects: true, kept: null },
+    {
+      name: 'keeps the token when the sessions may still be open',
+      status: 500,
+      rejects: true,
+      kept: 'tok-1',
+    },
+  ])('logout everywhere $name', async ({ status, rejects, kept }) => {
+    const { fetch, calls } = fakeFetch(() =>
+      status === 204 ? { status } : { status, body: { code: 'internal', message: 'nope' } },
+    );
+    const client = createRestClient({ origin: '', fetch });
+    setToken('tok-1');
+    const done = client.logoutEverywhere();
+    if (rejects) {
+      await expect(done).rejects.toBeInstanceOf(RestError);
+    } else {
+      await done;
+    }
+    expect(calls[0]?.url).toBe('/api/sessions');
+    expect(calls[0]?.init.method).toBe('DELETE');
+    expect((calls[0]?.init.headers as Record<string, string>).Authorization).toBe('Bearer tok-1');
+    expect(getToken()).toBe(kept);
+  });
+
   it('logout forgets the token even when the server call fails', async () => {
     const { fetch } = fakeFetch(() => ({
       status: 401,
