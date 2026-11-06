@@ -31,7 +31,7 @@ func (s *ChatService) Send(ctx context.Context, from model.Sender, channel model
 		return model.Message{}, nil, model.ErrChannel
 	}
 	text = model.CleanLine(text)
-	if text == "" {
+	if model.Blank(text) {
 		return model.Message{}, nil, model.ErrEmpty
 	}
 	if utf8.RuneCountInString(text) > model.LineMaxLen {

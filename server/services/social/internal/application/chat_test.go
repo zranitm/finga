@@ -108,4 +108,17 @@ func TestSend(t *testing.T) {
 			}
 		}
 	})
+	t.Run("a line that shows nothing is empty, and one rune that shows is enough", func(t *testing.T) {
+		svc := application.NewChatService(parties)
+		for _, blank := range []string{"ㅤ", "ﾠ", "ᅟᅠ", "⠀⠀", "͏", "️", "ㅤ ⠀"} {
+			if _, _, err := svc.Send(ctx, from, model.ChannelMap, blank); !errors.Is(err, model.ErrEmpty) {
+				t.Errorf("%+q: %v, want empty", blank, err)
+			}
+		}
+		for _, line := range []string{"ㅤa", "\U0001F44D️", "⠀."} {
+			if _, _, err := svc.Send(ctx, from, model.ChannelMap, line); err != nil {
+				t.Errorf("%+q: %v", line, err)
+			}
+		}
+	})
 }

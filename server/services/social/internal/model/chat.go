@@ -61,3 +61,16 @@ func CleanLine(text string) string {
 	}
 	return strings.TrimSpace(b.String())
 }
+
+// brailleBlank is the braille pattern with no dots: a symbol that draws nothing.
+const brailleBlank = '⠀'
+
+// Blank reports whether a line shows nothing: no rune in it is graphic, not a space, and not one that renders as nothing.
+func Blank(text string) bool {
+	for _, r := range text {
+		if unicode.IsGraphic(r) && !unicode.IsSpace(r) && !unicode.In(r, unicode.Other_Default_Ignorable_Code_Point, unicode.Variation_Selector) && r != brailleBlank {
+			return false
+		}
+	}
+	return true
+}
