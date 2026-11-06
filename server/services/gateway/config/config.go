@@ -6,6 +6,7 @@ import (
 
 	"finga/internal/host"
 	"finga/pkg/logger"
+	"finga/pkg/tracing"
 )
 
 // Config is services/gateway/config/config.yaml.
@@ -16,6 +17,7 @@ type Config struct {
 	Sessions      Sessions        `mapstructure:"sessions"`
 	ShutdownGrace time.Duration   `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config   `mapstructure:"log"`
+	Tracing       tracing.Config  `mapstructure:"tracing"`
 	Dependencies  Dependencies    `mapstructure:"dependencies"`
 }
 
@@ -48,5 +50,5 @@ type Dependencies struct {
 
 // Host is the part of the configuration the host runs the service with.
 func (c Config) Host() host.Settings {
-	return host.Settings{Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log}
+	return host.Settings{Ops: c.Ops.Addr, ShutdownGrace: c.ShutdownGrace, Log: c.Log, Tracing: c.Tracing}
 }

@@ -446,6 +446,7 @@ linters:
             - finga/internal/host
             - finga/pkg/dbx
             - finga/pkg/logger
+            - finga/pkg/tracing
     forbidigo:
       analyze-types: true
       forbid:

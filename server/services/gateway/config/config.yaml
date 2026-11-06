@@ -20,6 +20,8 @@ log:
   sampling:               # each message at each level per second: the first 100, then every 100th
     initial: 100
     thereafter: 100
+tracing:
+  otlp_endpoint: ""      # host:port of an OTLP gRPC collector; empty keeps trace IDs for the logs only
 dependencies:            # where this service dials the ones it calls
   account: localhost:9001
   character: localhost:9002

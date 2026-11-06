@@ -262,3 +262,21 @@ func TestADrainStepRunsAfterReadinessTurnsOff(t *testing.T) {
 		t.Fatalf("readyz answered %d while draining, want 503", code)
 	}
 }
+
+// The host's tracer provider samples the service's entry points, and Close flushes and ends it.
+func TestTheHostTracesItsEntryPointsUntilClose(t *testing.T) {
+	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: runnertest.NewLog().Logger(), Registry: observability.NewRegistry(),
+		Roots: func(name string) bool { return name == "shop.buy" }})
+	tracer := h.Traces.Tracer("test")
+	_, buy := tracer.Start(context.Background(), "shop.buy")
+	_, tick := tracer.Start(context.Background(), "shop.tick")
+	if !buy.IsRecording() || tick.IsRecording() || !tick.SpanContext().TraceID().IsValid() {
+		t.Fatalf("an entry point recording %v, another root recording %v with IDs %v", buy.IsRecording(), tick.IsRecording(), tick.SpanContext())
+	}
+	buy.End()
+	tick.End()
+	h.Close()
+	if _, after := h.Traces.Tracer("test").Start(context.Background(), "shop.buy"); after.IsRecording() {
+		t.Fatal("still recording after Close")
+	}
+}

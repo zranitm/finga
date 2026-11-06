@@ -7,10 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"time"
 
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	grpchealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -21,7 +23,11 @@ import (
 	"finga/pkg/observability"
 	"finga/pkg/panics"
 	"finga/pkg/runner"
+	"finga/pkg/tracing"
 )
+
+// traceFlushTimeout bounds the export of the spans left at Close.
+const traceFlushTimeout = 5 * time.Second
 
 // The listener names, as the logs show them.
 const (
@@ -36,6 +42,8 @@ type Options struct {
 	Logger   *slog.Logger
 	Registry *prometheus.Registry // served on /metrics
 	Errors   grpcx.ErrorTable     // what the gRPC handlers' errors answer
+	// Roots reports whether a root span of this name, one of the service's entry points, starts a sampled trace.
+	Roots func(name string) bool
 }
 
 // Host is one service's process.
@@ -44,6 +52,8 @@ type Host struct {
 	GRPC *grpc.Server
 	// Panics records the process's recovered panics and counts them on /metrics.
 	Panics *panics.Recorder
+	// Traces mints every span's IDs and exports the sampled ones; Close flushes it.
+	Traces trace.TracerProvider
 
 	opts      Options
 	logger    *slog.Logger
@@ -68,6 +78,16 @@ func New(opts Options) (*Host, error) {
 	if err := opts.Registry.Register(h.clients); err != nil {
 		return nil, err
 	}
+	traces, err := tracing.New(context.Background(), opts.Settings.Tracing, tracing.Options{Service: opts.Name, Root: opts.Roots})
+	if err != nil {
+		return nil, err
+	}
+	h.Traces = traces
+	h.OnClose(func() { // first in, so it runs last: the spans the rest end are flushed too
+		ctx, cancel := context.WithTimeout(context.Background(), traceFlushTimeout)
+		defer cancel()
+		_ = traces.Shutdown(ctx)
+	})
 	if opts.Settings.GRPC != "" {
 		h.serveGRPC()
 	}

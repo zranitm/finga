@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"finga/pkg/logger"
+	"finga/pkg/tracing"
 )
 
 // EnvPrefix starts every environment override: database.url is FINGA_DATABASE_URL.
@@ -26,6 +27,7 @@ type Settings struct {
 	Ops           string
 	ShutdownGrace time.Duration
 	Log           logger.Config
+	Tracing       tracing.Config
 }
 
 // Config is a service's own configuration type, loaded by Start.
