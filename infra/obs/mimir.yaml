@@ -48,6 +48,7 @@ store_gateway:
 limits:
   compactor_blocks_retention_period: 7d
   native_histograms_ingestion_enabled: true
+  max_global_exemplars_per_user: 100000   # 0 by default, which drops Tempo's links from a metric to its trace
 
 usage_stats:
   enabled: false

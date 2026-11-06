@@ -9,7 +9,7 @@ datasources:
     isDefault: true
     jsonData:
       exemplarTraceIdDestinations:
-        - name: trace_id
+        - name: traceID   # the label Tempo's span metrics put on each exemplar
           datasourceUid: tempo
 
   - name: Loki
