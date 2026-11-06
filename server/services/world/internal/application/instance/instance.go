@@ -14,9 +14,9 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/tick"
-	"finga/services/world/internal/application/combat"
 	"finga/services/world/internal/application/economy"
 	"finga/services/world/internal/application/loot"
+	"finga/services/world/internal/application/mobs"
 	"finga/services/world/internal/model"
 )
 
@@ -53,7 +53,7 @@ type Instance struct {
 	inbox    chan message
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
 	saves    Checkpoints
-	arena    *combat.Arena
+	arena    *mobs.Arena
 	ground   *loot.Ground
 
 	tick     uint64
@@ -131,7 +131,7 @@ func New(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover Mover, t
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
-		arena:    combat.NewArena(m, data, roll, t.TickInterval),
+		arena:    mobs.NewArena(m, data, roll, t.TickInterval),
 		ground:   loot.NewGround(roll, t.TickInterval, loot.Deps{Items: d.Items, Workers: d.Workers, Parties: d.Parties, Traces: d.Traces}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),

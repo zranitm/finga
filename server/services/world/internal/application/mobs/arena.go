@@ -1,5 +1,5 @@
-// Package combat runs a map's mobs: their spawns and patrols, the players' attacks on them, and their touch.
-package combat
+// Package mobs runs a map's mobs: their spawns and patrols, and how a player's strike or touch resolves against them.
+package mobs
 
 import (
 	"math"

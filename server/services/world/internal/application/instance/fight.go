@@ -8,7 +8,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
-	"finga/services/world/internal/application/combat"
+	"finga/services/world/internal/application/mobs"
 	"finga/services/world/internal/model"
 )
 
@@ -36,7 +36,7 @@ func (i *Instance) resolveAttacks() {
 			continue
 		}
 		p.cooldownUntil = i.tick + i.ticksFor(p.class.Attack.Cooldown)
-		blow, reached := i.arena.Strike(combat.Strike{
+		blow, reached := i.arena.Strike(mobs.Strike{
 			By: p.ID, Attack: p.class.Attack, Power: attackerOf(p.derived),
 			X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
 		})
