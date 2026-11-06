@@ -1,13 +1,28 @@
 package runnertest_test
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"finga/pkg/runner"
 	"finga/pkg/runner/runnertest"
 )
+
+// A task's work shows on an endpoint a little after the process is up; GetUntil waits for it.
+func TestGetUntilWaitsForTheBodyToShowIt(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, "calls %d", calls.Add(1))
+	}))
+	defer srv.Close()
+	if body := runnertest.GetUntil(t, srv.URL, "calls 3"); body != "calls 3" {
+		t.Fatalf("body %q", body)
+	}
+}
 
 // Start reads the address from the record the runner logs, so the test listens where the runner bound.
 func TestStartFindsTheAddressTheRunnerLogs(t *testing.T) {

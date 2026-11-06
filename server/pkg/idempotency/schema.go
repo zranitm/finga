@@ -12,4 +12,5 @@ CREATE TABLE idempotency_keys (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (owner, scope, key)
 );
+CREATE INDEX idempotency_keys_by_age ON idempotency_keys (created_at);
 `

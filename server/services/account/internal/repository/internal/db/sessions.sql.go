@@ -24,6 +24,29 @@ func (q *Queries) ConsumePreviousToken(ctx context.Context, id uuid.UUID) (int64
 	return result.RowsAffected(), nil
 }
 
+const deleteEndedSessions = `-- name: DeleteEndedSessions :execrows
+DELETE FROM sessions WHERE id IN (
+  SELECT ended.id FROM sessions AS ended
+  WHERE LEAST(ended.revoked_at, ended.expires_at) < $1::timestamptz
+  ORDER BY LEAST(ended.revoked_at, ended.expires_at)
+  LIMIT $2
+)
+`
+
+type DeleteEndedSessionsParams struct {
+	EndedBefore time.Time
+	MaxRows     int32
+}
+
+// At most max_rows sessions that ended, revoked or expired, before ended_before; oldest first, by sessions_by_end.
+func (q *Queries) DeleteEndedSessions(ctx context.Context, arg DeleteEndedSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteEndedSessions, arg.EndedBefore, arg.MaxRows)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const extendSession = `-- name: ExtendSession :execrows
 UPDATE sessions SET expires_at = $2 WHERE id = $1 AND revoked_at IS NULL
 `

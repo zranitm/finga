@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 
 	itemv1 "finga/api/gen/item/v1"
@@ -40,9 +42,44 @@ func cfgFor(t *testing.T) config.Config {
 	t.Helper()
 	return config.Config{
 		GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-		ShutdownGrace: time.Second,
-		DataDir:       "../../../data",
-		Database:      dbx.Config{URL: cluster.URL(t), MaxConns: 2},
+		ShutdownGrace:   time.Second,
+		DataDir:         "../../../data",
+		Database:        dbx.Config{URL: cluster.URL(t), MaxConns: 2},
+		IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
+	}
+}
+
+// A key past the retry window is deleted by the running service, and counted; a fresh one stays.
+func TestTheServiceDeletesExpiredIdempotencyKeys(t *testing.T) {
+	ctx := t.Context()
+	cfg := cfgFor(t)
+	pool, err := pgxpool.New(ctx, cfg.Database.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at)
+		VALUES ($1, 'item.add', 'old', '\x00', '\x00', now() - interval '25 hours'), ($1, 'item.add', 'new', '\x00', '\x00', now())`, kernel.NewAccountID().String()); err != nil {
+		t.Fatal(err)
+	}
+	log := runnertest.NewLog()
+	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(h.Close)
+	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `db_expired_rows_deleted_total{table="idempotency_keys"} 1`)
+	rows, err := pool.Query(ctx, `SELECT key FROM idempotency_keys`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(keys) != 1 || keys[0] != "new" {
+		t.Fatalf("keys left %v (%v), want only the fresh one", keys, err)
+	}
+	if err := p.Stop(); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -36,7 +37,18 @@ const (
 	lockSQL   = `SELECT pg_advisory_xact_lock($1)`
 	findSQL   = `SELECT request_hash, response FROM idempotency_keys WHERE owner = $1 AND scope = $2 AND key = $3`
 	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response) VALUES ($1, $2, $3, $4, $5)`
+	pruneSQL  = `DELETE FROM idempotency_keys WHERE (owner, scope, key) IN (
+		SELECT owner, scope, key FROM idempotency_keys WHERE created_at < $1 ORDER BY created_at LIMIT $2)`
 )
+
+// Prune deletes at most limit keys stored before before, oldest first, so a retry with one runs its command again.
+func Prune(ctx context.Context, db dbx.DBTX, before time.Time, limit int) (int64, error) {
+	tag, err := db.Exec(ctx, pruneSQL, before, limit)
+	if err != nil {
+		return 0, fmt.Errorf("idempotency: prune: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
 
 // Do implements Store.
 func (s *store) Do(ctx context.Context, owner, scope, key string, fingerprint []byte, fn func() ([]byte, error)) ([]byte, error) {

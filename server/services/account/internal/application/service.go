@@ -330,6 +330,17 @@ func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time
 	return nil
 }
 
+// PruneSessions deletes at most limit sessions that ended, revoked or expired, before before; it reports how many.
+func (s *Service) PruneSessions(ctx context.Context, before time.Time, limit int) (int64, error) {
+	var n int64
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		var err error
+		n, err = uow.Sessions().DeleteEnded(ctx, before, limit)
+		return err
+	})
+	return n, err
+}
+
 // expiry is the idle period from now, capped at the lifetime from creation.
 func (s *Service) expiry(createdAt, now time.Time) time.Time {
 	until := now.Add(idleTTL)

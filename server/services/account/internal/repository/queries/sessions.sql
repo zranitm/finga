@@ -34,3 +34,12 @@ UPDATE sessions SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL;
 
 -- name: RevokeAccountSessions :execrows
 UPDATE sessions SET revoked_at = $2 WHERE account_id = $1 AND revoked_at IS NULL;
+
+-- name: DeleteEndedSessions :execrows
+-- At most max_rows sessions that ended, revoked or expired, before ended_before; oldest first, by sessions_by_end.
+DELETE FROM sessions WHERE id IN (
+  SELECT ended.id FROM sessions AS ended
+  WHERE LEAST(ended.revoked_at, ended.expires_at) < sqlc.arg(ended_before)::timestamptz
+  ORDER BY LEAST(ended.revoked_at, ended.expires_at)
+  LIMIT sqlc.arg(max_rows)
+);

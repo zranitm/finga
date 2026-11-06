@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	"finga/pkg/dbx"
+	"finga/pkg/retention"
 )
 
 // Tick buckets cover the 50 ms budget at 20 Hz with headroom for overruns.
@@ -132,6 +133,26 @@ func (m *DBMetrics) TxDone(ctx context.Context, took time.Duration, runs int) {
 	if runs > 1 {
 		m.retries.WithLabelValues(op).Add(float64(runs - 1))
 	}
+}
+
+// RetentionMetrics are the rows each retention task deleted; it is their retention.Observer.
+type RetentionMetrics struct {
+	deleted *prometheus.CounterVec // by table
+}
+
+var _ retention.Observer = (*RetentionMetrics)(nil)
+
+// NewRetentionMetrics registers the deleted-rows counter on reg; registering twice on one registry fails.
+func NewRetentionMetrics(reg prometheus.Registerer) (*RetentionMetrics, error) {
+	m := &RetentionMetrics{deleted: prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "db_expired_rows_deleted_total", Help: "Rows deleted by a retention task once kept their time, by table.",
+	}, []string{"table"})}
+	return m, register(reg, m.deleted)
+}
+
+// Deleted counts n rows deleted from table; a pass that deleted none still shows the table, at 0.
+func (m *RetentionMetrics) Deleted(table string, n int64) {
+	m.deleted.WithLabelValues(table).Add(float64(n))
 }
 
 // OutboxMetrics are the outbox's: the rows a relay has yet to publish.

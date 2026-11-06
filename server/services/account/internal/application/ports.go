@@ -48,6 +48,8 @@ type SessionRepository interface {
 	Lock(ctx context.Context, id kernel.SessionID) (model.Session, error)
 	ConsumePrevious(ctx context.Context, id kernel.SessionID) error
 	Extend(ctx context.Context, id kernel.SessionID, until time.Time) error
+	// DeleteEnded deletes at most limit sessions that ended, revoked or expired, before before, and reports how many.
+	DeleteEnded(ctx context.Context, before time.Time, limit int) (int64, error)
 }
 
 // Notifier hears of ended sessions, after they commit, so their connections close; it must not block.

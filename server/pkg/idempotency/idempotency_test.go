@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"os"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -126,6 +128,41 @@ func TestConcurrentSameKeyRunsOnce(t *testing.T) {
 		if errs[i] != nil || outs[i] != "got it" {
 			t.Fatalf("caller %d: %q %v; every caller should get the one response", i, outs[i], errs[i])
 		}
+	}
+}
+
+// A key past the retry window is deleted, oldest first and limit at a time, so its command can run again.
+func TestPruneDeletesKeysOlderThanTheCutoff(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at) VALUES
+		('acc-1', 'discard', 'k-48h', 'h', '', now() - interval '48 hours'),
+		('acc-1', 'discard', 'k-30h', 'h', '', now() - interval '30 hours'),
+		('acc-2', 'move', 'k-25h', 'h', '', now() - interval '25 hours'),
+		('acc-1', 'discard', 'k-1h', 'h', '', now() - interval '1 hour')`); err != nil {
+		t.Fatal(err)
+	}
+	cutoff := time.Now().Add(-24 * time.Hour)
+	left := func() []string {
+		t.Helper()
+		rows, err := pool.Query(ctx, `SELECT key FROM idempotency_keys ORDER BY created_at`)
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			t.Fatal(err)
+		}
+		return keys
+	}
+	if n, err := idempotency.Prune(ctx, pool, cutoff, 2); err != nil || n != 2 || !slices.Equal(left(), []string{"k-25h", "k-1h"}) {
+		t.Fatalf("first batch deleted %d (%v), left %v; want the two oldest gone", n, err, left())
+	}
+	if n, err := idempotency.Prune(ctx, pool, cutoff, 2); err != nil || n != 1 || !slices.Equal(left(), []string{"k-1h"}) {
+		t.Fatalf("second batch deleted %d (%v), left %v; want only the fresh key kept", n, err, left())
+	}
+	if out, err := run(ctx, pool, "acc-1", "discard", "k-48h", []byte("other"), func() ([]byte, error) { return []byte("ran again"), nil }); err != nil || string(out) != "ran again" {
+		t.Fatalf("a pruned key: %q %v, want the command run again", out, err)
 	}
 }
 

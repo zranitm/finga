@@ -220,6 +220,12 @@ func (r sessionRepo) ConsumePrevious(ctx context.Context, id kernel.SessionID) e
 	return classify(err)
 }
 
+// DeleteEnded deletes the sessions over since before, oldest first, limit at a time.
+func (r sessionRepo) DeleteEnded(ctx context.Context, before time.Time, limit int) (int64, error) {
+	n, err := r.q.DeleteEndedSessions(ctx, db.DeleteEndedSessionsParams{EndedBefore: before, MaxRows: int32(limit)}) //nolint:gosec // a configured batch
+	return n, classify(err)
+}
+
 // Extend moves the expiry.
 func (r sessionRepo) Extend(ctx context.Context, id kernel.SessionID, until time.Time) error {
 	_, err := r.q.ExtendSession(ctx, db.ExtendSessionParams{ID: uuid.UUID(id), ExpiresAt: until})

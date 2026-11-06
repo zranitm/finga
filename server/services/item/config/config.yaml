@@ -20,3 +20,7 @@ database:
   statement_timeout: 5s             # a statement that runs longer is cancelled
   lock_timeout: 2s                  # so is one that waits longer for a lock
   idle_in_transaction_timeout: 10s  # and a session left idle in a transaction is ended
+idempotency_keys:         # a retry within keep replays the first answer; after it, the command runs again
+  keep: 24h               # far past any caller's retries, which last seconds
+  prune_every: 10m        # how often older keys are deleted
+  prune_batch: 1000       # keys per DELETE, so none holds its locks long

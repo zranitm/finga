@@ -155,6 +155,26 @@ func TestDBMetricsNameTheTransactionByItsMethod(t *testing.T) {
 	}
 }
 
+func TestRetentionMetricsCountDeletedRowsByTable(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	m, err := telemetry.NewRetentionMetrics(reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.Deleted("sessions", 0)
+	m.Deleted("idempotency_keys", 1000)
+	m.Deleted("idempotency_keys", 7)
+	if got := sample(t, reg, "db_expired_rows_deleted_total", "table", "idempotency_keys"); got != 1007 {
+		t.Fatalf("idempotency_keys %v, want 1007", got)
+	}
+	if !names(t, reg)["db_expired_rows_deleted_total"] || sample(t, reg, "db_expired_rows_deleted_total", "table", "sessions") != 0 {
+		t.Fatal("a pass that deleted nothing left no series for its table")
+	}
+	if _, err := telemetry.NewRetentionMetrics(reg); err == nil {
+		t.Fatal("a second registration succeeded")
+	}
+}
+
 func TestTheOutboxGaugeFollowsItsCount(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		reg := prometheus.NewRegistry()

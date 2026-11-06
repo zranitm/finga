@@ -198,6 +198,9 @@ func (r fakeSessions) ConsumePrevious(_ context.Context, id kernel.SessionID) er
 	return nil
 }
 
+// DeleteEnded is a query; its rule is tested on real Postgres.
+func (r fakeSessions) DeleteEnded(context.Context, time.Time, int) (int64, error) { return 0, nil }
+
 func (r fakeSessions) Extend(_ context.Context, id kernel.SessionID, until time.Time) error {
 	for i := range r.s.sessions {
 		if r.s.sessions[i].ID == id {

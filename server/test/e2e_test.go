@@ -78,10 +78,12 @@ func newStack(t *testing.T) *stack {
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
 	item := runService(t, func(at listen) itemconfig.Config {
-		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db}
+		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,
+			IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, itemapp.Build)
 	account := runService(t, func(at listen) accountconfig.Config {
-		return accountconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Database: db, Password: cheapPasswords}
+		return accountconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Database: db, Password: cheapPasswords,
+			Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, accountapp.Build)
 	character := runService(t, func(at listen) characterconfig.Config {
 		return characterconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,

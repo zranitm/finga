@@ -7,12 +7,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
-const readyWithin = 10 * time.Second
+const (
+	readyWithin = 10 * time.Second
+	pollEvery   = 20 * time.Millisecond
+)
 
 // client closes every connection after its request: a spare one it dialed would hold a shutdown for 5 s.
 var client = &http.Client{Transport: &http.Transport{DisableKeepAlives: true}, Timeout: 5 * time.Second}
@@ -125,6 +129,22 @@ func Start(t testing.TB, log *Log, run func(ctx context.Context) error, listener
 		case <-deadline:
 			t.Fatalf("%v did not listen within %s", listeners, readyWithin)
 		}
+	}
+}
+
+// GetUntil fetches url until its body holds want, as a background task's work lands after Start; past readyWithin the test fails.
+func GetUntil(t testing.TB, url, want string) string {
+	t.Helper()
+	deadline := time.Now().Add(readyWithin)
+	for {
+		_, body := Get(t, url)
+		if strings.Contains(body, want) {
+			return body
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s did not show %s within %s:\n%s", url, want, readyWithin, body)
+		}
+		time.Sleep(pollEvery)
 	}
 }
 

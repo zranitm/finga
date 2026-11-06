@@ -14,6 +14,8 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/observability"
 	"finga/pkg/panics"
+	"finga/pkg/retention"
+	"finga/pkg/runner"
 	"finga/pkg/uuidv7"
 	"finga/services/account/config"
 	"finga/services/account/internal/application"
@@ -32,6 +34,10 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
+	retentionMetrics, err := telemetry.NewRetentionMetrics(reg)
+	if err != nil {
+		return nil, err
+	}
 	pool, err := dbx.NewPool(ctx, cfg.Database)
 	if err != nil {
 		return nil, err
@@ -41,6 +47,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Hasher: password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
 	srv := handler.New(accounts, streams)
+	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch}
 	h := host.New(host.Options{
 		Name:     "account",
 		Settings: cfg.Host(),
@@ -48,6 +55,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Registry: reg,
 		Panics:   rec,
 		Errors:   handler.Errors,
+		Tasks: []runner.Task{{Name: "session retention", Run: func(ctx context.Context) error {
+			return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, log)
+		}}},
 	})
 	accountv1.RegisterAccountServiceServer(h.GRPC, srv)
 	h.OnClose(pool.Close)

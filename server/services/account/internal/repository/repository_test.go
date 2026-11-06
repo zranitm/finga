@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -203,6 +204,64 @@ func TestSessions(t *testing.T) {
 			t.Fatalf("second revoke: %v", err)
 		}
 	})
+}
+
+// A session goes once it has been over, by revocation or expiry, since before the cutoff; limit at a time.
+func TestDeleteEndedSessions(t *testing.T) {
+	ctx := context.Background()
+	store := NewPostgres(cluster.DB(t), nil)
+	cutoff := t0
+	tests := []struct {
+		name             string
+		expires, revoked time.Time // a zero revoked leaves the session unrevoked
+		gone             bool
+	}{
+		{"revoked before the cutoff", cutoff.Add(6 * 24 * time.Hour), cutoff.Add(-time.Hour), true},
+		{"expired before the cutoff", cutoff.Add(-time.Hour), time.Time{}, true},
+		{"expired before the cutoff, revoked after", cutoff.Add(-time.Hour), cutoff.Add(time.Hour), true},
+		{"revoked after the cutoff", cutoff.Add(6 * 24 * time.Hour), cutoff.Add(time.Hour), false},
+		{"expired after the cutoff", cutoff.Add(time.Hour), time.Time{}, false},
+		{"active", cutoff.Add(40 * 24 * time.Hour), time.Time{}, false},
+	}
+	ids := make([]kernel.SessionID, len(tests))
+	for i, tt := range tests {
+		acc, _ := insertAccount(t, store, fmt.Sprintf("user%d", i))
+		ids[i] = kernel.NewSessionID()
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			if err := uow.Sessions().Insert(ctx, model.Session{ID: ids[i], AccountID: acc, TokenHash: hashOf(tt.name), ExpiresAt: tt.expires}); err != nil {
+				return err
+			}
+			if tt.revoked.IsZero() {
+				return nil
+			}
+			return uow.Sessions().Revoke(ctx, ids[i], tt.revoked)
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	deleted := func() int64 {
+		t.Helper()
+		var n int64
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			var err error
+			n, err = uow.Sessions().DeleteEnded(ctx, cutoff, 2)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if first, second := deleted(), deleted(); first != 2 || second != 1 {
+		t.Fatalf("batches of 2 deleted %d then %d, want 2 then 1", first, second)
+	}
+	for i, tt := range tests {
+		_, err := store.FindSession(ctx, ids[i])
+		if gone := errors.Is(err, model.ErrNotFound); gone != tt.gone {
+			t.Errorf("%s: gone %v (%v), want %v", tt.name, gone, err, tt.gone)
+		}
+	}
 }
 
 func TestClassify(t *testing.T) {

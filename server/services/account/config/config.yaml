@@ -25,3 +25,7 @@ password:               # the Argon2id cost of a password hash; raise it as the 
   threads: 4
   concurrent: 4           # hashes at once, 64 MiB each; a login past them waits, then answers rate_limited
   wait: 1s
+sessions:                 # a session that ended, revoked or expired, is deleted keep after it ended
+  keep: 720h              # 30 days
+  prune_every: 1h         # how often older ones are deleted
+  prune_batch: 1000       # sessions per DELETE, so none holds its locks long
