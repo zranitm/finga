@@ -4,7 +4,7 @@ package push
 
 import (
 	"strings"
-	"sync/atomic"
+	"sync"
 
 	"google.golang.org/protobuf/proto"
 
@@ -21,9 +21,11 @@ type Observer interface {
 
 // Outbox is one connection's writing side: the session.Outbox the gateway reaches the player through.
 type Outbox struct {
-	ws     wsconn.Conn
-	obs    Observer
-	ending atomic.Bool // the first End, Kick or Close wins; the rest send nothing
+	ws  wsconn.Conn
+	obs Observer
+
+	mu     sync.Mutex // each send and the end, one at a time, so nothing is queued after the end's Kicked
+	ending bool       // the first End, Kick or Close wins; nothing is sent after it
 }
 
 var _ session.Outbox = (*Outbox)(nil)
@@ -51,7 +53,9 @@ func (o *Outbox) Deliver(d model.Delivery) {
 
 // End kicks with the protocol's reason where it has one; any other end closes as internal, and the client reconnects.
 func (o *Outbox) End(reason model.EndReason) {
-	if !o.ending.CompareAndSwap(false, true) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.end() {
 		return
 	}
 	switch reason {
@@ -66,10 +70,17 @@ func (o *Outbox) End(reason model.EndReason) {
 	}
 }
 
-// kick sends Kicked, then closes with the reason's short name.
+// kick sends Kicked, then closes with the reason's short name. Called with mu held.
 func (o *Outbox) kick(reason clientv1.KickReason) {
-	o.send(wsconn.Message{Data: &clientv1.Kicked{Reason: reason}})
+	o.write(wsconn.Message{Data: &clientv1.Kicked{Reason: reason}})
 	o.ws.Close(wsconn.CloseKicked, strings.ToLower(strings.TrimPrefix(reason.String(), "KICK_REASON_")))
+}
+
+// end marks the connection ended and reports whether it was the first end. Called with mu held.
+func (o *Outbox) end() (first bool) {
+	first = !o.ending
+	o.ending = true
+	return first
 }
 
 // Reply answers a client message; reqID is empty when nobody waits for the answer.
@@ -79,14 +90,18 @@ func (o *Outbox) Reply(reqID string, data proto.Message) {
 
 // Kick sends Kicked with the reason, then closes with the reason's short name, like logged_in_elsewhere.
 func (o *Outbox) Kick(reason clientv1.KickReason) {
-	if o.ending.CompareAndSwap(false, true) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.end() {
 		o.kick(reason)
 	}
 }
 
 // Close closes the connection without a message.
 func (o *Outbox) Close(code int, reason string) {
-	if o.ending.CompareAndSwap(false, true) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if o.end() {
 		o.ws.Close(code, reason)
 	}
 }
@@ -96,8 +111,17 @@ func ErrorResponse(p model.Public) *clientv1.Response {
 	return &clientv1.Response{Ok: false, Code: p.Code, Message: p.Message}
 }
 
-// send enqueues a message, typed by its data's name when unset; a full queue closes the connection.
+// send enqueues a message, unless the connection ended.
 func (o *Outbox) send(m wsconn.Message) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if !o.ending {
+		o.write(m)
+	}
+}
+
+// write enqueues a message, typed by its data's name when unset; a full queue closes the connection. Called with mu held.
+func (o *Outbox) write(m wsconn.Message) {
 	if data, ok := m.Data.(proto.Message); ok && m.Type == "" {
 		m.Type = string(data.ProtoReflect().Descriptor().Name())
 	}

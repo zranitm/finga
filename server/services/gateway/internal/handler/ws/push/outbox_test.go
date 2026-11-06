@@ -70,6 +70,38 @@ func TestOnlyTheFirstEndIsSent(t *testing.T) {
 	}
 }
 
+// Once a connection ends nothing more is sent: its Kicked is the last message, whatever sends race it.
+func TestNothingFollowsTheEnd(t *testing.T) {
+	s := &socket{}
+	o := push.NewOutbox(s, s)
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				o.Deliver(model.Delivery{Push: model.Delta{}})
+				o.Reply("", &clientv1.Pong{})
+			}
+		})
+	}
+	o.End(model.EndServerRestart)
+	close(stop)
+	wg.Wait()
+	o.Deliver(model.Delivery{Push: model.Delta{}})
+	o.Reply("r-1", &clientv1.Response{Ok: true})
+	o.Welcome(model.Welcome{})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if last := s.sent[len(s.sent)-1]; last.Type != "Kicked" {
+		t.Fatalf("%s sent after Kicked", last.Type)
+	}
+}
+
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, VX: 200, VY: -5, Facing: -1, OnGround: true, Climbing: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true}}
 	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Vx: 200, Vy: -5, Facing: -1, OnGround: true, Climbing: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true}}
