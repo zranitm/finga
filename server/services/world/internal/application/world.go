@@ -30,6 +30,7 @@ const (
 
 	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
 	saveRetryMax   = 5 * time.Second
+	flushWorkers   = 8 // the last saves made at once; the queue still hands out one character's at a time
 )
 
 // World is the registry of map instances and of where each joined character is, their shared
@@ -324,23 +325,30 @@ func (w *World) Run(ctx context.Context) error {
 	return err
 }
 
-// persistence is the save queue's one consumer, so each character's checkpoints land in the order its map
-// put them. While ctx lasts it saves with retries; then each checkpoint left gets one try within the flush
-// budget, until the maps have stopped.
+// persistence saves with retries while ctx lasts, then gives each checkpoint left one try within the flush budget.
 func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) {
 	w.saveWhile(ctx)
 	final, cancel := context.WithTimeout(context.WithoutCancel(ctx), w.flushTimeout)
 	defer cancel()
+	var flushers sync.WaitGroup
+	for range flushWorkers {
+		flushers.Go(func() { w.flush(final, stopped) })
+	}
+	flushers.Wait()
+}
+
+// flush gives each checkpoint left one last try, until the maps have stopped and none is left.
+func (w *World) flush(ctx context.Context, stopped <-chan struct{}) {
 	for {
 		if cp, ok := w.saves.Take(); ok {
-			w.lastTry(final, cp)
+			w.lastTry(ctx, cp)
 			continue
 		}
 		select {
 		case <-w.saves.Ready():
 		case <-stopped:
 			for cp, ok := w.saves.Take(); ok; cp, ok = w.saves.Take() {
-				w.lastTry(final, cp)
+				w.lastTry(ctx, cp)
 			}
 			return
 		}

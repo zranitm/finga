@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -30,8 +31,9 @@ type fakeSaver struct {
 	attempts []string // "cp <map>", one per attempt
 	err      error
 	failures int
-	hangs    int    // the first hangs attempts wait until their context ends
-	failing  string // a map whose saves always fail with err, whatever failures says
+	hangs    int           // the first hangs attempts wait until their context ends
+	slow     time.Duration // every attempt takes this long
+	failing  string        // a map whose saves always fail with err, whatever failures says
 }
 
 // attempt records what is tried; f.mu is held and attempt unlocks it.
@@ -42,6 +44,13 @@ func (f *fakeSaver) attempt(ctx context.Context, what string) error {
 	if n <= f.hangs {
 		<-ctx.Done()
 		return ctx.Err()
+	}
+	if f.slow > 0 {
+		select {
+		case <-time.After(f.slow):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 	fails := f.failures == 0 || n <= f.failures
 	if f.failing != "" {
@@ -284,12 +293,39 @@ func TestShutdownSavesWithinTheFlushBudget(t *testing.T) {
 		if err := <-runDone; err != nil {
 			t.Fatal(err)
 		}
-		// The first save gives up at its call timeout (5 s), the second at the budget.
+		// Both saves give up at their call timeout (5 s), within the budget.
 		if took := time.Since(start); took > 7*time.Second+tickInterval {
 			t.Fatalf("shutdown took %s", took)
 		}
 		if n := strings.Count(logs.String(), `"msg":"persistence failed"`); n != 2 {
 			t.Fatalf("%d lost saves logged: %s", n, logs.String())
+		}
+	})
+}
+
+// A slow character service costs the shutdown one save's time per batch of players, not per player.
+func TestShutdownSavesInParallel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		w := newWorld(t, &fakeSaver{slow: time.Second}, options{CheckpointInterval: time.Hour, FlushTimeout: 3 * time.Second, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		ctx, cancel := context.WithCancel(context.Background())
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		for n := range 10 {
+			w.enter(t, at(t, fmt.Sprintf("P%d", n), "town"), "town", fmt.Sprintf("c-%d", n), &sink{})
+		}
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		start := time.Now()
+		cancel()
+		if err := <-runDone; err != nil {
+			t.Fatal(err)
+		}
+		if took := time.Since(start); took > 2*time.Second+tickInterval {
+			t.Fatalf("shutdown took %s", took)
+		}
+		if strings.Contains(logs.String(), `"msg":"persistence failed"`) {
+			t.Fatalf("saves lost: %s", logs.String())
 		}
 	})
 }
