@@ -31,7 +31,7 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.reason), func(t *testing.T) {
 			s := &socket{}
-			push.NewOutbox(s, s).End(tt.reason)
+			push.NewOutbox(s, s, push.NewFrames()).End(tt.reason)
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			switch {
@@ -50,7 +50,7 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 // The first end wins: racing ends (a session end and a newer Hello) send one Kicked, whose reason the close repeats.
 func TestOnlyTheFirstEndIsSent(t *testing.T) {
 	s := &socket{}
-	o := push.NewOutbox(s, s)
+	o := push.NewOutbox(s, s, push.NewFrames())
 	var wg sync.WaitGroup
 	for _, r := range []model.EndReason{model.EndSessionExpired, model.EndLoggedInElsewhere, model.EndServerRestart, model.EndRejoinFailed} {
 		wg.Go(func() { o.End(r) })
@@ -73,7 +73,7 @@ func TestOnlyTheFirstEndIsSent(t *testing.T) {
 // Once a connection ends nothing more is sent: its Kicked is the last message, whatever sends race it.
 func TestNothingFollowsTheEnd(t *testing.T) {
 	s := &socket{}
-	o := push.NewOutbox(s, s)
+	o := push.NewOutbox(s, s, push.NewFrames())
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	for range 4 {
@@ -150,24 +150,51 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {
 			s := &socket{}
-			push.NewOutbox(s, s).Deliver(model.Delivery{Tick: 9, Push: tt.push})
+			push.NewOutbox(s, s, push.NewFrames()).Deliver(model.Delivery{Tick: 9, Push: tt.push})
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			if len(s.sent) != 1 {
 				t.Fatalf("sent %d messages", len(s.sent))
 			}
 			m := s.sent[0]
-			if name := string(tt.want.ProtoReflect().Descriptor().Name()); m.Type != name || m.Tick != 9 || !proto.Equal(m.Data.(proto.Message), tt.want) || s.counted[0] != name {
+			data := m.Data
+			if sp, ok := data.(wsconn.Spliced); ok {
+				data = sp.Message()
+			}
+			if name := string(tt.want.ProtoReflect().Descriptor().Name()); m.Type != name || m.Tick != 9 || !proto.Equal(data.(proto.Message), tt.want) || s.counted[0] != name {
 				t.Fatalf("sent %s at tick %d: %v, want %s: %v", m.Type, m.Tick, m.Data, name, tt.want)
 			}
 		})
 	}
 }
 
+// A frame's players share one encoding of it; each message adds only its player's ack.
+func TestAFramesPlayersShareOneEncoding(t *testing.T) {
+	frames := push.NewFrames()
+	frame, next := &model.Frame{Players: []model.PlayerView{{ID: "p-1"}}}, &model.Frame{}
+	shared := func(f *model.Frame, ack uint32) *wsconn.Shared {
+		t.Helper()
+		s := &socket{}
+		push.NewOutbox(s, s, frames).Deliver(model.Delivery{Tick: 9, Push: model.Delta{Frame: f, AckSeq: ack}})
+		sp, ok := s.sent[0].Data.(wsconn.Spliced)
+		if !ok || !proto.Equal(sp.Own, &clientv1.Delta{AckSeq: ack}) {
+			t.Fatalf("sent %+v", s.sent[0].Data)
+		}
+		return sp.Shared
+	}
+	a, b := shared(frame, 1), shared(frame, 2)
+	if a != b {
+		t.Fatal("two players of one frame got two encodings")
+	}
+	if shared(next, 1) == a {
+		t.Fatal("the next frame reused the last one's encoding")
+	}
+}
+
 func TestWelcomeCarriesTheCharacterItsItemsAndItsParty(t *testing.T) {
 	s := &socket{}
 	at := time.UnixMilli(1_700_000_000_000)
-	push.NewOutbox(s, s).Welcome(model.Welcome{
+	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
 		Token:      "t-2",
 		Character:  model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33},
 		Inventory:  []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},

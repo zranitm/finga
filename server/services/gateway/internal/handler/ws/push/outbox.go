@@ -21,8 +21,9 @@ type Observer interface {
 
 // Outbox is one connection's writing side: the session.Outbox the gateway reaches the player through.
 type Outbox struct {
-	ws  wsconn.Conn
-	obs Observer
+	ws     wsconn.Conn
+	obs    Observer
+	frames *Frames
 
 	mu     sync.Mutex // each send and the end, one at a time, so nothing is queued after the end's Kicked
 	ending bool       // the first End, Kick or Close wins; nothing is sent after it
@@ -30,9 +31,9 @@ type Outbox struct {
 
 var _ session.Outbox = (*Outbox)(nil)
 
-// NewOutbox writes to ws and counts every message on obs.
-func NewOutbox(ws wsconn.Conn, obs Observer) *Outbox {
-	return &Outbox{ws: ws, obs: obs}
+// NewOutbox writes to ws and counts every message on obs; frames shares each frame's encoding with the other outboxes.
+func NewOutbox(ws wsconn.Conn, obs Observer, frames *Frames) *Outbox {
+	return &Outbox{ws: ws, obs: obs, frames: frames}
 }
 
 // ID names the connection.
@@ -48,7 +49,7 @@ func (o *Outbox) Welcome(w model.Welcome) {
 
 // Deliver sends a push as its message.
 func (o *Outbox) Deliver(d model.Delivery) {
-	o.send(wsconn.Message{Tick: d.Tick, Data: message(d.Push)})
+	o.send(wsconn.Message{Tick: d.Tick, Data: o.body(d.Push)})
 }
 
 // End kicks with the protocol's reason where it has one; any other end closes as internal, and the client reconnects.
@@ -122,8 +123,13 @@ func (o *Outbox) send(m wsconn.Message) {
 
 // write enqueues a message, typed by its data's name when unset; a full queue closes the connection. Called with mu held.
 func (o *Outbox) write(m wsconn.Message) {
-	if data, ok := m.Data.(proto.Message); ok && m.Type == "" {
-		m.Type = string(data.ProtoReflect().Descriptor().Name())
+	if m.Type == "" {
+		switch data := m.Data.(type) {
+		case proto.Message:
+			m.Type = string(data.ProtoReflect().Descriptor().Name())
+		case wsconn.Spliced:
+			m.Type = string(data.Own.ProtoReflect().Descriptor().Name())
+		}
 	}
 	o.obs.MessageOut(m.Type)
 	_ = o.ws.Send(m) // a full queue or a closed connection ends in OnClose, which reports it

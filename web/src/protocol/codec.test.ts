@@ -3,10 +3,11 @@ import path from 'node:path';
 
 import { create, fromBinary, fromJsonString, toBinary, toJson } from '@bufbuild/protobuf';
 import type { DescMessage } from '@bufbuild/protobuf';
+import { BinaryWriter, WireType } from '@bufbuild/protobuf/wire';
 import { describe, expect, it } from 'vitest';
 
 import { binaryCodec, jsonCodec, ProtocolError } from './codec';
-import { ClientMessageSchema, ServerMessageSchema } from './messages';
+import { ClientMessageSchema, DeltaSchema, ServerMessageSchema } from './messages';
 
 // npm runs the scripts from web/, so the server's golden files are in ../server.
 const contracts = path.resolve(process.cwd(), '..', 'server', 'testdata', 'contracts');
@@ -71,6 +72,31 @@ describe('golden messages', () => {
     if (!pong) throw new Error('no Pong golden');
     const bytes = new TextEncoder().encode(pong.json);
     expect(jsonCodec.decode(bytes.buffer)).toEqual(jsonCodec.decode(pong.json));
+  });
+});
+
+// The gateway encodes a tick's Delta once and appends each player's ack after it: protobuf reads that as one message.
+describe('a Delta the gateway spliced', () => {
+  it('decodes as one Delta with the shared fields and the ack', () => {
+    const shared = toBinary(
+      DeltaSchema,
+      create(DeltaSchema, { players: [{ id: 'p-1', x: 3 }], removedMobs: [6] }),
+    );
+    const own = toBinary(DeltaSchema, create(DeltaSchema, { ackSeq: 7 }));
+    const field = (name: string) => {
+      const f = ServerMessageSchema.fields.find((x) => x.localName === name);
+      if (!f) throw new Error(`no ${name} field`);
+      return f.number;
+    };
+    const writer = new BinaryWriter();
+    writer.tag(field('tick'), WireType.Varint).uint64(81235);
+    writer.tag(field('delta'), WireType.LengthDelimited).bytes(new Uint8Array([...shared, ...own]));
+    const msg = binaryCodec.decode(writer.finish().slice().buffer);
+    expect(msg.tick).toBe(81235);
+    expect(msg.body).toEqual({
+      case: 'delta',
+      value: create(DeltaSchema, { ackSeq: 7, players: [{ id: 'p-1', x: 3 }], removedMobs: [6] }),
+    });
   });
 });
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -65,17 +66,63 @@ func newEnvelope(m proto.Message) protoEnvelope {
 // Binary reports whether frames are binary.
 func (c *ProtoCodec) Binary() bool { return c.format == Binary }
 
-// Encode wraps m.Data, a message of the out envelope's body, with m's envelope fields.
+// Encode wraps m.Data, a message of the out envelope's body or a Spliced one, with m's envelope fields.
 func (c *ProtoCodec) Encode(m Message) ([]byte, error) {
+	if s, ok := m.Data.(Spliced); ok {
+		return c.encodeSpliced(m, s)
+	}
 	data, ok := m.Data.(proto.Message)
 	if !ok || data == nil {
 		return nil, fmt.Errorf("%w: %T is not a proto message", ErrUnknownType, m.Data)
 	}
+	env, field, err := c.envelope(m, data)
+	if err != nil {
+		return nil, err
+	}
+	env.Set(field, protoreflect.ValueOfMessage(data.ProtoReflect()))
+	if c.format == JSON {
+		return protojson.MarshalOptions{UseProtoNames: true}.Marshal(env.Interface())
+	}
+	return proto.Marshal(env.Interface())
+}
+
+// encodeSpliced writes the envelope, then the body field: the shared bytes and the message's own after them.
+func (c *ProtoCodec) encodeSpliced(m Message, s Spliced) ([]byte, error) {
+	if s.Shared == nil || s.Own == nil || s.Shared.msg.ProtoReflect().Descriptor().FullName() != s.Own.ProtoReflect().Descriptor().FullName() {
+		return nil, fmt.Errorf("%w: a spliced body needs a shared and an own part of one type", ErrUnknownType)
+	}
+	if c.format == JSON {
+		m.Data = s.Message()
+		return c.Encode(m)
+	}
+	env, field, err := c.envelope(m, s.Own)
+	if err != nil {
+		return nil, err
+	}
+	shared, err := s.Shared.bytes()
+	if err != nil {
+		return nil, err
+	}
+	own, err := proto.Marshal(s.Own)
+	if err != nil {
+		return nil, err
+	}
+	b, err := proto.Marshal(env.Interface())
+	if err != nil {
+		return nil, err
+	}
+	b = protowire.AppendTag(b, field.Number(), protowire.BytesType)
+	b = protowire.AppendVarint(b, uint64(len(shared)+len(own)))
+	return append(append(b, shared...), own...), nil
+}
+
+// envelope is a new out envelope holding m's seq, req and tick, and the body field data's type goes in.
+func (c *ProtoCodec) envelope(m Message, data proto.Message) (protoreflect.Message, protoreflect.FieldDescriptor, error) {
 	d := data.ProtoReflect().Descriptor()
 	name := string(d.Name())
 	field, ok := c.out.byName[name]
 	if !ok || field.Message().FullName() != d.FullName() || (m.Type != "" && m.Type != name) {
-		return nil, fmt.Errorf("%w: %s as %q", ErrUnknownType, d.FullName(), m.Type)
+		return nil, nil, fmt.Errorf("%w: %s as %q", ErrUnknownType, d.FullName(), m.Type)
 	}
 	env := c.out.typ.New()
 	for _, set := range []struct {
@@ -92,15 +139,11 @@ func (c *ProtoCodec) Encode(m Message) ([]byte, error) {
 			continue
 		}
 		if set.field == nil {
-			return nil, fmt.Errorf("wsconn: %s has no %s field", env.Descriptor().FullName(), set.name)
+			return nil, nil, fmt.Errorf("wsconn: %s has no %s field", env.Descriptor().FullName(), set.name)
 		}
 		env.Set(set.field, set.value)
 	}
-	env.Set(field, protoreflect.ValueOfMessage(data.ProtoReflect()))
-	if c.format == JSON {
-		return protojson.MarshalOptions{UseProtoNames: true}.Marshal(env.Interface())
-	}
-	return proto.Marshal(env.Interface())
+	return env, field, nil
 }
 
 // unsigned is v as the field's kind; a 32-bit field keeps the low 32 bits.

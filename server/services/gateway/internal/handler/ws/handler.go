@@ -42,6 +42,7 @@ type Handler struct {
 	subprotocols []wsconn.Subprotocol
 	opts         Options
 	receive      *receive.Handler
+	frames       *push.Frames
 }
 
 // Connection is one socket's receiving side and its session: the state wsconn hands back to each callback.
@@ -53,7 +54,7 @@ type Connection struct {
 // New serves gw's connections.
 func New(gw *send.Gateway, opts Options) *Handler {
 	return &Handler{
-		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts,
+		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts, frames: push.NewFrames(),
 		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Logger: opts.Logger, Panics: opts.Panics}),
 	}
 }
@@ -69,7 +70,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // OnOpen opens the connection's session, written to through its outbox, and starts its receiving side.
 func (h *Handler) OnOpen(c wsconn.Conn) Connection {
-	out := push.NewOutbox(c, h.opts.Observer)
+	out := push.NewOutbox(c, h.opts.Observer, h.frames)
 	s := h.gw.Open(c.ID(), out)
 	return Connection{in: h.receive.Open(out, s), session: s}
 }

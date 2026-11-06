@@ -1,22 +1,19 @@
 package push
 
 import (
-	"google.golang.org/protobuf/proto"
-
 	clientv1 "finga/api/gen/client/v1"
+	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/model"
 )
 
-// message is the protocol message a push reaches the client as.
-func message(p model.Push) proto.Message {
+// body is the protocol message a push reaches the client as; a Delta's is its frame's shared encoding with
+// the player's own ack.
+func (o *Outbox) body(p model.Push) any {
 	switch p := p.(type) {
 	case model.Snapshot:
 		return &clientv1.Snapshot{Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Drops: dropViews(p.Drops)}
 	case model.Delta:
-		return &clientv1.Delta{
-			AckSeq: p.AckSeq, Players: playerViews(p.Players), Mobs: mobViews(p.Mobs), Drops: dropViews(p.Drops),
-			RemovedPlayers: p.RemovedPlayers, RemovedMobs: instanceIDs(p.RemovedMobs), RemovedDrops: instanceIDs(p.RemovedDrops),
-		}
+		return wsconn.Spliced{Shared: o.frames.shared(p.Frame), Own: &clientv1.Delta{AckSeq: p.AckSeq}}
 	case model.MapChange:
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y}
 	case model.Damage:
