@@ -150,7 +150,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover 
 		ticksPer = 1
 	}
 	params := data.Movement()
-	return &Instance{
+	i := &Instance{
 		m: m, data: data, params: params, tuning: t, deps: d, mover: mover, roll: d.NewRoll(),
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inbox:    make(chan message, inboxSize),
@@ -160,6 +160,8 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover 
 		spawns:   make([]spawnState, len(m.Spawns)),
 		ticksPer: ticksPer,
 	}
+	i.fill()
+	return i
 }
 
 // Run ticks until ctx is done, then checkpoints the players still on the map.

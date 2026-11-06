@@ -47,7 +47,7 @@ func (mb *mob) defender() model.Defender {
 
 func (i *Instance) stepMobs() {
 	for s := range i.m.Spawns {
-		i.fillSpawn(s)
+		i.respawn(s)
 	}
 	dt := i.tuning.TickInterval.Seconds()
 	for _, mb := range i.mobs {
@@ -65,15 +65,18 @@ func (i *Instance) stepMobs() {
 	}
 }
 
-func (i *Instance) fillSpawn(s int) {
-	area := i.m.Spawns[s]
-	st := &i.spawns[s]
-	if i.tick == 1 {
-		for st.alive < area.Max {
+// fill spawns every area's mobs, so the map is full before its first tick.
+func (i *Instance) fill() {
+	for s, area := range i.m.Spawns {
+		for range area.Max {
 			i.spawnMob(s)
 		}
-		return
 	}
+}
+
+func (i *Instance) respawn(s int) {
+	area := i.m.Spawns[s]
+	st := &i.spawns[s]
 	for len(st.returns) > 0 && st.returns[0] <= i.tick && st.alive < area.Max {
 		st.returns = st.returns[1:]
 		i.spawnMob(s)

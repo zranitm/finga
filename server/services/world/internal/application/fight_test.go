@@ -112,13 +112,23 @@ func mobsIn(s *sink) map[uint64]model.MobView {
 	return seen
 }
 
+// A map is full from the start, so a player joining in its first tick sees its mobs in the snapshot.
+func TestAMapHoldsItsMobsBeforeItsFirstTick(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		inst, stop := runMap(t, loadData(t), arena(2*time.Second), nil, options{})
+		defer stop()
+		s := join(t, inst, warriorAt(250))
+		if snap, ok := s.all()[0].(model.Snapshot); !ok || len(snap.Mobs) != 1 {
+			t.Fatalf("first event %+v, want a snapshot with the one mob", s.all()[0])
+		}
+	})
+}
+
 func TestMobsSpawnAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		inst, stop := runMap(t, data, arena(2*time.Second), nil, options{})
 		defer stop()
-		time.Sleep(tickInterval) // tick 1: the area fills
-		synctest.Wait()
 		s := join(t, inst, warriorAt(250))
 		{ // the snapshot carries the one spawned mob, standing on its platform facing right
 			mobs := mobsIn(s)
