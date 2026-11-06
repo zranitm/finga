@@ -18,6 +18,6 @@ var version = "dev"
 
 func main() {
 	os.Exit(host.Main("gateway", version, func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (host.Process, error) {
-		return app.Build(ctx, app.BuildOptions{Config: cfg, Logger: log, Registry: reg})
+		return app.Build(ctx, cfg, log, reg)
 	}))
 }

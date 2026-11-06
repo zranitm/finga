@@ -12,11 +12,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/host"
-	"finga/internal/telemetry"
-	"finga/pkg/dbx"
 	"finga/pkg/grpcx"
-	"finga/pkg/observability"
-	"finga/pkg/panics"
 	"finga/services/character/config"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/clients"
@@ -26,42 +22,28 @@ import (
 
 // Build wires the character service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	panicCount, err := observability.NewPanicCounter(reg)
-	if err != nil {
-		return nil, err
-	}
-	rec := panics.NewRecorder(log, panicCount)
-	dbMetrics, err := telemetry.NewDBMetrics(reg)
-	if err != nil {
-		return nil, err
-	}
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
-	pool, err := dbx.NewPool(ctx, cfg.Database)
+	h, err := host.New(host.Options{Name: "character", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
+	if err != nil {
+		return nil, err
+	}
+	pool, dbMetrics, err := h.Database(ctx, cfg.Database)
 	if err != nil {
 		return nil, err
 	}
 	itemConn, err := grpcx.Dial(cfg.Dependencies.Item)
 	if err != nil {
-		pool.Close()
+		h.Close()
 		return nil, fmt.Errorf("item service: %w", err)
 	}
+	h.OnClose(func() { _ = itemConn.Close() })
 	characters := application.NewService(repository.NewPostgres(pool, dbMetrics), data, application.Options{
 		Starter: clients.NewStarter(itemv1.NewItemServiceClient(itemConn)),
 		Logger:  log,
 	})
-	h := host.New(host.Options{
-		Name:     "character",
-		Settings: cfg.Host(),
-		Logger:   log,
-		Registry: reg,
-		Panics:   rec,
-		Errors:   handler.Errors,
-	})
 	characterv1.RegisterCharacterServiceServer(h.GRPC, handler.New(characters))
-	h.OnClose(pool.Close)
-	h.OnClose(func() { _ = itemConn.Close() })
 	return h, nil
 }

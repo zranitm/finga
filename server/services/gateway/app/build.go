@@ -13,10 +13,9 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
+	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
-	"finga/pkg/observability"
-	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
@@ -24,46 +23,43 @@ import (
 	"finga/services/gateway/internal/application/send"
 	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/clients"
+	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
 )
 
-// BuildOptions is everything Build needs.
-type BuildOptions struct {
-	Config   config.Config
-	Logger   *slog.Logger
-	Registry *prometheus.Registry
-}
+// The players' listener's name, as the logs show it.
+const httpListener = "http"
 
 // Build wires the gateway as production runs it; services are dialed lazily, so a call fails while one is down.
-func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
-	cfg := opts.Config
-	metrics, err := telemetry.NewGatewayMetrics(opts.Registry)
-	if err != nil {
-		return nil, fmt.Errorf("metrics: %w", err)
-	}
-	panicCount, err := observability.NewPanicCounter(opts.Registry)
+func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
+	h, err := host.New(host.Options{Name: "gateway", Settings: cfg.Host(), Logger: log, Registry: reg})
 	if err != nil {
 		return nil, err
 	}
-	rec := panics.NewRecorder(opts.Logger, panicCount)
+	metrics, err := telemetry.NewGatewayMetrics(reg)
+	if err != nil {
+		return nil, fmt.Errorf("metrics: %w", err)
+	}
+	rec := h.Panics
 	conns, err := dialAll(cfg.Dependencies)
 	if err != nil {
 		return nil, err
 	}
+	h.OnClose(conns.close)
 	accounts := accountv1.NewAccountServiceClient(conns.account)
 	guard := clients.NewGuard(accounts)
 
 	lobby := application.NewLobby(clients.NewAccounts(accounts), clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)), guard)
-	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), opts.Logger, rec)
-	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), opts.Logger, rec)
-	sessions := session.NewRegistry(session.Deps{Gateway: uuidv7.NewString(), World: world, Social: social, Logger: opts.Logger, Panics: rec, JoinTimeout: cfg.Sessions.JoinTimeout})
+	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec)
+	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec)
+	sessions := session.NewRegistry(session.Deps{Gateway: uuidv7.NewString(), World: world, Social: social, Logger: log, Panics: rec, JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions:    guard,
 		World:       world,
 		Items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
 		Social:      social,
-		Logger:      opts.Logger,
+		Logger:      log,
 		Observer:    metrics,
 		JoinTimeout: cfg.Sessions.JoinTimeout,
 	}, sessions)
@@ -71,23 +67,21 @@ func Build(ctx context.Context, opts BuildOptions) (*Server, error) {
 		Sessions:             guard,
 		World:                world,
 		Social:               social,
-		Account:              clients.NewSessionEnds(accounts, opts.Logger, rec),
-		Logger:               opts.Logger,
+		Account:              clients.NewSessionEnds(accounts, log, rec),
+		Logger:               log,
 		SessionCheckInterval: cfg.Sessions.CheckInterval,
 	}, sessions)
-	s := New(Options{HTTP: cfg.HTTP, Ops: cfg.Ops.Addr, ShutdownGrace: cfg.ShutdownGrace, Logger: opts.Logger, Panics: rec}, Deps{
-		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: opts.Logger, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
+	h.Serve(httpListener, cfg.HTTP.Addr, handler.NewRouter(handler.Routes{
+		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
 		Gateway: ws.New(sendFlow, ws.Options{
 			Origins: cfg.HTTP.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
-			Observer: metrics, Logger: opts.Logger, Panics: rec,
+			Observer: metrics, Logger: log, Panics: rec,
 		}),
-		Metrics: observability.MetricsHandler(opts.Registry),
-		Tasks:   []Task{{Name: "streams", Run: pushFlow.Run}},
-		Drain:   pushFlow.Drain,
-	})
-	s.closers = append(s.closers, conns.close)
-	opts.Logger.InfoContext(ctx, "built")
-	return s, nil
+	}))
+	h.Task("streams", pushFlow.Run)
+	h.OnDrain(pushFlow.Drain)
+	log.InfoContext(ctx, "built")
+	return h, nil
 }
 
 type conns struct {

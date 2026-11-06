@@ -20,9 +20,6 @@ import (
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/grpcx"
-	"finga/pkg/observability"
-	"finga/pkg/panics"
-	"finga/pkg/runner"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
 	"finga/services/world/internal/application"
@@ -42,11 +39,6 @@ func wholeSteps(tick time.Duration, dt float64) error {
 
 // Build wires the world service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	panicCount, err := observability.NewPanicCounter(reg)
-	if err != nil {
-		return nil, err
-	}
-	rec := panics.NewRecorder(log, panicCount)
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
 		return nil, err
@@ -54,6 +46,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err := wholeSteps(cfg.TickInterval(), data.Movement().Dt); err != nil {
 		return nil, err
 	}
+	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
+	if err != nil {
+		return nil, err
+	}
+	rec := h.Panics
 	metrics, err := telemetry.NewWorldMetrics(reg)
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
@@ -102,18 +99,8 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Panics:     rec,
 		Logger:     log,
 	})
-	h := host.New(host.Options{
-		Name:     "world",
-		Settings: cfg.Host(),
-		Logger:   log,
-		Registry: reg,
-		Panics:   rec,
-		Errors:   handler.Errors,
-		Tasks: []runner.Task{
-			{Name: "parties", Run: parties.Run},
-			{Name: "world", Run: maps.Run},
-		},
-	})
+	h.Task("parties", parties.Run)
+	h.Task("world", maps.Run)
 	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz, Logger: log}))
 	h.OnClose(closeAll)
 	log.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))

@@ -11,11 +11,7 @@ import (
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/auth/password"
-	"finga/pkg/dbx"
-	"finga/pkg/observability"
-	"finga/pkg/panics"
 	"finga/pkg/retention"
-	"finga/pkg/runner"
 	"finga/pkg/uuidv7"
 	"finga/services/account/config"
 	"finga/services/account/internal/application"
@@ -25,12 +21,7 @@ import (
 
 // Build wires the account service; it fails fast on an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	panicCount, err := observability.NewPanicCounter(reg)
-	if err != nil {
-		return nil, err
-	}
-	rec := panics.NewRecorder(log, panicCount)
-	dbMetrics, err := telemetry.NewDBMetrics(reg)
+	h, err := host.New(host.Options{Name: "account", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +29,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	pool, err := dbx.NewPool(ctx, cfg.Database)
+	pool, dbMetrics, err := h.Database(ctx, cfg.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -46,21 +37,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	accounts := application.NewService(repository.NewPostgres(pool, dbMetrics), streams, application.Options{
 		Hasher: password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
-	srv := handler.New(accounts, streams)
 	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch}
-	h := host.New(host.Options{
-		Name:     "account",
-		Settings: cfg.Host(),
-		Logger:   log,
-		Registry: reg,
-		Panics:   rec,
-		Errors:   handler.Errors,
-		Tasks: []runner.Task{{Name: "session retention", Run: func(ctx context.Context) error {
-			return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, log)
-		}}},
+	h.Task("session retention", func(ctx context.Context) error {
+		return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, log)
 	})
-	accountv1.RegisterAccountServiceServer(h.GRPC, srv)
-	h.OnClose(pool.Close)
+	accountv1.RegisterAccountServiceServer(h.GRPC, handler.New(accounts, streams))
 	return h, nil
 }
 

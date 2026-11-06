@@ -9,8 +9,6 @@ import (
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/host"
-	"finga/pkg/observability"
-	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
 	"finga/services/social/config"
 	"finga/services/social/internal/application"
@@ -20,22 +18,12 @@ import (
 
 // Build wires the social service; parties live in memory, so a restart forgets them.
 func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	panicCount, err := observability.NewPanicCounter(reg)
+	h, err := host.New(host.Options{Name: "social", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
 	if err != nil {
 		return nil, err
 	}
-	rec := panics.NewRecorder(log, panicCount)
 	streams := handler.NewStreams(uuidv7.NewString())
 	parties := application.NewPartyService(repository.NewMemory(), streams)
-	srv := handler.New(parties, application.NewChatService(parties), streams)
-	h := host.New(host.Options{
-		Name:     "social",
-		Settings: cfg.Host(),
-		Logger:   log,
-		Registry: reg,
-		Panics:   rec,
-		Errors:   handler.Errors,
-	})
-	socialv1.RegisterSocialServiceServer(h.GRPC, srv)
+	socialv1.RegisterSocialServiceServer(h.GRPC, handler.New(parties, application.NewChatService(parties), streams))
 	return h, nil
 }
