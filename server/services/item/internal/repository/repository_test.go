@@ -193,6 +193,8 @@ func TestClassify(t *testing.T) {
 		{"quantity check", &pgconn.PgError{Code: "23514", ConstraintName: "items_quantity_check"}, model.ErrBadQuantity},
 		{"another module's constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, nil},
 		{"a serialization failure passes through for the retry", &pgconn.PgError{Code: "40001"}, nil},
+		{"a lock timeout", &pgconn.PgError{Code: "55P03"}, model.ErrTimedOut},
+		{"a statement timeout", &pgconn.PgError{Code: "57014"}, model.ErrTimedOut},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

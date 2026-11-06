@@ -9,7 +9,7 @@ import (
 	"finga/services/item/internal/model"
 )
 
-// Errors maps every module and request-parsing error to its gRPC code and contract reason.
+// Errors maps every module and request-parsing error to its gRPC code and contract reason, or none for a retry.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: itemv1.Reason_REASON_ITEM_NOT_FOUND},
 	{Err: model.ErrSlotTaken, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_SLOT_TAKEN},
@@ -25,4 +25,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrUnknownItem, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_ITEM},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ID},
 	{Err: kernel.ErrUnknownClass, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_CLASS},
+	{Err: model.ErrTimedOut, Code: codes.Unavailable},
 }

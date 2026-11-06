@@ -217,6 +217,8 @@ func TestClassify(t *testing.T) {
 		{"one active session index", constraint("one_active_session"), model.ErrSessionRace},
 		{"another constraint passes through", constraint("characters_name_key"), nil},
 		{"a serialization failure passes through for retries", pgCode("40001"), nil},
+		{"a lock timeout", pgCode("55P03"), model.ErrTimedOut},
+		{"a statement timeout", pgCode("57014"), model.ErrTimedOut},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

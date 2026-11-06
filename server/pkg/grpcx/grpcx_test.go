@@ -29,12 +29,14 @@ import (
 var (
 	errFull     = errors.New("shop: full")
 	errNotFound = errors.New("shop: not found")
+	errBusy     = errors.New("shop: the till timed out")
 	errSecret   = errors.New("database password is hunter2")
 )
 
 var table = grpcx.ErrorTable{
 	{Err: errFull, Code: codes.FailedPrecondition, Reason: testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND},
 	{Err: errNotFound, Code: codes.NotFound, Reason: testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_FALLBACK},
+	{Err: errBusy, Code: codes.Unavailable},
 }
 
 // shop is the test service: EmptyCall returns err, UnaryCall panics, StreamingOutputCall streams.
@@ -83,6 +85,7 @@ func TestErrorsKeepTheirReasonAcrossTheCall(t *testing.T) {
 		{"a sentinel", errFull, codes.FailedPrecondition, grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND), true},
 		{"another sentinel", errNotFound, codes.NotFound, grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_FALLBACK), true},
 		{"a wrapped sentinel", fmt.Errorf("buying: %w", fmt.Errorf("stock: %w", errFull)), codes.FailedPrecondition, grpcx.Key(testpb.GrpclbRouteType_GRPCLB_ROUTE_TYPE_BACKEND), true},
+		{"a sentinel with no reason", fmt.Errorf("buying: %w", errBusy), codes.Unavailable, grpcx.Reason{}, false},
 		{"an unknown error", errSecret, codes.Internal, grpcx.Reason{}, false},
 		{"a cancelled context", context.Canceled, codes.Canceled, grpcx.Reason{}, false},
 	}
@@ -104,6 +107,14 @@ func TestErrorsKeepTheirReasonAcrossTheCall(t *testing.T) {
 				t.Fatalf("the error's text crossed the call: %v", err)
 			}
 		})
+	}
+}
+
+// A row without a reason is a failure a retry may fix: explained, so it is no bug to log, and sent as its code alone.
+func TestARowWithoutAReasonSendsItsCodeAlone(t *testing.T) {
+	st, explained := table.Status(fmt.Errorf("buying: %w", errBusy))
+	if st.Code() != codes.Unavailable || len(st.Details()) != 0 || !explained || strings.Contains(st.Message(), "till") {
+		t.Fatalf("status %v with %d details, explained %v", st, len(st.Details()), explained)
 	}
 }
 

@@ -9,7 +9,7 @@ import (
 	"finga/services/character/internal/model"
 )
 
-// Errors maps every module and parsing error to its gRPC code and reason.
+// Errors maps every module and parsing error to its gRPC code and reason, or none for a retry.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: characterv1.Reason_REASON_CHARACTER_NOT_FOUND},
 	{Err: model.ErrNameTaken, Code: codes.AlreadyExists, Reason: characterv1.Reason_REASON_NAME_TAKEN},
@@ -17,4 +17,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrClassUnavailable, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_CLASS_UNAVAILABLE},
 	{Err: model.ErrSlotsFull, Code: codes.FailedPrecondition, Reason: characterv1.Reason_REASON_CHARACTER_SLOTS_FULL},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_ID},
+	{Err: model.ErrTimedOut, Code: codes.Unavailable},
 }

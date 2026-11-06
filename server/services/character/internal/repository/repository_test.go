@@ -183,6 +183,8 @@ func TestClassify(t *testing.T) {
 		{"name unique constraint", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, model.ErrNameTaken},
 		{"another constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "accounts_username_key"}, nil},
 		{"a deadlock passes through", &pgconn.PgError{Code: "40P01"}, nil},
+		{"a lock timeout", &pgconn.PgError{Code: "55P03"}, model.ErrTimedOut},
+		{"a statement timeout", &pgconn.PgError{Code: "57014"}, model.ErrTimedOut},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

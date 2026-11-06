@@ -6,11 +6,13 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/dbx"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
@@ -503,6 +505,38 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	}
 	if h.inventory(t)[0].Quantity != 2 {
 		t.Fatal("a rolled-back change changed the inventory")
+	}
+}
+
+// An inventory lock held past lock_timeout, through every rerun, is ErrTimedOut, which callers retry.
+func TestAnInventoryLockedPastTheTimeoutIsErrTimedOut(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 2, LockTimeout: 50 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	store := NewPostgres(pool, nil)
+	locked, release, done := make(chan struct{}), make(chan struct{}), make(chan error)
+	go func() {
+		done <- store.InTx(ctx, func(uow application.UnitOfWork) error {
+			if _, err := uow.Items().LockInventory(ctx, h.actor.Character); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+	_, err = application.NewService(store, h.data).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
+	close(release)
+	if !errors.Is(err, model.ErrTimedOut) {
+		t.Fatalf("err = %v, want ErrTimedOut", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

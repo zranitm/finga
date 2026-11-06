@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"path/filepath"
 	"testing"
@@ -185,10 +186,14 @@ func TestAMalformedIDNeverReachesTheModule(t *testing.T) {
 
 func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 	for _, row := range handler.Errors {
-		t.Run(grpcx.Key(row.Reason).Name, func(t *testing.T) {
+		t.Run(row.Err.Error(), func(t *testing.T) {
 			c := client(t, &fakeCharacters{err: row.Err})
 			_, err := c.Load(context.Background(), &characterv1.LoadRequest{CharacterId: ayla.ID.String(), AccountId: owner.String()})
-			if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(row.Reason) || status.Code(err) != row.Code {
+			want := grpcx.Reason{}
+			if row.Reason != nil {
+				want = grpcx.Key(row.Reason)
+			}
+			if r, ok := grpcx.ReasonOf(err); ok != (row.Reason != nil) || r != want || status.Code(err) != row.Code {
 				t.Fatalf("got %v", err)
 			}
 		})
@@ -200,6 +205,15 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+}
+
+// A store that timed out answers Unavailable with no reason: a caller retries what carries no rule.
+func TestATimeoutAsksTheCallerToRetry(t *testing.T) {
+	c := client(t, &fakeCharacters{err: fmt.Errorf("list: %w", model.ErrTimedOut)})
+	_, err := c.List(context.Background(), &characterv1.ListRequest{AccountId: owner.String()})
+	if status.Code(err) != codes.Unavailable || grpcx.IsRule(err) {
+		t.Fatalf("got %v, want Unavailable without a reason", err)
+	}
 }
 
 func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
@@ -218,7 +232,9 @@ func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 	}
 	used := map[grpcx.Reason]bool{}
 	for _, row := range handler.Errors {
-		used[grpcx.Key(row.Reason)] = true
+		if row.Reason != nil {
+			used[grpcx.Key(row.Reason)] = true
+		}
 	}
 	for _, r := range grpctest.Reasons(characterv1.Reason(0).Descriptor()) {
 		if !used[r] {

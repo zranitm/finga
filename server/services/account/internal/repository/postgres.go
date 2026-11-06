@@ -157,7 +157,7 @@ const (
 	constraintActiveSession = "one_active_session"
 )
 
-// classify maps constraint errors to the model's; others pass through so retries still see 40001.
+// classify maps constraint errors and timeouts to the model's; others pass through so retries still see 40001.
 func classify(err error) error {
 	var pgErr *pgconn.PgError
 	switch {
@@ -165,6 +165,8 @@ func classify(err error) error {
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%w: %w", model.ErrNotFound, err)
+	case dbx.TimedOut(err):
+		return fmt.Errorf("%w: %w", model.ErrTimedOut, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintUsername:
 		return fmt.Errorf("%w: %w", model.ErrUsernameTaken, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintActiveSession:

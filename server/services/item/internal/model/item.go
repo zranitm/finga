@@ -26,6 +26,8 @@ var (
 	ErrBadSlot       = errors.New("item: slot outside the tab")
 	ErrWrongTab      = errors.New("item: item moved to another tab")
 	ErrUnknownItem   = errors.New("item: unknown item template")
+	// ErrTimedOut is a lock or statement the database gave up on; it carries no reason, so callers retry.
+	ErrTimedOut = errors.New("item: storage timed out")
 )
 
 // SlotsPerTab is the inventory size of each tab.

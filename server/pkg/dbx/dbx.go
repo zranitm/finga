@@ -30,7 +30,11 @@ type Beginner interface {
 const (
 	codeSerializationFailure = "40001"
 	codeDeadlockDetected     = "40P01"
+	codeLockNotAvailable     = "55P03" // a lock wait past lock_timeout
 )
+
+// codeQueryCanceled is a statement past statement_timeout; a rerun would likely run as long.
+const codeQueryCanceled = "57014"
 
 const (
 	maxAttempts = 3
@@ -78,8 +82,7 @@ type txOptions struct{ obs Observer }
 // Observed tells obs about the transaction once it is done, whatever its outcome.
 func Observed(obs Observer) TxOption { return func(o *txOptions) { o.obs = obs } }
 
-// InTx runs fn in a READ COMMITTED transaction and reruns it on deadlock or serialization failure,
-// so fn must have no side effects outside the transaction.
+// InTx runs fn in a READ COMMITTED transaction, rerun on deadlock, serialization failure or lock timeout, so fn must have no outside effects.
 func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...TxOption) error {
 	var o txOptions
 	for _, opt := range opts {
@@ -136,5 +139,11 @@ func retryable(err error) bool {
 	if !errors.As(err, &pgErr) {
 		return false
 	}
-	return pgErr.Code == codeSerializationFailure || pgErr.Code == codeDeadlockDetected
+	return pgErr.Code == codeSerializationFailure || pgErr.Code == codeDeadlockDetected || pgErr.Code == codeLockNotAvailable
+}
+
+// TimedOut reports whether err is a lock wait or a statement past its timeout: the database was busy, not wrong, so a later try may pass.
+func TimedOut(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && (pgErr.Code == codeLockNotAvailable || pgErr.Code == codeQueryCanceled)
 }

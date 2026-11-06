@@ -119,6 +119,43 @@ func TestInTxAgainstPostgres(t *testing.T) {
 	})
 }
 
+// A lock held past lock_timeout is contention, not a fault: the transaction runs again and gets it.
+func TestInTxRerunsALockTimeout(t *testing.T) {
+	ctx := context.Background()
+	pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 2, LockTimeout: 100 * time.Millisecond})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if _, err := pool.Exec(ctx, `CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL); INSERT INTO t VALUES (1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	holder, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = holder.Rollback(ctx) }()
+	if _, err := holder.Exec(ctx, `SELECT * FROM t WHERE id = 1 FOR UPDATE`); err != nil {
+		t.Fatal(err)
+	}
+	var codes []string
+	err = dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE t SET n = n + 1 WHERE id = 1`)
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+			codes = append(codes, pgErr.Code)
+			_ = holder.Rollback(ctx) // the holder lets go once the first run has timed out
+		}
+		return err
+	})
+	if err != nil || len(codes) != 1 || codes[0] != "55P03" {
+		t.Fatalf("err %v after failed runs %v, want one lock timeout, then success", err, codes)
+	}
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT n FROM t WHERE id = 1`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("n = %d (%v), want the update applied once", n, err)
+	}
+}
+
 func TestNewPool(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

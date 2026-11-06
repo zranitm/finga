@@ -3,6 +3,7 @@ package dbx_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -140,6 +141,8 @@ func TestInTxRetries(t *testing.T) {
 	}{
 		{"serialization failure once, then success", []error{pgErr("40001")}, nil, 2, ""},
 		{"deadlock twice, then success", []error{pgErr("40P01"), pgErr("40P01")}, nil, 3, ""},
+		{"a lock timeout once, then success", []error{pgErr("55P03")}, nil, 2, ""},
+		{"a statement timeout is not retried", []error{pgErr("57014")}, nil, 1, "57014"},
 		{"three failures exhaust the limit", []error{pgErr("40001"), pgErr("40001"), pgErr("40001")}, nil, 3, "40001"},
 		{"a retryable commit error is retried", nil, []error{pgErr("40001")}, 2, ""},
 		{"a unique violation is not retried", []error{pgErr("23505")}, nil, 1, "23505"},
@@ -184,6 +187,29 @@ func TestInTxRetries(t *testing.T) {
 				if !last && !tx.rolledBack && tx.commitErr == nil {
 					t.Fatalf("attempt %d neither rolled back nor failed at commit", i+1)
 				}
+			}
+		})
+	}
+}
+
+func TestTimedOut(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"a lock wait past lock_timeout", pgErr("55P03"), true},
+		{"a statement past statement_timeout", pgErr("57014"), true},
+		{"one wrapped", fmt.Errorf("idempotency: lock: %w", pgErr("55P03")), true},
+		{"a deadlock", pgErr("40P01"), false},
+		{"a unique violation", pgErr("23505"), false},
+		{"a plain error", errBoom, false},
+		{"nil", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dbx.TimedOut(tt.err); got != tt.want {
+				t.Fatalf("TimedOut(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
 	}

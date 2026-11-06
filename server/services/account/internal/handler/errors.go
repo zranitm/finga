@@ -9,7 +9,7 @@ import (
 	"finga/services/account/internal/model"
 )
 
-// Errors maps every module and parsing error to its gRPC code and contract reason.
+// Errors maps every module and parsing error to its gRPC code and contract reason, or none for a retry.
 var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotFound, Code: codes.NotFound, Reason: accountv1.Reason_REASON_ACCOUNT_NOT_FOUND},
 	{Err: model.ErrUsernameTaken, Code: codes.AlreadyExists, Reason: accountv1.Reason_REASON_USERNAME_TAKEN},
@@ -21,4 +21,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_ID},
 	{Err: model.ErrBusy, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_BUSY},
+	{Err: model.ErrTimedOut, Code: codes.Unavailable},
 }

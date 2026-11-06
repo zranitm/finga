@@ -145,6 +145,8 @@ func classify(err error) error {
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%w: %w", model.ErrNotFound, err)
+	case dbx.TimedOut(err):
+		return fmt.Errorf("%w: %w", model.ErrTimedOut, err)
 	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintName:
 		return fmt.Errorf("%w: %w", model.ErrNameTaken, err)
 	default:

@@ -116,7 +116,7 @@ func NewDBMetrics(reg prometheus.Registerer) (*DBMetrics, error) {
 			Name: "db_tx_duration_seconds", Help: "Database transaction time by operation, retries included.", Buckets: txBuckets,
 		}, []string{"operation"}),
 		retries: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock or serialization failure.",
+			Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout.",
 		}, []string{"operation"}),
 	}
 	return m, register(reg, m.duration, m.retries)

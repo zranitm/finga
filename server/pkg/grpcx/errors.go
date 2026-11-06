@@ -33,8 +33,9 @@ func Key(e protoreflect.Enum) Reason {
 
 // ErrorRow maps one sentinel error to a gRPC code and a reason.
 type ErrorRow struct {
-	Err    error
-	Code   codes.Code
+	Err  error
+	Code codes.Code
+	// Reason is nil for a failure a retry may fix: the code goes alone, and a caller retries what carries no reason.
 	Reason protoreflect.Enum
 }
 
@@ -51,7 +52,11 @@ func (t ErrorTable) Status(err error) (*status.Status, bool) {
 		return status.New(codes.OK, ""), true
 	}
 	for _, row := range t {
-		if errors.Is(err, row.Err) {
+		switch {
+		case !errors.Is(err, row.Err):
+		case row.Reason == nil:
+			return status.New(row.Code, row.Code.String()), true
+		default:
 			return withReason(row.Code, Key(row.Reason)), true
 		}
 	}
