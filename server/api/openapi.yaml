@@ -105,7 +105,7 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
     put:
       summary: Save settings
-      description: The control preset must be classic or wasd (B6).
+      description: The control preset must be classic or wasd.
       security: [{ bearer: [] }]
       requestBody:
         required: true

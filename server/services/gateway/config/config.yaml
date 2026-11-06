@@ -1,5 +1,4 @@
-# Committed defaults, nothing secret. Override a key as FINGA_<KEY_PATH> (FINGA_HTTP_ADDR);
-# CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
+# Committed defaults, nothing secret: FINGA_<KEY_PATH> (FINGA_HTTP_ADDR) overrides a key, and CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 
 http:
   addr: ":8080"

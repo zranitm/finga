@@ -1,6 +1,4 @@
-# Mob types: stats, patrol behavior, and drop tables where each
-# entry rolls independently. Four mobs for the two hunting maps: the forest
-# (levels 1 to 10) and the cave (10 to 20).
+# Mob types, with stats, patrol behavior and drop tables whose entries roll independently: four mobs for the forest (levels 1 to 10) and the cave (10 to 20).
 mobs:
   - id: green_slime
     name: Green Slime

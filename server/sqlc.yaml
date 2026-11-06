@@ -1,5 +1,4 @@
-# One entry per service with tables; queries generate into the repository's internal/db package.
-# Each schema is only that service's migrations, so a query cannot read another service's tables.
+# One entry per service with tables, generating into its repository's internal/db; each schema is only that service's migrations, so a query cannot read another's tables.
 version: "2"
 sql:
   - engine: postgresql

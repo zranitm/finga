@@ -1,6 +1,5 @@
 -- +goose Up
--- The service stamps created_at and updated_at from its own clock; with no default or trigger left,
--- a write that leaves one out fails on NOT NULL.
+-- The service stamps created_at and updated_at from its own clock: with no default or trigger left, a write that leaves one out fails on NOT NULL.
 DROP TRIGGER set_updated_at ON accounts;
 DROP TRIGGER set_updated_at ON sessions;
 ALTER TABLE accounts ALTER COLUMN created_at DROP DEFAULT, ALTER COLUMN updated_at DROP DEFAULT;

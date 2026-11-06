@@ -1,6 +1,5 @@
 -- +goose Up
--- One row per character given its starter kit, kept as long as the character: GrantStarter runs on every
--- join, so the kit's uniqueness cannot rest on an idempotency key a cleanup may delete.
+-- One row per character given its starter kit, kept for good: GrantStarter runs on every join, so it cannot rest on an idempotency key a cleanup deletes.
 CREATE TABLE starter_grants (
   character_id uuid PRIMARY KEY,
   granted_at   timestamptz NOT NULL

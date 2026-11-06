@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
-# One Dockerfile for every binary, from server/: docker build --build-arg SERVICE=item .
-# The image holds only that binary's config file, at its server/ path: the binary runs from /app as from server/.
+# One Dockerfile for every binary, from server/ (docker build --build-arg SERVICE=item .); the image holds only its config file, at its server/ path, and runs from /app as from server/.
 FROM golang:1.27-alpine AS build
 WORKDIR /src
 COPY go.mod go.sum ./

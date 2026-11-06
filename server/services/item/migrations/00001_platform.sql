@@ -1,7 +1,5 @@
 -- +goose Up
--- The transactional outbox (pkg/outbox) and the idempotency keys
--- (pkg/idempotency), in the shape those packages write.
--- Only the item module uses them, so the item service owns them.
+-- The outbox (pkg/outbox) and idempotency keys (pkg/idempotency), in the shape those packages write, owned by the item service, their only user.
 CREATE TABLE outbox (
   id           bigserial PRIMARY KEY,
   event_id     uuid NOT NULL UNIQUE,

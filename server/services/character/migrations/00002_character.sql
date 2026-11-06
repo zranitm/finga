@@ -1,6 +1,5 @@
 -- +goose Up
--- The character module's table. account_id has no
--- foreign key: modules refer to each other by ID only.
+-- The character module's table; account_id has no foreign key, as modules refer to each other by ID only.
 CREATE TABLE characters (
   id             uuid PRIMARY KEY,
   account_id     uuid NOT NULL,

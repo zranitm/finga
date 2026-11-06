@@ -133,8 +133,7 @@ ORDER BY id
 FOR UPDATE
 `
 
-// Every inventory row of the owner, locked in ID order so concurrent
-// actions on one inventory never deadlock.
+// Every inventory row of the owner, locked in ID order so concurrent actions on one inventory never deadlock.
 func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item, error) {
 	rows, err := q.db.Query(ctx, lockInventory, ownerID)
 	if err != nil {

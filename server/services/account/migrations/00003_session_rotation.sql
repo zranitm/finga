@@ -1,8 +1,5 @@
 -- +goose Up
--- Session rotation and reuse detection.
--- previous_token_hash is the token retired by the last rotation; rotated_at
--- is when, and it is cleared once the previous token has been used, so a
--- second use (or a use after the grace) is reuse.
+-- Session rotation: previous_token_hash is the token the last rotation retired and rotated_at when, cleared once it is used, so a second use or one past the grace is reuse.
 ALTER TABLE sessions
   ADD COLUMN previous_token_hash bytea,
   ADD COLUMN rotated_at timestamptz;

@@ -1,5 +1,4 @@
-# make up / make down. Host ports come from .env here (see .env.example); ../server/.env holds
-# the binaries' overrides, and the environment entries below win over it.
+# make up / make down: host ports come from .env here (see .env.example), the binaries' overrides from ../server/.env, and the environment entries below win over it.
 name: finga
 
 include:

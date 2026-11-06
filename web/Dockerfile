@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
-# Needs the gamedata, proto and edge contexts, which Compose supplies; on its own:
-#   docker build --build-context gamedata=../server/data --build-context proto=../server/api/proto --build-context edge=../infra/nginx .
+# Needs the gamedata, proto and edge build contexts, which Compose supplies: docker build --build-context gamedata=../server/data --build-context proto=../server/api/proto --build-context edge=../infra/nginx .
 FROM node:24-alpine AS build
 WORKDIR /src/web
 COPY package.json package-lock.json ./

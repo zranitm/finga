@@ -1,5 +1,4 @@
-# Committed defaults, nothing secret. Override a key as FINGA_<KEY_PATH> (FINGA_DATABASE_URL);
-# CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
+# Committed defaults, nothing secret: FINGA_<KEY_PATH> (FINGA_DATABASE_URL) overrides a key, and CONFIG_PATH or a git-ignored config.local.yaml beside this file replaces it.
 
 grpc:
   listen: ":9002"

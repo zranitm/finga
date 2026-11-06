@@ -1,5 +1,4 @@
-# The output in api/gen is committed; clean empties it first, so a removed contract leaves no stale code.
-# The generators are Go tools pinned in go.mod, so a laptop and CI produce the same bytes.
+# api/gen is committed, emptied first so a removed contract leaves no stale code, by generators pinned in go.mod so a laptop and CI produce the same bytes.
 version: v2
 clean: true
 plugins:

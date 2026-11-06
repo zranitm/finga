@@ -1,6 +1,4 @@
-# Item templates. tab is also the inventory tab: equip never
-# stacks; use and etc stack to 100. Equipment may need a class and a
-# minimum level (OD-19 default). No rarity (OD-14).
+# Item templates: tab is also the inventory tab (equip never stacks, use and etc stack to 100), and equipment may need a class and a minimum level.
 items:
   # equip
   - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, attack: 10}

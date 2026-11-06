@@ -1,8 +1,4 @@
-# Derived stats per class (OD-18 caps):
-#   derived = base + Σ coef × stat + per_level × (level − 1) + equipment
-#   rates (crit_rate, penetration) = min(derived, cap)
-# attack_power and defense get the weapon's attack and the armor's defense
-# on top. Rates are fractions: 0.05 is 5%.
+# Derived stats per class, base + Σ coef × stat + per_level × (level − 1) + equipment (the weapon's attack, the armor's defense), with rates as fractions (0.05 is 5%) kept under cap.
 warrior:
   max_hp:       {base: 60, per_level: 18, coef: {vit: 12, str: 2}}
   max_mp:       {base: 20, per_level: 4, coef: {int: 2}}
