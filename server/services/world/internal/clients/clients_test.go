@@ -181,3 +181,14 @@ func TestSavesRetryOnlyTransientFailures(t *testing.T) {
 		t.Fatal("a failure no retry can pass is retried")
 	}
 }
+
+// A key that already served another fingerprint means an earlier try granted the drop.
+func TestPickupsKnowAGrantByItsReusedKey(t *testing.T) {
+	p := clients.NewPickups(nil)
+	if !p.Granted(grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED)) {
+		t.Fatal("a reused key is not a grant")
+	}
+	if p.Granted(grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL)) || p.Granted(status.Error(codes.Unavailable, "down")) {
+		t.Fatal("another failure counts as a grant")
+	}
+}

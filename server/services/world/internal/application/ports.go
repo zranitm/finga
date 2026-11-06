@@ -59,4 +59,6 @@ type Pickups interface {
 	Add(ctx context.Context, p model.Pickup) ([]model.Slot, error)
 	// Retryable reports whether a failed Add is transient (a full inventory is not).
 	Retryable(err error) bool
+	// Granted reports whether a failed Add means an earlier try, whose reply was lost, granted the drop.
+	Granted(err error) bool
 }

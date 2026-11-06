@@ -128,6 +128,9 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
 		}
 	}
+	if err != nil && i.deps.Items.Granted(err) {
+		slots, err = nil, nil // granted, though the slots it changed went with the lost reply
+	}
 	select {
 	case i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, sink: job.sink, slots: slots, err: err}:
 	case <-ctx.Done(): // the map stopped first; its inbox may never drain
@@ -178,7 +181,9 @@ func (i *Instance) finishPickup(r *pickupResult) {
 		i.drops = removeDrop(i.drops, d.id)
 		i.removedDrops = append(i.removedDrops, d.id)
 	}
-	tell(model.InventoryChanged{Tick: i.tick, Slots: r.slots})
+	if len(r.slots) > 0 {
+		tell(model.InventoryChanged{Tick: i.tick, Slots: r.slots})
+	}
 }
 
 func removeDrop(drops []*drop, id uint64) []*drop {

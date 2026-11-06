@@ -67,6 +67,7 @@ func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, 
 }
 func (idle) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, nil }
 func (idle) Retryable(error) bool                                    { return false }
+func (idle) Granted(error) bool                                      { return false }
 func (idle) ObserveTick(string, time.Duration, time.Duration)        {}
 func (idle) JobStarted()                                             {}
 func (idle) JobFinished()                                            {}

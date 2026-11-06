@@ -49,6 +49,12 @@ func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error)
 // Retryable is a failure without a reason; a rule never passes on retry.
 func (Pickups) Retryable(err error) bool { return !grpcx.IsRule(err) }
 
+// Granted is a reused key: an earlier try, under another fingerprint, already granted the drop.
+func (Pickups) Granted(err error) bool {
+	r, ok := grpcx.ReasonOf(err)
+	return ok && r == grpcx.Key(itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED)
+}
+
 // Saver is the world's Saver over the character service.
 type Saver struct {
 	c characterv1.CharacterServiceClient

@@ -19,8 +19,9 @@ import (
 
 // errFull is a rule, so the world never retries it; errDown is not.
 var (
-	errFull = errors.New("inventory full")
-	errDown = errors.New("item service unavailable")
+	errFull   = errors.New("inventory full")
+	errDown   = errors.New("item service unavailable")
+	errReused = errors.New("key reused") // an earlier try granted the drop under another fingerprint
 )
 
 // fakePickups is idempotent by drop, with an optional failure on each drop's first call.
@@ -82,7 +83,11 @@ func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, e
 	return slots, nil
 }
 
-func (f *fakePickups) Retryable(err error) bool { return !errors.Is(err, errFull) }
+func (f *fakePickups) Retryable(err error) bool {
+	return !errors.Is(err, errFull) && !errors.Is(err, errReused)
+}
+
+func (f *fakePickups) Granted(err error) bool { return errors.Is(err, errReused) }
 
 func (f *fakePickups) items() int {
 	f.mu.Lock()
@@ -611,6 +616,34 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 		case <-workersDone:
 		default:
 			t.Fatal("the workers are stuck posting a pickup result to a stopped map")
+		}
+	})
+}
+
+// A pickup refused because its key already served another fingerprint was granted by an earlier try whose
+// reply was lost: the drop is gone, never released to someone else.
+func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		items := newFakePickups()
+		items.failFirst = errReused
+		inst, stop := runLootArena(t, data, items, 0.3)
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(250)
+		s := join(t, inst, p)
+		killSlime(t, inst, p.ID)
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
+		_ = inst.Input(p.ID, seq+1, sim.Input{})
+		_ = inst.PickUp(p.ID)
+		time.Sleep(3 * tickInterval)
+		synctest.Wait()
+		if items.callCount() != 1 {
+			t.Fatalf("%d calls; a granted drop is not tried again", items.callCount())
+		}
+		if len(dropsIn(s)) != 0 || len(pickupFailures(s)) != 0 || len(inventoryChanges(s)) != 0 {
+			t.Fatalf("drops %d, failures %d, changes %d; want the drop gone and nothing to say", len(dropsIn(s)), len(pickupFailures(s)), len(inventoryChanges(s)))
 		}
 	})
 }
