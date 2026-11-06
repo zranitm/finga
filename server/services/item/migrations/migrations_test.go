@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/pkg/idempotency/idempotencypg"
-	"finga/pkg/outbox/outboxpg"
+	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
+	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 	"finga/services/item/migrations"
@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// The outbox and idempotency tables here must match those packages' own Schema.
+// The outbox and idempotency tables here must match the Schema their test support holds.
 func TestTheLibraryTablesMatchTheirSchemas(t *testing.T) {
 	ctx := context.Background()
 	migrated := cluster.DB(t)
@@ -42,7 +42,7 @@ func TestTheLibraryTablesMatchTheirSchemas(t *testing.T) {
 		t.Fatal(err)
 	}
 	reference := cluster.DB(t)
-	for _, ddl := range []string{outboxpg.Schema, idempotencypg.Schema} {
+	for _, ddl := range []string{outboxpgtest.Schema, idempotencypgtest.Schema} {
 		if _, err := reference.Exec(ctx, ddl); err != nil {
 			t.Fatal(err)
 		}

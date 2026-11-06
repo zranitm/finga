@@ -57,6 +57,10 @@ linters:
               desc: test support; only tests import it
             - pkg: finga/services/item/itemtest
               desc: test support; only tests import it
+            - pkg: finga/pkg/outbox/outboxpg/outboxpgtest
+              desc: test support; only tests import it
+            - pkg: finga/pkg/idempotency/idempotencypg/idempotencypgtest
+              desc: test support; only tests import it
         # The shared kernel: code several services run, below every service and never sent between them.
         kernel:
           files: ["**/internal/kernel/**", "**/internal/gamedata/**", "**/internal/sim/**", "**/internal/progression/**"]

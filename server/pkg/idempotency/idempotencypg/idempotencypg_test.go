@@ -16,6 +16,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
 	"finga/pkg/idempotency/idempotencypg"
+	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
 	"finga/pkg/pgtest"
 )
 
@@ -25,7 +26,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
 	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
-		_, err := pool.Exec(ctx, idempotencypg.Schema)
+		_, err := pool.Exec(ctx, idempotencypgtest.Schema)
 		return err
 	})
 	if err != nil {

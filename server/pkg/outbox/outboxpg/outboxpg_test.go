@@ -14,6 +14,7 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/outbox"
 	"finga/pkg/outbox/outboxpg"
+	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 )
@@ -24,7 +25,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
 	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
-		_, err := pool.Exec(ctx, outboxpg.Schema)
+		_, err := pool.Exec(ctx, outboxpgtest.Schema)
 		return err
 	})
 	if err != nil {
