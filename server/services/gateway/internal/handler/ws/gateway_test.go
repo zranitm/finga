@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -821,6 +822,60 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 			}
 		}
 	})
+}
+
+// panicsOnceJoining is a world client whose first Join panics inside the gateway, during a Hello's join.
+type panicsOnceJoining struct {
+	worldv1.WorldServiceClient
+	done *atomic.Bool
+}
+
+func (c panicsOnceJoining) Join(ctx context.Context, req *worldv1.JoinRequest, opts ...grpc.CallOption) (*worldv1.JoinResponse, error) {
+	if c.done.CompareAndSwap(false, true) {
+		panic("nil map in the gateway")
+	}
+	return c.WorldServiceClient.Join(ctx, req, opts...)
+}
+
+// panicsOnceListing is an item client whose first Inventory panics inside the gateway, after a Hello's world join.
+type panicsOnceListing struct {
+	itemv1.ItemServiceClient
+	done *atomic.Bool
+}
+
+func (c panicsOnceListing) Inventory(ctx context.Context, req *itemv1.InventoryRequest, opts ...grpc.CallOption) (*itemv1.InventoryResponse, error) {
+	if c.done.CompareAndSwap(false, true) {
+		panic("nil map in the gateway")
+	}
+	return c.ItemServiceClient.Inventory(ctx, req, opts...)
+}
+
+// A Hello that panics closes its connection as internal and leaves its character free for the next Hello.
+func TestAPanickingHelloClosesAndFreesItsCharacter(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		wrap func(t *testing.T, d *deps)
+	}{
+		{"in its world join", func(_ *testing.T, d *deps) { d.World = panicsOnceJoining{d.World, &atomic.Bool{}} }},
+		{"after its world join", func(t *testing.T, d *deps) {
+			d.Items = panicsOnceListing{(&fakeItems{}).client(t), &atomic.Bool{}}
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t, func(d *deps) { tt.wrap(t, d) })
+				first := h.dial(t)
+				first.hello(tokenAlice, aylaID)
+				if m, status := first.read(); status != websocket.StatusInternalError {
+					t.Fatalf("got %+v, status %d; want the connection closed as internal", m, status)
+				}
+				second := h.dial(t)
+				second.hello(tokenAlice, aylaID)
+				second.expect("Welcome")
+				second.expect("Snapshot")
+			})
+		})
+	}
 }
 
 // Each message gets a request ID of its own, which the world's calls and log lines carry.

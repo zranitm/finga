@@ -102,9 +102,13 @@ func (h *Handler) logged(c *msgContext) {
 	}
 }
 
-// panicked answers a message whose chain panicked with internal; the connection stays open.
+// panicked answers internal and keeps the connection open, but closes it on a Hello, which nothing will answer now.
 func (h *Handler) panicked(c *msgContext, e *panics.Error) {
 	h.opts.Panics.Record(c.Ctx, panics.FlowWS, e, "conn", c.Session.out.ID(), "type", c.Message.Type, "req_id", c.Message.ReqID)
+	if _, isHello := c.Message.Data.(*clientv1.Hello); isHello {
+		c.Session.out.Close(wsconn.CloseInternal, "hello")
+		return
+	}
 	replyError(c, model.Internal)
 }
 

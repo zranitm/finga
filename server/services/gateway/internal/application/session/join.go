@@ -25,8 +25,7 @@ const (
 	rejoinsAtOnce = 32
 )
 
-// Join is a Hello's join in progress: the session holds the character and its deliveries wait,
-// until Finish or Cancel.
+// Join is a Hello's join in progress: the session holds the character and its deliveries wait until Finish or Release.
 type Join struct {
 	Joined model.Joined
 
@@ -35,6 +34,7 @@ type Join struct {
 	previous *Session // the character's session before this one
 	subs     uint64   // the world subscriptions when the join began
 	unlock   func()   // lets the character's next join go
+	done     bool     // Finish or Release ran
 }
 
 // Join joins character to the world through s's connection, retrying while the world cannot take it
@@ -45,6 +45,12 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	if err != nil {
 		return nil, err
 	}
+	claimed := false
+	defer func() {
+		if !claimed {
+			unlock() // the join failed or panicked
+		}
+	}()
 	s.out.hold()
 	r.mu.Lock()
 	s.id.Store(&identity{account: account, sessionID: sessionID, character: model.Player{ID: character}})
@@ -59,7 +65,6 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 		s.id.Store(nil)
 		older := r.byCharacter[character]
 		r.mu.Unlock()
-		unlock()
 		if ctx.Err() != nil && older != nil && older != s {
 			older.End(model.EndLoggedInElsewhere) // the world may have joined us anyway, taking the character from it
 		}
@@ -70,6 +75,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 	previous := r.byCharacter[character]
 	r.byCharacter[character] = s
 	r.mu.Unlock()
+	claimed = true
 	return &Join{Joined: joined, r: r, s: s, previous: previous, subs: subs, unlock: unlock}, nil
 }
 
@@ -78,6 +84,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 // world's stream broke during the join, s rejoins.
 func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*Session) {
 	r, s := j.r, j.s
+	j.done = true
 	defer j.unlock()
 	r.mu.Lock()
 	who := s.who()
@@ -101,9 +108,12 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 	return replaced
 }
 
-// Cancel gives up a join whose Hello failed after the world joined; the handler then closes the connection.
-// The character's older connection lost its presence to this join, so it ends too.
-func (j *Join) Cancel() {
+// Release gives up the join unless Finish ran, and ends the older connection, whose presence it took; calling it again does nothing.
+func (j *Join) Release() {
+	if j.done {
+		return
+	}
+	j.done = true
 	j.unlock()
 	if j.previous != nil && j.previous != j.s {
 		j.previous.End(model.EndLoggedInElsewhere)

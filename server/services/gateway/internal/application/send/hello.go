@@ -38,12 +38,12 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		g.deps.Logger.ErrorContext(ctx, "join failed", "character_id", charID, "err", err)
 		return fmt.Errorf("join: %w", err)
 	}
+	defer join.Release() // a failure or a panic before Finish gives the join up
 	c := join.Joined.Character
 	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now(), TickRateHz: join.Joined.TickRateHz}
 	if g.deps.Items != nil {
 		items, err := g.deps.Items.Inventory(ctx, charID)
 		if err != nil {
-			join.Cancel()
 			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
 			return fmt.Errorf("inventory: %w", err)
 		}
@@ -61,7 +61,6 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 	// once more for a minute, and Welcome's from now on.
 	welcome.Token, err = g.rotate(ctx, p.SessionID)
 	if err != nil {
-		join.Cancel()
 		if model.PublicOf(err) == model.Unauthenticated {
 			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
 		}
