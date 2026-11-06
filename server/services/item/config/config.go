@@ -24,7 +24,7 @@ type Config struct {
 
 // IdempotencyKeys is how long a command's key replays its first answer, and how older keys are deleted.
 type IdempotencyKeys struct {
-	Keep       time.Duration `mapstructure:"keep" validate:"gt=0"`         // a retry after it runs the command again
+	Keep       time.Duration `mapstructure:"keep" validate:"min=1h"`       // a retry after it runs the command again, so never under an hour
 	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older keys are deleted
 	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // keys per DELETE
 }

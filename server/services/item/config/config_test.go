@@ -58,3 +58,15 @@ func TestTheDatabaseMustBePostgres(t *testing.T) {
 		t.Fatalf("err %v", err)
 	}
 }
+
+// A key kept for less than an hour could expire inside a caller's retries, running the command twice.
+func TestAKeysRetentionIsAtLeastAnHour(t *testing.T) {
+	for keep, valid := range map[string]bool{"1m": false, "59m": false, "1h": true, "24h": true} {
+		t.Run(keep, func(t *testing.T) {
+			t.Setenv("FINGA_IDEMPOTENCY_KEYS_KEEP", keep)
+			if _, err := load(); (err == nil) != valid {
+				t.Fatalf("keep %s: %v", keep, err)
+			}
+		})
+	}
+}
