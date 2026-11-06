@@ -13,6 +13,7 @@ import (
 	"finga/cmd/migrate/app"
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
+	"finga/pkg/uuidv7"
 )
 
 var cluster *pgtest.Cluster
@@ -91,6 +92,70 @@ func TestALegacyDatabaseIsRefused(t *testing.T) {
 			t.Fatalf("%s was created although the database was refused", s.Table)
 		}
 	}
+}
+
+// An ID minted before every ID was a UUIDv7 fails each strict parse, which would lock its player out.
+func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
+	const v4 = "6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7"
+	ctx := context.Background()
+	refused := func(t *testing.T, err error, column string) {
+		t.Helper()
+		if !errors.Is(err, app.ErrNotV7) || !strings.Contains(err.Error(), column+" holds "+v4) || !strings.Contains(err.Error(), "make down") {
+			t.Fatalf("err = %v, want ErrNotV7 naming %s, its ID and make down", err, column)
+		}
+	}
+
+	t.Run("before any migration runs", func(t *testing.T) {
+		pool := cluster.DB(t)
+		account := find(t, "account")
+		if err := pgtest.MigrationsBefore(account.FS, account.Table, "00004_timestamps.sql")(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, username, password_hash, created_at) VALUES ($1, 'alice', 'x', now())`, v4); err != nil {
+			t.Fatal(err)
+		}
+		_, err := app.Apply(ctx, pool)
+		refused(t, err, "accounts.id")
+		var version int64
+		if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM `+account.Table).Scan(&version); err != nil || version != 3 {
+			t.Fatalf("account version %d (%v), want 3: nothing applied", version, err)
+		}
+		if exists(t, pool, find(t, "character").Table) {
+			t.Fatal("the character set ran although the database was refused")
+		}
+	})
+
+	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, hp, mp, map_id, pos_x, pos_y)
+		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 12, 5, 4, 5, 10, 204, 28, 'town', 416, 608)`
+	const item = `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity) VALUES ($1, 'red_potion', $2, 'inventory', 'use', 0, 1)`
+	for _, tt := range []struct{ column, insert string }{{"characters.account_id", character}, {"items.id", item}} {
+		t.Run("in "+tt.column, func(t *testing.T) {
+			pool := cluster.DB(t)
+			if _, err := app.Apply(ctx, pool); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, tt.insert, v4, uuidv7.New()); err != nil {
+				t.Fatal(err)
+			}
+			_, err := app.Apply(ctx, pool)
+			refused(t, err, tt.column)
+		})
+	}
+
+	t.Run("a database of UUIDv7 IDs migrates", func(t *testing.T) {
+		pool := cluster.DB(t)
+		if _, err := app.Apply(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+		for _, insert := range []string{character, item} {
+			if _, err := pool.Exec(ctx, insert, uuidv7.New(), uuidv7.New()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := app.Apply(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
