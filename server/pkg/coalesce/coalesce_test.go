@@ -3,6 +3,7 @@ package coalesce_test
 import (
 	"sync"
 	"testing"
+	"testing/synctest"
 
 	"finga/pkg/coalesce"
 )
@@ -133,6 +134,45 @@ func TestReadyIsSignalledWhenThereIsSomethingToTake(t *testing.T) {
 	if !ready() {
 		t.Fatal("a retry is not signalled")
 	}
+}
+
+// Puts landing while consumers sit between an empty Take and Ready wake all of them: each taker passes the signal on.
+func TestABurstWakesEveryWaitingConsumer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		q := newQueue()
+		var mu sync.Mutex
+		var took []save
+		gap, hold := make(chan struct{}), make(chan struct{})
+		defer close(hold)
+		for range 3 {
+			go func() {
+				if _, ok := q.Take(); ok {
+					t.Error("took from an empty queue")
+				}
+				<-gap
+				select {
+				case <-q.Ready():
+				case <-hold:
+					return
+				}
+				if s, ok := q.Take(); ok {
+					mu.Lock()
+					took = append(took, s)
+					mu.Unlock()
+				}
+				<-hold
+			}()
+		}
+		synctest.Wait()
+		q.Put(save{"a", 1})
+		q.Put(save{"b", 1})
+		q.Put(save{"c", 1})
+		close(gap)
+		synctest.Wait()
+		if len(took) != 3 {
+			t.Fatalf("took %v while three consumers waited", took)
+		}
+	})
 }
 
 // Many producers and one consumer: each key's values come out in the order put, and its last one always does.

@@ -38,11 +38,11 @@ func (q *Queue[K, V]) Put(v V) {
 	}
 }
 
-// Take hands out the value that has waited longest; false when there is none.
+// Take hands out the value that has waited longest, signalling Ready again while more wait; false when there is none.
 func (q *Queue[K, V]) Take() (V, bool) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
 	if len(q.line) == 0 {
+		q.mu.Unlock()
 		var zero V
 		return zero, false
 	}
@@ -51,6 +51,11 @@ func (q *Queue[K, V]) Take() (V, bool) {
 	v := q.waiting[k]
 	delete(q.waiting, k)
 	q.taken[k] = v
+	more := len(q.line) > 0
+	q.mu.Unlock()
+	if more {
+		q.signal()
+	}
 	return v, true
 }
 
@@ -90,7 +95,7 @@ func (q *Queue[K, V]) Get(k K) (V, bool) {
 	return v, ok
 }
 
-// Ready receives after a value joins the line; a consumer whose Take found nothing waits on it.
+// Ready receives after a value joins the line; consumers whose Take found nothing wait on it.
 func (q *Queue[K, V]) Ready() <-chan struct{} { return q.ready }
 
 func (q *Queue[K, V]) signal() {
