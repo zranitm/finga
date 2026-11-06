@@ -96,6 +96,17 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 			t.Fatalf("health %v %v", res, err)
 		}
 	})
+	t.Run("each registered service has its own status", func(t *testing.T) {
+		conn, err := grpcx.Dial(grpcAddr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		res, err := healthpb.NewHealthClient(conn).Check(ctx, &healthpb.HealthCheckRequest{Service: "grpc.testing.TestService"})
+		if err != nil || res.GetStatus() != healthpb.HealthCheckResponse_SERVING {
+			t.Fatalf("health %v %v", res, err)
+		}
+	})
 	t.Run("every call is counted and timed by method and code, and every method starts at 0", func(t *testing.T) {
 		_, body := runnertest.Get(t, "http://"+opsAddr+"/metrics")
 		for _, want := range []string{

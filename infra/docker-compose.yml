@@ -5,6 +5,13 @@ name: finga
 x-database: &database
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
 
+# Each binary probes itself (gRPC health, or /readyz for the gateway): the distroless image has no probe tool.
+x-healthcheck: &healthcheck
+  test: ["CMD", "/app/app", "-healthcheck"]
+  interval: 2s
+  timeout: 4s
+  retries: 15
+
 services:
   postgres:
     restart: unless-stopped
@@ -44,6 +51,7 @@ services:
       args:
         SERVICE: account
         VERSION: ${VERSION:-dev}
+    healthcheck: *healthcheck
     environment: *database
     env_file:
       - path: ../server/.env
@@ -62,6 +70,7 @@ services:
       args:
         SERVICE: character
         VERSION: ${VERSION:-dev}
+    healthcheck: *healthcheck
     environment:
       <<: *database
       FINGA_DEPENDENCIES_ITEM: item:9003
@@ -82,6 +91,7 @@ services:
       args:
         SERVICE: item
         VERSION: ${VERSION:-dev}
+    healthcheck: *healthcheck
     environment: *database
     env_file:
       - path: ../server/.env
@@ -100,6 +110,7 @@ services:
       args:
         SERVICE: social
         VERSION: ${VERSION:-dev}
+    healthcheck: *healthcheck
     env_file:
       - path: ../server/.env
         required: false
@@ -114,6 +125,7 @@ services:
       args:
         SERVICE: world
         VERSION: ${VERSION:-dev}
+    healthcheck: *healthcheck
     ports:
       - "127.0.0.1:${FINGA_WORLD_OPS_PORT:-9104}:9104"
     environment:
@@ -125,13 +137,13 @@ services:
         required: false
     depends_on:
       character:
-        condition: service_started
+        condition: service_healthy
       item:
-        condition: service_started
+        condition: service_healthy
       social:
-        condition: service_started
+        condition: service_healthy
 
-  # REST under /api, the WebSocket at /ws and ops, all on 8080.
+  # REST under /api and the WebSocket at /ws on 8080, ops on 9100.
   gateway:
     restart: unless-stopped
     stop_grace_period: 15s   # shutdown_grace (10s) and a margin
@@ -141,6 +153,7 @@ services:
       args:
         SERVICE: gateway
         VERSION: ${VERSION:-dev}
+    healthcheck: *healthcheck
     ports:
       - "127.0.0.1:${FINGA_PORT:-8080}:8080"   # this machine only; players come through web
       - "127.0.0.1:${FINGA_GATEWAY_OPS_PORT:-9100}:9100"
@@ -156,15 +169,15 @@ services:
         required: false
     depends_on:
       account:
-        condition: service_started
+        condition: service_healthy
       character:
-        condition: service_started
+        condition: service_healthy
       item:
-        condition: service_started
+        condition: service_healthy
       world:
-        condition: service_started
+        condition: service_healthy
       social:
-        condition: service_started
+        condition: service_healthy
 
   # The client on nginx, passing /api and /ws to the gateway so the browser sees one origin.
   web:
@@ -179,7 +192,7 @@ services:
       - "${FINGA_WEB_PORT:-4173}:80"
     depends_on:
       gateway:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   pgdata:

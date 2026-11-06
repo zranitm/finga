@@ -50,6 +50,7 @@ type Host struct {
 	listeners []runner.Listener
 	tasks     []runner.Task
 	drains    []func(ctx context.Context)
+	health    *grpchealth.Server
 	drainGRPC func()
 	run       *runner.Runner
 	closers   []func()
@@ -73,12 +74,12 @@ func (h *Host) serveGRPC() {
 	h.opts.Registry.MustRegister(h.metrics) // a fresh registry per process: only a second Host on it fails
 	draining := make(chan struct{})
 	h.GRPC = grpcx.NewServer(grpcx.ServerOptions{Errors: h.opts.Errors, Logger: h.logger, Panics: h.Panics, Metrics: h.metrics, Draining: draining})
-	healthy := grpchealth.NewServer()
-	healthpb.RegisterHealthServer(h.GRPC, health{Server: healthy, draining: draining})
+	h.health = grpchealth.NewServer()
+	healthpb.RegisterHealthServer(h.GRPC, health{Server: h.health, draining: draining})
 	h.listeners = append(h.listeners, runner.Listener{Name: grpcListener, Addr: h.opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)})
 	// Health turns NOT_SERVING, which every watcher hears before its stream ends; subscriptions, which never end on their own, end so GracefulStop waits only for calls.
 	h.drainGRPC = func() {
-		healthy.Shutdown()
+		h.health.Shutdown()
 		close(draining)
 	}
 }
@@ -110,10 +111,14 @@ func (h *Host) Database(ctx context.Context, cfg dbx.Config) (*pgxpool.Pool, *te
 	return pool, metrics, nil
 }
 
-// Run serves until ctx ends, then shuts down gracefully; every registered gRPC method's metrics start at 0.
+// Run serves until ctx ends, then shuts down gracefully; every registered gRPC service reports SERVING,
+// and every method's metrics start at 0.
 func (h *Host) Run(ctx context.Context) error {
-	if h.metrics != nil {
+	if h.GRPC != nil {
 		h.metrics.InitializeMetrics(h.GRPC)
+		for service := range h.GRPC.GetServiceInfo() {
+			h.health.SetServingStatus(service, healthpb.HealthCheckResponse_SERVING)
+		}
 	}
 	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(h.opts.Registry))
 	listeners := append(slices.Clone(h.listeners), runner.Listener{Name: opsListener, Addr: h.opts.Settings.Ops, Server: runner.HTTP(ops)})

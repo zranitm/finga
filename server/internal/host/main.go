@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -17,7 +18,10 @@ import (
 	"finga/pkg/observability"
 )
 
-const buildTimeout = 30 * time.Second
+const (
+	buildTimeout       = 30 * time.Second
+	healthcheckTimeout = 3 * time.Second
+)
 
 // Process is a built binary: Run until ctx ends, then Close.
 type Process interface {
@@ -29,7 +33,13 @@ type Process interface {
 type Build[C Config] func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (Process, error)
 
 // Main runs Start until SIGINT or SIGTERM and returns the exit code; a second signal kills the process.
+// With healthcheckArg it probes the running service instead.
 func Main[C Config](name, version string, build Build[C]) int {
+	if slices.Equal(os.Args[1:], []string{healthcheckArg}) {
+		ctx, cancel := context.WithTimeout(context.Background(), healthcheckTimeout)
+		defer cancel()
+		return Healthcheck[C](ctx, os.Stderr, name)
+	}
 	signalled, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// The shutdown starts only once the handler is gone, so the next signal gets the default action.
@@ -41,7 +51,7 @@ func Main[C Config](name, version string, build Build[C]) int {
 
 // Start loads the configuration, builds the process and runs it until ctx ends; config errors go to stderr.
 func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name, version string, build Build[C]) int {
-	cfg, err := configload.Load[C](configload.Options{Path: configload.ResolvePath(ConfigDir(name)), EnvPrefix: EnvPrefix, Strict: true})
+	cfg, err := loadConfig[C](name)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
@@ -66,4 +76,8 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name, versio
 	}
 	log.InfoContext(ctx, "stopped", "service", name)
 	return 0
+}
+
+func loadConfig[C Config](name string) (*C, error) {
+	return configload.Load[C](configload.Options{Path: configload.ResolvePath(ConfigDir(name)), EnvPrefix: EnvPrefix, Strict: true})
 }
