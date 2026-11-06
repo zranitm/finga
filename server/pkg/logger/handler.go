@@ -8,10 +8,9 @@ import (
 	"slices"
 	"sync"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"finga/pkg/reqid"
 )
 
 // HandlerOptions tune a Handler.
@@ -37,10 +36,13 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 	return h.core.Enabled(zapLevel(level))
 }
 
-// requestIDKey is the field a record's request ID, from its context, is written under.
-const requestIDKey = "request_id"
+// The fields a record's trace and span, from its context, are written under.
+const (
+	traceIDKey = "trace_id"
+	spanIDKey  = "span_id"
+)
 
-// Handle writes r unless the core's level or sampling drops it, with the request ID ctx carries.
+// Handle writes r unless the core's level or sampling drops it, with the trace ctx carries.
 func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	ce := h.core.Check(zapcore.Entry{Level: zapLevel(r.Level), Time: r.Time, Message: r.Message}, nil)
 	if ce == nil {
@@ -53,8 +55,8 @@ func (h *Handler) Handle(ctx context.Context, r slog.Record) error {
 	}
 	pooled := fieldPool.Get().(*[]zapcore.Field)
 	fields := *pooled
-	if id := reqid.From(ctx); id != "" {
-		fields = append(fields, zap.String(requestIDKey, id))
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		fields = append(fields, zap.String(traceIDKey, sc.TraceID().String()), zap.String(spanIDKey, sc.SpanID().String()))
 	}
 	top := len(fields)
 	for _, g := range h.groups {

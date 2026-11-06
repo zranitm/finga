@@ -1,4 +1,4 @@
-// Package grpcx is the shared gRPC plumbing: server, client, request IDs and error reasons.
+// Package grpcx is the shared gRPC plumbing: server, client, tracing and error reasons.
 // Errors cross calls as a status with an ErrorInfo reason; their text never leaves the service.
 package grpcx
 

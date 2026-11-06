@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -902,8 +903,8 @@ func TestAPanickingHelloClosesAndFreesItsCharacter(t *testing.T) {
 	}
 }
 
-// Each message gets a request ID of its own, which the world's calls and log lines carry.
-func TestEachMessageCarriesItsOwnRequestID(t *testing.T) {
+// Each command runs in a trace of its own, whose ID the world's calls and log lines carry, kept or not.
+func TestEachCommandCarriesItsOwnTraceID(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		c := h.dial(t)
@@ -912,8 +913,8 @@ func TestEachMessageCarriesItsOwnRequestID(t *testing.T) {
 		c.expect("Snapshot")
 		c.send(wsconn.Message{Data: &clientv1.Attack{}})
 		c.send(wsconn.Message{Data: &clientv1.Attack{}})
-		ids := waitFor(t, "the attacks", h.world.requestIDList, 3)
-		if ids[0] == "" || ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
+		ids := waitFor(t, "the attacks", h.world.traceIDList, 3)
+		if slices.Contains(ids, trace.TraceID{}.String()) || ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
 			t.Fatalf("the Hello's join and two attacks carried %q", ids)
 		}
 	})

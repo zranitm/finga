@@ -9,11 +9,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"finga/pkg/panics"
-	"finga/pkg/reqid"
 )
 
 // ServerOptions configure NewServer.
@@ -32,8 +30,8 @@ type ServerOptions struct {
 	Tracing *Tracing
 }
 
-// NewServer is a gRPC server that propagates request IDs, recovers panics, maps errors, and keeps its
-// clients' connections alive as Dial's do.
+// NewServer is a gRPC server that recovers panics, maps errors, and keeps its clients' connections alive as
+// Dial's do.
 func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	if opts.Logger == nil {
 		opts.Logger = slog.New(slog.DiscardHandler)
@@ -96,7 +94,6 @@ func (i interceptors) streams() []grpc.StreamServerInterceptor {
 }
 
 func (i interceptors) unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
-	ctx = requestIDFromIncoming(ctx)
 	defer i.recover(ctx, info.FullMethod, &err)
 	resp, err = handler(ctx, req)
 	return resp, i.status(ctx, info.FullMethod, err)
@@ -105,7 +102,7 @@ func (i interceptors) unary(ctx context.Context, req any, info *grpc.UnaryServer
 var errDraining = errors.New("server draining")
 
 func (i interceptors) stream(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) (err error) {
-	ctx, cancel := context.WithCancelCause(requestIDFromIncoming(ss.Context()))
+	ctx, cancel := context.WithCancelCause(ss.Context())
 	defer cancel(nil)
 	defer i.endOnDrain(cancel)()
 	defer i.recover(ctx, info.FullMethod, &err)
@@ -155,14 +152,5 @@ type contextStream struct {
 	ctx context.Context
 }
 
-// Context returns the context carrying the request ID.
+// Context returns the stream's context, which a drain cancels.
 func (s *contextStream) Context() context.Context { return s.ctx }
-
-func requestIDFromIncoming(ctx context.Context) context.Context {
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if ids := md.Get(RequestIDHeader); len(ids) > 0 && ids[0] != "" {
-			return reqid.With(ctx, ids[0])
-		}
-	}
-	return ctx
-}

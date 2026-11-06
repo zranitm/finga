@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	testpb "google.golang.org/grpc/interop/grpc_testing"
@@ -23,7 +24,6 @@ import (
 	"finga/pkg/hub"
 	"finga/pkg/logger"
 	"finga/pkg/panics"
-	"finga/pkg/reqid"
 )
 
 var (
@@ -43,14 +43,10 @@ var table = grpcx.ErrorTable{
 type shop struct {
 	testpb.UnimplementedTestServiceServer
 	err    func(ctx context.Context) error
-	sawID  chan string
 	stream func(stream grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error
 }
 
 func (s *shop) EmptyCall(ctx context.Context, _ *testpb.Empty) (*testpb.Empty, error) {
-	if s.sawID != nil {
-		s.sawID <- reqid.From(ctx)
-	}
 	if s.err != nil {
 		if err := s.err(ctx); err != nil {
 			return nil, err
@@ -173,37 +169,22 @@ func TestAPanicIsInternalAndTheServerKeepsServing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Panics: panics.NewRecorder(log, nil)})
+	tracing := grpcx.Tracing{Provider: sdktrace.NewTracerProvider()}
+	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Panics: panics.NewRecorder(log, nil), Tracing: &tracing})
 	testpb.RegisterTestServiceServer(srv, &shop{})
-	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
-	ctx := reqid.With(context.Background(), "r-7")
+	c := testpb.NewTestServiceClient(grpctest.Conn(t, srv, grpcx.TraceCalls(tracing)))
+	ctx, caller := tracing.Provider.Tracer("test").Start(context.Background(), "shop.buy")
+	defer caller.End()
 	if _, err := c.UnaryCall(ctx, &testpb.SimpleRequest{}); status.Code(err) != codes.Internal || strings.Contains(err.Error(), "boom") {
 		t.Fatalf("got %v", err)
 	}
 	if _, err := c.EmptyCall(context.Background(), &testpb.Empty{}); err != nil {
 		t.Fatalf("after the panic: %v", err)
 	}
-	for _, want := range []string{`"msg":"panic recovered"`, `"flow":"grpc"`, `"panic":"boom"`, `"method":"/grpc.testing.TestService/UnaryCall"`, `"request_id":"r-7"`} {
+	for _, want := range []string{`"msg":"panic recovered"`, `"flow":"grpc"`, `"panic":"boom"`, `"method":"/grpc.testing.TestService/UnaryCall"`, `"trace_id":"` + caller.SpanContext().TraceID().String() + `"`} {
 		if !strings.Contains(logs.String(), want) {
 			t.Fatalf("log %q lacks %s", logs.String(), want)
 		}
-	}
-}
-
-func TestTheRequestIDCrossesTheCall(t *testing.T) {
-	s := &shop{sawID: make(chan string, 2)}
-	c := serve(t, s)
-	if _, err := c.EmptyCall(reqid.With(context.Background(), "r-42"), &testpb.Empty{}); err != nil {
-		t.Fatal(err)
-	}
-	if got := <-s.sawID; got != "r-42" {
-		t.Fatalf("handler saw %q", got)
-	}
-	if _, err := c.EmptyCall(context.Background(), &testpb.Empty{}); err != nil {
-		t.Fatal(err)
-	}
-	if got := <-s.sawID; got != "" {
-		t.Fatalf("a call without one carried %q", got)
 	}
 }
 

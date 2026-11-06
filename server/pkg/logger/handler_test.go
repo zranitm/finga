@@ -16,10 +16,10 @@ import (
 	"testing/slogtest"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap/zapcore"
 
 	"finga/pkg/logger"
-	"finga/pkg/reqid"
 )
 
 func TestTheHandlerPassesSlogtest(t *testing.T) {
@@ -147,18 +147,24 @@ func TestGroupsOpenOnlyOnceTheyHoldAField(t *testing.T) {
 	}
 }
 
-func TestARecordCarriesItsContextsRequestID(t *testing.T) {
+func TestARecordCarriesItsContextsTrace(t *testing.T) {
 	log, buf := newLogger(t, jsonAt("info"))
-	ctx := reqid.With(context.Background(), "r-1")
+	traceID, spanID := trace.TraceID{1: 0xab}, trace.SpanID{7: 0xcd}
+	ctx := trace.ContextWithSpanContext(context.Background(), trace.NewSpanContext(trace.SpanContextConfig{TraceID: traceID, SpanID: spanID}))
 	log.InfoContext(ctx, "with", "n", 1)
 	log.WithGroup("req").InfoContext(ctx, "nothing in the group")
 	log.Info("without")
 	got := entries(t, buf)
-	if len(got) != 3 || got[0]["request_id"] != "r-1" || got[1]["request_id"] != "r-1" {
-		t.Fatalf("entries %v, want the request ID on the first two, outside any group", got)
+	if len(got) != 3 {
+		t.Fatalf("%d entries", len(got))
 	}
-	if _, ok := got[2]["request_id"]; ok {
-		t.Fatalf("a record with no request ID wrote one: %v", got[2])
+	for _, e := range got[:2] {
+		if e["trace_id"] != traceID.String() || e["span_id"] != spanID.String() {
+			t.Fatalf("entry %v, want the trace and span IDs outside any group", e)
+		}
+	}
+	if _, ok := got[2]["trace_id"]; ok {
+		t.Fatalf("a record with no trace wrote one: %v", got[2])
 	}
 }
 

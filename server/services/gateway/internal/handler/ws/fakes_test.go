@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -27,7 +28,6 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/reqid"
 	"finga/pkg/tracing"
 	"finga/services/gateway/internal/handler/ws/receive"
 	"finga/services/gateway/internal/model"
@@ -89,7 +89,7 @@ type fakeWorld struct {
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
 	calls      []string      // commands in arrival order
-	requestIDs []string      // each Join's and Attack's, in arrival order
+	traceIDs   []string      // each Join's and Attack's, in arrival order
 	hold       chan struct{} // set: Subscribed goes out only during the first join
 	joinGate   chan struct{} // set: a join reports on joining, then waits for the gate to close
 	joining    chan struct{}
@@ -165,7 +165,7 @@ func (f *fakeWorld) restart(boot string) {
 
 func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.JoinResponse, error) {
 	f.mu.Lock()
-	f.requestIDs = append(f.requestIDs, reqid.From(ctx))
+	f.traceIDs = append(f.traceIDs, trace.SpanContextFromContext(ctx).TraceID().String())
 	hold := f.hold
 	f.hold = nil
 	f.mu.Unlock()
@@ -300,7 +300,7 @@ func (f *fakeWorld) inputCount() int {
 
 func (f *fakeWorld) Attack(ctx context.Context, req *worldv1.AttackRequest) (*worldv1.AttackResponse, error) {
 	f.mu.Lock()
-	f.requestIDs = append(f.requestIDs, reqid.From(ctx))
+	f.traceIDs = append(f.traceIDs, trace.SpanContextFromContext(ctx).TraceID().String())
 	f.attacks = append(f.attacks, req.GetPresence())
 	f.calls = append(f.calls, "attack")
 	block, blocked := f.block, f.blocked
@@ -318,10 +318,10 @@ func (f *fakeWorld) Attack(ctx context.Context, req *worldv1.AttackRequest) (*wo
 	return &worldv1.AttackResponse{}, nil
 }
 
-func (f *fakeWorld) requestIDList() []string {
+func (f *fakeWorld) traceIDList() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]string(nil), f.requestIDs...)
+	return append([]string(nil), f.traceIDs...)
 }
 
 func (f *fakeWorld) callList() []string {

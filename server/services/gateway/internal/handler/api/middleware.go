@@ -16,8 +16,6 @@ import (
 
 	"finga/pkg/auth"
 	"finga/pkg/panics"
-	"finga/pkg/reqid"
-	"finga/pkg/uuidv7"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
 )
@@ -110,15 +108,13 @@ func cors(origins []string) gin.HandlerFunc {
 	}
 }
 
-// requestLog gives each request an ID, which the response names, and logs the request without headers or
-// bodies (no tokens or passwords). It recovers panics as 500; http.ErrAbortHandler goes on to net/http,
-// which drops the connection.
+// requestLog names the request's trace ID in the response, and logs the request without headers or bodies (no
+// tokens or passwords). It recovers panics as 500; http.ErrAbortHandler goes on to net/http, which drops the
+// connection.
 func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
-		id := uuidv7.NewString()
-		c.Request = c.Request.WithContext(reqid.With(c.Request.Context(), id))
-		c.Header(headerReqID, id)
+		c.Header(headerReqID, trace.SpanContextFromContext(c.Request.Context()).TraceID().String())
 		defer func() {
 			r := c.Request
 			p := recover()

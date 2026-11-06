@@ -12,8 +12,6 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/pkg/panics"
-	"finga/pkg/reqid"
-	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/handler/ws/push"
 	"finga/services/gateway/internal/model"
@@ -48,12 +46,11 @@ func (h *Handler) limited(l limit) handler {
 	}
 }
 
-// queued hands the rest of the chain to the command goroutine, under a request ID of its own; a full queue
-// refuses with rate_limited.
+// queued hands the rest of the chain to the command goroutine; a full queue refuses with rate_limited.
 func (h *Handler) queued(c *msgContext) {
 	rest := c.Later()
 	select {
-	case c.Session.queue <- func() { c.Ctx = reqid.With(c.Session.ctx, uuidv7.NewString()); rest() }:
+	case c.Session.queue <- func() { c.Ctx = c.Session.ctx; rest() }:
 	default:
 		replyError(c, model.RateLimited)
 	}

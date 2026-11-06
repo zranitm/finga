@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -29,7 +30,6 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
-	"finga/pkg/reqid"
 	"finga/pkg/tracing"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
@@ -522,12 +522,12 @@ func TestCORS(t *testing.T) {
 	})
 }
 
-// Each request has an ID of its own: the services' calls and log lines carry it, and the response names it.
+// Each request has a trace of its own: the services' calls and log lines carry its ID, and the response names it.
 func TestEachRequestHasAnIDTheServicesSee(t *testing.T) {
 	h := newHarness("http://localhost:5173")
 	var seen []string
 	h.characters.list = func(ctx context.Context, _ *characterv1.ListRequest) (*characterv1.ListResponse, error) {
-		seen = append(seen, reqid.From(ctx))
+		seen = append(seen, trace.SpanContextFromContext(ctx).TraceID().String())
 		return &characterv1.ListResponse{}, nil
 	}
 	headers := map[string]string{"Authorization": "Bearer " + goodToken, "Origin": "http://localhost:5173"}
