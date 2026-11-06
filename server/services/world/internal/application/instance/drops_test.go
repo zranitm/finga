@@ -165,7 +165,7 @@ func pickupFailures(s *worldtest.Sink) []model.PickupFailed {
 
 func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...worldtest.Options) (*instance.Instance, func()) {
 	t.Helper()
-	workers := economy.NewWorkers(2, idleJobs{}, worldtest.DiscardPanics())
+	workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); _ = workers.Run(ctx) }()
@@ -603,7 +603,7 @@ func TestAPickupResultReachesAPlayerWhoLeftThroughAPortal(t *testing.T) {
 		data := worldtest.LoadData(t)
 		items := newFakePickups()
 		items.gate = make(chan struct{})
-		workers := economy.NewWorkers(2, idleJobs{}, worldtest.DiscardPanics())
+		workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
 		ctx, cancel := context.WithCancel(context.Background())
 		workersDone := make(chan struct{})
 		go func() { defer close(workersDone); _ = workers.Run(ctx) }()
@@ -644,7 +644,7 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 		data := worldtest.LoadData(t)
 		items := newFakePickups()
 		items.gate = make(chan struct{})
-		workers := economy.NewWorkers(2, idleJobs{}, worldtest.DiscardPanics())
+		workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
 		ctx, cancel := context.WithCancel(context.Background())
 		workersDone := make(chan struct{})
 		go func() { defer close(workersDone); _ = workers.Run(ctx) }()

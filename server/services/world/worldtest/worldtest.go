@@ -228,7 +228,7 @@ func (o Options) Fill() Options {
 		o.Items = nobody{}
 	}
 	if o.Workers == nil {
-		o.Workers = economy.NewWorkers(1, nobody{}, DiscardPanics())
+		o.Workers = economy.NewWorkers(economy.Deps{Observer: nobody{}, Panics: DiscardPanics()}, economy.Options{Workers: 1})
 	}
 	if o.Parties == nil {
 		o.Parties = nobody{}
@@ -248,9 +248,9 @@ func (o Options) Fill() Options {
 	return o
 }
 
-// Deps are the filled options a map takes.
-func (o Options) Deps() instance.Deps {
-	return instance.Deps{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties, Traces: o.Traces}
+// Services are the filled options every map takes.
+func (o Options) Services() instance.Services {
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -281,14 +281,14 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	if cps == nil {
 		cps = &Checkpoints{}
 	}
-	return instance.New(m, data, cps, o.Transfer, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval}, o.Deps())
+	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval})
 }
 
 // NewWorld builds a World over data with o filled in.
 func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
 	o = o.Fill()
 	return world.New(world.Deps{
-		Deps: o.Deps(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter,
+		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter,
 		Panics: DiscardPanics(), Logger: o.Logger,
 	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout})
 }

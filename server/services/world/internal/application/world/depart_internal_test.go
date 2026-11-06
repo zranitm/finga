@@ -36,7 +36,7 @@ func TestATombstoneGoesOnceItsLeaveLands(t *testing.T) {
 		}
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		w := New(Deps{
-			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Workers: economy.NewWorkers(1, quiet{}, rec), Traces: noop.NewTracerProvider(),
+			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Workers: economy.NewWorkers(economy.Deps{Observer: quiet{}, Panics: rec}, economy.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
 			Data: data, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())

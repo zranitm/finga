@@ -25,7 +25,7 @@ func (e *counts) JobFinished() { e.finished.Add(1) }
 func TestAPanickingJobIsRecordedAndTheWorkerGoesOn(t *testing.T) {
 	var logs bytes.Buffer
 	obs := &counts{}
-	w := economy.NewWorkers(1, obs, panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil))
+	w := economy.NewWorkers(economy.Deps{Observer: obs, Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)}, economy.Options{Workers: 1})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
@@ -52,7 +52,7 @@ func (finishPanics) JobStarted() {}
 func (finishPanics) JobFinished() { panic("broken gauge") }
 
 func TestAPanicInAWorkerOutsideAJobStopsThePool(t *testing.T) {
-	w := economy.NewWorkers(2, finishPanics{}, worldtest.DiscardPanics())
+	w := economy.NewWorkers(economy.Deps{Observer: finishPanics{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
 	w.Submit(func(context.Context) {})
 	done := make(chan error, 1)
 	go func() { done <- w.Run(context.Background()) }()

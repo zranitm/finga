@@ -31,14 +31,23 @@ type Tuning struct {
 	CheckpointInterval time.Duration
 }
 
-// Deps are the services every map calls; all are required.
-type Deps struct {
+// Services are what every map of a World calls; all are required.
+type Services struct {
 	NewRoll  func() model.Roll // each map's random source, used only on its tick goroutine
 	Observer TickObserver
 	Parties  Parties
 	Items    loot.Pickups
 	Workers  *economy.Workers
 	Traces   trace.TracerProvider // starts each pickup's trace
+}
+
+// Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
+type Deps struct {
+	Services
+	Map   *gamedata.Map
+	Data  *gamedata.Data
+	Saves Checkpoints
+	Mover Mover
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -48,7 +57,7 @@ type Instance struct {
 	params   sim.Params
 	subSteps int // sim steps per tick
 	tuning   Tuning
-	deps     Deps
+	deps     Services
 	mover    Mover
 	inbox    chan message
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
@@ -122,17 +131,17 @@ var (
 	ErrMoved = errors.New("the presence moved on")
 )
 
-// New builds the actor for m; checkpoints go to saves, mover takes players to other maps, and Run starts it.
-func New(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover Mover, t Tuning, d Deps) *Instance {
-	params := data.Movement()
+// New builds the map's actor, which Run starts.
+func New(d Deps, t Tuning) *Instance {
+	params := d.Data.Movement()
 	roll := d.NewRoll()
 	return &Instance{
-		m: m, data: data, params: params, tuning: t, deps: d, mover: mover, saves: saves,
+		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, mover: d.Mover, saves: d.Saves,
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
-		arena:    mobs.NewArena(m, data, roll, t.TickInterval),
-		ground:   loot.NewGround(roll, t.TickInterval, loot.Deps{Items: d.Items, Workers: d.Workers, Parties: d.Parties, Traces: d.Traces}),
+		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
+		ground:   loot.NewGround(loot.Deps{Items: d.Items, Workers: d.Workers, Parties: d.Parties, Traces: d.Traces, Roll: roll}, loot.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 	}

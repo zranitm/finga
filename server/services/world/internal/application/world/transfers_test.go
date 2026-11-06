@@ -168,7 +168,7 @@ func (idleJobs) JobFinished() {}
 func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var logs bytes.Buffer
-		workers := economy.NewWorkers(1, idleJobs{}, worldtest.DiscardPanics())
+		workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 1})
 		w := newWorld(t, &fakeSaver{}, worldtest.Options{CheckpointInterval: time.Hour, Workers: workers, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

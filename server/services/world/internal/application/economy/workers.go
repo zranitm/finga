@@ -26,9 +26,20 @@ type Workers struct {
 // queue is how many jobs may wait for a worker.
 const queue = 1024
 
-// NewWorkers makes a pool of n workers; a job's panic goes to rec.
-func NewWorkers(n int, obs Observer, rec *panics.Recorder) *Workers {
-	return &Workers{jobs: make(chan func(ctx context.Context), queue), n: n, obs: obs, panics: rec}
+// Deps are what the pool reports to; all are required.
+type Deps struct {
+	Observer Observer
+	Panics   *panics.Recorder // a job's panic
+}
+
+// Options size the pool.
+type Options struct {
+	Workers int // jobs that run at once
+}
+
+// NewWorkers makes the pool, which Run starts.
+func NewWorkers(d Deps, o Options) *Workers {
+	return &Workers{jobs: make(chan func(ctx context.Context), queue), n: o.Workers, obs: d.Observer, panics: d.Panics}
 }
 
 // Submit queues a job; false when the queue is full.

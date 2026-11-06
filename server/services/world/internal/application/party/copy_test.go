@@ -82,7 +82,7 @@ func (f *fakeSocial) sent() []model.MemberUpdate {
 // runCopy runs a party copy over social in the bubble until the test ends.
 func runCopy(t *testing.T, social *fakeSocial, log *slog.Logger) *party.Copy {
 	t.Helper()
-	p := party.NewCopy(social, "world-1", log)
+	p := party.NewCopy(party.Deps{Social: social, Logger: log}, party.Options{World: "world-1"})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- p.Run(ctx) }()
@@ -238,7 +238,7 @@ func TestMemberUpdates(t *testing.T) {
 		})
 	})
 	t.Run("Update never blocks", func(t *testing.T) {
-		p := party.NewCopy(newFakeSocial(), "world-1", slog.New(slog.DiscardHandler)) // never Run: nothing drains
+		p := party.NewCopy(party.Deps{Social: newFakeSocial(), Logger: slog.New(slog.DiscardHandler)}, party.Options{World: "world-1"}) // never Run: nothing drains
 		start := time.Now()
 		for range 4096 {
 			p.Update(kernel.NewCharacterID(), "town", 1, 1, 1)
@@ -251,7 +251,7 @@ func TestMemberUpdates(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			social := newFakeSocial()
 			social.panics = true
-			p := party.NewCopy(social, "world-1", slog.New(slog.DiscardHandler))
+			p := party.NewCopy(party.Deps{Social: social, Logger: slog.New(slog.DiscardHandler)}, party.Options{World: "world-1"})
 			p.Update(kernel.NewCharacterID(), "town", 1, 10, 10)
 			if e, ok := errors.AsType[*panics.Error](p.Run(context.Background())); !ok || e.Value != "bad update" {
 				t.Fatal("Run kept going after its update loop panicked")

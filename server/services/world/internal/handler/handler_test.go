@@ -111,7 +111,7 @@ func newStack(t *testing.T) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: economy.NewWorkers(1, idle{}, rec), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: economy.NewWorkers(economy.Deps{Observer: idle{}, Panics: rec}, economy.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

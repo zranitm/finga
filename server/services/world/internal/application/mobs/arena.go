@@ -53,10 +53,22 @@ type Arena struct {
 	removed []uint64 // this tick's
 }
 
-// NewArena spawns every area's mobs on m, so the map is full before its first tick; roll is the map's random source.
-func NewArena(m *gamedata.Map, data *gamedata.Data, roll model.Roll, interval time.Duration) *Arena {
-	a := &Arena{m: m, data: data, roll: roll, interval: interval, spawns: make([]spawnState, len(m.Spawns))}
-	for s, area := range m.Spawns {
+// Deps are the map the arena runs; all are required.
+type Deps struct {
+	Map  *gamedata.Map
+	Data *gamedata.Data
+	Roll model.Roll // the map's random source, used only on its tick goroutine
+}
+
+// Tuning is the map's tick.
+type Tuning struct {
+	TickInterval time.Duration
+}
+
+// NewArena spawns every area's mobs on the map, so it is full before its first tick.
+func NewArena(d Deps, t Tuning) *Arena {
+	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns))}
+	for s, area := range d.Map.Spawns {
 		for range area.Max {
 			a.spawn(s)
 		}

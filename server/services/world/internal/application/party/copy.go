@@ -46,10 +46,21 @@ type Copy struct {
 	table map[kernel.CharacterID][]kernel.CharacterID
 }
 
-// NewCopy builds the copy, which follows social's party stream as worldID once Run starts it.
-func NewCopy(social Social, worldID string, log *slog.Logger) *Copy {
+// Deps are what the copy calls; all are required.
+type Deps struct {
+	Social Social
+	Logger *slog.Logger
+}
+
+// Options name the node the copy follows parties for.
+type Options struct {
+	World string // this node's ID, which its party stream subscribes as
+}
+
+// NewCopy builds the copy, which follows social's party stream once Run starts it.
+func NewCopy(d Deps, o Options) *Copy {
 	return &Copy{
-		social: social, worldID: worldID, log: log, table: map[kernel.CharacterID][]kernel.CharacterID{},
+		social: d.Social, worldID: o.World, log: d.Logger, table: map[kernel.CharacterID][]kernel.CharacterID{},
 		updates: coalesce.New(func(u model.MemberUpdate) kernel.CharacterID { return u.ID }),
 	}
 }

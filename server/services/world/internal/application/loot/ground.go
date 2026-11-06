@@ -52,6 +52,12 @@ type Deps struct {
 	Workers *economy.Workers
 	Parties Parties
 	Traces  trace.TracerProvider // starts each pickup's trace
+	Roll    model.Roll           // the map's random source, used only on its tick goroutine
+}
+
+// Tuning is the map's tick.
+type Tuning struct {
+	TickInterval time.Duration
 }
 
 // drop is an item on the ground, in memory only until a pickup commits.
@@ -87,9 +93,9 @@ type Ground struct {
 	removed []uint64
 }
 
-// NewGround is an empty ground for a map ticking every interval; roll is the map's random source.
-func NewGround(roll model.Roll, interval time.Duration, d Deps) *Ground {
-	return &Ground{roll: roll, interval: interval, deps: d, tracer: d.Traces.Tracer(tracerName)}
+// NewGround is a map's empty ground.
+func NewGround(d Deps, t Tuning) *Ground {
+	return &Ground{roll: d.Roll, interval: t.TickInterval, deps: d, tracer: d.Traces.Tracer(tracerName)}
 }
 
 // Begin starts tick n, forgetting the last tick's changes.

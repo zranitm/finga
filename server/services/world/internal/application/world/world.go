@@ -49,7 +49,7 @@ type World struct {
 
 // Deps are the services the World calls besides its maps'; all are required.
 type Deps struct {
-	instance.Deps
+	instance.Services
 	Data       *gamedata.Data
 	Saver      Saver
 	Characters Characters
@@ -75,7 +75,7 @@ func New(d Deps, t Tuning) *World {
 	}
 	w.jobs, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = instance.New(m, data, w.saves, w, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval}, d.Deps)
+		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval})
 		w.order = append(w.order, m.ID)
 	}
 	return w
