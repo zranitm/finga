@@ -125,3 +125,32 @@ func TestATransferStopsOnceANewerJoinTakesTheCharacter(t *testing.T) {
 		}
 	})
 }
+
+// A Leave posted just behind a portal or a respawn follows the player: the transfer never lands, and no
+// ghost stays on the target map.
+func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		w := runningWorld(t)
+		townMap, _ := data.Map("town")
+		toForest := portalNamed(t, townMap, "to_forest")
+		bo, forest := at(t, "Bo", "forest"), &sink{}
+		w.enter(t, bo, "forest", "c-bo", forest)
+		ayla := newPlayer("Ayla", toForest.Arrival().X, toForest.Arrival().Y)
+		w.enter(t, ayla, "town", "c-ayla", &sink{})
+		time.Sleep(tickInterval)
+		synctest.Wait()
+
+		if err := w.EnterPortal(ayla.ID, "c-ayla"); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Leave(context.Background(), ayla.ID, "c-ayla"); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * tickInterval)
+		synctest.Wait()
+		if present, removed := seenIn(forest, ayla.ID); present > removed {
+			t.Fatalf("Ayla is in the forest after her Leave (seen %d, removed %d)", present, removed)
+		}
+	})
+}

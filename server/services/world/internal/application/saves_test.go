@@ -15,17 +15,21 @@ import (
 )
 
 // db is the character service: Load returns what was saved. Down, a save fails; stuck, it waits out its
-// deadline.
+// deadline; loadErr fails every Load.
 type db struct {
-	mu    sync.Mutex
-	chars map[kernel.CharacterID]model.Character
-	down  bool
-	stuck bool
+	mu      sync.Mutex
+	chars   map[kernel.CharacterID]model.Character
+	down    bool
+	stuck   bool
+	loadErr error
 }
 
 func (d *db) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.loadErr != nil {
+		return model.Character{}, d.loadErr
+	}
 	c, ok := d.chars[id]
 	if !ok || c.Account != account {
 		return model.Character{}, errNotYours
@@ -206,6 +210,65 @@ func TestLeaveWaitsForTheMap(t *testing.T) {
 		cancel()
 		if err := w.Leave(ctx, ayla.ID, "c-1"); err != nil {
 			t.Fatalf("a second Leave: %v", err)
+		}
+	})
+}
+
+// Two joins of one character at once each wait for the other's take-off, so both start from the live
+// state, and the newest save is never one from before.
+func TestTwoJoinsAtOnceStartFromTheLiveState(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		d := &db{chars: map[kernel.CharacterID]model.Character{}}
+		w := dbWorld(t, d)
+		ayla, _, x := walkAway(t, w, d)
+		d.set(true, false)
+		type joined struct {
+			v   model.View
+			err error
+		}
+		out := make(chan joined, 2)
+		for _, conn := range []string{"c-2", "c-3"} {
+			go func() {
+				v, err := w.Join(context.Background(), ayla.Account, ayla.ID, conn, &sink{})
+				out <- joined{v, err}
+			}()
+		}
+		for range 2 {
+			if j := <-out; j.err != nil || j.v.X != x {
+				t.Fatalf("a join started at %v (err %v), want the live %v", j.v.X, j.err, x)
+			}
+		}
+		d.set(false, false)
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if got := d.saved(ayla.ID).X; got != x {
+			t.Fatalf("saved at %v, want %v", got, x)
+		}
+	})
+}
+
+// A login elsewhere that fails after taking the character off its map tells the older connection, so the
+// gateway joins it again rather than leaving it on no map.
+func TestAFailedLoginElsewhereDetachesTheOlderConnection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		d := &db{chars: map[kernel.CharacterID]model.Character{}}
+		w := dbWorld(t, d)
+		ayla, old, x := walkAway(t, w, d)
+		d.mu.Lock()
+		d.loadErr = errUnavailable // the character service fails this one Load
+		d.mu.Unlock()
+		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &sink{}); !errors.Is(err, errUnavailable) {
+			t.Fatalf("join: %v", err)
+		}
+		d.mu.Lock()
+		d.loadErr = nil
+		d.mu.Unlock()
+		if n := detached(old); n != 1 {
+			t.Fatalf("%d Detached events to the older connection, want one", n)
+		}
+		v, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-1", &sink{})
+		if err != nil || v.X != x {
+			t.Fatalf("the gateway's rejoin of c-1: %+v, %v; want x %v", v, err, x)
 		}
 	})
 }

@@ -8,11 +8,13 @@ import (
 	"finga/internal/sim"
 )
 
-// presence is where a joined character is, the connection it joined through and its account.
+// presence is where a joined character is, the connection it joined through and its account. One whose
+// left is set is a tombstone: its leave is on the way, and left closes once the map has handled it.
 type presence struct {
 	inst    *Instance
 	conn    string
 	account kernel.AccountID
+	left    <-chan struct{}
 }
 
 // presences is the world's registry of joined characters; the gateway's commands are routed through it.
@@ -21,43 +23,28 @@ type presences struct {
 	by map[kernel.CharacterID]presence
 }
 
-// place records at as the character's presence and returns the one it replaced.
-func (ps *presences) place(id kernel.CharacterID, at presence) (prev presence, had bool) {
+// place records at as the character's presence.
+func (ps *presences) place(id kernel.CharacterID, at presence) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	prev, had = ps.by[id]
 	ps.by[id] = at
-	return prev, had
 }
 
-// undo puts back what place replaced, unless another placement came since.
-func (ps *presences) undo(id kernel.CharacterID, at, prev presence, had bool) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	if ps.by[id] != at {
-		return
-	}
-	if had {
-		ps.by[id] = prev
-	} else {
-		delete(ps.by, id)
-	}
-}
-
-// at is the character's presence, if it joined through conn.
+// at is the character's presence, if it joined through conn and is not leaving.
 func (ps *presences) at(id kernel.CharacterID, conn string) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
-	return p, ok && p.conn == conn
+	return p, ok && p.conn == conn && p.left == nil
 }
 
-// move puts the character on inst if it is still held by conn; false means a newer join replaced it.
+// move puts the character on inst if conn still holds it; false means a newer join replaced it, or it is
+// leaving.
 func (ps *presences) move(id kernel.CharacterID, conn string, inst *Instance) bool {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
-	if !ok || p.conn != conn {
+	if !ok || p.conn != conn || p.left != nil {
 		return false
 	}
 	ps.by[id] = presence{inst: inst, conn: conn, account: p.account}
@@ -75,24 +62,29 @@ func (ps *presences) forget(id kernel.CharacterID, at presence) bool {
 	return true
 }
 
-// take removes the character's presence, if it is the account's, and returns it.
-func (ps *presences) take(id kernel.CharacterID, account kernel.AccountID) (presence, bool) {
+// depart returns the character's presence if want accepts it. A live one is replaced by a tombstone whose
+// left is the one given; one already leaving is returned as it is, to wait on.
+func (ps *presences) depart(id kernel.CharacterID, want func(presence) bool, left <-chan struct{}) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
-	if !ok || p.account != account {
+	if !ok || !want(p) {
 		return presence{}, false
 	}
-	delete(ps.by, id)
+	if p.left == nil {
+		tomb := p
+		tomb.left = left
+		ps.by[id] = tomb
+	}
 	return p, true
 }
 
-// restore puts back a presence take removed, unless another was placed since.
-func (ps *presences) restore(id kernel.CharacterID, at presence) {
+// restore puts back the live presence a tombstone replaced, unless something replaced the tombstone since.
+func (ps *presences) restore(id kernel.CharacterID, tomb, live presence) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if _, ok := ps.by[id]; !ok {
-		ps.by[id] = at
+	if ps.by[id] == tomb {
+		ps.by[id] = live
 	}
 }
 
@@ -103,22 +95,12 @@ func (ps *presences) holds(id kernel.CharacterID, at presence) bool {
 	return ps.by[id] == at
 }
 
-// Leave removes the character if it joined through conn, and returns once its map has, with its last
-// checkpoint queued, so a join after it starts from there. A Leave from any other connection is a no-op.
+// Leave takes the character off its map if it joined through conn, following it through a portal or a
+// respawn under way, and returns once the map has, its last checkpoint queued. A Leave from any other
+// connection is a no-op.
 func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) error {
-	at, ok := w.presences.at(id, conn)
-	if !ok {
-		return nil
-	}
-	left := make(chan struct{})
-	if err := at.inst.post(leaveMsg{id: id, conn: conn, done: left}); err != nil {
-		return err
-	}
-	if err := at.inst.wait(ctx, left); err != nil {
-		return err
-	}
-	w.presences.forget(id, at)
-	return nil
+	_, err := w.depart(ctx, id, func(p presence) bool { return p.conn == conn })
+	return err
 }
 
 // Input queues held keys.

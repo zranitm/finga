@@ -43,10 +43,10 @@ type World struct {
 	saves *coalesce.Queue[kernel.CharacterID, model.Checkpoint]
 	// flushTimeout bounds the last saves on shutdown, all together.
 	flushTimeout time.Duration
-	// Transfers run beside the ticks until Run stops them.
-	transfers     sync.WaitGroup
-	jobs          context.Context
-	stopTransfers context.CancelFunc
+	// Transfers and take-backs run beside the ticks until Run stops them.
+	background     sync.WaitGroup
+	jobs           context.Context
+	stopBackground context.CancelFunc
 }
 
 // WorldDeps are the services the World calls besides its instances'; all are required.
@@ -66,7 +66,7 @@ func New(data *gamedata.Data, t Tuning, d WorldDeps) *World {
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout,
 	}
-	w.jobs, w.stopTransfers = context.WithCancel(context.Background())
+	w.jobs, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = NewInstance(m, data, w.saves, w, t, d.Deps)
 		w.order = append(w.order, m.ID)
@@ -86,11 +86,20 @@ func (w *World) instance(mapID string) (*Instance, error) {
 // Join takes the account's character off the map it is on, loads it with its newest checkpoint not yet
 // saved laid over it, grants its starter items (best effort: a failure is logged, and the next join tries
 // again) and joins its map through conn. So a login elsewhere, or a rejoin, starts where the character
-// was, never at an older save.
+// was, never at an older save; one that fails after the take-off detaches the older connection.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
-	if err := w.takeOff(ctx, id, account); err != nil {
+	d, err := w.depart(ctx, id, func(p presence) bool { return p.account == account })
+	if err != nil {
 		return model.View{}, err
 	}
+	v, err := w.join(ctx, account, id, conn, sink)
+	if err != nil && d.ok {
+		d.sink.Send(model.Detached{}) // the gateway joins the older connection again
+	}
+	return v, err
+}
+
+func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink Sink) (model.View, error) {
 	unsaved, pending := w.saves.Get(id) // before the load, so a save that lands between them is not missed
 	c, err := w.deps.Characters.Load(ctx, id, account)
 	if err != nil {
@@ -118,20 +127,15 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
 	at := presence{inst: inst, conn: conn, account: account}
-	prev, had := w.presences.place(id, at)
-	err = inst.Join(ctx, p, sink)
-	if errors.Is(err, model.ErrBusy) {
-		w.presences.undo(id, at, prev, had) // never posted
-		return model.View{}, err
-	}
-	if had && prev.inst != inst {
-		_ = prev.inst.LeaveConnection(id, prev.conn)
-	}
-	if err != nil {
-		if ctx.Err() != nil {
-			_ = inst.LeaveConnection(id, conn) // posted, and may still land, though the caller counts it failed
-		}
+	w.presences.place(id, at)
+	if err := inst.Join(ctx, p, sink); err != nil {
 		w.presences.forget(id, at)
+		if ctx.Err() != nil {
+			w.leaveLater(inst, id, conn) // posted, and may still land, though the caller counts it failed
+		}
+		if errors.Is(err, errSinkClosed) {
+			err = model.ErrBusy // the gateway's stream is gone; it joins again on the next one
+		}
 		return model.View{}, err
 	}
 	return model.View{
@@ -141,26 +145,61 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}, nil
 }
 
-// takeOff removes the account's character from its map, if it is on one, and waits until the map has
-// queued its last checkpoint. Another account's character is left where it is.
-func (w *World) takeOff(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) error {
-	at, ok := w.presences.take(id, account)
-	if !ok {
-		return nil
+// departure is a player that a leave took off its map.
+type departure struct {
+	sink Sink
+	ok   bool // the player was on the map
+}
+
+// depart takes the character off its map, if want accepts its presence, and returns once the map has, its
+// last checkpoint queued. Until then a tombstone stands in the registry: a transfer can't land, and
+// another depart waits for this one before it looks again.
+func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(presence) bool) (departure, error) {
+	for {
+		left := make(chan struct{})
+		p, ok := w.presences.depart(id, want, left)
+		if !ok {
+			return departure{}, nil
+		}
+		if p.left != nil {
+			if err := p.inst.wait(ctx, p.left); err != nil {
+				return departure{}, err
+			}
+			w.presences.forget(id, p)
+			continue
+		}
+		tomb := p
+		tomb.left = left
+		var d departure
+		if err := postBusy(ctx, p.inst, leaveMsg{id: id, conn: p.conn, done: left, took: &d}); err != nil {
+			w.presences.restore(id, tomb, p)
+			close(left) // never posted; whoever waits on the tombstone looks again
+			return departure{}, err
+		}
+		if err := p.inst.wait(ctx, left); err != nil {
+			return departure{}, err // the leave lands later, and its tombstone stands until then
+		}
+		w.presences.forget(id, tomb)
+		return d, nil
 	}
-	left := make(chan struct{})
+}
+
+// leaveLater posts a leave for a join that may still land, retrying while the map is busy, until it is
+// posted or the world stops.
+func (w *World) leaveLater(inst *Instance, id kernel.CharacterID, conn string) {
+	w.background.Go(func() { _ = postBusy(w.jobs, inst, leaveMsg{id: id, conn: conn}) })
+}
+
+// postBusy posts m to inst, retrying while its inbox is full, until ctx ends or the map stops.
+func postBusy(ctx context.Context, inst *Instance, m message) error {
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		err := at.inst.post(leaveMsg{id: id, conn: at.conn, done: left})
+		err := inst.post(m)
 		if errors.Is(err, model.ErrStopped) {
 			return struct{}{}, backoff.Permanent(err)
 		}
 		return struct{}{}, err
 	}, backoff.WithBackOff(busyBackOff()), backoff.WithMaxElapsedTime(0))
-	if err != nil {
-		w.presences.restore(id, at)
-		return err
-	}
-	return at.inst.wait(ctx, left)
+	return err
 }
 
 // respawned is c, saved dead before dead players were saved as respawned, as the respawn it was owed.
@@ -195,7 +234,7 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	if !w.presences.move(p.ID, p.Connection, target) {
 		return
 	}
-	w.transfers.Go(func() {
+	w.background.Go(func() {
 		w.deps.Panics.Do(w.jobs, panics.FlowJob, func() { w.transfer(p, sink, target) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
 	})
 }
@@ -224,12 +263,12 @@ func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
 	case errors.Is(err, errMoved):
 	case err == nil:
 		if !held() {
-			_ = target.LeaveConnection(p.ID, p.Connection) // it left while the join landed
+			w.leaveLater(target, p.ID, p.Connection) // it left while the join landed
 		}
 	case w.jobs.Err() != nil:
 		// Shutting down: the player was saved on target, and the gateway joins them again after the restart.
 	default:
-		_ = target.LeaveConnection(p.ID, p.Connection) // a join posted as time ran out may still land
+		w.leaveLater(target, p.ID, p.Connection) // a join posted as time ran out may still land
 		if w.presences.forget(p.ID, at) {
 			w.deps.Logger.ErrorContext(ctx, "transfer failed; the gateway joins the player again", "character_id", p.ID, "map_id", target.m.ID, "err", err)
 			sink.Send(model.Detached{})
@@ -262,8 +301,8 @@ func (w *World) Run(ctx context.Context) error {
 		})
 	}
 	err := g.Wait()
-	w.stopTransfers()
-	w.transfers.Wait()
+	w.stopBackground()
+	w.background.Wait()
 	stopRetrying()
 	close(stopped) // no more jobs can arrive
 	<-saved

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"math"
 	"slices"
 	"time"
@@ -79,11 +80,13 @@ type Instance struct {
 //sumtype:decl
 type message interface{ message() }
 
-// leaveMsg removes a player, only if it joined through conn (empty: any), then closes done if set.
+// leaveMsg removes a player, only if it joined through conn (empty: any), tells took about it, then closes
+// done; either may be nil.
 type leaveMsg struct {
 	id   kernel.CharacterID
 	conn string
 	done chan struct{}
+	took *departure
 }
 
 type (
@@ -325,7 +328,11 @@ func (i *Instance) drain() []kernel.CharacterID {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})
 			}
 		case leaveMsg:
-			if p, ok := i.players[m.id]; (!ok || m.conn == "" || p.Connection == m.conn) && i.remove(m.id) {
+			if p, ok := i.players[m.id]; ok && (m.conn == "" || p.Connection == m.conn) {
+				if m.took != nil {
+					*m.took = departure{sink: p.sink, ok: true}
+				}
+				i.remove(m.id)
 				removed = append(removed, m.id)
 			}
 			if m.done != nil {
@@ -373,21 +380,23 @@ func (i *Instance) add(j *joinMsg) {
 	}
 	if !j.sink.Send(snap) {
 		i.remove(p.ID)
-		j.done <- model.ErrBusy
+		j.done <- errSinkClosed
 		return
 	}
 	j.done <- nil
 }
 
-func (i *Instance) remove(id kernel.CharacterID) bool {
+// errSinkClosed is a join whose Snapshot its sink refused: the connection's stream is gone.
+var errSinkClosed = errors.New("the sink is closed")
+
+func (i *Instance) remove(id kernel.CharacterID) {
 	p, ok := i.players[id]
 	if !ok {
-		return false
+		return
 	}
 	i.checkpoint(p)
 	delete(i.players, id)
 	i.order = slices.DeleteFunc(i.order, func(x kernel.CharacterID) bool { return x == id })
-	return true
 }
 
 // A backlog after a stall is cut to the newest few, so the player catches up.
