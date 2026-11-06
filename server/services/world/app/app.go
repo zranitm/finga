@@ -44,7 +44,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err := wholeSteps(cfg.TickInterval(), data.Movement().Dt); err != nil {
 		return nil, err
 	}
-	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors})
+	h, err := host.New(host.Options{Name: "world", Settings: cfg.Host(), Logger: log, Registry: reg, Errors: handler.Errors, Roots: application.EntryPoint})
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +80,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Items:      clients.NewPickups(items),
 		Workers:    application.NewWorkers(cfg.Economy.Workers, metrics, rec),
 		Parties:    parties,
+		Traces:     h.Traces,
 		Saver:      clients.NewSaver(characters),
 		Characters: clients.NewCharacters(characters),
 		Starter:    clients.NewStarter(items),

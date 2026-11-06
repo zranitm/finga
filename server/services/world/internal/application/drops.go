@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"finga/internal/kernel"
 	"finga/pkg/uuidv7"
@@ -111,6 +114,14 @@ func (i *Instance) pickUp(p *player) {
 	}
 }
 
+const tracerName = "finga/services/world/internal/application"
+
+// pickupSpan names a pickup's trace: the call a tick hands to a worker.
+const pickupSpan = "world.pickup"
+
+// EntryPoint reports whether a root span of this name starts a trace that is kept: a pickup's.
+func EntryPoint(span string) bool { return span == pickupSpan }
+
 type pickupJob struct {
 	drop      drop
 	account   kernel.AccountID
@@ -121,6 +132,9 @@ type pickupJob struct {
 // runPickup runs on a worker and posts the result back to the inbox.
 func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	in := model.Pickup{Account: job.account, Character: job.character, DropID: job.drop.key, Template: job.drop.template, Quantity: job.drop.quantity}
+	ctx, span := i.tracer.Start(ctx, pickupSpan, trace.WithNewRoot(), trace.WithAttributes(
+		attribute.String("character_id", in.Character.String()), attribute.String("drop_id", in.DropID.String())))
+	defer span.End()
 	slots, err := i.addItem(ctx, in)
 	if err != nil && i.deps.Items.Retryable(err) {
 		slots, err = i.addItem(ctx, in) // the key makes a retry harmless
@@ -130,6 +144,9 @@ func (i *Instance) runPickup(ctx context.Context, job pickupJob) {
 	}
 	if err != nil && i.deps.Items.Granted(err) {
 		slots, err = nil, nil // granted, though the slots it changed went with the lost reply
+	}
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 	}
 	select {
 	case i.inbox <- &pickupResult{dropID: job.drop.id, who: job.character, sink: job.sink, slots: slots, err: err}:

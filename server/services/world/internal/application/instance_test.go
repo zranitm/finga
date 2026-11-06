@@ -11,10 +11,15 @@ import (
 	"testing/synctest"
 	"time"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
+
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/panics"
+	"finga/pkg/tracing"
 	"finga/services/world/internal/application"
 	"finga/services/world/internal/model"
 )
@@ -140,6 +145,20 @@ type options struct {
 	Characters         application.Characters
 	Starter            application.Starter
 	Logger             *slog.Logger // the World's
+	Traces             trace.TracerProvider
+}
+
+// traces samples as the world does, and spans records every span it samples.
+var traces, spans = worldTraces()
+
+func worldTraces() (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
+	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "world", Root: application.EntryPoint})
+	if err != nil {
+		panic(err)
+	}
+	rec := tracetest.NewSpanRecorder()
+	tp.RegisterSpanProcessor(rec)
+	return tp, rec
 }
 
 func (o options) fill() options {
@@ -173,6 +192,9 @@ func (o options) fill() options {
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.DiscardHandler)
 	}
+	if o.Traces == nil {
+		o.Traces = traces
+	}
 	return o
 }
 
@@ -181,7 +203,7 @@ func (o options) tuning() application.Tuning {
 }
 
 func (o options) deps() application.Deps {
-	return application.Deps{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties}
+	return application.Deps{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties, Traces: o.Traces}
 }
 
 // checkpoints records what an instance puts for saving.

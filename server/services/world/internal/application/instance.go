@@ -7,6 +7,8 @@ import (
 	"slices"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -41,6 +43,7 @@ type Deps struct {
 	Items    Pickups
 	Workers  *Workers
 	Parties  Parties
+	Traces   trace.TracerProvider // starts each pickup's trace
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -56,6 +59,7 @@ type Instance struct {
 	inbox    chan message
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
 	saves    Checkpoints
+	tracer   trace.Tracer
 
 	tick     uint64
 	players  map[kernel.CharacterID]*player
@@ -156,6 +160,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover 
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
 		saves:    saves,
+		tracer:   d.Traces.Tracer(tracerName),
 		players:  map[kernel.CharacterID]*player{},
 		spawns:   make([]spawnState, len(m.Spawns)),
 		ticksPer: ticksPer,

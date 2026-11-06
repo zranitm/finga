@@ -15,6 +15,8 @@ import (
 	"finga/services/world/internal/model"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // errFull is a rule, so the world never retries it; errDown is not.
@@ -36,6 +38,7 @@ type fakePickups struct {
 	hang      bool                       // every add waits until its context ends
 	gate      chan struct{}              // when set, every add waits for it to close
 	seen      map[uuid.UUID]int
+	traces    []trace.SpanContext // each call's
 }
 
 type pickupKey struct {
@@ -50,6 +53,7 @@ func newFakePickups() *fakePickups {
 func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, in)
+	f.traces = append(f.traces, trace.SpanContextFromContext(ctx))
 	if f.hang {
 		f.mu.Unlock()
 		<-ctx.Done()
@@ -264,6 +268,42 @@ func TestPickUp(t *testing.T) {
 			}
 		}
 		_ = theDrop
+	})
+}
+
+// A pickup keeps its trace, a root that names the character and the drop, with the item call inside it.
+func TestAPickupKeepsItsTrace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		items := newFakePickups()
+		inst, stop := runLootArena(t, data, items, 0.3)
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(250)
+		p.Account = kernel.NewAccountID()
+		join(t, inst, p)
+		killSlime(t, inst, p.ID)
+		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
+		walk(inst, p.ID, seq, sim.Input{}, 1)
+		before := len(spans.Ended())
+		_ = inst.PickUp(p.ID)
+		time.Sleep(3 * tickInterval)
+		synctest.Wait()
+		ended := spans.Ended()[before:]
+		if len(ended) != 1 || ended[0].Name() != "world.pickup" || ended[0].Parent().IsValid() {
+			t.Fatalf("%d spans kept, want one world.pickup root", len(ended))
+		}
+		root := ended[0]
+		attrs := attribute.NewSet(root.Attributes()...)
+		character, _ := attrs.Value("character_id")
+		drop, _ := attrs.Value("drop_id")
+		if character.AsString() != p.ID.String() || drop.AsString() != items.calls[0].DropID.String() {
+			t.Fatalf("the root names character %q and drop %q", character.AsString(), drop.AsString())
+		}
+		if items.traces[0].SpanID() != root.SpanContext().SpanID() {
+			t.Fatal("the item call ran outside the pickup's span")
+		}
 	})
 }
 
