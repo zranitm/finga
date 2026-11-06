@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
@@ -40,7 +39,7 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(p.unitOfWork(tx))
 	}, dbx.Observed(p.obs))
-	return classify(err)
+	return failures.Classify(err)
 }
 
 func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
@@ -57,7 +56,7 @@ func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) {
 	rows, err := p.q.ListInventory(ctx, uuid.UUID(owner))
 	if err != nil {
-		return nil, classify(err)
+		return nil, failures.Classify(err)
 	}
 	return toItems(rows), nil
 }
@@ -127,20 +126,20 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 // SetQuantity changes a quantity.
 func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error {
 	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity)}) //nolint:gosec // quantities are small
-	return rowsOrNotFound(n, err)
+	return dbx.RowsOrNotFound(n, err)
 }
 
 // SetSlot moves an item to a slot.
 func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
 	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s})
-	return rowsOrNotFound(n, err)
+	return dbx.RowsOrNotFound(n, err)
 }
 
 // Destroy marks an item destroyed with quantity 0 rather than deleting the row.
 func (r repo) Destroy(ctx context.Context, id kernel.ItemID) error {
 	n, err := r.q.DestroyItem(ctx, uuid.UUID(id))
-	return rowsOrNotFound(n, err)
+	return dbx.RowsOrNotFound(n, err)
 }
 
 type eventRepo struct{ q *db.Queries }
@@ -206,36 +205,17 @@ func toItem(r db.Item) model.Item {
 	return it
 }
 
-func rowsOrNotFound(n int64, err error) error {
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return pgx.ErrNoRows
-	}
-	return nil
-}
-
 const (
 	constraintSlot     = "one_item_per_slot"
 	constraintQuantity = "items_quantity_check"
 )
 
-// classify maps constraint errors and timeouts to the model's; others pass through so retries still see 40001.
-func classify(err error) error {
-	var pgErr *pgconn.PgError
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, pgx.ErrNoRows):
-		return fmt.Errorf("%w: %w", model.ErrNotFound, err)
-	case dbx.TimedOut(err):
-		return fmt.Errorf("%w: %w", model.ErrTimedOut, err)
-	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintSlot:
-		return fmt.Errorf("%w: %w", model.ErrSlotTaken, err)
-	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintQuantity:
-		return fmt.Errorf("%w: %w", model.ErrBadQuantity, err)
-	default:
-		return err
-	}
+// failures maps constraint errors and timeouts to the model's; others pass through so retries still see 40001.
+var failures = dbx.Errors{
+	NotFound: model.ErrNotFound,
+	TimedOut: model.ErrTimedOut,
+	Constraints: map[string]error{
+		constraintSlot:     model.ErrSlotTaken,
+		constraintQuantity: model.ErrBadQuantity,
+	},
 }

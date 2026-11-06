@@ -188,7 +188,7 @@ func TestClassify(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := classify(tt.err)
+			got := failures.Classify(tt.err)
 			if tt.want == nil {
 				if got != nil && !errors.Is(got, tt.err) {
 					t.Fatalf("got %v, want %v unchanged", got, tt.err)

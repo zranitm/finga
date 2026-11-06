@@ -3,12 +3,9 @@ package repository
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
@@ -36,14 +33,14 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(unitOfWork{q: db.New(tx)})
 	}, dbx.Observed(p.obs))
-	return classify(err)
+	return failures.Classify(err)
 }
 
 // List is the account's characters, oldest first.
 func (p *Postgres) List(ctx context.Context, account kernel.AccountID) ([]model.Character, error) {
 	rows, err := p.q.ListCharactersByAccount(ctx, uuid.UUID(account))
 	if err != nil {
-		return nil, classify(err)
+		return nil, failures.Classify(err)
 	}
 	out := make([]model.Character, 0, len(rows))
 	for _, row := range rows {
@@ -56,7 +53,7 @@ func (p *Postgres) List(ctx context.Context, account kernel.AccountID) ([]model.
 func (p *Postgres) Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
 	row, err := p.q.GetOwnedCharacter(ctx, db.GetOwnedCharacterParams{ID: uuid.UUID(id), AccountID: uuid.UUID(account)})
 	if err != nil {
-		return model.Character{}, classify(err)
+		return model.Character{}, failures.Classify(err)
 	}
 	return toCharacter(row), nil
 }
@@ -83,10 +80,10 @@ type repo struct{ q *db.Queries }
 // CountLocked takes the account's advisory lock, then counts its characters.
 func (r repo) CountLocked(ctx context.Context, account kernel.AccountID) (int, error) {
 	if err := r.q.LockAccountCharacters(ctx, account.String()); err != nil {
-		return 0, classify(err)
+		return 0, failures.Classify(err)
 	}
 	n, err := r.q.CountCharactersByAccount(ctx, uuid.UUID(account))
-	return int(n), classify(err)
+	return int(n), failures.Classify(err)
 }
 
 // Insert adds a character row and returns it as stored.
@@ -112,7 +109,7 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 		Strength: int32(cp.Stats.STR), Dexterity: int32(cp.Stats.DEX), Intelligence: int32(cp.Stats.INT), //nolint:gosec // stats are small
 		Agility: int32(cp.Stats.AGI), Vitality: int32(cp.Stats.VIT), //nolint:gosec // stats are small
 	})
-	return rowsOrNotFound(n, err)
+	return dbx.RowsOrNotFound(n, err)
 }
 
 // SaveLevelUp updates level, EXP, stats, HP and MP; no row is pgx.ErrNoRows.
@@ -123,33 +120,9 @@ func (r repo) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 		Agility: int32(lu.Stats.AGI), Vitality: int32(lu.Stats.VIT), //nolint:gosec // stats are small
 		Hp: int32(lu.HP), Mp: int32(lu.MP), //nolint:gosec // HP fits
 	})
-	return rowsOrNotFound(n, err)
-}
-
-func rowsOrNotFound(n int64, err error) error {
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return pgx.ErrNoRows
-	}
-	return nil
+	return dbx.RowsOrNotFound(n, err)
 }
 
 const constraintName = "characters_name_key"
 
-func classify(err error) error {
-	var pgErr *pgconn.PgError
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, pgx.ErrNoRows):
-		return fmt.Errorf("%w: %w", model.ErrNotFound, err)
-	case dbx.TimedOut(err):
-		return fmt.Errorf("%w: %w", model.ErrTimedOut, err)
-	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintName:
-		return fmt.Errorf("%w: %w", model.ErrNameTaken, err)
-	default:
-		return err
-	}
-}
+var failures = dbx.Errors{NotFound: model.ErrNotFound, TimedOut: model.ErrTimedOut, Constraints: map[string]error{constraintName: model.ErrNameTaken}}

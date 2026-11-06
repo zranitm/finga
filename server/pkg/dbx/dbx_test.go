@@ -234,3 +234,51 @@ func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
 		t.Fatalf("the last database error is not reachable: %v", err)
 	}
 }
+
+func TestErrorsClassify(t *testing.T) {
+	notFound, timedOut, taken := errors.New("not found"), errors.New("timed out"), errors.New("name taken")
+	classes := dbx.Errors{NotFound: notFound, TimedOut: timedOut, Constraints: map[string]error{"characters_name_key": taken}}
+	other := &pgconn.PgError{Code: "23505", ConstraintName: "another_key"}
+	tests := []struct {
+		name string
+		err  error
+		want error // nil: err passes through as it is
+	}{
+		{"no row", fmt.Errorf("find: %w", pgx.ErrNoRows), notFound},
+		{"a lock wait past its timeout", &pgconn.PgError{Code: "55P03"}, timedOut},
+		{"a statement past its timeout", &pgconn.PgError{Code: "57014"}, timedOut},
+		{"a constraint the repository names", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, taken},
+		{"a constraint it does not", other, nil},
+		{"a serialization failure, which InTx retries", &pgconn.PgError{Code: "40001"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := classes.Classify(tt.err)
+			if tt.want == nil {
+				if got != tt.err { //nolint:errorlint // passed through means the very error, unwrapped
+					t.Fatalf("Classify = %v, want %v as it was", got, tt.err)
+				}
+				return
+			}
+			if !errors.Is(got, tt.want) || !errors.Is(got, tt.err) {
+				t.Fatalf("Classify = %v, want %v wrapping the cause", got, tt.want)
+			}
+		})
+	}
+	if classes.Classify(nil) != nil {
+		t.Fatal("nil is classified")
+	}
+}
+
+func TestRowsOrNotFound(t *testing.T) {
+	failed := errors.New("boom")
+	if err := dbx.RowsOrNotFound(1, nil); err != nil {
+		t.Fatalf("a changed row: %v", err)
+	}
+	if err := dbx.RowsOrNotFound(0, nil); !errors.Is(err, pgx.ErrNoRows) {
+		t.Fatalf("no changed row: %v", err)
+	}
+	if err := dbx.RowsOrNotFound(0, failed); !errors.Is(err, failed) {
+		t.Fatalf("a failed statement: %v", err)
+	}
+}

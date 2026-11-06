@@ -4,13 +4,11 @@ package repository
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/kernel"
@@ -37,14 +35,14 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
 		return fn(unitOfWork{q: db.New(tx)})
 	}, dbx.Observed(p.obs))
-	return classify(err)
+	return failures.Classify(err)
 }
 
 // FindByUsername loads an account and its password hash, matching the username case-insensitively.
 func (p *Postgres) FindByUsername(ctx context.Context, username string) (model.Credentials, error) {
 	row, err := p.q.FindAccountByUsername(ctx, username)
 	if err != nil {
-		return model.Credentials{}, classify(err)
+		return model.Credentials{}, failures.Classify(err)
 	}
 	var settings model.Settings
 	if err := json.Unmarshal(row.Settings, &settings); err != nil {
@@ -60,7 +58,7 @@ func (p *Postgres) FindByUsername(ctx context.Context, username string) (model.C
 func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (model.Session, error) {
 	row, err := p.q.FindActiveSessionByTokenHash(ctx, tokenHash)
 	if err != nil {
-		return model.Session{}, classify(err)
+		return model.Session{}, failures.Classify(err)
 	}
 	return model.Session{
 		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
@@ -73,7 +71,7 @@ func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (mod
 func (p *Postgres) Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error) {
 	raw, err := p.q.GetSettings(ctx, uuid.UUID(id))
 	if err != nil {
-		return model.Settings{}, classify(err)
+		return model.Settings{}, failures.Classify(err)
 	}
 	var s model.Settings
 	if err := json.Unmarshal(raw, &s); err != nil {
@@ -157,30 +155,20 @@ const (
 	constraintActiveSession = "one_active_session"
 )
 
-// classify maps constraint errors and timeouts to the model's; others pass through so retries still see 40001.
-func classify(err error) error {
-	var pgErr *pgconn.PgError
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, pgx.ErrNoRows):
-		return fmt.Errorf("%w: %w", model.ErrNotFound, err)
-	case dbx.TimedOut(err):
-		return fmt.Errorf("%w: %w", model.ErrTimedOut, err)
-	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintUsername:
-		return fmt.Errorf("%w: %w", model.ErrUsernameTaken, err)
-	case errors.As(err, &pgErr) && pgErr.ConstraintName == constraintActiveSession:
-		return fmt.Errorf("%w: %w", model.ErrSessionRace, err)
-	default:
-		return err
-	}
+var failures = dbx.Errors{
+	NotFound: model.ErrNotFound,
+	TimedOut: model.ErrTimedOut,
+	Constraints: map[string]error{
+		constraintUsername:      model.ErrUsernameTaken,
+		constraintActiveSession: model.ErrSessionRace,
+	},
 }
 
 // FindSession loads a session by ID, revoked or not.
 func (p *Postgres) FindSession(ctx context.Context, id kernel.SessionID) (model.Session, error) {
 	row, err := p.q.FindSessionByID(ctx, uuid.UUID(id))
 	if err != nil {
-		return model.Session{}, classify(err)
+		return model.Session{}, failures.Classify(err)
 	}
 	return sessionOf(row), nil
 }
@@ -197,7 +185,7 @@ func sessionOf(row db.FindSessionByIDRow) model.Session {
 func (r sessionRepo) Rotate(ctx context.Context, id kernel.SessionID, newHash []byte, at time.Time) error {
 	n, err := r.q.RotateSessionToken(ctx, db.RotateSessionTokenParams{ID: uuid.UUID(id), TokenHash: newHash, RotatedAt: &at})
 	if err != nil {
-		return classify(err)
+		return failures.Classify(err)
 	}
 	if n == 0 {
 		return model.ErrNotFound
@@ -209,7 +197,7 @@ func (r sessionRepo) Rotate(ctx context.Context, id kernel.SessionID, newHash []
 func (r sessionRepo) Lock(ctx context.Context, id kernel.SessionID) (model.Session, error) {
 	row, err := r.q.LockSession(ctx, uuid.UUID(id))
 	if err != nil {
-		return model.Session{}, classify(err)
+		return model.Session{}, failures.Classify(err)
 	}
 	return sessionOf(db.FindSessionByIDRow(row)), nil
 }
@@ -217,17 +205,17 @@ func (r sessionRepo) Lock(ctx context.Context, id kernel.SessionID) (model.Sessi
 // ConsumePrevious ends the grace for the previous token.
 func (r sessionRepo) ConsumePrevious(ctx context.Context, id kernel.SessionID) error {
 	_, err := r.q.ConsumePreviousToken(ctx, uuid.UUID(id))
-	return classify(err)
+	return failures.Classify(err)
 }
 
 // DeleteEnded deletes the sessions over since before, oldest first, limit at a time.
 func (r sessionRepo) DeleteEnded(ctx context.Context, before time.Time, limit int) (int64, error) {
 	n, err := r.q.DeleteEndedSessions(ctx, db.DeleteEndedSessionsParams{EndedBefore: before, MaxRows: int32(limit)}) //nolint:gosec // a configured batch
-	return n, classify(err)
+	return n, failures.Classify(err)
 }
 
 // Extend moves the expiry.
 func (r sessionRepo) Extend(ctx context.Context, id kernel.SessionID, until time.Time) error {
 	_, err := r.q.ExtendSession(ctx, db.ExtendSessionParams{ID: uuid.UUID(id), ExpiresAt: until})
-	return classify(err)
+	return failures.Classify(err)
 }
