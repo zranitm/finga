@@ -89,6 +89,8 @@ linters:
               desc: a module knows no transport; its handler and clients do
             - pkg: finga/pkg/grpcx
               desc: a module knows no transport; its handler and clients do
+            - pkg: net/http
+              desc: a module knows no transport; its handler speaks HTTP and gives each failure its status
             - pkg: finga/internal/telemetry
               desc: a module declares observer interfaces; telemetry implements them
             - pkg: finga/services/account/config
@@ -131,17 +133,6 @@ linters:
               desc: the handler calls the application, never the reverse
             - pkg: finga/internal/protocol
               desc: the client protocol is the WebSocket handler's alone; the model has its own views
-        gateway-application-no-http:
-          files: ["**/services/gateway/internal/model/**", "**/services/gateway/internal/application/**"]
-          deny:
-            - pkg: net/http
-              desc: the REST handler speaks HTTP and gives each failure its status; the Lobby takes plain values
-        # A service's model is its vocabulary: no transport reaches it.
-        models-no-http:
-          files: ["**/services/*/internal/model/**"]
-          deny:
-            - pkg: net/http
-              desc: a model knows no transport; the handlers speak HTTP
         # Only a service's repository layer and sqlc's output talk to the database.
         services-no-sql:
           files: ["**/services/*/internal/**", "!**/internal/repository/**", "!**/internal/db/**", "!$test"]
