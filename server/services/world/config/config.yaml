@@ -16,7 +16,7 @@ log:
 tracing:
   otlp_endpoint: ""      # host:port of an OTLP gRPC collector; empty keeps trace IDs for the logs only
 data_dir: data           # the game data, relative to server/
-tick_rate_hz: 20         # each tick holds whole movement steps (data/movement.yaml dt); the web client assumes 20
+tick_rate_hz: 20         # a whole number of movement steps per tick (data/movement.yaml dt); the gateway admits 30 inputs a second
 checkpoint_interval: 30s
 flush_timeout: 10s       # the last saves on shutdown, all together; after shutdown_grace
 economy:

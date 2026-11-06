@@ -11,12 +11,13 @@ import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 
 import { InputSender } from './input-sender';
-import { Predictor, STEPS_PER_TICK, wireState } from './prediction';
+import { Predictor, wireState } from './prediction';
 import type { Reconciled } from './prediction';
 
 const url = process.env.FINGA_LIVE_URL;
 const delayMs = Number(process.env.FINGA_LIVE_DELAY_MS ?? '0');
 const TICK_MS = 50;
+const STEPS = 3; // a 20 Hz tick of 1/60 s steps
 
 type Wire = Data<'snapshot'>['players'][number];
 type Keys = Partial<Record<'left' | 'right' | 'up' | 'down' | 'jump', boolean>>;
@@ -52,7 +53,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const c = await rest.createCharacter(`P${stamp}`, 'warrior');
 
   const socket = new GameSocket({ url: origin.replace(/^http/, 'ws') + '/ws', delayMs });
-  const predictor = new Predictor(town.geometry);
+  const predictor = new Predictor(town.geometry, STEPS);
   const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
   const results: Reconciled[] = [];
   let placed = false;
@@ -108,7 +109,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
         `tick ${tick} seq ${socket.sequence} at ${Date.now() - started} ms x ${predictor.state.x.toFixed(1)} ${JSON.stringify(input)}`,
       );
     }
-    for (let i = 0; i < STEPS_PER_TICK; i++) {
+    for (let i = 0; i < STEPS; i++) {
       predictor.subStep();
     }
     // Absolute timeline; a pause longer than a tick is dropped, not sent as a burst.

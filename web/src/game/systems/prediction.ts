@@ -3,7 +3,6 @@ import type { Input } from '@/sim/input';
 import { NO_PLATFORM, params as defaultParams, standing, step } from '@/sim/step';
 import type { Geometry, Params, State } from '@/sim/step';
 
-export const STEPS_PER_TICK = 3;
 export const RESET_DISTANCE_PX = 4;
 export const HISTORY_TICKS = 40; // 2 s
 
@@ -86,8 +85,10 @@ export class Predictor {
   readonly history = new RingBuffer<TickEntry>(HISTORY_TICKS);
   private current: TickEntry | null = null;
 
+  /** stepsPerTick is the world's: its tick rate over the movement dt. */
   constructor(
     private readonly g: Geometry,
+    private readonly stepsPerTick: number,
     private readonly p: Params = defaultParams,
   ) {}
 
@@ -104,7 +105,7 @@ export class Predictor {
 
   subStep(): void {
     const t = this.current;
-    if (!t || t.steps >= STEPS_PER_TICK) {
+    if (!t || t.steps >= this.stepsPerTick) {
       return;
     }
     this.state = step(this.state, t.input, this.g, this.p);
@@ -125,7 +126,7 @@ export class Predictor {
     }
     // The server has run the whole tick; the client may be part way through it.
     let predicted = entry.state;
-    for (let i = entry.steps; i < STEPS_PER_TICK; i++) {
+    for (let i = entry.steps; i < this.stepsPerTick; i++) {
       predicted = step(predicted, entry.input, this.g, this.p);
     }
     let result: Reconciled = 'match';

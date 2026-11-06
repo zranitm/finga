@@ -84,6 +84,21 @@ func TestATickThatSplitsAMovementStepIsRefused(t *testing.T) {
 	}
 }
 
+// The interval is cut to whole nanoseconds, so 30 Hz holds 1.99999998 steps of 1/60 s; the rate itself divides evenly.
+func TestATickOfWholeStepsIsAcceptedAtAnyRate(t *testing.T) {
+	for _, hz := range []int{10, 12, 15, 20, 30, 60} {
+		cfg := config.Config{
+			GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
+			DataDir: "../../../data", TickRateHz: hz, CheckpointInterval: 30 * time.Second, Economy: config.Economy{Workers: 1},
+		}
+		h, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry())
+		if err != nil {
+			t.Fatalf("%d Hz: %v", hz, err)
+		}
+		h.Close()
+	}
+}
+
 func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	ctx := t.Context()
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()

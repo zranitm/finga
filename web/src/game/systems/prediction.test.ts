@@ -9,14 +9,7 @@ import { parseMap } from '@/sim/map';
 import { NO_PLATFORM, params, standing, step } from '@/sim/step';
 import type { State } from '@/sim/step';
 
-import {
-  HISTORY_TICKS,
-  Predictor,
-  STEPS_PER_TICK,
-  fromWire,
-  platformUnder,
-  wireState,
-} from './prediction';
+import { HISTORY_TICKS, Predictor, fromWire, platformUnder, wireState } from './prediction';
 import type { WireState } from './prediction';
 
 const town = parseMap(
@@ -25,6 +18,7 @@ const town = parseMap(
 );
 const g = town.geometry;
 const spawn = town.player_spawn;
+const STEPS = 3; // a 20 Hz tick of 1/60 s steps
 
 const R: Input = { ...noInput, right: true };
 const L: Input = { ...noInput, left: true };
@@ -35,7 +29,7 @@ function simulate(from: State, inputs: readonly Input[]): State[] {
   const out: State[] = [];
   let s = from;
   for (const input of inputs) {
-    for (let i = 0; i < STEPS_PER_TICK; i++) {
+    for (let i = 0; i < STEPS; i++) {
       s = step(s, input, g, params);
     }
     out.push(s);
@@ -52,7 +46,7 @@ function run(pred: Predictor, inputs: readonly Input[], firstSeq = 1): State[] {
   const out: State[] = [];
   inputs.forEach((input, i) => {
     pred.beginTick(firstSeq + i, input);
-    for (let k = 0; k < STEPS_PER_TICK; k++) {
+    for (let k = 0; k < STEPS; k++) {
       pred.subStep();
     }
     out.push(pred.state);
@@ -64,14 +58,42 @@ const start = standing(spawn.x, spawn.y);
 const script = [R, R, RJ, R, R, noInput, noInput, L, L, DJ, L, L, noInput, R, R, RJ, R, noInput];
 
 describe('Predictor', () => {
+  it('a tick holds as many steps as the world rate gives it', () => {
+    for (const steps of [2, 5]) {
+      const pred = new Predictor(g, steps);
+      pred.reset(wire(start));
+      pred.beginTick(1, R);
+      for (let k = 0; k < steps + 2; k++) {
+        pred.subStep();
+      }
+      let s = start;
+      for (let k = 0; k < steps; k++) {
+        s = step(s, R, g, params);
+      }
+      expect(pred.state).toEqual(s);
+    }
+  });
+
+  it('finishes a part-run tick with the world steps before comparing', () => {
+    const pred = new Predictor(g, 5);
+    pred.reset(wire(start));
+    pred.beginTick(1, R);
+    pred.subStep();
+    let s = start;
+    for (let k = 0; k < 5; k++) {
+      s = step(s, R, g, params);
+    }
+    expect(pred.reconcile(wire(s), 1)).toBe('match');
+  });
+
   it('prediction over a scripted input sequence equals running sim/step directly', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     expect(run(pred, script)).toEqual(simulate(start, script));
   });
 
   it('reconcile with a server state equal to the prediction leaves the state untouched and drops the acked ticks', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     const states = run(pred, script);
     const before = pred.state;
@@ -83,7 +105,7 @@ describe('Predictor', () => {
   });
 
   it('reconcile with a 5 px difference resets and replays, and the replayed state equals a fresh simulation from the server state', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     const states = run(pred, script);
     const server: WireState = { ...wire(states[4]!), x: states[4]!.x - 5 };
@@ -94,14 +116,14 @@ describe('Predictor', () => {
   });
 
   it('a 4 px difference is within tolerance and does not reset', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     const states = run(pred, script);
     expect(pred.reconcile({ ...wire(states[2]!), x: states[2]!.x + 4 }, 3)).toBe('match');
   });
 
   it('reconcile part way through a tick finishes the tick for the comparison', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     run(pred, [R, R]);
     pred.beginTick(3, R);
@@ -114,7 +136,7 @@ describe('Predictor', () => {
   });
 
   it('reconcile with an ack_seq older than the buffer drops nothing and does not throw', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     const many = Array.from({ length: HISTORY_TICKS + 10 }, (_, i) => (i % 7 < 4 ? R : L));
     run(pred, many);
@@ -125,7 +147,7 @@ describe('Predictor', () => {
   });
 
   it('an ack_seq newer than every entry takes the server state as the truth', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     run(pred, [R, R, R]);
     const elsewhere = { ...wire(start), x: 100 };
@@ -135,7 +157,7 @@ describe('Predictor', () => {
   });
 
   it('a Correction resets to its state and replays the inputs after its seq', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     const states = run(pred, script);
     const server = { ...wire(states[7]!), x: states[7]!.x + 30 };
@@ -146,15 +168,15 @@ describe('Predictor', () => {
   });
 
   it('server states computed by running sim/step 3 times per tick over the sent inputs never trigger a reset', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     let server = start;
     script.forEach((input, i) => {
       pred.beginTick(i + 1, input);
-      for (let k = 0; k < STEPS_PER_TICK; k++) {
+      for (let k = 0; k < STEPS; k++) {
         pred.subStep();
       }
-      for (let k = 0; k < STEPS_PER_TICK; k++) {
+      for (let k = 0; k < STEPS; k++) {
         server = step(server, input, g, params);
       }
       // the Delta for this tick arrives two ticks late
@@ -166,7 +188,7 @@ describe('Predictor', () => {
   });
 
   it('sub-steps before the first tick and past the third of a tick do nothing', () => {
-    const pred = new Predictor(g);
+    const pred = new Predictor(g, STEPS);
     pred.reset(wire(start));
     pred.subStep();
     expect(pred.state).toEqual(fromWire(wire(start), g));
