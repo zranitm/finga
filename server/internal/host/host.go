@@ -59,6 +59,7 @@ type Host struct {
 	logger    *slog.Logger
 	metrics   *grpcprom.ServerMetrics
 	clients   *grpcprom.ClientMetrics
+	tracing   grpcx.Tracing
 	listeners []runner.Listener
 	tasks     []runner.Task
 	drains    []func(ctx context.Context)
@@ -83,6 +84,7 @@ func New(opts Options) (*Host, error) {
 		return nil, err
 	}
 	h.Traces = traces
+	h.tracing = grpcx.Tracing{Provider: traces}
 	h.OnClose(func() { // first in, so it runs last: the spans the rest end are flushed too
 		ctx, cancel := context.WithTimeout(context.Background(), traceFlushTimeout)
 		defer cancel()
@@ -98,7 +100,7 @@ func (h *Host) serveGRPC() {
 	h.metrics = grpcx.NewServerMetrics()
 	h.opts.Registry.MustRegister(h.metrics) // a fresh registry per process: only a second Host on it fails
 	draining := make(chan struct{})
-	h.GRPC = grpcx.NewServer(grpcx.ServerOptions{Errors: h.opts.Errors, Logger: h.logger, Panics: h.Panics, Metrics: h.metrics, Draining: draining})
+	h.GRPC = grpcx.NewServer(grpcx.ServerOptions{Errors: h.opts.Errors, Logger: h.logger, Panics: h.Panics, Metrics: h.metrics, Draining: draining, Tracing: &h.tracing})
 	h.health = grpchealth.NewServer()
 	healthpb.RegisterHealthServer(h.GRPC, health{Server: h.health, draining: draining})
 	h.listeners = append(h.listeners, runner.Listener{Name: grpcListener, Addr: h.opts.Settings.GRPC, Server: runner.GRPC(h.GRPC)})
@@ -109,9 +111,9 @@ func (h *Host) serveGRPC() {
 	}
 }
 
-// Dial connects to the named service at addr; its calls are counted on /metrics, and Close closes it.
+// Dial connects to the named service at addr; its calls are counted on /metrics and traced, and Close closes it.
 func (h *Host) Dial(name, addr string) (*grpc.ClientConn, error) {
-	conn, err := grpcx.Dial(addr, grpcx.ClientMetrics(h.clients)...)
+	conn, err := grpcx.Dial(addr, append(grpcx.ClientMetrics(h.clients), grpcx.TraceCalls(h.tracing))...)
 	if err != nil {
 		return nil, fmt.Errorf("%s service: %w", name, err)
 	}

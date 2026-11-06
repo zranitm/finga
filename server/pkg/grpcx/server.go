@@ -28,6 +28,8 @@ type ServerOptions struct {
 	// Draining, once closed, ends every open stream with Unavailable, so GracefulStop need not wait for
 	// streams that never end on their own; their clients resubscribe. Nil never drains.
 	Draining <-chan struct{}
+	// Tracing gives calls spans under the caller's trace; nil traces none.
+	Tracing *Tracing
 }
 
 // NewServer is a gRPC server that propagates request IDs, recovers panics, maps errors, and keeps its
@@ -46,6 +48,9 @@ func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 		grpc.ChainUnaryInterceptor(i.unaries()...),
 		grpc.ChainStreamInterceptor(i.streams()...),
 	}, extra...)
+	if opts.Tracing != nil {
+		all = append(all, opts.Tracing.serverOption())
+	}
 	return grpc.NewServer(all...)
 }
 
