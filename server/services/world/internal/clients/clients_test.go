@@ -170,3 +170,14 @@ func TestStarterAsksForTheClassOnJoin(t *testing.T) {
 		t.Fatalf("grant %+v", g)
 	}
 }
+
+// A save is retried only while the character service may yet take it; a bug's Internal is given up.
+func TestSavesRetryOnlyTransientFailures(t *testing.T) {
+	s := clients.NewSaver(nil)
+	if !s.Retryable(status.Error(codes.Unavailable, "restarting")) || !s.Retryable(status.Error(codes.DeadlineExceeded, "slow")) {
+		t.Fatal("a transient failure is not retried")
+	}
+	if s.Retryable(status.Error(codes.Internal, "check constraint")) || s.Retryable(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) {
+		t.Fatal("a failure no retry can pass is retried")
+	}
+}

@@ -463,3 +463,29 @@ func TestAPanicInHandleBreaksTheStreamAndFollowResubscribes(t *testing.T) {
 type writerFunc func([]byte) (int, error)
 
 func (f writerFunc) Write(p []byte) (int, error) { return f(p) }
+
+func TestIsTransient(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"unavailable", status.Error(codes.Unavailable, "down"), true},
+		{"busy, with a reason", grpcx.ErrorFor(codes.Unavailable, grpcx.Reason{Domain: "world", Name: "BUSY"}), true},
+		{"out of time", status.Error(codes.DeadlineExceeded, "slow"), true},
+		{"aborted", status.Error(codes.Aborted, "lock timeout"), true},
+		{"exhausted", status.Error(codes.ResourceExhausted, "too many"), true},
+		{"cancelled", status.Error(codes.Canceled, "shutting down"), true},
+		{"a local deadline", fmt.Errorf("save: %w", context.DeadlineExceeded), true},
+		{"a rule", grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Reason{Domain: "item", Name: "INVENTORY_FULL"}), false},
+		{"internal", status.Error(codes.Internal, "bug"), false},
+		{"not a status", errors.New("bad reply"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := grpcx.IsTransient(tt.err); got != tt.want {
+				t.Fatalf("IsTransient = %v", got)
+			}
+		})
+	}
+}

@@ -105,6 +105,20 @@ func IsRule(err error) bool {
 	return ok
 }
 
+// IsTransient reports whether a failed call may pass if made again: the callee was unreachable, busy or
+// out of time, or the call was aborted or cancelled. A rule, an Internal or an unknown failure won't.
+func IsTransient(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded, codes.Aborted, codes.ResourceExhausted, codes.Canceled:
+		return true
+	default:
+		return false
+	}
+}
+
 // ErrorFor is a failure carrying r, as a table row would send it.
 func ErrorFor(code codes.Code, r Reason) error {
 	return withReason(code, r).Err()
