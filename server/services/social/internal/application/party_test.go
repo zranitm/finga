@@ -485,3 +485,21 @@ func TestAnInviteNeedsItsInviterToStillLead(t *testing.T) {
 		}
 	})
 }
+
+// Registering tells the member their party, or that they have none, so a login never shows a party lost while away.
+func TestRegisteringTellsTheMemberTheirParty(t *testing.T) {
+	f := newFixture(t, "Ayla", "Robin")
+	f.invite(t, "Ayla", "Robin")
+	must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
+	must(t, f.svc.Kick(f.ctx, f.id("Ayla"), f.id("Robin"))) // the empty party sent to Robin finds no connection
+	f.rec.reset()
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "forest", Connection: "c-Robin-2"}))
+	if last := f.rec.last(); last.party != nil || !equal(f.names(last.to), []string{"Robin"}) {
+		t.Fatalf("Robin, kicked while away, was told %+v", last)
+	}
+	f.rec.reset()
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Ayla"), Name: "Ayla", MapID: "forest", Connection: "c-Ayla-2"}))
+	if last := f.rec.last(); last.party == nil || !equal(f.names(last.to), []string{"Ayla"}) || last.party.Leader != f.id("Ayla") {
+		t.Fatalf("Ayla, leading a party of one, was told %+v", last)
+	}
+}

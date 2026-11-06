@@ -200,8 +200,8 @@ message Welcome {
   string token = 1;
   CharacterView character = 2;
   repeated ItemView inventory = 3;
-  // Unset without a party.
-  PartyView party = 4;
+  // Never set: the party follows Welcome in a PartyState, in order with every later party change.
+  PartyView party = 4 [deprecated = true];
   string map_id = 5;
   uint32 tick = 6;
   // Unix milliseconds.

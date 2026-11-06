@@ -1,12 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import {
-  PartyInvitedSchema,
-  PartyStateSchema,
-  PartyViewSchema,
-  WelcomeSchema,
-} from '@/protocol/messages';
+import { PartyInvitedSchema, PartyStateSchema, PartyViewSchema } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
 import { isMember, party } from './party';
@@ -69,13 +64,14 @@ describe('party store', () => {
     expect(party.getState().invites.map((i) => i.inviteId)).toEqual(['inv-1']);
   });
 
-  it('Welcome carries the party or nothing', () => {
-    const party1 = { leader: 'c-ayla', members: [ayla] };
-    party.getState().applyWelcome(create(WelcomeSchema, { mapId: 'forest', party: party1 }));
-    expect(party.getState().party?.leader).toBe('c-ayla');
-    party.getState().applyWelcome(create(WelcomeSchema, { mapId: 'forest' }));
-    expect(party.getState().party).toBeNull();
+  it('Welcome clears the party for the PartyState that follows it, keeping invites', () => {
+    party
+      .getState()
+      .applyPartyState(create(PartyStateSchema, { party: { leader: 'c-ayla', members: [ayla] } }));
     party.getState().applyPartyInvited(invited('inv-1', 'Robin'));
+    party.getState().applyWelcome();
+    expect(party.getState().party).toBeNull();
+    expect(party.getState().invites.map((i) => i.inviteId)).toEqual(['inv-1']);
     party.getState().clear();
     expect(party.getState().invites).toEqual([]);
   });

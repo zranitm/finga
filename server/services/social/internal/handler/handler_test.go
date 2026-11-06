@@ -120,6 +120,11 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 	s.online(t, "gw-a", ann, "Ann")
 	s.online(t, "gw-b", bo, "Bo")
+	for stream, who := range map[grpc.ServerStreamingClient[socialv1.DeliverResponse]]kernel.CharacterID{gwA: ann, gwB: bo} {
+		if m := recv(t, stream); m.GetCharacterId() != who.String() || m.GetPartyState() == nil || m.GetPartyState().GetParty() != nil {
+			t.Fatalf("at login %s heard %+v, want an empty party", who, m)
+		}
+	}
 
 	inv, err := s.c.Invite(s.ctx, &socialv1.InviteRequest{CharacterId: ann.String(), TargetId: bo.String()})
 	if err != nil {
@@ -356,6 +361,11 @@ func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	s.online(t, "gw", ann, "Ann")
 	s.online(t, "gw", bo, "Bo")
 	s.party(t, ann, bo)
+	for _, who := range []kernel.CharacterID{ann, bo} { // each login, without a party
+		if ms := recv(t, stream).GetMembership(); len(ms.GetCharacterIds()) != 1 || ms.GetCharacterIds()[0] != who.String() || len(ms.GetMembers()) != 0 {
+			t.Fatalf("%s's login: %+v", who, ms)
+		}
+	}
 	if ms := recv(t, stream).GetMembership(); len(ms.GetMembers()) != 2 {
 		t.Fatalf("the change after the snapshot: %+v", ms)
 	}

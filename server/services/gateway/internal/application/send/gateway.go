@@ -40,8 +40,6 @@ type Items interface {
 
 // Social is the social service's commands: parties and chat.
 type Social interface {
-	// PartyOf is the character's party; nil when it has none.
-	PartyOf(ctx context.Context, character kernel.CharacterID) (*model.PartyView, error)
 	// Chat cleans and rate-limits a line; the caller hands map lines to the world.
 	Chat(ctx context.Context, sender model.Player, channel model.ChatChannel, text string) (model.ChatLine, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) error

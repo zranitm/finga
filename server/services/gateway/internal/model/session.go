@@ -44,7 +44,6 @@ type Welcome struct {
 	Token      string
 	Character  CharacterView
 	Inventory  []ItemView
-	Party      *PartyView
 	MapID      string
 	ServerTime time.Time
 	TickRateHz int

@@ -33,20 +33,6 @@ const welcome: ServerInit<'welcome'> = {
   token: 'tok-rotated',
   character: ayla,
   inventory: [potion],
-  party: {
-    leader: 'c-ayla',
-    members: [
-      {
-        characterId: 'c-ayla',
-        name: 'Ayla',
-        level: 1,
-        hp: 204,
-        maxHp: 204,
-        mapId: 'town',
-        online: true,
-      },
-    ],
-  },
   mapId: 'town',
   tick: 1,
 };
@@ -79,12 +65,12 @@ describe('wiring', () => {
     clearToken();
   });
 
-  it('Welcome lands in the character, inventory and party stores, and the connection is connected', async () => {
+  it('Welcome lands in the character and inventory stores, leaves the party to the PartyState after it, and connects', async () => {
     await connectedSocket();
     expect(character.getState().character?.name).toBe('Ayla');
     expect(character.getState().expToNext).toBe(20);
     expect(inventory.getState().slots.use[0]).toMatchObject(potion);
-    expect(party.getState().party?.leader).toBe('c-ayla');
+    expect(party.getState().party).toBeNull();
     expect(connection.getState().status).toBe('connected');
     expect(getToken()).toBe('tok-rotated');
   });

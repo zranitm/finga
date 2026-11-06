@@ -191,14 +191,13 @@ func TestAFramesPlayersShareOneEncoding(t *testing.T) {
 	}
 }
 
-func TestWelcomeCarriesTheCharacterItsItemsAndItsParty(t *testing.T) {
+func TestWelcomeCarriesTheCharacterAndItsItems(t *testing.T) {
 	s := &socket{}
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
 		Token:      "t-2",
 		Character:  model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33},
 		Inventory:  []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
-		Party:      &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Level: 2, HP: 50, MaxHP: 105, MapID: "town", Online: true}}},
 		MapID:      "town",
 		ServerTime: at,
 	})
@@ -206,7 +205,6 @@ func TestWelcomeCarriesTheCharacterItsItemsAndItsParty(t *testing.T) {
 		Token:      "t-2",
 		Character:  &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33},
 		Inventory:  []*clientv1.ItemView{{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
-		Party:      &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Level: 2, Hp: 50, MaxHp: 105, MapId: "town", Online: true}}},
 		MapId:      "town",
 		ServerTime: at.UnixMilli(),
 	}

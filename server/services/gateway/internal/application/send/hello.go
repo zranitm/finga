@@ -46,12 +46,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
 		return fmt.Errorf("inventory: %w", err)
 	}
-	welcome.Inventory = items
-	party, err := g.deps.Social.PartyOf(ctx, charID)
-	if err != nil {
-		g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", charID, "err", err) // a social failure must not block the join
-	}
-	welcome.Party = party
+	welcome.Inventory = items // the party follows in a PartyState, once Online registers the player
 	// Last, so a Hello that fails before here leaves the client's token as it was.
 	welcome.Token, err = g.rotate(ctx, p.SessionID)
 	if err != nil {

@@ -1352,20 +1352,23 @@ func TestPartyCommandsAndState(t *testing.T) {
 			{Id: aylaID.String(), Name: "Ayla", Level: 1, Hp: 204, MaxHp: 204, MapId: "town", Online: true},
 			{Id: brunoID.String(), Name: "Bruno", Level: 1, MapId: "forest"},
 		}}
+		fs.of[brunoID.String()] = nil
 		h := social(t, fs)
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)
-		w := ayla.expect("Welcome").Data.(*clientv1.Welcome)
-		if w.Party == nil || w.GetParty().GetLeader() != aylaID.String() || len(w.GetParty().GetMembers()) != 2 || w.GetParty().GetMembers()[1].GetName() != "Bruno" || w.GetParty().GetMembers()[1].GetMapId() != "forest" || w.GetParty().GetMembers()[1].GetOnline() {
-			t.Fatalf("welcome party %+v", w.Party)
-		}
+		ayla.expect("Welcome")
 		ayla.expect("Snapshot")
+		// The party follows Welcome, from the registration, in order with the party's later changes.
+		if p := ayla.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bruno" || p.GetMembers()[1].GetMapId() != "forest" || p.GetMembers()[1].GetOnline() {
+			t.Fatalf("ayla's party after Welcome %+v", p)
+		}
 		bruno := h.dial(t)
 		bruno.hello(tokenBob, brunoID)
-		if w := bruno.expect("Welcome").Data.(*clientv1.Welcome); w.Party != nil {
-			t.Fatalf("bruno has a party in Welcome: %+v", w.Party)
-		}
+		bruno.expect("Welcome")
 		bruno.expect("Snapshot")
+		if p := bruno.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p != nil {
+			t.Fatalf("bruno has a party: %+v", p)
+		}
 		// Registrations land in either order, slightly after their Snapshots: wait for both, find Ayla's by ID.
 		synctest.Wait()
 		if len(fs.onlineCalls()) < 2 {

@@ -12,7 +12,8 @@ export interface Invite {
 export interface PartyState {
   readonly party: PartyView | null;
   readonly invites: readonly Invite[];
-  applyWelcome(d: Data<'welcome'>): void;
+  /** A Welcome clears the party; social sends the current one in a PartyState right after. */
+  applyWelcome(): void;
   applyPartyState(d: Data<'partyState'>): void;
   applyPartyInvited(d: Data<'partyInvited'>, at?: number): void;
   dismissInvite(inviteId: string): void;
@@ -22,8 +23,8 @@ export interface PartyState {
 export const party = defineStore<PartyState>((set, get) => ({
   party: null,
   invites: [],
-  applyWelcome: (d) => {
-    set({ party: d.party ?? null });
+  applyWelcome: () => {
+    set({ party: null });
   },
   applyPartyState: (d) => {
     set({ party: d.party ?? null });

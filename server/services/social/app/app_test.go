@@ -43,6 +43,9 @@ func TestAnInviteReachesTheGatewayOverTheRealListener(t *testing.T) {
 		if _, err := c.Online(ctx, &socialv1.OnlineRequest{GatewayId: "gw", ConnectionId: "conn-" + id.String(), Member: &socialv1.Member{Id: id.String(), Name: "X", MapId: "town"}}); err != nil {
 			t.Fatal(err)
 		}
+		if m, err := stream.Recv(); err != nil || m.GetCharacterId() != id.String() || m.GetPartyState() == nil {
+			t.Fatalf("at login %+v %v, want an empty party", m, err)
+		}
 	}
 	if _, err := c.Invite(ctx, &socialv1.InviteRequest{CharacterId: ann.String(), TargetId: bo.String()}); err != nil {
 		t.Fatal(err)

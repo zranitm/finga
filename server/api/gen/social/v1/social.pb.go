@@ -1957,12 +1957,12 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\vChatChannel\x12\x1c\n" +
 	"\x18CHAT_CHANNEL_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CHAT_CHANNEL_MAP\x10\x01\x12\x16\n" +
-	"\x12CHAT_CHANNEL_PARTY\x10\x022\x92\b\n" +
+	"\x12CHAT_CHANNEL_PARTY\x10\x022\x97\b\n" +
 	"\rSocialService\x12T\n" +
 	"\aDeliver\x12\".internal.social.v1.DeliverRequest\x1a#.internal.social.v1.DeliverResponse0\x01\x12O\n" +
 	"\x06Online\x12!.internal.social.v1.OnlineRequest\x1a\".internal.social.v1.OnlineResponse\x12R\n" +
-	"\aOffline\x12\".internal.social.v1.OfflineRequest\x1a#.internal.social.v1.OfflineResponse\x12R\n" +
-	"\aPartyOf\x12\".internal.social.v1.PartyOfRequest\x1a#.internal.social.v1.PartyOfResponse\x12O\n" +
+	"\aOffline\x12\".internal.social.v1.OfflineRequest\x1a#.internal.social.v1.OfflineResponse\x12W\n" +
+	"\aPartyOf\x12\".internal.social.v1.PartyOfRequest\x1a#.internal.social.v1.PartyOfResponse\"\x03\x88\x02\x01\x12O\n" +
 	"\x06Invite\x12!.internal.social.v1.InviteRequest\x1a\".internal.social.v1.InviteResponse\x12R\n" +
 	"\aRespond\x12\".internal.social.v1.RespondRequest\x1a#.internal.social.v1.RespondResponse\x12[\n" +
 	"\n" +

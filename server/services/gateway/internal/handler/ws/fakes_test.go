@@ -473,8 +473,8 @@ type fakeSocial struct {
 	gate       chan struct{}   // when set, Online lands only once it closes
 	landed     []string        // "online <id>" and "offline <id>", in the order they took effect
 	calls      []string
-	of         map[string]*socialv1.Party
-	err        error // for party commands
+	of         map[string]*socialv1.Party // the party Online sends each character; none sent for one left out
+	err        error                      // for party commands
 	chatErr    error
 	recipients []kernel.CharacterID // a party line goes to these
 	events     chan *socialv1.DeliverResponse
@@ -559,6 +559,10 @@ func (f *fakeSocial) Online(ctx context.Context, req *socialv1.OnlineRequest) (*
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.landed = append(f.landed, "online "+req.GetMember().GetId())
+	// As the service does, for the characters a test gave an entry: the member hears their party, an empty one for nil.
+	if party, ok := f.of[req.GetMember().GetId()]; ok {
+		f.events <- &socialv1.DeliverResponse{CharacterId: req.GetMember().GetId(), Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{Party: party}}}
+	}
 	return &socialv1.OnlineResponse{}, nil
 }
 
@@ -593,12 +597,6 @@ func (f *fakeSocial) Offline(_ context.Context, req *socialv1.OfflineRequest) (*
 	f.offline = append(f.offline, req)
 	f.landed = append(f.landed, "offline "+req.GetCharacterId())
 	return &socialv1.OfflineResponse{}, nil
-}
-
-func (f *fakeSocial) PartyOf(_ context.Context, req *socialv1.PartyOfRequest) (*socialv1.PartyOfResponse, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return &socialv1.PartyOfResponse{Party: f.of[req.GetCharacterId()]}, nil
 }
 
 func (f *fakeSocial) Invite(_ context.Context, req *socialv1.InviteRequest) (*socialv1.InviteResponse, error) {

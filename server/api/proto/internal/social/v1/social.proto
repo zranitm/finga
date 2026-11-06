@@ -9,11 +9,14 @@ option go_package = "finga/api/gen/social/v1;socialv1";
 service SocialService {
   // Deliver streams Subscribed, then the party events of every character online through that gateway.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
-  // Online records a character as connected through a gateway and tells its party; again through the same connection, it keeps what UpdateMember reported.
+  // Online records a character as connected through a gateway and sends them their party, an empty one without, telling the rest of it too; again through the same connection, it keeps what UpdateMember reported.
   rpc Online(OnlineRequest) returns (OnlineResponse);
   // Offline marks a character as disconnected; their party keeps them.
   rpc Offline(OfflineRequest) returns (OfflineResponse);
-  rpc PartyOf(PartyOfRequest) returns (PartyOfResponse);
+  // Unused: a login's party comes from Online, in order with the party's changes.
+  rpc PartyOf(PartyOfRequest) returns (PartyOfResponse) {
+    option deprecated = true;
+  }
   // Invite asks a character on the same map to join; an inviter without a party leads the new one.
   rpc Invite(InviteRequest) returns (InviteResponse);
   rpc Respond(RespondRequest) returns (RespondResponse);

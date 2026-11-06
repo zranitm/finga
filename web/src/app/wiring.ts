@@ -14,7 +14,7 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('welcome', (m) => {
       character.getState().applyWelcome(m.d);
       inventory.getState().applyWelcome(m.d);
-      party.getState().applyWelcome(m.d);
+      party.getState().applyWelcome();
     }),
     socket.on('inventoryChanged', (m) => {
       inventory.getState().applyInventoryChanged(m.d);

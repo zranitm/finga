@@ -42,10 +42,12 @@ const (
 type SocialServiceClient interface {
 	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
-	// Online records a character as connected through a gateway and tells its party; again through the same connection, it keeps what UpdateMember reported.
+	// Online records a character as connected through a gateway and sends them their party, an empty one without, telling the rest of it too; again through the same connection, it keeps what UpdateMember reported.
 	Online(ctx context.Context, in *OnlineRequest, opts ...grpc.CallOption) (*OnlineResponse, error)
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(ctx context.Context, in *OfflineRequest, opts ...grpc.CallOption) (*OfflineResponse, error)
+	// Deprecated: Do not use.
+	// Unused: a login's party comes from Online, in order with the party's changes.
 	PartyOf(ctx context.Context, in *PartyOfRequest, opts ...grpc.CallOption) (*PartyOfResponse, error)
 	// Invite asks a character on the same map to join; an inviter without a party leads the new one.
 	Invite(ctx context.Context, in *InviteRequest, opts ...grpc.CallOption) (*InviteResponse, error)
@@ -109,6 +111,7 @@ func (c *socialServiceClient) Offline(ctx context.Context, in *OfflineRequest, o
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *socialServiceClient) PartyOf(ctx context.Context, in *PartyOfRequest, opts ...grpc.CallOption) (*PartyOfResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PartyOfResponse)
@@ -217,10 +220,12 @@ func (c *socialServiceClient) UpdateMember(ctx context.Context, in *UpdateMember
 type SocialServiceServer interface {
 	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error
-	// Online records a character as connected through a gateway and tells its party; again through the same connection, it keeps what UpdateMember reported.
+	// Online records a character as connected through a gateway and sends them their party, an empty one without, telling the rest of it too; again through the same connection, it keeps what UpdateMember reported.
 	Online(context.Context, *OnlineRequest) (*OnlineResponse, error)
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(context.Context, *OfflineRequest) (*OfflineResponse, error)
+	// Deprecated: Do not use.
+	// Unused: a login's party comes from Online, in order with the party's changes.
 	PartyOf(context.Context, *PartyOfRequest) (*PartyOfResponse, error)
 	// Invite asks a character on the same map to join; an inviter without a party leads the new one.
 	Invite(context.Context, *InviteRequest) (*InviteResponse, error)

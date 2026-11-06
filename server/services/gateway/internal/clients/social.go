@@ -26,12 +26,6 @@ func NewSocial(c socialv1.SocialServiceClient, log *slog.Logger, rec *panics.Rec
 	return Social{c: c, log: log, panics: rec}
 }
 
-// PartyOf is the character's party, nil when it has none.
-func (s Social) PartyOf(ctx context.Context, character kernel.CharacterID) (*model.PartyView, error) {
-	res, err := s.c.PartyOf(ctx, &socialv1.PartyOfRequest{CharacterId: character.String()})
-	return partyView(res.GetParty()), errmap.Wrap(err)
-}
-
 // Online registers a player connected to this gateway through conn.
 func (s Social) Online(ctx context.Context, gateway, conn string, p model.Player, mapID string) error {
 	member := &socialv1.Member{Id: p.ID.String(), Name: p.Name, Level: int32(p.Level), Hp: int32(p.HP), MaxHp: int32(p.MaxHP), MapId: mapID}

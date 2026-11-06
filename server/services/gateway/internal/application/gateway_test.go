@@ -57,7 +57,6 @@ func (idle) Move(context.Context, model.Actor, model.ItemMove) ([]model.Inventor
 func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) ([]model.InventorySlot, error) {
 	return nil, nil
 }
-func (idle) PartyOf(context.Context, kernel.CharacterID) (*model.PartyView, error) { return nil, nil }
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil
 }

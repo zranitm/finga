@@ -1891,7 +1891,9 @@ type Welcome struct {
 	Token     string         `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	Character *CharacterView `protobuf:"bytes,2,opt,name=character,proto3" json:"character,omitempty"`
 	Inventory []*ItemView    `protobuf:"bytes,3,rep,name=inventory,proto3" json:"inventory,omitempty"`
-	// Unset without a party.
+	// Never set: the party follows Welcome in a PartyState, in order with every later party change.
+	//
+	// Deprecated: Marked as deprecated in client/v1/client.proto.
 	Party *PartyView `protobuf:"bytes,4,opt,name=party,proto3" json:"party,omitempty"`
 	MapId string     `protobuf:"bytes,5,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	Tick  uint32     `protobuf:"varint,6,opt,name=tick,proto3" json:"tick,omitempty"`
@@ -1954,6 +1956,7 @@ func (x *Welcome) GetInventory() []*ItemView {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in client/v1/client.proto.
 func (x *Welcome) GetParty() *PartyView {
 	if x != nil {
 		return x.Party
@@ -3502,12 +3505,12 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06online\x18\a \x01(\bR\x06online\"U\n" +
 	"\tPartyView\x12\x16\n" +
 	"\x06leader\x18\x01 \x01(\tR\x06leader\x120\n" +
-	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xa4\x02\n" +
+	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xa8\x02\n" +
 	"\aWelcome\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x126\n" +
 	"\tcharacter\x18\x02 \x01(\v2\x18.client.v1.CharacterViewR\tcharacter\x121\n" +
-	"\tinventory\x18\x03 \x03(\v2\x13.client.v1.ItemViewR\tinventory\x12*\n" +
-	"\x05party\x18\x04 \x01(\v2\x14.client.v1.PartyViewR\x05party\x12\x15\n" +
+	"\tinventory\x18\x03 \x03(\v2\x13.client.v1.ItemViewR\tinventory\x12.\n" +
+	"\x05party\x18\x04 \x01(\v2\x14.client.v1.PartyViewB\x02\x18\x01R\x05party\x12\x15\n" +
 	"\x06map_id\x18\x05 \x01(\tR\x05mapId\x12\x12\n" +
 	"\x04tick\x18\x06 \x01(\rR\x04tick\x12\x1f\n" +
 	"\vserver_time\x18\a \x01(\x03R\n" +

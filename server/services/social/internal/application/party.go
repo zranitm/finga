@@ -32,7 +32,7 @@ func NewPartyService(deps PartyDeps) *PartyService {
 	return &PartyService{store: deps.Store, notifier: deps.Notifier}
 }
 
-// Online records a character as connected and refreshes their party row; through the same connection again, it keeps what the world reported since.
+// Online records a character as connected and tells them their party, an empty one without; through the same connection again, it keeps what the world reported since.
 func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
@@ -43,7 +43,9 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 			}
 		}
 		tx.PutMember(m)
-		refresh(tx, n, m)
+		if !refresh(tx, n, m) {
+			n.left(m.ID) // a party lost while away is not shown at login
+		}
 		return nil
 	})
 }
@@ -294,20 +296,21 @@ func ledBy(tx PartyTx, leader, target kernel.CharacterID) (model.Party, error) {
 	return p, nil
 }
 
-// refresh copies a member's row into their party.
-func refresh(tx PartyTx, n *notes, m model.Member) {
+// refresh copies a member's row into their party and tells its members; false when they have none.
+func refresh(tx PartyTx, n *notes, m model.Member) bool {
 	p, ok := tx.PartyOf(m.ID)
 	if !ok {
-		return
+		return false
 	}
 	k := slices.IndexFunc(p.Members, func(x model.Member) bool { return x.ID == m.ID })
 	if k < 0 {
-		return
+		return false
 	}
 	m.JoinOrder = p.Members[k].JoinOrder
 	p.Members[k] = m
 	tx.PutParty(p)
 	n.changed(p)
+	return true
 }
 
 func add(tx PartyTx, p model.Party, m model.Member) model.Party {
