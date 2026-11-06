@@ -53,6 +53,7 @@ type fakeWorld struct {
 	conns      map[kernel.CharacterID]string // the connection each character last joined through
 	joinErr    error
 	leaveFails int                        // the next Leave calls fail as a world too busy to take them
+	leaveGate  chan struct{}              // when set, Leave answers only once it closes
 	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot, as an older connection's
 	joined     []*worldv1.JoinRequest
 	left       []*worldv1.LeaveRequest
@@ -206,13 +207,22 @@ func (f *fakeWorld) leaves() []*worldv1.LeaveRequest {
 	return append([]*worldv1.LeaveRequest(nil), f.left...)
 }
 
-func (f *fakeWorld) Leave(_ context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
+func (f *fakeWorld) Leave(ctx context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
 	f.mu.Lock()
-	defer f.mu.Unlock()
 	f.left = append(f.left, req)
 	if f.leaveFails > 0 {
 		f.leaveFails--
+		f.mu.Unlock()
 		return nil, grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY)
+	}
+	gate := f.leaveGate
+	f.mu.Unlock()
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 	return &worldv1.LeaveResponse{}, nil
 }

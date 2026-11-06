@@ -1812,6 +1812,33 @@ func TestDrainKicksEveryConnectionAsServerRestart(t *testing.T) {
 	})
 }
 
+// Drain returns once each connection's close has taken its player off the map, so no Leave is cut by the exit.
+func TestDrainWaitsForEachClosesLeave(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		ayla := h.joined(t)
+		gate := make(chan struct{})
+		h.world.mu.Lock()
+		h.world.leaveGate = gate
+		h.world.mu.Unlock()
+		drained := make(chan struct{})
+		go func() { defer close(drained); h.streams.Drain(context.Background()) }()
+		ayla.expectKick(clientv1.KickReason_KICK_REASON_SERVER_RESTART)
+		time.Sleep(time.Second) // Drain polls while the Leave waits in the world
+		select {
+		case <-drained:
+			t.Fatal("Drain returned while the close's Leave was still on its way")
+		default:
+		}
+		close(gate)
+		select {
+		case <-drained:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Drain did not return once the Leave was in")
+		}
+	})
+}
+
 func TestTheFirstSubscriptionIsNotABreak(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		// Subscribed arrives while the first join is in flight: one join, one Snapshot.

@@ -155,10 +155,10 @@ func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 	soc := &social{}
 	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Second})
 	s := play(t, r, "c-1", kernel.NewCharacterID())
-	r.Remove(s)
+	r.Close(s)
 	r.Online(t.Context(), s)
-	if calls := soc.list(); len(calls) != 0 {
-		t.Fatalf("calls %v after the connection closed", calls)
+	if calls := soc.list(); !slices.Equal(calls, []string{"offline c-1"}) {
+		t.Fatalf("calls %v, want only the close's Offline", calls)
 	}
 }
 

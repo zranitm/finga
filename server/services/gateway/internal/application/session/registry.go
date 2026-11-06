@@ -61,6 +61,7 @@ type Registry struct {
 	bySession   map[kernel.SessionID]*Session
 	worldSubs   uint64 // more than one means the world's stream broke
 	draining    atomic.Bool
+	unclosed    int // under mu: sessions from Open until their Close returns
 
 	joining map[kernel.CharacterID]*characterLock // under mu: each character's joins, one at a time
 	rejoins chan struct{}                         // a slot per rejoin running
@@ -127,6 +128,7 @@ func (r *Registry) Open(connID string, o Outbox) *Session {
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	r.mu.Lock()
 	r.byConn[connID] = s
+	r.unclosed++
 	draining := r.draining.Load() // under the lock, so Drain cannot miss this connection
 	r.mu.Unlock()
 	if draining {
@@ -135,8 +137,25 @@ func (r *Registry) Open(connID string, o Outbox) *Session {
 	return s
 }
 
-// Remove forgets a session whose connection closed and stops its rejoin; joined reports whether it claimed a character, which its caller then takes off its map.
-func (r *Registry) Remove(s *Session) (joined bool) {
+// Close ends the session of a connection that closed: it stops its rejoin, takes its player off the map, then offline; online reports whether it was.
+func (r *Registry) Close(s *Session) (online bool) {
+	defer func() {
+		r.mu.Lock()
+		r.unclosed--
+		r.mu.Unlock()
+	}()
+	if r.remove(s) {
+		r.leave(s.Presence())
+	}
+	if !s.Active() {
+		return false
+	}
+	r.offline(s)
+	return true
+}
+
+// remove forgets a session whose connection closed and stops its rejoin; joined reports whether it claimed a character, which its caller then takes off its map.
+func (r *Registry) remove(s *Session) (joined bool) {
 	s.cancel()
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -241,9 +260,9 @@ func (r *Registry) Drain() []*Session {
 	return out
 }
 
-// Len is the number of open sessions.
+// Len is the number of sessions not yet closed: open, or still taking their player off the map and offline.
 func (r *Registry) Len() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return len(r.byConn)
+	return r.unclosed
 }

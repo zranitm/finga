@@ -88,11 +88,7 @@ func (g *Gateway) rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 
 // Closed ends a session once its connection closed and none of its commands still runs.
 func (g *Gateway) Closed(s *session.Session, reason string) {
-	if g.sessions.Remove(s) {
-		g.sessions.Leave(s)
-	}
-	if s.Active() {
-		g.sessions.Offline(s)
+	if g.sessions.Close(s) {
 		g.deps.Observer.OnlineChanged(-1)
 	}
 	g.deps.Logger.Info("ws closed", "conn", s.ConnID(), "reason", reason)

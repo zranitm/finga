@@ -162,7 +162,7 @@ func (r *Registry) rejoin(s *Session) {
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
-			r.Leave(s) // closed mid-join; the world may have joined it anyway
+			r.leave(s.Presence()) // closed mid-join; the world may have joined it anyway
 			return
 		}
 		if errors.Is(err, model.ErrNotSubscribed) {
@@ -184,7 +184,7 @@ func (r *Registry) rejoin(s *Session) {
 	closed := s.closed
 	r.mu.Unlock()
 	if closed {
-		r.Leave(s)
+		r.leave(s.Presence())
 		return
 	}
 	r.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.Character(), "map_id", joined.MapID)
@@ -214,9 +214,6 @@ func (r *Registry) join(ctx context.Context, conn string, account kernel.Account
 func waitable(err error) bool {
 	return errors.Is(err, model.ErrNotSubscribed) || errors.Is(err, model.ErrUnavailable)
 }
-
-// Leave takes the player off its map.
-func (r *Registry) Leave(s *Session) { r.leave(s.Presence()) }
 
 // LeaveGhost takes off its map a presence whose connection this gateway does not have: its deliveries
 // still come, so its Leave went missing. One at a time per connection, then none for ghostQuiet while
@@ -298,8 +295,8 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 	return r.deps.Social.Online(ctx, r.deps.Gateway, s.connID, s.Player(), s.mapID())
 }
 
-// Offline tells the social service the player's connection closed, after any registration of it still on its way.
-func (r *Registry) Offline(s *Session) {
+// offline tells the social service the player's connection closed, after any registration of it still on its way.
+func (r *Registry) offline(s *Session) {
 	if r.deps.Social == nil {
 		return
 	}
