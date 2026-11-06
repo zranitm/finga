@@ -10,7 +10,7 @@ import (
 
 // Leave takes the character off its map, even mid-transfer, if conn holds it; it returns once its checkpoint is queued.
 func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) error {
-	_, err := w.depart(ctx, id, func(p presence) bool { return p.conn == conn })
+	_, _, err := w.depart(ctx, id, func(p presence) bool { return p.conn == conn })
 	return err
 }
 

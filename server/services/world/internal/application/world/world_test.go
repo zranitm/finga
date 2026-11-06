@@ -361,7 +361,7 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	if err := inst.Join(context.Background(), worldtest.NewPlayer("Ayla", 0, 0), &worldtest.Sink{}); !errors.Is(err, model.ErrBusy) {
 		t.Fatalf("join with a full inbox: %v", err)
 	}
-	if err := inst.Leave(kernel.NewCharacterID(), "", nil, nil); !errors.Is(err, model.ErrBusy) {
+	if err := inst.Leave(kernel.NewCharacterID(), "", nil); !errors.Is(err, model.ErrBusy) {
 		t.Fatal("leave accepted with a full inbox")
 	}
 	t.Run("a join on a stopped instance gives up when the caller's context ends", func(t *testing.T) {

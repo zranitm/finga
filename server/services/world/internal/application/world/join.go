@@ -14,13 +14,13 @@ import (
 
 // Join takes the character off any map it is on first, so a login elsewhere or a rejoin never starts at an older save.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error) {
-	d, err := w.depart(ctx, id, func(p presence) bool { return p.account == account })
+	older, took, err := w.depart(ctx, id, func(p presence) bool { return p.account == account })
 	if err != nil {
 		return model.View{}, err
 	}
 	v, err := w.join(ctx, account, id, conn, sink)
-	if err != nil && d.OK {
-		d.Sink.Send(model.Detached{}) // the gateway joins the older connection again
+	if err != nil && took {
+		older.sink.Send(model.Detached{}) // the gateway joins the older connection again, on a map or mid-transfer
 	}
 	return v, err
 }
@@ -50,7 +50,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
-	at := presence{inst: inst, conn: conn, account: account}
+	at := presence{inst: inst, conn: conn, account: account, sink: sink}
 	w.presences.place(id, at)
 	if err := inst.Join(ctx, p, sink); err != nil {
 		w.presences.forget(id, at)
@@ -84,41 +84,40 @@ func (w *World) grantStarter(ctx context.Context, account kernel.AccountID, id k
 	}
 }
 
-// depart takes the character off its map if want accepts it, behind a tombstone that holds off transfers and departs.
-func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(presence) bool) (instance.Departure, error) {
+// depart takes the character off its map if want accepts it, behind a tombstone that holds off transfers and departs; it returns the presence it took.
+func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(presence) bool) (presence, bool, error) {
 	for {
 		left := make(chan struct{})
 		p, ok := w.presences.depart(id, want, left)
 		if !ok {
-			return instance.Departure{}, nil
+			return presence{}, false, nil
 		}
 		if p.left != nil {
 			if err := p.inst.Wait(ctx, p.left); err != nil {
-				return instance.Departure{}, err
+				return presence{}, false, err
 			}
 			w.presences.forget(id, p)
 			continue
 		}
 		tomb := p
 		tomb.left = left
-		var d instance.Departure
-		if err := whileBusy(ctx, func() error { return p.inst.Leave(id, p.conn, left, &d) }); err != nil {
+		if err := whileBusy(ctx, func() error { return p.inst.Leave(id, p.conn, left) }); err != nil {
 			w.presences.restore(id, tomb, p)
 			close(left) // never posted; whoever waits on the tombstone looks again
-			return instance.Departure{}, err
+			return presence{}, false, err
 		}
 		if err := p.inst.Wait(ctx, left); err != nil {
 			w.forgetLater(id, tomb) // the leave lands later, and its tombstone goes then
-			return instance.Departure{}, err
+			return presence{}, false, err
 		}
 		w.presences.forget(id, tomb)
-		return d, nil
+		return p, true, nil
 	}
 }
 
 // leaveLater posts a leave for a join that may still land, retrying while the map is busy, until the world stops.
 func (w *World) leaveLater(inst *instance.Instance, id kernel.CharacterID, conn string) {
-	w.background.Go(func() { _ = whileBusy(w.jobs, func() error { return inst.Leave(id, conn, nil, nil) }) })
+	w.background.Go(func() { _ = whileBusy(w.jobs, func() error { return inst.Leave(id, conn, nil) }) })
 }
 
 // forgetLater drops a tombstone once the map has handled its leave, for a departure whose caller stopped waiting.

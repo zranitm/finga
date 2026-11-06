@@ -129,7 +129,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 		}
 
 		{ // others see the leave
-			_ = inst.Leave(robin.ID, "", nil, nil)
+			_ = inst.Leave(robin.ID, "", nil)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			d := sa.Last()
@@ -550,7 +550,7 @@ func TestCheckpoints(t *testing.T) {
 			}
 		}
 		{ // on leave, right away
-			_ = inst.Leave(p.ID, "", nil, nil)
+			_ = inst.Leave(p.ID, "", nil)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := collect()
@@ -720,7 +720,7 @@ func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 		join(t, inst, ayla)
 		sr := join(t, inst, robin)
 		before := len(sr.All())
-		_ = inst.Leave(ayla.ID, "c-1", nil, nil)
+		_ = inst.Leave(ayla.ID, "c-1", nil)
 		ayla.Connection = "c-2"
 		joined := make(chan error, 1)
 		go func() { joined <- inst.Join(context.Background(), ayla, &worldtest.Sink{}) }()

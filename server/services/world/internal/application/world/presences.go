@@ -7,11 +7,12 @@ import (
 	"finga/services/world/internal/application/instance"
 )
 
-// presence is where a joined character is; a set left marks a tombstone, closing once the map has handled the leave.
+// presence is where a joined character is and the sink of its connection; a set left marks a tombstone, closing once the map has handled the leave.
 type presence struct {
 	inst    *instance.Instance
 	conn    string
 	account kernel.AccountID
+	sink    instance.Sink
 	left    <-chan struct{}
 }
 
@@ -36,16 +37,17 @@ func (ps *presences) at(id kernel.CharacterID, conn string) (presence, bool) {
 	return p, ok && p.conn == conn && p.left == nil
 }
 
-// move puts the character on inst if conn still holds it; false when a newer join replaced it, or it is leaving.
-func (ps *presences) move(id kernel.CharacterID, conn string, inst *instance.Instance) bool {
+// move puts the character on inst if conn still holds it, returning its new presence; false when a newer join replaced it, or it is leaving.
+func (ps *presences) move(id kernel.CharacterID, conn string, inst *instance.Instance) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
 	if !ok || p.conn != conn || p.left != nil {
-		return false
+		return presence{}, false
 	}
-	ps.by[id] = presence{inst: inst, conn: conn, account: p.account}
-	return true
+	p.inst = inst
+	ps.by[id] = p
+	return p, true
 }
 
 // forget drops the character's presence, unless another placement came since; false when one did.

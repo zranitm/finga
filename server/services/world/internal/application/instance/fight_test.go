@@ -196,7 +196,7 @@ func TestAttacks(t *testing.T) {
 			if len(damages(far)) != 0 {
 				t.Fatal("a Warrior hit a mob 184 px away")
 			}
-			_ = inst.Leave(idOf(t, far), "", nil, nil)
+			_ = inst.Leave(idOf(t, far), "", nil)
 			behind := join(t, inst, warriorAt(340)) // the mob is behind, facing right
 			_ = inst.Attack(idOf(t, behind))
 			time.Sleep(worldtest.TickInterval)
@@ -204,7 +204,7 @@ func TestAttacks(t *testing.T) {
 			if len(damages(behind)) != 0 {
 				t.Fatal("a Warrior hit a mob behind their back")
 			}
-			_ = inst.Leave(idOf(t, behind), "", nil, nil)
+			_ = inst.Leave(idOf(t, behind), "", nil)
 			near := join(t, inst, warriorAt(250))
 			_ = inst.Attack(idOf(t, near))
 			time.Sleep(worldtest.TickInterval)
@@ -213,7 +213,7 @@ func TestAttacks(t *testing.T) {
 			if len(got) != 1 || got[0].Amount != 21 || got[0].Crit || got[0].Miss || got[0].Source.Player != idOf(t, near) || !got[0].Target.IsMob() {
 				t.Fatalf("damages %+v", got)
 			}
-			_ = inst.Leave(idOf(t, near), "", nil, nil)
+			_ = inst.Leave(idOf(t, near), "", nil)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 		}
@@ -227,7 +227,7 @@ func TestAttacks(t *testing.T) {
 			if len(got) != 1 || got[0].Amount != 21 {
 				t.Fatalf("damages %+v", got)
 			}
-			_ = inst.Leave(idOf(t, s), "", nil, nil)
+			_ = inst.Leave(idOf(t, s), "", nil)
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 		}
@@ -579,7 +579,7 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 			t.Fatalf("not dead: %+v", v)
 		}
 		cps.Drain()
-		_ = inst.Leave(p.ID, "", nil, nil)
+		_ = inst.Leave(p.ID, "", nil)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		town := data.Town()

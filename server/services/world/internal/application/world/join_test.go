@@ -150,7 +150,7 @@ func TestLeaveNamesItsConnection(t *testing.T) {
 		if err := inst.Join(context.Background(), p, s); err != nil {
 			t.Fatal(err)
 		}
-		_ = inst.Leave(p.ID, "old", nil, nil)
+		_ = inst.Leave(p.ID, "old", nil)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		before := len(s.Deltas())
@@ -159,7 +159,7 @@ func TestLeaveNamesItsConnection(t *testing.T) {
 		if len(s.Deltas()) <= before {
 			t.Fatal("the player was removed by another connection's Leave")
 		}
-		_ = inst.Leave(p.ID, "new", nil, nil)
+		_ = inst.Leave(p.ID, "new", nil)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		after := len(s.Deltas())

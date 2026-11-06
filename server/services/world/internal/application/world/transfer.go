@@ -17,11 +17,12 @@ func (w *World) Transfer(p model.Player, sink instance.Sink, mapID string) {
 		w.deps.Logger.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
 		return
 	}
-	if !w.presences.move(p.ID, p.Connection, target) {
+	at, ok := w.presences.move(p.ID, p.Connection, target)
+	if !ok {
 		return
 	}
 	w.background.Go(func() {
-		w.deps.Panics.Do(w.jobs, panics.FlowJob, func() { w.transfer(p, sink, target) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
+		w.deps.Panics.Do(w.jobs, panics.FlowJob, func() { w.transfer(p, sink, at) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
 	})
 }
 
@@ -30,11 +31,11 @@ func (w *World) Dropped(from *instance.Instance, id kernel.CharacterID, conn str
 	w.presences.drop(id, from, conn)
 }
 
-// transfer joins the player to target; one that can't land in transferTimeout detaches, so the gateway joins it again.
-func (w *World) transfer(p model.Player, sink instance.Sink, target *instance.Instance) {
+// transfer joins the player to the map at names; one that can't land in transferTimeout detaches, so the gateway joins it again.
+func (w *World) transfer(p model.Player, sink instance.Sink, at presence) {
 	ctx, cancel := context.WithTimeout(w.jobs, transferTimeout)
 	defer cancel()
-	at := presence{inst: target, conn: p.Connection, account: p.Account}
+	target := at.inst
 	held := func() bool { return w.presences.holds(p.ID, at) }
 	err := whileBusy(ctx, func() error {
 		if !held() {

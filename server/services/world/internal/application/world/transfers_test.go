@@ -191,3 +191,30 @@ func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 		}
 	})
 }
+
+// Mid-portal no map holds the player, so the registry's own record of the connection is what a failed login elsewhere detaches.
+func TestAFailedLoginElsewhereMidPortalDetachesTheOlderConnection(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := runningWorld(t)
+		bo := at(t, "Bo", "forest")
+		w.enter(t, bo, "forest", "c-bo", &worldtest.Sink{})
+		ayla, s := at(t, "Ayla", "town"), &worldtest.Sink{}
+		w.enter(t, ayla, "town", "c-1", s)
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		fillInbox(w, bo.ID, "c-bo") // the transfer waits at the forest
+		moved := at(t, "Ayla", "forest")
+		moved.ID, moved.Account, moved.Connection = ayla.ID, ayla.Account, "c-1"
+		w.Transfer(moved, s, "forest")
+		synctest.Wait()
+		delete(w.chars.chars, ayla.ID) // the login elsewhere fails on the load
+		if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c-2", &worldtest.Sink{}); err == nil {
+			t.Fatal("the join succeeded")
+		}
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if n := detached(s); n != 1 {
+			t.Fatalf("%d Detached events for the older connection, want one", n)
+		}
+	})
+}

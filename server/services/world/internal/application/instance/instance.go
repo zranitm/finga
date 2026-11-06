@@ -82,7 +82,6 @@ type (
 		id   kernel.CharacterID
 		conn string // empty: any
 		done chan struct{}
-		took *Departure
 	}
 	inputMsg struct {
 		id  kernel.CharacterID
@@ -183,15 +182,9 @@ func (i *Instance) join(ctx context.Context, j *joinMsg) error {
 	}
 }
 
-// Departure is what a leave took off the map, filled in before its done closes.
-type Departure struct {
-	Sink Sink
-	OK   bool // the player was on the map
-}
-
-// Leave removes the player who joined through conn (empty: any); done, if set, closes once it is handled and took filled.
-func (i *Instance) Leave(id kernel.CharacterID, conn string, done chan struct{}, took *Departure) error {
-	return i.post(leaveMsg{id: id, conn: conn, done: done, took: took})
+// Leave removes the player who joined through conn (empty: any); done, if set, closes once it is handled.
+func (i *Instance) Leave(id kernel.CharacterID, conn string, done chan struct{}) error {
+	return i.post(leaveMsg{id: id, conn: conn, done: done})
 }
 
 // Input queues held keys without blocking; a dropped input is superseded by the next.
@@ -320,9 +313,6 @@ func (i *Instance) drain() []kernel.CharacterID {
 			}
 		case leaveMsg:
 			if p, ok := i.players[m.id]; ok && (m.conn == "" || p.Connection == m.conn) {
-				if m.took != nil {
-					*m.took = Departure{Sink: p.sink, OK: true}
-				}
 				i.remove(m.id)
 				removed = append(removed, m.id)
 			}
