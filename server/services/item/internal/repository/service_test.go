@@ -518,16 +518,20 @@ func (r rollingBack) InTx(ctx context.Context, fn func(uow application.UnitOfWor
 	})
 }
 
-// Each outbox row carries its own slot's change, so one command's rows add up to what it added.
+// Each outbox row carries its own slot's change, signed as its event's, so the rows add up to what changed.
 func TestEachOutboxRowCarriesItsSlotsChange(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
 	h.add(t, "seed", "red_potion", 60)
 	h.add(t, "more", "red_potion", 70) // +40 onto the stack of 60, and a new stack of 30
+	first := h.inventory(t)[0]
+	if _, err := h.svc.Discard(ctx, h.actor, application.DiscardInput{Key: "less", ItemID: first.ID, Quantity: 25}); err != nil {
+		t.Fatal(err)
+	}
 	rows, err := h.pool.Query(ctx, `
 		SELECT (convert_from(o.payload, 'UTF8')::jsonb->>'quantity')::int,
 		       (SELECT sum(e.quantity_delta) FROM item_events e WHERE e.item_id::text = o.key AND e.occurred_at = o.occurred_at)
-		FROM outbox o WHERE o.type = 'ItemLooted' ORDER BY o.id`)
+		FROM outbox o ORDER BY o.id`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -540,7 +544,7 @@ func TestEachOutboxRowCarriesItsSlotsChange(t *testing.T) {
 		}
 		got = append(got, [2]int{q, delta})
 	}
-	want := [][2]int{{60, 60}, {40, 40}, {30, 30}}
+	want := [][2]int{{60, 60}, {40, 40}, {30, 30}, {-25, -25}}
 	if !slices.Equal(got, want) {
 		t.Fatalf("outbox quantity and its event's delta per row: %v, want %v", got, want)
 	}

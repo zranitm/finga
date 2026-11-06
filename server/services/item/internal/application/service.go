@@ -265,7 +265,7 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventDiscarded, QuantityDelta: -in.Quantity, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
-	if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: "ItemDiscarded", Payload: model.OutboxPayload(&it, in.Quantity, model.Cause{Type: model.CausePlayer}), OccurredAt: now}); err != nil {
+	if err := uow.Outbox().Add(ctx, outbox.Event{Topic: topic, Key: it.ID.String(), Type: "ItemDiscarded", Payload: model.OutboxPayload(&it, -in.Quantity, model.Cause{Type: model.CausePlayer}), OccurredAt: now}); err != nil {
 		return Result{}, err
 	}
 	it.Quantity -= in.Quantity
