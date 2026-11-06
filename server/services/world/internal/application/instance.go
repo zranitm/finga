@@ -53,6 +53,7 @@ type Instance struct {
 	mover    Mover
 	roll     model.Roll
 	inbox    chan message
+	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
 	saves    Checkpoints
 
 	tick     uint64
@@ -150,6 +151,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover 
 		m: m, data: data, params: params, tuning: t, deps: d, mover: mover, roll: d.NewRoll(),
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inbox:    make(chan message, inboxSize),
+		stopped:  make(chan struct{}),
 		saves:    saves,
 		players:  map[kernel.CharacterID]*player{},
 		spawns:   make([]spawnState, len(m.Spawns)),
@@ -159,6 +161,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, saves Checkpoints, mover 
 
 // Run ticks until ctx is done, then checkpoints the players still on the map.
 func (i *Instance) Run(ctx context.Context) error {
+	defer close(i.stopped)
 	mapID := i.m.ID
 	err := tick.Run(ctx, i.tuning.TickInterval, i, tick.WithObserver(func(_ uint64, took, interval time.Duration) {
 		i.deps.Observer.ObserveTick(mapID, took, interval)
@@ -169,7 +172,8 @@ func (i *Instance) Run(ctx context.Context) error {
 	return err
 }
 
-// Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full.
+// Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full, ErrStopped
+// once the map has stopped.
 func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 	return i.join(ctx, &joinMsg{player: p, sink: sink})
 }
@@ -177,48 +181,78 @@ func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
 func (i *Instance) join(ctx context.Context, j *joinMsg) error {
 	done := make(chan error, 1)
 	j.done = done
-	if !i.post(j) {
-		return model.ErrBusy
+	if err := i.post(j); err != nil {
+		return err
 	}
 	select {
 	case err := <-done:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-i.stopped:
+		select {
+		case err := <-done:
+			return err
+		default:
+			return model.ErrStopped
+		}
 	}
 }
 
 // LeaveConnection removes a player only if it joined through conn, so a stale Leave is a no-op.
-func (i *Instance) LeaveConnection(id kernel.CharacterID, conn string) bool {
+func (i *Instance) LeaveConnection(id kernel.CharacterID, conn string) error {
 	return i.post(leaveMsg{id: id, conn: conn})
 }
 
 // Input queues held keys without blocking; a dropped input is superseded by the next.
-func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) bool {
+func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) error {
 	return i.post(inputMsg{id: id, seq: seq, in: in})
 }
 
 // Attack queues a basic attack; the tick enforces the cooldown.
-func (i *Instance) Attack(id kernel.CharacterID) bool {
+func (i *Instance) Attack(id kernel.CharacterID) error {
 	return i.post(attackMsg{id: id})
 }
 
 // PickUp asks for the nearest eligible drop within reach.
-func (i *Instance) PickUp(id kernel.CharacterID) bool {
+func (i *Instance) PickUp(id kernel.CharacterID) error {
 	return i.post(pickMsg{id: id})
 }
 
 // EnterPortal takes the portal the character stands in, if any.
-func (i *Instance) EnterPortal(id kernel.CharacterID) bool {
+func (i *Instance) EnterPortal(id kernel.CharacterID) error {
 	return i.post(portalMsg{id: id})
 }
 
-func (i *Instance) post(m message) bool {
+// post queues m without blocking: ErrStopped once the map has stopped, ErrBusy when its inbox is full.
+func (i *Instance) post(m message) error {
+	select {
+	case <-i.stopped:
+		return model.ErrStopped
+	default:
+	}
 	select {
 	case i.inbox <- m:
-		return true
+		return nil
 	default:
-		return false
+		return model.ErrBusy
+	}
+}
+
+// wait waits for done, which the map closes once it has handled a message: ErrStopped if it stops first.
+func (i *Instance) wait(ctx context.Context, done <-chan struct{}) error {
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-i.stopped:
+		select {
+		case <-done:
+			return nil
+		default:
+			return model.ErrStopped
+		}
 	}
 }
 

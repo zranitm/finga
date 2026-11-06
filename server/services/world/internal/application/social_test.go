@@ -135,13 +135,13 @@ func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 		killSlime(t, inst, killer.ID)
 		ss := join(t, inst, stranger)
 		sm := join(t, inst, member)
-		inst.PickUp(stranger.ID)
+		_ = inst.PickUp(stranger.ID)
 		time.Sleep(3 * tickInterval)
 		synctest.Wait()
 		if items.callCount() != 0 || len(inventoryChanges(ss)) != 0 {
 			t.Fatal("a stranger looted inside the window")
 		}
-		inst.PickUp(member.ID)
+		_ = inst.PickUp(member.ID)
 		time.Sleep(3 * tickInterval)
 		synctest.Wait()
 		if items.callCount() != 1 || len(inventoryChanges(sm)) != 1 {
@@ -173,8 +173,8 @@ func TestMapChatReachesOnlyTheMap(t *testing.T) {
 		synctest.Wait()
 		ayla, robin, cass := warriorAt(100), warriorAt(150), warriorAt(100)
 		sa, sr, sc := join(t, here, ayla), join(t, here, robin), join(t, there, cass)
-		here.Chat(ayla.ID, "Ayla", "hello map")
-		here.Chat(cass.ID, "Cass", "I am not here") // not on this map: dropped
+		_ = here.Chat(ayla.ID, "Ayla", "hello map")
+		_ = here.Chat(cass.ID, "Cass", "I am not here") // not on this map: dropped
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
 		for _, s := range []*sink{sa, sr} {

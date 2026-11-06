@@ -316,17 +316,17 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	inst := newInstance(data.Town(), data, nil, options{})
 	// Not running: 4096 posts fill the inbox, the next is refused.
 	for seq := range uint32(4096) {
-		if !inst.Input(kernel.NewCharacterID(), seq, sim0()) {
+		if err := inst.Input(kernel.NewCharacterID(), seq, sim0()); err != nil {
 			t.Fatalf("post %d refused", seq)
 		}
 	}
-	if inst.Input(kernel.NewCharacterID(), 1, sim0()) {
+	if err := inst.Input(kernel.NewCharacterID(), 1, sim0()); !errors.Is(err, model.ErrBusy) {
 		t.Fatal("a post accepted with a full inbox")
 	}
 	if err := inst.Join(context.Background(), newPlayer("Ayla", 0, 0), &sink{}); !errors.Is(err, model.ErrBusy) {
 		t.Fatalf("join with a full inbox: %v", err)
 	}
-	if inst.LeaveConnection(kernel.NewCharacterID(), "") {
+	if err := inst.LeaveConnection(kernel.NewCharacterID(), ""); !errors.Is(err, model.ErrBusy) {
 		t.Fatal("leave accepted with a full inbox")
 	}
 	t.Run("a join on a stopped instance gives up when the caller's context ends", func(t *testing.T) {
@@ -445,6 +445,40 @@ func TestARefusedSaveIsLoggedWithItsCharacter(t *testing.T) {
 			if !strings.Contains(logs.String(), want) {
 				t.Fatalf("log %q lacks %s", logs.String(), want)
 			}
+		}
+	})
+}
+
+// Once its maps have stopped, the world answers at once: joins, leaves and commands are ErrStopped, never
+// a wait for the caller's deadline.
+func TestAStoppedWorldAnswersStopped(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := newWorld(t, &fakeSaver{}, options{CheckpointInterval: time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		ayla := at(t, "Ayla", "town")
+		w.enter(t, ayla, "town", "c-1", &sink{})
+		cancel()
+		if err := <-runDone; err != nil {
+			t.Fatal(err)
+		}
+		long, stop := context.WithTimeout(context.Background(), time.Hour)
+		defer stop()
+		start := time.Now()
+		if err := w.Input(ayla.ID, "c-1", 1, sim.Input{}); !errors.Is(err, model.ErrStopped) {
+			t.Fatalf("input: %v", err)
+		}
+		if err := w.Leave(long, ayla.ID, "c-1"); !errors.Is(err, model.ErrStopped) {
+			t.Fatalf("leave: %v", err)
+		}
+		bo := at(t, "Bo", "town")
+		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Stats: bo.Stats, HP: bo.HP, MP: bo.MP, MapID: "town", X: bo.X, Y: bo.Y}
+		if _, err := w.Join(long, bo.Account, bo.ID, "c-2", &sink{}); !errors.Is(err, model.ErrStopped) {
+			t.Fatalf("join: %v", err)
+		}
+		if took := time.Since(start); took > time.Second {
+			t.Fatalf("answering took %s", took)
 		}
 	})
 }

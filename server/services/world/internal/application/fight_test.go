@@ -125,12 +125,12 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			}
 		}
 		{ // two hits kill it (21 damage each against 30 HP); it leaves the map
-			inst.Attack(s.id(t, inst))
+			_ = inst.Attack(s.id(t, inst))
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			time.Sleep(12 * tickInterval) // the 600 ms cooldown
 			synctest.Wait()
-			inst.Attack(s.id(t, inst))
+			_ = inst.Attack(s.id(t, inst))
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 || got[0].Amount != 21 || got[1].Amount != 21 || !got[0].Source.Player.IsZero() == false && false {
@@ -177,44 +177,44 @@ func TestAttacks(t *testing.T) {
 
 		{ // the Warrior's box reaches a mob in front, not one behind or far away
 			far := join(t, inst, warriorAt(100)) // 184 px away: outside the 64 px box
-			inst.Attack(far.id(t, inst))
+			_ = inst.Attack(far.id(t, inst))
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			if len(damages(far)) != 0 {
 				t.Fatal("a Warrior hit a mob 184 px away")
 			}
-			inst.LeaveConnection(far.id(t, inst), "")
+			_ = inst.LeaveConnection(far.id(t, inst), "")
 			behind := join(t, inst, warriorAt(340)) // the mob is behind, facing right
-			inst.Attack(behind.id(t, inst))
+			_ = inst.Attack(behind.id(t, inst))
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			if len(damages(behind)) != 0 {
 				t.Fatal("a Warrior hit a mob behind their back")
 			}
-			inst.LeaveConnection(behind.id(t, inst), "")
+			_ = inst.LeaveConnection(behind.id(t, inst), "")
 			near := join(t, inst, warriorAt(250))
-			inst.Attack(near.id(t, inst))
+			_ = inst.Attack(near.id(t, inst))
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			got := damages(near)
 			if len(got) != 1 || got[0].Amount != 21 || got[0].Crit || got[0].Miss || got[0].Source.Player != near.id(t, inst) || !got[0].Target.IsMob() {
 				t.Fatalf("damages %+v", got)
 			}
-			inst.LeaveConnection(near.id(t, inst), "")
+			_ = inst.LeaveConnection(near.id(t, inst), "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 		}
 
 		{ // the Bowman's shot reaches 420 px along the facing line
 			s := join(t, inst, bowmanAt(100))
-			inst.Attack(s.id(t, inst))
+			_ = inst.Attack(s.id(t, inst))
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			got := damages(s)
 			if len(got) != 1 || got[0].Amount != 21 {
 				t.Fatalf("damages %+v", got)
 			}
-			inst.LeaveConnection(s.id(t, inst), "")
+			_ = inst.LeaveConnection(s.id(t, inst), "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 		}
@@ -225,12 +225,12 @@ func TestAttacks(t *testing.T) {
 			s := join(t, inst, bowmanAt(100))
 			id := s.id(t, inst)
 			for range 30 {
-				inst.Attack(id)
+				_ = inst.Attack(id)
 			}
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			for range 5 {
-				inst.Attack(id)
+				_ = inst.Attack(id)
 				time.Sleep(tickInterval)
 				synctest.Wait()
 			}
@@ -239,7 +239,7 @@ func TestAttacks(t *testing.T) {
 			}
 			time.Sleep(16 * tickInterval) // the cooldown runs out
 			synctest.Wait()
-			inst.Attack(id)
+			_ = inst.Attack(id)
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 {
@@ -331,8 +331,8 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("the death penalty as ExpGained: %+v, want amount -1 and exp 9", lost)
 			}
 			x := v.State.X
-			inst.Input(p.ID, seq+1, sim.Input{Right: true})
-			inst.Attack(p.ID)
+			_ = inst.Input(p.ID, seq+1, sim.Input{Right: true})
+			_ = inst.Attack(p.ID)
 			time.Sleep(5 * tickInterval)
 			synctest.Wait()
 			if v2, ok := s.own(p.ID); ok && v2.State.X != x {
@@ -390,10 +390,10 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		p := warriorAt(250)
 		p.Exp = 18 // level 1 needs 20; a slime gives 5
 		s := join(t, inst, p)
-		inst.Attack(p.ID)
+		_ = inst.Attack(p.ID)
 		time.Sleep(13 * tickInterval)
 		synctest.Wait()
-		inst.Attack(p.ID)
+		_ = inst.Attack(p.ID)
 		time.Sleep(tickInterval)
 		synctest.Wait()
 		exp := s.ofType(func(e model.Event) bool { _, ok := e.(model.ExpGained); return ok })
@@ -432,7 +432,7 @@ func TestTheSameRollsGiveTheSameFight(t *testing.T) {
 			synctest.Wait()
 			s := join(t, inst, bowmanAt(100))
 			for range 40 {
-				inst.Attack(s.id(t, inst))
+				_ = inst.Attack(s.id(t, inst))
 				time.Sleep(4 * tickInterval)
 				synctest.Wait()
 			}
@@ -477,8 +477,8 @@ func TestNoCombatInTown(t *testing.T) {
 		s := join(t, inst, p)
 		seq := walk(inst, p.ID, 0, sim.Input{Right: true}, 10) // walk straight through the slime
 		seq = walk(inst, p.ID, seq, sim.Input{Left: true}, 4)
-		inst.Input(p.ID, seq+1, sim.Input{})
-		inst.Attack(p.ID)
+		_ = inst.Input(p.ID, seq+1, sim.Input{})
+		_ = inst.Attack(p.ID)
 		time.Sleep(2 * tickInterval)
 		synctest.Wait()
 		if n := len(damages(s)); n != 0 {
@@ -567,7 +567,7 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 			t.Fatalf("not dead: %+v", v)
 		}
 		cps.drain()
-		inst.LeaveConnection(p.ID, "")
+		_ = inst.LeaveConnection(p.ID, "")
 		time.Sleep(tickInterval)
 		synctest.Wait()
 		town := data.Town()

@@ -16,7 +16,7 @@ type chatMsg struct {
 }
 
 // Chat says an already cleaned line to everyone on the map, the sender included.
-func (i *Instance) Chat(from kernel.CharacterID, name, text string) bool {
+func (i *Instance) Chat(from kernel.CharacterID, name, text string) error {
 	return i.post(chatMsg{from: from, name: name, text: text})
 }
 

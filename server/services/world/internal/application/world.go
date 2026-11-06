@@ -125,11 +125,11 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	if had && prev.inst != inst {
-		prev.inst.LeaveConnection(id, prev.conn)
+		_ = prev.inst.LeaveConnection(id, prev.conn)
 	}
 	if err != nil {
 		if ctx.Err() != nil {
-			inst.LeaveConnection(id, conn) // posted, and may still land, though the caller counts it failed
+			_ = inst.LeaveConnection(id, conn) // posted, and may still land, though the caller counts it failed
 		}
 		w.presences.forget(id, at)
 		return model.View{}, err
@@ -150,21 +150,17 @@ func (w *World) takeOff(ctx context.Context, id kernel.CharacterID, account kern
 	}
 	left := make(chan struct{})
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		if !at.inst.post(leaveMsg{id: id, conn: at.conn, done: left}) {
-			return struct{}{}, model.ErrBusy
+		err := at.inst.post(leaveMsg{id: id, conn: at.conn, done: left})
+		if errors.Is(err, model.ErrStopped) {
+			return struct{}{}, backoff.Permanent(err)
 		}
-		return struct{}{}, nil
+		return struct{}{}, err
 	}, backoff.WithBackOff(busyBackOff()), backoff.WithMaxElapsedTime(0))
 	if err != nil {
 		w.presences.restore(id, at)
 		return err
 	}
-	select {
-	case <-left:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return at.inst.wait(ctx, left)
 }
 
 // respawned is c, saved dead before dead players were saved as respawned, as the respawn it was owed.
@@ -228,12 +224,12 @@ func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
 	case errors.Is(err, errMoved):
 	case err == nil:
 		if !held() {
-			target.LeaveConnection(p.ID, p.Connection) // it left while the join landed
+			_ = target.LeaveConnection(p.ID, p.Connection) // it left while the join landed
 		}
 	case w.jobs.Err() != nil:
 		// Shutting down: the player was saved on target, and the gateway joins them again after the restart.
 	default:
-		target.LeaveConnection(p.ID, p.Connection) // a join posted as time ran out may still land
+		_ = target.LeaveConnection(p.ID, p.Connection) // a join posted as time ran out may still land
 		if w.presences.forget(p.ID, at) {
 			w.deps.Logger.ErrorContext(ctx, "transfer failed; the gateway joins the player again", "character_id", p.ID, "map_id", target.m.ID, "err", err)
 			sink.Send(model.Detached{})

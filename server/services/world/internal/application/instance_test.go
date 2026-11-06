@@ -285,7 +285,7 @@ func TestJoinSnapshotAndDeltas(t *testing.T) {
 		}
 
 		{ // others see the leave
-			inst.LeaveConnection(robin.ID, "")
+			_ = inst.LeaveConnection(robin.ID, "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			d := sa.last()
@@ -329,7 +329,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 		}
 
 		{ // one input per tick moves at walk speed
-			inst.Input(p.ID, 1, sim.Input{Right: true})
+			_ = inst.Input(p.ID, 1, sim.Input{Right: true})
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			v, _ := s.own(p.ID)
@@ -344,8 +344,8 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 
 		{ // two inputs in one tick apply over two ticks, in sequence order
 			before, _ := s.own(p.ID)
-			inst.Input(p.ID, 3, sim.Input{})            // stop
-			inst.Input(p.ID, 2, sim.Input{Right: true}) // arrives out of order but is older
+			_ = inst.Input(p.ID, 3, sim.Input{})            // stop
+			_ = inst.Input(p.ID, 2, sim.Input{Right: true}) // arrives out of order but is older
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			after, _ := s.own(p.ID)
@@ -363,8 +363,8 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 
 		{ // old and duplicate sequence numbers are ignored
 			before, _ := s.own(p.ID)
-			inst.Input(p.ID, 2, sim.Input{Right: true}) // old
-			inst.Input(p.ID, 3, sim.Input{Left: true})  // duplicate seq
+			_ = inst.Input(p.ID, 2, sim.Input{Right: true}) // old
+			_ = inst.Input(p.ID, 3, sim.Input{Left: true})  // duplicate seq
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			after, _ := s.own(p.ID)
@@ -375,7 +375,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 
 		{ // one input moves one tick; with none queued the player waits
 			before, _ := s.own(p.ID)
-			inst.Input(p.ID, 4, sim.Input{Left: true})
+			_ = inst.Input(p.ID, 4, sim.Input{Left: true})
 			time.Sleep(3 * tickInterval)
 			synctest.Wait()
 			after, _ := s.own(p.ID)
@@ -386,7 +386,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 		}
 
 		{ // inputs for an unknown player are ignored
-			if !inst.Input(kernel.NewCharacterID(), 1, sim.Input{Right: true}) {
+			if inst.Input(kernel.NewCharacterID(), 1, sim.Input{Right: true}) != nil {
 				t.Fatal("the inbox refused")
 			}
 			time.Sleep(tickInterval)
@@ -414,7 +414,7 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 				synctest.Wait()
 				ticks := int(time.Second / interval)
 				for seq := range uint32(ticks) {
-					inst.Input(p.ID, seq+1, sim.Input{Right: true})
+					_ = inst.Input(p.ID, seq+1, sim.Input{Right: true})
 					time.Sleep(interval)
 					synctest.Wait()
 				}
@@ -440,9 +440,9 @@ func TestAFloodedInboxCarriesOverToTheNextTick(t *testing.T) {
 		time.Sleep(tickInterval)
 		synctest.Wait()
 		for seq := range uint32(1024) { // a tick's whole drain, for nobody
-			inst.Input(kernel.NewCharacterID(), seq, sim.Input{})
+			_ = inst.Input(kernel.NewCharacterID(), seq, sim.Input{})
 		}
-		inst.Input(p.ID, 1, sim.Input{Right: true})
+		_ = inst.Input(p.ID, 1, sim.Input{Right: true})
 		var acks []uint32
 		for range 2 {
 			time.Sleep(tickInterval)
@@ -471,9 +471,9 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 
 		{ // three inputs arriving in one tick are applied over the next three ticks
 			start, _ := s.own(p.ID)
-			inst.Input(p.ID, 1, sim.Input{Right: true})
-			inst.Input(p.ID, 2, sim.Input{Right: true})
-			inst.Input(p.ID, 3, sim.Input{Left: true})
+			_ = inst.Input(p.ID, 1, sim.Input{Right: true})
+			_ = inst.Input(p.ID, 2, sim.Input{Right: true})
+			_ = inst.Input(p.ID, 3, sim.Input{Left: true})
 			var acks []uint32
 			var xs []float64
 			for range 3 {
@@ -494,7 +494,7 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 
 		{ // six queued inputs are cut to the newest two
 			for seq := uint32(10); seq <= 15; seq++ {
-				inst.Input(p.ID, seq, sim.Input{})
+				_ = inst.Input(p.ID, seq, sim.Input{})
 			}
 			var acks []uint32
 			for range 3 {
@@ -508,9 +508,9 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 		}
 
 		{ // a duplicate sequence number queues once
-			inst.Input(p.ID, 20, sim.Input{Right: true})
-			inst.Input(p.ID, 20, sim.Input{Left: true})
-			inst.Input(p.ID, 21, sim.Input{})
+			_ = inst.Input(p.ID, 20, sim.Input{Right: true})
+			_ = inst.Input(p.ID, 20, sim.Input{Left: true})
+			_ = inst.Input(p.ID, 21, sim.Input{})
 			time.Sleep(2 * tickInterval)
 			synctest.Wait()
 			if s.last().AckSeq != 21 {
@@ -539,7 +539,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 		params := data.Movement()
 		tick := func(in *sim.Input, seq uint32) model.PlayerView {
 			if in != nil {
-				inst.Input(p.ID, seq, *in)
+				_ = inst.Input(p.ID, seq, *in)
 			}
 			time.Sleep(tickInterval)
 			synctest.Wait()
@@ -629,7 +629,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 		geom := data.Town().Geometry
 		params := data.Movement()
 		for n, in := range inputs {
-			inst.Input(p.ID, uint32(n+1), in)
+			_ = inst.Input(p.ID, uint32(n+1), in)
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			for range 3 {
@@ -677,7 +677,7 @@ func TestCheckpoints(t *testing.T) {
 		}
 		time.Sleep(tickInterval)
 		synctest.Wait()
-		inst.Input(p.ID, 1, sim.Input{Right: true})
+		_ = inst.Input(p.ID, 1, sim.Input{Right: true})
 
 		collect := cps.drain
 
@@ -708,7 +708,7 @@ func TestCheckpoints(t *testing.T) {
 			}
 		}
 		{ // on leave, right away
-			inst.LeaveConnection(p.ID, "")
+			_ = inst.LeaveConnection(p.ID, "")
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			got := collect()
@@ -838,7 +838,7 @@ func TestReplayMatchesSim(t *testing.T) {
 			{}, {}, {}, {}, {}, {Up: true}, {}, {Right: true}, {Right: true}, {},
 		}
 		for i, in := range recorded {
-			inst.Input(p.ID, uint32(i+1), in) //nolint:gosec // small test index
+			_ = inst.Input(p.ID, uint32(i+1), in) //nolint:gosec // small test index
 			time.Sleep(tickInterval)
 			synctest.Wait()
 			for range 3 {
@@ -864,7 +864,7 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 func walk(inst *application.Instance, id kernel.CharacterID, seq uint32, in sim.Input, ticks int) uint32 {
 	for range ticks {
 		seq++
-		inst.Input(id, seq, in)
+		_ = inst.Input(id, seq, in)
 		time.Sleep(tickInterval)
 		synctest.Wait()
 	}
@@ -883,7 +883,7 @@ func TestALeaveAndARejoinInOneTickKeepThePlayerShown(t *testing.T) {
 		join(t, inst, ayla)
 		sr := join(t, inst, robin)
 		before := len(sr.all())
-		inst.LeaveConnection(ayla.ID, "c-1")
+		_ = inst.LeaveConnection(ayla.ID, "c-1")
 		ayla.Connection = "c-2"
 		joined := make(chan error, 1)
 		go func() { joined <- inst.Join(context.Background(), ayla, &sink{}) }()

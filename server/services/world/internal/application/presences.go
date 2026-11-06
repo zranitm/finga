@@ -6,7 +6,6 @@ import (
 
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/model"
 )
 
 // presence is where a joined character is, the connection it joined through and its account.
@@ -112,13 +111,11 @@ func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) e
 		return nil
 	}
 	left := make(chan struct{})
-	if !at.inst.post(leaveMsg{id: id, conn: conn, done: left}) {
-		return model.ErrBusy
+	if err := at.inst.post(leaveMsg{id: id, conn: conn, done: left}); err != nil {
+		return err
 	}
-	select {
-	case <-left:
-	case <-ctx.Done():
-		return ctx.Err()
+	if err := at.inst.wait(ctx, left); err != nil {
+		return err
 	}
 	w.presences.forget(id, at)
 	return nil
@@ -126,38 +123,35 @@ func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) e
 
 // Input queues held keys.
 func (w *World) Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error {
-	return w.command(id, conn, func(i *Instance) bool { return i.Input(id, seq, in) })
+	return w.command(id, conn, func(i *Instance) error { return i.Input(id, seq, in) })
 }
 
 // Attack queues a basic attack.
 func (w *World) Attack(id kernel.CharacterID, conn string) error {
-	return w.command(id, conn, func(i *Instance) bool { return i.Attack(id) })
+	return w.command(id, conn, func(i *Instance) error { return i.Attack(id) })
 }
 
 // PickUp asks for the nearest eligible drop.
 func (w *World) PickUp(id kernel.CharacterID, conn string) error {
-	return w.command(id, conn, func(i *Instance) bool { return i.PickUp(id) })
+	return w.command(id, conn, func(i *Instance) error { return i.PickUp(id) })
 }
 
 // EnterPortal takes the portal the character stands in.
 func (w *World) EnterPortal(id kernel.CharacterID, conn string) error {
-	return w.command(id, conn, func(i *Instance) bool { return i.EnterPortal(id) })
+	return w.command(id, conn, func(i *Instance) error { return i.EnterPortal(id) })
 }
 
 // Say is a map chat line for everyone on the character's map.
 func (w *World) Say(id kernel.CharacterID, conn, name, text string) error {
-	return w.command(id, conn, func(i *Instance) bool { return i.Chat(id, name, text) })
+	return w.command(id, conn, func(i *Instance) error { return i.Chat(id, name, text) })
 }
 
 // command posts to the character's map; one from a connection that does not hold the character is
 // ignored, as the instance ignores one for a player it does not have. A full inbox is ErrBusy.
-func (w *World) command(id kernel.CharacterID, conn string, post func(*Instance) bool) error {
+func (w *World) command(id kernel.CharacterID, conn string, post func(*Instance) error) error {
 	at, ok := w.presences.at(id, conn)
 	if !ok {
 		return nil
 	}
-	if !post(at.inst) {
-		return model.ErrBusy
-	}
-	return nil
+	return post(at.inst)
 }
