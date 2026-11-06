@@ -114,10 +114,13 @@ func (h *Handler) respondOnError(c *msgContext) {
 func (h *Handler) logged(c *msgContext) {
 	c.Next()
 	restarting := errors.Is(c.Err, model.ErrUnavailable) || errors.Is(c.Err, model.ErrNotSubscribed)
-	if model.IsInternal(model.PublicOf(c.Err)) && !restarting {
+	if model.IsInternal(model.PublicOf(c.Err)) && !restarting && !closing(c) {
 		h.failures.Do(func() { h.logFailure(c) })
 	}
 }
+
+// closing reports whether the connection is closing, which cancels its commands: their failures are no fault.
+func closing(c *msgContext) bool { return c.Session.ctx.Err() != nil }
 
 // panicked answers internal and keeps the connection open, but closes it on a Hello, which nothing will answer now.
 func (h *Handler) panicked(c *msgContext, e *panics.Error) {
@@ -136,7 +139,7 @@ func (h *Handler) notImplemented(c *msgContext) {
 // publicError is what the client may see of the command's error; an unexpected one is logged with its cause.
 func (h *Handler) publicError(c *msgContext) model.Public {
 	p := model.PublicOf(c.Err)
-	if model.IsInternal(p) {
+	if model.IsInternal(p) && !closing(c) {
 		h.logFailure(c)
 	}
 	return p

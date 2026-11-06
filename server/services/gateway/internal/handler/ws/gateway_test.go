@@ -1786,9 +1786,11 @@ func TestAFullCommandQueueAnswersRateLimited(t *testing.T) {
 	})
 }
 
+// Closing the connection cancels its command in flight, which is no failure to log.
 func TestClosingTheConnectionCancelsItsCommandInFlight(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
+		logs := &lockedBuffer{}
+		h := newHarness(t, func(d *deps) { d.Logger = slog.New(slog.NewJSONHandler(logs, nil)) })
 		c := h.joined(t)
 		h.world.mu.Lock()
 		h.world.block, h.world.blocked = make(chan struct{}), make(chan error, 2)
@@ -1807,6 +1809,9 @@ func TestClosingTheConnectionCancelsItsCommandInFlight(t *testing.T) {
 			t.Fatal("the attack in flight was never cancelled")
 		}
 		waitFor(t, "the leave", h.world.leaves, 1)
+		if strings.Contains(logs.String(), "command failed") {
+			t.Fatalf("the cancelled attack was logged as a failure: %s", logs.String())
+		}
 	})
 }
 
