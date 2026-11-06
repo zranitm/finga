@@ -59,17 +59,27 @@ func (h *Handler) queued(c *msgContext) {
 // traced runs the rest of the chain in a trace of the command's own, which EntryPoint decides to keep.
 func (h *Handler) traced(c *msgContext) {
 	ctx, span := h.tracer.Start(c.Ctx, spanPrefix+c.Message.Type, trace.WithNewRoot())
-	defer span.End()
 	c.Ctx = ctx
+	panicked := true // until the chain returns: the router's handler then logs the panic under this trace's ID
+	defer func() {
+		if span.IsRecording() {
+			annotate(span, c, panicked)
+		}
+		span.End()
+	}()
 	c.Next()
-	if !span.IsRecording() {
-		return
-	}
+	panicked = false
+}
+
+func annotate(span trace.Span, c *msgContext, panicked bool) {
 	span.SetAttributes(attribute.String("conn", c.Session.out.ID()))
 	if id := c.Session.session.Character(); !id.IsZero() {
 		span.SetAttributes(attribute.String("character_id", id.String()))
 	}
-	if c.Err != nil {
+	switch {
+	case panicked:
+		span.SetStatus(codes.Error, "panic")
+	case c.Err != nil:
 		span.SetStatus(codes.Error, c.Err.Error())
 	}
 }

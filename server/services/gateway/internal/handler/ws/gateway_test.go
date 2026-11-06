@@ -19,6 +19,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 
@@ -822,6 +823,7 @@ func (panickingItems) Discard(context.Context, *itemv1.DiscardRequest, ...grpc.C
 	panic("nil map in the gateway")
 }
 
+// A panic in a command answers internal, keeps the connection and marks the command's trace as failed.
 func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logs := &lockedBuffer{}
@@ -833,8 +835,21 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Welcome")
 		c.expect("Snapshot")
+		before := len(spans.Ended())
 		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
 		m := c.expect("Response")
+		synctest.Wait()
+		i := slices.IndexFunc(spans.Ended()[before:], func(s sdktrace.ReadOnlySpan) bool { return s.Name() == "ws.InventoryDiscard" })
+		if i < 0 {
+			t.Fatal("the command kept no trace")
+		}
+		root := spans.Ended()[before+i]
+		if root.Status().Code != otelcodes.Error || root.Status().Description != "panic" {
+			t.Fatalf("the command's span ended %+v; want an error", root.Status())
+		}
+		if attrs := attribute.NewSet(root.Attributes()...); !attrs.HasValue("character_id") {
+			t.Fatalf("the span names no character: %v", root.Attributes())
+		}
 		if r := m.Data.(*clientv1.Response); m.ReqID != "r-1" || r.GetOk() || r.Code != "internal" || strings.Contains(r.Message, "nil map") {
 			t.Fatalf("response %q %+v; the panic must stay out of it", m.ReqID, r)
 		}
