@@ -7,6 +7,7 @@ package db
 import (
 	"time"
 
+	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
@@ -15,18 +16,18 @@ type Account struct {
 	Username     string
 	PasswordHash string
 	Settings     []byte
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	CreatedAt    dbx.Stamp
+	UpdatedAt    dbx.Stamp
 }
 
 type Session struct {
 	ID                uuid.UUID
 	AccountID         uuid.UUID
 	TokenHash         []byte
-	CreatedAt         time.Time
+	CreatedAt         dbx.Stamp
 	ExpiresAt         time.Time
 	RevokedAt         *time.Time
 	PreviousTokenHash []byte
 	RotatedAt         *time.Time
-	UpdatedAt         time.Time
+	UpdatedAt         dbx.Stamp
 }

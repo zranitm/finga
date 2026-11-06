@@ -9,15 +9,21 @@ import (
 	"context"
 	"time"
 
+	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
 const destroyItem = `-- name: DestroyItem :execrows
-UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL WHERE id = $1
+UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL, updated_at = $1 WHERE id = $2
 `
 
-func (q *Queries) DestroyItem(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, destroyItem, id)
+type DestroyItemParams struct {
+	Now dbx.Stamp
+	ID  uuid.UUID
+}
+
+func (q *Queries) DestroyItem(ctx context.Context, arg DestroyItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, destroyItem, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -25,8 +31,8 @@ func (q *Queries) DestroyItem(ctx context.Context, id uuid.UUID) (int64, error) 
 }
 
 const insertItem = `-- name: InsertItem :exec
-INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity)
-VALUES ($1, $2, $3, 'inventory', $4, $5, $6)
+INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
+VALUES ($1, $2, $3, 'inventory', $4, $5, $6, $7, $7)
 `
 
 type InsertItemParams struct {
@@ -36,6 +42,7 @@ type InsertItemParams struct {
 	Tab        *string
 	Slot       *int32
 	Quantity   int32
+	Now        dbx.Stamp
 }
 
 func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) error {
@@ -46,13 +53,14 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) error {
 		arg.Tab,
 		arg.Slot,
 		arg.Quantity,
+		arg.Now,
 	)
 	return err
 }
 
 const insertItemEvent = `-- name: InsertItemEvent :exec
-INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
 `
 
 type InsertItemEventParams struct {
@@ -64,6 +72,7 @@ type InsertItemEventParams struct {
 	CauseType     string
 	CauseID       *uuid.UUID
 	OccurredAt    time.Time
+	Now           dbx.Stamp
 }
 
 func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams) error {
@@ -76,6 +85,7 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 		arg.CauseType,
 		arg.CauseID,
 		arg.OccurredAt,
+		arg.Now,
 	)
 	return err
 }
@@ -192,13 +202,18 @@ func (q *Queries) LockOwner(ctx context.Context, ownerID string) error {
 }
 
 const recordStarterGrant = `-- name: RecordStarterGrant :execrows
-INSERT INTO starter_grants (character_id) VALUES ($1)
+INSERT INTO starter_grants (character_id, created_at, updated_at) VALUES ($1, $2, $2)
 ON CONFLICT DO NOTHING
 `
 
+type RecordStarterGrantParams struct {
+	CharacterID uuid.UUID
+	Now         dbx.Stamp
+}
+
 // Zero rows: the character already has its kit.
-func (q *Queries) RecordStarterGrant(ctx context.Context, characterID uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, recordStarterGrant, characterID)
+func (q *Queries) RecordStarterGrant(ctx context.Context, arg RecordStarterGrantParams) (int64, error) {
+	result, err := q.db.Exec(ctx, recordStarterGrant, arg.CharacterID, arg.Now)
 	if err != nil {
 		return 0, err
 	}
@@ -206,16 +221,17 @@ func (q *Queries) RecordStarterGrant(ctx context.Context, characterID uuid.UUID)
 }
 
 const setQuantity = `-- name: SetQuantity :execrows
-UPDATE items SET quantity = $2 WHERE id = $1
+UPDATE items SET quantity = $1, updated_at = $2 WHERE id = $3
 `
 
 type SetQuantityParams struct {
-	ID       uuid.UUID
 	Quantity int32
+	Now      dbx.Stamp
+	ID       uuid.UUID
 }
 
 func (q *Queries) SetQuantity(ctx context.Context, arg SetQuantityParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setQuantity, arg.ID, arg.Quantity)
+	result, err := q.db.Exec(ctx, setQuantity, arg.Quantity, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -223,17 +239,23 @@ func (q *Queries) SetQuantity(ctx context.Context, arg SetQuantityParams) (int64
 }
 
 const setSlot = `-- name: SetSlot :execrows
-UPDATE items SET tab = $2, slot = $3 WHERE id = $1
+UPDATE items SET tab = $1, slot = $2, updated_at = $3 WHERE id = $4
 `
 
 type SetSlotParams struct {
-	ID   uuid.UUID
 	Tab  *string
 	Slot *int32
+	Now  dbx.Stamp
+	ID   uuid.UUID
 }
 
 func (q *Queries) SetSlot(ctx context.Context, arg SetSlotParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setSlot, arg.ID, arg.Tab, arg.Slot)
+	result, err := q.db.Exec(ctx, setSlot,
+		arg.Tab,
+		arg.Slot,
+		arg.Now,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

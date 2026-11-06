@@ -15,19 +15,20 @@ import (
 	"finga/pkg/idempotency"
 )
 
-// NewStore binds a store to db, usually a transaction.
-func NewStore(db dbx.DBTX) idempotency.Store {
-	return &store{db: db}
+// NewStore binds a store to db, usually a transaction, stamping its rows with now.
+func NewStore(db dbx.DBTX, now dbx.Stamp) idempotency.Store {
+	return &store{db: db, now: now}
 }
 
 type store struct {
-	db dbx.DBTX
+	db  dbx.DBTX
+	now dbx.Stamp
 }
 
 const (
 	lockSQL   = `SELECT pg_advisory_xact_lock($1)`
 	findSQL   = `SELECT request_hash, response FROM idempotency_keys WHERE owner = $1 AND scope = $2 AND key = $3`
-	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response) VALUES ($1, $2, $3, $4, $5)`
+	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6)`
 	pruneSQL  = `DELETE FROM idempotency_keys WHERE (owner, scope, key) IN (
 		SELECT owner, scope, key FROM idempotency_keys WHERE created_at < $1 ORDER BY created_at LIMIT $2)`
 )
@@ -65,7 +66,7 @@ func (s *store) Do(ctx context.Context, owner, scope, key string, fingerprint []
 	if response == nil {
 		response = []byte{}
 	}
-	if _, err := s.db.Exec(ctx, insertSQL, owner, scope, key, fingerprint, response); err != nil {
+	if _, err := s.db.Exec(ctx, insertSQL, owner, scope, key, fingerprint, response, s.now); err != nil {
 		return nil, fmt.Errorf("idempotency: store: %w", err)
 	}
 	return response, nil

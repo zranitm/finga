@@ -59,12 +59,12 @@ func TestTheServiceDeletesLongEndedSessions(t *testing.T) {
 	}
 	defer pool.Close()
 	account, ended, active := uuidv7.New(), uuidv7.New(), uuidv7.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, username, password_hash) VALUES ($1, 'alice', 'x')`, account); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, username, password_hash, created_at, updated_at) VALUES ($1, 'alice', 'x', now(), now())`, account); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO sessions (id, account_id, token_hash, created_at, expires_at, revoked_at) VALUES
-		($2, $1, '\x01', now() - interval '40 days', now() - interval '20 days', now() - interval '31 days'),
-		($3, $1, '\x02', now(), now() + interval '7 days', NULL)`, account, ended, active); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO sessions (id, account_id, token_hash, created_at, updated_at, expires_at, revoked_at) VALUES
+		($2, $1, '\x01', now() - interval '40 days', now() - interval '31 days', now() - interval '20 days', now() - interval '31 days'),
+		($3, $1, '\x02', now(), now(), now() + interval '7 days', NULL)`, account, ended, active); err != nil {
 		t.Fatal(err)
 	}
 	log := runnertest.NewLog()

@@ -19,23 +19,23 @@ WHERE owner_id = $1 AND location = 'inventory'
 ORDER BY tab, slot;
 
 -- name: InsertItem :exec
-INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity)
-VALUES ($1, $2, $3, 'inventory', $4, $5, $6);
+INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
+VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), 'inventory', sqlc.arg(tab), sqlc.arg(slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
 
 -- name: SetQuantity :execrows
-UPDATE items SET quantity = $2 WHERE id = $1;
+UPDATE items SET quantity = sqlc.arg(quantity), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: SetSlot :execrows
-UPDATE items SET tab = $2, slot = $3 WHERE id = $1;
+UPDATE items SET tab = sqlc.arg(tab), slot = sqlc.arg(slot), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: DestroyItem :execrows
-UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL WHERE id = $1;
+UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: InsertItemEvent :exec
-INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
+INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at, created_at, updated_at)
+VALUES (sqlc.arg(item_id), sqlc.arg(kind), sqlc.arg(quantity_delta), sqlc.arg(from_owner), sqlc.arg(to_owner), sqlc.arg(cause_type), sqlc.arg(cause_id), sqlc.arg(occurred_at), sqlc.arg(now), sqlc.arg(now));
 
 -- name: RecordStarterGrant :execrows
 -- Zero rows: the character already has its kit.
-INSERT INTO starter_grants (character_id) VALUES ($1)
+INSERT INTO starter_grants (character_id, created_at, updated_at) VALUES (sqlc.arg(character_id), sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT DO NOTHING;

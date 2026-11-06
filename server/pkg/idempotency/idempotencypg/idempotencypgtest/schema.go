@@ -9,8 +9,8 @@ CREATE TABLE idempotency_keys (
   key          text NOT NULL,
   request_hash bytea NOT NULL,
   response     bytea NOT NULL,
-  created_at   timestamptz NOT NULL DEFAULT now(),
-  updated_at   timestamptz NOT NULL DEFAULT now(),
+  created_at   timestamptz NOT NULL,
+  updated_at   timestamptz NOT NULL,
   PRIMARY KEY (owner, scope, key)
 );
 CREATE INDEX idempotency_keys_by_age ON idempotency_keys (created_at);

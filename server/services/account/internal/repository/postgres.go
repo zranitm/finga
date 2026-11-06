@@ -33,7 +33,7 @@ func NewPostgres(pool *pgxpool.Pool, obs dbx.Observer) *Postgres {
 // InTx runs fn in one transaction; fn may be retried, so it must have no outside side effects.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
-		return fn(unitOfWork{q: db.New(tx)})
+		return fn(unitOfWork{q: db.New(tx), now: dbx.Now()})
 	}, dbx.Observed(p.obs))
 	return failures.Classify(err)
 }
@@ -49,7 +49,7 @@ func (p *Postgres) FindByUsername(ctx context.Context, username string) (model.C
 		return model.Credentials{}, fmt.Errorf("account %s: settings: %w", row.ID, err)
 	}
 	return model.Credentials{
-		Account:      model.Account{ID: kernel.AccountID(row.ID), Username: row.Username, Settings: settings, CreatedAt: row.CreatedAt},
+		Account:      model.Account{ID: kernel.AccountID(row.ID), Username: row.Username, Settings: settings, CreatedAt: row.CreatedAt.Time()},
 		PasswordHash: row.PasswordHash,
 	}, nil
 }
@@ -63,7 +63,7 @@ func (p *Postgres) FindActiveSession(ctx context.Context, tokenHash []byte) (mod
 	return model.Session{
 		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
-		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
+		CreatedAt: row.CreatedAt.Time(), ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
 	}, nil
 }
 
@@ -80,7 +80,11 @@ func (p *Postgres) Settings(ctx context.Context, id kernel.AccountID) (model.Set
 	return s, nil
 }
 
-type unitOfWork struct{ q *db.Queries }
+// unitOfWork stamps every row it writes with now, the transaction's time on the app's clock.
+type unitOfWork struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
 
 // Accounts is the account repository bound to the transaction.
 func (u unitOfWork) Accounts() application.Repository { return accountRepo(u) }
@@ -88,17 +92,21 @@ func (u unitOfWork) Accounts() application.Repository { return accountRepo(u) }
 // Sessions is the session repository bound to the transaction.
 func (u unitOfWork) Sessions() application.SessionRepository { return sessionRepo(u) }
 
-type accountRepo struct{ q *db.Queries }
+type accountRepo struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
 
-// Insert adds an account row and returns the created_at the database gave it.
+// Insert adds an account row and returns its created_at.
 func (r accountRepo) Insert(ctx context.Context, a model.NewAccount) (time.Time, error) {
 	settings, err := json.Marshal(a.Settings)
 	if err != nil {
 		return time.Time{}, err
 	}
-	return r.q.InsertAccount(ctx, db.InsertAccountParams{
-		ID: uuid.UUID(a.ID), Username: a.Username, PasswordHash: a.PasswordHash, Settings: settings,
+	err = r.q.InsertAccount(ctx, db.InsertAccountParams{
+		ID: uuid.UUID(a.ID), Username: a.Username, PasswordHash: a.PasswordHash, Settings: settings, Now: r.now,
 	})
+	return r.now.Time(), err
 }
 
 // Lock takes the account row lock.
@@ -113,7 +121,7 @@ func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s 
 	if err != nil {
 		return err
 	}
-	n, err := r.q.UpdateSettings(ctx, db.UpdateSettingsParams{ID: uuid.UUID(id), Settings: settings})
+	n, err := r.q.UpdateSettings(ctx, db.UpdateSettingsParams{ID: uuid.UUID(id), Settings: settings, Now: r.now})
 	if err != nil {
 		return err
 	}
@@ -125,28 +133,31 @@ func (r accountRepo) UpdateSettings(ctx context.Context, id kernel.AccountID, s 
 
 // ReplaceHash swaps the password hash while it is still old; zero rows means it changed since, which is fine.
 func (r accountRepo) ReplaceHash(ctx context.Context, id kernel.AccountID, old, hash string) error {
-	_, err := r.q.ReplacePasswordHash(ctx, db.ReplacePasswordHashParams{ID: uuid.UUID(id), OldHash: old, NewHash: hash})
+	_, err := r.q.ReplacePasswordHash(ctx, db.ReplacePasswordHashParams{ID: uuid.UUID(id), OldHash: old, NewHash: hash, Now: r.now})
 	return err
 }
 
-type sessionRepo struct{ q *db.Queries }
+type sessionRepo struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
 
 // Insert adds a session row.
 func (r sessionRepo) Insert(ctx context.Context, s model.Session) error {
 	return r.q.InsertSession(ctx, db.InsertSessionParams{
-		ID: uuid.UUID(s.ID), AccountID: uuid.UUID(s.AccountID), TokenHash: s.TokenHash, ExpiresAt: s.ExpiresAt,
+		ID: uuid.UUID(s.ID), AccountID: uuid.UUID(s.AccountID), TokenHash: s.TokenHash, ExpiresAt: s.ExpiresAt, Now: r.now,
 	})
 }
 
 // RevokeAll ends every active session of the account.
 func (r sessionRepo) RevokeAll(ctx context.Context, accountID kernel.AccountID, at time.Time) error {
-	_, err := r.q.RevokeAccountSessions(ctx, db.RevokeAccountSessionsParams{AccountID: uuid.UUID(accountID), RevokedAt: &at})
+	_, err := r.q.RevokeAccountSessions(ctx, db.RevokeAccountSessionsParams{AccountID: uuid.UUID(accountID), RevokedAt: &at, Now: r.now})
 	return err
 }
 
 // Revoke ends one session; zero rows is fine, the session is ended either way.
 func (r sessionRepo) Revoke(ctx context.Context, id kernel.SessionID, at time.Time) error {
-	_, err := r.q.RevokeSession(ctx, db.RevokeSessionParams{ID: uuid.UUID(id), RevokedAt: &at})
+	_, err := r.q.RevokeSession(ctx, db.RevokeSessionParams{ID: uuid.UUID(id), RevokedAt: &at, Now: r.now})
 	return err
 }
 
@@ -177,13 +188,13 @@ func sessionOf(row db.FindSessionByIDRow) model.Session {
 	return model.Session{
 		ID: kernel.SessionID(row.ID), AccountID: kernel.AccountID(row.AccountID), TokenHash: row.TokenHash,
 		PreviousTokenHash: row.PreviousTokenHash, RotatedAt: row.RotatedAt,
-		CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
+		CreatedAt: row.CreatedAt.Time(), ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt,
 	}
 }
 
 // Rotate retires the current token and installs a new hash.
 func (r sessionRepo) Rotate(ctx context.Context, id kernel.SessionID, newHash []byte, at time.Time) error {
-	n, err := r.q.RotateSessionToken(ctx, db.RotateSessionTokenParams{ID: uuid.UUID(id), TokenHash: newHash, RotatedAt: &at})
+	n, err := r.q.RotateSessionToken(ctx, db.RotateSessionTokenParams{ID: uuid.UUID(id), TokenHash: newHash, RotatedAt: &at, Now: r.now})
 	if err != nil {
 		return failures.Classify(err)
 	}
@@ -204,7 +215,7 @@ func (r sessionRepo) Lock(ctx context.Context, id kernel.SessionID) (model.Sessi
 
 // ConsumePrevious ends the grace for the previous token.
 func (r sessionRepo) ConsumePrevious(ctx context.Context, id kernel.SessionID) error {
-	_, err := r.q.ConsumePreviousToken(ctx, uuid.UUID(id))
+	_, err := r.q.ConsumePreviousToken(ctx, db.ConsumePreviousTokenParams{ID: uuid.UUID(id), Now: r.now})
 	return failures.Classify(err)
 }
 
@@ -216,6 +227,6 @@ func (r sessionRepo) DeleteEnded(ctx context.Context, before time.Time, limit in
 
 // Extend moves the expiry.
 func (r sessionRepo) Extend(ctx context.Context, id kernel.SessionID, until time.Time) error {
-	_, err := r.q.ExtendSession(ctx, db.ExtendSessionParams{ID: uuid.UUID(id), ExpiresAt: until})
+	_, err := r.q.ExtendSession(ctx, db.ExtendSessionParams{ID: uuid.UUID(id), ExpiresAt: until, Now: r.now})
 	return failures.Classify(err)
 }

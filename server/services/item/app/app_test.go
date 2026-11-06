@@ -58,8 +58,8 @@ func TestTheServiceDeletesExpiredIdempotencyKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer pool.Close()
-	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at)
-		VALUES ($1, 'item.add', 'old', '\x00', '\x00', now() - interval '25 hours'), ($1, 'item.add', 'new', '\x00', '\x00', now())`, kernel.NewAccountID().String()); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at, updated_at)
+		VALUES ($1, 'item.add', 'old', '\x00', '\x00', now() - interval '25 hours', now() - interval '25 hours'), ($1, 'item.add', 'new', '\x00', '\x00', now(), now())`, kernel.NewAccountID().String()); err != nil {
 		t.Fatal(err)
 	}
 	log := runnertest.NewLog()

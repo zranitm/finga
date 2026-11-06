@@ -31,7 +31,7 @@ type StarterItems interface {
 type Repository interface {
 	// CountLocked counts the account's characters, holding the account's lock until the transaction ends.
 	CountLocked(ctx context.Context, account kernel.AccountID) (int, error)
-	// Insert returns the character as stored, with the updated_at the database gave it.
+	// Insert returns the character as stored, with its updated_at.
 	Insert(ctx context.Context, c model.Character) (model.Character, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error

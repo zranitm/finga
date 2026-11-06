@@ -2,11 +2,11 @@
 INSERT INTO characters (
   id, account_id, name, class, level, exp,
   strength, dexterity, intelligence, agility, vitality, unspent_points,
-  hp, mp, map_id, pos_x, pos_y
+  hp, mp, map_id, pos_x, pos_y, created_at, updated_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17
+  sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(name), sqlc.arg(class), sqlc.arg(level), sqlc.arg(exp),
+  sqlc.arg(strength), sqlc.arg(dexterity), sqlc.arg(intelligence), sqlc.arg(agility), sqlc.arg(vitality), sqlc.arg(unspent_points),
+  sqlc.arg(hp), sqlc.arg(mp), sqlc.arg(map_id), sqlc.arg(pos_x), sqlc.arg(pos_y), sqlc.arg(now), sqlc.arg(now)
 )
 RETURNING *;
 
@@ -25,14 +25,16 @@ SELECT * FROM characters WHERE id = $1 AND account_id = $2;
 
 -- name: SaveCheckpoint :execrows
 UPDATE characters
-SET map_id = $2, pos_x = $3, pos_y = $4, hp = $5, mp = $6,
-    level = $7, exp = $8,
-    strength = $9, dexterity = $10, intelligence = $11, agility = $12, vitality = $13
-WHERE id = $1;
+SET map_id = sqlc.arg(map_id), pos_x = sqlc.arg(pos_x), pos_y = sqlc.arg(pos_y), hp = sqlc.arg(hp), mp = sqlc.arg(mp),
+    level = sqlc.arg(level), exp = sqlc.arg(exp),
+    strength = sqlc.arg(strength), dexterity = sqlc.arg(dexterity), intelligence = sqlc.arg(intelligence),
+    agility = sqlc.arg(agility), vitality = sqlc.arg(vitality), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id);
 
 -- name: SaveLevelUp :execrows
 UPDATE characters
-SET level = $2, exp = $3,
-    strength = $4, dexterity = $5, intelligence = $6, agility = $7, vitality = $8,
-    hp = $9, mp = $10
-WHERE id = $1;
+SET level = sqlc.arg(level), exp = sqlc.arg(exp),
+    strength = sqlc.arg(strength), dexterity = sqlc.arg(dexterity), intelligence = sqlc.arg(intelligence),
+    agility = sqlc.arg(agility), vitality = sqlc.arg(vitality),
+    hp = sqlc.arg(hp), mp = sqlc.arg(mp), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id);

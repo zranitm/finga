@@ -1,6 +1,6 @@
 -- name: InsertSession :exec
-INSERT INTO sessions (id, account_id, token_hash, expires_at)
-VALUES ($1, $2, $3, $4);
+INSERT INTO sessions (id, account_id, token_hash, expires_at, created_at, updated_at)
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(token_hash), sqlc.arg(expires_at), sqlc.arg(now), sqlc.arg(now));
 
 -- name: FindActiveSessionByTokenHash :one
 -- Matches the current token or the one retired by the last rotation.
@@ -20,20 +20,20 @@ WHERE id = $1
 FOR UPDATE;
 
 -- name: RotateSessionToken :execrows
-UPDATE sessions SET previous_token_hash = token_hash, token_hash = $2, rotated_at = $3
-WHERE id = $1 AND revoked_at IS NULL;
+UPDATE sessions SET previous_token_hash = token_hash, token_hash = sqlc.arg(token_hash), rotated_at = sqlc.arg(rotated_at), updated_at = sqlc.arg(now)
+WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
 
 -- name: ConsumePreviousToken :execrows
-UPDATE sessions SET rotated_at = NULL WHERE id = $1 AND revoked_at IS NULL;
+UPDATE sessions SET rotated_at = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
 
 -- name: ExtendSession :execrows
-UPDATE sessions SET expires_at = $2 WHERE id = $1 AND revoked_at IS NULL;
+UPDATE sessions SET expires_at = sqlc.arg(expires_at), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
 
 -- name: RevokeSession :execrows
-UPDATE sessions SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL;
+UPDATE sessions SET revoked_at = sqlc.arg(revoked_at), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id) AND revoked_at IS NULL;
 
 -- name: RevokeAccountSessions :execrows
-UPDATE sessions SET revoked_at = $2 WHERE account_id = $1 AND revoked_at IS NULL;
+UPDATE sessions SET revoked_at = sqlc.arg(revoked_at), updated_at = sqlc.arg(now) WHERE account_id = sqlc.arg(account_id) AND revoked_at IS NULL;
 
 -- name: DeleteEndedSessions :execrows
 -- At most max_rows sessions that ended, revoked or expired, before ended_before; oldest first, by sessions_by_end.

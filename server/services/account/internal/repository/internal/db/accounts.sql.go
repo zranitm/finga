@@ -7,8 +7,8 @@ package db
 
 import (
 	"context"
-	"time"
 
+	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +23,7 @@ type FindAccountByUsernameRow struct {
 	Username     string
 	PasswordHash string
 	Settings     []byte
-	CreatedAt    time.Time
+	CreatedAt    dbx.Stamp
 }
 
 // username is citext, so the comparison ignores letter case.
@@ -51,10 +51,9 @@ func (q *Queries) GetSettings(ctx context.Context, id uuid.UUID) ([]byte, error)
 	return settings, err
 }
 
-const insertAccount = `-- name: InsertAccount :one
-INSERT INTO accounts (id, username, password_hash, settings)
-VALUES ($1, $2, $3, $4)
-RETURNING created_at
+const insertAccount = `-- name: InsertAccount :exec
+INSERT INTO accounts (id, username, password_hash, settings, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $5)
 `
 
 type InsertAccountParams struct {
@@ -62,18 +61,18 @@ type InsertAccountParams struct {
 	Username     string
 	PasswordHash string
 	Settings     []byte
+	Now          dbx.Stamp
 }
 
-func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) (time.Time, error) {
-	row := q.db.QueryRow(ctx, insertAccount,
+func (q *Queries) InsertAccount(ctx context.Context, arg InsertAccountParams) error {
+	_, err := q.db.Exec(ctx, insertAccount,
 		arg.ID,
 		arg.Username,
 		arg.PasswordHash,
 		arg.Settings,
+		arg.Now,
 	)
-	var created_at time.Time
-	err := row.Scan(&created_at)
-	return created_at, err
+	return err
 }
 
 const lockAccount = `-- name: LockAccount :one
@@ -88,18 +87,24 @@ func (q *Queries) LockAccount(ctx context.Context, id uuid.UUID) (uuid.UUID, err
 }
 
 const replacePasswordHash = `-- name: ReplacePasswordHash :execrows
-UPDATE accounts SET password_hash = $1 WHERE id = $2 AND password_hash = $3
+UPDATE accounts SET password_hash = $1, updated_at = $2 WHERE id = $3 AND password_hash = $4
 `
 
 type ReplacePasswordHashParams struct {
 	NewHash string
+	Now     dbx.Stamp
 	ID      uuid.UUID
 	OldHash string
 }
 
 // Only while the hash is still the one verified, so a newer one is never overwritten.
 func (q *Queries) ReplacePasswordHash(ctx context.Context, arg ReplacePasswordHashParams) (int64, error) {
-	result, err := q.db.Exec(ctx, replacePasswordHash, arg.NewHash, arg.ID, arg.OldHash)
+	result, err := q.db.Exec(ctx, replacePasswordHash,
+		arg.NewHash,
+		arg.Now,
+		arg.ID,
+		arg.OldHash,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -107,16 +112,17 @@ func (q *Queries) ReplacePasswordHash(ctx context.Context, arg ReplacePasswordHa
 }
 
 const updateSettings = `-- name: UpdateSettings :execrows
-UPDATE accounts SET settings = $2 WHERE id = $1
+UPDATE accounts SET settings = $1, updated_at = $2 WHERE id = $3
 `
 
 type UpdateSettingsParams struct {
-	ID       uuid.UUID
 	Settings []byte
+	Now      dbx.Stamp
+	ID       uuid.UUID
 }
 
 func (q *Queries) UpdateSettings(ctx context.Context, arg UpdateSettingsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateSettings, arg.ID, arg.Settings)
+	result, err := q.db.Exec(ctx, updateSettings, arg.Settings, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}

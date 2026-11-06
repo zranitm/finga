@@ -61,10 +61,11 @@ func TestAdd(t *testing.T) {
 	pool := cluster.DB(t)
 	t0 := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
 	given := uuidv7.New()
+	now := dbx.Now()
 
 	t.Run("rows exist exactly when the transaction commits", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outboxpg.NewWriter(tx).Add(ctx,
+			return outboxpg.NewWriter(tx, now).Add(ctx,
 				outbox.Event{ID: given, Topic: "item", Key: "item-1", Type: "ItemLooted", Payload: []byte(`{"item":"1"}`), OccurredAt: t0},
 				outbox.Event{Topic: "item", Key: "item-2", Type: "ItemDiscarded"},
 			)
@@ -79,13 +80,22 @@ func TestAdd(t *testing.T) {
 		if got[0].ID != given || got[0].Type != "ItemLooted" || string(got[0].Payload) != `{"item":"1"}` || !got[0].OccurredAt.Equal(t0) || got[0].ContentType != "application/json" {
 			t.Fatalf("row 0 %+v", got[0])
 		}
-		if got[1].ID == uuid.Nil || got[1].ID.Version() != 7 || string(got[1].Payload) != "{}" || got[1].OccurredAt.IsZero() {
+		if got[1].ID == uuid.Nil || got[1].ID.Version() != 7 || string(got[1].Payload) != "{}" || !got[1].OccurredAt.Equal(now.Time()) {
 			t.Fatalf("row 1 %+v: defaults not applied", got[1])
+		}
+		var stamped int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM outbox WHERE created_at = $1 AND updated_at = $1`, now.Time()).Scan(&stamped); err != nil || stamped != 2 {
+			t.Fatalf("%d rows carry the writer's stamp (%v), want 2", stamped, err)
+		}
+	})
+	t.Run("a writer without a stamp writes nothing", func(t *testing.T) {
+		if err := outboxpg.NewWriter(pool, dbx.Stamp{}).Add(ctx, outbox.Event{Topic: "item", Key: "x", Type: "Unstamped"}); err == nil {
+			t.Fatal("an event without a stamp was written")
 		}
 	})
 	t.Run("none after a rollback", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			if err := outboxpg.NewWriter(tx).Add(ctx, outbox.Event{Topic: "item", Key: "x", Type: "Lost"}); err != nil {
+			if err := outboxpg.NewWriter(tx, now).Add(ctx, outbox.Event{Topic: "item", Key: "x", Type: "Lost"}); err != nil {
 				return err
 			}
 			return errBoom
@@ -99,7 +109,7 @@ func TestAdd(t *testing.T) {
 	})
 	t.Run("a duplicate event ID is rejected", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outboxpg.NewWriter(tx).Add(ctx, outbox.Event{ID: given, Topic: "item", Key: "x", Type: "Again"})
+			return outboxpg.NewWriter(tx, now).Add(ctx, outbox.Event{ID: given, Topic: "item", Key: "x", Type: "Again"})
 		})
 		if err == nil {
 			t.Fatal("no error")
@@ -107,7 +117,7 @@ func TestAdd(t *testing.T) {
 	})
 	t.Run("an event without a topic or type is refused", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outboxpg.NewWriter(tx).Add(ctx, outbox.Event{Key: "x"})
+			return outboxpg.NewWriter(tx, now).Add(ctx, outbox.Event{Key: "x"})
 		})
 		if err == nil {
 			t.Fatal("no error")
@@ -127,10 +137,10 @@ func TestAdd(t *testing.T) {
 func TestUnpublishedCountsWhatNoRelayHasPublished(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	if err := outboxpg.NewWriter(pool).Add(ctx, outbox.Event{Topic: "item", Key: "a", Type: "A"}, outbox.Event{Topic: "item", Key: "b", Type: "B"}); err != nil {
+	if err := outboxpg.NewWriter(pool, dbx.Now()).Add(ctx, outbox.Event{Topic: "item", Key: "a", Type: "A"}, outbox.Event{Topic: "item", Key: "b", Type: "B"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE outbox SET published_at = now() WHERE key = 'a'`); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE outbox SET published_at = now(), updated_at = now() WHERE key = 'a'`); err != nil {
 		t.Fatal(err)
 	}
 	if n, err := outboxpg.Unpublished(ctx, pool); err != nil || n != 1 {

@@ -38,7 +38,7 @@ func newAccount(name string) model.NewAccount {
 	return model.NewAccount{ID: kernel.NewAccountID(), Username: name, PasswordHash: "$argon2id$fake", Settings: model.DefaultSettings()}
 }
 
-// insertAccount returns the account's ID and the created_at the database gave it.
+// insertAccount returns the account's ID and its created_at.
 func insertAccount(t *testing.T, store *Postgres, name string) (kernel.AccountID, time.Time) {
 	t.Helper()
 	acc := newAccount(name)

@@ -40,7 +40,7 @@ func sample(account kernel.AccountID, name string) model.Character {
 	}
 }
 
-// insert returns the character as stored, with the updated_at the database gave it.
+// insert returns the character as stored, with its updated_at.
 func insert(t *testing.T, store *Postgres, c model.Character) model.Character {
 	t.Helper()
 	var stored model.Character

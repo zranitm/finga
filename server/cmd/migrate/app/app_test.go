@@ -125,9 +125,10 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 		}
 	})
 
-	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, hp, mp, map_id, pos_x, pos_y)
-		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 12, 5, 4, 5, 10, 204, 28, 'town', 416, 608)`
-	const item = `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity) VALUES ($1, 'red_potion', $2, 'inventory', 'use', 0, 1)`
+	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
+		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 12, 5, 4, 5, 10, 204, 28, 'town', 416, 608, now(), now())`
+	const item = `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
+		VALUES ($1, 'red_potion', $2, 'inventory', 'use', 0, 1, now(), now())`
 	for _, tt := range []struct{ column, insert string }{{"characters.account_id", character}, {"items.id", item}} {
 		t.Run("in "+tt.column, func(t *testing.T) {
 			pool := cluster.DB(t)

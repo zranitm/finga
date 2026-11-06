@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
@@ -31,6 +32,7 @@ func TestMain(m *testing.M) {
 
 const (
 	timestamps = "00003_timestamps.sql"
+	appStamps  = "00005_app_stamps.sql"
 	// a character's columns but the stamps, then $1 the ID and $2 the name
 	columns = `id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, hp, mp, map_id, pos_x, pos_y`
 	values  = `$1, $1, $2, 'warrior', 1, 0, 12, 5, 4, 5, 10, 204, 28, 'town', 416, 608`
@@ -42,41 +44,45 @@ func TestEveryTableHasItsTimestamps(t *testing.T) {
 	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	if err := pgtest.CheckTimestamps(ctx, pool, "set_updated_at", migrations.Table); err != nil {
+	if err := pgtest.CheckTimestamps(ctx, pool, migrations.Table); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// Each statement is its own transaction, so now() is that statement's time.
-func TestTheDatabaseStampsInsertsAndUpdates(t *testing.T) {
+// The services share one database and set_updated_at(); the last to stop using it drops it.
+func TestTheStampFunctionGoesWithItsLastTrigger(t *testing.T) {
 	ctx := context.Background()
-	pool := cluster.DB(t)
-	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
-	var created, updated, now time.Time
-	t.Run("an insert takes both from the clock", func(t *testing.T) {
-		err := pool.QueryRow(ctx, `INSERT INTO characters (`+columns+`) VALUES (`+values+`)
-			RETURNING created_at, updated_at, now()`, uuidv7.New(), "Ayla").Scan(&created, &updated, &now)
-		if err != nil {
+	exists := func(t *testing.T, pool *pgxpool.Pool) bool {
+		t.Helper()
+		var ok bool
+		if err := pool.QueryRow(ctx, `SELECT to_regproc('set_updated_at') IS NOT NULL`).Scan(&ok); err != nil {
 			t.Fatal(err)
 		}
-		if !created.Equal(now) || !updated.Equal(now) {
-			t.Fatalf("created_at %v, updated_at %v, want both %v", created, updated, now)
+		return ok
+	}
+	t.Run("alone, the service drops it", func(t *testing.T) {
+		pool := cluster.DB(t)
+		if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+		if exists(t, pool) {
+			t.Fatal("set_updated_at() outlived its triggers")
 		}
 	})
-	t.Run("an update moves updated_at, even when it names one, and leaves created_at", func(t *testing.T) {
-		id, past := uuidv7.New(), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-		if _, err := pool.Exec(ctx, `INSERT INTO characters (`+columns+`, created_at, updated_at) VALUES (`+values+`, $3, $3)`, id, "Robin", past); err != nil {
+	t.Run("another service's trigger keeps it", func(t *testing.T) {
+		pool := cluster.DB(t)
+		if err := pgtest.MigrationsBefore(migrations.FS, migrations.Table, appStamps)(ctx, pool); err != nil {
 			t.Fatal(err)
 		}
-		err := pool.QueryRow(ctx, `UPDATE characters SET map_id = 'forest', updated_at = $2 WHERE id = $1
-			RETURNING created_at, updated_at, now()`, id, past).Scan(&created, &updated, &now)
-		if err != nil {
+		if _, err := pool.Exec(ctx, `CREATE TABLE other (updated_at timestamptz);
+			CREATE TRIGGER set_updated_at BEFORE UPDATE ON other FOR EACH ROW EXECUTE FUNCTION set_updated_at();`); err != nil {
 			t.Fatal(err)
 		}
-		if !created.Equal(past) || !updated.Equal(now) {
-			t.Fatalf("created_at %v, updated_at %v; want %v and %v", created, updated, past, now)
+		if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+		if !exists(t, pool) {
+			t.Fatal("set_updated_at() was dropped while another table uses it")
 		}
 	})
 }

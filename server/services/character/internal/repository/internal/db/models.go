@@ -5,8 +5,7 @@
 package db
 
 import (
-	"time"
-
+	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
@@ -28,6 +27,6 @@ type Character struct {
 	MapID         string
 	PosX          float32
 	PosY          float32
-	UpdatedAt     time.Time
-	CreatedAt     time.Time
+	UpdatedAt     dbx.Stamp
+	CreatedAt     dbx.Stamp
 }

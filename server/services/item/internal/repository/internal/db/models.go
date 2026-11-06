@@ -7,6 +7,7 @@ package db
 import (
 	"time"
 
+	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
@@ -16,8 +17,8 @@ type IdempotencyKey struct {
 	Key         string
 	RequestHash []byte
 	Response    []byte
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
 }
 
 type Item struct {
@@ -28,8 +29,8 @@ type Item struct {
 	Tab        *string
 	Slot       *int32
 	Quantity   int32
-	UpdatedAt  time.Time
-	CreatedAt  time.Time
+	UpdatedAt  dbx.Stamp
+	CreatedAt  dbx.Stamp
 }
 
 type ItemEvent struct {
@@ -42,8 +43,8 @@ type ItemEvent struct {
 	CauseType     string
 	CauseID       *uuid.UUID
 	OccurredAt    time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	CreatedAt     dbx.Stamp
+	UpdatedAt     dbx.Stamp
 }
 
 type Outbox struct {
@@ -56,12 +57,12 @@ type Outbox struct {
 	Payload     []byte
 	OccurredAt  time.Time
 	PublishedAt *time.Time
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
 }
 
 type StarterGrant struct {
 	CharacterID uuid.UUID
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
 }

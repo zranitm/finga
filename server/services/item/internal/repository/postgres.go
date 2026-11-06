@@ -42,12 +42,12 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 }
 
 func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
-	q := db.New(tx)
+	q, now := db.New(tx), dbx.Now()
 	return unitOfWork{
-		items:   repo{q: q},
-		events:  eventRepo{q: q},
-		notices: notices{w: outboxpg.NewWriter(tx)},
-		idem:    idem{store: idempotencypg.NewStore(tx)},
+		items:   repo{q: q, now: now},
+		events:  eventRepo{q: q, now: now},
+		notices: notices{w: outboxpg.NewWriter(tx, now)},
+		idem:    idem{store: idempotencypg.NewStore(tx, now)},
 	}
 }
 
@@ -60,6 +60,7 @@ func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) ([]m
 	return toItems(rows), nil
 }
 
+// unitOfWork stamps every row it writes with now, the transaction's time on the app's clock.
 type unitOfWork struct {
 	items   repo
 	events  eventRepo
@@ -79,11 +80,14 @@ func (u unitOfWork) Notices() application.Notices { return u.notices }
 // Idempotency is the idempotency store bound to the transaction.
 func (u unitOfWork) Idempotency() application.Idempotency { return u.idem }
 
-type repo struct{ q *db.Queries }
+type repo struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
 
 // RecordStarterGrant inserts the owner's grant unless it has one.
 func (r repo) RecordStarterGrant(ctx context.Context, owner kernel.CharacterID) (bool, error) {
-	n, err := r.q.RecordStarterGrant(ctx, uuid.UUID(owner))
+	n, err := r.q.RecordStarterGrant(ctx, db.RecordStarterGrantParams{CharacterID: uuid.UUID(owner), Now: r.now})
 	return n == 1, err
 }
 
@@ -119,35 +123,39 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 	return r.q.InsertItem(ctx, db.InsertItemParams{
 		ID: uuid.UUID(it.ID), TemplateID: it.TemplateID, OwnerID: uuid.UUID(it.Owner), Tab: &tab, Slot: &slot,
 		Quantity: int32(it.Quantity), //nolint:gosec // quantities are small
+		Now:      r.now,
 	})
 }
 
 // SetQuantity changes a quantity.
 func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error {
-	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity)}) //nolint:gosec // quantities are small
+	n, err := r.q.SetQuantity(ctx, db.SetQuantityParams{ID: uuid.UUID(id), Quantity: int32(quantity), Now: r.now}) //nolint:gosec // quantities are small
 	return dbx.RowsOrNotFound(n, err)
 }
 
 // SetSlot moves an item to a slot.
 func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
-	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s})
+	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, Now: r.now})
 	return dbx.RowsOrNotFound(n, err)
 }
 
 // Destroy marks an item destroyed with quantity 0 rather than deleting the row.
 func (r repo) Destroy(ctx context.Context, id kernel.ItemID) error {
-	n, err := r.q.DestroyItem(ctx, uuid.UUID(id))
+	n, err := r.q.DestroyItem(ctx, db.DestroyItemParams{ID: uuid.UUID(id), Now: r.now})
 	return dbx.RowsOrNotFound(n, err)
 }
 
-type eventRepo struct{ q *db.Queries }
+type eventRepo struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
 
 // Append adds one line to the item history.
 func (r eventRepo) Append(ctx context.Context, e model.Event) error {
 	params := db.InsertItemEventParams{
 		ItemID: uuid.UUID(e.ItemID), Kind: string(e.Kind), QuantityDelta: int32(e.QuantityDelta), //nolint:gosec // quantities are small
-		CauseType: string(e.Cause.Type), OccurredAt: e.OccurredAt,
+		CauseType: string(e.Cause.Type), OccurredAt: e.OccurredAt, Now: r.now,
 	}
 	if e.FromOwner != nil {
 		u := uuid.UUID(*e.FromOwner)

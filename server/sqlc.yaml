@@ -30,6 +30,10 @@ sql:
               pointer: true
           - db_type: citext
             go_type: string
+          - column: "*.created_at"
+            go_type: finga/pkg/dbx.Stamp
+          - column: "*.updated_at"
+            go_type: finga/pkg/dbx.Stamp
   - engine: postgresql
     schema: services/character/migrations
     queries: services/character/internal/repository/queries

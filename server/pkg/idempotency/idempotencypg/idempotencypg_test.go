@@ -43,7 +43,7 @@ func run(ctx context.Context, pool dbx.Beginner, owner, scope, key string, hash 
 	var out []byte
 	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
 		var err error
-		out, err = idempotencypg.NewStore(tx).Do(ctx, owner, scope, key, hash, fn)
+		out, err = idempotencypg.NewStore(tx, dbx.Now()).Do(ctx, owner, scope, key, hash, fn)
 		return err
 	})
 	return out, err
@@ -137,11 +137,12 @@ func TestConcurrentSameKeyRunsOnce(t *testing.T) {
 func TestPruneDeletesKeysOlderThanTheCutoff(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at) VALUES
-		('acc-1', 'discard', 'k-48h', 'h', '', now() - interval '48 hours'),
-		('acc-1', 'discard', 'k-30h', 'h', '', now() - interval '30 hours'),
-		('acc-2', 'move', 'k-25h', 'h', '', now() - interval '25 hours'),
-		('acc-1', 'discard', 'k-1h', 'h', '', now() - interval '1 hour')`); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at, updated_at)
+		SELECT owner, scope, key, 'h', '', $1::timestamptz - age, $1::timestamptz - age FROM (VALUES
+			('acc-1', 'discard', 'k-48h', interval '48 hours'),
+			('acc-1', 'discard', 'k-30h', interval '30 hours'),
+			('acc-2', 'move', 'k-25h', interval '25 hours'),
+			('acc-1', 'discard', 'k-1h', interval '1 hour')) AS k(owner, scope, key, age)`, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	cutoff := time.Now().Add(-24 * time.Hour)
@@ -168,18 +169,23 @@ func TestPruneDeletesKeysOlderThanTheCutoff(t *testing.T) {
 	}
 }
 
-func TestTheDatabaseStampsAKey(t *testing.T) {
+// A stored key carries the transaction's stamp; a store without one stores nothing.
+func TestAKeyCarriesTheStoresStamp(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	var stamped bool
-	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-		if _, err := idempotencypg.NewStore(tx).Do(ctx, "acc-1", "discard", "k-1", []byte("h"), func() ([]byte, error) { return nil, nil }); err != nil {
-			return err
-		}
-		// now() is the transaction's start, which no clock the store reads could give.
-		return tx.QueryRow(ctx, `SELECT created_at = now() AND updated_at = now() FROM idempotency_keys WHERE key = 'k-1'`).Scan(&stamped)
-	})
-	if err != nil || !stamped {
-		t.Fatalf("stamped by the database: %v (%v)", stamped, err)
+	noop := func() ([]byte, error) { return nil, nil }
+	now := dbx.Now()
+	if _, err := idempotencypg.NewStore(pool, now).Do(ctx, "acc-1", "discard", "k-1", []byte("h"), noop); err != nil {
+		t.Fatal(err)
+	}
+	var created, updated time.Time
+	if err := pool.QueryRow(ctx, `SELECT created_at, updated_at FROM idempotency_keys WHERE key = 'k-1'`).Scan(&created, &updated); err != nil {
+		t.Fatal(err)
+	}
+	if !created.Equal(now.Time()) || !updated.Equal(now.Time()) {
+		t.Fatalf("created_at %v, updated_at %v, want both %v", created, updated, now.Time())
+	}
+	if _, err := idempotencypg.NewStore(pool, dbx.Stamp{}).Do(ctx, "acc-1", "discard", "k-2", []byte("h"), noop); err == nil {
+		t.Fatal("a key without a stamp was stored")
 	}
 }

@@ -31,7 +31,7 @@ func NewPostgres(pool *pgxpool.Pool, obs dbx.Observer) *Postgres {
 // InTx runs fn in one transaction; fn may run more than once, so it must have no outside effects.
 func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork) error) error {
 	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
-		return fn(unitOfWork{q: db.New(tx)})
+		return fn(unitOfWork{q: db.New(tx), now: dbx.Now()})
 	}, dbx.Observed(p.obs))
 	return failures.Classify(err)
 }
@@ -64,18 +64,23 @@ func toCharacter(r db.Character) model.Character {
 		Level: int(r.Level), Exp: r.Exp,
 		Stats:         gamedata.Stats{STR: int(r.Strength), DEX: int(r.Dexterity), INT: int(r.Intelligence), AGI: int(r.Agility), VIT: int(r.Vitality)},
 		UnspentPoints: int(r.UnspentPoints), HP: int(r.Hp), MP: int(r.Mp),
-		MapID: r.MapID, X: float64(r.PosX), Y: float64(r.PosY), UpdatedAt: r.UpdatedAt,
+		MapID: r.MapID, X: float64(r.PosX), Y: float64(r.PosY), UpdatedAt: r.UpdatedAt.Time(),
 	}
 }
 
+// unitOfWork stamps every row it writes with now, the transaction's time on the app's clock.
 type unitOfWork struct {
-	q *db.Queries
+	q   *db.Queries
+	now dbx.Stamp
 }
 
 // Characters is the character repository bound to the transaction.
 func (u unitOfWork) Characters() application.Repository { return repo(u) }
 
-type repo struct{ q *db.Queries }
+type repo struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
 
 // CountLocked takes the account's advisory lock, then counts its characters.
 func (r repo) CountLocked(ctx context.Context, account kernel.AccountID) (int, error) {
@@ -94,6 +99,7 @@ func (r repo) Insert(ctx context.Context, c model.Character) (model.Character, e
 		Strength: int32(c.Stats.STR), Dexterity: int32(c.Stats.DEX), Intelligence: int32(c.Stats.INT), //nolint:gosec // stats are small
 		Agility: int32(c.Stats.AGI), Vitality: int32(c.Stats.VIT), UnspentPoints: int32(c.UnspentPoints), //nolint:gosec // stats are small
 		Hp: int32(c.HP), Mp: int32(c.MP), MapID: c.MapID, PosX: float32(c.X), PosY: float32(c.Y), //nolint:gosec // HP fits
+		Now: r.now,
 	})
 	if err != nil {
 		return model.Character{}, err
@@ -108,6 +114,7 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 		Hp: int32(cp.HP), Mp: int32(cp.MP), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP and levels fit
 		Strength: int32(cp.Stats.STR), Dexterity: int32(cp.Stats.DEX), Intelligence: int32(cp.Stats.INT), //nolint:gosec // stats are small
 		Agility: int32(cp.Stats.AGI), Vitality: int32(cp.Stats.VIT), //nolint:gosec // stats are small
+		Now: r.now,
 	})
 	return dbx.RowsOrNotFound(n, err)
 }
@@ -119,6 +126,7 @@ func (r repo) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 		Strength: int32(lu.Stats.STR), Dexterity: int32(lu.Stats.DEX), Intelligence: int32(lu.Stats.INT), //nolint:gosec // stats are small
 		Agility: int32(lu.Stats.AGI), Vitality: int32(lu.Stats.VIT), //nolint:gosec // stats are small
 		Hp: int32(lu.HP), Mp: int32(lu.MP), //nolint:gosec // HP fits
+		Now: r.now,
 	})
 	return dbx.RowsOrNotFound(n, err)
 }

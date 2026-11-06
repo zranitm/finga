@@ -20,24 +20,22 @@ $$;`
 func TestCheckTimestamps(t *testing.T) {
 	const stamped = `CREATE TABLE t (
   id int PRIMARY KEY,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
+  created_at timestamptz NOT NULL,
+  updated_at timestamptz NOT NULL
 );`
-	const trigger = `CREATE TRIGGER set_updated_at BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION set_updated_at();`
 	tests := []struct {
 		name string
 		ddl  string
 		want string // in the error; empty for none
 	}{
-		{"both stamps and the trigger pass", stamped + trigger, ""},
-		{"a missing updated_at is reported", `CREATE TABLE t (id int, created_at timestamptz NOT NULL DEFAULT now());` + trigger, "t.updated_at is missing"},
-		{"a nullable stamp is reported", `CREATE TABLE t (id int, created_at timestamptz DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());` + trigger, "t.created_at is timestamp with time zone DEFAULT now()"},
-		{"a stamp without a default is reported", `CREATE TABLE t (id int, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());` + trigger, "t.created_at is timestamp with time zone NOT NULL,"},
-		{"a stamp without a time zone is reported", `CREATE TABLE t (id int, created_at timestamp NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());` + trigger, "t.created_at is timestamp without time zone"},
-		{"a table without the trigger is reported", stamped, "t has no BEFORE UPDATE row trigger running set_updated_at()"},
-		{"an AFTER UPDATE trigger is not enough", stamped + `CREATE TRIGGER late AFTER UPDATE ON t FOR EACH ROW EXECUTE FUNCTION set_updated_at();`, "t has no BEFORE UPDATE"},
-		{"a trigger on one column is not enough", stamped + `CREATE TRIGGER narrow BEFORE UPDATE OF id ON t FOR EACH ROW EXECUTE FUNCTION set_updated_at();`, "t has no BEFORE UPDATE"},
-		{"a disabled trigger is not enough", stamped + trigger + `ALTER TABLE t DISABLE TRIGGER set_updated_at;`, "t has no BEFORE UPDATE"},
+		{"both stamps without a default pass", stamped, ""},
+		{"a trigger that cannot change the row passes", stamped + `CREATE TRIGGER late AFTER UPDATE ON t FOR EACH ROW EXECUTE FUNCTION set_updated_at();`, ""},
+		{"a missing updated_at is reported", `CREATE TABLE t (id int, created_at timestamptz NOT NULL);`, "t.updated_at is missing"},
+		{"a nullable stamp is reported", `CREATE TABLE t (id int, created_at timestamptz, updated_at timestamptz NOT NULL);`, "t.created_at is timestamp with time zone, want"},
+		{"a default is reported", `CREATE TABLE t (id int, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL);`, "t.created_at is timestamp with time zone NOT NULL DEFAULT now()"},
+		{"a stamp without a time zone is reported", `CREATE TABLE t (id int, created_at timestamp NOT NULL, updated_at timestamptz NOT NULL);`, "t.created_at is timestamp without time zone"},
+		{"a BEFORE UPDATE row trigger is reported", stamped + `CREATE TRIGGER set_updated_at BEFORE UPDATE ON t FOR EACH ROW EXECUTE FUNCTION set_updated_at();`, "t has BEFORE row triggers: set_updated_at"},
+		{"a disabled one too", stamped + `CREATE TRIGGER fill BEFORE INSERT ON t FOR EACH ROW EXECUTE FUNCTION set_updated_at(); ALTER TABLE t DISABLE TRIGGER fill;`, "t has BEFORE row triggers: fill"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,7 +44,7 @@ func TestCheckTimestamps(t *testing.T) {
 			if _, err := pool.Exec(ctx, stampFn+tt.ddl); err != nil {
 				t.Fatal(err)
 			}
-			err := pgtest.CheckTimestamps(ctx, pool, "set_updated_at", "notes")
+			err := pgtest.CheckTimestamps(ctx, pool, "notes")
 			switch {
 			case tt.want == "" && err != nil:
 				t.Fatalf("err = %v", err)
@@ -56,7 +54,7 @@ func TestCheckTimestamps(t *testing.T) {
 		})
 	}
 	t.Run("no table to check is an error", func(t *testing.T) {
-		if err := pgtest.CheckTimestamps(context.Background(), cluster.DB(t), "set_updated_at", "notes"); err == nil {
+		if err := pgtest.CheckTimestamps(context.Background(), cluster.DB(t), "notes"); err == nil {
 			t.Fatal("no error")
 		}
 	})

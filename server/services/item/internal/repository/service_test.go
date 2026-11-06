@@ -583,3 +583,28 @@ func TestEachOutboxRowCarriesItsSlotsChange(t *testing.T) {
 		t.Fatalf("outbox quantity and its event's delta per row: %v, want %v", got, want)
 	}
 }
+
+// Every row a command writes carries one stamp, its transaction's time; a later change moves only updated_at.
+func TestACommandStampsItsRowsAlike(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	h.add(t, "seed", "red_potion", 5)
+	stamps := func() int {
+		t.Helper()
+		return h.count(t, `SELECT count(DISTINCT s) FROM (
+			SELECT created_at FROM items UNION ALL SELECT updated_at FROM items
+			UNION ALL SELECT created_at FROM item_events UNION ALL SELECT updated_at FROM item_events
+			UNION ALL SELECT created_at FROM outbox UNION ALL SELECT updated_at FROM outbox
+			UNION ALL SELECT created_at FROM idempotency_keys UNION ALL SELECT updated_at FROM idempotency_keys) AS t(s)`)
+	}
+	if n := stamps(); n != 1 {
+		t.Fatalf("one add wrote %d distinct stamps, want 1", n)
+	}
+	it := h.inventory(t)[0]
+	if _, err := h.svc.Move(ctx, h.actor, application.MoveInput{Key: "move", ItemID: it.ID, Tab: it.Tab, Slot: it.Slot + 1}); err != nil {
+		t.Fatal(err)
+	}
+	if h.count(t, `SELECT count(*) FROM items WHERE updated_at > created_at`) != 1 {
+		t.Fatal("the move left the item's updated_at")
+	}
+}

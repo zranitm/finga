@@ -9,15 +9,21 @@ import (
 	"context"
 	"time"
 
+	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
 
 const consumePreviousToken = `-- name: ConsumePreviousToken :execrows
-UPDATE sessions SET rotated_at = NULL WHERE id = $1 AND revoked_at IS NULL
+UPDATE sessions SET rotated_at = NULL, updated_at = $1 WHERE id = $2 AND revoked_at IS NULL
 `
 
-func (q *Queries) ConsumePreviousToken(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, consumePreviousToken, id)
+type ConsumePreviousTokenParams struct {
+	Now dbx.Stamp
+	ID  uuid.UUID
+}
+
+func (q *Queries) ConsumePreviousToken(ctx context.Context, arg ConsumePreviousTokenParams) (int64, error) {
+	result, err := q.db.Exec(ctx, consumePreviousToken, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -48,16 +54,17 @@ func (q *Queries) DeleteEndedSessions(ctx context.Context, arg DeleteEndedSessio
 }
 
 const extendSession = `-- name: ExtendSession :execrows
-UPDATE sessions SET expires_at = $2 WHERE id = $1 AND revoked_at IS NULL
+UPDATE sessions SET expires_at = $1, updated_at = $2 WHERE id = $3 AND revoked_at IS NULL
 `
 
 type ExtendSessionParams struct {
-	ID        uuid.UUID
 	ExpiresAt time.Time
+	Now       dbx.Stamp
+	ID        uuid.UUID
 }
 
 func (q *Queries) ExtendSession(ctx context.Context, arg ExtendSessionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, extendSession, arg.ID, arg.ExpiresAt)
+	result, err := q.db.Exec(ctx, extendSession, arg.ExpiresAt, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -76,7 +83,7 @@ type FindActiveSessionByTokenHashRow struct {
 	TokenHash         []byte
 	PreviousTokenHash []byte
 	RotatedAt         *time.Time
-	CreatedAt         time.Time
+	CreatedAt         dbx.Stamp
 	ExpiresAt         time.Time
 	RevokedAt         *time.Time
 }
@@ -110,7 +117,7 @@ type FindSessionByIDRow struct {
 	TokenHash         []byte
 	PreviousTokenHash []byte
 	RotatedAt         *time.Time
-	CreatedAt         time.Time
+	CreatedAt         dbx.Stamp
 	ExpiresAt         time.Time
 	RevokedAt         *time.Time
 }
@@ -132,8 +139,8 @@ func (q *Queries) FindSessionByID(ctx context.Context, id uuid.UUID) (FindSessio
 }
 
 const insertSession = `-- name: InsertSession :exec
-INSERT INTO sessions (id, account_id, token_hash, expires_at)
-VALUES ($1, $2, $3, $4)
+INSERT INTO sessions (id, account_id, token_hash, expires_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $5)
 `
 
 type InsertSessionParams struct {
@@ -141,6 +148,7 @@ type InsertSessionParams struct {
 	AccountID uuid.UUID
 	TokenHash []byte
 	ExpiresAt time.Time
+	Now       dbx.Stamp
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
@@ -149,6 +157,7 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.AccountID,
 		arg.TokenHash,
 		arg.ExpiresAt,
+		arg.Now,
 	)
 	return err
 }
@@ -166,7 +175,7 @@ type LockSessionRow struct {
 	TokenHash         []byte
 	PreviousTokenHash []byte
 	RotatedAt         *time.Time
-	CreatedAt         time.Time
+	CreatedAt         dbx.Stamp
 	ExpiresAt         time.Time
 	RevokedAt         *time.Time
 }
@@ -188,16 +197,17 @@ func (q *Queries) LockSession(ctx context.Context, id uuid.UUID) (LockSessionRow
 }
 
 const revokeAccountSessions = `-- name: RevokeAccountSessions :execrows
-UPDATE sessions SET revoked_at = $2 WHERE account_id = $1 AND revoked_at IS NULL
+UPDATE sessions SET revoked_at = $1, updated_at = $2 WHERE account_id = $3 AND revoked_at IS NULL
 `
 
 type RevokeAccountSessionsParams struct {
-	AccountID uuid.UUID
 	RevokedAt *time.Time
+	Now       dbx.Stamp
+	AccountID uuid.UUID
 }
 
 func (q *Queries) RevokeAccountSessions(ctx context.Context, arg RevokeAccountSessionsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeAccountSessions, arg.AccountID, arg.RevokedAt)
+	result, err := q.db.Exec(ctx, revokeAccountSessions, arg.RevokedAt, arg.Now, arg.AccountID)
 	if err != nil {
 		return 0, err
 	}
@@ -205,16 +215,17 @@ func (q *Queries) RevokeAccountSessions(ctx context.Context, arg RevokeAccountSe
 }
 
 const revokeSession = `-- name: RevokeSession :execrows
-UPDATE sessions SET revoked_at = $2 WHERE id = $1 AND revoked_at IS NULL
+UPDATE sessions SET revoked_at = $1, updated_at = $2 WHERE id = $3 AND revoked_at IS NULL
 `
 
 type RevokeSessionParams struct {
-	ID        uuid.UUID
 	RevokedAt *time.Time
+	Now       dbx.Stamp
+	ID        uuid.UUID
 }
 
 func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, revokeSession, arg.ID, arg.RevokedAt)
+	result, err := q.db.Exec(ctx, revokeSession, arg.RevokedAt, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -222,18 +233,24 @@ func (q *Queries) RevokeSession(ctx context.Context, arg RevokeSessionParams) (i
 }
 
 const rotateSessionToken = `-- name: RotateSessionToken :execrows
-UPDATE sessions SET previous_token_hash = token_hash, token_hash = $2, rotated_at = $3
-WHERE id = $1 AND revoked_at IS NULL
+UPDATE sessions SET previous_token_hash = token_hash, token_hash = $1, rotated_at = $2, updated_at = $3
+WHERE id = $4 AND revoked_at IS NULL
 `
 
 type RotateSessionTokenParams struct {
-	ID        uuid.UUID
 	TokenHash []byte
 	RotatedAt *time.Time
+	Now       dbx.Stamp
+	ID        uuid.UUID
 }
 
 func (q *Queries) RotateSessionToken(ctx context.Context, arg RotateSessionTokenParams) (int64, error) {
-	result, err := q.db.Exec(ctx, rotateSessionToken, arg.ID, arg.TokenHash, arg.RotatedAt)
+	result, err := q.db.Exec(ctx, rotateSessionToken,
+		arg.TokenHash,
+		arg.RotatedAt,
+		arg.Now,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}
