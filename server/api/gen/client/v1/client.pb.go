@@ -1897,7 +1897,7 @@ type Welcome struct {
 	Tick  uint32     `protobuf:"varint,6,opt,name=tick,proto3" json:"tick,omitempty"`
 	// Unix milliseconds.
 	ServerTime int64 `protobuf:"varint,7,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
-	// The world's ticks per second: each tick holds 60 / tick_rate_hz physics steps. 0 from an older server means 20.
+	// The world's ticks per second: each tick holds a whole number of movement steps (data/movement.yaml dt). 0 from an older server means 20.
 	TickRateHz    uint32 `protobuf:"varint,8,opt,name=tick_rate_hz,json=tickRateHz,proto3" json:"tick_rate_hz,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

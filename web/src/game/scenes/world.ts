@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { movement } from '@/gamedata/movement';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
 import type { GameSocket } from '@/net/socket';
@@ -70,7 +71,7 @@ export class World extends Phaser.Scene {
     name: '',
     tickRateHz: 20,
   };
-  private timing: TickTiming = tickTiming(20);
+  private timing: TickTiming = tickTiming(20, movement.dt);
   private player: PlayerView | null = null;
   private background: Phaser.GameObjects.Image | null = null;
   private offs: (() => void)[] = [];
@@ -78,7 +79,7 @@ export class World extends Phaser.Scene {
   private socket: GameSocket | null = null;
   private predictor: Predictor | null = null;
   private sender: InputSender | null = null;
-  private clock = new FixedStep(this.timing.stepsPerTick);
+  private clock = new FixedStep(this.timing);
   private placed = false; // set by the first Snapshot that names the local player
 
   private remotes: RemotePlayers | null = null;
@@ -108,8 +109,8 @@ export class World extends Phaser.Scene {
 
   init(data: WorldData): void {
     this.entry = data;
-    this.timing = tickTiming(data.tickRateHz);
-    this.clock = new FixedStep(this.timing.stepsPerTick);
+    this.timing = tickTiming(data.tickRateHz, movement.dt);
+    this.clock = new FixedStep(this.timing);
     this.renderClock = new RenderClock(this.timing.tickMs);
     this.mobs = new MobTracker(this.timing.tickMs);
     this.placed = false;

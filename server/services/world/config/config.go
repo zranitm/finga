@@ -2,7 +2,6 @@
 package config
 
 import (
-	"errors"
 	"time"
 
 	"finga/internal/host"
@@ -16,7 +15,7 @@ type Config struct {
 	ShutdownGrace      time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log                logger.Config    `mapstructure:"log"`
 	DataDir            string           `mapstructure:"data_dir" validate:"required"`
-	TickRateHz         int              `mapstructure:"tick_rate_hz" validate:"min=1,max=60"`
+	TickRateHz         int              `mapstructure:"tick_rate_hz" validate:"min=1"`
 	CheckpointInterval time.Duration    `mapstructure:"checkpoint_interval" validate:"gt=0"`
 	FlushTimeout       time.Duration    `mapstructure:"flush_timeout" validate:"gt=0"`
 	Economy            Economy          `mapstructure:"economy"`
@@ -28,19 +27,9 @@ type Economy struct {
 	Workers int `mapstructure:"workers" validate:"min=1"`
 }
 
-const subStepsPerSecond = 60
-
 // TickInterval is the time between two ticks of a map.
 func (c Config) TickInterval() time.Duration {
 	return time.Second / time.Duration(c.TickRateHz)
-}
-
-// Validate is the rule no tag can express: each tick holds whole sub-steps.
-func (c *Config) Validate() error {
-	if subStepsPerSecond%c.TickRateHz != 0 {
-		return errors.New("tick_rate_hz must divide 60, so each tick holds whole 1/60 s sub-steps")
-	}
-	return nil
 }
 
 // Dependencies are the addresses of the services this one calls.

@@ -75,6 +75,15 @@ func serve(t *testing.T, register func(*grpc.Server)) string {
 	return ln.Addr().String()
 }
 
+func TestATickThatSplitsAMovementStepIsRefused(t *testing.T) {
+	for _, hz := range []int{25, 120} { // 2.4 steps of 1/60 s, and half of one
+		cfg := config.Config{DataDir: "../../../data", TickRateHz: hz}
+		if _, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry()); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") {
+			t.Fatalf("%d Hz: %v", hz, err)
+		}
+	}
+}
+
 func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	ctx := t.Context()
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()

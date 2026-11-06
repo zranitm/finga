@@ -1,16 +1,18 @@
-// Integer time in thirds of a µs so a 50 ms frame yields exactly three steps; float ms would yield two.
+// Integer time, 50 000 units to a step, so a 50 ms frame yields exactly three 1/60 s steps; float ms would yield two.
 const unitsPerStep = 50_000;
 
-/** How the client paces itself by the world's tick rate: each tick holds stepsPerTick steps of 1/60 s. */
+/** How the client paces itself by the world's tick rate: each tick holds stepsPerTick steps of the movement dt. */
 export interface TickTiming {
   readonly tickMs: number;
   readonly stepsPerTick: number;
+  readonly stepsPerSecond: number;
 }
 
-/** A rate that does not split into whole 1/60 s steps, or 0 from an older server, counts as 20 Hz. */
-export function tickTiming(hz: number): TickTiming {
-  const rate = Number.isInteger(hz) && hz > 0 && 60 % hz === 0 ? hz : 20;
-  return { tickMs: 1000 / rate, stepsPerTick: 60 / rate };
+/** A rate that does not split into whole steps of dt, or 0 from an older server, counts as 20 Hz. */
+export function tickTiming(hz: number, dt: number): TickTiming {
+  const stepsPerSecond = Math.round(1 / dt);
+  const rate = Number.isInteger(hz) && hz > 0 && stepsPerSecond % hz === 0 ? hz : 20;
+  return { tickMs: 1000 / rate, stepsPerTick: stepsPerSecond / rate, stepsPerSecond };
 }
 
 export interface Step {
@@ -20,15 +22,23 @@ export interface Step {
 export class FixedStep {
   private accumulated = 0;
   private stepCount = 0;
+  private readonly stepsPerTick: number;
+  private readonly unitsPerMs: number;
 
   /** Time beyond maxStepsPerFrame (a background tab coming back) is dropped, not simulated in a burst. */
   constructor(
-    readonly stepsPerTick: number,
+    timing: TickTiming,
     readonly maxStepsPerFrame = 15,
   ) {
+    const { stepsPerTick, stepsPerSecond } = timing;
     if (!Number.isInteger(stepsPerTick) || stepsPerTick < 1) {
       throw new RangeError(`stepsPerTick must be a positive integer, got ${stepsPerTick}`);
     }
+    if (!Number.isInteger(stepsPerSecond) || stepsPerSecond < 1) {
+      throw new RangeError(`stepsPerSecond must be a positive integer, got ${stepsPerSecond}`);
+    }
+    this.stepsPerTick = stepsPerTick;
+    this.unitsPerMs = (unitsPerStep * stepsPerSecond) / 1000;
     if (!Number.isInteger(maxStepsPerFrame) || maxStepsPerFrame < 1) {
       throw new RangeError(`maxStepsPerFrame must be a positive integer, got ${maxStepsPerFrame}`);
     }
@@ -38,7 +48,7 @@ export class FixedStep {
     if (!(frameMs >= 0)) {
       throw new RangeError(`frame time must be a non-negative number, got ${frameMs}`);
     }
-    this.accumulated += Math.round(frameMs * 3000);
+    this.accumulated += Math.round(frameMs * this.unitsPerMs);
     const steps: Step[] = [];
     while (this.accumulated >= unitsPerStep) {
       this.accumulated -= unitsPerStep;
@@ -52,6 +62,4 @@ export class FixedStep {
     }
     return steps;
   }
-
-  static readonly stepMs = 1000 / 60;
 }

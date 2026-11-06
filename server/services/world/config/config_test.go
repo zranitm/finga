@@ -52,13 +52,6 @@ func TestAnOverrideReachesTheServicesKey(t *testing.T) {
 	}
 }
 
-func TestTheTickRateMustDivideSixty(t *testing.T) {
-	t.Setenv("FINGA_TICK_RATE_HZ", "25")
-	if _, err := load(); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") {
-		t.Fatalf("err %v", err)
-	}
-}
-
 func TestTheTickIntervalFollowsFromTheRate(t *testing.T) {
 	cfg, err := load()
 	if err != nil {

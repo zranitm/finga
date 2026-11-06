@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"math/rand/v2"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
@@ -29,6 +31,15 @@ import (
 	"finga/services/world/internal/model"
 )
 
+// wholeSteps refuses a tick that splits a movement step, as the client predicts in whole steps.
+func wholeSteps(tick time.Duration, dt float64) error {
+	steps := tick.Seconds() / dt
+	if steps < 1 || math.Abs(steps-math.Round(steps)) > 1e-9 {
+		return fmt.Errorf("tick_rate_hz: a %s tick holds %.3g movement steps of %.4gs; it must hold a whole number", tick, steps, dt)
+	}
+	return nil
+}
+
 // Build wires the world service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
 	panicCount, err := observability.NewPanicCounter(reg)
@@ -38,6 +49,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	rec := panics.NewRecorder(log, panicCount)
 	data, err := gamedata.Load(cfg.DataDir)
 	if err != nil {
+		return nil, err
+	}
+	if err := wholeSteps(cfg.TickInterval(), data.Movement().Dt); err != nil {
 		return nil, err
 	}
 	metrics, err := telemetry.NewWorldMetrics(reg)
