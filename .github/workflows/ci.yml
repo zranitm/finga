@@ -19,16 +19,22 @@ jobs:
         with:
           version: v2.15.0   # built with Go 1.27: an older build refuses server/go.mod's version
           args: --help   # install only; `make lint` runs it below with the repo's settings
+      - name: the commits this run checks
+        env:
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          # A branch's first push has no commit before it.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then BEFORE=HEAD~1; fi
+          echo "BASE=$BEFORE" >> "$GITHUB_ENV"
+      - name: no Claude links in the commits or the files
+        run: |
+          if git log --format=%B "$BASE..HEAD" | grep -n 'claude[.]ai'; then echo "a commit message links to a Claude session"; exit 1; fi
+          if git grep -n 'claude[.]ai'; then echo "a file links to a Claude session"; exit 1; fi
       - run: make lint-go
       - name: generated Go code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen && go tool sqlc diff
       - name: no breaking change to the contracts
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          # A branch's first push has no commit before it.
-          if [ -z "$BASE" ] || [ "$BASE" = 0000000000000000000000000000000000000000 ]; then BASE=HEAD~1; fi
-          make breaking BREAKING_AGAINST="$BASE"
+        run: make breaking BREAKING_AGAINST="$BASE"
       # Every test once, with the race detector, the crash test included: the world and item service die mid-pickup and restart.
       - run: make cover-go
 
