@@ -17,6 +17,8 @@ type PartyStore interface {
 type PartyTx interface {
 	Member(id kernel.CharacterID) (model.Member, bool)
 	PutMember(m model.Member)
+	DeleteMember(id kernel.CharacterID)
+	Members() []model.Member
 	// PartyOf finds a party by any of its members.
 	PartyOf(member kernel.CharacterID) (model.Party, bool)
 	// PutParty saves p; a member it no longer lists no longer finds it.

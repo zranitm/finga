@@ -27,6 +27,8 @@ type Member struct {
 	Connection string
 	// JoinOrder is lowest for the longest-standing member, who leads when the leader goes.
 	JoinOrder uint64
+	// OfflineAt is when the member last went offline; zero while online.
+	OfflineAt time.Time
 }
 
 // Party is one party: the leader and the members in join order.

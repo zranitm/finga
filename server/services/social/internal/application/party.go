@@ -57,11 +57,34 @@ func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID, conn 
 		if !ok || m.Connection != conn {
 			return nil
 		}
-		m.Online = false
+		m.Online, m.OfflineAt = false, time.Now()
 		tx.PutMember(m)
 		refresh(tx, n, m)
 		return nil
 	})
+}
+
+// PruneMembers forgets at most limit members offline since before before and in no party, and reports how many.
+func (s *PartyService) PruneMembers(ctx context.Context, before time.Time, limit int) (int64, error) {
+	var n int64
+	err := s.update(ctx, func(tx PartyTx, _ *notes) error {
+		n = 0
+		for _, m := range tx.Members() {
+			if n == int64(limit) {
+				break
+			}
+			if m.Online || !m.OfflineAt.Before(before) {
+				continue
+			}
+			if _, ok := tx.PartyOf(m.ID); ok {
+				continue // their party still lists them
+			}
+			tx.DeleteMember(m.ID)
+			n++
+		}
+		return nil
+	})
+	return n, err
 }
 
 // Update records a change the world saw: the map, level or HP of a member.

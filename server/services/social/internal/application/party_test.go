@@ -503,3 +503,46 @@ func TestRegisteringTellsTheMemberTheirParty(t *testing.T) {
 		t.Fatalf("Ayla, leading a party of one, was told %+v", last)
 	}
 }
+
+// Every character ever seen online would stay in memory; one offline and without a party for long enough is forgotten.
+func TestMembersOfflineWithoutAPartyAreForgotten(t *testing.T) {
+	f := newFixture(t, "Ayla", "Robin", "Cass", "Dee")
+	f.invite(t, "Ayla", "Robin")
+	must(t, f.svc.Update(f.ctx, f.id("Cass"), "forest", 9, 50, 300))
+	for _, n := range []string{"Robin", "Cass", "Dee"} {
+		must(t, f.svc.Offline(f.ctx, f.id(n), "c-"+n))
+	}
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Dee"), Name: "Dee", Connection: "c-Dee-2"})) // back since
+	if n, err := f.svc.PruneMembers(f.ctx, time.Now().Add(-time.Hour), 10); err != nil || n != 0 {
+		t.Fatalf("pruned %d (%v) before anyone was offline that long", n, err)
+	}
+	// Only Cass: Ayla and Dee are online, and Robin's party still lists him.
+	if n, err := f.svc.PruneMembers(f.ctx, time.Now().Add(time.Second), 10); err != nil || n != 1 {
+		t.Fatalf("pruned %d (%v), want Cass alone", n, err)
+	}
+	if !f.sameParty(t, f.id("Ayla"), f.id("Robin")) {
+		t.Fatal("Robin left his party by being forgotten")
+	}
+	// Forgotten, Cass registering through the same connection starts afresh, not from what the world reported.
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Cass"), Name: "Cass", Level: 2, HP: 100, MaxHP: 100, MapID: "forest", Connection: "c-Cass"}))
+	f.invite(t, "Ayla", "Cass")
+	if m := f.rec.last().party.Members[2]; m.ID != f.id("Cass") || m.Level != 2 {
+		t.Fatalf("Cass joined as %+v, want level 2", m)
+	}
+	if n, err := f.svc.PruneMembers(f.ctx, time.Now().Add(time.Second), 10); err != nil || n != 0 {
+		t.Fatalf("pruned %d (%v) on the second pass", n, err)
+	}
+}
+
+func TestPruningMembersStopsAtItsLimit(t *testing.T) {
+	f := newFixture(t, "a", "b", "c")
+	for _, n := range []string{"a", "b", "c"} {
+		must(t, f.svc.Offline(f.ctx, f.id(n), "c-"+n))
+	}
+	if n, err := f.svc.PruneMembers(f.ctx, time.Now().Add(time.Second), 2); err != nil || n != 2 {
+		t.Fatalf("pruned %d (%v), want the limit of 2", n, err)
+	}
+	if n, err := f.svc.PruneMembers(f.ctx, time.Now().Add(time.Second), 2); err != nil || n != 1 {
+		t.Fatalf("pruned %d (%v), want the one left", n, err)
+	}
+}

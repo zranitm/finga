@@ -18,7 +18,7 @@ import (
 func TestAnInviteReachesTheGatewayOverTheRealListener(t *testing.T) {
 	ctx := t.Context()
 	log := runnertest.NewLog()
-	cfg := config.Config{GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"}, ShutdownGrace: time.Second}
+	cfg := config.Config{GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"}, ShutdownGrace: time.Second, Members: config.Members{Keep: time.Hour, PruneEvery: time.Minute, PruneBatch: 10}}
 	h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
 	if err != nil {
 		t.Fatal(err)

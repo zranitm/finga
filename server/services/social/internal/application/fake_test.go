@@ -36,6 +36,16 @@ func (s *fakeStore) Member(id kernel.CharacterID) (model.Member, bool) {
 
 func (s *fakeStore) PutMember(m model.Member) { s.members[m.ID] = m }
 
+func (s *fakeStore) DeleteMember(id kernel.CharacterID) { delete(s.members, id) }
+
+func (s *fakeStore) Members() []model.Member {
+	out := make([]model.Member, 0, len(s.members))
+	for _, m := range s.members {
+		out = append(out, m)
+	}
+	return out
+}
+
 func (s *fakeStore) PartyOf(id kernel.CharacterID) (model.Party, bool) {
 	for _, p := range s.parties {
 		if slices.ContainsFunc(p.Members, func(m model.Member) bool { return m.ID == id }) {

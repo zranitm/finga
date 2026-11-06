@@ -135,3 +135,34 @@ func view(t *testing.T, s *repository.Memory, fn func(application.PartyTx)) {
 		t.Fatal(err)
 	}
 }
+
+func TestMemoryDeletesAMemberOnlyOnCommit(t *testing.T) {
+	ctx := t.Context()
+	s := repository.NewMemory()
+	ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
+	update(t, s, func(tx application.PartyTx) {
+		tx.PutMember(model.Member{ID: ayla, Name: "Ayla"})
+		tx.PutMember(model.Member{ID: robin, Name: "Robin"})
+	})
+	err := s.InTx(ctx, func(tx application.PartyTx) error {
+		tx.DeleteMember(ayla)
+		if _, ok := tx.Member(ayla); ok || len(tx.Members()) != 1 {
+			t.Error("inside the transaction, the deleted member is still there")
+		}
+		return errAbort
+	})
+	if !errors.Is(err, errAbort) {
+		t.Fatalf("err = %v", err)
+	}
+	view(t, s, func(tx application.PartyTx) {
+		if _, ok := tx.Member(ayla); !ok || len(tx.Members()) != 2 {
+			t.Fatal("a failed transaction's delete landed")
+		}
+	})
+	update(t, s, func(tx application.PartyTx) { tx.DeleteMember(ayla) })
+	view(t, s, func(tx application.PartyTx) {
+		if _, ok := tx.Member(ayla); ok || len(tx.Members()) != 1 || tx.Members()[0].ID != robin {
+			t.Fatalf("after the delete: %+v", tx.Members())
+		}
+	})
+}

@@ -16,6 +16,14 @@ type Config struct {
 	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config    `mapstructure:"log"`
 	Tracing       tracing.Config   `mapstructure:"tracing"`
+	Members       Members          `mapstructure:"members"`
+}
+
+// Members is how long a member offline and in no party is remembered, and how older ones are forgotten.
+type Members struct {
+	Keep       time.Duration `mapstructure:"keep" validate:"gt=0"`         // after going offline
+	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older ones are forgotten
+	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // members per pass of the store's lock
 }
 
 // Host is the part of the configuration the host runs the service with.

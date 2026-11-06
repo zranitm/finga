@@ -15,3 +15,7 @@ log:
     thereafter: 100
 tracing:
   otlp_endpoint: ""      # host:port of an OTLP gRPC collector; empty keeps trace IDs for the logs only
+members:                  # a member offline and in no party is forgotten keep after going offline
+  keep: 1h                # well past a gateway's 30 s grace, so one that comes back finds what the world reported
+  prune_every: 5m         # how often older ones are forgotten
+  prune_batch: 1000       # members per pass, so none holds the store's lock long

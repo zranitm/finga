@@ -9,6 +9,8 @@ import (
 
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/host"
+	"finga/internal/telemetry"
+	"finga/pkg/retention"
 	"finga/pkg/uuidv7"
 	"finga/services/social/config"
 	"finga/services/social/internal/application"
@@ -22,8 +24,17 @@ func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *promethe
 	if err != nil {
 		return nil, err
 	}
+	retentionMetrics, err := telemetry.NewRetentionMetrics(reg)
+	if err != nil {
+		h.Close()
+		return nil, err
+	}
 	streams := handler.NewStreams(uuidv7.NewString())
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
+	gone := retention.Policy{Keep: cfg.Members.Keep, Every: cfg.Members.PruneEvery, Batch: cfg.Members.PruneBatch}
+	h.Task("member retention", func(ctx context.Context) error {
+		return retention.Run(ctx, "members", gone, parties.PruneMembers, retentionMetrics, log)
+	})
 	socialv1.RegisterSocialServiceServer(h.GRPC, handler.New(parties, application.NewChatService(application.ChatDeps{Parties: parties}), streams))
 	return h, nil
 }

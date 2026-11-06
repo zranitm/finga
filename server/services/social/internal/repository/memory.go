@@ -3,7 +3,6 @@ package repository
 
 import (
 	"context"
-	"maps"
 	"slices"
 	"sync"
 
@@ -38,7 +37,7 @@ func NewMemory() *Memory {
 func (s *Memory) InTx(_ context.Context, fn func(application.PartyTx) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	tx := &memoryTx{s: s, members: map[kernel.CharacterID]model.Member{}, parties: map[model.PartyID]*model.Party{}, invites: map[model.InviteID]*model.Invite{}, seq: s.seq}
+	tx := &memoryTx{s: s, members: map[kernel.CharacterID]*model.Member{}, parties: map[model.PartyID]*model.Party{}, invites: map[model.InviteID]*model.Invite{}, seq: s.seq}
 	if err := fn(tx); err != nil {
 		return err
 	}
@@ -46,10 +45,10 @@ func (s *Memory) InTx(_ context.Context, fn func(application.PartyTx) error) err
 	return nil
 }
 
-// memoryTx stages writes over the store; a nil party or invite is a deletion.
+// memoryTx stages writes over the store; a nil member, party or invite is a deletion.
 type memoryTx struct {
 	s       *Memory
-	members map[kernel.CharacterID]model.Member
+	members map[kernel.CharacterID]*model.Member
 	parties map[model.PartyID]*model.Party
 	invites map[model.InviteID]*model.Invite
 	seq     uint64
@@ -57,15 +56,37 @@ type memoryTx struct {
 
 // Member is a character seen online.
 func (t *memoryTx) Member(id kernel.CharacterID) (model.Member, bool) {
-	if m, ok := t.members[id]; ok {
-		return m, true
+	if m, staged := t.members[id]; staged {
+		if m == nil {
+			return model.Member{}, false
+		}
+		return *m, true
 	}
 	m, ok := t.s.members[id]
 	return m, ok
 }
 
 // PutMember saves a character's row.
-func (t *memoryTx) PutMember(m model.Member) { t.members[m.ID] = m }
+func (t *memoryTx) PutMember(m model.Member) { t.members[m.ID] = &m }
+
+// DeleteMember forgets a character.
+func (t *memoryTx) DeleteMember(id kernel.CharacterID) { t.members[id] = nil }
+
+// Members lists every character kept.
+func (t *memoryTx) Members() []model.Member {
+	var out []model.Member
+	for id, m := range t.s.members {
+		if _, staged := t.members[id]; !staged {
+			out = append(out, m)
+		}
+	}
+	for _, m := range t.members {
+		if m != nil {
+			out = append(out, *m)
+		}
+	}
+	return out
+}
 
 // PartyOf finds a party by any of its members.
 func (t *memoryTx) PartyOf(member kernel.CharacterID) (model.Party, bool) {
@@ -151,7 +172,13 @@ func (t *memoryTx) NextJoinOrder() uint64 {
 
 func (t *memoryTx) commit() {
 	s := t.s
-	maps.Copy(s.members, t.members)
+	for id, m := range t.members {
+		if m == nil {
+			delete(s.members, id)
+			continue
+		}
+		s.members[id] = *m
+	}
 	for id, p := range t.parties {
 		for _, m := range s.parties[id].Members {
 			if s.byMember[m.ID] == id {
