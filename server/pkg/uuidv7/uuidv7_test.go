@@ -43,3 +43,15 @@ func TestNewStringIsTheCanonicalForm(t *testing.T) {
 		t.Fatalf("%q: %v", s, err)
 	}
 }
+
+func TestParseAcceptsOnlyVersion7(t *testing.T) {
+	v7 := uuidv7.New()
+	if got, err := uuidv7.Parse(v7.String()); err != nil || got != v7 {
+		t.Fatalf("Parse(v7) = %v, %v", got, err)
+	}
+	for _, s := range []string{"6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7", uuid.Nil.String(), "nope", ""} {
+		if _, err := uuidv7.Parse(s); err == nil {
+			t.Fatalf("Parse(%q) accepted it", s)
+		}
+	}
+}

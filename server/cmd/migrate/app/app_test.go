@@ -84,8 +84,8 @@ func TestALegacyDatabaseIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := app.Apply(ctx, pool)
-	if !errors.Is(err, app.ErrLegacy) || !strings.Contains(err.Error(), "make down") {
-		t.Fatalf("err = %v, want ErrLegacy naming make down", err)
+	if !errors.Is(err, app.ErrLegacy) || strings.Contains(err.Error(), "make down") {
+		t.Fatalf("err = %v, want ErrLegacy, never advising make down, which deletes the data", err)
 	}
 	for _, s := range app.Sets() {
 		if exists(t, pool, s.Table) {
@@ -100,8 +100,8 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 	ctx := context.Background()
 	refused := func(t *testing.T, err error, column string) {
 		t.Helper()
-		if !errors.Is(err, app.ErrNotV7) || !strings.Contains(err.Error(), column+" holds "+v4) || !strings.Contains(err.Error(), "make down") {
-			t.Fatalf("err = %v, want ErrNotV7 naming %s, its ID and make down", err, column)
+		if !errors.Is(err, app.ErrNotV7) || !strings.Contains(err.Error(), column+" holds "+v4) || strings.Contains(err.Error(), "make down") {
+			t.Fatalf("err = %v, want ErrNotV7 naming %s and its ID, never advising make down", err, column)
 		}
 	}
 

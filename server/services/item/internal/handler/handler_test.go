@@ -208,6 +208,10 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: "nope"}})
 			return err
 		}, itemv1.Reason_REASON_BAD_ID},
+		{"a cause that is not a UUIDv7", func() error {
+			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: "6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7"}})
+			return err
+		}, itemv1.Reason_REASON_BAD_ID},
 		{"an empty idempotency key", func() error {
 			_, err := c.Move(ctx, &itemv1.MoveRequest{Actor: actor, ItemId: potion.ID.String(), Tab: "use", Slot: 1})
 			return err

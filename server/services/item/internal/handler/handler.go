@@ -10,6 +10,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 )
@@ -166,7 +167,7 @@ func causeOf(c *itemv1.Cause) (model.Cause, error) {
 	}
 	out := model.Cause{Type: t}
 	if c.GetId() != "" {
-		id, err := uuid.Parse(c.GetId())
+		id, err := uuidv7.Parse(c.GetId())
 		if err != nil {
 			return model.Cause{}, kernel.ErrBadID
 		}

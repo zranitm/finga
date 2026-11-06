@@ -20,10 +20,10 @@ import (
 const LegacyTable = "goose_db_version"
 
 // ErrLegacy is a database migrated before the split.
-var ErrLegacy = errors.New("migrate: the database was migrated before the services split (it has " + LegacyTable + "); recreate it, for example with make down, then migrate again")
+var ErrLegacy = errors.New("migrate: the database was migrated before the services split (it has " + LegacyTable + "), and no migration upgrades it; copy out what you need and point migrate at an empty database")
 
 // ErrNotV7 is a database holding an ID minted before every ID was a UUIDv7, which no service parses.
-var ErrNotV7 = errors.New("migrate: the database holds IDs minted before every ID was a UUIDv7, which the services refuse; recreate it, for example with make down, then migrate again")
+var ErrNotV7 = errors.New("migrate: a row holds an ID that is not a UUIDv7, which the services refuse; fix or delete that row, then migrate again")
 
 // Set is one service's migrations.
 type Set struct {
