@@ -26,12 +26,15 @@ func NewPartyService(store PartyStore, notifier Notifier) *PartyService {
 	return &PartyService{store: store, notifier: notifier}
 }
 
-// Online records a character as connected and refreshes their party row.
+// Online records a character as connected and refreshes their party row; through the same connection again, it keeps what the world reported since.
 func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		if old, ok := tx.Member(m.ID); ok {
 			m.JoinOrder = old.JoinOrder
+			if old.Connection == m.Connection {
+				m.Level, m.HP, m.MaxHP, m.MapID = old.Level, old.HP, old.MaxHP, old.MapID
+			}
 		}
 		tx.PutMember(m)
 		refresh(tx, n, m)

@@ -42,7 +42,7 @@ const (
 type SocialServiceClient interface {
 	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
-	// Online records a character as connected through a gateway and tells its party.
+	// Online records a character as connected through a gateway and tells its party; again through the same connection, it keeps what UpdateMember reported.
 	Online(ctx context.Context, in *OnlineRequest, opts ...grpc.CallOption) (*OnlineResponse, error)
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(ctx context.Context, in *OfflineRequest, opts ...grpc.CallOption) (*OfflineResponse, error)
@@ -217,7 +217,7 @@ func (c *socialServiceClient) UpdateMember(ctx context.Context, in *UpdateMember
 type SocialServiceServer interface {
 	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error
-	// Online records a character as connected through a gateway and tells its party.
+	// Online records a character as connected through a gateway and tells its party; again through the same connection, it keeps what UpdateMember reported.
 	Online(context.Context, *OnlineRequest) (*OnlineResponse, error)
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(context.Context, *OfflineRequest) (*OfflineResponse, error)

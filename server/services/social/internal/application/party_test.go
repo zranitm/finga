@@ -354,6 +354,27 @@ func TestMembersStayThroughDisconnectsAndStateFollowsThem(t *testing.T) {
 	must(t, f.svc.Offline(f.ctx, cass, "c-cass"))
 }
 
+// A gateway registering a connection again sends its Hello's values; the party keeps what the world reported since.
+func TestRegisteringAgainKeepsWhatTheWorldReported(t *testing.T) {
+	f := newFixture(t, "Ayla", "Robin")
+	f.invite(t, "Ayla", "Robin")
+	must(t, f.svc.Update(f.ctx, f.id("Robin"), "cave", 9, 40, 300))
+	atHello := model.Member{ID: f.id("Robin"), Name: "Robin", Level: 2, HP: 100, MaxHP: 100, MapID: "forest", Connection: "c-Robin"}
+	for _, step := range []struct {
+		name    string
+		offline bool // the gateway's stream stayed gone long enough for its players to be taken offline
+	}{{"while online", false}, {"after going offline with the gateway", true}} {
+		if step.offline {
+			must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
+		}
+		f.rec.reset()
+		must(t, f.svc.Online(f.ctx, atHello))
+		if m := f.rec.last().party.Members[1]; !m.Online || m.Level != 9 || m.HP != 40 || m.MaxHP != 300 || m.MapID != "cave" {
+			t.Fatalf("%s: Robin registered again as %+v, want online, level 9, 40/300 HP, in the cave", step.name, m)
+		}
+	}
+}
+
 // A connection that closes after the player reconnected through another one does not take them offline.
 func TestAnOfflineFromAReplacedConnectionChangesNothing(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")

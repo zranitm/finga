@@ -9,7 +9,7 @@ option go_package = "finga/api/gen/social/v1;socialv1";
 service SocialService {
   // Deliver streams Subscribed, then the party events of every character online through that gateway.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
-  // Online records a character as connected through a gateway and tells its party.
+  // Online records a character as connected through a gateway and tells its party; again through the same connection, it keeps what UpdateMember reported.
   rpc Online(OnlineRequest) returns (OnlineResponse);
   // Offline marks a character as disconnected; their party keeps them.
   rpc Offline(OfflineRequest) returns (OfflineResponse);
