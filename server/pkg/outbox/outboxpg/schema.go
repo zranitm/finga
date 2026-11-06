@@ -1,4 +1,4 @@
-package outbox
+package outboxpg
 
 // Schema is Writer's table DDL, which a service's migration must match.
 const Schema = `

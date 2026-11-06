@@ -15,7 +15,9 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
+	"finga/pkg/idempotency/idempotencypg"
 	"finga/pkg/outbox"
+	"finga/pkg/outbox/outboxpg"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 	"finga/services/item/internal/repository/internal/db"
@@ -46,8 +48,8 @@ func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 	return unitOfWork{
 		items:  repo{q: q},
 		events: eventRepo{q: q},
-		outbox: outbox.NewWriter(tx),
-		idem:   idem{store: idempotency.NewStore(tx)},
+		outbox: outboxpg.NewWriter(tx),
+		idem:   idem{store: idempotencypg.NewStore(tx)},
 	}
 }
 

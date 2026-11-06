@@ -1,4 +1,4 @@
-package idempotency_test
+package idempotencypg_test
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
+	"finga/pkg/idempotency/idempotencypg"
 	"finga/pkg/pgtest"
 )
 
@@ -24,7 +25,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
 	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
-		_, err := pool.Exec(ctx, idempotency.Schema)
+		_, err := pool.Exec(ctx, idempotencypg.Schema)
 		return err
 	})
 	if err != nil {
@@ -41,7 +42,7 @@ func run(ctx context.Context, pool dbx.Beginner, owner, scope, key string, hash 
 	var out []byte
 	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
 		var err error
-		out, err = idempotency.NewStore(tx).Do(ctx, owner, scope, key, hash, fn)
+		out, err = idempotencypg.NewStore(tx).Do(ctx, owner, scope, key, hash, fn)
 		return err
 	})
 	return out, err
@@ -155,10 +156,10 @@ func TestPruneDeletesKeysOlderThanTheCutoff(t *testing.T) {
 		}
 		return keys
 	}
-	if n, err := idempotency.Prune(ctx, pool, cutoff, 2); err != nil || n != 2 || !slices.Equal(left(), []string{"k-25h", "k-1h"}) {
+	if n, err := idempotencypg.Prune(ctx, pool, cutoff, 2); err != nil || n != 2 || !slices.Equal(left(), []string{"k-25h", "k-1h"}) {
 		t.Fatalf("first batch deleted %d (%v), left %v; want the two oldest gone", n, err, left())
 	}
-	if n, err := idempotency.Prune(ctx, pool, cutoff, 2); err != nil || n != 1 || !slices.Equal(left(), []string{"k-1h"}) {
+	if n, err := idempotencypg.Prune(ctx, pool, cutoff, 2); err != nil || n != 1 || !slices.Equal(left(), []string{"k-1h"}) {
 		t.Fatalf("second batch deleted %d (%v), left %v; want only the fresh key kept", n, err, left())
 	}
 	if out, err := run(ctx, pool, "acc-1", "discard", "k-48h", []byte("other"), func() ([]byte, error) { return []byte("ran again"), nil }); err != nil || string(out) != "ran again" {
@@ -171,7 +172,7 @@ func TestTheDatabaseStampsAKey(t *testing.T) {
 	pool := cluster.DB(t)
 	var stamped bool
 	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-		if _, err := idempotency.NewStore(tx).Do(ctx, "acc-1", "discard", "k-1", []byte("h"), func() ([]byte, error) { return nil, nil }); err != nil {
+		if _, err := idempotencypg.NewStore(tx).Do(ctx, "acc-1", "discard", "k-1", []byte("h"), func() ([]byte, error) { return nil, nil }); err != nil {
 			return err
 		}
 		// now() is the transaction's start, which no clock the store reads could give.

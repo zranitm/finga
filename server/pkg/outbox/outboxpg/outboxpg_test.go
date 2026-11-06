@@ -1,4 +1,4 @@
-package outbox_test
+package outboxpg_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"finga/pkg/dbx"
 	"finga/pkg/outbox"
+	"finga/pkg/outbox/outboxpg"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
 )
@@ -23,7 +24,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	var err error
 	cluster, err = pgtest.Start(ctx, func(ctx context.Context, pool *pgxpool.Pool) error {
-		_, err := pool.Exec(ctx, outbox.Schema)
+		_, err := pool.Exec(ctx, outboxpg.Schema)
 		return err
 	})
 	if err != nil {
@@ -62,7 +63,7 @@ func TestAdd(t *testing.T) {
 
 	t.Run("rows exist exactly when the transaction commits", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outbox.NewWriter(tx).Add(ctx,
+			return outboxpg.NewWriter(tx).Add(ctx,
 				outbox.Event{ID: given, Topic: "item", Key: "item-1", Type: "ItemLooted", Payload: []byte(`{"item":"1"}`), OccurredAt: t0},
 				outbox.Event{Topic: "item", Key: "item-2", Type: "ItemDiscarded"},
 			)
@@ -83,7 +84,7 @@ func TestAdd(t *testing.T) {
 	})
 	t.Run("none after a rollback", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			if err := outbox.NewWriter(tx).Add(ctx, outbox.Event{Topic: "item", Key: "x", Type: "Lost"}); err != nil {
+			if err := outboxpg.NewWriter(tx).Add(ctx, outbox.Event{Topic: "item", Key: "x", Type: "Lost"}); err != nil {
 				return err
 			}
 			return errBoom
@@ -97,7 +98,7 @@ func TestAdd(t *testing.T) {
 	})
 	t.Run("a duplicate event ID is rejected", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outbox.NewWriter(tx).Add(ctx, outbox.Event{ID: given, Topic: "item", Key: "x", Type: "Again"})
+			return outboxpg.NewWriter(tx).Add(ctx, outbox.Event{ID: given, Topic: "item", Key: "x", Type: "Again"})
 		})
 		if err == nil {
 			t.Fatal("no error")
@@ -105,7 +106,7 @@ func TestAdd(t *testing.T) {
 	})
 	t.Run("an event without a topic or type is refused", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outbox.NewWriter(tx).Add(ctx, outbox.Event{Key: "x"})
+			return outboxpg.NewWriter(tx).Add(ctx, outbox.Event{Key: "x"})
 		})
 		if err == nil {
 			t.Fatal("no error")
@@ -125,13 +126,13 @@ func TestAdd(t *testing.T) {
 func TestUnpublishedCountsWhatNoRelayHasPublished(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
-	if err := outbox.NewWriter(pool).Add(ctx, outbox.Event{Topic: "item", Key: "a", Type: "A"}, outbox.Event{Topic: "item", Key: "b", Type: "B"}); err != nil {
+	if err := outboxpg.NewWriter(pool).Add(ctx, outbox.Event{Topic: "item", Key: "a", Type: "A"}, outbox.Event{Topic: "item", Key: "b", Type: "B"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE outbox SET published_at = now() WHERE key = 'a'`); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := outbox.Unpublished(ctx, pool); err != nil || n != 1 {
+	if n, err := outboxpg.Unpublished(ctx, pool); err != nil || n != 1 {
 		t.Fatalf("unpublished %d, %v; want 1", n, err)
 	}
 }

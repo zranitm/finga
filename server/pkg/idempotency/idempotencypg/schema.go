@@ -1,4 +1,4 @@
-package idempotency
+package idempotencypg
 
 // Schema is Store's table DDL, which a service's migration must match.
 const Schema = `

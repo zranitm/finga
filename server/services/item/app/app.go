@@ -13,9 +13,9 @@ import (
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/dbx"
-	"finga/pkg/idempotency"
+	"finga/pkg/idempotency/idempotencypg"
 	"finga/pkg/observability"
-	"finga/pkg/outbox"
+	"finga/pkg/outbox/outboxpg"
 	"finga/pkg/panics"
 	"finga/pkg/retention"
 	"finga/pkg/runner"
@@ -56,9 +56,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	items := application.NewService(repository.NewPostgres(pool, dbMetrics), data)
-	countOutbox := func(ctx context.Context) (int64, error) { return outbox.Unpublished(ctx, pool) }
+	countOutbox := func(ctx context.Context) (int64, error) { return outboxpg.Unpublished(ctx, pool) }
 	pruneKeys := func(ctx context.Context, before time.Time, limit int) (int64, error) {
-		return idempotency.Prune(ctx, pool, before, limit)
+		return idempotencypg.Prune(ctx, pool, before, limit)
 	}
 	keys := retention.Policy{Keep: cfg.IdempotencyKeys.Keep, Every: cfg.IdempotencyKeys.PruneEvery, Batch: cfg.IdempotencyKeys.PruneBatch}
 	h := host.New(host.Options{
