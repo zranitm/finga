@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"golang.org/x/sync/semaphore"
+
 	"finga/internal/kernel"
 	"finga/services/gateway/internal/model"
 )
@@ -26,6 +28,8 @@ type Session struct {
 	// who the session plays: set whole by a join, never changed in place, so reading it takes no lock
 	id     atomic.Pointer[identity]
 	closed bool // under the registry's lock: a rejoin finishing after Remove leaves again
+
+	social *semaphore.Weighted // one call at a time tells the social service of the player: a registration or the close's Offline
 
 	out out
 }

@@ -16,6 +16,7 @@ import (
 
 const (
 	leaveTimeout   = 5 * time.Second
+	offlineTimeout = 5 * time.Second
 	ghostQuiet     = time.Second
 	joinRetryFirst = 20 * time.Millisecond
 	joinRetryMax   = 500 * time.Millisecond
@@ -268,12 +269,40 @@ func (r *Registry) leave(p model.Presence) {
 	}
 }
 
-// Online registers the player with the social service; failures are only logged.
+// Online registers the player with the social service unless its connection closed; failures are only logged.
 func (r *Registry) Online(ctx context.Context, s *Session) {
 	if r.deps.Social == nil {
 		return
 	}
-	if err := r.deps.Social.Online(ctx, r.deps.Gateway, s.connID, s.Player(), s.mapID()); err != nil {
+	if err := r.online(ctx, s); err != nil {
 		r.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.Character(), "err", err)
+	}
+}
+
+func (r *Registry) online(ctx context.Context, s *Session) error {
+	if err := s.social.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer s.social.Release(1)
+	r.mu.Lock()
+	closed := s.closed
+	r.mu.Unlock()
+	if closed {
+		return nil // its close's Offline has the last word
+	}
+	return r.deps.Social.Online(ctx, r.deps.Gateway, s.connID, s.Player(), s.mapID())
+}
+
+// Offline tells the social service the player's connection closed, after any registration of it still on its way.
+func (r *Registry) Offline(s *Session) {
+	if r.deps.Social == nil {
+		return
+	}
+	_ = s.social.Acquire(context.Background(), 1) // a registration holds it no longer than its own deadline
+	defer s.social.Release(1)
+	ctx, cancel := context.WithTimeout(context.Background(), offlineTimeout)
+	defer cancel()
+	if err := r.deps.Social.Offline(ctx, s.Character(), s.connID); err != nil {
+		r.deps.Logger.WarnContext(ctx, "social offline failed", "character_id", s.Character(), "err", err)
 	}
 }

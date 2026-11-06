@@ -1151,6 +1151,28 @@ func TestAHungRegistrationHoldsUpNobody(t *testing.T) {
 	})
 }
 
+// A registration still on its way when the connection closes cannot land after the close's Offline.
+func TestARegistrationRacingTheCloseLeavesThePlayerOffline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		h := social(t, fs)
+		ayla := h.joined(t)
+		synctest.Wait()
+		gate := make(chan struct{})
+		fs.set(func(f *fakeSocial) { f.gate = gate })
+		fs.restart("boot-2")
+		<-fs.subscribed
+		synctest.Wait() // Ayla's registration again waits in the service
+		_ = ayla.c.Close(websocket.StatusNormalClosure, "bye")
+		synctest.Wait()
+		close(gate)
+		synctest.Wait()
+		if last := fs.lastLanded(aylaID); last != "offline" {
+			t.Fatalf("Ayla is %s after her connection closed", last)
+		}
+	})
+}
+
 // A Hello naming another account's character takes none of its player's deliveries while the world checks it.
 func TestAHelloForAnotherAccountsCharacterLeavesItsPlayerAlone(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

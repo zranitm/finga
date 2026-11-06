@@ -124,6 +124,44 @@ func play(t *testing.T, r *session.Registry, conn string, character kernel.Chara
 	return s
 }
 
+// social records the registrations that reach the social service.
+type social struct {
+	mu    sync.Mutex
+	calls []string
+}
+
+func (s *social) Online(_ context.Context, _, conn string, _ model.Player, _ string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, "online "+conn)
+	return nil
+}
+
+func (s *social) Offline(_ context.Context, _ kernel.CharacterID, conn string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, "offline "+conn)
+	return nil
+}
+
+func (s *social) list() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.calls...)
+}
+
+// A registration again that comes after the connection closed sends nothing: the close's Offline has the last word.
+func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
+	soc := &social{}
+	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Second})
+	s := play(t, r, "c-1", kernel.NewCharacterID())
+	r.Remove(s)
+	r.Online(t.Context(), s)
+	if calls := soc.list(); len(calls) != 0 {
+		t.Fatalf("calls %v after the connection closed", calls)
+	}
+}
+
 // After the world's stream breaks every player rejoins, but only a few at a time, so a world that just
 // restarted is not hit by all of them at once.
 func TestRejoinsRunAFewAtATime(t *testing.T) {

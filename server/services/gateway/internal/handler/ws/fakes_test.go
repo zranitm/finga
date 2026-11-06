@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -419,6 +420,8 @@ type fakeSocial struct {
 	online     []*socialv1.OnlineRequest
 	offline    []*socialv1.OfflineRequest
 	hang       map[string]bool // Online for these character IDs waits until its context ends
+	gate       chan struct{}   // when set, Online lands only once it closes
+	landed     []string        // "online <id>" and "offline <id>", in the order they took effect
 	calls      []string
 	of         map[string]*socialv1.Party
 	err        error // for party commands
@@ -492,13 +495,36 @@ func (f *fakeSocial) lastCall() string {
 func (f *fakeSocial) Online(ctx context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
 	f.mu.Lock()
 	f.online = append(f.online, req)
-	hang := f.hang[req.GetMember().GetId()]
+	hang, gate := f.hang[req.GetMember().GetId()], f.gate
 	f.mu.Unlock()
 	if hang {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.landed = append(f.landed, "online "+req.GetMember().GetId())
 	return &socialv1.OnlineResponse{}, nil
+}
+
+// lastLanded is the last of the character's Online and Offline to take effect: "online", "offline" or "".
+func (f *fakeSocial) lastLanded(id kernel.CharacterID) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	last := ""
+	for _, l := range f.landed {
+		if what, who, _ := strings.Cut(l, " "); who == id.String() {
+			last = what
+		}
+	}
+	return last
 }
 
 func (f *fakeSocial) set(change func(f *fakeSocial)) {
@@ -517,6 +543,7 @@ func (f *fakeSocial) Offline(_ context.Context, req *socialv1.OfflineRequest) (*
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.offline = append(f.offline, req)
+	f.landed = append(f.landed, "offline "+req.GetCharacterId())
 	return &socialv1.OfflineResponse{}, nil
 }
 

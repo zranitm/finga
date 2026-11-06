@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/sync/semaphore"
+
 	"finga/internal/kernel"
 	"finga/pkg/panics"
 	"finga/pkg/uuidv7"
@@ -34,6 +36,8 @@ type World interface {
 // Social is the social service as joins use it: who is online, and on which map.
 type Social interface {
 	Online(ctx context.Context, gateway, conn string, p model.Player, mapID string) error
+	// Offline is ignored when the character is online through a newer connection than conn.
+	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 }
 
 // Deps are what the registry and its joins are built from.
@@ -119,7 +123,7 @@ func (r *Registry) Gateway() string { return r.deps.Gateway }
 
 // Open starts the session of the connection named connID; once draining, it ends at once with server_restart.
 func (r *Registry) Open(connID string, o Outbox) *Session {
-	s := &Session{connID: connID, outbox: o, out: out{outbox: o}}
+	s := &Session{connID: connID, outbox: o, out: out{outbox: o}, social: semaphore.NewWeighted(1)}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	r.mu.Lock()
 	r.byConn[connID] = s

@@ -5,6 +5,7 @@ import (
 	"context"
 	"time"
 
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,11 +41,13 @@ type Server struct {
 	parties Parties
 	chat    Chat
 	streams *Streams
+	// registering lets one Online, or one step of a gone gateway's sweep, run at a time, so a sweep never undoes a newer registration
+	registering *semaphore.Weighted
 }
 
 // New builds the server over the modules and the streams the party module notifies.
 func New(parties Parties, chat Chat, streams *Streams) *Server {
-	return &Server{parties: parties, chat: chat, streams: streams}
+	return &Server{parties: parties, chat: chat, streams: streams, registering: semaphore.NewWeighted(1)}
 }
 
 // Deliver streams one gateway's party traffic.
@@ -62,18 +65,30 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 // died without telling. A gateway that comes back registers its players again.
 func (s *Server) gatewayLeft(gateway string) {
 	time.AfterFunc(gatewayGrace, func() {
-		if _, back := s.streams.deliver.Get(gateway); back {
-			return
-		}
 		ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
 		defer cancel()
 		for id, conn := range s.streams.on(gateway) {
-			if err := s.parties.Offline(ctx, id, conn); err != nil {
-				return // the store is failing; the gateway's next subscription or Offline catches up
+			if !s.sweep(ctx, gateway, id, conn) {
+				return
 			}
-			s.streams.offline(id, conn)
 		}
 	})
+}
+
+// sweep takes one player of a gone gateway offline, unless the gateway is back; false ends the sweep.
+func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterID, conn string) bool {
+	if s.registering.Acquire(ctx, 1) != nil {
+		return false
+	}
+	defer s.registering.Release(1)
+	if _, back := s.streams.deliver.Get(gateway); back {
+		return false // it registers its players again
+	}
+	if err := s.parties.Offline(ctx, id, conn); err != nil {
+		return false // the store is failing; the gateway's next subscription or Offline catches up
+	}
+	s.streams.offline(id, conn)
+	return true
 }
 
 // WatchParties streams Subscribed and a membership snapshot, then each change since it subscribed. The
@@ -104,6 +119,10 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 	if err != nil {
 		return nil, err
 	}
+	if err := s.registering.Acquire(ctx, 1); err != nil {
+		return nil, err
+	}
+	defer s.registering.Release(1)
 	s.streams.online(id, req.GetGatewayId(), req.GetConnectionId())
 	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId()}
 	if err := s.parties.Online(ctx, member); err != nil {

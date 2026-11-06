@@ -43,8 +43,6 @@ type Items interface {
 type Social interface {
 	// PartyOf is the character's party; nil when it has none.
 	PartyOf(ctx context.Context, character kernel.CharacterID) (*model.PartyView, error)
-	// Offline is ignored when the character is online through a newer connection than conn.
-	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 	// Chat cleans and rate-limits a line; the caller hands map lines to the world.
 	Chat(ctx context.Context, sender model.Player, channel model.ChatChannel, text string) (model.ChatLine, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) error
@@ -70,10 +68,7 @@ type Deps struct {
 	JoinTimeout time.Duration // a Hello's whole join, retries included
 }
 
-const (
-	offlineTimeout = 5 * time.Second
-	rotateTimeout  = 5 * time.Second
-)
+const rotateTimeout = 5 * time.Second
 
 // Gateway runs the send flow's use cases over the registry's sessions.
 type Gateway struct {

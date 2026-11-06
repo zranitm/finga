@@ -30,9 +30,15 @@ type stack struct {
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
+	return newStackOver(t, func(p handler.Parties) handler.Parties { return p })
+}
+
+// newStackOver serves the party module as wrap returns it.
+func newStackOver(t *testing.T, wrap func(handler.Parties) handler.Parties) *stack {
+	t.Helper()
 	streams := handler.NewStreams("boot-1")
 	parties := application.NewPartyService(repository.NewMemory(), streams)
-	srv := handler.New(parties, application.NewChatService(parties), streams)
+	srv := handler.New(wrap(parties), application.NewChatService(parties), streams)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -441,6 +447,58 @@ func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 		}
 		if !s.isOnline(t, cy) || !s.isOnline(t, ann) {
 			t.Fatal("a player of a gateway that came back, or of one that never left, went offline")
+		}
+	})
+}
+
+// gatedOffline holds each Offline until gate closes, and tells on reached when one waits.
+type gatedOffline struct {
+	handler.Parties
+	gate    chan struct{}
+	reached chan struct{}
+}
+
+func (g gatedOffline) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
+	select {
+	case g.reached <- struct{}{}:
+	default:
+	}
+	<-g.gate
+	return g.Parties.Offline(ctx, id, conn)
+}
+
+// A gateway that comes back while its players are being taken offline keeps each one it registers again.
+func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		gate, reached := make(chan struct{}), make(chan struct{}, 1)
+		s := newStackOver(t, func(p handler.Parties) handler.Parties { return gatedOffline{p, gate, reached} })
+		ctxA, endA := context.WithCancel(s.ctx)
+		s.gatewayUntil(t, ctxA, "gw-a")
+		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+		s.online(t, "gw-a", ann, "Ann")
+		s.online(t, "gw-a", bo, "Bo")
+		s.party(t, ann, bo)
+		endA()
+		<-reached // the sweep is taking its first player offline
+		s.gateway(t, "gw-a")
+		again := make(chan error, 2)
+		for id, name := range map[kernel.CharacterID]string{ann: "Ann", bo: "Bo"} {
+			go func() {
+				member := &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
+				_, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw-a", ConnectionId: "conn-" + name, Member: member})
+				again <- err
+			}()
+		}
+		synctest.Wait()
+		close(gate)
+		for range 2 {
+			if err := <-again; err != nil {
+				t.Fatal(err)
+			}
+		}
+		synctest.Wait()
+		if !s.isOnline(t, ann) || !s.isOnline(t, bo) {
+			t.Fatalf("Ann online %v, Bo online %v, after their gateway registered them again", s.isOnline(t, ann), s.isOnline(t, bo))
 		}
 	})
 }
