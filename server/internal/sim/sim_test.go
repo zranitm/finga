@@ -343,3 +343,25 @@ func TestStepIsPure(t *testing.T) {
 		t.Fatal("Step changed its input state")
 	}
 }
+
+func TestRectsOverlapOnlyPastTheirEdges(t *testing.T) {
+	a := sim.Rect{X: 0, Y: 0, W: 10, H: 10}
+	tests := []struct {
+		name string
+		b    sim.Rect
+		want bool
+	}{
+		{"inside", sim.Rect{X: 2, Y: 2, W: 2, H: 2}, true},
+		{"across a corner", sim.Rect{X: 9, Y: 9, W: 5, H: 5}, true},
+		{"touching the right edge", sim.Rect{X: 10, Y: 0, W: 5, H: 10}, false},
+		{"touching the bottom edge", sim.Rect{X: 0, Y: 10, W: 10, H: 5}, false},
+		{"apart", sim.Rect{X: 20, Y: 20, W: 1, H: 1}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if a.Overlaps(tt.b) != tt.want || tt.b.Overlaps(a) != tt.want {
+				t.Fatalf("Overlaps(%+v) = %v, want %v both ways", tt.b, a.Overlaps(tt.b), tt.want)
+			}
+		})
+	}
+}

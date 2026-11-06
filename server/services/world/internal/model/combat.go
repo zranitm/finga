@@ -2,7 +2,11 @@ package model
 
 // Combat is pure: randomness comes from the caller's Roll, so a fight replays from a seed.
 
-import "math"
+import (
+	"math"
+
+	"finga/internal/sim"
+)
 
 // Roll is a source of uniform numbers in [0, 1).
 type Roll interface {
@@ -58,10 +62,8 @@ func Resolve(a Attacker, d Defender, r Roll) Hit {
 	return hit
 }
 
-// Rect is an axis-aligned box with its top-left at (X, Y), as in sim.
-type Rect struct {
-	X, Y, W, H float64
-}
+// Rect is an axis-aligned box with its top-left at (X, Y): sim's, so both test overlaps alike.
+type Rect = sim.Rect
 
 // Target is a candidate for an attack: its index is returned when hit.
 type Target struct {
@@ -80,7 +82,7 @@ func MeleeBox(x, y float64, facing int, width, height float64) Rect {
 func NearestInBox(x, y float64, box Rect, targets []Target) (index int, ok bool) {
 	best := math.Inf(1)
 	for i, t := range targets {
-		if !overlaps(box, t.Box) {
+		if !box.Overlaps(t.Box) {
 			continue
 		}
 		cx, cy := t.Box.X+t.Box.W/2, t.Box.Y+t.Box.H/2
@@ -112,8 +114,4 @@ func FirstInLine(x, y float64, facing int, reach float64, targets []Target) (ind
 		}
 	}
 	return index, ok
-}
-
-func overlaps(a, b Rect) bool {
-	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
 }

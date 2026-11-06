@@ -101,21 +101,13 @@ func (i *Instance) spawnMob(s int) {
 
 // patrolBounds is the walkable x range: the ground under the mob within its area, else the area.
 func (i *Instance) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, maxX float64) {
-	ground := append(append([]model.Rect(nil), rects(i.m.Geometry.Solids)...), rects(i.m.Geometry.Platforms)...)
+	ground := append(append([]model.Rect(nil), i.m.Geometry.Solids...), i.m.Geometry.Platforms...)
 	for _, r := range ground {
 		if math.Abs(r.Y-y) < 1 && x >= r.X && x <= r.X+r.W {
 			return max(r.X, area.Area.X) + half, min(r.X+r.W, area.Area.X+area.Area.W) - half
 		}
 	}
 	return area.Area.X + half, area.Area.X + area.Area.W - half
-}
-
-func rects(in []sim.Rect) []model.Rect {
-	out := make([]model.Rect, 0, len(in))
-	for _, r := range in {
-		out = append(out, model.Rect{X: r.X, Y: r.Y, W: r.W, H: r.H})
-	}
-	return out
 }
 
 func (i *Instance) resolveAttacks() {
@@ -215,7 +207,7 @@ func (i *Instance) contactDamage() {
 		}
 		box := i.playerBox(p)
 		for _, mb := range i.mobs {
-			if !overlaps(box, mb.box()) {
+			if !box.Overlaps(mb.box()) {
 				continue
 			}
 			hit := model.Resolve(mb.attacker(), defenderOf(p.derived), i.roll)
@@ -287,8 +279,4 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		left = append(left, id)
 	}
 	return left
-}
-
-func overlaps(a, b model.Rect) bool {
-	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
 }

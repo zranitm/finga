@@ -119,7 +119,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 
 	s.X += float64(s.VX * p.Dt)
 	for _, solid := range g.Solids {
-		if !overlaps(box(s, p), solid) {
+		if !box(s, p).Overlaps(solid) {
 			continue
 		}
 		switch {
@@ -136,7 +136,7 @@ func Step(s State, in Input, g Geometry, p Params) State {
 	s.OnGround = false
 	s.Ground = NoPlatform
 	for _, solid := range g.Solids {
-		if !overlaps(box(s, p), solid) {
+		if !box(s, p).Overlaps(solid) {
 			continue
 		}
 		switch {
@@ -216,7 +216,7 @@ func box(s State, p Params) Rect {
 	return Rect{X: s.X - p.Width/2, Y: s.Y - p.Height, W: p.Width, H: p.Height}
 }
 
-// overlaps is the half-open rectangle test: touching edges do not overlap.
-func overlaps(a, b Rect) bool {
+// Overlaps is the half-open rectangle test: touching edges do not overlap.
+func (a Rect) Overlaps(b Rect) bool {
 	return a.X < b.X+b.W && a.X+a.W > b.X && a.Y < b.Y+b.H && a.Y+a.H > b.Y
 }
