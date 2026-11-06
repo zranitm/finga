@@ -136,13 +136,13 @@ func TestPartyMembersLootInsideTheWindow(t *testing.T) {
 		killSlime(t, inst, killer.ID)
 		ss := join(t, inst, stranger)
 		sm := join(t, inst, member)
-		_ = inst.PickUp(stranger.ID)
+		_ = inst.PickUp(t.Context(), stranger.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.callCount() != 0 || len(inventoryChanges(ss)) != 0 {
 			t.Fatal("a stranger looted inside the window")
 		}
-		_ = inst.PickUp(member.ID)
+		_ = inst.PickUp(t.Context(), member.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.callCount() != 1 || len(inventoryChanges(sm)) != 1 {

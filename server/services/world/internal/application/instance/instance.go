@@ -89,7 +89,10 @@ type (
 		in  sim.Input
 	}
 	attackMsg struct{ id kernel.CharacterID }
-	pickMsg   struct{ id kernel.CharacterID }
+	pickMsg   struct {
+		id    kernel.CharacterID
+		cause trace.SpanContext
+	}
 	pickedMsg struct {
 		result loot.Result
 		sink   Sink // the picker's, for a result that arrives after they left the map
@@ -197,9 +200,9 @@ func (i *Instance) Attack(id kernel.CharacterID) error {
 	return i.post(attackMsg{id: id})
 }
 
-// PickUp asks for the nearest eligible drop within reach.
-func (i *Instance) PickUp(id kernel.CharacterID) error {
-	return i.post(pickMsg{id: id})
+// PickUp asks for the nearest eligible drop within reach; the pickup's trace links to ctx's span, the command's.
+func (i *Instance) PickUp(ctx context.Context, id kernel.CharacterID) error {
+	return i.post(pickMsg{id: id, cause: trace.SpanContextFromContext(ctx)})
 }
 
 // EnterPortal takes the portal the character stands in, if any.
@@ -297,7 +300,7 @@ func (i *Instance) drain() []kernel.CharacterID {
 			}
 		case pickMsg:
 			if p, ok := i.players[m.id]; ok {
-				i.pickUp(p)
+				i.pickUp(p, m.cause)
 			}
 		case pickedMsg:
 			if e, ok := i.ground.Settle(m.result); ok {
@@ -325,12 +328,12 @@ func (i *Instance) drain() []kernel.CharacterID {
 }
 
 // pickUp hands the nearest drop the player may take to a worker, whose result comes back through the inbox.
-func (i *Instance) pickUp(p *player) {
+func (i *Instance) pickUp(p *player, cause trace.SpanContext) {
 	if p.dead {
 		return
 	}
 	sink := p.sink
-	picker := loot.Picker{ID: p.ID, Account: p.Account, X: p.state.X, Y: p.state.Y - i.params.Height/2}
+	picker := loot.Picker{ID: p.ID, Account: p.Account, X: p.state.X, Y: p.state.Y - i.params.Height/2, Cause: cause}
 	err := i.ground.PickUp(picker, func(ctx context.Context, r loot.Result) {
 		select {
 		case i.inbox <- pickedMsg{result: r, sink: sink}:

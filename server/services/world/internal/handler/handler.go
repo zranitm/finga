@@ -25,7 +25,7 @@ type World interface {
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
 	Attack(id kernel.CharacterID, conn string) error
-	PickUp(id kernel.CharacterID, conn string) error
+	PickUp(ctx context.Context, id kernel.CharacterID, conn string) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 }
@@ -132,12 +132,12 @@ func (s *Server) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1
 }
 
 // PickUp asks for the nearest eligible drop.
-func (s *Server) PickUp(_ context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
+func (s *Server) PickUp(ctx context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
 	id, conn, err := presence(req.GetPresence())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.world.PickUp(id, conn); err != nil {
+	if err := s.world.PickUp(ctx, id, conn); err != nil {
 		return nil, err
 	}
 	return &worldv1.PickUpResponse{}, nil

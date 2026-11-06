@@ -256,7 +256,7 @@ func TestPickUp(t *testing.T) {
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
 		{ // a pickup in range becomes one item, the drop leaves the ground
-			_ = inst.PickUp(p.ID)
+			_ = inst.PickUp(t.Context(), p.ID)
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			if items.items() != 1 || items.calls[0].Template != "slime_gel" || items.calls[0].DropID == uuid.Nil || items.calls[0].Character != p.ID {
@@ -271,7 +271,7 @@ func TestPickUp(t *testing.T) {
 			}
 		}
 		{ // a second PickUp with nothing in range does nothing
-			_ = inst.PickUp(p.ID)
+			_ = inst.PickUp(t.Context(), p.ID)
 			time.Sleep(2 * worldtest.TickInterval)
 			synctest.Wait()
 			if items.callCount() != 1 {
@@ -282,7 +282,7 @@ func TestPickUp(t *testing.T) {
 	})
 }
 
-// A pickup keeps its trace, a root that names the character and the drop, with the item call inside it.
+// A pickup keeps its trace, a root linked to the command that asked, naming the character and the drop, with the item call inside it.
 func TestAPickupKeepsItsTrace(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -298,7 +298,8 @@ func TestAPickupKeepsItsTrace(t *testing.T) {
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
 		before := len(worldtest.Spans.Ended())
-		_ = inst.PickUp(p.ID)
+		command := trace.NewSpanContext(trace.SpanContextConfig{TraceID: trace.TraceID{1}, SpanID: trace.SpanID{2}})
+		_ = inst.PickUp(trace.ContextWithRemoteSpanContext(t.Context(), command), p.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		ended := worldtest.Spans.Ended()[before:]
@@ -306,6 +307,9 @@ func TestAPickupKeepsItsTrace(t *testing.T) {
 			t.Fatalf("%d spans kept, want one world.pickup root", len(ended))
 		}
 		root := ended[0]
+		if links := root.Links(); len(links) != 1 || links[0].SpanContext.TraceID() != command.TraceID() || links[0].SpanContext.SpanID() != command.SpanID() {
+			t.Fatalf("the root links %+v; want the command that asked", links)
+		}
 		attrs := attribute.NewSet(root.Attributes()...)
 		character, _ := attrs.Value("character_id")
 		drop, _ := attrs.Value("drop_id")
@@ -339,8 +343,8 @@ func TestTwoPlayersOneDrop(t *testing.T) {
 		seq := worldtest.Walk(inst, ayla.ID, 0, sim.Input{Right: true}, 5)
 		_ = inst.Input(ayla.ID, seq+1, sim.Input{})
 		// Both ask in the same tick.
-		_ = inst.PickUp(ayla.ID)
-		_ = inst.PickUp(robin.ID)
+		_ = inst.PickUp(t.Context(), ayla.ID)
+		_ = inst.PickUp(t.Context(), robin.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.items() != 1 || items.callCount() != 1 {
@@ -370,7 +374,7 @@ func TestRetriedPickupJobGivesOneItem(t *testing.T) {
 		killSlime(t, inst, p.ID)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		_ = inst.Input(p.ID, seq+1, sim.Input{})
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.callCount() != 2 || items.items() != 1 {
@@ -399,7 +403,7 @@ func TestFullInventoryLeavesTheDrop(t *testing.T) {
 		killSlime(t, inst, p.ID)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		_ = inst.Input(p.ID, seq+1, sim.Input{})
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		fails := pickupFailures(s)
@@ -410,7 +414,7 @@ func TestFullInventoryLeavesTheDrop(t *testing.T) {
 			t.Fatal("the drop vanished although the pickup failed")
 		}
 		// The reservation was released: another try fails the same way, not silently.
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if len(pickupFailures(s)) != 2 || items.callCount() != 2 {
@@ -433,7 +437,7 @@ func TestLootWindowAndExpiry(t *testing.T) {
 		other := warriorAt(300) // standing right under the drop
 		so := join(t, inst, other)
 		{ // inside the window the other player gets nothing
-			_ = inst.PickUp(other.ID)
+			_ = inst.PickUp(t.Context(), other.ID)
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			if items.callCount() != 0 || len(dropsIn(so)) != 1 {
@@ -443,7 +447,7 @@ func TestLootWindowAndExpiry(t *testing.T) {
 		{ // after 10 seconds anyone may take it
 			time.Sleep(10 * time.Second)
 			synctest.Wait()
-			_ = inst.PickUp(other.ID)
+			_ = inst.PickUp(t.Context(), other.ID)
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
 			if items.callCount() != 1 || len(inventoryChanges(so)) != 1 {
@@ -506,7 +510,7 @@ func TestAPickupFromAHungItemServiceFailsInTime(t *testing.T) {
 		killSlime(t, inst, p.ID)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5) // walk under the drop
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(15 * time.Second)
 		synctest.Wait()
 		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) || items.callCount() != 2 {
@@ -515,7 +519,7 @@ func TestAPickupFromAHungItemServiceFailsInTime(t *testing.T) {
 		items.mu.Lock()
 		items.hang = false
 		items.mu.Unlock()
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.items() != 1 {
@@ -538,7 +542,7 @@ func TestPickupsUnavailableWhileTheItemServiceStaysDown(t *testing.T) {
 		killSlime(t, inst, p.ID)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5) // walk under the drop
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(2 * worldtest.TickInterval)
 		synctest.Wait()
 		if f := pickupFailures(s); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) || items.callCount() != 2 {
@@ -564,7 +568,7 @@ func TestALostPickupReplyKeepsTheDropForItsPlayer(t *testing.T) {
 		killSlime(t, inst, ayla.ID)
 		seq := worldtest.Walk(inst, ayla.ID, 0, sim.Input{Right: true}, 5)
 		worldtest.Walk(inst, ayla.ID, seq, sim.Input{}, 1)
-		_ = inst.PickUp(ayla.ID)
+		_ = inst.PickUp(t.Context(), ayla.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if f := pickupFailures(sa); len(f) != 1 || !errors.Is(f[0].Err, model.ErrPickupsUnavailable) {
@@ -575,7 +579,7 @@ func TestALostPickupReplyKeepsTheDropForItsPlayer(t *testing.T) {
 		robin := warriorAt(300)
 		robin.Account = kernel.NewAccountID()
 		join(t, inst, robin)
-		_ = inst.PickUp(robin.ID)
+		_ = inst.PickUp(t.Context(), robin.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		for _, c := range items.calls {
@@ -584,7 +588,7 @@ func TestALostPickupReplyKeepsTheDropForItsPlayer(t *testing.T) {
 			}
 		}
 		items.set(func(f *fakePickups) { f.lostReply = false })
-		_ = inst.PickUp(ayla.ID)
+		_ = inst.PickUp(t.Context(), ayla.ID)
 		time.Sleep(3 * worldtest.TickInterval)
 		synctest.Wait()
 		if items.items() != 1 || len(inventoryChanges(sa)) != 1 || len(dropsIn(sa)) != 0 {
@@ -616,7 +620,7 @@ func TestAPickupResultReachesAPlayerWhoLeftThroughAPortal(t *testing.T) {
 		killSlime(t, inst, p.ID)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		_ = inst.EnterPortal(p.ID)
@@ -652,7 +656,7 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 		killSlime(t, inst, p.ID)
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
-		_ = inst.PickUp(p.ID)
+		_ = inst.PickUp(t.Context(), p.ID)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		stop()
@@ -696,7 +700,7 @@ func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
 				killSlime(t, inst, p.ID)
 				seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 				_ = inst.Input(p.ID, seq+1, sim.Input{})
-				_ = inst.PickUp(p.ID)
+				_ = inst.PickUp(t.Context(), p.ID)
 				time.Sleep(3 * worldtest.TickInterval)
 				synctest.Wait()
 				if items.callCount() != 1 {

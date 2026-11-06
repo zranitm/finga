@@ -139,6 +139,7 @@ type Picker struct {
 	ID      kernel.CharacterID
 	Account kernel.AccountID
 	X, Y    float64
+	Cause   trace.SpanContext // the command that asked, which the pickup's trace links to
 }
 
 // Result is a pickup's outcome, which the map settles on its tick.
@@ -171,7 +172,7 @@ func (g *Ground) PickUp(p Picker, done func(ctx context.Context, r Result)) erro
 	best.reservedBy, best.unsettled = p.ID, false
 	in := model.Pickup{Account: p.Account, Character: p.ID, DropID: best.key, Template: best.template, Quantity: best.quantity}
 	id := best.id
-	if !g.deps.Workers.Submit(func(ctx context.Context) { done(ctx, g.grant(ctx, id, in)) }) {
+	if !g.deps.Workers.Submit(func(ctx context.Context) { done(ctx, g.grant(ctx, id, in, p.Cause)) }) {
 		if best.unsettled = unsettled; !unsettled {
 			best.reservedBy = kernel.CharacterID{}
 		}
@@ -189,9 +190,13 @@ const pickupSpan = "world.pickup"
 func EntryPoint(span string) bool { return span == pickupSpan }
 
 // grant asks the item service for the drop, on a worker, retrying a transient failure once under the same key.
-func (g *Ground) grant(ctx context.Context, id uint64, in model.Pickup) Result {
-	ctx, span := g.tracer.Start(ctx, pickupSpan, trace.WithNewRoot(), trace.WithAttributes(
-		attribute.String("character_id", in.Character.String()), attribute.String("drop_id", in.DropID.String())))
+func (g *Ground) grant(ctx context.Context, id uint64, in model.Pickup, cause trace.SpanContext) Result {
+	opts := []trace.SpanStartOption{trace.WithNewRoot(), trace.WithAttributes(
+		attribute.String("character_id", in.Character.String()), attribute.String("drop_id", in.DropID.String()))}
+	if cause.IsValid() {
+		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: cause}))
+	}
+	ctx, span := g.tracer.Start(ctx, pickupSpan, opts...)
 	defer span.End()
 	slots, err := g.add(ctx, in)
 	if err != nil && g.deps.Items.Retryable(err) {
