@@ -1,0 +1,62 @@
+# The observability stack, under the obs profile (make up OBS=1): Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
+services:
+  alloy:
+    profiles: [obs]
+    restart: unless-stopped
+    image: grafana/alloy:v1.21.0
+    command: [run, /etc/alloy/config.alloy, --storage.path=/var/lib/alloy/data]
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # the containers' logs
+      - alloy-data:/var/lib/alloy/data
+    depends_on: [mimir, loki, tempo]
+
+  mimir:
+    profiles: [obs]
+    restart: unless-stopped
+    image: grafana/mimir:3.2.2
+    command: [-config.file=/etc/mimir.yaml]
+    volumes:
+      - ./mimir.yaml:/etc/mimir.yaml:ro
+      - mimir-data:/data
+
+  loki:
+    profiles: [obs]
+    restart: unless-stopped
+    image: grafana/loki:3.7.9
+    command: [-config.file=/etc/loki.yaml]
+    volumes:
+      - ./loki.yaml:/etc/loki.yaml:ro
+      - loki-data:/loki
+
+  tempo:
+    profiles: [obs]
+    restart: unless-stopped
+    image: grafana/tempo:3.1.1
+    command: [-target=all, -config.file=/etc/tempo.yaml]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+
+  grafana:
+    profiles: [obs]
+    restart: unless-stopped
+    image: grafana/grafana:13.2.4
+    ports:
+      - "127.0.0.1:${FINGA_GRAFANA_PORT:-3000}:3000"   # this machine only: anyone who reaches it is an admin
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_LOG_LEVEL: warn
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on: [mimir, loki, tempo]
+
+volumes:
+  alloy-data:
+  mimir-data:
+  loki-data:
+  tempo-data:

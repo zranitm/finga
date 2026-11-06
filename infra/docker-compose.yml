@@ -2,8 +2,15 @@
 # the binaries' overrides, and the environment entries below win over it.
 name: finga
 
+include:
+  - obs/compose.yml
+
 x-database: &database
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
+
+# Empty exports nothing; make up OBS=1 points it at Alloy, which only the obs profile runs.
+x-tracing: &tracing
+  FINGA_TRACING_OTLP_ENDPOINT: ${FINGA_TRACING_OTLP_ENDPOINT:-}
 
 # Each binary probes itself (gRPC health, or /readyz for the gateway): the distroless image has no probe tool.
 x-healthcheck: &healthcheck
@@ -52,7 +59,8 @@ services:
         SERVICE: account
         VERSION: ${VERSION:-dev}
     healthcheck: *healthcheck
-    environment: *database
+    environment:
+      <<: [*database, *tracing]
     env_file:
       - path: ../server/.env
         required: false
@@ -72,7 +80,7 @@ services:
         VERSION: ${VERSION:-dev}
     healthcheck: *healthcheck
     environment:
-      <<: *database
+      <<: [*database, *tracing]
       FINGA_DEPENDENCIES_ITEM: item:9003
     env_file:
       - path: ../server/.env
@@ -92,7 +100,8 @@ services:
         SERVICE: item
         VERSION: ${VERSION:-dev}
     healthcheck: *healthcheck
-    environment: *database
+    environment:
+      <<: [*database, *tracing]
     env_file:
       - path: ../server/.env
         required: false
@@ -111,6 +120,7 @@ services:
         SERVICE: social
         VERSION: ${VERSION:-dev}
     healthcheck: *healthcheck
+    environment: *tracing
     env_file:
       - path: ../server/.env
         required: false
@@ -129,6 +139,7 @@ services:
     ports:
       - "127.0.0.1:${FINGA_WORLD_OPS_PORT:-9104}:9104"
     environment:
+      <<: *tracing
       FINGA_DEPENDENCIES_CHARACTER: character:9002
       FINGA_DEPENDENCIES_ITEM: item:9003
       FINGA_DEPENDENCIES_SOCIAL: social:9005
@@ -158,6 +169,7 @@ services:
       - "127.0.0.1:${FINGA_PORT:-8080}:8080"   # this machine only; players come through web
       - "127.0.0.1:${FINGA_GATEWAY_OPS_PORT:-9100}:9100"
     environment:
+      <<: *tracing
       FINGA_HTTP_CORS_ORIGINS: http://localhost:5173
       FINGA_DEPENDENCIES_ACCOUNT: account:9001
       FINGA_DEPENDENCIES_CHARACTER: character:9002

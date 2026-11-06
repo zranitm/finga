@@ -7,7 +7,13 @@ How Finga runs, apart from the code that runs.
   `server/Dockerfile`. The host ports come from `infra/.env` (see
   `.env.example`); the game server's settings from `server/.env`, which
   Compose passes to the container.
+- `obs/`: the observability stack, which `make up OBS=1` runs beside the
+  game under the `obs` profile; plain `make up` leaves it out. Grafana, at
+  http://localhost:3000, shows the Finga dashboard over Mimir (metrics),
+  Loki (logs) and Tempo (traces). Alloy feeds all three: it scrapes each
+  service's `/metrics`, reads the containers' logs, and relays the traces
+  the services keep (REST requests, answered commands, pickups). A log
+  line links to its trace, and a trace to its logs.
 
 Later stages add their parts here: infrastructure as code for a hosted
-deployment, and the Grafana dashboards and Prometheus configuration for the
-metrics the game server exports at `/metrics`.
+deployment.

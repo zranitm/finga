@@ -1,0 +1,81 @@
+// Alloy collects all three signals: it scrapes the services' metrics, tails the containers' logs, and relays traces.
+
+prometheus.scrape "services" {
+  job_name        = "finga"
+  scrape_interval = "15s"
+  targets = [
+    {"__address__" = "gateway:9100", "service" = "gateway"},
+    {"__address__" = "account:9101", "service" = "account"},
+    {"__address__" = "character:9102", "service" = "character"},
+    {"__address__" = "item:9103", "service" = "item"},
+    {"__address__" = "world:9104", "service" = "world"},
+    {"__address__" = "social:9105", "service" = "social"},
+  ]
+  forward_to = [prometheus.remote_write.mimir.receiver]
+}
+
+prometheus.remote_write "mimir" {
+  endpoint {
+    url = "http://mimir:9009/api/v1/push"
+  }
+}
+
+discovery.docker "finga" {
+  host = "unix:///var/run/docker.sock"
+  filter {
+    name   = "label"
+    values = ["com.docker.compose.project=finga"]
+  }
+}
+
+discovery.relabel "finga" {
+  targets = discovery.docker.finga.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "finga" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.finga.output
+  forward_to = [loki.process.services.receiver]
+}
+
+// The services log JSON: the level becomes a label, the trace ID metadata a trace can be found by.
+loki.process "services" {
+  stage.json {
+    expressions = {level = "level", trace_id = "trace_id"}
+  }
+  stage.labels {
+    values = {level = ""}
+  }
+  stage.structured_metadata {
+    values = {trace_id = ""}
+  }
+  forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+otelcol.receiver.otlp "services" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}

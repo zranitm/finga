@@ -10,14 +10,17 @@ NPM       ?= npm --prefix web
 
 .PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
 
-up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway)
-	$(COMPOSE) build
-	$(COMPOSE) stop
-	$(COMPOSE) up -d
+# OBS=1 also runs the observability stack and sends it the services' traces: Grafana at http://localhost:3000.
+OBSERVED = $(if $(OBS),COMPOSE_PROFILES=obs FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
+
+up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway); OBS=1 adds Grafana, Mimir, Loki and Tempo
+	$(OBSERVED) $(COMPOSE) build
+	COMPOSE_PROFILES=obs $(COMPOSE) stop
+	$(OBSERVED) $(COMPOSE) up -d
 	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); the gateway: http://localhost:$$($(COMPOSE) port gateway 8080 | sed 's|.*:||')"
 
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
-	$(COMPOSE) down -v --remove-orphans
+	COMPOSE_PROFILES=obs $(COMPOSE) down -v --remove-orphans
 
 # run exports server/.env as Compose's env_file does; the services stop with the gateway on Ctrl-C.
 SERVICES ?= account character item social world

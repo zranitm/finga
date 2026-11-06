@@ -27,10 +27,11 @@ vectors, the error codes). The root `Makefile` drives all three parts.
 ## Build and run
 
 ```bash
-make up      # everything: Postgres, the migrations, the six services and the client; the game at http://localhost:4173
-make smoke   # a client signs up, enters the world and moves, against the running stack
-make edge    # nginx limits each client address, the gateway does not (uses up the login allowance for a minute)
-make down    # stop everything and drop the database volume
+make up        # everything: Postgres, the migrations, the six services and the client; the game at http://localhost:4173
+make up OBS=1  # the same, plus Grafana at http://localhost:3000 over the services' metrics, logs and traces
+make smoke     # a client signs up, enters the world and moves, against the running stack
+make edge      # nginx limits each client address, the gateway does not (uses up the login allowance for a minute)
+make down      # stop everything and drop the database volume
 ```
 
 `make up` is the one command: it works from a clean clone with Docker and

@@ -1,0 +1,53 @@
+# Mimir as one process on the local disk: one tenant, no replication, a week of metrics.
+multitenancy_enabled: false
+target: all
+
+server:
+  http_listen_port: 9009
+  log_level: warn
+
+common:
+  storage:
+    backend: filesystem
+    filesystem:
+      dir: /data/storage
+
+blocks_storage:
+  storage_prefix: blocks
+  tsdb:
+    dir: /data/tsdb
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+
+ruler_storage:
+  storage_prefix: rules
+
+compactor:
+  data_dir: /data/compactor
+  sharding_ring:
+    kvstore:
+      store: memberlist
+
+distributor:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+
+ingester:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+    replication_factor: 1
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+
+limits:
+  compactor_blocks_retention_period: 7d
+  native_histograms_ingestion_enabled: true
+
+usage_stats:
+  enabled: false
