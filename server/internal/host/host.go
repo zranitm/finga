@@ -26,8 +26,8 @@ import (
 	"finga/pkg/tracing"
 )
 
-// traceFlushTimeout bounds the export of the spans left at Close.
-const traceFlushTimeout = 5 * time.Second
+// traceFlushTimeout bounds the export of the spans left at Close, inside the margin Compose leaves after shutdown_grace.
+const traceFlushTimeout = 2 * time.Second
 
 // The listener names, as the logs show them.
 const (

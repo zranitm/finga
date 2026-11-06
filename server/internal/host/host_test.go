@@ -2,6 +2,7 @@ package host_test
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
@@ -18,6 +19,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
 	"finga/pkg/runner/runnertest"
+	"finga/pkg/tracing"
 )
 
 type empty struct {
@@ -278,5 +280,32 @@ func TestTheHostTracesItsEntryPointsUntilClose(t *testing.T) {
 	h.Close()
 	if _, after := h.Traces.Tracer("test").Start(context.Background(), "shop.buy"); after.IsRecording() {
 		t.Fatal("still recording after Close")
+	}
+}
+
+// Compose stops a service shutdown_grace plus 5 s after asking; the last flush must leave room in that margin.
+func TestCloseGivesUpOnASilentCollectorWithinTwoSeconds(t *testing.T) {
+	silent, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer silent.Close()
+	go func() {
+		for {
+			c, err := silent.Accept()
+			if err != nil {
+				return
+			}
+			defer c.Close()
+		}
+	}()
+	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, Tracing: tracing.Config{OTLPEndpoint: silent.Addr().String()}},
+		Logger: runnertest.NewLog().Logger(), Registry: observability.NewRegistry(), Roots: func(name string) bool { return name == "shop.buy" }})
+	_, buy := h.Traces.Tracer("test").Start(context.Background(), "shop.buy")
+	buy.End()
+	start := time.Now()
+	h.Close()
+	if took := time.Since(start); took > 3*time.Second {
+		t.Fatalf("Close took %v with a silent collector", took)
 	}
 }
