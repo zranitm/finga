@@ -135,7 +135,7 @@ func (r *Registry) Open(connID string, o Outbox) *Session {
 	return s
 }
 
-// Remove forgets a session whose connection closed and stops its rejoin; joined reports whether it claimed a character.
+// Remove forgets a session whose connection closed and stops its rejoin; joined reports whether it claimed a character, which its caller then takes off its map.
 func (r *Registry) Remove(s *Session) (joined bool) {
 	s.cancel()
 	r.mu.Lock()
@@ -143,6 +143,9 @@ func (r *Registry) Remove(s *Session) (joined bool) {
 	delete(r.byConn, s.connID)
 	s.closed = true
 	who := s.who()
+	if !who.character.ID.IsZero() {
+		r.quiet(s.connID, time.Now()) // the deliveries on their way are not a ghost's: the caller leaves
+	}
 	if r.byAccount[who.account] == s {
 		delete(r.byAccount, who.account)
 	}

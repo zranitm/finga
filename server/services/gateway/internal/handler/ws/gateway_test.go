@@ -499,6 +499,24 @@ func TestCloseLeavesTheMap(t *testing.T) {
 	})
 }
 
+// Deliveries already on their way to a connection that closed are not taken for a ghost's: its close leaves once.
+func TestACloseLeavesTheMapOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.joined(t)
+		_ = c.c.Close(websocket.StatusNormalClosure, "bye")
+		waitFor(t, "the leave", h.world.leaves, 1)
+		for range 3 {
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_Delta{Delta: &worldv1.Delta{}}})
+		}
+		time.Sleep(10 * time.Second)
+		synctest.Wait()
+		if left := h.world.leaves(); len(left) != 1 {
+			t.Fatalf("leaves %v, want the close's one", left)
+		}
+	})
+}
+
 // waitFor lets every goroutine run until it blocks, then expects at least n of what get lists.
 func waitFor[T any](t *testing.T, what string, get func() []T, n int) []T {
 	t.Helper()

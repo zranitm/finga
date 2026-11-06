@@ -230,12 +230,7 @@ func (r *Registry) LeaveGhost(p model.Presence) {
 	_, known := r.byConn[p.Connection]
 	waiting := now.Before(r.ghosts[p.Connection])
 	if !known && !waiting {
-		for conn, until := range r.ghosts {
-			if !now.Before(until) {
-				delete(r.ghosts, conn)
-			}
-		}
-		r.ghosts[p.Connection] = now.Add(leaveTimeout + ghostQuiet)
+		r.quiet(p.Connection, now)
 	}
 	r.mu.Unlock()
 	if known || waiting {
@@ -247,6 +242,16 @@ func (r *Registry) LeaveGhost(p model.Presence) {
 		r.ghosts[p.Connection] = time.Now().Add(ghostQuiet)
 		r.mu.Unlock()
 	}, "job", "leave_ghost", "character_id", p.Character)
+}
+
+// quiet takes no delivery for conn as a ghost's while its Leave, from now on, runs and then drains. Called with mu held.
+func (r *Registry) quiet(conn string, now time.Time) {
+	for c, until := range r.ghosts {
+		if !now.Before(until) {
+			delete(r.ghosts, c)
+		}
+	}
+	r.ghosts[conn] = now.Add(leaveTimeout + ghostQuiet)
 }
 
 // leave takes the presence off its map, trying again while the world is too busy, for up to
