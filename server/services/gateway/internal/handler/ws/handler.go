@@ -32,7 +32,7 @@ type Options struct {
 	CommandQueue int
 	Observer     Observer
 	Logger       *slog.Logger
-	// Panics records a panic in a message's chain or a connection's callbacks; nil logs it to Logger.
+	// Panics records a panic in a message's chain or a connection's callbacks.
 	Panics *panics.Recorder
 }
 
@@ -52,15 +52,6 @@ type Connection struct {
 
 // New serves gw's connections.
 func New(gw *send.Gateway, opts Options) *Handler {
-	if opts.Observer == nil {
-		opts.Observer = noopObserver{}
-	}
-	if opts.Logger == nil {
-		opts.Logger = slog.New(slog.DiscardHandler)
-	}
-	if opts.Panics == nil {
-		opts.Panics = panics.NewRecorder(opts.Logger, nil)
-	}
 	return &Handler{
 		gw: gw, subprotocols: protocol.Subprotocols(), opts: opts,
 		receive: receive.New(gw, receive.Options{HelloTimeout: opts.HelloTimeout, CommandQueue: opts.CommandQueue, Logger: opts.Logger, Panics: opts.Panics}),
@@ -111,14 +102,3 @@ func closeReason(err error) string {
 	}
 	return err.Error()
 }
-
-type noopObserver struct{}
-
-// MessageIn does nothing.
-func (noopObserver) MessageIn(string) {}
-
-// MessageOut does nothing.
-func (noopObserver) MessageOut(string) {}
-
-// SlowConsumer does nothing.
-func (noopObserver) SlowConsumer() {}

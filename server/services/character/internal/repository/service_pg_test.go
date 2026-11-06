@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"testing"
 
@@ -21,7 +22,7 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(cluster.DB(t), nil)
-	svc := application.NewService(store, data, application.Options{})
+	svc := application.NewService(store, data, application.Options{Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
 	account := kernel.NewAccountID()
 	const n = 6
 	errs := make([]error, n)
@@ -51,3 +52,11 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 		t.Fatalf("%d created, %d refused as full, %d stored; want 3, %d, 3", created, full, len(list), n-3)
 	}
 }
+
+// granted is an item service that grants every starter set.
+type granted struct{}
+
+func (granted) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+	return nil
+}
+func (granted) Retryable(error) bool { return false }

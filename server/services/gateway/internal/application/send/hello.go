@@ -41,22 +41,17 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 	defer join.Release() // a failure or a panic before Finish gives the join up
 	c := join.Joined.Character
 	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now(), TickRateHz: join.Joined.TickRateHz}
-	if g.deps.Items != nil {
-		items, err := g.deps.Items.Inventory(ctx, charID)
-		if err != nil {
-			g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
-			return fmt.Errorf("inventory: %w", err)
-		}
-		welcome.Inventory = items
+	items, err := g.deps.Items.Inventory(ctx, charID)
+	if err != nil {
+		g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
+		return fmt.Errorf("inventory: %w", err)
 	}
-	if g.deps.Social != nil {
-		// Parties are optional: a social failure must not block the join.
-		party, err := g.deps.Social.PartyOf(ctx, charID)
-		if err != nil {
-			g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", charID, "err", err)
-		}
-		welcome.Party = party
+	welcome.Inventory = items
+	party, err := g.deps.Social.PartyOf(ctx, charID)
+	if err != nil {
+		g.deps.Logger.WarnContext(ctx, "party lookup failed", "character_id", charID, "err", err) // a social failure must not block the join
 	}
+	welcome.Party = party
 	// Last, so a Hello that fails before here leaves the client's token as it was; the one it sent works
 	// once more for a minute, and Welcome's from now on.
 	welcome.Token, err = g.rotate(ctx, p.SessionID)

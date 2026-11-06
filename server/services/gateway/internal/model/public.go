@@ -13,13 +13,8 @@ type Public struct {
 	Message string
 }
 
-// The failures of the gateway's own use cases.
-var (
-	ErrNoInventory   = errors.New("gateway: no item service")
-	ErrNoParties     = errors.New("gateway: no social service, so no parties")
-	ErrNoChat        = errors.New("gateway: no social service, so no chat")
-	ErrHelloRejected = errors.New("gateway: hello rejected")
-)
+// ErrHelloRejected is a Hello the gateway refuses itself.
+var ErrHelloRejected = errors.New("gateway: hello rejected")
 
 // The kinds of service failure the gateway acts on itself.
 var (
@@ -48,9 +43,6 @@ var ownErrors = []struct {
 	err error
 	pub Public
 }{
-	{ErrNoInventory, InventoryUnavailable},
-	{ErrNoParties, PartiesUnavailable},
-	{ErrNoChat, ChatUnavailable},
 	{ErrHelloRejected, Unauthenticated},
 	{kernel.ErrBadID, BadID},
 	{kernel.ErrUnknownClass, UnknownClass},

@@ -95,11 +95,6 @@
     "message": "a chat line is at most 120 characters"
   },
   {
-    "code": "chat_unavailable",
-    "status": 503,
-    "message": "chat is not available"
-  },
-  {
     "code": "class_unavailable",
     "status": 400,
     "message": "that class is not available"
@@ -118,11 +113,6 @@
     "code": "inventory_full",
     "status": 409,
     "message": "your inventory is full"
-  },
-  {
-    "code": "inventory_unavailable",
-    "status": 503,
-    "message": "the inventory is not available"
   },
   {
     "code": "invite_expired",
@@ -188,11 +178,6 @@
     "code": "not_party_member",
     "status": 404,
     "message": "not a member of your party"
-  },
-  {
-    "code": "parties_unavailable",
-    "status": 503,
-    "message": "parties are not available"
   },
   {
     "code": "party_chat_unavailable",

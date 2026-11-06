@@ -273,9 +273,6 @@ func (r *Registry) leave(p model.Presence) {
 
 // Online registers the player with the social service unless its connection closed; failures are only logged.
 func (r *Registry) Online(ctx context.Context, s *Session) {
-	if r.deps.Social == nil {
-		return
-	}
 	if err := r.online(ctx, s); err != nil {
 		r.deps.Logger.WarnContext(ctx, "social online failed", "character_id", s.Character(), "err", err)
 	}
@@ -297,9 +294,6 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 
 // offline tells the social service the player's connection closed, after any registration of it still on its way.
 func (r *Registry) offline(s *Session) {
-	if r.deps.Social == nil {
-		return
-	}
 	_ = s.social.Acquire(context.Background(), 1) // a registration holds it no longer than its own deadline
 	defer s.social.Release(1)
 	ctx, cancel := context.WithTimeout(context.Background(), offlineTimeout)

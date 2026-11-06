@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -22,6 +23,12 @@ func newServiceWith(t *testing.T, opts application.Options) (*application.Servic
 	t.Helper()
 	data := loadData(t)
 	store := newFakeStore()
+	if opts.Starter == nil {
+		opts.Starter = &fakeStarter{}
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.DiscardHandler)
+	}
 	return application.NewService(store, data, opts), store, data
 }
 

@@ -32,6 +32,7 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/application/push"
 	"finga/services/gateway/internal/application/send"
@@ -86,25 +87,16 @@ type deps struct {
 	SessionCheckInterval time.Duration
 }
 
-// build wires d as the composition root does: one registry under both flows; an unset service stays nil.
+// build wires d as the composition root does: one registry under both flows.
 func (d deps) build() (*push.Gateway, http.Handler) {
 	world := clients.NewWorld(d.World, d.Logger, nil)
-	reg := session.Deps{Gateway: d.ID, World: world, Logger: d.Logger, JoinTimeout: d.JoinTimeout}
-	sends := send.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, Observer: d.Observer, JoinTimeout: d.JoinTimeout}
-	pushes := push.Deps{Sessions: d.Sessions, World: world, Logger: d.Logger, SessionCheckInterval: d.SessionCheckInterval}
-	if d.Items != nil {
-		sends.Items = clients.NewItems(d.Items)
-	}
-	if d.Social != nil {
-		social := clients.NewSocial(d.Social, d.Logger, nil)
-		reg.Social, sends.Social, pushes.Social = social, social, social
-	}
-	if d.Watcher != nil {
-		pushes.Account = clients.NewSessionEnds(d.Watcher, d.Logger, nil)
-	}
-	sessions := session.NewRegistry(reg)
+	social := clients.NewSocial(d.Social, d.Logger, nil)
+	recorder := panics.NewRecorder(d.Logger, nil)
+	sessions := session.NewRegistry(session.Deps{Gateway: d.ID, World: world, Social: social, Logger: d.Logger, Panics: recorder, JoinTimeout: d.JoinTimeout})
+	sends := send.Deps{Sessions: d.Sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer, JoinTimeout: d.JoinTimeout}
+	pushes := push.Deps{Sessions: d.Sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger, SessionCheckInterval: d.SessionCheckInterval}
 	return push.New(pushes, sessions), ws.New(send.New(sends, sessions), ws.Options{
-		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger,
+		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder,
 	})
 }
 
@@ -124,6 +116,9 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 			tokenBob:   {AccountID: uuid.UUID(bob), SessionID: uuid.UUID(sessBob)},
 		}},
 		World:                fw.client(t),
+		Items:                (&fakeItems{}).client(t),
+		Social:               newFakeSocial().client(t),
+		Watcher:              newWatcher(t),
 		Logger:               slog.New(slog.DiscardHandler),
 		Observer:             obs,
 		HelloTimeout:         200 * time.Millisecond,
@@ -447,9 +442,13 @@ func TestRateLimits(t *testing.T) {
 			codes := map[string]string{}
 			for range 6 {
 				m := c.expect("Response")
-				codes[m.ReqID] = m.Data.(*clientv1.Response).Code
+				r := m.Data.(*clientv1.Response)
+				codes[m.ReqID] = r.Code
+				if r.GetOk() {
+					codes[m.ReqID] = "ok"
+				}
 			}
-			if codes["r-5"] != "rate_limited" || codes["r-0"] != "inventory_unavailable" || len(codes) != 6 {
+			if codes["r-5"] != "rate_limited" || codes["r-0"] != "ok" || len(codes) != 6 {
 				t.Fatalf("codes %v", codes)
 			}
 		})
@@ -535,15 +534,17 @@ func part(t *testing.T, name string, f func()) {
 	f()
 }
 
-func TestUnavailableCommandsAnswerWithAResponse(t *testing.T) {
+func TestARefusedCommandAnswersWithAResponse(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
+		soc := newFakeSocial()
+		soc.err = grpctest.Error(codes.NotFound, socialv1.Reason_REASON_NO_PARTY)
+		h := newHarness(t, func(d *deps) { d.Social = soc.client(t) })
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.PartyLeave{}})
 		m := c.expect("Response")
-		if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != "parties_unavailable" {
+		if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != "no_party" {
 			t.Fatalf("response %+v", m)
 		}
 		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}}) // no request ID: silently ignored
@@ -974,20 +975,22 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
-func TestInventoryCommandsWithoutTheItemModule(t *testing.T) {
+// The handler rejects a malformed message before any use case runs.
+func TestAMalformedItemIDNeverReachesTheItemService(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
+		items := &fakeItems{}
+		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
-		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
-		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "inventory_unavailable" {
-			t.Fatalf("response %+v", r)
-		}
-		// The handler rejects a malformed message before any use case runs.
 		c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: "x", Quantity: 1}})
 		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
 			t.Fatalf("a malformed item ID: %+v", r)
+		}
+		items.mu.Lock()
+		defer items.mu.Unlock()
+		if len(items.discards) != 0 {
+			t.Fatalf("the item service saw %v", items.discards)
 		}
 	})
 }
@@ -1276,23 +1279,6 @@ func TestChatRouting(t *testing.T) {
 	})
 }
 
-func TestChatAndPartiesAreUnavailableWithoutTheSocialService(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		c.expect("Snapshot")
-		c.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hi"}})
-		if r := c.expect("Response").Data.(*clientv1.Response); r.Code != "chat_unavailable" {
-			t.Fatalf("chat %+v", r)
-		}
-		c.send(wsconn.Message{ReqID: "p", Data: &clientv1.PartyLeave{}})
-		if r := c.expect("Response").Data.(*clientv1.Response); r.Code != "parties_unavailable" {
-			t.Fatalf("party %+v", r)
-		}
-	})
-}
-
 func TestPartyCommandsAndState(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fs := newFakeSocial()
@@ -1433,23 +1419,6 @@ func TestPartyCommandsAndState(t *testing.T) {
 	})
 }
 
-func TestChatAndPartyWithoutTheServices(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		c.expect("Snapshot")
-		c.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "hi"}})
-		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "chat_unavailable" {
-			t.Fatalf("chat: %+v", r)
-		}
-		c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
-		if r := c.expect("Response"); r.ReqID != "p-1" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != "parties_unavailable" {
-			t.Fatalf("party: %+v", r)
-		}
-	})
-}
-
 func TestWelcomeCarriesTheRotatedToken(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
@@ -1498,6 +1467,14 @@ type watcher struct {
 	subscribed    chan struct{} // told of a subscription, if it has room
 	events        chan *accountv1.WatchSessionsResponse
 	end           chan struct{}
+}
+
+// newWatcher is an account service whose session stream stays quiet.
+func newWatcher(t *testing.T) clients.SessionWatcher {
+	t.Helper()
+	srv := grpcx.NewServer(grpcx.ServerOptions{})
+	accountv1.RegisterAccountServiceServer(srv, &watcher{subscribed: make(chan struct{}, 1), events: make(chan *accountv1.WatchSessionsResponse), end: make(chan struct{})})
+	return accountv1.NewAccountServiceClient(grpctest.Conn(t, srv))
 }
 
 func (w *watcher) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.ServerStreamingServer[accountv1.WatchSessionsResponse]) error {

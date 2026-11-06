@@ -26,6 +26,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/auth"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/panics"
 	"finga/pkg/reqid"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/clients"
@@ -60,9 +61,10 @@ func newHarness(origins ...string) *harness {
 		logs:       &bytes.Buffer{},
 	}
 	e := handler.NewEngine()
+	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
 		Lobby:  application.NewLobby(clients.NewAccounts(h.accounts), clients.NewCharacters(h.characters), h.sessions),
-		Logger: slog.New(slog.NewJSONHandler(h.logs, nil)), CORSOrigins: origins,
+		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil),
 	})(e)
 	h.handler = e
 	return h

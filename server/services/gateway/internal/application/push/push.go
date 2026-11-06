@@ -41,8 +41,8 @@ type Sessions interface {
 type Deps struct {
 	Sessions             Sessions
 	World                World
-	Social               Social  // nil: no party stream
-	Account              Account // nil: only the periodic session check runs
+	Social               Social
+	Account              Account
 	Logger               *slog.Logger
 	SessionCheckInterval time.Duration // how often every session is checked with Sessions
 }
@@ -72,13 +72,9 @@ func (g *Gateway) Run(ctx context.Context) error {
 	}
 	id := g.sessions.Gateway()
 	start(func(ctx context.Context) { g.deps.World.FollowDeliveries(ctx, id, g.worldDelivered) })
-	if g.deps.Social != nil {
-		start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, id, g.socialDelivered) })
-		start(g.registerAgain)
-	}
-	if g.deps.Account != nil {
-		start(func(ctx context.Context) { g.deps.Account.FollowSessionEnds(ctx, id, g.sessionEnded) })
-	}
+	start(func(ctx context.Context) { g.deps.Social.FollowDeliveries(ctx, id, g.socialDelivered) })
+	start(g.registerAgain)
+	start(func(ctx context.Context) { g.deps.Account.FollowSessionEnds(ctx, id, g.sessionEnded) })
 	start(g.checkSessionsEvery)
 	return group.Wait()
 }

@@ -11,7 +11,6 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/panics"
-	"finga/pkg/uuidv7"
 	"finga/services/gateway/internal/model"
 )
 
@@ -42,11 +41,11 @@ type Social interface {
 
 // Deps are what the registry and its joins are built from.
 type Deps struct {
-	Gateway     string // this gateway's ID, on every join, registration and stream; empty mints one
+	Gateway     string // this gateway's ID, on every join, registration and stream
 	World       World
-	Social      Social // nil: no parties
+	Social      Social
 	Logger      *slog.Logger
-	Panics      *panics.Recorder // a rejoin's panic; nil logs it to Logger
+	Panics      *panics.Recorder // a rejoin's panic
 	JoinTimeout time.Duration    // a rejoin's whole join, retries included
 }
 
@@ -99,14 +98,8 @@ func (r *Registry) lockCharacter(ctx context.Context, id kernel.CharacterID) (un
 	}
 }
 
-// NewRegistry builds an empty registry, defaulting unset dependencies.
+// NewRegistry builds an empty registry.
 func NewRegistry(deps Deps) *Registry {
-	if deps.Gateway == "" {
-		deps.Gateway = uuidv7.NewString()
-	}
-	if deps.Panics == nil {
-		deps.Panics = panics.NewRecorder(deps.Logger, nil)
-	}
 	return &Registry{
 		deps:        deps,
 		byConn:      map[string]*Session{},

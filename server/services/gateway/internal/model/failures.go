@@ -2,22 +2,19 @@ package model
 
 // The failures the gateway raises itself.
 var (
-	MalformedBody        = Public{"malformed_body", "malformed request body"}
-	MissingField         = Public{"missing_field", "missing a required field"}
-	BodyTooLarge         = Public{"body_too_large", "request body too large"}
-	BodyTimeout          = Public{"body_timeout", "request body not received in time"}
-	NoSuchEndpoint       = Public{"no_such_endpoint", "no such endpoint"}
-	MethodNotAllowed     = Public{"method_not_allowed", "method not allowed"}
-	RateLimited          = Public{"rate_limited", "slow down"}
-	NotImplemented       = Public{"not_implemented", "not available yet"}
-	ChatUnavailable      = Public{"chat_unavailable", "chat is not available"}
-	PartiesUnavailable   = Public{"parties_unavailable", "parties are not available"}
-	InventoryUnavailable = Public{"inventory_unavailable", "the inventory is not available"}
-	Unauthenticated      = Public{"unauthenticated", "invalid credentials or session"}
-	BadID                = Public{"bad_id", "malformed ID"}
-	UnknownClass         = Public{"unknown_class", "unknown class"}
-	Internal             = Public{"internal", "something went wrong"}
-	Unavailable          = Public{"unavailable", "the server is busy; try again"}
+	MalformedBody    = Public{"malformed_body", "malformed request body"}
+	MissingField     = Public{"missing_field", "missing a required field"}
+	BodyTooLarge     = Public{"body_too_large", "request body too large"}
+	BodyTimeout      = Public{"body_timeout", "request body not received in time"}
+	NoSuchEndpoint   = Public{"no_such_endpoint", "no such endpoint"}
+	MethodNotAllowed = Public{"method_not_allowed", "method not allowed"}
+	RateLimited      = Public{"rate_limited", "slow down"}
+	NotImplemented   = Public{"not_implemented", "not available yet"}
+	Unauthenticated  = Public{"unauthenticated", "invalid credentials or session"}
+	BadID            = Public{"bad_id", "malformed ID"}
+	UnknownClass     = Public{"unknown_class", "unknown class"}
+	Internal         = Public{"internal", "something went wrong"}
+	Unavailable      = Public{"unavailable", "the server is busy; try again"}
 )
 
 // The services' failures, as the gateway words them; clients/errmap maps each service reason to one.

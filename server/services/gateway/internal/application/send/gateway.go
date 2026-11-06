@@ -61,8 +61,8 @@ type Observer interface {
 type Deps struct {
 	Sessions    Sessions
 	World       World
-	Items       Items  // nil: no inventory
-	Social      Social // nil: no parties or chat
+	Items       Items
+	Social      Social
 	Logger      *slog.Logger
 	Observer    Observer
 	JoinTimeout time.Duration // a Hello's whole join, retries included
@@ -76,18 +76,10 @@ type Gateway struct {
 	sessions *session.Registry
 }
 
-// New builds the send flow over sessions, defaulting unset dependencies.
+// New builds the send flow over sessions.
 func New(deps Deps, sessions *session.Registry) *Gateway {
-	if deps.Observer == nil {
-		deps.Observer = noopObserver{}
-	}
 	return &Gateway{deps: deps, sessions: sessions}
 }
 
 // Draining reports whether the gateway drains; new connections are refused from then on.
 func (g *Gateway) Draining() bool { return g.sessions.Draining() }
-
-type noopObserver struct{}
-
-// OnlineChanged does nothing.
-func (noopObserver) OnlineChanged(int) {}

@@ -10,6 +10,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"finga/pkg/panics"
 	"finga/services/gateway/internal/handler"
 	"finga/services/gateway/internal/handler/api"
 )
@@ -48,7 +49,8 @@ func TestRoutesMatchOpenAPI(t *testing.T) {
 		}
 	}
 	e := handler.NewEngine()
-	api.Mount(api.Dependencies{Logger: slog.New(slog.DiscardHandler)})(e)
+	log := slog.New(slog.DiscardHandler)
+	api.Mount(api.Dependencies{Logger: log, Panics: panics.NewRecorder(log, nil)})(e)
 	var inCode []string
 	for _, r := range e.Routes() {
 		if strings.HasPrefix(r.Path, "/api/") {

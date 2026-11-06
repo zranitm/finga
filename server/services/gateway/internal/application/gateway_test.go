@@ -40,39 +40,40 @@ func newGateway(w *world) gateway { return newGatewayWith(w, &guard{}, time.Hour
 
 func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
 	log := slog.New(slog.DiscardHandler)
-	sessions := session.NewRegistry(session.Deps{World: w, Logger: log, JoinTimeout: joinTimeout})
+	sessions := session.NewRegistry(session.Deps{Gateway: "gw-1", World: w, Social: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), JoinTimeout: joinTimeout})
 	return gateway{
-		Gateway: send.New(send.Deps{Sessions: g, World: w, Logger: log, JoinTimeout: joinTimeout}, sessions),
-		pushes:  push.New(push.Deps{Sessions: g, World: w, Logger: log, SessionCheckInterval: checkEvery}, sessions),
+		Gateway: send.New(send.Deps{Sessions: g, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}, JoinTimeout: joinTimeout}, sessions),
+		pushes:  push.New(push.Deps{Sessions: g, World: w, Social: idle{}, Account: idle{}, Logger: log, SessionCheckInterval: checkEvery}, sessions),
 	}
 }
 
-func TestCommandsForAServiceTheGatewayRunsWithout(t *testing.T) {
-	g := newGateway(&world{})
-	s := g.Open("c-1", &outbox{})
-	ctx := t.Context()
-	other := kernel.NewCharacterID()
-	tests := []struct {
-		name string
-		err  error
-		want error
-	}{
-		{"moving an item", second(g.MoveItem(ctx, s, model.ItemMove{IdempotencyKey: "k", Item: kernel.NewItemID(), Tab: "etc", Slot: 1})), model.ErrNoInventory},
-		{"discarding an item", second(g.DiscardItem(ctx, s, model.ItemDiscard{IdempotencyKey: "k", Item: kernel.NewItemID(), Quantity: 1})), model.ErrNoInventory},
-		{"inviting", g.InviteToParty(ctx, s, other), model.ErrNoParties},
-		{"answering an invite", g.AnswerInvite(ctx, s, "inv", true), model.ErrNoParties},
-		{"leaving a party", g.LeaveParty(ctx, s), model.ErrNoParties},
-		{"kicking from a party", g.KickFromParty(ctx, s, other), model.ErrNoParties},
-		{"promoting", g.PromoteInParty(ctx, s, other), model.ErrNoParties},
-		{"chatting", g.Chat(ctx, s, model.ChatMap, "hi"), model.ErrNoChat},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if !errors.Is(tt.err, tt.want) {
-				t.Fatalf("err = %v, want %v", tt.err, tt.want)
-			}
-		})
-	}
+// idle is every service these tests do not exercise: it answers nothing went wrong, and its streams wait for their end.
+type idle struct{}
+
+func (idle) Inventory(context.Context, kernel.CharacterID) ([]model.ItemView, error) { return nil, nil }
+func (idle) Move(context.Context, model.Actor, model.ItemMove) ([]model.InventorySlot, error) {
+	return nil, nil
+}
+func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) ([]model.InventorySlot, error) {
+	return nil, nil
+}
+func (idle) PartyOf(context.Context, kernel.CharacterID) (*model.PartyView, error) { return nil, nil }
+func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
+	return model.ChatLine{Channel: channel, Text: text}, nil
+}
+func (idle) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) error  { return nil }
+func (idle) Respond(context.Context, kernel.CharacterID, string, bool) error       { return nil }
+func (idle) Leave(context.Context, kernel.CharacterID) error                       { return nil }
+func (idle) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error    { return nil }
+func (idle) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error { return nil }
+func (idle) Online(context.Context, string, string, model.Player, string) error    { return nil }
+func (idle) Offline(context.Context, kernel.CharacterID, string) error             { return nil }
+func (idle) OnlineChanged(int)                                                     {}
+func (idle) FollowDeliveries(ctx context.Context, _ string, _ func(model.SocialEvent)) {
+	<-ctx.Done()
+}
+func (idle) FollowSessionEnds(ctx context.Context, _ string, _ func(model.SessionEnd)) {
+	<-ctx.Done()
 }
 
 func TestHello(t *testing.T) {
@@ -212,8 +213,6 @@ func TestTheSessionCheckKicksOnlyEndedSessions(t *testing.T) {
 		}
 	})
 }
-
-func second[T any](_ T, err error) error { return err }
 
 // outbox keeps the Welcome and how the session first ended.
 type outbox struct {

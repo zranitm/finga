@@ -22,7 +22,7 @@ type CreateInput struct {
 
 // Options tune the service.
 type Options struct {
-	// Starter grants a new character its starter items after it commits; nil grants nothing.
+	// Starter grants a new character its starter items after it commits.
 	Starter StarterItems
 	Logger  *slog.Logger
 }
@@ -51,9 +51,6 @@ type Service struct {
 
 // NewService wires the service over its store and the game data.
 func NewService(store Store, content Content, opts Options) *Service {
-	if opts.Logger == nil {
-		opts.Logger = slog.New(slog.DiscardHandler)
-	}
 	return &Service{store: store, content: content, opts: opts}
 }
 
@@ -99,9 +96,6 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 
 // grantStarter retries until starterTimeout; keyed by character ID, a retry never grants twice.
 func (s *Service) grantStarter(ctx context.Context, c model.Character) {
-	if s.opts.Starter == nil {
-		return
-	}
 	ctx, cancel := context.WithTimeout(ctx, starterTimeout)
 	defer cancel()
 	var last error

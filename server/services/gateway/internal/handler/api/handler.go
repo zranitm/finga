@@ -28,7 +28,7 @@ type Dependencies struct {
 	Lobby       *application.Lobby
 	Logger      *slog.Logger
 	CORSOrigins []string
-	// Panics records a panic in a request; nil logs it to Logger.
+	// Panics records a panic in a request.
 	Panics *panics.Recorder
 }
 
@@ -38,9 +38,6 @@ type api struct {
 
 // Mount serves the REST API under /api; unrouted paths also pass the log and CORS, so any preflight is answered.
 func Mount(d Dependencies) func(e *gin.Engine) {
-	if d.Panics == nil {
-		d.Panics = panics.NewRecorder(d.Logger, nil)
-	}
 	return func(e *gin.Engine) {
 		h := &api{lobby: d.Lobby}
 		edge := func(last gin.HandlerFunc) []gin.HandlerFunc {
