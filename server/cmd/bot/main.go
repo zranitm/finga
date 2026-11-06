@@ -482,7 +482,7 @@ func report(urls ...string) error {
 	online := ""
 	for line := range strings.SplitSeq(string(raw), "\n") {
 		switch {
-		case strings.HasPrefix(line, "tick_duration_seconds_bucket"):
+		case strings.HasPrefix(line, "finga_tick_duration_seconds_bucket"):
 			labels, value := parseLine(line)
 			h := byMap[labels["map"]]
 			if h == nil {
@@ -491,20 +491,20 @@ func report(urls ...string) error {
 			}
 			le, _ := strconv.ParseFloat(labels["le"], 64)
 			h.buckets[le] = value
-		case strings.HasPrefix(line, "tick_duration_seconds_count"):
+		case strings.HasPrefix(line, "finga_tick_duration_seconds_count"):
 			labels, value := parseLine(line)
 			if h := byMap[labels["map"]]; h != nil {
 				h.count = value
 			}
-		case strings.HasPrefix(line, "tick_overruns_total"):
+		case strings.HasPrefix(line, "finga_tick_overruns_total"):
 			labels, value := parseLine(line)
 			overruns[labels["map"]] = value
-		case strings.HasPrefix(line, "players_online "):
-			online = strings.TrimSpace(strings.TrimPrefix(line, "players_online")) // the last page's: the gateway's
+		case strings.HasPrefix(line, "finga_players_online "):
+			online = strings.TrimSpace(strings.TrimPrefix(line, "finga_players_online")) // the last page's: the gateway's
 		}
 	}
 	if online != "" {
-		fmt.Printf("players_online %s\n", online)
+		fmt.Printf("finga_players_online %s\n", online)
 	}
 	all := &hist{buckets: map[float64]float64{}}
 	names := make([]string, 0, len(byMap))

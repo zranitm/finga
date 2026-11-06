@@ -74,7 +74,7 @@ func TestTheServiceDeletesLongEndedSessions(t *testing.T) {
 	}
 	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
-	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `db_expired_rows_deleted_total{table="sessions"} 1`)
+	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_db_expired_rows_deleted_total{table="sessions"} 1`)
 	rows, err := pool.Query(ctx, `SELECT id FROM sessions`)
 	if err != nil {
 		t.Fatal(err)

@@ -62,19 +62,19 @@ func TestPanicCounterCountsByFlow(t *testing.T) {
 	c.Inc("ws")
 	c.Inc("ws")
 	c.Inc("grpc")
-	want := `# HELP panics_total Panics recovered, by flow.
-# TYPE panics_total counter
-panics_total{flow="grpc"} 1
-panics_total{flow="http"} 0
-panics_total{flow="job"} 0
-panics_total{flow="stream"} 0
-panics_total{flow="task"} 0
-panics_total{flow="ws"} 2
+	want := `# HELP finga_panics_total Panics recovered, by flow.
+# TYPE finga_panics_total counter
+finga_panics_total{flow="grpc"} 1
+finga_panics_total{flow="http"} 0
+finga_panics_total{flow="job"} 0
+finga_panics_total{flow="stream"} 0
+finga_panics_total{flow="task"} 0
+finga_panics_total{flow="ws"} 2
 `
-	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "panics_total"); err != nil {
+	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "finga_panics_total"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := observability.NewPanicCounter(reg); err == nil {
-		t.Fatal("a second counter registered panics_total again")
+		t.Fatal("a second counter registered finga_panics_total again")
 	}
 }

@@ -145,7 +145,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 
 	t.Run("tick metrics on the ops listener", func(t *testing.T) {
 		var body string
-		for deadline := time.Now().Add(5 * time.Second); !strings.Contains(body, `tick_duration_seconds_count{map="town"}`); time.Sleep(20 * time.Millisecond) {
+		for deadline := time.Now().Add(5 * time.Second); !strings.Contains(body, `finga_tick_duration_seconds_count{map="town"}`); time.Sleep(20 * time.Millisecond) {
 			if time.Now().After(deadline) {
 				t.Fatalf("no tick metrics in\n%s", body)
 			}

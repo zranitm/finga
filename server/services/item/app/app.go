@@ -21,7 +21,7 @@ import (
 	"finga/services/item/internal/repository"
 )
 
-// outboxCountEvery is how often the outbox_unpublished gauge is counted again.
+// outboxCountEvery is how often the finga_outbox_unpublished gauge is counted again.
 const outboxCountEvery = 15 * time.Second
 
 // Build wires the item service; it fails fast on bad game data or an unreachable database.

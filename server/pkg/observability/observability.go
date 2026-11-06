@@ -24,12 +24,15 @@ func MetricsHandler(reg *prometheus.Registry) http.Handler {
 	return promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})
 }
 
-// PanicCounter is panics_total by flow, which a panics.Recorder counts in.
+// Namespace prefixes the game's own metrics; the libraries' (grpc_, go_, process_) keep their standard names.
+const Namespace = "finga"
+
+// PanicCounter is finga_panics_total by flow, which a panics.Recorder counts in.
 type PanicCounter struct{ vec *prometheus.CounterVec }
 
-// NewPanicCounter registers panics_total in reg, every flow at 0.
+// NewPanicCounter registers finga_panics_total in reg, every flow at 0.
 func NewPanicCounter(reg prometheus.Registerer) (*PanicCounter, error) {
-	vec := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "panics_total", Help: "Panics recovered, by flow."}, []string{"flow"})
+	vec := prometheus.NewCounterVec(prometheus.CounterOpts{Namespace: Namespace, Name: "panics_total", Help: "Panics recovered, by flow."}, []string{"flow"})
 	if err := reg.Register(vec); err != nil {
 		return nil, fmt.Errorf("panics_total: %w", err)
 	}

@@ -226,7 +226,7 @@ func TestAServiceWithoutGRPCServesItsHTTPListenerAndOps(t *testing.T) {
 			t.Errorf("the public listener answered %s with %d", path, status)
 		}
 	}
-	if status, body := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics"); status != http.StatusOK || !strings.Contains(body, "panics_total") {
+	if status, body := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics"); status != http.StatusOK || !strings.Contains(body, "finga_panics_total") {
 		t.Errorf("ops /metrics: status %d, the panic counter missing", status)
 	}
 	if err := p.Stop(); err != nil {

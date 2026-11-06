@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 
 	"finga/pkg/dbx"
+	"finga/pkg/observability"
 	"finga/pkg/retention"
 )
 
@@ -41,13 +42,13 @@ type WorldMetrics struct {
 func NewWorldMetrics(reg prometheus.Registerer) (*WorldMetrics, error) {
 	m := &WorldMetrics{
 		tickDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name: "tick_duration_seconds", Help: "Processing time of one map instance tick.", Buckets: tickBuckets,
+			Namespace: observability.Namespace, Name: "tick_duration_seconds", Help: "Processing time of one map instance tick.", Buckets: tickBuckets,
 		}, []string{"map"}),
 		tickOverruns: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
+			Namespace: observability.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
 		}, []string{"map"}),
 		jobsInflight: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "economy_jobs_inflight", Help: "Pickups waiting on or inside a call to the item service.",
+			Namespace: observability.Namespace, Name: "economy_jobs_inflight", Help: "Pickups waiting on or inside a call to the item service.",
 		}),
 	}
 	return m, register(reg, m.tickDuration, m.tickOverruns, m.jobsInflight)
@@ -78,13 +79,13 @@ type GatewayMetrics struct {
 func NewGatewayMetrics(reg prometheus.Registerer) (*GatewayMetrics, error) {
 	m := &GatewayMetrics{
 		playersOnline: prometheus.NewGauge(prometheus.GaugeOpts{
-			Name: "players_online", Help: "Players whose Hello joined them to a map.",
+			Namespace: observability.Namespace, Name: "players_online", Help: "Players whose Hello joined them to a map.",
 		}),
 		messages: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "ws_messages_total", Help: "WebSocket messages by direction and type.",
+			Namespace: observability.Namespace, Name: "ws_messages_total", Help: "WebSocket messages by direction and type.",
 		}, []string{"direction", "type"}),
 		slowConsumers: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "ws_slow_consumer_disconnects_total", Help: "Connections closed because their send queue filled up.",
+			Namespace: observability.Namespace, Name: "ws_slow_consumer_disconnects_total", Help: "Connections closed because their send queue filled up.",
 		}),
 	}
 	return m, register(reg, m.playersOnline, m.messages, m.slowConsumers)
@@ -114,10 +115,10 @@ var _ dbx.Observer = (*DBMetrics)(nil)
 func NewDBMetrics(reg prometheus.Registerer) (*DBMetrics, error) {
 	m := &DBMetrics{
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name: "db_tx_duration_seconds", Help: "Database transaction time by operation, retries included.", Buckets: txBuckets,
+			Namespace: observability.Namespace, Name: "db_tx_duration_seconds", Help: "Database transaction time by operation, retries included.", Buckets: txBuckets,
 		}, []string{"operation"}),
 		retries: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout.",
+			Namespace: observability.Namespace, Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout.",
 		}, []string{"operation"}),
 	}
 	return m, register(reg, m.duration, m.retries)
@@ -145,7 +146,7 @@ var _ retention.Observer = (*RetentionMetrics)(nil)
 // NewRetentionMetrics registers the deleted-rows counter on reg; registering twice on one registry fails.
 func NewRetentionMetrics(reg prometheus.Registerer) (*RetentionMetrics, error) {
 	m := &RetentionMetrics{deleted: prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "db_expired_rows_deleted_total", Help: "Rows deleted by a retention task once kept their time, by table.",
+		Namespace: observability.Namespace, Name: "db_expired_rows_deleted_total", Help: "Rows deleted by a retention task once kept their time, by table.",
 	}, []string{"table"})}
 	return m, register(reg, m.deleted)
 }
@@ -163,7 +164,7 @@ type OutboxMetrics struct {
 // NewOutboxMetrics registers the outbox gauge on reg; registering twice on one registry fails.
 func NewOutboxMetrics(reg prometheus.Registerer) (*OutboxMetrics, error) {
 	m := &OutboxMetrics{unpublished: prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "outbox_unpublished", Help: "Outbox rows not yet published. Grows in Stage 1; relay lag in Stage 2.",
+		Namespace: observability.Namespace, Name: "outbox_unpublished", Help: "Outbox rows not yet published. Grows in Stage 1; relay lag in Stage 2.",
 	})}
 	return m, register(reg, m.unpublished)
 }

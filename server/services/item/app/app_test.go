@@ -69,7 +69,7 @@ func TestTheServiceDeletesExpiredIdempotencyKeys(t *testing.T) {
 	}
 	t.Cleanup(h.Close)
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
-	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `db_expired_rows_deleted_total{table="idempotency_keys"} 1`)
+	runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_db_expired_rows_deleted_total{table="idempotency_keys"} 1`)
 	rows, err := pool.Query(ctx, `SELECT key FROM idempotency_keys`)
 	if err != nil {
 		t.Fatal(err)
@@ -108,7 +108,7 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 		t.Fatalf("inventory %+v, err %v", inv.GetItems(), err)
 	}
 	_, metrics := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics")
-	for _, want := range []string{`db_tx_duration_seconds_count{operation="GrantStarter"} 1`, "outbox_unpublished "} {
+	for _, want := range []string{`finga_db_tx_duration_seconds_count{operation="GrantStarter"} 1`, "finga_outbox_unpublished "} {
 		if !strings.Contains(metrics, want) {
 			t.Fatalf("metrics lack %s:\n%s", want, metrics)
 		}

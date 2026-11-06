@@ -81,14 +81,14 @@ func TestWorldMetrics(t *testing.T) {
 	m.JobStarted()
 	m.JobStarted()
 	m.JobFinished()
-	if got := sample(t, reg, "tick_duration_seconds", "map", "town"); got != 3 {
+	if got := sample(t, reg, "finga_tick_duration_seconds", "map", "town"); got != 3 {
 		t.Fatalf("ticks observed %v, want 3", got)
 	}
-	if got := sample(t, reg, "tick_overruns_total", "map", "town"); got != 1 {
+	if got := sample(t, reg, "finga_tick_overruns_total", "map", "town"); got != 1 {
 		t.Fatalf("overruns %v, want only the one past the budget", got)
 	}
-	if got := sample(t, reg, "economy_jobs_inflight"); got != 1 {
-		t.Fatalf("economy_jobs_inflight = %v, want 1", got)
+	if got := sample(t, reg, "finga_economy_jobs_inflight"); got != 1 {
+		t.Fatalf("finga_economy_jobs_inflight = %v, want 1", got)
 	}
 	if _, err := telemetry.NewWorldMetrics(reg); err == nil {
 		t.Fatal("a second registration succeeded")
@@ -112,16 +112,16 @@ func TestGatewayMetrics(t *testing.T) {
 		labels []string
 		want   float64
 	}{
-		{"ws_messages_total", []string{"direction", "in", "type", "Input"}, 2},
-		{"ws_messages_total", []string{"direction", "out", "type", "Delta"}, 1},
-		{"ws_slow_consumer_disconnects_total", nil, 1},
-		{"players_online", nil, 1},
+		{"finga_ws_messages_total", []string{"direction", "in", "type", "Input"}, 2},
+		{"finga_ws_messages_total", []string{"direction", "out", "type", "Delta"}, 1},
+		{"finga_ws_slow_consumer_disconnects_total", nil, 1},
+		{"finga_players_online", nil, 1},
 	} {
 		if got := sample(t, reg, c.name, c.labels...); got != c.want {
 			t.Fatalf("%s%v = %v, want %v", c.name, c.labels, got, c.want)
 		}
 	}
-	if have := names(t, reg); have["tick_duration_seconds"] || have["db_tx_duration_seconds"] {
+	if have := names(t, reg); have["finga_tick_duration_seconds"] || have["finga_db_tx_duration_seconds"] {
 		t.Fatalf("the gateway registers metrics it never records: %v", have)
 	}
 }
@@ -144,13 +144,13 @@ func TestDBMetricsNameTheTransactionByItsMethod(t *testing.T) {
 	m.TxDone(ctx, 2*time.Millisecond, 1)
 	m.TxDone(ctx, 9*time.Millisecond, 3)
 	m.TxDone(context.Background(), time.Millisecond, 1)
-	if got := sample(t, reg, "db_tx_duration_seconds", "operation", "Add"); got != 2 {
+	if got := sample(t, reg, "finga_db_tx_duration_seconds", "operation", "Add"); got != 2 {
 		t.Fatalf("Add transactions %v, want 2", got)
 	}
-	if got := sample(t, reg, "db_tx_retries_total", "operation", "Add"); got != 2 {
+	if got := sample(t, reg, "finga_db_tx_retries_total", "operation", "Add"); got != 2 {
 		t.Fatalf("Add retries %v, want the two re-runs", got)
 	}
-	if got := sample(t, reg, "db_tx_duration_seconds", "operation", "other"); got != 1 {
+	if got := sample(t, reg, "finga_db_tx_duration_seconds", "operation", "other"); got != 1 {
 		t.Fatalf("transactions outside a call %v, want 1", got)
 	}
 }
@@ -164,10 +164,10 @@ func TestRetentionMetricsCountDeletedRowsByTable(t *testing.T) {
 	m.Deleted("sessions", 0)
 	m.Deleted("idempotency_keys", 1000)
 	m.Deleted("idempotency_keys", 7)
-	if got := sample(t, reg, "db_expired_rows_deleted_total", "table", "idempotency_keys"); got != 1007 {
+	if got := sample(t, reg, "finga_db_expired_rows_deleted_total", "table", "idempotency_keys"); got != 1007 {
 		t.Fatalf("idempotency_keys %v, want 1007", got)
 	}
-	if !names(t, reg)["db_expired_rows_deleted_total"] || sample(t, reg, "db_expired_rows_deleted_total", "table", "sessions") != 0 {
+	if !names(t, reg)["finga_db_expired_rows_deleted_total"] || sample(t, reg, "finga_db_expired_rows_deleted_total", "table", "sessions") != 0 {
 		t.Fatal("a pass that deleted nothing left no series for its table")
 	}
 	if _, err := telemetry.NewRetentionMetrics(reg); err == nil {
@@ -197,18 +197,18 @@ func TestTheOutboxGaugeFollowsItsCount(t *testing.T) {
 		done := make(chan error)
 		go func() { done <- m.Track(ctx, time.Minute, count, slog.New(slog.DiscardHandler)) }()
 		synctest.Wait()
-		if got := sample(t, reg, "outbox_unpublished"); got != 12 {
-			t.Fatalf("outbox_unpublished = %v, want 12", got)
+		if got := sample(t, reg, "finga_outbox_unpublished"); got != 12 {
+			t.Fatalf("finga_outbox_unpublished = %v, want 12", got)
 		}
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		if got := sample(t, reg, "outbox_unpublished"); got != 12 {
+		if got := sample(t, reg, "finga_outbox_unpublished"); got != 12 {
 			t.Fatalf("after a failed count %v, want the last good one", got)
 		}
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		if got := sample(t, reg, "outbox_unpublished"); got != 30 {
-			t.Fatalf("outbox_unpublished = %v, want 30", got)
+		if got := sample(t, reg, "finga_outbox_unpublished"); got != 30 {
+			t.Fatalf("finga_outbox_unpublished = %v, want 30", got)
 		}
 		cancel()
 		if err := <-done; err != nil {
