@@ -264,6 +264,42 @@ func TestDeleteEndedSessions(t *testing.T) {
 	}
 }
 
+// A session another transaction holds, such as another node's prune, is skipped, not waited for.
+func TestDeleteEndedSessionsSkipsOneAnotherTransactionHolds(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	store := NewPostgres(pool, nil)
+	ids := []kernel.SessionID{kernel.NewSessionID(), kernel.NewSessionID()}
+	for i, id := range ids {
+		acc, _ := insertAccount(t, store, fmt.Sprintf("held%d", i))
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			return uow.Sessions().Insert(ctx, model.Session{ID: id, AccountID: acc, TokenHash: hashOf(id.String()), ExpiresAt: t0.Add(-time.Hour)})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM sessions WHERE id = $1 FOR UPDATE`, ids[0].String()); err != nil {
+		t.Fatal(err)
+	}
+	short, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	var n int64
+	err = store.InTx(short, func(uow application.UnitOfWork) error {
+		var err error
+		n, err = uow.Sessions().DeleteEnded(short, t0, 10)
+		return err
+	})
+	if err != nil || n != 1 {
+		t.Fatalf("deleted %d (%v); want the free session gone and the held one skipped", n, err)
+	}
+}
+
 func TestClassify(t *testing.T) {
 	tests := []struct {
 		name string

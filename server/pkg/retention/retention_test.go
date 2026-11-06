@@ -20,6 +20,7 @@ type table struct {
 	mu     sync.Mutex
 	ages   []time.Time
 	limits []int
+	at     []time.Time   // when each call came
 	fail   map[int]error // by call, from 1
 	seen   []int64
 	logs   bytes.Buffer
@@ -29,6 +30,7 @@ func (tb *table) delete(_ context.Context, before time.Time, limit int) (int64, 
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
 	tb.limits = append(tb.limits, limit)
+	tb.at = append(tb.at, time.Now())
 	if err := tb.fail[len(tb.limits)]; err != nil {
 		return 0, err
 	}
@@ -79,6 +81,7 @@ func TestRunDeletesWhatOutlivedItsKeepEveryInterval(t *testing.T) {
 		tb := &table{ages: []time.Time{now.Add(-50 * time.Hour), now.Add(-30 * time.Hour), now.Add(-26 * time.Hour), now.Add(-23 * time.Hour), now}}
 		stop := start(tb, retention.Policy{Keep: 24 * time.Hour, Every: time.Hour, Batch: 2})
 
+		time.Sleep(time.Second)
 		synctest.Wait()
 		left, calls, seen, logs := tb.state()
 		if left != 2 || calls != 2 || !slices.Equal(seen, []int64{3}) {
@@ -104,6 +107,28 @@ func TestRunDeletesWhatOutlivedItsKeepEveryInterval(t *testing.T) {
 		for _, limit := range tb.limits {
 			if limit != 2 {
 				t.Fatalf("limits %v, want each the batch", tb.limits)
+			}
+		}
+	})
+}
+
+// The batches of a pass are spaced, so other writers get the table between them.
+func TestAPassPausesBetweenBatches(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		old := time.Now().Add(-48 * time.Hour)
+		tb := &table{ages: []time.Time{old, old, old}}
+		stop := start(tb, retention.Policy{Keep: 24 * time.Hour, Every: time.Hour, Batch: 1})
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		if err := stop(); err != nil {
+			t.Fatal(err)
+		}
+		if len(tb.ages) != 0 || len(tb.at) != 4 {
+			t.Fatalf("%d rows left after %d calls; want the pass to finish", len(tb.ages), len(tb.at))
+		}
+		for i := 1; i < len(tb.at); i++ {
+			if tb.at[i].Equal(tb.at[i-1]) {
+				t.Fatalf("batches at %v; want a pause between each", tb.at)
 			}
 		}
 	})

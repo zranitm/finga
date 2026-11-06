@@ -30,10 +30,10 @@ const (
 	findSQL   = `SELECT request_hash, response FROM idempotency_keys WHERE owner = $1 AND scope = $2 AND key = $3`
 	insertSQL = `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6)`
 	pruneSQL  = `DELETE FROM idempotency_keys WHERE (owner, scope, key) IN (
-		SELECT owner, scope, key FROM idempotency_keys WHERE created_at < $1 ORDER BY created_at LIMIT $2)`
+		SELECT owner, scope, key FROM idempotency_keys WHERE created_at < $1 ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED)`
 )
 
-// Prune deletes at most limit keys stored before before, oldest first, so a retry with one runs its command again.
+// Prune deletes at most limit keys stored before before, oldest first, skipping those another transaction holds; a retry with a pruned key runs its command again.
 func Prune(ctx context.Context, db dbx.DBTX, before time.Time, limit int) (int64, error) {
 	tag, err := db.Exec(ctx, pruneSQL, before, limit)
 	if err != nil {

@@ -44,6 +44,9 @@ func Run(ctx context.Context, table string, p Policy, del Delete, obs Observer, 
 	}
 }
 
+// batchGap is the pause between a pass's batches, so other writers get the table in between.
+const batchGap = 100 * time.Millisecond
+
 // pass deletes a batch at a time until one comes back short.
 func pass(ctx context.Context, p Policy, del Delete) (int64, error) {
 	before := time.Now().Add(-p.Keep)
@@ -53,6 +56,11 @@ func pass(ctx context.Context, p Policy, del Delete) (int64, error) {
 		total += n
 		if err != nil || n < int64(p.Batch) {
 			return total, err
+		}
+		select {
+		case <-ctx.Done():
+			return total, ctx.Err()
+		case <-time.After(batchGap):
 		}
 	}
 }

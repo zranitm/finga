@@ -36,6 +36,7 @@ DELETE FROM sessions WHERE id IN (
   WHERE LEAST(ended.revoked_at, ended.expires_at) < $1::timestamptz
   ORDER BY LEAST(ended.revoked_at, ended.expires_at)
   LIMIT $2
+  FOR UPDATE SKIP LOCKED
 )
 `
 
@@ -44,7 +45,7 @@ type DeleteEndedSessionsParams struct {
 	MaxRows     int32
 }
 
-// At most max_rows sessions that ended, revoked or expired, before ended_before; oldest first, by sessions_by_end.
+// At most max_rows sessions that ended, revoked or expired, before ended_before; oldest first, by sessions_by_end, skipping those another transaction holds.
 func (q *Queries) DeleteEndedSessions(ctx context.Context, arg DeleteEndedSessionsParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteEndedSessions, arg.EndedBefore, arg.MaxRows)
 	if err != nil {

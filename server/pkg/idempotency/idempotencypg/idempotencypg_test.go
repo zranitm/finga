@@ -169,6 +169,29 @@ func TestPruneDeletesKeysOlderThanTheCutoff(t *testing.T) {
 	}
 }
 
+// A key another transaction holds, such as another node's prune, is skipped, not waited for.
+func TestPruneSkipsAKeyAnotherTransactionHolds(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at, updated_at)
+		VALUES ('acc-1', 'discard', 'k-held', 'h', '', $1, $1), ('acc-1', 'discard', 'k-free', 'h', '', $1, $1)`, time.Now().Add(-48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT 1 FROM idempotency_keys WHERE key = 'k-held' FOR UPDATE`); err != nil {
+		t.Fatal(err)
+	}
+	short, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	if n, err := idempotencypg.Prune(short, pool, time.Now().Add(-24*time.Hour), 10); err != nil || n != 1 {
+		t.Fatalf("deleted %d (%v); want the free key gone and the held one skipped", n, err)
+	}
+}
+
 // A stored key carries the transaction's stamp; a store without one stores nothing.
 func TestAKeyCarriesTheStoresStamp(t *testing.T) {
 	ctx := context.Background()
