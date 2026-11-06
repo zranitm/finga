@@ -208,9 +208,14 @@ func (w *World) leaveLater(inst *Instance, id kernel.CharacterID, conn string) {
 
 // postBusy posts m to inst, retrying while its inbox is full, until ctx ends or the map stops.
 func postBusy(ctx context.Context, inst *Instance, m message) error {
+	return whileBusy(ctx, func() error { return inst.post(m) })
+}
+
+// whileBusy runs try until it answers anything but ErrBusy, backing off between tries, or until ctx ends.
+func whileBusy(ctx context.Context, try func() error) error {
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		err := inst.post(m)
-		if errors.Is(err, model.ErrStopped) {
+		err := try()
+		if err != nil && !errors.Is(err, model.ErrBusy) {
 			return struct{}{}, backoff.Permanent(err)
 		}
 		return struct{}{}, err
@@ -255,6 +260,11 @@ func (w *World) Transfer(p model.Player, sink Sink, mapID string) {
 	})
 }
 
+// Dropped forgets the presence of a player its map removed for a failed sink, so the registry holds only players on a map.
+func (w *World) Dropped(from *Instance, id kernel.CharacterID, conn string) {
+	w.presences.drop(id, from, conn)
+}
+
 // errMoved is a transfer whose presence left, or was replaced, before it landed.
 var errMoved = errors.New("the presence moved on")
 
@@ -265,16 +275,12 @@ func (w *World) transfer(p model.Player, sink Sink, target *Instance) {
 	defer cancel()
 	at := presence{inst: target, conn: p.Connection, account: p.Account}
 	held := func() bool { return w.presences.holds(p.ID, at) }
-	_, err := backoff.Retry(ctx, func() (struct{}, error) {
+	err := whileBusy(ctx, func() error {
 		if !held() {
-			return struct{}{}, backoff.Permanent(errMoved)
+			return errMoved
 		}
-		err := target.join(ctx, &joinMsg{player: p, sink: sink, held: held})
-		if err != nil && !errors.Is(err, model.ErrBusy) {
-			return struct{}{}, backoff.Permanent(err)
-		}
-		return struct{}{}, err
-	}, backoff.WithBackOff(busyBackOff()), backoff.WithMaxElapsedTime(0))
+		return target.join(ctx, &joinMsg{player: p, sink: sink, held: held})
+	})
 	switch {
 	case errors.Is(err, errMoved):
 	case err == nil:

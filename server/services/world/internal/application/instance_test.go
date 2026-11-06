@@ -783,9 +783,11 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := loadData(t)
 		x, y := townSpawn(t, data)
-		inst, cancel := run(t, data, nil, options{})
+		tr := &transferRecorder{}
+		inst, cancel := run(t, data, nil, options{Transfer: tr})
 		defer cancel()
 		ayla, robin := newPlayer("Ayla", x, y), newPlayer("Robin", x, y)
+		robin.Connection = "c-robin"
 		sa, sr := &sink{}, &sink{}
 		if err := inst.Join(context.Background(), ayla, sa); err != nil {
 			t.Fatal(err)
@@ -808,6 +810,12 @@ func TestSlowConsumerIsRemoved(t *testing.T) {
 		}
 		if !found {
 			t.Fatal("Ayla was never told that Robin (a slow consumer) left")
+		}
+		tr.mu.Lock()
+		dropped := slices.Clone(tr.dropped)
+		tr.mu.Unlock()
+		if len(dropped) != 1 || dropped[0] != robin.ID.String()+" c-robin" {
+			t.Fatalf("the world heard of drops %v, want Robin's through c-robin, so it forgets the presence", dropped)
 		}
 		if err := inst.Join(context.Background(), robin, &sink{full: true}); err == nil {
 			t.Fatal("a join whose sink refuses the snapshot succeeded")

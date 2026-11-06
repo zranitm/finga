@@ -62,6 +62,15 @@ func (ps *presences) forget(id kernel.CharacterID, at presence) bool {
 	return true
 }
 
+// drop forgets the character's presence on inst through conn, which that map dropped; a newer one, or a leave under way, stays.
+func (ps *presences) drop(id kernel.CharacterID, inst *Instance, conn string) {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if p, ok := ps.by[id]; ok && p.inst == inst && p.conn == conn && p.left == nil {
+		delete(ps.by, id)
+	}
+}
+
 // depart returns the character's presence if want accepts it. A live one is replaced by a tombstone whose
 // left is the one given; one already leaving is returned as it is, to wait on.
 func (ps *presences) depart(id kernel.CharacterID, want func(presence) bool, left <-chan struct{}) (presence, bool) {

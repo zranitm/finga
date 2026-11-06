@@ -493,6 +493,7 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		p.changed = false
 		if !ok {
 			i.remove(id)
+			i.mover.Dropped(i, id, p.Connection)
 			dropped = append(dropped, id)
 		}
 	}

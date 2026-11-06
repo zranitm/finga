@@ -34,9 +34,16 @@ func arena(respawn time.Duration) *gamedata.Map {
 }
 
 type transferRecorder struct {
-	mu    sync.Mutex
-	moved []model.Player
-	to    []string
+	mu      sync.Mutex
+	moved   []model.Player
+	to      []string
+	dropped []string // "<character> <connection>"
+}
+
+func (r *transferRecorder) Dropped(_ *application.Instance, id kernel.CharacterID, conn string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.dropped = append(r.dropped, id.String()+" "+conn)
 }
 
 func (r *transferRecorder) Transfer(p model.Player, _ application.Sink, mapID string) {
