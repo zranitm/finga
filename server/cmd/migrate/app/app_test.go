@@ -129,12 +129,20 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 12, 5, 4, 5, 10, 204, 28, 'town', 416, 608, now(), now())`
 	const item = `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
 		VALUES ($1, 'red_potion', $2, 'inventory', 'use', 0, 1, now(), now())`
-	for _, tt := range []struct{ column, insert string }{{"characters.account_id", character}, {"items.id", item}} {
-		t.Run("in "+tt.column, func(t *testing.T) {
-			pool := cluster.DB(t)
-			if _, err := app.Apply(ctx, pool); err != nil {
+	// A database migrated before the check existed: every service's tables and no check recorded.
+	unchecked := func(t *testing.T) *pgxpool.Pool {
+		t.Helper()
+		pool := cluster.DB(t)
+		for _, s := range app.Sets() {
+			if _, err := dbx.Migrate(ctx, pool, s.FS, s.Table); err != nil {
 				t.Fatal(err)
 			}
+		}
+		return pool
+	}
+	for _, tt := range []struct{ column, insert string }{{"characters.account_id", character}, {"items.id", item}} {
+		t.Run("in "+tt.column, func(t *testing.T) {
+			pool := unchecked(t)
 			if _, err := pool.Exec(ctx, tt.insert, v4, uuidv7.New()); err != nil {
 				t.Fatal(err)
 			}
@@ -144,10 +152,7 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 	}
 
 	t.Run("a database of UUIDv7 IDs migrates", func(t *testing.T) {
-		pool := cluster.DB(t)
-		if _, err := app.Apply(ctx, pool); err != nil {
-			t.Fatal(err)
-		}
+		pool := unchecked(t)
 		for _, insert := range []string{character, item} {
 			if _, err := pool.Exec(ctx, insert, uuidv7.New(), uuidv7.New()); err != nil {
 				t.Fatal(err)
@@ -155,6 +160,20 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 		}
 		if _, err := app.Apply(ctx, pool); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	// Every deploy scanning every uuid column would grow with the item ledger; the edges refuse such IDs since.
+	t.Run("a database that passed is never scanned again", func(t *testing.T) {
+		pool := cluster.DB(t)
+		if _, err := app.Apply(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, item, v4, uuidv7.New()); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := app.Apply(ctx, pool); err != nil {
+			t.Fatalf("the second run scanned again: %v", err)
 		}
 	})
 }

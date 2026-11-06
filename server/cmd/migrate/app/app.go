@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"finga/cmd/migrate/checks"
 	"finga/pkg/dbx"
 	accountmigrations "finga/services/account/migrations"
 	charactermigrations "finga/services/character/migrations"
@@ -41,7 +42,7 @@ func Sets() []Set {
 	}
 }
 
-// Apply refuses a pre-split database or one holding older IDs, then applies every set and reports each one's count.
+// Apply refuses a pre-split database, runs the checks a database has not yet passed, then applies every set and reports each one's count.
 func Apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
 	legacy, err := dbx.TableExists(ctx, pool, LegacyTable)
 	if err != nil {
@@ -50,12 +51,11 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
 	if legacy {
 		return nil, ErrLegacy
 	}
-	older, err := notV7(ctx, pool)
-	if err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
-	}
-	if older != "" {
-		return nil, fmt.Errorf("%w (%s)", ErrNotV7, older)
+	if _, err := dbx.Migrate(ctx, pool, checks.FS, checks.Table); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == checks.NotV7 {
+			return nil, fmt.Errorf("%w (%s)", ErrNotV7, pgErr.Message)
+		}
+		return nil, fmt.Errorf("migrate checks: %w", err)
 	}
 	applied := map[string]int{}
 	for _, s := range Sets() {
@@ -66,40 +66,4 @@ func Apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
 		applied[s.Service] = n
 	}
 	return applied, nil
-}
-
-// uuidColumnsSQL lists every uuid column of the schema's tables: every service's IDs.
-const uuidColumnsSQL = `
-SELECT c.relname, a.attname
-FROM pg_class c JOIN pg_attribute a ON a.attrelid = c.oid
-WHERE c.relnamespace = to_regnamespace(current_schema()) AND c.relkind = 'r'
-  AND a.atttypid = 'uuid'::regtype AND a.attnum > 0 AND NOT a.attisdropped
-ORDER BY c.relname, a.attnum`
-
-// notV7 names a column holding an ID that is not a UUIDv7, with that ID; it is empty when every ID is one.
-func notV7(ctx context.Context, db dbx.DBTX) (string, error) {
-	rows, err := db.Query(ctx, uuidColumnsSQL)
-	if err != nil {
-		return "", err
-	}
-	columns, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) ([2]string, error) {
-		var c [2]string
-		return c, row.Scan(&c[0], &c[1])
-	})
-	if err != nil {
-		return "", err
-	}
-	for _, c := range columns {
-		table, column := pgx.Identifier{c[0]}.Sanitize(), pgx.Identifier{c[1]}.Sanitize()
-		var id string
-		err := db.QueryRow(ctx, `SELECT `+column+`::text FROM `+table+` WHERE `+column+` IS NOT NULL AND uuid_extract_version(`+column+`) IS DISTINCT FROM 7 LIMIT 1`).Scan(&id)
-		switch {
-		case errors.Is(err, pgx.ErrNoRows):
-		case err != nil:
-			return "", err
-		default:
-			return c[0] + "." + c[1] + " holds " + id, nil
-		}
-	}
-	return "", nil
 }
