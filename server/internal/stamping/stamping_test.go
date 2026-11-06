@@ -3,10 +3,15 @@ package stamping_test
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -18,6 +23,7 @@ var (
 	insert    = regexp.MustCompile(`\binsert into (\w+) ?(\(([^)]*)\))?`)
 	update    = regexp.MustCompile(`\b(?:update (\w+) set|(do) update set)\b(.*?)(?:\bwhere\b|\breturning\b|\bfrom\b|;|$)`)
 	setsStamp = regexp.MustCompile(`(?:^|,) ?updated_at ?=`)
+	writes    = regexp.MustCompile(`(?i)\binsert into\b|\bupdate \w+ set\b`)
 )
 
 // problems lists the writes in one query that leave a stamp out.
@@ -90,5 +96,51 @@ func TestEveryWriteStampsItsRows(t *testing.T) {
 				t.Errorf("%s %s: %s", filepath.Base(file), src[m[2]:m[3]], p)
 			}
 		}
+	}
+}
+
+// SQL written by hand in Go, such as the idempotency and outbox stores', is checked the same way; generated code is left to its query files.
+func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
+	fset := token.NewFileSet()
+	found := 0
+	err := filepath.WalkDir("../..", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if path == "../../api/gen" || d.Name() == "db" && filepath.Base(filepath.Dir(path)) == "internal" {
+				return filepath.SkipDir // generated: buf's, and sqlc's from the query files above
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			lit, ok := n.(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				return true
+			}
+			sql, err := strconv.Unquote(lit.Value)
+			if err != nil || !writes.MatchString(sql) {
+				return true
+			}
+			found++
+			for _, p := range problems(sql) {
+				t.Errorf("%s: %s", fset.Position(lit.Pos()), p)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found == 0 {
+		t.Fatal("found no hand-written write to check")
 	}
 }
