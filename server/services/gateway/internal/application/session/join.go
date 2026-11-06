@@ -64,7 +64,7 @@ func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountI
 		older := r.byCharacter[character]
 		r.mu.Unlock()
 		if ctx.Err() != nil && older != nil && older != s {
-			older.End(model.EndLoggedInElsewhere) // the world may have joined us anyway, taking the character from it
+			r.Rejoin(older) // the world may have joined us anyway, taking the character from it
 		}
 		return nil, err
 	}
@@ -104,16 +104,24 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 	return replaced
 }
 
-// Release gives up the join unless Finish ran, and ends the older connection, whose presence it took; calling it again does nothing.
+// Release gives up the join unless Finish ran, giving the character back to the older connection, whose presence it took, to join again; calling it again does nothing.
 func (j *Join) Release() {
 	if j.done {
 		return
 	}
 	j.done = true
-	j.unlock()
-	if j.previous != nil && j.previous != j.s {
-		j.previous.End(model.EndLoggedInElsewhere)
+	r, older := j.r, j.previous
+	if older == nil || older == j.s {
+		j.unlock()
+		return
 	}
+	r.mu.Lock()
+	if character := older.Character(); r.byCharacter[character] == j.s {
+		r.byCharacter[character] = older
+	}
+	r.mu.Unlock()
+	j.unlock()
+	r.Rejoin(older)
 }
 
 // Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing.

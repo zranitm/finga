@@ -1126,38 +1126,53 @@ func TestALeaveTheWorldRefusedIsTriedAgain(t *testing.T) {
 	})
 }
 
-// A Hello that fails after its world join took the character from the older connection, which ends.
-func TestAHelloFailingAfterItsJoinEndsTheOlderConnection(t *testing.T) {
+// A Hello that fails after its world join took the character from the older connection: as the login never happened, the older one is joined again.
+func TestAHelloFailingAfterItsJoinRejoinsTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		items := &fakeItems{}
 		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
 		older := h.dial(t)
 		older.hello(tokenAlice, aylaID)
 		older.expect("Snapshot")
+		conn := connectionOf(h.world, aylaID)
 		items.mu.Lock()
 		items.invErr = status.Error(codes.Internal, "inventory down")
 		items.mu.Unlock()
 		newer := h.dial(t)
 		newer.hello(tokenAlice, aylaID)
-		older.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+		older.expect("Snapshot") // its rejoin's; a Kicked first would close it
+		if last := connectionOf(h.world, aylaID); last != conn {
+			t.Fatalf("the last join came through %s, want the older connection %s", last, conn)
+		}
 	})
 }
 
-// A Hello whose world join outlived its deadline may have taken the character from the older connection.
-func TestAHelloWhoseJoinTimedOutEndsTheOlderConnection(t *testing.T) {
+// A Hello whose world join outlived its deadline may or may not have taken the character: the older connection is joined again either way.
+func TestAHelloWhoseJoinTimedOutRejoinsTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)
 		older := h.dial(t)
 		older.hello(tokenAlice, aylaID)
 		older.expect("Snapshot")
-		gate := make(chan struct{})
-		defer close(gate)
+		conn := connectionOf(h.world, aylaID)
+		late, rejoin := make(chan struct{}), make(chan struct{})
 		h.world.mu.Lock()
-		h.world.joinGate, h.world.joining = gate, make(chan struct{}, 1)
+		h.world.joinGate, h.world.joining = late, make(chan struct{}, 1)
 		h.world.mu.Unlock()
 		newer := h.dial(t)
 		newer.hello(tokenAlice, aylaID)
-		older.expectKick(clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE)
+		<-h.world.joining
+		h.world.mu.Lock()
+		h.world.joinGate = rejoin // joins from here on wait at their own gate
+		h.world.mu.Unlock()
+		time.Sleep(2 * time.Second) // past the Hello's deadline, and the rejoin's spread
+		close(late)                 // the world finishes the newer join, its reply lost to the gateway
+		synctest.Wait()
+		close(rejoin)
+		older.expect("Snapshot")
+		if last := connectionOf(h.world, aylaID); last != conn {
+			t.Fatalf("the last join came through %s, want the older connection %s", last, conn)
+		}
 	})
 }
 
