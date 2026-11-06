@@ -108,7 +108,8 @@ func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(pre
 			return instance.Departure{}, err
 		}
 		if err := p.inst.Wait(ctx, left); err != nil {
-			return instance.Departure{}, err // the leave lands later, and its tombstone stands until then
+			w.forgetLater(id, tomb) // the leave lands later, and its tombstone goes then
+			return instance.Departure{}, err
 		}
 		w.presences.forget(id, tomb)
 		return d, nil
@@ -118,6 +119,15 @@ func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(pre
 // leaveLater posts a leave for a join that may still land, retrying while the map is busy, until the world stops.
 func (w *World) leaveLater(inst *instance.Instance, id kernel.CharacterID, conn string) {
 	w.background.Go(func() { _ = whileBusy(w.jobs, func() error { return inst.Leave(id, conn, nil, nil) }) })
+}
+
+// forgetLater drops a tombstone once the map has handled its leave, for a departure whose caller stopped waiting.
+func (w *World) forgetLater(id kernel.CharacterID, tomb presence) {
+	w.background.Go(func() {
+		if tomb.inst.Wait(w.jobs, tomb.left) == nil {
+			w.presences.forget(id, tomb)
+		}
+	})
 }
 
 // whileBusy runs try until it answers anything but ErrBusy, backing off between tries, or until ctx ends.
