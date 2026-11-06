@@ -23,13 +23,19 @@ jobs:
         env:
           BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # A branch's first push has no commit before it.
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then BEFORE=HEAD~1; fi
-          echo "BASE=$BEFORE" >> "$GITHUB_ENV"
+          # A branch's first push has no commit before it; a force push's is gone, so its whole history is read.
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
+            echo "BASE=HEAD~1" >> "$GITHUB_ENV"; echo "MESSAGES=HEAD~1..HEAD" >> "$GITHUB_ENV"
+          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            echo "BASE=$BEFORE" >> "$GITHUB_ENV"; echo "MESSAGES=$BEFORE..HEAD" >> "$GITHUB_ENV"
+          else
+            echo "BASE=HEAD~1" >> "$GITHUB_ENV"; echo "MESSAGES=HEAD" >> "$GITHUB_ENV"
+          fi
       - name: no Claude links in the commits or the files
         run: |
-          if git log --format=%B "$BASE..HEAD" | grep -n 'claude[.]ai'; then echo "a commit message links to a Claude session"; exit 1; fi
-          if git grep -n 'claude[.]ai'; then echo "a file links to a Claude session"; exit 1; fi
+          git log --format=%B "$MESSAGES" > "$RUNNER_TEMP/messages"   # fails the step when the range can't be read
+          if grep -niE 'claude[.]ai|claude[-]session' "$RUNNER_TEMP/messages"; then echo "a commit message links to a Claude session"; exit 1; fi
+          if git grep -niE 'claude[.]ai|claude[-]session'; then echo "a file links to a Claude session"; exit 1; fi
       - run: make lint-go
       - name: generated Go code is current
         run: cd server && go tool buf generate && git diff --exit-code -- api/gen && go tool sqlc diff
