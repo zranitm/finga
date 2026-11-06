@@ -34,7 +34,7 @@ func (hung) Close() {}
 // A second signal ends a shutdown that hangs, as an operator pressing Ctrl-C again expects.
 func TestASecondSignalStopsAHungShutdown(t *testing.T) {
 	if os.Getenv("FINGA_HOST_HUNG") == "1" {
-		os.Exit(host.Main("shop", "v1", func(context.Context, shopConfig, *slog.Logger, *prometheus.Registry) (host.Process, error) {
+		os.Exit(host.Main("shop", func(context.Context, shopConfig, *slog.Logger, *prometheus.Registry) (host.Process, error) {
 			return hung{}, nil
 		}))
 	}

@@ -10,7 +10,7 @@ ARG VERSION=dev
 RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
     pkg=./cmd/${SERVICE}; cfg=cmd/${SERVICE}/config; \
     if [ -d ./services/${SERVICE} ]; then pkg=./services/${SERVICE}; cfg=services/${SERVICE}/config; fi; \
-    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o /out/app ${pkg} && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X finga/internal/host.version=${VERSION}" -o /out/app ${pkg} && \
     mkdir -p /out/root/${cfg} && cp ${cfg}/config.yaml /out/root/${cfg}/
 
 FROM gcr.io/distroless/static-debian12:nonroot

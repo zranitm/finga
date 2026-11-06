@@ -81,7 +81,7 @@ func TestStart(t *testing.T) {
 			var out bytes.Buffer
 			ctx, cancel := context.WithCancel(context.Background())
 			done := make(chan int, 1)
-			go func() { done <- host.Start(ctx, &out, &out, "shop", "v1", tt.build(p)) }()
+			go func() { done <- host.Start(ctx, &out, &out, "shop", tt.build(p)) }()
 			if tt.wantCode == 0 {
 				cancel()
 			}

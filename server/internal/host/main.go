@@ -23,6 +23,9 @@ const (
 	healthcheckTimeout = 3 * time.Second
 )
 
+// version is the build's, set at link time: -ldflags "-X finga/internal/host.version=...".
+var version = "dev"
+
 // Process is a built binary: Run until ctx ends, then Close.
 type Process interface {
 	Run(ctx context.Context) error
@@ -33,7 +36,7 @@ type Process interface {
 type Build[C Config] func(ctx context.Context, cfg C, log *slog.Logger, reg *prometheus.Registry) (Process, error)
 
 // Main runs Start until SIGINT or SIGTERM (a second one kills the process), or with healthcheckArg probes the service.
-func Main[C Config](name, version string, build Build[C]) int {
+func Main[C Config](name string, build Build[C]) int {
 	if slices.Equal(os.Args[1:], []string{healthcheckArg}) {
 		ctx, cancel := context.WithTimeout(context.Background(), healthcheckTimeout)
 		defer cancel()
@@ -45,11 +48,11 @@ func Main[C Config](name, version string, build Build[C]) int {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	context.AfterFunc(signalled, func() { stop(); cancel() })
-	return Start(ctx, os.Stdout, os.Stderr, name, version, build)
+	return Start(ctx, os.Stdout, os.Stderr, name, build)
 }
 
 // Start loads the configuration, builds the process and runs it until ctx ends; config errors go to stderr.
-func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name, version string, build Build[C]) int {
+func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string, build Build[C]) int {
 	cfg, err := loadConfig[C](name)
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)

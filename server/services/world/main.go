@@ -13,11 +13,8 @@ import (
 	"finga/services/world/config"
 )
 
-// version is set at build time (-ldflags "-X main.version=...").
-var version = "dev"
-
 func main() {
-	os.Exit(host.Main("world", version, func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (host.Process, error) {
+	os.Exit(host.Main("world", func(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (host.Process, error) {
 		return app.Build(ctx, cfg, log, reg)
 	}))
 }

@@ -79,7 +79,7 @@ func New(opts Options) (*Host, error) {
 	if err := opts.Registry.Register(h.clients); err != nil {
 		return nil, err
 	}
-	traces, err := tracing.New(context.Background(), opts.Settings.Tracing, tracing.Options{Service: opts.Name, Root: opts.Roots})
+	traces, err := tracing.New(context.Background(), opts.Settings.Tracing, tracing.Options{Service: opts.Name, Version: version, Root: opts.Roots, Logger: h.logger})
 	if err != nil {
 		return nil, err
 	}
