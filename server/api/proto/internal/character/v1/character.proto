@@ -17,8 +17,7 @@ service CharacterService {
   rpc Load(LoadRequest) returns (LoadResponse);
   // SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
   rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
-  // SaveLevelUp saves a level-up. The world no longer calls it; it is served for a world not yet upgraded,
-  // and buf's FILE rules keep a published RPC.
+  // SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
   rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse) {
     option deprecated = true;
   }

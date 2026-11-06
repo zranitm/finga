@@ -42,8 +42,7 @@ type CharacterServiceClient interface {
 	// SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
 	SaveCheckpoint(ctx context.Context, in *SaveCheckpointRequest, opts ...grpc.CallOption) (*SaveCheckpointResponse, error)
 	// Deprecated: Do not use.
-	// SaveLevelUp saves a level-up. The world no longer calls it; it is served for a world not yet upgraded,
-	// and buf's FILE rules keep a published RPC.
+	// SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
 	SaveLevelUp(ctx context.Context, in *SaveLevelUpRequest, opts ...grpc.CallOption) (*SaveLevelUpResponse, error)
 }
 
@@ -122,8 +121,7 @@ type CharacterServiceServer interface {
 	// SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
 	SaveCheckpoint(context.Context, *SaveCheckpointRequest) (*SaveCheckpointResponse, error)
 	// Deprecated: Do not use.
-	// SaveLevelUp saves a level-up. The world no longer calls it; it is served for a world not yet upgraded,
-	// and buf's FILE rules keep a published RPC.
+	// SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
 	SaveLevelUp(context.Context, *SaveLevelUpRequest) (*SaveLevelUpResponse, error)
 	mustEmbedUnimplementedCharacterServiceServer()
 }

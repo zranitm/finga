@@ -41,6 +41,14 @@ so the browser sees one origin. Testers on the same network open
 the stack publishes, set `FINGA_WEB_PORT` (4173), `FINGA_PORT` (8080),
 `FINGA_GATEWAY_OPS_PORT` (9100) or `FINGA_POSTGRES_PORT` (5432) in
 `infra/.env` (copy `infra/.env.example`).
+The services ship together: every one runs the same commit, and a mix of
+versions is not supported. A contract can change its meaning without changing
+its shape, which `make breaking` cannot see, so a commit that does is marked
+`!` with a `BREAKING CHANGE:` footer. On a running stack `make up` builds
+first, then stops every service, callers before the services they call, so
+each one's last saves reach the version it was built against, and starts the
+new ones.
+
 Without Docker, run Postgres yourself, start the binaries, and serve the
 client with the Vite dev server (see Client):
 

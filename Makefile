@@ -11,7 +11,9 @@ NPM       ?= npm --prefix web
 .PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
 
 up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway)
-	$(COMPOSE) up --build -d
+	$(COMPOSE) build
+	$(COMPOSE) stop
+	$(COMPOSE) up -d
 	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); the gateway: http://localhost:$$($(COMPOSE) port gateway 8080 | sed 's|.*:||')"
 
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
