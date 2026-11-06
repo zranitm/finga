@@ -42,7 +42,8 @@ type Task struct {
 
 // Options tune the runner.
 type Options struct {
-	Logger        *slog.Logger
+	Logger *slog.Logger
+	// ShutdownGrace bounds the whole shutdown: Drain may take half of it, and the listeners have what is left.
 	ShutdownGrace time.Duration
 	// Drain runs after readiness drops and before the listeners stop; nil skips it.
 	Drain func(ctx context.Context)
@@ -105,6 +106,9 @@ func run(ctx context.Context, t Task) (err error) {
 	return t.Run(ctx)
 }
 
+// drainShare is the part of the grace Drain may take, one in drainShare, so a slow drain never cuts the listeners' requests in flight.
+const drainShare = 2
+
 // Run binds all listeners or none, serves until ctx ends or a listener fails, then shuts down.
 func (r *Runner) Run(ctx context.Context) error {
 	lns, err := r.bind()
@@ -147,7 +151,9 @@ func (r *Runner) Run(ctx context.Context) error {
 	graceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.opts.ShutdownGrace)
 	defer cancel()
 	if r.opts.Drain != nil && !failed {
-		r.opts.Drain(graceCtx)
+		drainCtx, drained := context.WithTimeout(graceCtx, r.opts.ShutdownGrace/drainShare)
+		r.opts.Drain(drainCtx)
+		drained()
 	}
 	var shutdown errgroup.Group
 	for _, l := range r.listeners {

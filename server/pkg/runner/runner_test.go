@@ -156,6 +156,46 @@ func TestShutdownLetsInFlightRequestsFinish(t *testing.T) {
 	}
 }
 
+// A drain that uses all it may still leaves the listeners part of the grace for the requests in flight.
+func TestASlowDrainLeavesTheListenersPartOfTheGrace(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	slow := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(entered)
+		<-release
+		_, _ = w.Write([]byte("done"))
+	})
+	drained := make(chan struct{})
+	log := runnertest.NewLog()
+	r := newRunner(t, runner.Options{Logger: log.Logger(), Drain: func(ctx context.Context) {
+		<-ctx.Done() // a peer that never closes
+		close(drained)
+	}}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(slow)}})
+	addr, stop := serve(t, log, r, "http")
+	got := make(chan string, 1)
+	go func() {
+		res, err := http.Get("http://" + addr + "/slow")
+		if err != nil {
+			got <- "error: " + err.Error()
+			return
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		got <- string(body)
+	}()
+	<-entered
+	stopped := make(chan error, 1)
+	go func() { stopped <- stop() }()
+	<-drained
+	time.Sleep(100 * time.Millisecond) // the request outlives the drain
+	close(release)
+	if body := <-got; body != "done" {
+		t.Fatalf("in-flight request: %s", body)
+	}
+	if err := <-stopped; err != nil {
+		t.Fatalf("Run returned %v", err)
+	}
+}
+
 func TestRunFailsOnABusyAddress(t *testing.T) {
 	log := runnertest.NewLog()
 	first := newRunner(t, runner.Options{Logger: log.Logger()}, []runner.Listener{{Name: "http", Addr: "127.0.0.1:0", Server: runner.HTTP(http.NotFoundHandler())}})
