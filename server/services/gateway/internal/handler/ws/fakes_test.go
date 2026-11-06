@@ -83,6 +83,7 @@ type fakeWorld struct {
 	before     []*worldv1.DeliverResponse // sent ahead of each Snapshot, as an older connection's
 	joined     []*worldv1.JoinRequest
 	left       []*worldv1.LeaveRequest
+	leaveIDs   []string // each Leave's trace ID
 	inputs     []*worldv1.InputRequest
 	attacks    []*worldv1.Presence
 	pickups    []*worldv1.Presence
@@ -234,9 +235,16 @@ func (f *fakeWorld) leaves() []*worldv1.LeaveRequest {
 	return append([]*worldv1.LeaveRequest(nil), f.left...)
 }
 
+func (f *fakeWorld) leaveTraceIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.leaveIDs...)
+}
+
 func (f *fakeWorld) Leave(ctx context.Context, req *worldv1.LeaveRequest) (*worldv1.LeaveResponse, error) {
 	f.mu.Lock()
 	f.left = append(f.left, req)
+	f.leaveIDs = append(f.leaveIDs, trace.SpanContextFromContext(ctx).TraceID().String())
 	if f.leaveFails > 0 {
 		f.leaveFails--
 		f.mu.Unlock()
@@ -468,6 +476,7 @@ type fakeSocial struct {
 	mu         sync.Mutex
 	boot       string
 	online     []*socialv1.OnlineRequest
+	onlineIDs  []string // each Online's trace ID
 	offline    []*socialv1.OfflineRequest
 	hang       map[string]bool // Online for these character IDs waits until its context ends
 	gate       chan struct{}   // when set, Online lands only once it closes
@@ -540,9 +549,16 @@ func (f *fakeSocial) lastCall() string {
 	return f.calls[len(f.calls)-1]
 }
 
+func (f *fakeSocial) onlineTraceIDs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.onlineIDs...)
+}
+
 func (f *fakeSocial) Online(ctx context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
 	f.mu.Lock()
 	f.online = append(f.online, req)
+	f.onlineIDs = append(f.onlineIDs, trace.SpanContextFromContext(ctx).TraceID().String())
 	hang, gate := f.hang[req.GetMember().GetId()], f.gate
 	f.mu.Unlock()
 	if hang {

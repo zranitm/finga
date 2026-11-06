@@ -20,7 +20,7 @@ import (
 func TestALimitedCommandAllowsItsBurstThenRefills(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := slog.New(slog.DiscardHandler)
-		h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
+		h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
 		// Past Hello, with a queue nobody drains: the queue holds what the limit let through.
 		in := &Inbox{helloSeen: true, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
 		inputs := func() {
@@ -61,7 +61,7 @@ func TestGroupedCommandsShareOneBudget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				log := slog.New(slog.DiscardHandler)
-				h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
+				h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
 				in := &Inbox{helloSeen: true, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
 				for _, m := range tt.msgs {
 					h.Dispatch(in, m)

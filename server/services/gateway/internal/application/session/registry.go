@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/semaphore"
 
 	"finga/internal/kernel"
@@ -44,7 +45,8 @@ type Deps struct {
 	World  World
 	Social Social
 	Logger *slog.Logger
-	Panics *panics.Recorder // a rejoin's panic
+	Panics *panics.Recorder     // a rejoin's panic
+	Traces trace.TracerProvider // each background job's trace, never kept: it joins the job's log lines and calls
 }
 
 // Options tune the registry.
@@ -55,8 +57,9 @@ type Options struct {
 
 // Registry is the gateway's sessions, found by connection, account, character and login session.
 type Registry struct {
-	deps Deps
-	opts Options
+	deps   Deps
+	opts   Options
+	tracer trace.Tracer
 
 	mu          sync.Mutex
 	byConn      map[string]*Session
@@ -109,6 +112,7 @@ func NewRegistry(deps Deps, opts Options) *Registry {
 	return &Registry{
 		deps:        deps,
 		opts:        opts,
+		tracer:      deps.Traces.Tracer(tracerName),
 		byConn:      map[string]*Session{},
 		byAccount:   map[kernel.AccountID]*Session{},
 		byCharacter: map[kernel.CharacterID]*Session{},
@@ -139,18 +143,20 @@ func (r *Registry) Open(connID string, o Outbox) *Session {
 
 // Close ends the session of a connection that closed: it stops its rejoin, takes its player off the map, then offline; online reports whether it was.
 func (r *Registry) Close(s *Session) (online bool) {
+	ctx, span := r.tracer.Start(context.Background(), "gateway.close", trace.WithNewRoot())
+	defer span.End()
 	defer func() {
 		r.mu.Lock()
 		r.unclosed--
 		r.mu.Unlock()
 	}()
 	if r.remove(s) {
-		r.leave(s.Presence())
+		r.leave(ctx, s.Presence())
 	}
 	if !s.Active() {
 		return false
 	}
-	r.offline(s)
+	r.offline(ctx, s)
 	return true
 }
 
@@ -266,17 +272,21 @@ func (r *Registry) Pending() (sessions, jobs int) {
 	return r.unclosed, r.jobs
 }
 
-// job runs fn on its own goroutine, counted in Pending until it returns.
-func (r *Registry) job(fn func(), attrs ...any) {
+const tracerName = "finga/services/gateway/internal/application/session"
+
+// job runs fn on its own goroutine under a root span named name, counted in Pending until it returns.
+func (r *Registry) job(ctx context.Context, name string, fn func(ctx context.Context), attrs ...any) {
 	r.mu.Lock()
 	r.jobs++
 	r.mu.Unlock()
-	r.deps.Panics.Go(context.Background(), panics.FlowJob, func() {
+	ctx, span := r.tracer.Start(ctx, name, trace.WithNewRoot())
+	r.deps.Panics.Go(ctx, panics.FlowJob, func() {
 		defer func() {
+			span.End()
 			r.mu.Lock()
 			r.jobs--
 			r.mu.Unlock()
 		}()
-		fn()
+		fn(ctx)
 	}, attrs...)
 }

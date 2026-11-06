@@ -37,6 +37,7 @@ import (
 	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/logger"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/application/push"
@@ -98,9 +99,9 @@ func (d deps) build() (*push.Gateway, http.Handler) {
 	world := clients.NewWorld(d.World, d.Logger, nil)
 	social := clients.NewSocial(d.Social, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: d.Logger, Panics: recorder}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: d.Logger, Panics: recorder, Traces: d.Traces}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
 	sends := send.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer}
-	pushes := push.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger}
+	pushes := push.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger, Traces: d.Traces}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
 	})
@@ -1137,6 +1138,88 @@ func TestALeaveTheWorldRefusedIsTriedAgain(t *testing.T) {
 		time.Sleep(time.Second)
 		if left := waitFor(t, "the leaves", h.world.leaves, 2); len(left) != 2 {
 			t.Fatalf("leaves %v, want the refused one and its retry", left)
+		}
+	})
+}
+
+// A Leave the gateway sends on its own runs in a trace of its own: the refused call and its retry carry one trace ID.
+func TestABackgroundLeaveRunsInOneTrace(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		leave func(h *harness, c *client)
+	}{
+		{"a close's", func(_ *harness, c *client) { _ = c.c.Close(websocket.StatusNormalClosure, "bye") }},
+		{"a ghost's", func(h *harness, _ *client) { h.world.events <- frameTo(brunoID, "c-ghost", 9, &worldv1.Delta{}) }},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newHarness(t)
+				c := h.dial(t)
+				c.hello(tokenAlice, aylaID)
+				c.expect("Snapshot")
+				h.world.mu.Lock()
+				h.world.leaveFails = 1
+				h.world.mu.Unlock()
+				tt.leave(h, c)
+				time.Sleep(time.Second)
+				waitFor(t, "the leaves", h.world.leaves, 2)
+				if ids := h.world.leaveTraceIDs(); len(ids) != 2 || ids[0] != ids[1] || ids[0] == (trace.TraceID{}).String() {
+					t.Fatalf("the Leave and its retry carried %q; want one trace", ids)
+				}
+			})
+		})
+	}
+}
+
+// A rejoin runs in a trace of its own, so its failure's log line carries the trace ID its world call did.
+func TestAFailedRejoinLogsUnderItsCallsTrace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		logs := &lockedBuffer{}
+		log, err := logger.New(logs, logger.Config{Level: "info", Format: "json"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := newHarness(t, func(d *deps) { d.Logger = log })
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Snapshot")
+		h.world.mu.Lock()
+		h.world.joinErr = status.Error(codes.Internal, "world bug")
+		h.world.mu.Unlock()
+		h.world.restart("boot-2")
+		_, _ = c.read()
+		ids := waitFor(t, "the rejoin", h.world.traceIDList, 2)
+		var line struct {
+			TraceID string `json:"trace_id"`
+		}
+		for l := range strings.Lines(logs.String()) {
+			if strings.Contains(l, `"msg":"rejoin failed"`) {
+				_ = json.Unmarshal([]byte(l), &line)
+			}
+		}
+		if line.TraceID == "" || line.TraceID != ids[1] {
+			t.Fatalf("rejoin failed logged trace %q; its Join carried %q", line.TraceID, ids[1])
+		}
+	})
+}
+
+// Registering every player again after social restarts is one trace, which each registration carries.
+func TestARegistrationRoundRunsInOneTrace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		h := social(t, fs)
+		ayla, bruno := h.dial(t), h.dial(t)
+		ayla.hello(tokenAlice, aylaID)
+		ayla.expect("Snapshot")
+		bruno.hello(tokenBob, brunoID)
+		bruno.expect("Snapshot")
+		synctest.Wait()
+		fs.restart("boot-2")
+		<-fs.subscribed
+		synctest.Wait()
+		ids := fs.onlineTraceIDs()
+		if len(ids) != 4 || ids[2] != ids[3] || ids[2] == (trace.TraceID{}).String() || ids[2] == ids[0] || ids[2] == ids[1] {
+			t.Fatalf("registrations carried %q; want the Hellos' own, then one for the round", ids)
 		}
 	})
 }

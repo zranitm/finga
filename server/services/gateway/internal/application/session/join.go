@@ -126,25 +126,25 @@ func (j *Join) Release() {
 
 // Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing.
 func (r *Registry) Rejoin(s *Session) {
-	r.job(func() {
+	r.job(s.ctx, "gateway.rejoin", func(ctx context.Context) {
 		select {
 		case <-time.After(rand.N(rejoinSpread)):
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			return
 		}
 		select {
 		case r.rejoins <- struct{}{}:
 			defer func() { <-r.rejoins }()
-			r.rejoin(s)
-		case <-s.ctx.Done():
+			r.rejoin(ctx, s)
+		case <-ctx.Done():
 		}
 	}, "job", "rejoin", "character_id", s.Character())
 }
 
 // rejoin joins a player again after the world's stream broke, unless a newer connection joined the character since.
-func (r *Registry) rejoin(s *Session) {
+func (r *Registry) rejoin(ctx context.Context, s *Session) {
 	character := s.Character()
-	unlock, err := r.lockCharacter(s.ctx, character)
+	unlock, err := r.lockCharacter(ctx, character)
 	if err != nil {
 		return // closed while another join ran
 	}
@@ -155,7 +155,7 @@ func (r *Registry) rejoin(s *Session) {
 	if !current {
 		return
 	}
-	ctx, cancel := context.WithTimeout(s.ctx, r.opts.JoinTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.opts.JoinTimeout)
 	defer cancel()
 	before := s.mapID()
 	s.out.hold()
@@ -164,7 +164,7 @@ func (r *Registry) rejoin(s *Session) {
 	if err != nil {
 		s.out.abort()
 		if s.ctx.Err() != nil {
-			r.leave(s.Presence()) // closed mid-join; the world may have joined it anyway
+			r.leave(ctx, s.Presence()) // closed mid-join; the world may have joined it anyway
 			return
 		}
 		if errors.Is(err, model.ErrNotSubscribed) {
@@ -186,7 +186,7 @@ func (r *Registry) rejoin(s *Session) {
 	closed := s.closed
 	r.mu.Unlock()
 	if closed {
-		r.leave(s.Presence())
+		r.leave(ctx, s.Presence())
 		return
 	}
 	r.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.Character(), "map_id", joined.MapID)
@@ -233,8 +233,8 @@ func (r *Registry) LeaveGhost(p model.Presence) {
 	if known || waiting {
 		return
 	}
-	r.job(func() {
-		r.leave(p)
+	r.job(context.Background(), "gateway.leave_ghost", func(ctx context.Context) {
+		r.leave(ctx, p)
 		r.mu.Lock()
 		r.ghosts[p.Connection] = time.Now().Add(ghostQuiet)
 		r.mu.Unlock()
@@ -251,9 +251,9 @@ func (r *Registry) quiet(conn string, now time.Time) {
 	r.ghosts[conn] = now.Add(leaveTimeout + ghostQuiet)
 }
 
-// leave takes the presence off its map, retrying while the world is busy, for up to leaveTimeout; failures are logged.
-func (r *Registry) leave(p model.Presence) {
-	ctx, cancel := context.WithTimeout(context.Background(), leaveTimeout)
+// leave takes the presence off its map, retrying while the world is busy, for up to leaveTimeout even past ctx's end; failures are logged.
+func (r *Registry) leave(ctx context.Context, p model.Presence) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), leaveTimeout)
 	defer cancel()
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		err := r.deps.World.Leave(ctx, p)
@@ -292,10 +292,10 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 }
 
 // offline tells the social service the player's connection closed, after any registration of it still on its way.
-func (r *Registry) offline(s *Session) {
-	_ = s.social.Acquire(context.Background(), 1) // a registration holds it no longer than its own deadline
+func (r *Registry) offline(ctx context.Context, s *Session) {
+	_ = s.social.Acquire(ctx, 1) // a registration holds it no longer than its own deadline
 	defer s.social.Release(1)
-	ctx, cancel := context.WithTimeout(context.Background(), offlineTimeout)
+	ctx, cancel := context.WithTimeout(ctx, offlineTimeout)
 	defer cancel()
 	if err := r.deps.Social.Offline(ctx, s.Character(), s.connID); err != nil {
 		r.deps.Logger.WarnContext(ctx, "social offline failed", "character_id", s.Character(), "err", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"finga/services/gateway/internal/model"
@@ -51,19 +52,26 @@ func (g *Gateway) registerAgain(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		}
-		var round errgroup.Group
-		round.SetLimit(onlineAtOnce)
-		for _, s := range g.sessions.Playing() {
-			if !s.Active() {
-				continue // its Hello registers it
-			}
-			round.Go(func() error {
-				ctx, cancel := context.WithTimeout(ctx, onlineTimeout)
-				defer cancel()
-				g.sessions.Online(ctx, s)
-				return nil
-			})
-		}
-		_ = round.Wait()
+		g.registerRound(ctx)
 	}
+}
+
+// registerRound registers every active player once, all in one trace.
+func (g *Gateway) registerRound(ctx context.Context) {
+	ctx, span := g.tracer.Start(ctx, "gateway.register_again", trace.WithNewRoot())
+	defer span.End()
+	var round errgroup.Group
+	round.SetLimit(onlineAtOnce)
+	for _, s := range g.sessions.Playing() {
+		if !s.Active() {
+			continue // its Hello registers it
+		}
+		round.Go(func() error {
+			ctx, cancel := context.WithTimeout(ctx, onlineTimeout)
+			defer cancel()
+			g.sessions.Online(ctx, s)
+			return nil
+		})
+	}
+	_ = round.Wait()
 }

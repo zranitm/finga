@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"finga/pkg/panics"
@@ -44,6 +45,7 @@ type Deps struct {
 	Social   Social
 	Account  Account
 	Logger   *slog.Logger
+	Traces   trace.TracerProvider // each background round's trace, never kept: it joins the round's log lines and calls
 }
 
 // Options tune the push flow.
@@ -55,6 +57,7 @@ type Options struct {
 type Gateway struct {
 	deps       Deps
 	opts       Options
+	tracer     trace.Tracer
 	sessions   *session.Registry
 	socialBoot string        // owned by the social stream; a new boot ID means the service restarted
 	reregister chan struct{} // a social subscription asks for every player to be registered again
@@ -62,8 +65,10 @@ type Gateway struct {
 
 // New builds the push flow over deps.
 func New(deps Deps, opts Options) *Gateway {
-	return &Gateway{deps: deps, opts: opts, sessions: deps.Registry, reregister: make(chan struct{}, 1)}
+	return &Gateway{deps: deps, opts: opts, tracer: deps.Traces.Tracer(tracerName), sessions: deps.Registry, reregister: make(chan struct{}, 1)}
 }
+
+const tracerName = "finga/services/gateway/internal/application/push"
 
 // Run follows the services' streams and periodically checks the sessions, until ctx is done or one of them panics.
 func (g *Gateway) Run(ctx context.Context) error {

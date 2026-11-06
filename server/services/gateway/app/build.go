@@ -57,7 +57,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	})
 	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec)
 	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec)
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: log, Panics: rec}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: log, Panics: rec, Traces: h.Traces}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions: guard,
 		Registry: sessions,
@@ -74,6 +74,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Social:   social,
 		Account:  clients.NewSessionEnds(accounts, log, rec),
 		Logger:   log,
+		Traces:   h.Traces,
 	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
 	h.Serve(httpListener, cfg.HTTP.Addr, handler.NewRouter(handler.Routes{
 		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec, Traces: h.Traces}),
