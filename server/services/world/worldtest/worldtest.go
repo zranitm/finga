@@ -354,6 +354,11 @@ func (nobody) Retryable(error) bool { return false }
 // Granted is never.
 func (nobody) Granted(error) bool { return false }
 
+// Inventory refuses.
+func (nobody) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
+	return nil, errNobody
+}
+
 // Add refuses.
 func (nobody) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, errNobody }
 

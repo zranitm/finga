@@ -33,15 +33,38 @@ func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error)
 	for _, s := range res.GetChanged() {
 		slot := model.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
 		if it := s.GetItem(); it != nil {
-			id, err := kernel.ParseItemID(it.GetId())
-			if err != nil {
+			if slot.Item, err = slotItem(it); err != nil {
 				return nil, err
 			}
-			slot.Item = &model.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity())}
 		}
 		out = append(out, slot)
 	}
 	return out, nil
+}
+
+// Inventory reads every item the character holds, each as the slot it fills.
+func (p Pickups) Inventory(ctx context.Context, id kernel.CharacterID) ([]model.Slot, error) {
+	res, err := p.c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: id.String()})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.Slot, 0, len(res.GetItems()))
+	for _, it := range res.GetItems() {
+		item, err := slotItem(it)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, model.Slot{Tab: gamedata.Tab(it.GetTab()), Slot: int(it.GetSlot()), Item: item})
+	}
+	return out, nil
+}
+
+func slotItem(it *itemv1.Item) (*model.SlotItem, error) {
+	id, err := kernel.ParseItemID(it.GetId())
+	if err != nil {
+		return nil, err
+	}
+	return &model.SlotItem{ID: id, Template: it.GetTemplateId(), Quantity: int(it.GetQuantity())}, nil
 }
 
 // Retryable is a failure without a reason; a rule never passes on retry.

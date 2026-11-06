@@ -71,10 +71,13 @@ func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, 
 func (idle) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, nil }
 func (idle) Retryable(error) bool                                    { return false }
 func (idle) Granted(error) bool                                      { return false }
-func (idle) ObserveTick(string, time.Duration, time.Duration)        {}
-func (idle) JobStarted()                                             {}
-func (idle) JobFinished()                                            {}
-func (idle) Float64() float64                                        { return 0.5 }
+func (idle) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
+	return nil, nil
+}
+func (idle) ObserveTick(string, time.Duration, time.Duration) {}
+func (idle) JobStarted()                                      {}
+func (idle) JobFinished()                                     {}
+func (idle) Float64() float64                                 { return 0.5 }
 
 // capturing hands the test each joined sink, to send events the world rarely sends.
 type capturing struct {

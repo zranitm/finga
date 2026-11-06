@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -41,6 +42,8 @@ type fakePickups struct {
 	gate      chan struct{}              // when set, every add waits for it to close
 	seen      map[uuid.UUID]int
 	traces    []trace.SpanContext // each call's
+	held      []model.Slot        // the whole inventory Inventory reads
+	heldErr   error               // returned by Inventory when set
 }
 
 type pickupKey struct {
@@ -94,6 +97,12 @@ func (f *fakePickups) Retryable(err error) bool {
 }
 
 func (f *fakePickups) Granted(err error) bool { return errors.Is(err, errReused) }
+
+func (f *fakePickups) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.held, f.heldErr
+}
 
 func (f *fakePickups) items() int {
 	f.mu.Lock()
@@ -661,31 +670,51 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 	})
 }
 
-// A key that already served another fingerprint means an earlier try was granted: the drop is gone, never released.
+// A key that already served another fingerprint means an earlier try was granted: the drop is gone, never released,
+// and as the slots it changed went with the lost reply, the player is sent the whole inventory instead.
 func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
-		items := newFakePickups()
-		items.failFirst = errReused
-		inst, stop := runLootArena(t, data, items, 0.3)
-		defer stop()
-		time.Sleep(worldtest.TickInterval)
-		synctest.Wait()
-		p := warriorAt(250)
-		s := join(t, inst, p)
-		killSlime(t, inst, p.ID)
-		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
-		_ = inst.Input(p.ID, seq+1, sim.Input{})
-		_ = inst.PickUp(p.ID)
-		time.Sleep(3 * worldtest.TickInterval)
-		synctest.Wait()
-		if items.callCount() != 1 {
-			t.Fatalf("%d calls; a granted drop is not tried again", items.callCount())
-		}
-		if len(dropsIn(s)) != 0 || len(pickupFailures(s)) != 0 || len(inventoryChanges(s)) != 0 {
-			t.Fatalf("drops %d, failures %d, changes %d; want the drop gone and nothing to say", len(dropsIn(s)), len(pickupFailures(s)), len(inventoryChanges(s)))
-		}
-	})
+	gel := []model.Slot{{Tab: gamedata.Etc, Slot: 0, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "slime_gel", Quantity: 1}}}
+	for _, tt := range []struct {
+		name    string
+		heldErr error
+		want    []model.InventoryChanged
+	}{
+		{"the inventory as the item service holds it", nil, []model.InventoryChanged{{Slots: gel}}},
+		{"nothing when that read fails too", errDown, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				data := worldtest.LoadData(t)
+				items := newFakePickups()
+				items.failFirst, items.held, items.heldErr = errReused, gel, tt.heldErr
+				inst, stop := runLootArena(t, data, items, 0.3)
+				defer stop()
+				time.Sleep(worldtest.TickInterval)
+				synctest.Wait()
+				p := warriorAt(250)
+				s := join(t, inst, p)
+				killSlime(t, inst, p.ID)
+				seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
+				_ = inst.Input(p.ID, seq+1, sim.Input{})
+				_ = inst.PickUp(p.ID)
+				time.Sleep(3 * worldtest.TickInterval)
+				synctest.Wait()
+				if items.callCount() != 1 {
+					t.Fatalf("%d calls; a granted drop is not tried again", items.callCount())
+				}
+				if len(dropsIn(s)) != 0 || len(pickupFailures(s)) != 0 {
+					t.Fatalf("drops %d, failures %d; want the drop gone and no failure", len(dropsIn(s)), len(pickupFailures(s)))
+				}
+				got := inventoryChanges(s)
+				for k := range got {
+					got[k].Tick = 0
+				}
+				if !reflect.DeepEqual(got, tt.want) {
+					t.Fatalf("inventory changes %+v, want %+v", got, tt.want)
+				}
+			})
+		})
+	}
 }
 
 // idleJobs counts nothing; the loot tests read the item service's calls instead.

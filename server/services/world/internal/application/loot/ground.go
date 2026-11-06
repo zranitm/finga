@@ -37,6 +37,8 @@ type Pickups interface {
 	Retryable(err error) bool
 	// Granted reports whether a failed Add means an earlier try, whose reply was lost, granted the drop.
 	Granted(err error) bool
+	// Inventory is the character's whole inventory, for a grant whose own reply was lost.
+	Inventory(ctx context.Context, id kernel.CharacterID) ([]model.Slot, error)
 }
 
 // Parties tells whether a picker shares the killer's party, from inside a tick.
@@ -199,7 +201,7 @@ func (g *Ground) grant(ctx context.Context, id uint64, in model.Pickup) Result {
 		}
 	}
 	if err != nil && g.deps.Items.Granted(err) {
-		slots, err = nil, nil // granted, though the slots it changed went with the lost reply
+		slots, err = g.held(ctx, in.Character), nil // granted, though the slots it changed went with the lost reply
 	}
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
@@ -211,6 +213,17 @@ func (g *Ground) add(ctx context.Context, in model.Pickup) ([]model.Slot, error)
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return g.deps.Items.Add(ctx, in)
+}
+
+// held is the character's whole inventory, or nothing when that read fails too.
+func (g *Ground) held(ctx context.Context, id kernel.CharacterID) []model.Slot {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	slots, err := g.deps.Items.Inventory(ctx, id)
+	if err != nil {
+		return nil
+	}
+	return slots
 }
 
 // Settle applies a pickup's outcome, removing, freeing or holding its drop; it returns what to tell the picker.

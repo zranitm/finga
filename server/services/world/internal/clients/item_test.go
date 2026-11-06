@@ -25,7 +25,16 @@ type items struct {
 	adds    []*itemv1.AddRequest
 	grants  []*itemv1.GrantStarterRequest
 	changed []*itemv1.Slot
+	held    []*itemv1.Item
+	asked   []string // each Inventory's character
 	err     error
+}
+
+func (f *items) Inventory(_ context.Context, req *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.asked = append(f.asked, req.GetCharacterId())
+	return &itemv1.InventoryResponse{Items: f.held}, f.err
 }
 
 func (f *items) Add(_ context.Context, req *itemv1.AddRequest) (*itemv1.AddResponse, error) {
@@ -112,5 +121,33 @@ func TestPickupsKnowAGrantByItsReusedKey(t *testing.T) {
 	}
 	if p.Granted(grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL)) || p.Granted(status.Error(codes.Unavailable, "down")) {
 		t.Fatal("another failure counts as a grant")
+	}
+}
+
+func TestPickupsReadTheWholeInventoryAsSlots(t *testing.T) {
+	gel, potion, ayla := kernel.NewItemID(), kernel.NewItemID(), kernel.NewCharacterID()
+	f := &items{held: []*itemv1.Item{
+		{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7},
+		{Id: potion.String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5},
+	}}
+	slots, err := clients.NewPickups(itemClient(t, f)).Inventory(context.Background(), ayla)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []model.Slot{
+		{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}},
+		{Tab: gamedata.Use, Slot: 0, Item: &model.SlotItem{ID: potion, Template: "red_potion", Quantity: 5}},
+	}
+	if len(f.asked) != 1 || f.asked[0] != ayla.String() || len(slots) != len(want) {
+		t.Fatalf("asked %v, slots %+v", f.asked, slots)
+	}
+	for k := range want {
+		if slots[k].Tab != want[k].Tab || slots[k].Slot != want[k].Slot || *slots[k].Item != *want[k].Item {
+			t.Fatalf("slot %d = %+v, want %+v", k, slots[k], want[k])
+		}
+	}
+	f.held = []*itemv1.Item{{Id: "nope", TemplateId: "slime_gel", Tab: "etc"}}
+	if _, err := clients.NewPickups(itemClient(t, f)).Inventory(context.Background(), ayla); err == nil {
+		t.Fatal("an item with a malformed ID was read")
 	}
 }
