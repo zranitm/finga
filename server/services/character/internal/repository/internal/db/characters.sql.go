@@ -137,7 +137,7 @@ func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams
 }
 
 const listCharactersByAccount = `-- name: ListCharactersByAccount :many
-SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at FROM characters WHERE account_id = $1 ORDER BY updated_at, id
+SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at FROM characters WHERE account_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UUID) ([]Character, error) {

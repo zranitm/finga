@@ -18,7 +18,7 @@ SELECT pg_advisory_xact_lock(hashtextextended('character.account:' || sqlc.arg(a
 SELECT count(*) FROM characters WHERE account_id = $1;
 
 -- name: ListCharactersByAccount :many
-SELECT * FROM characters WHERE account_id = $1 ORDER BY updated_at, id;
+SELECT * FROM characters WHERE account_id = $1 ORDER BY created_at, id;
 
 -- name: GetOwnedCharacter :one
 SELECT * FROM characters WHERE id = $1 AND account_id = $2;

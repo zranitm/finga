@@ -3,8 +3,11 @@ package migrations_test
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
@@ -76,6 +79,36 @@ func TestTheDatabaseStampsInsertsAndUpdates(t *testing.T) {
 			t.Fatalf("created_at %v, updated_at %v; want %v and %v", created, updated, past, now)
 		}
 	})
+}
+
+// A checkpoint moves updated_at every 30 s, so no index may hold it, or no save could be a HOT update.
+func TestTheAccountIndexOrdersByCreation(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := pool.Query(ctx, `SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'characters'`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defs, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) ([2]string, error) {
+		var d [2]string
+		return d, row.Scan(&d[0], &d[1])
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byAccount := false
+	for _, d := range defs {
+		if strings.Contains(d[1], "updated_at") {
+			t.Errorf("%s holds updated_at: %s", d[0], d[1])
+		}
+		byAccount = byAccount || d[0] == "characters_by_account" && strings.HasSuffix(d[1], "(account_id, created_at)")
+	}
+	if !byAccount {
+		t.Fatalf("no characters_by_account on (account_id, created_at) among %v", defs)
+	}
 }
 
 // A character from before the timestamps migration was created no later than its last save.

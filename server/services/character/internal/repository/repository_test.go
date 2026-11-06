@@ -146,6 +146,16 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("a save leaves the list oldest first", func(t *testing.T) {
+		list, err := store.List(ctx, alice)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 2 || list[0].Name != "Ayla" || list[1].Name != "Robin" {
+			t.Fatalf("after Ayla's saves the list is %+v, want Ayla then Robin", list)
+		}
+	})
+
 	t.Run("saves for an unknown character give ErrNotFound", func(t *testing.T) {
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
 			return uow.Characters().SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), MapID: "town"})
