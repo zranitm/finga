@@ -59,12 +59,17 @@ type Observer interface {
 
 // Deps are the services and settings the send flow is built from.
 type Deps struct {
-	Sessions    Sessions
-	World       World
-	Items       Items
-	Social      Social
-	Logger      *slog.Logger
-	Observer    Observer
+	Sessions Sessions
+	Registry *session.Registry // the sessions both flows share
+	World    World
+	Items    Items
+	Social   Social
+	Logger   *slog.Logger
+	Observer Observer
+}
+
+// Options tune the send flow.
+type Options struct {
 	JoinTimeout time.Duration // a Hello's whole join, retries included
 }
 
@@ -73,12 +78,13 @@ const rotateTimeout = 5 * time.Second
 // Gateway runs the send flow's use cases over the registry's sessions.
 type Gateway struct {
 	deps     Deps
+	opts     Options
 	sessions *session.Registry
 }
 
-// New builds the send flow over sessions.
-func New(deps Deps, sessions *session.Registry) *Gateway {
-	return &Gateway{deps: deps, sessions: sessions}
+// New builds the send flow over deps.
+func New(deps Deps, opts Options) *Gateway {
+	return &Gateway{deps: deps, opts: opts, sessions: deps.Registry}
 }
 
 // Draining reports whether the gateway drains; new connections are refused from then on.

@@ -20,9 +20,14 @@ type ChatService struct {
 	limiter *ratelimit.Buckets
 }
 
-// NewChatService makes the service over the party module.
-func NewChatService(parties Parties) *ChatService {
-	return &ChatService{parties: parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
+// ChatDeps are what the chat service is built over.
+type ChatDeps struct {
+	Parties Parties
+}
+
+// NewChatService makes the service over deps.
+func NewChatService(deps ChatDeps) *ChatService {
+	return &ChatService{parties: deps.Parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
 }
 
 // Send cleans and rate-limits a line; map lines have nil recipients, party lines the whole party.

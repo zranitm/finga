@@ -21,9 +21,15 @@ type PartyService struct {
 	mu sync.Mutex
 }
 
-// NewPartyService makes the service over store; notifier hears every change members must know of.
-func NewPartyService(store PartyStore, notifier Notifier) *PartyService {
-	return &PartyService{store: store, notifier: notifier}
+// PartyDeps are what the party service is built over.
+type PartyDeps struct {
+	Store    PartyStore
+	Notifier Notifier // hears every change members must know of
+}
+
+// NewPartyService makes the service over deps.
+func NewPartyService(deps PartyDeps) *PartyService {
+	return &PartyService{store: deps.Store, notifier: deps.Notifier}
 }
 
 // Online records a character as connected and refreshes their party row; through the same connection again, it keeps what the world reported since.

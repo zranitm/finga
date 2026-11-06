@@ -50,27 +50,31 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	accounts := accountv1.NewAccountServiceClient(conns.account)
 	guard := clients.NewGuard(accounts)
 
-	lobby := application.NewLobby(clients.NewAccounts(accounts), clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)), guard)
+	lobby := application.NewLobby(application.LobbyDeps{
+		Accounts:   clients.NewAccounts(accounts),
+		Characters: clients.NewCharacters(characterv1.NewCharacterServiceClient(conns.character)),
+		Sessions:   guard,
+	})
 	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec)
 	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec)
-	sessions := session.NewRegistry(session.Deps{Gateway: uuidv7.NewString(), World: world, Social: social, Logger: log, Panics: rec, JoinTimeout: cfg.Sessions.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: log, Panics: rec}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
-		Sessions:    guard,
-		World:       world,
-		Items:       clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
-		Social:      social,
-		Logger:      log,
-		Observer:    metrics,
-		JoinTimeout: cfg.Sessions.JoinTimeout,
-	}, sessions)
+		Sessions: guard,
+		Registry: sessions,
+		World:    world,
+		Items:    clients.NewItems(itemv1.NewItemServiceClient(conns.item)),
+		Social:   social,
+		Logger:   log,
+		Observer: metrics,
+	}, send.Options{JoinTimeout: cfg.Sessions.JoinTimeout})
 	pushFlow := push.New(push.Deps{
-		Sessions:             guard,
-		World:                world,
-		Social:               social,
-		Account:              clients.NewSessionEnds(accounts, log, rec),
-		Logger:               log,
-		SessionCheckInterval: cfg.Sessions.CheckInterval,
-	}, sessions)
+		Sessions: guard,
+		Registry: sessions,
+		World:    world,
+		Social:   social,
+		Account:  clients.NewSessionEnds(accounts, log, rec),
+		Logger:   log,
+	}, push.Options{SessionCheckInterval: cfg.Sessions.CheckInterval})
 	h.Serve(httpListener, cfg.HTTP.Addr, handler.NewRouter(handler.Routes{
 		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec}),
 		Gateway: ws.New(sendFlow, ws.Options{

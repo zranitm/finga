@@ -36,7 +36,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
-	return &harness{pool: pool, store: store, svc: application.NewService(store, data), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
+	return &harness{pool: pool, store: store, svc: application.NewService(application.Deps{Store: store, Content: data}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 
 func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
@@ -495,7 +495,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 		t.Fatal("no ItemLooted row after a committed add")
 	}
 	// A transaction that fails after the add succeeds leaves no row.
-	svc := application.NewService(rollingBack{h.store}, h.data)
+	svc := application.NewService(application.Deps{Store: rollingBack{h.store}, Content: h.data})
 	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 	if err == nil {
 		t.Fatal("no error")
@@ -530,7 +530,7 @@ func TestAnInventoryLockedPastTheTimeoutIsErrTimedOut(t *testing.T) {
 		})
 	}()
 	<-locked
-	_, err = application.NewService(store, h.data).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
+	_, err = application.NewService(application.Deps{Store: store, Content: h.data}).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
 	close(release)
 	if !errors.Is(err, model.ErrTimedOut) {
 		t.Fatalf("err = %v, want ErrTimedOut", err)

@@ -39,25 +39,31 @@ type Sessions interface {
 
 // Deps are the services and settings the push flow is built from.
 type Deps struct {
-	Sessions             Sessions
-	World                World
-	Social               Social
-	Account              Account
-	Logger               *slog.Logger
+	Sessions Sessions
+	Registry *session.Registry // the sessions both flows share
+	World    World
+	Social   Social
+	Account  Account
+	Logger   *slog.Logger
+}
+
+// Options tune the push flow.
+type Options struct {
 	SessionCheckInterval time.Duration // how often every session is checked with Sessions
 }
 
 // Gateway runs the push flow over the registry's sessions.
 type Gateway struct {
 	deps       Deps
+	opts       Options
 	sessions   *session.Registry
 	socialBoot string        // owned by the social stream; a new boot ID means the service restarted
 	reregister chan struct{} // a social subscription asks for every player to be registered again
 }
 
-// New builds the push flow over sessions.
-func New(deps Deps, sessions *session.Registry) *Gateway {
-	return &Gateway{deps: deps, sessions: sessions, reregister: make(chan struct{}, 1)}
+// New builds the push flow over deps.
+func New(deps Deps, opts Options) *Gateway {
+	return &Gateway{deps: deps, opts: opts, sessions: deps.Registry, reregister: make(chan struct{}, 1)}
 }
 
 // Run follows the services' streams and periodically checks the sessions, until ctx is done or one of them panics.

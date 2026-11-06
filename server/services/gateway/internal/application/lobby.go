@@ -15,9 +15,16 @@ type Lobby struct {
 	sessions   auth.Guard
 }
 
-// NewLobby builds the use cases over the account and character services.
-func NewLobby(accounts Accounts, characters Characters, sessions auth.Guard) *Lobby {
-	return &Lobby{accounts: accounts, characters: characters, sessions: sessions}
+// LobbyDeps are what the lobby is built over: the account and character services and the session guard.
+type LobbyDeps struct {
+	Accounts   Accounts
+	Characters Characters
+	Sessions   auth.Guard
+}
+
+// NewLobby builds the use cases over deps.
+func NewLobby(deps LobbyDeps) *Lobby {
+	return &Lobby{accounts: deps.Accounts, characters: deps.Characters, sessions: deps.Sessions}
 }
 
 // Authenticate resolves a bearer token to its login session.

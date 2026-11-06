@@ -34,8 +34,10 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
-	accounts := application.NewService(repository.NewPostgres(pool, dbMetrics), streams, application.Options{
-		Hasher: password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
+	accounts := application.NewService(application.Deps{
+		Store:    repository.NewPostgres(pool, dbMetrics),
+		Notifier: streams,
+		Hasher:   password.NewHasher(hashCost(cfg.Password), cfg.Password.Concurrent, cfg.Password.Wait),
 	})
 	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch}
 	h.Task("session retention", func(ctx context.Context) error {

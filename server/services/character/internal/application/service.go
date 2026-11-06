@@ -20,10 +20,11 @@ type CreateInput struct {
 	Class kernel.Class
 }
 
-// Options tune the service.
-type Options struct {
-	// Starter grants a new character its starter items after it commits.
-	Starter StarterItems
+// Deps are what the service is built over.
+type Deps struct {
+	Store   Store
+	Content Content
+	Starter StarterItems // grants a new character its starter items after it commits
 	Logger  *slog.Logger
 }
 
@@ -46,12 +47,13 @@ var nameRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9]*$`)
 type Service struct {
 	store   Store
 	content Content
-	opts    Options
+	starter StarterItems
+	log     *slog.Logger
 }
 
-// NewService wires the service over its store and the game data.
-func NewService(store Store, content Content, opts Options) *Service {
-	return &Service{store: store, content: content, opts: opts}
+// NewService wires the service over deps.
+func NewService(deps Deps) *Service {
+	return &Service{store: deps.Store, content: deps.Content, starter: deps.Starter, log: deps.Logger}
 }
 
 // Create makes a level 1 character at the town spawn, then grants its starter items.
@@ -100,8 +102,8 @@ func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	defer cancel()
 	var last error
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		last = s.opts.Starter.GrantStarter(ctx, c.AccountID, c.ID, c.Class)
-		if last != nil && !s.opts.Starter.Retryable(last) {
+		last = s.starter.GrantStarter(ctx, c.AccountID, c.ID, c.Class)
+		if last != nil && !s.starter.Retryable(last) {
 			return struct{}{}, backoff.Permanent(last)
 		}
 		return struct{}{}, last
@@ -112,9 +114,9 @@ func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	switch {
 	case err == nil:
 	case ctx.Err() != nil:
-		s.opts.Logger.WarnContext(ctx, "starter items not granted yet; the next join grants them", "character_id", c.ID, "err", last)
+		s.log.WarnContext(ctx, "starter items not granted yet; the next join grants them", "character_id", c.ID, "err", last)
 	default:
-		s.opts.Logger.ErrorContext(ctx, "starter items refused", "character_id", c.ID, "class", c.Class, "err", err)
+		s.log.ErrorContext(ctx, "starter items refused", "character_id", c.ID, "class", c.Class, "err", err)
 	}
 }
 

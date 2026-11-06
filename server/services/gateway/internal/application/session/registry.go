@@ -41,17 +41,22 @@ type Social interface {
 
 // Deps are what the registry and its joins are built from.
 type Deps struct {
-	Gateway     string // this gateway's ID, on every join, registration and stream
-	World       World
-	Social      Social
-	Logger      *slog.Logger
-	Panics      *panics.Recorder // a rejoin's panic
-	JoinTimeout time.Duration    // a rejoin's whole join, retries included
+	World  World
+	Social Social
+	Logger *slog.Logger
+	Panics *panics.Recorder // a rejoin's panic
+}
+
+// Options tune the registry.
+type Options struct {
+	Gateway     string        // this gateway's ID, on every join, registration and stream
+	JoinTimeout time.Duration // a rejoin's whole join, retries included
 }
 
 // Registry is the gateway's sessions, found by connection, account, character and login session.
 type Registry struct {
 	deps Deps
+	opts Options
 
 	mu          sync.Mutex
 	byConn      map[string]*Session
@@ -99,9 +104,10 @@ func (r *Registry) lockCharacter(ctx context.Context, id kernel.CharacterID) (un
 }
 
 // NewRegistry builds an empty registry.
-func NewRegistry(deps Deps) *Registry {
+func NewRegistry(deps Deps, opts Options) *Registry {
 	return &Registry{
 		deps:        deps,
+		opts:        opts,
 		byConn:      map[string]*Session{},
 		byAccount:   map[kernel.AccountID]*Session{},
 		byCharacter: map[kernel.CharacterID]*Session{},
@@ -113,7 +119,7 @@ func NewRegistry(deps Deps) *Registry {
 }
 
 // Gateway is this gateway's ID.
-func (r *Registry) Gateway() string { return r.deps.Gateway }
+func (r *Registry) Gateway() string { return r.opts.Gateway }
 
 // Open starts the session of the connection named connID; once draining, it ends at once with server_restart.
 func (r *Registry) Open(connID string, o Outbox) *Session {

@@ -40,7 +40,9 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, fmt.Errorf("item service: %w", err)
 	}
 	h.OnClose(func() { _ = itemConn.Close() })
-	characters := application.NewService(repository.NewPostgres(pool, dbMetrics), data, application.Options{
+	characters := application.NewService(application.Deps{
+		Store:   repository.NewPostgres(pool, dbMetrics),
+		Content: data,
 		Starter: clients.NewStarter(itemv1.NewItemServiceClient(itemConn)),
 		Logger:  log,
 	})

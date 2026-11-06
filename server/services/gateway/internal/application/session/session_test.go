@@ -32,7 +32,7 @@ func (outbox) End(model.EndReason)    {}
 // Pushes and logs read who a session plays while its join sets it: the identity is replaced whole,
 // never written in place, so the race detector has nothing to find.
 func TestTheIdentityCanBeReadWhileAJoinSetsIt(t *testing.T) {
-	r := session.NewRegistry(session.Deps{World: world{}, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Second})
+	r := session.NewRegistry(session.Deps{World: world{}, Logger: slog.New(slog.DiscardHandler)}, session.Options{JoinTimeout: time.Second})
 	s := r.Open("conn-1", outbox{})
 	account, login, character := kernel.NewAccountID(), kernel.NewSessionID(), kernel.NewCharacterID()
 	stop, reading := make(chan struct{}), make(chan struct{})
@@ -153,7 +153,7 @@ func (s *social) list() []string {
 // A registration again that comes after the connection closed sends nothing: the close's Offline has the last word.
 func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 	soc := &social{}
-	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Second})
+	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler)}, session.Options{JoinTimeout: time.Second})
 	s := play(t, r, "c-1", kernel.NewCharacterID())
 	r.Close(s)
 	r.Online(t.Context(), s)
@@ -167,7 +167,7 @@ func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 func TestRejoinsRunAFewAtATime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}
-		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Minute})
+		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler)}, session.Options{JoinTimeout: time.Minute})
 		r.WorldSubscribed()
 		for i := range 100 {
 			play(t, r, fmt.Sprint("c-", i), kernel.NewCharacterID())
@@ -189,7 +189,7 @@ func TestRejoinsRunAFewAtATime(t *testing.T) {
 func TestANewerJoinOutlastsAStaleRejoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}
-		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), JoinTimeout: time.Minute})
+		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler)}, session.Options{JoinTimeout: time.Minute})
 		r.WorldSubscribed()
 		ayla := kernel.NewCharacterID()
 		old := play(t, r, "c-old", ayla)

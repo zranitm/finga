@@ -19,7 +19,7 @@ func (g *Gateway) Open(connID string, o session.Outbox) *session.Session {
 
 // Hello joins the connection's character and sends Welcome; model.ErrHelloRejected means a bad token or character.
 func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, charID kernel.CharacterID) error {
-	ctx, cancel := context.WithTimeout(ctx, g.deps.JoinTimeout)
+	ctx, cancel := context.WithTimeout(ctx, g.opts.JoinTimeout)
 	defer cancel()
 	p, err := g.deps.Sessions.Validate(ctx, token)
 	if err != nil {

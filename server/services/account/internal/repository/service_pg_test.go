@@ -20,7 +20,7 @@ import (
 func newPGService(t *testing.T) (*application.Service, *Postgres) {
 	t.Helper()
 	store := NewPostgres(cluster.DB(t), nil)
-	svc := application.NewService(store, &notices{}, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	svc := application.NewService(application.Deps{Store: store, Notifier: &notices{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 	return svc, store
 }
 

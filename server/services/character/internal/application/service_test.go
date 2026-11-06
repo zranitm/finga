@@ -16,20 +16,22 @@ import (
 
 func newService(t *testing.T) (*application.Service, *fakeStore, *gamedata.Data) {
 	t.Helper()
-	return newServiceWith(t, application.Options{})
+	return newServiceWith(t, application.Deps{})
 }
 
-func newServiceWith(t *testing.T, opts application.Options) (*application.Service, *fakeStore, *gamedata.Data) {
+// newServiceWith builds the service over a fake store and the real game data, with deps' starter and logger when set.
+func newServiceWith(t *testing.T, deps application.Deps) (*application.Service, *fakeStore, *gamedata.Data) {
 	t.Helper()
 	data := loadData(t)
 	store := newFakeStore()
-	if opts.Starter == nil {
-		opts.Starter = &fakeStarter{}
+	deps.Store, deps.Content = store, data
+	if deps.Starter == nil {
+		deps.Starter = &fakeStarter{}
 	}
-	if opts.Logger == nil {
-		opts.Logger = slog.New(slog.DiscardHandler)
+	if deps.Logger == nil {
+		deps.Logger = slog.New(slog.DiscardHandler)
 	}
-	return application.NewService(store, data, opts), store, data
+	return application.NewService(deps), store, data
 }
 
 func TestCreate(t *testing.T) {
@@ -264,7 +266,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	ctx := context.Background()
 	t.Run("the starter is asked once, after the commit, for the character, its account and its class", func(t *testing.T) {
 		starter := &fakeStarter{}
-		svc, store, _ := newServiceWith(t, application.Options{Starter: starter})
+		svc, store, _ := newServiceWith(t, application.Deps{Starter: starter})
 		starter.store = store
 		owner := kernel.NewAccountID()
 		c, err := svc.Create(ctx, owner, application.CreateInput{Name: "Ayla", Class: kernel.Bowman})
@@ -279,7 +281,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	t.Run("a grant that fails twice is retried until it succeeds", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			starter := &fakeStarter{failures: 2, err: errors.New("item service unavailable"), retryable: true}
-			svc, _, _ := newServiceWith(t, application.Options{Starter: starter})
+			svc, _, _ := newServiceWith(t, application.Deps{Starter: starter})
 			if _, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior}); err != nil {
 				t.Fatal(err)
 			}
@@ -291,7 +293,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	t.Run("a grant that never succeeds within 5 s still returns the committed character", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			starter := &fakeStarter{failures: 1 << 30, err: errors.New("item service unavailable"), retryable: true}
-			svc, store, _ := newServiceWith(t, application.Options{Starter: starter})
+			svc, store, _ := newServiceWith(t, application.Deps{Starter: starter})
 			start := time.Now()
 			c, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 			if err != nil {
@@ -304,7 +306,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 	})
 	t.Run("a refusal by rule is not retried, and the character stays", func(t *testing.T) {
 		starter := &fakeStarter{failures: 1 << 30, err: errors.New("unknown item"), retryable: false}
-		svc, store, _ := newServiceWith(t, application.Options{Starter: starter})
+		svc, store, _ := newServiceWith(t, application.Deps{Starter: starter})
 		c, err := svc.Create(ctx, kernel.NewAccountID(), application.CreateInput{Name: "Ayla", Class: kernel.Warrior})
 		if err != nil || len(starter.calls) != 1 {
 			t.Fatalf("err %v after %d calls", err, len(starter.calls))

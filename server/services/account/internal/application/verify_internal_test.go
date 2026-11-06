@@ -27,7 +27,7 @@ func (noAccounts) SessionRevoked(context.Context, uuid.UUID, string) {}
 func (noAccounts) AccountRevoked(context.Context, uuid.UUID, string) {}
 
 func TestUnknownUsernameVerifiesADummyHash(t *testing.T) {
-	svc := NewService(noAccounts{}, noAccounts{}, Options{Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
+	svc := NewService(Deps{Store: noAccounts{}, Notifier: noAccounts{}, Hasher: password.NewHasher(password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}, 4, time.Second)})
 	if svc.dummy == "" {
 		t.Fatal("no dummy hash")
 	}

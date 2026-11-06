@@ -104,10 +104,10 @@ func newStack(t *testing.T) *stack {
 	}
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
-	w := application.New(data, application.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second}, application.WorldDeps{
-		NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: application.NewWorkers(1, idle{}, rec), Parties: idle{},
+	w := application.New(application.WorldDeps{
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: application.NewWorkers(1, idle{}, rec), Parties: idle{},
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
-	})
+	}, application.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()

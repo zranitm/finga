@@ -41,7 +41,7 @@ func TestClean(t *testing.T) {
 func TestSend(t *testing.T) {
 	ayla, robin, cass := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
 	parties := fakeParties{members: map[kernel.CharacterID][]kernel.CharacterID{ayla: {ayla, robin}, robin: {ayla, robin}}}
-	svc := application.NewChatService(parties)
+	svc := application.NewChatService(application.ChatDeps{Parties: parties})
 	from := model.Sender{ID: ayla, Name: "Ayla"}
 	ctx := t.Context()
 
@@ -65,7 +65,7 @@ func TestSend(t *testing.T) {
 	})
 	t.Run("the fourth line inside a second is rate limited, and a second later one more fits", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			svc := application.NewChatService(parties)
+			svc := application.NewChatService(application.ChatDeps{Parties: parties})
 			for _, line := range []string{"one", "two", "three"} { // the burst is three
 				if _, _, err := svc.Send(ctx, from, model.ChannelMap, line); err != nil {
 					t.Fatalf("line %s: %v", line, err)
@@ -89,7 +89,7 @@ func TestSend(t *testing.T) {
 		})
 	})
 	t.Run("length and emptiness are checked after cleaning, and never charge the limit", func(t *testing.T) {
-		svc := application.NewChatService(parties)
+		svc := application.NewChatService(application.ChatDeps{Parties: parties})
 		if _, _, err := svc.Send(ctx, from, model.ChannelMap, strings.Repeat("é", 120)); err != nil {
 			t.Fatalf("120 characters: %v", err)
 		}
@@ -109,7 +109,7 @@ func TestSend(t *testing.T) {
 		}
 	})
 	t.Run("a line that shows nothing is empty, and one rune that shows is enough", func(t *testing.T) {
-		svc := application.NewChatService(parties)
+		svc := application.NewChatService(application.ChatDeps{Parties: parties})
 		for _, blank := range []string{"ㅤ", "ﾠ", "ᅟᅠ", "⠀⠀", "͏", "️", "ㅤ ⠀"} {
 			if _, _, err := svc.Send(ctx, from, model.ChannelMap, blank); !errors.Is(err, model.ErrEmpty) {
 				t.Errorf("%+q: %v, want empty", blank, err)

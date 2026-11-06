@@ -23,7 +23,7 @@ func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *promethe
 		return nil, err
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
-	parties := application.NewPartyService(repository.NewMemory(), streams)
-	socialv1.RegisterSocialServiceServer(h.GRPC, handler.New(parties, application.NewChatService(parties), streams))
+	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
+	socialv1.RegisterSocialServiceServer(h.GRPC, handler.New(parties, application.NewChatService(application.ChatDeps{Parties: parties}), streams))
 	return h, nil
 }

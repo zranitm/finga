@@ -87,7 +87,8 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 
 	nodeID := uuidv7.NewString()
 	parties := application.NewPartyCopy(clients.NewSocial(socialv1.NewSocialServiceClient(socialConn), rec), nodeID, log)
-	maps := application.New(data, application.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout}, application.WorldDeps{
+	maps := application.New(application.WorldDeps{
+		Data:       data,
 		NewRoll:    newRoll,
 		Observer:   metrics,
 		Items:      clients.NewPickups(items),
@@ -98,7 +99,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Starter:    clients.NewStarter(items),
 		Panics:     rec,
 		Logger:     log,
-	})
+	}, application.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout})
 	h.Task("parties", parties.Run)
 	h.Task("world", maps.Run)
 	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz, Logger: log}))

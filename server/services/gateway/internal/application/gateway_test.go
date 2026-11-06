@@ -40,10 +40,10 @@ func newGateway(w *world) gateway { return newGatewayWith(w, &guard{}, time.Hour
 
 func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
 	log := slog.New(slog.DiscardHandler)
-	sessions := session.NewRegistry(session.Deps{Gateway: "gw-1", World: w, Social: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), JoinTimeout: joinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil)}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
 	return gateway{
-		Gateway: send.New(send.Deps{Sessions: g, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}, JoinTimeout: joinTimeout}, sessions),
-		pushes:  push.New(push.Deps{Sessions: g, World: w, Social: idle{}, Account: idle{}, Logger: log, SessionCheckInterval: checkEvery}, sessions),
+		Gateway: send.New(send.Deps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}}, send.Options{JoinTimeout: joinTimeout}),
+		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Account: idle{}, Logger: log}, push.Options{SessionCheckInterval: checkEvery}),
 	}
 }
 

@@ -202,10 +202,10 @@ func newInstance(m *gamedata.Map, data *gamedata.Data, cps *checkpoints, o optio
 // newWorldOf builds a World over data with o filled in.
 func newWorldOf(data *gamedata.Data, saver application.Saver, o options) *application.World {
 	o = o.fill()
-	return application.New(data, o.tuning(), application.WorldDeps{
-		Deps: o.deps(), Saver: saver, Characters: o.Characters, Starter: o.Starter,
+	return application.New(application.WorldDeps{
+		Deps: o.deps(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter,
 		Panics: discardPanics(), Logger: o.Logger,
-	})
+	}, o.tuning())
 }
 
 // run starts a town instance in the synctest bubble; stop waits for Run so nothing outlives it.

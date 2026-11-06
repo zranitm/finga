@@ -34,9 +34,11 @@ type LoginInput struct {
 	Password string
 }
 
-// Options tune the service.
-type Options struct {
-	Hasher *password.Hasher // the Argon2id cost and how many hashes run at once, from the config
+// Deps are what the service is built over.
+type Deps struct {
+	Store    Store
+	Notifier Notifier         // hears of every ended session
+	Hasher   *password.Hasher // the Argon2id cost and how many hashes run at once, from the config
 }
 
 // The session policy (step 16).
@@ -73,7 +75,7 @@ var usernameRe = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 type Service struct {
 	store      Store
 	notifier   Notifier
-	opts       Options
+	hasher     *password.Hasher
 	dummy      string            // verified for unknown usernames, so they take as long
 	byUser     ratelimit.Limiter // per-IP limits belong to the edge (nginx)
 	presetList []model.Preset
@@ -84,16 +86,16 @@ var (
 	_ auth.Sessions      = (*Service)(nil)
 )
 
-// NewService wires the service over its store; notifier hears of every ended session.
-func NewService(store Store, notifier Notifier, opts Options) *Service {
-	dummy, err := opts.Hasher.Hash(context.Background(), dummySecret)
+// NewService wires the service over deps.
+func NewService(deps Deps) *Service {
+	dummy, err := deps.Hasher.Hash(context.Background(), dummySecret)
 	if err != nil {
 		panic("account: dummy hash: " + err.Error()) // the parameters were just validated by Hash's caller
 	}
 	return &Service{
-		store:      store,
-		notifier:   notifier,
-		opts:       opts,
+		store:      deps.Store,
+		notifier:   deps.Notifier,
+		hasher:     deps.Hasher,
 		dummy:      dummy,
 		byUser:     ratelimit.NewBuckets(loginRatePerMinute/60.0, loginBurst),
 		presetList: []model.Preset{model.PresetClassic, model.PresetWASD},
@@ -108,7 +110,7 @@ func (s *Service) Register(ctx context.Context, in RegisterInput) (model.Account
 	if len(in.Password) < passwordMin || len(in.Password) > passwordMax {
 		return model.Account{}, model.ErrBadPassword
 	}
-	hash, err := s.opts.Hasher.Hash(ctx, in.Password)
+	hash, err := s.hasher.Hash(ctx, in.Password)
 	if err != nil {
 		return model.Account{}, busy(err)
 	}
@@ -142,14 +144,14 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			if _, err := s.opts.Hasher.Verify(ctx, s.dummy, pw); errors.Is(err, password.ErrBusy) {
+			if _, err := s.hasher.Verify(ctx, s.dummy, pw); errors.Is(err, password.ErrBusy) {
 				return uuid.Nil, model.ErrBusy
 			}
 			return uuid.Nil, model.ErrUnauthenticated
 		}
 		return uuid.Nil, err
 	}
-	ok, err := s.opts.Hasher.Verify(ctx, creds.PasswordHash, pw)
+	ok, err := s.hasher.Verify(ctx, creds.PasswordHash, pw)
 	if errors.Is(err, password.ErrBusy) {
 		return uuid.Nil, model.ErrBusy
 	}
@@ -159,7 +161,7 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 	if !ok {
 		return uuid.Nil, model.ErrUnauthenticated
 	}
-	if s.opts.Hasher.NeedsRehash(creds.PasswordHash) {
+	if s.hasher.NeedsRehash(creds.PasswordHash) {
 		if err := s.rehash(ctx, creds, pw); err != nil {
 			return uuid.Nil, err
 		}
@@ -169,7 +171,7 @@ func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, e
 
 // rehash stores the verified password at the configured cost; with no hash slot free, the next login does.
 func (s *Service) rehash(ctx context.Context, creds model.Credentials, pw string) error {
-	hash, err := s.opts.Hasher.Hash(ctx, pw)
+	hash, err := s.hasher.Hash(ctx, pw)
 	if errors.Is(err, password.ErrBusy) {
 		return nil
 	}

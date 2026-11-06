@@ -54,6 +54,7 @@ type World struct {
 // WorldDeps are the services the World calls besides its instances'; all are required.
 type WorldDeps struct {
 	Deps
+	Data       *gamedata.Data
 	Saver      Saver
 	Characters Characters
 	Starter    Starter
@@ -61,8 +62,9 @@ type WorldDeps struct {
 	Logger     *slog.Logger
 }
 
-// New builds an instance for every map in data; the World moves their players between maps.
-func New(data *gamedata.Data, t Tuning, d WorldDeps) *World {
+// New builds an instance for every map in d.Data; the World moves their players between maps.
+func New(d WorldDeps, t Tuning) *World {
+	data := d.Data
 	w := &World{
 		data: data, deps: d, instances: map[string]*Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),

@@ -92,10 +92,10 @@ func (d deps) build() (*push.Gateway, http.Handler) {
 	world := clients.NewWorld(d.World, d.Logger, nil)
 	social := clients.NewSocial(d.Social, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
-	sessions := session.NewRegistry(session.Deps{Gateway: d.ID, World: world, Social: social, Logger: d.Logger, Panics: recorder, JoinTimeout: d.JoinTimeout})
-	sends := send.Deps{Sessions: d.Sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer, JoinTimeout: d.JoinTimeout}
-	pushes := push.Deps{Sessions: d.Sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger, SessionCheckInterval: d.SessionCheckInterval}
-	return push.New(pushes, sessions), ws.New(send.New(sends, sessions), ws.Options{
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: d.Logger, Panics: recorder}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sends := send.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer}
+	pushes := push.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger}
+	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder,
 	})
 }

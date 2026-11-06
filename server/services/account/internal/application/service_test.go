@@ -33,7 +33,7 @@ func (unheard) SessionRevoked(context.Context, uuid.UUID, string) {}
 func (unheard) AccountRevoked(context.Context, uuid.UUID, string) {}
 
 func newService(store application.Store) *application.Service {
-	return application.NewService(store, unheard{}, application.Options{Hasher: password.NewHasher(cheapHash, 4, time.Second)})
+	return application.NewService(application.Deps{Store: store, Notifier: unheard{}, Hasher: password.NewHasher(cheapHash, 4, time.Second)})
 }
 
 func register(t *testing.T, svc *application.Service, username, pw string) model.Account {
@@ -151,7 +151,7 @@ func TestALoginUpgradesAHashMadeAtAnotherCost(t *testing.T) {
 	old := store.accounts[acc.ID].PasswordHash
 	raised := cheapHash
 	raised.Time = 2
-	svc := application.NewService(store, unheard{}, application.Options{Hasher: password.NewHasher(raised, 4, time.Second)})
+	svc := application.NewService(application.Deps{Store: store, Notifier: unheard{}, Hasher: password.NewHasher(raised, 4, time.Second)})
 
 	if _, err := svc.Login(ctx, application.LoginInput{Username: "alice", Password: "wrong horse"}); !errors.Is(err, model.ErrUnauthenticated) {
 		t.Fatalf("err = %v", err)
@@ -379,7 +379,7 @@ func TestServiceImplementsPkgAuth(t *testing.T) {
 // A burst of sign-ups past the hash slots answers busy once the wait runs out, instead of taking
 // 64 MiB a hash.
 func TestSignUpsPastTheHashSlotsAreBusy(t *testing.T) {
-	svc := application.NewService(newFakeStore(), unheard{}, application.Options{Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
+	svc := application.NewService(application.Deps{Store: newFakeStore(), Notifier: unheard{}, Hasher: password.NewHasher(password.Default, 1, time.Millisecond)})
 	var wg sync.WaitGroup
 	var ok, busy atomic.Int32
 	for k := range 16 {

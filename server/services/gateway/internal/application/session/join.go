@@ -153,7 +153,7 @@ func (r *Registry) rejoin(s *Session) {
 	if !current {
 		return
 	}
-	ctx, cancel := context.WithTimeout(s.ctx, r.deps.JoinTimeout)
+	ctx, cancel := context.WithTimeout(s.ctx, r.opts.JoinTimeout)
 	defer cancel()
 	before := s.mapID()
 	s.out.hold()
@@ -194,7 +194,7 @@ func (r *Registry) rejoin(s *Session) {
 func (r *Registry) join(ctx context.Context, conn string, account kernel.AccountID, character kernel.CharacterID) (model.Joined, error) {
 	var last error
 	joined, err := backoff.Retry(ctx, func() (model.Joined, error) {
-		joined, err := r.deps.World.Join(ctx, r.deps.Gateway, conn, account, character)
+		joined, err := r.deps.World.Join(ctx, r.opts.Gateway, conn, account, character)
 		last = err
 		if err != nil && !waitable(err) {
 			return joined, backoff.Permanent(err)
@@ -289,7 +289,7 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 	if closed {
 		return nil // its close's Offline has the last word
 	}
-	return r.deps.Social.Online(ctx, r.deps.Gateway, s.connID, s.Player(), s.mapID())
+	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.Player(), s.mapID())
 }
 
 // offline tells the social service the player's connection closed, after any registration of it still on its way.

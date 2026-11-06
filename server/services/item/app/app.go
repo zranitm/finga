@@ -46,7 +46,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	items := application.NewService(repository.NewPostgres(pool, dbMetrics), data)
+	items := application.NewService(application.Deps{Store: repository.NewPostgres(pool, dbMetrics), Content: data})
 	h.Task("outbox gauge", func(ctx context.Context) error {
 		return outboxMetrics.Track(ctx, outboxCountEvery, func(ctx context.Context) (int64, error) { return outboxpg.Unpublished(ctx, pool) }, log)
 	})

@@ -22,7 +22,7 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(cluster.DB(t), nil)
-	svc := application.NewService(store, data, application.Options{Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
+	svc := application.NewService(application.Deps{Store: store, Content: data, Starter: granted{}, Logger: slog.New(slog.DiscardHandler)})
 	account := kernel.NewAccountID()
 	const n = 6
 	errs := make([]error, n)

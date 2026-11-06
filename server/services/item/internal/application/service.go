@@ -71,9 +71,15 @@ type Service struct {
 	content Content
 }
 
-// NewService wires the service over its store and the game data.
-func NewService(store Store, content Content) *Service {
-	return &Service{store: store, content: content}
+// Deps are what the service is built over.
+type Deps struct {
+	Store   Store
+	Content Content
+}
+
+// NewService wires the service over deps.
+func NewService(deps Deps) *Service {
+	return &Service{store: deps.Store, content: deps.Content}
 }
 
 // Inventory lists the character's items.

@@ -32,7 +32,7 @@ func (g *Gateway) sessionEnded(ev model.SessionEnd) {
 }
 
 func (g *Gateway) checkSessionsEvery(ctx context.Context) {
-	ticker := time.NewTicker(g.deps.SessionCheckInterval)
+	ticker := time.NewTicker(g.opts.SessionCheckInterval)
 	defer ticker.Stop()
 	for {
 		select {

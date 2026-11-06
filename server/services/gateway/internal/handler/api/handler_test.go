@@ -63,7 +63,7 @@ func newHarness(origins ...string) *harness {
 	e := handler.NewEngine()
 	log := slog.New(slog.NewJSONHandler(h.logs, nil))
 	api.Mount(api.Dependencies{
-		Lobby:  application.NewLobby(clients.NewAccounts(h.accounts), clients.NewCharacters(h.characters), h.sessions),
+		Lobby:  application.NewLobby(application.LobbyDeps{Accounts: clients.NewAccounts(h.accounts), Characters: clients.NewCharacters(h.characters), Sessions: h.sessions}),
 		Logger: log, CORSOrigins: origins, Panics: panics.NewRecorder(log, nil),
 	})(e)
 	h.handler = e
