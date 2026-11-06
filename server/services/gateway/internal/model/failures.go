@@ -17,6 +17,7 @@ var (
 	BadID                = Public{"bad_id", "malformed ID"}
 	UnknownClass         = Public{"unknown_class", "unknown class"}
 	Internal             = Public{"internal", "something went wrong"}
+	Unavailable          = Public{"unavailable", "the server is busy; try again"}
 )
 
 // The services' failures, as the gateway words them; clients/errmap maps each service reason to one.

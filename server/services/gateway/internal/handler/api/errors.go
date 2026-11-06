@@ -13,10 +13,10 @@ const (
 	causeKey = "finga.internal_cause"
 )
 
-// writeError answers err as model.PublicOf maps it; the error's text never reaches the body.
+// writeError answers err as model.PublicOf maps it; the error's text never reaches the body, only the request log.
 func writeError(c *gin.Context, err error) {
 	p := model.PublicOf(err)
-	if model.IsInternal(p) {
+	if model.IsInternal(p) || p == model.Unavailable {
 		c.Set(causeKey, err)
 	}
 	writePublic(c, p)

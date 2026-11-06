@@ -205,6 +205,11 @@ describe('wiring', () => {
       text: 'The server is busy. Try again.',
     },
     {
+      name: 'unavailable (a service down or busy)',
+      d: { ok: false, code: 'unavailable', message: 'the server is busy; try again' },
+      text: 'The server is busy. Try again.',
+    },
+    {
       name: 'chat_rate_limited (a chat line too soon)',
       d: { ok: false, code: 'chat_rate_limited', message: 'slow down' },
       text: 'Too fast. Wait a moment.',

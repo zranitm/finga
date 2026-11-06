@@ -24,6 +24,7 @@ var statuses = map[model.Public]int{
 	model.BadID:                http.StatusBadRequest,
 	model.UnknownClass:         http.StatusBadRequest,
 	model.Internal:             http.StatusInternalServerError,
+	model.Unavailable:          http.StatusServiceUnavailable,
 	model.CharacterNotFound:    http.StatusNotFound,
 	model.NameTaken:            http.StatusConflict,
 	model.BadCharacterName:     http.StatusBadRequest,

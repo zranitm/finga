@@ -250,6 +250,11 @@
     "message": "invalid credentials or session"
   },
   {
+    "code": "unavailable",
+    "status": 503,
+    "message": "the server is busy; try again"
+  },
+  {
     "code": "unknown_class",
     "status": 400,
     "message": "unknown class"

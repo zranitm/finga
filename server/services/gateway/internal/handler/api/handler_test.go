@@ -114,7 +114,7 @@ var errorRows = []struct {
 	{"a missing character is 404 character_not_found", grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), http.StatusNotFound, "character_not_found"},
 	{"a taken username is 409 username_taken", grpctest.Error(codes.AlreadyExists, accountv1.Reason_REASON_USERNAME_TAKEN), http.StatusConflict, "username_taken"},
 	{"too many logins is 429 login_rate_limited", grpctest.Error(codes.ResourceExhausted, accountv1.Reason_REASON_LOGIN_RATE_LIMITED), http.StatusTooManyRequests, "login_rate_limited"},
-	{"a service that cannot be reached is 500 internal", status.Error(codes.Unavailable, "connection refused"), http.StatusInternalServerError, "internal"},
+	{"a service that cannot be reached is 503 unavailable", status.Error(codes.Unavailable, "connection refused"), http.StatusServiceUnavailable, "unavailable"},
 	{"a wrapped error keeps its code and hides its cause", fmt.Errorf("create: %w", fmt.Errorf("%w: %w", grpctest.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), errInternal)), http.StatusConflict, "name_taken"},
 	{"a plain error is 500 internal without its text", errInternal, http.StatusInternalServerError, "internal"},
 }
@@ -612,6 +612,21 @@ func TestRequestLogCarriesTheCauseOfAnUnexpectedError(t *testing.T) {
 	}
 	if l["level"] != "ERROR" || l["code"] != "internal" || l["err"] != "list characters: pq: connection reset" {
 		t.Fatalf("log line %v, want level ERROR, code internal and the cause", l)
+	}
+}
+
+func TestAServiceDownAnswers503AndWarns(t *testing.T) {
+	h := newHarness()
+	h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) {
+		return nil, status.Error(codes.Unavailable, "connection refused")
+	}
+	assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusServiceUnavailable, "unavailable")
+	var l map[string]any
+	if err := json.Unmarshal([]byte(strings.TrimSpace(h.logs.String())), &l); err != nil {
+		t.Fatalf("log %q: %v", h.logs.String(), err)
+	}
+	if l["level"] != "WARN" || l["code"] != "unavailable" || l["err"] == nil {
+		t.Fatalf("log line %v, want level WARN, code unavailable and the cause", l)
 	}
 }
 

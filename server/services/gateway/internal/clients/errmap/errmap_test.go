@@ -90,7 +90,6 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 		err  error
 	}{
 		{"no reason (the service could not explain it)", status.Error(codes.Internal, "internal error")},
-		{"unavailable", status.Error(codes.Unavailable, "connection refused")},
 		{"a reason no table maps", grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Reason{Domain: "internal.shop.v1", Name: "REASON_CLOSED"})},
 	}
 	for _, tt := range tests {
@@ -99,6 +98,19 @@ func TestARemoteFailureWithoutAKnownReasonIsInternal(t *testing.T) {
 				t.Fatalf("For = %+v", got)
 			}
 		})
+	}
+}
+
+// A service down, or busy past its timeouts, asks the client to try again.
+func TestAnUnavailableServiceAsksTheClientToRetry(t *testing.T) {
+	for _, err := range []error{
+		status.Error(codes.Unavailable, "connection refused"),
+		fmt.Errorf("inventory: %w", status.Error(codes.Unavailable, "Unavailable")),
+		grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY),
+	} {
+		if got := errmap.For(err); got != model.Unavailable {
+			t.Fatalf("For(%v) = %+v, want unavailable", err, got)
+		}
 	}
 }
 
@@ -142,9 +154,9 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 	}{
 		{"a reason is its Public", grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, "party_full"},
 		{"the world not holding the stream", grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, "internal"},
-		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "internal"},
-		{"a world too busy to take a join", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), model.ErrUnavailable, "internal"},
-		{"a world that is stopping", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_STOPPED), model.ErrUnavailable, "internal"},
+		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "unavailable"},
+		{"a world too busy to take a join", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), model.ErrUnavailable, "unavailable"},
+		{"a world that is stopping", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_STOPPED), model.ErrUnavailable, "unavailable"},
 		{"pickups unavailable keep their own code", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), model.ErrUnavailable, "pickups_unavailable"},
 		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, "internal"},
 	}

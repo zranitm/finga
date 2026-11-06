@@ -73,7 +73,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_BAD_ID):              model.BadID,
 }
 
-// For is the Public form of a failed call: its reason's row, else Internal; the zero value for nil.
+// For is the Public form of a failed call: its reason's row, else Unavailable for a service down or busy, else Internal; the zero value for nil.
 func For(err error) model.Public {
 	if err == nil {
 		return model.Public{}
@@ -82,6 +82,9 @@ func For(err error) model.Public {
 		if pub, ok := reasons[r]; ok {
 			return pub
 		}
+	}
+	if status.Code(err) == codes.Unavailable {
+		return model.Unavailable
 	}
 	return model.Internal
 }

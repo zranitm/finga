@@ -87,6 +87,7 @@ export function responseText(d: Data<'response'>): string {
     case 'inventory_full':
       return 'Your inventory is full.';
     case 'pickup_busy':
+    case 'unavailable':
       return 'The server is busy. Try again.';
     case 'rate_limited':
     case 'chat_rate_limited':

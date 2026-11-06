@@ -116,6 +116,9 @@ func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 				if err, ok := v.(error); ok {
 					args = append(args, "err", err.Error())
 					level = slog.LevelError
+					if c.Writer.Status() == http.StatusServiceUnavailable {
+						level = slog.LevelWarn // a service down or busy, not a bug
+					}
 				}
 			}
 			if aborted {

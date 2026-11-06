@@ -50,6 +50,7 @@ export const errorCodes = [
   'stack_full',
   'target_not_on_map',
   'unauthenticated',
+  'unavailable',
   'unknown_class',
   'unknown_item',
   'username_taken',
