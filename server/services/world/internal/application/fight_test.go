@@ -548,3 +548,32 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 		}
 	})
 }
+
+// Leaving within the respawn delay saves the respawn the death is owed, not the body: alive in town, at
+// half HP, the penalty taken once.
+func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		cps := &checkpoints{}
+		inst, stop := runMap(t, data, arena(time.Hour), cps, options{})
+		defer stop()
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		p := warriorAt(260)
+		p.HP, p.Exp = 1, 10
+		s := join(t, inst, p)
+		walk(inst, p.ID, 0, sim.Input{Right: true}, 2)
+		if v, _ := s.own(p.ID); !v.Dead {
+			t.Fatalf("not dead: %+v", v)
+		}
+		cps.drain()
+		inst.LeaveConnection(p.ID, "")
+		time.Sleep(tickInterval)
+		synctest.Wait()
+		town := data.Town()
+		saved := cps.drain()
+		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 102 || saved[0].Exp != 9 {
+			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 102 HP and EXP 9", saved)
+		}
+	})
+}

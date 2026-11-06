@@ -169,3 +169,26 @@ func TestLeaveNamesItsConnection(t *testing.T) {
 		}
 	})
 }
+
+// A character saved dead, before dead players were saved as respawned, joins as that respawn.
+func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := loadData(t)
+		forest, _ := data.Map("forest")
+		account := kernel.NewAccountID()
+		dead := model.Character{
+			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
+			Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 0, MP: 28, MapID: forest.ID, X: 900, Y: 600,
+		}
+		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{dead.ID: dead}}, &fakeStarter{})
+		defer stop()
+		v, err := w.Join(context.Background(), account, dead.ID, "c-1", &sink{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		town, _ := data.Map(forest.Town)
+		if v.MapID != town.ID || v.X != town.PlayerSpawn.X || v.Y != town.PlayerSpawn.Y || v.HP != 102 {
+			t.Fatalf("joined %+v, want %s's spawn with 102 HP", v, town.ID)
+		}
+	})
+}

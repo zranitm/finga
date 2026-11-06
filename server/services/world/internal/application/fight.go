@@ -267,7 +267,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 			continue
 		}
 		p.dead = false
-		p.HP = max(1, p.derived.MaxHP*respawnHPPercent/100)
+		p.HP = respawnHP(p.derived.MaxHP)
 		p.changed = true
 		if i.m.Town == i.m.ID { // a town revives its own dead
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
@@ -278,7 +278,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 			continue
 		}
 		// The player leaves before the broadcast, so tell them directly.
-		town, _ := i.data.Map(i.m.Town) // loading checks that every map names a town
+		town := i.town()
 		x, y := town.PlayerSpawn.X, town.PlayerSpawn.Y
 		respawned := model.Respawned{Tick: i.tick, ID: p.ID, MapID: town.ID, X: x, Y: y, HP: p.HP}
 		i.events = append(i.events, respawned)

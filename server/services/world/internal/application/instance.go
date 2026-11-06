@@ -490,5 +490,18 @@ func (i *Instance) detach(id kernel.CharacterID) {
 }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	i.saves.Put(model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Stats: p.Stats})
+	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Stats: p.Stats}
+	if p.dead { // the respawn it is owed; the death penalty is already taken
+		town := i.town()
+		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, respawnHP(p.derived.MaxHP)
+	}
+	i.saves.Put(cp)
 }
+
+// town is where the map's dead respawn; loading checks that every map names one.
+func (i *Instance) town() *gamedata.Map {
+	town, _ := i.data.Map(i.m.Town)
+	return town
+}
+
+func respawnHP(maxHP int) int { return max(1, maxHP*respawnHPPercent/100) }

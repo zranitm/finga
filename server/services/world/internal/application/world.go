@@ -102,15 +102,20 @@ func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err := w.deps.Starter.GrantStarter(ctx, account, id, c.Class); err != nil {
 		w.deps.Logger.WarnContext(ctx, "starter items not granted; the next join tries again", "character_id", id, "err", err)
 	}
-	inst, err := w.instance(c.MapID)
-	if err != nil {
-		return model.View{}, err
-	}
 	formulas, ok := w.data.Formulas(c.Class)
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
 	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{})
+	if c.HP <= 0 {
+		if c, err = w.respawned(c, derived.MaxHP); err != nil {
+			return model.View{}, err
+		}
+	}
+	inst, err := w.instance(c.MapID)
+	if err != nil {
+		return model.View{}, err
+	}
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
 	at := presence{inst: inst, conn: conn, account: account}
 	prev, had := w.presences.place(id, at)
@@ -160,6 +165,17 @@ func (w *World) takeOff(ctx context.Context, id kernel.CharacterID, account kern
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// respawned is c, saved dead before dead players were saved as respawned, as the respawn it was owed.
+func (w *World) respawned(c model.Character, maxHP int) (model.Character, error) {
+	m, ok := w.data.Map(c.MapID)
+	if !ok {
+		return c, model.ErrNoMap
+	}
+	town, _ := w.data.Map(m.Town)
+	c.MapID, c.X, c.Y, c.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, respawnHP(maxHP)
+	return c, nil
 }
 
 // withCheckpoint is c as cp left it.
