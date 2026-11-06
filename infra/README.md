@@ -3,10 +3,14 @@
 How Finga runs, apart from the code that runs.
 
 - `docker-compose.yml`: `make up` and `make down`. Postgres, the migrations
-  as a one-shot job, and the game server, built from `../server` with
-  `server/Dockerfile`. The host ports come from `infra/.env` (see
-  `.env.example`); the game server's settings from `server/.env`, which
-  Compose passes to the container.
+  as a one-shot job, the six services (gateway, account, character, item,
+  world and social), each built from `../server` with `server/Dockerfile`,
+  and the web client, built from `../web`. The host ports come from
+  `infra/.env` (see `.env.example`); the services' settings from
+  `server/.env`, which Compose passes to each container.
+- `nginx/`: the web client's server. It serves the client and passes `/api`
+  and `/ws` to the gateway, so the browser sees one origin, and holds the
+  limits per client address.
 - `obs/`: the observability stack, which `make up OBS=1` runs beside the
   game under the `obs` profile; plain `make up` leaves it out. Grafana, at
   http://localhost:3000, shows the Finga dashboard over Mimir (metrics),
