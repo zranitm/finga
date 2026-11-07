@@ -46,15 +46,15 @@ var unavailableCodes = []string{"57P01", "57P02", "57P03", "57P05", "25P03"}
 
 // unavailable reports whether err is the database out of reach or short of resources: a connection refused or lost, a server shutting down, starting up, full or failing its disk; a later try may pass.
 func unavailable(err error) bool {
+	if _, ok := errors.AsType[*pgconn.ConnectError](err); ok {
+		return true // the pool dials on a context of its own, so a deadline in here is the connect timeout, not the caller's
+	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false // the caller gave up, which its own code says
 	}
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
 		inClass := func(class string) bool { return strings.HasPrefix(pgErr.Code, class) }
 		return slices.ContainsFunc(unavailableClasses, inClass) || slices.Contains(unavailableCodes, pgErr.Code)
-	}
-	if _, ok := errors.AsType[*pgconn.ConnectError](err); ok {
-		return true
 	}
 	_, isNet := errors.AsType[net.Error](err)
 	return isNet || pgconn.SafeToRetry(err) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)

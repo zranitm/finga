@@ -3,6 +3,7 @@ package dbx_test
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"sync"
 	"testing"
@@ -174,6 +175,32 @@ func TestAnUnreachableDatabaseIsUnavailable(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+	t.Run("a server that never answers within the connect timeout", func(t *testing.T) {
+		pool, err := pgxpool.New(ctx, "postgres://finga@"+silentServer(t)+"/finga?connect_timeout=1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		callerCtx, cancel := context.WithTimeout(ctx, 10*time.Second) // the caller would wait longer
+		defer cancel()
+		err = dbx.InTx(callerCtx, pool, func(pgx.Tx) error { return nil })
+		if !errors.Is(classes.Classify(err), unavailable) {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("a caller that gives up before the connect timeout is not told unavailable", func(t *testing.T) {
+		pool, err := pgxpool.New(ctx, "postgres://finga@"+silentServer(t)+"/finga?connect_timeout=10")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		callerCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+		defer cancel()
+		err = dbx.InTx(callerCtx, pool, func(pgx.Tx) error { return nil })
+		if !errors.Is(err, context.DeadlineExceeded) || errors.Is(classes.Classify(err), unavailable) {
+			t.Fatalf("got %v", err)
+		}
+	})
 	t.Run("a connection the server ends mid-transaction", func(t *testing.T) {
 		err := dbx.InTx(ctx, cluster.DB(t), func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, `SELECT pg_terminate_backend(pg_backend_pid())`)
@@ -196,6 +223,35 @@ func TestAnUnreachableDatabaseIsUnavailable(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+}
+
+// silentServer accepts connections and never answers, as a database host whose server hangs; it returns its address.
+func silentServer(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var held []net.Conn
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			held = append(held, c)
+		}
+	}()
+	t.Cleanup(func() {
+		_ = l.Close()
+		<-done
+		for _, c := range held {
+			_ = c.Close()
+		}
+	})
+	return l.Addr().String()
 }
 
 func TestNewPool(t *testing.T) {
