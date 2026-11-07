@@ -16,6 +16,19 @@ type fakeParties struct {
 	mu      sync.Mutex
 	parties [][]kernel.CharacterID
 	updates []partyUpdate
+	epoch   uint64
+}
+
+func (f *fakeParties) Epoch() uint64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.epoch
+}
+
+func (f *fakeParties) updated() []partyUpdate {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.updates)
 }
 
 type partyUpdate struct {
@@ -45,6 +58,35 @@ func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, max
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.updates = append(f.updates, partyUpdate{id, mapID, level, hp, maxHP})
+}
+
+// When the party stream subscribes again, social may have restarted and kept only what logins told it, so every player's state is sent again.
+func TestANewPartySubscriptionRetellsEveryPlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		parties := &fakeParties{epoch: 1}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Parties: parties})
+		defer stop()
+		x, y := worldtest.TownSpawn(t, data)
+		ayla, robin := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y)
+		join(t, inst, ayla)
+		join(t, inst, robin)
+		before := len(parties.updated())
+		parties.mu.Lock()
+		parties.epoch = 2
+		parties.mu.Unlock()
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		got := parties.updated()[before:]
+		if len(got) != 2 || got[0].id != ayla.ID || got[1].id != robin.ID || got[0].level != 1 || got[0].mapID != "town" {
+			t.Fatalf("updates %+v; want each player's again", got)
+		}
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		if n := len(parties.updated()) - before; n != 2 {
+			t.Fatalf("%d updates two ticks on; want them sent once", n)
+		}
+	})
 }
 
 func expGained(s *worldtest.Sink) []int64 {

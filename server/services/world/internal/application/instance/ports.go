@@ -41,4 +41,6 @@ type Parties interface {
 	Members(id kernel.CharacterID) []kernel.CharacterID
 	SameParty(a, b kernel.CharacterID) bool
 	Update(id kernel.CharacterID, mapID string, level, hp, maxHP int)
+	// Epoch changes when the party stream subscribes again, after which the map tells every player's state again.
+	Epoch() uint64
 }

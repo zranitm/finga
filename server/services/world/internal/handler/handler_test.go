@@ -65,6 +65,7 @@ type idle struct{}
 
 func (idle) Members(kernel.CharacterID) []kernel.CharacterID  { return nil }
 func (idle) SameParty(_, _ kernel.CharacterID) bool           { return false }
+func (idle) Epoch() uint64                                    { return 0 }
 func (idle) Update(kernel.CharacterID, string, int, int, int) {}
 func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
 	return nil

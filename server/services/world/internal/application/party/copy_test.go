@@ -104,6 +104,9 @@ func TestThePartyCopy(t *testing.T) {
 		social.events <- model.PartiesSubscribed{}
 		social.events <- model.Membership{Characters: []kernel.CharacterID{ann, bo}, Members: []kernel.CharacterID{ann, bo}}
 		synctest.Wait() // applied
+		if p.Epoch() != 1 {
+			t.Fatalf("epoch %d after the first subscription", p.Epoch())
+		}
 
 		{ // memberships are read from the copy, as this world subscribed
 			if !p.SameParty(ann, bo) {
@@ -143,6 +146,9 @@ func TestThePartyCopy(t *testing.T) {
 			synctest.Wait()
 			if !p.SameParty(bo, cy) || p.Members(ann) != nil {
 				t.Fatalf("after the new subscription: ann %v, bo %v", p.Members(ann), p.Members(bo))
+			}
+			if p.Epoch() != 2 {
+				t.Fatalf("epoch %d after the second subscription; the maps tell social their players again on each", p.Epoch())
 			}
 		}
 		{ // a copy handed out is the caller's

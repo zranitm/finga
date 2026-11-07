@@ -53,6 +53,18 @@ func (i *Instance) award(p *player, amount int64) {
 	i.checkpoint(p)
 }
 
+// retellParties tells every player's state again once the party stream subscribed again: social may have restarted, keeping only its logins' values.
+func (i *Instance) retellParties() {
+	epoch := i.deps.Parties.Epoch()
+	if epoch == i.epoch {
+		return
+	}
+	i.epoch = epoch
+	for _, id := range i.order {
+		i.tellParty(i.players[id], i.m.ID)
+	}
+}
+
 func (i *Instance) tellParty(p *player, mapID string) {
 	i.deps.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
 }

@@ -29,6 +29,8 @@ type Member struct {
 	JoinOrder uint64
 	// OfflineAt is when the member last went offline; zero while online.
 	OfflineAt time.Time
+	// ReportedAt is when a world last reported the member's map, level and HP.
+	ReportedAt time.Time
 }
 
 // Party is one party: the leader and the members in join order.

@@ -409,6 +409,19 @@ func TestALateOnlineFromAnOlderConnectionChangesNothing(t *testing.T) {
 	}
 }
 
+// What the world reports of a player social does not know yet, as after a restart, is kept for their login, whose own values are older.
+func TestWhatTheWorldReportsBeforeALoginLandsIsKept(t *testing.T) {
+	f := newFixture(t, "Ayla")
+	id := kernel.NewCharacterID()
+	f.ids["Bruno"], f.name[id] = id, "Bruno"
+	must(t, f.svc.Update(f.ctx, id, "forest", 7, 120, 300))
+	must(t, f.svc.Online(f.ctx, model.Member{ID: id, Name: "Bruno", Level: 5, HP: 300, MaxHP: 300, MapID: "town", Connection: "c-Bruno"}))
+	f.invite(t, "Ayla", "Bruno") // on Ayla's map, the forest, as the world reported
+	if m := f.rec.last().party.Members[1]; !m.Online || m.Level != 7 || m.HP != 120 || m.MapID != "forest" || m.Name != "Bruno" {
+		t.Fatalf("member %+v; want online with what the world reported", m)
+	}
+}
+
 func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {
 	f := newFixture(t, "ann", "bo", "cy", "di", "ed")
 	f.invite(t, "ann", "bo")

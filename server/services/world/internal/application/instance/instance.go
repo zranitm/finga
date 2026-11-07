@@ -57,6 +57,7 @@ type Instance struct {
 	params   sim.Params
 	subSteps int // sim steps per tick
 	inputs   inputTicks
+	epoch    uint64 // the party stream's subscription the players were last told to
 	tuning   Tuning
 	deps     Services
 	mover    Mover
@@ -275,6 +276,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 			i.checkpoint(p)
 		}
 	}
+	i.retellParties()
 	i.dropped = i.broadcast(changed, i.gone(removed))
 }
 

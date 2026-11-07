@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v5"
@@ -44,6 +45,7 @@ type Copy struct {
 
 	mu    sync.Mutex
 	table map[kernel.CharacterID][]kernel.CharacterID
+	epoch atomic.Uint64 // the party stream's subscriptions so far
 }
 
 // Deps are what the copy calls; all are required.
@@ -64,6 +66,9 @@ func NewCopy(d Deps, o Options) *Copy {
 		updates: coalesce.New(func(u model.MemberUpdate) kernel.CharacterID { return u.ID }),
 	}
 }
+
+// Epoch counts the party stream's subscriptions: a new one means social may have restarted and lost what the maps told it.
+func (p *Copy) Epoch() uint64 { return p.epoch.Load() }
 
 // Members lists the IDs of a character's party, nil without one.
 func (p *Copy) Members(id kernel.CharacterID) []kernel.CharacterID {
@@ -104,6 +109,7 @@ func (p *Copy) apply(ctx context.Context, e model.PartyEvent) {
 	switch e := e.(type) {
 	case model.PartiesSubscribed:
 		p.reset() // the memberships that follow are the whole table
+		p.epoch.Add(1)
 	case model.PartiesLost:
 		p.reset()
 		p.log.WarnContext(ctx, "party stream broke; nobody has a party until it is back", "err", e.Err)

@@ -343,6 +343,9 @@ func (nobody) Members(kernel.CharacterID) []kernel.CharacterID { return nil }
 // SameParty is never.
 func (nobody) SameParty(_, _ kernel.CharacterID) bool { return false }
 
+// Epoch never changes.
+func (nobody) Epoch() uint64 { return 0 }
+
 // Update tells nobody.
 func (nobody) Update(kernel.CharacterID, string, int, int, int) {}
 
