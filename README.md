@@ -47,7 +47,7 @@ port the stack publishes, set `FINGA_WEB_PORT` (4173),
 The services ship together: every one runs the same commit, and a mix of
 versions is not supported. A contract can change its meaning without changing
 its shape, which `make breaking` cannot see, so a commit that does is marked
-`!` with a `BREAKING CHANGE:` footer. On a running stack `make up` builds
+`!` with a `BREAKING-CHANGE:` footer. On a running stack `make up` builds
 first, then stops every service, callers before the services they call, so
 each one's last saves reach the version it was built against, and starts the
 new ones.
