@@ -42,7 +42,7 @@ type Join struct {
 // Join joins character to the world and claims it for s, holding deliveries until Finish; an error undoes both.
 func (r *Registry) Join(ctx context.Context, s *Session, account kernel.AccountID, sessionID kernel.SessionID, character kernel.CharacterID) (*Join, error) {
 	// The character's other joins wait, and deliveries are held so a Snapshot that beats the join follows Welcome.
-	unlock, err := r.lockCharacter(ctx, character)
+	unlock, err := r.joining.Lock(ctx, character)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func (r *Registry) Rejoin(s *Session) {
 // rejoin joins a player again after the world's stream broke, unless a newer connection joined the character since.
 func (r *Registry) rejoin(ctx context.Context, s *Session) {
 	character := s.Character()
-	unlock, err := r.lockCharacter(ctx, character)
+	unlock, err := r.joining.Lock(ctx, character)
 	if err != nil {
 		return // closed while another join ran
 	}

@@ -11,6 +11,7 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"finga/internal/kernel"
+	"finga/pkg/keylock"
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/model"
 )
@@ -71,40 +72,9 @@ type Registry struct {
 	unclosed    int // under mu: sessions from Open until their Close returns
 	jobs        int // under mu: background jobs not yet returned
 
-	joining map[kernel.CharacterID]*characterLock // under mu: each character's joins, one at a time
-	rejoins chan struct{}                         // a slot per rejoin running
-	ghosts  map[string]time.Time                  // under mu: until when a ghost connection gets no other Leave
-}
-
-type characterLock struct {
-	held  chan struct{} // full while a join runs
-	users int           // under the registry's mu
-}
-
-// lockCharacter waits for the character's join in progress, if any, until ctx ends; unlock lets the next go.
-func (r *Registry) lockCharacter(ctx context.Context, id kernel.CharacterID) (unlock func(), err error) {
-	r.mu.Lock()
-	l := r.joining[id]
-	if l == nil {
-		l = &characterLock{held: make(chan struct{}, 1)}
-		r.joining[id] = l
-	}
-	l.users++
-	r.mu.Unlock()
-	done := func() {
-		r.mu.Lock()
-		if l.users--; l.users == 0 {
-			delete(r.joining, id)
-		}
-		r.mu.Unlock()
-	}
-	select {
-	case l.held <- struct{}{}:
-		return func() { <-l.held; done() }, nil
-	case <-ctx.Done():
-		done()
-		return nil, ctx.Err()
-	}
+	joining *keylock.Locks[kernel.CharacterID] // each character's joins, one at a time
+	rejoins chan struct{}                      // a slot per rejoin running
+	ghosts  map[string]time.Time               // under mu: until when a ghost connection gets no other Leave
 }
 
 // NewRegistry builds an empty registry.
@@ -117,7 +87,7 @@ func NewRegistry(deps Deps, opts Options) *Registry {
 		byAccount:   map[kernel.AccountID]*Session{},
 		byCharacter: map[kernel.CharacterID]*Session{},
 		bySession:   map[kernel.SessionID]*Session{},
-		joining:     map[kernel.CharacterID]*characterLock{},
+		joining:     keylock.New[kernel.CharacterID](),
 		rejoins:     make(chan struct{}, rejoinsAtOnce),
 		ghosts:      map[string]time.Time{},
 	}
