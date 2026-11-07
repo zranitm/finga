@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"slices"
 	"syscall"
 	"time"
@@ -25,6 +26,40 @@ const (
 
 // version is the build's, set at link time: -ldflags "-X finga/internal/host.version=...".
 var version = "dev"
+
+// buildVersion is the version services report: the linked one, else the commit a plain go build recorded.
+var buildVersion = func() string {
+	info, _ := debug.ReadBuildInfo()
+	return versionOf(version, info)
+}()
+
+// versionOf is linked unless it is dev and info names the commit, which it shortens as git describe does, -dirty if modified.
+func versionOf(linked string, info *debug.BuildInfo) string {
+	if linked != "dev" || info == nil {
+		return linked
+	}
+	var commit string
+	dirty := false
+	for _, s := range info.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			commit = s.Value[:min(len(s.Value), shortCommit)]
+		case "vcs.modified":
+			dirty = s.Value == "true"
+		}
+	}
+	switch {
+	case commit == "":
+		return linked
+	case dirty:
+		return commit + "-dirty"
+	default:
+		return commit
+	}
+}
+
+// shortCommit is how much of a commit names it, as the Makefile's git describe --abbrev gives it.
+const shortCommit = 12
 
 // Process is a built binary: Run until ctx ends, then Close.
 type Process interface {
@@ -71,7 +106,7 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string,
 		return 1
 	}
 	defer p.Close()
-	log.InfoContext(ctx, "starting", "service", name, "version", version)
+	log.InfoContext(ctx, "starting", "service", name, "version", buildVersion)
 	if err := p.Run(ctx); err != nil {
 		log.ErrorContext(ctx, "stopped with an error", "service", name, "err", err)
 		return 1

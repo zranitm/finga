@@ -7,6 +7,8 @@ SMOKE_URL ?= http://localhost:8080
 EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9104
 NPM       ?= npm --prefix web
+# The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
+VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
 .PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
 
@@ -14,7 +16,7 @@ NPM       ?= npm --prefix web
 OBSERVED = $(if $(OBS),COMPOSE_PROFILES=obs FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
 
 up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway); OBS=1 adds Grafana, Mimir, Loki and Tempo
-	$(OBSERVED) $(COMPOSE) build
+	VERSION=$(VERSION) $(OBSERVED) $(COMPOSE) build
 	$(COMPOSE) stop # the game alone first, so a running obs stack still collects its last logs and spans
 	$(if $(OBS),,COMPOSE_PROFILES=obs $(COMPOSE) stop)
 	$(OBSERVED) $(COMPOSE) up -d
@@ -27,7 +29,7 @@ down:          ## stop everything and drop the database volume (and containers o
 SERVICES ?= account character item social world
 run:           ## without Docker: server/.env exported, every service's migrations, then the six services
 	cd $(SERVER) && set -a && if [ -f .env ]; then . ./.env; fi && set +a && $(GO) run ./cmd/migrate && \
-	$(GO) build -o bin/ ./services/gateway $(foreach s,$(SERVICES),./services/$(s)) && \
+	$(GO) build -ldflags "-X finga/internal/host.version=$(VERSION)" -o bin/ ./services/gateway $(foreach s,$(SERVICES),./services/$(s)) && \
 	trap 'kill 0' EXIT; for s in $(SERVICES); do ./bin/$$s & done; ./bin/gateway
 
 test: test-go test-web   ## every Go test with the race detector, then the client tests
