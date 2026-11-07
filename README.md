@@ -14,8 +14,8 @@ client, with the proof-session checklist in `docs/proof-session.md`.
 server/   the Go module: the six services (services/), their tools, configuration,
           the game content (data/), and the contracts (api/, testdata/)
 web/      the browser client: Phaser 4, React, Vite, TypeScript
-infra/    how it runs: Docker Compose and the nginx config today; infrastructure
-          as code and the Grafana dashboards join here
+infra/    how it runs: Docker Compose, the nginx config, the Grafana stack, and
+          production on AWS (deploy/, terraform/; deploy/README.md is the runbook)
 docs/     the product design, the proof-session checklist
 ```
 
