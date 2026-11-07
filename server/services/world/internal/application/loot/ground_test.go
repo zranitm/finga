@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -31,6 +32,7 @@ var (
 	errDown    = errors.New("item service down")
 	errGranted = errors.New("granted by an earlier try")
 	gel        = []model.Slot{{Tab: gamedata.Etc, Slot: 0, Item: &model.SlotItem{Template: "slime_gel", Quantity: 2}}}
+	potion     = model.Slot{Tab: gamedata.Use, Slot: 3, Item: &model.SlotItem{Template: "red_potion", Quantity: 1}} // not the drop's: a newer move may have put it elsewhere
 )
 
 type answer struct {
@@ -191,7 +193,7 @@ func TestSettlingAPickup(t *testing.T) {
 		{"granted", &pickups{answers: []answer{{slots: gel}}}, model.InventoryChanged{Tick: 1, Slots: gel}, 1, true, false},
 		{"granted with nothing to show", &pickups{answers: []answer{{}}}, nil, 1, true, false},
 		{"refused", &pickups{answers: []answer{{err: errFull}}}, model.PickupFailed{Tick: 1, Err: errFull}, 1, false, true},
-		{"granted by a try whose reply was lost", &pickups{answers: []answer{{err: errGranted}}, inventory: answer{slots: gel}}, model.InventoryChanged{Tick: 1, Slots: gel}, 1, true, false},
+		{"granted by a try whose reply was lost", &pickups{answers: []answer{{err: errGranted}}, inventory: answer{slots: append(slices.Clone(gel), potion)}}, model.InventoryChanged{Tick: 1, Slots: gel}, 1, true, false},
 		{"granted, with the inventory unreadable", &pickups{answers: []answer{{err: errGranted}}, inventory: answer{err: errDown}}, nil, 1, true, false},
 	}
 	for _, tt := range tests {
