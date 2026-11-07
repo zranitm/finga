@@ -26,8 +26,9 @@ import (
 )
 
 type stack struct {
-	c   socialv1.SocialServiceClient
-	ctx context.Context
+	c       socialv1.SocialServiceClient
+	ctx     context.Context
+	parties *application.PartyService
 }
 
 func newStack(t *testing.T) *stack {
@@ -45,7 +46,7 @@ func newStackOver(t *testing.T, wrap func(handler.Parties) handler.Parties) *sta
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx}
+	return &stack{c: socialv1.NewSocialServiceClient(grpctest.Conn(t, g)), ctx: ctx, parties: parties}
 }
 
 func (s *stack) gateway(t *testing.T, id string) grpc.ServerStreamingClient[socialv1.DeliverResponse] {
@@ -83,13 +84,13 @@ func (s *stack) onlineThrough(t *testing.T, gateway, conn string, id kernel.Char
 // isOnline is whether the character's party shows them online.
 func (s *stack) isOnline(t *testing.T, id kernel.CharacterID) bool {
 	t.Helper()
-	res, err := s.c.PartyOf(s.ctx, &socialv1.PartyOfRequest{CharacterId: id.String()})
+	p, _, err := s.parties.Of(s.ctx, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, m := range res.GetParty().GetMembers() {
-		if m.GetId() == id.String() {
-			return m.GetOnline()
+	for _, m := range p.Members {
+		if m.ID == id {
+			return m.Online
 		}
 	}
 	t.Fatalf("%s has no party", id)
@@ -157,14 +158,9 @@ func TestPartyTrafficReachesEachMembersGateway(t *testing.T) {
 		}
 		recv(t, gwB)
 	})
-	t.Run("PartyOf", func(t *testing.T) {
-		res, err := s.c.PartyOf(s.ctx, &socialv1.PartyOfRequest{CharacterId: bo.String()})
-		if err != nil || res.GetParty().GetLeaderId() != ann.String() {
-			t.Fatalf("party %+v %v", res, err)
-		}
-		alone := kernel.NewCharacterID()
-		if res, err := s.c.PartyOf(s.ctx, &socialv1.PartyOfRequest{CharacterId: alone.String()}); err != nil || res.GetParty() != nil {
-			t.Fatalf("no party: %+v %v", res, err)
+	t.Run("PartyOf is retired", func(t *testing.T) {
+		if _, err := s.c.PartyOf(s.ctx, &socialv1.PartyOfRequest{CharacterId: bo.String()}); status.Code(err) != codes.Unimplemented {
+			t.Fatalf("PartyOf: %v, want Unimplemented", err)
 		}
 	})
 	t.Run("a party line reaches every member on their gateway", func(t *testing.T) {

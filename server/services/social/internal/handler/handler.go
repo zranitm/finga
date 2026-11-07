@@ -22,7 +22,6 @@ import (
 type Parties interface {
 	Online(ctx context.Context, m model.Member) error
 	Offline(ctx context.Context, id kernel.CharacterID, conn string) error
-	Of(ctx context.Context, id kernel.CharacterID) (model.Party, bool, error)
 	Invite(ctx context.Context, from, to kernel.CharacterID) (model.Invite, error)
 	Respond(ctx context.Context, who kernel.CharacterID, inviteID model.InviteID, accept bool) error
 	Leave(ctx context.Context, who kernel.CharacterID) error
@@ -160,21 +159,6 @@ func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*so
 	return &socialv1.OfflineResponse{}, nil
 }
 
-// PartyOf is a character's party, if any.
-func (s *Server) PartyOf(ctx context.Context, req *socialv1.PartyOfRequest) (*socialv1.PartyOfResponse, error) {
-	id, err := kernel.ParseCharacterID(req.GetCharacterId())
-	if err != nil {
-		return nil, err
-	}
-	p, ok, err := s.parties.Of(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return &socialv1.PartyOfResponse{}, nil
-	}
-	return &socialv1.PartyOfResponse{Party: partyOf(&p)}, nil
-}
 
 // Invite asks a character to join the caller's party.
 func (s *Server) Invite(ctx context.Context, req *socialv1.InviteRequest) (*socialv1.InviteResponse, error) {

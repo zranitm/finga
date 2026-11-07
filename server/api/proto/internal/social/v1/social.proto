@@ -4,8 +4,7 @@ package internal.social.v1;
 
 option go_package = "finga/api/gen/social/v1;socialv1";
 
-// SocialService owns parties, invites and chat, in memory.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// SocialService owns parties, invites and chat, in memory; a failure carries a Reason in google.rpc.ErrorInfo.
 service SocialService {
   // Deliver streams Subscribed, then the party events of every character online through that gateway.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
@@ -13,7 +12,7 @@ service SocialService {
   rpc Online(OnlineRequest) returns (OnlineResponse);
   // Offline marks a character as disconnected; their party keeps them.
   rpc Offline(OfflineRequest) returns (OfflineResponse);
-  // Unused: a login's party comes from Online, in order with the party's changes.
+  // Retired, answering Unimplemented: a login's party comes from Online, in order with the party's changes.
   rpc PartyOf(PartyOfRequest) returns (PartyOfResponse) {
     option deprecated = true;
   }

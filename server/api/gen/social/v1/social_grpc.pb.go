@@ -37,8 +37,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// SocialService owns parties, invites and chat, in memory.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// SocialService owns parties, invites and chat, in memory; a failure carries a Reason in google.rpc.ErrorInfo.
 type SocialServiceClient interface {
 	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
@@ -47,7 +46,7 @@ type SocialServiceClient interface {
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(ctx context.Context, in *OfflineRequest, opts ...grpc.CallOption) (*OfflineResponse, error)
 	// Deprecated: Do not use.
-	// Unused: a login's party comes from Online, in order with the party's changes.
+	// Retired, answering Unimplemented: a login's party comes from Online, in order with the party's changes.
 	PartyOf(ctx context.Context, in *PartyOfRequest, opts ...grpc.CallOption) (*PartyOfResponse, error)
 	// Invite asks a character on the same map to join; an inviter without a party leads the new one.
 	Invite(ctx context.Context, in *InviteRequest, opts ...grpc.CallOption) (*InviteResponse, error)
@@ -215,8 +214,7 @@ func (c *socialServiceClient) UpdateMember(ctx context.Context, in *UpdateMember
 // All implementations must embed UnimplementedSocialServiceServer
 // for forward compatibility.
 //
-// SocialService owns parties, invites and chat, in memory.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// SocialService owns parties, invites and chat, in memory; a failure carries a Reason in google.rpc.ErrorInfo.
 type SocialServiceServer interface {
 	// Deliver streams Subscribed, then the party events of every character online through that gateway.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error
@@ -225,7 +223,7 @@ type SocialServiceServer interface {
 	// Offline marks a character as disconnected; their party keeps them.
 	Offline(context.Context, *OfflineRequest) (*OfflineResponse, error)
 	// Deprecated: Do not use.
-	// Unused: a login's party comes from Online, in order with the party's changes.
+	// Retired, answering Unimplemented: a login's party comes from Online, in order with the party's changes.
 	PartyOf(context.Context, *PartyOfRequest) (*PartyOfResponse, error)
 	// Invite asks a character on the same map to join; an inviter without a party leads the new one.
 	Invite(context.Context, *InviteRequest) (*InviteResponse, error)
