@@ -6,9 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,6 +202,9 @@ func stringToMapHook(from, to reflect.Type, data any) (any, error) {
 func validateTags(cfg any) error {
 	val := validator.New(validator.WithRequiredStructEnabled())
 	val.RegisterTagNameFunc(fieldKey)
+	if err := val.RegisterValidation("host_port", hostPort); err != nil {
+		return err
+	}
 	err := val.Struct(cfg)
 	if err == nil {
 		return nil
@@ -211,6 +218,24 @@ func validateTags(cfg any) error {
 		errs = append(errs, fmt.Errorf("%s: fails %q", yamlKey(fe.Namespace()), fe.ActualTag()+paramSuffix(fe.Param())))
 	}
 	return errors.Join(errs...)
+}
+
+// hostName is a DNS name whose labels may hold underscores, as container and service names do.
+var hostName = regexp.MustCompile(`^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*\.?$`)
+
+// hostPort is the host_port tag: host:port with no scheme, the host an IP literal (IPv6 in brackets) or a name, the port 1 to 65535.
+func hostPort(fl validator.FieldLevel) bool {
+	host, port, err := net.SplitHostPort(fl.Field().String())
+	if err != nil || host == "" {
+		return false
+	}
+	if n, err := strconv.ParseUint(port, 10, 16); err != nil || n == 0 {
+		return false
+	}
+	if _, err := netip.ParseAddr(host); err == nil {
+		return true
+	}
+	return hostName.MatchString(host)
 }
 
 // yamlKey turns schema.peers[sales].base_url into peers.sales.base_url.

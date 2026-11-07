@@ -23,7 +23,7 @@ import (
 // Config is a binary's tracing section.
 type Config struct {
 	// OTLPEndpoint is the host:port of an OTLP gRPC collector; empty exports nothing.
-	OTLPEndpoint string `mapstructure:"otlp_endpoint" validate:"omitempty,hostname_port"`
+	OTLPEndpoint string `mapstructure:"otlp_endpoint" validate:"omitempty,host_port"`
 }
 
 // Options name the process and its entry points.

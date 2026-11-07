@@ -126,7 +126,10 @@ func TestTheEndpointIsAHostAndPort(t *testing.T) {
 	type config struct {
 		Tracing tracing.Config `mapstructure:"tracing"`
 	}
-	for endpoint, valid := range map[string]bool{"": true, "alloy:4317": true, "127.0.0.1:4317": true, "http://alloy:4317": false, "alloy": false} {
+	for endpoint, valid := range map[string]bool{
+		"": true, "alloy:4317": true, "127.0.0.1:4317": true, "[::1]:4317": true, "otel_collector:4317": true, "collector.obs.svc.:4317": true,
+		"http://alloy:4317": false, "alloy": false, ":4317": false, "alloy:0": false, "alloy:65536": false, "::1:4317": false, "al loy:4317": false,
+	} {
 		_, err := configload.LoadFrom[config](strings.NewReader("tracing:\n  otlp_endpoint: \""+endpoint+"\"\n"), "test", configload.Options{})
 		if (err == nil) != valid {
 			t.Errorf("%q: %v", endpoint, err)
