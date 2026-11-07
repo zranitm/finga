@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 # Needs the gamedata, proto and edge build contexts, which Compose supplies: docker build --build-context gamedata=../server/data --build-context proto=../server/api/proto --build-context edge=../infra/nginx .
-FROM node:24-alpine AS build
+# The client build is the same on every platform, so it runs on the builder's own; only the nginx stage is per target.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS build
 WORKDIR /src/web
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
