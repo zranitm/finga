@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
@@ -37,7 +36,7 @@ import (
 // traces samples as the gateway does, and spans records every span it samples.
 var traces, spans = gatewayTraces()
 
-func gatewayTraces() (*sdktrace.TracerProvider, *tracetest.SpanRecorder) {
+func gatewayTraces() (*tracing.Provider, *tracetest.SpanRecorder) {
 	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "gateway", Root: receive.EntryPoint})
 	if err != nil {
 		panic(err)

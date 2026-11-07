@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -17,6 +16,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
+	"finga/pkg/logger"
 	"finga/pkg/uuidv7"
 )
 
@@ -41,36 +41,42 @@ const errorGap = time.Minute
 
 // errorLines logs OpenTelemetry's errors one per errorGap, each line counting the errors left out since the one before.
 type errorLines struct {
-	log *slog.Logger
-
-	mu         sync.Mutex
-	last       time.Time
-	suppressed int
+	log   *slog.Logger
+	lines *logger.Sampler
 }
 
 // Handle implements otel.ErrorHandler.
 func (e *errorLines) Handle(err error) {
-	e.mu.Lock()
-	now := time.Now()
-	if !e.last.IsZero() && now.Sub(e.last) < errorGap {
-		e.suppressed++
-		e.mu.Unlock()
-		return
+	e.lines.Do("", func(suppressed int) {
+		e.log.WarnContext(context.Background(), "opentelemetry error", "err", err, "suppressed", suppressed)
+	})
+}
+
+// Provider is the SDK's tracer provider, whose Shutdown also reports the OpenTelemetry errors left out since the last line.
+type Provider struct {
+	*sdktrace.TracerProvider
+	errors *errorLines // nil without a logger
+}
+
+// Shutdown flushes the spans not exported yet, then logs the newest OpenTelemetry error left out, which its last flush may have added.
+func (p *Provider) Shutdown(ctx context.Context) error {
+	err := p.TracerProvider.Shutdown(ctx)
+	if p.errors != nil {
+		p.errors.lines.Flush()
 	}
-	suppressed := e.suppressed
-	e.last, e.suppressed = now, 0
-	e.mu.Unlock()
-	e.log.WarnContext(context.Background(), "opentelemetry error", "err", err, "suppressed", suppressed)
+	return err
 }
 
 // New is the process's tracer provider; Shutdown flushes what it has not exported yet.
-func New(ctx context.Context, cfg Config, opts Options) (*sdktrace.TracerProvider, error) {
+func New(ctx context.Context, cfg Config, opts Options) (*Provider, error) {
 	root := opts.Root
 	if root == nil {
 		root = func(string) bool { return false }
 	}
+	var otelErrors *errorLines
 	if opts.Logger != nil {
-		otel.SetErrorHandler(&errorLines{log: opts.Logger})
+		otelErrors = &errorLines{log: opts.Logger, lines: logger.NewSampler(errorGap)}
+		otel.SetErrorHandler(otelErrors)
 	}
 	res, err := processResource(opts)
 	if err != nil {
@@ -87,7 +93,7 @@ func New(ctx context.Context, cfg Config, opts Options) (*sdktrace.TracerProvide
 		}
 		all = append(all, sdktrace.WithBatcher(exporter))
 	}
-	return sdktrace.NewTracerProvider(all...), nil
+	return &Provider{TracerProvider: sdktrace.NewTracerProvider(all...), errors: otelErrors}, nil
 }
 
 // processResource is the SDK's default resource, OTEL_RESOURCE_ATTRIBUTES included, under the service, its version and this process.

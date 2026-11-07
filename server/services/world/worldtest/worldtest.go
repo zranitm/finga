@@ -14,7 +14,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 
@@ -184,7 +183,7 @@ var Spans = tracetest.NewSpanRecorder()
 // Traces samples as the world does.
 var Traces = worldTraces()
 
-func worldTraces() *sdktrace.TracerProvider {
+func worldTraces() *tracing.Provider {
 	tp, err := tracing.New(context.Background(), tracing.Config{}, tracing.Options{Service: "world", Root: loot.EntryPoint})
 	if err != nil {
 		panic(err)

@@ -133,6 +133,28 @@ func TestOpenTelemetrysErrorsGoToTheLoggerSampled(t *testing.T) {
 	})
 }
 
+// Shutdown reports the errors left out since the last line, so a run that ends within the gap, the last flush's included, still shows.
+func TestShutdownReportsTheErrorsLeftOut(t *testing.T) {
+	prev := otel.GetErrorHandler()
+	t.Cleanup(func() { otel.SetErrorHandler(prev) })
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		tp, err := tracing.New(t.Context(), tracing.Config{}, tracing.Options{Service: "shop", Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		otel.Handle(errors.New("traces export: connection refused"))
+		otel.Handle(errors.New("traces export: connection refused"))
+		otel.Handle(errors.New("traces export: context deadline exceeded"))
+		if err := tp.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Count(logs.String(), `"msg":"opentelemetry error"`); got != 2 || !strings.Contains(logs.String(), `"err":"traces export: context deadline exceeded","suppressed":1`) {
+			t.Fatalf("%d lines; want a second at Shutdown, the last error left out, counting the 1 before it:\n%s", got, logs.String())
+		}
+	})
+}
+
 func TestTheEndpointIsAHostAndPort(t *testing.T) {
 	type config struct {
 		Tracing tracing.Config `mapstructure:"tracing"`

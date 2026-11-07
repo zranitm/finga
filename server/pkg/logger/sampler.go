@@ -1,6 +1,8 @@
 package logger
 
 import (
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
@@ -18,6 +20,7 @@ type Sampler struct {
 type sampled struct {
 	limiter    *rate.Limiter
 	suppressed int
+	last       func(suppressed int) // the newest line left out, which Flush writes
 }
 
 // NewSampler lets one line per key through every gap.
@@ -35,11 +38,31 @@ func (s *Sampler) Do(key string, write func(suppressed int)) {
 	}
 	if !k.limiter.Allow() {
 		k.suppressed++
+		k.last = write
 		s.mu.Unlock()
 		return
 	}
 	suppressed := k.suppressed
-	k.suppressed = 0
+	k.suppressed, k.last = 0, nil
 	s.mu.Unlock()
 	write(suppressed)
+}
+
+// Flush writes each key's newest line left out, counting the others it left out, so a run that ends within a gap still shows.
+func (s *Sampler) Flush() {
+	s.mu.Lock()
+	var pending []func()
+	for _, key := range slices.Sorted(maps.Keys(s.keys)) {
+		k := s.keys[key]
+		if k.last == nil {
+			continue
+		}
+		write, before := k.last, k.suppressed-1
+		pending = append(pending, func() { write(before) })
+		k.suppressed, k.last = 0, nil
+	}
+	s.mu.Unlock()
+	for _, write := range pending {
+		write()
+	}
 }
