@@ -159,9 +159,15 @@ describe('RenderClock', () => {
     expect(c.renderTime(5100)).toBeNull();
   });
 
-  it('at 30 Hz sits two of its shorter ticks behind', () => {
-    const c = new RenderClock(1000 / 30);
+  it.each([
+    { hz: 20, behindMs: 100 }, // two ticks
+    { hz: 60, behindMs: 100 }, // not two ticks, 33 ms, which ordinary jitter outlasts
+    { hz: 12, behindMs: 2000 / 12 }, // two ticks, past the floor
+  ])('at $hz Hz sits $behindMs ms behind the newest tick', ({ hz, behindMs }) => {
+    const tickMs = 1000 / hz;
+    const c = new RenderClock(tickMs);
     c.update(90, 7000);
-    expect(c.renderTime(7000)).toBeCloseTo(88 * (1000 / 30), 6);
+    expect(c.renderTime(7000)).toBeCloseTo(90 * tickMs - behindMs, 6);
+    expect(c.renderTime(7010)).toBeCloseTo(90 * tickMs - behindMs + 10, 6);
   });
 });

@@ -1,8 +1,9 @@
-// Remote players are drawn two ticks behind the newest server state, blended between buffered states.
+// Remote players are drawn behind the newest server state, blended between buffered states.
 import { wireState } from './prediction';
 import type { ServerState, WireState } from './prediction';
 
 const KEEP_MS = 1000;
+const MIN_DELAY_MS = 100; // at 30 Hz and up, two ticks are shorter than ordinary network jitter
 
 export interface Timed {
   /** Server tick clock: tick * the tick's length in ms. */
@@ -187,13 +188,16 @@ export class RemotePlayers {
   }
 }
 
-/** Advances smoothly between messages, two ticks behind the newest tick seen. */
+/** Advances smoothly between messages, behind the newest tick seen by two ticks or 100 ms, whichever is longer. */
 export class RenderClock {
   private latestTick = 0;
   private latestAt = 0;
   private started = false;
+  private readonly delayMs: number;
 
-  constructor(private readonly tickMs: number) {}
+  constructor(private readonly tickMs: number) {
+    this.delayMs = Math.max(MIN_DELAY_MS, 2 * tickMs);
+  }
 
   update(tick: number, now: number): void {
     if (!this.started || tick > this.latestTick) {
@@ -207,7 +211,7 @@ export class RenderClock {
     if (!this.started) {
       return null;
     }
-    return (this.latestTick - 2) * this.tickMs + (now - this.latestAt);
+    return this.latestTick * this.tickMs - this.delayMs + (now - this.latestAt);
   }
 
   reset(): void {
