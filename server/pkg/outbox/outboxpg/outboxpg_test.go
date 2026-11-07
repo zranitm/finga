@@ -16,7 +16,6 @@ import (
 	"finga/pkg/outbox/outboxpg"
 	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
-	"finga/pkg/uuidv7"
 )
 
 var cluster *pgtest.Cluster
@@ -38,20 +37,25 @@ func TestMain(m *testing.M) {
 
 var errBoom = errors.New("boom")
 
-func rows(t *testing.T, pool *pgxpool.Pool) []outbox.Event {
+type row struct {
+	ID uuid.UUID
+	outbox.Event
+}
+
+func rows(t *testing.T, pool *pgxpool.Pool) []row {
 	t.Helper()
 	rs, err := pool.Query(context.Background(), `SELECT event_id, topic, key, type, content_type, payload, occurred_at FROM outbox ORDER BY id`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rs.Close()
-	var out []outbox.Event
+	var out []row
 	for rs.Next() {
-		var e outbox.Event
-		if err := rs.Scan(&e.ID, &e.Topic, &e.Key, &e.Type, &e.ContentType, &e.Payload, &e.OccurredAt); err != nil {
+		var r row
+		if err := rs.Scan(&r.ID, &r.Topic, &r.Key, &r.Type, &r.ContentType, &r.Payload, &r.OccurredAt); err != nil {
 			t.Fatal(err)
 		}
-		out = append(out, e)
+		out = append(out, r)
 	}
 	return out
 }
@@ -60,13 +64,12 @@ func TestAdd(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
 	t0 := time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)
-	given := uuidv7.New()
 	now := dbx.Now()
 
 	t.Run("rows exist exactly when the transaction commits", func(t *testing.T) {
 		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
 			return outboxpg.NewWriter(tx, now).Add(ctx,
-				outbox.Event{ID: given, Topic: "item", Key: "item-1", Type: "ItemLooted", Payload: []byte(`{"item":"1"}`), OccurredAt: t0},
+				outbox.Event{Topic: "item", Key: "item-1", Type: "ItemLooted", Payload: []byte(`{"item":"1"}`), OccurredAt: t0},
 				outbox.Event{Topic: "item", Key: "item-2", Type: "ItemDiscarded"},
 			)
 		})
@@ -77,10 +80,18 @@ func TestAdd(t *testing.T) {
 		if len(got) != 2 {
 			t.Fatalf("%d rows, want 2", len(got))
 		}
-		if got[0].ID != given || got[0].Type != "ItemLooted" || string(got[0].Payload) != `{"item":"1"}` || !got[0].OccurredAt.Equal(t0) || got[0].ContentType != "application/json" {
+		for i, r := range got {
+			if r.ID.Version() != 7 {
+				t.Fatalf("row %d ID %v, want a UUIDv7", i, r.ID)
+			}
+		}
+		if got[0].ID == got[1].ID {
+			t.Fatalf("both rows have ID %v, want one each", got[0].ID)
+		}
+		if got[0].Type != "ItemLooted" || string(got[0].Payload) != `{"item":"1"}` || !got[0].OccurredAt.Equal(t0) || got[0].ContentType != "application/json" {
 			t.Fatalf("row 0 %+v", got[0])
 		}
-		if got[1].ID == uuid.Nil || got[1].ID.Version() != 7 || string(got[1].Payload) != "{}" || !got[1].OccurredAt.Equal(now.Time()) {
+		if string(got[1].Payload) != "{}" || !got[1].OccurredAt.Equal(now.Time()) {
 			t.Fatalf("row 1 %+v: defaults not applied", got[1])
 		}
 		var stamped int
@@ -105,14 +116,6 @@ func TestAdd(t *testing.T) {
 		}
 		if got := rows(t, pool); len(got) != 2 {
 			t.Fatalf("%d rows after a rollback, want 2", len(got))
-		}
-	})
-	t.Run("a duplicate event ID is rejected", func(t *testing.T) {
-		err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
-			return outboxpg.NewWriter(tx, now).Add(ctx, outbox.Event{ID: given, Topic: "item", Key: "x", Type: "Again"})
-		})
-		if err == nil {
-			t.Fatal("no error")
 		}
 	})
 	t.Run("an event without a topic or type is refused", func(t *testing.T) {

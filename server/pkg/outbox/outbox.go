@@ -4,13 +4,10 @@ package outbox
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
 )
 
-// Event is one domain event; a Writer fills a zero ID, OccurredAt and ContentType.
+// Event is one domain event; a Writer mints its UUIDv7 ID and fills a zero OccurredAt and ContentType.
 type Event struct {
-	ID          uuid.UUID
 	Topic       string
 	Key         string
 	Type        string

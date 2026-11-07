@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"finga/pkg/dbx"
 	"finga/pkg/outbox"
 	"finga/pkg/uuidv7"
@@ -34,9 +32,6 @@ const insertSQL = `INSERT INTO outbox (event_id, topic, key, type, content_type,
 // Add implements outbox.Writer.
 func (w *writer) Add(ctx context.Context, events ...outbox.Event) error {
 	for _, e := range events {
-		if e.ID == uuid.Nil {
-			e.ID = uuidv7.New()
-		}
 		if e.OccurredAt.IsZero() {
 			e.OccurredAt = w.now.Time()
 		}
@@ -44,12 +39,12 @@ func (w *writer) Add(ctx context.Context, events ...outbox.Event) error {
 			e.ContentType = outbox.DefaultContentType
 		}
 		if e.Topic == "" || e.Type == "" {
-			return fmt.Errorf("outbox: event %s needs a topic and a type", e.ID)
+			return fmt.Errorf("outbox: event keyed %q needs a topic and a type", e.Key)
 		}
 		if e.Payload == nil {
 			e.Payload = []byte("{}")
 		}
-		if _, err := w.db.Exec(ctx, insertSQL, e.ID, e.Topic, e.Key, e.Type, e.ContentType, e.Payload, e.OccurredAt, w.now); err != nil {
+		if _, err := w.db.Exec(ctx, insertSQL, uuidv7.New(), e.Topic, e.Key, e.Type, e.ContentType, e.Payload, e.OccurredAt, w.now); err != nil {
 			return fmt.Errorf("outbox: add %s: %w", e.Type, err)
 		}
 	}
