@@ -391,6 +391,24 @@ func TestAnOfflineFromAReplacedConnectionChangesNothing(t *testing.T) {
 	}
 }
 
+// A late Online from a connection older than the member's current one, such as an ended tab's re-registration, takes nothing back.
+func TestALateOnlineFromAnOlderConnectionChangesNothing(t *testing.T) {
+	f := newFixture(t, "Ayla", "Robin")
+	f.invite(t, "Ayla", "Robin")
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "forest", Connection: "c-Robin-2"}))
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "town", Connection: "c-Robin"}))
+	must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
+	p, ok := f.of(t, f.id("Ayla"))
+	if !ok {
+		t.Fatal("the party is gone")
+	}
+	for _, m := range p.Members {
+		if m.ID == f.id("Robin") && (!m.Online || m.MapID != "forest") {
+			t.Fatalf("Robin %+v; want online in the forest, through the newer connection", m)
+		}
+	}
+}
+
 func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {
 	f := newFixture(t, "ann", "bo", "cy", "di", "ed")
 	f.invite(t, "ann", "bo")

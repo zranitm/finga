@@ -162,6 +162,19 @@ func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 	}
 }
 
+// A registration again of a tab whose character a newer login took sends nothing, so it can't pull the player back to the old tab.
+func TestATabThatLostItsCharacterIsNotRegisteredAgain(t *testing.T) {
+	soc := &social{}
+	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Second})
+	character := kernel.NewCharacterID()
+	older := play(t, r, "c-1", character)
+	play(t, r, "c-2", character)
+	r.Online(t.Context(), older)
+	if calls := soc.list(); len(calls) != 0 {
+		t.Fatalf("calls %v; want none for the tab that lost its character", calls)
+	}
+}
+
 // After the world's stream breaks every player rejoins, a few at a time, so a restarted world is not hit all at once.
 func TestRejoinsRunAFewAtATime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

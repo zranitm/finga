@@ -313,9 +313,10 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 	defer s.social.Release(1)
 	r.mu.Lock()
 	closed := s.closed
+	current := r.byCharacter[s.Character()] == s
 	r.mu.Unlock()
-	if closed {
-		return nil // its close's Offline has the last word
+	if closed || !current {
+		return nil // its close's Offline has the last word, or a newer login took the character
 	}
 	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.Player(), s.mapID())
 }
