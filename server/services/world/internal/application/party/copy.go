@@ -135,39 +135,21 @@ func (p *Copy) reset() {
 // sendUpdates sends each member's newest update in turn; one that may pass is retried behind the others, after a pause.
 func (p *Copy) sendUpdates(ctx context.Context) {
 	wait := &backoff.ExponentialBackOff{InitialInterval: retryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: retryMax}
-	for ctx.Err() == nil {
-		u, ok := p.updates.Take()
-		if !ok {
-			select {
-			case <-p.updates.Ready():
-			case <-ctx.Done():
-			}
-			continue
-		}
+	p.updates.Drain(ctx, wait, func(u model.MemberUpdate) coalesce.Outcome {
 		callCtx, cancel := context.WithTimeout(ctx, callTimeout)
 		err := p.social.UpdateMember(callCtx, u)
 		cancel()
-		retry := err != nil && p.social.Retryable(err)
-		p.updates.Done(u, retry)
 		switch {
 		case err == nil:
-			wait.Reset()
-		case ctx.Err() != nil:
-		case !retry:
-			p.log.WarnContext(ctx, "member update failed", "character_id", u.ID, "err", err)
-		default:
+			return coalesce.Handled
+		case !p.social.Retryable(err):
+			if ctx.Err() == nil {
+				p.log.WarnContext(ctx, "member update failed", "character_id", u.ID, "err", err)
+			}
+			return coalesce.Dropped
+		case ctx.Err() == nil:
 			p.log.WarnContext(ctx, "member update failed; retrying", "character_id", u.ID, "err", err)
-			pause(ctx, wait.NextBackOff())
 		}
-	}
-}
-
-// pause waits d, or until ctx ends.
-func pause(ctx context.Context, d time.Duration) {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-t.C:
-	case <-ctx.Done():
-	}
+		return coalesce.Retry
+	})
 }

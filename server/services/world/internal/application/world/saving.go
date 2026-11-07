@@ -8,6 +8,7 @@ import (
 	"github.com/cenkalti/backoff/v5"
 
 	"finga/internal/kernel"
+	"finga/pkg/coalesce"
 	"finga/services/world/internal/model"
 )
 
@@ -45,31 +46,23 @@ func (w *World) flush(ctx context.Context, stopped <-chan struct{}) {
 func (w *World) saveWhile(ctx context.Context) {
 	wait := &backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}
 	unexplained := map[kernel.CharacterID]time.Time{} // since when each character's saves fail without a reason
-	for ctx.Err() == nil {
-		cp, ok := w.saves.Take()
-		if !ok {
-			select {
-			case <-w.saves.Ready():
-			case <-ctx.Done():
-			}
-			continue
-		}
+	w.saves.Drain(ctx, wait, func(cp model.Checkpoint) coalesce.Outcome {
 		err := w.saveOnce(ctx, cp)
 		drop := w.dropFor(err, cp.ID, unexplained)
 		if err == nil || drop != "" {
 			delete(unexplained, cp.ID)
 		}
-		w.saves.Done(cp, err != nil && drop == "")
 		switch {
 		case err == nil:
-			wait.Reset()
+			return coalesce.Handled
 		case drop != "":
 			w.dropped(ctx, cp, drop, err)
+			return coalesce.Dropped
 		case ctx.Err() == nil:
 			w.deps.Logger.WarnContext(ctx, "save failed; retrying", append(saveAttrs(cp), "err", err)...)
-			pause(ctx, wait.NextBackOff())
 		}
-	}
+		return coalesce.Retry
+	})
 }
 
 // dropFor is why a failed save is given up on, or "" to retry it: a refusal at once, a failure without a reason once it has lasted unexplainedFor.
@@ -114,14 +107,4 @@ func (w *World) saveOnce(ctx context.Context, cp model.Checkpoint) error {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return w.deps.Saver.SaveCheckpoint(ctx, cp)
-}
-
-// pause waits d, or until ctx ends.
-func pause(ctx context.Context, d time.Duration) {
-	t := time.NewTimer(d)
-	defer t.Stop()
-	select {
-	case <-t.C:
-	case <-ctx.Done():
-	}
 }
