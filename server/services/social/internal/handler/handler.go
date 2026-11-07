@@ -159,7 +159,6 @@ func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*so
 	return &socialv1.OfflineResponse{}, nil
 }
 
-
 // Invite asks a character to join the caller's party.
 func (s *Server) Invite(ctx context.Context, req *socialv1.InviteRequest) (*socialv1.InviteResponse, error) {
 	from, to, err := pair(req.GetCharacterId(), req.GetTargetId())
