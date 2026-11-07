@@ -96,33 +96,42 @@ func TestALegacyDatabaseIsRefused(t *testing.T) {
 
 // An ID minted before every ID was a UUIDv7 fails each strict parse, which would lock its player out.
 func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
-	const v4 = "6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7"
+	const v4, otherV4 = "6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7", "0b7e9d2c-1a3f-4c5d-9e8f-7a6b5c4d3e2f"
 	ctx := context.Background()
-	refused := func(t *testing.T, err error, column string) {
+	refused := func(t *testing.T, err error, counts string) {
 		t.Helper()
-		if !errors.Is(err, app.ErrNotV7) || !strings.Contains(err.Error(), column+" holds "+v4) || strings.Contains(err.Error(), "make down") {
-			t.Fatalf("err = %v, want ErrNotV7 naming %s and its ID, never advising make down", err, column)
+		if !errors.Is(err, app.ErrNotV7) || !strings.Contains(err.Error(), "(not UUIDv7: "+counts+")") || strings.Contains(err.Error(), "make down") {
+			t.Fatalf("err = %v, want ErrNotV7 counting %s, never advising make down", err, counts)
 		}
 	}
 
-	t.Run("before any migration runs", func(t *testing.T) {
+	t.Run("with the services' migrations pending", func(t *testing.T) {
 		pool := cluster.DB(t)
 		account := find(t, "account")
 		if err := pgtest.MigrationsBefore(account.FS, account.Table, "00004_timestamps.sql")(ctx, pool); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, username, password_hash, created_at) VALUES ($1, 'alice', 'x', now())`, v4); err != nil {
+		for name, id := range map[string]string{"alice": v4, "bob": otherV4} {
+			if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, username, password_hash, created_at) VALUES ($1, $2, 'x', now())`, id, name); err != nil {
+				t.Fatal(err)
+			}
+		}
+		_, err := app.Apply(ctx, pool)
+		refused(t, err, "accounts.id 2 rows")
+	})
+
+	// item's 00003 copies each starter grant's key, a character ID kept as text, into a uuid column.
+	t.Run("in a column a pending migration fills", func(t *testing.T) {
+		pool := cluster.DB(t)
+		item := find(t, "item")
+		if err := pgtest.MigrationsBefore(item.FS, item.Table, "00003_starter_grants.sql")(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at) VALUES ($1, 'item.starter', $2, '', '', now())`, uuidv7.New().String(), v4); err != nil {
 			t.Fatal(err)
 		}
 		_, err := app.Apply(ctx, pool)
-		refused(t, err, "accounts.id")
-		var version int64
-		if err := pool.QueryRow(ctx, `SELECT max(version_id) FROM `+account.Table).Scan(&version); err != nil || version != 3 {
-			t.Fatalf("account version %d (%v), want 3: nothing applied", version, err)
-		}
-		if exists(t, pool, find(t, "character").Table) {
-			t.Fatal("the character set ran although the database was refused")
-		}
+		refused(t, err, "starter_grants.character_id 1 row")
 	})
 
 	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
@@ -140,14 +149,22 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 		}
 		return pool
 	}
-	for _, tt := range []struct{ column, insert string }{{"characters.account_id", character}, {"items.id", item}} {
-		t.Run("in "+tt.column, func(t *testing.T) {
+	for _, tt := range []struct {
+		name, insert string
+		ids          []any
+		counts       string
+	}{
+		{"in characters.account_id", character, []any{v4, uuidv7.New()}, "characters.account_id 1 row"},
+		{"in items.id", item, []any{v4, uuidv7.New()}, "items.id 1 row"},
+		{"in two columns", character, []any{v4, otherV4}, "characters.id 1 row, characters.account_id 1 row"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
 			pool := unchecked(t)
-			if _, err := pool.Exec(ctx, tt.insert, v4, uuidv7.New()); err != nil {
+			if _, err := pool.Exec(ctx, tt.insert, tt.ids...); err != nil {
 				t.Fatal(err)
 			}
 			_, err := app.Apply(ctx, pool)
-			refused(t, err, tt.column)
+			refused(t, err, tt.counts)
 		})
 	}
 

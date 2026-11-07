@@ -1,10 +1,11 @@
 -- +goose Up
--- Refuses a database holding an ID minted before every ID was a UUIDv7, which no service parses.
+-- Refuses a database holding IDs minted before every ID was a UUIDv7, which no service parses, counting them per column.
 -- +goose StatementBegin
 DO $$
 DECLARE
   col record;
-  bad text;
+  n bigint;
+  bad text[] := '{}';
 BEGIN
   FOR col IN
     SELECT c.relname AS tbl, a.attname AS name
@@ -13,11 +14,14 @@ BEGIN
       AND a.atttypid = 'uuid'::regtype AND a.attnum > 0 AND NOT a.attisdropped
     ORDER BY c.relname, a.attnum
   LOOP
-    EXECUTE format('SELECT %1$I::text FROM %2$I WHERE %1$I IS NOT NULL AND uuid_extract_version(%1$I) IS DISTINCT FROM 7 LIMIT 1', col.name, col.tbl) INTO bad;
-    IF bad IS NOT NULL THEN
-      RAISE EXCEPTION '%.% holds %', col.tbl, col.name, bad USING ERRCODE = 'UUID7';
+    EXECUTE format('SELECT count(*) FROM %2$I WHERE %1$I IS NOT NULL AND uuid_extract_version(%1$I) IS DISTINCT FROM 7', col.name, col.tbl) INTO n;
+    IF n > 0 THEN
+      bad := bad || format('%s.%s %s %s', col.tbl, col.name, n, CASE WHEN n = 1 THEN 'row' ELSE 'rows' END);
     END IF;
   END LOOP;
+  IF cardinality(bad) > 0 THEN
+    RAISE EXCEPTION '%', array_to_string(bad, ', ') USING ERRCODE = 'UUID7';
+  END IF;
 END $$;
 -- +goose StatementEnd
 
