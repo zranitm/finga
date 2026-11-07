@@ -247,3 +247,33 @@ func count(t *testing.T, db dbx.DBTX, id int) int {
 	}
 	return n
 }
+
+// A snapshot's reads all see the database as it stood at its first, though a commit lands between them, and it writes nothing.
+func TestASnapshotsReadsAgree(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if _, err := pool.Exec(ctx, `CREATE TABLE t (id int PRIMARY KEY, n int NOT NULL); INSERT INTO t VALUES (1, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var before, after int
+	err := dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT n FROM t WHERE id = 1`).Scan(&before); err != nil {
+			return err
+		}
+		if _, err := pool.Exec(ctx, `UPDATE t SET n = 1 WHERE id = 1`); err != nil {
+			return err
+		}
+		return tx.QueryRow(ctx, `SELECT n FROM t WHERE id = 1`).Scan(&after)
+	}, dbx.Snapshot())
+	if err != nil || before != 0 || after != 0 {
+		t.Fatalf("read %d then %d (%v), want 0 both times", before, after, err)
+	}
+	err = dbx.InTx(ctx, pool, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE t SET n = 2 WHERE id = 1`)
+		return err
+	}, dbx.Snapshot())
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "25006" {
+		t.Fatalf("a write in a snapshot: %v, want read_only_sql_transaction", err)
+	}
+}

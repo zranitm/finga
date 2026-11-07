@@ -77,14 +77,22 @@ type Observer interface {
 // TxOption tunes InTx.
 type TxOption func(*txOptions)
 
-type txOptions struct{ obs Observer }
+type txOptions struct {
+	obs Observer
+	tx  pgx.TxOptions
+}
 
 // Observed tells obs about the transaction once it is done, whatever its outcome.
 func Observed(obs Observer) TxOption { return func(o *txOptions) { o.obs = obs } }
 
-// InTx runs fn in a READ COMMITTED transaction, rerun on deadlock, serialization failure or lock timeout, so fn must have no outside effects.
+// Snapshot makes the transaction read-only and REPEATABLE READ, so all its reads see one moment of the database.
+func Snapshot() TxOption {
+	return func(o *txOptions) { o.tx = pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly} }
+}
+
+// InTx runs fn in a READ COMMITTED transaction, unless Snapshot, rerun on deadlock, serialization failure or lock timeout, so fn must have no outside effects.
 func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...TxOption) error {
-	var o txOptions
+	o := txOptions{tx: pgx.TxOptions{IsoLevel: pgx.ReadCommitted}}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -95,7 +103,7 @@ func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Tx
 	var last error
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
 		runs++
-		last = runOnce(ctx, db, fn)
+		last = runOnce(ctx, db, o.tx, fn)
 		if last != nil && !retryable(last) {
 			return struct{}{}, backoff.Permanent(last)
 		}
@@ -111,8 +119,8 @@ func InTx(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error, opts ...Tx
 	return err
 }
 
-func runOnce(ctx context.Context, db Beginner, fn func(tx pgx.Tx) error) (err error) {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+func runOnce(ctx context.Context, db Beginner, opts pgx.TxOptions, fn func(tx pgx.Tx) error) (err error) {
+	tx, err := db.BeginTx(ctx, opts)
 	if err != nil {
 		return fmt.Errorf("dbx: begin: %w", err)
 	}
