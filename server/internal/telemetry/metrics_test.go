@@ -16,8 +16,15 @@ import (
 	"finga/internal/telemetry"
 )
 
-// sample is the value of the series name{labels} on reg: a counter's or gauge's value, a histogram's count.
+// sample is the value of the series name{labels} on reg: a counter's or gauge's value, a histogram's count; 0 when there is none.
 func sample(t *testing.T, reg *prometheus.Registry, name string, labels ...string) float64 {
+	t.Helper()
+	v, _ := series(t, reg, name, labels...)
+	return v
+}
+
+// series is the value of the series name{labels} on reg, as sample, and whether reg has it.
+func series(t *testing.T, reg *prometheus.Registry, name string, labels ...string) (float64, bool) {
 	t.Helper()
 	families, err := reg.Gather()
 	if err != nil {
@@ -31,16 +38,16 @@ func sample(t *testing.T, reg *prometheus.Registry, name string, labels ...strin
 			if matches(m, labels) {
 				switch {
 				case m.GetCounter() != nil:
-					return m.GetCounter().GetValue()
+					return m.GetCounter().GetValue(), true
 				case m.GetGauge() != nil:
-					return m.GetGauge().GetValue()
+					return m.GetGauge().GetValue(), true
 				case m.GetHistogram() != nil:
-					return float64(m.GetHistogram().GetSampleCount())
+					return float64(m.GetHistogram().GetSampleCount()), true
 				}
 			}
 		}
 	}
-	return 0
+	return 0, false
 }
 
 func matches(m *dto.Metric, labels []string) bool {
@@ -71,9 +78,14 @@ func names(t *testing.T, reg *prometheus.Registry) map[string]bool {
 
 func TestWorldMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	m, err := telemetry.NewWorldMetrics(reg)
+	m, err := telemetry.NewWorldMetrics(reg, []string{"refused", "unexplained"})
 	if err != nil {
 		t.Fatal(err)
+	}
+	for _, reason := range []string{"refused", "unexplained"} {
+		if v, ok := series(t, reg, "finga_saves_dropped_total", "reason", reason); !ok || v != 0 {
+			t.Fatalf("before any drop, reason %s is %v (present %v); want 0, so its first drop shows as an increase", reason, v, ok)
+		}
 	}
 	m.ObserveTick("town", 10*time.Millisecond, 50*time.Millisecond)
 	m.ObserveTick("town", 50*time.Millisecond, 50*time.Millisecond)
@@ -94,7 +106,7 @@ func TestWorldMetrics(t *testing.T) {
 	if got := sample(t, reg, "finga_economy_jobs_inflight"); got != 1 {
 		t.Fatalf("finga_economy_jobs_inflight = %v, want 1", got)
 	}
-	if _, err := telemetry.NewWorldMetrics(reg); err == nil {
+	if _, err := telemetry.NewWorldMetrics(reg, nil); err == nil {
 		t.Fatal("a second registration succeeded")
 	}
 }

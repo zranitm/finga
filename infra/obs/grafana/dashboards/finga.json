@@ -196,7 +196,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 10
       },
@@ -243,8 +243,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 8,
+        "w": 6,
+        "x": 6,
         "y": 10
       },
       "fieldConfig": {
@@ -290,8 +290,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 8,
-        "x": 16,
+        "w": 6,
+        "x": 12,
         "y": 10
       },
       "fieldConfig": {
@@ -332,6 +332,53 @@
           },
           "expr": "sum(rate(finga_ws_slow_consumer_disconnects_total[$__rate_interval]))",
           "legendFormat": "slow consumers kicked /s"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 23,
+      "title": "Saves dropped",
+      "description": "Checkpoints the world gave up on, so progress lost, by why. One at shutdown comes after the last scrape: find it in the logs, \"persistence failed\" with dropped=shutdown.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum by (reason) (increase(finga_saves_dropped_total[$__interval]))",
+          "legendFormat": "{{reason}}"
         }
       ]
     },

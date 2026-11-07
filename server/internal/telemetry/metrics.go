@@ -38,8 +38,8 @@ type WorldMetrics struct {
 	savesDropped *prometheus.CounterVec // by reason
 }
 
-// NewWorldMetrics registers the world's metrics on reg; registering twice on one registry fails.
-func NewWorldMetrics(reg prometheus.Registerer) (*WorldMetrics, error) {
+// NewWorldMetrics registers the world's metrics on reg, each of dropReasons at 0 so its first drop shows as an increase; registering twice on one registry fails.
+func NewWorldMetrics(reg prometheus.Registerer, dropReasons []string) (*WorldMetrics, error) {
 	m := &WorldMetrics{
 		tickDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: observability.Namespace, Name: "tick_duration_seconds", Help: "Processing time of one map instance tick.", Buckets: tickBuckets,
@@ -51,8 +51,11 @@ func NewWorldMetrics(reg prometheus.Registerer) (*WorldMetrics, error) {
 			Namespace: observability.Namespace, Name: "economy_jobs_inflight", Help: "Pickups waiting on or inside a call to the item service.",
 		}),
 		savesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: observability.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why.",
+			Namespace: observability.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why. One at shutdown is counted after /metrics has closed: alert on its ERROR log line instead, \"persistence failed\" with dropped=shutdown.",
 		}, []string{"reason"}),
+	}
+	for _, reason := range dropReasons {
+		m.savesDropped.WithLabelValues(reason)
 	}
 	return m, register(reg, m.tickDuration, m.tickOverruns, m.jobsInflight, m.savesDropped)
 }

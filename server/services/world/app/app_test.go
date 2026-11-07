@@ -21,6 +21,7 @@ import (
 	"finga/pkg/runner/runnertest"
 	"finga/services/world/app"
 	"finga/services/world/config"
+	"finga/services/world/internal/application/world"
 )
 
 type characters struct {
@@ -165,6 +166,14 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 				t.Fatalf("no tick metrics in\n%s", body)
 			}
 			_, body = runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics")
+		}
+	})
+	t.Run("every reason a save is dropped for shows from the start, at 0", func(t *testing.T) {
+		_, body := runnertest.Get(t, "http://"+p.Addr("ops")+"/metrics")
+		for _, reason := range []string{world.DropRefused, world.DropUnexplained, world.DropShutdown} {
+			if want := `finga_saves_dropped_total{reason="` + reason + `"} 0`; !strings.Contains(body, want) {
+				t.Fatalf("no %s in\n%s", want, body)
+			}
 		}
 	})
 	if err := p.Stop(); err != nil {
