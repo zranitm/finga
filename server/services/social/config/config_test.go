@@ -49,3 +49,15 @@ func TestAnOverrideReachesTheServicesKey(t *testing.T) {
 		t.Fatalf("FINGA_GRPC_LISTEN gave %q", cfg.GRPC.Listen)
 	}
 }
+
+// A gateway back within its 30 s grace re-registers its players from what social kept, so keep never drops below a few minutes.
+func TestMembersAreKeptAFewMinutesAtLeast(t *testing.T) {
+	for keep, valid := range map[string]bool{"30s": false, "4m": false, "5m": true, "1h": true} {
+		t.Run(keep, func(t *testing.T) {
+			t.Setenv("FINGA_MEMBERS_KEEP", keep)
+			if _, err := load(); (err == nil) != valid {
+				t.Fatalf("keep %s: %v", keep, err)
+			}
+		})
+	}
+}
