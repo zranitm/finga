@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"slices"
 	"time"
@@ -53,6 +54,7 @@ type Deps struct {
 	Parties Parties
 	Traces  trace.TracerProvider // starts each pickup's trace
 	Roll    model.Roll           // the map's random source, used only on its tick goroutine
+	Logger  *slog.Logger
 }
 
 // Tuning is the map's tick.
@@ -245,12 +247,16 @@ func (g *Ground) add(ctx context.Context, in model.Pickup) ([]model.Slot, error)
 	return g.deps.Items.Add(ctx, in)
 }
 
-// held is the picker's slots holding the drop's item, where its grant landed, so other slots a newer change moved stay as told; nothing when the read fails.
+// held is the picker's slots holding the drop's item, where its grant landed, so other slots a newer change moved stay as told; nothing, logged and on the trace, when the read fails.
 func (g *Ground) held(ctx context.Context, in model.Pickup) []model.Slot {
-	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	readCtx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	slots, err := g.deps.Items.Inventory(ctx, in.Character)
+	slots, err := g.deps.Items.Inventory(readCtx, in.Character)
 	if err != nil {
+		span := trace.SpanFromContext(ctx)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "granted, but the inventory could not be read")
+		g.deps.Logger.WarnContext(ctx, "pickup granted, but the inventory could not be read; the player sees it at the next change", "character_id", in.Character, "drop_id", in.DropID, "err", err)
 		return nil
 	}
 	return slices.DeleteFunc(slots, func(s model.Slot) bool { return s.Item == nil || s.Item.Template != in.Template })

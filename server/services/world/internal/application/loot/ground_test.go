@@ -1,16 +1,22 @@
 package loot_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
 
-	"go.opentelemetry.io/otel/trace/noop"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -77,6 +83,24 @@ func (pt parties) SameParty(a, b kernel.CharacterID) bool {
 	return in(a) && in(b)
 }
 
+// syncWriter is a log the grant's worker writes and the test reads.
+type syncWriter struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncWriter) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
 type jobs struct{}
 
 func (jobs) JobStarted()  {}
@@ -86,6 +110,8 @@ type scene struct {
 	g                      *loot.Ground
 	items                  *pickups
 	workers                *economy.Workers
+	logs                   *syncWriter
+	spans                  *tracetest.SpanRecorder
 	killer, mate, stranger loot.Picker
 }
 
@@ -102,8 +128,10 @@ func newScene(t *testing.T, items *pickups, run bool) scene {
 	at := func() loot.Picker {
 		return loot.Picker{ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), X: dropX, Y: dropY}
 	}
-	s := scene{items: items, workers: workers, killer: at(), mate: at(), stranger: at()}
-	s.g = loot.NewGround(loot.Deps{Items: items, Workers: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: noop.NewTracerProvider(), Roll: worldtest.FixedRoll{V: 0}}, loot.Tuning{TickInterval: tick})
+	s := scene{items: items, workers: workers, logs: &syncWriter{}, spans: tracetest.NewSpanRecorder(), killer: at(), mate: at(), stranger: at()}
+	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(s.spans))
+	log := slog.New(slog.NewTextHandler(s.logs, nil))
+	s.g = loot.NewGround(loot.Deps{Items: items, Workers: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: traces, Roll: worldtest.FixedRoll{V: 0}, Logger: log}, loot.Tuning{TickInterval: tick})
 	s.g.Begin(1)
 	s.g.Roll(slime, 200, dropY, s.killer.ID)
 	return s
@@ -154,15 +182,36 @@ func TestADropIsTheKillersPartysUntilItsWindowEnds(t *testing.T) {
 
 func TestAPickerReachesOnlyNearbyDrops(t *testing.T) {
 	for dx, taken := range map[float64]bool{39: true, 41: false} {
-		synctest.Test(t, func(t *testing.T) {
-			s := newScene(t, &pickups{answers: []answer{{slots: gel}}}, true)
-			p := s.killer
-			p.X += dx
-			if _, got := s.pick(t, p); got != taken {
-				t.Fatalf("%v px away: taken %v, want %v", dx, got, taken)
-			}
+		t.Run(fmt.Sprintf("%v px away", dx), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := newScene(t, &pickups{answers: []answer{{slots: gel}}}, true)
+				p := s.killer
+				p.X += dx
+				if _, got := s.pick(t, p); got != taken {
+					t.Fatalf("taken %v, want %v", got, taken)
+				}
+			})
 		})
 	}
+}
+
+// With every worker's queue full a pickup is refused as busy, and its drop stays free to take again.
+func TestAPickupWithEveryWorkerBusyLeavesTheDropFree(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newScene(t, &pickups{answers: []answer{{slots: gel}}}, false) // no workers run, so the queue only fills
+		for s.workers.Submit(func(context.Context) {}) {
+		}
+		if err := s.g.PickUp(s.killer, func(context.Context, loot.Result) {}); !errors.Is(err, model.ErrPickupBusy) {
+			t.Fatalf("err %v, want ErrPickupBusy", err)
+		}
+		// Still free, the drop is offered to the killer's party again, and refused as busy too, rather than found taken.
+		if err := s.g.PickUp(s.mate, func(context.Context, loot.Result) {}); !errors.Is(err, model.ErrPickupBusy) {
+			t.Fatalf("the mate's pickup: %v, want ErrPickupBusy", err)
+		}
+		if len(s.items.added()) != 0 || len(s.g.Views()) != 1 {
+			t.Fatalf("%d grants, drops %+v; want none and the gel still there", len(s.items.added()), s.g.Views())
+		}
+	})
 }
 
 // A drop whose pickup is on its way is offered to no one else, even the killer's party.
@@ -210,6 +259,12 @@ func TestSettlingAPickup(t *testing.T) {
 				}
 				if adds := len(tt.items.added()); adds != tt.adds {
 					t.Fatalf("%d calls to the item service, want %d", adds, tt.adds)
+				}
+				if tt.name == "granted, with the inventory unreadable" {
+					ended := s.spans.Ended()
+					if !strings.Contains(s.logs.String(), "inventory could not be read") || len(ended) != 1 || ended[0].Status().Code != codes.Error {
+						t.Fatalf("logs %q, %d spans; want the unread inventory logged and its pickup's span failed", s.logs.String(), len(ended))
+					}
 				}
 				if gone := len(s.g.Views()) == 0; gone != tt.gone {
 					t.Fatalf("drops left %+v; gone want %v", s.g.Views(), tt.gone)

@@ -4,6 +4,7 @@ package instance
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"math"
 	"slices"
 	"time"
@@ -44,10 +45,11 @@ type Services struct {
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
 type Deps struct {
 	Services
-	Map   *gamedata.Map
-	Data  *gamedata.Data
-	Saves Checkpoints
-	Mover Mover
+	Map    *gamedata.Map
+	Data   *gamedata.Data
+	Saves  Checkpoints
+	Mover  Mover
+	Logger *slog.Logger // what the map's work off the tick, such as a pickup's grant, can only tell the log
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -141,7 +143,7 @@ func New(d Deps, t Tuning) *Instance {
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
-		ground:   loot.NewGround(loot.Deps{Items: d.Items, Workers: d.Workers, Parties: d.Parties, Traces: d.Traces, Roll: roll}, loot.Tuning{TickInterval: t.TickInterval}),
+		ground:   loot.NewGround(loot.Deps{Items: d.Items, Workers: d.Workers, Parties: d.Parties, Traces: d.Traces, Roll: roll, Logger: d.Logger}, loot.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 	}

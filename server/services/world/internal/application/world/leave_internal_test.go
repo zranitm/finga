@@ -27,6 +27,27 @@ func (quiet) ObserveTick(string, time.Duration, time.Duration) {}
 func (quiet) JobStarted()                                      {}
 func (quiet) JobFinished()                                     {}
 
+// nothing stands in for the services this test never reaches: the item, character and save paths.
+type nothing struct{}
+
+func (nothing) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, errNever }
+func (nothing) Retryable(error) bool                                    { return false }
+func (nothing) Granted(error) bool                                      { return false }
+func (nothing) Refused(error) bool                                      { return false }
+func (nothing) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
+	return nil, errNever
+}
+func (nothing) SaveCheckpoint(context.Context, model.Checkpoint) error { return errNever }
+func (nothing) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {
+	return model.Character{}, errNever
+}
+func (nothing) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+	return errNever
+}
+func (nothing) SaveDropped(string) {}
+
+var errNever = errors.New("not reached in this test")
+
 // alone is a party service where everyone is in no party.
 type alone struct{}
 
@@ -44,8 +65,8 @@ func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 		}
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		w := New(Deps{
-			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Workers: economy.NewWorkers(economy.Deps{Observer: quiet{}, Panics: rec}, economy.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
-			Data: data, Panics: rec, Logger: slog.New(slog.DiscardHandler),
+			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Items: nothing{}, Workers: economy.NewWorkers(economy.Deps{Observer: quiet{}, Panics: rec}, economy.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
+			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

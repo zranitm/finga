@@ -285,7 +285,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	if cps == nil {
 		cps = &Checkpoints{}
 	}
-	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval})
+	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval})
 }
 
 // NewWorld builds a World over data with o filled in.

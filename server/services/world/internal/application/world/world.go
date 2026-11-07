@@ -80,7 +80,7 @@ func New(d Deps, t Tuning) *World {
 	}
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval})
+		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval})
 		w.order = append(w.order, m.ID)
 	}
 	return w
