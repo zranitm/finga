@@ -13,6 +13,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/dbx"
+	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
@@ -508,8 +509,8 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 	}
 }
 
-// An inventory lock held past lock_timeout, through every rerun, is ErrTimedOut, which callers retry.
-func TestAnInventoryLockedPastTheTimeoutIsErrTimedOut(t *testing.T) {
+// An inventory lock held past lock_timeout, through every rerun, is transient.ErrUnavailable, which callers retry.
+func TestAnInventoryLockedPastTheTimeoutIsUnavailable(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
 	pool, err := dbx.NewPool(ctx, dbx.Config{URL: cluster.URL(t), MaxConns: 2, LockTimeout: 50 * time.Millisecond})
@@ -532,8 +533,8 @@ func TestAnInventoryLockedPastTheTimeoutIsErrTimedOut(t *testing.T) {
 	<-locked
 	_, err = application.NewService(application.Deps{Store: store, Content: h.data}).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
 	close(release)
-	if !errors.Is(err, model.ErrTimedOut) {
-		t.Fatalf("err = %v, want ErrTimedOut", err)
+	if !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("err = %v, want transient.ErrUnavailable", err)
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)

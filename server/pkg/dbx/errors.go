@@ -11,17 +11,17 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+
+	"finga/pkg/transient"
 )
 
-// Errors are the sentinels a repository's database failures become.
+// Errors are the sentinels a repository's database failures become, besides transient.ErrUnavailable, which every repository shares.
 type Errors struct {
 	NotFound    error            // no row
-	TimedOut    error            // a lock wait or a statement past its timeout, or a conflict InTx's retries did not clear
-	Unavailable error            // the database out of reach: see Unavailable
 	Constraints map[string]error // a violated constraint, by name
 }
 
-// Classify wraps err in its sentinel, keeping the cause; any other error passes through as it is, so InTx still sees a code it retries.
+// Classify wraps err in its sentinel, keeping the cause: transient.ErrUnavailable for a lock or statement timeout, a conflict InTx's retries did not clear, or the database out of reach; any other error passes through as it is.
 func (e Errors) Classify(err error) error {
 	var pgErr *pgconn.PgError
 	switch {
@@ -29,10 +29,8 @@ func (e Errors) Classify(err error) error {
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%w: %w", e.NotFound, err)
-	case TimedOut(err), retryable(err):
-		return fmt.Errorf("%w: %w", e.TimedOut, err)
-	case Unavailable(err):
-		return fmt.Errorf("%w: %w", e.Unavailable, err)
+	case TimedOut(err), retryable(err), Unavailable(err):
+		return fmt.Errorf("%w: %w", transient.ErrUnavailable, err)
 	case errors.As(err, &pgErr) && e.Constraints[pgErr.ConstraintName] != nil:
 		return fmt.Errorf("%w: %w", e.Constraints[pgErr.ConstraintName], err)
 	default:

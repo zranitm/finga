@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"finga/pkg/dbx"
+	"finga/pkg/transient"
 )
 
 // fakeTx is a pgx.Tx that only commits and rolls back; any other method panics.
@@ -237,8 +238,8 @@ func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
 }
 
 func TestErrorsClassify(t *testing.T) {
-	notFound, timedOut, unavailable, taken := errors.New("not found"), errors.New("timed out"), errors.New("unavailable"), errors.New("name taken")
-	classes := dbx.Errors{NotFound: notFound, TimedOut: timedOut, Unavailable: unavailable, Constraints: map[string]error{"characters_name_key": taken}}
+	notFound, taken, unavailable := errors.New("not found"), errors.New("name taken"), transient.ErrUnavailable
+	classes := dbx.Errors{NotFound: notFound, Constraints: map[string]error{"characters_name_key": taken}}
 	other := &pgconn.PgError{Code: "23505", ConstraintName: "another_key"}
 	tests := []struct {
 		name string
@@ -246,12 +247,12 @@ func TestErrorsClassify(t *testing.T) {
 		want error // nil: err passes through as it is
 	}{
 		{"no row", fmt.Errorf("find: %w", pgx.ErrNoRows), notFound},
-		{"a lock wait past its timeout", &pgconn.PgError{Code: "55P03"}, timedOut},
-		{"a statement past its timeout", &pgconn.PgError{Code: "57014"}, timedOut},
+		{"a lock wait past its timeout", &pgconn.PgError{Code: "55P03"}, unavailable},
+		{"a statement past its timeout", &pgconn.PgError{Code: "57014"}, unavailable},
 		{"a constraint the repository names", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, taken},
 		{"a constraint it does not", other, nil},
-		{"a serialization failure InTx's retries did not clear", &pgconn.PgError{Code: "40001"}, timedOut},
-		{"a deadlock InTx's retries did not clear", &pgconn.PgError{Code: "40P01"}, timedOut},
+		{"a serialization failure InTx's retries did not clear", &pgconn.PgError{Code: "40001"}, unavailable},
+		{"a deadlock InTx's retries did not clear", &pgconn.PgError{Code: "40P01"}, unavailable},
 		{"a connection lost", &pgconn.PgError{Code: "08006"}, unavailable},
 		{"the server shutting down", &pgconn.PgError{Code: "57P01"}, unavailable},
 		{"the server starting up", &pgconn.PgError{Code: "57P03"}, unavailable},

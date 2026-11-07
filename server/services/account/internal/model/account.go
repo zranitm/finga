@@ -21,10 +21,6 @@ var (
 	// ErrSessionRace means two logins raced; it escapes only once the login retries run out.
 	ErrSessionRace = errors.New("account: another session became active during login")
 	ErrBusy        = errors.New("account: too many password checks at once")
-	// ErrTimedOut is a lock or statement the database gave up on; it carries no reason, so callers retry.
-	ErrTimedOut = errors.New("account: storage timed out")
-	// ErrUnavailable is the database out of reach: refused, lost, restarting or full; it carries no reason, so callers retry.
-	ErrUnavailable = errors.New("account: storage unavailable")
 )
 
 // Preset is a control preset.

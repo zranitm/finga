@@ -24,6 +24,7 @@ import (
 	"finga/pkg/hub"
 	"finga/pkg/logger"
 	"finga/pkg/panics"
+	"finga/pkg/transient"
 )
 
 var (
@@ -110,6 +111,14 @@ func TestErrorsKeepTheirReasonAcrossTheCall(t *testing.T) {
 func TestARowWithoutAReasonSendsItsCodeAlone(t *testing.T) {
 	st, explained := table.Status(fmt.Errorf("buying: %w", errBusy))
 	if st.Code() != codes.Unavailable || len(st.Details()) != 0 || !explained || strings.Contains(st.Message(), "till") {
+		t.Fatalf("status %v with %d details, explained %v", st, len(st.Details()), explained)
+	}
+}
+
+// A dependency busy or out of reach is Unavailable with no reason, whatever the service's table, so no service needs a row for it.
+func TestATransientFailureIsUnavailableWithoutARow(t *testing.T) {
+	st, explained := grpcx.ErrorTable{}.Status(fmt.Errorf("saving: %w: %w", transient.ErrUnavailable, errors.New("lock timeout on characters")))
+	if st.Code() != codes.Unavailable || len(st.Details()) != 0 || !explained || strings.Contains(st.Message(), "characters") {
 		t.Fatalf("status %v with %d details, explained %v", st, len(st.Details()), explained)
 	}
 }

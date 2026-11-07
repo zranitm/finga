@@ -9,6 +9,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"finga/pkg/transient"
 )
 
 // Reason names a failure across a call.
@@ -56,6 +58,9 @@ func (t ErrorTable) Status(err error) (*status.Status, bool) {
 		default:
 			return withReason(row.Code, Key(row.Reason)), true
 		}
+	}
+	if errors.Is(err, transient.ErrUnavailable) {
+		return status.New(codes.Unavailable, codes.Unavailable.String()), true // no reason: the caller retries
 	}
 	if st, ok := status.FromError(err); ok {
 		if r, has := reasonIn(st); has {

@@ -18,6 +18,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentineltest"
+	"finga/pkg/transient"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/handler"
 	"finga/services/character/internal/model"
@@ -209,7 +210,7 @@ func TestEveryModuleErrorArrivesWithItsReason(t *testing.T) {
 
 // A store that timed out answers Unavailable with no reason: a caller retries what carries no rule.
 func TestATimeoutAsksTheCallerToRetry(t *testing.T) {
-	c := client(t, &fakeCharacters{err: fmt.Errorf("list: %w", model.ErrTimedOut)})
+	c := client(t, &fakeCharacters{err: fmt.Errorf("list: %w", transient.ErrUnavailable)})
 	_, err := c.List(context.Background(), &characterv1.ListRequest{AccountId: owner.String()})
 	if status.Code(err) != codes.Unavailable || grpcx.IsRule(err) {
 		t.Fatalf("got %v, want Unavailable without a reason", err)

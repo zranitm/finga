@@ -13,6 +13,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/pgtest"
+	"finga/pkg/transient"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/model"
 	"finga/services/character/migrations"
@@ -182,10 +183,10 @@ func TestClassify(t *testing.T) {
 		{"no rows", pgx.ErrNoRows, model.ErrNotFound},
 		{"name unique constraint", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, model.ErrNameTaken},
 		{"another constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "accounts_username_key"}, nil},
-		{"a deadlock past the retries", &pgconn.PgError{Code: "40P01"}, model.ErrTimedOut},
-		{"the server shutting down", &pgconn.PgError{Code: "57P01"}, model.ErrUnavailable},
-		{"a lock timeout", &pgconn.PgError{Code: "55P03"}, model.ErrTimedOut},
-		{"a statement timeout", &pgconn.PgError{Code: "57014"}, model.ErrTimedOut},
+		{"a deadlock past the retries", &pgconn.PgError{Code: "40P01"}, transient.ErrUnavailable},
+		{"the server shutting down", &pgconn.PgError{Code: "57P01"}, transient.ErrUnavailable},
+		{"a lock timeout", &pgconn.PgError{Code: "55P03"}, transient.ErrUnavailable},
+		{"a statement timeout", &pgconn.PgError{Code: "57014"}, transient.ErrUnavailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

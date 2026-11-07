@@ -167,9 +167,7 @@ const (
 )
 
 var failures = dbx.Errors{
-	NotFound:    model.ErrNotFound,
-	TimedOut:    model.ErrTimedOut,
-	Unavailable: model.ErrUnavailable,
+	NotFound: model.ErrNotFound,
 	Constraints: map[string]error{
 		constraintUsername:      model.ErrUsernameTaken,
 		constraintActiveSession: model.ErrSessionRace,

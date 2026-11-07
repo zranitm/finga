@@ -217,11 +217,9 @@ const (
 	constraintQuantity = "items_quantity_check"
 )
 
-// failures maps constraint errors, timeouts and outages to the model's; each keeps its cause, so InTx's retries still see 40001.
+// failures maps a missing row and constraint errors to the model's, as dbx makes timeouts and outages transient.ErrUnavailable; each keeps its cause, so InTx's retries still see 40001.
 var failures = dbx.Errors{
-	NotFound:    model.ErrNotFound,
-	TimedOut:    model.ErrTimedOut,
-	Unavailable: model.ErrUnavailable,
+	NotFound: model.ErrNotFound,
 	Constraints: map[string]error{
 		constraintSlot:     model.ErrSlotTaken,
 		constraintQuantity: model.ErrBadQuantity,

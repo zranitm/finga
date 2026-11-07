@@ -14,6 +14,7 @@ import (
 
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
+	"finga/pkg/transient"
 )
 
 var cluster *pgtest.Cluster
@@ -160,8 +161,8 @@ func TestInTxRerunsALockTimeout(t *testing.T) {
 // A database out of reach, refusing connections or dropping them, is unavailable, so a caller tries again later.
 func TestAnUnreachableDatabaseIsUnavailable(t *testing.T) {
 	ctx := context.Background()
-	unavailable := errors.New("unavailable")
-	classes := dbx.Errors{Unavailable: unavailable}
+	unavailable := transient.ErrUnavailable
+	var classes dbx.Errors
 	t.Run("a refused connection", func(t *testing.T) {
 		pool, err := pgxpool.New(ctx, "postgres://finga@127.0.0.1:1/finga?connect_timeout=2")
 		if err != nil {

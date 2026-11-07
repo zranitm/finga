@@ -11,6 +11,7 @@ import (
 
 	"finga/internal/kernel"
 	"finga/pkg/pgtest"
+	"finga/pkg/transient"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
 	"finga/services/account/migrations"
@@ -311,10 +312,10 @@ func TestClassify(t *testing.T) {
 		{"username unique constraint", constraint("accounts_username_key"), model.ErrUsernameTaken},
 		{"one active session index", constraint("one_active_session"), model.ErrSessionRace},
 		{"another constraint passes through", constraint("characters_name_key"), nil},
-		{"a serialization failure past the retries", pgCode("40001"), model.ErrTimedOut},
-		{"too many connections", pgCode("53300"), model.ErrUnavailable},
-		{"a lock timeout", pgCode("55P03"), model.ErrTimedOut},
-		{"a statement timeout", pgCode("57014"), model.ErrTimedOut},
+		{"a serialization failure past the retries", pgCode("40001"), transient.ErrUnavailable},
+		{"too many connections", pgCode("53300"), transient.ErrUnavailable},
+		{"a lock timeout", pgCode("55P03"), transient.ErrUnavailable},
+		{"a statement timeout", pgCode("57014"), transient.ErrUnavailable},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

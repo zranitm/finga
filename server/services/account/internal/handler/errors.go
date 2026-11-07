@@ -21,6 +21,4 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrSessionRace, Code: codes.Aborted, Reason: accountv1.Reason_REASON_SESSION_RACE},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: accountv1.Reason_REASON_BAD_ID},
 	{Err: model.ErrBusy, Code: codes.ResourceExhausted, Reason: accountv1.Reason_REASON_BUSY},
-	{Err: model.ErrTimedOut, Code: codes.Unavailable},
-	{Err: model.ErrUnavailable, Code: codes.Unavailable},
 }
