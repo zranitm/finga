@@ -15,26 +15,20 @@ export interface KeyboardOptions {
   readonly typing: () => boolean;
   /** Non-movement actions: attack, pickup, windows, chat. */
   readonly onAction?: (action: Action) => void;
-  readonly source?: EventTarget;
-  readonly focusSource?: EventTarget;
 }
 
 export function bindKeyboard(opts: KeyboardOptions): () => void {
-  const source = opts.source ?? window;
-  const focusSource = opts.focusSource ?? window;
-  const movementFor = (e: Event): Action | undefined => {
-    const code = (e as KeyboardEvent).code;
-    const action = actionFor(code, opts.preset());
+  const movementFor = (e: KeyboardEvent): Action | undefined => {
+    const action = actionFor(e.code, opts.preset());
     return action !== undefined && isMovement(action) ? action : undefined;
   };
-  const down = (e: Event) => {
-    const key = e as KeyboardEvent;
-    const action = actionFor(key.code, opts.preset());
+  const down = (e: KeyboardEvent) => {
+    const action = actionFor(e.code, opts.preset());
     if (action === undefined || opts.typing()) {
       return;
     }
     e.preventDefault(); // the game's keys: arrows and Space would scroll, and Space or Enter would press a focused button
-    if (key.repeat) {
+    if (e.repeat) {
       return;
     }
     if (isMovement(action)) {
@@ -43,8 +37,8 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       opts.onAction?.(action);
     }
   };
-  const up = (e: Event) => {
-    if (actionFor((e as KeyboardEvent).code, opts.preset()) !== undefined && !opts.typing()) {
+  const up = (e: KeyboardEvent) => {
+    if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing()) {
       e.preventDefault(); // a focused button takes Space on its key up
     }
     const action = movementFor(e);
@@ -60,14 +54,14 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       opts.target.releaseAll(); // keys held as typing starts would never see their key up
     }
   };
-  source.addEventListener('keydown', down);
-  source.addEventListener('keyup', up);
-  focusSource.addEventListener('blur', blur);
-  focusSource.addEventListener('focusin', focusIn);
+  window.addEventListener('keydown', down);
+  window.addEventListener('keyup', up);
+  window.addEventListener('blur', blur);
+  window.addEventListener('focusin', focusIn);
   return () => {
-    source.removeEventListener('keydown', down);
-    source.removeEventListener('keyup', up);
-    focusSource.removeEventListener('blur', blur);
-    focusSource.removeEventListener('focusin', focusIn);
+    window.removeEventListener('keydown', down);
+    window.removeEventListener('keyup', up);
+    window.removeEventListener('blur', blur);
+    window.removeEventListener('focusin', focusIn);
   };
 }

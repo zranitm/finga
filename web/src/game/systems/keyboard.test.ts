@@ -1,26 +1,34 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Preset } from '@/state/settings';
 
 import { bindKeyboard } from './keyboard';
 
+const unbinds: (() => void)[] = [];
+
+afterEach(() => {
+  for (const unbind of unbinds.splice(0)) {
+    unbind();
+  }
+});
+
 function setup(preset: Preset = 'classic', typing = false) {
-  const source = document.createElement('div');
   const target = { press: vi.fn(), release: vi.fn(), releaseAll: vi.fn() };
+  const onAction = vi.fn();
   const state = { typing };
   const unbind = bindKeyboard({
     target,
     preset: () => preset,
     typing: () => state.typing,
-    source,
-    focusSource: source,
+    onAction,
   });
+  unbinds.push(unbind);
   const key = (type: 'keydown' | 'keyup', code: string, repeat = false) => {
     const e = new KeyboardEvent(type, { code, repeat, cancelable: true });
-    source.dispatchEvent(e);
+    window.dispatchEvent(e);
     return e;
   };
-  return { source, target, state, unbind, key };
+  return { target, onAction, state, unbind, key };
 }
 
 describe('bindKeyboard', () => {
@@ -75,25 +83,14 @@ describe('bindKeyboard', () => {
     { code: 'KeyI', action: 'inventory' },
     { code: 'Enter', action: 'chat' },
   ])('$code under classic reports $action once, not as a movement key', ({ code, action }) => {
-    const source = document.createElement('div');
-    const target = { press: vi.fn(), release: vi.fn(), releaseAll: vi.fn() };
-    const onAction = vi.fn();
-    const state = { typing: false };
-    bindKeyboard({
-      target,
-      preset: () => 'classic',
-      typing: () => state.typing,
-      onAction,
-      source,
-      focusSource: source,
-    });
-    source.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true }));
-    source.dispatchEvent(new KeyboardEvent('keydown', { code, repeat: true, cancelable: true }));
+    const { target, onAction, state, key } = setup('classic');
+    key('keydown', code);
+    key('keydown', code, true);
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction).toHaveBeenCalledWith(action);
     expect(target.press).not.toHaveBeenCalled();
     state.typing = true;
-    source.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true }));
+    key('keydown', code);
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
@@ -119,21 +116,21 @@ describe('bindKeyboard', () => {
   });
 
   it('focus moving into a text field releases every key; moving anywhere else does not', () => {
-    const { source, target, state } = setup();
-    source.dispatchEvent(new FocusEvent('focusin'));
+    const { target, state } = setup();
+    window.dispatchEvent(new FocusEvent('focusin'));
     expect(target.releaseAll).not.toHaveBeenCalled();
     state.typing = true;
-    source.dispatchEvent(new FocusEvent('focusin'));
+    window.dispatchEvent(new FocusEvent('focusin'));
     expect(target.releaseAll).toHaveBeenCalledTimes(1);
   });
 
   it('losing focus releases every key, and unbinding stops everything', () => {
-    const { source, target, unbind, key } = setup();
-    source.dispatchEvent(new Event('blur'));
+    const { target, unbind, key } = setup();
+    window.dispatchEvent(new Event('blur'));
     expect(target.releaseAll).toHaveBeenCalledTimes(1);
     unbind();
     key('keydown', 'ArrowRight');
-    source.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event('blur'));
     expect(target.press).not.toHaveBeenCalled();
     expect(target.releaseAll).toHaveBeenCalledTimes(1);
   });
