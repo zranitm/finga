@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createRestClient } from '@/net/rest';
+import type { FetchLike } from '@/net/rest';
 import { clearToken, getToken, setToken } from '@/net/token';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { Script } from '@/testing/fake-fetch';
@@ -147,6 +148,46 @@ describe('CharactersScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('the account service is down');
     expect(onLoggedOut).not.toHaveBeenCalled();
     expect(getToken()).toBe('tok-1');
+  });
+
+  it('log out everywhere sends one DELETE however often it is clicked while one is on its way', async () => {
+    let answer: () => void = () => undefined;
+    const answered = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    const ff = fakeFetch(({ method }) => (method === 'DELETE' ? { status: 204 } : list([])));
+    const fetch: FetchLike = async (url, init) => {
+      if (init.method === 'DELETE') {
+        await answered;
+      }
+      return ff.fetch(url, init);
+    };
+    const { onLoggedOut } = setup(() => list([]), {
+      rest: createRestClient({ origin: '', fetch }),
+    });
+    await screen.findByRole('form', { name: 'Create a character' });
+    const button = screen.getByRole('button', { name: 'Log out everywhere' });
+    await userEvent.dblClick(button);
+    expect(button).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Log out' })).toBeDisabled();
+    answer();
+    await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
+    expect(ff.of('DELETE', '/api/sessions')).toHaveLength(1);
+  });
+
+  it('a failed log out everywhere can be tried again', async () => {
+    const { ff } = setup(({ method }) =>
+      method === 'DELETE'
+        ? { status: 503, body: { code: 'unavailable', message: 'down' } }
+        : list([]),
+    );
+    await screen.findByRole('form', { name: 'Create a character' });
+    const button = screen.getByRole('button', { name: 'Log out everywhere' });
+    await userEvent.click(button);
+    await screen.findByRole('alert');
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    await waitFor(() => expect(ff.of('DELETE', '/api/sessions')).toHaveLength(2));
   });
 
   it('opens settings, and shows a failure to load', async () => {

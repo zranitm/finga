@@ -37,6 +37,7 @@ export function CharactersScreen({
   const [cls, setCls] = useState<string>('warrior');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [leaving, setLeaving] = useState(false); // a log out is on its way, so both buttons wait
   const capture = useKeyboardCapture();
 
   useEffect(() => {
@@ -78,6 +79,7 @@ export function CharactersScreen({
   };
 
   const logout = async () => {
+    setLeaving(true);
     try {
       await rest.logout();
     } catch {
@@ -87,6 +89,7 @@ export function CharactersScreen({
   };
 
   const logoutEverywhere = async () => {
+    setLeaving(true);
     setProblem(null);
     try {
       await rest.logoutEverywhere();
@@ -94,6 +97,7 @@ export function CharactersScreen({
       // A 401 means this session had already ended; any other failure may leave the others open.
       if (!(err instanceof RestError && err.status === 401)) {
         setProblem(err instanceof RestError ? err.message : 'Could not log out everywhere.');
+        setLeaving(false);
         return;
       }
     }
@@ -108,10 +112,10 @@ export function CharactersScreen({
           <Button variant="quiet" onClick={onSettings}>
             Settings
           </Button>
-          <Button variant="quiet" onClick={() => void logout()}>
+          <Button variant="quiet" onClick={() => void logout()} disabled={leaving}>
             Log out
           </Button>
-          <Button variant="quiet" onClick={() => void logoutEverywhere()}>
+          <Button variant="quiet" onClick={() => void logoutEverywhere()} disabled={leaving}>
             Log out everywhere
           </Button>
         </header>
