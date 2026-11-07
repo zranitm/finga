@@ -31,6 +31,22 @@ function setup(script: Script, props: Partial<Parameters<typeof CharactersScreen
 
 const list = (characters: unknown[]) => ({ status: 200, body: { characters } });
 
+/** A server whose log outs wait until answer is called. */
+function deletesHeld(characters: unknown[]) {
+  let answer: () => void = () => undefined;
+  const answered = new Promise<void>((resolve) => {
+    answer = resolve;
+  });
+  const ff = fakeFetch(({ method }) => (method === 'DELETE' ? { status: 204 } : list(characters)));
+  const fetch: FetchLike = async (url, init) => {
+    if (init.method === 'DELETE') {
+      await answered;
+    }
+    return ff.fetch(url, init);
+  };
+  return { ff, rest: createRestClient({ origin: '', fetch }), answer: () => answer() };
+}
+
 describe('CharactersScreen', () => {
   beforeEach(() => {
     resetStores();
@@ -151,20 +167,8 @@ describe('CharactersScreen', () => {
   });
 
   it('log out everywhere sends one DELETE however often it is clicked while one is on its way', async () => {
-    let answer: () => void = () => undefined;
-    const answered = new Promise<void>((resolve) => {
-      answer = resolve;
-    });
-    const ff = fakeFetch(({ method }) => (method === 'DELETE' ? { status: 204 } : list([])));
-    const fetch: FetchLike = async (url, init) => {
-      if (init.method === 'DELETE') {
-        await answered;
-      }
-      return ff.fetch(url, init);
-    };
-    const { onLoggedOut } = setup(() => list([]), {
-      rest: createRestClient({ origin: '', fetch }),
-    });
+    const { ff, rest, answer } = deletesHeld([]);
+    const { onLoggedOut } = setup(() => list([]), { rest });
     await screen.findByRole('form', { name: 'Create a character' });
     const button = screen.getByRole('button', { name: 'Log out everywhere' });
     await userEvent.dblClick(button);
@@ -174,6 +178,22 @@ describe('CharactersScreen', () => {
     await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
     expect(ff.of('DELETE', '/api/sessions')).toHaveLength(1);
   });
+
+  it.each([{ button: 'Log out' }, { button: 'Log out everywhere' }])(
+    'Play waits while $button is on its way',
+    async ({ button }) => {
+      const { rest, answer } = deletesHeld([sampleCharacter]);
+      const { onPlay, onLoggedOut } = setup(() => list([]), { rest });
+      await screen.findByText('Ayla, level 1 warrior');
+      await userEvent.click(screen.getByRole('button', { name: button }));
+      const play = screen.getByRole('button', { name: 'Play' });
+      expect(play).toBeDisabled();
+      await userEvent.click(play);
+      expect(onPlay).not.toHaveBeenCalled();
+      answer();
+      await waitFor(() => expect(onLoggedOut).toHaveBeenCalledTimes(1));
+    },
+  );
 
   it('a failed log out everywhere can be tried again', async () => {
     const { ff } = setup(({ method }) =>

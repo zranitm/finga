@@ -36,7 +36,7 @@ export function CharactersScreen({
   const [cls, setCls] = useState<string>('warrior');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [leaving, setLeaving] = useState(false); // a log out is on its way, so both buttons wait
+  const [leaving, setLeaving] = useState(false); // a log out is on its way, so the log out and Play buttons wait
 
   useEffect(() => {
     let alive = true;
@@ -124,7 +124,9 @@ export function CharactersScreen({
               <span>
                 {c.name}, level {c.level} {c.class}
               </span>
-              <Button onClick={() => onPlay(c)}>Play</Button>
+              <Button onClick={() => onPlay(c)} disabled={leaving}>
+                Play
+              </Button>
             </li>
           ))}
         </ul>
