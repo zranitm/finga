@@ -56,6 +56,7 @@ type Instance struct {
 	data     *gamedata.Data
 	params   sim.Params
 	subSteps int // sim steps per tick
+	inputs   inputTicks
 	tuning   Tuning
 	deps     Services
 	mover    Mover
@@ -138,6 +139,7 @@ func New(d Deps, t Tuning) *Instance {
 	return &Instance{
 		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, mover: d.Mover, saves: d.Saves,
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
+		inputs:   inputTicksAt(t.TickInterval),
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),

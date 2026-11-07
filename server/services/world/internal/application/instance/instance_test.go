@@ -364,6 +364,35 @@ func TestInputQueueAppliesOnePerTick(t *testing.T) {
 	})
 }
 
+// The hold and the backlog are spans of time, so at 60 Hz a 200 ms gap still holds the player, as at 20 Hz.
+func TestTheInputHoldLastsAsLongAtAnyRate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		interval := time.Second / 60
+		data := worldtest.LoadData(t)
+		x, y := worldtest.TownSpawn(t, data)
+		inst, cancel := worldtest.Run(t, data, nil, worldtest.Options{TickInterval: interval})
+		defer cancel()
+		p := worldtest.NewPlayer("Ayla", x, y)
+		s := &worldtest.Sink{}
+		if err := inst.Join(context.Background(), p, s); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(75 * interval) // land and settle
+		synctest.Wait()
+		_ = inst.Input(p.ID, 1, sim.Input{Right: true})
+		time.Sleep(interval)
+		synctest.Wait()
+		before, _ := s.Own(p.ID)
+		for n := range 12 {
+			time.Sleep(interval)
+			synctest.Wait()
+			if v, _ := s.Own(p.ID); v.State != before.State {
+				t.Fatalf("starved tick %d moved the player; a 200 ms gap holds them", n+1)
+			}
+		}
+	})
+}
+
 func TestInputGapHoldsThePlayer(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

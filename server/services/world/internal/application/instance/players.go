@@ -2,6 +2,7 @@ package instance
 
 import (
 	"slices"
+	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -10,12 +11,22 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// A backlog after a stall is cut to the newest few, so the player catches up.
+// A backlog of inputs past inputBacklog is cut to its newest inputKeep, so the player catches up; a gap up to inputHold holds them still.
 const (
-	inputQueueMax  = 4
-	inputQueueKeep = 2
-	inputHoldTicks = 5
+	inputBacklog = 200 * time.Millisecond
+	inputKeep    = 100 * time.Millisecond
+	inputHold    = 250 * time.Millisecond
 )
+
+// inputTicks are the input limits in the map's ticks.
+type inputTicks struct {
+	backlog, keep, hold int
+}
+
+func inputTicksAt(interval time.Duration) inputTicks {
+	n := func(d time.Duration) int { return int(model.TicksIn(d, interval)) }
+	return inputTicks{backlog: n(inputBacklog), keep: n(inputKeep), hold: n(inputHold)}
+}
 
 type player struct {
 	model.Player
@@ -107,9 +118,9 @@ func enqueueInput(q []inputMsg, in inputMsg, lastSeq uint32) []inputMsg {
 	return slices.Insert(q, at, in)
 }
 
-func cutInputs(q []inputMsg) []inputMsg {
-	if len(q) > inputQueueMax {
-		return slices.Delete(q, 0, len(q)-inputQueueKeep)
+func (t inputTicks) cut(q []inputMsg) []inputMsg {
+	if len(q) > t.backlog {
+		return slices.Delete(q, 0, len(q)-t.keep)
 	}
 	return q
 }
@@ -121,7 +132,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		if p.invulnUntil == i.tick {
 			p.changed = true // the Delta carries the invulnerability's end
 		}
-		p.pending = cutInputs(p.pending)
+		p.pending = i.inputs.cut(p.pending)
 		hold := false
 		if len(p.pending) > 0 {
 			next := p.pending[0]
@@ -131,7 +142,7 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			p.starved = 0
 		} else {
 			p.starved++
-			hold = p.starved <= inputHoldTicks
+			hold = p.starved <= i.inputs.hold
 		}
 		before := p.state
 		if !p.dead && !hold {

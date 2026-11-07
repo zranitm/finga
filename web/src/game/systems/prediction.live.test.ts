@@ -5,10 +5,12 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { tickTiming } from '@/lib/fixed-step';
 import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
+import { params } from '@/sim/step';
 
 import { InputSender } from './input-sender';
 import { Predictor, wireState } from './prediction';
@@ -17,7 +19,8 @@ import type { Reconciled } from './prediction';
 const url = process.env.FINGA_LIVE_URL;
 const delayMs = Number(process.env.FINGA_LIVE_DELAY_MS ?? '0');
 const TICK_MS = 50;
-const STEPS = 3; // a 20 Hz tick of 1/60 s steps
+const TIMING = tickTiming(20, params.dt);
+const STEPS = TIMING.stepsPerTick; // three 1/60 s steps a tick
 
 type Wire = Data<'snapshot'>['players'][number];
 type Keys = Partial<Record<'left' | 'right' | 'up' | 'down' | 'jump', boolean>>;
@@ -53,7 +56,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const c = await rest.createCharacter(`P${stamp}`, 'warrior');
 
   const socket = new GameSocket({ url: origin.replace(/^http/, 'ws') + '/ws', delayMs });
-  const predictor = new Predictor(town.geometry, STEPS);
+  const predictor = new Predictor(town.geometry, TIMING);
   const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
   const results: Reconciled[] = [];
   let placed = false;

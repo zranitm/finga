@@ -194,7 +194,7 @@ export class World extends Phaser.Scene {
 
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
     this.socket = socket;
-    this.predictor = new Predictor(view.geometry, this.timing.stepsPerTick);
+    this.predictor = new Predictor(view.geometry, this.timing);
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.renderClock.reset();
     this.mobs.clear();

@@ -1,10 +1,12 @@
+import type { TickTiming } from '@/lib/fixed-step';
 import { RingBuffer } from '@/lib/ring-buffer';
 import type { Input } from '@/sim/input';
 import { NO_PLATFORM, params as defaultParams, standing, step } from '@/sim/step';
 import type { Geometry, Params, State } from '@/sim/step';
 
 export const RESET_DISTANCE_PX = 4;
-export const HISTORY_TICKS = 40; // 2 s
+/** How far back unacknowledged ticks are kept, at any tick rate. */
+export const HISTORY_MS = 2000;
 
 /** sim/step's State without the client-only fields. */
 export interface WireState {
@@ -82,15 +84,19 @@ export function differs(predicted: State, server: WireState): boolean {
 
 export class Predictor {
   state: State = standing(0, 0);
-  readonly history = new RingBuffer<TickEntry>(HISTORY_TICKS);
+  readonly history: RingBuffer<TickEntry>;
+  private readonly stepsPerTick: number;
   private current: TickEntry | null = null;
 
-  /** stepsPerTick is the world's: its tick rate over the movement dt. */
+  /** timing is the world's: its ticks, and the movement steps each holds. */
   constructor(
     private readonly g: Geometry,
-    private readonly stepsPerTick: number,
+    timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
     private readonly p: Params = defaultParams,
-  ) {}
+  ) {
+    this.stepsPerTick = timing.stepsPerTick;
+    this.history = new RingBuffer<TickEntry>(Math.ceil(HISTORY_MS / timing.tickMs));
+  }
 
   reset(server: WireState): void {
     this.state = fromWire(server, this.g, this.p);
