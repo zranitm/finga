@@ -108,7 +108,7 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 	return replaced
 }
 
-// Release gives up the join unless Finish ran, giving the character back to the older connection, whose presence it took, to join again; calling it again does nothing.
+// Release gives up the join unless Finish ran, giving the character back to the older connection, whose presence it took, to join again if it is still open; calling it again does nothing.
 func (j *Join) Release() {
 	if j.done {
 		return
@@ -120,16 +120,26 @@ func (j *Join) Release() {
 		return
 	}
 	r.mu.Lock()
+	open := !older.closed
 	if character := older.Character(); r.byCharacter[character] == j.s {
-		r.byCharacter[character] = older
+		if open {
+			r.byCharacter[character] = older
+		} else {
+			delete(r.byCharacter, character)
+		}
 	}
 	r.mu.Unlock()
 	j.unlock()
-	r.Rejoin(older)
+	if open {
+		r.Rejoin(older)
+	}
 }
 
-// Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing.
+// Rejoin joins s again on its own goroutine, so a stream that noticed the break keeps flowing; one asked for while another waits to start is that one.
 func (r *Registry) Rejoin(s *Session) {
+	if !s.rejoin.CompareAndSwap(false, true) {
+		return
+	}
 	r.job(s.ctx, "gateway.rejoin", func(ctx context.Context) {
 		select {
 		case <-time.After(rand.N(rejoinSpread)):
@@ -139,6 +149,7 @@ func (r *Registry) Rejoin(s *Session) {
 		select {
 		case r.rejoins <- struct{}{}:
 			defer func() { <-r.rejoins }()
+			s.rejoin.Store(false) // from here a new break needs a rejoin of its own
 			r.rejoin(ctx, s)
 		case <-ctx.Done():
 		}

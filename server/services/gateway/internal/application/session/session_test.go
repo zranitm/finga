@@ -221,3 +221,50 @@ func TestANewerJoinOutlastsAStaleRejoin(t *testing.T) {
 		}
 	})
 }
+
+// A login that fails after its join gives the character back to the older tab, but not to one that closed meanwhile.
+func TestAFailedLoginGivesTheCharacterBackOnlyToAnOpenTab(t *testing.T) {
+	for _, closed := range []bool{false, true} {
+		synctest.Test(t, func(t *testing.T) {
+			r := session.NewRegistry(session.Deps{World: world{}, Social: &social{}, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Second})
+			character := kernel.NewCharacterID()
+			older := play(t, r, "c-1", character)
+			j, err := r.Join(t.Context(), r.Open("c-2", outbox{}), kernel.NewAccountID(), kernel.NewSessionID(), character)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if closed {
+				r.Close(older)
+			}
+			j.Release()
+			want := older
+			if closed {
+				want = nil
+			}
+			if got := r.ByCharacter(character); got != want {
+				t.Fatalf("older closed %v: the character's session is %v, want %v", closed, got, want)
+			}
+			time.Sleep(time.Second) // the open tab's rejoin
+		})
+	}
+}
+
+// Rejoins asked for together, as a timed-out Hello's and the world's Detached are, join once.
+func TestRejoinsAskedForTogetherJoinOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := &recordingWorld{}
+		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Minute})
+		r.WorldSubscribed()
+		s := play(t, r, "c-1", kernel.NewCharacterID())
+		r.Rejoin(s)
+		r.Rejoin(s)
+		time.Sleep(time.Second)
+		synctest.Wait()
+		r.Rejoin(s) // a later break
+		time.Sleep(time.Second)
+		synctest.Wait()
+		if conns, _ := w.joined(); len(conns) != 3 {
+			t.Fatalf("joins %v; want the login's, one for the two rejoins asked together, and one for the later", conns)
+		}
+	})
+}
