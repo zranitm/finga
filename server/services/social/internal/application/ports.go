@@ -40,4 +40,8 @@ type Notifier interface {
 	// Alone tells a member they are in no party, which is no change to any membership.
 	Alone(id kernel.CharacterID)
 	Invited(to kernel.CharacterID, inv model.Invite)
+	// Reachable says where a member's deliveries go from now on: the gateway and connection they are online through.
+	Reachable(id kernel.CharacterID, gateway, conn string)
+	// Unreachable says a member's deliveries stop, if they still went to conn.
+	Unreachable(id kernel.CharacterID, conn string)
 }

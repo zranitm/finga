@@ -32,7 +32,7 @@ func NewPartyService(deps PartyDeps) *PartyService {
 	return &PartyService{store: deps.Store, notifier: deps.Notifier}
 }
 
-// Online records a character as connected and tells them their party, keeping what the world reported through the same connection; one through a connection older than theirs (UUIDv7 IDs sort by age) is an ended tab's late registration and changes nothing.
+// Online records a character as connected, routes their deliveries there and tells them their party, keeping what the world reported through the same connection; one through a connection older than theirs (UUIDv7 IDs sort by age) is an ended tab's late registration and changes nothing, deliveries included.
 func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
@@ -46,6 +46,7 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 			}
 		}
 		tx.PutMember(m)
+		n.reachable(m) // first, so the party state below reaches the new connection
 		if !refresh(tx, n, m) {
 			n.alone(m.ID) // a party lost while away is not shown at login
 		}
@@ -62,6 +63,7 @@ func (s *PartyService) Offline(ctx context.Context, id kernel.CharacterID, conn 
 		}
 		m.Online, m.OfflineAt = false, time.Now()
 		tx.PutMember(m)
+		n.unreachable(id, conn)
 		refresh(tx, n, m)
 		return nil
 	})
@@ -392,4 +394,12 @@ func (n *notes) alone(id kernel.CharacterID) {
 
 func (n *notes) invited(to kernel.CharacterID, inv model.Invite) {
 	*n = append(*n, func(nt Notifier) { nt.Invited(to, inv) })
+}
+
+func (n *notes) reachable(m model.Member) {
+	*n = append(*n, func(to Notifier) { to.Reachable(m.ID, m.Gateway, m.Connection) })
+}
+
+func (n *notes) unreachable(id kernel.CharacterID, conn string) {
+	*n = append(*n, func(to Notifier) { to.Unreachable(id, conn) })
 }

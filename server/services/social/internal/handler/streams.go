@@ -77,14 +77,15 @@ func (s *Streams) Invited(to kernel.CharacterID, inv model.Invite) {
 	}}})
 }
 
-func (s *Streams) online(id kernel.CharacterID, gateway, conn string) {
+// Reachable routes the character's deliveries to the gateway; it runs under the party lock, which decided the member is online there.
+func (s *Streams) Reachable(id kernel.CharacterID, gateway, conn string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.presence[id] = presence{gateway, conn}
 }
 
-// offline forgets where the character is, if still through conn.
-func (s *Streams) offline(id kernel.CharacterID, conn string) {
+// Unreachable forgets where the character is, if still through conn.
+func (s *Streams) Unreachable(id kernel.CharacterID, conn string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.presence[id].conn == conn {

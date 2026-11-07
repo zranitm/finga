@@ -421,6 +421,38 @@ func TestAStaleOfflineLeavesTheNewConnectionOnline(t *testing.T) {
 	}
 }
 
+// An ended tab's registration that lands after the live tab's changes nothing: not the party, and not where the character's deliveries go.
+func TestALateOnlineFromAnEndedTabLeavesTheLiveTabsDeliveries(t *testing.T) {
+	s := newStack(t)
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second) // a line that never comes fails, not hangs
+	defer cancel()
+	gwAnn, gwA, gwB := s.gateway(t, "gw-ann"), s.gatewayUntil(t, ctx, "gw-a"), s.gatewayUntil(t, ctx, "gw-b")
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+	tabA, tabB := uuidv7.NewString(), uuidv7.NewString() // A connected first, then B took the character
+	s.online(t, "gw-ann", ann, "Ann")
+	s.onlineThrough(t, "gw-a", tabA, bo, "Bo")
+	s.party(t, ann, bo)
+	recv(t, gwA) // the invite
+	recv(t, gwAnn)
+	recv(t, gwA) // the PartyState, for each
+	s.onlineThrough(t, "gw-b", tabB, bo, "Bo")
+	recv(t, gwAnn)
+	recv(t, gwB)
+	s.onlineThrough(t, "gw-a", tabA, bo, "Bo") // A's registration, on its way before B's, lands last
+	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: tabA}); err != nil {
+		t.Fatal(err) // A, ended, closes
+	}
+	if !s.isOnline(t, bo) {
+		t.Fatal("the ended tab took Bo offline")
+	}
+	if _, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: ann.String(), SenderName: "Ann", Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "still there?"}); err != nil {
+		t.Fatal(err)
+	}
+	if line := recv(t, gwB).GetChatLine(); line.GetText() != "still there?" {
+		t.Fatalf("Bo's live tab got %+v", line)
+	}
+}
+
 // A gateway whose stream stays gone past the grace takes its players offline; one back in time does not.
 func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

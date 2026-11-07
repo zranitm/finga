@@ -25,6 +25,8 @@ type Member struct {
 	Online bool
 	// Connection is the one the member is online through; an Offline naming another is stale.
 	Connection string
+	// Gateway is the one the member is online through, where their deliveries go.
+	Gateway string
 	// JoinOrder is lowest for the longest-standing member, who leads when the leader goes.
 	JoinOrder uint64
 	// OfflineAt is when the member last went offline; zero while online.

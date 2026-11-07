@@ -98,11 +98,7 @@ func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterI
 	if _, back := s.streams.deliver.Get(gateway); back {
 		return errBack
 	}
-	if err := s.parties.Offline(ctx, id, conn); err != nil {
-		return err
-	}
-	s.streams.offline(id, conn)
-	return nil
+	return s.parties.Offline(ctx, id, conn)
 }
 
 // WatchParties streams a snapshot, then each change since; each sets parties outright, so an overlap is harmless.
@@ -135,8 +131,7 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 		return nil, err
 	}
 	defer s.registering.Release(1)
-	s.streams.online(id, req.GetGatewayId(), req.GetConnectionId())
-	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId()}
+	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId(), Gateway: req.GetGatewayId()}
 	if err := s.parties.Online(ctx, member); err != nil {
 		return nil, err
 	}
@@ -155,7 +150,6 @@ func (s *Server) Offline(ctx context.Context, req *socialv1.OfflineRequest) (*so
 	if err := s.parties.Offline(ctx, id, req.GetConnectionId()); err != nil {
 		return nil, err
 	}
-	s.streams.offline(id, req.GetConnectionId())
 	return &socialv1.OfflineResponse{}, nil
 }
 

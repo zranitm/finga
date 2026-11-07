@@ -17,6 +17,7 @@ type recorder struct {
 	mu      sync.Mutex
 	states  []stateCall
 	invites []model.Invite
+	routes  map[kernel.CharacterID]string // the connection each member's deliveries go to
 }
 
 type stateCall struct {
@@ -36,6 +37,29 @@ func (r *recorder) Invited(_ kernel.CharacterID, inv model.Invite) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.invites = append(r.invites, inv)
+}
+
+func (r *recorder) Reachable(id kernel.CharacterID, _, conn string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.routes == nil {
+		r.routes = map[kernel.CharacterID]string{}
+	}
+	r.routes[id] = conn
+}
+
+func (r *recorder) Unreachable(id kernel.CharacterID, conn string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.routes[id] == conn {
+		delete(r.routes, id)
+	}
+}
+
+func (r *recorder) route(id kernel.CharacterID) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.routes[id]
 }
 
 func (r *recorder) last() stateCall {
@@ -393,7 +417,7 @@ func TestAnOfflineFromAReplacedConnectionChangesNothing(t *testing.T) {
 	}
 }
 
-// A late Online from a connection older than the member's current one, such as an ended tab's re-registration, takes nothing back.
+// A late Online from a connection older than the member's current one, such as an ended tab's re-registration, takes nothing back, deliveries included.
 func TestALateOnlineFromAnOlderConnectionChangesNothing(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")
 	f.invite(t, "Ayla", "Robin")
@@ -408,6 +432,9 @@ func TestALateOnlineFromAnOlderConnectionChangesNothing(t *testing.T) {
 		if m.ID == f.id("Robin") && (!m.Online || m.MapID != "forest") {
 			t.Fatalf("Robin %+v; want online in the forest, through the newer connection", m)
 		}
+	}
+	if conn := f.rec.route(f.id("Robin")); conn != "c-Robin-2" {
+		t.Fatalf("Robin's deliveries go to %q; want the newer connection", conn)
 	}
 }
 
