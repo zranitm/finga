@@ -38,6 +38,9 @@ export function ChatBox({ socket }: ChatBoxProps) {
   const over = text.length > MAX_CHAT_CHARS;
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      return; // the IME's: Enter commits the composition, Escape cancels it; Safari reports these as 229
+    }
     if (e.key === 'Escape') {
       e.preventDefault();
       input.current?.blur();

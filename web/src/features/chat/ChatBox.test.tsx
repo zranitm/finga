@@ -1,5 +1,5 @@
 import { create } from '@bufbuild/protobuf';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -42,6 +42,19 @@ describe('ChatBox', () => {
     expect(input()).toHaveValue('');
     expect(input()).not.toHaveFocus();
     expect(isTyping()).toBe(false);
+  });
+
+  it.each([
+    { name: 'an Enter that commits an IME composition', init: { key: 'Enter', isComposing: true } },
+    { name: 'the same Enter as Safari reports it', init: { key: 'Enter', keyCode: 229 } },
+    { name: 'an Escape that cancels a composition', init: { key: 'Escape', isComposing: true } },
+  ])('$name stays in the field and sends nothing', async ({ init }) => {
+    const { send, input } = setup();
+    await userEvent.type(input(), 'konnichiwa');
+    fireEvent.keyDown(input(), init);
+    expect(send).not.toHaveBeenCalled();
+    expect(input()).toHaveValue('konnichiwa');
+    expect(input()).toHaveFocus();
   });
 
   it('/p sends a party line', async () => {
