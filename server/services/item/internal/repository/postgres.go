@@ -24,13 +24,12 @@ import (
 // Postgres is the service's store; every error it returns is classified into the model's.
 type Postgres struct {
 	pool *pgxpool.Pool
-	q    *db.Queries
 	obs  dbx.Observer // hears each transaction; nil hears none
 }
 
 // NewPostgres builds the store over a pool, telling obs about each transaction.
 func NewPostgres(pool *pgxpool.Pool, obs dbx.Observer) *Postgres {
-	return &Postgres{pool: pool, q: db.New(pool), obs: obs}
+	return &Postgres{pool: pool, obs: obs}
 }
 
 // InTx runs fn in one transaction; fn may be retried, so it must have no outside side effects.
@@ -51,13 +50,26 @@ func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 	}
 }
 
-// Inventory lists the owner's inventory, by tab and slot.
-func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) {
-	rows, err := p.q.ListInventory(ctx, uuid.UUID(owner))
+// Inventory lists the owner's inventory, by tab and slot, read with its revision from one snapshot.
+func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error) {
+	var inv model.Inventory
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		q := db.New(tx)
+		revision, err := q.InventoryRevision(ctx, uuid.UUID(owner))
+		if err != nil {
+			return err
+		}
+		rows, err := q.ListInventory(ctx, uuid.UUID(owner))
+		if err != nil {
+			return err
+		}
+		inv = model.Inventory{Revision: uint64(revision), Items: toItems(rows)} //nolint:gosec // a revision is never negative
+		return nil
+	}, dbx.Observed(p.obs), dbx.Snapshot())
 	if err != nil {
-		return nil, failures.Classify(err)
+		return model.Inventory{}, failures.Classify(err)
 	}
-	return toItems(rows), nil
+	return inv, nil
 }
 
 // unitOfWork stamps every row it writes with now, the transaction's time on the app's clock.
@@ -138,6 +150,12 @@ func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, s
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
 	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, Now: r.now})
 	return dbx.RowsOrNotFound(n, err)
+}
+
+// NextRevision counts one more change to the owner's inventory.
+func (r repo) NextRevision(ctx context.Context, owner kernel.CharacterID) (uint64, error) {
+	revision, err := r.q.NextRevision(ctx, db.NextRevisionParams{OwnerID: uuid.UUID(owner), Now: r.now})
+	return uint64(revision), err //nolint:gosec // a revision is never negative
 }
 
 // Destroy marks an item destroyed with quantity 0 rather than deleting the row.

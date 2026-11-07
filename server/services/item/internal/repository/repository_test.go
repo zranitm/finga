@@ -91,10 +91,10 @@ func TestRepository(t *testing.T) {
 			t.Fatal(err)
 		}
 		list, err := store.Inventory(ctx, alice)
-		if err != nil || len(list) != 2 {
+		if err != nil || len(list.Items) != 2 {
 			t.Fatalf("Inventory %v, %v", list, err)
 		}
-		if none, err := store.Inventory(ctx, bob); err != nil || len(none) != 0 {
+		if none, err := store.Inventory(ctx, bob); err != nil || len(none.Items) != 0 || none.Revision != 0 {
 			t.Fatalf("empty inventory %v, %v", none, err)
 		}
 	})
@@ -147,8 +147,8 @@ func TestRepository(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		list, _ := store.Inventory(ctx, alice)
-		if len(list) != 1 || list[0].ID != potions.ID || list[0].Quantity != 35 || list[0].Slot != 7 {
+		read, _ := store.Inventory(ctx, alice)
+		if list := read.Items; len(list) != 1 || list[0].ID != potions.ID || list[0].Quantity != 35 || list[0].Slot != 7 {
 			t.Fatalf("inventory %+v", list)
 		}
 		err = store.InTx(ctx, func(uow application.UnitOfWork) error {

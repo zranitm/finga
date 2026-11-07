@@ -82,6 +82,8 @@ message InventoryRequest {
 
 message InventoryResponse {
   repeated Item items = 1;
+  // The inventory's revision these items show: the count of its changes, so a higher one is newer.
+  uint64 revision = 2;
 }
 
 message AddRequest {
@@ -95,6 +97,8 @@ message AddRequest {
 
 message AddResponse {
   repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  uint64 revision = 2;
 }
 
 message MoveRequest {
@@ -108,6 +112,8 @@ message MoveRequest {
 
 message MoveResponse {
   repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  uint64 revision = 2;
 }
 
 message DiscardRequest {
@@ -120,6 +126,8 @@ message DiscardRequest {
 
 message DiscardResponse {
   repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  uint64 revision = 2;
 }
 
 message GrantStarterRequest {
@@ -129,4 +137,6 @@ message GrantStarterRequest {
 
 message GrantStarterResponse {
   repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  uint64 revision = 2;
 }

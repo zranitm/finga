@@ -90,6 +90,17 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 	return err
 }
 
+const inventoryRevision = `-- name: InventoryRevision :one
+SELECT coalesce((SELECT revision FROM inventory_revisions WHERE owner_id = $1), 0)::bigint AS revision
+`
+
+func (q *Queries) InventoryRevision(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, inventoryRevision, ownerID)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
+}
+
 const listInventory = `-- name: ListInventory :many
 SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items
 WHERE owner_id = $1 AND location = 'inventory'
@@ -198,6 +209,25 @@ SELECT pg_advisory_xact_lock(hashtextextended('item.inventory:' || $1::text, 0))
 func (q *Queries) LockOwner(ctx context.Context, ownerID string) error {
 	_, err := q.db.Exec(ctx, lockOwner, ownerID)
 	return err
+}
+
+const nextRevision = `-- name: NextRevision :one
+INSERT INTO inventory_revisions (owner_id, revision, created_at, updated_at) VALUES ($1, 1, $2, $2)
+ON CONFLICT (owner_id) DO UPDATE SET revision = inventory_revisions.revision + 1, updated_at = $2
+RETURNING revision
+`
+
+type NextRevisionParams struct {
+	OwnerID uuid.UUID
+	Now     dbx.Stamp
+}
+
+// The owner's next revision, 1 first; the row's lock holds back a later change's revision until this one commits.
+func (q *Queries) NextRevision(ctx context.Context, arg NextRevisionParams) (int64, error) {
+	row := q.db.QueryRow(ctx, nextRevision, arg.OwnerID, arg.Now)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
 }
 
 const recordStarterGrant = `-- name: RecordStarterGrant :execrows

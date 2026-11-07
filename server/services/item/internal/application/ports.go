@@ -11,7 +11,7 @@ import (
 // Store is what the service sees of persistence.
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
-	Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
+	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
 }
 
 // UnitOfWork is everything bound to one transaction.
@@ -33,6 +33,8 @@ type Repository interface {
 	SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error
 	SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error
 	Destroy(ctx context.Context, id kernel.ItemID) error
+	// NextRevision counts one more change to the owner's inventory and returns the count.
+	NextRevision(ctx context.Context, owner kernel.CharacterID) (uint64, error)
 }
 
 // EventRepository appends to the item history.

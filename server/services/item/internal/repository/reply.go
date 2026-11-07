@@ -12,7 +12,8 @@ import (
 
 // reply is a Result as idempotency_keys stores it; its JSON names are stored, so never rename or remove one, only add.
 type reply struct {
-	Changed []replySlot `json:"changed"`
+	Changed  []replySlot `json:"changed"`
+	Revision uint64      `json:"revision,omitempty"`
 }
 
 type replySlot struct {
@@ -31,7 +32,7 @@ type replyItem struct {
 }
 
 func encodeReply(res application.Result) ([]byte, error) {
-	var r reply
+	r := reply{Revision: res.Revision}
 	if res.Changed != nil {
 		r.Changed = make([]replySlot, 0, len(res.Changed))
 	}
@@ -53,7 +54,7 @@ func decodeReply(raw []byte) (application.Result, error) {
 	if err := json.Unmarshal(raw, &r); err != nil {
 		return application.Result{}, fmt.Errorf("item: stored reply: %w", err)
 	}
-	var res application.Result
+	res := application.Result{Revision: r.Revision}
 	if r.Changed != nil {
 		res.Changed = make([]model.Slot, 0, len(r.Changed))
 	}

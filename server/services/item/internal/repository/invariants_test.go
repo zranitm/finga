@@ -140,7 +140,8 @@ func TestInventoryProperties(t *testing.T) {
 					rt.Fatalf("add: %v", err)
 				}
 			case 1:
-				inv, _ := svc.Inventory(ctx, actor.Character)
+				read, _ := svc.Inventory(ctx, actor.Character)
+				inv := read.Items
 				if len(inv) == 0 {
 					continue
 				}
@@ -155,7 +156,8 @@ func TestInventoryProperties(t *testing.T) {
 					rt.Fatalf("move: %v", err)
 				}
 			case 2:
-				inv, _ := svc.Inventory(ctx, actor.Character)
+				read, _ := svc.Inventory(ctx, actor.Character)
+				inv := read.Items
 				if len(inv) == 0 {
 					continue
 				}
@@ -168,10 +170,11 @@ func TestInventoryProperties(t *testing.T) {
 			}
 		}
 		checkInvariants(t, pool)
-		inv, err := svc.Inventory(ctx, actor.Character)
+		read, err := svc.Inventory(ctx, actor.Character)
 		if err != nil {
 			rt.Fatal(err)
 		}
+		inv := read.Items
 		seen := map[string]bool{}
 		for _, it := range inv {
 			k := fmt.Sprintf("%s/%d", it.Tab, it.Slot)

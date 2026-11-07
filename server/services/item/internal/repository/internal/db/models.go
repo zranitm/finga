@@ -21,6 +21,13 @@ type IdempotencyKey struct {
 	UpdatedAt   dbx.Stamp
 }
 
+type InventoryRevision struct {
+	OwnerID   uuid.UUID
+	Revision  int64
+	CreatedAt dbx.Stamp
+	UpdatedAt dbx.Stamp
+}
+
 type Item struct {
 	ID         uuid.UUID
 	TemplateID string

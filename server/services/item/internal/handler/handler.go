@@ -17,7 +17,7 @@ import (
 
 // Service is what the handler needs from the item module.
 type Service interface {
-	Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error)
+	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
 	Add(ctx context.Context, actor model.Actor, in application.AddInput) (application.Result, error)
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
@@ -39,15 +39,15 @@ func (s *Server) Inventory(ctx context.Context, req *itemv1.InventoryRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.svc.Inventory(ctx, owner)
+	inv, err := s.svc.Inventory(ctx, owner)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*itemv1.Item, 0, len(items))
-	for _, it := range items {
+	out := make([]*itemv1.Item, 0, len(inv.Items))
+	for _, it := range inv.Items {
 		out = append(out, itemOf(it))
 	}
-	return &itemv1.InventoryResponse{Items: out}, nil
+	return &itemv1.InventoryResponse{Items: out, Revision: inv.Revision}, nil
 }
 
 // Add puts a quantity of a template in the inventory.
@@ -68,7 +68,7 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.AddResponse{Changed: slots(res)}, nil
+	return &itemv1.AddResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 // Move moves an item within its tab.
@@ -89,7 +89,7 @@ func (s *Server) Move(ctx context.Context, req *itemv1.MoveRequest) (*itemv1.Mov
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.MoveResponse{Changed: slots(res)}, nil
+	return &itemv1.MoveResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 // Discard destroys an item or part of a stack.
@@ -110,7 +110,7 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.DiscardResponse{Changed: slots(res)}, nil
+	return &itemv1.DiscardResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 // GrantStarter gives a new character its starter items, once.
@@ -127,7 +127,7 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.GrantStarterResponse{Changed: slots(res)}, nil
+	return &itemv1.GrantStarterResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 func actorOf(a *itemv1.Actor) (model.Actor, error) {

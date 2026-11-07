@@ -37,6 +37,12 @@ type Actor struct {
 	Character kernel.CharacterID
 }
 
+// Inventory is a character's items as they stood at Revision, the count of the inventory's changes.
+type Inventory struct {
+	Revision uint64
+	Items    []Item
+}
+
 // Item is an item instance in an inventory.
 type Item struct {
 	ID         kernel.ItemID

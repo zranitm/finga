@@ -452,8 +452,10 @@ func (x *InventoryRequest) GetCharacterId() string {
 }
 
 type InventoryResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*Item                `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Items []*Item                `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	// The inventory's revision these items show: the count of its changes, so a higher one is newer.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -493,6 +495,13 @@ func (x *InventoryResponse) GetItems() []*Item {
 		return x.Items
 	}
 	return nil
+}
+
+func (x *InventoryResponse) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 type AddRequest struct {
@@ -573,8 +582,10 @@ func (x *AddRequest) GetCause() *Cause {
 }
 
 type AddResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Changed       []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -614,6 +625,13 @@ func (x *AddResponse) GetChanged() []*Slot {
 		return x.Changed
 	}
 	return nil
+}
+
+func (x *AddResponse) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 type MoveRequest struct {
@@ -694,8 +712,10 @@ func (x *MoveRequest) GetSlot() int32 {
 }
 
 type MoveResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Changed       []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -735,6 +755,13 @@ func (x *MoveResponse) GetChanged() []*Slot {
 		return x.Changed
 	}
 	return nil
+}
+
+func (x *MoveResponse) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 type DiscardRequest struct {
@@ -807,8 +834,10 @@ func (x *DiscardRequest) GetQuantity() int32 {
 }
 
 type DiscardResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Changed       []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -848,6 +877,13 @@ func (x *DiscardResponse) GetChanged() []*Slot {
 		return x.Changed
 	}
 	return nil
+}
+
+func (x *DiscardResponse) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 type GrantStarterRequest struct {
@@ -903,8 +939,10 @@ func (x *GrantStarterRequest) GetClass() string {
 }
 
 type GrantStarterResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Changed       []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -946,6 +984,13 @@ func (x *GrantStarterResponse) GetChanged() []*Slot {
 	return nil
 }
 
+func (x *GrantStarterResponse) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
 var File_internal_item_v1_item_proto protoreflect.FileDescriptor
 
 const file_internal_item_v1_item_proto_rawDesc = "" +
@@ -970,9 +1015,10 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x04slot\x18\x02 \x01(\x05R\x04slot\x12*\n" +
 	"\x04item\x18\x03 \x01(\v2\x16.internal.item.v1.ItemR\x04item\"5\n" +
 	"\x10InventoryRequest\x12!\n" +
-	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\"A\n" +
+	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\"]\n" +
 	"\x11InventoryResponse\x12,\n" +
-	"\x05items\x18\x01 \x03(\v2\x16.internal.item.v1.ItemR\x05items\"\xd0\x01\n" +
+	"\x05items\x18\x01 \x03(\v2\x16.internal.item.v1.ItemR\x05items\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"\xd0\x01\n" +
 	"\n" +
 	"AddRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12'\n" +
@@ -980,29 +1026,33 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\vtemplate_id\x18\x03 \x01(\tR\n" +
 	"templateId\x12\x1a\n" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\x12-\n" +
-	"\x05cause\x18\x05 \x01(\v2\x17.internal.item.v1.CauseR\x05cause\"?\n" +
+	"\x05cause\x18\x05 \x01(\v2\x17.internal.item.v1.CauseR\x05cause\"[\n" +
 	"\vAddResponse\x120\n" +
-	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\"\xa4\x01\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"\xa4\x01\n" +
 	"\vMoveRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12'\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\aitem_id\x18\x03 \x01(\tR\x06itemId\x12\x10\n" +
 	"\x03tab\x18\x04 \x01(\tR\x03tab\x12\x12\n" +
-	"\x04slot\x18\x05 \x01(\x05R\x04slot\"@\n" +
+	"\x04slot\x18\x05 \x01(\x05R\x04slot\"\\\n" +
 	"\fMoveResponse\x120\n" +
-	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\"\x9d\x01\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"\x9d\x01\n" +
 	"\x0eDiscardRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12'\n" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\aitem_id\x18\x03 \x01(\tR\x06itemId\x12\x1a\n" +
-	"\bquantity\x18\x04 \x01(\x05R\bquantity\"C\n" +
+	"\bquantity\x18\x04 \x01(\x05R\bquantity\"_\n" +
 	"\x0fDiscardResponse\x120\n" +
-	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\"Z\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"Z\n" +
 	"\x13GrantStarterRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12\x14\n" +
-	"\x05class\x18\x02 \x01(\tR\x05class\"H\n" +
+	"\x05class\x18\x02 \x01(\tR\x05class\"d\n" +
 	"\x14GrantStarterResponse\x120\n" +
-	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged*\x89\x03\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision*\x89\x03\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +

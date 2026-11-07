@@ -35,9 +35,10 @@ type DiscardInput struct {
 	Quantity int
 }
 
-// Result is what a command changed; the repository stores it for idempotent replays.
+// Result is what a command changed and the inventory's revision after it, 0 when it changed nothing; the repository stores it for idempotent replays.
 type Result struct {
-	Changed []model.Slot
+	Changed  []model.Slot
+	Revision uint64
 }
 
 // A fingerprint is a command's values in fixed order; a value added later goes in only when set, so old retries match.
@@ -77,8 +78,8 @@ func NewService(deps Deps) *Service {
 	return &Service{store: deps.Store, content: deps.Content}
 }
 
-// Inventory lists the character's items.
-func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) ([]model.Item, error) {
+// Inventory lists the character's items, at the revision they show.
+func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error) {
 	return s.store.Inventory(ctx, owner)
 }
 
@@ -95,7 +96,8 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
-			return s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Cause)
+			res, err := s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Cause)
+			return revised(ctx, uow, actor.Character, res, err)
 		})
 		return err
 	})
@@ -168,7 +170,8 @@ func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Re
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeMove, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
-			return s.move(ctx, uow, actor.Character, in)
+			res, err := s.move(ctx, uow, actor.Character, in)
+			return revised(ctx, uow, actor.Character, res, err)
 		})
 		return err
 	})
@@ -247,7 +250,8 @@ func (s *Service) Discard(ctx context.Context, actor model.Actor, in DiscardInpu
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeDiscard, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
-			return s.discard(ctx, uow, actor.Character, in)
+			res, err := s.discard(ctx, uow, actor.Character, in)
+			return revised(ctx, uow, actor.Character, res, err)
 		})
 		return err
 	})
@@ -298,6 +302,7 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		res = Result{} // a rerun starts over
 		first, err := uow.Items().RecordStarterGrant(ctx, actor.Character)
 		if err != nil || !first {
 			return err // a second grant changes nothing
@@ -309,8 +314,21 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 			}
 			res.Changed = append(res.Changed, r.Changed...)
 		}
-		return nil
+		res, err = revised(ctx, uow, actor.Character, res, nil)
+		return err
 	})
+	if err != nil {
+		return Result{}, err
+	}
+	return res, nil
+}
+
+// revised gives a change the owner's next revision, last in its transaction so the revision row's lock is the last it takes; nothing changed takes none.
+func revised(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, res Result, err error) (Result, error) {
+	if err != nil || len(res.Changed) == 0 {
+		return res, err
+	}
+	res.Revision, err = uow.Items().NextRevision(ctx, owner)
 	if err != nil {
 		return Result{}, err
 	}

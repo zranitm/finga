@@ -38,3 +38,12 @@ VALUES (sqlc.arg(item_id), sqlc.arg(kind), sqlc.arg(quantity_delta), sqlc.arg(fr
 -- Zero rows: the character already has its kit.
 INSERT INTO starter_grants (character_id, created_at, updated_at) VALUES (sqlc.arg(character_id), sqlc.arg(now), sqlc.arg(now))
 ON CONFLICT DO NOTHING;
+
+-- name: NextRevision :one
+-- The owner's next revision, 1 first; the row's lock holds back a later change's revision until this one commits.
+INSERT INTO inventory_revisions (owner_id, revision, created_at, updated_at) VALUES (sqlc.arg(owner_id), 1, sqlc.arg(now), sqlc.arg(now))
+ON CONFLICT (owner_id) DO UPDATE SET revision = inventory_revisions.revision + 1, updated_at = sqlc.arg(now)
+RETURNING revision;
+
+-- name: InventoryRevision :one
+SELECT coalesce((SELECT revision FROM inventory_revisions WHERE owner_id = $1), 0)::bigint AS revision;

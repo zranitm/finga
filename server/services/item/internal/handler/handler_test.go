@@ -34,7 +34,7 @@ type fakeItems struct {
 	move      application.MoveInput
 	discard   application.DiscardInput
 	class     kernel.Class
-	inventory []model.Item
+	inventory model.Inventory
 	result    application.Result
 	err       error
 	calls     int
@@ -42,7 +42,7 @@ type fakeItems struct {
 
 func (f *fakeItems) record() { f.calls++ }
 
-func (f *fakeItems) Inventory(_ context.Context, owner kernel.CharacterID) ([]model.Item, error) {
+func (f *fakeItems) Inventory(_ context.Context, owner kernel.CharacterID) (model.Inventory, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
@@ -96,12 +96,21 @@ var (
 	potion    = model.Item{ID: kernel.NewItemID(), TemplateID: "red_potion", Owner: character, Tab: gamedata.Use, Slot: 3, Quantity: 5}
 	key1      = "k-" + uuidv7.NewString() // as the client sends one
 	key2      = "k-" + uuidv7.NewString()
-	// changed is a move's result: slot 0 emptied, slot 3 holds the potion.
-	changed = application.Result{Changed: []model.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &potion}}}
+	// changed is a move's result: slot 0 emptied, slot 3 holds the potion, at the inventory's twelfth change.
+	changed = application.Result{Changed: []model.Slot{{Tab: gamedata.Use, Slot: 0}, {Tab: gamedata.Use, Slot: 3, Item: &potion}}, Revision: 12}
 )
 
-func wantChanged(t *testing.T, got []*itemv1.Slot) {
+type changedResponse interface {
+	GetChanged() []*itemv1.Slot
+	GetRevision() uint64
+}
+
+func wantChanged(t *testing.T, res changedResponse) {
 	t.Helper()
+	if res.GetRevision() != 12 {
+		t.Fatalf("revision %d, want 12", res.GetRevision())
+	}
+	got := res.GetChanged()
 	if len(got) != 2 || got[0].GetItem() != nil || got[0].GetTab() != "use" || got[0].GetSlot() != 0 {
 		t.Fatalf("emptied slot %+v", got)
 	}
@@ -113,7 +122,7 @@ func wantChanged(t *testing.T, got []*itemv1.Slot) {
 
 func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 	ctx := context.Background()
-	f := &fakeItems{inventory: []model.Item{potion}, result: changed}
+	f := &fakeItems{inventory: model.Inventory{Revision: 7, Items: []model.Item{potion}}, result: changed}
 	c := client(t, f)
 
 	t.Run("Inventory", func(t *testing.T) {
@@ -121,8 +130,8 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.owner != character || len(res.GetItems()) != 1 || res.GetItems()[0].GetId() != potion.ID.String() || res.GetItems()[0].GetQuantity() != 5 {
-			t.Fatalf("owner %v items %+v", f.owner, res.GetItems())
+		if f.owner != character || len(res.GetItems()) != 1 || res.GetItems()[0].GetId() != potion.ID.String() || res.GetItems()[0].GetQuantity() != 5 || res.GetRevision() != 7 {
+			t.Fatalf("owner %v items %+v revision %d", f.owner, res.GetItems(), res.GetRevision())
 		}
 	})
 	t.Run("Add, a pickup keyed by its drop", func(t *testing.T) {
@@ -136,7 +145,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if f.add != want || f.actor != (model.Actor{Account: account, Character: character}) {
 			t.Fatalf("add %+v actor %+v", f.add, f.actor)
 		}
-		wantChanged(t, res.GetChanged())
+		wantChanged(t, res)
 	})
 	t.Run("Add without a cause ID", func(t *testing.T) {
 		if _, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1,
@@ -155,7 +164,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if f.move != (application.MoveInput{Key: key1, ItemID: potion.ID, Tab: gamedata.Use, Slot: 3}) {
 			t.Fatalf("move %+v", f.move)
 		}
-		wantChanged(t, res.GetChanged())
+		wantChanged(t, res)
 	})
 	t.Run("Discard", func(t *testing.T) {
 		res, err := c.Discard(ctx, &itemv1.DiscardRequest{Actor: actor, IdempotencyKey: key2, ItemId: potion.ID.String(), Quantity: 2})
@@ -165,7 +174,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if f.discard != (application.DiscardInput{Key: key2, ItemID: potion.ID, Quantity: 2}) {
 			t.Fatalf("discard %+v", f.discard)
 		}
-		wantChanged(t, res.GetChanged())
+		wantChanged(t, res)
 	})
 	t.Run("GrantStarter", func(t *testing.T) {
 		res, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "bowman"})
@@ -175,7 +184,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if f.class != kernel.Bowman || f.actor.Character != character {
 			t.Fatalf("class %v actor %+v", f.class, f.actor)
 		}
-		wantChanged(t, res.GetChanged())
+		wantChanged(t, res)
 	})
 }
 

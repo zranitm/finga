@@ -71,3 +71,19 @@ func TestAReplyThatDoesNotDecodeFails(t *testing.T) {
 		}
 	}
 }
+
+// A reply keeps the revision its change took; one stored before revisions has none, and replays as revision 0.
+func TestAReplyKeepsItsRevision(t *testing.T) {
+	res := storedResult(t)
+	res.Revision = 42
+	raw, err := encodeReply(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := decodeReply(raw); err != nil || got.Revision != 42 || len(got.Changed) != 2 {
+		t.Fatalf("decoded %s as %+v, %v; want revision 42 and both slots", raw, got, err)
+	}
+	if old, err := decodeReply([]byte(storedReply)); err != nil || old.Revision != 0 {
+		t.Fatalf("a reply stored before revisions decoded as %+v, %v; want revision 0", old, err)
+	}
+}

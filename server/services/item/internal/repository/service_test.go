@@ -55,7 +55,16 @@ func (h *harness) inventory(t *testing.T) []model.Item {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return inv
+	return inv.Items
+}
+
+func (h *harness) revision(t *testing.T) uint64 {
+	t.Helper()
+	inv, err := h.svc.Inventory(context.Background(), h.actor.Character)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return inv.Revision
 }
 
 func (h *harness) count(t *testing.T, query string, args ...any) int {
@@ -406,10 +415,11 @@ func TestGrantStarter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inv, err := h.svc.Inventory(ctx, warrior.Character)
+	read, err := h.svc.Inventory(ctx, warrior.Character)
 	if err != nil {
 		t.Fatal(err)
 	}
+	inv := read.Items
 	got := map[string]int{}
 	for _, it := range inv {
 		got[it.TemplateID] += it.Quantity
@@ -471,8 +481,8 @@ func TestGrantStarter(t *testing.T) {
 		if _, err := h.svc.GrantStarter(ctx, bowman, kernel.Bowman); err != nil {
 			t.Fatal(err)
 		}
-		inv, _ := h.svc.Inventory(ctx, bowman.Character)
-		if len(inv) != 2 || inv[0].TemplateID != "short_bow" {
+		read, _ := h.svc.Inventory(ctx, bowman.Character)
+		if inv := read.Items; len(inv) != 2 || inv[0].TemplateID != "short_bow" {
 			t.Fatalf("bowman inventory %+v", inv)
 		}
 	})
