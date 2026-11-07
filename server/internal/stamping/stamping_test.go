@@ -7,6 +7,7 @@ import (
 	"go/ast"
 	"go/constant"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,162 +15,217 @@ import (
 	"strings"
 	"testing"
 
+	pg "github.com/pganalyze/pg_query_go/v6"
 	"golang.org/x/tools/go/packages"
+	"google.golang.org/protobuf/reflect/protopath"
+	"google.golang.org/protobuf/reflect/protorange"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-var (
-	queryName = regexp.MustCompile(`(?m)^-- name: (\w+)`)
-	comments  = regexp.MustCompile(`--[^\n]*|/\*(?s:.*?)\*/`)
-	space     = regexp.MustCompile(`\s+`)
-	writes    = regexp.MustCompile(`\binsert into\b|\bupdate (?:only )?\S+ (?:(?:as )?\w+ )?set\b|\bmerge into\b`)
-	insertOf  = regexp.MustCompile(`\binsert into ?([^\s(]*)(?: as \w+)?`)
-	updateOf  = regexp.MustCompile(`\bupdate (?:only )?([^\s(]*)(?: (?:as )?\w+)? set\b`)
-	upsert    = regexp.MustCompile(`\bdo update set\b`)
-	mergeOf   = regexp.MustCompile(`\bmerge into ?([^\s(]*)`)
-	branches  = regexp.MustCompile(`\bthen (insert|update set)\b`)
-	setEnd    = regexp.MustCompile(`\b(?:where|returning|from)\b|$`)
-	branchEnd = regexp.MustCompile(`\bwhen (?:not )?matched\b|$`)
-	values    = regexp.MustCompile(`^ ?values ?\(`)
-	named     = regexp.MustCompile(`^(?:"[^"]+"|[a-z_]\w*)(?:\.(?:"[^"]+"|[a-z_]\w*))?$`)
-	dbClock   = regexp.MustCompile(`\b(?:now|clock_timestamp|statement_timestamp|transaction_timestamp) ?\(|\b(?:current_timestamp|localtimestamp)\b`)
+var queryName = regexp.MustCompile(`(?m)^-- name: (\w+)`)
+
+var stamps = []string{"created_at", "updated_at"}
+
+// clockFuncs are the database's clock functions, matched by their last name so pg_catalog.now() counts too.
+var clockFuncs = []string{"now", "clock_timestamp", "statement_timestamp", "transaction_timestamp", "timeofday"}
+
+// clockWords are the inputs a timestamp reads from the database's clock, as in 'now'::timestamptz.
+var clockWords = []string{"now", "today", "tomorrow", "yesterday"}
+
+const (
+	unparsed = "a write it cannot parse"
+	runTime  = "a write put together at run time, which it cannot read"
+	starred  = "a * it cannot read"
 )
 
-// normalize drops comments and folds case and whitespace, so a write reads the same however it is laid out.
-func normalize(sql string) string {
-	return strings.ToLower(space.ReplaceAllString(comments.ReplaceAllString(sql, " "), " "))
+// each calls visit on every message in m's tree, m first, in field order.
+func each(m protoreflect.ProtoMessage, visit func(protoreflect.ProtoMessage)) {
+	_ = protorange.Options{Stable: true}.Range(m.ProtoReflect(), func(p protopath.Values) error {
+		if v, ok := p.Index(-1).Value.Interface().(protoreflect.Message); ok {
+			visit(v.Interface())
+		}
+		return nil
+	}, nil)
 }
 
-// inParens returns what lies between the parenthesis at open and its match.
-func inParens(s string, open int) (string, bool) {
-	depth := 0
-	for i := open; i < len(s); i++ {
-		switch s[i] {
-		case '(':
-			depth++
-		case ')':
-			if depth--; depth == 0 {
-				return s[open+1 : i], true
+// isWrite reports whether sql holds an insert, update or merge, read by Postgres's scanner so comments and quoted text don't count.
+func isWrite(sql string) bool {
+	scan, err := pg.Scan(sql)
+	if err != nil {
+		return false
+	}
+	var prev pg.Token
+	updating := false
+	for _, t := range scan.Tokens {
+		switch t.Token {
+		case pg.Token_SQL_COMMENT, pg.Token_C_COMMENT:
+			continue
+		case pg.Token_INTO:
+			if prev == pg.Token_INSERT || prev == pg.Token_MERGE {
+				return true
 			}
-		}
-	}
-	return "", false
-}
-
-// items splits a list at its top-level commas.
-func items(list string) []string {
-	var out []string
-	depth, from := 0, 0
-	for i, c := range list {
-		switch c {
-		case '(':
-			depth++
-		case ')':
-			depth--
-		case ',':
-			if depth == 0 {
-				out = append(out, strings.TrimSpace(list[from:i]))
-				from = i + 1
+		case pg.Token_UPDATE:
+			updating = true
+		case pg.Token_SET:
+			if updating {
+				return true
 			}
+		case pg.Token_ASCII_59:
+			updating = false
 		}
+		prev = t.Token
 	}
-	return append(out, strings.TrimSpace(list[from:]))
+	return false
 }
 
-// insertProblems checks the column list and first values row that follow an insert into table.
-func insertProblems(table, rest string) []string {
-	rest = strings.TrimPrefix(rest, " ")
-	var cols, vals []string
-	if strings.HasPrefix(rest, "(") {
-		if list, ok := inParens(rest, 0); ok {
-			cols = items(list)
-			rest = rest[len(list)+2:]
+// source names where v takes a stamp from when that is the database, or is empty when the app gives it.
+func source(v *pg.Node) string {
+	if v.GetSetToDefault() != nil {
+		return "the database's default"
+	}
+	clock := false
+	each(v, func(m protoreflect.ProtoMessage) {
+		switch m := m.(type) {
+		case *pg.FuncCall:
+			clock = clock || slices.Contains(clockFuncs, m.Funcname[len(m.Funcname)-1].GetString_().GetSval())
+		case *pg.SQLValueFunction:
+			clock = clock || m.Op <= pg.SQLValueFunctionOp_SVFOP_LOCALTIMESTAMP_N // the date and time ones come first
+		case *pg.A_Const:
+			clock = clock || slices.Contains(clockWords, strings.ToLower(strings.TrimSpace(m.GetSval().GetSval())))
+		}
+	})
+	if clock {
+		return "the database's clock"
+	}
+	return ""
+}
+
+// rows lists the rows a select gives an insert, the arms of a union each in turn.
+func rows(s *pg.SelectStmt) [][]*pg.Node {
+	switch {
+	case s == nil:
+		return nil
+	case s.Op != pg.SetOperation_SETOP_NONE:
+		return append(rows(s.Larg), rows(s.Rarg)...)
+	case len(s.ValuesLists) > 0:
+		var out [][]*pg.Node
+		for _, l := range s.ValuesLists {
+			out = append(out, l.GetList().GetItems())
+		}
+		return out
+	}
+	var row []*pg.Node
+	for _, t := range s.TargetList {
+		row = append(row, t.GetResTarget().GetVal())
+	}
+	return [][]*pg.Node{row}
+}
+
+// fills is where row's value for column i comes from when that is not the app; a * before it hides which value that is.
+func fills(row []*pg.Node, i int) string {
+	for _, v := range row[:min(i+1, len(row))] {
+		if slices.ContainsFunc(v.GetColumnRef().GetFields(), func(f *pg.Node) bool { return f.GetAStar() != nil }) {
+			return starred
 		}
 	}
-	if at := values.FindStringIndex(rest); at != nil {
-		row, _ := inParens(rest, at[1]-1)
-		vals = items(row)
+	if i < len(row) {
+		return source(row[i])
+	}
+	return ""
+}
+
+// insertProblems checks that an insert names both stamps and fills them from the app in every row.
+func insertProblems(write string, cols []*pg.Node, rows [][]*pg.Node) []string {
+	names := make([]string, len(cols))
+	for i, c := range cols {
+		names[i] = c.GetResTarget().GetName()
 	}
 	var out []string
-	for _, stamp := range []string{"created_at", "updated_at"} {
-		i := slices.Index(cols, stamp)
-		switch {
-		case i < 0:
-			out = append(out, fmt.Sprintf("an insert into %s leaves out %s", table, stamp))
-		case i < len(vals) && dbClock.MatchString(vals[i]):
-			out = append(out, fmt.Sprintf("an insert into %s stamps %s from the database's clock", table, stamp))
+	for _, stamp := range stamps {
+		i := slices.Index(names, stamp)
+		if i < 0 {
+			out = append(out, fmt.Sprintf("%s leaves out %s", write, stamp))
+			continue
+		}
+		for _, row := range rows {
+			if from := fills(row, i); from != "" {
+				out = append(out, fmt.Sprintf("%s stamps %s from %s", write, stamp, from))
+				break
+			}
 		}
 	}
 	return out
 }
 
-// setProblems checks the assignments of an update's set clause.
-func setProblems(table, set string) []string {
-	for _, a := range items(set) {
-		col, val, _ := strings.Cut(a, "=")
-		if strings.TrimSpace(col) != "updated_at" {
+// assigned is what a (a, b) = (x, y) assignment gives one column: its item of the row, or the whole subquery.
+func assigned(m *pg.MultiAssignRef) *pg.Node {
+	if row := m.Source.GetRowExpr(); row != nil && int(m.Colno) <= len(row.Args) {
+		return row.Args[m.Colno-1]
+	}
+	return m.Source
+}
+
+// setProblems checks that a set clause stamps updated_at from the app.
+func setProblems(write string, targets []*pg.Node) []string {
+	for _, t := range targets {
+		r := t.GetResTarget()
+		if r.GetName() != "updated_at" {
 			continue
 		}
-		if dbClock.MatchString(val) {
-			return []string{fmt.Sprintf("an update of %s stamps updated_at from the database's clock", table)}
+		v := r.Val
+		if m := v.GetMultiAssignRef(); m != nil {
+			v = assigned(m)
+		}
+		if from := source(v); from != "" {
+			return []string{fmt.Sprintf("%s stamps updated_at from %s", write, from)}
 		}
 		return nil
 	}
-	return []string{fmt.Sprintf("an update of %s leaves updated_at", table)}
+	return []string{write + " leaves updated_at"}
 }
 
-// clause is what follows at up to the first match of end.
-func clause(s string, at int, end *regexp.Regexp) string {
-	rest := s[at:]
-	return rest[:end.FindStringIndex(rest)[0]]
+func table(r *pg.RangeVar) string {
+	if r.Schemaname != "" {
+		return r.Schemaname + "." + r.Relname
+	}
+	return r.Relname
 }
 
-const unnamed = "a write to a table it does not name"
-
-// problems lists the writes in one query that leave a stamp out or take it from the database's clock.
+// problems lists the writes in sql, those in CTEs too, that leave a stamp out or take it from the database.
 func problems(sql string) []string {
+	tree, err := pg.Parse(sql)
+	if err != nil {
+		if isWrite(sql) {
+			return []string{fmt.Sprintf("%s: %v", unparsed, err)}
+		}
+		return nil
+	}
 	var out []string
-	for statement := range strings.SplitSeq(normalize(sql), ";") {
-		if m := mergeOf.FindStringSubmatchIndex(statement); m != nil {
-			out = append(out, mergeProblems(statement, statement[m[2]:m[3]])...)
-			continue
-		}
-		var updates []string
-		for _, m := range insertOf.FindAllStringSubmatchIndex(statement, -1) {
-			table := statement[m[2]:m[3]]
-			if !named.MatchString(table) {
-				return []string{unnamed}
+	for _, s := range tree.Stmts {
+		var inserts, updates []string
+		each(s, func(m protoreflect.ProtoMessage) {
+			switch m := m.(type) {
+			case *pg.InsertStmt:
+				inserts = append(inserts, insertProblems("an insert into "+table(m.Relation), m.Cols, rows(m.SelectStmt.GetSelectStmt()))...)
+				if c := m.OnConflictClause; c.GetAction() == pg.OnConflictAction_ONCONFLICT_UPDATE {
+					updates = append(updates, setProblems("an update of the conflicting row", c.TargetList)...)
+				}
+			case *pg.UpdateStmt:
+				updates = append(updates, setProblems("an update of "+table(m.Relation), m.TargetList)...)
+			case *pg.MergeStmt:
+				for _, n := range m.MergeWhenClauses {
+					switch w := n.GetMergeWhenClause(); w.CommandType {
+					case pg.CmdType_CMD_INSERT:
+						inserts = append(inserts, insertProblems("an insert into "+table(m.Relation), w.TargetList, [][]*pg.Node{w.Values})...)
+					case pg.CmdType_CMD_UPDATE:
+						updates = append(updates, setProblems("an update of "+table(m.Relation), w.TargetList)...)
+					}
+				}
 			}
-			out = append(out, insertProblems(table, statement[m[1]:])...)
-		}
-		for _, m := range updateOf.FindAllStringSubmatchIndex(statement, -1) {
-			table := statement[m[2]:m[3]]
-			if !named.MatchString(table) {
-				return []string{unnamed}
-			}
-			updates = append(updates, setProblems(table, clause(statement, m[1], setEnd))...)
-		}
-		for _, m := range upsert.FindAllStringIndex(statement, -1) {
-			updates = append(updates, setProblems("the conflicting row", clause(statement, m[1], setEnd))...)
-		}
-		out = append(out, updates...)
+		})
+		out = append(out, append(inserts, updates...)...)
 	}
 	return out
-}
-
-// mergeProblems checks each branch of a merge into table, its inserts first.
-func mergeProblems(statement, table string) []string {
-	if !named.MatchString(table) {
-		return []string{unnamed}
-	}
-	var inserts, updates []string
-	for _, m := range branches.FindAllStringSubmatchIndex(statement, -1) {
-		if statement[m[2]:m[3]] == "insert" {
-			inserts = append(inserts, insertProblems(table, statement[m[1]:])...)
-		} else {
-			updates = append(updates, setProblems(table, clause(statement, m[1], branchEnd))...)
-		}
-	}
-	return append(inserts, updates...)
 }
 
 func TestProblems(t *testing.T) {
@@ -192,16 +248,33 @@ func TestProblems(t *testing.T) {
 		{"an aliased table", `UPDATE t AS x SET n = 1 WHERE x.id = $1`, []string{"an update of t leaves updated_at"}},
 		{"an alias without as", `UPDATE t x SET n = 1, updated_at = $2 WHERE x.id = $1`, nil},
 		{"a schema's table", `INSERT INTO public.t (id) VALUES ($1)`, []string{"an insert into public.t leaves out created_at", "an insert into public.t leaves out updated_at"}},
-		{"a table filled in by fmt", `UPDATE %s SET n = 1`, []string{unnamed}},
-		{"an insert into a table filled in by fmt", `INSERT INTO %s (id, created_at, updated_at) VALUES ($1, $2, $2)`, []string{unnamed}},
-		{"an insert that ends at its table", `INSERT INTO `, []string{unnamed}},
+		{"a table filled in by fmt", `UPDATE %s SET n = 1`, []string{unparsed + `: syntax error at or near "%"`}},
+		{"an insert into a table filled in by fmt", `INSERT INTO %s (id, created_at, updated_at) VALUES ($1, $2, $2)`, []string{unparsed + `: syntax error at or near "%"`}},
+		{"an insert that ends at its table", `INSERT INTO `, []string{unparsed + ": syntax error at end of input"}},
 		{"the database's clock in an update", `UPDATE t SET n = 1, updated_at = now() WHERE id = $1`, []string{"an update of t stamps updated_at from the database's clock"}},
 		{"the database's clock in an insert", `INSERT INTO t (id, created_at, updated_at) VALUES ($1, CURRENT_TIMESTAMP, $2)`, []string{"an insert into t stamps created_at from the database's clock"}},
 		{"the database's clock elsewhere is fine", `UPDATE t SET n = 1, updated_at = $1 WHERE expires_at < now()`, nil},
 		{"a stamped merge passes", `MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET n = s.n, updated_at = $1 WHEN NOT MATCHED THEN INSERT (id, created_at, updated_at) VALUES (s.id, $1, $1)`, nil},
 		{"a merge stamps both its branches", `MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET n = s.n WHEN NOT MATCHED THEN INSERT (id, created_at) VALUES (s.id, $1)`,
 			[]string{"an insert into t leaves out updated_at", "an update of t leaves updated_at"}},
-		{"a merge into a table filled in by fmt", `MERGE INTO %s USING s ON true WHEN MATCHED THEN DELETE`, []string{unnamed}},
+		{"a merge into a table filled in by fmt", `MERGE INTO %s USING s ON true WHEN MATCHED THEN DELETE`, []string{unparsed + `: syntax error at or near "%"`}},
+		{"sqlc's arguments are the app's", `UPDATE t SET n = sqlc.narg(n), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id)`, nil},
+		{"an insert from a select", `INSERT INTO t (id, created_at, updated_at) SELECT $1, now(), $2`, []string{"an insert into t stamps created_at from the database's clock"}},
+		{"an insert from another table", `INSERT INTO t (id, created_at, updated_at) SELECT u.id, $1, clock_timestamp() FROM u WHERE u.expires_at < now()`,
+			[]string{"an insert into t stamps updated_at from the database's clock"}},
+		{"an insert from a union", `INSERT INTO t (id, created_at, updated_at) SELECT $1, $2, $2 UNION ALL SELECT $3, pg_catalog.now(), $2`,
+			[]string{"an insert into t stamps created_at from the database's clock"}},
+		{"an insert from a select *", `INSERT INTO t (id, created_at, updated_at) SELECT * FROM u`, []string{"an insert into t stamps created_at from " + starred, "an insert into t stamps updated_at from " + starred}},
+		{"a second values row", `INSERT INTO t (id, created_at, updated_at) VALUES ($1, $2, $2), ($3, now(), $2)`, []string{"an insert into t stamps created_at from the database's clock"}},
+		{"the clock as a cast string", `UPDATE t SET n = 1, updated_at = 'now'::timestamptz`, []string{"an update of t stamps updated_at from the database's clock"}},
+		{"the clock as a bare string", `INSERT INTO t (id, created_at, updated_at) VALUES ($1, $2, ' Now ')`, []string{"an insert into t stamps updated_at from the database's clock"}},
+		{"a stamp left to its default", `INSERT INTO t (id, created_at, updated_at) VALUES ($1, DEFAULT, $2)`, []string{"an insert into t stamps created_at from the database's default"}},
+		{"columns set together", `UPDATE t SET (n, updated_at) = ($1, now())`, []string{"an update of t stamps updated_at from the database's clock"}},
+		{"a quoted stamp", `UPDATE t SET "updated_at" = $1`, nil},
+		{"a stamp inside a string is no stamp", `UPDATE t SET note = 'a, updated_at = $1' WHERE id = $2`, []string{"an update of t leaves updated_at"}},
+		{"a dash pair inside a string", `UPDATE t SET note = 'a--b', updated_at = $1`, nil},
+		{"the writes in a CTE", `WITH moved AS (UPDATE t SET n = 1 RETURNING id) INSERT INTO u (id, created_at, updated_at) SELECT id, now(), $1 FROM moved`,
+			[]string{"an insert into u stamps created_at from the database's clock", "an update of t leaves updated_at"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -230,7 +303,7 @@ func TestEveryWriteStampsItsRows(t *testing.T) {
 			if i+1 < len(names) {
 				end = names[i+1][0]
 			}
-			for _, p := range problems(src[m[1]:end]) {
+			for _, p := range problems(src[m[0]:end]) {
 				t.Errorf("%s %s: %s", filepath.Base(file), src[m[2]:m[3]], p)
 			}
 		}
@@ -238,11 +311,35 @@ func TestEveryWriteStampsItsRows(t *testing.T) {
 }
 
 type goWrite struct {
-	at  token.Position
-	sql string
+	at    token.Position
+	sql   string
+	whole bool // false when a part is only known at run time, held by a ? in sql
 }
 
-// goWrites finds the SQL writes in the hand-written Go of the packages matching pattern, each constant read whole.
+func (w goWrite) problems() []string {
+	if !w.whole {
+		return []string{runTime}
+	}
+	return problems(w.sql)
+}
+
+// operands flattens a string concatenation into its parts, each constant part whole.
+func operands(info *types.Info, e ast.Expr) []ast.Expr {
+	if info.Types[e].Value != nil {
+		return []ast.Expr{e}
+	}
+	switch e := e.(type) {
+	case *ast.ParenExpr:
+		return operands(info, e.X)
+	case *ast.BinaryExpr:
+		if e.Op == token.ADD {
+			return append(operands(info, e.X), operands(info, e.Y)...)
+		}
+	}
+	return []ast.Expr{e}
+}
+
+// goWrites finds the SQL writes in the hand-written Go of the packages matching pattern, each string expression read whole.
 func goWrites(dir, pattern string) ([]goWrite, error) {
 	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo, Dir: dir}
 	pkgs, err := packages.Load(cfg, pattern)
@@ -260,41 +357,58 @@ func goWrites(dir, pattern string) ([]goWrite, error) {
 	}
 	var found []goWrite
 	for _, p := range pkgs {
-		for _, f := range p.Syntax {
-			if ast.IsGenerated(f) {
-				continue // buf's, and sqlc's from the query files above
+		var visit func(ast.Node) bool
+		visit = func(n ast.Node) bool {
+			switch n.(type) {
+			case *ast.BasicLit, *ast.BinaryExpr, *ast.ParenExpr:
+			default:
+				return true
 			}
-			ast.Inspect(f, func(n ast.Node) bool {
-				switch n.(type) {
-				case *ast.BasicLit, *ast.BinaryExpr, *ast.ParenExpr:
-				default:
-					return true
+			e := n.(ast.Expr)
+			if tv, ok := p.TypesInfo.Types[e]; !ok || !isString(tv.Type) {
+				return true
+			}
+			var sql strings.Builder
+			whole := true
+			for _, part := range operands(p.TypesInfo, e) {
+				if v := p.TypesInfo.Types[part].Value; v != nil {
+					sql.WriteString(constant.StringVal(v))
+					continue
 				}
-				tv := p.TypesInfo.Types[n.(ast.Expr)]
-				if tv.Value == nil || tv.Value.Kind() != constant.String {
-					return true
-				}
-				if sql := constant.StringVal(tv.Value); writes.MatchString(normalize(sql)) {
-					found = append(found, goWrite{p.Fset.Position(n.Pos()), sql})
-				}
-				return false
-			})
+				whole = false
+				sql.WriteString(" ? ")
+				ast.Inspect(part, visit)
+			}
+			if isWrite(sql.String()) {
+				found = append(found, goWrite{p.Fset.Position(e.Pos()), sql.String(), whole})
+			}
+			return false
+		}
+		for _, f := range p.Syntax {
+			if !ast.IsGenerated(f) { // buf's, and sqlc's from the query files above
+				ast.Inspect(f, visit)
+			}
 		}
 	}
 	return found, nil
 }
 
-// The Go scan folds constants, so SQL split across concatenated literals and constants is read whole.
-func TestTheGoScanReadsSQLBuiltFromConstants(t *testing.T) {
+func isString(t types.Type) bool {
+	b, ok := t.Underlying().(*types.Basic)
+	return ok && b.Info()&types.IsString != 0
+}
+
+// The Go scan folds constants, so SQL split across concatenated literals and constants is read whole, and a part known only at run time is reported.
+func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
 	found, err := goWrites(".", "./testdata")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var got []string
 	for _, f := range found {
-		got = append(got, problems(f.sql)...)
+		got = append(got, f.problems()...)
 	}
-	want := []string{"an update of outbox leaves updated_at", "an insert into keys leaves out updated_at"}
+	want := []string{"an update of outbox leaves updated_at", "an insert into keys leaves out updated_at", runTime}
 	if !slices.Equal(got, want) {
 		t.Fatalf("problems %q, want %q", got, want)
 	}
@@ -310,7 +424,7 @@ func TestEveryHandWrittenWriteStampsItsRows(t *testing.T) {
 		t.Fatal("found no hand-written write to check")
 	}
 	for _, f := range found {
-		for _, p := range problems(f.sql) {
+		for _, p := range f.problems() {
 			t.Errorf("%s: %s", f.at, p)
 		}
 	}
