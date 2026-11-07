@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { FixedStep, tickTiming } from './fixed-step';
+import { FixedStep, tickTiming, ticksIn } from './fixed-step';
 
 const at20 = tickTiming(20, 1 / 60);
 
@@ -67,6 +67,19 @@ describe('FixedStep', () => {
 
   it('steps by the movement dt it was given', () => {
     expect(new FixedStep(tickTiming(25, 1 / 50)).advance(100)).toHaveLength(5);
+  });
+});
+
+describe('ticksIn', () => {
+  it.each([
+    { ms: 600, hz: 12, ticks: 8 },
+    { ms: 800, hz: 12, ticks: 10 },
+    { ms: 600, hz: 20, ticks: 12 },
+    { ms: 800, hz: 30, ticks: 24 }, // 23.999… in floating point
+    { ms: 1000, hz: 60, ticks: 60 },
+    { ms: 0, hz: 20, ticks: 1 },
+  ])('$ms ms at $hz Hz is $ticks ticks', ({ ms, hz, ticks }) => {
+    expect(ticksIn(ms, 1000 / hz)).toBe(ticks);
   });
 });
 

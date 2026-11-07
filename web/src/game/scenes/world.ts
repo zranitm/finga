@@ -215,7 +215,7 @@ export class World extends Phaser.Scene {
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
-    this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), () =>
+    this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), this.timing.tickMs, () =>
       socket.sendAction('attack'),
     );
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });

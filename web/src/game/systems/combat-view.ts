@@ -1,5 +1,6 @@
 // The client never computes damage, hit chance or EXP; it shows what the server sent.
 import { classes } from '@/gamedata/classes';
+import { ticksIn } from '@/lib/fixed-step';
 import type { Data } from '@/protocol/messages';
 
 import { RemoteBuffer } from './interpolation';
@@ -194,14 +195,18 @@ export function classCooldownMs(cls: string): number {
   return (classes.find((c) => c.id === cls) ?? classes[0]).attack.cooldown_ms;
 }
 
-/** Only stops a held key spamming the server, which enforces the cooldown itself. */
+/** Only stops a held key spamming the server, which enforces the cooldown itself, in whole ticks, so an attack the gate lets through never lands in it. */
 export class AttackGate {
   private readyAt = Number.NEGATIVE_INFINITY;
+  private readonly cooldownMs: number;
 
   constructor(
-    private readonly cooldownMs: number,
+    cooldownMs: number,
+    tickMs: number,
     private readonly send: () => boolean,
-  ) {}
+  ) {
+    this.cooldownMs = ticksIn(cooldownMs, tickMs) * tickMs;
+  }
 
   tryAttack(now: number): boolean {
     if (now < this.readyAt) {

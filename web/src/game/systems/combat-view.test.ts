@@ -126,7 +126,7 @@ describe('AttackGate', () => {
 
   it('the attack key during cooldown sends nothing; after cooldown sends exactly one Attack', () => {
     const send = vi.fn(() => true);
-    const g = new AttackGate(600, send);
+    const g = new AttackGate(600, 50, send);
     expect(g.tryAttack(1000)).toBe(true);
     expect(g.tryAttack(1100)).toBe(false);
     expect(g.tryAttack(1599)).toBe(false);
@@ -137,8 +137,23 @@ describe('AttackGate', () => {
     expect(g.tryAttack(1601)).toBe(true);
   });
 
+  it.each([
+    { hz: 12, cooldownMs: 600, waitMs: 8000 / 12 }, // 7.2 ticks, which the server makes 8
+    { hz: 12, cooldownMs: 800, waitMs: 10000 / 12 }, // 9.6 ticks, made 10
+    { hz: 20, cooldownMs: 600, waitMs: 600 }, // 12 whole ticks
+    { hz: 30, cooldownMs: 800, waitMs: 800 }, // 24 whole ticks
+  ])(
+    'at $hz Hz a $cooldownMs ms cooldown waits $waitMs ms, the whole ticks the server counts',
+    ({ hz, cooldownMs, waitMs }) => {
+      const g = new AttackGate(cooldownMs, 1000 / hz, () => true);
+      expect(g.tryAttack(1000)).toBe(true);
+      expect(g.tryAttack(1000 + waitMs - 1)).toBe(false);
+      expect(g.tryAttack(1000 + waitMs)).toBe(true);
+    },
+  );
+
   it('a refused send (socket closed) still starts the cooldown', () => {
-    const g = new AttackGate(600, () => false);
+    const g = new AttackGate(600, 50, () => false);
     expect(g.tryAttack(0)).toBe(false);
     expect(g.tryAttack(1)).toBe(false);
   });
