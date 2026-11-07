@@ -60,7 +60,7 @@ var (
 	ErrInParty       = errors.New("party: already in a party")
 	ErrNoParty       = errors.New("party: not in a party")
 	ErrNotMember     = errors.New("party: not a member")
-	ErrNotHere       = errors.New("party: invitee not on the map")
+	ErrNotHere       = errors.New("party: not online on the map")
 	ErrAlreadyAsked  = errors.New("party: already invited")
 	ErrInviteExpired = errors.New("party: invite expired")
 	ErrSelf          = errors.New("party: invited self")

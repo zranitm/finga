@@ -451,6 +451,19 @@ func TestWhatTheWorldReportsBeforeALoginLandsIsKept(t *testing.T) {
 	}
 }
 
+// One the world reported, as after a restart, but whose login has not landed is no inviter yet: social has no name to send.
+func TestAnInviteFromAPlayerNotYetRegisteredIsRefused(t *testing.T) {
+	f := newFixture(t, "Ayla")
+	bruno := kernel.NewCharacterID()
+	must(t, f.svc.Update(f.ctx, bruno, "forest", 7, 120, 300))
+	if _, err := f.svc.Invite(f.ctx, bruno, f.id("Ayla")); !errors.Is(err, model.ErrNotHere) {
+		t.Fatalf("invite from a reported player not registered yet: %v", err)
+	}
+	if len(f.rec.invites) != 0 {
+		t.Fatalf("Ayla was sent %+v", f.rec.invites)
+	}
+}
+
 func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {
 	f := newFixture(t, "ann", "bo", "cy", "di", "ed")
 	f.invite(t, "ann", "bo")

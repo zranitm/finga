@@ -121,8 +121,8 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 			return model.ErrSelf
 		}
 		inviter, ok := tx.Member(from)
-		if !ok {
-			return model.ErrNotHere
+		if !ok || !inviter.Online {
+			return model.ErrNotHere // the world may have reported them before their login landed, without a name
 		}
 		if p, ok := tx.PartyOf(from); ok {
 			if p.Leader != from {
