@@ -46,10 +46,6 @@ function put<T>(tabs: Tabs<T>, tab: Tab, slot: number, value: T): Tabs<T> {
   return { ...tabs, [tab]: row };
 }
 
-export function allItems(slots: Slots): ItemView[] {
-  return tabs.flatMap((tab) => slots[tab].filter((it): it is ItemView => it !== null));
-}
-
 export const inventory = defineStore<InventoryState>((set, get) => ({
   slots: filled<ItemView | null>(null),
   revisions: filled(0n),

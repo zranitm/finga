@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { noInput } from '@/sim/input';
 import type { Input } from '@/sim/input';
 
 import { InputSender } from './input-sender';
+
+const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 
 function sender() {
   const sent: { input: Input; tick: number }[] = [];

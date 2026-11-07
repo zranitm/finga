@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { actionFor, actions, heldInput, isMovement } from './actions';
-import { keyLabel, presets } from './presets';
+import { presets } from './presets';
 import type { Preset } from './presets';
 
 const table: Record<Preset, Record<string, string>> = {
@@ -78,14 +78,5 @@ describe('key presets', () => {
       jump: false,
     });
     expect(actions.filter(isMovement)).toEqual(['left', 'right', 'up', 'down', 'jump']);
-  });
-
-  it.each([
-    { preset: 'classic' as const, action: 'attack' as const, label: 'X' },
-    { preset: 'classic' as const, action: 'left' as const, label: 'Left' },
-    { preset: 'wasd' as const, action: 'pickup' as const, label: 'K' },
-    { preset: 'wasd' as const, action: 'jump' as const, label: 'Space' },
-  ])('$preset $action is labelled $label', ({ preset, action, label }) => {
-    expect(keyLabel(preset, action)).toBe(label);
   });
 });

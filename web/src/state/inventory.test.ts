@@ -6,7 +6,10 @@ import { InventoryChangedSchema, ItemViewSchema, WelcomeSchema } from '@/protoco
 import type { ItemView, InventorySlotSchema } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
-import { allItems, inventory, isTab, SLOTS_PER_TAB } from './inventory';
+import { inventory, isTab, SLOTS_PER_TAB, tabs } from './inventory';
+import type { Slots } from './inventory';
+
+const allItems = (slots: Slots) => tabs.flatMap((tab) => slots[tab].filter((it) => it !== null));
 
 const item = (itemId: string, template: string, tab: string, slot: number, quantity: number) =>
   create(ItemViewSchema, { itemId, template, tab, slot, quantity });

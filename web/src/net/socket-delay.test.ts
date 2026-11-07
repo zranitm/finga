@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Data } from '@/protocol/messages';
-import { noInput } from '@/sim/input';
+import type { Input } from '@/sim/input';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 
 import { GameSocket } from './socket';
 import { clearToken, setToken } from './token';
+
+const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 
 const welcome = { token: 'tok-rotated', character: { id: 'c-ayla', name: 'Ayla' }, mapId: 'town' };
 

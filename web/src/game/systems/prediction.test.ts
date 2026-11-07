@@ -4,7 +4,6 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { tickTiming } from '@/lib/fixed-step';
-import { noInput } from '@/sim/input';
 import type { Input } from '@/sim/input';
 import { parseMap } from '@/sim/map';
 import { NO_PLATFORM, params, standing, step } from '@/sim/step';
@@ -12,6 +11,8 @@ import type { State } from '@/sim/step';
 
 import { HISTORY_MS, Predictor, fromWire, platformUnder, wireState } from './prediction';
 import type { WireState } from './prediction';
+
+const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 
 const town = parseMap(
   'town',

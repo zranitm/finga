@@ -5,12 +5,14 @@ import { jsonCodec } from '@/protocol/codec';
 import type { ProtocolError } from '@/protocol/codec';
 import { ChatChannel, KickReason, WelcomeSchema } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
-import { noInput } from '@/sim/input';
+import type { Input } from '@/sim/input';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 
 import { GameSocket, PROTOCOL_VERSION, RequestError } from './socket';
 import type { StatusEvent } from './socket';
 import { clearToken, getToken, setToken } from './token';
+
+const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 
 const welcome = create(WelcomeSchema, {
   token: 'tok-rotated-1',

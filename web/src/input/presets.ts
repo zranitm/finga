@@ -31,11 +31,3 @@ export const presets: Readonly<Record<Preset, KeyTable>> = {
     chat: ['Enter', 'NumpadEnter'],
   },
 };
-
-export function keyLabel(preset: Preset, action: Action): string {
-  const code = presets[preset][action][0] ?? '';
-  return code
-    .replace(/^Key/, '')
-    .replace(/^Arrow/, '')
-    .replace(/^Numpad/, '');
-}

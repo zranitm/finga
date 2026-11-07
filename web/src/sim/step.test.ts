@@ -3,10 +3,11 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { noInput } from './input';
 import type { Input } from './input';
 import { NO_PLATFORM, overlaps, params, standing, step } from './step';
 import type { Geometry, State } from './step';
+
+const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
 
 // The vectors are the contract with the Go sim: every intermediate state must match exactly.
 interface Vector {
