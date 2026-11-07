@@ -21,14 +21,19 @@ jobs:
           args: --help   # install only; `make lint` runs it below with the repo's settings
       - name: the commits this run checks
         env:
-          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          # A branch's first push has no commit before it; a force push's is gone, so its whole history is read.
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then
-            echo "BASE=HEAD~1" >> "$GITHUB_ENV"; echo "MESSAGES=HEAD~1..HEAD" >> "$GITHUB_ENV"
-          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+          # A pull request runs on its merge commit, whose first parent is the base as merged, fresher than base.sha.
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then BEFORE=$(git rev-parse HEAD^1); fi
+          # A branch's first push (all zeros) has no commit before it; a force push's old head is fetched if GitHub still serves it.
+          if [ "$BEFORE" = 0000000000000000000000000000000000000000 ]; then BEFORE=; fi
+          if [ -n "$BEFORE" ] && ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            git fetch --no-tags --quiet origin "$BEFORE" || echo "the commit before the push, $BEFORE, is gone"
+          fi
+          if [ -n "$BEFORE" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             echo "BASE=$BEFORE" >> "$GITHUB_ENV"; echo "MESSAGES=$BEFORE..HEAD" >> "$GITHUB_ENV"
           else
+            # Without it, every message in the history is read, and the contracts are compared with the parent.
             echo "BASE=HEAD~1" >> "$GITHUB_ENV"; echo "MESSAGES=HEAD" >> "$GITHUB_ENV"
           fi
       - name: no Claude links in the commits or the files
