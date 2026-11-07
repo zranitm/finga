@@ -1,0 +1,8 @@
+# Providers and local state; the lock files (.terraform.lock.hcl) are committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+# Real values: terraform.tfvars.example shows the shape.
+terraform.tfvars
+*.auto.tfvars

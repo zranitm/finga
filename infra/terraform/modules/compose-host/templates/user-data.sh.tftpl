@@ -1,0 +1,55 @@
+#!/bin/bash
+# First boot of a compose-host instance; cloud-init runs user data once per instance. It installs Docker with a pinned
+# Compose plugin, rotates container logs, adds swap, and writes the host's settings and compose-release for the
+# deploys. Terraform ignores later changes to this file on a running instance: replace the instance to apply them.
+set -euo pipefail
+exec > >(tee -a /var/log/compose-host-init.log) 2>&1
+
+dnf install -y docker jq
+
+# Compose from its release, checked against the published checksum: Amazon Linux doesn't package the plugin.
+arch=$(uname -m)
+url="https://github.com/docker/compose/releases/download/${compose_version}/docker-compose-linux-$arch"
+curl -fsSL --retry 5 -o /tmp/docker-compose "$url"
+curl -fsSL --retry 5 -o /tmp/docker-compose.sha256 "$url.sha256"
+echo "$(cut -d' ' -f1 /tmp/docker-compose.sha256)  /tmp/docker-compose" | sha256sum -c -
+install -D -m 0755 /tmp/docker-compose /usr/local/lib/docker/cli-plugins/docker-compose
+rm -f /tmp/docker-compose /tmp/docker-compose.sha256
+
+# Without rotation, json-file logs grow until the disk is full.
+install -d -m 0755 /etc/docker
+cat > /etc/docker/daemon.json <<'DAEMON_JSON'
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "${log_max_size}", "max-file": "${log_max_files}" }
+}
+DAEMON_JSON
+systemctl enable --now docker
+
+swap_mb=${swap_mb}
+if [ "$swap_mb" -gt 0 ] && [ ! -f /swapfile ]; then
+  dd if=/dev/zero of=/swapfile bs=1M count="$swap_mb" status=none
+  chmod 0600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  echo 'vm.swappiness=10' > /etc/sysctl.d/90-swappiness.conf
+  sysctl -q -w vm.swappiness=10
+fi
+
+# The settings every deploy and backup reads.
+install -d -m 0755 /etc/compose-host
+cat > /etc/compose-host/host.env <<'HOST_ENV'
+%{ for key, value in host_env ~}
+${key}='${value}'
+%{ endfor ~}
+HOST_ENV
+chmod 0644 /etc/compose-host/host.env
+
+install -d -m 0755 '${deploy_root}' '${deploy_root}/releases'
+cat > /usr/local/bin/compose-release <<'COMPOSE_RELEASE'
+${compose_release}
+COMPOSE_RELEASE
+chmod 0755 /usr/local/bin/compose-release
+
+echo "compose-host ready: $(docker --version), $(docker compose version)"

@@ -1,0 +1,89 @@
+# Builds one image and pushes it to ECR under the given tag, unless that tag is already there: tags are immutable,
+# so a re-run or a redeploy of the same commit skips the build. deploy.yml calls it once per image.
+name: build-image
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to build.
+        type: string
+        required: true
+      repository:
+        description: The ECR repository, e.g. finga/gateway.
+        type: string
+        required: true
+      tag:
+        type: string
+        required: true
+      context:
+        type: string
+        required: true
+      file:
+        description: The Dockerfile; empty for the context's own.
+        type: string
+        default: ""
+      build-args:
+        description: One NAME=value per line.
+        type: string
+        default: ""
+      build-contexts:
+        description: One name=path per line, for Dockerfiles that COPY --from a named context.
+        type: string
+        default: ""
+      platforms:
+        type: string
+        default: linux/arm64
+      aws-region:
+        type: string
+        required: true
+      role-to-assume:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ inputs.role-to-assume }}
+          aws-region: ${{ inputs.aws-region }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: image
+        name: the image, and whether it is already pushed
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ inputs.repository }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          echo "name=$REGISTRY/$REPOSITORY:$TAG" >> "$GITHUB_OUTPUT"
+          if aws ecr describe-images --repository-name "$REPOSITORY" --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$REPOSITORY:$TAG is already in ECR; not building it again"
+          fi
+      - if: steps.image.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v4
+      # A plain image manifest, no attestations: an index's untagged children would meet ECR's untagged-expiry rule.
+      - if: steps.image.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.file }}
+          platforms: ${{ inputs.platforms }}
+          build-args: ${{ inputs.build-args }}
+          build-contexts: ${{ inputs.build-contexts }}
+          tags: ${{ steps.image.outputs.name }}
+          push: true
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=${{ inputs.repository }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.repository }}
