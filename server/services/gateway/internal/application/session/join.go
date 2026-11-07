@@ -288,8 +288,8 @@ func (r *Registry) leave(ctx context.Context, p model.Presence) {
 
 // Register registers a player who just logged in with the social service, on a budget of its own; a failure is retried in the background while the session lives, as their party comes only from it.
 func (r *Registry) Register(ctx context.Context, s *Session) {
-	once, cancel := context.WithTimeout(context.WithoutCancel(ctx), registerTimeout)
-	err := r.online(once, s)
+	onceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), registerTimeout)
+	err := r.online(onceCtx, s)
 	cancel()
 	if err == nil {
 		return
@@ -297,9 +297,9 @@ func (r *Registry) Register(ctx context.Context, s *Session) {
 	r.deps.Logger.WarnContext(ctx, "social online failed; retrying", "character_id", s.Character(), "err", err)
 	r.job(s.ctx, "gateway.register", func(ctx context.Context) {
 		_, err := backoff.Retry(ctx, func() (struct{}, error) {
-			try, cancel := context.WithTimeout(ctx, registerTimeout)
+			tryCtx, cancel := context.WithTimeout(ctx, registerTimeout)
 			defer cancel()
-			return struct{}{}, r.online(try, s)
+			return struct{}{}, r.online(tryCtx, s)
 		},
 			backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: registerRetry, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: registerRetryMax}),
 			backoff.WithMaxElapsedTime(0),

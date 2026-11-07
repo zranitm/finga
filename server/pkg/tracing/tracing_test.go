@@ -76,9 +76,9 @@ func TestAnEndpointExportsWithoutBlocking(t *testing.T) {
 	if !span.SpanContext().IsSampled() {
 		t.Fatal("the entry point was not sampled")
 	}
-	shutdown, cancel := context.WithTimeout(ctx, 0)
+	shutdownCtx, cancel := context.WithTimeout(ctx, 0)
 	defer cancel()
-	_ = tp.Shutdown(shutdown) // the collector is not there; Shutdown gives up when its context ends
+	_ = tp.Shutdown(shutdownCtx) // the collector is not there; Shutdown gives up when its context ends
 }
 
 // The resource names the service, its version and this process, on top of the SDK's and OTEL_RESOURCE_ATTRIBUTES.

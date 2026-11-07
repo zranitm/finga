@@ -185,9 +185,9 @@ func TestPruneSkipsAKeyAnotherTransactionHolds(t *testing.T) {
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM idempotency_keys WHERE key = 'k-held' FOR UPDATE`); err != nil {
 		t.Fatal(err)
 	}
-	short, cancel := context.WithTimeout(ctx, 2*time.Second)
+	shortCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	if n, err := idempotencypg.Prune(short, pool, time.Now().Add(-24*time.Hour), 10); err != nil || n != 1 {
+	if n, err := idempotencypg.Prune(shortCtx, pool, time.Now().Add(-24*time.Hour), 10); err != nil || n != 1 {
 		t.Fatalf("deleted %d (%v); want the free key gone and the held one skipped", n, err)
 	}
 }

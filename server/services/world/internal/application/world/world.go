@@ -44,7 +44,7 @@ type World struct {
 	flushTimeout time.Duration
 	// Transfers and take-backs run beside the ticks until Run stops them.
 	background     sync.WaitGroup
-	jobs           context.Context
+	jobsCtx        context.Context
 	stopBackground context.CancelFunc
 }
 
@@ -75,7 +75,7 @@ func New(d Deps, t Tuning) *World {
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout,
 	}
-	w.jobs, w.stopBackground = context.WithCancel(context.Background())
+	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
 		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval})
 		w.order = append(w.order, m.ID)
@@ -94,10 +94,10 @@ func (w *World) mapNamed(mapID string) (*instance.Instance, error) {
 
 // Run ticks every instance and saves until ctx is done or a map panics; a panicked map's suspect state is not saved.
 func (w *World) Run(ctx context.Context) error {
-	retrying, stopRetrying := context.WithCancel(ctx)
+	retryCtx, stopRetrying := context.WithCancel(ctx)
 	defer stopRetrying()
 	stopped, saved := make(chan struct{}), make(chan struct{})
-	go func() { defer close(saved); w.persistence(retrying, stopped) }()
+	go func() { defer close(saved); w.persistence(retryCtx, stopped) }()
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return w.deps.Workers.Run(gctx) })

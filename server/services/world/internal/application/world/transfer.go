@@ -22,7 +22,7 @@ func (w *World) Transfer(p model.Player, sink instance.Sink, mapID string) {
 		return
 	}
 	w.background.Go(func() {
-		w.deps.Panics.Do(w.jobs, panics.FlowJob, func() { w.transfer(p, sink, at) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
+		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.transfer(p, sink, at) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)
 	})
 }
 
@@ -33,7 +33,7 @@ func (w *World) Dropped(from *instance.Instance, id kernel.CharacterID, conn str
 
 // transfer joins the player to the map at names; one that can't land in transferTimeout detaches, so the gateway joins it again.
 func (w *World) transfer(p model.Player, sink instance.Sink, at presence) {
-	ctx, cancel := context.WithTimeout(w.jobs, transferTimeout)
+	ctx, cancel := context.WithTimeout(w.jobsCtx, transferTimeout)
 	defer cancel()
 	target := at.inst
 	held := func() bool { return w.presences.holds(p.ID, at) }
@@ -49,7 +49,7 @@ func (w *World) transfer(p model.Player, sink instance.Sink, at presence) {
 		if !held() {
 			w.leaveLater(target, p.ID, p.Connection) // it left while the join landed
 		}
-	case w.jobs.Err() != nil, errors.Is(err, model.ErrStopped):
+	case w.jobsCtx.Err() != nil, errors.Is(err, model.ErrStopped):
 		// Shutting down, maps stopping one by one: the player was saved on target, and the gateway joins them again after the restart.
 	default:
 		w.leaveLater(target, p.ID, p.Connection) // a join posted as time ran out may still land

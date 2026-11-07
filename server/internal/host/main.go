@@ -77,12 +77,12 @@ func Main[C Config](name string, build Build[C]) int {
 		defer cancel()
 		return Healthcheck[C](ctx, os.Stderr, name)
 	}
-	signalled, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	signalCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// The shutdown starts only once the handler is gone, so the next signal gets the default action.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	context.AfterFunc(signalled, func() { stop(); cancel() })
+	context.AfterFunc(signalCtx, func() { stop(); cancel() })
 	return Start(ctx, os.Stdout, os.Stderr, name, build)
 }
 

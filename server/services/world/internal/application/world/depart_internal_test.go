@@ -46,9 +46,9 @@ func TestATombstoneGoesOnceItsLeaveLands(t *testing.T) {
 
 		id := kernel.NewCharacterID()
 		w.presences.place(id, presence{inst: w.instances[data.Town().ID], conn: "c-1"})
-		hurried, stop := context.WithTimeout(context.Background(), time.Millisecond) // gives up before the next tick
+		hurriedCtx, stop := context.WithTimeout(context.Background(), time.Millisecond) // gives up before the next tick
 		defer stop()
-		if err := w.Leave(hurried, id, "c-1"); !errors.Is(err, context.DeadlineExceeded) {
+		if err := w.Leave(hurriedCtx, id, "c-1"); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("leave: %v", err)
 		}
 		time.Sleep(3 * 50 * time.Millisecond)

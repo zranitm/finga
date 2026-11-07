@@ -14,11 +14,11 @@ import (
 // persistence saves with retries while ctx lasts, then gives each checkpoint left one try within the flush budget.
 func (w *World) persistence(ctx context.Context, stopped <-chan struct{}) {
 	w.saveWhile(ctx)
-	final, cancel := context.WithTimeout(context.WithoutCancel(ctx), w.flushTimeout)
+	flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), w.flushTimeout)
 	defer cancel()
 	var flushers sync.WaitGroup
 	for range flushWorkers {
-		flushers.Go(func() { w.flush(final, stopped) })
+		flushers.Go(func() { w.flush(flushCtx, stopped) })
 	}
 	flushers.Wait()
 }

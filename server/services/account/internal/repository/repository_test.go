@@ -287,12 +287,12 @@ func TestDeleteEndedSessionsSkipsOneAnotherTransactionHolds(t *testing.T) {
 	if _, err := tx.Exec(ctx, `SELECT 1 FROM sessions WHERE id = $1 FOR UPDATE`, ids[0].String()); err != nil {
 		t.Fatal(err)
 	}
-	short, cancel := context.WithTimeout(ctx, 2*time.Second)
+	shortCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 	var n int64
-	err = store.InTx(short, func(uow application.UnitOfWork) error {
+	err = store.InTx(shortCtx, func(uow application.UnitOfWork) error {
 		var err error
-		n, err = uow.Sessions().DeleteEnded(short, t0, 10)
+		n, err = uow.Sessions().DeleteEnded(shortCtx, t0, 10)
 		return err
 	})
 	if err != nil || n != 1 {

@@ -236,8 +236,8 @@ type frame struct {
 	err  error
 }
 
-func run[S any](c *conn, parent context.Context, h Handler[S], opts Options) {
-	ctx, cancel := context.WithCancel(parent)
+func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) {
+	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 	var wg sync.WaitGroup
 
@@ -313,11 +313,11 @@ func run[S any](c *conn, parent context.Context, h Handler[S], opts Options) {
 	_ = c.ws.CloseNow()
 	wg.Wait()
 	if failure != nil && opts.Panics != nil {
-		opts.Panics.Record(parent, panics.FlowWS, failure, "conn", c.id)
+		opts.Panics.Record(parentCtx, panics.FlowWS, failure, "conn", c.id)
 	}
 	if late := onClose(c, h, state, closeReason(c.closeErr, readErr)); late != nil {
 		if opts.Panics != nil {
-			opts.Panics.Record(parent, panics.FlowWS, late, "conn", c.id)
+			opts.Panics.Record(parentCtx, panics.FlowWS, late, "conn", c.id)
 		} else if failure == nil {
 			failure = late
 		}

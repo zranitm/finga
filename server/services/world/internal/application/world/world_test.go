@@ -545,18 +545,18 @@ func TestAStoppedWorldAnswersStopped(t *testing.T) {
 		if err := <-runDone; err != nil {
 			t.Fatal(err)
 		}
-		long, stop := context.WithTimeout(context.Background(), time.Hour)
+		longCtx, stop := context.WithTimeout(context.Background(), time.Hour)
 		defer stop()
 		start := time.Now()
 		if err := w.Input(ayla.ID, "c-1", 1, sim.Input{}); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("input: %v", err)
 		}
-		if err := w.Leave(long, ayla.ID, "c-1"); !errors.Is(err, model.ErrStopped) {
+		if err := w.Leave(longCtx, ayla.ID, "c-1"); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("leave: %v", err)
 		}
 		bo := at(t, "Bo", "town")
 		w.chars.chars[bo.ID] = model.Character{ID: bo.ID, Account: bo.Account, Name: bo.Name, Class: bo.Class, Level: 1, Stats: bo.Stats, HP: bo.HP, MP: bo.MP, MapID: "town", X: bo.X, Y: bo.Y}
-		if _, err := w.Join(long, bo.Account, bo.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, model.ErrStopped) {
+		if _, err := w.Join(longCtx, bo.Account, bo.ID, "c-2", &worldtest.Sink{}); !errors.Is(err, model.ErrStopped) {
 			t.Fatalf("join: %v", err)
 		}
 		if took := time.Since(start); took > time.Second {
