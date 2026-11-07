@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"google.golang.org/grpc"
@@ -11,13 +12,14 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	"finga/pkg/logger"
 	"finga/pkg/panics"
 )
 
 // ServerOptions configure NewServer.
 type ServerOptions struct {
 	Errors ErrorTable
-	// Logger records unexplained errors; nil discards them.
+	// Logger records unexplained errors, and a sample of the Unavailable ones with their cause; nil discards them.
 	Logger *slog.Logger
 	// Panics records a recovered panic; nil logs it to Logger.
 	Panics *panics.Recorder
@@ -37,7 +39,7 @@ func NewServer(opts ServerOptions, extra ...grpc.ServerOption) *grpc.Server {
 	if opts.Panics == nil {
 		opts.Panics = panics.NewRecorder(opts.Logger, nil)
 	}
-	i := interceptors{opts: opts}
+	i := interceptors{opts: opts, unavailable: logger.NewSampler(unavailableLogGap)}
 	all := append([]grpc.ServerOption{
 		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: keepaliveMinTime, PermitWithoutStream: true}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{Time: keepaliveTime, Timeout: keepaliveTimeout}),
@@ -71,7 +73,13 @@ func ClientMetrics(m *grpcprom.ClientMetrics) []grpc.DialOption {
 	}
 }
 
-type interceptors struct{ opts ServerOptions }
+// unavailableLogGap spaces each method's lines for a dependency out of reach: in an outage, every call fails.
+const unavailableLogGap = 10 * time.Second
+
+type interceptors struct {
+	opts        ServerOptions
+	unavailable *logger.Sampler // by method
+}
 
 // unaries and streams put the metrics outermost, so they count the code the error table gave.
 func (i interceptors) unaries() []grpc.UnaryServerInterceptor {
@@ -129,10 +137,21 @@ func (i interceptors) status(ctx context.Context, method string, err error) erro
 		return nil
 	}
 	st, explained := i.opts.Errors.Status(err)
-	if !explained {
+	switch {
+	case !explained:
 		i.opts.Logger.ErrorContext(ctx, "rpc failed", "method", method, "err", err)
+	case outOfReach(st):
+		i.unavailable.Do(method, func(suppressed int) {
+			i.opts.Logger.WarnContext(ctx, "rpc unavailable", "method", method, "err", err, "suppressed", suppressed)
+		})
 	}
 	return st.Err()
+}
+
+// outOfReach reports whether st is Unavailable with no reason: a dependency busy or out of reach, whose cause only this service's log names.
+func outOfReach(st *status.Status) bool {
+	_, rule := reasonIn(st)
+	return st.Code() == codes.Unavailable && !rule
 }
 
 func (i interceptors) recover(ctx context.Context, method string, err *error) {

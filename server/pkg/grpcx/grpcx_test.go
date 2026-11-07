@@ -3,6 +3,7 @@ package grpcx_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -121,6 +123,69 @@ func TestATransientFailureIsUnavailableWithoutARow(t *testing.T) {
 	if st.Code() != codes.Unavailable || len(st.Details()) != 0 || !explained || strings.Contains(st.Message(), "characters") {
 		t.Fatalf("status %v with %d details, explained %v", st, len(st.Details()), explained)
 	}
+}
+
+// A dependency out of reach leaves as Unavailable without its cause, so the service logs the cause: at WARN, one line per method per 10 s, each counting the failures left out before it.
+func TestAnUnavailableFailureLogsItsCauseSampled(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		srv := grpcx.NewServer(grpcx.ServerOptions{Errors: table, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		fail := fmt.Errorf("saving: %w: %w", transient.ErrUnavailable, errors.New("dial tcp db:5432: connection refused"))
+		testpb.RegisterTestServiceServer(srv, &shop{
+			err: func(context.Context) error { return fail },
+			stream: func(grpc.ServerStreamingServer[testpb.StreamingOutputCallResponse]) error {
+				return fmt.Errorf("listing: %w", errBusy)
+			},
+		})
+		c := testpb.NewTestServiceClient(grpctest.Conn(t, srv))
+		call := func(want codes.Code) {
+			t.Helper()
+			if _, err := c.EmptyCall(t.Context(), &testpb.Empty{}); status.Code(err) != want {
+				t.Fatalf("got %v, want %v", err, want)
+			}
+		}
+		for range 3 {
+			call(codes.Unavailable)
+		}
+		lines := logLines(t, &logs)
+		if len(lines) != 1 || lines[0]["level"] != "WARN" || lines[0]["method"] != "/grpc.testing.TestService/EmptyCall" || !strings.Contains(fmt.Sprint(lines[0]["err"]), "db:5432: connection refused") || lines[0]["suppressed"] != 0.0 {
+			t.Fatalf("3 failures logged %v; want one WARN line naming the cause, none left out before it", lines)
+		}
+		time.Sleep(10 * time.Second)
+		call(codes.Unavailable)
+		if lines = logLines(t, &logs); len(lines) != 2 || lines[1]["suppressed"] != 2.0 {
+			t.Fatalf("10 s on, logged %v; want a second line counting the 2 left out", lines)
+		}
+		stream, err := c.StreamingOutputCall(t.Context(), &testpb.StreamingOutputCallRequest{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := stream.Recv(); status.Code(err) != codes.Unavailable {
+			t.Fatalf("the stream got %v", err)
+		}
+		if lines = logLines(t, &logs); len(lines) != 3 || lines[2]["method"] != "/grpc.testing.TestService/StreamingOutputCall" || !strings.Contains(fmt.Sprint(lines[2]["err"]), "till timed out") {
+			t.Fatalf("another method's failure logged %v; want a line of its own", lines)
+		}
+		fail = errFull
+		call(codes.FailedPrecondition)
+		if lines = logLines(t, &logs); len(lines) != 3 {
+			t.Fatalf("a rule's failure logged %v", lines[3:])
+		}
+	})
+}
+
+// logLines are the JSON lines written to logs.
+func logLines(t *testing.T, logs *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var out []map[string]any
+	for dec := json.NewDecoder(bytes.NewReader(logs.Bytes())); dec.More(); {
+		var line map[string]any
+		if err := dec.Decode(&line); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, line)
+	}
+	return out
 }
 
 func TestKeyNamesTheEnumValueAndItsPackage(t *testing.T) {
