@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -107,9 +108,7 @@ func (f *fixture) of(t *testing.T, id kernel.CharacterID) (model.Party, bool) {
 
 func (f *fixture) sameParty(t *testing.T, a, b kernel.CharacterID) bool {
 	t.Helper()
-	same, err := f.svc.SameParty(f.ctx, a, b)
-	must(t, err)
-	return same
+	return slices.Contains(f.membersOf(t, a), b)
 }
 
 func (f *fixture) membersOf(t *testing.T, id kernel.CharacterID) []kernel.CharacterID {

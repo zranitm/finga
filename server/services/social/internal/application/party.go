@@ -277,18 +277,6 @@ func (s *PartyService) Members(ctx context.Context, id kernel.CharacterID) ([]ke
 	return ids(p), nil
 }
 
-// SameParty reports whether two characters share a party.
-func (s *PartyService) SameParty(ctx context.Context, a, b kernel.CharacterID) (bool, error) {
-	var same bool
-	err := s.store.InTx(ctx, func(tx PartyTx) error {
-		pa, okA := tx.PartyOf(a)
-		pb, okB := tx.PartyOf(b)
-		same = okA && okB && pa.ID == pb.ID
-		return nil
-	})
-	return same && err == nil, err
-}
-
 // update runs fn as one transaction, then tells the notifier what fn queued.
 func (s *PartyService) update(ctx context.Context, fn func(tx PartyTx, n *notes) error) error {
 	s.mu.Lock()
