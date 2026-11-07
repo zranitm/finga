@@ -150,8 +150,8 @@ func retryable(err error) bool {
 	return pgErr.Code == codeSerializationFailure || pgErr.Code == codeDeadlockDetected || pgErr.Code == codeLockNotAvailable
 }
 
-// TimedOut reports whether err is a lock wait or a statement past its timeout: the database was busy, not wrong, so a later try may pass.
-func TimedOut(err error) bool {
+// timedOut reports whether err is a lock wait or a statement past its timeout: the database was busy, not wrong, so a later try may pass.
+func timedOut(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && (pgErr.Code == codeLockNotAvailable || pgErr.Code == codeQueryCanceled)
 }

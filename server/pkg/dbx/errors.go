@@ -29,7 +29,7 @@ func (e Errors) Classify(err error) error {
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%w: %w", e.NotFound, err)
-	case TimedOut(err), retryable(err), Unavailable(err):
+	case timedOut(err), retryable(err), unavailable(err):
 		return fmt.Errorf("%w: %w", transient.ErrUnavailable, err)
 	case errors.As(err, &pgErr) && e.Constraints[pgErr.ConstraintName] != nil:
 		return fmt.Errorf("%w: %w", e.Constraints[pgErr.ConstraintName], err)
@@ -41,8 +41,8 @@ func (e Errors) Classify(err error) error {
 // unavailableCodes are the server out of reach besides class 08 (connection exceptions): shutting down, crashed, starting up, out of connections.
 var unavailableCodes = []string{"57P01", "57P02", "57P03", "53300"}
 
-// Unavailable reports whether err is the database out of reach: a connection refused or lost, or a server shutting down, starting up or full; a later try may pass.
-func Unavailable(err error) bool {
+// unavailable reports whether err is the database out of reach: a connection refused or lost, or a server shutting down, starting up or full; a later try may pass.
+func unavailable(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false // the caller gave up, which its own code says
 	}

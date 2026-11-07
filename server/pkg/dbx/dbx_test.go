@@ -194,29 +194,6 @@ func TestInTxRetries(t *testing.T) {
 	}
 }
 
-func TestTimedOut(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want bool
-	}{
-		{"a lock wait past lock_timeout", pgErr("55P03"), true},
-		{"a statement past statement_timeout", pgErr("57014"), true},
-		{"one wrapped", fmt.Errorf("idempotency: lock: %w", pgErr("55P03")), true},
-		{"a deadlock", pgErr("40P01"), false},
-		{"a unique violation", pgErr("23505"), false},
-		{"a plain error", errBoom, false},
-		{"nil", nil, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := dbx.TimedOut(tt.err); got != tt.want {
-				t.Fatalf("TimedOut(%v) = %v, want %v", tt.err, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	db := &fakeBeginner{}
@@ -249,6 +226,7 @@ func TestErrorsClassify(t *testing.T) {
 		{"no row", fmt.Errorf("find: %w", pgx.ErrNoRows), notFound},
 		{"a lock wait past its timeout", &pgconn.PgError{Code: "55P03"}, unavailable},
 		{"a statement past its timeout", &pgconn.PgError{Code: "57014"}, unavailable},
+		{"a lock wait wrapped", fmt.Errorf("idempotency: lock: %w", &pgconn.PgError{Code: "55P03"}), unavailable},
 		{"a constraint the repository names", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, taken},
 		{"a constraint it does not", other, nil},
 		{"a serialization failure InTx's retries did not clear", &pgconn.PgError{Code: "40001"}, unavailable},
@@ -260,6 +238,7 @@ func TestErrorsClassify(t *testing.T) {
 		{"a connection cut mid-reply", fmt.Errorf("query: %w", io.ErrUnexpectedEOF), unavailable},
 		{"a caller that gave up", fmt.Errorf("query: %w", context.Canceled), nil},
 		{"a bug", &pgconn.PgError{Code: "42601"}, nil},
+		{"a plain error", errBoom, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
