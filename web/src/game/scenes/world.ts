@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 import { movement } from '@/gamedata/movement';
+import { isTyping } from '@/input/typing';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
 import type { GameSocket } from '@/net/socket';
@@ -213,7 +214,6 @@ export class World extends Phaser.Scene {
     );
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
-    sender.setCaptured(ui.getState().captureKeyboard);
     this.offs.push(
       bindKeyboard({
         target: {
@@ -235,7 +235,7 @@ export class World extends Phaser.Scene {
           },
         },
         preset: () => settings.getState().preset,
-        captured: () => ui.getState().captureKeyboard,
+        typing: isTyping,
         onAction: (action) => {
           switch (action) {
             case 'attack':
@@ -258,7 +258,6 @@ export class World extends Phaser.Scene {
           }
         },
       }),
-      ui.subscribe((s) => sender.setCaptured(s.captureKeyboard)),
       socket.on('snapshot', (m) => this.onWorld(m)),
       socket.on('delta', (m) => this.onWorld(m)),
       socket.on('correction', (m) => this.onCorrection(m.d)),

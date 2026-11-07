@@ -76,14 +76,8 @@ export function ChatBox({ socket }: ChatBoxProps) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
-          onFocus={() => {
-            ui.getState().setCaptureKeyboard(true);
-            ui.getState().openChat();
-          }}
-          onBlur={() => {
-            ui.getState().setCaptureKeyboard(false);
-            ui.getState().closeChat();
-          }}
+          onFocus={() => ui.getState().openChat()}
+          onBlur={() => ui.getState().closeChat()}
         />
         <span className={`chat-count${over ? ' chat-over' : ''}`} aria-label="Characters">
           {text.length}/{MAX_CHAT_CHARS}

@@ -14,10 +14,9 @@ export interface PartyWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
   readonly me: string;
   readonly onClose: () => void;
-  readonly onFocusChange?: (focused: boolean) => void;
 }
 
-export function PartyWindow({ socket, me, onClose, onFocusChange }: PartyWindowProps) {
+export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
   const current = party.use((s) => s.party);
   const players = nearby.use((s) => s.players);
   const [problem, setProblem] = useState<string | null>(null);
@@ -40,13 +39,7 @@ export function PartyWindow({ socket, me, onClose, onFocusChange }: PartyWindowP
   const invitable = players.filter((p) => !isMember(current, p.id));
 
   return (
-    <Window
-      title="Party"
-      onClose={onClose}
-      {...(onFocusChange && { onFocusChange })}
-      initialX={640}
-      initialY={80}
-    >
+    <Window title="Party" onClose={onClose} initialX={640} initialY={80}>
       <div className="party">
         {current ? (
           <ul className="party-members" aria-label="Members">

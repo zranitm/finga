@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { Button } from '@/components/Button';
-import { useKeyboardCapture } from '@/features/shared/use-keyboard-capture';
 import { RestError } from '@/net/rest';
 import type { RestClient } from '@/net/rest';
 import { KickReason } from '@/protocol/messages';
@@ -31,7 +30,6 @@ export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const capture = useKeyboardCapture();
   const kick = connection.use((s) => s.kick);
   const status = connection.use((s) => s.status);
 
@@ -81,7 +79,6 @@ export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
             autoComplete="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            {...capture}
           />
         </label>
         <label className="field">
@@ -92,7 +89,6 @@ export function LoginScreen({ rest, onLoggedIn }: LoginScreenProps) {
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            {...capture}
           />
         </label>
         {problem && (

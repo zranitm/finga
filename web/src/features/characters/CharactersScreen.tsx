@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 
 import { Button } from '@/components/Button';
-import { useKeyboardCapture } from '@/features/shared/use-keyboard-capture';
 import { RestError } from '@/net/rest';
 import type { Character, RestClient } from '@/net/rest';
 
@@ -38,7 +37,6 @@ export function CharactersScreen({
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false); // a log out is on its way, so both buttons wait
-  const capture = useKeyboardCapture();
 
   useEffect(() => {
     let alive = true;
@@ -138,7 +136,6 @@ export function CharactersScreen({
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={atCap}
-              {...capture}
             />
           </label>
           <fieldset className="field" disabled={atCap}>

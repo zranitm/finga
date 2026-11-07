@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { noInput } from '@/sim/input';
 import type { Input } from '@/sim/input';
-import { ui } from '@/state/ui';
 
 import { InputSender } from './input-sender';
 
@@ -63,33 +62,14 @@ describe('InputSender', () => {
     expect(s.tickStart()).toEqual(second);
   });
 
-  it('when capture starts it sends one all-released Input at once, then samples no keys until it clears', () => {
-    const { s, sent } = sender();
-    s.press('right');
-    s.tickStart();
-    s.setCaptured(true);
-    expect(sent.at(-1)).toEqual({ input: noInput, tick: 2 });
-    s.press('left'); // typed into a chat box, not for the game
-    expect(s.tickStart()).toEqual(noInput);
-    expect(s.tickStart()).toEqual(noInput);
-    expect(sent.map((x) => x.tick)).toEqual([1, 2, 3, 4]);
-    s.setCaptured(true); // already captured: nothing extra
-    expect(sent).toHaveLength(4);
-    s.setCaptured(false);
-    s.press('left');
-    expect(s.tickStart()).toEqual({ ...noInput, left: true });
-    expect(s.isCaptured).toBe(false);
-  });
-
-  it('releaseAll drops every held key, and a release while captured is harmless', () => {
+  it('releaseAll drops every held key and a jump tapped this tick', () => {
     const { s } = sender();
     s.press('left');
     s.press('up');
+    s.press('jump');
+    s.release('jump');
     s.releaseAll();
-    expect(s.sample()).toEqual(noInput);
-    s.setCaptured(true);
-    s.release('left');
-    expect(s.sample()).toEqual(noInput);
+    expect(s.tickStart()).toEqual(noInput);
   });
 
   it('a refused send (socket closed) still advances the tick, so numbers stay consecutive when it reopens', () => {
@@ -104,19 +84,5 @@ describe('InputSender', () => {
     s.tickStart();
     s.tickStart();
     expect(sent).toEqual([1, 2, 3]);
-  });
-
-  it('while a text field has the keyboard (the ui store, as the chat input sets it), the sender sends nothing', () => {
-    ui.reset();
-    const { s, sent } = sender();
-    const off = ui.subscribe((state) => s.setCaptured(state.captureKeyboard));
-    ui.getState().setCaptureKeyboard(true); // the chat input took focus
-    expect(sent).toHaveLength(1); // the all-released Input on capture
-    s.press('right');
-    expect(s.tickStart().right).toBe(false);
-    ui.getState().setCaptureKeyboard(false);
-    s.press('right');
-    expect(s.tickStart().right).toBe(true);
-    off();
   });
 });

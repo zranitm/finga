@@ -6,22 +6,13 @@ import { Button } from './Button';
 export interface WindowProps {
   readonly title: string;
   readonly onClose: () => void;
-  /** The feature wires it to ui.captureKeyboard. */
-  readonly onFocusChange?: (focused: boolean) => void;
   readonly initialX?: number;
   readonly initialY?: number;
   readonly children: ReactNode;
 }
 
-/** Takes focus on open so its keys stop reaching the game. */
-export function Window({
-  title,
-  onClose,
-  onFocusChange,
-  initialX = 80,
-  initialY = 80,
-  children,
-}: WindowProps) {
+/** Takes focus on open, so Escape closes it; the game's keys still reach the game. */
+export function Window({ title, onClose, initialX = 80, initialY = 80, children }: WindowProps) {
   const [pos, setPos] = useState({ x: initialX, y: initialY });
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -41,6 +32,9 @@ export function Window({
   );
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.target instanceof Element && e.target.closest('button')) {
+      return; // a captured pointer would send the button's click to the title bar
+    }
     drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -62,12 +56,6 @@ export function Window({
       tabIndex={-1}
       style={{ left: pos.x, top: pos.y }}
       onKeyDown={onKeyDown}
-      onFocus={() => onFocusChange?.(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) {
-          onFocusChange?.(false);
-        }
-      }}
     >
       <div
         className="window-title"

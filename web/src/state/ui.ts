@@ -1,11 +1,10 @@
-// While captureKeyboard is set, the game ignores movement keys.
+// Which windows are open, and whether the chat input is asked to take focus; what has the keyboard is read from the focus itself.
 import { defineStore } from './store';
 
 export type WindowName = 'inventory' | 'party' | 'settings';
 
 export interface UiState {
   readonly windows: Readonly<Record<WindowName, boolean>>;
-  readonly captureKeyboard: boolean;
   /** Asks the chat input to take focus. */
   readonly chatOpen: boolean;
   toggleWindow(name: WindowName): void;
@@ -13,14 +12,12 @@ export interface UiState {
   closeChat(): void;
   openWindow(name: WindowName): void;
   closeWindow(name: WindowName): void;
-  setCaptureKeyboard(capture: boolean): void;
 }
 
 const closed: Record<WindowName, boolean> = { inventory: false, party: false, settings: false };
 
 export const ui = defineStore<UiState>((set, get) => ({
   windows: closed,
-  captureKeyboard: false,
   chatOpen: false,
   openChat: () => {
     if (!get().chatOpen) {
@@ -40,10 +37,5 @@ export const ui = defineStore<UiState>((set, get) => ({
   },
   closeWindow: (name) => {
     set({ windows: { ...get().windows, [name]: false } });
-  },
-  setCaptureKeyboard: (capture) => {
-    if (get().captureKeyboard !== capture) {
-      set({ captureKeyboard: capture });
-    }
   },
 }));

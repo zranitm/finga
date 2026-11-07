@@ -15,7 +15,6 @@ import type { Tab } from '@/state/inventory';
 export interface InventoryWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
   readonly onClose: () => void;
-  readonly onFocusChange?: (focused: boolean) => void;
 }
 
 const tabLabels: Readonly<Record<Tab, string>> = { equip: 'Equip', use: 'Use', etc: 'Etc' };
@@ -36,7 +35,7 @@ interface PendingRequest {
   readonly error: string | null;
 }
 
-export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWindowProps) {
+export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const slots = inventory.use((s) => s.slots);
   const [tab, setTab] = useState<Tab>('equip');
   const [selected, setSelected] = useState<string | null>(null);
@@ -125,13 +124,7 @@ export function InventoryWindow({ socket, onClose, onFocusChange }: InventoryWin
   const selectedPending = selected ? pending.get(selected) : undefined;
 
   return (
-    <Window
-      title="Inventory"
-      onClose={onClose}
-      {...(onFocusChange && { onFocusChange })}
-      initialX={320}
-      initialY={80}
-    >
+    <Window title="Inventory" onClose={onClose} initialX={320} initialY={80}>
       <div className="inventory">
         <div className="inventory-tabs" role="tablist">
           {tabs.map((t) => (

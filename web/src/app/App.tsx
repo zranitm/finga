@@ -142,19 +142,10 @@ function WorldOverlay({
       <InviteToasts socket={socket} />
       <ChatBox socket={socket} />
       {partyOpen && (
-        <PartyWindow
-          socket={socket}
-          me={me}
-          onClose={() => ui.getState().closeWindow('party')}
-          onFocusChange={(focused) => ui.getState().setCaptureKeyboard(focused)}
-        />
+        <PartyWindow socket={socket} me={me} onClose={() => ui.getState().closeWindow('party')} />
       )}
       {inventoryOpen && (
-        <InventoryWindow
-          socket={socket}
-          onClose={() => ui.getState().closeWindow('inventory')}
-          onFocusChange={(focused) => ui.getState().setCaptureKeyboard(focused)}
-        />
+        <InventoryWindow socket={socket} onClose={() => ui.getState().closeWindow('inventory')} />
       )}
       <div className="world-overlay" aria-label="World">
         <button type="button" className="btn btn-quiet" onClick={onLeave}>

@@ -8,35 +8,38 @@ import { Modal } from './Modal';
 import { Window } from './Window';
 
 describe('Window', () => {
-  it('takes focus when it opens, reports focus changes, and closes on Escape', async () => {
+  it('takes focus when it opens and closes on Escape', async () => {
     const onClose = vi.fn();
-    const onFocusChange = vi.fn();
     render(
-      <Window title="Inventory" onClose={onClose} onFocusChange={onFocusChange}>
-        <input aria-label="search" />
+      <Window title="Inventory" onClose={onClose}>
+        <p>items</p>
       </Window>,
     );
-    const dialog = screen.getByRole('dialog', { name: 'Inventory' });
-    expect(dialog).toHaveFocus();
-    expect(onFocusChange).toHaveBeenLastCalledWith(true);
+    expect(screen.getByRole('dialog', { name: 'Inventory' })).toHaveFocus();
     await userEvent.keyboard('{Escape}');
     expect(onClose).toHaveBeenCalledTimes(1);
-    // Focus moving inside the window is not a loss of focus.
-    screen.getByLabelText('search').focus();
-    expect(onFocusChange).not.toHaveBeenCalledWith(false);
-    screen.getByLabelText('search').blur();
-    expect(onFocusChange).toHaveBeenLastCalledWith(false);
   });
 
-  it('closes from its title-bar button and moves when the title is dragged', () => {
+  it('closes from its title-bar button, whose press never starts a drag', async () => {
     const onClose = vi.fn();
     render(
-      <Window title="Party" onClose={onClose} initialX={100} initialY={50}>
+      <Window title="Party" onClose={onClose}>
         <p>members</p>
       </Window>,
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Close Party' }));
+    const capture = vi.fn();
+    screen.getByText('Party').parentElement!.setPointerCapture = capture;
+    await userEvent.click(screen.getByRole('button', { name: 'Close Party' }));
+    expect(capture).not.toHaveBeenCalled(); // a captured pointer would send the click to the title bar, not the button
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves when the title is dragged', () => {
+    render(
+      <Window title="Party" onClose={vi.fn()} initialX={100} initialY={50}>
+        <p>members</p>
+      </Window>,
+    );
     const dialog = screen.getByRole('dialog', { name: 'Party' });
     expect(dialog).toHaveStyle({ left: '100px', top: '50px' });
     const title = screen.getByText('Party');

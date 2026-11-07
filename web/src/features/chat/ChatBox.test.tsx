@@ -3,6 +3,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { isTyping } from '@/input/typing';
 import { ChatChannel, ChatMessageSchema } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { ui } from '@/state/ui';
@@ -40,7 +41,7 @@ describe('ChatBox', () => {
     expect(send).toHaveBeenCalledWith('chatSend', { channel: ChatChannel.MAP, text: 'hello all' });
     expect(input()).toHaveValue('');
     expect(input()).not.toHaveFocus();
-    expect(ui.getState().captureKeyboard).toBe(false);
+    expect(isTyping()).toBe(false);
   });
 
   it('/p sends a party line', async () => {
@@ -64,14 +65,14 @@ describe('ChatBox', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('the Enter key (through the ui store) focuses the input and captures the keyboard; Escape leaves', async () => {
+  it('the Enter key (through the ui store) focuses the input, which then has the keyboard; Escape leaves', async () => {
     const { input } = setup();
     act(() => ui.getState().openChat());
     expect(input()).toHaveFocus();
-    expect(ui.getState().captureKeyboard).toBe(true);
+    expect(isTyping()).toBe(true);
     await userEvent.keyboard('{Escape}');
     expect(input()).not.toHaveFocus();
-    expect(ui.getState().captureKeyboard).toBe(false);
+    expect(isTyping()).toBe(false);
     expect(ui.getState().chatOpen).toBe(false);
   });
 

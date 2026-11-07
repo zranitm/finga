@@ -4,14 +4,14 @@ import type { Preset } from '@/state/settings';
 
 import { bindKeyboard } from './keyboard';
 
-function setup(preset: Preset = 'classic', captured = false) {
+function setup(preset: Preset = 'classic', typing = false) {
   const source = document.createElement('div');
   const target = { press: vi.fn(), release: vi.fn(), releaseAll: vi.fn() };
-  const state = { captured };
+  const state = { typing };
   const unbind = bindKeyboard({
     target,
     preset: () => preset,
-    captured: () => state.captured,
+    typing: () => state.typing,
     source,
     focusSource: source,
   });
@@ -45,16 +45,29 @@ describe('bindKeyboard', () => {
 
   it.each([
     { name: 'a key not in the preset', code: 'KeyQ' },
-    { name: 'a non-movement action (attack)', code: 'KeyX' },
     { name: 'the other preset’s key', code: 'KeyD' },
-  ])('$name does nothing', ({ code }) => {
+  ])('$name does nothing, and keeps its default', ({ code }) => {
     const { target, key } = setup('classic');
     const down = key('keydown', code);
-    key('keyup', code);
+    const up = key('keyup', code);
     expect(target.press).not.toHaveBeenCalled();
     expect(target.release).not.toHaveBeenCalled();
-    expect(down.defaultPrevented).toBe(false);
+    expect([down.defaultPrevented, up.defaultPrevented]).toEqual([false, false]);
   });
+
+  it.each([
+    { name: 'jump (Space)', code: 'Space' },
+    { name: 'chat (Enter)', code: 'Enter' },
+    { name: 'attack', code: 'KeyX' },
+  ])(
+    '$name is the game’s alone: a focused button is not pressed by its down or its up',
+    ({ code }) => {
+      const { key } = setup('classic');
+      const down = key('keydown', code);
+      const up = key('keyup', code);
+      expect([down.defaultPrevented, up.defaultPrevented]).toEqual([true, true]);
+    },
+  );
 
   it.each([
     { code: 'KeyX', action: 'attack' },
@@ -65,11 +78,11 @@ describe('bindKeyboard', () => {
     const source = document.createElement('div');
     const target = { press: vi.fn(), release: vi.fn(), releaseAll: vi.fn() };
     const onAction = vi.fn();
-    const state = { captured: false };
+    const state = { typing: false };
     bindKeyboard({
       target,
       preset: () => 'classic',
-      captured: () => state.captured,
+      typing: () => state.typing,
       onAction,
       source,
       focusSource: source,
@@ -79,7 +92,7 @@ describe('bindKeyboard', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction).toHaveBeenCalledWith(action);
     expect(target.press).not.toHaveBeenCalled();
-    state.captured = true;
+    state.typing = true;
     source.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true }));
     expect(onAction).toHaveBeenCalledTimes(1);
   });
@@ -92,16 +105,26 @@ describe('bindKeyboard', () => {
     expect(target.press).toHaveBeenCalledTimes(1);
   });
 
-  it('while captured, key downs belong to the text field but key ups still release', () => {
+  it('while typing, keys belong to the text field, but key ups still release', () => {
     const { target, state, key } = setup('classic', true);
     const down = key('keydown', 'ArrowRight');
     expect(target.press).not.toHaveBeenCalled();
     expect(down.defaultPrevented).toBe(false);
-    key('keyup', 'ArrowRight');
+    const up = key('keyup', 'ArrowRight');
     expect(target.release).toHaveBeenCalledWith('right');
-    state.captured = false;
+    expect(up.defaultPrevented).toBe(false);
+    state.typing = false;
     key('keydown', 'ArrowRight');
     expect(target.press).toHaveBeenCalledWith('right');
+  });
+
+  it('focus moving into a text field releases every key; moving anywhere else does not', () => {
+    const { source, target, state } = setup();
+    source.dispatchEvent(new FocusEvent('focusin'));
+    expect(target.releaseAll).not.toHaveBeenCalled();
+    state.typing = true;
+    source.dispatchEvent(new FocusEvent('focusin'));
+    expect(target.releaseAll).toHaveBeenCalledTimes(1);
   });
 
   it('losing focus releases every key, and unbinding stops everything', () => {

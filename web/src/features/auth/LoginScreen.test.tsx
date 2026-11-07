@@ -2,11 +2,11 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { isTyping } from '@/input/typing';
 import { createRestClient } from '@/net/rest';
 import { clearToken, getToken } from '@/net/token';
 import { KickReason } from '@/protocol/messages';
 import { connection } from '@/state/connection';
-import { ui } from '@/state/ui';
 import { fakeFetch } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -116,7 +116,7 @@ describe('LoginScreen', () => {
     expect(ff.calls.map((c) => c.path)).toEqual(['/api/accounts', '/api/sessions']);
   });
 
-  it('typing in the form captures the keyboard, and shows why the player was kicked', async () => {
+  it('typing in the form keeps the keys from the game, and shows why the player was kicked', async () => {
     connection.getState().setConnection('kicked', { kick: KickReason.LOGGED_IN_ELSEWHERE });
     render(
       <LoginScreen
@@ -127,9 +127,9 @@ describe('LoginScreen', () => {
     expect(screen.getByText(/logged in somewhere else/i)).toBeInTheDocument();
     const field = screen.getByLabelText('Username');
     await userEvent.click(field);
-    expect(ui.getState().captureKeyboard).toBe(true);
+    expect(isTyping()).toBe(true);
     field.blur();
-    expect(ui.getState().captureKeyboard).toBe(false);
+    expect(isTyping()).toBe(false);
   });
 
   it('a kick reason this client does not know still says the server closed the connection', () => {
