@@ -65,10 +65,12 @@ func TestAHandOffComesFromTheMapThatHoldsThePlayer(t *testing.T) {
 			if at.inst != town || !at.transit || at.gen == tt.held.gen {
 				t.Fatalf("handed off as %+v; want in transit to town, stamped anew", at)
 			}
-			if ps.landed(id, tt.held.gen) {
+			ps.landed(id, tt.held.gen)
+			if !ps.by[id].transit {
 				t.Fatal("the earlier landing marked the presence it no longer owns")
 			}
-			if !ps.landed(id, at.gen) || ps.by[id].transit {
+			ps.landed(id, at.gen)
+			if ps.by[id].transit {
 				t.Fatal("the hand-off's own landing did not mark it landed")
 			}
 		})

@@ -75,17 +75,16 @@ func (ps *presences) handOff(id kernel.CharacterID, conn string, from, to *insta
 	return p, true
 }
 
-// landed marks the presence of gen as on its map; false when it was taken off or replaced first.
-func (ps *presences) landed(id kernel.CharacterID, gen uint64) bool {
+// landed marks the presence of gen as on its map, unless it was taken off or replaced first.
+func (ps *presences) landed(id kernel.CharacterID, gen uint64) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
 	if !ok || p.gen != gen {
-		return false
+		return
 	}
 	p.transit = false
 	ps.by[id] = p
-	return true
 }
 
 // holds reports whether the presence of gen still stands.
