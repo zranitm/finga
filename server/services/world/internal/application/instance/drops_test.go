@@ -308,6 +308,9 @@ func TestAPickupKeepsItsTrace(t *testing.T) {
 			t.Fatalf("%d spans kept, want one world.pickup root", len(ended))
 		}
 		root := ended[0]
+		if root.SpanKind() != trace.SpanKindConsumer {
+			t.Fatalf("the root's kind is %s; want consumer, as the job a tick handed over", root.SpanKind())
+		}
 		if links := root.Links(); len(links) != 1 || links[0].SpanContext.TraceID() != command.TraceID() || links[0].SpanContext.SpanID() != command.SpanID() {
 			t.Fatalf("the root links %+v; want the command that asked", links)
 		}

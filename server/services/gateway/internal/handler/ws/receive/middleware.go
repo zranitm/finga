@@ -56,9 +56,9 @@ func (h *Handler) queued(c *msgContext) {
 	}
 }
 
-// traced runs the rest of the chain in a trace of the command's own, which EntryPoint decides to keep.
+// traced runs the rest of the chain in a trace of the command's own, which EntryPoint decides to keep; the span is a server's, as the request a player sent.
 func (h *Handler) traced(c *msgContext) {
-	ctx, span := h.tracer.Start(c.Ctx, spanPrefix+c.Message.Type, trace.WithNewRoot())
+	ctx, span := h.tracer.Start(c.Ctx, spanPrefix+c.Message.Type, trace.WithNewRoot(), trace.WithSpanKind(trace.SpanKindServer))
 	c.Ctx = ctx
 	panicked := true // until the chain returns: the router's handler then logs the panic under this trace's ID
 	defer func() {

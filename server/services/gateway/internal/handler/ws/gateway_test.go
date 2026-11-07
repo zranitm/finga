@@ -987,6 +987,9 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 		if root == nil || root.Parent().IsValid() || !root.SpanContext().IsSampled() {
 			t.Fatalf("no sampled ws.Hello root among %d spans", len(ended))
 		}
+		if root.SpanKind() != trace.SpanKindServer {
+			t.Fatalf("the root's kind is %s; want server, as the player's request", root.SpanKind())
+		}
 		attrs := attribute.NewSet(root.Attributes()...)
 		if v, _ := attrs.Value("character_id"); v.AsString() != aylaID.String() {
 			t.Fatalf("the root's character_id is %q", v.AsString())

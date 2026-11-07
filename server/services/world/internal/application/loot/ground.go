@@ -216,10 +216,10 @@ const pickupSpan = "world.pickup"
 // EntryPoint reports whether a root span of this name starts a trace that is kept: a pickup's.
 func EntryPoint(span string) bool { return span == pickupSpan }
 
-// grant asks the item service for the drop, on a worker, retrying a transient failure once under the same key.
+// grant asks the item service for the drop, on a worker, retrying a transient failure once under the same key; its span is a consumer's, of the job a tick handed over.
 func (g *Ground) grant(ctx context.Context, pu pickup) Result {
 	in := pu.in
-	opts := []trace.SpanStartOption{trace.WithNewRoot(), trace.WithAttributes(
+	opts := []trace.SpanStartOption{trace.WithNewRoot(), trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(
 		attribute.String("character_id", in.Character.String()), attribute.String("drop_id", in.DropID.String()))}
 	if pu.cause.IsValid() {
 		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: pu.cause}))
