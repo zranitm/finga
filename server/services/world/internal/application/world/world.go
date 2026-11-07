@@ -13,6 +13,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/coalesce"
+	"finga/pkg/keylock"
 	"finga/pkg/panics"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
@@ -22,6 +23,7 @@ const (
 	busyRetryFirst  = 20 * time.Millisecond // a post to a map whose inbox is full
 	busyRetryMax    = 500 * time.Millisecond
 	transferTimeout = 5 * time.Second // a transfer's join, retries included
+	answerTimeout   = 5 * time.Second // a map's answer to a join or leave, waited for past the caller's deadline
 	callTimeout     = 5 * time.Second // one call to another service; past it the call counts as failed
 	starterTimeout  = time.Second     // the join's best-effort starter grant
 
@@ -38,11 +40,12 @@ type World struct {
 	instances map[string]*instance.Instance
 	order     []string
 	presences presences
+	locks     *keylock.Locks[kernel.CharacterID] // every presence change of a character but the tick's, one at a time
 	// saves holds each character's newest checkpoint until the persistence worker has saved it.
 	saves *coalesce.Queue[kernel.CharacterID, model.Checkpoint]
 	// flushTimeout bounds the last saves on shutdown, all together.
 	flushTimeout time.Duration
-	// Transfers and take-backs run beside the ticks until Run stops them.
+	// Transfers run beside the ticks until Run stops them.
 	background     sync.WaitGroup
 	jobsCtx        context.Context
 	stopBackground context.CancelFunc
@@ -71,7 +74,7 @@ type Tuning struct {
 func New(d Deps, t Tuning) *World {
 	data := d.Data
 	w := &World{
-		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: presences{by: map[kernel.CharacterID]presence{}},
+		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: newPresences(), locks: keylock.New[kernel.CharacterID](),
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
 		flushTimeout: t.FlushTimeout,
 	}

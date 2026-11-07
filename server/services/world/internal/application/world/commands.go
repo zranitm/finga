@@ -8,9 +8,14 @@ import (
 	"finga/services/world/internal/application/instance"
 )
 
-// Leave takes the character off its map, even mid-transfer, if conn holds it; it returns once its checkpoint is queued.
+// Leave takes the character off its map, even mid-transfer, if conn holds it, under the character's lock; it returns once its checkpoint is queued.
 func (w *World) Leave(ctx context.Context, id kernel.CharacterID, conn string) error {
-	_, _, err := w.depart(ctx, id, func(p presence) bool { return p.conn == conn })
+	unlock, err := w.locks.Lock(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	_, _, err = w.takeOff(ctx, id, func(p presence) bool { return p.conn == conn })
 	return err
 }
 

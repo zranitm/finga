@@ -52,10 +52,6 @@ type player struct {
 }
 
 func (i *Instance) add(j *joinMsg) {
-	if j.held != nil && !j.held() {
-		j.done <- ErrMoved
-		return
-	}
 	if _, dup := i.players[j.player.ID]; dup {
 		i.remove(j.player.ID) // a stale presence; the new connection wins
 	}

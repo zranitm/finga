@@ -7,10 +7,9 @@ import (
 	"finga/internal/kernel"
 )
 
-// A map drops a player whose sink failed; the registry then forgets them, unless a newer join or a leave holds the entry.
+// A map drops a player whose sink failed; the registry then forgets them, unless a newer join holds the entry or a transfer moved it.
 func TestDropForgetsOnlyTheLivePresenceItNames(t *testing.T) {
 	town, cave := &instance.Instance{}, &instance.Instance{}
-	leaving := make(chan struct{})
 	tests := []struct {
 		name string
 		held presence
@@ -19,7 +18,7 @@ func TestDropForgetsOnlyTheLivePresenceItNames(t *testing.T) {
 		{"the presence the map dropped", presence{inst: town, conn: "c-1"}, false},
 		{"a newer join through another connection", presence{inst: town, conn: "c-2"}, true},
 		{"a transfer that moved it to another map", presence{inst: cave, conn: "c-1"}, true},
-		{"a leave under way, which forgets it itself", presence{inst: town, conn: "c-1", left: leaving}, true},
+		{"a transfer still on its way, to this map", presence{inst: town, conn: "c-1", transit: true}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

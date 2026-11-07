@@ -22,9 +22,21 @@ var errNotYours = errors.New("not found")
 
 type fakeCharacters struct {
 	chars map[kernel.CharacterID]model.Character
+	slow  time.Duration // each Load takes this long
+
+	mu            sync.Mutex
+	loading, most int // Loads under way now, and at most at once
 }
 
 func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {
+	f.mu.Lock()
+	f.loading++
+	f.most = max(f.most, f.loading)
+	f.mu.Unlock()
+	time.Sleep(f.slow)
+	f.mu.Lock()
+	f.loading--
+	f.mu.Unlock()
 	c, ok := f.chars[id]
 	if !ok || c.Account != account {
 		return model.Character{}, errNotYours

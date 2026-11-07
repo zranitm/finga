@@ -87,7 +87,6 @@ type (
 		player model.Player
 		sink   Sink
 		done   chan error
-		held   func() bool // when set, whether the join's presence still holds the character
 	}
 	leaveMsg struct {
 		id   kernel.CharacterID
@@ -129,8 +128,6 @@ func (chatMsg) message()   {}
 var (
 	// ErrSinkClosed is a join whose Snapshot its sink refused: the connection's stream is gone.
 	ErrSinkClosed = errors.New("the sink is closed")
-	// ErrMoved is a transfer whose presence left, or was replaced, before it landed.
-	ErrMoved = errors.New("the presence moved on")
 )
 
 // New builds the map's actor, which Run starts.
@@ -166,20 +163,10 @@ func (i *Instance) Run(ctx context.Context) error {
 	return err
 }
 
-// Join adds a player and waits until its Snapshot is sent; ErrBusy when the inbox is full, ErrStopped once stopped.
+// Join adds a player, logging in or handed over by another map, and waits until its Snapshot is sent; ErrBusy when the inbox is full, ErrStopped once stopped.
 func (i *Instance) Join(ctx context.Context, p model.Player, sink Sink) error {
-	return i.join(ctx, &joinMsg{player: p, sink: sink})
-}
-
-// Arrive joins a player another map handed over, unless held says its presence moved on first: ErrMoved.
-func (i *Instance) Arrive(ctx context.Context, p model.Player, sink Sink, held func() bool) error {
-	return i.join(ctx, &joinMsg{player: p, sink: sink, held: held})
-}
-
-func (i *Instance) join(ctx context.Context, j *joinMsg) error {
 	done := make(chan error, 1)
-	j.done = done
-	if err := i.post(j); err != nil {
+	if err := i.post(&joinMsg{player: p, sink: sink, done: done}); err != nil {
 		return err
 	}
 	select {

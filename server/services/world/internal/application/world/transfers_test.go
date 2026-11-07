@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -215,6 +216,60 @@ func TestAFailedLoginElsewhereMidPortalDetachesTheOlderConnection(t *testing.T) 
 		synctest.Wait()
 		if n := detached(s); n != 1 {
 			t.Fatalf("%d Detached events for the older connection, want one", n)
+		}
+	})
+}
+
+// Two joins of one character through two connections at once, with no gateway to order them, leave the registry and the map naming the same connection.
+func TestTwoJoinsAtOnceLeaveTheRegistryAndTheMapAgreeing(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		w := runningWorld(t)
+		watcher := &worldtest.Sink{}
+		w.enter(t, at(t, "Bo", "town"), "town", "c-bo", watcher)
+		ayla := at(t, "Ayla", "town")
+		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Stats: ayla.Stats, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}
+		w.chars.mu.Lock()
+		w.chars.slow, w.chars.most = time.Second, 0 // a load slow enough for the other join to start meanwhile
+		w.chars.mu.Unlock()
+		sinks := map[string]*worldtest.Sink{"c-1": {}, "c-2": {}}
+		var joins sync.WaitGroup
+		for conn, s := range sinks {
+			joins.Go(func() {
+				if _, err := w.Join(context.Background(), ayla.Account, ayla.ID, conn, s); err != nil {
+					t.Error(err)
+				}
+			})
+		}
+		joins.Wait()
+		w.chars.mu.Lock()
+		most := w.chars.most
+		w.chars.mu.Unlock()
+		if most != 1 {
+			t.Fatalf("%d loads of Ayla at once; the second join must wait for the first's whole join", most)
+		}
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		before := map[string]int{"c-1": len(sinks["c-1"].Deltas()), "c-2": len(sinks["c-2"].Deltas())}
+		time.Sleep(2 * worldtest.TickInterval)
+		synctest.Wait()
+		held, other := "c-1", "c-2" // the map's: the connection still sent the town's deltas
+		if len(sinks["c-2"].Deltas()) > before["c-2"] {
+			held, other = other, held
+		}
+		if len(sinks[other].Deltas()) > before[other] || len(sinks[held].Deltas()) == before[held] {
+			t.Fatal("the map sends to both connections, or to neither")
+		}
+		_, removed := seenIn(watcher, ayla.ID)
+		if err := w.Leave(context.Background(), ayla.ID, other); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.Leave(context.Background(), ayla.ID, held); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(2 * worldtest.TickInterval)
+		synctest.Wait()
+		if _, after := seenIn(watcher, ayla.ID); after != removed+1 {
+			t.Fatalf("the town removed Ayla %d more times after both Leaves, want once: the registry named %s's presence", after-removed, other)
 		}
 	})
 }

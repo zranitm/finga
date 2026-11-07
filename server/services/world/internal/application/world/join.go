@@ -1,6 +1,7 @@
 package world
 
 import (
+	"cmp"
 	"context"
 	"errors"
 
@@ -12,13 +13,18 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Join takes the character off any map it is on first, so a login elsewhere or a rejoin never starts at an older save.
+// Join takes the character off any map it is on first, so a login elsewhere or a rejoin never starts at an older save; it holds the character's lock throughout.
 func (w *World) Join(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, conn string, sink instance.Sink) (model.View, error) {
-	older, took, err := w.depart(ctx, id, func(p presence) bool { return p.account == account })
+	unlock, err := w.locks.Lock(ctx, id)
 	if err != nil {
 		return model.View{}, err
 	}
-	v, err := w.join(ctx, account, id, conn, sink)
+	defer unlock()
+	older, took, err := w.takeOff(ctx, id, func(p presence) bool { return p.account == account })
+	var v model.View
+	if err == nil {
+		v, err = w.join(ctx, account, id, conn, sink)
+	}
 	if err != nil && took {
 		older.sink.Send(model.Detached{}) // the gateway joins the older connection again, on a map or mid-transfer
 	}
@@ -50,13 +56,21 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
-	at := presence{inst: inst, conn: conn, account: account, sink: sink}
-	w.presences.place(id, at)
-	if err := inst.Join(ctx, p, sink); err != nil {
-		w.presences.forget(id, at)
-		if ctx.Err() != nil {
-			w.leaveLater(inst, id, conn) // posted, and may still land, though the caller counts it failed
-		}
+	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
+	answerCtx, cancel := answerOf(ctx)
+	defer cancel()
+	err = inst.Join(answerCtx, p, sink)
+	switch {
+	case err == nil && ctx.Err() != nil:
+		w.undo(ctx, id, at) // the caller counts the join failed, so the map must not keep it
+		return model.View{}, ctx.Err()
+	case err == nil:
+	case answerCtx.Err() != nil:
+		w.leaveBehind(inst, id, conn) // posted, and the map has not answered: it may still land
+		w.presences.forget(id, at.gen)
+		return model.View{}, cmp.Or(ctx.Err(), model.ErrBusy)
+	default:
+		w.presences.forget(id, at.gen)
 		if errors.Is(err, instance.ErrSinkClosed) {
 			err = model.ErrBusy // the gateway's stream is gone; it joins again on the next one
 		}
@@ -84,49 +98,51 @@ func (w *World) grantStarter(ctx context.Context, account kernel.AccountID, id k
 	}
 }
 
-// depart takes the character off its map if want accepts it, behind a tombstone that holds off transfers and departs; it returns the presence it took.
-func (w *World) depart(ctx context.Context, id kernel.CharacterID, want func(presence) bool) (presence, bool, error) {
-	for {
-		left := make(chan struct{})
-		p, ok := w.presences.depart(id, want, left)
-		if !ok {
-			return presence{}, false, nil
+// answerOf is for waiting on a map's answer past ctx's end, up to answerTimeout, so the lock's holder knows what the map did before it lets go.
+func answerOf(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), answerTimeout)
+}
+
+// takeOff takes the character off its map, if want accepts its presence, and forgets the presence; it returns the one it took. The caller holds the character's lock.
+func (w *World) takeOff(ctx context.Context, id kernel.CharacterID, want func(presence) bool) (presence, bool, error) {
+	p, ok := w.presences.get(id)
+	if !ok || !want(p) {
+		return presence{}, false, nil
+	}
+	if !p.transit { // in transit no map holds it, and its landing waits for this lock
+		if err := w.leaveMap(ctx, id, p); err != nil {
+			return presence{}, false, err // the presence stays, for the next holder to take off
 		}
-		if p.left != nil {
-			if err := p.inst.Wait(ctx, p.left); err != nil {
-				return presence{}, false, err
-			}
-			w.presences.forget(id, p)
-			continue
-		}
-		tomb := p
-		tomb.left = left
-		if err := whileBusy(ctx, func() error { return p.inst.Leave(id, p.conn, left) }); err != nil {
-			w.presences.restore(id, tomb, p)
-			close(left) // never posted; whoever waits on the tombstone looks again
-			return presence{}, false, err
-		}
-		if err := p.inst.Wait(ctx, left); err != nil {
-			w.forgetLater(id, tomb) // the leave lands later, and its tombstone goes then
-			return presence{}, false, err
-		}
-		w.presences.forget(id, tomb)
-		return p, true, nil
+	}
+	w.presences.forgetThrough(id, p.conn) // the tick may have handed it off since
+	return p, true, ctx.Err()
+}
+
+// leaveMap has p's map take the character off, and waits until it has and its checkpoint is queued.
+func (w *World) leaveMap(ctx context.Context, id kernel.CharacterID, p presence) error {
+	left := make(chan struct{})
+	if err := whileBusy(ctx, func() error { return p.inst.Leave(id, p.conn, left) }); err != nil {
+		return err
+	}
+	answerCtx, cancel := answerOf(ctx)
+	defer cancel()
+	return p.inst.Wait(answerCtx, left)
+}
+
+// undo takes off a join that landed though its caller gave up; if the map does not answer, the presence stays for the next holder.
+func (w *World) undo(ctx context.Context, id kernel.CharacterID, at presence) {
+	answerCtx, cancel := answerOf(ctx)
+	defer cancel()
+	if w.leaveMap(answerCtx, id, at) == nil {
+		w.presences.forgetThrough(id, at.conn)
 	}
 }
 
-// leaveLater posts a leave for a join that may still land, retrying while the map is busy, until the world stops.
-func (w *World) leaveLater(inst *instance.Instance, id kernel.CharacterID, conn string) {
-	w.background.Go(func() { _ = whileBusy(w.jobsCtx, func() error { return inst.Leave(id, conn, nil) }) })
-}
-
-// forgetLater drops a tombstone once the map has handled its leave, for a departure whose caller stopped waiting.
-func (w *World) forgetLater(id kernel.CharacterID, tomb presence) {
-	w.background.Go(func() {
-		if tomb.inst.Wait(w.jobsCtx, tomb.left) == nil {
-			w.presences.forget(id, tomb)
-		}
-	})
+// leaveBehind posts a leave behind a join the map has not answered, which may still land; the inbox keeps them in order.
+func (w *World) leaveBehind(inst *instance.Instance, id kernel.CharacterID, conn string) {
+	postCtx, cancel := context.WithTimeout(w.jobsCtx, answerTimeout)
+	defer cancel()
+	_ = whileBusy(postCtx, func() error { return inst.Leave(id, conn, nil) })
 }
 
 // whileBusy runs try until it answers anything but ErrBusy, backing off between tries, or until ctx ends.

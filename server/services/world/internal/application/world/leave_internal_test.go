@@ -27,8 +27,16 @@ func (quiet) ObserveTick(string, time.Duration, time.Duration) {}
 func (quiet) JobStarted()                                      {}
 func (quiet) JobFinished()                                     {}
 
-// A Leave whose caller stopped waiting still lands; its tombstone goes with it, so the registry holds only players on a map.
-func TestATombstoneGoesOnceItsLeaveLands(t *testing.T) {
+// alone is a party service where everyone is in no party.
+type alone struct{}
+
+func (alone) Members(kernel.CharacterID) []kernel.CharacterID  { return nil }
+func (alone) SameParty(_, _ kernel.CharacterID) bool           { return false }
+func (alone) Update(kernel.CharacterID, string, int, int, int) {}
+func (alone) Epoch() uint64                                    { return 0 }
+
+// A Leave whose caller stopped waiting still lands, and the registry forgets the presence, so it holds only players on a map.
+func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data, err := gamedata.Load("../../../../../data")
 		if err != nil {
@@ -36,7 +44,7 @@ func TestATombstoneGoesOnceItsLeaveLands(t *testing.T) {
 		}
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		w := New(Deps{
-			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Workers: economy.NewWorkers(economy.Deps{Observer: quiet{}, Panics: rec}, economy.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
+			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Workers: economy.NewWorkers(economy.Deps{Observer: quiet{}, Panics: rec}, economy.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
 			Data: data, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())

@@ -7,97 +7,118 @@ import (
 	"finga/services/world/internal/application/instance"
 )
 
-// presence is where a joined character is and the sink of its connection; a set left marks a tombstone, closing once the map has handled the leave.
+// presence is where a joined character is and the sink of its connection; gen tells one placement from the next.
 type presence struct {
 	inst    *instance.Instance
 	conn    string
 	account kernel.AccountID
 	sink    instance.Sink
-	left    <-chan struct{}
+	gen     uint64 // stamped by each change, so a job that waited for the character's lock sees whether the presence it saw still stands
+	transit bool   // handed off by its last map and not yet on inst
 }
 
-// presences is the world's registry of joined characters; the gateway's commands are routed through it.
+// presences is the world's registry of joined characters, which routes the gateway's commands; the character's lock covers every change but the tick's, which only hands a presence off or drops it.
 type presences struct {
-	mu sync.Mutex
-	by map[kernel.CharacterID]presence
+	mu   sync.Mutex
+	by   map[kernel.CharacterID]presence
+	next uint64 // the last gen stamped
 }
 
-// place records at as the character's presence.
-func (ps *presences) place(id kernel.CharacterID, at presence) {
+func newPresences() presences {
+	return presences{by: map[kernel.CharacterID]presence{}}
+}
+
+// stamp gives p the next gen, under mu.
+func (ps *presences) stamp(p presence) presence {
+	ps.next++
+	p.gen = ps.next
+	return p
+}
+
+// get is the character's presence, if any.
+func (ps *presences) get(id kernel.CharacterID) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	ps.by[id] = at
+	p, ok := ps.by[id]
+	return p, ok
 }
 
-// at is the character's presence, if it joined through conn and is not leaving.
+// place records at as the character's presence and returns it stamped.
+func (ps *presences) place(id kernel.CharacterID, at presence) presence {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	at = ps.stamp(at)
+	ps.by[id] = at
+	return at
+}
+
+// at is the character's presence, if it joined through conn.
 func (ps *presences) at(id kernel.CharacterID, conn string) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
-	return p, ok && p.conn == conn && p.left == nil
+	return p, ok && p.conn == conn
 }
 
-// move puts the character on inst if conn still holds it, returning its new presence; false when a newer join replaced it, or it is leaving.
-func (ps *presences) move(id kernel.CharacterID, conn string, inst *instance.Instance) (presence, bool) {
+// handOff marks the character in transit to inst if conn holds it, returning the presence stamped anew; the tick calls it.
+func (ps *presences) handOff(id kernel.CharacterID, conn string, inst *instance.Instance) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
-	if !ok || p.conn != conn || p.left != nil {
+	if !ok || p.conn != conn || p.transit {
 		return presence{}, false
 	}
-	p.inst = inst
+	p.inst, p.transit = inst, true
+	p = ps.stamp(p)
 	ps.by[id] = p
 	return p, true
 }
 
-// forget drops the character's presence, unless another placement came since; false when one did.
-func (ps *presences) forget(id kernel.CharacterID, at presence) bool {
+// landed marks the presence of gen as on its map; false when it was taken off or replaced first.
+func (ps *presences) landed(id kernel.CharacterID, gen uint64) bool {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if ps.by[id] != at {
+	p, ok := ps.by[id]
+	if !ok || p.gen != gen {
+		return false
+	}
+	p.transit = false
+	ps.by[id] = p
+	return true
+}
+
+// holds reports whether the presence of gen still stands.
+func (ps *presences) holds(id kernel.CharacterID, gen uint64) bool {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	return ps.by[id].gen == gen && gen != 0
+}
+
+// forget drops the presence of gen; false when another stands.
+func (ps *presences) forget(id kernel.CharacterID, gen uint64) bool {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	if ps.by[id].gen != gen {
 		return false
 	}
 	delete(ps.by, id)
 	return true
 }
 
-// drop forgets the character's presence on inst through conn, which that map dropped; a newer one, or a leave under way, stays.
-func (ps *presences) drop(id kernel.CharacterID, inst *instance.Instance, conn string) {
+// forgetThrough drops the character's presence through conn, wherever the tick has moved it since.
+func (ps *presences) forgetThrough(id kernel.CharacterID, conn string) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if p, ok := ps.by[id]; ok && p.inst == inst && p.conn == conn && p.left == nil {
+	if p, ok := ps.by[id]; ok && p.conn == conn {
 		delete(ps.by, id)
 	}
 }
 
-// depart returns the presence if want accepts it, tombstoning a live one with left; a leaving one stays, to wait on.
-func (ps *presences) depart(id kernel.CharacterID, want func(presence) bool, left <-chan struct{}) (presence, bool) {
+// drop forgets the character's presence on inst through conn, which that map dropped; the tick calls it.
+func (ps *presences) drop(id kernel.CharacterID, inst *instance.Instance, conn string) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	p, ok := ps.by[id]
-	if !ok || !want(p) {
-		return presence{}, false
+	if p, ok := ps.by[id]; ok && p.inst == inst && p.conn == conn && !p.transit {
+		delete(ps.by, id)
 	}
-	if p.left == nil {
-		tomb := p
-		tomb.left = left
-		ps.by[id] = tomb
-	}
-	return p, true
-}
-
-// restore puts back the live presence a tombstone replaced, unless something replaced the tombstone since.
-func (ps *presences) restore(id kernel.CharacterID, tomb, live presence) {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	if ps.by[id] == tomb {
-		ps.by[id] = live
-	}
-}
-
-// holds reports whether the character is still at at.
-func (ps *presences) holds(id kernel.CharacterID, at presence) bool {
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
-	return ps.by[id] == at
 }
