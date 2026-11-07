@@ -9,16 +9,17 @@ jobs:
   go:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # the whole history: buf breaking compares with the commit before the push or the PR's base
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: server/go.mod
-      - uses: golangci/golangci-lint-action@v8
+          cache-dependency-path: server/go.sum   # the module is in server/, not at the root, where setup-go looks by default
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.15.0   # built with Go 1.27: an older build refuses server/go.mod's version
-          args: --help   # install only; `make lint` runs it below with the repo's settings
+          install-only: true   # `make lint` runs it below with the repo's settings
       - name: the commits this run checks
         env:
           BEFORE: ${{ github.event.before }}
@@ -57,10 +58,11 @@ jobs:
       matrix:
         service: [gateway, account, character, item, world, social]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
       - run: make test-service SERVICE=${{ matrix.service }}
 
   node:
@@ -69,8 +71,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: web/.nvmrc
           cache: npm
@@ -85,10 +87,11 @@ jobs:
   compose:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
       - run: make up
       - name: wait for the gateway
         run: |
