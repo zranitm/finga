@@ -30,8 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// CharacterService owns characters, their progression and the world's checkpoints.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// CharacterService owns characters, their progression and the world's checkpoints; a failure carries a Reason in google.rpc.ErrorInfo.
 type CharacterServiceClient interface {
 	// Create makes a level 1 character in the town, then grants its starter items idempotently.
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
@@ -109,8 +108,7 @@ func (c *characterServiceClient) SaveLevelUp(ctx context.Context, in *SaveLevelU
 // All implementations must embed UnimplementedCharacterServiceServer
 // for forward compatibility.
 //
-// CharacterService owns characters, their progression and the world's checkpoints.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// CharacterService owns characters, their progression and the world's checkpoints; a failure carries a Reason in google.rpc.ErrorInfo.
 type CharacterServiceServer interface {
 	// Create makes a level 1 character in the town, then grants its starter items idempotently.
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)

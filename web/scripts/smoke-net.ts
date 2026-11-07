@@ -1,5 +1,4 @@
-// Hand-run against a live server; standalone so it needs no bundler:
-//   node scripts/smoke-net.ts [http://localhost:8080]
+// Hand-run against a live server, standalone so it needs no bundler: node scripts/smoke-net.ts [http://localhost:8080]
 export {};
 const serverOrigin = process.argv[2] ?? 'http://localhost:8080';
 const stamp = Date.now().toString(36).slice(-6);

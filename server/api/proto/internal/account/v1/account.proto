@@ -6,8 +6,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "finga/api/gen/account/v1;accountv1";
 
-// AccountService owns accounts, sessions and settings; the gateway is its only caller.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// AccountService owns accounts, sessions and settings; the gateway is its only caller, and a failure carries a Reason in google.rpc.ErrorInfo.
 service AccountService {
   rpc Register(RegisterRequest) returns (RegisterResponse);
   // Login checks the credentials and issues a session, ending the account's older ones.
@@ -24,8 +23,7 @@ service AccountService {
   rpc RevokeAll(RevokeAllRequest) returns (RevokeAllResponse);
   rpc GetSettings(GetSettingsRequest) returns (GetSettingsResponse);
   rpc UpdateSettings(UpdateSettingsRequest) returns (UpdateSettingsResponse);
-  // WatchSessions streams Subscribed, then every revoked session and account.
-  // A gateway that falls behind loses its stream and resubscribes; its minute check covers the gap.
+  // WatchSessions streams Subscribed, then every revoked session and account; a gateway that falls behind loses its stream and resubscribes, its minute check covering the gap.
   rpc WatchSessions(WatchSessionsRequest) returns (stream WatchSessionsResponse);
 }
 

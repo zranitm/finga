@@ -4,8 +4,7 @@
 // 	protoc        (unknown)
 // source: client/v1/client.proto
 
-// The browser's WebSocket protocol: one ClientMessage or ServerMessage per frame.
-// Subprotocol finga.v1.proto sends them binary, finga.v1.json as protojson with these field names.
+// The browser's WebSocket protocol: one ClientMessage or ServerMessage per frame, binary over subprotocol finga.v1.proto, protojson with these field names over finga.v1.json.
 
 package clientv1
 

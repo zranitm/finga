@@ -60,7 +60,7 @@ func TestTravel(t *testing.T) {
 	l := newLooter(p, snap)
 	l.pump(300*time.Millisecond, nil)
 
-	t.Run("B5/the-town-is-safe", func(t *testing.T) {
+	t.Run("the-town-is-safe", func(t *testing.T) {
 		if len(snap.Mobs) != 0 {
 			t.Fatalf("the town has %d mobs", len(snap.Mobs))
 		}
@@ -75,7 +75,7 @@ func TestTravel(t *testing.T) {
 		})
 	})
 
-	t.Run("B3/off-a-portal-EnterPortal-does-nothing", func(t *testing.T) {
+	t.Run("off-a-portal-EnterPortal-does-nothing", func(t *testing.T) {
 		if err := l.enterPortal(); err != nil {
 			t.Fatal(err)
 		}
@@ -84,7 +84,7 @@ func TestTravel(t *testing.T) {
 		}
 	})
 
-	t.Run("B3-B5/walk-from-the-town-to-the-cave-and-back", func(t *testing.T) {
+	t.Run("walk-from-the-town-to-the-cave-and-back", func(t *testing.T) {
 		// Portal centres, where hops start and arrivals land: town to_forest 1216, forest 64 and to_cave 1856, cave 64.
 		forest := l.hop(t, 1216, "forest", 64)
 		if len(forest.Mobs) == 0 {

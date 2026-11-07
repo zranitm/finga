@@ -4,8 +4,7 @@ package internal.item.v1;
 
 option go_package = "finga/api/gen/item/v1;itemv1";
 
-// ItemService owns items and inventories; every change is one transaction under an idempotency key.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// ItemService owns items and inventories, each change one transaction under an idempotency key; a failure carries a Reason in google.rpc.ErrorInfo.
 service ItemService {
   // Inventory lists a character's items, by tab and slot.
   rpc Inventory(InventoryRequest) returns (InventoryResponse);

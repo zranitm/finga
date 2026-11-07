@@ -803,8 +803,7 @@ func (*DeliverResponse_Detached) isDeliverResponse_Event() {}
 
 func (*DeliverResponse_Frame) isDeliverResponse_Event() {}
 
-// Frame is a map's Delta for one tick, sent once to each gateway with players there; each recipient
-// gets it with its own ack_seq.
+// Frame is a map's Delta for one tick, sent once to each gateway with players there, each recipient getting it with its own ack_seq.
 type Frame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// What changed on the map; its ack_seq is unset.
@@ -921,8 +920,7 @@ func (x *Recipient) GetAckSeq() uint32 {
 	return 0
 }
 
-// Detached is the character off every map through this connection: a portal's transfer failed. The
-// gateway joins it again, which puts it where it was last saved.
+// Detached is the character off every map through this connection, as a portal's transfer or a login elsewhere failed; the gateway joins it again, where it was last saved.
 type Detached struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -2055,8 +2053,7 @@ func (x *InventoryChanged) GetSlots() []*Slot {
 	return nil
 }
 
-// Slot is one changed inventory slot; item is unset when it emptied. The same fields as the item
-// service's, owned here.
+// Slot is one changed inventory slot, item unset when it emptied: the same fields as the item service's, owned here.
 type Slot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Tab           string                 `protobuf:"bytes,1,opt,name=tab,proto3" json:"tab,omitempty"`

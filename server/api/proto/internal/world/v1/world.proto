@@ -4,11 +4,9 @@ package internal.world.v1;
 
 option go_package = "finga/api/gen/world/v1;worldv1";
 
-// WorldService runs the map instances at 20 Hz; commands return once queued and their effects arrive on Deliver.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at 20 Hz; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
 service WorldService {
-  // Deliver streams Subscribed, then every event for the players who joined through that gateway.
-  // A gateway that falls behind loses the stream and its players, so it resubscribes and rejoins them.
+  // Deliver streams Subscribed, then every event for the players who joined through that gateway; one that falls behind loses the stream and its players, so it resubscribes and rejoins them.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
   // Join loads the account's character, grants missing starter items, and joins it to its map.
   rpc Join(JoinRequest) returns (JoinResponse);
@@ -117,8 +115,7 @@ message DeliverResponse {
   }
 }
 
-// Frame is a map's Delta for one tick, sent once to each gateway with players there; each recipient
-// gets it with its own ack_seq.
+// Frame is a map's Delta for one tick, sent once to each gateway with players there, each recipient getting it with its own ack_seq.
 message Frame {
   // What changed on the map; its ack_seq is unset.
   Delta delta = 1;
@@ -134,8 +131,7 @@ message Recipient {
   uint32 ack_seq = 3;
 }
 
-// Detached is the character off every map through this connection: a portal's transfer failed. The
-// gateway joins it again, which puts it where it was last saved.
+// Detached is the character off every map through this connection, as a portal's transfer or a login elsewhere failed; the gateway joins it again, where it was last saved.
 message Detached {}
 
 // Subscribed is a stream's first message.
@@ -263,8 +259,7 @@ message InventoryChanged {
   repeated Slot slots = 1;
 }
 
-// Slot is one changed inventory slot; item is unset when it emptied. The same fields as the item
-// service's, owned here.
+// Slot is one changed inventory slot, item unset when it emptied: the same fields as the item service's, owned here.
 message Slot {
   string tab = 1;
   int32 slot = 2;

@@ -6,8 +6,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "finga/api/gen/character/v1;characterv1";
 
-// CharacterService owns characters, their progression and the world's checkpoints.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// CharacterService owns characters, their progression and the world's checkpoints; a failure carries a Reason in google.rpc.ErrorInfo.
 service CharacterService {
   // Create makes a level 1 character in the town, then grants its starter items idempotently.
   rpc Create(CreateRequest) returns (CreateResponse);

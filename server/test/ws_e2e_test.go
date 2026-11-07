@@ -167,7 +167,7 @@ func TestWalkTogether(t *testing.T) {
 		}
 	})
 
-	t.Run("B2/each-sees-the-other-move", func(t *testing.T) {
+	t.Run("each-sees-the-other-move", func(t *testing.T) {
 		ayla.drain(300 * time.Millisecond) // land and settle
 		robin.drain(300 * time.Millisecond)
 		ayla.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
@@ -188,7 +188,7 @@ func TestWalkTogether(t *testing.T) {
 		robin.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
 	})
 
-	t.Run("B2/faster-inputs-do-not-move-faster", func(t *testing.T) {
+	t.Run("faster-inputs-do-not-move-faster", func(t *testing.T) {
 		ayla.drain(400 * time.Millisecond)
 		robin.drain(400 * time.Millisecond)
 		// For 20 ticks Ayla sends one input a tick and Robin ten; both cover the same distance, bounded by walk speed.

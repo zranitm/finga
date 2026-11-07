@@ -47,8 +47,7 @@ const movement = must(load('movement.yaml'), isRecord, 'movement.yaml');
 // exp_curve.yaml
 const expCurve = must(load('exp_curve.yaml'), isRecord, 'exp_curve.yaml');
 
-// items.yaml: templates with the stack size the server applies (1 for
-// equipment, 100 otherwise, unless max_stack says so).
+// items.yaml: templates with the stack size the server applies (1 for equipment, 100 otherwise, unless max_stack says so).
 const itemsFile = must(load('items.yaml'), isRecord, 'items.yaml');
 const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   const it = must(raw, isRecord, 'an item');

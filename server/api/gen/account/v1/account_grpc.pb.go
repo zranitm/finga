@@ -35,8 +35,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// AccountService owns accounts, sessions and settings; the gateway is its only caller.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// AccountService owns accounts, sessions and settings; the gateway is its only caller, and a failure carries a Reason in google.rpc.ErrorInfo.
 type AccountServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
 	// Login checks the credentials and issues a session, ending the account's older ones.
@@ -53,8 +52,7 @@ type AccountServiceClient interface {
 	RevokeAll(ctx context.Context, in *RevokeAllRequest, opts ...grpc.CallOption) (*RevokeAllResponse, error)
 	GetSettings(ctx context.Context, in *GetSettingsRequest, opts ...grpc.CallOption) (*GetSettingsResponse, error)
 	UpdateSettings(ctx context.Context, in *UpdateSettingsRequest, opts ...grpc.CallOption) (*UpdateSettingsResponse, error)
-	// WatchSessions streams Subscribed, then every revoked session and account.
-	// A gateway that falls behind loses its stream and resubscribes; its minute check covers the gap.
+	// WatchSessions streams Subscribed, then every revoked session and account; a gateway that falls behind loses its stream and resubscribes, its minute check covering the gap.
 	WatchSessions(ctx context.Context, in *WatchSessionsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchSessionsResponse], error)
 }
 
@@ -179,8 +177,7 @@ type AccountService_WatchSessionsClient = grpc.ServerStreamingClient[WatchSessio
 // All implementations must embed UnimplementedAccountServiceServer
 // for forward compatibility.
 //
-// AccountService owns accounts, sessions and settings; the gateway is its only caller.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// AccountService owns accounts, sessions and settings; the gateway is its only caller, and a failure carries a Reason in google.rpc.ErrorInfo.
 type AccountServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
 	// Login checks the credentials and issues a session, ending the account's older ones.
@@ -197,8 +194,7 @@ type AccountServiceServer interface {
 	RevokeAll(context.Context, *RevokeAllRequest) (*RevokeAllResponse, error)
 	GetSettings(context.Context, *GetSettingsRequest) (*GetSettingsResponse, error)
 	UpdateSettings(context.Context, *UpdateSettingsRequest) (*UpdateSettingsResponse, error)
-	// WatchSessions streams Subscribed, then every revoked session and account.
-	// A gateway that falls behind loses its stream and resubscribes; its minute check covers the gap.
+	// WatchSessions streams Subscribed, then every revoked session and account; a gateway that falls behind loses its stream and resubscribes, its minute check covering the gap.
 	WatchSessions(*WatchSessionsRequest, grpc.ServerStreamingServer[WatchSessionsResponse]) error
 	mustEmbedUnimplementedAccountServiceServer()
 }

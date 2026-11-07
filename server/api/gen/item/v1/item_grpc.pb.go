@@ -30,8 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ItemService owns items and inventories; every change is one transaction under an idempotency key.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// ItemService owns items and inventories, each change one transaction under an idempotency key; a failure carries a Reason in google.rpc.ErrorInfo.
 type ItemServiceClient interface {
 	// Inventory lists a character's items, by tab and slot.
 	Inventory(ctx context.Context, in *InventoryRequest, opts ...grpc.CallOption) (*InventoryResponse, error)
@@ -107,8 +106,7 @@ func (c *itemServiceClient) GrantStarter(ctx context.Context, in *GrantStarterRe
 // All implementations must embed UnimplementedItemServiceServer
 // for forward compatibility.
 //
-// ItemService owns items and inventories; every change is one transaction under an idempotency key.
-// A failure carries a Reason in google.rpc.ErrorInfo.
+// ItemService owns items and inventories, each change one transaction under an idempotency key; a failure carries a Reason in google.rpc.ErrorInfo.
 type ItemServiceServer interface {
 	// Inventory lists a character's items, by tab and slot.
 	Inventory(context.Context, *InventoryRequest) (*InventoryResponse, error)

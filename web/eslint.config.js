@@ -60,8 +60,7 @@ export default tseslint.config(
   importX.flatConfigs.recommended,
   importX.flatConfigs.typescript,
   {
-    // These two warn about the normal way of importing ESLint plugins (a
-    // default export that also has named exports); not worth the noise.
+    // These two warn about the normal way of importing ESLint plugins (a default export that also has named exports); not worth the noise.
     rules: {
       'import-x/no-named-as-default': 'off',
       'import-x/no-named-as-default-member': 'off',

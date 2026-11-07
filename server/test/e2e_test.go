@@ -305,7 +305,7 @@ func TestAcceptance(t *testing.T) {
 		}
 	})
 
-	t.Run("B6/settings-saved-and-returned", func(t *testing.T) {
+	t.Run("settings-saved-and-returned", func(t *testing.T) {
 		s := newStack(t)
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "dave", "password": "correct horse"}), http.StatusCreated)
 		token := s.call("POST", "/api/sessions", "", map[string]string{"username": "dave", "password": "correct horse"}).body["token"].(string)

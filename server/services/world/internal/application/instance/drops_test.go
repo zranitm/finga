@@ -674,8 +674,7 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 	})
 }
 
-// A key that already served another fingerprint means an earlier try was granted: the drop is gone, never released,
-// and as the slots it changed went with the lost reply, the player is sent the whole inventory instead.
+// A key that already served another fingerprint means an earlier try was granted: the drop is gone, never released, and the player is told the slots holding its item, as those it changed went with the lost reply.
 func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
 	gel := []model.Slot{{Tab: gamedata.Etc, Slot: 0, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "slime_gel", Quantity: 1}}}
 	for _, tt := range []struct {
