@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -15,7 +16,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/time/rate"
 
 	"finga/pkg/uuidv7"
 )
@@ -39,6 +39,30 @@ type Options struct {
 // errorGap spaces OpenTelemetry's error lines: with the collector down, every batch fails.
 const errorGap = time.Minute
 
+// errorLines logs OpenTelemetry's errors one per errorGap, each line counting the errors left out since the one before.
+type errorLines struct {
+	log *slog.Logger
+
+	mu         sync.Mutex
+	last       time.Time
+	suppressed int
+}
+
+// Handle implements otel.ErrorHandler.
+func (e *errorLines) Handle(err error) {
+	e.mu.Lock()
+	now := time.Now()
+	if !e.last.IsZero() && now.Sub(e.last) < errorGap {
+		e.suppressed++
+		e.mu.Unlock()
+		return
+	}
+	suppressed := e.suppressed
+	e.last, e.suppressed = now, 0
+	e.mu.Unlock()
+	e.log.WarnContext(context.Background(), "opentelemetry error", "err", err, "suppressed", suppressed)
+}
+
 // New is the process's tracer provider; Shutdown flushes what it has not exported yet.
 func New(ctx context.Context, cfg Config, opts Options) (*sdktrace.TracerProvider, error) {
 	root := opts.Root
@@ -46,10 +70,7 @@ func New(ctx context.Context, cfg Config, opts Options) (*sdktrace.TracerProvide
 		root = func(string) bool { return false }
 	}
 	if opts.Logger != nil {
-		sometimes := &rate.Sometimes{First: 1, Interval: errorGap}
-		otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-			sometimes.Do(func() { opts.Logger.WarnContext(context.Background(), "opentelemetry error", "err", err) })
-		}))
+		otel.SetErrorHandler(&errorLines{log: opts.Logger})
 	}
 	res, err := processResource(opts)
 	if err != nil {

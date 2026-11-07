@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -108,18 +110,27 @@ func TestTheResourceNamesTheServiceItsVersionAndProcess(t *testing.T) {
 	}
 }
 
-// OpenTelemetry's own errors, such as a failed export, go to the service's logger, sampled.
+// OpenTelemetry's own errors, such as a failed export, go to the service's logger, one a minute, each line counting those left out.
 func TestOpenTelemetrysErrorsGoToTheLoggerSampled(t *testing.T) {
-	var logs bytes.Buffer
-	if _, err := tracing.New(t.Context(), tracing.Config{}, tracing.Options{Service: "shop", Logger: slog.New(slog.NewJSONHandler(&logs, nil))}); err != nil {
-		t.Fatal(err)
-	}
-	for range 3 {
+	prev := otel.GetErrorHandler()
+	t.Cleanup(func() { otel.SetErrorHandler(prev) }) // the handler is process-wide
+	synctest.Test(t, func(t *testing.T) {
+		var logs bytes.Buffer
+		if _, err := tracing.New(t.Context(), tracing.Config{}, tracing.Options{Service: "shop", Logger: slog.New(slog.NewJSONHandler(&logs, nil))}); err != nil {
+			t.Fatal(err)
+		}
+		for range 3 {
+			otel.Handle(errors.New("traces export: connection refused"))
+		}
+		if got := strings.Count(logs.String(), "connection refused"); got != 1 || !strings.Contains(logs.String(), `"suppressed":0`) {
+			t.Fatalf("%d lines for 3 errors; want 1, with none suppressed before it:\n%s", got, logs.String())
+		}
+		time.Sleep(time.Minute)
 		otel.Handle(errors.New("traces export: connection refused"))
-	}
-	if got := strings.Count(logs.String(), "connection refused"); got != 1 {
-		t.Fatalf("%d lines for 3 errors; want 1:\n%s", got, logs.String())
-	}
+		if got := strings.Count(logs.String(), "connection refused"); got != 2 || !strings.Contains(logs.String(), `"suppressed":2`) {
+			t.Fatalf("%d lines; want a second a minute on, counting the 2 left out:\n%s", got, logs.String())
+		}
+	})
 }
 
 func TestTheEndpointIsAHostAndPort(t *testing.T) {
