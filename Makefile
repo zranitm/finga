@@ -15,7 +15,8 @@ OBSERVED = $(if $(OBS),COMPOSE_PROFILES=obs FINGA_TRACING_OTLP_ENDPOINT=alloy:43
 
 up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway); OBS=1 adds Grafana, Mimir, Loki and Tempo
 	$(OBSERVED) $(COMPOSE) build
-	COMPOSE_PROFILES=obs $(COMPOSE) stop
+	$(COMPOSE) stop # the game alone first, so a running obs stack still collects its last logs and spans
+	$(if $(OBS),,COMPOSE_PROFILES=obs $(COMPOSE) stop)
 	$(OBSERVED) $(COMPOSE) up -d
 	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); the gateway: http://localhost:$$($(COMPOSE) port gateway 8080 | sed 's|.*:||')"
 
