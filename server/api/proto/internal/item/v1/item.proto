@@ -97,7 +97,7 @@ message AddRequest {
 
 message AddResponse {
   repeated Slot changed = 1;
-  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
   uint64 revision = 2;
 }
 
@@ -112,7 +112,7 @@ message MoveRequest {
 
 message MoveResponse {
   repeated Slot changed = 1;
-  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
   uint64 revision = 2;
 }
 
@@ -126,7 +126,7 @@ message DiscardRequest {
 
 message DiscardResponse {
   repeated Slot changed = 1;
-  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
   uint64 revision = 2;
 }
 
@@ -137,6 +137,6 @@ message GrantStarterRequest {
 
 message GrantStarterResponse {
   repeated Slot changed = 1;
-  // The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+  // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
   uint64 revision = 2;
 }

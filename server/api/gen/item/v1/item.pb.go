@@ -584,7 +584,7 @@ func (x *AddRequest) GetCause() *Cause {
 type AddResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
-	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
 	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -714,7 +714,7 @@ func (x *MoveRequest) GetSlot() int32 {
 type MoveResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
-	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
 	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -836,7 +836,7 @@ func (x *DiscardRequest) GetQuantity() int32 {
 type DiscardResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
-	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
 	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -941,7 +941,7 @@ func (x *GrantStarterRequest) GetClass() string {
 type GrantStarterResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
-	// The inventory's revision after this change, kept by a replay; 0 when nothing changed.
+	// The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
 	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
