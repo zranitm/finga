@@ -73,6 +73,15 @@ type drop struct {
 	reservedBy kernel.CharacterID // zero when free
 	// unsettled: its pickup's outcome is unknown, so only reservedBy retries it, as the item service keys per account.
 	unsettled bool
+	last      *pickup // the latest pickup, which an unsettled drop tries once more as it expires
+}
+
+// pickup is one grant of a drop: what to ask the item service, the command it links to, and who hears the outcome.
+type pickup struct {
+	drop  uint64
+	in    model.Pickup
+	cause trace.SpanContext
+	done  func(ctx context.Context, r Result)
 }
 
 func (d *drop) view() model.DropView {
@@ -129,14 +138,17 @@ func (g *Ground) Roll(mob gamedata.Mob, x, y float64, killer kernel.CharacterID)
 	}
 }
 
-// Expire takes away the drops past their life that no pickup holds.
+// Expire takes away the drops past their life that no pickup holds; an unsettled one goes with a last grant under its key.
 func (g *Ground) Expire() {
 	g.drops = slices.DeleteFunc(g.drops, func(d *drop) bool {
-		gone := d.expiresAt <= g.tick && (d.reservedBy.IsZero() || d.unsettled)
-		if gone {
-			g.removed = append(g.removed, d.id)
+		if d.expiresAt > g.tick || !d.reservedBy.IsZero() && !d.unsettled {
+			return false
 		}
-		return gone
+		if d.unsettled && !g.submit(*d.last, true) {
+			return false // no worker free for its last try; the next tick asks again
+		}
+		g.removed = append(g.removed, d.id)
+		return true
 	})
 }
 
@@ -154,6 +166,7 @@ type Result struct {
 	drop  uint64
 	slots []model.Slot
 	err   error
+	last  bool // the try an unsettled drop made as it expired
 }
 
 // PickUp reserves the nearest drop p may take for a worker to grant, which hands done the Result; else ErrPickupBusy.
@@ -174,17 +187,22 @@ func (g *Ground) PickUp(p Picker, done func(ctx context.Context, r Result)) erro
 	if best == nil {
 		return nil
 	}
-	unsettled := best.unsettled
-	best.reservedBy, best.unsettled = p.ID, false
 	in := model.Pickup{Account: p.Account, Character: p.ID, DropID: best.key, Template: best.template, Quantity: best.quantity}
-	id := best.id
-	if !g.deps.Workers.Submit(func(ctx context.Context) { done(ctx, g.grant(ctx, id, in, p.Cause)) }) {
-		if best.unsettled = unsettled; !unsettled {
-			best.reservedBy = kernel.CharacterID{}
-		}
+	pu := pickup{drop: best.id, in: in, cause: p.Cause, done: done}
+	if !g.submit(pu, false) {
 		return model.ErrPickupBusy
 	}
+	best.reservedBy, best.unsettled, best.last = p.ID, false, &pu
 	return nil
+}
+
+// submit hands a worker the grant of pu, false when none can take it.
+func (g *Ground) submit(pu pickup, last bool) bool {
+	return g.deps.Workers.Submit(func(ctx context.Context) {
+		r := g.grant(ctx, pu)
+		r.last = last
+		pu.done(ctx, r)
+	})
 }
 
 const tracerName = "finga/services/world/internal/application/loot"
@@ -196,11 +214,12 @@ const pickupSpan = "world.pickup"
 func EntryPoint(span string) bool { return span == pickupSpan }
 
 // grant asks the item service for the drop, on a worker, retrying a transient failure once under the same key.
-func (g *Ground) grant(ctx context.Context, id uint64, in model.Pickup, cause trace.SpanContext) Result {
+func (g *Ground) grant(ctx context.Context, pu pickup) Result {
+	in := pu.in
 	opts := []trace.SpanStartOption{trace.WithNewRoot(), trace.WithAttributes(
 		attribute.String("character_id", in.Character.String()), attribute.String("drop_id", in.DropID.String()))}
-	if cause.IsValid() {
-		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: cause}))
+	if pu.cause.IsValid() {
+		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: pu.cause}))
 	}
 	ctx, span := g.tracer.Start(ctx, pickupSpan, opts...)
 	defer span.End()
@@ -217,7 +236,7 @@ func (g *Ground) grant(ctx context.Context, id uint64, in model.Pickup, cause tr
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 	}
-	return Result{Who: in.Character, drop: id, slots: slots, err: err}
+	return Result{Who: in.Character, drop: pu.drop, slots: slots, err: err}
 }
 
 func (g *Ground) add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
@@ -240,12 +259,15 @@ func (g *Ground) held(ctx context.Context, id kernel.CharacterID) []model.Slot {
 // Settle applies a pickup's outcome, removing, freeing or holding its drop; it returns what to tell the picker.
 func (g *Ground) Settle(r Result) (model.Event, bool) {
 	k := slices.IndexFunc(g.drops, func(d *drop) bool { return d.id == r.drop })
+	if r.err != nil && r.last {
+		return nil, false // the drop is gone, and the picker heard of the failure already
+	}
 	if r.err != nil {
 		if k >= 0 && g.drops[k].reservedBy == r.Who {
 			if errors.Is(r.err, model.ErrPickupsUnavailable) {
 				g.drops[k].unsettled = true // the add may have committed before its reply was lost
 			} else {
-				g.drops[k].reservedBy = kernel.CharacterID{}
+				g.drops[k].reservedBy, g.drops[k].last = kernel.CharacterID{}, nil
 			}
 		}
 		return model.PickupFailed{Tick: g.tick, Err: r.err}, true

@@ -83,6 +83,7 @@ func (jobs) JobFinished() {}
 type scene struct {
 	g                      *loot.Ground
 	items                  *pickups
+	workers                *economy.Workers
 	killer, mate, stranger loot.Picker
 }
 
@@ -99,7 +100,7 @@ func newScene(t *testing.T, items *pickups, run bool) scene {
 	at := func() loot.Picker {
 		return loot.Picker{ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), X: dropX, Y: dropY}
 	}
-	s := scene{items: items, killer: at(), mate: at(), stranger: at()}
+	s := scene{items: items, workers: workers, killer: at(), mate: at(), stranger: at()}
 	s.g = loot.NewGround(loot.Deps{Items: items, Workers: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: noop.NewTracerProvider(), Roll: worldtest.FixedRoll{V: 0}}, loot.Tuning{TickInterval: tick})
 	s.g.Begin(1)
 	s.g.Roll(slime, 200, dropY, s.killer.ID)
@@ -268,4 +269,92 @@ func TestADropPastItsLifeLeavesUnlessAPickupHoldsIt(t *testing.T) {
 			}
 		})
 	}
+}
+
+// late is the tick the slime's drop, rolled at tick 1, reaches the end of its life.
+const late = 1 + uint64(60*time.Second/tick)
+
+// unsettle has the killer reach for the drop with the item service down, so its outcome is unknown; done hears each later grant.
+func (s scene) unsettle(t *testing.T) <-chan loot.Result {
+	t.Helper()
+	results := make(chan loot.Result, 1)
+	if err := s.g.PickUp(s.killer, func(_ context.Context, r loot.Result) { results <- r }); err != nil {
+		t.Fatal(err)
+	}
+	synctest.Wait()
+	event, _ := s.g.Settle(<-results)
+	if failed, ok := event.(model.PickupFailed); !ok || !errors.Is(failed.Err, model.ErrPickupsUnavailable) {
+		t.Fatalf("told %#v; want the pickups unavailable", event)
+	}
+	return results
+}
+
+// A drop whose grant may have landed is not just dropped at the end of its life: a last grant under its key tells the picker.
+func TestAnUnsettledDropTriesOnceMoreAsItExpires(t *testing.T) {
+	tests := []struct {
+		name  string
+		after []answer // the item service's answers to the last try
+		event model.Event
+	}{
+		{"the replay grants it", []answer{{slots: gel}}, model.InventoryChanged{Tick: late, Slots: gel}},
+		{"the item service is still down", []answer{{err: errDown}, {err: errDown}}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				items := &pickups{answers: append([]answer{{err: errDown}, {err: errDown}}, tt.after...)}
+				s := newScene(t, items, true)
+				results := s.unsettle(t)
+				s.g.Begin(late)
+				s.g.Expire()
+				if _, removed := s.g.Changes(); len(s.g.Views()) != 0 || len(removed) != 1 {
+					t.Fatalf("drops %+v removed %v; want the drop gone at the end of its life", s.g.Views(), removed)
+				}
+				synctest.Wait()
+				var r loot.Result
+				select {
+				case r = <-results:
+				default:
+					t.Fatal("no last try")
+				}
+				event, told := s.g.Settle(r)
+				if told != (tt.event != nil) || !reflect.DeepEqual(event, tt.event) {
+					t.Fatalf("told %v %#v, want %#v", told, event, tt.event)
+				}
+				calls := items.added()
+				if len(calls) != 2+len(tt.after) || calls[2].DropID != calls[0].DropID {
+					t.Fatalf("calls %+v; want the last try under the first key", calls)
+				}
+			})
+		})
+	}
+}
+
+// With every worker busy, an unsettled drop stays past its life until one is free for its last try.
+func TestAnUnsettledDropWaitsForAWorkerToTryOnceMore(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		s := newScene(t, &pickups{answers: []answer{{err: errDown}, {err: errDown}, {slots: gel}}}, true)
+		results := s.unsettle(t)
+		release := make(chan struct{})
+		s.workers.Submit(func(context.Context) { <-release })
+		synctest.Wait()
+		for s.workers.Submit(func(context.Context) {}) {
+		}
+		s.g.Begin(late)
+		s.g.Expire()
+		if len(s.g.Views()) != 1 {
+			t.Fatal("the drop left with no worker free for its last try")
+		}
+		close(release)
+		synctest.Wait()
+		s.g.Begin(late + 1)
+		s.g.Expire()
+		if len(s.g.Views()) != 0 {
+			t.Fatal("the drop stayed once a worker was free")
+		}
+		synctest.Wait()
+		if event, _ := s.g.Settle(<-results); !reflect.DeepEqual(event, model.InventoryChanged{Tick: late + 1, Slots: gel}) {
+			t.Fatalf("told %#v; want the gel granted", event)
+		}
+	})
 }
