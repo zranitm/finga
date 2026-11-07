@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// ErrNotV7 is text that is not a version 7 UUID.
-var ErrNotV7 = errors.New("uuidv7: not a version 7 UUID")
+// errNotV7 is text that is not a version 7 UUID.
+var errNotV7 = errors.New("uuidv7: not a version 7 UUID")
 
 // New is a fresh UUIDv7; it panics only if the system's random source fails.
 func New() uuid.UUID {
@@ -22,11 +22,11 @@ func New() uuid.UUID {
 // NewString is New in its canonical text form.
 func NewString() string { return New().String() }
 
-// Parse reads a version 7 UUID in any form google/uuid accepts; anything else, the nil UUID included, is ErrNotV7.
+// Parse reads a version 7 UUID in any form google/uuid accepts; anything else, the nil UUID included, is an error.
 func Parse(s string) (uuid.UUID, error) {
 	u, err := uuid.Parse(s)
 	if err != nil || u.Version() != 7 {
-		return uuid.UUID{}, ErrNotV7
+		return uuid.UUID{}, errNotV7
 	}
 	return u, nil
 }
