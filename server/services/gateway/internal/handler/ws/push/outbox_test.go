@@ -27,6 +27,7 @@ func TestEndTellsTheClientWhyWhenTheProtocolHasAReason(t *testing.T) {
 		{model.EndServerRestart, clientv1.KickReason_KICK_REASON_SERVER_RESTART, wsconn.CloseKicked, "server_restart"},
 		{model.EndDeliveryBacklog, clientv1.KickReason_KICK_REASON_UNSPECIFIED, wsconn.CloseInternal, "delivery_backlog"},
 		{model.EndRejoinFailed, clientv1.KickReason_KICK_REASON_UNSPECIFIED, wsconn.CloseInternal, "rejoin_failed"},
+		{model.EndTickRateChanged, clientv1.KickReason_KICK_REASON_UNSPECIFIED, wsconn.CloseInternal, "tick_rate_changed"},
 	}
 	for _, tt := range tests {
 		t.Run(string(tt.reason), func(t *testing.T) {

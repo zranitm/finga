@@ -192,7 +192,12 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		s.outbox.End(model.EndRejoinFailed)
 		return
 	}
-	s.tickRate.Store(int32(joined.TickRateHz)) //nolint:gosec // a tick rate is small
+	if was := s.tickRate.Swap(int32(joined.TickRateHz)); was != int32(joined.TickRateHz) { //nolint:gosec // a tick rate is small
+		s.out.abort() // the client predicts at the rate its Welcome gave, so it reconnects for the new one
+		r.deps.Logger.InfoContext(ctx, "rejoined at another tick rate; the client reconnects", "character_id", s.Character(), "from_hz", was, "to_hz", joined.TickRateHz)
+		s.outbox.End(model.EndTickRateChanged)
+		return
+	}
 	s.joinSeq.Store(joined.JoinSeq)
 	var first func()
 	if joined.MapID != before {

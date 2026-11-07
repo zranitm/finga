@@ -37,6 +37,7 @@ const (
 	EndServerRestart     EndReason = "server_restart"
 	EndDeliveryBacklog   EndReason = "delivery_backlog" // a join held more deliveries than it may
 	EndRejoinFailed      EndReason = "rejoin_failed"
+	EndTickRateChanged   EndReason = "tick_rate_changed" // a rejoin found the world at another rate, which the client learns from a new Welcome
 )
 
 // Welcome is what a joined player starts from; Token replaces the one Hello sent.

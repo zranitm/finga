@@ -321,6 +321,7 @@ type world struct {
 	deliver     func(model.WorldEvent)
 	following   chan struct{} // closed once the gateway follows the stream
 	leaves      int
+	tickRate    int // what Join reports
 }
 
 func (w *world) left() int {
@@ -331,7 +332,7 @@ func (w *world) left() int {
 
 func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c kernel.CharacterID) (model.Joined, error) {
 	w.mu.Lock()
-	err, flood, deliver := w.joinErr, w.flood, w.deliver
+	err, flood, deliver, hz := w.joinErr, w.flood, w.deliver, w.tickRate
 	w.mu.Unlock()
 	if err != nil {
 		return model.Joined{}, err
@@ -343,7 +344,14 @@ func (w *world) Join(_ context.Context, _, conn string, _ kernel.AccountID, c ke
 		}
 		deliver(model.WorldDelivery{Connection: conn, Delivery: d})
 	}
-	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town"}, nil
+	return model.Joined{Character: model.CharacterView{ID: c.String(), Name: "Ayla", Level: 1}, MapID: "town", TickRateHz: hz}, nil
+}
+
+// runAt has the world run at hz from now on, as after a restart with another rate.
+func (w *world) runAt(hz int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.tickRate = hz
 }
 
 func (w *world) failJoins(err error) {
@@ -417,6 +425,19 @@ func TestSessionsTheGatewayEnds(t *testing.T) {
 		w.failJoins(errors.New("boom"))
 		w.reconnect()
 		if got := o.ended(t); got != model.EndRejoinFailed {
+			t.Fatalf("ended as %s", got)
+		}
+	})
+	t.Run("a rejoin onto a world at another tick rate ends as tick_rate_changed, so the client reconnects to learn it", func(t *testing.T) {
+		w := &world{tickRate: 20}
+		g := running(t, w)
+		o := &outbox{ends: make(chan model.EndReason, 1)}
+		if err := g.Hello(t.Context(), g.Open("c-1", o), token, ayla); err != nil {
+			t.Fatal(err)
+		}
+		w.runAt(30)
+		w.reconnect()
+		if got := o.ended(t); got != model.EndTickRateChanged {
 			t.Fatalf("ended as %s", got)
 		}
 	})
