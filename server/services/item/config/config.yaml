@@ -25,3 +25,4 @@ idempotency_keys:         # a retry within keep replays the first answer; after 
   keep: 24h               # far past any caller's retries, which last seconds
   prune_every: 10m        # how often older keys are deleted
   prune_batch: 1000       # keys per DELETE, so none holds its locks long
+  prune_gap: 100ms        # the pause between batches, so other writers get the table in between

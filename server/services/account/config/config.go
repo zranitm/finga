@@ -27,6 +27,7 @@ type Sessions struct {
 	Keep       time.Duration `mapstructure:"keep" validate:"gt=0"`         // after the session ended
 	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older ones are deleted
 	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // sessions per DELETE
+	PruneGap   time.Duration `mapstructure:"prune_gap" validate:"gte=0"`   // the pause between DELETEs
 }
 
 // Password is the Argon2id cost of a password hash, raised as the hardware allows; a login rehashes an older one.

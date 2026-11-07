@@ -18,3 +18,4 @@ members:                  # a member offline and in no party is forgotten keep a
   keep: 1h                # well past a gateway's 30 s grace, so one that comes back finds what the world reported
   prune_every: 5m         # how often older ones are forgotten
   prune_batch: 1000       # members per pass, so none holds the store's lock long
+  prune_gap: 100ms        # the pause between batches, so other writers get the store in between

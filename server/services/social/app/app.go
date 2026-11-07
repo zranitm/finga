@@ -31,7 +31,7 @@ func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *promethe
 	}
 	streams := handler.NewStreams(uuidv7.NewString())
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	gone := retention.Policy{Keep: cfg.Members.Keep, Every: cfg.Members.PruneEvery, Batch: cfg.Members.PruneBatch}
+	gone := retention.Policy{Keep: cfg.Members.Keep, Every: cfg.Members.PruneEvery, Batch: cfg.Members.PruneBatch, Gap: cfg.Members.PruneGap}
 	h.Task("member retention", func(ctx context.Context) error {
 		return retention.Run(ctx, "members", gone, parties.PruneMembers, retentionMetrics, log)
 	})

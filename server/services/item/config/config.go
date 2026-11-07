@@ -29,6 +29,7 @@ type IdempotencyKeys struct {
 	Keep       time.Duration `mapstructure:"keep" validate:"gt=0"`         // never under idempotency.MinKeep, as a retry after it runs the command again
 	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older keys are deleted
 	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // keys per DELETE
+	PruneGap   time.Duration `mapstructure:"prune_gap" validate:"gte=0"`   // the pause between DELETEs
 }
 
 // Validate refuses a key kept less than the idempotency library's floor.

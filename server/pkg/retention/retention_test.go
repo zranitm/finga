@@ -112,12 +112,12 @@ func TestRunDeletesWhatOutlivedItsKeepEveryInterval(t *testing.T) {
 	})
 }
 
-// The batches of a pass are spaced, so other writers get the table between them.
+// The batches of a pass are spaced by the policy's gap, so other writers get the table between them.
 func TestAPassPausesBetweenBatches(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		old := time.Now().Add(-48 * time.Hour)
 		tb := &table{ages: []time.Time{old, old, old}}
-		stop := start(tb, retention.Policy{Keep: 24 * time.Hour, Every: time.Hour, Batch: 1})
+		stop := start(tb, retention.Policy{Keep: 24 * time.Hour, Every: time.Hour, Batch: 1, Gap: 250 * time.Millisecond})
 		time.Sleep(time.Minute)
 		synctest.Wait()
 		if err := stop(); err != nil {
@@ -127,8 +127,8 @@ func TestAPassPausesBetweenBatches(t *testing.T) {
 			t.Fatalf("%d rows left after %d calls; want the pass to finish", len(tb.ages), len(tb.at))
 		}
 		for i := 1; i < len(tb.at); i++ {
-			if tb.at[i].Equal(tb.at[i-1]) {
-				t.Fatalf("batches at %v; want a pause between each", tb.at)
+			if gap := tb.at[i].Sub(tb.at[i-1]); gap != 250*time.Millisecond {
+				t.Fatalf("batches at %v; want the gap between each", tb.at)
 			}
 		}
 	})

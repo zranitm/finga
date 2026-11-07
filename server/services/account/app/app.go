@@ -43,7 +43,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		h.Close()
 		return nil, err
 	}
-	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch}
+	ended := retention.Policy{Keep: cfg.Sessions.Keep, Every: cfg.Sessions.PruneEvery, Batch: cfg.Sessions.PruneBatch, Gap: cfg.Sessions.PruneGap}
 	h.Task("session retention", func(ctx context.Context) error {
 		return retention.Run(ctx, "sessions", ended, accounts.PruneSessions, retentionMetrics, log)
 	})

@@ -7,11 +7,12 @@ import (
 	"time"
 )
 
-// Policy is how long rows are kept, how often the older ones are deleted, and how many per statement.
+// Policy is how long rows are kept, how often the older ones are deleted, how many per statement, and the pause between statements.
 type Policy struct {
 	Keep  time.Duration
 	Every time.Duration
-	Batch int // so no one statement holds its locks long
+	Batch int           // so no one statement holds its locks long
+	Gap   time.Duration // so other writers get the table between a pass's batches
 }
 
 // Delete removes at most limit rows from before before, and reports how many it removed.
@@ -44,9 +45,6 @@ func Run(ctx context.Context, table string, p Policy, del Delete, obs Observer, 
 	}
 }
 
-// batchGap is the pause between a pass's batches, so other writers get the table in between.
-const batchGap = 100 * time.Millisecond
-
 // pass deletes a batch at a time until one comes back short.
 func pass(ctx context.Context, p Policy, del Delete) (int64, error) {
 	before := time.Now().Add(-p.Keep)
@@ -60,7 +58,7 @@ func pass(ctx context.Context, p Policy, del Delete) (int64, error) {
 		select {
 		case <-ctx.Done():
 			return total, ctx.Err()
-		case <-time.After(batchGap):
+		case <-time.After(p.Gap):
 		}
 	}
 }

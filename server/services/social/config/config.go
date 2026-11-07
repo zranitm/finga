@@ -24,6 +24,7 @@ type Members struct {
 	Keep       time.Duration `mapstructure:"keep" validate:"min=5m"`       // after going offline; never under a few minutes, as a gateway back within its 30 s grace re-registers from it
 	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older ones are forgotten
 	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // members per pass of the store's lock
+	PruneGap   time.Duration `mapstructure:"prune_gap" validate:"gte=0"`   // the pause between passes
 }
 
 // Host is the part of the configuration the host runs the service with.

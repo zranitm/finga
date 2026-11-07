@@ -30,3 +30,4 @@ sessions:                 # a session that ended, revoked or expired, is deleted
   keep: 720h              # 30 days
   prune_every: 1h         # how often older ones are deleted
   prune_batch: 1000       # sessions per DELETE, so none holds its locks long
+  prune_gap: 100ms        # the pause between batches, so other writers get the table in between

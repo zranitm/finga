@@ -50,7 +50,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	h.Task("outbox gauge", func(ctx context.Context) error {
 		return outboxMetrics.Track(ctx, outboxCountEvery, func(ctx context.Context) (int64, error) { return outboxpg.Unpublished(ctx, pool) }, log)
 	})
-	keys := retention.Policy{Keep: cfg.IdempotencyKeys.Keep, Every: cfg.IdempotencyKeys.PruneEvery, Batch: cfg.IdempotencyKeys.PruneBatch}
+	keys := retention.Policy{Keep: cfg.IdempotencyKeys.Keep, Every: cfg.IdempotencyKeys.PruneEvery, Batch: cfg.IdempotencyKeys.PruneBatch, Gap: cfg.IdempotencyKeys.PruneGap}
 	pruneKeys := func(ctx context.Context, before time.Time, limit int) (int64, error) {
 		return idempotencypg.Prune(ctx, pool, before, limit)
 	}
