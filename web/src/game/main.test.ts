@@ -19,11 +19,14 @@ const world = {
   tickRateHz: 20,
 };
 
-/** What each World start was given, the Arrival read back as the map and rate it names. */
+/** What each World start was given, the Arrival read back as the map and rate it names; the visit is checked on its own. */
 function startedWith(game: FakeGame | undefined) {
   return game?.started.map(([key, data]) => {
-    const { arriving, ...player } = data as WorldData;
-    return [key, { ...player, mapId: arriving.mapId, tickRateHz: arriving.tickRateHz }];
+    const { arriving, characterId, cls, name } = data as WorldData;
+    return [
+      key,
+      { characterId, cls, name, mapId: arriving.mapId, tickRateHz: arriving.tickRateHz },
+    ];
   });
 }
 
@@ -100,6 +103,20 @@ describe('GameHandle', () => {
     act(handle);
     expect(startedWith(FakeGame.instances[0])).toEqual(started);
     expect(FakeGame.instances[0]?.stopped).toEqual(stopped);
+  });
+
+  it('each enter and leave starts a visit: the registry names it, and a World start carries its own', () => {
+    const handle = new GameHandle({ socket });
+    handle.enter(world);
+    handle.attach(document.createElement('div'));
+    const game = FakeGame.instances[0]!;
+    const visitOf = (k: number) => (game.started[k]?.[1] as WorldData).visit;
+    expect(game.registry.get(REGISTRY.visit)).toBe(visitOf(0));
+    handle.enter({ ...world, mapId: 'forest' });
+    expect(visitOf(1)).not.toBe(visitOf(0));
+    expect(game.registry.get(REGISTRY.visit)).toBe(visitOf(1));
+    handle.leave();
+    expect([visitOf(0), visitOf(1)]).not.toContain(game.registry.get(REGISTRY.visit));
   });
 
   it('holds the map’s messages from enter on, and a later enter or leave lets go of the socket', () => {

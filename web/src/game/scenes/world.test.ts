@@ -79,6 +79,7 @@ function entered(socket: GameSocket, mapId: string, assetsReady = true) {
   }
   fake.registry.set(REGISTRY.socket, socket);
   fake.registry.set(REGISTRY.assetsReady, assetsReady);
+  fake.registry.set(REGISTRY.visit, 1);
   const built: string[] = [];
   const get = fake.cache.json.get.bind(fake.cache.json);
   vi.spyOn(fake.cache.json, 'get').mockImplementation((key) => {
@@ -90,6 +91,7 @@ function entered(socket: GameSocket, mapId: string, assetsReady = true) {
     characterId: ME,
     cls: 'warrior',
     name: 'Ayla',
+    visit: 1,
     arriving: new Arrival(socket, mapId, RATE),
   };
   runner.start(data);
@@ -108,7 +110,11 @@ function entered(socket: GameSocket, mapId: string, assetsReady = true) {
     fake.registry.set(REGISTRY.assetsReady, true);
     fake.game.events.emit(EVENTS.assetsReady);
   };
-  return { runner, built, frames, inputs, assetsLoaded };
+  const leave = () => {
+    fake.registry.set(REGISTRY.visit, 2); // as the game's leave: this visit is over
+    runner.stop();
+  };
+  return { runner, built, frames, inputs, assetsLoaded, leave };
 }
 
 /** A World scene on a real socket, entered on mapId and placed by its first Snapshot. */
@@ -167,6 +173,23 @@ describe('World', () => {
     FakeWebSocket.latest().push('mapChange', { mapId: 'forest', x: 100, y: 200 });
     expect(runner.camera.fading).toBe(true);
     runner.stop(); // back to characters, or a kick, before the fade ends
+    expect(listeners()).toBe(0);
+  });
+
+  it('a restart queued as the app leaves the world builds nothing behind its screens', async () => {
+    const { runner, built, frames, inputs, leave, listeners } = await playing('forest');
+    FakeWebSocket.latest().closeFromServer(1006);
+    vi.advanceTimersByTime(10);
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.push('welcome', { token: 'tok-2', mapId: 'town', tickRateHz: RATE }); // queues a restart onto the town
+    ws.push('snapshot', snapshotOn('town'), { tick: 900 });
+    leave(); // back to characters before the next step runs it
+    const sent = inputs();
+    frames(3);
+    expect(built).not.toContain(mapKey('town'));
+    expect(runner.isRunning).toBe(false);
+    expect(inputs()).toBe(sent);
     expect(listeners()).toBe(0);
   });
 

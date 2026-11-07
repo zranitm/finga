@@ -28,12 +28,14 @@ export function gameConfig(parent: HTMLElement): Phaser.Types.Core.GameConfig {
 export class GameHandle {
   private game: Phaser.Game | null = null;
   private pending: WorldData | null = null;
+  private visit = 0; // each enter and leave starts the next
 
   constructor(private readonly deps: GameDeps) {}
 
   attach(parent: HTMLElement): () => void {
     const game = new Phaser.Game(gameConfig(parent));
     game.registry.set(REGISTRY.socket, this.deps.socket);
+    game.registry.set(REGISTRY.visit, this.visit);
     this.game = game;
     if (this.pending) {
       game.scene.start(SCENES.World, this.pending);
@@ -50,8 +52,10 @@ export class GameHandle {
   enter(entry: WorldEntry): void {
     const { mapId, tickRateHz, ...player } = entry;
     this.pending?.arriving.take();
+    this.visit++;
     const data: WorldData = {
       ...player,
+      visit: this.visit,
       arriving: new Arrival(this.deps.socket, mapId, tickRateHz),
     };
     this.pending = data;
@@ -59,6 +63,7 @@ export class GameHandle {
     if (!game) {
       return;
     }
+    game.registry.set(REGISTRY.visit, this.visit);
     if (game.scene.isActive(SCENES.World)) {
       game.scene.stop(SCENES.World);
     }
@@ -69,6 +74,8 @@ export class GameHandle {
   leave(): void {
     this.pending?.arriving.take();
     this.pending = null;
+    this.visit++;
+    this.game?.registry.set(REGISTRY.visit, this.visit);
     this.game?.scene.stop(SCENES.World);
   }
 

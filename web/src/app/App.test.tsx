@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SCENES } from '@/game/keys';
 import { GameHandle } from '@/game/main';
+import { REGISTRY } from '@/game/registry';
 import type { WorldData } from '@/game/scenes/world';
 import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
@@ -88,13 +89,14 @@ describe('App', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument(); // connected: no notice
     await waitFor(() => expect(game.started).toHaveLength(1));
     const [scene, data] = game.started[0]!;
-    const { arriving, ...player } = data as WorldData;
+    const { arriving, visit, ...player } = data as WorldData;
     expect([scene, player, arriving.mapId, arriving.tickRateHz]).toEqual([
       SCENES.World,
       { characterId: 'c-ayla', cls: 'warrior', name: 'Ayla' },
       'town',
       30,
     ]);
+    expect(game.registry.get(REGISTRY.visit)).toBe(visit);
 
     await userEvent.click(screen.getByRole('button', { name: 'Back to characters' }));
     expect(game.stopped).toEqual([SCENES.World]);

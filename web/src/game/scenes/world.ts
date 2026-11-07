@@ -54,6 +54,8 @@ export interface WorldEntry {
 type Player = Omit<WorldEntry, 'mapId' | 'tickRateHz'>;
 
 export interface WorldData extends Player {
+  /** The game's visit to the world this scene belongs to; a restart Phaser still runs after the app left builds nothing. */
+  readonly visit: number;
   /** The map being entered: it names the map and its tick rate, and holds what came before the scene was built. */
   readonly arriving: Arrival;
 }
@@ -73,7 +75,12 @@ const ARROW_RANGE = 420;
 const ARROW_MS = 300;
 
 export class World extends Phaser.Scene {
-  private entry: Player = { characterId: '', cls: 'warrior', name: '' };
+  private entry: Omit<WorldData, 'arriving'> = {
+    characterId: '',
+    cls: 'warrior',
+    name: '',
+    visit: 0,
+  };
   private mapId = 'town';
   private tickRateHz = 20;
   /** Let go of in teardown: the map being entered until built, then the next map while this scene fades out. */
@@ -124,6 +131,10 @@ export class World extends Phaser.Scene {
 
   create(data: WorldData): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown());
+    if (this.registry.get(REGISTRY.visit) !== data.visit) {
+      this.scene.stop(); // its teardown lets go of the Arrival
+      return;
+    }
     if (this.registry.get(REGISTRY.assetsReady) === true) {
       this.build(data.arriving);
       return;

@@ -91,9 +91,14 @@ export class FakeScene {
   readonly game = { events: new FakeEvents() };
   /** A restart asked for, which Phaser runs on the next step. */
   restarting: { readonly data: unknown } | null = null;
+  /** A stop asked for, which Phaser runs on the next step. */
+  stopping = false;
   readonly scene = {
     restart: (data?: unknown) => {
       this.restarting = { data };
+    },
+    stop: () => {
+      this.stopping = true;
     },
   };
 
@@ -109,6 +114,7 @@ interface SceneHooks {
 /** Runs a scene as Phaser's scene manager does: a restart waits for the next step, and a stop destroys the cameras before the scene's own shutdown handlers run. */
 export class SceneRunner {
   private readonly scene: FakeScene & SceneHooks;
+  private running = false;
 
   constructor(scene: object) {
     this.scene = scene as FakeScene & SceneHooks;
@@ -118,13 +124,22 @@ export class SceneRunner {
     return this.scene.cameras.main;
   }
 
+  get isRunning(): boolean {
+    return this.running;
+  }
+
   start(data: unknown): void {
+    this.running = true;
     this.scene.cameras.main = new FakeCamera();
     this.scene.init?.(data);
     this.scene.create?.(data);
   }
 
   step(time: number, delta: number): void {
+    if (this.scene.stopping) {
+      this.scene.stopping = false;
+      this.stop();
+    }
     const restart = this.scene.restarting;
     this.scene.restarting = null;
     if (restart) {
@@ -132,10 +147,13 @@ export class SceneRunner {
       this.start(restart.data);
     }
     this.scene.time.now = time;
-    this.scene.update?.(time, delta);
+    if (this.running) {
+      this.scene.update?.(time, delta);
+    }
   }
 
   stop(): void {
+    this.running = false;
     this.scene.cameras.main.removeAllListeners();
     this.scene.events.emit('shutdown');
   }
