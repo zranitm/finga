@@ -183,6 +183,19 @@ func TestAnUnreachableDatabaseIsUnavailable(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+	t.Run("a transaction the server ends idle past its timeout", func(t *testing.T) {
+		err := dbx.InTx(ctx, cluster.DB(t), func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SET LOCAL idle_in_transaction_session_timeout = '100ms'`); err != nil {
+				return err
+			}
+			time.Sleep(500 * time.Millisecond)
+			_, err := tx.Exec(ctx, `SELECT 1`)
+			return err
+		})
+		if !errors.Is(classes.Classify(err), unavailable) {
+			t.Fatalf("got %v", err)
+		}
+	})
 }
 
 func TestNewPool(t *testing.T) {

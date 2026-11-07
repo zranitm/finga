@@ -21,7 +21,7 @@ type Errors struct {
 	Constraints map[string]error // a violated constraint, by name
 }
 
-// Classify wraps err in its sentinel, keeping the cause: transient.ErrUnavailable for a lock or statement timeout, a conflict InTx's retries did not clear, or the database out of reach; any other error passes through as it is.
+// Classify wraps err in its sentinel, keeping the cause: transient.ErrUnavailable for a lock or statement timeout, a conflict InTx's retries did not clear, or the database out of reach or short of resources; any other error passes through as it is.
 func (e Errors) Classify(err error) error {
 	var pgErr *pgconn.PgError
 	switch {
@@ -38,16 +38,20 @@ func (e Errors) Classify(err error) error {
 	}
 }
 
-// unavailableCodes are the server out of reach besides class 08 (connection exceptions): shutting down, crashed, starting up, out of connections.
-var unavailableCodes = []string{"57P01", "57P02", "57P03", "53300"}
+// unavailableClasses are the SQLSTATE classes of a server out of reach or short of something: 08 connection exceptions, 53 insufficient resources (disk, memory, connections), 58 system errors (I/O).
+var unavailableClasses = []string{"08", "53", "58"}
 
-// unavailable reports whether err is the database out of reach: a connection refused or lost, or a server shutting down, starting up or full; a later try may pass.
+// unavailableCodes are the other codes of a server out of reach: shutting down, crashed, starting up, or ending a session or transaction left idle past its timeout.
+var unavailableCodes = []string{"57P01", "57P02", "57P03", "57P05", "25P03"}
+
+// unavailable reports whether err is the database out of reach or short of resources: a connection refused or lost, a server shutting down, starting up, full or failing its disk; a later try may pass.
 func unavailable(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false // the caller gave up, which its own code says
 	}
 	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
-		return strings.HasPrefix(pgErr.Code, "08") || slices.Contains(unavailableCodes, pgErr.Code)
+		inClass := func(class string) bool { return strings.HasPrefix(pgErr.Code, class) }
+		return slices.ContainsFunc(unavailableClasses, inClass) || slices.Contains(unavailableCodes, pgErr.Code)
 	}
 	if _, ok := errors.AsType[*pgconn.ConnectError](err); ok {
 		return true
