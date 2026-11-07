@@ -18,6 +18,8 @@ import { MobView } from '../entities/mob';
 import { PlayerView } from '../entities/player';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
+import { Arrival } from '../systems/arrival';
+import type { Held } from '../systems/arrival';
 import {
   AttackGate,
   DamageNumbers,
@@ -46,7 +48,9 @@ export interface WorldData {
   /** The world's ticks per second, from Welcome. */
   readonly tickRateHz: number;
   /** After a MapChange: shown until the Snapshot confirms it. */
-  readonly arrival?: { readonly x: number; readonly y: number };
+  readonly arrival?: { readonly x: number; readonly y: number } | undefined;
+  /** After a MapChange: the new map's messages that came while the old scene faded out, replayed once built. */
+  readonly arriving?: Arrival;
 }
 
 const FADE_MS = 250;
@@ -255,10 +259,27 @@ export class World extends Phaser.Scene {
         },
       }),
       ui.subscribe((s) => sender.setCaptured(s.captureKeyboard)),
-      socket.on('snapshot', (m) =>
-        this.onSnapshot(m.d.players, m.d.mobs, m.d.drops, this.tickOf(m.tick)),
-      ),
-      socket.on('delta', (m) =>
+      socket.on('snapshot', (m) => this.onWorld(m)),
+      socket.on('delta', (m) => this.onWorld(m)),
+      socket.on('correction', (m) => this.onCorrection(m.d)),
+      socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
+      socket.on('damage', (m) => this.onDamage(m.d)),
+      socket.on('died', (m) => this.onWorld(m)),
+      socket.on('respawned', (m) => this.onWorld(m)),
+      socket.on('mapChange', (m) => this.onWorld(m)),
+      socket.on('levelUp', () => this.onLevelUp()),
+    );
+    for (const m of this.entry.arriving?.take() ?? []) {
+      this.onWorld(m);
+    }
+  }
+
+  private onWorld(m: Held): void {
+    switch (m.t) {
+      case 'snapshot':
+        this.onSnapshot(m.d.players, m.d.mobs, m.d.drops, this.tickOf(m.tick));
+        return;
+      case 'delta':
         this.onDelta(
           m.d.players,
           m.d.removedPlayers,
@@ -268,16 +289,26 @@ export class World extends Phaser.Scene {
           m.d.removedDrops,
           m.d.ackSeq,
           this.tickOf(m.tick),
-        ),
-      ),
-      socket.on('correction', (m) => this.onCorrection(m.d)),
-      socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
-      socket.on('damage', (m) => this.onDamage(m.d)),
-      socket.on('died', (m) => this.onTransition({ t: 'died', d: m.d })),
-      socket.on('respawned', (m) => this.onTransition({ t: 'respawned', d: m.d })),
-      socket.on('mapChange', (m) => this.onTransition({ t: 'mapChange', d: m.d })),
-      socket.on('levelUp', () => this.onLevelUp()),
-    );
+        );
+        return;
+      case 'died':
+        this.onTransition({ t: 'died', d: m.d });
+        return;
+      case 'respawned':
+        this.onTransition({ t: 'respawned', d: m.d });
+        return;
+      case 'mapChange':
+        this.onTransition({ t: 'mapChange', d: m.d });
+        return;
+    }
+  }
+
+  /** Lets go of the socket, the keyboard and the resize handler. */
+  private stopListening(): void {
+    for (const off of this.offs) {
+      off();
+    }
+    this.offs = [];
   }
 
   /** proto3 sends no tick as 0. */
@@ -614,10 +645,23 @@ export class World extends Phaser.Scene {
       case 'change-map': {
         character.getState().setDead(false);
         this.portals?.arrived();
-        const next: WorldData = { ...this.entry, mapId: a.mapId, arrival: { x: a.x, y: a.y } };
+        const socket = this.socket;
+        if (!socket) {
+          return;
+        }
+        // The new map's Snapshot comes during the fade: the old scene applies nothing more, and the Arrival holds it.
+        const arriving = new Arrival(socket, a.mapId, this.entry.tickRateHz);
+        this.stopListening();
         this.placed = false;
         this.cameras.main.fadeOut(FADE_MS);
         this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+          const next: WorldData = {
+            ...this.entry,
+            mapId: arriving.mapId,
+            tickRateHz: arriving.tickRateHz,
+            arrival: arriving.moved ? undefined : { x: a.x, y: a.y },
+            arriving,
+          };
           this.scene.restart(next);
         });
         return;
@@ -646,10 +690,8 @@ export class World extends Phaser.Scene {
   }
 
   private teardown(): void {
-    for (const off of this.offs) {
-      off();
-    }
-    this.offs = [];
+    this.stopListening();
+    this.entry.arriving?.take(); // shut down before it was built
     this.clearOthers();
     this.numberLayer?.destroy();
     this.numberLayer = null;
