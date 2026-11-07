@@ -1304,6 +1304,17 @@ func TestAHelloWhoseJoinTimedOutRejoinsTheOlderConnection(t *testing.T) {
 	})
 }
 
+// joinSeqOf is the sequence the fake world gave the character's last join: its place among all joins.
+func joinSeqOf(fw *fakeWorld, id kernel.CharacterID) uint64 {
+	var seq uint64
+	for k, j := range fw.joins() {
+		if j.GetCharacterId() == id.String() {
+			seq = uint64(k + 1) //nolint:gosec // a test's few joins
+		}
+	}
+	return seq
+}
+
 // connectionOf is the connection the character's last world join came through.
 func connectionOf(fw *fakeWorld, id kernel.CharacterID) string {
 	conn := ""
@@ -1528,7 +1539,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 				mine = req
 			}
 		}
-		if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" || mine.GetConnectionId() != connectionOf(h.world, aylaID) {
+		if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" || mine.GetConnectionId() != connectionOf(h.world, aylaID) || mine.GetJoinSeq() != joinSeqOf(h.world, aylaID) {
 			t.Fatalf("online %+v", fs.onlineCalls())
 		}
 

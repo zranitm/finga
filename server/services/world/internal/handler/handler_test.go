@@ -163,6 +163,9 @@ func (s *stack) join(t *testing.T, gateway, conn string, ch model.Character) *wo
 	if res.GetTickRateHz() != 20 {
 		t.Fatalf("tick rate %d, want the world's 20 Hz, which the client times its steps by", res.GetTickRateHz())
 	}
+	if res.GetJoinSeq() == 0 {
+		t.Fatal("the join has no sequence, which social orders logins by")
+	}
 	return res.GetCharacter()
 }
 

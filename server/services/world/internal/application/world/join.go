@@ -79,7 +79,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	return model.View{
 		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats,
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
-		MapID: c.MapID, X: c.X, Y: c.Y,
+		MapID: c.MapID, X: c.X, Y: c.Y, JoinSeq: at.gen,
 	}, nil
 }
 

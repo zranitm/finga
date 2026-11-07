@@ -138,6 +138,23 @@ func TestJoinByID(t *testing.T) {
 			}
 		})
 	})
+	t.Run("a later join of the character has a higher sequence", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			w, stop := joinWorld(t, chars, &fakeStarter{})
+			defer stop()
+			first, err := w.Join(context.Background(), account, ayla.ID, "conn-1", &worldtest.Sink{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := w.Join(context.Background(), account, ayla.ID, "conn-2", &worldtest.Sink{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first.JoinSeq == 0 || second.JoinSeq <= first.JoinSeq {
+				t.Fatalf("sequences %d then %d; want a rising one", first.JoinSeq, second.JoinSeq)
+			}
+		})
+	})
 	t.Run("a character on a map the world does not run", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			w, stop := joinWorld(t, chars, &fakeStarter{})

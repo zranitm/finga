@@ -4,7 +4,7 @@ package internal.world.v1;
 
 option go_package = "finga/api/gen/world/v1;worldv1";
 
-// WorldService runs the map instances at 20 Hz; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
 service WorldService {
   // Deliver streams Subscribed, then every event for the players who joined through that gateway; one that falls behind loses the stream and its players, so it resubscribes and rejoins them.
   rpc Deliver(DeliverRequest) returns (stream DeliverResponse);
@@ -298,6 +298,8 @@ message JoinResponse {
   CharacterView character = 1;
   // The world's ticks per second; the client times its prediction and interpolation by it.
   uint32 tick_rate_hz = 2;
+  // Rises with each join, across restarts too, so the character's later login has the higher one; social orders logins by it.
+  uint64 join_seq = 3;
 }
 
 message LeaveRequest {

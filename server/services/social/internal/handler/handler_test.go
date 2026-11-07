@@ -29,6 +29,7 @@ type stack struct {
 	c       socialv1.SocialServiceClient
 	ctx     context.Context
 	parties *application.PartyService
+	joins   atomic.Uint64 // the last join's sequence
 }
 
 func newStack(t *testing.T) *stack {
@@ -70,15 +71,21 @@ func (s *stack) gatewayUntil(t *testing.T, ctx context.Context, id string) grpc.
 // online registers the character through the connection named conn-<name>.
 func (s *stack) online(t *testing.T, gateway string, id kernel.CharacterID, name string) {
 	t.Helper()
-	s.onlineThrough(t, gateway, "conn-"+name, id, name)
+	s.onlineThrough(t, gateway, "conn-"+name, s.join(), id, name)
 }
 
-func (s *stack) onlineThrough(t *testing.T, gateway, conn string, id kernel.CharacterID, name string) {
+// onlineThrough registers the character through conn, which the world's join of sequence seq is behind.
+func (s *stack) onlineThrough(t *testing.T, gateway, conn string, seq uint64, id kernel.CharacterID, name string) {
 	t.Helper()
 	member := &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
-	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member}); err != nil {
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member, JoinSeq: seq}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// join is the sequence of a new join, as the world hands them out.
+func (s *stack) join() uint64 {
+	return s.joins.Add(1)
 }
 
 // isOnline is whether the character's party shows them online.
@@ -380,11 +387,14 @@ func TestStreamsNeedTheirSubscriberID(t *testing.T) {
 	if _, err := w.Recv(); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("watch: %v", err)
 	}
-	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{ConnectionId: "c-1", Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{ConnectionId: "c-1", JoinSeq: 1, Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("online without a gateway: %v", err)
 	}
-	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw", Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw", JoinSeq: 1, Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("online without a connection: %v", err)
+	}
+	if _, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw", ConnectionId: "c-1", Member: &socialv1.Member{Id: kernel.NewCharacterID().String()}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("online without the join's sequence: %v", err)
 	}
 	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: kernel.NewCharacterID().String()}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("offline without a connection: %v", err)
@@ -404,7 +414,7 @@ func TestAStaleOfflineLeavesTheNewConnectionOnline(t *testing.T) {
 	recv(t, gwA) // the invite
 	recv(t, gwA)
 	recv(t, gwA) // the PartyState, for each
-	s.onlineThrough(t, "gw-b", "conn-Bo-2", bo, "Bo")
+	s.onlineThrough(t, "gw-b", "conn-Bo-2", s.join(), bo, "Bo")
 	recv(t, gwA)
 	recv(t, gwB)
 	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: "conn-Bo"}); err != nil {
@@ -430,15 +440,16 @@ func TestALateOnlineFromAnEndedTabLeavesTheLiveTabsDeliveries(t *testing.T) {
 	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 	tabA, tabB := uuidv7.NewString(), uuidv7.NewString() // A connected first, then B took the character
 	s.online(t, "gw-ann", ann, "Ann")
-	s.onlineThrough(t, "gw-a", tabA, bo, "Bo")
+	joinA := s.join()
+	s.onlineThrough(t, "gw-a", tabA, joinA, bo, "Bo")
 	s.party(t, ann, bo)
 	recv(t, gwA) // the invite
 	recv(t, gwAnn)
 	recv(t, gwA) // the PartyState, for each
-	s.onlineThrough(t, "gw-b", tabB, bo, "Bo")
+	s.onlineThrough(t, "gw-b", tabB, s.join(), bo, "Bo")
 	recv(t, gwAnn)
 	recv(t, gwB)
-	s.onlineThrough(t, "gw-a", tabA, bo, "Bo") // A's registration, on its way before B's, lands last
+	s.onlineThrough(t, "gw-a", tabA, joinA, bo, "Bo") // A's registration, on its way before B's, lands last
 	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: tabA}); err != nil {
 		t.Fatal(err) // A, ended, closes
 	}
@@ -450,6 +461,37 @@ func TestALateOnlineFromAnEndedTabLeavesTheLiveTabsDeliveries(t *testing.T) {
 	}
 	if line := recv(t, gwB).GetChatLine(); line.GetText() != "still there?" {
 		t.Fatalf("Bo's live tab got %+v", line)
+	}
+}
+
+// The gateway's newest login is the one whose join finished last, which need not be the tab that connected last; social follows the join.
+func TestATabThatConnectedFirstButJoinedLastStaysOnline(t *testing.T) {
+	s := newStack(t)
+	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second) // a line that never comes fails, not hangs
+	defer cancel()
+	gwAnn, gwA, gwB := s.gateway(t, "gw-ann"), s.gatewayUntil(t, ctx, "gw-a"), s.gatewayUntil(t, ctx, "gw-b")
+	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+	tabA, tabB := uuidv7.NewString(), uuidv7.NewString() // A connected first
+	s.online(t, "gw-ann", ann, "Ann")
+	s.onlineThrough(t, "gw-b", tabB, s.join(), bo, "Bo") // B's Hello finished first
+	s.party(t, ann, bo)
+	recv(t, gwB) // the invite
+	recv(t, gwAnn)
+	recv(t, gwB)                                         // the PartyState, for each
+	s.onlineThrough(t, "gw-a", tabA, s.join(), bo, "Bo") // then A's, which ended B
+	recv(t, gwAnn)
+	recv(t, gwA)
+	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: bo.String(), ConnectionId: tabB}); err != nil {
+		t.Fatal(err) // B, ended, closes
+	}
+	if !s.isOnline(t, bo) {
+		t.Fatal("Bo is offline while playing in tab A")
+	}
+	if _, err := s.c.Chat(s.ctx, &socialv1.ChatRequest{SenderId: ann.String(), SenderName: "Ann", Channel: socialv1.ChatChannel_CHAT_CHANNEL_PARTY, Text: "still there?"}); err != nil {
+		t.Fatal(err)
+	}
+	if line := recv(t, gwA).GetChatLine(); line.GetText() != "still there?" {
+		t.Fatalf("Bo's tab A got %+v", line)
 	}
 }
 
@@ -467,7 +509,7 @@ func TestAGatewayGoneForGoodTakesItsPlayersOffline(t *testing.T) {
 		s.party(t, ann, bo)
 		ctxC, endC := context.WithCancel(s.ctx)
 		s.gatewayUntil(t, ctxC, "gw-c")
-		s.onlineThrough(t, "gw-c", "conn-Cy-2", cy, "Cy")
+		s.onlineThrough(t, "gw-c", "conn-Cy-2", s.join(), cy, "Cy")
 		s.party(t, ann, cy)
 
 		endB()
@@ -554,7 +596,7 @@ func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 		for id, name := range map[kernel.CharacterID]string{ann: "Ann", bo: "Bo"} {
 			go func() {
 				member := &socialv1.Member{Id: id.String(), Name: name, Level: 3, Hp: 90, MaxHp: 100, MapId: "forest"}
-				_, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw-a", ConnectionId: "conn-" + name, Member: member})
+				_, err := s.c.Online(s.ctx, &socialv1.OnlineRequest{GatewayId: "gw-a", ConnectionId: "conn-" + name, Member: member, JoinSeq: s.join()})
 				again <- err
 			}()
 		}

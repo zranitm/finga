@@ -2,6 +2,7 @@ package world
 
 import (
 	"sync"
+	"time"
 
 	"finga/internal/kernel"
 	"finga/services/world/internal/application/instance"
@@ -21,7 +22,7 @@ type presence struct {
 type presences struct {
 	mu   sync.Mutex
 	by   map[kernel.CharacterID]presence
-	next uint64 // the last gen stamped
+	next uint64 // the last gen stamped; from the clock, so gens keep rising across restarts
 }
 
 func newPresences() presences {
@@ -30,7 +31,7 @@ func newPresences() presences {
 
 // stamp gives p the next gen, under mu.
 func (ps *presences) stamp(p presence) presence {
-	ps.next++
+	ps.next = max(ps.next+1, uint64(time.Now().UnixNano())) //nolint:gosec // the clock is past 1970
 	p.gen = ps.next
 	return p
 }

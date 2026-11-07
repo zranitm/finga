@@ -65,6 +65,8 @@ type View struct {
 	MaxMP int
 	MapID string
 	X, Y  float64
+	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
+	JoinSeq uint64
 }
 
 // PlayerView is a player as everyone on the map sees it.

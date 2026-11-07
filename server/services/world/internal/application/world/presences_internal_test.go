@@ -2,6 +2,8 @@ package world
 
 import (
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"finga/internal/kernel"
 	"finga/services/world/internal/application/instance"
@@ -71,4 +73,18 @@ func TestAHandOffComesFromTheMapThatHoldsThePlayer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A placement after a restart, in a new registry, still has a higher gen than one placed before it, as social orders a character's logins by it.
+func TestGensRiseAcrossRestarts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		id := kernel.NewCharacterID()
+		before := newPresences()
+		first := before.place(id, presence{conn: "c-1"})
+		time.Sleep(time.Millisecond)
+		after := newPresences()
+		if second := after.place(id, presence{conn: "c-2"}); second.gen <= first.gen {
+			t.Fatalf("gen %d after the restart, %d before it; want it higher", second.gen, first.gen)
+		}
+	})
 }

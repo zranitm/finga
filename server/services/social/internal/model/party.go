@@ -27,6 +27,8 @@ type Member struct {
 	Connection string
 	// Gateway is the one the member is online through, where their deliveries go.
 	Gateway string
+	// JoinSeq is the world's sequence of the join behind Connection; an Online with a lower one is stale.
+	JoinSeq uint64
 	// JoinOrder is lowest for the longest-standing member, who leads when the leader goes.
 	JoinOrder uint64
 	// OfflineAt is when the member last went offline; zero while online.

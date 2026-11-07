@@ -212,7 +212,7 @@ func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv
 		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
 	}}}
 	hz := cmp.Or(f.tickRate, 30)
-	return &worldv1.JoinResponse{Character: v, TickRateHz: hz}, nil
+	return &worldv1.JoinResponse{Character: v, TickRateHz: hz, JoinSeq: uint64(len(f.joined))}, nil
 }
 
 // save is the character's checkpoint, which the next join loads.

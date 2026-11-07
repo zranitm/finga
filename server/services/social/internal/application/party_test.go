@@ -417,12 +417,12 @@ func TestAnOfflineFromAReplacedConnectionChangesNothing(t *testing.T) {
 	}
 }
 
-// A late Online from a connection older than the member's current one, such as an ended tab's re-registration, takes nothing back, deliveries included.
-func TestALateOnlineFromAnOlderConnectionChangesNothing(t *testing.T) {
+// A late Online from a join older than the member's current one, such as an ended tab's re-registration, takes nothing back, deliveries included.
+func TestALateOnlineFromAnOlderJoinChangesNothing(t *testing.T) {
 	f := newFixture(t, "Ayla", "Robin")
 	f.invite(t, "Ayla", "Robin")
-	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "forest", Connection: "c-Robin-2"}))
-	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "town", Connection: "c-Robin"}))
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "forest", Connection: "c-Robin-2", JoinSeq: 2}))
+	must(t, f.svc.Online(f.ctx, model.Member{ID: f.id("Robin"), Name: "Robin", MapID: "town", Connection: "c-Robin", JoinSeq: 1}))
 	must(t, f.svc.Offline(f.ctx, f.id("Robin"), "c-Robin"))
 	p, ok := f.of(t, f.id("Ayla"))
 	if !ok {

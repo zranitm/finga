@@ -32,12 +32,12 @@ func NewPartyService(deps PartyDeps) *PartyService {
 	return &PartyService{store: deps.Store, notifier: deps.Notifier}
 }
 
-// Online records a character as connected, routes their deliveries there and tells them their party, keeping what the world reported through the same connection; one through a connection older than theirs (UUIDv7 IDs sort by age) is an ended tab's late registration and changes nothing, deliveries included.
+// Online records a character as connected, routes their deliveries there and tells them their party, keeping what the world reported through the same connection; one from an older join than theirs is an ended tab's late registration and changes nothing, deliveries included.
 func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 	m.Online = true
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		if old, ok := tx.Member(m.ID); ok {
-			if m.Connection < old.Connection {
+			if m.JoinSeq < old.JoinSeq {
 				return nil
 			}
 			m.JoinOrder = old.JoinOrder

@@ -120,6 +120,8 @@ message OnlineRequest {
   Member member = 2;
   // The player's connection, on that gateway; an Offline naming another one is stale.
   string connection_id = 3;
+  // The world's sequence of the join behind the connection; an Online with a lower one than the member's is an ended tab's late registration. Required.
+  uint64 join_seq = 4;
 }
 
 message OnlineResponse {}

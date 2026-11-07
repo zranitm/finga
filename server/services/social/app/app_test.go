@@ -40,7 +40,7 @@ func TestAnInviteReachesTheGatewayOverTheRealListener(t *testing.T) {
 	}
 	ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 	for _, id := range []kernel.CharacterID{ann, bo} {
-		if _, err := c.Online(ctx, &socialv1.OnlineRequest{GatewayId: "gw", ConnectionId: "conn-" + id.String(), Member: &socialv1.Member{Id: id.String(), Name: "X", MapId: "town"}}); err != nil {
+		if _, err := c.Online(ctx, &socialv1.OnlineRequest{GatewayId: "gw", ConnectionId: "conn-" + id.String(), JoinSeq: 1, Member: &socialv1.Member{Id: id.String(), Name: "X", MapId: "town"}}); err != nil {
 			t.Fatal(err)
 		}
 		if m, err := stream.Recv(); err != nil || m.GetCharacterId() != id.String() || m.GetPartyState() == nil {

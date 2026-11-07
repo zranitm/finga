@@ -93,6 +93,7 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 	r.bySession[who.sessionID] = s
 	s.id.Store(&identity{account: who.account, sessionID: who.sessionID, character: player})
 	s.tickRate.Store(int32(j.Joined.TickRateHz)) //nolint:gosec // a tick rate is small
+	s.joinSeq.Store(j.Joined.JoinSeq)
 	s.setActive()
 	missed := r.worldSubs > j.subs
 	r.mu.Unlock()
@@ -192,6 +193,7 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		return
 	}
 	s.tickRate.Store(int32(joined.TickRateHz)) //nolint:gosec // a tick rate is small
+	s.joinSeq.Store(joined.JoinSeq)
 	var first func()
 	if joined.MapID != before {
 		moved := model.Delivery{Push: model.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}}
@@ -329,7 +331,7 @@ func (r *Registry) online(ctx context.Context, s *Session) error {
 	if closed || !current {
 		return nil // its close's Offline has the last word, or a newer login took the character
 	}
-	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.Player(), s.mapID())
+	return r.deps.Social.Online(ctx, r.opts.Gateway, s.connID, s.joinSeq.Load(), s.Player(), s.mapID())
 }
 
 // offline tells the social service the player's connection closed, after any registration of it still on its way.

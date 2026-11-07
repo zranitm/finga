@@ -36,8 +36,8 @@ type World interface {
 
 // Social is the social service as joins use it: who is online, and on which map.
 type Social interface {
-	Online(ctx context.Context, gateway, conn string, p model.Player, mapID string) error
-	// Offline is ignored when the character is online through a newer connection than conn.
+	Online(ctx context.Context, gateway, conn string, joinSeq uint64, p model.Player, mapID string) error
+	// Offline is ignored when the character is online through another connection than conn.
 	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 }
 

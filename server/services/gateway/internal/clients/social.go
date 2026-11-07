@@ -26,10 +26,10 @@ func NewSocial(c socialv1.SocialServiceClient, log *slog.Logger, rec *panics.Rec
 	return Social{c: c, log: log, panics: rec}
 }
 
-// Online registers a player connected to this gateway through conn.
-func (s Social) Online(ctx context.Context, gateway, conn string, p model.Player, mapID string) error {
+// Online registers a player connected to this gateway through conn, behind the world's join of sequence joinSeq.
+func (s Social) Online(ctx context.Context, gateway, conn string, joinSeq uint64, p model.Player, mapID string) error {
 	member := &socialv1.Member{Id: p.ID.String(), Name: p.Name, Level: int32(p.Level), Hp: int32(p.HP), MaxHp: int32(p.MaxHP), MapId: mapID}
-	_, err := s.c.Online(ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member})
+	_, err := s.c.Online(ctx, &socialv1.OnlineRequest{GatewayId: gateway, ConnectionId: conn, Member: member, JoinSeq: joinSeq})
 	return errmap.Wrap(err)
 }
 

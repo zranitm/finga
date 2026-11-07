@@ -119,8 +119,8 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 
 // Online records a character as connected through a gateway.
 func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*socialv1.OnlineResponse, error) {
-	if req.GetGatewayId() == "" || req.GetConnectionId() == "" {
-		return nil, status.Error(codes.InvalidArgument, "gateway_id and connection_id are required")
+	if req.GetGatewayId() == "" || req.GetConnectionId() == "" || req.GetJoinSeq() == 0 {
+		return nil, status.Error(codes.InvalidArgument, "gateway_id, connection_id and join_seq are required")
 	}
 	m := req.GetMember()
 	id, err := kernel.ParseCharacterID(m.GetId())
@@ -131,7 +131,7 @@ func (s *Server) Online(ctx context.Context, req *socialv1.OnlineRequest) (*soci
 		return nil, err
 	}
 	defer s.registering.Release(1)
-	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId(), Gateway: req.GetGatewayId()}
+	member := model.Member{ID: id, Name: m.GetName(), Level: int(m.GetLevel()), HP: int(m.GetHp()), MaxHP: int(m.GetMaxHp()), MapID: m.GetMapId(), Connection: req.GetConnectionId(), Gateway: req.GetGatewayId(), JoinSeq: req.GetJoinSeq()}
 	if err := s.parties.Online(ctx, member); err != nil {
 		return nil, err
 	}

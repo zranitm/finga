@@ -23,8 +23,9 @@ type Session struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	isActive atomic.Bool
-	tickRate atomic.Int32 // the world's ticks a second, from the latest join; 0 before one
-	rejoin   atomic.Bool  // a rejoin is waiting to start, so another asked for meanwhile is the same one
+	tickRate atomic.Int32  // the world's ticks a second, from the latest join; 0 before one
+	joinSeq  atomic.Uint64 // the world's sequence of the latest join, which social orders logins by
+	rejoin   atomic.Bool   // a rejoin is waiting to start, so another asked for meanwhile is the same one
 
 	// who the session plays: set whole by a join, never changed in place, so reading it takes no lock
 	id     atomic.Pointer[identity]

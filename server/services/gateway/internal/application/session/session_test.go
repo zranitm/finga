@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -130,10 +131,10 @@ type social struct {
 	calls []string
 }
 
-func (s *social) Online(_ context.Context, _, conn string, _ model.Player, _ string) error {
+func (s *social) Online(_ context.Context, _, conn string, seq uint64, _ model.Player, _ string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.calls = append(s.calls, "online "+conn)
+	s.calls = append(s.calls, fmt.Sprintf("online %s #%d", conn, seq))
 	return nil
 }
 
@@ -173,6 +174,36 @@ func TestATabThatLostItsCharacterIsNotRegisteredAgain(t *testing.T) {
 	if calls := soc.list(); len(calls) != 0 {
 		t.Fatalf("calls %v; want none for the tab that lost its character", calls)
 	}
+}
+
+// seqWorld gives each join the next sequence, as the world does.
+type seqWorld struct{ joins atomic.Uint64 }
+
+func (w *seqWorld) Join(context.Context, string, string, kernel.AccountID, kernel.CharacterID) (model.Joined, error) {
+	return model.Joined{MapID: "town", JoinSeq: w.joins.Add(1)}, nil
+}
+
+func (*seqWorld) Leave(context.Context, model.Presence) error { return nil }
+
+// A registration carries the world's sequence of the session's join, its rejoin's once it rejoined, as social orders logins by it.
+func TestARegistrationCarriesItsJoinsSequence(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		soc := &social{}
+		r := session.NewRegistry(session.Deps{World: &seqWorld{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Minute})
+		r.WorldSubscribed()
+		s := play(t, r, "c-1", kernel.NewCharacterID())
+		r.Online(t.Context(), s)
+		_, active := r.WorldSubscribed()
+		for _, a := range active {
+			r.Rejoin(a)
+		}
+		time.Sleep(time.Minute)
+		synctest.Wait()
+		r.Online(t.Context(), s)
+		if calls := soc.list(); !slices.Equal(calls, []string{"online c-1 #1", "online c-1 #2"}) {
+			t.Fatalf("calls %v; want the join's sequence, then the rejoin's", calls)
+		}
+	})
 }
 
 // After the world's stream breaks every player rejoins, a few at a time, so a restarted world is not hit all at once.

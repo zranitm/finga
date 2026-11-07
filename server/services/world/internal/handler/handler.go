@@ -90,7 +90,7 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate}, nil
+	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate, JoinSeq: v.JoinSeq}, nil
 }
 
 // Leave removes the player if it joined through the presence's connection, once its map has.

@@ -33,7 +33,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// WorldService runs the map instances at 20 Hz; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
 type WorldServiceClient interface {
 	// Deliver streams Subscribed, then every event for the players who joined through that gateway; one that falls behind loses the stream and its players, so it resubscribes and rejoins them.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
@@ -154,7 +154,7 @@ func (c *worldServiceClient) Say(ctx context.Context, in *SayRequest, opts ...gr
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
 //
-// WorldService runs the map instances at 20 Hz; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
 type WorldServiceServer interface {
 	// Deliver streams Subscribed, then every event for the players who joined through that gateway; one that falls behind loses the stream and its players, so it resubscribes and rejoins them.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error

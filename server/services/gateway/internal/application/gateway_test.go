@@ -63,14 +63,14 @@ func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.Inve
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil
 }
-func (idle) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) error  { return nil }
-func (idle) Respond(context.Context, kernel.CharacterID, string, bool) error       { return nil }
-func (idle) Leave(context.Context, kernel.CharacterID) error                       { return nil }
-func (idle) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error    { return nil }
-func (idle) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error { return nil }
-func (idle) Online(context.Context, string, string, model.Player, string) error    { return nil }
-func (idle) Offline(context.Context, kernel.CharacterID, string) error             { return nil }
-func (idle) OnlineChanged(int)                                                     {}
+func (idle) Invite(context.Context, kernel.CharacterID, kernel.CharacterID) error       { return nil }
+func (idle) Respond(context.Context, kernel.CharacterID, string, bool) error            { return nil }
+func (idle) Leave(context.Context, kernel.CharacterID) error                            { return nil }
+func (idle) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error         { return nil }
+func (idle) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error      { return nil }
+func (idle) Online(context.Context, string, string, uint64, model.Player, string) error { return nil }
+func (idle) Offline(context.Context, kernel.CharacterID, string) error                  { return nil }
+func (idle) OnlineChanged(int)                                                          {}
 func (idle) FollowDeliveries(ctx context.Context, _ string, _ func(model.SocialEvent)) {
 	<-ctx.Done()
 }
