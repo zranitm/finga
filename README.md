@@ -36,11 +36,12 @@ make down      # stop everything and drop the database volume
 
 `make up` is the one command: it works from a clean clone with Docker and
 Compose only, the client included: Docker Engine 25 or newer and Compose
-2.20 or newer, for the health checks' `start_interval`. The `web` image
-builds the client with Node and serves it with nginx, which passes `/api`
-and `/ws` to the gateway, so the browser sees one origin. Testers on the
-same network open `http://<this machine's LAN address>:4173`. When another
-program owns a port the stack publishes, set `FINGA_WEB_PORT` (4173),
+2.24 or newer, for the health checks' `start_interval` and the optional
+`env_file` (`required: false`). The `web` image builds the client with
+Node and serves it with nginx, which passes `/api` and `/ws` to the
+gateway, so the browser sees one origin. Testers on the same network open
+`http://<this machine's LAN address>:4173`. When another program owns a
+port the stack publishes, set `FINGA_WEB_PORT` (4173),
 `FINGA_PORT` (8080), `FINGA_GATEWAY_OPS_PORT` (9100) or
 `FINGA_POSTGRES_PORT` (5432) in `infra/.env` (copy `infra/.env.example`).
 The services ship together: every one runs the same commit, and a mix of
