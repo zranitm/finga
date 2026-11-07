@@ -25,14 +25,16 @@ func RespawnHP(maxHP int) int { return max(1, maxHP*respawnHPPercent/100) }
 
 func (i *Instance) ticksFor(d time.Duration) uint64 { return model.TicksIn(d, i.tuning.TickInterval) }
 
-// resolveAttacks swings each queued attack off its cooldown; a town has none.
+// resolveAttacks swings each queued attack once its cooldown ends, so one sent a little early is not lost; a town has none.
 func (i *Instance) resolveAttacks() {
 	town := i.m.Kind == gamedata.Town
 	for _, id := range i.order {
 		p := i.players[id]
-		queued := p.attackQueued
+		if !p.attackQueued || p.cooldownUntil > i.tick {
+			continue
+		}
 		p.attackQueued = false
-		if town || !queued || p.dead || p.cooldownUntil > i.tick {
+		if town || p.dead {
 			continue
 		}
 		p.cooldownUntil = i.tick + i.ticksFor(p.class.Attack.Cooldown)
