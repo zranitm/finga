@@ -2,8 +2,10 @@ package handler_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -475,6 +477,40 @@ func (g gatedOffline) Offline(ctx context.Context, id kernel.CharacterID, conn s
 	}
 	<-g.gate
 	return g.Parties.Offline(ctx, id, conn)
+}
+
+// failingOffline fails the first failures Offlines, as a store out of reach would.
+type failingOffline struct {
+	handler.Parties
+	failures *atomic.Int32
+}
+
+func (f failingOffline) Offline(ctx context.Context, id kernel.CharacterID, conn string) error {
+	if f.failures.Add(-1) >= 0 {
+		return errors.New("store unreachable")
+	}
+	return f.Parties.Offline(ctx, id, conn)
+}
+
+// A sweep cut short by a failing store tries again, as a gateway gone for good never resubscribes to finish it.
+func TestASweepCutShortTriesAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		failures := &atomic.Int32{}
+		failures.Store(3)
+		s := newStackOver(t, func(p handler.Parties) handler.Parties { return failingOffline{p, failures} })
+		ctxA, endA := context.WithCancel(s.ctx)
+		s.gatewayUntil(t, ctxA, "gw-a")
+		ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+		s.online(t, "gw-a", ann, "Ann")
+		s.online(t, "gw-a", bo, "Bo")
+		s.party(t, ann, bo)
+		endA()
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+		if s.isOnline(t, ann) || s.isOnline(t, bo) {
+			t.Fatalf("Ann online %v, Bo online %v, two minutes after their gateway went", s.isOnline(t, ann), s.isOnline(t, bo))
+		}
+	})
 }
 
 // A gateway that comes back while its players are being taken offline keeps each one it registers again.

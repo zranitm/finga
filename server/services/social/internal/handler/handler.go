@@ -3,8 +3,10 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -63,31 +65,45 @@ func (s *Server) Deliver(req *socialv1.DeliverRequest, stream grpc.ServerStreami
 
 // gatewayLeft takes a dead gateway's players offline after gatewayGrace; a gateway that returns re-registers them.
 func (s *Server) gatewayLeft(gateway string) {
-	time.AfterFunc(gatewayGrace, func() {
-		ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
-		defer cancel()
-		for id, conn := range s.streams.on(gateway) {
-			if !s.sweep(ctx, gateway, id, conn) {
-				return
-			}
+	retry := &backoff.ExponentialBackOff{InitialInterval: sweepRetry, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: sweepRetryMax}
+	var try func()
+	try = func() {
+		if err := s.sweepGone(gateway); err != nil && !errors.Is(err, errBack) {
+			time.AfterFunc(retry.NextBackOff(), try) // a dead gateway never comes back to finish it
 		}
-	})
+	}
+	time.AfterFunc(gatewayGrace, try)
 }
 
-// sweep takes one player of a gone gateway offline, unless the gateway is back; false ends the sweep.
-func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterID, conn string) bool {
-	if s.registering.Acquire(ctx, 1) != nil {
-		return false
+// errBack ends a sweep: the gateway is back and registers its players again.
+var errBack = errors.New("social: the gateway is back")
+
+// sweepGone takes a gone gateway's players offline, until one fails or the gateway is back.
+func (s *Server) sweepGone(gateway string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), sweepTimeout)
+	defer cancel()
+	for id, conn := range s.streams.on(gateway) {
+		if err := s.sweep(ctx, gateway, id, conn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// sweep takes one player of a gone gateway offline, unless the gateway is back.
+func (s *Server) sweep(ctx context.Context, gateway string, id kernel.CharacterID, conn string) error {
+	if err := s.registering.Acquire(ctx, 1); err != nil {
+		return err
 	}
 	defer s.registering.Release(1)
 	if _, back := s.streams.deliver.Get(gateway); back {
-		return false // it registers its players again
+		return errBack
 	}
 	if err := s.parties.Offline(ctx, id, conn); err != nil {
-		return false // the store is failing; the gateway's next subscription or Offline catches up
+		return err
 	}
 	s.streams.offline(id, conn)
-	return true
+	return nil
 }
 
 // WatchParties streams a snapshot, then each change since; each sets parties outright, so an overlap is harmless.

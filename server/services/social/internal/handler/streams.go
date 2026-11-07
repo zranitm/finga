@@ -17,10 +17,12 @@ const (
 	watchQueue   = 4096
 )
 
-// A gateway's players go offline once its stream has stayed gone gatewayGrace; marking them takes up to sweepTimeout.
+// A gateway's players go offline once its stream has stayed gone gatewayGrace; marking them takes up to sweepTimeout, and a sweep cut short tries again after sweepRetry, backing off to sweepRetryMax.
 const (
-	gatewayGrace = 30 * time.Second
-	sweepTimeout = 10 * time.Second
+	gatewayGrace  = 30 * time.Second
+	sweepTimeout  = 10 * time.Second
+	sweepRetry    = 5 * time.Second
+	sweepRetryMax = time.Minute
 )
 
 // Streams are the gateway delivery and world membership streams, with each character's gateway: the party notifier.
