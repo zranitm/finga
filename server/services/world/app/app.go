@@ -51,7 +51,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	rec := h.Panics
-	metrics, err := telemetry.NewWorldMetrics(reg, []string{world.DropRefused, world.DropUnexplained, world.DropShutdown})
+	metrics, err := telemetry.NewWorldMetrics(reg, world.DropReasons())
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}

@@ -33,6 +33,9 @@ const (
 	DropShutdown    = "shutdown"    // its last try at shutdown failed
 )
 
+// DropReasons are all the reasons a save is dropped, so a counter can start each at 0.
+func DropReasons() []string { return []string{DropRefused, DropUnexplained, DropShutdown} }
+
 // SaveObserver counts the saves the World gives up on, and so the progress lost.
 type SaveObserver interface {
 	SaveDropped(reason string)
