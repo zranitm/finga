@@ -65,6 +65,7 @@ var (
 type observer interface {
 	send.Observer
 	ws.Observer
+	session.Observer
 }
 
 // gatewayURL is where a client dials; the harness's transport ignores the address.
@@ -99,7 +100,7 @@ func (d deps) build() (*push.Gateway, http.Handler) {
 	world := clients.NewWorld(d.World, d.Logger, nil)
 	social := clients.NewSocial(d.Social, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: d.Logger, Panics: recorder, Traces: d.Traces}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
 	sends := send.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer}
 	pushes := push.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger, Traces: d.Traces}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
@@ -1249,7 +1250,7 @@ func TestARegistrationRoundRunsInOneTrace(t *testing.T) {
 		synctest.Wait()
 		ids := fs.onlineTraceIDs()
 		if len(ids) != 4 || ids[2] != ids[3] || ids[2] == (trace.TraceID{}).String() || ids[2] == ids[0] || ids[2] == ids[1] {
-			t.Fatalf("registrations carried %q; want the Hellos' own, then one for the round", ids)
+			t.Fatalf("registrations carried %q; want each login's own, then one for the round", ids)
 		}
 	})
 }
@@ -1373,6 +1374,30 @@ func TestAHungRegistrationHoldsUpNobody(t *testing.T) {
 		}
 		if !registered {
 			t.Fatal("Bruno was not registered again")
+		}
+	})
+}
+
+// A login's registration with social runs beside its commands: a social that does not answer holds up none of them, and the gauge counts the login waiting.
+func TestASlowSocialHoldsUpNoCommandAfterWelcome(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		h := social(t, fs)
+		gate := make(chan struct{})
+		fs.set(func(f *fakeSocial) { f.gate = gate })
+		c := h.joined(t)
+		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
+		synctest.Wait()
+		if got := h.world.inputCount(); got != 1 {
+			t.Fatalf("%d inputs reached the world while social held the registration, want 1", got)
+		}
+		if n := h.obs.registering(); n != 1 {
+			t.Fatalf("%d logins counted waiting to register, want 1", n)
+		}
+		close(gate)
+		synctest.Wait()
+		if n := h.obs.registering(); n != 0 {
+			t.Fatalf("%d logins counted waiting after social answered, want 0", n)
 		}
 	})
 }

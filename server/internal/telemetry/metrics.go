@@ -76,9 +76,10 @@ func (m *WorldMetrics) JobFinished() { m.jobsInflight.Dec() }
 
 // GatewayMetrics are the gateway's: its players and their WebSocket traffic.
 type GatewayMetrics struct {
-	playersOnline prometheus.Gauge
-	messages      *prometheus.CounterVec // by direction (in, out) and type
-	slowConsumers prometheus.Counter
+	playersOnline        prometheus.Gauge
+	registrationsWaiting prometheus.Gauge
+	messages             *prometheus.CounterVec // by direction (in, out) and type
+	slowConsumers        prometheus.Counter
 }
 
 // NewGatewayMetrics registers the gateway's metrics on reg; registering twice on one registry fails.
@@ -87,6 +88,9 @@ func NewGatewayMetrics(reg prometheus.Registerer) (*GatewayMetrics, error) {
 		playersOnline: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: observability.Namespace, Name: "players_online", Help: "Players whose Hello joined them to a map.",
 		}),
+		registrationsWaiting: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: observability.Namespace, Name: "social_registrations_waiting", Help: "Logins whose registration with the social service has not landed yet, retries included.",
+		}),
 		messages: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: observability.Namespace, Name: "ws_messages_total", Help: "WebSocket messages by direction and type.",
 		}, []string{"direction", "type"}),
@@ -94,7 +98,7 @@ func NewGatewayMetrics(reg prometheus.Registerer) (*GatewayMetrics, error) {
 			Namespace: observability.Namespace, Name: "ws_slow_consumer_disconnects_total", Help: "Connections closed because their send queue filled up.",
 		}),
 	}
-	return m, register(reg, m.playersOnline, m.messages, m.slowConsumers)
+	return m, register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers)
 }
 
 // MessageIn counts a message received over the WebSocket.
@@ -108,6 +112,11 @@ func (m *GatewayMetrics) SlowConsumer() { m.slowConsumers.Inc() }
 
 // OnlineChanged moves the online gauge by delta.
 func (m *GatewayMetrics) OnlineChanged(delta int) { m.playersOnline.Add(float64(delta)) }
+
+// RegistrationsWaiting moves the gauge of logins waiting to register with social by delta.
+func (m *GatewayMetrics) RegistrationsWaiting(delta int) {
+	m.registrationsWaiting.Add(float64(delta))
+}
 
 // DBMetrics are a database service's transactions; it is its stores' dbx.Observer.
 type DBMetrics struct {

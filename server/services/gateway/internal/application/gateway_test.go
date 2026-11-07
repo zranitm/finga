@@ -41,7 +41,7 @@ func newGateway(w *world) gateway { return newGatewayWith(w, &guard{}, time.Hour
 
 func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
 	log := slog.New(slog.DiscardHandler)
-	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider()}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
 	return gateway{
 		Gateway: send.New(send.Deps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}}, send.Options{JoinTimeout: joinTimeout}),
 		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Account: idle{}, Logger: log, Traces: noop.NewTracerProvider()}, push.Options{SessionCheckInterval: checkEvery}),
@@ -70,6 +70,7 @@ func (idle) Kick(context.Context, kernel.CharacterID, kernel.CharacterID) error 
 func (idle) Promote(context.Context, kernel.CharacterID, kernel.CharacterID) error      { return nil }
 func (idle) Online(context.Context, string, string, uint64, model.Player, string) error { return nil }
 func (idle) Offline(context.Context, kernel.CharacterID, string) error                  { return nil }
+func (idle) RegistrationsWaiting(int)                                                   {}
 func (idle) OnlineChanged(int)                                                          {}
 func (idle) FollowDeliveries(ctx context.Context, _ string, _ func(model.SocialEvent)) {
 	<-ctx.Done()

@@ -64,7 +64,17 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "sum(finga_players_online)"
+          "expr": "sum(finga_players_online)",
+          "legendFormat": "online"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum(finga_social_registrations_waiting)",
+          "legendFormat": "waiting to register with social"
         }
       ]
     },

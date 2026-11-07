@@ -16,7 +16,7 @@ import (
 const (
 	leaveTimeout     = 5 * time.Second
 	offlineTimeout   = 5 * time.Second
-	registerTimeout  = 5 * time.Second        // a login's registration with social, apart from the Hello's budget
+	registerTimeout  = 5 * time.Second        // each try of a login's registration with social
 	registerRetry    = 500 * time.Millisecond // the pause after a failed one, doubled up to registerRetryMax
 	registerRetryMax = 30 * time.Second
 	ghostQuiet       = time.Second
@@ -288,25 +288,26 @@ func (r *Registry) leave(ctx context.Context, p model.Presence) {
 	}
 }
 
-// Register registers a player who just logged in with the social service, on a budget of its own; a failure is retried in the background while the session lives, as their party comes only from it.
-func (r *Registry) Register(ctx context.Context, s *Session) {
-	onceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), registerTimeout)
-	err := r.online(onceCtx, s)
-	cancel()
-	if err == nil {
-		return
-	}
-	r.deps.Logger.WarnContext(ctx, "social online failed; retrying", "character_id", s.Character(), "err", err)
+// Register registers a player who just logged in with the social service in the background, so a slow one holds up none of their commands; it retries while the session lives, as their party comes only from it.
+func (r *Registry) Register(s *Session) {
+	r.deps.Observer.RegistrationsWaiting(1)
 	r.job(s.ctx, "gateway.register", func(ctx context.Context) {
+		defer r.deps.Observer.RegistrationsWaiting(-1)
+		failed := false
 		_, err := backoff.Retry(ctx, func() (struct{}, error) {
 			tryCtx, cancel := context.WithTimeout(ctx, registerTimeout)
 			defer cancel()
-			return struct{}{}, r.online(tryCtx, s)
+			err := r.online(tryCtx, s)
+			if err != nil && !failed {
+				failed = true
+				r.deps.Logger.WarnContext(ctx, "social online failed; retrying", "character_id", s.Character(), "err", err)
+			}
+			return struct{}{}, err
 		},
 			backoff.WithBackOff(&backoff.ExponentialBackOff{InitialInterval: registerRetry, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: registerRetryMax}),
 			backoff.WithMaxElapsedTime(0),
 		)
-		if err == nil {
+		if err == nil && failed {
 			r.deps.Logger.InfoContext(ctx, "social online after retrying", "character_id", s.Character())
 		}
 	}, "job", "register", "character_id", s.Character())

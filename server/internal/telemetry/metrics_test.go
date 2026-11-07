@@ -111,6 +111,7 @@ func TestGatewayMetrics(t *testing.T) {
 	m.SlowConsumer()
 	m.OnlineChanged(2)
 	m.OnlineChanged(-1)
+	m.RegistrationsWaiting(1)
 	for _, c := range []struct {
 		name   string
 		labels []string
@@ -120,6 +121,7 @@ func TestGatewayMetrics(t *testing.T) {
 		{"finga_ws_messages_total", []string{"direction", "out", "type", "Delta"}, 1},
 		{"finga_ws_slow_consumer_disconnects_total", nil, 1},
 		{"finga_players_online", nil, 1},
+		{"finga_social_registrations_waiting", nil, 1},
 	} {
 		if got := sample(t, reg, c.name, c.labels...); got != c.want {
 			t.Fatalf("%s%v = %v, want %v", c.name, c.labels, got, c.want)

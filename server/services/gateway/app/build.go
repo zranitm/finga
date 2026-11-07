@@ -57,7 +57,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	})
 	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec)
 	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec)
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: log, Panics: rec, Traces: h.Traces}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: log, Panics: rec, Traces: h.Traces, Observer: metrics}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions: guard,
 		Registry: sessions,

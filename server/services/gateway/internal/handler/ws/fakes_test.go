@@ -393,6 +393,7 @@ type fakeObserver struct {
 	online  int
 	changes int // OnlineChanged calls
 	slow    int
+	waiting int // logins waiting to register with social
 }
 
 func newFakeObserver() *fakeObserver {
@@ -407,6 +408,14 @@ func (o *fakeObserver) OnlineChanged(d int) {
 	o.online += d
 	o.changes++
 	o.mu.Unlock()
+}
+
+func (o *fakeObserver) RegistrationsWaiting(d int) { o.mu.Lock(); o.waiting += d; o.mu.Unlock() }
+
+func (o *fakeObserver) registering() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.waiting
 }
 
 // onlineAfter lets every goroutine run until it blocks, expects n online count changes, and returns the count.

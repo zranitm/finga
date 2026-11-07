@@ -41,13 +41,19 @@ type Social interface {
 	Offline(ctx context.Context, character kernel.CharacterID, conn string) error
 }
 
+// Observer counts the logins whose registration with the social service has not landed yet.
+type Observer interface {
+	RegistrationsWaiting(delta int)
+}
+
 // Deps are what the registry and its joins are built from.
 type Deps struct {
-	World  World
-	Social Social
-	Logger *slog.Logger
-	Panics *panics.Recorder     // a rejoin's panic
-	Traces trace.TracerProvider // each background job's trace, never kept: it joins the job's log lines and calls
+	World    World
+	Social   Social
+	Logger   *slog.Logger
+	Panics   *panics.Recorder     // a rejoin's panic
+	Traces   trace.TracerProvider // each background job's trace, never kept: it joins the job's log lines and calls
+	Observer Observer
 }
 
 // Options tune the registry.
