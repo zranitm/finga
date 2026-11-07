@@ -332,7 +332,7 @@ var errNobody = errors.New("worldtest: no such service in this test")
 type nobody struct{}
 
 // Transfer moves nobody.
-func (nobody) Transfer(model.Player, instance.Sink, string) {}
+func (nobody) Transfer(*instance.Instance, model.Player, instance.Sink, string) {}
 
 // Dropped forgets nobody.
 func (nobody) Dropped(*instance.Instance, kernel.CharacterID, string) {}

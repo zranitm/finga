@@ -10,16 +10,16 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Transfer marks the player in transit and lands them on another map on its own goroutine, so the calling tick never waits nor takes the character's lock.
-func (w *World) Transfer(p model.Player, sink instance.Sink, mapID string) {
+// Transfer marks the player in transit from the calling map and lands them on another on its own goroutine, so the calling tick never waits nor takes the character's lock.
+func (w *World) Transfer(from *instance.Instance, p model.Player, sink instance.Sink, mapID string) {
 	target, ok := w.instances[mapID]
 	if !ok {
 		w.deps.Logger.Error("transfer to an unknown map", "character_id", p.ID, "map_id", mapID)
 		return
 	}
-	at, ok := w.presences.handOff(p.ID, p.Connection, target)
+	at, ok := w.presences.handOff(p.ID, p.Connection, from, target)
 	if !ok {
-		return // a newer join replaced it
+		return // a newer join took the presence, or a leave took it off
 	}
 	w.background.Go(func() {
 		w.deps.Panics.Do(w.jobsCtx, panics.FlowJob, func() { w.land(p, sink, at) }, "job", "transfer", "character_id", p.ID, "map_id", mapID)

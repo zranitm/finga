@@ -42,7 +42,7 @@ func (r *transferRecorder) Dropped(_ *instance.Instance, id kernel.CharacterID, 
 	r.dropped = append(r.dropped, id.String()+" "+conn)
 }
 
-func (r *transferRecorder) Transfer(p model.Player, _ instance.Sink, mapID string) {
+func (r *transferRecorder) Transfer(_ *instance.Instance, p model.Player, _ instance.Sink, mapID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.moved = append(r.moved, p)

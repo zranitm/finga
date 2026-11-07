@@ -14,7 +14,7 @@ type presence struct {
 	account kernel.AccountID
 	sink    instance.Sink
 	gen     uint64 // stamped by each change, so a job that waited for the character's lock sees whether the presence it saw still stands
-	transit bool   // handed off by its last map and not yet on inst
+	transit bool   // handed off by its last map, and not yet marked landed on inst
 }
 
 // presences is the world's registry of joined characters, which routes the gateway's commands; the character's lock covers every change but the tick's, which only hands a presence off or drops it.
@@ -60,15 +60,15 @@ func (ps *presences) at(id kernel.CharacterID, conn string) (presence, bool) {
 	return p, ok && p.conn == conn
 }
 
-// handOff marks the character in transit to inst if conn holds it, returning the presence stamped anew; the tick calls it.
-func (ps *presences) handOff(id kernel.CharacterID, conn string, inst *instance.Instance) (presence, bool) {
+// handOff marks the character in transit from from to to if conn holds it there, returning the presence stamped anew; from's tick calls it, and as from holds the player, a landing on from not yet marked loses to it.
+func (ps *presences) handOff(id kernel.CharacterID, conn string, from, to *instance.Instance) (presence, bool) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
 	p, ok := ps.by[id]
-	if !ok || p.conn != conn || p.transit {
+	if !ok || p.conn != conn || p.inst != from {
 		return presence{}, false
 	}
-	p.inst, p.transit = inst, true
+	p.inst, p.transit = to, true
 	p = ps.stamp(p)
 	ps.by[id] = p
 	return p, true
@@ -114,11 +114,11 @@ func (ps *presences) forgetThrough(id kernel.CharacterID, conn string) {
 	}
 }
 
-// drop forgets the character's presence on inst through conn, which that map dropped; the tick calls it.
+// drop forgets the character's presence on inst through conn, which that map dropped, landing marked or not; the tick calls it.
 func (ps *presences) drop(id kernel.CharacterID, inst *instance.Instance, conn string) {
 	ps.mu.Lock()
 	defer ps.mu.Unlock()
-	if p, ok := ps.by[id]; ok && p.inst == inst && p.conn == conn && !p.transit {
+	if p, ok := ps.by[id]; ok && p.inst == inst && p.conn == conn {
 		delete(ps.by, id)
 	}
 }

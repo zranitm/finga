@@ -2,7 +2,7 @@ package world_test
 
 import (
 	"context"
-	"finga/services/world/worldtest"
+	"slices"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -10,6 +10,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/services/world/internal/model"
+	"finga/services/world/worldtest"
 )
 
 func portalNamed(t *testing.T, m *gamedata.Map, name string) gamedata.Portal {
@@ -189,6 +190,51 @@ func TestPortals(t *testing.T) {
 			if sn := worldtest.Of[model.Snapshot](sc); len(sn) != 3 || sn[2].MapID != "town" {
 				t.Fatalf("snapshots %d", len(sn))
 			}
+		}
+	})
+}
+
+// A second portal press that reaches the target map in the same drain as the landing join takes the player on, not between maps.
+func TestASecondPortalInTheLandingDrainTakesThePlayerOn(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		w := newWorld(t, &fakeSaver{}, worldtest.Options{CheckpointInterval: time.Hour})
+		ctx, cancel := context.WithCancel(context.Background())
+		runDone := make(chan error, 1)
+		go func() { runDone <- w.Run(ctx) }()
+		defer func() {
+			cancel()
+			if err := <-runDone; err != nil {
+				t.Error(err)
+			}
+			synctest.Wait()
+		}()
+		townMap, _ := data.Map("town")
+		toForest := portalNamed(t, townMap, "to_forest")
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		cass := worldtest.NewPlayer("Cass", toForest.Arrival().X, toForest.Arrival().Y)
+		sc := &worldtest.Sink{}
+		w.enter(t, cass, "town", "c-cass", sc)
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		_ = w.EnterPortal(cass.ID, "c-cass")
+		for len(worldtest.Of[model.Teleport](sc)) == 0 {
+			time.Sleep(time.Millisecond)
+			synctest.Wait()
+		}
+		if n := len(worldtest.Of[model.Snapshot](sc)); n != 1 {
+			t.Skipf("the forest answered the landing before the second press was routed to it (%d snapshots)", n)
+		}
+		_ = w.EnterPortal(cass.ID, "c-cass") // routed to the forest, behind the landing join
+		time.Sleep(10 * worldtest.TickInterval)
+		synctest.Wait()
+		var maps []string
+		for _, s := range worldtest.Of[model.Snapshot](sc) {
+			maps = append(maps, s.MapID)
+		}
+		if tel := worldtest.Of[model.Teleport](sc); len(tel) != 2 || !slices.Equal(maps, []string{"town", "forest", "town"}) {
+			t.Fatalf("%d teleports, snapshots on %v; want her through the forest and back on the town", len(tel), maps)
 		}
 	})
 }

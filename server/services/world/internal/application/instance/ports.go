@@ -26,7 +26,7 @@ type Checkpoints interface {
 
 // Mover moves a player to another map's instance; it must not block the calling tick.
 type Mover interface {
-	Transfer(p model.Player, sink Sink, mapID string)
+	Transfer(from *Instance, p model.Player, sink Sink, mapID string)
 	// Dropped tells of a player the map removed because its sink failed.
 	Dropped(from *Instance, id kernel.CharacterID, conn string)
 }
