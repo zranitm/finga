@@ -23,6 +23,11 @@ function shortcut(e: KeyboardEvent): boolean {
 }
 
 export function bindKeyboard(opts: KeyboardOptions): () => void {
+  const pressed = new Set<string>(); // movement keys pressed and not let go of since, by code
+  const releaseAll = () => {
+    pressed.clear();
+    opts.target.releaseAll();
+  };
   const movementFor = (e: KeyboardEvent): Action | undefined => {
     const action = actionFor(e.code, opts.preset());
     return action !== undefined && isMovement(action) ? action : undefined;
@@ -33,10 +38,11 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       return;
     }
     e.preventDefault(); // the game's keys: arrows and Space would scroll, and Space or Enter would press a focused button
-    if (e.repeat) {
-      return;
+    if (e.repeat && (pressed.has(e.code) || !isMovement(action))) {
+      return; // a repeat presses only a key a release-all let go of while it was held
     }
     if (isMovement(action)) {
+      pressed.add(e.code);
       opts.target.press(action);
     } else {
       opts.onAction?.(action);
@@ -44,7 +50,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
   };
   const up = (e: KeyboardEvent) => {
     if (e.key === 'Meta') {
-      opts.target.releaseAll(); // macOS sends no key up for a key let go while Cmd was held
+      releaseAll(); // macOS sends no key up for a key let go while Cmd was held
       return;
     }
     if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing() && !shortcut(e)) {
@@ -52,15 +58,16 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
     }
     const action = movementFor(e);
     if (action !== undefined) {
+      pressed.delete(e.code);
       opts.target.release(action); // even while typing, so no key sticks
     }
   };
   const blur = () => {
-    opts.target.releaseAll();
+    releaseAll();
   };
   const focusIn = () => {
     if (opts.typing()) {
-      opts.target.releaseAll(); // keys held as typing starts would never see their key up
+      releaseAll(); // keys held as typing starts would never see their key up
     }
   };
   window.addEventListener('keydown', down);

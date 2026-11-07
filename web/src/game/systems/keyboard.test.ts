@@ -31,6 +31,8 @@ function setup(preset: Preset = 'classic', typing = false) {
   return { target, onAction, state, unbind, key };
 }
 
+type Key = ReturnType<typeof setup>['key'];
+
 describe('bindKeyboard', () => {
   it.each([
     { preset: 'classic' as const, code: 'ArrowRight', action: 'right' },
@@ -126,6 +128,21 @@ describe('bindKeyboard', () => {
     expect(target.releaseAll).not.toHaveBeenCalled();
     key('keyup', 'MetaLeft', { key: 'Meta' });
     expect(target.releaseAll).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    {
+      name: 'Cmd let every key go',
+      letGo: (key: Key) => key('keyup', 'MetaLeft', { key: 'Meta' }),
+    },
+    { name: 'the page lost focus', letGo: () => window.dispatchEvent(new Event('blur')) },
+  ])('a key still held after $name is held again by its repeats, once', ({ letGo }) => {
+    const { target, key } = setup();
+    key('keydown', 'ArrowRight');
+    letGo(key);
+    key('keydown', 'ArrowRight', { repeat: true });
+    key('keydown', 'ArrowRight', { repeat: true });
+    expect(target.press.mock.calls).toEqual([['right'], ['right']]);
   });
 
   it('a held key repeats in the browser but presses once', () => {
