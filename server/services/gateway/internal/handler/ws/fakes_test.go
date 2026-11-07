@@ -429,6 +429,7 @@ type fakeItems struct {
 	moves     []*itemv1.MoveRequest
 	discards  []*itemv1.DiscardRequest
 	changed   []*itemv1.Slot
+	revision  uint64 // every answer's
 	err       error
 	gate      chan struct{} // when set, Inventory waits for it to close
 	invErr    error         // Inventory fails with it
@@ -447,10 +448,12 @@ func (f *fakeItems) Inventory(ctx context.Context, _ *itemv1.InventoryRequest) (
 			return nil, ctx.Err()
 		}
 	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.invErr != nil {
 		return nil, f.invErr
 	}
-	return &itemv1.InventoryResponse{Items: f.inventory}, nil
+	return &itemv1.InventoryResponse{Items: f.inventory, Revision: f.revision}, nil
 }
 
 func (f *fakeItems) Move(_ context.Context, req *itemv1.MoveRequest) (*itemv1.MoveResponse, error) {
@@ -460,7 +463,7 @@ func (f *fakeItems) Move(_ context.Context, req *itemv1.MoveRequest) (*itemv1.Mo
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &itemv1.MoveResponse{Changed: f.changed}, nil
+	return &itemv1.MoveResponse{Changed: f.changed, Revision: f.revision}, nil
 }
 
 func (f *fakeItems) Discard(_ context.Context, req *itemv1.DiscardRequest) (*itemv1.DiscardResponse, error) {
@@ -470,7 +473,7 @@ func (f *fakeItems) Discard(_ context.Context, req *itemv1.DiscardRequest) (*ite
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &itemv1.DiscardResponse{Changed: f.changed}, nil
+	return &itemv1.DiscardResponse{Changed: f.changed, Revision: f.revision}, nil
 }
 
 // fakeSocial serves the social service over in-memory gRPC, delivering party lines to recipients.

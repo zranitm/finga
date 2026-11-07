@@ -77,9 +77,10 @@ type ChatMessage struct {
 	Text               string
 }
 
-// InventoryChanged is the slots a pickup or another move changed.
+// InventoryChanged is the slots a pickup or another move changed, at the inventory's revision after it.
 type InventoryChanged struct {
-	Slots []InventorySlot
+	Revision uint64
+	Slots    []InventorySlot
 }
 
 // PickupFailed is a pickup the item service refused, as the player sees it.

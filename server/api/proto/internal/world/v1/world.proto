@@ -257,6 +257,8 @@ message Chat {
 // InventoryChanged is the slots a committed pickup changed.
 message InventoryChanged {
   repeated Slot slots = 1;
+  // The inventory's revision these slots show, from the item service; 0 when it gave none.
+  uint64 revision = 2;
 }
 
 // Slot is one changed inventory slot, item unset when it emptied: the same fields as the item service's, owned here.

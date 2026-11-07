@@ -225,10 +225,17 @@ type DropView struct {
 	X, Y     float64
 }
 
-// InventoryChanged tells the player which slots a committed change touched.
+// InventoryChanged tells the player which slots a committed change touched, as they stood at the inventory's Revision.
 type InventoryChanged struct {
-	Tick  uint64
-	Slots []Slot
+	Tick     uint64
+	Revision uint64
+	Slots    []Slot
+}
+
+// Inventory is slots of a character's inventory as they stood at Revision, the item service's count of its changes.
+type Inventory struct {
+	Revision uint64
+	Slots    []Slot
 }
 
 // Slot is one inventory slot a pickup touched; Item is nil when it emptied.

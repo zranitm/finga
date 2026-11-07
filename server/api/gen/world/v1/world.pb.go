@@ -2010,8 +2010,10 @@ func (x *Chat) GetText() string {
 
 // InventoryChanged is the slots a committed pickup changed.
 type InventoryChanged struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Slots         []*Slot                `protobuf:"bytes,1,rep,name=slots,proto3" json:"slots,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Slots []*Slot                `protobuf:"bytes,1,rep,name=slots,proto3" json:"slots,omitempty"`
+	// The inventory's revision these slots show, from the item service; 0 when it gave none.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2051,6 +2053,13 @@ func (x *InventoryChanged) GetSlots() []*Slot {
 		return x.Slots
 	}
 	return nil
+}
+
+func (x *InventoryChanged) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 // Slot is one changed inventory slot, item unset when it emptied: the same fields as the item service's, owned here.
@@ -3047,9 +3056,10 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\tsender_id\x18\x01 \x01(\tR\bsenderId\x12\x1f\n" +
 	"\vsender_name\x18\x02 \x01(\tR\n" +
 	"senderName\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04text\"A\n" +
+	"\x04text\x18\x03 \x01(\tR\x04text\"]\n" +
 	"\x10InventoryChanged\x12-\n" +
-	"\x05slots\x18\x01 \x03(\v2\x17.internal.world.v1.SlotR\x05slots\"Y\n" +
+	"\x05slots\x18\x01 \x03(\v2\x17.internal.world.v1.SlotR\x05slots\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"Y\n" +
 	"\x04Slot\x12\x10\n" +
 	"\x03tab\x18\x01 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x05R\x04slot\x12+\n" +

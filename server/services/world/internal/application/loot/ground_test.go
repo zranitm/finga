@@ -42,8 +42,9 @@ var (
 )
 
 type answer struct {
-	slots []model.Slot
-	err   error
+	slots    []model.Slot
+	revision uint64
+	err      error
 }
 
 // pickups is the item service: each Add gets the next answer, the last one again once they run out.
@@ -54,19 +55,19 @@ type pickups struct {
 	inventory answer
 }
 
-func (p *pickups) Add(_ context.Context, in model.Pickup) ([]model.Slot, error) {
+func (p *pickups) Add(_ context.Context, in model.Pickup) (model.Inventory, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.calls = append(p.calls, in)
 	a := p.answers[min(len(p.calls), len(p.answers))-1]
-	return a.slots, a.err
+	return model.Inventory{Revision: a.revision, Slots: a.slots}, a.err
 }
 
 func (p *pickups) Retryable(err error) bool { return errors.Is(err, errDown) }
 func (p *pickups) Granted(err error) bool   { return errors.Is(err, errGranted) }
 
-func (p *pickups) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
-	return p.inventory.slots, p.inventory.err
+func (p *pickups) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	return model.Inventory{Revision: p.inventory.revision, Slots: p.inventory.slots}, p.inventory.err
 }
 
 func (p *pickups) added() []model.Pickup {
@@ -239,10 +240,10 @@ func TestSettlingAPickup(t *testing.T) {
 		gone      bool        // the drop left the ground
 		mateTakes bool        // left on the ground, it is free for the killer's party again
 	}{
-		{"granted", &pickups{answers: []answer{{slots: gel}}}, model.InventoryChanged{Tick: 1, Slots: gel}, 1, true, false},
+		{"granted", &pickups{answers: []answer{{slots: gel, revision: 7}}}, model.InventoryChanged{Tick: 1, Revision: 7, Slots: gel}, 1, true, false},
 		{"granted with nothing to show", &pickups{answers: []answer{{}}}, nil, 1, true, false},
 		{"refused", &pickups{answers: []answer{{err: errFull}}}, model.PickupFailed{Tick: 1, Err: errFull}, 1, false, true},
-		{"granted by a try whose reply was lost", &pickups{answers: []answer{{err: errGranted}}, inventory: answer{slots: append(slices.Clone(gel), potion)}}, model.InventoryChanged{Tick: 1, Slots: gel}, 1, true, false},
+		{"granted by a try whose reply was lost", &pickups{answers: []answer{{err: errGranted}}, inventory: answer{slots: append(slices.Clone(gel), potion), revision: 9}}, model.InventoryChanged{Tick: 1, Revision: 9, Slots: gel}, 1, true, false},
 		{"granted, with the inventory unreadable", &pickups{answers: []answer{{err: errGranted}}, inventory: answer{err: errDown}}, nil, 1, true, false},
 	}
 	for _, tt := range tests {
@@ -353,7 +354,7 @@ func TestAnUnsettledDropTriesOnceMoreAsItExpires(t *testing.T) {
 		after []answer // the item service's answers to the last try
 		event model.Event
 	}{
-		{"the replay grants it", []answer{{slots: gel}}, model.InventoryChanged{Tick: late, Slots: gel}},
+		{"the replay grants it", []answer{{slots: gel, revision: 4}}, model.InventoryChanged{Tick: late, Revision: 4, Slots: gel}},
 		{"the item service is still down", []answer{{err: errDown}, {err: errDown}}, nil},
 	}
 	for _, tt := range tests {

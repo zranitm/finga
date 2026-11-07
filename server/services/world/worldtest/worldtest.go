@@ -365,12 +365,14 @@ func (nobody) SaveDropped(string) {}
 func (nobody) Granted(error) bool { return false }
 
 // Inventory refuses.
-func (nobody) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
-	return nil, errNobody
+func (nobody) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	return model.Inventory{}, errNobody
 }
 
 // Add refuses.
-func (nobody) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, errNobody }
+func (nobody) Add(context.Context, model.Pickup) (model.Inventory, error) {
+	return model.Inventory{}, errNobody
+}
 
 // GrantStarter grants nothing, and does not fail a join.
 func (nobody) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {

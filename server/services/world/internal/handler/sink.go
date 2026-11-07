@@ -57,7 +57,7 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 	case model.Chat:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}}
 	case model.InventoryChanged:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: slots(ev.Slots)}}}
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: slots(ev.Slots), Revision: ev.Revision}}}
 	case model.PickupFailed:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: s.pickupFailed(ev.Err)}}
 	case model.Detached:

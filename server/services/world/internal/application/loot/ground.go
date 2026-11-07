@@ -33,13 +33,14 @@ const (
 
 // Pickups is the item service, called from economy workers, never inside a tick.
 type Pickups interface {
-	Add(ctx context.Context, p model.Pickup) ([]model.Slot, error)
+	// Add grants the pickup and returns the slots it changed, at the revision it took.
+	Add(ctx context.Context, p model.Pickup) (model.Inventory, error)
 	// Retryable reports whether a failed Add is transient (a full inventory is not).
 	Retryable(err error) bool
 	// Granted reports whether a failed Add means an earlier try, whose reply was lost, granted the drop.
 	Granted(err error) bool
-	// Inventory is the character's whole inventory, for a grant whose own reply was lost.
-	Inventory(ctx context.Context, id kernel.CharacterID) ([]model.Slot, error)
+	// Inventory is the character's whole inventory at its revision, for a grant whose own reply was lost.
+	Inventory(ctx context.Context, id kernel.CharacterID) (model.Inventory, error)
 }
 
 // Parties tells whether a picker shares the killer's party, from inside a tick.
@@ -164,11 +165,11 @@ type Picker struct {
 
 // Result is a pickup's outcome, which the map settles on its tick.
 type Result struct {
-	Who   kernel.CharacterID
-	drop  uint64
-	slots []model.Slot
-	err   error
-	last  bool // the try an unsettled drop made as it expired
+	Who     kernel.CharacterID
+	drop    uint64
+	changed model.Inventory
+	err     error
+	last    bool // the try an unsettled drop made as it expired
 }
 
 // PickUp reserves the nearest drop p may take for a worker to grant, which hands done the Result; else ErrPickupBusy.
@@ -225,41 +226,42 @@ func (g *Ground) grant(ctx context.Context, pu pickup) Result {
 	}
 	ctx, span := g.tracer.Start(ctx, pickupSpan, opts...)
 	defer span.End()
-	slots, err := g.add(ctx, in)
+	changed, err := g.add(ctx, in)
 	if err != nil && g.deps.Items.Retryable(err) {
-		slots, err = g.add(ctx, in) // the key makes a retry harmless
+		changed, err = g.add(ctx, in) // the key makes a retry harmless
 		if err != nil && g.deps.Items.Retryable(err) {
 			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
 		}
 	}
 	if err != nil && g.deps.Items.Granted(err) {
-		slots, err = g.held(ctx, in), nil // granted, though the slots it changed went with the lost reply
+		changed, err = g.held(ctx, in), nil // granted, though the slots it changed went with the lost reply
 	}
 	if err != nil {
 		span.SetStatus(codes.Error, err.Error())
 	}
-	return Result{Who: in.Character, drop: pu.drop, slots: slots, err: err}
+	return Result{Who: in.Character, drop: pu.drop, changed: changed, err: err}
 }
 
-func (g *Ground) add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
+func (g *Ground) add(ctx context.Context, in model.Pickup) (model.Inventory, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return g.deps.Items.Add(ctx, in)
 }
 
-// held is the picker's slots holding the drop's item, where its grant landed, so other slots a newer change moved stay as told; nothing, logged and on the trace, when the read fails.
-func (g *Ground) held(ctx context.Context, in model.Pickup) []model.Slot {
+// held is the picker's slots holding the drop's item, where its grant landed, at the revision read; nothing, logged and on the trace, when the read fails.
+func (g *Ground) held(ctx context.Context, in model.Pickup) model.Inventory {
 	readCtx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
-	slots, err := g.deps.Items.Inventory(readCtx, in.Character)
+	inv, err := g.deps.Items.Inventory(readCtx, in.Character)
 	if err != nil {
 		span := trace.SpanFromContext(ctx)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "granted, but the inventory could not be read")
 		g.deps.Logger.WarnContext(ctx, "pickup granted, but the inventory could not be read; the player sees it at the next change", "character_id", in.Character, "drop_id", in.DropID, "err", err)
-		return nil
+		return model.Inventory{}
 	}
-	return slices.DeleteFunc(slots, func(s model.Slot) bool { return s.Item == nil || s.Item.Template != in.Template })
+	inv.Slots = slices.DeleteFunc(inv.Slots, func(s model.Slot) bool { return s.Item == nil || s.Item.Template != in.Template })
+	return inv
 }
 
 // Settle applies a pickup's outcome, removing, freeing or holding its drop; it returns what to tell the picker.
@@ -282,10 +284,10 @@ func (g *Ground) Settle(r Result) (model.Event, bool) {
 		g.drops = slices.Delete(g.drops, k, k+1)
 		g.removed = append(g.removed, r.drop)
 	}
-	if len(r.slots) == 0 {
+	if len(r.changed.Slots) == 0 {
 		return nil, false
 	}
-	return model.InventoryChanged{Tick: g.tick, Slots: r.slots}, true
+	return model.InventoryChanged{Tick: g.tick, Revision: r.changed.Revision, Slots: r.changed.Slots}, true
 }
 
 // Views are every drop, as a Snapshot shows them.

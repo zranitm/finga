@@ -51,12 +51,14 @@ func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
 // idle is every service these tests do not exercise: it answers nothing went wrong, and its streams wait for their end.
 type idle struct{}
 
-func (idle) Inventory(context.Context, kernel.CharacterID) ([]model.ItemView, error) { return nil, nil }
-func (idle) Move(context.Context, model.Actor, model.ItemMove) ([]model.InventorySlot, error) {
-	return nil, nil
+func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	return model.Inventory{}, nil
 }
-func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) ([]model.InventorySlot, error) {
-	return nil, nil
+func (idle) Move(context.Context, model.Actor, model.ItemMove) (model.InventoryChanged, error) {
+	return model.InventoryChanged{}, nil
+}
+func (idle) Discard(context.Context, model.Actor, model.ItemDiscard) (model.InventoryChanged, error) {
+	return model.InventoryChanged{}, nil
 }
 func (idle) Chat(_ context.Context, _ model.Player, channel model.ChatChannel, text string) (model.ChatLine, error) {
 	return model.ChatLine{Channel: channel, Text: text}, nil

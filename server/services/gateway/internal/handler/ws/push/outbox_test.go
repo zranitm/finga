@@ -141,7 +141,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.ChatMessage{Channel: model.ChatMap, Sender: "p-1", SenderName: "Robin", Text: "hi"},
 			&clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: "p-1", SenderName: "Robin", Text: "hi"},
 		},
-		{model.InventoryChanged{Slots: slots}, &clientv1.InventoryChanged{Slots: wireSlots}},
+		{model.InventoryChanged{Revision: 5, Slots: slots}, &clientv1.InventoryChanged{Revision: 5, Slots: wireSlots}},
 		{model.PickupFailed{Why: model.InventoryFull}, &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
 		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
@@ -191,22 +191,24 @@ func TestAFramesPlayersShareOneEncoding(t *testing.T) {
 	}
 }
 
-func TestWelcomeCarriesTheCharacterAndItsItems(t *testing.T) {
+func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
 	s := &socket{}
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
-		Token:      "t-2",
-		Character:  model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33},
-		Inventory:  []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
-		MapID:      "town",
-		ServerTime: at,
+		Token:             "t-2",
+		Character:         model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33},
+		Inventory:         []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		InventoryRevision: 8,
+		MapID:             "town",
+		ServerTime:        at,
 	})
 	want := &clientv1.Welcome{
-		Token:      "t-2",
-		Character:  &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33},
-		Inventory:  []*clientv1.ItemView{{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
-		MapId:      "town",
-		ServerTime: at.UnixMilli(),
+		Token:             "t-2",
+		Character:         &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33},
+		Inventory:         []*clientv1.ItemView{{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		InventoryRevision: 8,
+		MapId:             "town",
+		ServerTime:        at.UnixMilli(),
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

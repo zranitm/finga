@@ -734,13 +734,13 @@ func TestCommandsAfterATeleportStillCarryTheConnection(t *testing.T) {
 func TestInventoryInWelcomeAndCommands(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		potion := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
-		items := &fakeItems{inventory: []*itemv1.Item{potion}}
+		items := &fakeItems{inventory: []*itemv1.Item{potion}, revision: 4}
 		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		w := c.expect("Welcome").Data.(*clientv1.Welcome)
-		if len(w.Inventory) != 1 || w.Inventory[0].GetItemId() != potion.GetId() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 {
-			t.Fatalf("welcome inventory %+v", w.Inventory)
+		if len(w.Inventory) != 1 || w.Inventory[0].GetItemId() != potion.GetId() || w.Inventory[0].Template != "red_potion" || w.Inventory[0].Quantity != 5 || w.InventoryRevision != 4 {
+			t.Fatalf("welcome inventory %+v at revision %d, want the potion at 4", w.Inventory, w.InventoryRevision)
 		}
 		c.expect("Snapshot")
 
@@ -753,17 +753,19 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 				t.Fatalf("pickups %v", h.world.pickups)
 			}
 		})
-		part(t, "InventoryMove answers ok and sends the changed slots, with the connection's identity", func() {
+		part(t, "InventoryMove answers ok and sends the changed slots at their revision, with the connection's identity", func() {
 			moved := &itemv1.Item{Id: potion.GetId(), TemplateId: "red_potion", Tab: "use", Slot: 3, Quantity: 5}
-			items.changed = []*itemv1.Slot{{Tab: "use", Slot: 0}, {Tab: "use", Slot: 3, Item: moved}}
+			items.mu.Lock()
+			items.changed, items.revision = []*itemv1.Slot{{Tab: "use", Slot: 0}, {Tab: "use", Slot: 3, Item: moved}}, 5
+			items.mu.Unlock()
 			c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryMove{IdempotencyKey: "k-1", ItemId: potion.GetId(), Tab: "use", Slot: 3}})
 			r := c.expect("Response")
 			if r.ReqID != "r-1" || !r.Data.(*clientv1.Response).GetOk() {
 				t.Fatalf("response %+v", r)
 			}
 			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
-			if len(ic.Slots) != 2 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].GetItem().GetQuantity() != 5 {
-				t.Fatalf("inventory changed %+v", ic)
+			if len(ic.Slots) != 2 || ic.Slots[0].Item != nil || ic.Slots[1].Slot != 3 || ic.Slots[1].GetItem().GetQuantity() != 5 || ic.Revision != 5 {
+				t.Fatalf("inventory changed %+v, want both slots at revision 5", ic)
 			}
 			items.mu.Lock()
 			defer items.mu.Unlock()
@@ -805,12 +807,12 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			if r.GetOk() || r.Code != "inventory_full" || r.Message != "your inventory is full" {
 				t.Fatalf("response %+v", r)
 			}
-			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: []*worldv1.Slot{
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Revision: 6, Slots: []*worldv1.Slot{
 				{Tab: "etc", Slot: 1, Item: &worldv1.Item{Id: kernel.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
 			}}}})
 			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
-			if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetTemplate() != "slime_gel" {
-				t.Fatalf("inventory changed %+v", ic)
+			if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetTemplate() != "slime_gel" || ic.Revision != 6 {
+				t.Fatalf("inventory changed %+v, want the gel at revision 6", ic)
 			}
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 15, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{}}})
 			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "internal" {

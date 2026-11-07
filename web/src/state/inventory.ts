@@ -12,30 +12,38 @@ export function isTab(tab: string): tab is Tab {
   return (tabs as readonly string[]).includes(tab);
 }
 
-export type Slots = Readonly<Record<Tab, readonly (ItemView | null)[]>>;
+type Tabs<T> = Readonly<Record<Tab, readonly T[]>>;
+
+export type Slots = Tabs<ItemView | null>;
+
+/** The inventory revision that last set each slot. */
+type Revisions = Tabs<bigint>;
 
 export interface InventoryState {
   readonly slots: Slots;
+  readonly revisions: Revisions;
   applyWelcome(d: Data<'welcome'>): void;
+  /** A slot takes a change at least as new as its own revision; revision 0, stored before revisions, applies as it comes. */
   applyInventoryChanged(d: Data<'inventoryChanged'>): void;
   clear(): void;
 }
 
-function emptySlots(): Slots {
+function filled<T>(value: T): Tabs<T> {
   return {
-    equip: Array<ItemView | null>(SLOTS_PER_TAB).fill(null),
-    use: Array<ItemView | null>(SLOTS_PER_TAB).fill(null),
-    etc: Array<ItemView | null>(SLOTS_PER_TAB).fill(null),
+    equip: Array<T>(SLOTS_PER_TAB).fill(value),
+    use: Array<T>(SLOTS_PER_TAB).fill(value),
+    etc: Array<T>(SLOTS_PER_TAB).fill(value),
   };
 }
 
-function place(slots: Slots, tab: string, slot: number, item: ItemView | null): Slots {
-  if (!isTab(tab) || slot < 0 || slot >= SLOTS_PER_TAB) {
-    return slots;
-  }
-  const row = [...slots[tab]];
-  row[slot] = item;
-  return { ...slots, [tab]: row };
+function inRange(tab: string, slot: number): tab is Tab {
+  return isTab(tab) && slot >= 0 && slot < SLOTS_PER_TAB;
+}
+
+function put<T>(tabs: Tabs<T>, tab: Tab, slot: number, value: T): Tabs<T> {
+  const row = [...tabs[tab]];
+  row[slot] = value;
+  return { ...tabs, [tab]: row };
 }
 
 export function allItems(slots: Slots): ItemView[] {
@@ -43,22 +51,33 @@ export function allItems(slots: Slots): ItemView[] {
 }
 
 export const inventory = defineStore<InventoryState>((set, get) => ({
-  slots: emptySlots(),
+  slots: filled<ItemView | null>(null),
+  revisions: filled(0n),
   applyWelcome: (d) => {
-    let slots = emptySlots();
+    let slots = filled<ItemView | null>(null);
     for (const item of d.inventory) {
-      slots = place(slots, item.tab, item.slot, item);
+      if (inRange(item.tab, item.slot)) {
+        slots = put(slots, item.tab, item.slot, item);
+      }
     }
-    set({ slots });
+    set({ slots, revisions: filled(d.inventoryRevision) });
   },
   applyInventoryChanged: (d) => {
-    let slots = get().slots;
+    let { slots, revisions } = get();
     for (const s of d.slots) {
-      slots = place(slots, s.tab, s.slot, s.item ?? null);
+      if (!inRange(s.tab, s.slot)) {
+        continue;
+      }
+      if (d.revision === 0n) {
+        slots = put(slots, s.tab, s.slot, s.item ?? null);
+      } else if (d.revision >= (revisions[s.tab][s.slot] ?? 0n)) {
+        slots = put(slots, s.tab, s.slot, s.item ?? null);
+        revisions = put(revisions, s.tab, s.slot, d.revision);
+      }
     }
-    set({ slots });
+    set({ slots, revisions });
   },
   clear: () => {
-    set({ slots: emptySlots() });
+    set({ slots: filled<ItemView | null>(null), revisions: filled(0n) });
   },
 }));

@@ -8,16 +8,16 @@ import (
 )
 
 // InventoryChanged is the message for slots an inventory command or a pickup changed.
-func InventoryChanged(slots []model.InventorySlot) *clientv1.InventoryChanged {
-	out := make([]*clientv1.InventorySlot, 0, len(slots))
-	for _, s := range slots {
+func InventoryChanged(ic model.InventoryChanged) *clientv1.InventoryChanged {
+	out := make([]*clientv1.InventorySlot, 0, len(ic.Slots))
+	for _, s := range ic.Slots {
 		slot := &clientv1.InventorySlot{Tab: s.Tab, Slot: int32(s.Slot)}
 		if s.Item != nil {
 			slot.Item = itemView(*s.Item)
 		}
 		out = append(out, slot)
 	}
-	return &clientv1.InventoryChanged{Slots: out}
+	return &clientv1.InventoryChanged{Slots: out, Revision: ic.Revision}
 }
 
 func characterView(c model.CharacterView) *clientv1.CharacterView {

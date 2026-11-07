@@ -36,7 +36,7 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		ev := m.GetChat()
 		return model.ChatMessage{Channel: model.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
 	case m.GetInventoryChanged() != nil:
-		return model.InventoryChanged{Slots: worldSlots(m.GetInventoryChanged().GetSlots())}, true
+		return model.InventoryChanged{Revision: m.GetInventoryChanged().GetRevision(), Slots: worldSlots(m.GetInventoryChanged().GetSlots())}, true
 	case m.GetPickupFailed() != nil:
 		return model.PickupFailed{Why: pickupFailure(m.GetPickupFailed())}, true
 	}

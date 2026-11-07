@@ -207,6 +207,8 @@ message Welcome {
   int64 server_time = 7;
   // The world's ticks per second: each tick holds a whole number of movement steps (data/movement.yaml dt). 0 from an older server means 20.
   uint32 tick_rate_hz = 8;
+  // The inventory's revision these items show, so an older InventoryChanged arriving later leaves them be.
+  uint64 inventory_revision = 9;
 }
 
 // PlayerView is a character on the map as everyone sees it.
@@ -321,8 +323,11 @@ message InventorySlot {
   ItemView item = 3;
 }
 
+// InventoryChanged is slots as they stood at the inventory's revision: a slot keeps the newest view it got, so an older one arriving late is skipped.
 message InventoryChanged {
   repeated InventorySlot slots = 1;
+  // The count of the inventory's changes; 0 is a change stored before revisions, applied as it comes.
+  uint64 revision = 2;
 }
 
 // MapChange follows a portal.

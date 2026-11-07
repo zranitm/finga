@@ -75,11 +75,11 @@ func (h *Handler) inventoryDiscard(c *msgContext, in *clientv1.InventoryDiscard)
 }
 
 // changed is an inventory command's follow-up: the changed slots, if any.
-func changed(slots []model.InventorySlot, err error) (any, error) {
-	if err != nil || len(slots) == 0 {
+func changed(ic model.InventoryChanged, err error) (any, error) {
+	if err != nil || len(ic.Slots) == 0 {
 		return nil, err
 	}
-	return push.InventoryChanged(slots), nil
+	return push.InventoryChanged(ic), nil
 }
 
 func (h *Handler) partyInvite(c *msgContext, in *clientv1.PartyInvite) (any, error) {

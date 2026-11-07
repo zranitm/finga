@@ -33,16 +33,16 @@ var (
 type fakePickups struct {
 	mu        sync.Mutex
 	calls     []model.Pickup
-	granted   map[pickupKey][]model.Slot // the item service's idempotency keys are per account
-	failFirst error                      // returned by the first call of each drop
-	full      bool                       // every add is refused with errFull
-	down      bool                       // every add fails with errDown
-	lostReply bool                       // every add commits, then fails with errDown
-	hang      bool                       // every add waits until its context ends
-	gate      chan struct{}              // when set, every add waits for it to close
+	granted   map[pickupKey]model.Inventory // the item service's idempotency keys are per account, a replay answering as its grant did
+	failFirst error                         // returned by the first call of each drop
+	full      bool                          // every add is refused with errFull
+	down      bool                          // every add fails with errDown
+	lostReply bool                          // every add commits, then fails with errDown
+	hang      bool                          // every add waits until its context ends
+	gate      chan struct{}                 // when set, every add waits for it to close
 	seen      map[uuid.UUID]int
 	traces    []trace.SpanContext // each call's
-	held      []model.Slot        // the whole inventory Inventory reads
+	held      model.Inventory     // the whole inventory Inventory reads
 	heldErr   error               // returned by Inventory when set
 }
 
@@ -52,17 +52,17 @@ type pickupKey struct {
 }
 
 func newFakePickups() *fakePickups {
-	return &fakePickups{granted: map[pickupKey][]model.Slot{}, seen: map[uuid.UUID]int{}}
+	return &fakePickups{granted: map[pickupKey]model.Inventory{}, seen: map[uuid.UUID]int{}}
 }
 
-func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
+func (f *fakePickups) Add(ctx context.Context, in model.Pickup) (model.Inventory, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, in)
 	f.traces = append(f.traces, trace.SpanContextFromContext(ctx))
 	if f.hang {
 		f.mu.Unlock()
 		<-ctx.Done()
-		return nil, ctx.Err()
+		return model.Inventory{}, ctx.Err()
 	}
 	if gate := f.gate; gate != nil {
 		f.mu.Unlock()
@@ -72,24 +72,25 @@ func (f *fakePickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, e
 	defer f.mu.Unlock()
 	f.seen[in.DropID]++
 	if f.full {
-		return nil, errFull
+		return model.Inventory{}, errFull
 	}
 	if f.down {
-		return nil, errDown
+		return model.Inventory{}, errDown
 	}
 	if f.failFirst != nil && f.seen[in.DropID] == 1 {
-		return nil, f.failFirst
+		return model.Inventory{}, f.failFirst
 	}
 	key := pickupKey{in.Account, in.DropID}
-	slots, ok := f.granted[key]
+	changed, ok := f.granted[key]
 	if !ok {
-		slots = []model.Slot{{Tab: gamedata.Etc, Slot: len(f.granted), Item: &model.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}}
-		f.granted[key] = slots
+		slot := model.Slot{Tab: gamedata.Etc, Slot: len(f.granted), Item: &model.SlotItem{ID: kernel.NewItemID(), Template: in.Template, Quantity: in.Quantity}}
+		changed = model.Inventory{Revision: uint64(len(f.granted) + 1), Slots: []model.Slot{slot}}
+		f.granted[key] = changed
 	}
 	if f.lostReply {
-		return nil, errDown
+		return model.Inventory{}, errDown
 	}
-	return slots, nil
+	return changed, nil
 }
 
 func (f *fakePickups) Retryable(err error) bool {
@@ -98,7 +99,7 @@ func (f *fakePickups) Retryable(err error) bool {
 
 func (f *fakePickups) Granted(err error) bool { return errors.Is(err, errReused) }
 
-func (f *fakePickups) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
+func (f *fakePickups) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.held, f.heldErr
@@ -255,7 +256,7 @@ func TestPickUp(t *testing.T) {
 		// Walk under the drop, within the 40 px pickup range.
 		seq := worldtest.Walk(inst, p.ID, 0, sim.Input{Right: true}, 5)
 		worldtest.Walk(inst, p.ID, seq, sim.Input{}, 1)
-		{ // a pickup in range becomes one item, the drop leaves the ground
+		{ // a pickup in range becomes one item at the inventory's next revision, the drop leaves the ground
 			_ = inst.PickUp(t.Context(), p.ID)
 			time.Sleep(3 * worldtest.TickInterval)
 			synctest.Wait()
@@ -266,7 +267,7 @@ func TestPickUp(t *testing.T) {
 				t.Fatal("the drop is still on the ground")
 			}
 			ic := inventoryChanges(s)
-			if len(ic) != 1 || len(ic[0].Slots) != 1 || ic[0].Slots[0].Item.Template != "slime_gel" {
+			if len(ic) != 1 || len(ic[0].Slots) != 1 || ic[0].Slots[0].Item.Template != "slime_gel" || ic[0].Revision != 1 {
 				t.Fatalf("inventory changes %+v", ic)
 			}
 		}
@@ -682,14 +683,14 @@ func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
 		heldErr error
 		want    []model.InventoryChanged
 	}{
-		{"the inventory as the item service holds it", nil, []model.InventoryChanged{{Slots: gel}}},
+		{"the inventory as the item service holds it, at the revision it read", nil, []model.InventoryChanged{{Revision: 6, Slots: gel}}},
 		{"nothing when that read fails too", errDown, nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				data := worldtest.LoadData(t)
 				items := newFakePickups()
-				items.failFirst, items.held, items.heldErr = errReused, gel, tt.heldErr
+				items.failFirst, items.held, items.heldErr = errReused, model.Inventory{Revision: 6, Slots: gel}, tt.heldErr
 				inst, stop := runLootArena(t, data, items, 0.3)
 				defer stop()
 				time.Sleep(worldtest.TickInterval)

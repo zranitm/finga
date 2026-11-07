@@ -41,12 +41,13 @@ const (
 
 // Welcome is what a joined player starts from; Token replaces the one Hello sent.
 type Welcome struct {
-	Token      string
-	Character  CharacterView
-	Inventory  []ItemView
-	MapID      string
-	ServerTime time.Time
-	TickRateHz int
+	Token             string
+	Character         CharacterView
+	Inventory         []ItemView
+	InventoryRevision uint64
+	MapID             string
+	ServerTime        time.Time
+	TickRateHz        int
 }
 
 // Keys are the keys a player holds.

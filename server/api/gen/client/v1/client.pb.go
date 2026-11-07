@@ -1899,9 +1899,11 @@ type Welcome struct {
 	// Unix milliseconds.
 	ServerTime int64 `protobuf:"varint,7,opt,name=server_time,json=serverTime,proto3" json:"server_time,omitempty"`
 	// The world's ticks per second: each tick holds a whole number of movement steps (data/movement.yaml dt). 0 from an older server means 20.
-	TickRateHz    uint32 `protobuf:"varint,8,opt,name=tick_rate_hz,json=tickRateHz,proto3" json:"tick_rate_hz,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	TickRateHz uint32 `protobuf:"varint,8,opt,name=tick_rate_hz,json=tickRateHz,proto3" json:"tick_rate_hz,omitempty"`
+	// The inventory's revision these items show, so an older InventoryChanged arriving later leaves them be.
+	InventoryRevision uint64 `protobuf:"varint,9,opt,name=inventory_revision,json=inventoryRevision,proto3" json:"inventory_revision,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *Welcome) Reset() {
@@ -1987,6 +1989,13 @@ func (x *Welcome) GetServerTime() int64 {
 func (x *Welcome) GetTickRateHz() uint32 {
 	if x != nil {
 		return x.TickRateHz
+	}
+	return 0
+}
+
+func (x *Welcome) GetInventoryRevision() uint64 {
+	if x != nil {
+		return x.InventoryRevision
 	}
 	return 0
 }
@@ -2940,9 +2949,12 @@ func (x *InventorySlot) GetItem() *ItemView {
 	return nil
 }
 
+// InventoryChanged is slots as they stood at the inventory's revision: a slot keeps the newest view it got, so an older one arriving late is skipped.
 type InventoryChanged struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Slots         []*InventorySlot       `protobuf:"bytes,1,rep,name=slots,proto3" json:"slots,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Slots []*InventorySlot       `protobuf:"bytes,1,rep,name=slots,proto3" json:"slots,omitempty"`
+	// The count of the inventory's changes; 0 is a change stored before revisions, applied as it comes.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2982,6 +2994,13 @@ func (x *InventoryChanged) GetSlots() []*InventorySlot {
 		return x.Slots
 	}
 	return nil
+}
+
+func (x *InventoryChanged) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
 }
 
 // MapChange follows a portal.
@@ -3504,7 +3523,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x06online\x18\a \x01(\bR\x06online\"U\n" +
 	"\tPartyView\x12\x16\n" +
 	"\x06leader\x18\x01 \x01(\tR\x06leader\x120\n" +
-	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xa8\x02\n" +
+	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xd7\x02\n" +
 	"\aWelcome\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x126\n" +
 	"\tcharacter\x18\x02 \x01(\v2\x18.client.v1.CharacterViewR\tcharacter\x121\n" +
@@ -3515,7 +3534,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\vserver_time\x18\a \x01(\x03R\n" +
 	"serverTime\x12 \n" +
 	"\ftick_rate_hz\x18\b \x01(\rR\n" +
-	"tickRateHz\"\xc8\x02\n" +
+	"tickRateHz\x12-\n" +
+	"\x12inventory_revision\x18\t \x01(\x04R\x11inventoryRevision\"\xc8\x02\n" +
 	"\n" +
 	"PlayerView\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -3593,9 +3613,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\rInventorySlot\x12\x10\n" +
 	"\x03tab\x18\x01 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x05R\x04slot\x12'\n" +
-	"\x04item\x18\x03 \x01(\v2\x13.client.v1.ItemViewR\x04item\"B\n" +
+	"\x04item\x18\x03 \x01(\v2\x13.client.v1.ItemViewR\x04item\"^\n" +
 	"\x10InventoryChanged\x12.\n" +
-	"\x05slots\x18\x01 \x03(\v2\x18.client.v1.InventorySlotR\x05slots\">\n" +
+	"\x05slots\x18\x01 \x03(\v2\x18.client.v1.InventorySlotR\x05slots\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\">\n" +
 	"\tMapChange\x12\x15\n" +
 	"\x06map_id\x18\x01 \x01(\tR\x05mapId\x12\f\n" +
 	"\x01x\x18\x02 \x01(\x01R\x01x\x12\f\n" +

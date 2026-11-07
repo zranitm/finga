@@ -17,7 +17,7 @@ type Pickups struct{ c itemv1.ItemServiceClient }
 func NewPickups(c itemv1.ItemServiceClient) Pickups { return Pickups{c: c} }
 
 // Add keys the grant by the drop's ID, so a retry or replay grants it once.
-func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error) {
+func (p Pickups) Add(ctx context.Context, in model.Pickup) (model.Inventory, error) {
 	drop := in.DropID.String()
 	res, err := p.c.Add(ctx, &itemv1.AddRequest{
 		Actor:          &itemv1.Actor{AccountId: in.Account.String(), CharacterId: in.Character.String()},
@@ -27,36 +27,36 @@ func (p Pickups) Add(ctx context.Context, in model.Pickup) ([]model.Slot, error)
 		Cause:          &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: drop},
 	})
 	if err != nil {
-		return nil, err
+		return model.Inventory{}, err
 	}
 	out := make([]model.Slot, 0, len(res.GetChanged()))
 	for _, s := range res.GetChanged() {
 		slot := model.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
 		if it := s.GetItem(); it != nil {
 			if slot.Item, err = slotItem(it); err != nil {
-				return nil, err
+				return model.Inventory{}, err
 			}
 		}
 		out = append(out, slot)
 	}
-	return out, nil
+	return model.Inventory{Revision: res.GetRevision(), Slots: out}, nil
 }
 
 // Inventory reads every item the character holds, each as the slot it fills.
-func (p Pickups) Inventory(ctx context.Context, id kernel.CharacterID) ([]model.Slot, error) {
+func (p Pickups) Inventory(ctx context.Context, id kernel.CharacterID) (model.Inventory, error) {
 	res, err := p.c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: id.String()})
 	if err != nil {
-		return nil, err
+		return model.Inventory{}, err
 	}
 	out := make([]model.Slot, 0, len(res.GetItems()))
 	for _, it := range res.GetItems() {
 		item, err := slotItem(it)
 		if err != nil {
-			return nil, err
+			return model.Inventory{}, err
 		}
 		out = append(out, model.Slot{Tab: gamedata.Tab(it.GetTab()), Slot: int(it.GetSlot()), Item: item})
 	}
-	return out, nil
+	return model.Inventory{Revision: res.GetRevision(), Slots: out}, nil
 }
 
 func slotItem(it *itemv1.Item) (*model.SlotItem, error) {

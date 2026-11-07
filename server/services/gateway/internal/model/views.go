@@ -45,6 +45,12 @@ type ItemView struct {
 	Slot, Quantity    int
 }
 
+// Inventory is the player's items as they stood at Revision, the count of the inventory's changes.
+type Inventory struct {
+	Revision uint64
+	Items    []ItemView
+}
+
 // InventorySlot is a slot an inventory command changed; Item is nil when the slot is now empty.
 type InventorySlot struct {
 	Tab  string

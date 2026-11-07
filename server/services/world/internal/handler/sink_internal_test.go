@@ -57,3 +57,23 @@ func TestAFullStreamRefusesTheFrame(t *testing.T) {
 		t.Fatal("a full stream took the frame")
 	}
 }
+
+// An inventory change goes to its gateway with the revision it took, so the client can tell it from an older view of its slots.
+func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub}
+	item := kernel.NewItemID()
+	if !s.Send(model.InventoryChanged{Tick: 9, Revision: 14, Slots: []model.Slot{{Tab: "etc", Slot: 2, Item: &model.SlotItem{ID: item, Template: "slime_gel", Quantity: 3}}, {Tab: "etc", Slot: 4}}}) {
+		t.Fatal("the stream refused the change")
+	}
+	want := &worldv1.DeliverResponse{Tick: 9, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
+		Revision: 14,
+		Slots: []*worldv1.Slot{
+			{Tab: "etc", Slot: 2, Item: &worldv1.Item{Id: item.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+			{Tab: "etc", Slot: 4},
+		},
+	}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}

@@ -30,12 +30,14 @@ func (quiet) JobFinished()                                     {}
 // nothing stands in for the services this test never reaches: the item, character and save paths.
 type nothing struct{}
 
-func (nothing) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, errNever }
-func (nothing) Retryable(error) bool                                    { return false }
-func (nothing) Granted(error) bool                                      { return false }
-func (nothing) Refused(error) bool                                      { return false }
-func (nothing) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
-	return nil, errNever
+func (nothing) Add(context.Context, model.Pickup) (model.Inventory, error) {
+	return model.Inventory{}, errNever
+}
+func (nothing) Retryable(error) bool { return false }
+func (nothing) Granted(error) bool   { return false }
+func (nothing) Refused(error) bool   { return false }
+func (nothing) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	return model.Inventory{}, errNever
 }
 func (nothing) SaveCheckpoint(context.Context, model.Checkpoint) error { return errNever }
 func (nothing) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {

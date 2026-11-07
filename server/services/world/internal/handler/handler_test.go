@@ -70,11 +70,13 @@ func (idle) Update(kernel.CharacterID, string, int, int, int) {}
 func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
 	return nil
 }
-func (idle) Add(context.Context, model.Pickup) ([]model.Slot, error) { return nil, nil }
-func (idle) Retryable(error) bool                                    { return false }
-func (idle) Granted(error) bool                                      { return false }
-func (idle) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error) {
-	return nil, nil
+func (idle) Add(context.Context, model.Pickup) (model.Inventory, error) {
+	return model.Inventory{}, nil
+}
+func (idle) Retryable(error) bool { return false }
+func (idle) Granted(error) bool   { return false }
+func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	return model.Inventory{}, nil
 }
 func (idle) ObserveTick(string, time.Duration, time.Duration) {}
 func (idle) JobStarted()                                      {}

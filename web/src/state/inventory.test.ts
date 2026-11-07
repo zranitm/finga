@@ -116,3 +116,97 @@ describe('inventory store', () => {
     expect(allItems(inventory.getState().slots)).toEqual([]);
   });
 });
+
+describe('inventory revisions', () => {
+  beforeEach(() => {
+    resetStores();
+  });
+
+  const stack = item('i-gel', 'slime_gel', 'etc', 1, 3);
+  const welcomeAt = (items: ItemView[], inventoryRevision: bigint) =>
+    create(WelcomeSchema, { token: 't', inventory: items, mapId: 'town', inventoryRevision });
+  const changedAt = (slots: MessageInitShape<typeof InventorySlotSchema>[], revision: bigint) =>
+    create(InventoryChangedSchema, { slots, revision });
+
+  it('an older change arriving after a newer one leaves the newer slots be', () => {
+    // A pickup (revision 2) grows the stack in slot 1, then a move (revision 3) takes it to slot 5; the move's answer comes first.
+    inventory.getState().applyWelcome(welcomeAt([stack], 1n));
+    inventory.getState().applyInventoryChanged(
+      changedAt(
+        [
+          { tab: 'etc', slot: 1 },
+          { tab: 'etc', slot: 5, item: { ...stack, slot: 5, quantity: 4 } },
+        ],
+        3n,
+      ),
+    );
+    inventory
+      .getState()
+      .applyInventoryChanged(
+        changedAt([{ tab: 'etc', slot: 1, item: { ...stack, quantity: 4 } }], 2n),
+      );
+    const { slots } = inventory.getState();
+    expect(slots.etc[1]).toBeNull();
+    expect(slots.etc[5]?.quantity).toBe(4);
+    expect(allItems(slots)).toHaveLength(1);
+  });
+
+  it('an older change still sets the slots no newer one touched', () => {
+    inventory.getState().applyWelcome(welcomeAt([stack], 1n));
+    inventory.getState().applyInventoryChanged(
+      changedAt(
+        [
+          { tab: 'etc', slot: 1 },
+          { tab: 'etc', slot: 5, item: { ...stack, slot: 5 } },
+        ],
+        3n,
+      ),
+    );
+    inventory.getState().applyInventoryChanged(
+      changedAt(
+        [
+          { tab: 'etc', slot: 1, item: stack },
+          { tab: 'etc', slot: 7, item: { ...gel, slot: 7 } },
+        ],
+        2n,
+      ),
+    );
+    const { slots } = inventory.getState();
+    expect(slots.etc[1]).toBeNull();
+    expect(slots.etc[5]?.itemId).toBe('i-gel');
+    expect(slots.etc[7]).toEqual({ ...gel, slot: 7 });
+  });
+
+  it('a change the Welcome already shows is skipped', () => {
+    inventory.getState().applyWelcome(welcomeAt([gel], 5n));
+    inventory.getState().applyInventoryChanged(changedAt([{ tab: 'etc', slot: 2 }], 4n));
+    expect(inventory.getState().slots.etc[2]).toEqual(gel);
+  });
+
+  it('a change stored before revisions applies as it comes, and leaves the revision of its slots as it was', () => {
+    inventory.getState().applyWelcome(welcomeAt([potion], 5n));
+    inventory
+      .getState()
+      .applyInventoryChanged(
+        changedAt([{ tab: 'use', slot: 0, item: { ...potion, quantity: 6 } }], 0n),
+      );
+    expect(inventory.getState().slots.use[0]?.quantity).toBe(6);
+    inventory
+      .getState()
+      .applyInventoryChanged(
+        changedAt([{ tab: 'use', slot: 0, item: { ...potion, quantity: 2 } }], 4n),
+      );
+    expect(inventory.getState().slots.use[0]?.quantity).toBe(6);
+  });
+
+  it('a new Welcome, and a clear, start every slot over', () => {
+    inventory.getState().applyWelcome(welcomeAt([gel], 9n));
+    inventory.getState().applyWelcome(welcomeAt([gel], 2n));
+    inventory.getState().applyInventoryChanged(changedAt([{ tab: 'etc', slot: 2 }], 3n));
+    expect(inventory.getState().slots.etc[2]).toBeNull();
+    inventory.getState().applyWelcome(welcomeAt([gel], 9n));
+    inventory.getState().clear();
+    inventory.getState().applyInventoryChanged(changedAt([{ tab: 'etc', slot: 2, item: gel }], 1n));
+    expect(inventory.getState().slots.etc[2]).toEqual(gel);
+  });
+});
