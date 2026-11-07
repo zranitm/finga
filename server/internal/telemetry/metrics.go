@@ -144,7 +144,7 @@ func (m *DBMetrics) TxDone(ctx context.Context, took time.Duration, runs int) {
 
 // RetentionMetrics are the rows each retention task deleted; it is their retention.Observer.
 type RetentionMetrics struct {
-	deleted *prometheus.CounterVec // by table
+	deleted *prometheus.CounterVec // by store: a table, or social's in-memory members
 }
 
 var _ retention.Observer = (*RetentionMetrics)(nil)
@@ -152,14 +152,14 @@ var _ retention.Observer = (*RetentionMetrics)(nil)
 // NewRetentionMetrics registers the deleted-rows counter on reg; registering twice on one registry fails.
 func NewRetentionMetrics(reg prometheus.Registerer) (*RetentionMetrics, error) {
 	m := &RetentionMetrics{deleted: prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: observability.Namespace, Name: "db_expired_rows_deleted_total", Help: "Rows deleted by a retention task once kept their time, by table.",
-	}, []string{"table"})}
+		Namespace: observability.Namespace, Name: "retention_deleted_total", Help: "Rows a retention task deleted once kept their time, by store: a table, or social's in-memory members.",
+	}, []string{"store"})}
 	return m, register(reg, m.deleted)
 }
 
-// Deleted counts n rows deleted from table; a pass that deleted none still shows the table, at 0.
-func (m *RetentionMetrics) Deleted(table string, n int64) {
-	m.deleted.WithLabelValues(table).Add(float64(n))
+// Deleted counts n rows deleted from store; a pass that deleted none still shows the store, at 0.
+func (m *RetentionMetrics) Deleted(store string, n int64) {
+	m.deleted.WithLabelValues(store).Add(float64(n))
 }
 
 // OutboxMetrics are the outbox's: the rows a relay has yet to publish.

@@ -1,4 +1,4 @@
-// Package retention deletes rows kept past their time, a batch at a time, on a schedule.
+// Package retention deletes rows kept past their time, a batch at a time, on a schedule, from a table or any other store.
 package retention
 
 import (
@@ -20,22 +20,22 @@ type Delete func(ctx context.Context, before time.Time, limit int) (int64, error
 
 // Observer hears how many rows each pass deleted.
 type Observer interface {
-	Deleted(table string, n int64)
+	Deleted(store string, n int64)
 }
 
-// Run deletes table's rows older than p.Keep now and every p.Every until ctx ends; a failed pass is logged and the next tries again.
-func Run(ctx context.Context, table string, p Policy, del Delete, obs Observer, log *slog.Logger) error {
+// Run deletes store's rows older than p.Keep now and every p.Every until ctx ends; a failed pass is logged and the next tries again.
+func Run(ctx context.Context, store string, p Policy, del Delete, obs Observer, log *slog.Logger) error {
 	t := time.NewTicker(p.Every)
 	defer t.Stop()
 	for {
 		start := time.Now()
 		n, err := pass(ctx, p, del)
-		obs.Deleted(table, n)
+		obs.Deleted(store, n)
 		switch {
 		case err != nil && ctx.Err() == nil:
-			log.WarnContext(ctx, "retention pass failed", "table", table, "deleted", n, "err", err)
+			log.WarnContext(ctx, "retention pass failed", "store", store, "deleted", n, "err", err)
 		case n > 0:
-			log.InfoContext(ctx, "expired rows deleted", "table", table, "deleted", n, "duration_ms", time.Since(start).Milliseconds())
+			log.InfoContext(ctx, "expired rows deleted", "store", store, "deleted", n, "duration_ms", time.Since(start).Milliseconds())
 		}
 		select {
 		case <-ctx.Done():

@@ -87,7 +87,7 @@ func TestRunDeletesWhatOutlivedItsKeepEveryInterval(t *testing.T) {
 		if left != 2 || calls != 2 || !slices.Equal(seen, []int64{3}) {
 			t.Fatalf("first pass: %d rows left, %d calls, saw %v; want a full batch and a short one deleting 3", left, calls, seen)
 		}
-		if !strings.Contains(logs, "table=keys deleted=3") {
+		if !strings.Contains(logs, "store=keys deleted=3") {
 			t.Fatalf("log %q lacks the pass", logs)
 		}
 
