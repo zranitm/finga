@@ -105,12 +105,17 @@ func (in *Inbox) commands() {
 	}
 }
 
-// allow takes a token from the connection's bucket for l's group.
+// allow takes a token from the connection's bucket for l's group, sized for the world's tick rate as the session knows it.
 func (in *Inbox) allow(l limit, now time.Time) bool {
+	r, burst := l.at(in.session.TickRateHz())
 	b, ok := in.limiters[l.group]
-	if !ok {
-		b = rate.NewLimiter(rate.Limit(l.perSecond), l.burst)
+	switch {
+	case !ok:
+		b = rate.NewLimiter(r, burst)
 		in.limiters[l.group] = b
+	case b.Limit() != r:
+		b.SetLimitAt(now, r)
+		b.SetBurstAt(now, burst)
 	}
 	return b.AllowN(now, 1)
 }

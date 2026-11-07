@@ -16,13 +16,14 @@ import (
 	"finga/services/gateway/internal/application/session"
 )
 
-// Input allows its burst of 30 at one instant, and 30 more a second later.
+// Input allows its burst of 30 at one instant, and 30 more a second later, at the 20 Hz assumed before a join reports the rate.
 func TestALimitedCommandAllowsItsBurstThenRefills(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		log := slog.New(slog.DiscardHandler)
-		h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
+		reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})
+		h := New(send.New(send.Deps{Logger: log, Registry: reg}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
 		// Past Hello, with a queue nobody drains: the queue holds what the limit let through.
-		in := &Inbox{helloSeen: true, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
+		in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
 		inputs := func() {
 			for range 40 {
 				h.Dispatch(in, wsconn.Message{Type: "Input", Data: &clientv1.Input{Right: true}})
@@ -61,8 +62,9 @@ func TestGroupedCommandsShareOneBudget(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				log := slog.New(slog.DiscardHandler)
-				h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
-				in := &Inbox{helloSeen: true, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
+				reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})
+				h := New(send.New(send.Deps{Logger: log, Registry: reg}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
+				in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), 80)}
 				for _, m := range tt.msgs {
 					h.Dispatch(in, m)
 				}

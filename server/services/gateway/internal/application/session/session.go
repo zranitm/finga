@@ -23,6 +23,7 @@ type Session struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
 	isActive atomic.Bool
+	tickRate atomic.Int32 // the world's ticks a second, from the latest join; 0 before one
 
 	// who the session plays: set whole by a join, never changed in place, so reading it takes no lock
 	id     atomic.Pointer[identity]
@@ -47,6 +48,9 @@ func (s *Session) who() identity {
 	}
 	return identity{}
 }
+
+// TickRateHz is the world's ticks a second as the latest join reported them, 0 before a join.
+func (s *Session) TickRateHz() int { return int(s.tickRate.Load()) }
 
 // ConnID names the session's connection.
 func (s *Session) ConnID() string { return s.connID }

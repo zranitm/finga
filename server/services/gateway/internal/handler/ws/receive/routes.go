@@ -1,7 +1,10 @@
 package receive
 
 import (
+	"math"
 	"strings"
+
+	"golang.org/x/time/rate"
 
 	"finga/pkg/wsrouter"
 )
@@ -16,17 +19,33 @@ type limit struct {
 	group     string
 	perSecond float64
 	burst     int
+	perTick   float64 // when set, the rate and burst follow the world's tick rate: perTick a tick
 }
 
 // The limits, per connection.
 var (
-	inputs    = limit{"input", 30, 30} // 20 ticks a second, plus headroom for a burst after a stall
-	attacks   = limit{"attack", 10, 10}
-	pickups   = limit{"pickup", 10, 10}
-	portals   = limit{"portal", 2, 2}
-	inventory = limit{"inventory", 5, 5} // moves and discards together
-	party     = limit{"party", 2, 5}     // the five party commands together; a leader may use each at once
+	inputs    = limit{group: "input", perTick: 1.5} // one a tick, plus half again for a burst after a stall
+	attacks   = limit{group: "attack", perSecond: 10, burst: 10}
+	pickups   = limit{group: "pickup", perSecond: 10, burst: 10}
+	portals   = limit{group: "portal", perSecond: 2, burst: 2}
+	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves and discards together
+	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
 )
+
+// assumedTickRate sizes a per-tick limit until a join reports the world's rate.
+const assumedTickRate = 20
+
+// at is the limit's rate and burst when the world ticks hz times a second.
+func (l limit) at(hz int) (rate.Limit, int) {
+	if l.perTick == 0 {
+		return rate.Limit(l.perSecond), l.burst
+	}
+	if hz <= 0 {
+		hz = assumedTickRate
+	}
+	n := l.perTick * float64(hz)
+	return rate.Limit(n), int(math.Ceil(n))
+}
 
 // spanPrefix starts the name of a command's span: ws.Hello.
 const spanPrefix = "ws."

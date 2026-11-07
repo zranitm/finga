@@ -429,7 +429,9 @@ func TestSecondLoginKicksTheFirst(t *testing.T) {
 // The exact burst at one instant is checked in package receive, under a fake clock.
 func TestRateLimits(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
+		fw := newFakeWorld()
+		fw.tickRate = 20
+		h := newHarnessOn(t, fw)
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
@@ -461,6 +463,32 @@ func TestRateLimits(t *testing.T) {
 			}
 		})
 	})
+}
+
+// The input limit follows the world's tick rate, so one input a tick always passes, at any rate.
+func TestTheInputLimitFollowsTheTickRate(t *testing.T) {
+	for _, hz := range []uint32{20, 60} {
+		t.Run(fmt.Sprintf("%d Hz", hz), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				fw := newFakeWorld()
+				fw.tickRate = hz
+				h := newHarnessOn(t, fw)
+				c := h.dial(t)
+				c.hello(tokenAlice, aylaID)
+				c.expect("Snapshot")
+				n := 2 * int(hz)
+				for seq := range uint32(n) {
+					c.send(wsconn.Message{Seq: seq + 1, Data: &clientv1.Input{Right: true}})
+					time.Sleep(time.Second / time.Duration(hz))
+				}
+				c.send(wsconn.Message{Data: &clientv1.Attack{}})
+				waitFor(t, "the attack", h.world.attackList, 1)
+				if got := h.world.inputCount(); got != n {
+					t.Fatalf("%d of %d inputs, one a tick, reached the world", got, n)
+				}
+			})
+		})
+	}
 }
 
 func TestWorldEventsReachTheClient(t *testing.T) {

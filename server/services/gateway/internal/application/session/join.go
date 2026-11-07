@@ -89,6 +89,7 @@ func (j *Join) Finish(player model.Player, welcome model.Welcome) (replaced []*S
 	r.byAccount[who.account] = s
 	r.bySession[who.sessionID] = s
 	s.id.Store(&identity{account: who.account, sessionID: who.sessionID, character: player})
+	s.tickRate.Store(int32(j.Joined.TickRateHz)) //nolint:gosec // a tick rate is small
 	s.setActive()
 	missed := r.worldSubs > j.subs
 	r.mu.Unlock()
@@ -176,6 +177,7 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		s.outbox.End(model.EndRejoinFailed)
 		return
 	}
+	s.tickRate.Store(int32(joined.TickRateHz)) //nolint:gosec // a tick rate is small
 	var first func()
 	if joined.MapID != before {
 		moved := model.Delivery{Push: model.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}}

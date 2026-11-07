@@ -1,6 +1,7 @@
 package ws_test
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -97,6 +98,7 @@ type fakeWorld struct {
 	block      chan struct{} // when set, Attack waits for it (or its context)
 	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
 	tick       uint64
+	tickRate   uint32 // what Join reports; 30 when unset
 	boot       string
 	live       bool
 	events     chan *worldv1.DeliverResponse
@@ -209,7 +211,8 @@ func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv
 	f.events <- &worldv1.DeliverResponse{CharacterId: id.String(), ConnectionId: req.GetConnectionId(), Tick: f.tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
 		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
 	}}}
-	return &worldv1.JoinResponse{Character: v, TickRateHz: 30}, nil
+	hz := cmp.Or(f.tickRate, 30)
+	return &worldv1.JoinResponse{Character: v, TickRateHz: hz}, nil
 }
 
 // save is the character's checkpoint, which the next join loads.

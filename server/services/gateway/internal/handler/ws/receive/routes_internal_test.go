@@ -17,12 +17,13 @@ import (
 // A protocol message without a route fails here rather than answering not_implemented in a game.
 func TestEveryClientMessageHasARoute(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
-	h := New(send.New(send.Deps{Logger: log, Registry: session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
+	reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})
+	h := New(send.New(send.Deps{Logger: log, Registry: reg}, send.Options{}), Options{Logger: log, Traces: noop.NewTracerProvider()})
 	var unrouted []string
 	h.router.NoRoute(func(c *msgContext) { unrouted = append(unrouted, c.Message.Type) })
 	// Past Hello, with no payload and a queue nobody drains, so no handler runs.
 	body := (&clientv1.ClientMessage{}).ProtoReflect().Descriptor().Oneofs().ByName("body").Fields()
-	in := &Inbox{helloSeen: true, limiters: map[string]*rate.Limiter{}, queue: make(chan func(), body.Len())}
+	in := &Inbox{helloSeen: true, session: reg.Open("c-1", nil), limiters: map[string]*rate.Limiter{}, queue: make(chan func(), body.Len())}
 	for i := range body.Len() {
 		h.Dispatch(in, wsconn.Message{Type: string(body.Get(i).Message().Name())})
 	}
