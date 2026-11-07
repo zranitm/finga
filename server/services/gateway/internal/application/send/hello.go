@@ -62,7 +62,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 	for _, older := range join.Finish(player, welcome) {
 		older.End(model.EndLoggedInElsewhere)
 	}
-	g.sessions.Online(ctx, s)
+	g.sessions.Register(ctx, s)
 	g.deps.Observer.OnlineChanged(1)
 	g.deps.Logger.InfoContext(ctx, "ws joined", "conn", s.ConnID(), "character_id", charID, "map_id", join.Joined.MapID)
 	return nil

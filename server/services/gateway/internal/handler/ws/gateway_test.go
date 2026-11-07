@@ -1471,6 +1471,26 @@ func TestChatRouting(t *testing.T) {
 	})
 }
 
+// A registration that fails at login is tried again in the background, so the player still gets their party.
+func TestALoginsFailedRegistrationIsRetried(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		fs := newFakeSocial()
+		fs.of[aylaID.String()] = &socialv1.Party{LeaderId: aylaID.String(), Members: []*socialv1.Member{{Id: aylaID.String(), Name: "Ayla", Online: true}}}
+		h := social(t, fs)
+		fs.set(func(f *fakeSocial) { f.downFor = 2 })
+		ayla := h.dial(t)
+		ayla.hello(tokenAlice, aylaID)
+		ayla.expect("Welcome")
+		ayla.expect("Snapshot")
+		if p := ayla.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() {
+			t.Fatalf("party %+v; want hers, once a retry registered her", p)
+		}
+		if n := len(fs.onlineCalls()); n != 3 {
+			t.Fatalf("%d registrations; want two failed and the one that landed", n)
+		}
+	})
+}
+
 func TestPartyCommandsAndState(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fs := newFakeSocial()

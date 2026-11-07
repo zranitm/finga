@@ -482,6 +482,7 @@ type fakeSocial struct {
 	onlineIDs  []string // each Online's trace ID
 	offline    []*socialv1.OfflineRequest
 	hang       map[string]bool // Online for these character IDs waits until its context ends
+	downFor    int             // the next Online calls fail as a service restarting
 	gate       chan struct{}   // when set, Online lands only once it closes
 	landed     []string        // "online <id>" and "offline <id>", in the order they took effect
 	calls      []string
@@ -563,7 +564,14 @@ func (f *fakeSocial) Online(ctx context.Context, req *socialv1.OnlineRequest) (*
 	f.online = append(f.online, req)
 	f.onlineIDs = append(f.onlineIDs, trace.SpanContextFromContext(ctx).TraceID().String())
 	hang, gate := f.hang[req.GetMember().GetId()], f.gate
+	down := f.downFor > 0
+	if down {
+		f.downFor--
+	}
 	f.mu.Unlock()
+	if down {
+		return nil, status.Error(codes.Unavailable, "restarting")
+	}
 	if hang {
 		<-ctx.Done()
 		return nil, ctx.Err()
