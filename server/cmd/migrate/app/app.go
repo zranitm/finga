@@ -42,8 +42,18 @@ func Sets() []Set {
 	}
 }
 
-// Apply refuses a pre-split database, applies every set and reports each one's count, then runs the checks a database has not yet passed, so they see what the sets wrote.
+// Apply refuses a pre-split database, applies every set and reports each one's count, then runs the checks a database has not yet passed, so they see what the sets wrote; it holds the migration lock throughout, so two runs at once take turns.
 func Apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
+	var applied map[string]int
+	err := dbx.Locked(ctx, pool, func() error {
+		var err error
+		applied, err = apply(ctx, pool)
+		return err
+	})
+	return applied, err
+}
+
+func apply(ctx context.Context, pool *pgxpool.Pool) (map[string]int, error) {
 	legacy, err := dbx.TableExists(ctx, pool, LegacyTable)
 	if err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)

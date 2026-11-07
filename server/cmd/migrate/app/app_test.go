@@ -7,8 +7,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pressly/goose/v3/lock"
 
 	"finga/cmd/migrate/app"
 	"finga/pkg/dbx"
@@ -75,6 +77,72 @@ func TestApply(t *testing.T) {
 			t.Fatalf("%s exists", app.LegacyTable)
 		}
 	})
+}
+
+// Two migrate runs at once, as two deploys would start them, take turns: both pass, and each migration runs once.
+func TestTwoRunsAtOnceTakeTurns(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	results := make(chan map[string]int, 2)
+	errs := make(chan error, 2)
+	for range 2 {
+		go func() {
+			applied, err := app.Apply(ctx, pool)
+			results <- applied
+			errs <- err
+		}()
+	}
+	total := map[string]int{}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+		for service, n := range <-results {
+			total[service] += n
+		}
+	}
+	for _, s := range app.Sets() {
+		files, err := fs.Glob(s.FS, "*.sql")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total[s.Service] != len(files) {
+			t.Fatalf("%s: %d migrations run across both, want each of its %d once", s.Service, total[s.Service], len(files))
+		}
+	}
+}
+
+// While another run holds the migration lock, Apply waits and changes nothing until it has the lock.
+func TestARunWaitsForTheMigrationLock(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, lock.DefaultLockID); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := app.Apply(ctx, pool)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		t.Fatalf("Apply finished while another run held the lock: %v", err)
+	case <-time.After(2 * time.Second):
+	}
+	if exists(t, pool, find(t, "account").Table) {
+		t.Fatal("Apply migrated before it had the lock")
+	}
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_unlock($1)`, lock.DefaultLockID); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestALegacyDatabaseIsRefused(t *testing.T) {
