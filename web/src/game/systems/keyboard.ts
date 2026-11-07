@@ -17,6 +17,11 @@ export interface KeyboardOptions {
   readonly onAction?: (action: Action) => void;
 }
 
+/** A key pressed with Ctrl, Cmd or Alt is a browser shortcut, such as Cmd+P, not a game key. */
+function shortcut(e: KeyboardEvent): boolean {
+  return e.ctrlKey || e.metaKey || e.altKey;
+}
+
 export function bindKeyboard(opts: KeyboardOptions): () => void {
   const movementFor = (e: KeyboardEvent): Action | undefined => {
     const action = actionFor(e.code, opts.preset());
@@ -24,7 +29,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
   };
   const down = (e: KeyboardEvent) => {
     const action = actionFor(e.code, opts.preset());
-    if (action === undefined || opts.typing()) {
+    if (action === undefined || opts.typing() || shortcut(e)) {
       return;
     }
     e.preventDefault(); // the game's keys: arrows and Space would scroll, and Space or Enter would press a focused button
@@ -38,7 +43,11 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
     }
   };
   const up = (e: KeyboardEvent) => {
-    if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing()) {
+    if (e.key === 'Meta') {
+      opts.target.releaseAll(); // macOS sends no key up for a key let go while Cmd was held
+      return;
+    }
+    if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing() && !shortcut(e)) {
       e.preventDefault(); // a focused button takes Space on its key up
     }
     const action = movementFor(e);

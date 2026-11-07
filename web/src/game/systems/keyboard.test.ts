@@ -23,8 +23,8 @@ function setup(preset: Preset = 'classic', typing = false) {
     onAction,
   });
   unbinds.push(unbind);
-  const key = (type: 'keydown' | 'keyup', code: string, repeat = false) => {
-    const e = new KeyboardEvent(type, { code, repeat, cancelable: true });
+  const key = (type: 'keydown' | 'keyup', code: string, init: KeyboardEventInit = {}) => {
+    const e = new KeyboardEvent(type, { code, cancelable: true, ...init });
     window.dispatchEvent(e);
     return e;
   };
@@ -85,7 +85,7 @@ describe('bindKeyboard', () => {
   ])('$code under classic reports $action once, not as a movement key', ({ code, action }) => {
     const { target, onAction, state, key } = setup('classic');
     key('keydown', code);
-    key('keydown', code, true);
+    key('keydown', code, { repeat: true });
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onAction).toHaveBeenCalledWith(action);
     expect(target.press).not.toHaveBeenCalled();
@@ -94,11 +94,45 @@ describe('bindKeyboard', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { name: 'Ctrl+P', code: 'KeyP', init: { ctrlKey: true } },
+    { name: 'Cmd+P', code: 'KeyP', init: { metaKey: true } },
+    { name: 'Ctrl+I', code: 'KeyI', init: { ctrlKey: true } },
+    { name: 'Alt+Left', code: 'ArrowLeft', init: { altKey: true } },
+    { name: 'Cmd+Right', code: 'ArrowRight', init: { metaKey: true } },
+  ])(
+    '$name is the browser’s: nothing is pressed or reported, and its default is kept',
+    ({ code, init }) => {
+      const { target, onAction, key } = setup('classic');
+      const down = key('keydown', code, init);
+      const up = key('keyup', code, init);
+      expect(target.press).not.toHaveBeenCalled();
+      expect(onAction).not.toHaveBeenCalled();
+      expect([down.defaultPrevented, up.defaultPrevented]).toEqual([false, false]);
+    },
+  );
+
+  it('a key let go while Ctrl is held is still released', () => {
+    const { target, key } = setup();
+    key('keydown', 'ArrowRight');
+    key('keyup', 'ArrowRight', { ctrlKey: true });
+    expect(target.release).toHaveBeenCalledWith('right');
+  });
+
+  it('letting go of Cmd releases every key, as macOS sends no key up for one let go while Cmd was held', () => {
+    const { target, key } = setup();
+    key('keydown', 'ArrowRight');
+    key('keydown', 'MetaLeft', { key: 'Meta', metaKey: true });
+    expect(target.releaseAll).not.toHaveBeenCalled();
+    key('keyup', 'MetaLeft', { key: 'Meta' });
+    expect(target.releaseAll).toHaveBeenCalledTimes(1);
+  });
+
   it('a held key repeats in the browser but presses once', () => {
     const { target, key } = setup();
     key('keydown', 'ArrowLeft');
-    key('keydown', 'ArrowLeft', true);
-    key('keydown', 'ArrowLeft', true);
+    key('keydown', 'ArrowLeft', { repeat: true });
+    key('keydown', 'ArrowLeft', { repeat: true });
     expect(target.press).toHaveBeenCalledTimes(1);
   });
 
