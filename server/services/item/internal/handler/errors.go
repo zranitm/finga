@@ -26,4 +26,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ID},
 	{Err: kernel.ErrUnknownClass, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_CLASS},
 	{Err: model.ErrTimedOut, Code: codes.Unavailable},
+	{Err: model.ErrUnavailable, Code: codes.Unavailable},
 }

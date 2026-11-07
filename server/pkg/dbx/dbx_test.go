@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -236,8 +237,8 @@ func TestInTxStopsWhenTheContextIsCancelled(t *testing.T) {
 }
 
 func TestErrorsClassify(t *testing.T) {
-	notFound, timedOut, taken := errors.New("not found"), errors.New("timed out"), errors.New("name taken")
-	classes := dbx.Errors{NotFound: notFound, TimedOut: timedOut, Constraints: map[string]error{"characters_name_key": taken}}
+	notFound, timedOut, unavailable, taken := errors.New("not found"), errors.New("timed out"), errors.New("unavailable"), errors.New("name taken")
+	classes := dbx.Errors{NotFound: notFound, TimedOut: timedOut, Unavailable: unavailable, Constraints: map[string]error{"characters_name_key": taken}}
 	other := &pgconn.PgError{Code: "23505", ConstraintName: "another_key"}
 	tests := []struct {
 		name string
@@ -249,7 +250,15 @@ func TestErrorsClassify(t *testing.T) {
 		{"a statement past its timeout", &pgconn.PgError{Code: "57014"}, timedOut},
 		{"a constraint the repository names", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, taken},
 		{"a constraint it does not", other, nil},
-		{"a serialization failure, which InTx retries", &pgconn.PgError{Code: "40001"}, nil},
+		{"a serialization failure InTx's retries did not clear", &pgconn.PgError{Code: "40001"}, timedOut},
+		{"a deadlock InTx's retries did not clear", &pgconn.PgError{Code: "40P01"}, timedOut},
+		{"a connection lost", &pgconn.PgError{Code: "08006"}, unavailable},
+		{"the server shutting down", &pgconn.PgError{Code: "57P01"}, unavailable},
+		{"the server starting up", &pgconn.PgError{Code: "57P03"}, unavailable},
+		{"too many connections", &pgconn.PgError{Code: "53300"}, unavailable},
+		{"a connection cut mid-reply", fmt.Errorf("query: %w", io.ErrUnexpectedEOF), unavailable},
+		{"a caller that gave up", fmt.Errorf("query: %w", context.Canceled), nil},
+		{"a bug", &pgconn.PgError{Code: "42601"}, nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

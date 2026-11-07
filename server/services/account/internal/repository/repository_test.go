@@ -311,7 +311,8 @@ func TestClassify(t *testing.T) {
 		{"username unique constraint", constraint("accounts_username_key"), model.ErrUsernameTaken},
 		{"one active session index", constraint("one_active_session"), model.ErrSessionRace},
 		{"another constraint passes through", constraint("characters_name_key"), nil},
-		{"a serialization failure passes through for retries", pgCode("40001"), nil},
+		{"a serialization failure past the retries", pgCode("40001"), model.ErrTimedOut},
+		{"too many connections", pgCode("53300"), model.ErrUnavailable},
 		{"a lock timeout", pgCode("55P03"), model.ErrTimedOut},
 		{"a statement timeout", pgCode("57014"), model.ErrTimedOut},
 	}

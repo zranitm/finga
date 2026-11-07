@@ -182,7 +182,8 @@ func TestClassify(t *testing.T) {
 		{"no rows", pgx.ErrNoRows, model.ErrNotFound},
 		{"name unique constraint", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, model.ErrNameTaken},
 		{"another constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "accounts_username_key"}, nil},
-		{"a deadlock passes through", &pgconn.PgError{Code: "40P01"}, nil},
+		{"a deadlock past the retries", &pgconn.PgError{Code: "40P01"}, model.ErrTimedOut},
+		{"the server shutting down", &pgconn.PgError{Code: "57P01"}, model.ErrUnavailable},
 		{"a lock timeout", &pgconn.PgError{Code: "55P03"}, model.ErrTimedOut},
 		{"a statement timeout", &pgconn.PgError{Code: "57014"}, model.ErrTimedOut},
 	}

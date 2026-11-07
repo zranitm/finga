@@ -1,8 +1,13 @@
 package dbx
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"slices"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -11,7 +16,8 @@ import (
 // Errors are the sentinels a repository's database failures become.
 type Errors struct {
 	NotFound    error            // no row
-	TimedOut    error            // a lock wait or a statement past its timeout
+	TimedOut    error            // a lock wait or a statement past its timeout, or a conflict InTx's retries did not clear
+	Unavailable error            // the database out of reach: see Unavailable
 	Constraints map[string]error // a violated constraint, by name
 }
 
@@ -23,13 +29,33 @@ func (e Errors) Classify(err error) error {
 		return nil
 	case errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("%w: %w", e.NotFound, err)
-	case TimedOut(err):
+	case TimedOut(err), retryable(err):
 		return fmt.Errorf("%w: %w", e.TimedOut, err)
+	case Unavailable(err):
+		return fmt.Errorf("%w: %w", e.Unavailable, err)
 	case errors.As(err, &pgErr) && e.Constraints[pgErr.ConstraintName] != nil:
 		return fmt.Errorf("%w: %w", e.Constraints[pgErr.ConstraintName], err)
 	default:
 		return err
 	}
+}
+
+// unavailableCodes are the server out of reach besides class 08 (connection exceptions): shutting down, crashed, starting up, out of connections.
+var unavailableCodes = []string{"57P01", "57P02", "57P03", "53300"}
+
+// Unavailable reports whether err is the database out of reach: a connection refused or lost, or a server shutting down, starting up or full; a later try may pass.
+func Unavailable(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false // the caller gave up, which its own code says
+	}
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+		return strings.HasPrefix(pgErr.Code, "08") || slices.Contains(unavailableCodes, pgErr.Code)
+	}
+	if _, ok := errors.AsType[*pgconn.ConnectError](err); ok {
+		return true
+	}
+	_, isNet := errors.AsType[net.Error](err)
+	return isNet || pgconn.SafeToRetry(err) || errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)
 }
 
 // RowsOrNotFound is pgx.ErrNoRows for a statement that changed no row, else err.

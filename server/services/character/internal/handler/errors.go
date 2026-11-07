@@ -18,4 +18,5 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrSlotsFull, Code: codes.FailedPrecondition, Reason: characterv1.Reason_REASON_CHARACTER_SLOTS_FULL},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_ID},
 	{Err: model.ErrTimedOut, Code: codes.Unavailable},
+	{Err: model.ErrUnavailable, Code: codes.Unavailable},
 }

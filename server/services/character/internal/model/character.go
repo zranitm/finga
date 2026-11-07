@@ -18,6 +18,8 @@ var (
 	ErrSlotsFull        = errors.New("character: account has no free character slot")
 	// ErrTimedOut is a lock or statement the database gave up on; it carries no reason, so callers retry.
 	ErrTimedOut = errors.New("character: storage timed out")
+	// ErrUnavailable is the database out of reach: refused, lost, restarting or full; it carries no reason, so callers retry.
+	ErrUnavailable = errors.New("character: storage unavailable")
 )
 
 // Character is a character as stored.

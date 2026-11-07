@@ -192,7 +192,8 @@ func TestClassify(t *testing.T) {
 		{"one item per slot", &pgconn.PgError{Code: "23505", ConstraintName: "one_item_per_slot"}, model.ErrSlotTaken},
 		{"quantity check", &pgconn.PgError{Code: "23514", ConstraintName: "items_quantity_check"}, model.ErrBadQuantity},
 		{"another module's constraint passes through", &pgconn.PgError{Code: "23505", ConstraintName: "characters_name_key"}, nil},
-		{"a serialization failure passes through for the retry", &pgconn.PgError{Code: "40001"}, nil},
+		{"a serialization failure past the retries", &pgconn.PgError{Code: "40001"}, model.ErrTimedOut},
+		{"the server starting up", &pgconn.PgError{Code: "57P03"}, model.ErrUnavailable},
 		{"a lock timeout", &pgconn.PgError{Code: "55P03"}, model.ErrTimedOut},
 		{"a statement timeout", &pgconn.PgError{Code: "57014"}, model.ErrTimedOut},
 	}

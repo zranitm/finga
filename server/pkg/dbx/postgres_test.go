@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
@@ -154,6 +155,33 @@ func TestInTxRerunsALockTimeout(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT n FROM t WHERE id = 1`).Scan(&n); err != nil || n != 1 {
 		t.Fatalf("n = %d (%v), want the update applied once", n, err)
 	}
+}
+
+// A database out of reach, refusing connections or dropping them, is unavailable, so a caller tries again later.
+func TestAnUnreachableDatabaseIsUnavailable(t *testing.T) {
+	ctx := context.Background()
+	unavailable := errors.New("unavailable")
+	classes := dbx.Errors{Unavailable: unavailable}
+	t.Run("a refused connection", func(t *testing.T) {
+		pool, err := pgxpool.New(ctx, "postgres://finga@127.0.0.1:1/finga?connect_timeout=2")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer pool.Close()
+		err = dbx.InTx(ctx, pool, func(pgx.Tx) error { return nil })
+		if !errors.Is(classes.Classify(err), unavailable) {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("a connection the server ends mid-transaction", func(t *testing.T) {
+		err := dbx.InTx(ctx, cluster.DB(t), func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, `SELECT pg_terminate_backend(pg_backend_pid())`)
+			return err
+		})
+		if !errors.Is(classes.Classify(err), unavailable) {
+			t.Fatalf("got %v", err)
+		}
+	})
 }
 
 func TestNewPool(t *testing.T) {

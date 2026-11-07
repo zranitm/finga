@@ -133,4 +133,4 @@ func (r repo) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 
 const constraintName = "characters_name_key"
 
-var failures = dbx.Errors{NotFound: model.ErrNotFound, TimedOut: model.ErrTimedOut, Constraints: map[string]error{constraintName: model.ErrNameTaken}}
+var failures = dbx.Errors{NotFound: model.ErrNotFound, TimedOut: model.ErrTimedOut, Unavailable: model.ErrUnavailable, Constraints: map[string]error{constraintName: model.ErrNameTaken}}
