@@ -7,6 +7,7 @@ import { fakeWebSocketClass } from '@/testing/fake-socket';
 import { SCENES } from './keys';
 import { GameHandle } from './main';
 import { REGISTRY } from './registry';
+import type { WorldData } from './scenes/world';
 
 vi.mock('phaser', async () => (await import('@/testing/fake-phaser')).fakePhaser());
 
@@ -17,6 +18,14 @@ const world = {
   name: 'Ayla',
   tickRateHz: 20,
 };
+
+/** What each World start was given, the Arrival read back as the map and rate it names. */
+function startedWith(game: FakeGame | undefined) {
+  return game?.started.map(([key, data]) => {
+    const { arriving, ...player } = data as WorldData;
+    return [key, { ...player, mapId: arriving.mapId, tickRateHz: arriving.tickRateHz }];
+  });
+}
 
 describe('GameHandle', () => {
   let socket: GameSocket;
@@ -52,7 +61,7 @@ describe('GameHandle', () => {
     const handle = new GameHandle({ socket });
     handle.enter(world);
     handle.attach(document.createElement('div'));
-    expect(FakeGame.instances[0]?.started).toEqual([[SCENES.World, world]]);
+    expect(startedWith(FakeGame.instances[0])).toEqual([[SCENES.World, world]]);
   });
 
   it.each([
@@ -89,7 +98,28 @@ describe('GameHandle', () => {
     const handle = new GameHandle({ socket });
     handle.attach(document.createElement('div'));
     act(handle);
-    expect(FakeGame.instances[0]?.started).toEqual(started);
+    expect(startedWith(FakeGame.instances[0])).toEqual(started);
     expect(FakeGame.instances[0]?.stopped).toEqual(stopped);
+  });
+
+  it('holds the map’s messages from enter on, and a later enter or leave lets go of the socket', () => {
+    let live = 0;
+    const on = socket.on.bind(socket);
+    vi.spyOn(socket, 'on').mockImplementation((t, handler) => {
+      live++;
+      const off = on(t, handler);
+      return () => {
+        live--;
+        off();
+      };
+    });
+    const handle = new GameHandle({ socket });
+    handle.enter(world); // no game yet, so no scene takes it
+    const holding = live;
+    expect(holding).toBeGreaterThan(0);
+    handle.enter({ ...world, mapId: 'forest' });
+    expect(live).toBe(holding);
+    handle.leave();
+    expect(live).toBe(0);
   });
 });

@@ -20,7 +20,7 @@ import { PlayerView } from '../entities/player';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
-import type { Held } from '../systems/arrival';
+import type { Held, Spot } from '../systems/arrival';
 import {
   AttackGate,
   DamageNumbers,
@@ -41,17 +41,21 @@ import { Predictor, wireState } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
 
-export interface WorldData {
+/** What the game enters the world with, from Welcome. */
+export interface WorldEntry {
   readonly mapId: string;
   readonly characterId: string;
   readonly cls: string;
   readonly name: string;
-  /** The world's ticks per second, from Welcome. */
+  /** The world's ticks per second. */
   readonly tickRateHz: number;
-  /** After a MapChange: shown until the Snapshot confirms it. */
-  readonly arrival?: { readonly x: number; readonly y: number } | undefined;
-  /** After a MapChange: the new map's messages that came while the old scene faded out, replayed once built. */
-  readonly arriving?: Arrival;
+}
+
+type Player = Omit<WorldEntry, 'mapId' | 'tickRateHz'>;
+
+export interface WorldData extends Player {
+  /** The map being entered: it names the map and its tick rate, and holds what came before the scene was built. */
+  readonly arriving: Arrival;
 }
 
 const FADE_MS = 250;
@@ -69,13 +73,11 @@ const ARROW_RANGE = 420;
 const ARROW_MS = 300;
 
 export class World extends Phaser.Scene {
-  private entry: WorldData = {
-    mapId: 'town',
-    characterId: '',
-    cls: 'warrior',
-    name: '',
-    tickRateHz: 20,
-  };
+  private entry: Player = { characterId: '', cls: 'warrior', name: '' };
+  private mapId = 'town';
+  private tickRateHz = 20;
+  /** Let go of in teardown: the map being entered until built, then the next map while this scene fades out. */
+  private arriving: Arrival | null = null;
   private timing: TickTiming = tickTiming(20, movement.dt);
   private player: PlayerView | null = null;
   private background: Phaser.GameObjects.Image | null = null;
@@ -113,28 +115,34 @@ export class World extends Phaser.Scene {
   }
 
   init(data: WorldData): void {
-    this.entry = data;
-    this.timing = tickTiming(data.tickRateHz, movement.dt);
-    this.clock = new FixedStep(this.timing);
-    this.renderClock = new RenderClock(this.timing.tickMs);
-    this.mobs = new MobTracker(this.timing.tickMs);
+    const { arriving, ...entry } = data;
+    this.entry = entry;
+    this.arriving = arriving;
     this.placed = false;
     this.transitionState = initialTransition;
   }
 
-  create(): void {
+  create(data: WorldData): void {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardown());
     if (this.registry.get(REGISTRY.assetsReady) === true) {
-      this.build();
+      this.build(data.arriving);
       return;
     }
-    const onReady = () => this.build();
+    const onReady = () => this.build(data.arriving);
     this.game.events.once(EVENTS.assetsReady, onReady);
     this.offs.push(() => this.game.events.off(EVENTS.assetsReady, onReady));
   }
 
-  private build(): void {
-    const view = parseMap(this.entry.mapId, this.cache.json.get(mapKey(this.entry.mapId)));
+  private build(arriving: Arrival): void {
+    this.mapId = arriving.mapId;
+    this.tickRateHz = arriving.tickRateHz;
+    const at = arriving.at;
+    const held = arriving.take();
+    this.timing = tickTiming(this.tickRateHz, movement.dt);
+    this.clock = new FixedStep(this.timing);
+    this.renderClock = new RenderClock(this.timing.tickMs);
+    this.mobs = new MobTracker(this.timing.tickMs);
+    const view = parseMap(this.mapId, this.cache.json.get(mapKey(this.mapId)));
     this.view = view;
     const style = groundStyle(view.id);
     const cam = this.cameras.main;
@@ -168,10 +176,10 @@ export class World extends Phaser.Scene {
       facing: 1,
     });
     this.player.setVisible(false);
-    if (this.entry.arrival) {
+    if (at) {
       this.player.apply({
-        x: this.entry.arrival.x,
-        y: this.entry.arrival.y,
+        x: at.x,
+        y: at.y,
         vx: 0,
         vy: 0,
         on_ground: true,
@@ -201,8 +209,6 @@ export class World extends Phaser.Scene {
     this.socket = socket;
     this.predictor = new Predictor(view.geometry, this.timing);
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
-    this.renderClock.reset();
-    this.mobs.clear();
     this.drops.clear();
     this.numbers.clear();
     this.pickup = new PickupSystem(() => socket.sendAction('pickUp'));
@@ -265,10 +271,10 @@ export class World extends Phaser.Scene {
       socket.on('damage', (m) => this.onDamage(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
       socket.on('respawned', (m) => this.onWorld(m)),
-      socket.on('mapChange', (m) => this.onWorld(m)),
+      socket.on('mapChange', (m) => this.onTransition(m)),
       socket.on('levelUp', () => this.onLevelUp()),
     );
-    for (const m of this.entry.arriving?.take() ?? []) {
+    for (const m of held) {
       this.onWorld(m);
     }
   }
@@ -295,9 +301,6 @@ export class World extends Phaser.Scene {
         return;
       case 'respawned':
         this.onTransition({ t: 'respawned', d: m.d });
-        return;
-      case 'mapChange':
-        this.onTransition({ t: 'mapChange', d: m.d });
         return;
     }
   }
@@ -496,8 +499,8 @@ export class World extends Phaser.Scene {
 
   /** After a reconnect: the same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
   private onWelcome(mapId: string, tickRateHz: number): void {
-    if (mapId !== this.entry.mapId || tickRateHz !== this.entry.tickRateHz) {
-      this.scene.restart({ ...this.entry, mapId, tickRateHz });
+    if (mapId !== this.mapId || tickRateHz !== this.tickRateHz) {
+      this.restartOn(mapId, tickRateHz, false);
       return;
     }
     this.placed = false;
@@ -612,7 +615,7 @@ export class World extends Phaser.Scene {
   }
 
   private onTransition(msg: TransitionMsg): void {
-    const r = transition(this.transitionState, msg, this.entry.characterId, this.entry.mapId);
+    const r = transition(this.transitionState, msg, this.entry.characterId, this.mapId);
     this.transitionState = r.state;
     for (const a of r.actions) {
       this.applyTransition(a);
@@ -641,31 +644,34 @@ export class World extends Phaser.Scene {
         this.pushHp(a.hp);
         character.getState().setDead(false);
         return;
-      case 'change-map': {
+      case 'change-map':
         character.getState().setDead(false);
         this.portals?.arrived();
-        const socket = this.socket;
-        if (!socket) {
-          return;
-        }
-        // The new map's Snapshot comes during the fade: the old scene applies nothing more, and the Arrival holds it.
-        const arriving = new Arrival(socket, a.mapId, this.entry.tickRateHz);
-        this.stopListening();
-        this.placed = false;
-        this.cameras.main.fadeOut(FADE_MS);
-        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
-          const next: WorldData = {
-            ...this.entry,
-            mapId: arriving.mapId,
-            tickRateHz: arriving.tickRateHz,
-            arrival: arriving.moved ? undefined : { x: a.x, y: a.y },
-            arriving,
-          };
-          this.scene.restart(next);
-        });
+        this.restartOn(a.mapId, this.tickRateHz, true, { x: a.x, y: a.y });
         return;
-      }
     }
+  }
+
+  /** From now on an Arrival holds the next map's messages, its Snapshot too, and this scene applies none; the restart builds from it, after the fade if any. */
+  private restartOn(mapId: string, tickRateHz: number, fade: boolean, at?: Spot): void {
+    const socket = this.socket;
+    if (!socket) {
+      return;
+    }
+    const next = new Arrival(socket, mapId, tickRateHz, at);
+    this.stopListening();
+    this.placed = false;
+    const restart = () => {
+      this.arriving = null;
+      this.scene.restart({ ...this.entry, arriving: next });
+    };
+    if (!fade) {
+      restart();
+      return;
+    }
+    this.arriving = next; // a scene stopped during the fade lets go of it in teardown
+    this.cameras.main.fadeOut(FADE_MS);
+    this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, restart);
   }
 
   private onLevelUp(): void {
@@ -690,7 +696,8 @@ export class World extends Phaser.Scene {
 
   private teardown(): void {
     this.stopListening();
-    this.entry.arriving?.take(); // shut down before it was built
+    this.arriving?.take(); // stopped before it was built, or during the fade
+    this.arriving = null;
     this.clearOthers();
     this.numberLayer?.destroy();
     this.numberLayer = null;

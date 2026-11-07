@@ -8,7 +8,8 @@ import { REGISTRY } from './registry';
 import { Boot } from './scenes/boot';
 import { Preloader } from './scenes/preloader';
 import { World } from './scenes/world';
-import type { WorldData } from './scenes/world';
+import type { WorldData, WorldEntry } from './scenes/world';
+import { Arrival } from './systems/arrival';
 
 export interface GameDeps {
   readonly socket: GameSocket;
@@ -45,8 +46,14 @@ export class GameHandle {
     };
   }
 
-  /** Restarts the World scene if it is running. */
-  enter(data: WorldData): void {
+  /** Restarts the World scene if it is running; the new map's messages are held from now until it is built. */
+  enter(entry: WorldEntry): void {
+    const { mapId, tickRateHz, ...player } = entry;
+    this.pending?.arriving.take();
+    const data: WorldData = {
+      ...player,
+      arriving: new Arrival(this.deps.socket, mapId, tickRateHz),
+    };
     this.pending = data;
     const game = this.game;
     if (!game) {
@@ -60,6 +67,7 @@ export class GameHandle {
 
   /** The canvas stays behind the React screens. */
   leave(): void {
+    this.pending?.arriving.take();
     this.pending = null;
     this.game?.scene.stop(SCENES.World);
   }

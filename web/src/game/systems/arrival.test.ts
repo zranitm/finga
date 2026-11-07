@@ -5,6 +5,7 @@ import type { Received } from '@/net/socket';
 import {
   DeltaSchema,
   DiedSchema,
+  MapChangeSchema,
   RespawnedSchema,
   SnapshotSchema,
   WelcomeSchema,
@@ -81,27 +82,43 @@ describe('Arrival', () => {
     expect(a.mapId).toBe('town');
   });
 
-  it('a reconnect during the fade starts over from its own Welcome and Snapshot', () => {
+  it('a reconnect during the fade starts over from its own Welcome and Snapshot, and drops the MapChange’s spot', () => {
     const f = feed();
-    const a = new Arrival(f, 'forest', 20);
+    const a = new Arrival(f, 'forest', 20, { x: 100, y: 200 });
     f.send(snapshot(10));
     f.send(msg('welcome', create(WelcomeSchema, { mapId: 'town', tickRateHz: 30 })));
     f.send(delta(11)); // before the reconnect's Snapshot
     f.send(snapshot(50));
-    expect([a.mapId, a.tickRateHz, a.moved]).toEqual(['town', 30, true]);
+    expect([a.mapId, a.tickRateHz, a.at]).toEqual(['town', 30, undefined]);
     expect(a.take().map((m) => m.tick)).toEqual([50]);
+  });
+
+  it.each([
+    { name: 'before the first map’s Snapshot', firstSnapshot: false },
+    { name: 'after the first map’s Snapshot', firstSnapshot: true },
+  ])('a second MapChange $name starts over on its map, at its spot', ({ firstSnapshot }) => {
+    const f = feed();
+    const a = new Arrival(f, 'forest', 20, { x: 100, y: 200 });
+    if (firstSnapshot) {
+      f.send(snapshot(10));
+      f.send(delta(11));
+    }
+    f.send(msg('mapChange', create(MapChangeSchema, { mapId: 'cave', x: 300, y: 400 }), 12));
+    f.send(snapshot(1)); // the cave's
+    expect([a.mapId, a.tickRateHz, a.at]).toEqual(['cave', 20, { x: 300, y: 400 }]);
+    expect(a.take().map((m) => m.tick)).toEqual([1]);
   });
 
   it('take stops holding: nothing more is kept, and the socket is let go', () => {
     const f = feed();
-    const a = new Arrival(f, 'forest', 20);
+    const a = new Arrival(f, 'forest', 20, { x: 100, y: 200 });
     expect(f.listeners()).toBe(6);
     f.send(snapshot(10));
     expect(a.take()).toHaveLength(1);
     expect(f.listeners()).toBe(0);
     f.send(snapshot(11));
     expect(a.take()).toEqual([]);
-    expect(a.moved).toBe(false);
+    expect(a.at).toEqual({ x: 100, y: 200 });
   });
 
   it('a respawn message for another player is held like any other, for the new scene to judge', () => {
