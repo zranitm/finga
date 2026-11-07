@@ -37,5 +37,7 @@ type PartyTx interface {
 type Notifier interface {
 	// PartyChanged sends the new state to each member; p is nil for one who left.
 	PartyChanged(members []kernel.CharacterID, p *model.Party)
+	// Alone tells a member they are in no party, which is no change to any membership.
+	Alone(id kernel.CharacterID)
 	Invited(to kernel.CharacterID, inv model.Invite)
 }

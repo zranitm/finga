@@ -65,6 +65,11 @@ func (s *Streams) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 	s.watchers.Broadcast(membership(members, now))
 }
 
+// Alone sends the member an empty PartyState; the worlds already hold them in no party.
+func (s *Streams) Alone(id kernel.CharacterID) {
+	s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: &socialv1.PartyState{}}})
+}
+
 // Invited tells the invitee.
 func (s *Streams) Invited(to kernel.CharacterID, inv model.Invite) {
 	s.send(to, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyInvited{PartyInvited: &socialv1.PartyInvited{

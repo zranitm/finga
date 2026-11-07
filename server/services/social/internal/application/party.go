@@ -47,7 +47,7 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 		}
 		tx.PutMember(m)
 		if !refresh(tx, n, m) {
-			n.left(m.ID) // a party lost while away is not shown at login
+			n.alone(m.ID) // a party lost while away is not shown at login
 		}
 		return nil
 	})
@@ -384,6 +384,10 @@ func (n *notes) changed(p model.Party) {
 
 func (n *notes) left(id kernel.CharacterID) {
 	*n = append(*n, func(to Notifier) { to.PartyChanged([]kernel.CharacterID{id}, nil) })
+}
+
+func (n *notes) alone(id kernel.CharacterID) {
+	*n = append(*n, func(to Notifier) { to.Alone(id) })
 }
 
 func (n *notes) invited(to kernel.CharacterID, inv model.Invite) {

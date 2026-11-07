@@ -30,6 +30,8 @@ func (r *recorder) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 	r.states = append(r.states, stateCall{to: members, party: p})
 }
 
+func (r *recorder) Alone(id kernel.CharacterID) { r.PartyChanged([]kernel.CharacterID{id}, nil) }
+
 func (r *recorder) Invited(_ kernel.CharacterID, inv model.Invite) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

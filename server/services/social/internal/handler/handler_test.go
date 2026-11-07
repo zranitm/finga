@@ -363,13 +363,8 @@ func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	s.online(t, "gw", ann, "Ann")
 	s.online(t, "gw", bo, "Bo")
 	s.party(t, ann, bo)
-	for _, who := range []kernel.CharacterID{ann, bo} { // each login, without a party
-		if ms := recv(t, stream).GetMembership(); len(ms.GetCharacterIds()) != 1 || ms.GetCharacterIds()[0] != who.String() || len(ms.GetMembers()) != 0 {
-			t.Fatalf("%s's login: %+v", who, ms)
-		}
-	}
 	if ms := recv(t, stream).GetMembership(); len(ms.GetMembers()) != 2 {
-		t.Fatalf("the change after the snapshot: %+v", ms)
+		t.Fatalf("the change after the snapshot: %+v; a login in no party changes no membership", ms)
 	}
 }
 
