@@ -167,6 +167,9 @@ func TestPruneDeletesKeysOlderThanTheCutoff(t *testing.T) {
 	if out, err := run(ctx, pool, "acc-1", "discard", "k-48h", []byte("other"), func() ([]byte, error) { return []byte("ran again"), nil }); err != nil || string(out) != "ran again" {
 		t.Fatalf("a pruned key: %q %v, want the command run again", out, err)
 	}
+	if n, err := idempotencypg.Prune(ctx, pool, time.Now(), 10); err != nil || n != 1 || !slices.Equal(left(), []string{"k-48h"}) {
+		t.Fatalf("a cutoff of now deleted %d (%v), left %v; want the hour-old key gone and the fresh one kept", n, err, left())
+	}
 }
 
 // A key another transaction holds, such as another node's prune, is skipped, not waited for.

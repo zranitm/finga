@@ -460,6 +460,7 @@ linters:
             - $gostd
             - finga/internal/host
             - finga/pkg/dbx
+            - finga/pkg/idempotency
             - finga/pkg/logger
             - finga/pkg/tracing
     forbidigo:

@@ -4,7 +4,11 @@ package idempotency
 import (
 	"context"
 	"errors"
+	"time"
 )
+
+// MinKeep is the least a key is kept: callers retry within seconds, and a retry once its key is gone runs the command again.
+const MinKeep = time.Hour
 
 // ErrKeyReused is returned when a key is replayed with a different request.
 var ErrKeyReused = errors.New("idempotency: key reused with a different request")

@@ -2,10 +2,12 @@
 package config
 
 import (
+	"fmt"
 	"time"
 
 	"finga/internal/host"
 	"finga/pkg/dbx"
+	"finga/pkg/idempotency"
 	"finga/pkg/logger"
 	"finga/pkg/tracing"
 )
@@ -24,9 +26,17 @@ type Config struct {
 
 // IdempotencyKeys is how long a command's key replays its first answer, and how older keys are deleted.
 type IdempotencyKeys struct {
-	Keep       time.Duration `mapstructure:"keep" validate:"min=1h"`       // a retry after it runs the command again, so never under an hour
+	Keep       time.Duration `mapstructure:"keep" validate:"gt=0"`         // never under idempotency.MinKeep, as a retry after it runs the command again
 	PruneEvery time.Duration `mapstructure:"prune_every" validate:"gt=0"`  // how often older keys are deleted
 	PruneBatch int           `mapstructure:"prune_batch" validate:"min=1"` // keys per DELETE
+}
+
+// Validate refuses a key kept less than the idempotency library's floor.
+func (c Config) Validate() error {
+	if c.IdempotencyKeys.Keep < idempotency.MinKeep {
+		return fmt.Errorf("idempotency_keys.keep: %s is under %s, so a retry could run its command twice", c.IdempotencyKeys.Keep, idempotency.MinKeep)
+	}
+	return nil
 }
 
 // Host is the part of the configuration the host runs the service with.

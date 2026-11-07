@@ -33,8 +33,11 @@ const (
 		SELECT owner, scope, key FROM idempotency_keys WHERE created_at < $1 ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED)`
 )
 
-// Prune deletes at most limit keys stored before before, oldest first, skipping those another transaction holds; a retry with a pruned key runs its command again.
+// Prune deletes at most limit keys stored before before, and never one younger than idempotency.MinKeep, oldest first, skipping those another transaction holds; a retry with a pruned key runs its command again.
 func Prune(ctx context.Context, db dbx.DBTX, before time.Time, limit int) (int64, error) {
+	if floor := time.Now().Add(-idempotency.MinKeep); before.After(floor) {
+		before = floor
+	}
 	tag, err := db.Exec(ctx, pruneSQL, before, limit)
 	if err != nil {
 		return 0, fmt.Errorf("idempotency: prune: %w", err)
