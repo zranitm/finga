@@ -35,13 +35,14 @@ make down      # stop everything and drop the database volume
 ```
 
 `make up` is the one command: it works from a clean clone with Docker and
-Compose only, the client included. The `web` image builds the client with
-Node and serves it with nginx, which passes `/api` and `/ws` to the gateway,
-so the browser sees one origin. Testers on the same network open
-`http://<this machine's LAN address>:4173`. When another program owns a port
-the stack publishes, set `FINGA_WEB_PORT` (4173), `FINGA_PORT` (8080),
-`FINGA_GATEWAY_OPS_PORT` (9100) or `FINGA_POSTGRES_PORT` (5432) in
-`infra/.env` (copy `infra/.env.example`).
+Compose only, the client included: Docker Engine 25 or newer and Compose
+2.20 or newer, for the health checks' `start_interval`. The `web` image
+builds the client with Node and serves it with nginx, which passes `/api`
+and `/ws` to the gateway, so the browser sees one origin. Testers on the
+same network open `http://<this machine's LAN address>:4173`. When another
+program owns a port the stack publishes, set `FINGA_WEB_PORT` (4173),
+`FINGA_PORT` (8080), `FINGA_GATEWAY_OPS_PORT` (9100) or
+`FINGA_POSTGRES_PORT` (5432) in `infra/.env` (copy `infra/.env.example`).
 The services ship together: every one runs the same commit, and a mix of
 versions is not supported. A contract can change its meaning without changing
 its shape, which `make breaking` cannot see, so a commit that does is marked
@@ -115,8 +116,9 @@ checks them beside it. The binaries read their paths from where they run,
 `FINGA_DATABASE_URL`, `FINGA_DEPENDENCIES_ITEM`, `FINGA_HTTP_ADDR`. The
 binaries read their file and their environment, nothing else. For local
 overrides, copy `server/.env.example` to `server/.env` (git-ignored): `make
-up` passes it to every service's container (Compose's `env_file`) and `make
-run` exports it before starting the binaries. To change one service only, a
+up` passes it to each of the six services' containers (Compose's
+`env_file`; migrate takes only the database settings) and `make run`
+exports it before starting the binaries. To change one service only, a
 git-ignored `config.local.yaml` beside its `config.yaml` replaces it, and
 `CONFIG_PATH` names any file. Nothing committed is a secret.
 
