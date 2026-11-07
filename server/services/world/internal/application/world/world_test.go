@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -26,6 +27,9 @@ var errRefused = errors.New("refused")
 // errUnavailable is a transient failure.
 var errUnavailable = errors.New("unavailable")
 
+// errUnexplained is a failure without a reason, such as Internal: retried a while, then dropped.
+var errUnexplained = errors.New("internal")
+
 // fakeSaver records saves; the first failures attempts fail with err.
 type fakeSaver struct {
 	mu       sync.Mutex
@@ -36,6 +40,7 @@ type fakeSaver struct {
 	hangs    int           // the first hangs attempts wait until their context ends
 	slow     time.Duration // every attempt takes this long
 	failing  string        // a map whose saves always fail with err, whatever failures says
+	dropped  []string      // why each save the World gave up on was dropped
 }
 
 // attempt records what is tried; f.mu is held and attempt unlocks it.
@@ -70,7 +75,24 @@ func (f *fakeSaver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) err
 	return f.attempt(ctx, "cp "+cp.MapID)
 }
 
-func (f *fakeSaver) Retryable(err error) bool { return !errors.Is(err, errRefused) }
+func (f *fakeSaver) Retryable(err error) bool {
+	return !errors.Is(err, errRefused) && !errors.Is(err, errUnexplained)
+}
+
+func (f *fakeSaver) Refused(err error) bool { return errors.Is(err, errRefused) }
+
+// SaveDropped records why the World gave up on a save.
+func (f *fakeSaver) SaveDropped(reason string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.dropped = append(f.dropped, reason)
+}
+
+func (f *fakeSaver) droppedSoFar() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.dropped...)
+}
 
 func (f *fakeSaver) attemptsSoFar() []string {
 	f.mu.Lock()
@@ -174,7 +196,7 @@ func TestWorld(t *testing.T) {
 // leaveAndRun has the World save "cp town" then "cp forest", then runs before and shuts the World down.
 func leaveAndRun(t *testing.T, saver *fakeSaver, before func()) {
 	t.Helper()
-	w := newWorld(t, saver, worldtest.Options{CheckpointInterval: time.Hour})
+	w := newWorld(t, saver, worldtest.Options{CheckpointInterval: time.Hour, SaveObserver: saver})
 	ctx, cancel := context.WithCancel(context.Background())
 	runDone := make(chan error, 1)
 	go func() { runDone <- w.Run(ctx) }()
@@ -252,10 +274,34 @@ func TestThePersistenceWorkerRetriesBehindTheOthers(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a refused save is not retried", func(t *testing.T) {
+	t.Run("a refused save is not retried, and is counted dropped", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			if got := run(t, &fakeSaver{err: errRefused}); len(got) != 2 {
-				t.Fatalf("attempts %v", got)
+			saver := &fakeSaver{err: errRefused}
+			if got := run(t, saver); len(got) != 2 || !slices.Equal(saver.droppedSoFar(), []string{"refused", "refused"}) {
+				t.Fatalf("attempts %v, dropped %v", got, saver.droppedSoFar())
+			}
+		})
+	})
+	t.Run("one failing without a reason is retried for a minute, then dropped and counted", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			saver := &fakeSaver{err: errUnexplained, failing: "town"}
+			var early, late []string
+			leaveAndRun(t, saver, func() {
+				time.Sleep(30 * time.Second)
+				synctest.Wait()
+				early = saver.attemptsSoFar()
+				time.Sleep(90 * time.Second)
+				synctest.Wait()
+				late = saver.attemptsSoFar()
+			})
+			if count(early, "cp town") < 3 {
+				t.Fatalf("attempts after 30 s %v; want it retried", early)
+			}
+			if final := saver.attemptsSoFar(); count(final, "cp town") != count(late, "cp town") || count(final, "cp forest") != 1 {
+				t.Fatalf("attempts %v; want town dropped before the shutdown and forest saved", final)
+			}
+			if got := saver.droppedSoFar(); !slices.Equal(got, []string{"unexplained"}) {
+				t.Fatalf("dropped %v", got)
 			}
 		})
 	})
@@ -271,6 +317,9 @@ func TestShutdownTriesEachSaveOnceMore(t *testing.T) {
 		after := saver.attemptsSoFar()[before:]
 		if time.Since(start) > time.Second || len(after) != 2 || count(after, "cp town") != 1 || count(after, "cp forest") != 1 {
 			t.Fatalf("shutdown took %s with attempts %v after it began", time.Since(start), after)
+		}
+		if got := saver.droppedSoFar(); !slices.Equal(got, []string{"shutdown", "shutdown"}) {
+			t.Fatalf("dropped %v; want both last tries counted", got)
 		}
 	})
 }

@@ -35,6 +35,7 @@ type WorldMetrics struct {
 	tickDuration *prometheus.HistogramVec // by map
 	tickOverruns *prometheus.CounterVec   // by map
 	jobsInflight prometheus.Gauge
+	savesDropped *prometheus.CounterVec // by reason
 }
 
 // NewWorldMetrics registers the world's metrics on reg; registering twice on one registry fails.
@@ -49,9 +50,15 @@ func NewWorldMetrics(reg prometheus.Registerer) (*WorldMetrics, error) {
 		jobsInflight: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: observability.Namespace, Name: "economy_jobs_inflight", Help: "Pickups waiting on or inside a call to the item service.",
 		}),
+		savesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: observability.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why.",
+		}, []string{"reason"}),
 	}
-	return m, register(reg, m.tickDuration, m.tickOverruns, m.jobsInflight)
+	return m, register(reg, m.tickDuration, m.tickOverruns, m.jobsInflight, m.savesDropped)
 }
+
+// SaveDropped counts a checkpoint given up on.
+func (m *WorldMetrics) SaveDropped(reason string) { m.savesDropped.WithLabelValues(reason).Inc() }
 
 // ObserveTick records one tick of mapID, counting an overrun when took exceeds budget.
 func (m *WorldMetrics) ObserveTick(mapID string, took, budget time.Duration) {

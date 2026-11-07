@@ -7,6 +7,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"finga/internal/kernel"
 	"finga/services/world/internal/model"
 )
 
@@ -43,6 +44,7 @@ func (w *World) flush(ctx context.Context, stopped <-chan struct{}) {
 // saveWhile saves until ctx ends; a failed save retries behind the others, so one failing save holds up no other.
 func (w *World) saveWhile(ctx context.Context) {
 	wait := &backoff.ExponentialBackOff{InitialInterval: saveRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: saveRetryMax}
+	unexplained := map[kernel.CharacterID]time.Time{} // since when each character's saves fail without a reason
 	for ctx.Err() == nil {
 		cp, ok := w.saves.Take()
 		if !ok {
@@ -53,13 +55,16 @@ func (w *World) saveWhile(ctx context.Context) {
 			continue
 		}
 		err := w.saveOnce(ctx, cp)
-		retry := err != nil && w.deps.Saver.Retryable(err)
-		w.saves.Done(cp, retry)
+		drop := w.dropFor(err, cp.ID, unexplained)
+		if err == nil || drop != "" {
+			delete(unexplained, cp.ID)
+		}
+		w.saves.Done(cp, err != nil && drop == "")
 		switch {
 		case err == nil:
 			wait.Reset()
-		case !retry:
-			w.deps.Logger.ErrorContext(ctx, "persistence failed", append(saveAttrs(cp), "err", err)...)
+		case drop != "":
+			w.dropped(ctx, cp, drop, err)
 		case ctx.Err() == nil:
 			w.deps.Logger.WarnContext(ctx, "save failed; retrying", append(saveAttrs(cp), "err", err)...)
 			pause(ctx, wait.NextBackOff())
@@ -67,10 +72,35 @@ func (w *World) saveWhile(ctx context.Context) {
 	}
 }
 
-// lastTry saves cp once on shutdown; a failure is logged, as the save is lost.
+// dropFor is why a failed save is given up on, or "" to retry it: a refusal at once, a failure without a reason once it has lasted unexplainedFor.
+func (w *World) dropFor(err error, id kernel.CharacterID, unexplained map[kernel.CharacterID]time.Time) string {
+	switch {
+	case err == nil, w.deps.Saver.Retryable(err):
+		return ""
+	case w.deps.Saver.Refused(err):
+		return DropRefused
+	}
+	since, ok := unexplained[id]
+	if !ok {
+		since = time.Now()
+		unexplained[id] = since
+	}
+	if time.Since(since) < unexplainedFor {
+		return ""
+	}
+	return DropUnexplained
+}
+
+// dropped logs and counts a save given up on: the character's progress since their last save is lost.
+func (w *World) dropped(ctx context.Context, cp model.Checkpoint, reason string, err error) {
+	w.deps.SaveObserver.SaveDropped(reason)
+	w.deps.Logger.ErrorContext(ctx, "persistence failed", append(saveAttrs(cp), "dropped", reason, "err", err)...)
+}
+
+// lastTry saves cp once on shutdown; a failure is logged and counted, as the save is lost.
 func (w *World) lastTry(ctx context.Context, cp model.Checkpoint) {
 	if err := w.saveOnce(ctx, cp); err != nil {
-		w.deps.Logger.ErrorContext(ctx, "persistence failed", append(saveAttrs(cp), "shutdown", true, "err", err)...)
+		w.dropped(ctx, cp, DropShutdown, err)
 	}
 	w.saves.Done(cp, false)
 }

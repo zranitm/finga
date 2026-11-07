@@ -81,6 +81,10 @@ func TestWorldMetrics(t *testing.T) {
 	m.JobStarted()
 	m.JobStarted()
 	m.JobFinished()
+	m.SaveDropped("unexplained")
+	if got := sample(t, reg, "finga_saves_dropped_total", "reason", "unexplained"); got != 1 {
+		t.Fatalf("saves dropped %v, want 1", got)
+	}
 	if got := sample(t, reg, "finga_tick_duration_seconds", "map", "town"); got != 3 {
 		t.Fatalf("ticks observed %v, want 3", got)
 	}

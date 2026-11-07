@@ -208,6 +208,7 @@ type Options struct {
 	Starter            world.Starter
 	Logger             *slog.Logger // the World's
 	Traces             trace.TracerProvider
+	SaveObserver       world.SaveObserver
 }
 
 // Fill gives every option left unset its default.
@@ -244,6 +245,9 @@ func (o Options) Fill() Options {
 	}
 	if o.Traces == nil {
 		o.Traces = Traces
+	}
+	if o.SaveObserver == nil {
+		o.SaveObserver = nobody{}
 	}
 	return o
 }
@@ -289,7 +293,7 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
 	o = o.Fill()
 	return world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter,
-		Panics: DiscardPanics(), Logger: o.Logger,
+		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
 	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout})
 }
 
@@ -350,6 +354,9 @@ func (nobody) JobFinished() {}
 
 // Retryable is never.
 func (nobody) Retryable(error) bool { return false }
+
+// SaveDropped counts nothing.
+func (nobody) SaveDropped(string) {}
 
 // Granted is never.
 func (nobody) Granted(error) bool { return false }

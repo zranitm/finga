@@ -20,5 +20,20 @@ type Starter interface {
 // Saver persists checkpoints, from the persistence worker, never from a tick.
 type Saver interface {
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
+	// Retryable reports whether a failed save may pass if made again, such as one the service was down for.
 	Retryable(err error) bool
+	// Refused reports whether the service refused the save by a rule, which no retry passes.
+	Refused(err error) bool
+}
+
+// The reasons a save is dropped, as SaveObserver hears them.
+const (
+	DropRefused     = "refused"     // by a rule of the character service
+	DropUnexplained = "unexplained" // failing without a reason for unexplainedFor
+	DropShutdown    = "shutdown"    // its last try at shutdown failed
+)
+
+// SaveObserver counts the saves the World gives up on, and so the progress lost.
+type SaveObserver interface {
+	SaveDropped(reason string)
 }

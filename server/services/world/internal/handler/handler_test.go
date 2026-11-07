@@ -58,6 +58,7 @@ type saver struct{}
 
 func (saver) SaveCheckpoint(context.Context, model.Checkpoint) error { return nil }
 func (saver) Retryable(error) bool                                   { return false }
+func (saver) Refused(error) bool                                     { return false }
 
 // idle stands in for every world service these tests leave alone.
 type idle struct{}
@@ -77,6 +78,7 @@ func (idle) Inventory(context.Context, kernel.CharacterID) ([]model.Slot, error)
 func (idle) ObserveTick(string, time.Duration, time.Duration) {}
 func (idle) JobStarted()                                      {}
 func (idle) JobFinished()                                     {}
+func (idle) SaveDropped(string)                               {}
 func (idle) Float64() float64                                 { return 0.5 }
 
 // capturing hands the test each joined sink, to send events the world rarely sends.
@@ -112,7 +114,7 @@ func newStack(t *testing.T) *stack {
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
 		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: economy.NewWorkers(economy.Deps{Observer: idle{}, Panics: rec}, economy.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
-		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
+		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})

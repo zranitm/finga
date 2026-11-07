@@ -57,6 +57,7 @@ func (d *db) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 }
 
 func (*db) Retryable(error) bool { return true }
+func (*db) Refused(error) bool   { return false }
 
 func (d *db) set(down, stuck bool) {
 	d.mu.Lock()

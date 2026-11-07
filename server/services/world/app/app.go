@@ -76,18 +76,19 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	nodeID := uuidv7.NewString()
 	parties := party.NewCopy(party.Deps{Social: clients.NewSocial(socialv1.NewSocialServiceClient(socialConn), rec), Logger: log}, party.Options{World: nodeID})
 	maps := world.New(world.Deps{
-		Data:       data,
-		NewRoll:    newRoll,
-		Observer:   metrics,
-		Items:      clients.NewPickups(items),
-		Workers:    economy.NewWorkers(economy.Deps{Observer: metrics, Panics: rec}, economy.Options{Workers: cfg.Economy.Workers}),
-		Parties:    parties,
-		Traces:     h.Traces,
-		Saver:      clients.NewSaver(characters),
-		Characters: clients.NewCharacters(characters),
-		Starter:    clients.NewStarter(items),
-		Panics:     rec,
-		Logger:     log,
+		Data:         data,
+		NewRoll:      newRoll,
+		Observer:     metrics,
+		Items:        clients.NewPickups(items),
+		Workers:      economy.NewWorkers(economy.Deps{Observer: metrics, Panics: rec}, economy.Options{Workers: cfg.Economy.Workers}),
+		Parties:      parties,
+		Traces:       h.Traces,
+		Saver:        clients.NewSaver(characters),
+		Characters:   clients.NewCharacters(characters),
+		Starter:      clients.NewStarter(items),
+		Panics:       rec,
+		Logger:       log,
+		SaveObserver: metrics,
 	}, world.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout})
 	h.Task("parties", parties.Run)
 	h.Task("world", maps.Run)

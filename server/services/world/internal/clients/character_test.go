@@ -91,4 +91,7 @@ func TestSavesRetryOnlyTransientFailures(t *testing.T) {
 	if s.Retryable(status.Error(codes.Internal, "check constraint")) || s.Retryable(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) {
 		t.Fatal("a failure no retry can pass is retried")
 	}
+	if !s.Refused(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || s.Refused(status.Error(codes.Internal, "check constraint")) {
+		t.Fatal("only a failure with a reason is a refusal; an Internal is unexplained")
+	}
 }

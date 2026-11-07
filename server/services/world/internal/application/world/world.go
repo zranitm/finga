@@ -27,7 +27,8 @@ const (
 
 	saveRetryFirst = 100 * time.Millisecond // the pause after a failed save, doubled by each failure in a row
 	saveRetryMax   = 5 * time.Second
-	flushWorkers   = 8 // the last saves made at once; the queue still hands out one character's at a time
+	unexplainedFor = time.Minute // a save failing without a reason is retried this long, past a passing fault, then dropped
+	flushWorkers   = 8           // the last saves made at once; the queue still hands out one character's at a time
 )
 
 // World is the registry of map instances and of where each joined character is; it runs their saves and transfers.
@@ -50,12 +51,13 @@ type World struct {
 // Deps are the services the World calls besides its maps'; all are required.
 type Deps struct {
 	instance.Services
-	Data       *gamedata.Data
-	Saver      Saver
-	Characters Characters
-	Starter    Starter
-	Panics     *panics.Recorder // a transfer's panic
-	Logger     *slog.Logger
+	Data         *gamedata.Data
+	Saver        Saver
+	Characters   Characters
+	Starter      Starter
+	Panics       *panics.Recorder // a transfer's panic
+	Logger       *slog.Logger
+	SaveObserver SaveObserver
 }
 
 // Tuning is how often the maps tick and checkpoint, and how long the last saves may take on shutdown.
