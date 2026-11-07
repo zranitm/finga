@@ -240,7 +240,7 @@ func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 		done := make(chan struct{})
 		go func() { defer close(done); _ = w.Run(ctx) }()
 		defer func() { cancel(); <-done }()
-		budgetCtx, stop := context.WithTimeout(context.Background(), 5*time.Second) // the gateway's join budgetCtx
+		budgetCtx, stop := context.WithTimeout(context.Background(), 5*time.Second) // the gateway's join budget
 		defer stop()
 		start := time.Now()
 		if _, err := w.Join(budgetCtx, ayla.Account, ayla.ID, "c-1", &worldtest.Sink{}); err != nil {
