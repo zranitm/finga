@@ -25,4 +25,5 @@ How Finga runs, apart from the code that runs.
   (`deploy/README.md`), which starts there.
 - `terraform/`: the AWS and Cloudflare side. Generic modules (an EC2 host for
   a Compose app, ECR repositories, a private bucket, a GitHub OIDC role, a
-  Cloudflare-proxied origin) and `envs/prod`, which wires them for Finga.
+  Cloudflare-proxied origin, Cloudflare Access) and `envs/prod`, which wires
+  them for Finga.

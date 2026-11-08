@@ -55,6 +55,9 @@ its six months run out.
 - Terraform 1.10 or newer, `jq`, and `gh` signed in to the repository.
 - A domain on Cloudflare, and an API token for its zone with **Zone · DNS · Edit**, **Zone · SSL and Certificates ·
   Edit** and **Zone · Zone Settings · Edit**.
+- Only to keep the game private while testing (see [Private while testing](#private-while-testing)): a Zero Trust
+  organization on the Cloudflare account, and two more permissions on the token, **Account · Access: Apps and
+  Policies · Edit** and **Account · Access: Organizations, Identity Providers, and Groups · Edit**.
 
 ## First deploy
 
@@ -68,7 +71,8 @@ terraform -chdir=infra/terraform/bootstrap apply
 **2. Fill in the variables.** Copy `infra/terraform/envs/prod/terraform.tfvars.example` to `terraform.tfvars` and set
 `hostname` (e.g. `play.example.com`) and `cloudflare_zone_id`. Read `cloudflare_zone_settings` in `variables.tf`
 first: it sets the whole zone to Full (strict). If other sites on the zone can't do that, set it to `{}` and set
-SSL/TLS to Full (strict) for this hostname with a Configuration Rule in the dashboard instead.
+SSL/TLS to Full (strict) for this hostname with a Configuration Rule in the dashboard instead. To start private,
+set `access_allowed_emails` and `cloudflare_account_id` too.
 
 **3. Create the infrastructure:**
 
@@ -108,6 +112,34 @@ hand, add yourself as a required reviewer under Settings → Environments → pr
 ```bash
 make smoke SMOKE_URL=https://play.example.com
 ```
+
+While the game is private, Access turns the smoke test away (it has no sign-in): the deploy's own checks, which
+reach nginx on the host, have already passed by then.
+
+## Private while testing
+
+Cloudflare Access can stand in front of the whole hostname, so only addresses you list get through: the client,
+the API and the WebSocket alike. Visitors see Cloudflare's sign-in page, enter their email, and type the code it
+mails them; the sign-in lasts `access_session_duration` (a week by default). Up to 50 people are free.
+
+1. Once per Cloudflare account, create the Zero Trust organization: in the dashboard, open **Zero Trust**, pick a
+   team name and the **Free** plan. It asks for payment details even for the Free plan, without charging.
+2. Give the API token the two Access permissions listed under [Before you start](#before-you-start).
+3. In `terraform.tfvars`:
+
+   ```hcl
+   access_allowed_emails = ["you@example.com", "friend@example.com"]
+   cloudflare_account_id = "..."   # Overview page of the zone, right column
+   ```
+
+4. `terraform apply`. `terraform output access` says who can get in.
+
+To go public, set `access_allowed_emails = []` and apply: Terraform removes the application, its policy and the
+one-time PIN login. If the account already had the one-time PIN login before, set
+`create_access_one_time_pin = false` so Terraform doesn't try to add a second one.
+
+Anything without a browser session is turned away while Access is on: the smoke test, load-test bots, `curl`.
+Run those against the host itself, or go public for the run.
 
 ## How a deploy runs
 
@@ -190,6 +222,8 @@ gh workflow run deploy
 | Symptom | Likely cause |
 |---|---|
 | Cloudflare 521 | nginx isn't running: `finga-compose ps web`, then its logs |
+| A sign-in page instead of the game | Access is on: `terraform output access`; sign in with a listed address, or empty `access_allowed_emails` |
+| The game stops talking to the server after days open | The Access sign-in ran out (`access_session_duration`): reload the page |
 | Cloudflare 522 | Nothing answers on 443: the instance is down, or the security group lacks Cloudflare's current ranges (`terraform apply`) |
 | Cloudflare 525 / 526 | TLS to the origin: the SSL mode isn't Full (strict), or nginx holds a stale certificate (redeploy) |
 | Rate limits hit every player at once | nginx sees Cloudflare's addresses instead of clients': check `/opt/finga/shared/files/nginx/finga.d/realip.conf` exists |
@@ -209,6 +243,6 @@ gh workflow run deploy
 | `systemd/` | The nightly backup's service and timer, installed by each deploy |
 
 `infra/terraform/modules` holds the generic parts (`compose-host`, `ecr-repositories`, `private-bucket`,
-`github-oidc-role`, `cloudflare-origin`), and `infra/terraform/envs/prod` wires them for Finga.
+`github-oidc-role`, `cloudflare-origin`, `cloudflare-access`), and `infra/terraform/envs/prod` wires them for Finga.
 
 When Kafka joins in Stage 2, add it to the Compose file as any other service and move to `t4g.large` (8 GB).

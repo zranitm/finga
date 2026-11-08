@@ -2,6 +2,11 @@ output "url" {
   value = "https://${var.hostname}"
 }
 
+output "access" {
+  description = "Who can reach the game."
+  value       = length(var.access_allowed_emails) > 0 ? "sign-in required: ${join(", ", var.access_allowed_emails)}" : "public"
+}
+
 output "instance_id" {
   value = module.host.instance_id
 }

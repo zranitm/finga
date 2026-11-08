@@ -35,6 +35,35 @@ variable "cloudflare_zone_settings" {
   }
 }
 
+variable "access_allowed_emails" {
+  description = "When not empty, Cloudflare Access puts a sign-in in front of the game and only these addresses get through (a one-time PIN by email). Empty: the game is public."
+  type        = list(string)
+  default     = []
+}
+
+variable "access_session_duration" {
+  description = "How long an Access sign-in lasts (a Go duration)."
+  type        = string
+  default     = "168h"
+}
+
+variable "create_access_one_time_pin" {
+  description = "false when the Cloudflare account already has the one-time PIN login method."
+  type        = bool
+  default     = true
+}
+
+variable "cloudflare_account_id" {
+  description = "Needed for Access only: the account ID, from the zone's Overview page in the Cloudflare dashboard."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = length(var.access_allowed_emails) == 0 || var.cloudflare_account_id != null
+    error_message = "access_allowed_emails needs cloudflare_account_id."
+  }
+}
+
 variable "github_repository" {
   type    = string
   default = "zranitm/finga"
