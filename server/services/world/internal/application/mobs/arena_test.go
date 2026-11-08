@@ -45,8 +45,9 @@ func TestTheArenaIsFullBeforeItsFirstTick(t *testing.T) {
 	if len(views) != 2 || views[0].ID == views[1].ID {
 		t.Fatalf("views %+v; want the area's two slimes", views)
 	}
+	slime, _ := worldtest.LoadData(t).Mob("green_slime")
 	for _, v := range views {
-		if v.Type != "green_slime" || v.X != spawnX || v.Y != floor || v.HP != 30 || v.MaxHP != 30 || v.Facing != 1 {
+		if v.Type != "green_slime" || v.X != spawnX || v.Y != floor || v.HP != slime.HP || v.MaxHP != slime.HP || v.Facing != 1 {
 			t.Fatalf("spawned %+v", v)
 		}
 	}

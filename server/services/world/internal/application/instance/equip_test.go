@@ -258,7 +258,7 @@ func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := warriorAt(250)
-		p.Exp, p.Worn = 18, model.Worn{Revision: 2, Stats: progression.ItemStats{MaxHP: 30}}
+		p.Exp, p.Worn = 18, model.Worn{Revision: 2, Stats: progression.ItemStats{Attack: 10, MaxHP: 30}} // the sword, and 30 HP from elsewhere
 		s := join(t, inst, p)
 		if v, _ := s.Own(p.ID); v.MaxHP != 234 {
 			t.Fatalf("max HP %d at join, want 204 and the worn 30", v.MaxHP)

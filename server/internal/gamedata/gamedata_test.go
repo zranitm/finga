@@ -552,7 +552,7 @@ func TestRealDataLoads(t *testing.T) {
 		{"level cap 30", d.LevelCap() == 30},
 		{"three maps: one town and two hunting maps", len(d.Maps()) == 3 && d.Town() != nil},
 		{"three to four mobs", len(d.Mobs()) >= 3 && len(d.Mobs()) <= 4},
-		{"about ten items, each loaded", len(items) >= 8 && len(items) <= 14 && allLoaded(d, items)},
+		{"every listed item loaded", len(items) > 0 && allLoaded(d, items)},
 		{"the expected movement constants", d.Movement() == wantMovement},
 	}
 	for _, tt := range tests {
@@ -568,6 +568,47 @@ func TestRealDataLoads(t *testing.T) {
 			got, ok := d.ExpToNext(level)
 			if !ok || got != want {
 				t.Fatalf("level %d: %d, want %d", level, got, want)
+			}
+		}
+	})
+	// Systems → Items, content: in each level band, gear for every armor and accessory kind and a weapon per class.
+	t.Run("each level band has gear for every slot kind and a weapon per class", func(t *testing.T) {
+		in := func(lo, hi int, ok func(gamedata.Item) bool) bool {
+			for _, id := range items {
+				if it, _ := d.Item(id); it.Tab == gamedata.Equip && it.MinLevel >= lo && it.MinLevel <= hi && ok(it) {
+					return true
+				}
+			}
+			return false
+		}
+		for _, band := range [][2]int{{1, 9}, {10, 19}, {20, 29}} {
+			for _, s := range d.EquipSlots() {
+				if s.Kind != "weapon" && !in(band[0], band[1], func(it gamedata.Item) bool { return it.Slot == s.Kind }) {
+					t.Errorf("levels %d to %d: nothing for the %s slot", band[0], band[1], s.ID)
+				}
+			}
+			for _, c := range d.Classes() {
+				if !in(band[0], band[1], func(it gamedata.Item) bool { return it.Slot == "weapon" && it.Class == c.ID }) {
+					t.Errorf("levels %d to %d: no weapon for the %s", band[0], band[1], c.ID)
+				}
+			}
+		}
+	})
+	t.Run("every piece of equipment drops from a mob, or is a starter", func(t *testing.T) {
+		got := map[string]bool{}
+		for _, m := range d.Mobs() {
+			for _, dr := range m.Drops {
+				got[dr.Item] = true
+			}
+		}
+		for _, c := range d.Classes() {
+			for _, g := range c.StarterItems {
+				got[g.Item] = true
+			}
+		}
+		for _, id := range items {
+			if it, _ := d.Item(id); it.Tab == gamedata.Equip && !got[id] {
+				t.Errorf("%s: nobody can get it", id)
 			}
 		}
 	})

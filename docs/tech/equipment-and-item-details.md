@@ -272,8 +272,11 @@ By layer (`web/eslint.config.js`):
 ## 11. Rollout
 
 - **Existing databases:** equipment items already in inventories have no roll. The migration that adds `item_rolls` gives each one, destroyed ones too, its template's lowest roll, the same rule as starter items, so check 11 holds from the first start (open question 2). It lists the six equipment templates items.yaml had and their lowest values, because migrations run without the game data. Those values stay as rolled: retuning a range never changes or invalidates items already rolled.
-- **Data:** Leather Cap becomes a `hat` and Leather Vest a `top`. The content step adds about 24 equipment items (one per armor and accessory slot kind per level band) and a weapon per class per band, and updates the drop lists.
-- **Balance:** equipment bonuses have never applied in combat. Even a starter sword adds attack, so the content step retunes mob HP and the drop chances (open question 3).
+- **Data:** Leather Cap becomes a `hat` and Leather Vest a `top`. The content step brings `items.yaml` to an armor or accessory for every slot kind, and a weapon per class, in each level band (1 to 9, 10 to 19, 20 to 29), 33 pieces of equipment in all, from 1★ to 4★ and one 6★ ring. A test on the real data keeps it so, and checks that every piece drops from a mob or is a starter.
+  - The forest's mushrooms drop the first band's armor and accessories; the cave's boars and bats drop the second band's, the weapons of levels 8 to 14, and, rarely, the third band's.
+  - The third band waits for a map with mobs of its levels; until then it is a rare find in the cave (0.2% to 0.4% a kill), as is the 6★ Moonstone Ring.
+  - Green slimes keep their drops, so a new player's first kills fill the Etc and Use tabs as before.
+- **Balance:** equipment bonuses have never applied in combat. Even a starter sword adds attack (+48% attack power for a level 1 warrior), so the content step raises mob HP until the weapon a player of the mob's level likely holds kills it in as many hits as before (open question 3): green slime 30 to 44, orange mushroom 70 to 90, wild boar 180 to 216, cave bat 150 to 180. Mob attack stays, so armor makes mobs hit softer, as it should.
 - **Deploy order:** item service first, then world, then gateway, then the client. The item service answers old callers as before, except an old world's pickup of equipment, which carries no roll: it is refused and the drop stays on the ground until that world restarts, seconds later in a release. Old clients ignore the new fields and never send `Equip`.
 
 ## 12. Build order
