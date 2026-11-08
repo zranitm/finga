@@ -36,21 +36,25 @@ describe('session, connection and ui stores', () => {
     expect(connection.getState().rtt).toBe(42);
   });
 
-  it('ui toggles, opens and closes windows', () => {
+  it('ui keeps the open windows in order, the top-most last', () => {
+    const windows = () => ui.getState().windows;
     ui.getState().toggleWindow('inventory');
-    expect(ui.getState().windows.inventory).toBe(true);
-    ui.getState().toggleWindow('inventory');
-    expect(ui.getState().windows.inventory).toBe(false);
-    ui.getState().openWindow('party');
-    ui.getState().openWindow('party');
-    expect(ui.getState().windows).toEqual({
-      inventory: false,
-      character: false,
-      party: true,
-      settings: false,
-    });
-    ui.getState().closeWindow('party');
-    expect(ui.getState().windows.party).toBe(false);
+    ui.getState().toggleWindow('party');
+    ui.getState().toggleWindow('character');
+    expect(windows()).toEqual(['inventory', 'party', 'character']);
+    ui.getState().toggleWindow('party');
+    expect(windows()).toEqual(['inventory', 'character']);
+    ui.getState().openWindow('inventory'); // pressed: to the top
+    expect(windows()).toEqual(['character', 'inventory']);
+    const before = windows();
+    ui.getState().openWindow('inventory'); // already on top: no change for subscribers
+    expect(windows()).toBe(before);
+    ui.getState().closeTopWindow();
+    expect(windows()).toEqual(['character']);
+    ui.getState().closeWindow('party'); // not open: nothing
+    ui.getState().closeTopWindow();
+    ui.getState().closeTopWindow(); // none open: nothing
+    expect(windows()).toEqual([]);
   });
 
   it('a subscriber hears a change and reset brings the initial state back', () => {

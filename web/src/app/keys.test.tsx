@@ -12,8 +12,8 @@ import { resetStores } from '@/testing/reset-stores';
 
 // The world's keys and windows together, as the world scene binds the keys and the overlay mounts the windows.
 function Overlay() {
-  const open = ui.use((s) => s.windows.inventory);
-  const characterOpen = ui.use((s) => s.windows.character);
+  const open = ui.use((s) => s.windows.includes('inventory'));
+  const characterOpen = ui.use((s) => s.windows.includes('character'));
   return (
     <>
       <ChatBox socket={{ send: vi.fn(() => true) } as never} />
@@ -49,6 +49,8 @@ describe('the world’s keys with windows open', () => {
           ui.getState().toggleWindow(action);
         } else if (action === 'chat') {
           ui.getState().openChat();
+        } else if (action === 'close') {
+          ui.getState().closeTopWindow();
         }
       },
     });
@@ -92,6 +94,32 @@ describe('the world’s keys with windows open', () => {
     await userEvent.keyboard('{Escape}');
     expect(inventoryWindow()).toBeNull();
     expect(await walks()).toBe(true);
+  });
+
+  it('Esc closes the focused window, then the one left open once nothing has focus', async () => {
+    const characterWindow = () => screen.queryByRole('dialog', { name: 'Character' });
+    await userEvent.keyboard('i');
+    await userEvent.keyboard('c');
+    await userEvent.keyboard('{Escape}');
+    expect(characterWindow()).toBeNull();
+    expect(document.activeElement).toBe(document.body);
+    await userEvent.keyboard('{Escape}');
+    expect(inventoryWindow()).toBeNull();
+  });
+
+  it('a pressed window comes to the top, and Esc closes it first with nothing focused', async () => {
+    const characterWindow = () => screen.queryByRole('dialog', { name: 'Character' });
+    await userEvent.keyboard('i');
+    await userEvent.keyboard('c');
+    expect(inventoryWindow()!.style.zIndex).toBe('1');
+    expect(characterWindow()!.style.zIndex).toBe('2');
+    await userEvent.click(screen.getByRole('tab', { name: 'Etc' }));
+    expect(inventoryWindow()!.style.zIndex).toBe('2');
+    expect(characterWindow()!.style.zIndex).toBe('1');
+    act(() => (document.activeElement as HTMLElement).blur());
+    await userEvent.keyboard('{Escape}');
+    expect(inventoryWindow()).toBeNull();
+    expect(characterWindow()).not.toBeNull();
   });
 
   it('× closes the inventory, and the player walks after', async () => {

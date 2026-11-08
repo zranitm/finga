@@ -18,6 +18,7 @@ export const presets: Readonly<Record<Preset, KeyTable>> = {
     character: ['KeyC'],
     party: ['KeyP'],
     chat: ['Enter', 'NumpadEnter'],
+    close: ['Escape'],
   },
   wasd: {
     left: ['KeyA'],
@@ -31,5 +32,6 @@ export const presets: Readonly<Record<Preset, KeyTable>> = {
     character: ['KeyC'],
     party: ['KeyP'],
     chat: ['Enter', 'NumpadEnter'],
+    close: ['Escape'],
   },
 };

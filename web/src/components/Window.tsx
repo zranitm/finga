@@ -8,11 +8,23 @@ export interface WindowProps {
   readonly onClose: () => void;
   readonly initialX?: number;
   readonly initialY?: number;
+  /** Its place among the open windows; a higher one draws on top. */
+  readonly layer?: number;
+  /** A press or focus inside asks to bring it to the top. */
+  readonly onRaise?: () => void;
   readonly children: ReactNode;
 }
 
 /** Takes focus on open, so Escape closes it; the game's keys still reach the game. */
-export function Window({ title, onClose, initialX = 80, initialY = 80, children }: WindowProps) {
+export function Window({
+  title,
+  onClose,
+  initialX = 80,
+  initialY = 80,
+  layer,
+  onRaise,
+  children,
+}: WindowProps) {
   const [pos, setPos] = useState({ x: initialX, y: initialY });
   const drag = useRef<{ dx: number; dy: number } | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -54,8 +66,10 @@ export function Window({ title, onClose, initialX = 80, initialY = 80, children 
       role="dialog"
       aria-label={title}
       tabIndex={-1}
-      style={{ left: pos.x, top: pos.y }}
+      style={{ left: pos.x, top: pos.y, zIndex: layer }}
       onKeyDown={onKeyDown}
+      onPointerDownCapture={onRaise}
+      onFocus={onRaise}
     >
       <div
         className="window-title"

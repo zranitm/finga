@@ -2,11 +2,11 @@
 import type { DragEvent } from 'react';
 
 import { Button } from '@/components/Button';
-import { Window } from '@/components/Window';
 import { carried, carry } from '@/features/shared/drag';
 import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
 import { initials, itemName, starClass } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
+import { WorldWindow } from '@/features/shared/WorldWindow';
 import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
 import type { GameSocket } from '@/net/socket';
@@ -166,7 +166,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
   const retryable = [...pending.entries()].find(([, p]) => p.retryable);
   const sheet = c?.sheet;
   return (
-    <Window title="Character" onClose={onClose} initialX={24} initialY={80}>
+    <WorldWindow name="character" title="Character" onClose={onClose} initialX={24} initialY={80}>
       {c && (
         <div className="character">
           <header className="character-header">
@@ -207,6 +207,6 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
         </div>
       )}
       <ItemDetails hovered={hover.hovered} />
-    </Window>
+    </WorldWindow>
   );
 }

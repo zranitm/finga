@@ -20,6 +20,20 @@ describe('Window', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('draws at its layer, and a press or focus inside asks to bring it to the top', async () => {
+    const onRaise = vi.fn();
+    render(
+      <Window title="Inventory" onClose={vi.fn()} layer={3} onRaise={onRaise}>
+        <button type="button">Etc</button>
+      </Window>,
+    );
+    const w = screen.getByRole('dialog', { name: 'Inventory' });
+    expect(w.style.zIndex).toBe('3');
+    expect(onRaise).toHaveBeenCalledTimes(1); // the focus it takes on open
+    await userEvent.click(screen.getByRole('button', { name: 'Etc' }));
+    expect(onRaise.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it('closes from its title-bar button, whose press never starts a drag', async () => {
     const onClose = vi.fn();
     render(

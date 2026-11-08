@@ -1,28 +1,29 @@
-// Which windows are open, and whether the chat input is asked to take focus; what has the keyboard is read from the focus itself.
+// Which windows are open and in what order, and whether the chat input is asked to take focus; what has the keyboard is read from the focus itself.
 import { defineStore } from './store';
 
 export type WindowName = 'inventory' | 'character' | 'party' | 'settings';
 
 export interface UiState {
-  readonly windows: Readonly<Record<WindowName, boolean>>;
+  /** The open windows, the top-most last. */
+  readonly windows: readonly WindowName[];
   /** Asks the chat input to take focus. */
   readonly chatOpen: boolean;
+  /** Closes an open window, else opens it on top. */
   toggleWindow(name: WindowName): void;
   openChat(): void;
   closeChat(): void;
+  /** Opens a window on top, or brings an open one there. */
   openWindow(name: WindowName): void;
   closeWindow(name: WindowName): void;
+  /** Escape's: the top-most window, whatever has focus. */
+  closeTopWindow(): void;
 }
 
-const closed: Record<WindowName, boolean> = {
-  inventory: false,
-  character: false,
-  party: false,
-  settings: false,
-};
+const without = (windows: readonly WindowName[], name: WindowName) =>
+  windows.filter((w) => w !== name);
 
 export const ui = defineStore<UiState>((set, get) => ({
-  windows: closed,
+  windows: [],
   chatOpen: false,
   openChat: () => {
     if (!get().chatOpen) {
@@ -35,12 +36,25 @@ export const ui = defineStore<UiState>((set, get) => ({
     }
   },
   toggleWindow: (name) => {
-    set({ windows: { ...get().windows, [name]: !get().windows[name] } });
+    const { windows } = get();
+    set({ windows: windows.includes(name) ? without(windows, name) : [...windows, name] });
   },
   openWindow: (name) => {
-    set({ windows: { ...get().windows, [name]: true } });
+    const { windows } = get();
+    if (windows.at(-1) !== name) {
+      set({ windows: [...without(windows, name), name] });
+    }
   },
   closeWindow: (name) => {
-    set({ windows: { ...get().windows, [name]: false } });
+    const { windows } = get();
+    if (windows.includes(name)) {
+      set({ windows: without(windows, name) });
+    }
+  },
+  closeTopWindow: () => {
+    const top = get().windows.at(-1);
+    if (top !== undefined) {
+      get().closeWindow(top);
+    }
   },
 }));

@@ -17,6 +17,7 @@ const table: Record<Preset, Record<string, string>> = {
     character: 'KeyC',
     party: 'KeyP',
     chat: 'Enter',
+    close: 'Escape',
   },
   wasd: {
     left: 'KeyA',
@@ -30,6 +31,7 @@ const table: Record<Preset, Record<string, string>> = {
     character: 'KeyC',
     party: 'KeyP',
     chat: 'Enter',
+    close: 'Escape',
   },
 };
 
@@ -48,7 +50,7 @@ describe('key presets', () => {
     { preset: 'classic' as const, code: 'KeyA' },
     { preset: 'wasd' as const, code: 'ArrowLeft' },
     { preset: 'classic' as const, code: 'KeyQ' },
-    { preset: 'wasd' as const, code: 'Escape' },
+    { preset: 'wasd' as const, code: 'Tab' },
   ])('$preset: $code maps to nothing', ({ preset, code }) => {
     expect(actionFor(code, preset)).toBeUndefined();
   });

@@ -79,6 +79,11 @@ body {
   cursor: default;
 }
 
+/* The windows' layers order them among themselves only, so none rises over the item cards. */
+.windows {
+  isolation: isolate;
+}
+
 .window {
   position: absolute;
   min-width: 240px;

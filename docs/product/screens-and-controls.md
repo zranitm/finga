@@ -37,6 +37,7 @@ Keyboard only (OD-20). Attacks go the way the character faces; the mouse is used
 | Party | P | P |
 | Character window | C | C |
 | Chat | Enter | Enter |
+| Close the top window | Esc | Esc |
 | Skills (P1) | 1 to 6 | 1 to 6 |
 
 Remappable keys: later (P2).

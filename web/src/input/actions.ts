@@ -14,7 +14,8 @@ export type Action =
   | 'inventory'
   | 'character'
   | 'party'
-  | 'chat';
+  | 'chat'
+  | 'close'; // the top-most window
 
 export const actions: readonly Action[] = [
   'left',
@@ -28,6 +29,7 @@ export const actions: readonly Action[] = [
   'character',
   'party',
   'chat',
+  'close',
 ];
 
 const movement: readonly Action[] = ['left', 'right', 'up', 'down', 'jump'];

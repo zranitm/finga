@@ -3,11 +3,11 @@ import { useState } from 'react';
 import type { DragEvent } from 'react';
 
 import { Button } from '@/components/Button';
-import { Window } from '@/components/Window';
 import { carried, carry } from '@/features/shared/drag';
 import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
 import { initials, itemName, starClass } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
+import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import type { ItemView } from '@/protocol/messages';
 import { SLOTS_PER_TAB, inventory, tabs } from '@/state/inventory';
@@ -100,7 +100,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const selectedPending = selected ? pending.get(selected) : undefined;
 
   return (
-    <Window title="Inventory" onClose={onClose} initialX={410} initialY={80}>
+    <WorldWindow name="inventory" title="Inventory" onClose={onClose} initialX={410} initialY={80}>
       <div className="inventory">
         <div className="inventory-tabs" role="tablist">
           {tabs.map((t) => (
@@ -205,6 +205,6 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
         )}
       </div>
       <ItemDetails hovered={hover.hovered} />
-    </Window>
+    </WorldWindow>
   );
 }

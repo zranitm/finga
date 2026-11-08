@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { Bar } from '@/components/Bar';
 import { Button } from '@/components/Button';
-import { Window } from '@/components/Window';
+import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { nearby } from '@/state/nearby';
 import { isMember, party } from '@/state/party';
@@ -39,7 +39,7 @@ export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
   const invitable = players.filter((p) => !isMember(current, p.id));
 
   return (
-    <Window title="Party" onClose={onClose} initialX={740} initialY={80}>
+    <WorldWindow name="party" title="Party" onClose={onClose} initialX={740} initialY={80}>
       <div className="party">
         {current ? (
           <ul className="party-members" aria-label="Members">
@@ -123,6 +123,6 @@ export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
           </p>
         )}
       </div>
-    </Window>
+    </WorldWindow>
   );
 }

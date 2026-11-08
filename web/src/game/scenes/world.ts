@@ -273,6 +273,9 @@ export class World extends Phaser.Scene {
             case 'chat':
               ui.getState().openChat();
               return;
+            case 'close':
+              ui.getState().closeTopWindow();
+              return;
             default:
               return;
           }

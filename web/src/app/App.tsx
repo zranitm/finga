@@ -130,9 +130,9 @@ function WorldOverlay({
   readonly socket: Services['socket'];
   readonly onLeave: () => void;
 }) {
-  const inventoryOpen = ui.use((s) => s.windows.inventory);
-  const characterOpen = ui.use((s) => s.windows.character);
-  const partyOpen = ui.use((s) => s.windows.party);
+  const inventoryOpen = ui.use((s) => s.windows.includes('inventory'));
+  const characterOpen = ui.use((s) => s.windows.includes('character'));
+  const partyOpen = ui.use((s) => s.windows.includes('party'));
   const me = characterStore.use((s) => s.character?.id ?? '');
   return (
     <>
@@ -143,15 +143,17 @@ function WorldOverlay({
       <PartyPanel />
       <InviteToasts socket={socket} />
       <ChatBox socket={socket} />
-      {partyOpen && (
-        <PartyWindow socket={socket} me={me} onClose={() => ui.getState().closeWindow('party')} />
-      )}
-      {inventoryOpen && (
-        <InventoryWindow socket={socket} onClose={() => ui.getState().closeWindow('inventory')} />
-      )}
-      {characterOpen && (
-        <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
-      )}
+      <div className="windows">
+        {partyOpen && (
+          <PartyWindow socket={socket} me={me} onClose={() => ui.getState().closeWindow('party')} />
+        )}
+        {inventoryOpen && (
+          <InventoryWindow socket={socket} onClose={() => ui.getState().closeWindow('inventory')} />
+        )}
+        {characterOpen && (
+          <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
+        )}
+      </div>
       <div className="world-overlay" aria-label="World">
         <button type="button" className="btn btn-quiet" onClick={onLeave}>
           Back to characters
