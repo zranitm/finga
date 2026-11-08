@@ -6,6 +6,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { itemName } from '@/features/shared/items';
 import { RequestError } from '@/net/socket';
 import {
   InventoryChangedSchema,
@@ -15,9 +16,12 @@ import {
 } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { inventory } from '@/state/inventory';
+import { dataTransfer } from '@/testing/data-transfer';
+import { withoutKeys } from '@/testing/requests';
+import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
 
-import { InventoryWindow, itemName } from './InventoryWindow';
+import { InventoryWindow } from './InventoryWindow';
 
 const sword = { itemId: 'i-sword', template: 'wooden_sword', tab: 'equip', slot: 0, quantity: 1 };
 const cap = { itemId: 'i-cap', template: 'leather_cap', tab: 'equip', slot: 5, quantity: 1 };
@@ -26,14 +30,9 @@ const potion = { itemId: 'i-potion', template: 'red_potion', tab: 'use', slot: 0
 const welcome = create(WelcomeSchema, { token: 'tok', inventory: [sword, cap, potion] });
 const ok = create(ResponseSchema, { ok: true });
 
-interface Request {
-  t: string;
-  d: Record<string, unknown>;
-}
-
 /** Requests resolve or reject with the given answers, in order. */
 function fakeSocket(answers: readonly (Data<'response'> | Error)[]) {
-  const calls: Request[] = [];
+  const calls: SentRequest[] = [];
   const request = vi.fn((t: string, d: Record<string, unknown>) => {
     calls.push({ t, d });
     const a = answers[calls.length - 1] ?? ok;
@@ -126,6 +125,50 @@ describe('InventoryWindow', () => {
     fireEvent.dragStart(cell('Wooden Sword x1'));
     fireEvent.drop(cell('Wooden Sword x1'));
     expect(calls).toHaveLength(0);
+  });
+
+  it('a double-click on an Equip-tab item equips it, the server picking the slot; a Use item sends nothing', async () => {
+    const { calls } = setup([ok]);
+    await userEvent.dblClick(cell('Leather Cap x1'));
+    expect(withoutKeys(calls)).toEqual([{ t: 'equip', d: { itemId: 'i-cap' } }]);
+    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+    await userEvent.dblClick(cell('Red Potion x5'));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('an equip the server refuses shows why', async () => {
+    setup([new RequestError('level_too_low', 'your level is too low for that item')]);
+    await userEvent.dblClick(cell('Leather Cap x1'));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'your level is too low for that item',
+    );
+  });
+
+  it('a drag carries the item for the character window', () => {
+    setup();
+    const carried = dataTransfer();
+    fireEvent.dragStart(cell('Leather Cap x1'), { dataTransfer: carried });
+    expect(JSON.parse(carried.getData('application/x-finga-item'))).toEqual({
+      from: 'inventory',
+      itemId: 'i-cap',
+    });
+  });
+
+  it('a worn item dropped on an Equip-tab slot unequips it into that slot; on another tab, into the first free one', async () => {
+    const { calls } = setup([ok, ok]);
+    const worn = () => {
+      const carried = dataTransfer();
+      carried.setData(
+        'application/x-finga-item',
+        JSON.stringify({ from: 'worn', equipSlot: 'weapon' }),
+      );
+      return carried;
+    };
+    fireEvent.drop(cell('empty slot 4'), { dataTransfer: worn() });
+    expect(withoutKeys(calls)).toEqual([{ t: 'unequip', d: { equipSlot: 'weapon', toSlot: 3 } }]);
+    await userEvent.click(screen.getByRole('tab', { name: 'Use' })); // the first answer settles meanwhile
+    fireEvent.drop(cell('empty slot 2'), { dataTransfer: worn() });
+    expect(withoutKeys(calls)[1]).toEqual({ t: 'unequip', d: { equipSlot: 'weapon' } });
   });
 
   it('discard asks first, then sends InventoryDiscard with the whole stack and one key', async () => {

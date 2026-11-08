@@ -31,6 +31,9 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
     }),
+    socket.on('statsChanged', (m) => {
+      character.getState().applyStatsChanged(m.d);
+    }),
     socket.on('expGained', (m) => {
       character.getState().applyExpGained(m.d);
     }),

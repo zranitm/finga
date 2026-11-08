@@ -218,18 +218,20 @@ By layer (`web/eslint.config.js`):
 - **net:** `RequestType` gains `equip` and `unequip`; requests keep one idempotency key per attempt, and a retry after a timeout reuses it, as inventory moves do.
 - **state:**
   - `inventory` gains `equipment`, one entry per equip slot with a revision per entry, applied by the same rule as inventory slots: a newer revision replaces, an older one is skipped.
-  - `character` gains `sheet` and `applyStatsChanged`.
+  - `character` gains `applyStatsChanged`; the sheet comes in its `CharacterView`, so Welcome and LevelUp set it too.
   - `ui` gains a `character` window.
 - **input:** a `character` action bound to `KeyC` in both presets; the World scene toggles the window as it does the inventory.
 - **components:**
   - `ItemCard`, presentational only: it takes a template, the copy's view, and an optional comparison, and renders stars, colours, requirements, stats with their ranges, and gains and losses.
   - A pure helper in `lib` keeps a card fully on screen.
 - **features/shared** (allowed by the layer rule, the only folder features can share):
+  - an item's name, icon initials, and star colour class;
+  - the drag data, and the pending-and-retry handling both windows use for item requests;
   - the hover state;
   - the comparison: which worn item to compare against, with the ring rule, and the difference per stat as if the two were swapped;
   - requirement checks for the red text.
 - **features/character:**
-  - `CharacterWindow`: the sheet with the equipment's share, and the ten slots around a figure.
+  - `CharacterWindow`: the sheet with the equipment's share, and the ten slots around a figure. It opens left of the inventory, so both fit side by side for dragging.
   - Double-click a worn item to unequip; drop an inventory item on a slot to equip.
   - Pending requests and retry work as in the inventory window.
 - **features/inventory:** double-click an Equip-tab item to equip. A drag carries the item ID in the drag data, so the character window can take it without either feature importing the other.

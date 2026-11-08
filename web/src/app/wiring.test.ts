@@ -117,6 +117,33 @@ describe('wiring', () => {
         expect(character.getState()).toMatchObject({ character: { level: 2 }, expToNext: 65 }),
     },
     {
+      name: 'StatsChanged',
+      push: (ws: FakeWebSocket) =>
+        ws.push('statsChanged', {
+          sheet: { derivedWorn: { defense: 4 } },
+          hp: 204,
+          maxHp: 234,
+          mp: 28,
+          maxMp: 28,
+        }),
+      check: () =>
+        expect(character.getState().character).toMatchObject({
+          maxHp: 234,
+          sheet: { derivedWorn: { defense: 4 } },
+        }),
+    },
+    {
+      name: 'InventoryChanged with equipment',
+      push: (ws: FakeWebSocket) =>
+        ws.push('inventoryChanged', {
+          equipment: [
+            { equipSlot: 'hat', item: { itemId: 'i-cap', template: 'leather_cap', quantity: 1 } },
+          ],
+          revision: 2n,
+        }),
+      check: () => expect(inventory.getState().equipment.hat?.itemId).toBe('i-cap'),
+    },
+    {
       name: 'ExpGained',
       push: (ws: FakeWebSocket) => ws.push('expGained', { amount: 5n, exp: 15n }),
       check: () => expect(character.getState().character?.exp).toBe(15n),

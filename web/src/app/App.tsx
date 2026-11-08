@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { Modal } from '@/components/Modal';
 import { LoginScreen } from '@/features/auth/LoginScreen';
+import { CharacterWindow } from '@/features/character/CharacterWindow';
 import { CharactersScreen } from '@/features/characters/CharactersScreen';
 import { ChatBox } from '@/features/chat/ChatBox';
 import { ConnectionNotice } from '@/features/hud/ConnectionNotice';
@@ -130,6 +131,7 @@ function WorldOverlay({
   readonly onLeave: () => void;
 }) {
   const inventoryOpen = ui.use((s) => s.windows.inventory);
+  const characterOpen = ui.use((s) => s.windows.character);
   const partyOpen = ui.use((s) => s.windows.party);
   const me = characterStore.use((s) => s.character?.id ?? '');
   return (
@@ -146,6 +148,9 @@ function WorldOverlay({
       )}
       {inventoryOpen && (
         <InventoryWindow socket={socket} onClose={() => ui.getState().closeWindow('inventory')} />
+      )}
+      {characterOpen && (
+        <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
       )}
       <div className="world-overlay" aria-label="World">
         <button type="button" className="btn btn-quiet" onClick={onLeave}>

@@ -39,7 +39,7 @@ export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
   const invitable = players.filter((p) => !isMember(current, p.id));
 
   return (
-    <Window title="Party" onClose={onClose} initialX={640} initialY={80}>
+    <Window title="Party" onClose={onClose} initialX={740} initialY={80}>
       <div className="party">
         {current ? (
           <ul className="party-members" aria-label="Members">

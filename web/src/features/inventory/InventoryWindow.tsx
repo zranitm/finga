@@ -4,9 +4,9 @@ import type { DragEvent } from 'react';
 
 import { Button } from '@/components/Button';
 import { Window } from '@/components/Window';
-import { items as templates } from '@/gamedata/items';
-import { idempotencyKey } from '@/lib/id';
-import { RequestError } from '@/net/socket';
+import { carried, carry } from '@/features/shared/drag';
+import { initials, itemName, starClass } from '@/features/shared/items';
+import { useItemRequests } from '@/features/shared/useItemRequests';
 import type { GameSocket } from '@/net/socket';
 import type { ItemView } from '@/protocol/messages';
 import { SLOTS_PER_TAB, inventory, tabs } from '@/state/inventory';
@@ -19,59 +19,13 @@ export interface InventoryWindowProps {
 
 const tabLabels: Readonly<Record<Tab, string>> = { equip: 'Equip', use: 'Use', etc: 'Etc' };
 
-export function itemName(template: string): string {
-  return templates.find((t) => t.id === template)?.name ?? template;
-}
-
-function initials(template: string): string {
-  const words = itemName(template).split(' ');
-  return words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : itemName(template).slice(0, 2);
-}
-
-interface PendingRequest {
-  readonly key: string;
-  readonly send: () => Promise<unknown>;
-  readonly retryable: boolean; // a timeout or a lost connection: the same key again
-  readonly error: string | null;
-}
-
 export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const slots = inventory.use((s) => s.slots);
   const [tab, setTab] = useState<Tab>('equip');
   const [selected, setSelected] = useState<string | null>(null);
   const [dragging, setDragging] = useState<ItemView | null>(null);
-  const [pending, setPending] = useState<ReadonlyMap<string, PendingRequest>>(new Map());
   const [confirmDiscard, setConfirmDiscard] = useState<ItemView | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const setPendingFor = (itemId: string, p: PendingRequest | null) => {
-    setPending((prev) => {
-      const next = new Map(prev);
-      if (p) {
-        next.set(itemId, p);
-      } else {
-        next.delete(itemId);
-      }
-      return next;
-    });
-  };
-
-  /** Runs a request for an item: pending until the Response, retryable on a timeout. */
-  const run = async (itemId: string, key: string, send: () => Promise<unknown>) => {
-    setPendingFor(itemId, { key, send, retryable: false, error: null });
-    setNotice(null);
-    try {
-      await send();
-      setPendingFor(itemId, null); // InventoryChanged does the moving
-    } catch (err) {
-      if (err instanceof RequestError && (err.code === 'timeout' || err.code === 'disconnected')) {
-        setPendingFor(itemId, { key, send, retryable: true, error: 'No answer yet.' });
-      } else {
-        setPendingFor(itemId, null);
-        setNotice(err instanceof Error ? err.message : 'The server refused.');
-      }
-    }
-  };
+  const { pending, notice, setNotice, run, retry } = useItemRequests();
 
   const move = (item: ItemView, toTab: Tab, slot: number) => {
     if (toTab !== item.tab) {
@@ -81,8 +35,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     if (slot === item.slot || pending.has(item.itemId)) {
       return;
     }
-    const key = idempotencyKey();
-    void run(item.itemId, key, () =>
+    run(item.itemId, (key) =>
       socket.request('inventoryMove', {
         idempotencyKey: key,
         itemId: item.itemId,
@@ -95,8 +48,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const discard = (item: ItemView) => {
     setConfirmDiscard(null);
     setSelected(null);
-    const key = idempotencyKey();
-    void run(item.itemId, key, () =>
+    run(item.itemId, (key) =>
       socket.request('inventoryDiscard', {
         idempotencyKey: key,
         itemId: item.itemId,
@@ -105,11 +57,28 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     );
   };
 
-  const retry = (itemId: string) => {
-    const p = pending.get(itemId);
-    if (p?.retryable) {
-      void run(itemId, p.key, p.send);
+  /** Wears an Equip-tab item; the server picks its slot, swapping out what is there. */
+  const equip = (item: ItemView) => {
+    if (item.tab !== 'equip' || pending.has(item.itemId)) {
+      return;
     }
+    run(item.itemId, (key) =>
+      socket.request('equip', { idempotencyKey: key, itemId: item.itemId }),
+    );
+  };
+
+  /** Takes off what an equip slot holds, into slot when it is in the Equip tab, else the first free one. */
+  const unequip = (equipSlot: string, slot: number | undefined) => {
+    if (pending.has(equipSlot)) {
+      return;
+    }
+    run(equipSlot, (key) =>
+      socket.request('unequip', {
+        idempotencyKey: key,
+        equipSlot,
+        ...(slot === undefined ? {} : { toSlot: slot }),
+      }),
+    );
   };
 
   const onDrop = (e: DragEvent, slot: number) => {
@@ -117,6 +86,11 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     if (dragging) {
       move(dragging, tab, slot);
       setDragging(null);
+      return;
+    }
+    const d = carried(e);
+    if (d?.from === 'worn') {
+      unequip(d.equipSlot, tab === 'equip' ? slot : undefined);
     }
   };
 
@@ -124,7 +98,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const selectedPending = selected ? pending.get(selected) : undefined;
 
   return (
-    <Window title="Inventory" onClose={onClose} initialX={320} initialY={80}>
+    <Window title="Inventory" onClose={onClose} initialX={410} initialY={80}>
       <div className="inventory">
         <div className="inventory-tabs" role="tablist">
           {tabs.map((t) => (
@@ -156,15 +130,25 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                   item ? `${itemName(item.template)} x${item.quantity}` : `empty slot ${slot + 1}`
                 }
                 aria-busy={isPending}
-                className={`slot${item ? ` slot-${item.tab}` : ''}${isPending ? ' slot-pending' : ''}${
+                className={`slot${item ? ` slot-${item.tab} ${starClass(item.template)}` : ''}${isPending ? ' slot-pending' : ''}${
                   item?.itemId === selected ? ' slot-selected' : ''
                 }`}
                 draggable={item !== null && !isPending}
-                onDragStart={() => setDragging(item)}
+                onDragStart={(e) => {
+                  setDragging(item);
+                  if (item) {
+                    carry(e, { from: 'inventory', itemId: item.itemId });
+                  }
+                }}
                 onDragEnd={() => setDragging(null)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, slot)}
                 onClick={() => setSelected(item ? item.itemId : null)}
+                onDoubleClick={() => {
+                  if (item) {
+                    equip(item);
+                  }
+                }}
               >
                 {item && (
                   <>
