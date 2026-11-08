@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
-	"finga/internal/progression"
 )
 
 // Content is the game data the checks hold items to.
@@ -116,12 +115,10 @@ func oneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	return out, rows.Err()
 }
 
-// rollsFitTheirTemplates is check 11: every equipment item has one roll, each stat within its template's range, and nothing else has one.
-func rollsFitTheirTemplates(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
+// equipmentHasItsRoll is check 11: every equipment item has one roll and nothing else has one; ranges are checked where a roll is made, as a retuned range never invalidates what was rolled.
+func equipmentHasItsRoll(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT i.id, i.template_id, r.item_id IS NOT NULL,
-			coalesce(r.attack, 0), coalesce(r.defense, 0), coalesce(r.str, 0), coalesce(r.dex, 0), coalesce(r."int", 0), coalesce(r.agi, 0), coalesce(r.vit, 0),
-			coalesce(r.accuracy, 0), coalesce(r.evasion, 0), coalesce(r.crit_rate, 0), coalesce(r.crit_damage, 0), coalesce(r.max_hp, 0), coalesce(r.max_mp, 0)
+		SELECT i.id, i.template_id, r.item_id IS NOT NULL
 		FROM items i LEFT JOIN item_rolls r ON r.item_id = i.id
 		ORDER BY i.id`)
 	if err != nil {
@@ -133,9 +130,7 @@ func rollsFitTheirTemplates(ctx context.Context, pool *pgxpool.Pool, content Con
 		var id uuid.UUID
 		var template string
 		var rolled bool
-		var s progression.ItemStats
-		if err := rows.Scan(&id, &template, &rolled, &s.Attack, &s.Defense, &s.STR, &s.DEX, &s.INT, &s.AGI, &s.VIT,
-			&s.Accuracy, &s.Evasion, &s.CritRate, &s.CritDamage, &s.MaxHP, &s.MaxMP); err != nil {
+		if err := rows.Scan(&id, &template, &rolled); err != nil {
 			return nil, err
 		}
 		tmpl, known := content.Item(template)
@@ -145,8 +140,6 @@ func rollsFitTheirTemplates(ctx context.Context, pool *pgxpool.Pool, content Con
 			out = append(out, fmt.Sprintf("item %s: template %s is not in the game data", id, template))
 		case equipment && !rolled:
 			out = append(out, fmt.Sprintf("item %s: %s has no roll", id, template))
-		case equipment && !s.Fits(tmpl.Rolls):
-			out = append(out, fmt.Sprintf("item %s: %s rolled %+v, outside its ranges", id, template, s))
 		case !equipment && rolled:
 			out = append(out, fmt.Sprintf("item %s: %s is not equipment but has a roll", id, template))
 		}
@@ -244,7 +237,7 @@ var checks = []struct {
 	{"8 one item per slot", dbOnly(oneItemPerSlot)},
 	{"9 one item per equip slot", dbOnly(oneItemPerEquipSlot)},
 	{"10 worn items fit their slots", wornFitsItsSlot},
-	{"11 rolls fit their templates", rollsFitTheirTemplates},
+	{"11 equipment has its roll", equipmentHasItsRoll},
 	{"12 worn matches equip events", dbOnly(wornMatchesEvents)},
 }
 

@@ -111,7 +111,7 @@ Checks 5, 6, and 8 hold unchanged. Check 6 already sums every item's quantity wh
 
 - **9.** No two worn items share an owner and an equip slot.
 - **10.** Every worn item's template fits its equip slot (game data).
-- **11.** Every equipment item has exactly one roll, each value within its template's range; no other item has one.
+- **11.** Every equipment item has exactly one roll; no other item has one. It doesn't compare a roll with its template's ranges: those are enforced where a roll is made or accepted (`Ground.Roll`, `Add`, `GrantStarter`), and retuning a range never changes or invalidates an item already rolled.
 - **12.** An item's location agrees with its last `equipped` or `unequipped` event.
 
 ## 6. Flows
@@ -268,7 +268,7 @@ By layer (`web/eslint.config.js`):
 
 ## 11. Rollout
 
-- **Existing databases:** equipment items already in inventories have no roll. The migration that adds `item_rolls` gives each one, destroyed ones too, its template's lowest roll, the same rule as starter items, so check 11 holds from the first start (open question 2). It lists the six equipment templates items.yaml had and their lowest values, because migrations run without the game data.
+- **Existing databases:** equipment items already in inventories have no roll. The migration that adds `item_rolls` gives each one, destroyed ones too, its template's lowest roll, the same rule as starter items, so check 11 holds from the first start (open question 2). It lists the six equipment templates items.yaml had and their lowest values, because migrations run without the game data. Those values stay as rolled: retuning a range never changes or invalidates items already rolled.
 - **Data:** Leather Cap becomes a `hat` and Leather Vest a `top`. The content step adds about 24 equipment items (one per armor and accessory slot kind per level band) and a weapon per class per band, and updates the drop lists.
 - **Balance:** equipment bonuses have never applied in combat. Even a starter sword adds attack, so the content step retunes mob HP and the drop chances (open question 3).
 - **Deploy order:** item service first, then world, then gateway, then the client. The item service answers old callers as before, except an old world's pickup of equipment, which carries no roll: it is refused and the drop stays on the ground until that world restarts, seconds later in a release. Old clients ignore the new fields and never send `Equip`.

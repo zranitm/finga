@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
-	"finga/internal/progression"
 	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
 	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
@@ -246,7 +245,7 @@ func TestTimestampsAreBackfilled(t *testing.T) {
 
 const rolls = "00008_item_rolls.sql"
 
-// Equipment from before rolls, even destroyed, gets its template's lowest roll and anything else none, so check 11 holds from the first start.
+// Equipment from before rolls, even destroyed, gets its template's lowest roll as items.yaml had it when rolls came, and anything else none, so check 11 holds from the first start.
 func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
 	ctx := context.Background()
 	pool := cluster.DB(t)
@@ -298,6 +297,10 @@ func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
 	if err != nil || len(mismatches) > 0 {
 		t.Fatalf("invariants: %v %v", mismatches, err)
 	}
+	// Frozen: a range retuned since never changes what was rolled.
+	lowest := map[string][2]int{
+		"wooden_sword": {10, 0}, "short_bow": {9, 0}, "iron_sword": {16, 0}, "hunting_bow": {14, 0}, "leather_cap": {0, 3}, "leather_vest": {0, 5},
+	}
 	rows, err := pool.Query(ctx, `SELECT i.template_id, r.attack, r.defense, r.created_at FROM item_rolls r JOIN items i ON i.id = r.item_id`)
 	if err != nil {
 		t.Fatal(err)
@@ -310,9 +313,8 @@ func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
 		if err := rows.Scan(&template, &attack, &defense, &created); err != nil {
 			t.Fatal(err)
 		}
-		tmpl, _ := data.Item(template)
-		if lowest := progression.Lowest(tmpl.Rolls); attack != lowest.Attack || defense != lowest.Defense || !created.Equal(at) {
-			t.Errorf("%s: attack %d defense %d at %v, want the lowest roll %+v at the item's creation", template, attack, defense, created, lowest)
+		if want := lowest[template]; attack != want[0] || defense != want[1] || !created.Equal(at) {
+			t.Errorf("%s: attack %d defense %d at %v, want %v at the item's creation", template, attack, defense, created, want)
 		}
 		n++
 	}

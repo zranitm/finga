@@ -114,7 +114,7 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 	})
 }
 
-// Check 11 holds each equipment item to one roll within its template's ranges, and anything else to none.
+// Check 11 holds each equipment item to one roll, and anything else to none.
 func TestCheckElevenCatchesBadRolls(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
@@ -122,8 +122,6 @@ func TestCheckElevenCatchesBadRolls(t *testing.T) {
 		corrupt string
 	}{
 		{"equipment without a roll", `DELETE FROM item_rolls`},
-		{"a stat above its range", `UPDATE item_rolls SET attack = attack + 100`},
-		{"a stat the template doesn't give", `UPDATE item_rolls SET str = 1`},
 		{"a potion with a roll", `INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
 			SELECT id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, now(), now() FROM items WHERE template_id = 'red_potion'`},
 	}
@@ -189,6 +187,16 @@ func TestTheWornChecksCatchCorruption(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A roll is what the item rolled when it dropped: a range retuned since never invalidates it.
+func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
+	h := newHarness(t)
+	h.added(t, "iron_sword")
+	if _, err := h.pool.Exec(context.Background(), `UPDATE item_rolls SET attack = attack + 100, str = 3`); err != nil {
+		t.Fatal(err)
+	}
+	checkInvariants(t, h.pool, h.data)
 }
 
 func TestInventoryProperties(t *testing.T) {
