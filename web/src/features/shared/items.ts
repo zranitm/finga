@@ -1,9 +1,10 @@
 // What the inventory and the character window both say about an item.
-import { items as templates } from '@/gamedata/items';
+import type { ItemTemplate } from '@/components/ItemCard';
+import { items } from '@/gamedata/items';
 
-export type Template = (typeof templates)[number];
+const templates: readonly ItemTemplate[] = items;
 
-export function templateOf(id: string): Template | undefined {
+export function templateOf(id: string): ItemTemplate | undefined {
   return templates.find((t) => t.id === id);
 }
 

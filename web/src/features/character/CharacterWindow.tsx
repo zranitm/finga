@@ -4,6 +4,7 @@ import type { DragEvent } from 'react';
 import { Button } from '@/components/Button';
 import { Window } from '@/components/Window';
 import { carried, carry } from '@/features/shared/drag';
+import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
 import { initials, itemName, starClass } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { classes } from '@/gamedata/classes';
@@ -109,6 +110,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
   const expToNext = character.use((s) => s.expToNext);
   const equipment = inventory.use((s) => s.equipment);
   const { pending, notice, run, retry } = useItemRequests();
+  const hover = useItemHover();
 
   const unequip = (slot: EquipSlotId) => {
     if (equipment[slot] && !pending.has(slot)) {
@@ -139,7 +141,11 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
         aria-busy={p !== undefined}
         className={`slot equip-slot${item ? ` slot-equip ${starClass(item.template)}` : ''}${p ? ' slot-pending' : ''}`}
         draggable={item !== null && p === undefined}
-        onDragStart={(e) => carry(e, { from: 'worn', equipSlot: slot.id })}
+        {...hover.bind(item, false)}
+        onDragStart={(e) => {
+          hover.clear();
+          carry(e, { from: 'worn', equipSlot: slot.id });
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => onDrop(e, slot.id)}
         onDoubleClick={() => unequip(slot.id)}
@@ -200,6 +206,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
           )}
         </div>
       )}
+      <ItemDetails hovered={hover.hovered} />
     </Window>
   );
 }

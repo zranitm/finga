@@ -222,7 +222,7 @@ By layer (`web/eslint.config.js`):
   - `ui` gains a `character` window.
 - **input:** a `character` action bound to `KeyC` in both presets; the World scene toggles the window as it does the inventory.
 - **components:**
-  - `ItemCard`, presentational only: it takes a template, the copy's view, and an optional comparison, and renders stars, colours, requirements, stats with their ranges, and gains and losses.
+  - `ItemCard`, presentational only: it takes a template, the copy's view, and an optional comparison, and renders stars, colours, requirements, stats with their ranges, and gains and losses. The thirteen stats' labels and order live beside it, in `item-stats.ts`.
   - A pure helper in `lib` keeps a card fully on screen.
 - **features/shared** (allowed by the layer rule, the only folder features can share):
   - an item's name, icon initials, and star colour class;

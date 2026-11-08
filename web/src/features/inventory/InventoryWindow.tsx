@@ -5,6 +5,7 @@ import type { DragEvent } from 'react';
 import { Button } from '@/components/Button';
 import { Window } from '@/components/Window';
 import { carried, carry } from '@/features/shared/drag';
+import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
 import { initials, itemName, starClass } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import type { GameSocket } from '@/net/socket';
@@ -26,6 +27,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const [dragging, setDragging] = useState<ItemView | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<ItemView | null>(null);
   const { pending, notice, setNotice, run, retry } = useItemRequests();
+  const hover = useItemHover();
 
   const move = (item: ItemView, toTab: Tab, slot: number) => {
     if (toTab !== item.tab) {
@@ -134,7 +136,9 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                   item?.itemId === selected ? ' slot-selected' : ''
                 }`}
                 draggable={item !== null && !isPending}
+                {...hover.bind(item, item?.tab === 'equip')}
                 onDragStart={(e) => {
+                  hover.clear();
                   setDragging(item);
                   if (item) {
                     carry(e, { from: 'inventory', itemId: item.itemId });
@@ -200,6 +204,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
           </p>
         )}
       </div>
+      <ItemDetails hovered={hover.hovered} />
     </Window>
   );
 }

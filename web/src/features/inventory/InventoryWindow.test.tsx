@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { create, fromJsonString } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +15,7 @@ import {
   WelcomeSchema,
 } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
+import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { dataTransfer } from '@/testing/data-transfer';
 import { withoutKeys } from '@/testing/requests';
@@ -216,5 +217,76 @@ describe('InventoryWindow', () => {
         : `empty slot ${s.slot + 1}`;
       expect(screen.getAllByRole('gridcell')[s.slot]).toHaveAccessibleName(name);
     }
+  });
+});
+
+describe('item cards', () => {
+  beforeEach(() => {
+    resetStores();
+    const w = create(WelcomeSchema, {
+      token: 't',
+      character: { id: 'c1', name: 'Ayla', class: 'warrior', level: 1 },
+      inventory: [
+        {
+          itemId: 'i-iron',
+          template: 'iron_sword',
+          tab: 'equip',
+          slot: 0,
+          quantity: 1,
+          stats: { attack: 17 },
+        },
+        {
+          itemId: 'i-cap',
+          template: 'leather_cap',
+          tab: 'equip',
+          slot: 1,
+          quantity: 1,
+          stats: { defense: 4 },
+        },
+        potion,
+      ],
+      equipment: [
+        {
+          equipSlot: 'weapon',
+          item: { itemId: 'i-sword', template: 'wooden_sword', quantity: 1, stats: { attack: 11 } },
+        },
+      ],
+      inventoryRevision: 1n,
+    });
+    character.getState().applyWelcome(w);
+    inventory.getState().applyWelcome(w);
+  });
+
+  it('hovering equipment shows its card beside the worn one, with what a swap changes and what the character misses', async () => {
+    setup();
+    await userEvent.hover(cell('Iron Sword x1'));
+    const hovered = screen.getByRole('group', { name: 'Iron Sword' });
+    expect(hovered).toHaveTextContent('Attack 17 (16–20) +6');
+    expect(within(hovered).getByText('Level 8')).toHaveClass('unmet');
+    expect(within(hovered).getByText('Warrior')).not.toHaveClass('unmet');
+    expect(screen.getByRole('group', { name: 'Worn: Wooden Sword' })).toHaveTextContent(
+      'Attack 11 (10–12)',
+    );
+    await userEvent.unhover(cell('Iron Sword x1'));
+    expect(screen.queryByRole('group', { name: 'Iron Sword' })).toBeNull();
+  });
+
+  it('with nothing worn in its slot, the second card says so and every stat is a gain', async () => {
+    setup();
+    await userEvent.hover(cell('Leather Cap x1'));
+    expect(screen.getByRole('group', { name: 'Leather Cap' })).toHaveTextContent(
+      'Defense 4 (3–4) +4',
+    );
+    expect(screen.getByRole('group', { name: 'Worn: nothing' })).toBeInTheDocument();
+  });
+
+  it('a Use item shows its card alone, and a drag takes the card away', async () => {
+    setup();
+    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+    await userEvent.hover(cell('Red Potion x5'));
+    expect(screen.getByRole('group', { name: 'Red Potion' })).toHaveTextContent('Restores 50 HP');
+    expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
+    fireEvent.dragStart(cell('Red Potion x5'));
+    expect(screen.queryByRole('group', { name: 'Red Potion' })).toBeNull();
   });
 });

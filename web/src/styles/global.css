@@ -474,6 +474,66 @@ body {
   color: #7ac74f;
 }
 
+/* Item cards: beside the pointer, above every window, never catching the pointer. */
+.item-cards {
+  position: fixed;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 220px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+}
+.item-card-heading {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.item-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--star, var(--text));
+}
+.item-card-type {
+  color: var(--muted);
+}
+.item-card-requirements,
+.item-card-stats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item-card-requirements .unmet {
+  color: var(--danger);
+}
+.stat-range {
+  color: var(--muted);
+}
+.stat-gain {
+  color: #7ac74f;
+}
+.stat-loss {
+  color: var(--danger);
+}
+.item-card-description {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
 /* Toasts. */
 .toasts {
   position: fixed;

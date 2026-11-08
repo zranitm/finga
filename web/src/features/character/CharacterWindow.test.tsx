@@ -205,6 +205,19 @@ describe('CharacterWindow', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
   });
 
+  it('hovering a worn item shows its card alone, which a drag takes away', async () => {
+    setup();
+    await userEvent.hover(slot('Weapon: Wooden Sword'));
+    expect(screen.getByRole('group', { name: 'Wooden Sword' })).toHaveTextContent(
+      'Attack 10 (10–12)',
+    );
+    expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
+    fireEvent.dragStart(slot('Weapon: Wooden Sword'));
+    expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
+    await userEvent.hover(slot('Hat, empty'));
+    expect(screen.queryByRole('group', { name: /Leather|Wooden/ })).toBeNull();
+  });
+
   it('closes with its × button', async () => {
     const { onClose } = setup();
     await userEvent.click(screen.getByRole('button', { name: 'Close Character' }));
