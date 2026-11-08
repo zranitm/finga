@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -292,6 +293,21 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		if _, ok := d.Mob("nope"); ok {
 			t.Fatal("unknown mob found")
+		}
+	})
+	t.Run("equip slots, in file order and by ID", func(t *testing.T) {
+		var ids []string
+		for _, s := range d.EquipSlots() {
+			ids = append(ids, s.ID)
+		}
+		if !slices.Equal(ids, []string{"weapon", "hat", "ring_1", "ring_2"}) {
+			t.Fatalf("slots %v", ids)
+		}
+		if s, ok := d.EquipSlot("ring_2"); !ok || s.Kind != "ring" || s.Name != "Ring" {
+			t.Fatalf("ring_2: %+v, %v", s, ok)
+		}
+		if _, ok := d.EquipSlot("boots"); ok {
+			t.Fatal("found a slot the data doesn't have")
 		}
 	})
 	t.Run("movement", func(t *testing.T) {

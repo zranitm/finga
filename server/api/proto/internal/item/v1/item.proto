@@ -16,6 +16,10 @@ service ItemService {
   rpc Discard(DiscardRequest) returns (DiscardResponse);
   // GrantStarter gives a new character its starter items once, keyed by the character ID.
   rpc GrantStarter(GrantStarterRequest) returns (GrantStarterResponse);
+  // Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
+  rpc Equip(EquipRequest) returns (EquipResponse);
+  // Unequip puts a worn item back in the Equip tab.
+  rpc Unequip(UnequipRequest) returns (UnequipResponse);
 }
 
 // Reason names a failure a caller can meet; retrying the same request cannot help.
@@ -40,6 +44,14 @@ enum Reason {
   REASON_BAD_CAUSE = 14;
   // Equipment added without a roll or with a stat outside its template's range, or anything else added with a roll.
   REASON_BAD_ROLL = 15;
+  // A move or discard of a worn item, or an equip of one: it must be unequipped first.
+  REASON_ITEM_WORN = 16;
+  REASON_LEVEL_TOO_LOW = 17;
+  REASON_WRONG_CLASS = 18;
+  // An equip slot the item's kind doesn't fit, or one the game data doesn't have.
+  REASON_WRONG_EQUIP_SLOT = 19;
+  REASON_NOT_EQUIPMENT = 20;
+  REASON_NOTHING_WORN = 21;
 }
 
 enum CauseType {
@@ -71,6 +83,8 @@ message Item {
   int32 quantity = 5;
   // What it rolled when it dropped; set for equipment only.
   ItemStats stats = 6;
+  // The equip slot it is worn in; empty in the inventory, where tab and slot say where it is.
+  string equip_slot = 7;
 }
 
 // ItemStats are what one equipment item gives, a whole number per stat, the rates in tenths of a percent.
@@ -97,11 +111,18 @@ message Slot {
   Item item = 3;
 }
 
+// EquipSlot is one changed equip slot; item is unset when it emptied.
+message EquipSlot {
+  string equip_slot = 1;
+  Item item = 2;
+}
+
 message InventoryRequest {
   string character_id = 1;
 }
 
 message InventoryResponse {
+  // The inventory's items, then the worn ones.
   repeated Item items = 1;
   // The inventory's revision these items show: the count of its changes, so a higher one is newer.
   uint64 revision = 2;
@@ -162,4 +183,43 @@ message GrantStarterResponse {
   repeated Slot changed = 1;
   // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
   uint64 revision = 2;
+}
+
+message EquipRequest {
+  Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID); scoped by account.
+  string idempotency_key = 2;
+  string item_id = 3;
+  // Needed for rings only: empty, an item takes the first empty slot of its kind, else the first slot of it.
+  string equip_slot = 4;
+  // The character's live level and class, which the item's requirements are checked against; a retry after a level-up is the same request.
+  int32 level = 5;
+  string class = 6;
+}
+
+// EquipResponse is what the equip changed, and everything worn after it, so the world can replace its sum.
+message EquipResponse {
+  repeated Slot changed = 1;
+  repeated EquipSlot equipment = 2;
+  repeated Item worn = 3;
+  // The inventory's revision after this change, which equipment shares.
+  uint64 revision = 4;
+}
+
+message UnequipRequest {
+  Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID); scoped by account.
+  string idempotency_key = 2;
+  string equip_slot = 3;
+  // The Equip-tab slot to put it in; unset, the first free one.
+  optional int32 to_slot = 4;
+}
+
+// UnequipResponse is what the unequip changed, and everything worn after it.
+message UnequipResponse {
+  repeated Slot changed = 1;
+  repeated EquipSlot equipment = 2;
+  repeated Item worn = 3;
+  // The inventory's revision after this change, which equipment shares.
+  uint64 revision = 4;
 }

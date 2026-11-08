@@ -71,8 +71,8 @@ The world computes the sheet, because only the world holds the live level, stats
 
 - **`items`** gains `equip_slot text`.
   - `CHECK ((location = 'equipped') = (equip_slot IS NOT NULL))`. The existing check already makes `tab` and `slot` null outside the inventory.
-  - A unique partial index `one_item_per_equip_slot (owner_id, equip_slot) WHERE location = 'equipped'`.
-  - The `location` comment loses "(Stage 2)".
+  - One item per equip slot is the exclusion constraint `one_item_per_equip_slot (owner_id WITH =, equip_slot WITH =) WHERE location = 'equipped'`, deferred to commit. A unique index can't serve: Postgres checks one row by row, and a swap has the new item and the worn one in the slot for a moment, whichever moves first.
+  - `items_by_owner` covers `equipped` too, as the reads below do.
 - **`item_rolls`**: `item_id` (primary key, references `items`), one `int NOT NULL` column per stat, and `created_at` and `updated_at`, both the item's creation time, as every row carries both stamps.
   - It is insert-only: no query updates or deletes a row. A roll is part of the item for its whole life, which is what D5 means by "what it rolled".
   - It is written in the same transaction as the item's `created` event.
@@ -83,7 +83,7 @@ The world computes the sheet, because only the world holds the live level, stats
 
 - `Item` gains `ItemStats stats` (set for equipment) and `equip_slot` (set when worn). `Inventory` returns worn items too.
 - `Add` gains `ItemStats stats`. It is required for equipment and refused on anything else; each value must lie within its template's range, else `ErrBadRoll`, which is internal only because no client can cause it. The fingerprint `item.add/1` takes the roll only when set, following the rule beside the fingerprint that a value added later goes in only when set, so old keys still match.
-- `GrantStarter` gives starter equipment the lowest value of each range (Systems → Items) and puts it straight into its slot (open question 1).
+- `GrantStarter` gives starter equipment the lowest value of each range (Systems → Items) and puts it straight into its slot (open question 1), from the step that lets the client show what is worn (section 12).
 - **`Equip{actor, idempotency_key, item_id, equip_slot, level, class}`**:
   - `equip_slot` is needed only for rings; left empty, a ring takes the first empty ring slot, otherwise `ring_1`, the same rule the client's comparison uses (D7).
   - `level` and `class` come from the world's live state. The item service checks them against the template, because the requirement belongs to the item, and the world is the only one that knows the level now.
@@ -95,9 +95,9 @@ The world computes the sheet, because only the world holds the live level, stats
 
 - **Locking:** the owner's advisory lock (`LockOwner`) as today, then the owner's inventory and equipped rows, `FOR UPDATE` in ID order. `LockInventory` grows to cover `equipped`.
 - **Equip:**
-  - The item must be the owner's, in the inventory, and equipment.
+  - The item must be the owner's, in the inventory, and equipment; one already worn answers `ErrItemWorn`.
   - Its slot kind must fit the equip slot, and the level and class must be met.
-  - An empty equip slot just receives the item. A filled one swaps: the worn item takes the inventory slot the new one left, so a swap works with a full Equip tab.
+  - An empty equip slot just receives the item. A filled one swaps: the worn item takes the inventory slot the new one left, so a swap works with a full Equip tab. The new item moves in first, and the slot it left is never free in between, so a pickup racing the swap finds the tab still full.
   - Events: `equipped` for the new item and `unequipped` for the old.
 - **Unequip:** the slot must hold an item, and the target inventory slot must be free, otherwise `inventory_full` or `slot_taken`. Event: `unequipped`.
 - **A worn item can't be moved or discarded:** `Move` and `Discard` answer the new `ErrItemWorn` instead of today's "not found", so the player is told to unequip first.
@@ -285,9 +285,9 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
 2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
 3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
-4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests.
+4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item service, as no client route exists yet). The item service's six new error codes reach the client in this step, since `item_worn` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
 5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`.
-6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the error codes, and the contracts.
+6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, `character_dead`, the contracts, and starter equipment worn from the start, now that the client shows it.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
 8. **Client, item card:** the hover card and the comparison.
 9. **Content and balance:** the new items, drop lists, and tuning.

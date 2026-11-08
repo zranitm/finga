@@ -146,6 +146,51 @@ func TestCheckElevenCatchesBadRolls(t *testing.T) {
 	}
 }
 
+// Checks 9, 10 and 12 hold what is worn to one item per slot, a slot of its kind, and its equip events.
+func TestTheWornChecksCatchCorruption(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name    string
+		corrupt string
+		want    []string
+	}{
+		{"two items worn in one slot", `ALTER TABLE items DROP CONSTRAINT one_item_per_equip_slot;
+			UPDATE items SET location = 'equipped', tab = NULL, slot = NULL, equip_slot = 'weapon' WHERE template_id = 'iron_sword';
+			INSERT INTO item_events (item_id, kind, quantity_delta, cause_type, occurred_at, created_at, updated_at)
+				SELECT id, 'equipped', 0, 'player', now(), now(), now() FROM items WHERE template_id = 'iron_sword'`, []string{"9 "}},
+		{"a sword worn as a hat", `UPDATE items SET equip_slot = 'hat' WHERE location = 'equipped'`, []string{"10 "}},
+		{"worn with no equipped event", `DELETE FROM item_events WHERE kind = 'equipped'`, []string{"12 "}},
+		{"in the inventory after an equipped event", `INSERT INTO item_events (item_id, kind, quantity_delta, cause_type, occurred_at, created_at, updated_at)
+			SELECT id, 'equipped', 0, 'player', now(), now(), now() FROM items WHERE template_id = 'iron_sword'`, []string{"12 "}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			sword := h.added(t, "wooden_sword")
+			if _, err := h.equip(uuidv7.NewString(), sword.ID, "", 1); err != nil {
+				t.Fatal(err)
+			}
+			h.added(t, "iron_sword")
+			checkInvariants(t, h.pool, h.data)
+			if _, err := h.pool.Exec(ctx, tt.corrupt); err != nil {
+				t.Fatal(err)
+			}
+			got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("found %v, want %v", got, tt.want)
+			}
+			for k, prefix := range tt.want {
+				if !strings.HasPrefix(got[k], prefix) {
+					t.Fatalf("found %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
 func TestInventoryProperties(t *testing.T) {
 	data, err := gamedata.Load("../../../../data")
 	if err != nil {
@@ -154,7 +199,11 @@ func TestInventoryProperties(t *testing.T) {
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
 	svc := application.NewService(application.Deps{Store: store, Content: data})
-	templates := []string{"red_potion", "blue_potion", "slime_gel", "wooden_sword", "leather_cap"}
+	templates := []string{"red_potion", "blue_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest"}
+	var equipSlots []string
+	for _, s := range data.EquipSlots() {
+		equipSlots = append(equipSlots, s.ID)
+	}
 	tabs := []gamedata.Tab{gamedata.Equip, gamedata.Use, gamedata.Etc}
 	ctx := context.Background()
 
@@ -163,7 +212,7 @@ func TestInventoryProperties(t *testing.T) {
 		steps := rapid.IntRange(1, 25).Draw(rt, "steps")
 		for i := range steps {
 			key := fmt.Sprintf("k%d", i)
-			switch rapid.IntRange(0, 2).Draw(rt, "op") {
+			switch rapid.IntRange(0, 4).Draw(rt, "op") {
 			case 0:
 				tmpl := rapid.SampledFrom(templates).Draw(rt, "template")
 				it, _ := data.Item(tmpl)
@@ -205,6 +254,28 @@ func TestInventoryProperties(t *testing.T) {
 				if err != nil && !isRule(err) {
 					rt.Fatalf("discard: %v", err)
 				}
+			case 3:
+				read, _ := svc.Inventory(ctx, actor.Character)
+				if len(read.Items) == 0 {
+					continue
+				}
+				src := rapid.SampledFrom(read.Items).Draw(rt, "item")
+				_, err := svc.Equip(ctx, actor, application.EquipInput{
+					Key: key, ItemID: src.ID, EquipSlot: rapid.SampledFrom(append([]string{""}, equipSlots...)).Draw(rt, "equip slot"),
+					Level: rapid.IntRange(1, 30).Draw(rt, "level"), Class: rapid.SampledFrom([]kernel.Class{kernel.Warrior, kernel.Bowman}).Draw(rt, "class"),
+				})
+				if err != nil && !isRule(err) {
+					rt.Fatalf("equip: %v", err)
+				}
+			case 4:
+				in := application.UnequipInput{Key: key, EquipSlot: rapid.SampledFrom(equipSlots).Draw(rt, "equip slot")}
+				if rapid.Bool().Draw(rt, "chosen slot") {
+					to := rapid.IntRange(0, model.SlotsPerTab-1).Draw(rt, "to slot")
+					in.ToSlot = &to
+				}
+				if _, err := svc.Unequip(ctx, actor, in); err != nil && !isRule(err) {
+					rt.Fatalf("unequip: %v", err)
+				}
 			}
 		}
 		checkInvariants(t, pool, data)
@@ -216,6 +287,9 @@ func TestInventoryProperties(t *testing.T) {
 		seen := map[string]bool{}
 		for _, it := range inv {
 			k := fmt.Sprintf("%s/%d", it.Tab, it.Slot)
+			if it.Worn() {
+				k = "worn/" + it.EquipSlot
+			}
 			if seen[k] || it.Quantity < 1 {
 				rt.Fatalf("inventory %+v", inv)
 			}
@@ -226,7 +300,10 @@ func TestInventoryProperties(t *testing.T) {
 
 // isRule reports whether err is a rule error, which random sequences are expected to hit.
 func isRule(err error) bool {
-	for _, rule := range []error{model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrStackFull, model.ErrNotFound} {
+	for _, rule := range []error{
+		model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrStackFull, model.ErrNotFound,
+		model.ErrSlotTaken, model.ErrItemWorn, model.ErrLevelTooLow, model.ErrWrongClass, model.ErrWrongEquipSlot, model.ErrNotEquipment, model.ErrNothingWorn,
+	} {
 		if errorsIs(err, rule) {
 			return true
 		}

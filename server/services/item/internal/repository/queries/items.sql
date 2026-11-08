@@ -3,9 +3,9 @@
 SELECT pg_advisory_xact_lock(hashtextextended('item.inventory:' || sqlc.arg(owner_id)::text, 0));
 
 -- name: LockInventory :many
--- Every inventory row of the owner, locked in ID order so concurrent actions on one inventory never deadlock.
+-- Every row of the owner's inventory and of what it wears, locked in ID order so concurrent actions on one inventory never deadlock.
 SELECT * FROM items
-WHERE owner_id = $1 AND location = 'inventory'
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
 ORDER BY id
 FOR UPDATE;
 
@@ -13,9 +13,10 @@ FOR UPDATE;
 SELECT * FROM items WHERE id = $1 AND owner_id = $2 FOR UPDATE;
 
 -- name: ListInventory :many
+-- The inventory by tab and slot, then what is worn by equip slot.
 SELECT * FROM items
-WHERE owner_id = $1 AND location = 'inventory'
-ORDER BY tab, slot;
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
+ORDER BY tab NULLS LAST, slot, equip_slot;
 
 -- name: InsertItem :exec
 INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
@@ -34,7 +35,11 @@ SELECT * FROM item_rolls WHERE item_id = ANY(sqlc.arg(ids)::uuid[]);
 UPDATE items SET quantity = sqlc.arg(quantity), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: SetSlot :execrows
-UPDATE items SET tab = sqlc.arg(tab), slot = sqlc.arg(slot), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
+-- Puts an item in an inventory slot, taking it off if it was worn.
+UPDATE items SET location = 'inventory', tab = sqlc.arg(tab), slot = sqlc.arg(slot), equip_slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
+
+-- name: SetEquipped :execrows
+UPDATE items SET location = 'equipped', equip_slot = sqlc.arg(equip_slot), tab = NULL, slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: DestroyItem :execrows
 UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);

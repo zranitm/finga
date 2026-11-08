@@ -4,7 +4,10 @@ package application
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -37,10 +40,28 @@ type DiscardInput struct {
 	Quantity int
 }
 
+// EquipInput wears an inventory item.
+type EquipInput struct {
+	Key       string
+	ItemID    kernel.ItemID
+	EquipSlot string // rings only: empty, the first empty slot of the item's kind, else the first
+	Level     int    // the character's live level and class, which the item's requirements are checked against
+	Class     kernel.Class
+}
+
+// UnequipInput puts a worn item back in the Equip tab.
+type UnequipInput struct {
+	Key       string
+	EquipSlot string
+	ToSlot    *int // nil: the first free slot
+}
+
 // Result is what a command changed and the inventory's revision after it, 0 when it changed nothing; the repository stores it for idempotent replays.
 type Result struct {
-	Changed  []model.Slot
-	Revision uint64
+	Changed   []model.Slot
+	Equipment []model.WornSlot // the equip slots an equip or unequip changed
+	Worn      []model.Item     // after an equip or unequip, every item worn
+	Revision  uint64
 }
 
 // A fingerprint is a command's values in fixed order; a value added later goes in only when set, so old retries match.
@@ -62,10 +83,25 @@ func (in DiscardInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.discard/1", c.String(), in.ItemID.String(), strconv.Itoa(in.Quantity))
 }
 
+// The level and class stay out: a retry after a level-up is the same request.
+func (in EquipInput) fingerprint(c kernel.CharacterID) []byte {
+	return idempotency.Fingerprint("item.equip/1", c.String(), in.ItemID.String(), in.EquipSlot)
+}
+
+func (in UnequipInput) fingerprint(c kernel.CharacterID) []byte {
+	to := ""
+	if in.ToSlot != nil {
+		to = strconv.Itoa(*in.ToSlot)
+	}
+	return idempotency.Fingerprint("item.unequip/1", c.String(), in.EquipSlot, to)
+}
+
 const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
 	scopeDiscard = "item.discard"
+	scopeEquip   = "item.equip"
+	scopeUnequip = "item.unequip"
 )
 
 // Service is the item service's use cases.
@@ -145,7 +181,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 		for k := range inv {
 			it := &inv[k]
 			room := tmpl.MaxStack - it.Quantity
-			if it.TemplateID != tmpl.ID || room <= 0 {
+			if it.Worn() || it.TemplateID != tmpl.ID || room <= 0 {
 				continue
 			}
 			take := min(room, left)
@@ -205,6 +241,9 @@ func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.Charact
 	src := find(inv, func(it model.Item) bool { return it.ID == in.ItemID })
 	if src == nil {
 		return Result{}, model.ErrNotFound
+	}
+	if src.Worn() {
+		return Result{}, model.ErrItemWorn
 	}
 	if in.Tab != src.Tab {
 		return Result{}, model.ErrWrongTab
@@ -303,6 +342,172 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 		return Result{}, err
 	}
 	return Result{Changed: []model.Slot{slotOf(it)}}, nil
+}
+
+// Equip wears an inventory item; a worn item in that slot swaps into the inventory slot the new one left, so a swap works with a full tab.
+func (s *Service) Equip(ctx context.Context, actor model.Actor, in EquipInput) (Result, error) {
+	if in.EquipSlot != "" {
+		if _, ok := s.content.EquipSlot(in.EquipSlot); !ok {
+			return Result{}, model.ErrWrongEquipSlot
+		}
+	}
+	var res Result
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		var err error
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeEquip, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
+			res, err := s.equip(ctx, uow, actor.Character, in)
+			return revised(ctx, uow, actor.Character, res, err)
+		})
+		return err
+	})
+	return res, err
+}
+
+func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in EquipInput) (Result, error) {
+	inv, err := uow.Items().LockInventory(ctx, owner)
+	if err != nil {
+		return Result{}, err
+	}
+	it := find(inv, func(it model.Item) bool { return it.ID == in.ItemID })
+	if it == nil {
+		return Result{}, model.ErrNotFound
+	}
+	if it.Worn() {
+		return Result{}, model.ErrItemWorn
+	}
+	tmpl, ok := s.content.Item(it.TemplateID)
+	if !ok {
+		return Result{}, model.ErrUnknownItem
+	}
+	if tmpl.Tab != gamedata.Equip {
+		return Result{}, model.ErrNotEquipment
+	}
+	slot, err := equipSlotFor(s.content.EquipSlots(), tmpl.Slot, in.EquipSlot, inv)
+	if err != nil {
+		return Result{}, err
+	}
+	if in.Level < tmpl.MinLevel {
+		return Result{}, model.ErrLevelTooLow
+	}
+	if tmpl.Class != "" && tmpl.Class != in.Class {
+		return Result{}, model.ErrWrongClass
+	}
+	now, cause := time.Now(), playerCause(in.Key)
+	left := model.Slot{Tab: it.Tab, Slot: it.Slot}
+	off := find(inv, func(w model.Item) bool { return w.EquipSlot == slot })
+	// In before the worn item leaves: one item per equip slot holds at commit.
+	if err := uow.Items().SetEquipped(ctx, it.ID, slot); err != nil {
+		return Result{}, err
+	}
+	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventEquipped, FromOwner: &owner, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+		return Result{}, err
+	}
+	it.Tab, it.Slot, it.EquipSlot = "", 0, slot
+	changed := left
+	if off != nil {
+		if err := uow.Items().SetSlot(ctx, off.ID, left.Tab, left.Slot); err != nil {
+			return Result{}, err
+		}
+		if err := uow.Events().Append(ctx, model.Event{ItemID: off.ID, Kind: model.EventUnequipped, FromOwner: &owner, ToOwner: &owner, Cause: cause, OccurredAt: now}); err != nil {
+			return Result{}, err
+		}
+		off.Tab, off.Slot, off.EquipSlot = left.Tab, left.Slot, ""
+		changed = slotOf(*off)
+	}
+	on := *it
+	return Result{Changed: []model.Slot{changed}, Equipment: []model.WornSlot{{Slot: slot, Item: &on}}, Worn: wornOf(inv)}, nil
+}
+
+// Unequip puts a worn item in the Equip tab, in the slot asked for or the first free one.
+func (s *Service) Unequip(ctx context.Context, actor model.Actor, in UnequipInput) (Result, error) {
+	if _, ok := s.content.EquipSlot(in.EquipSlot); !ok {
+		return Result{}, model.ErrWrongEquipSlot
+	}
+	if in.ToSlot != nil && (*in.ToSlot < 0 || *in.ToSlot >= model.SlotsPerTab) {
+		return Result{}, model.ErrBadSlot
+	}
+	var res Result
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		var err error
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeUnequip, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
+			res, err := s.unequip(ctx, uow, actor.Character, in)
+			return revised(ctx, uow, actor.Character, res, err)
+		})
+		return err
+	})
+	return res, err
+}
+
+func (s *Service) unequip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UnequipInput) (Result, error) {
+	inv, err := uow.Items().LockInventory(ctx, owner)
+	if err != nil {
+		return Result{}, err
+	}
+	off := find(inv, func(it model.Item) bool { return it.EquipSlot == in.EquipSlot })
+	if off == nil {
+		return Result{}, model.ErrNothingWorn
+	}
+	to, ok := freeSlot(inv, gamedata.Equip)
+	if in.ToSlot != nil {
+		to = *in.ToSlot
+		if find(inv, func(it model.Item) bool { return it.Tab == gamedata.Equip && it.Slot == to }) != nil {
+			return Result{}, model.ErrSlotTaken
+		}
+	} else if !ok {
+		return Result{}, model.ErrInventoryFull
+	}
+	if err := uow.Items().SetSlot(ctx, off.ID, gamedata.Equip, to); err != nil {
+		return Result{}, err
+	}
+	if err := uow.Events().Append(ctx, model.Event{ItemID: off.ID, Kind: model.EventUnequipped, FromOwner: &owner, ToOwner: &owner, Cause: playerCause(in.Key), OccurredAt: time.Now()}); err != nil {
+		return Result{}, err
+	}
+	off.Tab, off.Slot, off.EquipSlot = gamedata.Equip, to, ""
+	return Result{Changed: []model.Slot{slotOf(*off)}, Equipment: []model.WornSlot{{Slot: in.EquipSlot}}, Worn: wornOf(inv)}, nil
+}
+
+// equipSlotFor is where an item of kind goes: the slot asked for, which must take that kind; else the first empty slot of the kind, else its first.
+func equipSlotFor(slots []gamedata.EquipSlot, kind gamedata.SlotKind, asked string, inv []model.Item) (string, error) {
+	first := ""
+	for _, es := range slots {
+		if es.Kind != kind {
+			continue
+		}
+		if asked != "" {
+			if es.ID == asked {
+				return asked, nil
+			}
+			continue
+		}
+		if first == "" {
+			first = es.ID
+		}
+		if find(inv, func(it model.Item) bool { return it.EquipSlot == es.ID }) == nil {
+			return es.ID, nil
+		}
+	}
+	if first == "" {
+		return "", model.ErrWrongEquipSlot
+	}
+	return first, nil
+}
+
+// playerCause is a change the request under key caused; the handler took the key only as a UUID.
+func playerCause(key string) model.Cause {
+	id, _ := uuid.Parse(strings.TrimPrefix(key, "k-"))
+	return model.Cause{Type: model.CausePlayer, ID: id}
+}
+
+// wornOf is every worn item of inv, by equip slot.
+func wornOf(inv []model.Item) []model.Item {
+	var out []model.Item
+	for _, it := range inv {
+		if it.Worn() {
+			out = append(out, it)
+		}
+	}
+	model.SortInventory(out)
+	return out
 }
 
 // GrantStarter gives a new character its starter items once, recorded in starter_grants; later calls change nothing.

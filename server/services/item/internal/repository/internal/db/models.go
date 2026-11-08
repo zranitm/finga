@@ -38,6 +38,7 @@ type Item struct {
 	Quantity   int32
 	UpdatedAt  dbx.Stamp
 	CreatedAt  dbx.Stamp
+	EquipSlot  *string
 }
 
 type ItemEvent struct {

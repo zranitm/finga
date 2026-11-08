@@ -131,7 +131,11 @@ func (r repo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.Char
 	if err != nil {
 		return model.Item{}, err
 	}
-	if row.Location != "inventory" {
+	switch row.Location {
+	case "equipped":
+		return model.Item{}, model.ErrItemWorn
+	case "inventory":
+	default:
 		return model.Item{}, pgx.ErrNoRows
 	}
 	items, err := withRolls(ctx, r.q, []db.Item{row})
@@ -172,6 +176,12 @@ func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) e
 func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
 	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, Now: r.now})
+	return dbx.RowsOrNotFound(n, err)
+}
+
+// SetEquipped wears an item in an equip slot.
+func (r repo) SetEquipped(ctx context.Context, id kernel.ItemID, equipSlot string) error {
+	n, err := r.q.SetEquipped(ctx, db.SetEquippedParams{ID: uuid.UUID(id), EquipSlot: &equipSlot, Now: r.now})
 	return dbx.RowsOrNotFound(n, err)
 }
 
@@ -268,19 +278,24 @@ func toItem(r db.Item) model.Item {
 	if r.Slot != nil {
 		it.Slot = int(*r.Slot)
 	}
+	if r.EquipSlot != nil {
+		it.EquipSlot = *r.EquipSlot
+	}
 	return it
 }
 
 const (
-	constraintSlot     = "one_item_per_slot"
-	constraintQuantity = "items_quantity_check"
+	constraintSlot      = "one_item_per_slot"
+	constraintEquipSlot = "one_item_per_equip_slot"
+	constraintQuantity  = "items_quantity_check"
 )
 
 // failures maps a missing row and constraint errors to the model's, as dbx makes timeouts and outages transient.ErrUnavailable; each keeps its cause, so InTx's retries still see 40001.
 var failures = dbx.Errors{
 	NotFound: model.ErrNotFound,
 	Constraints: map[string]error{
-		constraintSlot:     model.ErrSlotTaken,
-		constraintQuantity: model.ErrBadQuantity,
+		constraintSlot:      model.ErrSlotTaken,
+		constraintEquipSlot: model.ErrSlotTaken,
+		constraintQuantity:  model.ErrBadQuantity,
 	},
 }

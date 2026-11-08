@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/jackc/pgx/v5"
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
@@ -300,6 +301,42 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 	return out
 }
 
+// swapper gives the character a second sword, then returns a loop that wears its two swords in turn through the item service for d, counting the swaps that answered.
+func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
+	t.Helper()
+	ctx := context.Background()
+	var account string
+	if err := s.db.QueryRow(ctx, `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
+		t.Fatal(err)
+	}
+	actor := &itemv1.Actor{AccountId: account, CharacterId: id}
+	if _, err := s.items.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: uuidv7.NewString(), TemplateId: "wooden_sword", Quantity: 1,
+		Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: uuidv7.NewString()}, Stats: &itemv1.ItemStats{Attack: 10}}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'wooden_sword'`, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	swords, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(swords) != 2 {
+		t.Fatalf("swords %v (%v), want the starter and the second", swords, err)
+	}
+	return func(d time.Duration) int {
+		n := 0
+		for k, end := 0, time.Now().Add(d); time.Now().Before(end); k++ {
+			callCtx, cancel := context.WithTimeout(ctx, time.Second)
+			_, err := s.items.Equip(callCtx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: uuidv7.NewString(), ItemId: swords[k%2], Level: 1, Class: "warrior"})
+			cancel()
+			if err == nil {
+				n++
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+		return n
+	}
+}
+
 func (s *stack) checkInvariants(t *testing.T) {
 	t.Helper()
 	data, err := gamedata.Load("../data")
@@ -529,16 +566,18 @@ func TestCrashDuringPickups(t *testing.T) {
 		hunters = append(hunters, newLooter(p, snap))
 	}
 	var wg sync.WaitGroup
-	picked := make([]int, len(hunters))
+	picked, swapped := make([]int, len(hunters)), make([]int, len(hunters))
 	for k, h := range hunters {
+		swap := s.swapper(t, h.id)
 		wg.Go(func() { picked[k] = h.loot(25 * time.Second) })
+		wg.Go(func() { swapped[k] = swap(25 * time.Second) })
 	}
-	// Hard-kill the world and the item service while pickups are in flight; the gateway stays up.
+	// Hard-kill the world and the item service while pickups and swaps are in flight; the gateway stays up.
 	time.Sleep(12 * time.Second)
 	worldProc.kill()
 	itemProc.kill()
 	wg.Wait()
-	t.Logf("pickups before the kill: %v", picked)
+	t.Logf("pickups before the kill: %v; swaps: %v", picked, swapped)
 	s.checkInvariants(t)
 
 	itemProc.start()

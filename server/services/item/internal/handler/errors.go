@@ -24,6 +24,12 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrWrongTab, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_WRONG_TAB},
 	{Err: model.ErrUnknownItem, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_ITEM},
 	{Err: model.ErrBadRoll, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ROLL},
+	{Err: model.ErrItemWorn, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_ITEM_WORN},
+	{Err: model.ErrLevelTooLow, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_LEVEL_TOO_LOW},
+	{Err: model.ErrWrongClass, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_WRONG_CLASS},
+	{Err: model.ErrWrongEquipSlot, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_WRONG_EQUIP_SLOT},
+	{Err: model.ErrNotEquipment, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOT_EQUIPMENT},
+	{Err: model.ErrNothingWorn, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOTHING_WORN},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ID},
 	{Err: kernel.ErrUnknownClass, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_CLASS},
 }

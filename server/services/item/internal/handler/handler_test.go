@@ -34,6 +34,8 @@ type fakeItems struct {
 	add       application.AddInput
 	move      application.MoveInput
 	discard   application.DiscardInput
+	equip     application.EquipInput
+	unequip   application.UnequipInput
 	class     kernel.Class
 	inventory model.Inventory
 	result    application.Result
@@ -72,6 +74,22 @@ func (f *fakeItems) Discard(_ context.Context, actor model.Actor, in application
 	defer f.mu.Unlock()
 	f.record()
 	f.actor, f.discard = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeItems) Equip(_ context.Context, actor model.Actor, in application.EquipInput) (application.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record()
+	f.actor, f.equip = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeItems) Unequip(_ context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record()
+	f.actor, f.unequip = actor, in
 	return f.result, f.err
 }
 
@@ -194,6 +212,45 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantChanged(t, res)
 	})
+	t.Run("Equip, answering what is worn", func(t *testing.T) {
+		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Quantity: 1, Stats: &progression.ItemStats{Attack: 17}, EquipSlot: "weapon"}
+		f.result = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 4}}, Equipment: []model.WornSlot{{Slot: "weapon", Item: &sword}}, Worn: []model.Item{sword}, Revision: 14}
+		defer func() { f.result = changed }()
+		res, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: sword.ID.String(), EquipSlot: "weapon", Level: 9, Class: "warrior"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.equip != (application.EquipInput{Key: key1, ItemID: sword.ID, EquipSlot: "weapon", Level: 9, Class: kernel.Warrior}) {
+			t.Fatalf("equip %+v", f.equip)
+		}
+		eq, worn := res.GetEquipment(), res.GetWorn()
+		if len(res.GetChanged()) != 1 || res.GetChanged()[0].GetItem() != nil || res.GetChanged()[0].GetSlot() != 4 || res.GetRevision() != 14 {
+			t.Fatalf("changed %+v revision %d", res.GetChanged(), res.GetRevision())
+		}
+		if len(eq) != 1 || eq[0].GetEquipSlot() != "weapon" || eq[0].GetItem().GetId() != sword.ID.String() || eq[0].GetItem().GetEquipSlot() != "weapon" || eq[0].GetItem().GetStats().GetAttack() != 17 {
+			t.Fatalf("equipment %+v", eq)
+		}
+		if len(worn) != 1 || worn[0].GetId() != sword.ID.String() || worn[0].GetEquipSlot() != "weapon" {
+			t.Fatalf("worn %+v", worn)
+		}
+	})
+	t.Run("Unequip, to the first free slot or a chosen one", func(t *testing.T) {
+		if _, err := c.Unequip(ctx, &itemv1.UnequipRequest{Actor: actor, IdempotencyKey: key1, EquipSlot: "hat"}); err != nil {
+			t.Fatal(err)
+		}
+		if f.unequip.Key != key1 || f.unequip.EquipSlot != "hat" || f.unequip.ToSlot != nil {
+			t.Fatalf("unequip %+v", f.unequip)
+		}
+		to := int32(6)
+		res, err := c.Unequip(ctx, &itemv1.UnequipRequest{Actor: actor, IdempotencyKey: key2, EquipSlot: "hat", ToSlot: &to})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.unequip.ToSlot == nil || *f.unequip.ToSlot != 6 {
+			t.Fatalf("unequip %+v", f.unequip)
+		}
+		wantChanged(t, res)
+	})
 	t.Run("GrantStarter", func(t *testing.T) {
 		res, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "bowman"})
 		if err != nil {
@@ -260,6 +317,18 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			_, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "paladin"})
 			return err
 		}, itemv1.Reason_REASON_UNKNOWN_CLASS},
+		{"an item to equip", func() error {
+			_, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: "bad", Level: 1, Class: "warrior"})
+			return err
+		}, itemv1.Reason_REASON_BAD_ID},
+		{"the class an equip is checked against", func() error {
+			_, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: potion.ID.String(), Level: 1, Class: "paladin"})
+			return err
+		}, itemv1.Reason_REASON_UNKNOWN_CLASS},
+		{"an unequip's idempotency key", func() error {
+			_, err := c.Unequip(ctx, &itemv1.UnequipRequest{Actor: actor, IdempotencyKey: "nope", EquipSlot: "hat"})
+			return err
+		}, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"slices"
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/kernel"
@@ -15,13 +16,14 @@ type Items struct{ c itemv1.ItemServiceClient }
 // NewItems adapts the item client.
 func NewItems(c itemv1.ItemServiceClient) Items { return Items{c: c} }
 
-// Inventory is the character's items at their revision, an empty slice when it has none.
+// Inventory is the items in the character's tabs at their revision, an empty slice when it has none.
 func (i Items) Inventory(ctx context.Context, character kernel.CharacterID) (model.Inventory, error) {
 	res, err := i.c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: character.String()})
 	if err != nil {
 		return model.Inventory{}, errmap.Wrap(err)
 	}
-	return model.Inventory{Revision: res.GetRevision(), Items: itemViews(res.GetItems())}, nil
+	held := slices.DeleteFunc(res.GetItems(), func(it *itemv1.Item) bool { return it.GetEquipSlot() != "" }) // worn, so in no tab
+	return model.Inventory{Revision: res.GetRevision(), Items: itemViews(held)}, nil
 }
 
 // Move moves an item and returns the slots it changed.

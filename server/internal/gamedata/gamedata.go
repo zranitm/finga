@@ -2,6 +2,7 @@
 package gamedata
 
 import (
+	"slices"
 	"time"
 
 	"finga/internal/kernel"
@@ -237,6 +238,18 @@ func (d *Data) Item(id string) (Item, bool) {
 		return Item{}, false
 	}
 	return d.items[i], true
+}
+
+// EquipSlots lists the slots a character wears equipment in, in file order.
+func (d *Data) EquipSlots() []EquipSlot { return d.slots }
+
+// EquipSlot finds an equip slot.
+func (d *Data) EquipSlot(id string) (EquipSlot, bool) {
+	k := slices.IndexFunc(d.slots, func(s EquipSlot) bool { return s.ID == id })
+	if k < 0 {
+		return EquipSlot{}, false
+	}
+	return d.slots[k], true
 }
 
 // Mobs lists every mob type in file order.

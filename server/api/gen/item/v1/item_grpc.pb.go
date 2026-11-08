@@ -24,6 +24,8 @@ const (
 	ItemService_Move_FullMethodName         = "/internal.item.v1.ItemService/Move"
 	ItemService_Discard_FullMethodName      = "/internal.item.v1.ItemService/Discard"
 	ItemService_GrantStarter_FullMethodName = "/internal.item.v1.ItemService/GrantStarter"
+	ItemService_Equip_FullMethodName        = "/internal.item.v1.ItemService/Equip"
+	ItemService_Unequip_FullMethodName      = "/internal.item.v1.ItemService/Unequip"
 )
 
 // ItemServiceClient is the client API for ItemService service.
@@ -42,6 +44,10 @@ type ItemServiceClient interface {
 	Discard(ctx context.Context, in *DiscardRequest, opts ...grpc.CallOption) (*DiscardResponse, error)
 	// GrantStarter gives a new character its starter items once, keyed by the character ID.
 	GrantStarter(ctx context.Context, in *GrantStarterRequest, opts ...grpc.CallOption) (*GrantStarterResponse, error)
+	// Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
+	Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error)
+	// Unequip puts a worn item back in the Equip tab.
+	Unequip(ctx context.Context, in *UnequipRequest, opts ...grpc.CallOption) (*UnequipResponse, error)
 }
 
 type itemServiceClient struct {
@@ -102,6 +108,26 @@ func (c *itemServiceClient) GrantStarter(ctx context.Context, in *GrantStarterRe
 	return out, nil
 }
 
+func (c *itemServiceClient) Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EquipResponse)
+	err := c.cc.Invoke(ctx, ItemService_Equip_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemServiceClient) Unequip(ctx context.Context, in *UnequipRequest, opts ...grpc.CallOption) (*UnequipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnequipResponse)
+	err := c.cc.Invoke(ctx, ItemService_Unequip_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ItemServiceServer is the server API for ItemService service.
 // All implementations must embed UnimplementedItemServiceServer
 // for forward compatibility.
@@ -118,6 +144,10 @@ type ItemServiceServer interface {
 	Discard(context.Context, *DiscardRequest) (*DiscardResponse, error)
 	// GrantStarter gives a new character its starter items once, keyed by the character ID.
 	GrantStarter(context.Context, *GrantStarterRequest) (*GrantStarterResponse, error)
+	// Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
+	Equip(context.Context, *EquipRequest) (*EquipResponse, error)
+	// Unequip puts a worn item back in the Equip tab.
+	Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error)
 	mustEmbedUnimplementedItemServiceServer()
 }
 
@@ -142,6 +172,12 @@ func (UnimplementedItemServiceServer) Discard(context.Context, *DiscardRequest) 
 }
 func (UnimplementedItemServiceServer) GrantStarter(context.Context, *GrantStarterRequest) (*GrantStarterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GrantStarter not implemented")
+}
+func (UnimplementedItemServiceServer) Equip(context.Context, *EquipRequest) (*EquipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Equip not implemented")
+}
+func (UnimplementedItemServiceServer) Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Unequip not implemented")
 }
 func (UnimplementedItemServiceServer) mustEmbedUnimplementedItemServiceServer() {}
 func (UnimplementedItemServiceServer) testEmbeddedByValue()                     {}
@@ -254,6 +290,42 @@ func _ItemService_GrantStarter_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ItemService_Equip_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EquipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).Equip(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_Equip_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).Equip(ctx, req.(*EquipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemService_Unequip_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnequipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).Unequip(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_Unequip_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).Unequip(ctx, req.(*UnequipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ItemService_ServiceDesc is the grpc.ServiceDesc for ItemService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -280,6 +352,14 @@ var ItemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GrantStarter",
 			Handler:    _ItemService_GrantStarter_Handler,
+		},
+		{
+			MethodName: "Equip",
+			Handler:    _ItemService_Equip_Handler,
+		},
+		{
+			MethodName: "Unequip",
+			Handler:    _ItemService_Unequip_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

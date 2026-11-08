@@ -52,6 +52,9 @@ func (p Pickups) Inventory(ctx context.Context, id kernel.CharacterID) (model.In
 	}
 	out := make([]model.Slot, 0, len(res.GetItems()))
 	for _, it := range res.GetItems() {
+		if it.GetEquipSlot() != "" {
+			continue // worn, so in no inventory slot
+		}
 		item, err := slotItem(it)
 		if err != nil {
 			return model.Inventory{}, err

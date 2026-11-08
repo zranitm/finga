@@ -150,6 +150,7 @@ func TestPickupsReadTheWholeInventoryAsSlotsAtItsRevision(t *testing.T) {
 	f := &items{held: []*itemv1.Item{
 		{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7},
 		{Id: potion.String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5},
+		{Id: kernel.NewItemID().String(), TemplateId: "wooden_sword", Quantity: 1, EquipSlot: "weapon"}, // worn: in no slot
 	}, revision: 12}
 	inv, err := clients.NewPickups(itemClient(t, f)).Inventory(context.Background(), ayla)
 	if err != nil {

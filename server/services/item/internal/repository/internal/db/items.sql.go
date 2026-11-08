@@ -147,11 +147,12 @@ func (q *Queries) InventoryRevision(ctx context.Context, ownerID uuid.UUID) (int
 }
 
 const listInventory = `-- name: ListInventory :many
-SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items
-WHERE owner_id = $1 AND location = 'inventory'
-ORDER BY tab, slot
+SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at, equip_slot FROM items
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
+ORDER BY tab NULLS LAST, slot, equip_slot
 `
 
+// The inventory by tab and slot, then what is worn by equip slot.
 func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item, error) {
 	rows, err := q.db.Query(ctx, listInventory, ownerID)
 	if err != nil {
@@ -171,6 +172,7 @@ func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 			&i.Quantity,
 			&i.UpdatedAt,
 			&i.CreatedAt,
+			&i.EquipSlot,
 		); err != nil {
 			return nil, err
 		}
@@ -225,13 +227,13 @@ func (q *Queries) ListRolls(ctx context.Context, ids []uuid.UUID) ([]ItemRoll, e
 }
 
 const lockInventory = `-- name: LockInventory :many
-SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items
-WHERE owner_id = $1 AND location = 'inventory'
+SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at, equip_slot FROM items
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
 ORDER BY id
 FOR UPDATE
 `
 
-// Every inventory row of the owner, locked in ID order so concurrent actions on one inventory never deadlock.
+// Every row of the owner's inventory and of what it wears, locked in ID order so concurrent actions on one inventory never deadlock.
 func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item, error) {
 	rows, err := q.db.Query(ctx, lockInventory, ownerID)
 	if err != nil {
@@ -251,6 +253,7 @@ func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 			&i.Quantity,
 			&i.UpdatedAt,
 			&i.CreatedAt,
+			&i.EquipSlot,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +266,7 @@ func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 }
 
 const lockOwnedItem = `-- name: LockOwnedItem :one
-SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items WHERE id = $1 AND owner_id = $2 FOR UPDATE
+SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at, equip_slot FROM items WHERE id = $1 AND owner_id = $2 FOR UPDATE
 `
 
 type LockOwnedItemParams struct {
@@ -284,6 +287,7 @@ func (q *Queries) LockOwnedItem(ctx context.Context, arg LockOwnedItemParams) (I
 		&i.Quantity,
 		&i.UpdatedAt,
 		&i.CreatedAt,
+		&i.EquipSlot,
 	)
 	return i, err
 }
@@ -336,6 +340,24 @@ func (q *Queries) RecordStarterGrant(ctx context.Context, arg RecordStarterGrant
 	return result.RowsAffected(), nil
 }
 
+const setEquipped = `-- name: SetEquipped :execrows
+UPDATE items SET location = 'equipped', equip_slot = $1, tab = NULL, slot = NULL, updated_at = $2 WHERE id = $3
+`
+
+type SetEquippedParams struct {
+	EquipSlot *string
+	Now       dbx.Stamp
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetEquipped(ctx context.Context, arg SetEquippedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setEquipped, arg.EquipSlot, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setQuantity = `-- name: SetQuantity :execrows
 UPDATE items SET quantity = $1, updated_at = $2 WHERE id = $3
 `
@@ -355,7 +377,7 @@ func (q *Queries) SetQuantity(ctx context.Context, arg SetQuantityParams) (int64
 }
 
 const setSlot = `-- name: SetSlot :execrows
-UPDATE items SET tab = $1, slot = $2, updated_at = $3 WHERE id = $4
+UPDATE items SET location = 'inventory', tab = $1, slot = $2, equip_slot = NULL, updated_at = $3 WHERE id = $4
 `
 
 type SetSlotParams struct {
@@ -365,6 +387,7 @@ type SetSlotParams struct {
 	ID   uuid.UUID
 }
 
+// Puts an item in an inventory slot, taking it off if it was worn.
 func (q *Queries) SetSlot(ctx context.Context, arg SetSlotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setSlot,
 		arg.Tab,
