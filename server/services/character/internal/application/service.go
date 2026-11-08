@@ -70,7 +70,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 		return model.Character{}, model.ErrClassUnavailable
 	}
 	town := s.content.Town()
-	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{})
+	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.ItemStats{})
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
@@ -149,5 +149,5 @@ func (s *Service) Derived(c model.Character) (progression.Derived, error) {
 	if !ok {
 		return progression.Derived{}, model.ErrClassUnavailable
 	}
-	return progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{}), nil
+	return progression.DeriveStats(formulas, c.Stats, c.Level, progression.ItemStats{}), nil
 }

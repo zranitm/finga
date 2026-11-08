@@ -282,10 +282,10 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
    - The metric `finga_economy_jobs_inflight` becomes `finga_item_calls_inflight`, with the Grafana dashboard in `infra/obs` updated in the same commit.
    - No behaviour changes.
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
-2. **Stats model:** `ItemStats`, `DeriveStats` over the worn sum, and `Sheet`, in `internal/progression`.
+2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
 3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, checks 11, and the backfill.
 4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests.
-5. **World:** rolls at drop time, worn items at join, `Equip` and `Unequip` through the workers, re-derive and `StatsChanged`.
+5. **World:** rolls at drop time, worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`.
 6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the error codes, and the contracts.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
 8. **Client, item card:** the hover card and the comparison.

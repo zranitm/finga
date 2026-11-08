@@ -68,7 +68,7 @@ func (i *Instance) add(j *joinMsg) {
 		joined:  true,
 		slot:    i.nextSlot,
 		class:   class,
-		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, progression.Equipment{}),
+		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, progression.ItemStats{}),
 	}
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)

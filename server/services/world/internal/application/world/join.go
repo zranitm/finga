@@ -45,7 +45,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
-	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.Equipment{})
+	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.ItemStats{})
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {
 			return model.View{}, err
