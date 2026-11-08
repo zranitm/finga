@@ -22,6 +22,10 @@ metrics_generator:
       - url: http://mimir:9009/api/v1/push
         send_exemplars: true
 
+# The worker otherwise waits 30 s on shutdown for a job the stopped scheduler never sends; a cut compaction just runs again.
+backend_worker:
+  finish_on_shutdown_timeout: 5s
+
 storage:
   trace:
     backend: local
