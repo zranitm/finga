@@ -53,4 +53,3 @@ The first public version includes: accounts and characters, who start as Beginne
    - [Progression](./systems/progression.md) · [Classes and skills](./systems/classes-and-skills.md) · [Combat](./systems/combat.md) · [NPCs and quests](./systems/npcs-and-quests.md) · [Items](./systems/items.md) · [Economy](./systems/economy.md) · [Social](./systems/social.md) · [Gacha](./systems/gacha.md)
 4. [Features](./features/README.md): what players can do, with acceptance criteria and priority.
 5. [Screens and controls](./screens-and-controls.md): the screen list and key bindings, input for the design phase.
-6. [Product decisions](./decisions/README.md): open questions, defaults, and outcomes.
