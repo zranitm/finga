@@ -38,6 +38,7 @@ type Services struct {
 	Observer  TickObserver
 	Parties   Parties
 	Items     loot.Pickups
+	Equipment Equipment
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each pickup's trace
 }
@@ -110,21 +111,38 @@ type (
 		sink   Sink // the picker's, for a result that arrives after they left the map
 	}
 	portalMsg struct{ id kernel.CharacterID }
-	chatMsg   struct {
+	// equipMsg asks to equip or unequip, whichever is set; done hears the outcome once it applies.
+	equipMsg struct {
+		id      kernel.CharacterID
+		conn    string
+		equip   *model.EquipCall
+		unequip *model.UnequipCall
+		done    chan error
+	}
+	equippedMsg struct {
+		id     kernel.CharacterID
+		conn   string
+		result model.Equipped
+		err    error
+		done   chan error
+	}
+	chatMsg struct {
 		from kernel.CharacterID
 		name string
 		text string
 	}
 )
 
-func (*joinMsg) message()  {}
-func (leaveMsg) message()  {}
-func (inputMsg) message()  {}
-func (attackMsg) message() {}
-func (pickMsg) message()   {}
-func (pickedMsg) message() {}
-func (portalMsg) message() {}
-func (chatMsg) message()   {}
+func (*joinMsg) message()    {}
+func (leaveMsg) message()    {}
+func (inputMsg) message()    {}
+func (attackMsg) message()   {}
+func (pickMsg) message()     {}
+func (pickedMsg) message()   {}
+func (portalMsg) message()   {}
+func (equipMsg) message()    {}
+func (equippedMsg) message() {}
+func (chatMsg) message()     {}
 
 // Errors a join can end with besides the model's.
 var (
@@ -312,6 +330,10 @@ func (i *Instance) drain() []kernel.CharacterID {
 			if p, ok := i.players[m.id]; ok && i.enterPortal(p) {
 				removed = append(removed, m.id)
 			}
+		case equipMsg:
+			i.startEquip(m)
+		case equippedMsg:
+			i.settleEquip(m)
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})

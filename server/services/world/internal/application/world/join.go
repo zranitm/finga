@@ -41,11 +41,15 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		c = withCheckpoint(c, unsaved)
 	}
 	w.grantStarter(ctx, account, id, c.Class)
+	worn, err := w.worn(ctx, id) // after the grant, so starter equipment counts
+	if err != nil {
+		return model.View{}, err
+	}
 	formulas, ok := w.data.Formulas(c.Class)
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
-	derived := progression.DeriveStats(formulas, c.Stats, c.Level, progression.ItemStats{})
+	derived := progression.DeriveStats(formulas, c.Stats, c.Level, worn.Stats)
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {
 			return model.View{}, err
@@ -55,7 +59,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -79,8 +83,14 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	return model.View{
 		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats,
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
-		MapID: c.MapID, X: c.X, Y: c.Y, JoinSeq: at.gen,
+		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: progression.SheetOf(formulas, c.Stats, c.Level, worn.Stats), JoinSeq: at.gen,
 	}, nil
+}
+
+func (w *World) worn(ctx context.Context, id kernel.CharacterID) (model.Worn, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return w.deps.Wardrobe.Worn(ctx, id)
 }
 
 func (w *World) load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {

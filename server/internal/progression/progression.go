@@ -37,3 +37,13 @@ type ExpCurve interface {
 	ExpToNext(level int) (int64, bool)
 	LevelCap() int
 }
+
+// Plus is the two summed, as what a character wears adds up.
+func (s ItemStats) Plus(o ItemStats) ItemStats {
+	return ItemStats{
+		Attack: s.Attack + o.Attack, Defense: s.Defense + o.Defense,
+		STR: s.STR + o.STR, DEX: s.DEX + o.DEX, INT: s.INT + o.INT, AGI: s.AGI + o.AGI, VIT: s.VIT + o.VIT,
+		Accuracy: s.Accuracy + o.Accuracy, Evasion: s.Evasion + o.Evasion, CritRate: s.CritRate + o.CritRate, CritDamage: s.CritDamage + o.CritDamage,
+		MaxHP: s.MaxHP + o.MaxHP, MaxMP: s.MaxMP + o.MaxMP,
+	}
+}

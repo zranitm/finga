@@ -201,10 +201,12 @@ type Options struct {
 	Observer           instance.TickObserver
 	Transfer           instance.Mover // a map's; the World moves players itself
 	Items              loot.Pickups
+	Equipment          instance.Equipment
 	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
 	Characters         world.Characters
 	Starter            world.Starter
+	Wardrobe           world.Wardrobe
 	Logger             *slog.Logger // the World's
 	Traces             trace.TracerProvider
 	SaveObserver       world.SaveObserver
@@ -227,6 +229,9 @@ func (o Options) Fill() Options {
 	if o.Items == nil {
 		o.Items = nobody{}
 	}
+	if o.Equipment == nil {
+		o.Equipment = nobody{}
+	}
 	if o.ItemCalls == nil {
 		o.ItemCalls = itemcalls.NewPool(itemcalls.Deps{Observer: nobody{}, Panics: DiscardPanics()}, itemcalls.Options{Workers: 1})
 	}
@@ -238,6 +243,9 @@ func (o Options) Fill() Options {
 	}
 	if o.Starter == nil {
 		o.Starter = nobody{}
+	}
+	if o.Wardrobe == nil {
+		o.Wardrobe = nobody{}
 	}
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.DiscardHandler)
@@ -253,7 +261,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Equipment: o.Equipment, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -291,7 +299,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
 	o = o.Fill()
 	return world.New(world.Deps{
-		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter,
+		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe,
 		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
 	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout})
 }
@@ -382,3 +390,16 @@ func (nobody) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID
 func (nobody) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {
 	return model.Character{}, errNobody
 }
+
+// Equip refuses.
+func (nobody) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
+	return model.Equipped{}, errNobody
+}
+
+// Unequip refuses.
+func (nobody) Unequip(context.Context, model.UnequipCall) (model.Equipped, error) {
+	return model.Equipped{}, errNobody
+}
+
+// Worn wears nothing, so a join goes on.
+func (nobody) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { return model.Worn{}, nil }

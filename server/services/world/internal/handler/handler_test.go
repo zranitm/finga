@@ -19,6 +19,7 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
@@ -107,7 +108,23 @@ type stack struct {
 	data    *gamedata.Data
 }
 
-func newStack(t *testing.T) *stack {
+// wears answers every equip with a cap in the hat slot for 30 max HP, or with err; it reads nothing worn.
+type wears struct{ err error }
+
+func (w wears) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
+	item := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{Defense: 3, MaxHP: 30}}
+	return model.Equipped{Slots: []model.Slot{{Tab: gamedata.Equip, Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: item}}, Worn: model.Worn{Revision: 2, Stats: *item.Stats}}, w.err
+}
+
+func (w wears) Unequip(context.Context, model.UnequipCall) (model.Equipped, error) {
+	return model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat"}}, Worn: model.Worn{Revision: 3}}, w.err
+}
+
+func (wears) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { return model.Worn{}, nil }
+
+func newStack(t *testing.T) *stack { return newStackWearing(t, wears{}) }
+
+func newStackWearing(t *testing.T, eq wears) *stack {
 	t.Helper()
 	data, err := gamedata.Load(filepath.Join("..", "..", "..", "..", "data"))
 	if err != nil {
@@ -116,7 +133,7 @@ func newStack(t *testing.T) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Equipment: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -437,5 +454,46 @@ func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
 		if !used[r] {
 			t.Errorf("%s has no row in Errors", r)
 		}
+	}
+}
+
+func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	ayla := s.character("Ayla")
+	view := s.join(t, "gw-1", "c1", ayla)
+	if view.GetSheet().GetDerived().GetMaxHp() != view.GetMaxHp() || view.GetSheet().GetPrimary().GetStrength() != 12 {
+		t.Fatalf("the joined view's sheet %+v", view.GetSheet())
+	}
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	if _, err := s.c.Equip(s.ctx, &worldv1.EquipRequest{Presence: presence, IdempotencyKey: "k-1", ItemId: kernel.NewItemID().String()}); err != nil {
+		t.Fatal(err)
+	}
+	inv := until(t, stream, "the equip's InventoryChanged", func(m *worldv1.DeliverResponse) bool { return m.GetInventoryChanged() != nil }).GetInventoryChanged()
+	if eq := inv.GetEquipment(); inv.GetRevision() != 2 || len(eq) != 1 || eq[0].GetEquipSlot() != "hat" || eq[0].GetItem().GetStats().GetDefense() != 3 {
+		t.Fatalf("inventory change %+v", inv)
+	}
+	stats := until(t, stream, "StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
+	if stats.GetMaxHp() != 234 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetDefense() != 3 {
+		t.Fatalf("stats change %+v", stats)
+	}
+	to := int32(5)
+	if _, err := s.c.Unequip(s.ctx, &worldv1.UnequipRequest{Presence: presence, IdempotencyKey: "k-2", EquipSlot: "hat", ToSlot: &to}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAnEquipRefusalKeepsTheItemServicesReason(t *testing.T) {
+	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW))
+	s := newStackWearing(t, wears{err: refused})
+	s.gateway(t, "gw-1")
+	ayla := s.character("Ayla")
+	s.join(t, "gw-1", "c1", ayla)
+	_, err := s.c.Equip(s.ctx, &worldv1.EquipRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, IdempotencyKey: "k-1", ItemId: kernel.NewItemID().String()})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v, want the item service's level_too_low", err)
+	}
+	if _, err := s.c.Equip(s.ctx, &worldv1.EquipRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, IdempotencyKey: "k-1", ItemId: "nope"}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed item ID: %v", err)
 	}
 }

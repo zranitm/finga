@@ -65,6 +65,11 @@
     "message": "request body too large"
   },
   {
+    "code": "character_dead",
+    "status": 409,
+    "message": "you can't do that while dead"
+  },
+  {
     "code": "character_not_found",
     "status": 404,
     "message": "character not found"

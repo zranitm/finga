@@ -5,6 +5,7 @@ import (
 
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
+	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/hub"
 	"finga/services/world/internal/application/instance"
@@ -52,12 +53,18 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 	case model.LevelUp:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_LevelUp{LevelUp: &worldv1.LevelUp{Character: &worldv1.CharacterView{
 			Id: ev.ID.String(), Name: ev.Name, Class: ev.Class.String(), Level: int32(ev.Level), Exp: ev.Exp, Stats: stats(ev.Stats),
-			Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP),
+			Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet),
 		}}}}
+	case model.StatsChanged:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
+			Sheet: statSheet(ev.Sheet), Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP),
+		}}}
 	case model.Chat:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}}
 	case model.InventoryChanged:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Slots: slots(ev.Slots), Revision: ev.Revision}}}
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
+			Slots: slots(ev.Slots), Revision: ev.Revision, Equipment: equipSlots(ev.Equipment),
+		}}}
 	case model.PickupFailed:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: s.pickupFailed(ev.Err)}}
 	case model.Detached:
@@ -133,11 +140,50 @@ func slots(in []model.Slot) []*worldv1.Slot {
 	for _, s := range in {
 		slot := &worldv1.Slot{Tab: string(s.Tab), Slot: int32(s.Slot)}
 		if s.Item != nil {
-			slot.Item = &worldv1.Item{Id: s.Item.ID.String(), TemplateId: s.Item.Template, Tab: string(s.Tab), Slot: int32(s.Slot), Quantity: int32(s.Item.Quantity)}
+			slot.Item = item(s.Item)
+			slot.Item.Tab, slot.Item.Slot = string(s.Tab), int32(s.Slot)
 		}
 		out = append(out, slot)
 	}
 	return out
+}
+
+func equipSlots(in []model.EquipSlot) []*worldv1.EquipSlot {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*worldv1.EquipSlot, 0, len(in))
+	for _, s := range in {
+		slot := &worldv1.EquipSlot{EquipSlot: s.Slot}
+		if s.Item != nil {
+			slot.Item = item(s.Item)
+		}
+		out = append(out, slot)
+	}
+	return out
+}
+
+func item(it *model.SlotItem) *worldv1.Item {
+	out := &worldv1.Item{Id: it.ID.String(), TemplateId: it.Template, Quantity: int32(it.Quantity)}
+	if s := it.Stats; s != nil {
+		//nolint:gosec // stats are small
+		out.Stats = &worldv1.ItemStats{
+			Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+		}
+	}
+	return out
+}
+
+func statSheet(s progression.Sheet) *worldv1.StatSheet {
+	return &worldv1.StatSheet{Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn)}
+}
+
+func derived(d progression.Derived) *worldv1.DerivedStats {
+	return &worldv1.DerivedStats{
+		AttackPower: d.AttackPower, Defense: d.Defense, Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage,
+		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP), //nolint:gosec // HP and MP are small
+	}
 }
 
 // gatewayStream is one gateway's delivery stream.

@@ -15,6 +15,7 @@ import (
 	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
+	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/model"
@@ -25,7 +26,10 @@ type items struct {
 	mu       sync.Mutex
 	adds     []*itemv1.AddRequest
 	grants   []*itemv1.GrantStarterRequest
+	equips   []*itemv1.EquipRequest
+	unequips []*itemv1.UnequipRequest
 	changed  []*itemv1.Slot
+	worn     []*itemv1.EquipSlot // the equip slots an equip or unequip changed
 	held     []*itemv1.Item
 	revision uint64   // every answer's
 	asked    []string // each Inventory's character
@@ -51,6 +55,20 @@ func (f *items) GrantStarter(_ context.Context, req *itemv1.GrantStarterRequest)
 	defer f.mu.Unlock()
 	f.grants = append(f.grants, req)
 	return &itemv1.GrantStarterResponse{}, f.err
+}
+
+func (f *items) Equip(_ context.Context, req *itemv1.EquipRequest) (*itemv1.EquipResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.equips = append(f.equips, req)
+	return &itemv1.EquipResponse{Changed: f.changed, Equipment: f.worn, Worn: f.held, Revision: f.revision}, f.err
+}
+
+func (f *items) Unequip(_ context.Context, req *itemv1.UnequipRequest) (*itemv1.UnequipResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unequips = append(f.unequips, req)
+	return &itemv1.UnequipResponse{Changed: f.changed, Equipment: f.worn, Worn: f.held, Revision: f.revision}, f.err
 }
 
 func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
@@ -172,5 +190,61 @@ func TestPickupsReadTheWholeInventoryAsSlotsAtItsRevision(t *testing.T) {
 	f.held = []*itemv1.Item{{Id: "nope", TemplateId: "slime_gel", Tab: "etc"}}
 	if _, err := clients.NewPickups(itemClient(t, f)).Inventory(context.Background(), ayla); err == nil {
 		t.Fatal("an item with a malformed ID was read")
+	}
+}
+
+func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
+	sword, hat := kernel.NewItemID(), kernel.NewItemID()
+	wornSword := &itemv1.Item{Id: sword.String(), TemplateId: "iron_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{Attack: 17, MaxHp: 5}}
+	wornHat := &itemv1.Item{Id: hat.String(), TemplateId: "leather_cap", Quantity: 1, EquipSlot: "hat", Stats: &itemv1.ItemStats{Defense: 3, MaxHp: 10}}
+	f := &items{
+		changed: []*itemv1.Slot{{Tab: "equip", Slot: 4}}, worn: []*itemv1.EquipSlot{{EquipSlot: "weapon", Item: wornSword}},
+		held: []*itemv1.Item{wornSword, wornHat}, revision: 21,
+	}
+	e := clients.NewEquipment(itemClient(t, f))
+	call := model.EquipCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: "k-1", Item: sword, Level: 9, Class: kernel.Warrior}
+	got, err := e.Equip(context.Background(), call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := f.equips[0]
+	if req.GetIdempotencyKey() != "k-1" || req.GetItemId() != sword.String() || req.GetLevel() != 9 || req.GetClass() != "warrior" || req.GetActor().GetCharacterId() != call.Character.String() || req.GetActor().GetAccountId() != call.Account.String() {
+		t.Fatalf("request %+v", req)
+	}
+	want := progression.ItemStats{Attack: 17, Defense: 3, MaxHP: 15}
+	if got.Worn != (model.Worn{Revision: 21, Stats: want}) {
+		t.Fatalf("worn %+v; want everything worn summed at revision 21", got.Worn)
+	}
+	if len(got.Slots) != 1 || got.Slots[0].Slot != 4 || got.Slots[0].Item != nil || len(got.Equipment) != 1 || got.Equipment[0].Slot != "weapon" || got.Equipment[0].Item.ID != sword || *got.Equipment[0].Item.Stats != (progression.ItemStats{Attack: 17, MaxHP: 5}) {
+		t.Fatalf("changed %+v, equipment %+v", got.Slots, got.Equipment)
+	}
+
+	to := 6
+	if _, err := e.Unequip(context.Background(), model.UnequipCall{Key: "k-2", EquipSlot: "hat", ToSlot: &to}); err != nil || f.unequips[0].GetToSlot() != 6 || f.unequips[0].GetEquipSlot() != "hat" {
+		t.Fatalf("unequip %+v, %v", f.unequips, err)
+	}
+	if _, err := e.Unequip(context.Background(), model.UnequipCall{Key: "k-3", EquipSlot: "hat"}); err != nil || f.unequips[1].ToSlot != nil {
+		t.Fatalf("an unequip to the first free slot sent %+v, %v", f.unequips[1], err)
+	}
+
+	w, err := e.Worn(context.Background(), call.Character)
+	if err != nil || w != (model.Worn{Revision: 21, Stats: want}) {
+		t.Fatalf("worn %+v, %v", w, err)
+	}
+}
+
+func TestEquipmentFailures(t *testing.T) {
+	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW))
+	e := clients.NewEquipment(itemClient(t, &items{err: refused}))
+	_, err := e.Equip(context.Background(), model.EquipCall{Key: "k-1", Item: kernel.NewItemID(), Class: kernel.Warrior})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW) {
+		t.Fatalf("a refusal arrived as %v; want its reason kept", err)
+	}
+	e = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")}))
+	if _, err := e.Equip(context.Background(), model.EquipCall{Key: "k-1", Item: kernel.NewItemID(), Class: kernel.Warrior}); !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("an outage arrived as %v; want it transient", err)
+	}
+	if _, err := e.Worn(context.Background(), kernel.NewCharacterID()); !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("a read in an outage arrived as %v; want it transient", err)
 	}
 }

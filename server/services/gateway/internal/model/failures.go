@@ -47,6 +47,7 @@ var (
 	WrongEquipSlot       = Public{"wrong_equip_slot", "that item doesn't go there"}
 	NotEquipment         = Public{"not_equipment", "only equipment can be worn"}
 	NothingWorn          = Public{"nothing_worn", "nothing is worn there"}
+	CharacterDead        = Public{"character_dead", "you can't do that while dead"}
 	NotPartyLeader       = Public{"not_party_leader", "only the party leader can do that"}
 	PartyFull            = Public{"party_full", "the party is full"}
 	AlreadyInParty       = Public{"already_in_party", "already in a party"}

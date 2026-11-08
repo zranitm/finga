@@ -49,6 +49,7 @@ var statuses = map[model.Public]int{
 	model.WrongEquipSlot:       http.StatusBadRequest,
 	model.NotEquipment:         http.StatusBadRequest,
 	model.NothingWorn:          http.StatusConflict,
+	model.CharacterDead:        http.StatusConflict,
 	model.NotPartyLeader:       http.StatusConflict,
 	model.PartyFull:            http.StatusConflict,
 	model.AlreadyInParty:       http.StatusConflict,

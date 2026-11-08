@@ -109,8 +109,8 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 	var left []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		if !p.dead || p.deadUntil > i.tick {
-			continue
+		if !p.dead || p.deadUntil > i.tick || p.equipping > 0 && i.m.Town != i.m.ID {
+			continue // an equip in flight settles here before the respawn hands the player off
 		}
 		p.dead = false
 		p.HP = RespawnHP(p.derived.MaxHP)

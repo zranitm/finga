@@ -49,6 +49,7 @@ type player struct {
 	deadUntil     uint64
 	changed       bool          // HP, level or death changed this tick
 	private       []model.Event // events for this player only
+	equipping     int           // equips and unequips in flight, which keep the player on this map
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -68,7 +69,7 @@ func (i *Instance) add(j *joinMsg) {
 		joined:  true,
 		slot:    i.nextSlot,
 		class:   class,
-		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, progression.ItemStats{}),
+		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, j.player.Worn.Stats),
 	}
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)

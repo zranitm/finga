@@ -153,9 +153,9 @@ sequenceDiagram
 - **The world's handler waits; the tick doesn't.** The `Equip` RPC posts a message with a reply channel and waits for the outcome, within the gateway's 5-second limit. The tick only drains the inbox, hands the job to a worker, and later applies the result.
 - **On the tick, before the call:**
   - A dead character is refused with `character_dead`.
-  - When no worker is free, the answer is `unavailable`: the client may retry, and the key makes the retry safe.
+  - When no worker is free, the map's inbox is full, or the connection no longer holds the character (mid-transfer, say), the answer is `unavailable`: the client may retry, and the key makes the retry safe.
 - **On the tick, after the call:**
-  - The world replaces the player's worn sum with the one returned, re-derives, and lowers HP and MP to any new maximum (D3).
+  - The world replaces the player's worn sum with the one returned, re-derives, and lowers HP and MP to any new maximum (D3). It does so only when the result's revision is newer than the worn sum's, so a result that lands after a rejoin read something newer changes nothing.
   - It marks the player changed, so the next Delta carries the new max HP to everyone on the map.
   - It queues `InventoryChanged` (inventory and equip slots, revision) and `StatsChanged` (the sheet, HP, MP) as the player's private events.
   - It answers the waiting RPC.
@@ -170,6 +170,7 @@ sequenceDiagram
 - **Welcome:** the gateway's `Inventory` call already happens during Hello. Its worn items go into `Welcome.equipment` under the same revision as the inventory.
 - **Rejoin after a world restart** reloads the worn items the same way, so combat is right again after the freeze. The client's view doesn't change, since nothing it holds changed.
 - **Portals, deaths, and level-ups:** the worn sum travels with the player through `handOff`. Level-up re-derives with it (`progress.go`), as does every landing (`players.go`). Respawn HP is half of the maximum with equipment.
+- **An equip in flight keeps the player on its map:** a portal is refused and a respawn away from the map waits until the result settles, so it applies where the player is and the hand-off carries it. An item call takes milliseconds, and at most its 5-second timeout.
 - **Checkpoints don't change:** the character service stores HP and MP. Max values are never stored, and a join clamps HP to the maximum it derives.
 
 ## 7. Protocol
@@ -286,8 +287,8 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
 2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
 3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
 4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item service, as no client route exists yet). The item service's six new error codes reach the client in this step, since `item_worn` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
-5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`.
-6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, `character_dead`, the contracts, and starter equipment worn from the start, now that the client shows it.
+5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`, with `character_dead` reaching the client as its reason arrives.
+6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the contracts, and starter equipment worn from the start, now that the client shows it.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
 8. **Client, item card:** the hover card and the comparison.
 9. **Content and balance:** the new items, drop lists, and tuning.

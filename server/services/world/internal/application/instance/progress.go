@@ -45,10 +45,13 @@ func (i *Instance) award(p *player, amount int64) {
 		return
 	}
 	formulas, _ := i.data.Formulas(p.Class)
-	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, progression.ItemStats{})
+	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, p.Worn.Stats)
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
-	p.private = append(p.private, model.LevelUp{Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	p.private = append(p.private, model.LevelUp{
+		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats,
+		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: i.sheet(p),
+	})
 	i.tellParty(p, i.m.ID)
 	i.checkpoint(p)
 }

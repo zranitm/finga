@@ -6,7 +6,9 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	worldv1 "finga/api/gen/world/v1"
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/hub"
 	"finga/services/world/internal/model"
 )
@@ -72,6 +74,51 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 			{Tab: "etc", Slot: 2, Item: &worldv1.Item{Id: item.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
 			{Tab: "etc", Slot: 4},
 		},
+	}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// An equip's change carries the equip slots and each equipment item's roll.
+func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub}
+	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{Defense: 3, MaxHP: 30}}
+	if !s.Send(model.InventoryChanged{Tick: 4, Revision: 7, Slots: []model.Slot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
+		t.Fatal("the stream refused the change")
+	}
+	want := &worldv1.DeliverResponse{Tick: 4, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
+		Revision: 7,
+		Slots:    []*worldv1.Slot{{Tab: "equip", Slot: 0}},
+		Equipment: []*worldv1.EquipSlot{
+			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3, MaxHp: 30}}},
+			{EquipSlot: "weapon"},
+		},
+	}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestStatsChangedCarriesTheSheet(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub}
+	sheet := progression.Sheet{
+		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
+		Derived:     progression.Derived{MaxHP: 234, MaxMP: 28, AttackPower: 33.5, Accuracy: 21, Evasion: 9, Defense: 18, CritRate: 0.06, CritDamage: 0.525},
+		DerivedWorn: progression.Derived{MaxHP: 30, AttackPower: 12.5, Defense: 3},
+	}
+	if !s.Send(model.StatsChanged{Tick: 5, Sheet: sheet, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+		t.Fatal("the stream refused the change")
+	}
+	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
+		Sheet: &worldv1.StatSheet{
+			Primary: &worldv1.Stats{Strength: 16, Vitality: 10}, PrimaryWorn: &worldv1.Stats{Strength: 4},
+			Derived:     &worldv1.DerivedStats{AttackPower: 33.5, Defense: 18, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525, MaxHp: 234, MaxMp: 28},
+			DerivedWorn: &worldv1.DerivedStats{AttackPower: 12.5, Defense: 3, MaxHp: 30},
+		},
+		Hp: 200, MaxHp: 234, Mp: 20, MaxMp: 28,
 	}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)

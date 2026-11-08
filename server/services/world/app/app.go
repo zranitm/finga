@@ -75,11 +75,14 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 
 	nodeID := uuidv7.NewString()
 	parties := party.NewCopy(party.Deps{Social: clients.NewSocial(socialv1.NewSocialServiceClient(socialConn), rec), Logger: log}, party.Options{World: nodeID})
+	equipment := clients.NewEquipment(items)
 	maps := world.New(world.Deps{
 		Data:         data,
 		NewRoll:      newRoll,
 		Observer:     metrics,
 		Items:        clients.NewPickups(items),
+		Equipment:    equipment,
+		Wardrobe:     equipment,
 		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: metrics, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
 		Parties:      parties,
 		Traces:       h.Traces,

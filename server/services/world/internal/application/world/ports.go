@@ -17,6 +17,11 @@ type Starter interface {
 	GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error
 }
 
+// Wardrobe reads what a character wears; a join can't derive its stats without it, so it fails while the read does.
+type Wardrobe interface {
+	Worn(ctx context.Context, id kernel.CharacterID) (model.Worn, error)
+}
+
 // Saver persists checkpoints, from the persistence worker, never from a tick.
 type Saver interface {
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
