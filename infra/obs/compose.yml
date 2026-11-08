@@ -1,7 +1,8 @@
-# The observability stack, under the obs profile (make up OBS=1): Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
+# The observability stack as its own Compose project, so Docker Desktop starts and stops it as one group (make up OBS=1): Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
+name: finga-obs
+
 services:
   alloy:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/alloy:v1.21.0
     command: [run, /etc/alloy/config.alloy, --storage.path=/var/lib/alloy/data]
@@ -9,10 +10,10 @@ services:
       - ./config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro   # the containers' logs
       - alloy-data:/var/lib/alloy/data
+    networks: [default, game]   # game: it scrapes the services, and they send it their traces
     depends_on: [mimir, loki, tempo]
 
   mimir:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/mimir:3.2.2
     command: [-config.file=/etc/mimir.yaml]
@@ -21,7 +22,6 @@ services:
       - mimir-data:/data
 
   loki:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/loki:3.7.9
     command: [-config.file=/etc/loki.yaml]
@@ -30,7 +30,6 @@ services:
       - loki-data:/loki
 
   tempo:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/tempo:3.1.1
     command: [-target=all, -config.file=/etc/tempo.yaml]
@@ -40,7 +39,6 @@ services:
       - tempo-data:/var/tempo
 
   grafana:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/grafana:13.2.4
     ports:
@@ -55,6 +53,11 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on: [mimir, loki, tempo]
+
+networks:
+  game:
+    name: finga_default   # the game's network, named in ../docker-compose.yml; make up starts the game first
+    external: true
 
 volumes:
   alloy-data:

@@ -1,13 +1,10 @@
 # make up / make down: host ports come from .env here (see .env.example), the binaries' overrides from ../server/.env, and the environment entries below win over it.
 name: finga
 
-include:
-  - obs/compose.yml
-
 x-database: &database
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
 
-# Empty exports nothing; make up OBS=1 points it at Alloy, which only the obs profile runs.
+# Empty exports nothing; make up OBS=1 points it at Alloy, which the finga-obs project (obs/compose.yml) runs.
 x-tracing: &tracing
   FINGA_TRACING_OTLP_ENDPOINT: ${FINGA_TRACING_OTLP_ENDPOINT:-}
 
@@ -210,6 +207,10 @@ services:
     depends_on:
       gateway:
         condition: service_healthy
+
+networks:
+  default:
+    name: finga_default   # named, as the finga-obs project's Alloy joins it
 
 volumes:
   pgdata:

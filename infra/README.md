@@ -12,8 +12,11 @@ How Finga runs, apart from the code that runs.
 - `nginx/`: the web client's server. It serves the client and passes `/api`
   and `/ws` to the gateway, so the browser sees one origin, and holds the
   limits per client address.
-- `obs/`: the observability stack, which `make up OBS=1` runs beside the
-  game under the `obs` profile; plain `make up` leaves it out. Grafana, at
+- `obs/`: the observability stack, its own Compose project (`finga-obs`),
+  so Docker Desktop shows it as one group that stops and starts with one
+  button. `make up OBS=1` runs it after the game; plain `make up` stops it.
+  Alloy joins the game's network (`finga_default`), so the game must be up
+  before the stack starts. Grafana, at
   http://localhost:3000, shows the Finga dashboard over Mimir (metrics),
   Loki (logs) and Tempo (traces). Alloy feeds all three: it scrapes each
   service's `/metrics`, reads the containers' logs, and relays the traces
