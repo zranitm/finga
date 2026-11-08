@@ -18,7 +18,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/uuidv7"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/model"
 )
 
@@ -31,7 +31,7 @@ const (
 	callTimeout = 5 * time.Second
 )
 
-// Pickups is the item service, called from economy workers, never inside a tick.
+// Pickups is the item service, called from the item-call pool, never inside a tick.
 type Pickups interface {
 	// Add grants the pickup and returns the slots it changed, at the revision it took.
 	Add(ctx context.Context, p model.Pickup) (model.Inventory, error)
@@ -50,12 +50,12 @@ type Parties interface {
 
 // Deps are what a map's ground calls; all are required.
 type Deps struct {
-	Items   Pickups
-	Workers *economy.Workers
-	Parties Parties
-	Traces  trace.TracerProvider // starts each pickup's trace
-	Roll    model.Roll           // the map's random source, used only on its tick goroutine
-	Logger  *slog.Logger
+	Items     Pickups
+	ItemCalls *itemcalls.Pool
+	Parties   Parties
+	Traces    trace.TracerProvider // starts each pickup's trace
+	Roll      model.Roll           // the map's random source, used only on its tick goroutine
+	Logger    *slog.Logger
 }
 
 // Tuning is the map's tick.
@@ -91,7 +91,7 @@ func (d *drop) view() model.DropView {
 	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y}
 }
 
-// Ground is one map's drops; only the map's tick goroutine touches it, and its pickups run on the economy's workers.
+// Ground is one map's drops; only the map's tick goroutine touches it, and its pickups run on the item-call pool.
 type Ground struct {
 	roll     model.Roll
 	interval time.Duration // the map's tick
@@ -201,7 +201,7 @@ func (g *Ground) PickUp(p Picker, done func(ctx context.Context, r Result)) erro
 
 // submit hands a worker the grant of pu, false when none can take it.
 func (g *Ground) submit(pu pickup, last bool) bool {
-	return g.deps.Workers.Submit(func(ctx context.Context) {
+	return g.deps.ItemCalls.Submit(func(ctx context.Context) {
 		r := g.grant(ctx, pu)
 		r.last = last
 		pu.done(ctx, r)

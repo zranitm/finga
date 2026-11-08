@@ -13,7 +13,7 @@ import (
 
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
@@ -162,15 +162,15 @@ func TestALeaveRacingAPortalLeavesNoGhost(t *testing.T) {
 
 type idleJobs struct{}
 
-func (idleJobs) JobStarted()  {}
-func (idleJobs) JobFinished() {}
+func (idleJobs) CallQueued() {}
+func (idleJobs) CallDone()   {}
 
 // On shutdown a map can stop while another still runs its last tick; a transfer into it is no failure, as the player was saved there.
 func TestATransferIntoAMapThatStoppedFirstIsNoFailure(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var logs bytes.Buffer
-		workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 1})
-		w := newWorld(t, &fakeSaver{}, worldtest.Options{CheckpointInterval: time.Hour, Workers: workers, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		workers := itemcalls.NewPool(itemcalls.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 1})
+		w := newWorld(t, &fakeSaver{}, worldtest.Options{CheckpointInterval: time.Hour, ItemCalls: workers, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); _ = w.Run(ctx) }()

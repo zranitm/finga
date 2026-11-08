@@ -103,7 +103,7 @@ func (w *World) Run(ctx context.Context) error {
 	go func() { defer close(saved); w.persistence(retryCtx, stopped) }()
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error { return w.deps.Workers.Run(gctx) })
+	g.Go(func() error { return w.deps.ItemCalls.Run(gctx) })
 	for _, id := range w.order {
 		inst := w.instances[id]
 		g.Go(func() (err error) {

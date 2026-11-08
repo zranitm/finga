@@ -12,8 +12,8 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
-	"finga/services/world/internal/application/economy"
 	"finga/services/world/internal/application/instance"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 
@@ -166,11 +166,11 @@ func pickupFailures(s *worldtest.Sink) []model.PickupFailed {
 
 func runLootArena(t *testing.T, data *gamedata.Data, items *fakePickups, roll float64, extra ...worldtest.Options) (*instance.Instance, func()) {
 	t.Helper()
-	workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
+	workers := itemcalls.NewPool(itemcalls.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 2})
 	ctx, cancel := context.WithCancel(context.Background())
 	workersDone := make(chan struct{})
 	go func() { defer close(workersDone); _ = workers.Run(ctx) }()
-	opts := worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: items, Workers: workers}
+	opts := worldtest.Options{NewRoll: worldtest.Rolls(roll), Items: items, ItemCalls: workers}
 	if len(extra) > 0 {
 		opts.Parties = extra[0].Parties
 	}
@@ -607,7 +607,7 @@ func TestAPickupResultReachesAPlayerWhoLeftThroughAPortal(t *testing.T) {
 		data := worldtest.LoadData(t)
 		items := newFakePickups()
 		items.gate = make(chan struct{})
-		workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
+		workers := itemcalls.NewPool(itemcalls.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 2})
 		ctx, cancel := context.WithCancel(context.Background())
 		workersDone := make(chan struct{})
 		go func() { defer close(workersDone); _ = workers.Run(ctx) }()
@@ -615,7 +615,7 @@ func TestAPickupResultReachesAPlayerWhoLeftThroughAPortal(t *testing.T) {
 		m := arena(time.Hour)
 		m.Portals = []gamedata.Portal{{Name: "to_town", Area: sim.Rect{X: 200, Y: 560, W: 200, H: 48}, TargetMap: "town", TargetPortal: "to_forest"}}
 		tr := &transferRecorder{}
-		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(0.3), Items: items, Workers: workers, Transfer: tr})
+		inst, stop := worldtest.RunMap(t, data, m, nil, worldtest.Options{NewRoll: worldtest.Rolls(0.3), Items: items, ItemCalls: workers, Transfer: tr})
 		defer stop()
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
@@ -648,11 +648,11 @@ func TestAPickupAfterItsMapStoppedDoesNotHangTheWorkers(t *testing.T) {
 		data := worldtest.LoadData(t)
 		items := newFakePickups()
 		items.gate = make(chan struct{})
-		workers := economy.NewWorkers(economy.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
+		workers := itemcalls.NewPool(itemcalls.Deps{Observer: idleJobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 2})
 		ctx, cancel := context.WithCancel(context.Background())
 		workersDone := make(chan struct{})
 		go func() { defer close(workersDone); _ = workers.Run(ctx) }()
-		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.3), Items: items, Workers: workers})
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.3), Items: items, ItemCalls: workers})
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(250)
@@ -727,5 +727,5 @@ func TestAPickupAnEarlierTryGrantedRemovesTheDrop(t *testing.T) {
 // idleJobs counts nothing; the loot tests read the item service's calls instead.
 type idleJobs struct{}
 
-func (idleJobs) JobStarted()  {}
-func (idleJobs) JobFinished() {}
+func (idleJobs) CallQueued() {}
+func (idleJobs) CallDone()   {}

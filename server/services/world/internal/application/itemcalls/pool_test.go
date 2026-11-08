@@ -1,4 +1,4 @@
-package economy_test
+package itemcalls_test
 
 import (
 	"bytes"
@@ -11,21 +11,21 @@ import (
 	"time"
 
 	"finga/pkg/panics"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/worldtest"
 )
 
-// counts tallies the jobs the pool started and finished.
+// counts tallies the calls the pool queued and finished.
 type counts struct{ started, finished atomic.Int32 }
 
-func (e *counts) JobStarted() { e.started.Add(1) }
+func (e *counts) CallQueued() { e.started.Add(1) }
 
-func (e *counts) JobFinished() { e.finished.Add(1) }
+func (e *counts) CallDone() { e.finished.Add(1) }
 
 func TestAPanickingJobIsRecordedAndTheWorkerGoesOn(t *testing.T) {
 	var logs bytes.Buffer
 	obs := &counts{}
-	w := economy.NewWorkers(economy.Deps{Observer: obs, Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)}, economy.Options{Workers: 1})
+	w := itemcalls.NewPool(itemcalls.Deps{Observer: obs, Panics: panics.NewRecorder(slog.New(slog.NewJSONHandler(&logs, nil)), nil)}, itemcalls.Options{Workers: 1})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
@@ -44,15 +44,15 @@ func TestAPanickingJobIsRecordedAndTheWorkerGoesOn(t *testing.T) {
 	}
 }
 
-// finishPanics is an economy observer whose JobFinished panics, outside any job.
+// finishPanics is an observer whose CallDone panics, outside any call.
 type finishPanics struct{}
 
-func (finishPanics) JobStarted() {}
+func (finishPanics) CallQueued() {}
 
-func (finishPanics) JobFinished() { panic("broken gauge") }
+func (finishPanics) CallDone() { panic("broken gauge") }
 
 func TestAPanicInAWorkerOutsideAJobStopsThePool(t *testing.T) {
-	w := economy.NewWorkers(economy.Deps{Observer: finishPanics{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 2})
+	w := itemcalls.NewPool(itemcalls.Deps{Observer: finishPanics{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 2})
 	w.Submit(func(context.Context) {})
 	done := make(chan error, 1)
 	go func() { done <- w.Run(context.Background()) }()

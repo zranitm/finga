@@ -15,7 +15,7 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/tick"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/application/mobs"
 	"finga/services/world/internal/model"
@@ -34,12 +34,12 @@ type Tuning struct {
 
 // Services are what every map of a World calls; all are required.
 type Services struct {
-	NewRoll  func() model.Roll // each map's random source, used only on its tick goroutine
-	Observer TickObserver
-	Parties  Parties
-	Items    loot.Pickups
-	Workers  *economy.Workers
-	Traces   trace.TracerProvider // starts each pickup's trace
+	NewRoll   func() model.Roll // each map's random source, used only on its tick goroutine
+	Observer  TickObserver
+	Parties   Parties
+	Items     loot.Pickups
+	ItemCalls *itemcalls.Pool
+	Traces    trace.TracerProvider // starts each pickup's trace
 }
 
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
@@ -143,7 +143,7 @@ func New(d Deps, t Tuning) *Instance {
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
-		ground:   loot.NewGround(loot.Deps{Items: d.Items, Workers: d.Workers, Parties: d.Parties, Traces: d.Traces, Roll: roll, Logger: d.Logger}, loot.Tuning{TickInterval: t.TickInterval}),
+		ground:   loot.NewGround(loot.Deps{Items: d.Items, ItemCalls: d.ItemCalls, Parties: d.Parties, Traces: d.Traces, Roll: roll, Logger: d.Logger}, loot.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 	}

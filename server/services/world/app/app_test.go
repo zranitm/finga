@@ -90,7 +90,7 @@ func TestATickOfWholeStepsIsAcceptedAtAnyRate(t *testing.T) {
 	for _, hz := range []int{10, 12, 15, 20, 30, 60} {
 		cfg := config.Config{
 			GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-			DataDir: "../../../data", TickRateHz: hz, CheckpointInterval: 30 * time.Second, Economy: config.Economy{Workers: 1},
+			DataDir: "../../../data", TickRateHz: hz, CheckpointInterval: 30 * time.Second, ItemCalls: config.ItemCalls{Workers: 1},
 		}
 		h, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry())
 		if err != nil {
@@ -116,7 +116,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 		TickRateHz:         20,
 		CheckpointInterval: 30 * time.Second,
 		FlushTimeout:       5 * time.Second,
-		Economy:            config.Economy{Workers: 2},
+		ItemCalls:          config.ItemCalls{Workers: 2},
 		Dependencies: config.Dependencies{
 			Character: serve(t, func(s *grpc.Server) { characterv1.RegisterCharacterServiceServer(s, chars) }),
 			Item:      serve(t, func(s *grpc.Server) { itemv1.RegisterItemServiceServer(s, itemSvc) }),

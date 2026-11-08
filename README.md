@@ -133,7 +133,7 @@ console, `source`, `sampling`), and each internal service `grpc.listen` and
 | `account`   | `database.url`, `database.max_conns`; `password` (`time`, `memory_kib`, `threads`), the Argon2id cost |
 | `character` | `database`, `data_dir`, `dependencies.item`                                       |
 | `item`      | `database`, `data_dir`                                                            |
-| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `economy.workers` (8), `dependencies` on character, item and social |
+| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `dependencies` on character, item and social |
 | `social`    | none                                                                              |
 | `migrate`   | `database`, `log` only                                                            |
 
@@ -218,7 +218,7 @@ generated code committed in `server/api/gen/`:
   order, movement in fixed sub-steps shared with the client as test
   vectors, mobs, combat, EXP, drops, portals, and a delta to every player
   each tick. A tick never waits on another service: pickups go to the
-  economy worker pool, which calls the item service with the drop's ID as
+  item-call worker pool, which calls the item service with the drop's ID as
   the idempotency key, and the result comes back as an inbox message;
   checkpoints go to the character service from the persistence worker;
   party membership is a local copy fed by the social service.

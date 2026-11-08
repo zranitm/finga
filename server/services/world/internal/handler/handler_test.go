@@ -23,8 +23,8 @@ import (
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
 	"finga/pkg/sentineltest"
-	"finga/services/world/internal/application/economy"
 	"finga/services/world/internal/application/instance"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/handler"
 	"finga/services/world/internal/model"
@@ -79,8 +79,8 @@ func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, err
 	return model.Inventory{}, nil
 }
 func (idle) ObserveTick(string, time.Duration, time.Duration) {}
-func (idle) JobStarted()                                      {}
-func (idle) JobFinished()                                     {}
+func (idle) CallQueued()                                      {}
+func (idle) CallDone()                                        {}
 func (idle) SaveDropped(string)                               {}
 func (idle) Float64() float64                                 { return 0.5 }
 
@@ -116,7 +116,7 @@ func newStack(t *testing.T) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Workers: economy.NewWorkers(economy.Deps{Observer: idle{}, Panics: rec}, economy.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

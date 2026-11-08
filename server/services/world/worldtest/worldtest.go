@@ -22,8 +22,8 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/panics"
 	"finga/pkg/tracing"
-	"finga/services/world/internal/application/economy"
 	"finga/services/world/internal/application/instance"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
@@ -201,7 +201,7 @@ type Options struct {
 	Observer           instance.TickObserver
 	Transfer           instance.Mover // a map's; the World moves players itself
 	Items              loot.Pickups
-	Workers            *economy.Workers
+	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
 	Characters         world.Characters
 	Starter            world.Starter
@@ -227,8 +227,8 @@ func (o Options) Fill() Options {
 	if o.Items == nil {
 		o.Items = nobody{}
 	}
-	if o.Workers == nil {
-		o.Workers = economy.NewWorkers(economy.Deps{Observer: nobody{}, Panics: DiscardPanics()}, economy.Options{Workers: 1})
+	if o.ItemCalls == nil {
+		o.ItemCalls = itemcalls.NewPool(itemcalls.Deps{Observer: nobody{}, Panics: DiscardPanics()}, itemcalls.Options{Workers: 1})
 	}
 	if o.Parties == nil {
 		o.Parties = nobody{}
@@ -253,7 +253,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Workers: o.Workers, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -348,11 +348,11 @@ func (nobody) Epoch() uint64 { return 0 }
 // Update tells nobody.
 func (nobody) Update(kernel.CharacterID, string, int, int, int) {}
 
-// JobStarted counts nothing.
-func (nobody) JobStarted() {}
+// CallQueued counts nothing.
+func (nobody) CallQueued() {}
 
-// JobFinished counts nothing.
-func (nobody) JobFinished() {}
+// CallDone counts nothing.
+func (nobody) CallDone() {}
 
 // Retryable is never.
 func (nobody) Retryable(error) bool { return false }

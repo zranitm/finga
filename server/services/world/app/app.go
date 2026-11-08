@@ -19,7 +19,7 @@ import (
 	"finga/internal/telemetry"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/application/party"
 	"finga/services/world/internal/application/world"
@@ -80,7 +80,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		NewRoll:      newRoll,
 		Observer:     metrics,
 		Items:        clients.NewPickups(items),
-		Workers:      economy.NewWorkers(economy.Deps{Observer: metrics, Panics: rec}, economy.Options{Workers: cfg.Economy.Workers}),
+		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: metrics, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
 		Parties:      parties,
 		Traces:       h.Traces,
 		Saver:        clients.NewSaver(characters),

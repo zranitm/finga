@@ -20,7 +20,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
@@ -104,13 +104,13 @@ func (s *syncWriter) String() string {
 
 type jobs struct{}
 
-func (jobs) JobStarted()  {}
-func (jobs) JobFinished() {}
+func (jobs) CallQueued() {}
+func (jobs) CallDone()   {}
 
 type scene struct {
 	g                      *loot.Ground
 	items                  *pickups
-	workers                *economy.Workers
+	workers                *itemcalls.Pool
 	logs                   *syncWriter
 	spans                  *tracetest.SpanRecorder
 	killer, mate, stranger loot.Picker
@@ -119,7 +119,7 @@ type scene struct {
 // newScene is a ground whose slime the killer just killed at tick 1; run starts the workers that grant pickups.
 func newScene(t *testing.T, items *pickups, run bool) scene {
 	t.Helper()
-	workers := economy.NewWorkers(economy.Deps{Observer: jobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 1})
+	workers := itemcalls.NewPool(itemcalls.Deps{Observer: jobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 1})
 	if run {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -132,7 +132,7 @@ func newScene(t *testing.T, items *pickups, run bool) scene {
 	s := scene{items: items, workers: workers, logs: &syncWriter{}, spans: tracetest.NewSpanRecorder(), killer: at(), mate: at(), stranger: at()}
 	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(s.spans))
 	log := slog.New(slog.NewTextHandler(s.logs, nil))
-	s.g = loot.NewGround(loot.Deps{Items: items, Workers: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: traces, Roll: worldtest.FixedRoll{V: 0}, Logger: log}, loot.Tuning{TickInterval: tick})
+	s.g = loot.NewGround(loot.Deps{Items: items, ItemCalls: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: traces, Roll: worldtest.FixedRoll{V: 0}, Logger: log}, loot.Tuning{TickInterval: tick})
 	s.g.Begin(1)
 	s.g.Roll(slime, 200, dropY, s.killer.ID)
 	return s
