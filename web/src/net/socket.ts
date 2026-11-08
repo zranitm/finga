@@ -327,6 +327,10 @@ export class GameSocket {
         if (this.ws !== ws) {
           return;
         }
+        // For a tester's console: 1006, never clean, is a drop with no close frame, which the gateway logs as end=dropped.
+        console.info(
+          `finga: the connection closed with ${event.code}${event.reason ? ` (${event.reason})` : ''}${event.wasClean ? '' : ', not clean'}`,
+        );
         this.ws = null;
         this.stopPing();
         const kick = this.pendingKick;

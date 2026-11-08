@@ -105,7 +105,7 @@ export class FakeWebSocket {
 
   closeFromServer(code: number, reason = ''): void {
     this.readyState = FakeWebSocket.CLOSED;
-    this.onclose?.({ code, reason, wasClean: true } as CloseEvent);
+    this.onclose?.({ code, reason, wasClean: code !== 1006 } as CloseEvent); // a browser's 1006 is a drop, never clean
   }
 
   frames(): SentFrame[] {

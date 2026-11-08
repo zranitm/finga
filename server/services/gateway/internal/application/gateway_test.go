@@ -168,7 +168,7 @@ func TestHelloAndTheAccountService(t *testing.T) {
 			if err == nil || errors.Is(err, model.ErrHelloRejected) != tt.rejected || c.welcomed() != nil {
 				t.Fatalf("err = %v, welcomed %v", err, c.welcomed() != nil)
 			}
-			g.Closed(s, "hello failed")
+			g.Closed(s)
 			if w.left() != 1 {
 				t.Fatalf("%d leaves after the Hello failed past its join", w.left())
 			}

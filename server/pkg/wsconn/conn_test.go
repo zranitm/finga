@@ -212,8 +212,9 @@ func TestEcho(t *testing.T) {
 		t.Fatalf("echoed %s", data)
 	}
 	c.Close(websocket.StatusNormalClosure, "bye")
-	if err := rec.waitClosed(t); err != nil {
-		t.Fatalf("a normal closure reported %v", err)
+	var pc *wsconn.PeerClose
+	if err := rec.waitClosed(t); !errors.As(err, &pc) || pc.Code != int(websocket.StatusNormalClosure) || pc.Reason != "bye" {
+		t.Fatalf("a normal closure reported %v, want the peer's 1000 bye", err)
 	}
 	if rec.opened != 1 || len(rec.messages) != 1 || rec.messages[0].Seq != 3 || !proto.Equal(rec.messages[0].Data.(proto.Message), &clientv1.Ping{ClientTime: 7}) {
 		t.Fatalf("recorder %+v", rec)
@@ -365,6 +366,21 @@ func TestPongKeepsAResponsiveClient(t *testing.T) {
 	<-readCtx.Done()
 	_ = c.CloseNow()
 	_ = rec.waitClosed(t)
+}
+
+// A peer gone with no close frame, as when a proxy or the network cuts the connection, is neither side's close.
+func TestADropWithNoCloseFrameIsNeitherSidesClose(t *testing.T) {
+	checkLeaks(t)
+	rec := newRecorder()
+	s := start(t, rec, wsconn.Options{})
+	c := dial(t, s, "")
+	_ = c.CloseNow()
+	err := rec.waitClosed(t)
+	var ce *wsconn.CloseError
+	var pc *wsconn.PeerClose
+	if err == nil || errors.As(err, &ce) || errors.As(err, &pc) {
+		t.Fatalf("OnClose got %v, want the read error of a drop", err)
+	}
 }
 
 func TestServerSideClose(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 const (
 	CloseInternal      = int(websocket.StatusInternalError)
 	CloseNoSubprotocol = int(websocket.StatusPolicyViolation) // the client asked for none of the server's subprotocols
+	CloseDropped       = int(websocket.StatusAbnormalClosure) // never sent: what a browser reports for a connection that ended with no close frame
 	CloseSlowConsumer  = 4001
 	CloseTimeout       = 4002
 	CloseKicked        = 4003 // the handler ended the session
@@ -46,7 +47,7 @@ var (
 	ErrEncode = errors.New("wsconn: message cannot be encoded")
 )
 
-// CloseError is why we closed a connection; a peer's normal closure gives OnClose nil.
+// CloseError is why we closed a connection.
 type CloseError struct {
 	Code   int
 	Reason string // sent in the close frame
@@ -63,6 +64,16 @@ func (e *CloseError) Error() string {
 // Unwrap is the cause.
 func (e *CloseError) Unwrap() error { return e.Err }
 
+// PeerClose is the peer's close frame, a normal closure included, so the handler can log its code.
+type PeerClose struct {
+	Code   int
+	Reason string
+}
+
+func (e *PeerClose) Error() string {
+	return fmt.Sprintf("wsconn: peer closed %d: %s", e.Code, e.Reason)
+}
+
 // Conn is a live connection as the handler sees it.
 type Conn interface {
 	ID() string
@@ -73,6 +84,7 @@ type Conn interface {
 }
 
 // Handler callbacks run serially on the read goroutine; OnClose runs last, once, with a zero state if OnOpen panicked.
+// OnClose's error is how the connection ended: a *CloseError when we closed it, a *PeerClose when the peer did, else why it dropped with no close frame.
 type Handler[S any] interface {
 	OnOpen(Conn) S
 	OnMessage(Conn, S, Message)
@@ -374,12 +386,8 @@ func closeReason(ours *CloseError, readErr error) error {
 	if ours != nil {
 		return ours
 	}
-	switch websocket.CloseStatus(readErr) {
-	case websocket.StatusNormalClosure, websocket.StatusGoingAway:
-		return nil
-	}
-	if readErr == nil {
-		return nil
+	if ce, ok := errors.AsType[websocket.CloseError](readErr); ok {
+		return &PeerClose{Code: int(ce.Code), Reason: ce.Reason}
 	}
 	return readErr
 }

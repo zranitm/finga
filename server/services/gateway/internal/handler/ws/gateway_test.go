@@ -1194,6 +1194,49 @@ func (b *lockedBuffer) String() string {
 	return b.buf.String()
 }
 
+// Each close logs which side ended it and its code, so a connection dropped with no close frame stands apart from a goodbye or a kick.
+func TestAClosedConnectionLogsWhoEndedItAndItsCode(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		logs := &lockedBuffer{}
+		h := newHarness(t, func(d *deps) { d.Logger = slog.New(slog.NewJSONHandler(logs, nil)) })
+		_ = h.dial(t).c.Close(websocket.StatusGoingAway, "tab closed")
+		_ = h.dial(t).c.CloseNow()
+		bad := h.dial(t)
+		bad.sendRaw([]byte{0xff, 0xff})
+		if _, status := bad.read(); status != websocket.StatusCode(wsconn.CloseBadMessage) {
+			t.Fatalf("closed with %d, want %d", status, wsconn.CloseBadMessage)
+		}
+		synctest.Wait()
+		type closed struct {
+			End    string `json:"end"`
+			Code   int    `json:"code"`
+			Reason string `json:"reason"`
+		}
+		var got []closed
+		for line := range strings.Lines(logs.String()) {
+			var e struct {
+				Msg string `json:"msg"`
+				closed
+			}
+			if err := json.Unmarshal([]byte(line), &e); err != nil {
+				t.Fatal(err)
+			}
+			if e.Msg == "ws closed" {
+				got = append(got, e.closed)
+			}
+		}
+		slices.SortFunc(got, func(a, b closed) int { return a.Code - b.Code }) // the three end on their own goroutines
+		want := []closed{
+			{End: "client", Code: int(websocket.StatusGoingAway), Reason: "tab closed"},
+			{End: "dropped", Code: wsconn.CloseDropped},
+			{End: "server", Code: wsconn.CloseBadMessage, Reason: "bad message"},
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("logged closes %+v, want %+v", got, want)
+		}
+	})
+}
+
 // The handler rejects a malformed message before any use case runs.
 func TestAMalformedItemIDNeverReachesTheItemService(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

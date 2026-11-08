@@ -96,12 +96,21 @@ func (h *Handler) OnClose(c wsconn.Conn, conn Connection, err error) {
 	if ce, ok := errors.AsType[*wsconn.CloseError](err); ok && ce.Code == wsconn.CloseSlowConsumer {
 		h.opts.Observer.SlowConsumer()
 	}
-	h.gw.Closed(conn.session, closeReason(err))
+	h.gw.Closed(conn.session)
+	h.opts.Logger.Info("ws closed", append([]any{"conn", c.ID()}, closeAttrs(err)...)...)
 }
 
-func closeReason(err error) string {
-	if err == nil {
-		return "peer closed"
+// closeAttrs says which side ended a connection, with its close frame's code and reason; a drop has no frame, so it logs the code browsers report.
+func closeAttrs(err error) []any {
+	if ce, ok := errors.AsType[*wsconn.CloseError](err); ok {
+		attrs := []any{"end", "server", "code", ce.Code, "reason", ce.Reason}
+		if ce.Err != nil {
+			attrs = append(attrs, "err", ce.Err)
+		}
+		return attrs
 	}
-	return err.Error()
+	if pc, ok := errors.AsType[*wsconn.PeerClose](err); ok {
+		return []any{"end", "client", "code", pc.Code, "reason", pc.Reason}
+	}
+	return []any{"end", "dropped", "code", wsconn.CloseDropped, "err", err}
 }

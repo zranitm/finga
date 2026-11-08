@@ -455,6 +455,22 @@ describe('GameSocket', () => {
       expect(FakeWebSocket.instances).toHaveLength(1);
     });
 
+    it('writes each close to the console, so a drop reads apart from the server closing', async () => {
+      const ws = await connected(newSocket());
+      ws.closeFromServer(1006);
+      expect(console.info).toHaveBeenLastCalledWith(
+        'finga: the connection closed with 1006, not clean',
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      FakeWebSocket.latest().open();
+      FakeWebSocket.latest().push('welcome', welcome);
+      await vi.advanceTimersByTimeAsync(0);
+      FakeWebSocket.latest().closeFromServer(4003, 'kicked');
+      expect(console.info).toHaveBeenLastCalledWith(
+        'finga: the connection closed with 4003 (kicked)',
+      );
+    });
+
     it('close 4004 (bad message) does not reconnect', async () => {
       const socket = newSocket();
       const statuses: StatusEvent[] = [];
