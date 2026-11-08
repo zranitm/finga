@@ -2963,10 +2963,11 @@ type Delta struct {
 	Mobs           []*MobView    `protobuf:"bytes,3,rep,name=mobs,proto3" json:"mobs,omitempty"`
 	Drops          []*DropView   `protobuf:"bytes,4,rep,name=drops,proto3" json:"drops,omitempty"`
 	RemovedPlayers []string      `protobuf:"bytes,5,rep,name=removed_players,json=removedPlayers,proto3" json:"removed_players,omitempty"`
-	RemovedMobs    []uint32      `protobuf:"varint,6,rep,packed,name=removed_mobs,json=removedMobs,proto3" json:"removed_mobs,omitempty"`
-	RemovedDrops   []uint32      `protobuf:"varint,7,rep,packed,name=removed_drops,json=removedDrops,proto3" json:"removed_drops,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// A mob leaves the map only by dying, so these are the mobs killed this tick.
+	RemovedMobs   []uint32 `protobuf:"varint,6,rep,packed,name=removed_mobs,json=removedMobs,proto3" json:"removed_mobs,omitempty"`
+	RemovedDrops  []uint32 `protobuf:"varint,7,rep,packed,name=removed_drops,json=removedDrops,proto3" json:"removed_drops,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Delta) Reset() {

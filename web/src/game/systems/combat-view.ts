@@ -60,14 +60,10 @@ export class MobTracker {
     }
     for (const id of removed) {
       this.buffers.get(id)?.remove(t);
-    }
-  }
-
-  /** The bar drops at once; the next Delta confirms. */
-  damage(id: number, amount: number): void {
-    const i = this.info.get(id);
-    if (i) {
-      i.hp = Math.max(0, i.hp - amount);
+      const i = this.info.get(id);
+      if (i) {
+        i.hp = 0; // killed: it shows dead until it drains
+      }
     }
   }
 
@@ -116,10 +112,6 @@ export class MobTracker {
       }
     }
     return { shown, gone };
-  }
-
-  hpOf(id: number): number | undefined {
-    return this.info.get(id)?.hp;
   }
 
   get size(): number {

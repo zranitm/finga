@@ -336,6 +336,7 @@ message Delta {
   repeated MobView mobs = 3;
   repeated DropView drops = 4;
   repeated string removed_players = 5;
+  // A mob leaves the map only by dying, so these are the mobs killed this tick.
   repeated uint32 removed_mobs = 6;
   repeated uint32 removed_drops = 7;
 }
