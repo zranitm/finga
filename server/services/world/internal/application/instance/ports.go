@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"context"
 	"time"
 
 	"finga/internal/kernel"
@@ -29,6 +30,12 @@ type Mover interface {
 	Transfer(from *Instance, p model.Player, sink Sink, mapID string)
 	// Dropped tells of a player the map removed because its sink failed.
 	Dropped(from *Instance, id kernel.CharacterID, conn string)
+}
+
+// Equipment is the item service's equip and unequip, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+type Equipment interface {
+	Equip(ctx context.Context, c model.EquipCall) (model.Equipped, error)
+	Unequip(ctx context.Context, c model.UnequipCall) (model.Equipped, error)
 }
 
 // TickObserver sees each tick's duration against its budget.

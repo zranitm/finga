@@ -2,17 +2,33 @@
   "inventory_changed": {
     "slots": [
       {
-        "tab": "use",
+        "tab": "equip",
+        "slot": 4,
         "item": {
-          "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01",
-          "template": "red_potion",
-          "tab": "use",
-          "quantity": 4
+          "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b04",
+          "template": "leather_cap",
+          "tab": "equip",
+          "slot": 4,
+          "quantity": 1,
+          "stats": {
+            "defense": 2
+          }
         }
-      },
+      }
+    ],
+    "revision": "8",
+    "equipment": [
       {
-        "tab": "etc",
-        "slot": 2
+        "equip_slot": "hat",
+        "item": {
+          "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b03",
+          "template": "leather_cap",
+          "quantity": 1,
+          "stats": {
+            "defense": 3,
+            "max_hp": 30
+          }
+        }
       }
     ]
   }

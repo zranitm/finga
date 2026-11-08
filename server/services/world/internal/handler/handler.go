@@ -28,6 +28,8 @@ type World interface {
 	PickUp(ctx context.Context, id kernel.CharacterID, conn string) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
+	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
+	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 }
 
 // queue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
@@ -167,6 +169,39 @@ func (s *Server) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayRe
 	return &worldv1.SayResponse{}, nil
 }
 
+// Equip wears an item and answers once its stats apply.
+func (s *Server) Equip(ctx context.Context, req *worldv1.EquipRequest) (*worldv1.EquipResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	item, err := kernel.ParseItemID(req.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.Equip(ctx, id, conn, req.GetIdempotencyKey(), item, req.GetEquipSlot()); err != nil {
+		return nil, err
+	}
+	return &worldv1.EquipResponse{}, nil
+}
+
+// Unequip puts a worn item back in the Equip tab and answers once the stats apply.
+func (s *Server) Unequip(ctx context.Context, req *worldv1.UnequipRequest) (*worldv1.UnequipResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	var to *int
+	if req.ToSlot != nil {
+		slot := int(req.GetToSlot())
+		to = &slot
+	}
+	if err := s.world.Unequip(ctx, id, conn, req.GetIdempotencyKey(), req.GetEquipSlot(), to); err != nil {
+		return nil, err
+	}
+	return &worldv1.UnequipResponse{}, nil
+}
+
 // presence is the character a command is for and the connection it comes from.
 func presence(p *worldv1.Presence) (kernel.CharacterID, string, error) {
 	id, err := kernel.ParseCharacterID(p.GetCharacterId())
@@ -184,6 +219,6 @@ func characterView(v model.View) *worldv1.CharacterView {
 		Id: v.ID.String(), Name: v.Name, Class: v.Class.String(), Level: int32(v.Level), Exp: v.Exp,
 		Stats: stats(v.Stats),
 		Hp:    int32(v.HP), MaxHp: int32(v.MaxHP), Mp: int32(v.MP), MaxMp: int32(v.MaxMP),
-		MapId: v.MapID, X: v.X, Y: v.Y,
+		MapId: v.MapID, X: v.X, Y: v.Y, Sheet: statSheet(v.Sheet),
 	}
 }

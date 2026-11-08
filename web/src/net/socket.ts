@@ -60,6 +60,8 @@ export class RequestError extends Error {
 type RequestType =
   | 'inventoryMove'
   | 'inventoryDiscard'
+  | 'equip'
+  | 'unequip'
   | 'partyInvite'
   | 'partyRespond'
   | 'partyLeave'

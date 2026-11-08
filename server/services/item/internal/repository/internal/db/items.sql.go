@@ -31,27 +31,32 @@ func (q *Queries) DestroyItem(ctx context.Context, arg DestroyItemParams) (int64
 }
 
 const insertItem = `-- name: InsertItem :exec
-INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
-VALUES ($1, $2, $3, 'inventory', $4, $5, $6, $7, $7)
+INSERT INTO items (id, template_id, owner_id, location, tab, slot, equip_slot, quantity, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
 `
 
 type InsertItemParams struct {
 	ID         uuid.UUID
 	TemplateID string
 	OwnerID    uuid.UUID
+	Location   string
 	Tab        *string
 	Slot       *int32
+	EquipSlot  *string
 	Quantity   int32
 	Now        dbx.Stamp
 }
 
+// A new item goes in an inventory slot, or straight into an equip slot.
 func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) error {
 	_, err := q.db.Exec(ctx, insertItem,
 		arg.ID,
 		arg.TemplateID,
 		arg.OwnerID,
+		arg.Location,
 		arg.Tab,
 		arg.Slot,
+		arg.EquipSlot,
 		arg.Quantity,
 		arg.Now,
 	)
@@ -90,6 +95,51 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 	return err
 }
 
+const insertRoll = `-- name: InsertRoll :exec
+INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13, $14, $15, $15)
+`
+
+type InsertRollParams struct {
+	ItemID     uuid.UUID
+	Attack     int32
+	Defense    int32
+	Str        int32
+	Dex        int32
+	Int        int32
+	Agi        int32
+	Vit        int32
+	Accuracy   int32
+	Evasion    int32
+	CritRate   int32
+	CritDamage int32
+	MaxHp      int32
+	MaxMp      int32
+	Now        dbx.Stamp
+}
+
+func (q *Queries) InsertRoll(ctx context.Context, arg InsertRollParams) error {
+	_, err := q.db.Exec(ctx, insertRoll,
+		arg.ItemID,
+		arg.Attack,
+		arg.Defense,
+		arg.Str,
+		arg.Dex,
+		arg.Int,
+		arg.Agi,
+		arg.Vit,
+		arg.Accuracy,
+		arg.Evasion,
+		arg.CritRate,
+		arg.CritDamage,
+		arg.MaxHp,
+		arg.MaxMp,
+		arg.Now,
+	)
+	return err
+}
+
 const inventoryRevision = `-- name: InventoryRevision :one
 SELECT coalesce((SELECT revision FROM inventory_revisions WHERE owner_id = $1), 0)::bigint AS revision
 `
@@ -102,11 +152,12 @@ func (q *Queries) InventoryRevision(ctx context.Context, ownerID uuid.UUID) (int
 }
 
 const listInventory = `-- name: ListInventory :many
-SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items
-WHERE owner_id = $1 AND location = 'inventory'
-ORDER BY tab, slot
+SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at, equip_slot FROM items
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
+ORDER BY tab NULLS LAST, slot, equip_slot
 `
 
+// The inventory by tab and slot, then what is worn by equip slot.
 func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item, error) {
 	rows, err := q.db.Query(ctx, listInventory, ownerID)
 	if err != nil {
@@ -126,6 +177,49 @@ func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 			&i.Quantity,
 			&i.UpdatedAt,
 			&i.CreatedAt,
+			&i.EquipSlot,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRolls = `-- name: ListRolls :many
+SELECT item_id, attack, defense, str, dex, int, agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at FROM item_rolls WHERE item_id = ANY($1::uuid[])
+`
+
+// The rolls of the items read beside them; a roll never changes, so it needs no lock.
+func (q *Queries) ListRolls(ctx context.Context, ids []uuid.UUID) ([]ItemRoll, error) {
+	rows, err := q.db.Query(ctx, listRolls, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ItemRoll
+	for rows.Next() {
+		var i ItemRoll
+		if err := rows.Scan(
+			&i.ItemID,
+			&i.Attack,
+			&i.Defense,
+			&i.Str,
+			&i.Dex,
+			&i.Int,
+			&i.Agi,
+			&i.Vit,
+			&i.Accuracy,
+			&i.Evasion,
+			&i.CritRate,
+			&i.CritDamage,
+			&i.MaxHp,
+			&i.MaxMp,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -138,13 +232,13 @@ func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 }
 
 const lockInventory = `-- name: LockInventory :many
-SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items
-WHERE owner_id = $1 AND location = 'inventory'
+SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at, equip_slot FROM items
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
 ORDER BY id
 FOR UPDATE
 `
 
-// Every inventory row of the owner, locked in ID order so concurrent actions on one inventory never deadlock.
+// Every row of the owner's inventory and of what it wears, locked in ID order so concurrent actions on one inventory never deadlock.
 func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item, error) {
 	rows, err := q.db.Query(ctx, lockInventory, ownerID)
 	if err != nil {
@@ -164,6 +258,7 @@ func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 			&i.Quantity,
 			&i.UpdatedAt,
 			&i.CreatedAt,
+			&i.EquipSlot,
 		); err != nil {
 			return nil, err
 		}
@@ -176,7 +271,7 @@ func (q *Queries) LockInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 }
 
 const lockOwnedItem = `-- name: LockOwnedItem :one
-SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at FROM items WHERE id = $1 AND owner_id = $2 FOR UPDATE
+SELECT id, template_id, owner_id, location, tab, slot, quantity, updated_at, created_at, equip_slot FROM items WHERE id = $1 AND owner_id = $2 FOR UPDATE
 `
 
 type LockOwnedItemParams struct {
@@ -197,6 +292,7 @@ func (q *Queries) LockOwnedItem(ctx context.Context, arg LockOwnedItemParams) (I
 		&i.Quantity,
 		&i.UpdatedAt,
 		&i.CreatedAt,
+		&i.EquipSlot,
 	)
 	return i, err
 }
@@ -249,6 +345,24 @@ func (q *Queries) RecordStarterGrant(ctx context.Context, arg RecordStarterGrant
 	return result.RowsAffected(), nil
 }
 
+const setEquipped = `-- name: SetEquipped :execrows
+UPDATE items SET location = 'equipped', equip_slot = $1, tab = NULL, slot = NULL, updated_at = $2 WHERE id = $3
+`
+
+type SetEquippedParams struct {
+	EquipSlot *string
+	Now       dbx.Stamp
+	ID        uuid.UUID
+}
+
+func (q *Queries) SetEquipped(ctx context.Context, arg SetEquippedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setEquipped, arg.EquipSlot, arg.Now, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setQuantity = `-- name: SetQuantity :execrows
 UPDATE items SET quantity = $1, updated_at = $2 WHERE id = $3
 `
@@ -268,7 +382,7 @@ func (q *Queries) SetQuantity(ctx context.Context, arg SetQuantityParams) (int64
 }
 
 const setSlot = `-- name: SetSlot :execrows
-UPDATE items SET tab = $1, slot = $2, updated_at = $3 WHERE id = $4
+UPDATE items SET location = 'inventory', tab = $1, slot = $2, equip_slot = NULL, updated_at = $3 WHERE id = $4
 `
 
 type SetSlotParams struct {
@@ -278,6 +392,7 @@ type SetSlotParams struct {
 	ID   uuid.UUID
 }
 
+// Puts an item in an inventory slot, taking it off if it was worn.
 func (q *Queries) SetSlot(ctx context.Context, arg SetSlotParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setSlot,
 		arg.Tab,

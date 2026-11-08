@@ -1,7 +1,7 @@
 // Which windows are open, and whether the chat input is asked to take focus; what has the keyboard is read from the focus itself.
 import { defineStore } from './store';
 
-export type WindowName = 'inventory' | 'party' | 'settings';
+export type WindowName = 'inventory' | 'character' | 'party' | 'settings';
 
 export interface UiState {
   readonly windows: Readonly<Record<WindowName, boolean>>;
@@ -14,7 +14,12 @@ export interface UiState {
   closeWindow(name: WindowName): void;
 }
 
-const closed: Record<WindowName, boolean> = { inventory: false, party: false, settings: false };
+const closed: Record<WindowName, boolean> = {
+  inventory: false,
+  character: false,
+  party: false,
+  settings: false,
+};
 
 export const ui = defineStore<UiState>((set, get) => ({
   windows: closed,

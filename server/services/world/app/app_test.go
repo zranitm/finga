@@ -43,6 +43,12 @@ type items struct {
 	grants []string
 }
 
+// Inventory has the character wearing a cap worth 30 max HP.
+func (f *items) Inventory(context.Context, *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
+	hat := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Quantity: 1, EquipSlot: "hat", Stats: &itemv1.ItemStats{Defense: 3, MaxHp: 30}}
+	return &itemv1.InventoryResponse{Items: []*itemv1.Item{hat}, Revision: 1}, nil
+}
+
 func (f *items) GrantStarter(_ context.Context, req *itemv1.GrantStarterRequest) (*itemv1.GrantStarterResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -90,7 +96,7 @@ func TestATickOfWholeStepsIsAcceptedAtAnyRate(t *testing.T) {
 	for _, hz := range []int{10, 12, 15, 20, 30, 60} {
 		cfg := config.Config{
 			GRPC: host.GRPCSection{Listen: "127.0.0.1:0"}, Ops: host.OpsSection{Addr: "127.0.0.1:0"},
-			DataDir: "../../../data", TickRateHz: hz, CheckpointInterval: 30 * time.Second, Economy: config.Economy{Workers: 1},
+			DataDir: "../../../data", TickRateHz: hz, CheckpointInterval: 30 * time.Second, ItemCalls: config.ItemCalls{Workers: 1},
 		}
 		h, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry())
 		if err != nil {
@@ -116,7 +122,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 		TickRateHz:         20,
 		CheckpointInterval: 30 * time.Second,
 		FlushTimeout:       5 * time.Second,
-		Economy:            config.Economy{Workers: 2},
+		ItemCalls:          config.ItemCalls{Workers: 2},
 		Dependencies: config.Dependencies{
 			Character: serve(t, func(s *grpc.Server) { characterv1.RegisterCharacterServiceServer(s, chars) }),
 			Item:      serve(t, func(s *grpc.Server) { itemv1.RegisterItemServiceServer(s, itemSvc) }),
@@ -146,8 +152,8 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.GetCharacter().GetMaxHp() != 204 || res.GetCharacter().GetMapId() != "town" {
-		t.Fatalf("view %+v", res.GetCharacter())
+	if res.GetCharacter().GetMaxHp() != 234 || res.GetCharacter().GetMapId() != "town" {
+		t.Fatalf("view %+v; want 204 HP and the worn cap's 30", res.GetCharacter())
 	}
 	if m, err := stream.Recv(); err != nil || m.GetSnapshot().GetMapId() != "town" || m.GetCharacterId() != id.String() {
 		t.Fatalf("snapshot %+v %v", m, err)

@@ -1,6 +1,8 @@
 package protocol_test
 
 import (
+	"google.golang.org/protobuf/proto"
+
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
@@ -13,9 +15,27 @@ func samples() []wsconn.Message {
 		charB = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7c"
 		charC = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7d"
 		item1 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b01"
+		item2 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b02"
+		item3 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b03"
+		item4 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b04"
+		ring  = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b05"
 	)
+	// A warrior wearing a sword and a cap: the totals, and the equipment's share of each.
+	sheet := func() *clientv1.StatSheet {
+		return &clientv1.StatSheet{
+			Primary: &clientv1.Stats{Str: 16, Dex: 5, Int: 4, Agi: 5, Vit: 12}, PrimaryWorn: &clientv1.Stats{Str: 1},
+			Derived:     &clientv1.DerivedStats{AttackPower: 49.5, Defense: 3, Accuracy: 16.5, Evasion: 8.75, CritRate: 0.065, CritDamage: 1.5, MaxHp: 280, MaxMp: 32},
+			DerivedWorn: &clientv1.DerivedStats{AttackPower: 12.5, Defense: 3, CritRate: 0.01, MaxHp: 30},
+		}
+	}
 	view := func() *clientv1.CharacterView {
-		return &clientv1.CharacterView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 15, Dex: 5, Int: 4, Agi: 5, Vit: 12}, Hp: 250, MaxHp: 250, Mp: 32, MaxMp: 32}
+		return &clientv1.CharacterView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 15, Dex: 5, Int: 4, Agi: 5, Vit: 12}, Hp: 250, MaxHp: 280, Mp: 32, MaxMp: 32, Sheet: sheet()}
+	}
+	sword := func() *clientv1.ItemView {
+		return &clientv1.ItemView{ItemId: item2, Template: "wooden_sword", Quantity: 1, Stats: &clientv1.ItemStats{Attack: 10, Str: 1, CritRate: 10}}
+	}
+	leatherCap := func() *clientv1.ItemView {
+		return &clientv1.ItemView{ItemId: item3, Template: "leather_cap", Quantity: 1, Stats: &clientv1.ItemStats{Defense: 3, MaxHp: 30}}
 	}
 	player := func() *clientv1.PlayerView {
 		return &clientv1.PlayerView{Id: charA, Name: "Ayla", Class: "warrior", Level: 2, X: 416, Y: 608, Vx: 200, Facing: 1, OnGround: true, Hp: 250, MaxHp: 250}
@@ -48,9 +68,16 @@ func samples() []wsconn.Message {
 		{Type: "PartyPromote", ReqID: "r-5", Data: &clientv1.PartyPromote{CharacterId: charB}},
 		{Type: "InventoryMove", ReqID: "r-6", Data: &clientv1.InventoryMove{IdempotencyKey: "k-1", ItemId: item1, Tab: "use", Slot: 3}},
 		{Type: "InventoryDiscard", ReqID: "r-7", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-2", ItemId: item1, Quantity: 1}},
+		{Type: "Equip", ReqID: "r-8", Data: &clientv1.Equip{IdempotencyKey: "k-3", ItemId: ring, EquipSlot: "ring_2"}}, // a ring names its slot
+		{Type: "Unequip", ReqID: "r-9", Data: &clientv1.Unequip{IdempotencyKey: "k-4", EquipSlot: "hat", ToSlot: proto.Int32(7)}},
 		{Type: "Ping", Data: &clientv1.Ping{ClientTime: 1761000000000}},
 
-		{Type: "Welcome", Data: &clientv1.Welcome{Token: "s3ss10n-t0k3n-r0t4t3d", Character: view(), Inventory: []*clientv1.ItemView{{ItemId: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}}, Party: party(), MapId: "town", Tick: 81234, ServerTime: 1761000000050}},
+		{Type: "Welcome", Data: &clientv1.Welcome{
+			Token: "s3ss10n-t0k3n-r0t4t3d", Character: view(), Party: party(), MapId: "town", Tick: 81234, ServerTime: 1761000000050,
+			Inventory:         []*clientv1.ItemView{{ItemId: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}, {ItemId: item3, Template: "leather_cap", Tab: "equip", Slot: 4, Quantity: 1, Stats: leatherCap().GetStats()}},
+			Equipment:         []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: sword()}},
+			InventoryRevision: 7,
+		}},
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}}},
 		{Type: "Correction", Tick: 81235, Data: &clientv1.Correction{Seq: 117, X: 416, Y: 608, OnGround: true}},
@@ -59,7 +86,13 @@ func samples() []wsconn.Message {
 		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125}},
 		{Type: "ExpGained", Data: &clientv1.ExpGained{Amount: 5, Exp: 15}},
 		{Type: "LevelUp", Data: &clientv1.LevelUp{Character: view()}},
-		{Type: "InventoryChanged", Data: &clientv1.InventoryChanged{Slots: []*clientv1.InventorySlot{{Tab: "use", Slot: 0, Item: &clientv1.ItemView{ItemId: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 4}}, {Tab: "etc", Slot: 2}}}},
+		// An equip that swapped the cap in for another: the old one took the tab slot the new one left.
+		{Type: "InventoryChanged", Data: &clientv1.InventoryChanged{
+			Slots:     []*clientv1.InventorySlot{{Tab: "equip", Slot: 4, Item: &clientv1.ItemView{ItemId: item4, Template: "leather_cap", Tab: "equip", Slot: 4, Quantity: 1, Stats: &clientv1.ItemStats{Defense: 2}}}},
+			Equipment: []*clientv1.EquipSlot{{EquipSlot: "hat", Item: leatherCap()}},
+			Revision:  8,
+		}},
+		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280, Mp: 32, MaxMp: 32}},
 		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},

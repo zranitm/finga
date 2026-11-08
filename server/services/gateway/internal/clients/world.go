@@ -66,6 +66,23 @@ func (w World) PickUp(ctx context.Context, p model.Presence) error {
 	return errmap.Wrap(err)
 }
 
+// Equip wears an item; it answers once the world applied the new stats.
+func (w World) Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error {
+	_, err := w.c.Equip(ctx, &worldv1.EquipRequest{Presence: presence(p), IdempotencyKey: in.IdempotencyKey, ItemId: in.Item.String(), EquipSlot: in.EquipSlot})
+	return errmap.Wrap(err)
+}
+
+// Unequip takes a worn item off; it answers once the world applied the new stats.
+func (w World) Unequip(ctx context.Context, p model.Presence, in model.ItemUnequip) error {
+	req := &worldv1.UnequipRequest{Presence: presence(p), IdempotencyKey: in.IdempotencyKey, EquipSlot: in.EquipSlot}
+	if in.ToSlot != nil {
+		to := int32(*in.ToSlot) //nolint:gosec // a tab has few slots
+		req.ToSlot = &to
+	}
+	_, err := w.c.Unequip(ctx, req)
+	return errmap.Wrap(err)
+}
+
 // Say hands a cleaned map line to the player's map.
 func (w World) Say(ctx context.Context, p model.Presence, name, text string) error {
 	_, err := w.c.Say(ctx, &worldv1.SayRequest{Presence: presence(p), SenderName: name, Text: text})

@@ -30,11 +30,11 @@ func register(reg prometheus.Registerer, cs ...prometheus.Collector) error {
 	return nil
 }
 
-// WorldMetrics are the world's: its maps' ticks and its economy jobs.
+// WorldMetrics are the world's: its maps' ticks, its calls to the item service and its dropped saves.
 type WorldMetrics struct {
 	tickDuration *prometheus.HistogramVec // by map
 	tickOverruns *prometheus.CounterVec   // by map
-	jobsInflight prometheus.Gauge
+	itemCalls    prometheus.Gauge
 	savesDropped *prometheus.CounterVec // by reason
 }
 
@@ -47,8 +47,8 @@ func NewWorldMetrics(reg prometheus.Registerer, dropReasons []string) (*WorldMet
 		tickOverruns: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: observability.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
 		}, []string{"map"}),
-		jobsInflight: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: observability.Namespace, Name: "economy_jobs_inflight", Help: "Pickups waiting on or inside a call to the item service.",
+		itemCalls: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: observability.Namespace, Name: "item_calls_inflight", Help: "Calls to the item service waiting for a worker or running.",
 		}),
 		savesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: observability.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why. One at shutdown is counted after /metrics has closed: alert on its ERROR log line instead, \"persistence failed\" with dropped=shutdown.",
@@ -57,7 +57,7 @@ func NewWorldMetrics(reg prometheus.Registerer, dropReasons []string) (*WorldMet
 	for _, reason := range dropReasons {
 		m.savesDropped.WithLabelValues(reason)
 	}
-	return m, register(reg, m.tickDuration, m.tickOverruns, m.jobsInflight, m.savesDropped)
+	return m, register(reg, m.tickDuration, m.tickOverruns, m.itemCalls, m.savesDropped)
 }
 
 // SaveDropped counts a checkpoint given up on.
@@ -71,11 +71,11 @@ func (m *WorldMetrics) ObserveTick(mapID string, took, budget time.Duration) {
 	}
 }
 
-// JobStarted counts an economy job queued for a worker.
-func (m *WorldMetrics) JobStarted() { m.jobsInflight.Inc() }
+// CallQueued counts a call to the item service queued for a worker.
+func (m *WorldMetrics) CallQueued() { m.itemCalls.Inc() }
 
-// JobFinished counts an economy job done.
-func (m *WorldMetrics) JobFinished() { m.jobsInflight.Dec() }
+// CallDone counts a call to the item service done.
+func (m *WorldMetrics) CallDone() { m.itemCalls.Dec() }
 
 // GatewayMetrics are the gateway's: its players and their WebSocket traffic.
 type GatewayMetrics struct {

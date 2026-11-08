@@ -89,6 +89,9 @@ type fakeWorld struct {
 	pickups    []*worldv1.Presence
 	portals    []*worldv1.Presence
 	says       []*worldv1.SayRequest
+	equips     []*worldv1.EquipRequest
+	unequips   []*worldv1.UnequipRequest
+	equipErr   error         // Equip and Unequip fail with it
 	calls      []string      // commands in arrival order
 	traceIDs   []string      // each Join's and Attack's, in arrival order
 	hold       chan struct{} // set: Subscribed goes out only during the first join
@@ -354,6 +357,32 @@ func (f *fakeWorld) EnterPortal(_ context.Context, req *worldv1.EnterPortalReque
 	f.portals = append(f.portals, req.GetPresence())
 	f.calls = append(f.calls, "portal")
 	return &worldv1.EnterPortalResponse{}, nil
+}
+
+func (f *fakeWorld) Equip(_ context.Context, req *worldv1.EquipRequest) (*worldv1.EquipResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.equips = append(f.equips, req)
+	return &worldv1.EquipResponse{}, f.equipErr
+}
+
+func (f *fakeWorld) Unequip(_ context.Context, req *worldv1.UnequipRequest) (*worldv1.UnequipResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.unequips = append(f.unequips, req)
+	return &worldv1.UnequipResponse{}, f.equipErr
+}
+
+func (f *fakeWorld) failEquips(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.equipErr = err
+}
+
+func (f *fakeWorld) equipCalls() ([]*worldv1.EquipRequest, []*worldv1.UnequipRequest) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.EquipRequest(nil), f.equips...), append([]*worldv1.UnequipRequest(nil), f.unequips...)
 }
 
 func (f *fakeWorld) Say(_ context.Context, req *worldv1.SayRequest) (*worldv1.SayResponse, error) {

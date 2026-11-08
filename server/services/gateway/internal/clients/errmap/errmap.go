@@ -50,6 +50,12 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_ITEM):           model.UnknownItem,
 	grpcx.Key(itemv1.Reason_REASON_BAD_ID):                 model.BadID,
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_CLASS):          model.UnknownClass,
+	grpcx.Key(itemv1.Reason_REASON_ITEM_WORN):              model.ItemWorn,
+	grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW):          model.LevelTooLow,
+	grpcx.Key(itemv1.Reason_REASON_WRONG_CLASS):            model.WrongClass,
+	grpcx.Key(itemv1.Reason_REASON_WRONG_EQUIP_SLOT):       model.WrongEquipSlot,
+	grpcx.Key(itemv1.Reason_REASON_NOT_EQUIPMENT):          model.NotEquipment,
+	grpcx.Key(itemv1.Reason_REASON_NOTHING_WORN):           model.NothingWorn,
 
 	grpcx.Key(socialv1.Reason_REASON_NOT_PARTY_LEADER):       model.NotPartyLeader,
 	grpcx.Key(socialv1.Reason_REASON_PARTY_FULL):             model.PartyFull,
@@ -71,6 +77,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_PICKUPS_UNAVAILABLE): model.PickupsUnavailable,
 	grpcx.Key(worldv1.Reason_REASON_PICKUP_BUSY):         model.PickupBusy,
 	grpcx.Key(worldv1.Reason_REASON_BAD_ID):              model.BadID,
+	grpcx.Key(worldv1.Reason_REASON_CHARACTER_DEAD):      model.CharacterDead,
 }
 
 // For is the Public form of a failed call: its reason's row, else Unavailable for a service down or busy, else Internal; the zero value for nil.

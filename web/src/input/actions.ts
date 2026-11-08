@@ -12,6 +12,7 @@ export type Action =
   | 'attack'
   | 'pickup'
   | 'inventory'
+  | 'character'
   | 'party'
   | 'chat';
 
@@ -24,6 +25,7 @@ export const actions: readonly Action[] = [
   'attack',
   'pickup',
   'inventory',
+  'character',
   'party',
   'chat',
 ];

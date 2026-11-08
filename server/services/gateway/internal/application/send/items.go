@@ -12,6 +12,16 @@ func (g *Gateway) MoveItem(ctx context.Context, s *session.Session, in model.Ite
 	return g.deps.Items.Move(ctx, s.Actor(), in)
 }
 
+// Equip wears an item through the world, which checks the live level and applies the new stats; the changes follow on its stream.
+func (g *Gateway) Equip(ctx context.Context, s *session.Session, in model.ItemEquip) error {
+	return g.deps.World.Equip(ctx, s.Presence(), in)
+}
+
+// Unequip takes a worn item off through the world; the changes follow on its stream.
+func (g *Gateway) Unequip(ctx context.Context, s *session.Session, in model.ItemUnequip) error {
+	return g.deps.World.Unequip(ctx, s.Presence(), in)
+}
+
 // DiscardItem destroys some or all of a stack and returns the slots it changed.
 func (g *Gateway) DiscardItem(ctx context.Context, s *session.Session, in model.ItemDiscard) (model.InventoryChanged, error) {
 	return g.deps.Items.Discard(ctx, s.Actor(), in)

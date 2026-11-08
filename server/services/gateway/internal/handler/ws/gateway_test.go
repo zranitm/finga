@@ -26,6 +26,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	accountv1 "finga/api/gen/account/v1"
 	clientv1 "finga/api/gen/client/v1"
@@ -818,6 +819,122 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 15, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{}}})
 			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "internal" {
 				t.Fatalf("a failure the world could not name: %+v", r)
+			}
+		})
+	})
+}
+
+func TestEquipmentInWelcomeAndCommands(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		potion := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
+		leatherCap := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Tab: "equip", Slot: 2, Quantity: 1, Stats: &itemv1.ItemStats{Defense: 3, MaxHp: 30}}
+		sword := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "wooden_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{Attack: 10}}
+		items := &fakeItems{inventory: []*itemv1.Item{potion, leatherCap, sword}, revision: 4}
+		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
+		h.world.mu.Lock()
+		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
+			Primary: &worldv1.Stats{Strength: 12, Vitality: 10}, PrimaryWorn: &worldv1.Stats{},
+			Derived: &worldv1.DerivedStats{AttackPower: 34.5, Defense: 5, CritRate: 0.05, MaxHp: 204, MaxMp: 28}, DerivedWorn: &worldv1.DerivedStats{AttackPower: 10},
+		}
+		h.world.mu.Unlock()
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		w := c.expect("Welcome").Data.(*clientv1.Welcome)
+		if len(w.Inventory) != 2 || w.Inventory[1].GetItemId() != leatherCap.GetId() || w.Inventory[1].GetStats().GetMaxHp() != 30 || w.Inventory[0].GetStats() != nil {
+			t.Fatalf("welcome inventory %+v; want the potion with no stats, the cap with its roll", w.Inventory)
+		}
+		if len(w.Equipment) != 1 || w.Equipment[0].GetEquipSlot() != "weapon" || w.Equipment[0].GetItem().GetItemId() != sword.GetId() || w.Equipment[0].GetItem().GetStats().GetAttack() != 10 || w.Equipment[0].GetItem().GetTab() != "" {
+			t.Fatalf("welcome equipment %+v; want the sword in the weapon slot with its roll", w.Equipment)
+		}
+		if s := w.GetCharacter().GetSheet(); s.GetPrimary().GetStr() != 12 || s.GetPrimary().GetVit() != 10 || s.GetDerived().GetAttackPower() != 34.5 || s.GetDerived().GetCritRate() != 0.05 || s.GetDerived().GetMaxHp() != 204 || s.GetDerivedWorn().GetAttackPower() != 10 {
+			t.Fatalf("welcome sheet %+v", s)
+		}
+		c.expect("Snapshot")
+
+		part(t, "Equip goes to the world as the sender, answering once it applied", func() {
+			c.send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: "k-1", ItemId: leatherCap.GetId()}})
+			if r := c.expect("Response"); r.ReqID != "e-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v", r)
+			}
+			equips, _ := h.world.equipCalls()
+			if len(equips) != 1 || equips[0].GetPresence().GetCharacterId() != aylaID.String() || equips[0].GetPresence().GetConnectionId() == "" ||
+				equips[0].GetIdempotencyKey() != "k-1" || equips[0].GetItemId() != leatherCap.GetId() || equips[0].GetEquipSlot() != "" {
+				t.Fatalf("equips %+v", equips)
+			}
+		})
+		part(t, "the world's InventoryChanged carries the equip slots and rolls, and StatsChanged the sheet", func() {
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 20, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
+				Revision: 5, Slots: []*worldv1.Slot{{Tab: "equip", Slot: 2}},
+				Equipment: []*worldv1.EquipSlot{{EquipSlot: "hat", Item: &worldv1.Item{Id: leatherCap.GetId(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3, MaxHp: 30}}}},
+			}}})
+			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+			if len(ic.Slots) != 1 || ic.Slots[0].Item != nil || len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "hat" ||
+				ic.Equipment[0].GetItem().GetItemId() != leatherCap.GetId() || ic.Equipment[0].GetItem().GetStats().GetDefense() != 3 || ic.Revision != 5 {
+				t.Fatalf("inventory changed %+v", ic)
+			}
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 20, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
+				Sheet: &worldv1.StatSheet{Derived: &worldv1.DerivedStats{Defense: 8, MaxHp: 234}, DerivedWorn: &worldv1.DerivedStats{Defense: 3, MaxHp: 30}},
+				Hp:    204, MaxHp: 234, Mp: 28, MaxMp: 28,
+			}}})
+			m := c.expect("StatsChanged")
+			sc := m.Data.(*clientv1.StatsChanged)
+			if m.Tick != 20 || sc.Hp != 204 || sc.MaxHp != 234 || sc.Mp != 28 || sc.MaxMp != 28 || sc.GetSheet().GetDerived().GetMaxHp() != 234 || sc.GetSheet().GetDerivedWorn().GetDefense() != 3 {
+				t.Fatalf("stats changed %+v at tick %d", sc, m.Tick)
+			}
+			// Then the cap comes off into the slot asked for: the item goes back in a tab, the equip slot empties.
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 21, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
+				Revision: 6, Slots: []*worldv1.Slot{{Tab: "equip", Slot: 7, Item: &worldv1.Item{Id: leatherCap.GetId(), TemplateId: "leather_cap", Tab: "equip", Slot: 7, Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3}}}},
+				Equipment: []*worldv1.EquipSlot{{EquipSlot: "hat"}},
+			}}})
+			ic = c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
+			if len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "hat" || ic.Equipment[0].Item != nil || ic.Slots[0].GetItem().GetStats().GetDefense() != 3 {
+				t.Fatalf("after unequip %+v; want the hat slot empty and the cap with its roll in the tab", ic)
+			}
+		})
+		part(t, "Unequip carries its equip slot, and the tab slot when one is asked for", func() {
+			to := int32(7)
+			c.send(wsconn.Message{ReqID: "u-1", Data: &clientv1.Unequip{IdempotencyKey: "k-2", EquipSlot: "hat", ToSlot: &to}})
+			c.send(wsconn.Message{ReqID: "u-2", Data: &clientv1.Unequip{IdempotencyKey: "k-3", EquipSlot: "weapon"}})
+			for _, req := range []string{"u-1", "u-2"} {
+				if r := c.expect("Response"); r.ReqID != req || !r.Data.(*clientv1.Response).GetOk() {
+					t.Fatalf("response %+v, want ok to %s", r, req)
+				}
+			}
+			_, unequips := h.world.equipCalls()
+			if len(unequips) != 2 || unequips[0].GetIdempotencyKey() != "k-2" || unequips[0].GetEquipSlot() != "hat" || unequips[0].ToSlot == nil || unequips[0].GetToSlot() != 7 ||
+				unequips[1].GetEquipSlot() != "weapon" || unequips[1].ToSlot != nil || unequips[1].GetPresence().GetCharacterId() != aylaID.String() {
+				t.Fatalf("unequips %+v", unequips)
+			}
+		})
+		part(t, "a refusal answers the item service's reason, or the world's own", func() {
+			for _, tt := range []struct {
+				err  error
+				msg  proto.Message
+				code string
+			}{
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_LEVEL_TOO_LOW), &clientv1.Equip{IdempotencyKey: "k-4", ItemId: leatherCap.GetId()}, "level_too_low"},
+				{grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_WRONG_EQUIP_SLOT), &clientv1.Equip{IdempotencyKey: "k-5", ItemId: leatherCap.GetId(), EquipSlot: "ring_9"}, "wrong_equip_slot"},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOTHING_WORN), &clientv1.Unequip{IdempotencyKey: "k-6", EquipSlot: "cape"}, "nothing_worn"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_CHARACTER_DEAD), &clientv1.Unequip{IdempotencyKey: "k-7", EquipSlot: "weapon"}, "character_dead"},
+				{status.Error(codes.Unavailable, "busy"), &clientv1.Equip{IdempotencyKey: "k-8", ItemId: leatherCap.GetId()}, "unavailable"},
+			} {
+				time.Sleep(time.Second) // under the inventory limit of 5 a second
+				h.world.failEquips(tt.err)
+				c.send(wsconn.Message{ReqID: "r-" + tt.code, Data: tt.msg})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.code || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != tt.code {
+					t.Fatalf("response %+v, want %s", r, tt.code)
+				}
+			}
+			h.world.failEquips(nil)
+		})
+		part(t, "a malformed item ID is bad_id without reaching the world", func() {
+			before, _ := h.world.equipCalls()
+			c.send(wsconn.Message{ReqID: "r-9", Data: &clientv1.Equip{IdempotencyKey: "k-9", ItemId: "nope"}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
+				t.Fatalf("response %+v", r)
+			}
+			if after, _ := h.world.equipCalls(); len(after) != len(before) {
+				t.Fatal("the world was called")
 			}
 		})
 	})

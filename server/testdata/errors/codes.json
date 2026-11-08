@@ -65,6 +65,11 @@
     "message": "request body too large"
   },
   {
+    "code": "character_dead",
+    "status": 409,
+    "message": "you can't do that while dead"
+  },
+  {
     "code": "character_not_found",
     "status": 404,
     "message": "character not found"
@@ -130,6 +135,16 @@
     "message": "item not found"
   },
   {
+    "code": "item_worn",
+    "status": 409,
+    "message": "unequip it first"
+  },
+  {
+    "code": "level_too_low",
+    "status": 409,
+    "message": "your level is too low for that item"
+  },
+  {
     "code": "login_rate_limited",
     "status": 429,
     "message": "too many login attempts, try again in a minute"
@@ -165,6 +180,11 @@
     "message": "no such endpoint"
   },
   {
+    "code": "not_equipment",
+    "status": 400,
+    "message": "only equipment can be worn"
+  },
+  {
     "code": "not_implemented",
     "status": 501,
     "message": "not available yet"
@@ -178,6 +198,11 @@
     "code": "not_party_member",
     "status": 404,
     "message": "not a member of your party"
+  },
+  {
+    "code": "nothing_worn",
+    "status": 409,
+    "message": "nothing is worn there"
   },
   {
     "code": "party_chat_unavailable",
@@ -253,6 +278,16 @@
     "code": "username_taken",
     "status": 409,
     "message": "that username is taken"
+  },
+  {
+    "code": "wrong_class",
+    "status": 409,
+    "message": "your class can't use that item"
+  },
+  {
+    "code": "wrong_equip_slot",
+    "status": 400,
+    "message": "that item doesn't go there"
   },
   {
     "code": "wrong_tab",

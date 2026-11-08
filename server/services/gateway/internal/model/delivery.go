@@ -77,10 +77,18 @@ type ChatMessage struct {
 	Text               string
 }
 
-// InventoryChanged is the slots a pickup or another move changed, at the inventory's revision after it.
+// InventoryChanged is the slots and equip slots a pickup, a move or an equip changed, at the inventory's revision after it.
 type InventoryChanged struct {
-	Revision uint64
-	Slots    []InventorySlot
+	Revision  uint64
+	Slots     []InventorySlot
+	Equipment []EquipSlot
+}
+
+// StatsChanged is the player's stats after what it wears changed.
+type StatsChanged struct {
+	Sheet     StatSheet
+	HP, MaxHP int
+	MP, MaxMP int
 }
 
 // PickupFailed is a pickup the item service refused, as the player sees it.
@@ -109,6 +117,7 @@ func (ExpGained) push()        {}
 func (LevelUp) push()          {}
 func (ChatMessage) push()      {}
 func (InventoryChanged) push() {}
+func (StatsChanged) push()     {}
 func (PickupFailed) push()     {}
 func (PartyState) push()       {}
 func (PartyInvited) push()     {}

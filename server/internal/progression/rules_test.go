@@ -4,6 +4,8 @@ import (
 	"math"
 	"testing"
 
+	"pgregory.net/rapid"
+
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -51,36 +53,50 @@ func TestDeriveStats(t *testing.T) {
 			for range tt.level - 1 {
 				stats = progression.AddStats(stats, class.LevelUpPoints)
 			}
-			got := progression.DeriveStats(formulas, stats, tt.level, progression.Equipment{})
+			got := progression.DeriveStats(formulas, stats, tt.level, progression.ItemStats{})
 			assertDerived(t, got, tt.want)
 		})
 	}
 
-	t.Run("equipment adds to attack power and defense", func(t *testing.T) {
+	t.Run("worn flat bonuses add to each derived stat", func(t *testing.T) {
 		class, _ := data.Class(kernel.Warrior)
 		formulas, _ := data.Formulas(kernel.Warrior)
-		got := progression.DeriveStats(formulas, class.BaseStats, 1, progression.Equipment{WeaponAttack: 10, ArmorDefense: 3})
-		if got.AttackPower != 31 || got.Defense != 18 {
-			t.Fatalf("attack %v defense %v, want 31 and 18", got.AttackPower, got.Defense)
+		worn := progression.ItemStats{Attack: 10, Defense: 3, Accuracy: 4, Evasion: 2, CritRate: 15, CritDamage: 50, MaxHP: 30, MaxMP: 7}
+		got := progression.DeriveStats(formulas, class.BaseStats, 1, worn)
+		assertDerived(t, got, progression.Derived{MaxHP: 234, MaxMP: 35, AttackPower: 31, Accuracy: 25, Evasion: 11, Defense: 18, CritRate: 0.075, CritDamage: 0.575})
+	})
+
+	t.Run("worn primary stats feed the formulas through the class's coefficients", func(t *testing.T) {
+		class, _ := data.Class(kernel.Warrior)
+		formulas, _ := data.Formulas(kernel.Warrior)
+		got := progression.DeriveStats(formulas, class.BaseStats, 1, progression.ItemStats{STR: 4, VIT: 2})
+		want := progression.DeriveStats(formulas, progression.AddStats(class.BaseStats, gamedata.Stats{STR: 4, VIT: 2}), 1, progression.ItemStats{})
+		assertDerived(t, got, want)
+		if got.AttackPower <= 21 {
+			t.Fatalf("attack power %v; worn STR should raise a warrior's", got.AttackPower)
+		}
+	})
+
+	t.Run("a worn crit rate stops at the cap too", func(t *testing.T) {
+		formulas, _ := data.Formulas(kernel.Bowman)
+		if got := progression.DeriveStats(formulas, gamedata.Stats{AGI: 150}, 1, progression.ItemStats{CritRate: 200}); got.CritRate != 0.6 {
+			t.Fatalf("crit rate %v, want the 0.6 cap", got.CritRate)
 		}
 	})
 
 	t.Run("crit rate stops at the 60% cap", func(t *testing.T) {
 		formulas, _ := data.Formulas(kernel.Bowman)
-		got := progression.DeriveStats(formulas, gamedata.Stats{AGI: 200}, 1, progression.Equipment{}) // 0.05 + 0.6 = 0.65 uncapped
+		got := progression.DeriveStats(formulas, gamedata.Stats{AGI: 200}, 1, progression.ItemStats{}) // 0.05 + 0.6 = 0.65 uncapped
 		if got.CritRate != 0.6 {
 			t.Fatalf("crit rate %v, want 0.6", got.CritRate)
 		}
 	})
 
-	t.Run("penetration is equipment only and capped at 50%", func(t *testing.T) {
+	t.Run("no equipment gives penetration", func(t *testing.T) {
 		formulas, _ := data.Formulas(kernel.Warrior)
-		got := progression.DeriveStats(formulas, gamedata.Stats{STR: 999}, 30, progression.Equipment{Penetration: 0.7})
-		if got.Penetration != 0.5 {
-			t.Fatalf("penetration %v, want 0.5", got.Penetration)
-		}
-		if got := progression.DeriveStats(formulas, gamedata.Stats{}, 1, progression.Equipment{}); got.Penetration != 0 {
-			t.Fatalf("penetration without equipment %v", got.Penetration)
+		worn := progression.ItemStats{Attack: 50, Defense: 50, STR: 50, DEX: 50, INT: 50, AGI: 50, VIT: 50, Accuracy: 50, Evasion: 50, CritRate: 50, CritDamage: 50, MaxHP: 50, MaxMP: 50}
+		if got := progression.DeriveStats(formulas, gamedata.Stats{}, 1, worn); got.Penetration != 0 {
+			t.Fatalf("penetration %v from equipment", got.Penetration)
 		}
 	})
 }
@@ -191,4 +207,45 @@ func loadData(t *testing.T) *gamedata.Data {
 		t.Fatal(err)
 	}
 	return d
+}
+
+// Whatever is worn, no derived stat drops, the flat bonuses add exactly, and the caps hold.
+func TestWearingNeverLowersAStat(t *testing.T) {
+	data := loadData(t)
+	rapid.Check(t, func(t *rapid.T) {
+		class := rapid.SampledFrom([]kernel.Class{kernel.Warrior, kernel.Bowman}).Draw(t, "class")
+		formulas, _ := data.Formulas(class)
+		stat := rapid.IntRange(0, 200)
+		base := gamedata.Stats{STR: stat.Draw(t, "str"), DEX: stat.Draw(t, "dex"), INT: stat.Draw(t, "int"), AGI: stat.Draw(t, "agi"), VIT: stat.Draw(t, "vit")}
+		level := rapid.IntRange(1, 30).Draw(t, "level")
+		bonus := rapid.IntRange(0, 500)
+		worn := progression.ItemStats{
+			Attack: bonus.Draw(t, "attack"), Defense: bonus.Draw(t, "defense"),
+			STR: bonus.Draw(t, "w_str"), DEX: bonus.Draw(t, "w_dex"), INT: bonus.Draw(t, "w_int"), AGI: bonus.Draw(t, "w_agi"), VIT: bonus.Draw(t, "w_vit"),
+			Accuracy: bonus.Draw(t, "accuracy"), Evasion: bonus.Draw(t, "evasion"), CritRate: bonus.Draw(t, "crit_rate"), CritDamage: bonus.Draw(t, "crit_damage"),
+			MaxHP: bonus.Draw(t, "max_hp"), MaxMP: bonus.Draw(t, "max_mp"),
+		}
+		bare := progression.DeriveStats(formulas, base, level, progression.ItemStats{})
+		dressed := progression.DeriveStats(formulas, base, level, worn)
+		for _, f := range []struct {
+			name       string
+			bare, worn float64
+		}{
+			{"max HP", float64(bare.MaxHP), float64(dressed.MaxHP)}, {"max MP", float64(bare.MaxMP), float64(dressed.MaxMP)},
+			{"attack power", bare.AttackPower, dressed.AttackPower}, {"accuracy", bare.Accuracy, dressed.Accuracy},
+			{"evasion", bare.Evasion, dressed.Evasion}, {"defense", bare.Defense, dressed.Defense},
+			{"crit rate", bare.CritRate, dressed.CritRate}, {"crit damage", bare.CritDamage, dressed.CritDamage},
+		} {
+			if f.worn < f.bare {
+				t.Fatalf("%s fell from %v to %v with %+v worn", f.name, f.bare, f.worn, worn)
+			}
+		}
+		if dressed.CritRate > formulas.CritRate.Cap || dressed.Penetration > formulas.Penetration.Cap {
+			t.Fatalf("crit rate %v, penetration %v past their caps", dressed.CritRate, dressed.Penetration)
+		}
+		flat := progression.DeriveStats(formulas, base, level, progression.ItemStats{Attack: worn.Attack, MaxHP: worn.MaxHP})
+		if flat.MaxHP != bare.MaxHP+worn.MaxHP || math.Abs(flat.AttackPower-bare.AttackPower-float64(worn.Attack)) > 1e-9 {
+			t.Fatalf("flat bonuses: max HP %d from %d, attack %v from %v, with %+v", flat.MaxHP, bare.MaxHP, flat.AttackPower, bare.AttackPower, worn)
+		}
+	})
 }

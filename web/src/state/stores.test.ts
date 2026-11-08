@@ -43,7 +43,12 @@ describe('session, connection and ui stores', () => {
     expect(ui.getState().windows.inventory).toBe(false);
     ui.getState().openWindow('party');
     ui.getState().openWindow('party');
-    expect(ui.getState().windows).toEqual({ inventory: false, party: true, settings: false });
+    expect(ui.getState().windows).toEqual({
+      inventory: false,
+      character: false,
+      party: true,
+      settings: false,
+    });
     ui.getState().closeWindow('party');
     expect(ui.getState().windows.party).toBe(false);
   });

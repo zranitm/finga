@@ -12,6 +12,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
 	"finga/pkg/idempotency/idempotencypg"
@@ -63,7 +64,11 @@ func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) (mod
 		if err != nil {
 			return err
 		}
-		inv = model.Inventory{Revision: uint64(revision), Items: toItems(rows)} //nolint:gosec // a revision is never negative
+		items, err := withRolls(ctx, q, rows)
+		if err != nil {
+			return err
+		}
+		inv = model.Inventory{Revision: uint64(revision), Items: items} //nolint:gosec // a revision is never negative
 		return nil
 	}, dbx.Observed(p.obs), dbx.Snapshot())
 	if err != nil {
@@ -112,7 +117,10 @@ func (r repo) LockInventory(ctx context.Context, owner kernel.CharacterID) ([]mo
 	if err != nil {
 		return nil, err
 	}
-	items := toItems(rows)
+	items, err := withRolls(ctx, r.q, rows)
+	if err != nil {
+		return nil, err
+	}
 	model.SortInventory(items)
 	return items, nil
 }
@@ -123,19 +131,44 @@ func (r repo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.Char
 	if err != nil {
 		return model.Item{}, err
 	}
-	if row.Location != "inventory" {
+	switch row.Location {
+	case "equipped":
+		return model.Item{}, model.ErrItemWorn
+	case "inventory":
+	default:
 		return model.Item{}, pgx.ErrNoRows
 	}
-	return toItem(row), nil
+	items, err := withRolls(ctx, r.q, []db.Item{row})
+	if err != nil {
+		return model.Item{}, err
+	}
+	return items[0], nil
 }
 
-// Insert adds an inventory row.
+// Insert adds an inventory row, and equipment's roll beside it.
 func (r repo) Insert(ctx context.Context, it model.Item) error {
-	tab, slot := string(it.Tab), int32(it.Slot) //nolint:gosec // slots are small
-	return r.q.InsertItem(ctx, db.InsertItemParams{
-		ID: uuid.UUID(it.ID), TemplateID: it.TemplateID, OwnerID: uuid.UUID(it.Owner), Tab: &tab, Slot: &slot,
+	p := db.InsertItemParams{
+		ID: uuid.UUID(it.ID), TemplateID: it.TemplateID, OwnerID: uuid.UUID(it.Owner), Location: "inventory",
 		Quantity: int32(it.Quantity), //nolint:gosec // quantities are small
 		Now:      r.now,
+	}
+	if it.Worn() {
+		p.Location, p.EquipSlot = "equipped", &it.EquipSlot
+	} else {
+		tab, slot := string(it.Tab), int32(it.Slot) //nolint:gosec // slots are small
+		p.Tab, p.Slot = &tab, &slot
+	}
+	err := r.q.InsertItem(ctx, p)
+	if err != nil || it.Stats == nil {
+		return err
+	}
+	s := it.Stats
+	//nolint:gosec // stats are small
+	return r.q.InsertRoll(ctx, db.InsertRollParams{
+		ItemID: uuid.UUID(it.ID), Attack: int32(s.Attack), Defense: int32(s.Defense),
+		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
+		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Now: r.now,
 	})
 }
 
@@ -149,6 +182,12 @@ func (r repo) SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) e
 func (r repo) SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error {
 	t, s := string(tab), int32(slot) //nolint:gosec // slots are small
 	n, err := r.q.SetSlot(ctx, db.SetSlotParams{ID: uuid.UUID(id), Tab: &t, Slot: &s, Now: r.now})
+	return dbx.RowsOrNotFound(n, err)
+}
+
+// SetEquipped wears an item in an equip slot.
+func (r repo) SetEquipped(ctx context.Context, id kernel.ItemID, equipSlot string) error {
+	n, err := r.q.SetEquipped(ctx, db.SetEquippedParams{ID: uuid.UUID(id), EquipSlot: &equipSlot, Now: r.now})
 	return dbx.RowsOrNotFound(n, err)
 }
 
@@ -211,12 +250,30 @@ func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string
 	return decodeReply(raw)
 }
 
-func toItems(rows []db.Item) []model.Item {
+// withRolls is the items read, each with its roll if it has one.
+func withRolls(ctx context.Context, q *db.Queries, rows []db.Item) ([]model.Item, error) {
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
+	rolls, err := q.ListRolls(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byItem := make(map[uuid.UUID]*progression.ItemStats, len(rolls))
+	for _, r := range rolls {
+		byItem[r.ItemID] = &progression.ItemStats{
+			Attack: int(r.Attack), Defense: int(r.Defense), STR: int(r.Str), DEX: int(r.Dex), INT: int(r.Int), AGI: int(r.Agi), VIT: int(r.Vit),
+			Accuracy: int(r.Accuracy), Evasion: int(r.Evasion), CritRate: int(r.CritRate), CritDamage: int(r.CritDamage), MaxHP: int(r.MaxHp), MaxMP: int(r.MaxMp),
+		}
+	}
 	out := make([]model.Item, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, toItem(r))
+		it := toItem(r)
+		it.Stats = byItem[r.ID]
+		out = append(out, it)
 	}
-	return out
+	return out, nil
 }
 
 func toItem(r db.Item) model.Item {
@@ -227,19 +284,24 @@ func toItem(r db.Item) model.Item {
 	if r.Slot != nil {
 		it.Slot = int(*r.Slot)
 	}
+	if r.EquipSlot != nil {
+		it.EquipSlot = *r.EquipSlot
+	}
 	return it
 }
 
 const (
-	constraintSlot     = "one_item_per_slot"
-	constraintQuantity = "items_quantity_check"
+	constraintSlot      = "one_item_per_slot"
+	constraintEquipSlot = "one_item_per_equip_slot"
+	constraintQuantity  = "items_quantity_check"
 )
 
 // failures maps a missing row and constraint errors to the model's, as dbx makes timeouts and outages transient.ErrUnavailable; each keeps its cause, so InTx's retries still see 40001.
 var failures = dbx.Errors{
 	NotFound: model.ErrNotFound,
 	Constraints: map[string]error{
-		constraintSlot:     model.ErrSlotTaken,
-		constraintQuantity: model.ErrBadQuantity,
+		constraintSlot:      model.ErrSlotTaken,
+		constraintEquipSlot: model.ErrSlotTaken,
+		constraintQuantity:  model.ErrBadQuantity,
 	},
 }

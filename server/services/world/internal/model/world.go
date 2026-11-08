@@ -6,6 +6,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/internal/sim"
 
 	"github.com/google/uuid"
@@ -18,7 +19,14 @@ var (
 	ErrStopped = errors.New("world: instance is not running")
 	// ErrClassUnavailable means the game data lacks the class: a server fault, not a refusal.
 	ErrClassUnavailable = errors.New("world: class not available")
+	ErrCharacterDead    = errors.New("world: a dead character can't change what it wears")
 )
+
+// Worn is what a character wears as the item service last counted it: the sum of the worn items' rolls, at the inventory's Revision.
+type Worn struct {
+	Revision uint64
+	Stats    progression.ItemStats
+}
 
 // Player is what an instance needs about a joining character.
 type Player struct {
@@ -34,6 +42,7 @@ type Player struct {
 	X, Y    float64 // where to appear: feet centre
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
+	Worn       Worn // travels with the player between maps
 }
 
 // Character is a character as last saved, loaded to join.
@@ -65,6 +74,7 @@ type View struct {
 	MaxMP int
 	MapID string
 	X, Y  float64
+	Sheet progression.Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
 }
@@ -190,9 +200,22 @@ type LevelUp struct {
 	MaxHP int
 	MP    int
 	MaxMP int
+	Sheet progression.Sheet
+}
+
+// StatsChanged is the player's stats after what it wears changed.
+type StatsChanged struct {
+	Tick  uint64
+	Sheet progression.Sheet
+	HP    int
+	MaxHP int
+	MP    int
+	MaxMP int
 }
 
 func (Snapshot) event() {}
+
+func (StatsChanged) event() {}
 
 func (Teleport) event() {}
 func (Detached) event() {}
@@ -227,11 +250,12 @@ type DropView struct {
 	X, Y     float64
 }
 
-// InventoryChanged tells the player which slots a committed change touched, as they stood at the inventory's Revision.
+// InventoryChanged tells the player which slots and equip slots a committed change touched, as they stood at the inventory's Revision.
 type InventoryChanged struct {
-	Tick     uint64
-	Revision uint64
-	Slots    []Slot
+	Tick      uint64
+	Revision  uint64
+	Slots     []Slot
+	Equipment []EquipSlot
 }
 
 // Inventory is slots of a character's inventory as they stood at Revision, the item service's count of its changes.
@@ -252,6 +276,40 @@ type SlotItem struct {
 	ID       kernel.ItemID
 	Template string
 	Quantity int
+	Stats    *progression.ItemStats // what it rolled; nil for anything but equipment
+}
+
+// EquipSlot is one equip slot a change touched; Item is nil when it emptied.
+type EquipSlot struct {
+	Slot string
+	Item *SlotItem
+}
+
+// EquipCall wears an inventory item, checked against the character's live level and class; Key is the client's request ID.
+type EquipCall struct {
+	Account   kernel.AccountID
+	Character kernel.CharacterID
+	Key       string
+	Item      kernel.ItemID
+	EquipSlot string // rings only
+	Level     int
+	Class     kernel.Class
+}
+
+// UnequipCall puts a worn item back in the Equip tab, in ToSlot or, nil, the first free slot.
+type UnequipCall struct {
+	Account   kernel.AccountID
+	Character kernel.CharacterID
+	Key       string
+	EquipSlot string
+	ToSlot    *int
+}
+
+// Equipped is what an equip or unequip changed, with all that is worn after it.
+type Equipped struct {
+	Slots     []Slot
+	Equipment []EquipSlot
+	Worn      Worn
 }
 
 // PickupFailed says why a pickup failed; the drop stays on the ground.
@@ -277,4 +335,5 @@ type Pickup struct {
 	DropID    uuid.UUID
 	Template  string
 	Quantity  int
+	Stats     *progression.ItemStats // equipment's roll, nil for anything else
 }

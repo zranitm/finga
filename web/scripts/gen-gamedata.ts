@@ -47,8 +47,9 @@ const movement = must(load('movement.yaml'), isRecord, 'movement.yaml');
 // exp_curve.yaml
 const expCurve = must(load('exp_curve.yaml'), isRecord, 'exp_curve.yaml');
 
-// items.yaml: templates with the stack size the server applies (1 for equipment, 100 otherwise, unless max_stack says so).
+// items.yaml: templates with the stack size the server applies (1 for equipment, 100 otherwise, unless max_stack says so), and the ten equip slots in order.
 const itemsFile = must(load('items.yaml'), isRecord, 'items.yaml');
+const equipSlots = must(itemsFile.equip_slots, isArray, 'items.yaml equip_slots');
 const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   const it = must(raw, isRecord, 'an item');
   const tab = it.tab;
@@ -80,6 +81,7 @@ const files: Record<string, unknown> = {
   'movement.ts': movement,
   'exp-curve.ts': expCurve,
   'items.ts': items,
+  'equip-slots.ts': equipSlots,
   'classes.ts': classes,
   'mobs.ts': mobs,
 };

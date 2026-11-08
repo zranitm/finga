@@ -14,18 +14,22 @@ func AddStats(a, b gamedata.Stats) gamedata.Stats {
 	return gamedata.Stats{STR: a.STR + b.STR, DEX: a.DEX + b.DEX, INT: a.INT + b.INT, AGI: a.AGI + b.AGI, VIT: a.VIT + b.VIT}
 }
 
-// DeriveStats computes the derived stats; rates are capped and HP and MP round down.
-func DeriveStats(f gamedata.Formulas, s gamedata.Stats, level int, eq Equipment) Derived {
+// tenthsOfAPercent turns an item's rate into a fraction.
+const tenthsOfAPercent = 1000
+
+// DeriveStats computes the derived stats over the character's primary stats and what it wears: worn primary stats join the character's before the formulas, and the worn flat bonuses add after them; rates are capped last, and HP and MP round down.
+func DeriveStats(f gamedata.Formulas, base gamedata.Stats, level int, worn ItemStats) Derived {
+	s := AddStats(base, worn.Primary())
 	return Derived{
-		MaxHP:       int(math.Floor(eval(f.MaxHP, s, level))),
-		MaxMP:       int(math.Floor(eval(f.MaxMP, s, level))),
-		AttackPower: eval(f.AttackPower, s, level) + eq.WeaponAttack,
-		Accuracy:    eval(f.Accuracy, s, level),
-		Evasion:     eval(f.Evasion, s, level),
-		Defense:     eval(f.Defense, s, level) + eq.ArmorDefense,
-		CritRate:    capped(f.CritRate, eval(f.CritRate, s, level)),
-		CritDamage:  capped(f.CritDamage, eval(f.CritDamage, s, level)),
-		Penetration: capped(f.Penetration, eval(f.Penetration, s, level)+eq.Penetration),
+		MaxHP:       int(math.Floor(eval(f.MaxHP, s, level))) + worn.MaxHP,
+		MaxMP:       int(math.Floor(eval(f.MaxMP, s, level))) + worn.MaxMP,
+		AttackPower: eval(f.AttackPower, s, level) + float64(worn.Attack),
+		Accuracy:    eval(f.Accuracy, s, level) + float64(worn.Accuracy),
+		Evasion:     eval(f.Evasion, s, level) + float64(worn.Evasion),
+		Defense:     eval(f.Defense, s, level) + float64(worn.Defense),
+		CritRate:    capped(f.CritRate, eval(f.CritRate, s, level)+float64(worn.CritRate)/tenthsOfAPercent),
+		CritDamage:  capped(f.CritDamage, eval(f.CritDamage, s, level)+float64(worn.CritDamage)/tenthsOfAPercent),
+		Penetration: capped(f.Penetration, eval(f.Penetration, s, level)),
 	}
 }
 

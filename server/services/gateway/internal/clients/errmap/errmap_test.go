@@ -126,6 +126,7 @@ var contracts = []protoreflect.EnumDescriptor{
 // handledByTheGateway are reasons a client sees as internal: the gateway acts on them, or no request causes them.
 var handledByTheGateway = []grpcx.Reason{
 	grpcx.Key(itemv1.Reason_REASON_BAD_CAUSE),
+	grpcx.Key(itemv1.Reason_REASON_BAD_ROLL),
 	grpcx.Key(worldv1.Reason_REASON_BUSY),
 	grpcx.Key(worldv1.Reason_REASON_NO_MAP),
 	grpcx.Key(worldv1.Reason_REASON_STOPPED),

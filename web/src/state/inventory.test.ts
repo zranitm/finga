@@ -3,10 +3,10 @@ import type { MessageInitShape } from '@bufbuild/protobuf';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { InventoryChangedSchema, ItemViewSchema, WelcomeSchema } from '@/protocol/messages';
-import type { ItemView, InventorySlotSchema } from '@/protocol/messages';
+import type { EquipSlotSchema, ItemView, InventorySlotSchema } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
 
-import { inventory, isTab, SLOTS_PER_TAB, tabs } from './inventory';
+import { equipSlotIds, inventory, isTab, SLOTS_PER_TAB, tabs } from './inventory';
 import type { Slots } from './inventory';
 
 const allItems = (slots: Slots) => tabs.flatMap((tab) => slots[tab].filter((it) => it !== null));
@@ -211,5 +211,138 @@ describe('inventory revisions', () => {
     inventory.getState().clear();
     inventory.getState().applyInventoryChanged(changedAt([{ tab: 'etc', slot: 2, item: gel }], 1n));
     expect(inventory.getState().slots.etc[2]).toEqual(gel);
+  });
+});
+
+describe('equipment', () => {
+  beforeEach(() => {
+    resetStores();
+  });
+
+  const worn = (itemId: string, template: string) =>
+    create(ItemViewSchema, { itemId, template, quantity: 1, stats: { attack: 10 } });
+  const starter = worn('i-sword', 'wooden_sword');
+  const better = worn('i-better', 'wooden_sword');
+  const leatherCap = worn('i-cap', 'leather_cap');
+  const welcomeWearing = (
+    equipment: MessageInitShape<typeof EquipSlotSchema>[],
+    inventoryRevision: bigint,
+  ) =>
+    create(WelcomeSchema, {
+      token: 't',
+      inventory: [],
+      equipment,
+      mapId: 'town',
+      inventoryRevision,
+    });
+  const changedAt = (
+    slots: MessageInitShape<typeof InventorySlotSchema>[],
+    equipment: MessageInitShape<typeof EquipSlotSchema>[],
+    revision: bigint,
+  ) => create(InventoryChangedSchema, { slots, equipment, revision });
+
+  it('starts with the ten equip slots empty, in the character window order', () => {
+    expect(equipSlotIds).toEqual([
+      'weapon',
+      'hat',
+      'top',
+      'bottom',
+      'gloves',
+      'shoes',
+      'necklace',
+      'earrings',
+      'ring_1',
+      'ring_2',
+    ]);
+    const { equipment } = inventory.getState();
+    expect(equipSlotIds.every((id) => equipment[id] === null)).toBe(true);
+  });
+
+  it('Welcome wears what it lists, with its roll', () => {
+    inventory.getState().applyWelcome(welcomeWearing([{ equipSlot: 'weapon', item: starter }], 1n));
+    const { equipment } = inventory.getState();
+    expect(equipment.weapon).toEqual(starter);
+    expect(equipment.weapon?.stats?.attack).toBe(10);
+    expect(equipment.hat).toBeNull();
+  });
+
+  it('a swap sets the equip slot and the tab slot the new item left, under one revision', () => {
+    inventory.getState().applyWelcome(
+      create(WelcomeSchema, {
+        token: 't',
+        inventory: [{ ...better, tab: 'equip', slot: 4 }],
+        equipment: [{ equipSlot: 'weapon', item: starter }],
+        inventoryRevision: 1n,
+      }),
+    );
+    inventory
+      .getState()
+      .applyInventoryChanged(
+        changedAt(
+          [{ tab: 'equip', slot: 4, item: { ...starter, tab: 'equip', slot: 4 } }],
+          [{ equipSlot: 'weapon', item: better }],
+          2n,
+        ),
+      );
+    const { slots, equipment } = inventory.getState();
+    expect(equipment.weapon?.itemId).toBe('i-better');
+    expect(slots.equip[4]?.itemId).toBe('i-sword');
+  });
+
+  it('an unequip empties the equip slot', () => {
+    inventory.getState().applyWelcome(welcomeWearing([{ equipSlot: 'hat', item: leatherCap }], 1n));
+    inventory
+      .getState()
+      .applyInventoryChanged(
+        changedAt(
+          [{ tab: 'equip', slot: 0, item: { ...leatherCap, tab: 'equip', slot: 0 } }],
+          [{ equipSlot: 'hat' }],
+          2n,
+        ),
+      );
+    expect(inventory.getState().equipment.hat).toBeNull();
+    expect(inventory.getState().slots.equip[0]?.itemId).toBe('i-cap');
+  });
+
+  it('an older change arriving after a newer one leaves the newer equip slot be', () => {
+    inventory.getState().applyWelcome(welcomeWearing([{ equipSlot: 'weapon', item: starter }], 1n));
+    inventory
+      .getState()
+      .applyInventoryChanged(changedAt([], [{ equipSlot: 'weapon', item: better }], 3n));
+    inventory
+      .getState()
+      .applyInventoryChanged(changedAt([], [{ equipSlot: 'weapon', item: starter }], 2n));
+    expect(inventory.getState().equipment.weapon?.itemId).toBe('i-better');
+    inventory.getState().applyInventoryChanged(changedAt([], [{ equipSlot: 'weapon' }], 0n));
+    expect(inventory.getState().equipment.weapon).toBeNull();
+  });
+
+  it('a change with no equip slots leaves the equipment as it was, so the character window keeps still', () => {
+    inventory.getState().applyWelcome(welcomeWearing([{ equipSlot: 'weapon', item: starter }], 1n));
+    const before = inventory.getState().equipment;
+    inventory
+      .getState()
+      .applyInventoryChanged(changedAt([{ tab: 'etc', slot: 0, item: gel }], [], 2n));
+    expect(inventory.getState().equipment).toBe(before);
+  });
+
+  it('an equip slot this client does not know is skipped, and a clear takes everything off', () => {
+    inventory.getState().applyWelcome(
+      welcomeWearing(
+        [
+          { equipSlot: 'tail', item: leatherCap },
+          { equipSlot: 'hat', item: leatherCap },
+        ],
+        1n,
+      ),
+    );
+    inventory
+      .getState()
+      .applyInventoryChanged(changedAt([], [{ equipSlot: 'wings', item: better }], 2n));
+    const { equipment } = inventory.getState();
+    expect(Object.keys(equipment)).toEqual(equipSlotIds);
+    expect(equipment.hat?.itemId).toBe('i-cap');
+    inventory.getState().clear();
+    expect(inventory.getState().equipment.hat).toBeNull();
   });
 });

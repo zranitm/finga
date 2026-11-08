@@ -7,7 +7,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"finga/internal/gamedata"
 )
+
+// Content is the game data the checks hold items to.
+type Content interface {
+	Item(id string) (gamedata.Item, bool)
+	EquipSlot(id string) (gamedata.EquipSlot, bool)
+}
 
 // quantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
 func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
@@ -107,22 +115,137 @@ func oneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	return out, rows.Err()
 }
 
-// checks are the Stage 1 item invariants, in check order.
-var checks = []struct {
-	name string
-	run  func(context.Context, *pgxpool.Pool) ([]string, error)
-}{
-	{"5 quantity matches events", quantityMatchesEvents},
-	{"6 template totals", templateTotals},
-	{"6 stacks and splits balance", stacksAndSplitsBalance},
-	{"8 one item per slot", oneItemPerSlot},
+// equipmentHasItsRoll is check 11: every equipment item has one roll and nothing else has one; ranges are checked where a roll is made, as a retuned range never invalidates what was rolled.
+func equipmentHasItsRoll(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT i.id, i.template_id, r.item_id IS NOT NULL
+		FROM items i LEFT JOIN item_rolls r ON r.item_id = i.id
+		ORDER BY i.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id uuid.UUID
+		var template string
+		var rolled bool
+		if err := rows.Scan(&id, &template, &rolled); err != nil {
+			return nil, err
+		}
+		tmpl, known := content.Item(template)
+		equipment := known && tmpl.Tab == gamedata.Equip
+		switch {
+		case !known:
+			out = append(out, fmt.Sprintf("item %s: template %s is not in the game data", id, template))
+		case equipment && !rolled:
+			out = append(out, fmt.Sprintf("item %s: %s has no roll", id, template))
+		case !equipment && rolled:
+			out = append(out, fmt.Sprintf("item %s: %s is not equipment but has a roll", id, template))
+		}
+	}
+	return out, rows.Err()
 }
 
-// CheckInvariants runs every Stage 1 check and returns all mismatches, each named by its check, in check order.
-func CheckInvariants(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+// oneItemPerEquipSlot is check 9: no two worn items share an owner and an equip slot.
+func oneItemPerEquipSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT owner_id, equip_slot, count(*) FROM items
+		WHERE location = 'equipped'
+		GROUP BY owner_id, equip_slot HAVING count(*) > 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var owner uuid.UUID
+		var slot string
+		var n int
+		if err := rows.Scan(&owner, &slot, &n); err != nil {
+			return nil, err
+		}
+		out = append(out, fmt.Sprintf("owner %s wears %d items in %s", owner, n, slot))
+	}
+	return out, rows.Err()
+}
+
+// wornFitsItsSlot is check 10: every worn item's template is of its equip slot's kind.
+func wornFitsItsSlot(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
+	rows, err := pool.Query(ctx, `SELECT id, template_id, equip_slot FROM items WHERE location = 'equipped' ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id uuid.UUID
+		var template, slot string
+		if err := rows.Scan(&id, &template, &slot); err != nil {
+			return nil, err
+		}
+		tmpl, known := content.Item(template)
+		es, slotKnown := content.EquipSlot(slot)
+		if !known || !slotKnown || tmpl.Tab != gamedata.Equip || tmpl.Slot != es.Kind {
+			out = append(out, fmt.Sprintf("item %s: %s is worn in %s, which doesn't take it", id, template, slot))
+		}
+	}
+	return out, rows.Err()
+}
+
+// wornMatchesEvents is check 12: an item is worn exactly when its last equipped or unequipped event is equipped.
+func wornMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT i.id, i.location, coalesce(last.kind, '')
+		FROM items i
+		LEFT JOIN LATERAL (
+			SELECT kind FROM item_events e
+			WHERE e.item_id = i.id AND e.kind IN ('equipped', 'unequipped')
+			ORDER BY e.id DESC LIMIT 1
+		) last ON true
+		WHERE (i.location = 'equipped') <> (coalesce(last.kind, '') = 'equipped')
+		ORDER BY i.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id uuid.UUID
+		var location, last string
+		if err := rows.Scan(&id, &location, &last); err != nil {
+			return nil, err
+		}
+		out = append(out, fmt.Sprintf("item %s: %s, but its last equip event is %q", id, location, last))
+	}
+	return out, rows.Err()
+}
+
+// dbOnly is a check that needs no game data.
+func dbOnly(run func(context.Context, *pgxpool.Pool) ([]string, error)) func(context.Context, *pgxpool.Pool, Content) ([]string, error) {
+	return func(ctx context.Context, pool *pgxpool.Pool, _ Content) ([]string, error) { return run(ctx, pool) }
+}
+
+// checks are the item invariants, in check order.
+var checks = []struct {
+	name string
+	run  func(context.Context, *pgxpool.Pool, Content) ([]string, error)
+}{
+	{"5 quantity matches events", dbOnly(quantityMatchesEvents)},
+	{"6 template totals", dbOnly(templateTotals)},
+	{"6 stacks and splits balance", dbOnly(stacksAndSplitsBalance)},
+	{"8 one item per slot", dbOnly(oneItemPerSlot)},
+	{"9 one item per equip slot", dbOnly(oneItemPerEquipSlot)},
+	{"10 worn items fit their slots", wornFitsItsSlot},
+	{"11 equipment has its roll", equipmentHasItsRoll},
+	{"12 worn matches equip events", dbOnly(wornMatchesEvents)},
+}
+
+// CheckInvariants runs every check against the game data's templates and returns all mismatches, each named by its check, in check order.
+func CheckInvariants(ctx context.Context, pool *pgxpool.Pool, content Content) ([]string, error) {
 	var all []string
 	for _, c := range checks {
-		mismatches, err := c.run(ctx, pool)
+		mismatches, err := c.run(ctx, pool, content)
 		if err != nil {
 			return nil, fmt.Errorf("check %s: %w", c.name, err)
 		}

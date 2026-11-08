@@ -103,6 +103,23 @@ func TestNothingFollowsTheEnd(t *testing.T) {
 	}
 }
 
+// A sheet with every field set, and its wire form.
+var (
+	sheet = model.StatSheet{
+		Primary: model.Stats{STR: 5, DEX: 13, INT: 4, AGI: 10, VIT: 5}, PrimaryWorn: model.Stats{DEX: 1},
+		Derived:     model.DerivedStats{AttackPower: 41.5, Defense: 3, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, MaxHP: 135, MaxMP: 33},
+		DerivedWorn: model.DerivedStats{AttackPower: 11.5, Defense: 3, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, MaxHP: 30, MaxMP: 1},
+	}
+	wireSheet = &clientv1.StatSheet{
+		Primary: &clientv1.Stats{Str: 5, Dex: 13, Int: 4, Agi: 10, Vit: 5}, PrimaryWorn: &clientv1.Stats{Dex: 1},
+		Derived:     &clientv1.DerivedStats{AttackPower: 41.5, Defense: 3, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, MaxHp: 135, MaxMp: 33},
+		DerivedWorn: &clientv1.DerivedStats{AttackPower: 11.5, Defense: 3, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, MaxHp: 30, MaxMp: 1},
+	}
+	// A bow with every stat rolled, as no real one is.
+	bow     = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{Attack: 9, Defense: 1, STR: 2, DEX: 3, INT: 4, AGI: 5, VIT: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHP: 11, MaxMP: 12}}
+	wireBow = &clientv1.ItemView{ItemId: "i-2", Template: "short_bow", Quantity: 1, Stats: &clientv1.ItemStats{Attack: 9, Defense: 1, Str: 2, Dex: 3, Int: 4, Agi: 5, Vit: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHp: 11, MaxMp: 12}}
+)
+
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	players := []model.PlayerView{{ID: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, VX: 200, VY: -5, Facing: -1, OnGround: true, Climbing: true, HP: 50, MaxHP: 105, Dead: true, Invulnerable: true}}
 	wirePlayers := []*clientv1.PlayerView{{Id: "p-1", Name: "Robin", Class: "bowman", Level: 3, X: 1, Y: 2, Vx: 200, Vy: -5, Facing: -1, OnGround: true, Climbing: true, Hp: 50, MaxHp: 105, Dead: true, Invulnerable: true}}
@@ -112,8 +129,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 	wireDrops := []*clientv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 5, Y: 6}}
 	party := &model.PartyView{Leader: "p-1", Members: []model.PartyMember{{CharacterID: "p-1", Name: "Robin", Level: 3, HP: 50, MaxHP: 105, MapID: "forest", Online: true}}}
 	wireParty := &clientv1.PartyView{Leader: "p-1", Members: []*clientv1.PartyMember{{CharacterId: "p-1", Name: "Robin", Level: 3, Hp: 50, MaxHp: 105, MapId: "forest", Online: true}}}
-	character := model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33}
-	wireCharacter := &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33}
+	character := model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33, Sheet: sheet}
+	wireCharacter := &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33, Sheet: wireSheet}
 	slots := []model.InventorySlot{{Tab: "etc", Slot: 1}, {Tab: "etc", Slot: 2, Item: &model.ItemView{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}}}
 	wireSlots := []*clientv1.InventorySlot{{Tab: "etc", Slot: 1}, {Tab: "etc", Slot: 2, Item: &clientv1.ItemView{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}}}
 	tests := []struct {
@@ -143,6 +160,11 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			&clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: "p-1", SenderName: "Robin", Text: "hi"},
 		},
 		{model.InventoryChanged{Revision: 5, Slots: slots}, &clientv1.InventoryChanged{Revision: 5, Slots: wireSlots}},
+		{
+			model.InventoryChanged{Revision: 6, Slots: []model.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "weapon", Item: &bow}, {Slot: "hat"}}},
+			&clientv1.InventoryChanged{Revision: 6, Slots: []*clientv1.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: wireBow}, {EquipSlot: "hat"}}},
+		},
+		{model.StatsChanged{Sheet: sheet, HP: 50, MaxHP: 135, MP: 10, MaxMP: 33}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135, Mp: 10, MaxMp: 33}},
 		{model.PickupFailed{Why: model.InventoryFull}, &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
 		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
@@ -197,16 +219,18 @@ func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
 		Token:             "t-2",
-		Character:         model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33},
+		Character:         model.CharacterView{ID: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: model.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 50, MaxHP: 105, MP: 10, MaxMP: 33, Sheet: sheet},
 		Inventory:         []model.ItemView{{ID: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		Equipment:         []model.EquipSlot{{Slot: "weapon", Item: &bow}},
 		InventoryRevision: 8,
 		MapID:             "town",
 		ServerTime:        at,
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
-		Character:         &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33},
+		Character:         &clientv1.CharacterView{Id: "p-1", Name: "Robin", Class: "bowman", Level: 2, Exp: 15, Stats: &clientv1.Stats{Str: 5, Dex: 12, Int: 4, Agi: 10, Vit: 5}, Hp: 50, MaxHp: 105, Mp: 10, MaxMp: 33, Sheet: wireSheet},
 		Inventory:         []*clientv1.ItemView{{ItemId: "i-1", Template: "slime_gel", Tab: "etc", Slot: 2, Quantity: 3}},
+		Equipment:         []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: wireBow}},
 		InventoryRevision: 8,
 		MapId:             "town",
 		ServerTime:        at.UnixMilli(),

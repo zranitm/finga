@@ -27,13 +27,15 @@ const (
 	WorldService_PickUp_FullMethodName      = "/internal.world.v1.WorldService/PickUp"
 	WorldService_EnterPortal_FullMethodName = "/internal.world.v1.WorldService/EnterPortal"
 	WorldService_Say_FullMethodName         = "/internal.world.v1.WorldService/Say"
+	WorldService_Equip_FullMethodName       = "/internal.world.v1.WorldService/Equip"
+	WorldService_Unequip_FullMethodName     = "/internal.world.v1.WorldService/Unequip"
 )
 
 // WorldServiceClient is the client API for WorldService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo. Equip and Unequip return once applied, their refusals carrying the item service's Reason.
 type WorldServiceClient interface {
 	// Deliver streams Subscribed, then every event for the players who joined through that gateway; one that falls behind loses the stream and its players, so it resubscribes and rejoins them.
 	Deliver(ctx context.Context, in *DeliverRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[DeliverResponse], error)
@@ -51,6 +53,10 @@ type WorldServiceClient interface {
 	EnterPortal(ctx context.Context, in *EnterPortalRequest, opts ...grpc.CallOption) (*EnterPortalResponse, error)
 	// Say is a map chat line, already cleaned by the social service.
 	Say(ctx context.Context, in *SayRequest, opts ...grpc.CallOption) (*SayResponse, error)
+	// Equip wears an inventory item, checked against the character's live level and class; it answers once the new stats apply, with InventoryChanged and StatsChanged on Deliver.
+	Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error)
+	// Unequip puts a worn item back in the Equip tab; it answers once the new stats apply.
+	Unequip(ctx context.Context, in *UnequipRequest, opts ...grpc.CallOption) (*UnequipResponse, error)
 }
 
 type worldServiceClient struct {
@@ -150,11 +156,31 @@ func (c *worldServiceClient) Say(ctx context.Context, in *SayRequest, opts ...gr
 	return out, nil
 }
 
+func (c *worldServiceClient) Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EquipResponse)
+	err := c.cc.Invoke(ctx, WorldService_Equip_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServiceClient) Unequip(ctx context.Context, in *UnequipRequest, opts ...grpc.CallOption) (*UnequipResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnequipResponse)
+	err := c.cc.Invoke(ctx, WorldService_Unequip_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServiceServer is the server API for WorldService service.
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
 //
-// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo.
+// WorldService runs the map instances at its tick rate, which Join reports; commands return once queued, their effects arrive on Deliver, and a failure carries a Reason in google.rpc.ErrorInfo. Equip and Unequip return once applied, their refusals carrying the item service's Reason.
 type WorldServiceServer interface {
 	// Deliver streams Subscribed, then every event for the players who joined through that gateway; one that falls behind loses the stream and its players, so it resubscribes and rejoins them.
 	Deliver(*DeliverRequest, grpc.ServerStreamingServer[DeliverResponse]) error
@@ -172,6 +198,10 @@ type WorldServiceServer interface {
 	EnterPortal(context.Context, *EnterPortalRequest) (*EnterPortalResponse, error)
 	// Say is a map chat line, already cleaned by the social service.
 	Say(context.Context, *SayRequest) (*SayResponse, error)
+	// Equip wears an inventory item, checked against the character's live level and class; it answers once the new stats apply, with InventoryChanged and StatsChanged on Deliver.
+	Equip(context.Context, *EquipRequest) (*EquipResponse, error)
+	// Unequip puts a worn item back in the Equip tab; it answers once the new stats apply.
+	Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }
 
@@ -205,6 +235,12 @@ func (UnimplementedWorldServiceServer) EnterPortal(context.Context, *EnterPortal
 }
 func (UnimplementedWorldServiceServer) Say(context.Context, *SayRequest) (*SayResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Say not implemented")
+}
+func (UnimplementedWorldServiceServer) Equip(context.Context, *EquipRequest) (*EquipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Equip not implemented")
+}
+func (UnimplementedWorldServiceServer) Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Unequip not implemented")
 }
 func (UnimplementedWorldServiceServer) mustEmbedUnimplementedWorldServiceServer() {}
 func (UnimplementedWorldServiceServer) testEmbeddedByValue()                      {}
@@ -364,6 +400,42 @@ func _WorldService_Say_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_Equip_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EquipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).Equip(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_Equip_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).Equip(ctx, req.(*EquipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldService_Unequip_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnequipRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).Unequip(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_Unequip_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).Unequip(ctx, req.(*UnequipRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldService_ServiceDesc is the grpc.ServiceDesc for WorldService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -398,6 +470,14 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Say",
 			Handler:    _WorldService_Say_Handler,
+		},
+		{
+			MethodName: "Equip",
+			Handler:    _WorldService_Equip_Handler,
+		},
+		{
+			MethodName: "Unequip",
+			Handler:    _WorldService_Unequip_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

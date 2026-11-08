@@ -282,7 +282,7 @@
     {
       "type": "timeseries",
       "id": 8,
-      "title": "Pickups in flight",
+      "title": "Item calls in flight",
       "description": "",
       "datasource": {
         "type": "prometheus",
@@ -321,7 +321,7 @@
             "type": "prometheus",
             "uid": "mimir"
           },
-          "expr": "sum(finga_economy_jobs_inflight)",
+          "expr": "sum(finga_item_calls_inflight)",
           "legendFormat": "in flight"
         },
         {

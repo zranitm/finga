@@ -13,6 +13,8 @@ export interface CharacterState {
   readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
   applyWelcome(d: Data<'welcome'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
+  /** What the character wears changed: a new sheet, maxima, and the HP and MP the server clamped to them. */
+  applyStatsChanged(d: Data<'statsChanged'>): void;
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
   setVitals(hp: number, mp: number): void;
@@ -40,6 +42,14 @@ export const character = defineStore<CharacterState>((set, get) => ({
   applyLevelUp: (d) => {
     if (d.character) {
       set({ character: d.character, expToNext: expToNextLevel(d.character.level) });
+    }
+  },
+  applyStatsChanged: (d) => {
+    const c = get().character;
+    if (c) {
+      set({
+        character: { ...c, sheet: d.sheet, hp: d.hp, maxHp: d.maxHp, mp: d.mp, maxMp: d.maxMp },
+      });
     }
   },
   applyExpGained: (d) => {

@@ -3,6 +3,8 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -12,11 +14,13 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/dbx"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
+	"finga/services/item/itemtest"
 )
 
 // These rules are about transactions, so they run against real Postgres.
@@ -42,11 +46,21 @@ func newHarness(t *testing.T) *harness {
 
 func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
 	t.Helper()
-	res, err := h.svc.Add(context.Background(), h.actor, application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
+	res, err := h.svc.Add(context.Background(), h.actor, application.AddInput{Key: key, TemplateID: template, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: h.roll(template)})
 	if err != nil {
 		t.Fatalf("add %s x%d: %v", template, qty, err)
 	}
 	return res
+}
+
+// roll is equipment's top roll, which a starter's lowest never equals; anything else has none.
+func (h *harness) roll(template string) *progression.ItemStats {
+	tmpl, ok := h.data.Item(template)
+	if !ok || tmpl.Tab != gamedata.Equip {
+		return nil
+	}
+	top := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return r.Max })
+	return &top
 }
 
 func (h *harness) inventory(t *testing.T) []model.Item {
@@ -153,6 +167,86 @@ func TestAdd(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				if _, err := h.svc.Add(ctx, h.actor, tt.in); !errors.Is(err, tt.want) {
 					t.Fatalf("err = %v, want %v", err, tt.want)
+				}
+			})
+		}
+	})
+}
+
+func TestRolls(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	in := application.AddInput{Key: "r1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{Attack: 17}}
+	rolled := func(t *testing.T, what string, it *model.Item) {
+		t.Helper()
+		if it == nil || it.Stats == nil || *it.Stats != *in.Stats {
+			t.Fatalf("%s: %+v, want the sword's roll %+v", what, it, *in.Stats)
+		}
+	}
+	first, err := h.svc.Add(ctx, h.actor, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sword := *first.Changed[0].Item
+
+	t.Run("equipment keeps the roll it was added with", func(t *testing.T) {
+		rolled(t, "the added sword", &sword)
+		inv := h.inventory(t)
+		rolled(t, "the sword read back", &inv[0])
+		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND attack = 17`, sword.ID) != 1 {
+			t.Fatal("no roll row")
+		}
+	})
+	t.Run("a retry replays the roll, and another roll under the key is refused", func(t *testing.T) {
+		again, err := h.svc.Add(ctx, h.actor, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rolled(t, "the replayed sword", again.Changed[0].Item)
+		other := in
+		other.Stats = &progression.ItemStats{Attack: 18}
+		if _, err := h.svc.Add(ctx, h.actor, other); !errors.Is(err, model.ErrKeyReused) {
+			t.Fatalf("err = %v, want ErrKeyReused", err)
+		}
+	})
+	t.Run("a moved sword keeps its roll, replayed too", func(t *testing.T) {
+		mv := application.MoveInput{Key: "r2", ItemID: sword.ID, Tab: gamedata.Equip, Slot: 9}
+		for _, try := range []string{"the move", "its replay"} {
+			res, err := h.svc.Move(ctx, h.actor, mv)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rolled(t, try, res.Changed[1].Item)
+		}
+	})
+	t.Run("anything but equipment has no roll", func(t *testing.T) {
+		res := h.add(t, "r3", "red_potion", 3)
+		if it := res.Changed[0].Item; it.Stats != nil {
+			t.Fatalf("potion %+v", it)
+		}
+	})
+	t.Run("bad rolls write nothing", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			template string
+			stats    *progression.ItemStats
+		}{
+			{"equipment without a roll", "iron_sword", nil},
+			{"a stat above its range", "iron_sword", &progression.ItemStats{Attack: 21}},
+			{"a stat below its range", "iron_sword", &progression.ItemStats{Attack: 15}},
+			{"a stat the template doesn't give", "iron_sword", &progression.ItemStats{Attack: 17, STR: 1}},
+			{"a potion with a roll", "red_potion", &progression.ItemStats{}},
+		}
+		for k, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				items, rolls := h.count(t, `SELECT count(*) FROM items`), h.count(t, `SELECT count(*) FROM item_rolls`)
+				key := fmt.Sprintf("bad-%d", k)
+				_, err := h.svc.Add(ctx, h.actor, application.AddInput{Key: key, TemplateID: tt.template, Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}, Stats: tt.stats})
+				if !errors.Is(err, model.ErrBadRoll) {
+					t.Fatalf("err = %v, want ErrBadRoll", err)
+				}
+				if h.count(t, `SELECT count(*) FROM items`) != items || h.count(t, `SELECT count(*) FROM item_rolls`) != rolls || h.count(t, `SELECT count(*) FROM idempotency_keys WHERE key = $1`, key) != 0 {
+					t.Fatal("a refused roll wrote rows")
 				}
 			})
 		}
@@ -420,18 +514,28 @@ func TestGrantStarter(t *testing.T) {
 		t.Fatal(err)
 	}
 	inv := read.Items
-	got := map[string]int{}
-	for _, it := range inv {
-		got[it.TemplateID] += it.Quantity
+	if len(inv) != 2 || inv[0].TemplateID != "red_potion" || inv[0].Quantity != 5 || inv[0].Tab != gamedata.Use || inv[1].TemplateID != "wooden_sword" || inv[1].EquipSlot != "weapon" {
+		t.Fatalf("starter inventory %+v; want 5 potions in the Use tab and the sword worn", inv)
 	}
-	if got["wooden_sword"] != 1 || got["red_potion"] != 5 || len(inv) != 2 || len(first.Changed) != 2 {
-		t.Fatalf("starter inventory %+v, changed %+v", inv, first.Changed)
+	sword, _ := h.data.Item("wooden_sword")
+	if lowest := progression.Lowest(sword.Rolls); inv[1].Stats == nil || *inv[1].Stats != lowest {
+		t.Fatalf("starter sword rolled %+v, want the lowest roll %+v", inv[1].Stats, lowest)
 	}
-	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, warrior.Character) != 2 {
+	worn := inv[1]
+	if len(first.Changed) != 1 || first.Changed[0].Item.TemplateID != "red_potion" ||
+		!reflect.DeepEqual(first.Equipment, []model.WornSlot{{Slot: "weapon", Item: &worn}}) || first.Revision != 1 {
+		t.Fatalf("grant changed %+v and %+v at revision %d; want the potions' slot and the sword in the weapon slot, at 1", first.Changed, first.Equipment, first.Revision)
+	}
+	// Created, then equipped: the sword's events say it is worn, so check 12 holds.
+	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, warrior.Character) != 3 ||
+		h.count(t, `SELECT count(*) FROM item_events WHERE kind = 'equipped' AND item_id = $1`, worn.ID) != 1 {
 		t.Fatal("starter events missing")
 	}
 	if h.count(t, `SELECT count(*) FROM outbox WHERE type = 'ItemGranted'`) != 2 {
 		t.Fatal("ItemGranted outbox events missing")
+	}
+	if mismatches, err := itemtest.CheckInvariants(ctx, h.pool, h.data); err != nil || len(mismatches) > 0 {
+		t.Fatalf("invariants: %v %v", mismatches, err)
 	}
 
 	unchanged := func(t *testing.T, again application.Result, err error) {
@@ -439,10 +543,10 @@ func TestGrantStarter(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(again.Changed) != 0 {
-			t.Fatalf("a second grant changed %+v", again.Changed)
+		if len(again.Changed) != 0 || len(again.Equipment) != 0 {
+			t.Fatalf("a second grant changed %+v and %+v", again.Changed, again.Equipment)
 		}
-		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 2 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
+		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 3 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
 			t.Fatal("the second grant wrote again")
 		}
 	}
@@ -472,8 +576,8 @@ func TestGrantStarter(t *testing.T) {
 			})
 		}
 		wg.Wait()
-		if n := h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, mage.Character); n != 2 {
-			t.Fatalf("%d starter events, want one kit's 2", n)
+		if n := h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, mage.Character); n != 3 {
+			t.Fatalf("%d starter events, want one kit's 3", n)
 		}
 	})
 	t.Run("a bowman gets a bow", func(t *testing.T) {
@@ -482,8 +586,28 @@ func TestGrantStarter(t *testing.T) {
 			t.Fatal(err)
 		}
 		read, _ := h.svc.Inventory(ctx, bowman.Character)
-		if inv := read.Items; len(inv) != 2 || inv[0].TemplateID != "short_bow" {
+		if inv := read.Items; len(inv) != 2 || inv[1].TemplateID != "short_bow" || inv[1].EquipSlot != "weapon" {
 			t.Fatalf("bowman inventory %+v", inv)
+		}
+	})
+	// A grant that comes late, from the world's safety net, may find a weapon already worn.
+	t.Run("starter equipment whose slot is taken lands in the inventory", func(t *testing.T) {
+		late := newHarness(t)
+		late.actor = model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		bow := late.added(t, "short_bow")
+		if _, err := late.svc.Equip(ctx, late.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: bow.ID, Level: 1, Class: kernel.Bowman}); err != nil {
+			t.Fatal(err)
+		}
+		kit, err := late.svc.GrantStarter(ctx, late.actor, kernel.Bowman)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inv := late.inventory(t)
+		if len(kit.Equipment) != 0 || len(kit.Changed) != 2 || len(inv) != 3 || inv[0].TemplateID != "short_bow" || inv[0].Tab != gamedata.Equip || inv[2].ID != bow.ID || inv[2].EquipSlot != "weapon" {
+			t.Fatalf("late grant changed %+v and %+v, inventory %+v; want the starter bow in the Equip tab, the worn one kept", kit.Changed, kit.Equipment, inv)
+		}
+		if mismatches, err := itemtest.CheckInvariants(ctx, late.pool, late.data); err != nil || len(mismatches) > 0 {
+			t.Fatalf("invariants: %v %v", mismatches, err)
 		}
 	})
 	t.Run("a class the game data does not have is unknown_class and writes nothing", func(t *testing.T) {

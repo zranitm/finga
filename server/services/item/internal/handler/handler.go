@@ -10,6 +10,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
@@ -22,6 +23,8 @@ type Service interface {
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
 	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
+	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
+	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
 }
 
 // Server serves ItemService over the module.
@@ -43,11 +46,7 @@ func (s *Server) Inventory(ctx context.Context, req *itemv1.InventoryRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	out := make([]*itemv1.Item, 0, len(inv.Items))
-	for _, it := range inv.Items {
-		out = append(out, itemOf(it))
-	}
-	return &itemv1.InventoryResponse{Items: out, Revision: inv.Revision}, nil
+	return &itemv1.InventoryResponse{Items: items(inv.Items), Revision: inv.Revision}, nil
 }
 
 // Add puts a quantity of a template in the inventory.
@@ -64,7 +63,7 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause})
+	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause, Stats: statsOf(req.GetStats())})
 	if err != nil {
 		return nil, err
 	}
@@ -130,6 +129,53 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 	return &itemv1.GrantStarterResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
+// Equip wears an inventory item, checked against the level and class the world sends.
+func (s *Server) Equip(ctx context.Context, req *itemv1.EquipRequest) (*itemv1.EquipResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	id, err := kernel.ParseItemID(req.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	class, err := kernel.ParseClass(req.GetClass())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Equip(ctx, actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: class})
+	if err != nil {
+		return nil, err
+	}
+	return &itemv1.EquipResponse{Changed: slots(res), Equipment: equipment(res), Worn: items(res.Worn), Revision: res.Revision}, nil
+}
+
+// Unequip puts a worn item back in the Equip tab.
+func (s *Server) Unequip(ctx context.Context, req *itemv1.UnequipRequest) (*itemv1.UnequipResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	in := application.UnequipInput{Key: key, EquipSlot: req.GetEquipSlot()}
+	if req.ToSlot != nil {
+		to := int(req.GetToSlot())
+		in.ToSlot = &to
+	}
+	res, err := s.svc.Unequip(ctx, actor, in)
+	if err != nil {
+		return nil, err
+	}
+	return &itemv1.UnequipResponse{Changed: slots(res), Equipment: equipment(res), Worn: items(res.Worn), Revision: res.Revision}, nil
+}
+
 func actorOf(a *itemv1.Actor) (model.Actor, error) {
 	account, err := kernel.ParseAccountID(a.GetAccountId())
 	if err != nil {
@@ -177,7 +223,46 @@ func causeOf(c *itemv1.Cause) (model.Cause, error) {
 }
 
 func itemOf(it model.Item) *itemv1.Item {
-	return &itemv1.Item{Id: it.ID.String(), TemplateId: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
+	out := &itemv1.Item{Id: it.ID.String(), TemplateId: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity), EquipSlot: it.EquipSlot}
+	if s := it.Stats; s != nil {
+		//nolint:gosec // stats are small
+		out.Stats = &itemv1.ItemStats{
+			Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+		}
+	}
+	return out
+}
+
+// statsOf is a roll as sent, nil when none was.
+func statsOf(s *itemv1.ItemStats) *progression.ItemStats {
+	if s == nil {
+		return nil
+	}
+	return &progression.ItemStats{
+		Attack: int(s.GetAttack()), Defense: int(s.GetDefense()), STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
+		Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()), CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()),
+	}
+}
+
+func items(its []model.Item) []*itemv1.Item {
+	out := make([]*itemv1.Item, 0, len(its))
+	for _, it := range its {
+		out = append(out, itemOf(it))
+	}
+	return out
+}
+
+func equipment(res application.Result) []*itemv1.EquipSlot {
+	out := make([]*itemv1.EquipSlot, 0, len(res.Equipment))
+	for _, s := range res.Equipment {
+		slot := &itemv1.EquipSlot{EquipSlot: s.Slot}
+		if s.Item != nil {
+			slot.Item = itemOf(*s.Item)
+		}
+		out = append(out, slot)
+	}
+	return out
 }
 
 func slots(res application.Result) []*itemv1.Slot {

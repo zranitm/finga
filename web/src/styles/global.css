@@ -10,6 +10,14 @@
   --hp: #d94f4f;
   --mp: #4f7bd9;
   --exp: #d9b84f;
+  /* One colour per star count, for an item's name and the frame of its icon. */
+  --star-1: #a3a9b8;
+  --star-2: #5cc46a;
+  --star-3: #4f8fe0;
+  --star-4: #a86ee0;
+  --star-5: #f08a3a;
+  --star-6: #e04848;
+  --star-7: #f0c93a;
   --radius: 6px;
   --font: 'Segoe UI', system-ui, sans-serif;
 }
@@ -320,11 +328,32 @@ body {
   grid-template-columns: repeat(6, 44px);
   gap: 4px;
 }
+.stars-1 {
+  --star: var(--star-1);
+}
+.stars-2 {
+  --star: var(--star-2);
+}
+.stars-3 {
+  --star: var(--star-3);
+}
+.stars-4 {
+  --star: var(--star-4);
+}
+.stars-5 {
+  --star: var(--star-5);
+}
+.stars-6 {
+  --star: var(--star-6);
+}
+.stars-7 {
+  --star: var(--star-7);
+}
 .slot {
   position: relative;
   width: 44px;
   height: 44px;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--star, var(--panel-border));
   border-radius: 4px;
   background: #0a0c16;
   color: var(--text);
@@ -370,6 +399,139 @@ body {
 .inventory-detail > span,
 .inventory-confirm > span {
   flex: 1;
+}
+
+/* The character window: who, vitals, the ten slots around a figure, then the stats. */
+.character {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  font-size: 14px;
+}
+.character-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.character-name {
+  font-weight: 700;
+  font-size: 16px;
+}
+.character-vitals {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+}
+.character-vitals dt {
+  color: var(--muted);
+}
+.character-vitals dd {
+  margin: 0;
+}
+.character-equipment {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+}
+.equip-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.character-figure {
+  flex: 1;
+  margin: 0 8px;
+  border-radius: 40% 40% 8px 8px;
+  background: linear-gradient(180deg, rgba(240, 178, 58, 0.12), rgba(240, 178, 58, 0.02));
+}
+.equip-slot-name {
+  display: block;
+  font-size: 9px;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.character-stat-tables {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 16px;
+}
+.character-stats {
+  width: 100%;
+  border-collapse: collapse;
+}
+.character-stats th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--muted);
+  padding: 1px 0;
+}
+.character-stats td {
+  text-align: right;
+}
+.stat-worn {
+  color: #7ac74f;
+}
+
+/* Item cards: beside the pointer, above every window, never catching the pointer. */
+.item-cards {
+  position: fixed;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 220px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+}
+.item-card-heading {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.item-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--star, var(--text));
+}
+.item-card-type {
+  color: var(--muted);
+}
+.item-card-requirements,
+.item-card-stats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item-card-requirements .unmet {
+  color: var(--danger);
+}
+.stat-range {
+  color: var(--muted);
+}
+.stat-gain {
+  color: #7ac74f;
+}
+.stat-loss {
+  color: var(--danger);
+}
+.item-card-description {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-style: italic;
 }
 
 /* Toasts. */

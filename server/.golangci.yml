@@ -139,9 +139,9 @@ linters:
               desc: the handler calls the application, never the reverse
             - pkg: finga/internal/protocol
               desc: the client protocol is the WebSocket handler's alone; the model has its own views
-        # The world's domains (mobs, loot, party, economy) know no map actor; the actor knows no World.
+        # The world's domains (mobs, loot, party, itemcalls) know no map actor; the actor knows no World.
         world-domains:
-          files: ["**/services/world/internal/application/mobs/**", "**/services/world/internal/application/loot/**", "**/services/world/internal/application/party/**", "**/services/world/internal/application/economy/**"]
+          files: ["**/services/world/internal/application/mobs/**", "**/services/world/internal/application/loot/**", "**/services/world/internal/application/party/**", "**/services/world/internal/application/itemcalls/**"]
           deny:
             - pkg: finga/services/world/internal/application/instance
               desc: a domain runs inside a map; the map's actor calls it, never the reverse

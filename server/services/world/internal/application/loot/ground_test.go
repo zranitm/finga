@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"reflect"
 	"slices"
 	"strings"
@@ -20,7 +21,8 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
-	"finga/services/world/internal/application/economy"
+	"finga/internal/progression"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
@@ -104,22 +106,28 @@ func (s *syncWriter) String() string {
 
 type jobs struct{}
 
-func (jobs) JobStarted()  {}
-func (jobs) JobFinished() {}
+func (jobs) CallQueued() {}
+func (jobs) CallDone()   {}
 
 type scene struct {
 	g                      *loot.Ground
 	items                  *pickups
-	workers                *economy.Workers
+	workers                *itemcalls.Pool
 	logs                   *syncWriter
 	spans                  *tracetest.SpanRecorder
 	killer, mate, stranger loot.Picker
 }
 
-// newScene is a ground whose slime the killer just killed at tick 1; run starts the workers that grant pickups.
+// newScene is a ground whose slime the killer just killed at tick 1, rolling 0 each time; run starts the workers that grant pickups.
 func newScene(t *testing.T, items *pickups, run bool) scene {
 	t.Helper()
-	workers := economy.NewWorkers(economy.Deps{Observer: jobs{}, Panics: worldtest.DiscardPanics()}, economy.Options{Workers: 1})
+	return sceneOf(t, items, run, worldtest.FixedRoll{V: 0}, slime)
+}
+
+// sceneOf is a ground whose mob the killer just killed at tick 1, with the map's random source roll.
+func sceneOf(t *testing.T, items *pickups, run bool, roll model.Roll, mob gamedata.Mob) scene {
+	t.Helper()
+	workers := itemcalls.NewPool(itemcalls.Deps{Observer: jobs{}, Panics: worldtest.DiscardPanics()}, itemcalls.Options{Workers: 1})
 	if run {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
@@ -132,10 +140,87 @@ func newScene(t *testing.T, items *pickups, run bool) scene {
 	s := scene{items: items, workers: workers, logs: &syncWriter{}, spans: tracetest.NewSpanRecorder(), killer: at(), mate: at(), stranger: at()}
 	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(s.spans))
 	log := slog.New(slog.NewTextHandler(s.logs, nil))
-	s.g = loot.NewGround(loot.Deps{Items: items, Workers: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: traces, Roll: worldtest.FixedRoll{V: 0}, Logger: log}, loot.Tuning{TickInterval: tick})
+	s.g = loot.NewGround(loot.Deps{Items: items, ItemCalls: workers, Parties: parties{s.killer.ID, s.mate.ID}, Traces: traces, Roll: roll, Data: worldtest.LoadData(t), Logger: log}, loot.Tuning{TickInterval: tick})
 	s.g.Begin(1)
-	s.g.Roll(slime, 200, dropY, s.killer.ID)
+	s.g.Roll(mob, 200, dropY, s.killer.ID)
 	return s
+}
+
+// A boar that always drops an iron sword, whose attack rolls in 16 to 20 and nothing else.
+var boar = gamedata.Mob{ID: "boar", Drops: []gamedata.Drop{{Item: "iron_sword", Chance: 1, Min: 1, Max: 1}}}
+
+// Equipment rolls its stats as it drops, from the map's random source, and its pickup carries the roll; anything else has none.
+func TestEquipmentRollsItsStatsAsItDrops(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		roll   float64
+		attack int
+	}{
+		{"a roll of 0 takes the bottom of each range", 0, 16},
+		{"a roll of a half, the middle", 0.5, 18},
+		{"a roll just under 1, the top", 0.999, 20},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				s := sceneOf(t, &pickups{answers: []answer{{slots: gel}}}, true, worldtest.FixedRoll{V: tt.roll}, boar)
+				p := s.killer
+				p.X = s.g.Views()[0].X
+				if _, ok := s.pick(t, p); !ok {
+					t.Fatal("nothing picked")
+				}
+				if got := s.items.added(); len(got) != 1 || got[0].Stats == nil || *got[0].Stats != (progression.ItemStats{Attack: tt.attack}) {
+					t.Fatalf("picked %+v, want a sword of attack %d", got, tt.attack)
+				}
+			})
+		})
+	}
+	t.Run("a gel has no roll", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			s := newScene(t, &pickups{answers: []answer{{slots: gel}}}, true)
+			if _, ok := s.pick(t, s.killer); !ok {
+				t.Fatal("nothing picked")
+			}
+			if got := s.items.added(); len(got) != 1 || got[0].Stats != nil {
+				t.Fatalf("picked %+v, want no roll", got)
+			}
+		})
+	})
+}
+
+// Rolls come from the map's seeded source, so a recorded fight replays the same loot.
+func TestTheSameSeedRollsTheSameStats(t *testing.T) {
+	const drops = 5
+	rolled := func(t *testing.T) []progression.ItemStats {
+		t.Helper()
+		var out []progression.ItemStats
+		synctest.Test(t, func(t *testing.T) {
+			s := sceneOf(t, &pickups{answers: []answer{{slots: gel}}}, true, rand.New(rand.NewPCG(1, 2)), boar)
+			for range drops - 1 {
+				s.g.Roll(boar, 200, dropY, s.killer.ID)
+			}
+			p := s.killer
+			p.X = 200
+			for range drops {
+				if _, ok := s.pick(t, p); !ok {
+					t.Fatal("nothing picked")
+				}
+			}
+			for _, in := range s.items.added() {
+				out = append(out, *in.Stats)
+			}
+		})
+		return out
+	}
+	first, second := rolled(t), rolled(t)
+	if len(first) != drops || !slices.Equal(first, second) {
+		t.Fatalf("rolled %v, then %v from the same seed", first, second)
+	}
+	sword, _ := worldtest.LoadData(t).Item("iron_sword")
+	for _, s := range first {
+		if !s.Fits(sword.Rolls) {
+			t.Fatalf("rolled %+v, outside the sword's ranges", s)
+		}
+	}
 }
 
 // pick has p reach for a drop and waits for the grant; ok is false when nothing was reserved or the grant has not run.

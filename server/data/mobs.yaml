@@ -1,9 +1,11 @@
 # Mob types, with stats, patrol behavior and drop tables whose entries roll independently: four mobs for the forest (levels 1 to 10) and the cave (10 to 20).
+# HP is set so the weapon a player of the mob's level likely holds kills it in as many hits as an unarmed one did before equipment applied in combat.
+# The cave drops the gear of levels 20 to 29 rarely, until a map has mobs that high.
 mobs:
   - id: green_slime
     name: Green Slime
     level: 1
-    hp: 30
+    hp: 44
     attack: 6
     defense: 2
     accuracy: 8
@@ -19,7 +21,7 @@ mobs:
   - id: orange_mushroom
     name: Orange Mushroom
     level: 4
-    hp: 70
+    hp: 90
     attack: 12
     defense: 5
     accuracy: 12
@@ -33,10 +35,15 @@ mobs:
       - {item: mushroom_cap, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.2, min: 1, max: 1}
       - {item: leather_cap, chance: 0.05, min: 1, max: 1}
+      - {item: cloth_trousers, chance: 0.04, min: 1, max: 1}
+      - {item: leather_shoes, chance: 0.04, min: 1, max: 1}
+      - {item: work_gloves, chance: 0.03, min: 1, max: 1}
+      - {item: wooden_pendant, chance: 0.02, min: 1, max: 1}
+      - {item: copper_ring, chance: 0.02, min: 1, max: 1}
   - id: wild_boar
     name: Wild Boar
     level: 10
-    hp: 180
+    hp: 216
     attack: 28
     defense: 12
     accuracy: 20
@@ -52,10 +59,14 @@ mobs:
       - {item: leather_vest, chance: 0.06, min: 1, max: 1}
       - {item: iron_sword, chance: 0.03, min: 1, max: 1}
       - {item: hunting_bow, chance: 0.03, min: 1, max: 1}
+      - {item: copper_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.03, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.03, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.02, min: 1, max: 1}
   - id: cave_bat
     name: Cave Bat
     level: 14
-    hp: 150
+    hp: 180
     attack: 34
     defense: 8
     accuracy: 26
@@ -68,3 +79,21 @@ mobs:
     drops:
       - {item: bat_wing, chance: 0.55, min: 1, max: 2}
       - {item: blue_potion, chance: 0.25, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.03, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.02, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.02, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.015, min: 1, max: 1}
+      - {item: longbow, chance: 0.015, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.015, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.01, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.004, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.004, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.004, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.004, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.003, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.003, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.003, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.003, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.002, min: 1, max: 1}
+      - {item: moonstone_ring, chance: 0.002, min: 1, max: 1}

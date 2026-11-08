@@ -2,10 +2,14 @@ package world
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"finga/internal/kernel"
 	"finga/internal/sim"
+	"finga/pkg/transient"
 	"finga/services/world/internal/application/instance"
+	"finga/services/world/internal/model"
 )
 
 // Leave takes the character off its map, even mid-transfer, if conn holds it, under the character's lock; it returns once its checkpoint is queued.
@@ -42,6 +46,29 @@ func (w *World) EnterPortal(id kernel.CharacterID, conn string) error {
 // Say is a map chat line for everyone on the character's map.
 func (w *World) Say(id kernel.CharacterID, conn, name, text string) error {
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Chat(id, name, text) })
+}
+
+// Equip wears an item on the character's map and returns once its stats apply there.
+func (w *World) Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Equip(ctx, id, conn, key, item, equipSlot) })
+}
+
+// Unequip puts a worn item back in the Equip tab and returns once the stats apply.
+func (w *World) Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Unequip(ctx, id, conn, key, equipSlot, toSlot) })
+}
+
+// wait runs a command whose caller waits for its outcome, so one it can't take is unavailable, for the caller to retry.
+func (w *World) wait(id kernel.CharacterID, conn string, run func(*instance.Instance) error) error {
+	at, ok := w.presences.at(id, conn)
+	if !ok {
+		return fmt.Errorf("%w: the connection doesn't hold the character", transient.ErrUnavailable)
+	}
+	err := run(at.inst)
+	if errors.Is(err, model.ErrBusy) {
+		return fmt.Errorf("%w: the map's inbox is full", transient.ErrUnavailable)
+	}
+	return err
 }
 
 // command posts to the character's map; one from a connection not holding the character is ignored, not an error.

@@ -14,9 +14,37 @@
         "vit": 12
       },
       "hp": 250,
-      "max_hp": 250,
+      "max_hp": 280,
       "mp": 32,
-      "max_mp": 32
+      "max_mp": 32,
+      "sheet": {
+        "primary": {
+          "str": 16,
+          "dex": 5,
+          "int": 4,
+          "agi": 5,
+          "vit": 12
+        },
+        "primary_worn": {
+          "str": 1
+        },
+        "derived": {
+          "attack_power": 49.5,
+          "defense": 3,
+          "accuracy": 16.5,
+          "evasion": 8.75,
+          "crit_rate": 0.065,
+          "crit_damage": 1.5,
+          "max_hp": 280,
+          "max_mp": 32
+        },
+        "derived_worn": {
+          "attack_power": 12.5,
+          "defense": 3,
+          "crit_rate": 0.01,
+          "max_hp": 30
+        }
+      }
     }
   }
 }

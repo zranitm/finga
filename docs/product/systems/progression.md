@@ -8,7 +8,9 @@
 - Five primary stats: **STR**, **DEX**, **INT**, **AGI**, **VIT**. Each class gets its attack power from its main stat, and VIT adds survivability for everyone.
 - Class distributions (proposal): Warrior STR main, VIT secondary; Thief AGI main, DEX secondary; Bowman DEX main, AGI secondary; Magician INT main, VIT secondary. Putting everything into the main stat gives the most damage but leaves the character fragile.
 - Derived stats, raised by primary stats and equipment: accuracy, evasion, crit rate, crit damage, penetration, cooldown reduction, plus max HP, max MP, attack power, and defense.
-- Open: who allocates points (OD-16), resets (OD-17), caps (OD-18), and equipment requirements (OD-19).
+- Equipment can raise primary stats too. What each item gives, and how it rolls, is in Items.
+- Equipment needs a minimum level and, for weapons, a class; no stat requirements (OD-19, see Items).
+- Open: who allocates points (OD-16), resets (OD-17), and caps (OD-18).
 
 ## Leveling
 

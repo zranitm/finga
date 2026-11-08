@@ -20,12 +20,12 @@ type Config struct {
 	TickRateHz         int              `mapstructure:"tick_rate_hz" validate:"min=1"`
 	CheckpointInterval time.Duration    `mapstructure:"checkpoint_interval" validate:"gt=0"`
 	FlushTimeout       time.Duration    `mapstructure:"flush_timeout" validate:"gt=0"`
-	Economy            Economy          `mapstructure:"economy"`
+	ItemCalls          ItemCalls        `mapstructure:"item_calls"`
 	Dependencies       Dependencies     `mapstructure:"dependencies"`
 }
 
-// Economy is the worker pool that runs pickups and inventory actions off the tick.
-type Economy struct {
+// ItemCalls is the worker pool that runs the calls to the item service off the tick.
+type ItemCalls struct {
 	Workers int `mapstructure:"workers" validate:"min=1"`
 }
 

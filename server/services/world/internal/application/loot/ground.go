@@ -17,8 +17,9 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/model"
 )
 
@@ -31,7 +32,7 @@ const (
 	callTimeout = 5 * time.Second
 )
 
-// Pickups is the item service, called from economy workers, never inside a tick.
+// Pickups is the item service, called from the item-call pool, never inside a tick.
 type Pickups interface {
 	// Add grants the pickup and returns the slots it changed, at the revision it took.
 	Add(ctx context.Context, p model.Pickup) (model.Inventory, error)
@@ -50,12 +51,13 @@ type Parties interface {
 
 // Deps are what a map's ground calls; all are required.
 type Deps struct {
-	Items   Pickups
-	Workers *economy.Workers
-	Parties Parties
-	Traces  trace.TracerProvider // starts each pickup's trace
-	Roll    model.Roll           // the map's random source, used only on its tick goroutine
-	Logger  *slog.Logger
+	Items     Pickups
+	ItemCalls *itemcalls.Pool
+	Parties   Parties
+	Traces    trace.TracerProvider // starts each pickup's trace
+	Roll      model.Roll           // the map's random source, used only on its tick goroutine
+	Data      *gamedata.Data       // the item templates equipment rolls its stats from
+	Logger    *slog.Logger
 }
 
 // Tuning is the map's tick.
@@ -69,6 +71,7 @@ type drop struct {
 	key        uuid.UUID // the idempotency key of its pickup
 	template   string
 	quantity   int
+	stats      *progression.ItemStats // equipment's roll, nil for anything else
 	x, y       float64
 	killer     kernel.CharacterID
 	windowEnd  uint64 // tick until which only the killer may take it
@@ -91,7 +94,7 @@ func (d *drop) view() model.DropView {
 	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y}
 }
 
-// Ground is one map's drops; only the map's tick goroutine touches it, and its pickups run on the economy's workers.
+// Ground is one map's drops; only the map's tick goroutine touches it, and its pickups run on the item-call pool.
 type Ground struct {
 	roll     model.Roll
 	interval time.Duration // the map's tick
@@ -124,14 +127,15 @@ func (g *Ground) Roll(mob gamedata.Mob, x, y float64, killer kernel.CharacterID)
 		if g.roll.Float64() >= entry.Chance {
 			continue
 		}
-		qty := entry.Min
-		if entry.Max > entry.Min {
-			qty += int(g.roll.Float64() * float64(entry.Max-entry.Min+1))
-			qty = min(qty, entry.Max)
+		qty := g.between(entry.Min, entry.Max)
+		var stats *progression.ItemStats
+		if tmpl, ok := g.deps.Data.Item(entry.Item); ok && tmpl.Tab == gamedata.Equip {
+			rolled := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return g.between(r.Min, r.Max) })
+			stats = &rolled
 		}
 		g.nextID++
 		d := &drop{
-			id: g.nextID, key: uuidv7.New(), template: entry.Item, quantity: qty,
+			id: g.nextID, key: uuidv7.New(), template: entry.Item, quantity: qty, stats: stats,
 			x: x + (g.roll.Float64()*2-1)*dropSpread + float64(n)*dropSpacing, y: y, killer: killer,
 			windowEnd: g.tick + model.TicksIn(lootWindow, g.interval), expiresAt: g.tick + model.TicksIn(dropLife, g.interval),
 		}
@@ -139,6 +143,14 @@ func (g *Ground) Roll(mob gamedata.Mob, x, y float64, killer kernel.CharacterID)
 		g.added = append(g.added, d.view())
 		n++
 	}
+}
+
+// between is a whole number from lo to hi, both included, uniformly; a range of one number draws nothing.
+func (g *Ground) between(lo, hi int) int {
+	if hi <= lo {
+		return lo
+	}
+	return min(lo+int(g.roll.Float64()*float64(hi-lo+1)), hi)
 }
 
 // Expire takes away the drops past their life that no pickup holds; an unsettled one goes with a last grant under its key.
@@ -190,7 +202,7 @@ func (g *Ground) PickUp(p Picker, done func(ctx context.Context, r Result)) erro
 	if best == nil {
 		return nil
 	}
-	in := model.Pickup{Account: p.Account, Character: p.ID, DropID: best.key, Template: best.template, Quantity: best.quantity}
+	in := model.Pickup{Account: p.Account, Character: p.ID, DropID: best.key, Template: best.template, Quantity: best.quantity, Stats: best.stats}
 	pu := pickup{drop: best.id, in: in, cause: p.Cause, done: done}
 	if !g.submit(pu, false) {
 		return model.ErrPickupBusy
@@ -201,7 +213,7 @@ func (g *Ground) PickUp(p Picker, done func(ctx context.Context, r Result)) erro
 
 // submit hands a worker the grant of pu, false when none can take it.
 func (g *Ground) submit(pu pickup, last bool) bool {
-	return g.deps.Workers.Submit(func(ctx context.Context) {
+	return g.deps.ItemCalls.Submit(func(ctx context.Context) {
 		r := g.grant(ctx, pu)
 		r.last = last
 		pu.done(ctx, r)

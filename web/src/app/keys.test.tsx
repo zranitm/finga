@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CharacterWindow } from '@/features/character/CharacterWindow';
 import { ChatBox } from '@/features/chat/ChatBox';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { bindKeyboard } from '@/game/systems/keyboard';
@@ -12,6 +13,7 @@ import { resetStores } from '@/testing/reset-stores';
 // The world's keys and windows together, as the world scene binds the keys and the overlay mounts the windows.
 function Overlay() {
   const open = ui.use((s) => s.windows.inventory);
+  const characterOpen = ui.use((s) => s.windows.character);
   return (
     <>
       <ChatBox socket={{ send: vi.fn(() => true) } as never} />
@@ -19,6 +21,12 @@ function Overlay() {
         <InventoryWindow
           socket={{ request: vi.fn() } as never}
           onClose={() => ui.getState().closeWindow('inventory')}
+        />
+      )}
+      {characterOpen && (
+        <CharacterWindow
+          socket={{ request: vi.fn() } as never}
+          onClose={() => ui.getState().closeWindow('character')}
         />
       )}
     </>
@@ -37,8 +45,8 @@ describe('the world’s keys with windows open', () => {
       preset: () => 'classic',
       typing: isTyping,
       onAction: (action) => {
-        if (action === 'inventory') {
-          ui.getState().toggleWindow('inventory');
+        if (action === 'inventory' || action === 'character') {
+          ui.getState().toggleWindow(action);
         } else if (action === 'chat') {
           ui.getState().openChat();
         }
@@ -58,6 +66,18 @@ describe('the world’s keys with windows open', () => {
     await userEvent.keyboard('{/ArrowRight}');
     return target.press.mock.calls.some(([a]) => a === 'right');
   };
+
+  it('C opens the character window beside the inventory, the player still walks, and C closes it again', async () => {
+    const characterWindow = () => screen.queryByRole('dialog', { name: 'Character' });
+    await userEvent.keyboard('i');
+    await userEvent.keyboard('c');
+    expect(characterWindow()).toHaveFocus();
+    expect(inventoryWindow()).not.toBeNull();
+    expect(await walks()).toBe(true);
+    await userEvent.keyboard('c');
+    expect(characterWindow()).toBeNull();
+    expect(inventoryWindow()).not.toBeNull();
+  });
 
   it('the player walks with the inventory open, and I closes it again', async () => {
     await userEvent.keyboard('i');

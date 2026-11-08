@@ -74,6 +74,24 @@ func (h *Handler) inventoryDiscard(c *msgContext, in *clientv1.InventoryDiscard)
 	return changed(h.gw.DiscardItem(c.Ctx, c.Session.session, model.ItemDiscard{IdempotencyKey: in.GetIdempotencyKey(), Item: id, Quantity: int(in.GetQuantity())}))
 }
 
+// equip answers once the world applied it; the changed slots and stats follow on the world's stream.
+func (h *Handler) equip(c *msgContext, in *clientv1.Equip) (any, error) {
+	id, err := kernel.ParseItemID(in.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	return nil, h.gw.Equip(c.Ctx, c.Session.session, model.ItemEquip{IdempotencyKey: in.GetIdempotencyKey(), Item: id, EquipSlot: in.GetEquipSlot()})
+}
+
+func (h *Handler) unequip(c *msgContext, in *clientv1.Unequip) (any, error) {
+	out := model.ItemUnequip{IdempotencyKey: in.GetIdempotencyKey(), EquipSlot: in.GetEquipSlot()}
+	if in.ToSlot != nil {
+		to := int(in.GetToSlot())
+		out.ToSlot = &to
+	}
+	return nil, h.gw.Unequip(c.Ctx, c.Session.session, out)
+}
+
 // changed is an inventory command's follow-up: the changed slots, if any.
 func changed(ic model.InventoryChanged, err error) (any, error) {
 	if err != nil || len(ic.Slots) == 0 {

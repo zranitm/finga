@@ -45,6 +45,7 @@ type Welcome struct {
 	Token             string
 	Character         CharacterView
 	Inventory         []ItemView
+	Equipment         []EquipSlot
 	InventoryRevision uint64
 	MapID             string
 	ServerTime        time.Time
@@ -62,6 +63,20 @@ type ItemMove struct {
 	Item           kernel.ItemID
 	Tab            string
 	Slot           int
+}
+
+// ItemEquip wears an Equip-tab item; EquipSlot is needed for rings only.
+type ItemEquip struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	EquipSlot      string
+}
+
+// ItemUnequip puts a worn item back in the Equip tab, in ToSlot or, when nil, the first free slot.
+type ItemUnequip struct {
+	IdempotencyKey string
+	EquipSlot      string
+	ToSlot         *int
 }
 
 // ItemDiscard destroys some or all of a stack.

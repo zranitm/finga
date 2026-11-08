@@ -1,17 +1,91 @@
-# Item templates: tab is also the inventory tab (equip never stacks, use and etc stack to 100), and equipment may need a class and a minimum level.
+# Item templates: tab is also the inventory tab (equip never stacks, use and etc stack to 100); every item has stars (1 to 7) and a description, and equipment names a slot kind, may need a class and a level, and gives a range per stat that each copy rolls once, when it drops (rates in tenths of a percent).
+equip_slots: # the ten slots a character wears, in the character window's order; a kind fills every slot of that kind
+  - {id: weapon, name: Weapon, kind: weapon}
+  - {id: hat, name: Hat, kind: hat}
+  - {id: top, name: Top, kind: top}
+  - {id: bottom, name: Bottom, kind: bottom}
+  - {id: gloves, name: Gloves, kind: gloves}
+  - {id: shoes, name: Shoes, kind: shoes}
+  - {id: necklace, name: Necklace, kind: necklace}
+  - {id: earrings, name: Earrings, kind: earrings}
+  - {id: ring_1, name: Ring, kind: ring}
+  - {id: ring_2, name: Ring, kind: ring}
 items:
   # equip
-  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, attack: 10}
-  - {id: short_bow, name: Short Bow, tab: equip, slot: weapon, class: bowman, min_level: 1, attack: 9}
-  - {id: iron_sword, name: Iron Sword, tab: equip, slot: weapon, class: warrior, min_level: 8, attack: 18}
-  - {id: hunting_bow, name: Hunting Bow, tab: equip, slot: weapon, class: bowman, min_level: 8, attack: 16}
-  - {id: leather_cap, name: Leather Cap, tab: equip, slot: armor, min_level: 1, defense: 3}
-  - {id: leather_vest, name: Leather Vest, tab: equip, slot: armor, min_level: 5, defense: 5}
+  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, stars: 1,
+     description: "A practice blade light enough to swing all day.", stats: {attack: [10, 12]}}
+  - {id: short_bow, name: Short Bow, tab: equip, slot: weapon, class: bowman, min_level: 1, stars: 1,
+     description: "A small bow for a hunter's first steps.", stats: {attack: [9, 11]}}
+  - {id: iron_sword, name: Iron Sword, tab: equip, slot: weapon, class: warrior, min_level: 8, stars: 2,
+     description: "A plain blade that holds an edge.", stats: {attack: [16, 20]}}
+  - {id: hunting_bow, name: Hunting Bow, tab: equip, slot: weapon, class: bowman, min_level: 8, stars: 2,
+     description: "A sturdy bow that reaches across a clearing.", stats: {attack: [14, 18]}}
+  - {id: leather_cap, name: Leather Cap, tab: equip, slot: hat, min_level: 1, stars: 1,
+     description: "Keeps the sun out of your eyes and a few blows off your head.", stats: {defense: [3, 4]}}
+  - {id: leather_vest, name: Leather Vest, tab: equip, slot: top, min_level: 5, stars: 1,
+     description: "Stiff leather that turns a glancing hit.", stats: {defense: [5, 7]}}
+  # levels 1 to 9, from the forest
+  - {id: cloth_trousers, name: Cloth Trousers, tab: equip, slot: bottom, min_level: 3, stars: 1,
+     description: "Loose trousers patched at both knees.", stats: {defense: [2, 4]}}
+  - {id: work_gloves, name: Work Gloves, tab: equip, slot: gloves, min_level: 4, stars: 1,
+     description: "Rough gloves that keep a firm grip.", stats: {defense: [1, 2], accuracy: [1, 3]}}
+  - {id: leather_shoes, name: Leather Shoes, tab: equip, slot: shoes, min_level: 2, stars: 1,
+     description: "Soft soles for quick feet.", stats: {defense: [1, 2], evasion: [1, 2]}}
+  - {id: wooden_pendant, name: Wooden Pendant, tab: equip, slot: necklace, min_level: 5, stars: 1,
+     description: "A carved charm on a cord, said to keep its wearer on their feet.", stats: {max_hp: [10, 20]}}
+  - {id: copper_earrings, name: Copper Earrings, tab: equip, slot: earrings, min_level: 7, stars: 2,
+     description: "Small copper hoops that catch the light.", stats: {accuracy: [2, 4], evasion: [0, 2]}}
+  - {id: copper_ring, name: Copper Ring, tab: equip, slot: ring, min_level: 6, stars: 1,
+     description: "A thin band, still warm from someone else's hand.", stats: {str: [0, 1], dex: [0, 1], agi: [0, 1]}}
+  # levels 10 to 19, from the cave
+  - {id: steel_sword, name: Steel Sword, tab: equip, slot: weapon, class: warrior, min_level: 14, stars: 3,
+     description: "Tempered steel that rings when it strikes.", stats: {attack: [26, 32], str: [0, 2]}}
+  - {id: longbow, name: Longbow, tab: equip, slot: weapon, class: bowman, min_level: 14, stars: 3,
+     description: "Taller than its archer, and twice as patient.", stats: {attack: [24, 30], dex: [0, 2]}}
+  - {id: iron_helm, name: Iron Helm, tab: equip, slot: hat, min_level: 10, stars: 2,
+     description: "Heavy, dented, and still in one piece.", stats: {defense: [7, 9], max_hp: [0, 20]}}
+  - {id: chain_mail, name: Chain Mail, tab: equip, slot: top, min_level: 13, stars: 2,
+     description: "A shirt of rings that jingles at every step.", stats: {defense: [10, 14]}}
+  - {id: chain_leggings, name: Chain Leggings, tab: equip, slot: bottom, min_level: 11, stars: 2,
+     description: "Rings down to the knee, and a strap to hold them up.", stats: {defense: [6, 9]}}
+  - {id: hunters_gloves, name: Hunter's Gloves, tab: equip, slot: gloves, min_level: 12, stars: 2,
+     description: "Thin leather that lets the fingers feel the string.", stats: {defense: [3, 5], dex: [1, 2]}}
+  - {id: travelers_boots, name: Traveler's Boots, tab: equip, slot: shoes, min_level: 10, stars: 2,
+     description: "Worn soft by a long road.", stats: {defense: [3, 5], evasion: [2, 4]}}
+  - {id: silver_pendant, name: Silver Pendant, tab: equip, slot: necklace, min_level: 15, stars: 3,
+     description: "A silver leaf that cools the skin.", stats: {max_hp: [30, 50], vit: [1, 2]}}
+  - {id: silver_earrings, name: Silver Earrings, tab: equip, slot: earrings, min_level: 16, stars: 3,
+     description: "They hum faintly before a well-aimed blow.", stats: {accuracy: [3, 6], crit_rate: [5, 10]}}
+  - {id: silver_ring, name: Silver Ring, tab: equip, slot: ring, min_level: 18, stars: 3,
+     description: "A plain silver band that never tarnishes.", stats: {str: [1, 2], dex: [1, 2], agi: [0, 1]}}
+  - {id: moonstone_ring, name: Moonstone Ring, tab: equip, slot: ring, min_level: 15, stars: 6,
+     description: "A pale stone that glows only in the dark.", stats: {agi: [2, 4], crit_rate: [20, 40], crit_damage: [100, 200]}}
+  # levels 20 to 29: until a map has mobs that high, rare finds in the cave
+  - {id: knight_sword, name: Knight's Sword, tab: equip, slot: weapon, class: warrior, min_level: 22, stars: 4,
+     description: "A broad blade with a crest worn smooth.", stats: {attack: [40, 48], str: [1, 3], crit_damage: [50, 100]}}
+  - {id: composite_bow, name: Composite Bow, tab: equip, slot: weapon, class: bowman, min_level: 22, stars: 4,
+     description: "Horn, wood, and sinew glued into one hard pull.", stats: {attack: [37, 45], dex: [1, 3], crit_rate: [10, 20]}}
+  - {id: knight_helm, name: Knight's Helm, tab: equip, slot: hat, min_level: 20, stars: 3,
+     description: "A visor that narrows the world to the fight ahead.", stats: {defense: [12, 15], max_hp: [20, 40]}}
+  - {id: plate_armor, name: Plate Armor, tab: equip, slot: top, min_level: 22, stars: 3,
+     description: "Hammered plates over padded cloth.", stats: {defense: [18, 22], vit: [0, 2]}}
+  - {id: plate_greaves, name: Plate Greaves, tab: equip, slot: bottom, min_level: 21, stars: 3,
+     description: "Steel shins that take a boar's charge.", stats: {defense: [11, 14]}}
+  - {id: plate_gauntlets, name: Plate Gauntlets, tab: equip, slot: gloves, min_level: 24, stars: 3,
+     description: "Jointed steel fingers that close like a vise.", stats: {defense: [6, 8], str: [0, 2]}}
+  - {id: plate_boots, name: Plate Boots, tab: equip, slot: shoes, min_level: 23, stars: 3,
+     description: "Heavy at first, then they carry you.", stats: {defense: [6, 8], evasion: [2, 5]}}
+  - {id: gold_pendant, name: Gold Pendant, tab: equip, slot: necklace, min_level: 25, stars: 4,
+     description: "A sun of beaten gold on a fine chain.", stats: {max_hp: [60, 90], max_mp: [10, 20]}}
+  - {id: gold_earrings, name: Gold Earrings, tab: equip, slot: earrings, min_level: 26, stars: 4,
+     description: "Small suns that sharpen every glance.", stats: {accuracy: [4, 8], crit_rate: [10, 25]}}
+  - {id: gold_ring, name: Gold Ring, tab: equip, slot: ring, min_level: 28, stars: 4,
+     description: "Heavy gold, worn only by those who earned it.", stats: {str: [2, 4], dex: [2, 4], agi: [1, 2]}}
   # use
-  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50}
-  - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30}
+  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A sweet red tonic."}
+  - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30, stars: 1, description: "A cool blue tonic that clears the head."}
   # etc
-  - {id: slime_gel, name: Slime Gel, tab: etc}
-  - {id: mushroom_cap, name: Mushroom Cap, tab: etc}
-  - {id: boar_tusk, name: Boar Tusk, tab: etc}
-  - {id: bat_wing, name: Bat Wing, tab: etc}
+  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 1, description: "Sticky, cold, and faintly glowing."}
+  - {id: mushroom_cap, name: Mushroom Cap, tab: etc, stars: 1, description: "The springy cap of a wandering mushroom."}
+  - {id: boar_tusk, name: Boar Tusk, tab: etc, stars: 1, description: "A curved tusk, still sharp."}
+  - {id: bat_wing, name: Bat Wing, tab: etc, stars: 1, description: "A thin leathery wing."}

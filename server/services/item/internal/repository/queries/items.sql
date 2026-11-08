@@ -3,9 +3,9 @@
 SELECT pg_advisory_xact_lock(hashtextextended('item.inventory:' || sqlc.arg(owner_id)::text, 0));
 
 -- name: LockInventory :many
--- Every inventory row of the owner, locked in ID order so concurrent actions on one inventory never deadlock.
+-- Every row of the owner's inventory and of what it wears, locked in ID order so concurrent actions on one inventory never deadlock.
 SELECT * FROM items
-WHERE owner_id = $1 AND location = 'inventory'
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
 ORDER BY id
 FOR UPDATE;
 
@@ -13,19 +13,34 @@ FOR UPDATE;
 SELECT * FROM items WHERE id = $1 AND owner_id = $2 FOR UPDATE;
 
 -- name: ListInventory :many
+-- The inventory by tab and slot, then what is worn by equip slot.
 SELECT * FROM items
-WHERE owner_id = $1 AND location = 'inventory'
-ORDER BY tab, slot;
+WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
+ORDER BY tab NULLS LAST, slot, equip_slot;
 
 -- name: InsertItem :exec
-INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
-VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), 'inventory', sqlc.arg(tab), sqlc.arg(slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
+-- A new item goes in an inventory slot, or straight into an equip slot.
+INSERT INTO items (id, template_id, owner_id, location, tab, slot, equip_slot, quantity, created_at, updated_at)
+VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), sqlc.arg(location), sqlc.narg(tab), sqlc.narg(slot), sqlc.narg(equip_slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
+
+-- name: InsertRoll :exec
+INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
+VALUES (sqlc.arg(item_id), sqlc.arg(attack), sqlc.arg(defense), sqlc.arg(str), sqlc.arg(dex), sqlc.arg(int), sqlc.arg(agi), sqlc.arg(vit),
+  sqlc.arg(accuracy), sqlc.arg(evasion), sqlc.arg(crit_rate), sqlc.arg(crit_damage), sqlc.arg(max_hp), sqlc.arg(max_mp), sqlc.arg(now), sqlc.arg(now));
+
+-- name: ListRolls :many
+-- The rolls of the items read beside them; a roll never changes, so it needs no lock.
+SELECT * FROM item_rolls WHERE item_id = ANY(sqlc.arg(ids)::uuid[]);
 
 -- name: SetQuantity :execrows
 UPDATE items SET quantity = sqlc.arg(quantity), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: SetSlot :execrows
-UPDATE items SET tab = sqlc.arg(tab), slot = sqlc.arg(slot), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
+-- Puts an item in an inventory slot, taking it off if it was worn.
+UPDATE items SET location = 'inventory', tab = sqlc.arg(tab), slot = sqlc.arg(slot), equip_slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
+
+-- name: SetEquipped :execrows
+UPDATE items SET location = 'equipped', equip_slot = sqlc.arg(equip_slot), tab = NULL, slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: DestroyItem :execrows
 UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);

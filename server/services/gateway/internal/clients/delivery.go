@@ -36,7 +36,11 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		ev := m.GetChat()
 		return model.ChatMessage{Channel: model.ChatMap, Sender: ev.GetSenderId(), SenderName: ev.GetSenderName(), Text: ev.GetText()}, true
 	case m.GetInventoryChanged() != nil:
-		return model.InventoryChanged{Revision: m.GetInventoryChanged().GetRevision(), Slots: worldSlots(m.GetInventoryChanged().GetSlots())}, true
+		ev := m.GetInventoryChanged()
+		return model.InventoryChanged{Revision: ev.GetRevision(), Slots: worldSlots(ev.GetSlots()), Equipment: worldEquipment(ev.GetEquipment())}, true
+	case m.GetStatsChanged() != nil:
+		ev := m.GetStatsChanged()
+		return model.StatsChanged{Sheet: statSheet(ev.GetSheet()), HP: int(ev.GetHp()), MaxHP: int(ev.GetMaxHp()), MP: int(ev.GetMp()), MaxMP: int(ev.GetMaxMp())}, true
 	case m.GetPickupFailed() != nil:
 		return model.PickupFailed{Why: pickupFailure(m.GetPickupFailed())}, true
 	}
@@ -64,11 +68,24 @@ func entity(r *worldv1.EntityRef) model.Entity {
 }
 
 func characterView(c *worldv1.CharacterView) model.CharacterView {
-	st := c.GetStats()
 	return model.CharacterView{
-		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
-		Stats: model.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
-		HP:    int(c.GetHp()), MaxHP: int(c.GetMaxHp()), MP: int(c.GetMp()), MaxMP: int(c.GetMaxMp()),
+		ID: c.GetId(), Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(), Stats: stats(c.GetStats()),
+		HP: int(c.GetHp()), MaxHP: int(c.GetMaxHp()), MP: int(c.GetMp()), MaxMP: int(c.GetMaxMp()), Sheet: statSheet(c.GetSheet()),
+	}
+}
+
+func stats(st *worldv1.Stats) model.Stats {
+	return model.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())}
+}
+
+func statSheet(s *worldv1.StatSheet) model.StatSheet {
+	return model.StatSheet{Primary: stats(s.GetPrimary()), PrimaryWorn: stats(s.GetPrimaryWorn()), Derived: derived(s.GetDerived()), DerivedWorn: derived(s.GetDerivedWorn())}
+}
+
+func derived(d *worldv1.DerivedStats) model.DerivedStats {
+	return model.DerivedStats{
+		AttackPower: d.GetAttackPower(), Defense: d.GetDefense(), Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(),
+		CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
 	}
 }
 
@@ -110,15 +127,60 @@ func dropViews(ds []*worldv1.DropView) []model.DropView {
 	return out
 }
 
-// worldSlots are the slots a pickup changed, as the world's contract carries them.
+// worldSlots are the slots a pickup or an equip changed, as the world's contract carries them.
 func worldSlots(slots []*worldv1.Slot) []model.InventorySlot {
 	out := make([]model.InventorySlot, 0, len(slots))
 	for _, s := range slots {
-		slot := model.InventorySlot{Tab: s.GetTab(), Slot: int(s.GetSlot())}
-		if it := s.GetItem(); it != nil {
-			slot.Item = &model.ItemView{ID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
-		}
-		out = append(out, slot)
+		out = append(out, model.InventorySlot{Tab: s.GetTab(), Slot: int(s.GetSlot()), Item: worldItem(s.GetItem())})
 	}
 	return out
+}
+
+// roll is an item's roll in the item service's contract or the world's, which share its fields.
+type roll interface {
+	GetAttack() int32
+	GetDefense() int32
+	GetStr() int32
+	GetDex() int32
+	GetInt() int32
+	GetAgi() int32
+	GetVit() int32
+	GetAccuracy() int32
+	GetEvasion() int32
+	GetCritRate() int32
+	GetCritDamage() int32
+	GetMaxHp() int32
+	GetMaxMp() int32
+}
+
+func rollOf(s roll) *model.ItemStats {
+	return &model.ItemStats{
+		Attack: int(s.GetAttack()), Defense: int(s.GetDefense()),
+		STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
+		Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()), CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()),
+		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()),
+	}
+}
+
+// worldEquipment are the equip slots an equip or unequip changed.
+func worldEquipment(slots []*worldv1.EquipSlot) []model.EquipSlot {
+	if len(slots) == 0 {
+		return nil
+	}
+	out := make([]model.EquipSlot, 0, len(slots))
+	for _, s := range slots {
+		out = append(out, model.EquipSlot{Slot: s.GetEquipSlot(), Item: worldItem(s.GetItem())})
+	}
+	return out
+}
+
+func worldItem(it *worldv1.Item) *model.ItemView {
+	if it == nil {
+		return nil
+	}
+	view := &model.ItemView{ID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
+	if s := it.GetStats(); s != nil {
+		view.Stats = rollOf(s)
+	}
+	return view
 }

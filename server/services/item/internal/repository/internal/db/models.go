@@ -38,6 +38,7 @@ type Item struct {
 	Quantity   int32
 	UpdatedAt  dbx.Stamp
 	CreatedAt  dbx.Stamp
+	EquipSlot  *string
 }
 
 type ItemEvent struct {
@@ -52,6 +53,25 @@ type ItemEvent struct {
 	OccurredAt    time.Time
 	CreatedAt     dbx.Stamp
 	UpdatedAt     dbx.Stamp
+}
+
+type ItemRoll struct {
+	ItemID     uuid.UUID
+	Attack     int32
+	Defense    int32
+	Str        int32
+	Dex        int32
+	Int        int32
+	Agi        int32
+	Vit        int32
+	Accuracy   int32
+	Evasion    int32
+	CritRate   int32
+	CritDamage int32
+	MaxHp      int32
+	MaxMp      int32
+	CreatedAt  dbx.Stamp
+	UpdatedAt  dbx.Stamp
 }
 
 type Outbox struct {

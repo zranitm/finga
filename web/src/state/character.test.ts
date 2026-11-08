@@ -6,6 +6,7 @@ import {
   CharacterViewSchema,
   ExpGainedSchema,
   LevelUpSchema,
+  StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { resetStores } from '@/testing/reset-stores';
@@ -117,6 +118,35 @@ describe('character store', () => {
     character.getState().clear();
     expect(character.getState().dead).toBe(false);
     expect(character.getState().lastExpChange).toBeNull();
+  });
+
+  it('StatsChanged replaces the sheet and the vitals, so the HUD and the character window show the new maxima', () => {
+    character.getState().applyWelcome(welcome);
+    const sheet = {
+      primary: { str: 13, dex: 5, int: 4, agi: 5, vit: 10 },
+      primaryWorn: { str: 1 },
+      derived: { attackPower: 31.5, defense: 4, maxHp: 234, maxMp: 28 },
+      derivedWorn: { attackPower: 11.5, defense: 4, maxHp: 30 },
+    };
+    character
+      .getState()
+      .applyStatsChanged(
+        create(StatsChangedSchema, { sheet, hp: 204, maxHp: 234, mp: 28, maxMp: 28 }),
+      );
+    const c = character.getState().character;
+    expect(c).toMatchObject({ hp: 204, maxHp: 234, mp: 28, maxMp: 28, level: 1, exp: 10n });
+    expect(c?.sheet?.derivedWorn?.attackPower).toBe(11.5);
+    expect(c?.sheet?.primary?.str).toBe(13);
+    // Unequipping below the current HP: the server lowered it, and the store takes its word.
+    character
+      .getState()
+      .applyStatsChanged(
+        create(StatsChangedSchema, { sheet, hp: 180, maxHp: 180, mp: 28, maxMp: 28 }),
+      );
+    expect(character.getState().character).toMatchObject({ hp: 180, maxHp: 180 });
+    character.getState().clear();
+    character.getState().applyStatsChanged(create(StatsChangedSchema, { sheet, hp: 1 })); // no character: nothing to do
+    expect(character.getState().character).toBeNull();
   });
 
   it('vitals change only when they differ, and clear empties the store', () => {

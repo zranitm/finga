@@ -26,6 +26,8 @@ message ClientMessage {
     PartyKick party_kick = 14;
     PartyPromote party_promote = 15;
     Hello hello = 16;
+    Equip equip = 17;
+    Unequip unequip = 18;
   }
 }
 
@@ -53,6 +55,7 @@ message ServerMessage {
     LevelUp level_up = 17;
     Welcome welcome = 18;
     Kicked kicked = 19;
+    StatsChanged stats_changed = 20;
   }
 }
 
@@ -142,6 +145,22 @@ message InventoryDiscard {
   int32 quantity = 3;
 }
 
+// Equip wears an Equip-tab item; a worn item in that slot swaps into the slot it left.
+message Equip {
+  string idempotency_key = 1;
+  string item_id = 2;
+  // Needed for rings only: empty, an item takes the first empty slot of its kind, else the first.
+  string equip_slot = 3;
+}
+
+// Unequip puts a worn item back in the Equip tab.
+message Unequip {
+  string idempotency_key = 1;
+  string equip_slot = 2;
+  // The Equip-tab slot to put it in; unset, the first free one.
+  optional int32 to_slot = 3;
+}
+
 message Ping {
   // Unix milliseconds.
   int64 client_time = 1;
@@ -167,15 +186,63 @@ message CharacterView {
   int32 max_hp = 8;
   int32 mp = 9;
   int32 max_mp = 10;
+  // The totals with what is worn, and the equipment's share.
+  StatSheet sheet = 11;
 }
 
-// ItemView is one inventory slot's item.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds.
+message StatSheet {
+  Stats primary = 1;
+  Stats primary_worn = 2;
+  DerivedStats derived = 3;
+  DerivedStats derived_worn = 4;
+}
+
+// DerivedStats are the computed stats; rates are fractions.
+message DerivedStats {
+  double attack_power = 1;
+  double defense = 2;
+  double accuracy = 3;
+  double evasion = 4;
+  double crit_rate = 5;
+  double crit_damage = 6;
+  int32 max_hp = 7;
+  int32 max_mp = 8;
+}
+
+// ItemView is one inventory slot's item, or a worn one.
 message ItemView {
   string item_id = 1;
   string template = 2;
+  // Empty when worn.
   string tab = 3;
   int32 slot = 4;
   int32 quantity = 5;
+  // What it rolled when it dropped; set for equipment only.
+  ItemStats stats = 6;
+}
+
+// ItemStats are what one equipment item gives, a whole number per stat, the rates in tenths of a percent.
+message ItemStats {
+  int32 attack = 1;
+  int32 defense = 2;
+  int32 str = 3;
+  int32 dex = 4;
+  int32 int = 5;
+  int32 agi = 6;
+  int32 vit = 7;
+  int32 accuracy = 8;
+  int32 evasion = 9;
+  int32 crit_rate = 10;
+  int32 crit_damage = 11;
+  int32 max_hp = 12;
+  int32 max_mp = 13;
+}
+
+// EquipSlot is one equip slot and what it holds; item is unset when it is empty.
+message EquipSlot {
+  string equip_slot = 1;
+  ItemView item = 2;
 }
 
 message PartyMember {
@@ -209,6 +276,8 @@ message Welcome {
   uint32 tick_rate_hz = 8;
   // The inventory's revision these items show, so an older InventoryChanged arriving later leaves them be.
   uint64 inventory_revision = 9;
+  // What is worn, one entry per filled equip slot, at inventory_revision too.
+  repeated EquipSlot equipment = 10;
 }
 
 // PlayerView is a character on the map as everyone sees it.
@@ -323,11 +392,21 @@ message InventorySlot {
   ItemView item = 3;
 }
 
-// InventoryChanged is slots as they stood at the inventory's revision: a slot keeps the newest view it got, so an older one arriving late is skipped.
+// InventoryChanged is slots and equip slots as they stood at the inventory's revision: each keeps the newest view it got, so an older one arriving late is skipped.
 message InventoryChanged {
   repeated InventorySlot slots = 1;
-  // The count of the inventory's changes; 0 is a change stored before revisions, applied as it comes.
+  // The count of the inventory's and equipment's changes; 0 is a change stored before revisions, applied as it comes.
   uint64 revision = 2;
+  repeated EquipSlot equipment = 3;
+}
+
+// StatsChanged is the player's stats after what it wears changed.
+message StatsChanged {
+  StatSheet sheet = 1;
+  int32 hp = 2;
+  int32 max_hp = 3;
+  int32 mp = 4;
+  int32 max_mp = 5;
 }
 
 // MapChange follows a portal.

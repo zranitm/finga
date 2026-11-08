@@ -18,6 +18,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	itemv1 "finga/api/gen/item/v1"
+	"finga/pkg/grpcx"
 )
 
 // process is a binary in its own process, so it can be killed and restarted on the same addresses.
@@ -224,5 +227,10 @@ func processStack(t *testing.T, world ...string) (*stack, map[string]*process) {
 		t.Fatal(err)
 	}
 	t.Cleanup(db.Close)
-	return &stack{t: t, url: gateway.url, db: db}, procs
+	itemConn, err := grpcx.Dial(procs["item"].grpc) // the address outlives a restart
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = itemConn.Close() })
+	return &stack{t: t, url: gateway.url, db: db, items: itemv1.NewItemServiceClient(itemConn), data: "../data"}, procs
 }

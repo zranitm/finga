@@ -10,6 +10,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
@@ -67,8 +68,10 @@ func damages(s *worldtest.Sink) []model.Damage {
 	return out
 }
 
+// warriorAt is a new warrior, wearing the starter sword at its lowest roll as every new warrior does: two hits kill a slime.
 func warriorAt(x float64) model.Player {
 	p := worldtest.NewPlayer("Ayla", x, 608)
+	p.Worn = model.Worn{Revision: 1, Stats: progression.ItemStats{Attack: 10}}
 	return p
 }
 
@@ -126,18 +129,19 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 		inst, stop := worldtest.RunMap(t, data, arena(2*time.Second), nil, worldtest.Options{})
 		defer stop()
 		s := join(t, inst, warriorAt(250))
+		slime, _ := data.Mob("green_slime")
 		{ // the snapshot carries the one spawned mob, standing on its platform facing right
 			mobs := mobsIn(s)
 			if len(mobs) != 1 {
 				t.Fatalf("%d mobs, want 1", len(mobs))
 			}
 			for _, m := range mobs {
-				if m.Type != "green_slime" || m.X != 300 || m.Y != 590 || m.HP != 30 || m.MaxHP != 30 || m.Facing != 1 {
+				if m.Type != "green_slime" || m.X != 300 || m.Y != 590 || m.HP != slime.HP || m.MaxHP != slime.HP || m.Facing != 1 {
 					t.Fatalf("mob %+v", m)
 				}
 			}
 		}
-		{ // two hits kill it (21 damage each against 30 HP); it leaves the map
+		{ // two hits kill it (30 damage each with the starter sword, against 44 HP); it leaves the map
 			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
@@ -146,7 +150,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			if got := damages(s); len(got) != 2 || got[0].Amount != 21 || got[1].Amount != 21 || !got[0].Source.Player.IsZero() == false && false {
+			if got := damages(s); len(got) != 2 || got[0].Amount != 30 || got[1].Amount != 30 {
 				t.Fatalf("damages %+v", got)
 			}
 			if len(mobsIn(s)) != 0 {
@@ -166,7 +170,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 				t.Fatalf("%d mobs after the respawn timer, want 1", len(mobs))
 			}
 			for _, m := range mobs {
-				if m.ID != 2 || m.HP != 30 {
+				if m.ID != 2 || m.HP != slime.HP {
 					t.Fatalf("respawned mob %+v", m)
 				}
 			}
@@ -210,7 +214,7 @@ func TestAttacks(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(near)
-			if len(got) != 1 || got[0].Amount != 21 || got[0].Crit || got[0].Miss || got[0].Source.Player != idOf(t, near) || !got[0].Target.IsMob() {
+			if len(got) != 1 || got[0].Amount != 30 || got[0].Crit || got[0].Miss || got[0].Source.Player != idOf(t, near) || !got[0].Target.IsMob() {
 				t.Fatalf("damages %+v", got)
 			}
 			_ = inst.Leave(idOf(t, near), "", nil)

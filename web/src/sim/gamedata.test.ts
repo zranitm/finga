@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 import { classes } from '@/gamedata/classes';
+import { equipSlots } from '@/gamedata/equip-slots';
 import { expCurve } from '@/gamedata/exp-curve';
 import { items } from '@/gamedata/items';
 import { mobs } from '@/gamedata/mobs';
@@ -35,6 +36,11 @@ describe('generated gamedata', () => {
       expect(item).toMatchObject(source);
       expect(item.max_stack).toBe(source.max_stack ?? (item.tab === 'equip' ? 1 : 100));
     });
+  });
+
+  it('the equip slots equal items.yaml’s, in order, each naming its slot kind', () => {
+    expect(equipSlots).toEqual(yaml('items.yaml').equip_slots);
+    expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
   it('classes equal classes.yaml with cooldowns in milliseconds', () => {

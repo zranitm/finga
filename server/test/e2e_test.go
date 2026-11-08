@@ -65,6 +65,7 @@ type stack struct {
 	items  itemv1.ItemServiceClient // the stack's item service, for rows that call it directly
 	social *service                 // restarted by the rows that check the gateway survives it
 	world  *service                 // likewise
+	data   string                   // the game data every service loads
 }
 
 const grace = time.Second
@@ -74,11 +75,17 @@ var cheapPasswords = accountconfig.Password{Time: 1, MemoryKiB: 8 * 1024, Thread
 
 func newStack(t *testing.T) *stack {
 	t.Helper()
+	return newStackOver(t, "../data")
+}
+
+// newStackOver runs the stack over the game data in data.
+func newStackOver(t *testing.T, data string) *stack {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	db := dbx.Config{URL: cluster.URL(t), MaxConns: 4}
 	item := runService(t, func(at listen) itemconfig.Config {
-		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,
+		return itemconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Database: db,
 			IdempotencyKeys: itemconfig.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, itemapp.Build)
 	account := runService(t, func(at listen) accountconfig.Config {
@@ -86,15 +93,15 @@ func newStack(t *testing.T) *stack {
 			Sessions: accountconfig.Sessions{Keep: 30 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, accountapp.Build)
 	character := runService(t, func(at listen) characterconfig.Config {
-		return characterconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data", Database: db,
+		return characterconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Database: db,
 			Dependencies: characterconfig.Dependencies{Item: item.addr}}
 	}, characterapp.Build)
 	social := runService(t, func(at listen) socialconfig.Config {
 		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, socialapp.Build)
 	world := runService(t, func(at listen) worldconfig.Config {
-		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: "../data",
-			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, Economy: worldconfig.Economy{Workers: 2},
+		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data,
+			TickRateHz: 20, CheckpointInterval: 30 * time.Second, FlushTimeout: 10 * time.Second, ItemCalls: worldconfig.ItemCalls{Workers: 2},
 			Dependencies: worldconfig.Dependencies{Character: character.addr, Item: item.addr, Social: social.addr}}
 	}, worldapp.Build)
 	itemConn, err := grpcx.Dial(item.addr)
@@ -123,7 +130,7 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	return &stack{t: t, url: "http://" + gateway.Addr("http"), ops: "http://" + gateway.Addr("ops"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world}
+	return &stack{t: t, url: "http://" + gateway.Addr("http"), ops: "http://" + gateway.Addr("ops"), db: pool, items: itemv1.NewItemServiceClient(itemConn), social: social, world: world, data: data}
 }
 
 // listen is where a service's listeners bind: where the kernel picks at first, the same addresses on a restart.

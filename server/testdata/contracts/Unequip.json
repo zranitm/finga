@@ -1,0 +1,8 @@
+{
+  "req": "r-9",
+  "unequip": {
+    "idempotency_key": "k-4",
+    "equip_slot": "hat",
+    "to_slot": 7
+  }
+}

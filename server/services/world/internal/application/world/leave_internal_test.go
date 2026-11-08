@@ -13,7 +13,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/panics"
-	"finga/services/world/internal/application/economy"
+	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/model"
 )
 
@@ -24,8 +24,8 @@ func (half) Float64() float64 { return 0.5 }
 type quiet struct{}
 
 func (quiet) ObserveTick(string, time.Duration, time.Duration) {}
-func (quiet) JobStarted()                                      {}
-func (quiet) JobFinished()                                     {}
+func (quiet) CallQueued()                                      {}
+func (quiet) CallDone()                                        {}
 
 // nothing stands in for the services this test never reaches: the item, character and save paths.
 type nothing struct{}
@@ -67,7 +67,7 @@ func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 		}
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		w := New(Deps{
-			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Items: nothing{}, Workers: economy.NewWorkers(economy.Deps{Observer: quiet{}, Panics: rec}, economy.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
+			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Items: nothing{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: quiet{}, Panics: rec}, itemcalls.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
 			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
 		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second})
 		ctx, cancel := context.WithCancel(context.Background())

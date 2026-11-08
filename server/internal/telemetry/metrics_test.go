@@ -90,9 +90,9 @@ func TestWorldMetrics(t *testing.T) {
 	m.ObserveTick("town", 10*time.Millisecond, 50*time.Millisecond)
 	m.ObserveTick("town", 50*time.Millisecond, 50*time.Millisecond)
 	m.ObserveTick("town", 51*time.Millisecond, 50*time.Millisecond)
-	m.JobStarted()
-	m.JobStarted()
-	m.JobFinished()
+	m.CallQueued()
+	m.CallQueued()
+	m.CallDone()
 	m.SaveDropped("unexplained")
 	if got := sample(t, reg, "finga_saves_dropped_total", "reason", "unexplained"); got != 1 {
 		t.Fatalf("saves dropped %v, want 1", got)
@@ -103,8 +103,8 @@ func TestWorldMetrics(t *testing.T) {
 	if got := sample(t, reg, "finga_tick_overruns_total", "map", "town"); got != 1 {
 		t.Fatalf("overruns %v, want only the one past the budget", got)
 	}
-	if got := sample(t, reg, "finga_economy_jobs_inflight"); got != 1 {
-		t.Fatalf("finga_economy_jobs_inflight = %v, want 1", got)
+	if got := sample(t, reg, "finga_item_calls_inflight"); got != 1 {
+		t.Fatalf("finga_item_calls_inflight = %v, want 1", got)
 	}
 	if _, err := telemetry.NewWorldMetrics(reg, nil); err == nil {
 		t.Fatal("a second registration succeeded")
