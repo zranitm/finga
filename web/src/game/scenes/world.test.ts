@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
+import { WelcomeSchema } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
+import { character } from '@/state/character';
 import { SceneRunner } from '@/testing/fake-phaser';
 import type { FakeScene } from '@/testing/fake-phaser';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
@@ -191,6 +194,20 @@ describe('World', () => {
     expect(runner.isRunning).toBe(false);
     expect(inputs()).toBe(sent);
     expect(listeners()).toBe(0);
+  });
+
+  it('a hit the Delta already carries is not taken again when its Damage follows, as the server sends them', async () => {
+    character.getState().applyWelcome(
+      create(WelcomeSchema, {
+        character: { id: ME, name: 'Ayla', class: 'warrior', level: 1, hp: 50, maxHp: 50 },
+      }),
+    );
+    await playing('forest');
+    const ws = FakeWebSocket.latest();
+    const me = snapshotOn('forest').players![0]!;
+    ws.push('delta', { players: [{ ...me, hp: 45, invulnerable: true }] }, { tick: 2 });
+    ws.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 2 });
+    expect(character.getState().character?.hp).toBe(45);
   });
 
   it('a second map change during the fade lands on the second map', async () => {

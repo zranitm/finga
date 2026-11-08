@@ -51,17 +51,13 @@ describe('MobTracker', () => {
     expect(m.render(1100).shown.has(3)).toBe(true);
   });
 
-  it('a Damage for a mob updates its HP at once, and the next state confirms or corrects it', () => {
+  it("shows a mob's HP as the server last sent it, and a killed mob at 0 until it drains", () => {
     const m = new MobTracker(50);
-    m.applySnapshot(1000, [slime(1, 100)]);
-    m.damage(1, 12);
-    expect(m.hpOf(1)).toBe(18);
-    expect(m.render(1000).shown.get(1)?.hp).toBe(18);
-    m.damage(1, 50);
-    expect(m.hpOf(1)).toBe(0);
-    m.applyDelta(1050, [slime(1, 100, 18)], []);
-    expect(m.hpOf(1)).toBe(18);
-    m.damage(99, 5); // unknown: ignored
+    m.applySnapshot(1000, [slime(1, 100), slime(2, 200)]);
+    m.applyDelta(1050, [slime(1, 100, 18)], [2, 99]); // 99: unknown, ignored
+    const { shown } = m.render(1025);
+    expect(shown.get(1)?.hp).toBe(18);
+    expect(shown.get(2)?.hp).toBe(0);
     m.clear();
     expect(m.size).toBe(0);
   });

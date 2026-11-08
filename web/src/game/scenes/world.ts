@@ -595,6 +595,7 @@ export class World extends Phaser.Scene {
     });
   }
 
+  /** Only the number: HP comes from the server's state alone, so a hit already in the Delta is not taken twice. */
   private onDamage(d: Data<'damage'>): void {
     const target = parseRef(d.target);
     if (!target) {
@@ -602,9 +603,6 @@ export class World extends Phaser.Scene {
     }
     const now = this.time.now;
     if (target.kind === 'mob') {
-      if (!d.miss) {
-        this.mobs.damage(target.id, d.amount);
-      }
       const v = this.mobViews.get(target.id);
       if (v) {
         const n = numberFor(d, false);
@@ -619,12 +617,6 @@ export class World extends Phaser.Scene {
     if (at) {
       const n = numberFor(d, isMe);
       this.numbers.spawn(at.x, at.y - 72, n.text, n.kind, now);
-    }
-    if (isMe && !d.miss) {
-      const c = character.getState().character;
-      if (c) {
-        this.pushHp(Math.max(0, c.hp - d.amount)); // the next Delta confirms
-      }
     }
   }
 
