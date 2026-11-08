@@ -12,6 +12,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/uuidv7"
@@ -78,6 +79,25 @@ func TestPickupsAddTheDropUnderItsOwnKey(t *testing.T) {
 	want := []model.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}}
 	if slots := changed.Slots; len(slots) != 2 || slots[0].Tab != want[0].Tab || *slots[0].Item != *want[0].Item || slots[1].Item != nil || slots[1].Slot != 4 || changed.Revision != 31 {
 		t.Fatalf("changed %+v, want the two slots at revision 31", changed)
+	}
+}
+
+func TestPickupsSendEquipmentsRoll(t *testing.T) {
+	f := &items{}
+	p := clients.NewPickups(itemClient(t, f))
+	in := model.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{Attack: 17, CritRate: 5, MaxMP: 3}}
+	if _, err := p.Add(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	if s := f.adds[0].GetStats(); s.GetAttack() != 17 || s.GetCritRate() != 5 || s.GetMaxMp() != 3 || s.GetDefense() != 0 {
+		t.Fatalf("roll sent %+v", s)
+	}
+	in.DropID, in.Template, in.Stats = uuidv7.New(), "slime_gel", nil
+	if _, err := p.Add(context.Background(), in); err != nil {
+		t.Fatal(err)
+	}
+	if s := f.adds[1].GetStats(); s != nil {
+		t.Fatalf("a gel sent the roll %+v", s)
 	}
 }
 

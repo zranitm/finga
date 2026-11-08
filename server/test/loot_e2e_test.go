@@ -12,6 +12,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
+	"finga/internal/gamedata"
 	"finga/internal/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
@@ -301,7 +302,11 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 
 func (s *stack) checkInvariants(t *testing.T) {
 	t.Helper()
-	mismatches, err := itemtest.CheckInvariants(context.Background(), s.db)
+	data, err := gamedata.Load("../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mismatches, err := itemtest.CheckInvariants(context.Background(), s.db, data)
 	if err != nil {
 		t.Fatal(err)
 	}

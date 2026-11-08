@@ -10,6 +10,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
@@ -64,7 +65,7 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause})
+	res, err := s.svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: req.GetTemplateId(), Quantity: int(req.GetQuantity()), Cause: cause, Stats: statsOf(req.GetStats())})
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +178,26 @@ func causeOf(c *itemv1.Cause) (model.Cause, error) {
 }
 
 func itemOf(it model.Item) *itemv1.Item {
-	return &itemv1.Item{Id: it.ID.String(), TemplateId: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
+	out := &itemv1.Item{Id: it.ID.String(), TemplateId: it.TemplateID, Tab: string(it.Tab), Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
+	if s := it.Stats; s != nil {
+		//nolint:gosec // stats are small
+		out.Stats = &itemv1.ItemStats{
+			Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+		}
+	}
+	return out
+}
+
+// statsOf is a roll as sent, nil when none was.
+func statsOf(s *itemv1.ItemStats) *progression.ItemStats {
+	if s == nil {
+		return nil
+	}
+	return &progression.ItemStats{
+		Attack: int(s.GetAttack()), Defense: int(s.GetDefense()), STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
+		Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()), CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()),
+	}
 }
 
 func slots(res application.Result) []*itemv1.Slot {

@@ -5,6 +5,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 )
@@ -85,5 +86,34 @@ func TestAReplyKeepsItsRevision(t *testing.T) {
 	}
 	if old, err := decodeReply([]byte(storedReply)); err != nil || old.Revision != 0 {
 		t.Fatalf("a reply stored before revisions decoded as %+v, %v; want revision 0", old, err)
+	}
+}
+
+// A reply with an equipment item, its roll stored beside it; rows like it replay for as long as keys live.
+const storedRollReply = `{"changed":[{"tab":"equip","slot":2,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"equip","Slot":2,"Quantity":1,"Stats":{"Attack":17,"CritRate":5}}}],"revision":3}`
+
+func TestAReplyKeepsAnItemsRoll(t *testing.T) {
+	res := storedResult(t)
+	sword := *res.Changed[0].Item
+	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity = "iron_sword", gamedata.Equip, 2, 1
+	sword.Stats = &progression.ItemStats{Attack: 17, CritRate: 5}
+	res = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 3}
+	raw, err := encodeReply(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != storedRollReply {
+		t.Fatalf("stored reply changed: rows already stored would no longer read the same\ngot  %s\nwant %s", raw, storedRollReply)
+	}
+	got, err := decodeReply(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if it := got.Changed[0].Item; it == nil || it.Stats == nil || *it.Stats != *sword.Stats {
+		t.Fatalf("decoded %+v, want the roll %+v", it, *sword.Stats)
+	}
+	old, err := decodeReply([]byte(storedReply))
+	if err != nil || old.Changed[0].Item.Stats != nil {
+		t.Fatalf("a reply stored before rolls decoded as %+v, %v; want no roll", old.Changed[0].Item, err)
 	}
 }

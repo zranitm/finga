@@ -12,16 +12,17 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 	"finga/services/item/itemtest"
 )
 
-func checkInvariants(t *testing.T, pool *pgxpool.Pool) {
+func checkInvariants(t *testing.T, pool *pgxpool.Pool, data *gamedata.Data) {
 	t.Helper()
 	ctx := context.Background()
-	mismatches, err := itemtest.CheckInvariants(ctx, pool)
+	mismatches, err := itemtest.CheckInvariants(ctx, pool, data)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +45,7 @@ func TestInvariantsHoldAfterTheServiceTests(t *testing.T) {
 	if _, err := h.svc.Discard(context.Background(), h.actor, application.DiscardInput{Key: "i4", ItemID: stack.ID, Quantity: 10}); err != nil {
 		t.Fatal(err)
 	}
-	checkInvariants(t, h.pool)
+	checkInvariants(t, h.pool, h.data)
 }
 
 func TestInvariantChecksDetectCorruption(t *testing.T) {
@@ -57,7 +58,7 @@ func TestInvariantChecksDetectCorruption(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 5 { // the same order every run
-		got, err := itemtest.CheckInvariants(ctx, h.pool)
+		got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -76,7 +77,7 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 		if _, err := h.pool.Exec(ctx, `UPDATE item_events SET cause_type = 'player' WHERE kind = 'created'`); err != nil {
 			t.Fatal(err)
 		}
-		got, err := itemtest.CheckInvariants(ctx, h.pool)
+		got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,7 +104,7 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 		if _, err := h.pool.Exec(ctx, `UPDATE item_events SET cause_type = 'drop' WHERE kind = 'split'`); err != nil {
 			t.Fatal(err)
 		}
-		got, err := itemtest.CheckInvariants(ctx, h.pool)
+		got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,6 +112,38 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 			t.Fatalf("found %v, want check 6's stacks and splits alone", got)
 		}
 	})
+}
+
+// Check 11 holds each equipment item to one roll within its template's ranges, and anything else to none.
+func TestCheckElevenCatchesBadRolls(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name    string
+		corrupt string
+	}{
+		{"equipment without a roll", `DELETE FROM item_rolls`},
+		{"a stat above its range", `UPDATE item_rolls SET attack = attack + 100`},
+		{"a stat the template doesn't give", `UPDATE item_rolls SET str = 1`},
+		{"a potion with a roll", `INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
+			SELECT id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, now(), now() FROM items WHERE template_id = 'red_potion'`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness(t)
+			h.add(t, "c1", "iron_sword", 1)
+			h.add(t, "c2", "red_potion", 1)
+			if _, err := h.pool.Exec(ctx, tt.corrupt); err != nil {
+				t.Fatal(err)
+			}
+			got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got) != 1 || !strings.HasPrefix(got[0], "11 ") {
+				t.Fatalf("found %v, want check 11's mismatch alone", got)
+			}
+		})
+	}
 }
 
 func TestInventoryProperties(t *testing.T) {
@@ -135,7 +168,12 @@ func TestInventoryProperties(t *testing.T) {
 				tmpl := rapid.SampledFrom(templates).Draw(rt, "template")
 				it, _ := data.Item(tmpl)
 				qty := rapid.IntRange(1, it.MaxStack).Draw(rt, "qty")
-				_, err := svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
+				var stats *progression.ItemStats
+				if it.Tab == gamedata.Equip {
+					roll := progression.Rolled(it.Rolls, func(r gamedata.Range) int { return rapid.IntRange(r.Min, r.Max).Draw(rt, "stat") })
+					stats = &roll
+				}
+				_, err := svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("add: %v", err)
 				}
@@ -169,7 +207,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 			}
 		}
-		checkInvariants(t, pool)
+		checkInvariants(t, pool, data)
 		read, err := svc.Inventory(ctx, actor.Character)
 		if err != nil {
 			rt.Fatal(err)

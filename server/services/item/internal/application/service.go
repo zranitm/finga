@@ -8,6 +8,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/idempotency"
 	"finga/services/item/internal/model"
 )
@@ -18,6 +19,7 @@ type AddInput struct {
 	TemplateID string
 	Quantity   int
 	Cause      model.Cause
+	Stats      *progression.ItemStats // the drop's roll: required for equipment, refused on anything else
 }
 
 // MoveInput moves an item to a slot of its tab.
@@ -44,7 +46,12 @@ type Result struct {
 // A fingerprint is a command's values in fixed order; a value added later goes in only when set, so old retries match.
 
 func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
-	return idempotency.Fingerprint("item.add/1", c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String())
+	values := []string{c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String()}
+	if s := in.Stats; s != nil {
+		values = append(values, "stats", strconv.Itoa(s.Attack), strconv.Itoa(s.Defense), strconv.Itoa(s.STR), strconv.Itoa(s.DEX), strconv.Itoa(s.INT), strconv.Itoa(s.AGI), strconv.Itoa(s.VIT),
+			strconv.Itoa(s.Accuracy), strconv.Itoa(s.Evasion), strconv.Itoa(s.CritRate), strconv.Itoa(s.CritDamage), strconv.Itoa(s.MaxHP), strconv.Itoa(s.MaxMP))
+	}
+	return idempotency.Fingerprint("item.add/1", values...)
 }
 
 func (in MoveInput) fingerprint(c kernel.CharacterID) []byte {
@@ -92,11 +99,14 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 	if in.Quantity < 1 || in.Quantity > tmpl.MaxStack {
 		return Result{}, model.ErrBadQuantity
 	}
+	if !takesRoll(tmpl, in.Stats) {
+		return Result{}, model.ErrBadRoll
+	}
 	var res Result
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
-			res, err := s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Cause)
+			res, err := s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Stats, in.Cause)
 			return revised(ctx, uow, actor.Character, res, err)
 		})
 		return err
@@ -104,7 +114,16 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 	return res, err
 }
 
-func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, cause model.Cause) (Result, error) {
+// takesRoll reports whether tmpl takes stats as its roll: equipment one within its ranges, anything else none.
+func takesRoll(tmpl gamedata.Item, stats *progression.ItemStats) bool {
+	if tmpl.Tab != gamedata.Equip {
+		return stats == nil
+	}
+	return stats != nil && stats.Fits(tmpl.Rolls)
+}
+
+// add puts quantity of tmpl in the inventory; stats is equipment's roll, nil for anything else.
+func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, stats *progression.ItemStats, cause model.Cause) (Result, error) {
 	inv, err := uow.Items().LockInventory(ctx, owner)
 	if err != nil {
 		return Result{}, err
@@ -149,7 +168,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 		if !ok {
 			return Result{}, model.ErrInventoryFull
 		}
-		it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left}
+		it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, Stats: stats}
 		if err := uow.Items().Insert(ctx, it); err != nil {
 			return Result{}, err
 		}
@@ -308,7 +327,12 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 			return err // a second grant changes nothing
 		}
 		for k, g := range c.StarterItems {
-			r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, model.Cause{Type: model.CauseStarter})
+			var stats *progression.ItemStats
+			if tmpls[k].Tab == gamedata.Equip {
+				lowest := progression.Lowest(tmpls[k].Rolls)
+				stats = &lowest
+			}
+			r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, stats, model.Cause{Type: model.CauseStarter})
 			if err != nil {
 				return err
 			}

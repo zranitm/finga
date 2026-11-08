@@ -7,7 +7,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"finga/internal/gamedata"
+	"finga/internal/progression"
 )
+
+// Templates are the item templates the checks hold items to.
+type Templates interface {
+	Item(id string) (gamedata.Item, bool)
+}
 
 // quantityMatchesEvents is check 5: each item's quantity equals its events' delta sum.
 func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
@@ -107,22 +115,66 @@ func oneItemPerSlot(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	return out, rows.Err()
 }
 
-// checks are the Stage 1 item invariants, in check order.
-var checks = []struct {
-	name string
-	run  func(context.Context, *pgxpool.Pool) ([]string, error)
-}{
-	{"5 quantity matches events", quantityMatchesEvents},
-	{"6 template totals", templateTotals},
-	{"6 stacks and splits balance", stacksAndSplitsBalance},
-	{"8 one item per slot", oneItemPerSlot},
+// rollsFitTheirTemplates is check 11: every equipment item has one roll, each stat within its template's range, and nothing else has one.
+func rollsFitTheirTemplates(ctx context.Context, pool *pgxpool.Pool, tmpls Templates) ([]string, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT i.id, i.template_id, r.item_id IS NOT NULL,
+			coalesce(r.attack, 0), coalesce(r.defense, 0), coalesce(r.str, 0), coalesce(r.dex, 0), coalesce(r."int", 0), coalesce(r.agi, 0), coalesce(r.vit, 0),
+			coalesce(r.accuracy, 0), coalesce(r.evasion, 0), coalesce(r.crit_rate, 0), coalesce(r.crit_damage, 0), coalesce(r.max_hp, 0), coalesce(r.max_mp, 0)
+		FROM items i LEFT JOIN item_rolls r ON r.item_id = i.id
+		ORDER BY i.id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var id uuid.UUID
+		var template string
+		var rolled bool
+		var s progression.ItemStats
+		if err := rows.Scan(&id, &template, &rolled, &s.Attack, &s.Defense, &s.STR, &s.DEX, &s.INT, &s.AGI, &s.VIT,
+			&s.Accuracy, &s.Evasion, &s.CritRate, &s.CritDamage, &s.MaxHP, &s.MaxMP); err != nil {
+			return nil, err
+		}
+		tmpl, known := tmpls.Item(template)
+		equipment := known && tmpl.Tab == gamedata.Equip
+		switch {
+		case !known:
+			out = append(out, fmt.Sprintf("item %s: template %s is not in the game data", id, template))
+		case equipment && !rolled:
+			out = append(out, fmt.Sprintf("item %s: %s has no roll", id, template))
+		case equipment && !s.Fits(tmpl.Rolls):
+			out = append(out, fmt.Sprintf("item %s: %s rolled %+v, outside its ranges", id, template, s))
+		case !equipment && rolled:
+			out = append(out, fmt.Sprintf("item %s: %s is not equipment but has a roll", id, template))
+		}
+	}
+	return out, rows.Err()
 }
 
-// CheckInvariants runs every Stage 1 check and returns all mismatches, each named by its check, in check order.
-func CheckInvariants(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
+// dbOnly is a check that needs no game data.
+func dbOnly(run func(context.Context, *pgxpool.Pool) ([]string, error)) func(context.Context, *pgxpool.Pool, Templates) ([]string, error) {
+	return func(ctx context.Context, pool *pgxpool.Pool, _ Templates) ([]string, error) { return run(ctx, pool) }
+}
+
+// checks are the item invariants, in check order.
+var checks = []struct {
+	name string
+	run  func(context.Context, *pgxpool.Pool, Templates) ([]string, error)
+}{
+	{"5 quantity matches events", dbOnly(quantityMatchesEvents)},
+	{"6 template totals", dbOnly(templateTotals)},
+	{"6 stacks and splits balance", dbOnly(stacksAndSplitsBalance)},
+	{"8 one item per slot", dbOnly(oneItemPerSlot)},
+	{"11 rolls fit their templates", rollsFitTheirTemplates},
+}
+
+// CheckInvariants runs every check against the game data's templates and returns all mismatches, each named by its check, in check order.
+func CheckInvariants(ctx context.Context, pool *pgxpool.Pool, tmpls Templates) ([]string, error) {
 	var all []string
 	for _, c := range checks {
-		mismatches, err := c.run(ctx, pool)
+		mismatches, err := c.run(ctx, pool, tmpls)
 		if err != nil {
 			return nil, fmt.Errorf("check %s: %w", c.name, err)
 		}

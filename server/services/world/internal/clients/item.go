@@ -6,6 +6,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/services/world/internal/model"
 )
@@ -25,6 +26,7 @@ func (p Pickups) Add(ctx context.Context, in model.Pickup) (model.Inventory, err
 		TemplateId:     in.Template,
 		Quantity:       int32(in.Quantity),
 		Cause:          &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: drop},
+		Stats:          rollOf(in.Stats),
 	})
 	if err != nil {
 		return model.Inventory{}, err
@@ -57,6 +59,18 @@ func (p Pickups) Inventory(ctx context.Context, id kernel.CharacterID) (model.In
 		out = append(out, model.Slot{Tab: gamedata.Tab(it.GetTab()), Slot: int(it.GetSlot()), Item: item})
 	}
 	return model.Inventory{Revision: res.GetRevision(), Slots: out}, nil
+}
+
+// rollOf is a roll as the item service takes it, nil for none.
+func rollOf(s *progression.ItemStats) *itemv1.ItemStats {
+	if s == nil {
+		return nil
+	}
+	//nolint:gosec // stats are small
+	return &itemv1.ItemStats{
+		Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+	}
 }
 
 func slotItem(it *itemv1.Item) (*model.SlotItem, error) {

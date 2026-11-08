@@ -13,10 +13,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"finga/internal/gamedata"
+	"finga/internal/progression"
 	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
 	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
 	"finga/pkg/uuidv7"
+	"finga/services/item/itemtest"
 	"finga/services/item/migrations"
 )
 
@@ -236,5 +239,85 @@ func TestTimestampsAreBackfilled(t *testing.T) {
 				t.Fatalf("got %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+const rolls = "00008_item_rolls.sql"
+
+// Equipment from before rolls, even destroyed, gets its template's lowest roll and anything else none, so check 11 holds from the first start.
+func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if err := pgtest.MigrationsBefore(migrations.FS, migrations.Table, rolls)(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	data, err := gamedata.Load("../../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	owner := uuidv7.New()
+	add := func(template, location string, slot int) uuid.UUID {
+		t.Helper()
+		tmpl, _ := data.Item(template)
+		id := uuidv7.New()
+		var tab *string
+		var inSlot *int
+		quantity := 0
+		if location == "inventory" {
+			tb := string(tmpl.Tab)
+			tab, inSlot, quantity = &tb, &slot, 1
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+			id, template, owner, location, tab, inSlot, quantity, at); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO item_events (item_id, kind, quantity_delta, cause_type, occurred_at, created_at, updated_at) VALUES ($1, 'created', 1, 'drop', $2, $2, $2)`, id, at); err != nil {
+			t.Fatal(err)
+		}
+		if quantity == 0 {
+			if _, err := pool.Exec(ctx, `INSERT INTO item_events (item_id, kind, quantity_delta, cause_type, occurred_at, created_at, updated_at) VALUES ($1, 'discarded', -1, 'player', $2, $2, $2)`, id, at); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return id
+	}
+	before := []string{"wooden_sword", "short_bow", "iron_sword", "hunting_bow", "leather_cap", "leather_vest"}
+	for k, template := range before {
+		add(template, "inventory", k)
+	}
+	add("wooden_sword", "destroyed", 0)
+	add("red_potion", "inventory", 0)
+	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+
+	mismatches, err := itemtest.CheckInvariants(ctx, pool, data)
+	if err != nil || len(mismatches) > 0 {
+		t.Fatalf("invariants: %v %v", mismatches, err)
+	}
+	rows, err := pool.Query(ctx, `SELECT i.template_id, r.attack, r.defense, r.created_at FROM item_rolls r JOIN items i ON i.id = r.item_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for rows.Next() {
+		var template string
+		var attack, defense int
+		var created time.Time
+		if err := rows.Scan(&template, &attack, &defense, &created); err != nil {
+			t.Fatal(err)
+		}
+		tmpl, _ := data.Item(template)
+		if lowest := progression.Lowest(tmpl.Rolls); attack != lowest.Attack || defense != lowest.Defense || !created.Equal(at) {
+			t.Errorf("%s: attack %d defense %d at %v, want the lowest roll %+v at the item's creation", template, attack, defense, created, lowest)
+		}
+		n++
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if n != len(before)+1 {
+		t.Fatalf("%d rolls, want one per equipment item, destroyed too", n)
 	}
 }

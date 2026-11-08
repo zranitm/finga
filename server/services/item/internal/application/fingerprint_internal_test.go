@@ -8,6 +8,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/services/item/internal/model"
 )
 
@@ -28,6 +29,7 @@ func TestFingerprintsAreStable(t *testing.T) {
 		want string
 	}{
 		{"add", AddInput{Key: "k-1", TemplateID: "slime_gel", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: drop}}.fingerprint(c), "4b9139f2119c59ece19bb810e5be6562a12018c124918fb30695d0f444515826"},
+		{"add with a roll", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{Attack: 17, CritRate: 5}}.fingerprint(c), "7d0437335f33ffc45e881b77150141f19e6140fbe95a066eaa793f4f7f764e66"},
 		{"move", MoveInput{Key: "k-1", ItemID: item, Tab: gamedata.Use, Slot: 7}.fingerprint(c), "75b5e3b6161dbf0fe70935cb9e77fbb717c119ff92df45c1c9d951780f49e026"},
 		{"discard", DiscardInput{Key: "k-1", ItemID: item, Quantity: 2}.fingerprint(c), "693b3c5bd5cd91ea7cd9157dead199a007206e0f3090fafb9ad8b11cfdaba75e"},
 	} {
@@ -48,5 +50,18 @@ func TestAFingerprintNamesTheCharacterNotTheKey(t *testing.T) {
 	other.Key = "k-2"
 	if hex.EncodeToString(in.fingerprint(c)) != hex.EncodeToString(other.fingerprint(c)) {
 		t.Fatal("the key changed the fingerprint")
+	}
+}
+
+// A roll is part of an add: the same drop rolled otherwise is another request.
+func TestAnAddsRollIsPartOfItsFingerprint(t *testing.T) {
+	c := kernel.NewCharacterID()
+	in := AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}, Stats: &progression.ItemStats{Attack: 17}}
+	other := in
+	other.Stats = &progression.ItemStats{Attack: 18}
+	none := in
+	none.Stats = nil
+	if hex.EncodeToString(in.fingerprint(c)) == hex.EncodeToString(other.fingerprint(c)) || hex.EncodeToString(in.fingerprint(c)) == hex.EncodeToString(none.fingerprint(c)) {
+		t.Fatal("two rolls, or a roll and none, share a fingerprint")
 	}
 }

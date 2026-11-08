@@ -36,7 +36,7 @@ func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
 			var wg sync.WaitGroup
 			for i := range n {
 				wg.Go(func() {
-					_, errs[i] = h.svc.Add(ctx, h.actor, application.AddInput{Key: uuidv7.NewString(), TemplateID: "wooden_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
+					_, errs[i] = h.svc.Add(ctx, h.actor, application.AddInput{Key: uuidv7.NewString(), TemplateID: "wooden_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: h.roll("wooden_sword")})
 				})
 			}
 			if tt.starter {
@@ -54,7 +54,7 @@ func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
 			if got := len(h.inventory(t)); got != want {
 				t.Fatalf("%d items, want %d", got, want)
 			}
-			mismatches, err := itemtest.CheckInvariants(ctx, h.pool)
+			mismatches, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
 			if err != nil || len(mismatches) > 0 {
 				t.Fatalf("invariants: %v %v", mismatches, err)
 			}

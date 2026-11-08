@@ -10,6 +10,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 )
 
 // The service's errors; the handler sends each as a contract reason.
@@ -26,6 +27,7 @@ var (
 	ErrBadSlot       = errors.New("item: slot outside the tab")
 	ErrWrongTab      = errors.New("item: item moved to another tab")
 	ErrUnknownItem   = errors.New("item: unknown item template")
+	ErrBadRoll       = errors.New("item: equipment needs a roll within its template's ranges, and nothing else takes one")
 )
 
 // SlotsPerTab is the inventory size of each tab.
@@ -51,6 +53,7 @@ type Item struct {
 	Tab        gamedata.Tab
 	Slot       int
 	Quantity   int
+	Stats      *progression.ItemStats // what it rolled; nil for anything but equipment
 }
 
 // CauseType says what caused an item change.

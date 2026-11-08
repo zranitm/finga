@@ -6,6 +6,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
 )
@@ -23,12 +24,30 @@ type replySlot struct {
 }
 
 type replyItem struct {
-	ID         string `json:"ID"`
-	TemplateID string `json:"TemplateID"`
-	Owner      string `json:"Owner"`
-	Tab        string `json:"Tab"`
-	Slot       int    `json:"Slot"`
-	Quantity   int    `json:"Quantity"`
+	ID         string      `json:"ID"`
+	TemplateID string      `json:"TemplateID"`
+	Owner      string      `json:"Owner"`
+	Tab        string      `json:"Tab"`
+	Slot       int         `json:"Slot"`
+	Quantity   int         `json:"Quantity"`
+	Stats      *replyStats `json:"Stats,omitempty"`
+}
+
+// replyStats is a roll; a stat at 0 is left out.
+type replyStats struct {
+	Attack     int `json:"Attack,omitempty"`
+	Defense    int `json:"Defense,omitempty"`
+	STR        int `json:"STR,omitempty"`
+	DEX        int `json:"DEX,omitempty"`
+	INT        int `json:"INT,omitempty"`
+	AGI        int `json:"AGI,omitempty"`
+	VIT        int `json:"VIT,omitempty"`
+	Accuracy   int `json:"Accuracy,omitempty"`
+	Evasion    int `json:"Evasion,omitempty"`
+	CritRate   int `json:"CritRate,omitempty"`
+	CritDamage int `json:"CritDamage,omitempty"`
+	MaxHP      int `json:"MaxHP,omitempty"`
+	MaxMP      int `json:"MaxMP,omitempty"`
 }
 
 func encodeReply(res application.Result) ([]byte, error) {
@@ -40,6 +59,12 @@ func encodeReply(res application.Result) ([]byte, error) {
 		rs := replySlot{Tab: string(s.Tab), Slot: s.Slot}
 		if it := s.Item; it != nil {
 			rs.Item = &replyItem{ID: it.ID.String(), TemplateID: it.TemplateID, Owner: it.Owner.String(), Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity}
+			if st := it.Stats; st != nil {
+				rs.Item.Stats = &replyStats{
+					Attack: st.Attack, Defense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
+					Accuracy: st.Accuracy, Evasion: st.Evasion, CritRate: st.CritRate, CritDamage: st.CritDamage, MaxHP: st.MaxHP, MaxMP: st.MaxMP,
+				}
+			}
 		}
 		r.Changed = append(r.Changed, rs)
 	}
@@ -70,6 +95,12 @@ func decodeReply(raw []byte) (application.Result, error) {
 				return application.Result{}, fmt.Errorf("item: stored reply: %w", err)
 			}
 			s.Item = &model.Item{ID: id, TemplateID: ri.TemplateID, Owner: owner, Tab: gamedata.Tab(ri.Tab), Slot: ri.Slot, Quantity: ri.Quantity}
+			if st := ri.Stats; st != nil {
+				s.Item.Stats = &progression.ItemStats{
+					Attack: st.Attack, Defense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
+					Accuracy: st.Accuracy, Evasion: st.Evasion, CritRate: st.CritRate, CritDamage: st.CritDamage, MaxHP: st.MaxHP, MaxMP: st.MaxMP,
+				}
+			}
 		}
 		res.Changed = append(res.Changed, s)
 	}

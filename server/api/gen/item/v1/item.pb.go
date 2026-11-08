@@ -43,6 +43,8 @@ const (
 	Reason_REASON_BAD_IDEMPOTENCY_KEY Reason = 13
 	// A cause with no type, or one this service does not know.
 	Reason_REASON_BAD_CAUSE Reason = 14
+	// Equipment added without a roll or with a stat outside its template's range, or anything else added with a roll.
+	Reason_REASON_BAD_ROLL Reason = 15
 )
 
 // Enum value maps for Reason.
@@ -63,6 +65,7 @@ var (
 		12: "REASON_STACK_FULL",
 		13: "REASON_BAD_IDEMPOTENCY_KEY",
 		14: "REASON_BAD_CAUSE",
+		15: "REASON_BAD_ROLL",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":            0,
@@ -80,6 +83,7 @@ var (
 		"REASON_STACK_FULL":             12,
 		"REASON_BAD_IDEMPOTENCY_KEY":    13,
 		"REASON_BAD_CAUSE":              14,
+		"REASON_BAD_ROLL":               15,
 	}
 )
 
@@ -274,9 +278,11 @@ type Item struct {
 	Id         string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	TemplateId string                 `protobuf:"bytes,2,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	// equip, use or etc.
-	Tab           string `protobuf:"bytes,3,opt,name=tab,proto3" json:"tab,omitempty"`
-	Slot          int32  `protobuf:"varint,4,opt,name=slot,proto3" json:"slot,omitempty"`
-	Quantity      int32  `protobuf:"varint,5,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Tab      string `protobuf:"bytes,3,opt,name=tab,proto3" json:"tab,omitempty"`
+	Slot     int32  `protobuf:"varint,4,opt,name=slot,proto3" json:"slot,omitempty"`
+	Quantity int32  `protobuf:"varint,5,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	// What it rolled when it dropped; set for equipment only.
+	Stats         *ItemStats `protobuf:"bytes,6,opt,name=stats,proto3" json:"stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -346,6 +352,154 @@ func (x *Item) GetQuantity() int32 {
 	return 0
 }
 
+func (x *Item) GetStats() *ItemStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
+// ItemStats are what one equipment item gives, a whole number per stat, the rates in tenths of a percent.
+type ItemStats struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Attack        int32                  `protobuf:"varint,1,opt,name=attack,proto3" json:"attack,omitempty"`
+	Defense       int32                  `protobuf:"varint,2,opt,name=defense,proto3" json:"defense,omitempty"`
+	Str           int32                  `protobuf:"varint,3,opt,name=str,proto3" json:"str,omitempty"`
+	Dex           int32                  `protobuf:"varint,4,opt,name=dex,proto3" json:"dex,omitempty"`
+	Int           int32                  `protobuf:"varint,5,opt,name=int,proto3" json:"int,omitempty"`
+	Agi           int32                  `protobuf:"varint,6,opt,name=agi,proto3" json:"agi,omitempty"`
+	Vit           int32                  `protobuf:"varint,7,opt,name=vit,proto3" json:"vit,omitempty"`
+	Accuracy      int32                  `protobuf:"varint,8,opt,name=accuracy,proto3" json:"accuracy,omitempty"`
+	Evasion       int32                  `protobuf:"varint,9,opt,name=evasion,proto3" json:"evasion,omitempty"`
+	CritRate      int32                  `protobuf:"varint,10,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
+	CritDamage    int32                  `protobuf:"varint,11,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
+	MaxHp         int32                  `protobuf:"varint,12,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	MaxMp         int32                  `protobuf:"varint,13,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ItemStats) Reset() {
+	*x = ItemStats{}
+	mi := &file_internal_item_v1_item_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemStats) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemStats) ProtoMessage() {}
+
+func (x *ItemStats) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_item_v1_item_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemStats.ProtoReflect.Descriptor instead.
+func (*ItemStats) Descriptor() ([]byte, []int) {
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ItemStats) GetAttack() int32 {
+	if x != nil {
+		return x.Attack
+	}
+	return 0
+}
+
+func (x *ItemStats) GetDefense() int32 {
+	if x != nil {
+		return x.Defense
+	}
+	return 0
+}
+
+func (x *ItemStats) GetStr() int32 {
+	if x != nil {
+		return x.Str
+	}
+	return 0
+}
+
+func (x *ItemStats) GetDex() int32 {
+	if x != nil {
+		return x.Dex
+	}
+	return 0
+}
+
+func (x *ItemStats) GetInt() int32 {
+	if x != nil {
+		return x.Int
+	}
+	return 0
+}
+
+func (x *ItemStats) GetAgi() int32 {
+	if x != nil {
+		return x.Agi
+	}
+	return 0
+}
+
+func (x *ItemStats) GetVit() int32 {
+	if x != nil {
+		return x.Vit
+	}
+	return 0
+}
+
+func (x *ItemStats) GetAccuracy() int32 {
+	if x != nil {
+		return x.Accuracy
+	}
+	return 0
+}
+
+func (x *ItemStats) GetEvasion() int32 {
+	if x != nil {
+		return x.Evasion
+	}
+	return 0
+}
+
+func (x *ItemStats) GetCritRate() int32 {
+	if x != nil {
+		return x.CritRate
+	}
+	return 0
+}
+
+func (x *ItemStats) GetCritDamage() int32 {
+	if x != nil {
+		return x.CritDamage
+	}
+	return 0
+}
+
+func (x *ItemStats) GetMaxHp() int32 {
+	if x != nil {
+		return x.MaxHp
+	}
+	return 0
+}
+
+func (x *ItemStats) GetMaxMp() int32 {
+	if x != nil {
+		return x.MaxMp
+	}
+	return 0
+}
+
 // Slot is one changed inventory slot; item is unset when it emptied.
 type Slot struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -358,7 +512,7 @@ type Slot struct {
 
 func (x *Slot) Reset() {
 	*x = Slot{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[3]
+	mi := &file_internal_item_v1_item_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -370,7 +524,7 @@ func (x *Slot) String() string {
 func (*Slot) ProtoMessage() {}
 
 func (x *Slot) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[3]
+	mi := &file_internal_item_v1_item_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +537,7 @@ func (x *Slot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Slot.ProtoReflect.Descriptor instead.
 func (*Slot) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{3}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Slot) GetTab() string {
@@ -416,7 +570,7 @@ type InventoryRequest struct {
 
 func (x *InventoryRequest) Reset() {
 	*x = InventoryRequest{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[4]
+	mi := &file_internal_item_v1_item_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -428,7 +582,7 @@ func (x *InventoryRequest) String() string {
 func (*InventoryRequest) ProtoMessage() {}
 
 func (x *InventoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[4]
+	mi := &file_internal_item_v1_item_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -441,7 +595,7 @@ func (x *InventoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryRequest.ProtoReflect.Descriptor instead.
 func (*InventoryRequest) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{4}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *InventoryRequest) GetCharacterId() string {
@@ -462,7 +616,7 @@ type InventoryResponse struct {
 
 func (x *InventoryResponse) Reset() {
 	*x = InventoryResponse{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[5]
+	mi := &file_internal_item_v1_item_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -474,7 +628,7 @@ func (x *InventoryResponse) String() string {
 func (*InventoryResponse) ProtoMessage() {}
 
 func (x *InventoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[5]
+	mi := &file_internal_item_v1_item_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -487,7 +641,7 @@ func (x *InventoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InventoryResponse.ProtoReflect.Descriptor instead.
 func (*InventoryResponse) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{5}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *InventoryResponse) GetItems() []*Item {
@@ -512,13 +666,15 @@ type AddRequest struct {
 	TemplateId     string `protobuf:"bytes,3,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	Quantity       int32  `protobuf:"varint,4,opt,name=quantity,proto3" json:"quantity,omitempty"`
 	Cause          *Cause `protobuf:"bytes,5,opt,name=cause,proto3" json:"cause,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The drop's roll: required for equipment, each stat within its template's range, and refused on anything else.
+	Stats         *ItemStats `protobuf:"bytes,6,opt,name=stats,proto3" json:"stats,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AddRequest) Reset() {
 	*x = AddRequest{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[6]
+	mi := &file_internal_item_v1_item_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -530,7 +686,7 @@ func (x *AddRequest) String() string {
 func (*AddRequest) ProtoMessage() {}
 
 func (x *AddRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[6]
+	mi := &file_internal_item_v1_item_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -543,7 +699,7 @@ func (x *AddRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddRequest.ProtoReflect.Descriptor instead.
 func (*AddRequest) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{6}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *AddRequest) GetActor() *Actor {
@@ -581,6 +737,13 @@ func (x *AddRequest) GetCause() *Cause {
 	return nil
 }
 
+func (x *AddRequest) GetStats() *ItemStats {
+	if x != nil {
+		return x.Stats
+	}
+	return nil
+}
+
 type AddResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
@@ -592,7 +755,7 @@ type AddResponse struct {
 
 func (x *AddResponse) Reset() {
 	*x = AddResponse{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[7]
+	mi := &file_internal_item_v1_item_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -604,7 +767,7 @@ func (x *AddResponse) String() string {
 func (*AddResponse) ProtoMessage() {}
 
 func (x *AddResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[7]
+	mi := &file_internal_item_v1_item_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -617,7 +780,7 @@ func (x *AddResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddResponse.ProtoReflect.Descriptor instead.
 func (*AddResponse) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{7}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *AddResponse) GetChanged() []*Slot {
@@ -648,7 +811,7 @@ type MoveRequest struct {
 
 func (x *MoveRequest) Reset() {
 	*x = MoveRequest{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[8]
+	mi := &file_internal_item_v1_item_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -660,7 +823,7 @@ func (x *MoveRequest) String() string {
 func (*MoveRequest) ProtoMessage() {}
 
 func (x *MoveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[8]
+	mi := &file_internal_item_v1_item_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -673,7 +836,7 @@ func (x *MoveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveRequest.ProtoReflect.Descriptor instead.
 func (*MoveRequest) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{8}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *MoveRequest) GetActor() *Actor {
@@ -722,7 +885,7 @@ type MoveResponse struct {
 
 func (x *MoveResponse) Reset() {
 	*x = MoveResponse{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[9]
+	mi := &file_internal_item_v1_item_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -734,7 +897,7 @@ func (x *MoveResponse) String() string {
 func (*MoveResponse) ProtoMessage() {}
 
 func (x *MoveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[9]
+	mi := &file_internal_item_v1_item_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -747,7 +910,7 @@ func (x *MoveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MoveResponse.ProtoReflect.Descriptor instead.
 func (*MoveResponse) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{9}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *MoveResponse) GetChanged() []*Slot {
@@ -777,7 +940,7 @@ type DiscardRequest struct {
 
 func (x *DiscardRequest) Reset() {
 	*x = DiscardRequest{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[10]
+	mi := &file_internal_item_v1_item_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -789,7 +952,7 @@ func (x *DiscardRequest) String() string {
 func (*DiscardRequest) ProtoMessage() {}
 
 func (x *DiscardRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[10]
+	mi := &file_internal_item_v1_item_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -802,7 +965,7 @@ func (x *DiscardRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscardRequest.ProtoReflect.Descriptor instead.
 func (*DiscardRequest) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{10}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DiscardRequest) GetActor() *Actor {
@@ -844,7 +1007,7 @@ type DiscardResponse struct {
 
 func (x *DiscardResponse) Reset() {
 	*x = DiscardResponse{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[11]
+	mi := &file_internal_item_v1_item_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -856,7 +1019,7 @@ func (x *DiscardResponse) String() string {
 func (*DiscardResponse) ProtoMessage() {}
 
 func (x *DiscardResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[11]
+	mi := &file_internal_item_v1_item_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -869,7 +1032,7 @@ func (x *DiscardResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DiscardResponse.ProtoReflect.Descriptor instead.
 func (*DiscardResponse) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{11}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DiscardResponse) GetChanged() []*Slot {
@@ -896,7 +1059,7 @@ type GrantStarterRequest struct {
 
 func (x *GrantStarterRequest) Reset() {
 	*x = GrantStarterRequest{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[12]
+	mi := &file_internal_item_v1_item_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +1071,7 @@ func (x *GrantStarterRequest) String() string {
 func (*GrantStarterRequest) ProtoMessage() {}
 
 func (x *GrantStarterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[12]
+	mi := &file_internal_item_v1_item_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +1084,7 @@ func (x *GrantStarterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantStarterRequest.ProtoReflect.Descriptor instead.
 func (*GrantStarterRequest) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{12}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GrantStarterRequest) GetActor() *Actor {
@@ -949,7 +1112,7 @@ type GrantStarterResponse struct {
 
 func (x *GrantStarterResponse) Reset() {
 	*x = GrantStarterResponse{}
-	mi := &file_internal_item_v1_item_proto_msgTypes[13]
+	mi := &file_internal_item_v1_item_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -961,7 +1124,7 @@ func (x *GrantStarterResponse) String() string {
 func (*GrantStarterResponse) ProtoMessage() {}
 
 func (x *GrantStarterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_item_v1_item_proto_msgTypes[13]
+	mi := &file_internal_item_v1_item_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -974,7 +1137,7 @@ func (x *GrantStarterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GrantStarterResponse.ProtoReflect.Descriptor instead.
 func (*GrantStarterResponse) Descriptor() ([]byte, []int) {
-	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{13}
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GrantStarterResponse) GetChanged() []*Slot {
@@ -1002,14 +1165,31 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\fcharacter_id\x18\x02 \x01(\tR\vcharacterId\"H\n" +
 	"\x05Cause\x12/\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1b.internal.item.v1.CauseTypeR\x04type\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"y\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\"\xac\x01\n" +
 	"\x04Item\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1f\n" +
 	"\vtemplate_id\x18\x02 \x01(\tR\n" +
 	"templateId\x12\x10\n" +
 	"\x03tab\x18\x03 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x04 \x01(\x05R\x04slot\x12\x1a\n" +
-	"\bquantity\x18\x05 \x01(\x05R\bquantity\"X\n" +
+	"\bquantity\x18\x05 \x01(\x05R\bquantity\x121\n" +
+	"\x05stats\x18\x06 \x01(\v2\x1b.internal.item.v1.ItemStatsR\x05stats\"\xb9\x02\n" +
+	"\tItemStats\x12\x16\n" +
+	"\x06attack\x18\x01 \x01(\x05R\x06attack\x12\x18\n" +
+	"\adefense\x18\x02 \x01(\x05R\adefense\x12\x10\n" +
+	"\x03str\x18\x03 \x01(\x05R\x03str\x12\x10\n" +
+	"\x03dex\x18\x04 \x01(\x05R\x03dex\x12\x10\n" +
+	"\x03int\x18\x05 \x01(\x05R\x03int\x12\x10\n" +
+	"\x03agi\x18\x06 \x01(\x05R\x03agi\x12\x10\n" +
+	"\x03vit\x18\a \x01(\x05R\x03vit\x12\x1a\n" +
+	"\baccuracy\x18\b \x01(\x05R\baccuracy\x12\x18\n" +
+	"\aevasion\x18\t \x01(\x05R\aevasion\x12\x1b\n" +
+	"\tcrit_rate\x18\n" +
+	" \x01(\x05R\bcritRate\x12\x1f\n" +
+	"\vcrit_damage\x18\v \x01(\x05R\n" +
+	"critDamage\x12\x15\n" +
+	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12\x15\n" +
+	"\x06max_mp\x18\r \x01(\x05R\x05maxMp\"X\n" +
 	"\x04Slot\x12\x10\n" +
 	"\x03tab\x18\x01 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\x05R\x04slot\x12*\n" +
@@ -1018,7 +1198,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\"]\n" +
 	"\x11InventoryResponse\x12,\n" +
 	"\x05items\x18\x01 \x03(\v2\x16.internal.item.v1.ItemR\x05items\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x04R\brevision\"\xd0\x01\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"\x83\x02\n" +
 	"\n" +
 	"AddRequest\x12-\n" +
 	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12'\n" +
@@ -1026,7 +1206,8 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\vtemplate_id\x18\x03 \x01(\tR\n" +
 	"templateId\x12\x1a\n" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\x12-\n" +
-	"\x05cause\x18\x05 \x01(\v2\x17.internal.item.v1.CauseR\x05cause\"[\n" +
+	"\x05cause\x18\x05 \x01(\v2\x17.internal.item.v1.CauseR\x05cause\x121\n" +
+	"\x05stats\x18\x06 \x01(\v2\x1b.internal.item.v1.ItemStatsR\x05stats\"[\n" +
 	"\vAddResponse\x120\n" +
 	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x04R\brevision\"\xa4\x01\n" +
@@ -1052,7 +1233,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x05class\x18\x02 \x01(\tR\x05class\"d\n" +
 	"\x14GrantStarterResponse\x120\n" +
 	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x04R\brevision*\x89\x03\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision*\x9e\x03\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -1069,7 +1250,8 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x14REASON_UNKNOWN_CLASS\x10\v\x12\x15\n" +
 	"\x11REASON_STACK_FULL\x10\f\x12\x1e\n" +
 	"\x1aREASON_BAD_IDEMPOTENCY_KEY\x10\r\x12\x14\n" +
-	"\x10REASON_BAD_CAUSE\x10\x0e*k\n" +
+	"\x10REASON_BAD_CAUSE\x10\x0e\x12\x13\n" +
+	"\x0fREASON_BAD_ROLL\x10\x0f*k\n" +
 	"\tCauseType\x12\x1a\n" +
 	"\x16CAUSE_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fCAUSE_TYPE_DROP\x10\x01\x12\x15\n" +
@@ -1095,53 +1277,56 @@ func file_internal_item_v1_item_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_item_v1_item_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_item_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_internal_item_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_internal_item_v1_item_proto_goTypes = []any{
 	(Reason)(0),                  // 0: internal.item.v1.Reason
 	(CauseType)(0),               // 1: internal.item.v1.CauseType
 	(*Actor)(nil),                // 2: internal.item.v1.Actor
 	(*Cause)(nil),                // 3: internal.item.v1.Cause
 	(*Item)(nil),                 // 4: internal.item.v1.Item
-	(*Slot)(nil),                 // 5: internal.item.v1.Slot
-	(*InventoryRequest)(nil),     // 6: internal.item.v1.InventoryRequest
-	(*InventoryResponse)(nil),    // 7: internal.item.v1.InventoryResponse
-	(*AddRequest)(nil),           // 8: internal.item.v1.AddRequest
-	(*AddResponse)(nil),          // 9: internal.item.v1.AddResponse
-	(*MoveRequest)(nil),          // 10: internal.item.v1.MoveRequest
-	(*MoveResponse)(nil),         // 11: internal.item.v1.MoveResponse
-	(*DiscardRequest)(nil),       // 12: internal.item.v1.DiscardRequest
-	(*DiscardResponse)(nil),      // 13: internal.item.v1.DiscardResponse
-	(*GrantStarterRequest)(nil),  // 14: internal.item.v1.GrantStarterRequest
-	(*GrantStarterResponse)(nil), // 15: internal.item.v1.GrantStarterResponse
+	(*ItemStats)(nil),            // 5: internal.item.v1.ItemStats
+	(*Slot)(nil),                 // 6: internal.item.v1.Slot
+	(*InventoryRequest)(nil),     // 7: internal.item.v1.InventoryRequest
+	(*InventoryResponse)(nil),    // 8: internal.item.v1.InventoryResponse
+	(*AddRequest)(nil),           // 9: internal.item.v1.AddRequest
+	(*AddResponse)(nil),          // 10: internal.item.v1.AddResponse
+	(*MoveRequest)(nil),          // 11: internal.item.v1.MoveRequest
+	(*MoveResponse)(nil),         // 12: internal.item.v1.MoveResponse
+	(*DiscardRequest)(nil),       // 13: internal.item.v1.DiscardRequest
+	(*DiscardResponse)(nil),      // 14: internal.item.v1.DiscardResponse
+	(*GrantStarterRequest)(nil),  // 15: internal.item.v1.GrantStarterRequest
+	(*GrantStarterResponse)(nil), // 16: internal.item.v1.GrantStarterResponse
 }
 var file_internal_item_v1_item_proto_depIdxs = []int32{
 	1,  // 0: internal.item.v1.Cause.type:type_name -> internal.item.v1.CauseType
-	4,  // 1: internal.item.v1.Slot.item:type_name -> internal.item.v1.Item
-	4,  // 2: internal.item.v1.InventoryResponse.items:type_name -> internal.item.v1.Item
-	2,  // 3: internal.item.v1.AddRequest.actor:type_name -> internal.item.v1.Actor
-	3,  // 4: internal.item.v1.AddRequest.cause:type_name -> internal.item.v1.Cause
-	5,  // 5: internal.item.v1.AddResponse.changed:type_name -> internal.item.v1.Slot
-	2,  // 6: internal.item.v1.MoveRequest.actor:type_name -> internal.item.v1.Actor
-	5,  // 7: internal.item.v1.MoveResponse.changed:type_name -> internal.item.v1.Slot
-	2,  // 8: internal.item.v1.DiscardRequest.actor:type_name -> internal.item.v1.Actor
-	5,  // 9: internal.item.v1.DiscardResponse.changed:type_name -> internal.item.v1.Slot
-	2,  // 10: internal.item.v1.GrantStarterRequest.actor:type_name -> internal.item.v1.Actor
-	5,  // 11: internal.item.v1.GrantStarterResponse.changed:type_name -> internal.item.v1.Slot
-	6,  // 12: internal.item.v1.ItemService.Inventory:input_type -> internal.item.v1.InventoryRequest
-	8,  // 13: internal.item.v1.ItemService.Add:input_type -> internal.item.v1.AddRequest
-	10, // 14: internal.item.v1.ItemService.Move:input_type -> internal.item.v1.MoveRequest
-	12, // 15: internal.item.v1.ItemService.Discard:input_type -> internal.item.v1.DiscardRequest
-	14, // 16: internal.item.v1.ItemService.GrantStarter:input_type -> internal.item.v1.GrantStarterRequest
-	7,  // 17: internal.item.v1.ItemService.Inventory:output_type -> internal.item.v1.InventoryResponse
-	9,  // 18: internal.item.v1.ItemService.Add:output_type -> internal.item.v1.AddResponse
-	11, // 19: internal.item.v1.ItemService.Move:output_type -> internal.item.v1.MoveResponse
-	13, // 20: internal.item.v1.ItemService.Discard:output_type -> internal.item.v1.DiscardResponse
-	15, // 21: internal.item.v1.ItemService.GrantStarter:output_type -> internal.item.v1.GrantStarterResponse
-	17, // [17:22] is the sub-list for method output_type
-	12, // [12:17] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	5,  // 1: internal.item.v1.Item.stats:type_name -> internal.item.v1.ItemStats
+	4,  // 2: internal.item.v1.Slot.item:type_name -> internal.item.v1.Item
+	4,  // 3: internal.item.v1.InventoryResponse.items:type_name -> internal.item.v1.Item
+	2,  // 4: internal.item.v1.AddRequest.actor:type_name -> internal.item.v1.Actor
+	3,  // 5: internal.item.v1.AddRequest.cause:type_name -> internal.item.v1.Cause
+	5,  // 6: internal.item.v1.AddRequest.stats:type_name -> internal.item.v1.ItemStats
+	6,  // 7: internal.item.v1.AddResponse.changed:type_name -> internal.item.v1.Slot
+	2,  // 8: internal.item.v1.MoveRequest.actor:type_name -> internal.item.v1.Actor
+	6,  // 9: internal.item.v1.MoveResponse.changed:type_name -> internal.item.v1.Slot
+	2,  // 10: internal.item.v1.DiscardRequest.actor:type_name -> internal.item.v1.Actor
+	6,  // 11: internal.item.v1.DiscardResponse.changed:type_name -> internal.item.v1.Slot
+	2,  // 12: internal.item.v1.GrantStarterRequest.actor:type_name -> internal.item.v1.Actor
+	6,  // 13: internal.item.v1.GrantStarterResponse.changed:type_name -> internal.item.v1.Slot
+	7,  // 14: internal.item.v1.ItemService.Inventory:input_type -> internal.item.v1.InventoryRequest
+	9,  // 15: internal.item.v1.ItemService.Add:input_type -> internal.item.v1.AddRequest
+	11, // 16: internal.item.v1.ItemService.Move:input_type -> internal.item.v1.MoveRequest
+	13, // 17: internal.item.v1.ItemService.Discard:input_type -> internal.item.v1.DiscardRequest
+	15, // 18: internal.item.v1.ItemService.GrantStarter:input_type -> internal.item.v1.GrantStarterRequest
+	8,  // 19: internal.item.v1.ItemService.Inventory:output_type -> internal.item.v1.InventoryResponse
+	10, // 20: internal.item.v1.ItemService.Add:output_type -> internal.item.v1.AddResponse
+	12, // 21: internal.item.v1.ItemService.Move:output_type -> internal.item.v1.MoveResponse
+	14, // 22: internal.item.v1.ItemService.Discard:output_type -> internal.item.v1.DiscardResponse
+	16, // 23: internal.item.v1.ItemService.GrantStarter:output_type -> internal.item.v1.GrantStarterResponse
+	19, // [19:24] is the sub-list for method output_type
+	14, // [14:19] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_internal_item_v1_item_proto_init() }
@@ -1155,7 +1340,7 @@ func file_internal_item_v1_item_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_item_v1_item_proto_rawDesc), len(file_internal_item_v1_item_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   14,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

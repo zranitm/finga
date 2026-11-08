@@ -143,7 +143,7 @@ func New(d Deps, t Tuning) *Instance {
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
-		ground:   loot.NewGround(loot.Deps{Items: d.Items, ItemCalls: d.ItemCalls, Parties: d.Parties, Traces: d.Traces, Roll: roll, Logger: d.Logger}, loot.Tuning{TickInterval: t.TickInterval}),
+		ground:   loot.NewGround(loot.Deps{Items: d.Items, ItemCalls: d.ItemCalls, Parties: d.Parties, Traces: d.Traces, Roll: roll, Data: d.Data, Logger: d.Logger}, loot.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 	}

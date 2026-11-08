@@ -23,6 +23,7 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrBadSlot, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_SLOT},
 	{Err: model.ErrWrongTab, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_WRONG_TAB},
 	{Err: model.ErrUnknownItem, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_ITEM},
+	{Err: model.ErrBadRoll, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ROLL},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ID},
 	{Err: kernel.ErrUnknownClass, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_CLASS},
 }

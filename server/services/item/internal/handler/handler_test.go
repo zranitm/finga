@@ -15,6 +15,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentineltest"
@@ -146,6 +147,23 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			t.Fatalf("add %+v actor %+v", f.add, f.actor)
 		}
 		wantChanged(t, res)
+	})
+	t.Run("Add, equipment with its roll", func(t *testing.T) {
+		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{Attack: 17, CritRate: 5, MaxMP: 3}}
+		f.result = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 13}
+		defer func() { f.result = changed }()
+		res, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "iron_sword", Quantity: 1,
+			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP}, Stats: &itemv1.ItemStats{Attack: 17, CritRate: 5, MaxMp: 3}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.add.Stats == nil || *f.add.Stats != *sword.Stats {
+			t.Fatalf("roll sent %+v, want %+v", f.add.Stats, *sword.Stats)
+		}
+		got := res.GetChanged()[0].GetItem().GetStats()
+		if got.GetAttack() != 17 || got.GetCritRate() != 5 || got.GetMaxMp() != 3 || got.GetDefense() != 0 {
+			t.Fatalf("roll answered %+v", got)
+		}
 	})
 	t.Run("Add without a cause ID", func(t *testing.T) {
 		if _, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1,

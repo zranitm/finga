@@ -21,6 +21,15 @@ ORDER BY tab, slot;
 INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
 VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), 'inventory', sqlc.arg(tab), sqlc.arg(slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
 
+-- name: InsertRoll :exec
+INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
+VALUES (sqlc.arg(item_id), sqlc.arg(attack), sqlc.arg(defense), sqlc.arg(str), sqlc.arg(dex), sqlc.arg(int), sqlc.arg(agi), sqlc.arg(vit),
+  sqlc.arg(accuracy), sqlc.arg(evasion), sqlc.arg(crit_rate), sqlc.arg(crit_damage), sqlc.arg(max_hp), sqlc.arg(max_mp), sqlc.arg(now), sqlc.arg(now));
+
+-- name: ListRolls :many
+-- The rolls of the items read beside them; a roll never changes, so it needs no lock.
+SELECT * FROM item_rolls WHERE item_id = ANY(sqlc.arg(ids)::uuid[]);
+
 -- name: SetQuantity :execrows
 UPDATE items SET quantity = sqlc.arg(quantity), updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 

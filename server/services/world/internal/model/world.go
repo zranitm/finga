@@ -6,6 +6,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/internal/sim"
 
 	"github.com/google/uuid"
@@ -277,4 +278,5 @@ type Pickup struct {
 	DropID    uuid.UUID
 	Template  string
 	Quantity  int
+	Stats     *progression.ItemStats // equipment's roll, nil for anything else
 }

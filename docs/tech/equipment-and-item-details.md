@@ -60,6 +60,7 @@ New types in `internal/progression`, the shared kernel both services already imp
   2. Each derived stat is its formula over those primary stats and the level, plus the worn flat bonus (attack to attack power, defense, accuracy, evasion, the two rates, max HP and max MP).
   3. Caps apply last (crit rate 60%, penetration 50%; OD-18).
 - **`Sheet`** is what the character window shows: the primary and derived totals, and the equipment's share of each. The share is the totals with the worn items minus the totals without them, so a capped rate shows what the equipment really adds.
+- **Rolls:** `Rolled(ranges, pick)` builds a roll by picking each stat from its range, every stat in one order; the world picks uniformly with the map's random source. `Lowest` is the bottom of every range, and `ItemStats.Fits` checks a roll against a template's ranges, a stat the item doesn't give only at 0.
 - `Equipment.Penetration` goes: no item gives penetration (Systems → Items lists what can roll).
 
 The world computes the sheet, because only the world holds the live level, stats, and worn items. The character service keeps its `Derived()` with no equipment, for the character list over REST.
@@ -72,7 +73,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - `CHECK ((location = 'equipped') = (equip_slot IS NOT NULL))`. The existing check already makes `tab` and `slot` null outside the inventory.
   - A unique partial index `one_item_per_equip_slot (owner_id, equip_slot) WHERE location = 'equipped'`.
   - The `location` comment loses "(Stage 2)".
-- **`item_rolls`**: `item_id` (primary key, references `items`), one `int NOT NULL` column per stat, and `created_at`.
+- **`item_rolls`**: `item_id` (primary key, references `items`), one `int NOT NULL` column per stat, and `created_at` and `updated_at`, both the item's creation time, as every row carries both stamps.
   - It is insert-only: no query updates or deletes a row. A roll is part of the item for its whole life, which is what D5 means by "what it rolled".
   - It is written in the same transaction as the item's `created` event.
   - One column per stat rather than a JSON column, so sqlc gives typed rows and a later marketplace can filter on a stat.
@@ -267,10 +268,10 @@ By layer (`web/eslint.config.js`):
 
 ## 11. Rollout
 
-- **Existing databases:** equipment items already in inventories have no roll. A Go migration in the item service gives each one its template's lowest roll, the same rule as starter items, so check 11 holds from the first start (open question 2).
+- **Existing databases:** equipment items already in inventories have no roll. The migration that adds `item_rolls` gives each one, destroyed ones too, its template's lowest roll, the same rule as starter items, so check 11 holds from the first start (open question 2). It lists the six equipment templates items.yaml had and their lowest values, because migrations run without the game data.
 - **Data:** Leather Cap becomes a `hat` and Leather Vest a `top`. The content step adds about 24 equipment items (one per armor and accessory slot kind per level band) and a weapon per class per band, and updates the drop lists.
 - **Balance:** equipment bonuses have never applied in combat. Even a starter sword adds attack, so the content step retunes mob HP and the drop chances (open question 3).
-- **Deploy order:** item service first (it answers old callers as before), then world, then gateway, then the client. Old clients ignore the new fields and never send `Equip`.
+- **Deploy order:** item service first, then world, then gateway, then the client. The item service answers old callers as before, except an old world's pickup of equipment, which carries no roll: it is refused and the drop stays on the ground until that world restarts, seconds later in a release. Old clients ignore the new fields and never send `Equip`.
 
 ## 12. Build order
 
@@ -283,9 +284,9 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
    - No behaviour changes.
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
 2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
-3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, checks 11, and the backfill.
+3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
 4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests.
-5. **World:** rolls at drop time, worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`.
+5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`.
 6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the error codes, and the contracts.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
 8. **Client, item card:** the hover card and the comparison.

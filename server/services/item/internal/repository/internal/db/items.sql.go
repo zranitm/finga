@@ -90,6 +90,51 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 	return err
 }
 
+const insertRoll = `-- name: InsertRoll :exec
+INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13, $14, $15, $15)
+`
+
+type InsertRollParams struct {
+	ItemID     uuid.UUID
+	Attack     int32
+	Defense    int32
+	Str        int32
+	Dex        int32
+	Int        int32
+	Agi        int32
+	Vit        int32
+	Accuracy   int32
+	Evasion    int32
+	CritRate   int32
+	CritDamage int32
+	MaxHp      int32
+	MaxMp      int32
+	Now        dbx.Stamp
+}
+
+func (q *Queries) InsertRoll(ctx context.Context, arg InsertRollParams) error {
+	_, err := q.db.Exec(ctx, insertRoll,
+		arg.ItemID,
+		arg.Attack,
+		arg.Defense,
+		arg.Str,
+		arg.Dex,
+		arg.Int,
+		arg.Agi,
+		arg.Vit,
+		arg.Accuracy,
+		arg.Evasion,
+		arg.CritRate,
+		arg.CritDamage,
+		arg.MaxHp,
+		arg.MaxMp,
+		arg.Now,
+	)
+	return err
+}
+
 const inventoryRevision = `-- name: InventoryRevision :one
 SELECT coalesce((SELECT revision FROM inventory_revisions WHERE owner_id = $1), 0)::bigint AS revision
 `
@@ -126,6 +171,48 @@ func (q *Queries) ListInventory(ctx context.Context, ownerID uuid.UUID) ([]Item,
 			&i.Quantity,
 			&i.UpdatedAt,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRolls = `-- name: ListRolls :many
+SELECT item_id, attack, defense, str, dex, int, agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at FROM item_rolls WHERE item_id = ANY($1::uuid[])
+`
+
+// The rolls of the items read beside them; a roll never changes, so it needs no lock.
+func (q *Queries) ListRolls(ctx context.Context, ids []uuid.UUID) ([]ItemRoll, error) {
+	rows, err := q.db.Query(ctx, listRolls, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ItemRoll
+	for rows.Next() {
+		var i ItemRoll
+		if err := rows.Scan(
+			&i.ItemID,
+			&i.Attack,
+			&i.Defense,
+			&i.Str,
+			&i.Dex,
+			&i.Int,
+			&i.Agi,
+			&i.Vit,
+			&i.Accuracy,
+			&i.Evasion,
+			&i.CritRate,
+			&i.CritDamage,
+			&i.MaxHp,
+			&i.MaxMp,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

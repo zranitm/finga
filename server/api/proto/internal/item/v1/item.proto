@@ -38,6 +38,8 @@ enum Reason {
   REASON_BAD_IDEMPOTENCY_KEY = 13;
   // A cause with no type, or one this service does not know.
   REASON_BAD_CAUSE = 14;
+  // Equipment added without a roll or with a stat outside its template's range, or anything else added with a roll.
+  REASON_BAD_ROLL = 15;
 }
 
 enum CauseType {
@@ -67,6 +69,25 @@ message Item {
   string tab = 3;
   int32 slot = 4;
   int32 quantity = 5;
+  // What it rolled when it dropped; set for equipment only.
+  ItemStats stats = 6;
+}
+
+// ItemStats are what one equipment item gives, a whole number per stat, the rates in tenths of a percent.
+message ItemStats {
+  int32 attack = 1;
+  int32 defense = 2;
+  int32 str = 3;
+  int32 dex = 4;
+  int32 int = 5;
+  int32 agi = 6;
+  int32 vit = 7;
+  int32 accuracy = 8;
+  int32 evasion = 9;
+  int32 crit_rate = 10;
+  int32 crit_damage = 11;
+  int32 max_hp = 12;
+  int32 max_mp = 13;
 }
 
 // Slot is one changed inventory slot; item is unset when it emptied.
@@ -93,6 +114,8 @@ message AddRequest {
   string template_id = 3;
   int32 quantity = 4;
   Cause cause = 5;
+  // The drop's roll: required for equipment, each stat within its template's range, and refused on anything else.
+  ItemStats stats = 6;
 }
 
 message AddResponse {
