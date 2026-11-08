@@ -147,12 +147,18 @@ func (r repo) LockOwned(ctx context.Context, id kernel.ItemID, owner kernel.Char
 
 // Insert adds an inventory row, and equipment's roll beside it.
 func (r repo) Insert(ctx context.Context, it model.Item) error {
-	tab, slot := string(it.Tab), int32(it.Slot) //nolint:gosec // slots are small
-	err := r.q.InsertItem(ctx, db.InsertItemParams{
-		ID: uuid.UUID(it.ID), TemplateID: it.TemplateID, OwnerID: uuid.UUID(it.Owner), Tab: &tab, Slot: &slot,
+	p := db.InsertItemParams{
+		ID: uuid.UUID(it.ID), TemplateID: it.TemplateID, OwnerID: uuid.UUID(it.Owner), Location: "inventory",
 		Quantity: int32(it.Quantity), //nolint:gosec // quantities are small
 		Now:      r.now,
-	})
+	}
+	if it.Worn() {
+		p.Location, p.EquipSlot = "equipped", &it.EquipSlot
+	} else {
+		tab, slot := string(it.Tab), int32(it.Slot) //nolint:gosec // slots are small
+		p.Tab, p.Slot = &tab, &slot
+	}
+	err := r.q.InsertItem(ctx, p)
 	if err != nil || it.Stats == nil {
 		return err
 	}

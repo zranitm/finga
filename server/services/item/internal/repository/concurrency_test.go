@@ -51,7 +51,7 @@ func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
 				}
 			}
 			want += n
-			want += len(starter.Changed) // the kit's new stacks; it finds none of its own templates to stack onto
+			want += len(starter.Changed) + len(starter.Equipment) // the kit's new stacks and its worn sword; it finds none of its own templates to stack onto
 
 			if got := len(h.inventory(t)); got != want {
 				t.Fatalf("%d items, want %d", got, want)

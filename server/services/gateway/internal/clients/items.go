@@ -2,7 +2,6 @@ package clients
 
 import (
 	"context"
-	"slices"
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/kernel"
@@ -16,14 +15,22 @@ type Items struct{ c itemv1.ItemServiceClient }
 // NewItems adapts the item client.
 func NewItems(c itemv1.ItemServiceClient) Items { return Items{c: c} }
 
-// Inventory is the items in the character's tabs at their revision, an empty slice when it has none.
+// Inventory is the items in the character's tabs, an empty slice when it has none, and what it wears, at their revision.
 func (i Items) Inventory(ctx context.Context, character kernel.CharacterID) (model.Inventory, error) {
 	res, err := i.c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: character.String()})
 	if err != nil {
 		return model.Inventory{}, errmap.Wrap(err)
 	}
-	held := slices.DeleteFunc(res.GetItems(), func(it *itemv1.Item) bool { return it.GetEquipSlot() != "" }) // worn, so in no tab
-	return model.Inventory{Revision: res.GetRevision(), Items: itemViews(held)}, nil
+	inv := model.Inventory{Revision: res.GetRevision(), Items: make([]model.ItemView, 0, len(res.GetItems()))}
+	for _, it := range res.GetItems() {
+		view := itemView(it)
+		if slot := it.GetEquipSlot(); slot != "" {
+			inv.Equipment = append(inv.Equipment, model.EquipSlot{Slot: slot, Item: &view})
+			continue
+		}
+		inv.Items = append(inv.Items, view)
+	}
+	return inv, nil
 }
 
 // Move moves an item and returns the slots it changed.
@@ -48,16 +55,12 @@ func actor(a model.Actor) *itemv1.Actor {
 	return &itemv1.Actor{AccountId: a.Account.String(), CharacterId: a.Character.String()}
 }
 
-func itemViews(items []*itemv1.Item) []model.ItemView {
-	out := make([]model.ItemView, 0, len(items))
-	for _, it := range items {
-		out = append(out, itemView(it))
-	}
-	return out
-}
-
 func itemView(it *itemv1.Item) model.ItemView {
-	return model.ItemView{ID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
+	view := model.ItemView{ID: it.GetId(), Template: it.GetTemplateId(), Tab: it.GetTab(), Slot: int(it.GetSlot()), Quantity: int(it.GetQuantity())}
+	if s := it.GetStats(); s != nil {
+		view.Stats = rollOf(s)
+	}
+	return view
 }
 
 func inventorySlots(slots []*itemv1.Slot) []model.InventorySlot {

@@ -31,27 +31,32 @@ func (q *Queries) DestroyItem(ctx context.Context, arg DestroyItemParams) (int64
 }
 
 const insertItem = `-- name: InsertItem :exec
-INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
-VALUES ($1, $2, $3, 'inventory', $4, $5, $6, $7, $7)
+INSERT INTO items (id, template_id, owner_id, location, tab, slot, equip_slot, quantity, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
 `
 
 type InsertItemParams struct {
 	ID         uuid.UUID
 	TemplateID string
 	OwnerID    uuid.UUID
+	Location   string
 	Tab        *string
 	Slot       *int32
+	EquipSlot  *string
 	Quantity   int32
 	Now        dbx.Stamp
 }
 
+// A new item goes in an inventory slot, or straight into an equip slot.
 func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) error {
 	_, err := q.db.Exec(ctx, insertItem,
 		arg.ID,
 		arg.TemplateID,
 		arg.OwnerID,
+		arg.Location,
 		arg.Tab,
 		arg.Slot,
+		arg.EquipSlot,
 		arg.Quantity,
 		arg.Now,
 	)

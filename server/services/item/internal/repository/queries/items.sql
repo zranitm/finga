@@ -19,8 +19,9 @@ WHERE owner_id = $1 AND location IN ('inventory', 'equipped')
 ORDER BY tab NULLS LAST, slot, equip_slot;
 
 -- name: InsertItem :exec
-INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
-VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), 'inventory', sqlc.arg(tab), sqlc.arg(slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
+-- A new item goes in an inventory slot, or straight into an equip slot.
+INSERT INTO items (id, template_id, owner_id, location, tab, slot, equip_slot, quantity, created_at, updated_at)
+VALUES (sqlc.arg(id), sqlc.arg(template_id), sqlc.arg(owner_id), sqlc.arg(location), sqlc.narg(tab), sqlc.narg(slot), sqlc.narg(equip_slot), sqlc.arg(quantity), sqlc.arg(now), sqlc.arg(now));
 
 -- name: InsertRoll :exec
 INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)

@@ -29,6 +29,8 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.ChatMessage{Channel: chatChannels[p.Channel], Sender: p.Sender, SenderName: p.SenderName, Text: p.Text}
 	case model.InventoryChanged:
 		return InventoryChanged(p)
+	case model.StatsChanged:
+		return statsChanged(p)
 	case model.PickupFailed:
 		return ErrorResponse(p.Why)
 	case model.PartyState:

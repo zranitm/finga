@@ -339,7 +339,7 @@ func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 
 func (s *stack) checkInvariants(t *testing.T) {
 	t.Helper()
-	data, err := gamedata.Load("../data")
+	data, err := gamedata.Load(s.data)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"sync"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/model"
+	"finga/services/item/itemtest"
 )
 
 // These rules are about transactions, so they run against real Postgres.
@@ -512,24 +514,28 @@ func TestGrantStarter(t *testing.T) {
 		t.Fatal(err)
 	}
 	inv := read.Items
-	got := map[string]int{}
-	for _, it := range inv {
-		got[it.TemplateID] += it.Quantity
+	if len(inv) != 2 || inv[0].TemplateID != "red_potion" || inv[0].Quantity != 5 || inv[0].Tab != gamedata.Use || inv[1].TemplateID != "wooden_sword" || inv[1].EquipSlot != "weapon" {
+		t.Fatalf("starter inventory %+v; want 5 potions in the Use tab and the sword worn", inv)
 	}
-	if got["wooden_sword"] != 1 || got["red_potion"] != 5 || len(inv) != 2 || len(first.Changed) != 2 {
-		t.Fatalf("starter inventory %+v, changed %+v", inv, first.Changed)
+	sword, _ := h.data.Item("wooden_sword")
+	if lowest := progression.Lowest(sword.Rolls); inv[1].Stats == nil || *inv[1].Stats != lowest {
+		t.Fatalf("starter sword rolled %+v, want the lowest roll %+v", inv[1].Stats, lowest)
 	}
-	for _, it := range inv {
-		tmpl, _ := h.data.Item(it.TemplateID)
-		if tmpl.Tab == gamedata.Equip && (it.Stats == nil || *it.Stats != progression.Lowest(tmpl.Rolls)) {
-			t.Fatalf("starter %s rolled %+v, want the lowest roll", it.TemplateID, it.Stats)
-		}
+	worn := inv[1]
+	if len(first.Changed) != 1 || first.Changed[0].Item.TemplateID != "red_potion" ||
+		!reflect.DeepEqual(first.Equipment, []model.WornSlot{{Slot: "weapon", Item: &worn}}) || first.Revision != 1 {
+		t.Fatalf("grant changed %+v and %+v at revision %d; want the potions' slot and the sword in the weapon slot, at 1", first.Changed, first.Equipment, first.Revision)
 	}
-	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, warrior.Character) != 2 {
+	// Created, then equipped: the sword's events say it is worn, so check 12 holds.
+	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, warrior.Character) != 3 ||
+		h.count(t, `SELECT count(*) FROM item_events WHERE kind = 'equipped' AND item_id = $1`, worn.ID) != 1 {
 		t.Fatal("starter events missing")
 	}
 	if h.count(t, `SELECT count(*) FROM outbox WHERE type = 'ItemGranted'`) != 2 {
 		t.Fatal("ItemGranted outbox events missing")
+	}
+	if mismatches, err := itemtest.CheckInvariants(ctx, h.pool, h.data); err != nil || len(mismatches) > 0 {
+		t.Fatalf("invariants: %v %v", mismatches, err)
 	}
 
 	unchanged := func(t *testing.T, again application.Result, err error) {
@@ -537,10 +543,10 @@ func TestGrantStarter(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(again.Changed) != 0 {
-			t.Fatalf("a second grant changed %+v", again.Changed)
+		if len(again.Changed) != 0 || len(again.Equipment) != 0 {
+			t.Fatalf("a second grant changed %+v and %+v", again.Changed, again.Equipment)
 		}
-		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 2 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
+		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 3 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
 			t.Fatal("the second grant wrote again")
 		}
 	}
@@ -570,8 +576,8 @@ func TestGrantStarter(t *testing.T) {
 			})
 		}
 		wg.Wait()
-		if n := h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, mage.Character); n != 2 {
-			t.Fatalf("%d starter events, want one kit's 2", n)
+		if n := h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, mage.Character); n != 3 {
+			t.Fatalf("%d starter events, want one kit's 3", n)
 		}
 	})
 	t.Run("a bowman gets a bow", func(t *testing.T) {
@@ -580,8 +586,28 @@ func TestGrantStarter(t *testing.T) {
 			t.Fatal(err)
 		}
 		read, _ := h.svc.Inventory(ctx, bowman.Character)
-		if inv := read.Items; len(inv) != 2 || inv[0].TemplateID != "short_bow" {
+		if inv := read.Items; len(inv) != 2 || inv[1].TemplateID != "short_bow" || inv[1].EquipSlot != "weapon" {
 			t.Fatalf("bowman inventory %+v", inv)
+		}
+	})
+	// A grant that comes late, from the world's safety net, may find a weapon already worn.
+	t.Run("starter equipment whose slot is taken lands in the inventory", func(t *testing.T) {
+		late := newHarness(t)
+		late.actor = model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		bow := late.added(t, "short_bow")
+		if _, err := late.svc.Equip(ctx, late.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: bow.ID, Level: 1, Class: kernel.Bowman}); err != nil {
+			t.Fatal(err)
+		}
+		kit, err := late.svc.GrantStarter(ctx, late.actor, kernel.Bowman)
+		if err != nil {
+			t.Fatal(err)
+		}
+		inv := late.inventory(t)
+		if len(kit.Equipment) != 0 || len(kit.Changed) != 2 || len(inv) != 3 || inv[0].TemplateID != "short_bow" || inv[0].Tab != gamedata.Equip || inv[2].ID != bow.ID || inv[2].EquipSlot != "weapon" {
+			t.Fatalf("late grant changed %+v and %+v, inventory %+v; want the starter bow in the Equip tab, the worn one kept", kit.Changed, kit.Equipment, inv)
+		}
+		if mismatches, err := itemtest.CheckInvariants(ctx, late.pool, late.data); err != nil || len(mismatches) > 0 {
+			t.Fatalf("invariants: %v %v", mismatches, err)
 		}
 	})
 	t.Run("a class the game data does not have is unknown_class and writes nothing", func(t *testing.T) {

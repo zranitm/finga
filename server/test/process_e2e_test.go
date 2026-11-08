@@ -232,5 +232,5 @@ func processStack(t *testing.T, world ...string) (*stack, map[string]*process) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = itemConn.Close() })
-	return &stack{t: t, url: gateway.url, db: db, items: itemv1.NewItemServiceClient(itemConn)}, procs
+	return &stack{t: t, url: gateway.url, db: db, items: itemv1.NewItemServiceClient(itemConn), data: "../data"}, procs
 }

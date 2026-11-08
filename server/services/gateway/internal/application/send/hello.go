@@ -46,7 +46,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
 		return fmt.Errorf("inventory: %w", err)
 	}
-	welcome.Inventory, welcome.InventoryRevision = inv.Items, inv.Revision // the party follows in a PartyState, once Online registers the player
+	welcome.Inventory, welcome.Equipment, welcome.InventoryRevision = inv.Items, inv.Equipment, inv.Revision // the party follows in a PartyState, once Online registers the player
 	// Last, so a Hello that fails before here leaves the client's token as it was.
 	welcome.Token, err = g.rotate(ctx, p.SessionID)
 	if err != nil {

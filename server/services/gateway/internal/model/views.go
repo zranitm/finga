@@ -37,18 +37,49 @@ type CharacterView struct {
 	Stats           Stats
 	HP, MaxHP       int
 	MP, MaxMP       int
+	Sheet           StatSheet
 }
 
-// ItemView is an item in the player's inventory.
+// StatSheet is the character's stats with what it wears, and the equipment's share of each.
+type StatSheet struct {
+	Primary, PrimaryWorn Stats
+	Derived, DerivedWorn DerivedStats
+}
+
+// DerivedStats are the computed stats; rates are fractions.
+type DerivedStats struct {
+	AttackPower, Defense, Accuracy, Evasion float64
+	CritRate, CritDamage                    float64
+	MaxHP, MaxMP                            int
+}
+
+// ItemView is an item in the player's inventory, or a worn one, which is in no tab.
 type ItemView struct {
 	ID, Template, Tab string
 	Slot, Quantity    int
+	Stats             *ItemStats // equipment's roll; nil for anything else
 }
 
-// Inventory is the player's items as they stood at Revision, the count of the inventory's changes.
+// ItemStats are what one equipment item gives, the rates in tenths of a percent.
+type ItemStats struct {
+	Attack, Defense         int
+	STR, DEX, INT, AGI, VIT int
+	Accuracy, Evasion       int
+	CritRate, CritDamage    int
+	MaxHP, MaxMP            int
+}
+
+// EquipSlot is an equip slot and what it holds; Item is nil when it is empty.
+type EquipSlot struct {
+	Slot string
+	Item *ItemView
+}
+
+// Inventory is the player's items and what it wears as they stood at Revision, the count of their changes.
 type Inventory struct {
-	Revision uint64
-	Items    []ItemView
+	Revision  uint64
+	Items     []ItemView
+	Equipment []EquipSlot
 }
 
 // InventorySlot is a slot an inventory command changed; Item is nil when the slot is now empty.

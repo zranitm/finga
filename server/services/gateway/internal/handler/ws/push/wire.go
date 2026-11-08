@@ -7,7 +7,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// InventoryChanged is the message for slots an inventory command or a pickup changed.
+// InventoryChanged is the message for slots and equip slots an inventory command, a pickup or an equip changed.
 func InventoryChanged(ic model.InventoryChanged) *clientv1.InventoryChanged {
 	out := make([]*clientv1.InventorySlot, 0, len(ic.Slots))
 	for _, s := range ic.Slots {
@@ -17,15 +17,32 @@ func InventoryChanged(ic model.InventoryChanged) *clientv1.InventoryChanged {
 		}
 		out = append(out, slot)
 	}
-	return &clientv1.InventoryChanged{Slots: out, Revision: ic.Revision}
+	return &clientv1.InventoryChanged{Slots: out, Revision: ic.Revision, Equipment: equipment(ic.Equipment)}
+}
+
+func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
+	return &clientv1.StatsChanged{Sheet: statSheet(sc.Sheet), Hp: int32(sc.HP), MaxHp: int32(sc.MaxHP), Mp: int32(sc.MP), MaxMp: int32(sc.MaxMP)}
 }
 
 func characterView(c model.CharacterView) *clientv1.CharacterView {
-	st := c.Stats
 	return &clientv1.CharacterView{
-		Id: c.ID, Name: c.Name, Class: c.Class, Level: int32(c.Level), Exp: c.Exp,
-		Stats: &clientv1.Stats{Str: int32(st.STR), Dex: int32(st.DEX), Int: int32(st.INT), Agi: int32(st.AGI), Vit: int32(st.VIT)},
-		Hp:    int32(c.HP), MaxHp: int32(c.MaxHP), Mp: int32(c.MP), MaxMp: int32(c.MaxMP),
+		Id: c.ID, Name: c.Name, Class: c.Class, Level: int32(c.Level), Exp: c.Exp, Stats: stats(c.Stats),
+		Hp: int32(c.HP), MaxHp: int32(c.MaxHP), Mp: int32(c.MP), MaxMp: int32(c.MaxMP), Sheet: statSheet(c.Sheet),
+	}
+}
+
+func stats(st model.Stats) *clientv1.Stats {
+	return &clientv1.Stats{Str: int32(st.STR), Dex: int32(st.DEX), Int: int32(st.INT), Agi: int32(st.AGI), Vit: int32(st.VIT)}
+}
+
+func statSheet(s model.StatSheet) *clientv1.StatSheet {
+	return &clientv1.StatSheet{Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn)}
+}
+
+func derived(d model.DerivedStats) *clientv1.DerivedStats {
+	return &clientv1.DerivedStats{
+		AttackPower: d.AttackPower, Defense: d.Defense, Accuracy: d.Accuracy, Evasion: d.Evasion,
+		CritRate: d.CritRate, CritDamage: d.CritDamage, MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP),
 	}
 }
 
@@ -90,7 +107,31 @@ func itemViews(items []model.ItemView) []*clientv1.ItemView {
 }
 
 func itemView(it model.ItemView) *clientv1.ItemView {
-	return &clientv1.ItemView{ItemId: it.ID, Template: it.Template, Tab: it.Tab, Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
+	v := &clientv1.ItemView{ItemId: it.ID, Template: it.Template, Tab: it.Tab, Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
+	if s := it.Stats; s != nil {
+		v.Stats = &clientv1.ItemStats{
+			Attack: int32(s.Attack), Defense: int32(s.Defense),
+			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
+			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+		}
+	}
+	return v
+}
+
+func equipment(slots []model.EquipSlot) []*clientv1.EquipSlot {
+	if len(slots) == 0 {
+		return nil
+	}
+	out := make([]*clientv1.EquipSlot, 0, len(slots))
+	for _, s := range slots {
+		slot := &clientv1.EquipSlot{EquipSlot: s.Slot}
+		if s.Item != nil {
+			slot.Item = itemView(*s.Item)
+		}
+		out = append(out, slot)
+	}
+	return out
 }
 
 func partyView(p *model.PartyView) *clientv1.PartyView {

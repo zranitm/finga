@@ -59,7 +59,7 @@ type UnequipInput struct {
 // Result is what a command changed and the inventory's revision after it, 0 when it changed nothing; the repository stores it for idempotent replays.
 type Result struct {
 	Changed   []model.Slot
-	Equipment []model.WornSlot // the equip slots an equip or unequip changed
+	Equipment []model.WornSlot // the equip slots an equip, an unequip or a starter grant changed
 	Worn      []model.Item     // after an equip or unequip, every item worn
 	Revision  uint64
 }
@@ -510,7 +510,7 @@ func wornOf(inv []model.Item) []model.Item {
 	return out
 }
 
-// GrantStarter gives a new character its starter items once, recorded in starter_grants; later calls change nothing.
+// GrantStarter gives a new character its starter items once, recorded in starter_grants; later calls change nothing. Equipment is worn, unless its slot is taken.
 func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (Result, error) {
 	c, ok := s.content.Class(class)
 	if !ok {
@@ -531,13 +531,22 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 		if err != nil || !first {
 			return err // a second grant changes nothing
 		}
+		starter := model.Cause{Type: model.CauseStarter}
 		for k, g := range c.StarterItems {
 			var stats *progression.ItemStats
 			if tmpls[k].Tab == gamedata.Equip {
 				lowest := progression.Lowest(tmpls[k].Rolls)
 				stats = &lowest
+				on, err := s.wear(ctx, uow, actor.Character, tmpls[k], stats, starter)
+				if err != nil {
+					return err
+				}
+				if on != nil {
+					res.Equipment = append(res.Equipment, *on)
+					continue
+				}
 			}
-			r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, stats, model.Cause{Type: model.CauseStarter})
+			r, err := s.add(ctx, uow, actor.Character, tmpls[k], g.Quantity, stats, starter)
 			if err != nil {
 				return err
 			}
@@ -552,9 +561,39 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 	return res, nil
 }
 
+// wear puts a new equipment item straight into the first empty equip slot of its kind; nil, writing nothing, when every one is taken.
+func (s *Service) wear(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, stats *progression.ItemStats, cause model.Cause) (*model.WornSlot, error) {
+	inv, err := uow.Items().LockInventory(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	slot, err := equipSlotFor(s.content.EquipSlots(), tmpl.Slot, "", inv)
+	if err != nil || find(inv, func(it model.Item) bool { return it.EquipSlot == slot }) != nil {
+		return nil, err
+	}
+	it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, EquipSlot: slot, Quantity: 1, Stats: stats}
+	if err := uow.Items().Insert(ctx, it); err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	// Created, then equipped, so its last equip event says it is worn.
+	for _, ev := range []model.Event{
+		{ItemID: it.ID, Kind: model.EventCreated, QuantityDelta: 1, ToOwner: &owner, Cause: cause, OccurredAt: now},
+		{ItemID: it.ID, Kind: model.EventEquipped, FromOwner: &owner, ToOwner: &owner, Cause: cause, OccurredAt: now},
+	} {
+		if err := uow.Events().Append(ctx, ev); err != nil {
+			return nil, err
+		}
+	}
+	if err := uow.Notices().Send(ctx, model.Notice{Kind: model.NoticeGranted, Item: it, Quantity: 1, Cause: cause, OccurredAt: now}); err != nil {
+		return nil, err
+	}
+	return &model.WornSlot{Slot: slot, Item: &it}, nil
+}
+
 // revised gives a change the owner's next revision, last in its transaction so the revision row's lock is the last it takes; nothing changed takes none.
 func revised(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, res Result, err error) (Result, error) {
-	if err != nil || len(res.Changed) == 0 {
+	if err != nil || len(res.Changed)+len(res.Equipment) == 0 {
 		return res, err
 	}
 	res.Revision, err = uow.Items().NextRevision(ctx, owner)

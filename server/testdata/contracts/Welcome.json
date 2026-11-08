@@ -15,9 +15,37 @@
         "vit": 12
       },
       "hp": 250,
-      "max_hp": 250,
+      "max_hp": 280,
       "mp": 32,
-      "max_mp": 32
+      "max_mp": 32,
+      "sheet": {
+        "primary": {
+          "str": 16,
+          "dex": 5,
+          "int": 4,
+          "agi": 5,
+          "vit": 12
+        },
+        "primary_worn": {
+          "str": 1
+        },
+        "derived": {
+          "attack_power": 49.5,
+          "defense": 3,
+          "accuracy": 16.5,
+          "evasion": 8.75,
+          "crit_rate": 0.065,
+          "crit_damage": 1.5,
+          "max_hp": 280,
+          "max_mp": 32
+        },
+        "derived_worn": {
+          "attack_power": 12.5,
+          "defense": 3,
+          "crit_rate": 0.01,
+          "max_hp": 30
+        }
+      }
     },
     "inventory": [
       {
@@ -25,6 +53,17 @@
         "template": "red_potion",
         "tab": "use",
         "quantity": 3
+      },
+      {
+        "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b03",
+        "template": "leather_cap",
+        "tab": "equip",
+        "slot": 4,
+        "quantity": 1,
+        "stats": {
+          "defense": 3,
+          "max_hp": 30
+        }
       }
     ],
     "party": {
@@ -51,6 +90,22 @@
     },
     "map_id": "town",
     "tick": 81234,
-    "server_time": "1761000000050"
+    "server_time": "1761000000050",
+    "inventory_revision": "7",
+    "equipment": [
+      {
+        "equip_slot": "weapon",
+        "item": {
+          "item_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b02",
+          "template": "wooden_sword",
+          "quantity": 1,
+          "stats": {
+            "attack": 10,
+            "str": 1,
+            "crit_rate": 10
+          }
+        }
+      }
+    ]
   }
 }

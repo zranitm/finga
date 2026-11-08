@@ -77,13 +77,13 @@ The world computes the sheet, because only the world holds the live level, stats
   - It is insert-only: no query updates or deletes a row. A roll is part of the item for its whole life, which is what D5 means by "what it rolled".
   - It is written in the same transaction as the item's `created` event.
   - One column per stat rather than a JSON column, so sqlc gives typed rows and a later marketplace can filter on a stat.
-- **`item_events`** gains two kinds, `equipped` and `unequipped`, each with a quantity delta of 0 and cause `player`; the cause ID is the request's idempotency key.
+- **`item_events`** gains two kinds, `equipped` and `unequipped`, each with a quantity delta of 0 and cause `player`, whose ID is the request's idempotency key. Starter equipment worn from the start has a `created` event, then an `equipped` one, both with cause `starter`.
 
 ### Contract changes (`api/proto/internal/item/v1/item.proto`)
 
 - `Item` gains `ItemStats stats` (set for equipment) and `equip_slot` (set when worn). `Inventory` returns worn items too.
 - `Add` gains `ItemStats stats`. It is required for equipment and refused on anything else; each value must lie within its template's range, else `ErrBadRoll`, which is internal only because no client can cause it. The fingerprint `item.add/1` takes the roll only when set, following the rule beside the fingerprint that a value added later goes in only when set, so old keys still match.
-- `GrantStarter` gives starter equipment the lowest value of each range (Systems → Items) and puts it straight into its slot (open question 1), from the step that lets the client show what is worn (section 12).
+- `GrantStarter` gives starter equipment the lowest value of each range (Systems → Items) and puts it straight into its slot (open question 1), from the step that lets the client show what is worn (section 12). A late grant, from the world's safety net, may find that slot already filled; the item then goes in the Equip tab, as before. The response's `changed` lists only the tab slots, since neither caller reads it.
 - **`Equip{actor, idempotency_key, item_id, equip_slot, level, class}`**:
   - `equip_slot` is needed only for rings; left empty, a ring takes the first empty ring slot, otherwise `ring_1`, the same rule the client's comparison uses (D7).
   - `level` and `class` come from the world's live state. The item service checks them against the template, because the requirement belongs to the item, and the world is the only one that knows the level now.
@@ -190,7 +190,7 @@ sequenceDiagram
 | `CharacterView` | Gains `StatSheet sheet`, so Welcome and LevelUp carry it |
 | `StatsChanged` (server) | New: the sheet, HP, max HP, MP, max MP |
 
-- Golden files for every new or changed message go in `server/testdata/contracts/`, and `api/asyncapi.yaml` describes them.
+- Golden files for every new or changed message go in `server/testdata/contracts/`, which the client's protocol tests read too.
 - **New error codes**, each with a service reason, an errmap row, a status, the regenerated `codes.json`, and the client's `errorCodes`:
   - `level_too_low`: "your level is too low for that item";
   - `wrong_class`: "your class can't use that item";
