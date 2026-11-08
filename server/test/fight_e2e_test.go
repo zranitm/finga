@@ -43,6 +43,58 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
+// dieAmongSlimes walks into the forest's slimes until the player dies, flipping every 1.5 s to stay in their field (x 216..784); it reads no further than Died.
+func (p *player) dieAmongSlimes(t *testing.T) {
+	t.Helper()
+	right := true
+	seq := uint32(1)
+	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}})
+	flip := time.Now().Add(1500 * time.Millisecond)
+	var hits, misses int
+	var me *clientv1.PlayerView
+	mobs := map[uint32]*clientv1.MobView{}
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		if time.Now().After(flip) {
+			right = !right
+			seq++
+			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
+			flip = time.Now().Add(1500 * time.Millisecond)
+		}
+		m, ok := p.read(100 * time.Millisecond)
+		if !ok {
+			if p.closed(0) {
+				t.Fatal("the connection closed while waiting for Died")
+			}
+			continue
+		}
+		switch d := m.Data.(type) {
+		case *clientv1.Died:
+			if d.GetCharacterId() == p.id {
+				return
+			}
+		case *clientv1.Damage:
+			if d.Target == "p:"+p.id {
+				if d.Miss {
+					misses++
+				} else {
+					hits++
+				}
+			}
+		case *clientv1.Delta:
+			for _, v := range d.Players {
+				if v.GetId() == p.id {
+					me = v
+				}
+			}
+			for _, mv := range d.Mobs {
+				mobs[mv.GetId()] = mv
+			}
+		}
+	}
+	t.Fatalf("never died walking into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
+}
+
 // attackUntil sends Attack every 850 ms until pred sees a message or d passes.
 func (p *player) attackUntil(d time.Duration, pred func(wsconn.Message) bool) bool {
 	deadline := time.Now().Add(d)
@@ -177,55 +229,7 @@ func TestFightAndGrow(t *testing.T) {
 		token, id := s.createCharacter(t, "joan", "Joan", "warrior")
 		s.place(t, id, "forest", 380, 608, 1, 10) // one hit from death; level 1 with 10 EXP
 		p, _ := s.join(t, token, id)
-		// No settling drain, lest a Died be discarded; flip every 1.5 s to stay in the slime field (x 216..784).
-		right := true
-		seq := uint32(1)
-		p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}})
-		flip := time.Now().Add(1500 * time.Millisecond)
-		died := false
-		var hits, misses int
-		var me *clientv1.PlayerView
-		mobs := map[uint32]*clientv1.MobView{}
-		deadline := time.Now().Add(20 * time.Second)
-		for !died && time.Now().Before(deadline) {
-			if time.Now().After(flip) {
-				right = !right
-				seq++
-				p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
-				flip = time.Now().Add(1500 * time.Millisecond)
-			}
-			m, ok := p.read(100 * time.Millisecond)
-			if !ok {
-				if p.closed(0) {
-					t.Fatal("the connection closed while waiting for Died")
-				}
-				continue
-			}
-			switch d := m.Data.(type) {
-			case *clientv1.Died:
-				died = d.GetCharacterId() == id
-			case *clientv1.Damage:
-				if d.Target == "p:"+id {
-					if d.Miss {
-						misses++
-					} else {
-						hits++
-					}
-				}
-			case *clientv1.Delta:
-				for _, v := range d.Players {
-					if v.GetId() == id {
-						me = v
-					}
-				}
-				for _, mv := range d.Mobs {
-					mobs[mv.GetId()] = mv
-				}
-			}
-		}
-		if !died {
-			t.Fatalf("never died walking into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
-		}
+		p.dieAmongSlimes(t)
 		r := p.expect("Respawned").Data.(*clientv1.Respawned)
 		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 102 {
 			t.Fatalf("respawned %+v", r)

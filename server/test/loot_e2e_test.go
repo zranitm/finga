@@ -305,15 +305,8 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	t.Helper()
 	ctx := context.Background()
-	var account string
-	if err := s.db.QueryRow(ctx, `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
-		t.Fatal(err)
-	}
-	actor := &itemv1.Actor{AccountId: account, CharacterId: id}
-	if _, err := s.items.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: uuidv7.NewString(), TemplateId: "wooden_sword", Quantity: 1,
-		Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: uuidv7.NewString()}, Stats: &itemv1.ItemStats{Attack: 10}}); err != nil {
-		t.Fatal(err)
-	}
+	actor := s.actor(t, id)
+	s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 10})
 	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'wooden_sword'`, id)
 	if err != nil {
 		t.Fatal(err)
