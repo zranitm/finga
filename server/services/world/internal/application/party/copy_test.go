@@ -178,11 +178,16 @@ func TestMemberUpdates(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			social := newFakeSocial()
 			social.failures = 1
+			social.gate = make(chan struct{})
 			var logs bytes.Buffer
 			p := runCopy(t, social, slog.New(slog.NewJSONHandler(&logs, nil)))
 			ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
+			// Ann's is taken and held at the gate before Bo's is put, so Bo's is waiting when Ann's fails:
+			// put back to back, the sender could take and fail Ann's first, retrying it before Bo's existed.
 			p.Update(ann, "cave", 5, 40, 120)
+			synctest.Wait()
 			p.Update(bo, "town", 3, 60, 60)
+			close(social.gate)
 			time.Sleep(time.Second)
 			synctest.Wait()
 			got := social.sent()
