@@ -15,7 +15,8 @@ The screens players see and the keys they use. This is the input for the design 
 | **Settings** | Choose a control preset | P0 |
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
-| **Equipment** | See equipped items and stats; equip and unequip | P1 |
+| **Character window** | See level, EXP, HP, MP, stats, and the ten equipment slots; equip and unequip | P1 |
+| **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
 | **Skill bar** | Assign skills to keys | P1 |
 
@@ -34,6 +35,7 @@ Keyboard only (OD-20). Attacks go the way the character faces; the mouse is used
 | Pick up | Z | K |
 | Inventory | I | I |
 | Party | P | P |
+| Character window | C | C |
 | Chat | Enter | Enter |
 | Skills (P1) | 1 to 6 | 1 to 6 |
 

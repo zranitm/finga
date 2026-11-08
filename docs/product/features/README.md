@@ -43,6 +43,8 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [D3. Equipment](./items-and-inventory/d3-equipment.md) |  | P1 | Draft |
 | [D4. Consumables](./items-and-inventory/d4-consumables.md) |  | P1 | Draft |
 | [D5. Item integrity](./items-and-inventory/d5-item-integrity.md) |  | P0 | Draft |
+| [D6. Character window](./items-and-inventory/d6-character-window.md) |  | P1 | Draft |
+| [D7. Item details and comparison](./items-and-inventory/d7-item-details-and-comparison.md) |  | P1 | Draft |
 
 ## E. Social
 
