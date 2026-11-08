@@ -20,5 +20,9 @@ How Finga runs, apart from the code that runs.
   the services keep (REST requests, answered commands, pickups). A log
   line links to its trace, and a trace to its logs.
 
-Later stages add their parts here: infrastructure as code for a hosted
-deployment.
+- `deploy/`: production on AWS, behind Cloudflare. The Compose overlay, the
+  deploy and backup scripts the instance runs, and the runbook
+  (`deploy/README.md`), which starts there.
+- `terraform/`: the AWS and Cloudflare side. Generic modules (an EC2 host for
+  a Compose app, ECR repositories, a private bucket, a GitHub OIDC role, a
+  Cloudflare-proxied origin) and `envs/prod`, which wires them for Finga.

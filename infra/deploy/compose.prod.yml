@@ -1,0 +1,71 @@
+# The production overlay on docker-compose.yml, which deploy.sh applies through COMPOSE_FILE (see prod.env).
+# Every image comes from the registry at the release's tag instead of a local build, the database gets the
+# password the deploy reads from SSM, and nginx adds the TLS listener Cloudflare reaches.
+# Paths here are relative to infra/, the directory of the first Compose file, not to this one.
+
+x-database-url: &database-url
+  FINGA_DATABASE_URL: postgres://finga:${FINGA_POSTGRES_PASSWORD:?the deploy exports it from SSM}@postgres:5432/finga?sslmode=disable
+
+services:
+  postgres:
+    ports: !reset []   # nothing on the host: finga-compose exec postgres psql -U finga reaches it
+    environment:
+      # Read only when the volume is first initialised; changing it later needs ALTER ROLE as well.
+      POSTGRES_PASSWORD: ${FINGA_POSTGRES_PASSWORD:?the deploy exports it from SSM}
+
+  migrate:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/migrate:${IMAGE_TAG:?}
+    environment: *database-url
+
+  account:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/account:${IMAGE_TAG:?}
+    environment: *database-url
+
+  character:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/character:${IMAGE_TAG:?}
+    environment: *database-url
+
+  item:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/item:${IMAGE_TAG:?}
+    environment: *database-url
+
+  social:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/social:${IMAGE_TAG:?}
+
+  world:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/world:${IMAGE_TAG:?}
+
+  gateway:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/gateway:${IMAGE_TAG:?}
+    environment:
+      FINGA_HTTP_CORS_ORIGINS: ""   # same origin only; the base file allows the Vite dev server
+
+  web:
+    build: !reset null
+    image: ${REGISTRY:?}/finga/web:${IMAGE_TAG:?}
+    # Only 443, which the security group opens to Cloudflare alone; plain HTTP stays inside the container.
+    ports: !override
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/tls.conf:/etc/nginx/finga.d/tls.conf:ro
+      - ${DEPLOY_SHARED_DIR:?}/files/nginx/finga.d/realip.conf:/etc/nginx/finga.d/realip.conf:ro
+      - ${DEPLOY_SHARED_DIR:?}/files/nginx/tls:/etc/nginx/tls:ro
+
+  # Ceilings so a busy observability stack can't starve the game; one restarting under its limit is the sign to raise it.
+  mimir:
+    mem_limit: 768m
+  loki:
+    mem_limit: 512m
+  tempo:
+    mem_limit: 512m
+  alloy:
+    mem_limit: 256m
+  grafana:
+    mem_limit: 256m

@@ -1,0 +1,9 @@
+# Installed by deploy.sh as @APP_NAME@-pg-backup.service; the timer beside it starts it.
+[Unit]
+Description=@APP_NAME@: dump Postgres to the artifact bucket
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=@DEPLOY_ROOT@/current/infra/deploy/pg.sh backup
