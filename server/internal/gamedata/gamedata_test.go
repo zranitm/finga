@@ -86,10 +86,15 @@ exp_to_next:
   - {level: 3, exp: 129}
 `,
 		"items.yaml": `
+equip_slots:
+  - {id: weapon, name: Weapon, kind: weapon}
+  - {id: hat, name: Hat, kind: hat}
+  - {id: ring_1, name: Ring, kind: ring}
+  - {id: ring_2, name: Ring, kind: ring}
 items:
-  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, attack: 10}
-  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50}
-  - {id: slime_gel, name: Slime Gel, tab: etc}
+  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, stars: 1, description: "A practice blade.", stats: {attack: [10, 12], str: [0, 2]}}
+  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A red tonic."}
+  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
 		"mobs.yaml": `
 mobs:
@@ -265,8 +270,14 @@ func TestValidDataLoads(t *testing.T) {
 	})
 	t.Run("items and mobs", func(t *testing.T) {
 		it, ok := d.Item("wooden_sword")
-		if !ok || it.Tab != gamedata.Equip || it.Slot != gamedata.Weapon || it.Attack != 10 || it.Class != kernel.Warrior || it.MaxStack != 1 {
+		if !ok || it.Tab != gamedata.Equip || it.Slot != "weapon" || it.Class != kernel.Warrior || it.MaxStack != 1 || it.Stars != 1 || it.Description != "A practice blade." {
 			t.Fatalf("wooden_sword = %+v", it)
+		}
+		if want := (gamedata.Rolls{Attack: gamedata.Range{Min: 10, Max: 12}, STR: gamedata.Range{Max: 2}}); it.Rolls != want {
+			t.Fatalf("wooden_sword rolls %+v, want %+v", it.Rolls, want)
+		}
+		if gel, _ := d.Item("slime_gel"); gel.Stars != 2 || gel.Rolls != (gamedata.Rolls{}) {
+			t.Fatalf("slime_gel = %+v", gel)
 		}
 		potion, _ := d.Item("red_potion")
 		if potion.Tab != gamedata.Use || potion.MaxStack != 100 || potion.HealHP != 50 {
@@ -389,6 +400,19 @@ func TestRejections(t *testing.T) {
 		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "warrior", "wooden_sword"}},
 		{"an item with an unknown tab", "items.yaml", `tab: etc`, `tab: misc`, []string{"items.yaml", "slime_gel", "misc"}},
 		{"equipment without a slot", "items.yaml", `slot: weapon, `, ``, []string{"items.yaml", "wooden_sword", "slot"}},
+		{"equipment naming a slot kind no equip slot has", "items.yaml", `slot: weapon, `, `slot: cape, `, []string{"items.yaml", "wooden_sword", "cape"}},
+		{"no stars", "items.yaml", `tab: etc, stars: 2, `, `tab: etc, `, []string{"items.yaml", "slime_gel", "stars"}},
+		{"stars above seven", "items.yaml", `stars: 2`, `stars: 8`, []string{"items.yaml", "slime_gel", "stars"}},
+		{"no description", "items.yaml", `, description: "Sticky."`, ``, []string{"items.yaml", "slime_gel", "description"}},
+		{"equipment without stats", "items.yaml", `, stats: {attack: [10, 12], str: [0, 2]}`, ``, []string{"items.yaml", "wooden_sword", "stats"}},
+		{"an unknown stat", "items.yaml", `str: [0, 2]`, `luck: [0, 2]`, []string{"items.yaml", "wooden_sword", "luck"}},
+		{"a range whose minimum is above its maximum", "items.yaml", `attack: [10, 12]`, `attack: [12, 10]`, []string{"items.yaml", "wooden_sword", "attack"}},
+		{"a range below zero", "items.yaml", `str: [0, 2]`, `str: [-1, 2]`, []string{"items.yaml", "wooden_sword", "str"}},
+		{"a range that only rolls zero", "items.yaml", `str: [0, 2]`, `str: [0, 0]`, []string{"items.yaml", "wooden_sword", "str"}},
+		{"a range that isn't two numbers", "items.yaml", `attack: [10, 12]`, `attack: [10]`, []string{"items.yaml", "wooden_sword", "attack"}},
+		{"stats on a use item", "items.yaml", `heal_hp: 50, `, `heal_hp: 50, stats: {max_hp: [1, 2]}, `, []string{"items.yaml", "red_potion", "stats"}},
+		{"duplicate equip slots", "items.yaml", `id: ring_2`, `id: ring_1`, []string{"items.yaml", "ring_1", "duplicate"}},
+		{"an equip slot without a kind", "items.yaml", `{id: hat, name: Hat, kind: hat}`, `{id: hat, name: Hat}`, []string{"items.yaml", "hat", "kind"}},
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 1900`, `gravity: 0`, []string{"movement.yaml", "gravity"}},

@@ -3,9 +3,11 @@ package gamedata
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -26,6 +28,7 @@ const (
 
 	levelUpPoints   = 5
 	defaultMaxStack = 100
+	maxStars        = 7
 )
 
 // Load reads and validates every file under dir.
@@ -304,26 +307,38 @@ func (d *Data) loadExpCurve(dir string) error {
 }
 
 type itemsYAML struct {
-	Items []itemYAML `yaml:"items"`
+	EquipSlots []equipSlotYAML `yaml:"equip_slots"`
+	Items      []itemYAML      `yaml:"items"`
+}
+
+type equipSlotYAML struct {
+	ID   string `yaml:"id"`
+	Name string `yaml:"name"`
+	Kind string `yaml:"kind"`
 }
 
 type itemYAML struct {
-	ID       string `yaml:"id"`
-	Name     string `yaml:"name"`
-	Tab      string `yaml:"tab"`
-	Slot     string `yaml:"slot"`
-	Class    string `yaml:"class"`
-	MinLevel int    `yaml:"min_level"`
-	Attack   int    `yaml:"attack"`
-	Defense  int    `yaml:"defense"`
-	HealHP   int    `yaml:"heal_hp"`
-	HealMP   int    `yaml:"heal_mp"`
-	MaxStack int    `yaml:"max_stack"`
+	ID          string           `yaml:"id"`
+	Name        string           `yaml:"name"`
+	Tab         string           `yaml:"tab"`
+	Stars       int              `yaml:"stars"`
+	Description string           `yaml:"description"`
+	Slot        string           `yaml:"slot"`
+	Class       string           `yaml:"class"`
+	MinLevel    int              `yaml:"min_level"`
+	Stats       map[string][]int `yaml:"stats"`
+	HealHP      int              `yaml:"heal_hp"`
+	HealMP      int              `yaml:"heal_mp"`
+	MaxStack    int              `yaml:"max_stack"`
 }
 
 func (d *Data) loadItems(dir string) error {
 	var file itemsYAML
 	if err := readYAML(dir, itemsFile, &file); err != nil {
+		return err
+	}
+	kinds, err := d.loadEquipSlots(file.EquipSlots)
+	if err != nil {
 		return err
 	}
 	for _, raw := range file.Items {
@@ -333,13 +348,24 @@ func (d *Data) loadItems(dir string) error {
 		if _, dup := d.itemIdx[raw.ID]; dup {
 			return fmt.Errorf("%s: duplicate item %s", itemsFile, raw.ID)
 		}
-		it := Item{ID: raw.ID, Name: raw.Name, Tab: Tab(raw.Tab), MinLevel: raw.MinLevel, Attack: raw.Attack, Defense: raw.Defense, HealHP: raw.HealHP, HealMP: raw.HealMP, MaxStack: raw.MaxStack}
+		it := Item{ID: raw.ID, Name: raw.Name, Tab: Tab(raw.Tab), Stars: raw.Stars, Description: raw.Description, MinLevel: raw.MinLevel, HealHP: raw.HealHP, HealMP: raw.HealMP, MaxStack: raw.MaxStack}
+		if it.Stars < 1 || it.Stars > maxStars {
+			return fmt.Errorf("%s: item %s: stars must be 1 to %d, got %d", itemsFile, it.ID, maxStars, it.Stars)
+		}
+		if it.Description == "" || strings.ContainsRune(it.Description, '\n') {
+			return fmt.Errorf("%s: item %s: needs a description of one line", itemsFile, it.ID)
+		}
 		switch it.Tab {
 		case Equip:
-			it.Slot = Slot(raw.Slot)
-			if it.Slot != Weapon && it.Slot != Armor {
-				return fmt.Errorf("%s: item %s: equipment needs a slot (weapon or armor), got %q", itemsFile, it.ID, raw.Slot)
+			it.Slot = SlotKind(raw.Slot)
+			if !slices.Contains(kinds, it.Slot) {
+				return fmt.Errorf("%s: item %s: equipment needs a slot kind from equip_slots, got %q", itemsFile, it.ID, raw.Slot)
 			}
+			rolls, err := loadRolls(raw.Stats)
+			if err != nil {
+				return fmt.Errorf("%s: item %s: %w", itemsFile, it.ID, err)
+			}
+			it.Rolls = rolls
 			if raw.Class != "" {
 				class, err := kernel.ParseClass(raw.Class)
 				if err != nil {
@@ -352,8 +378,8 @@ func (d *Data) loadItems(dir string) error {
 			}
 			it.MaxStack = 1 // equipment never stacks
 		case Use, Etc:
-			if raw.Slot != "" || raw.Class != "" {
-				return fmt.Errorf("%s: item %s: only equipment has a slot or a class", itemsFile, it.ID)
+			if raw.Slot != "" || raw.Class != "" || raw.Stats != nil {
+				return fmt.Errorf("%s: item %s: only equipment has a slot, a class or stats", itemsFile, it.ID)
 			}
 			if it.MaxStack == 0 {
 				it.MaxStack = defaultMaxStack
@@ -368,6 +394,80 @@ func (d *Data) loadItems(dir string) error {
 		d.items = append(d.items, it)
 	}
 	return nil
+}
+
+// loadEquipSlots keeps the slots a character wears and returns their kinds, in order.
+func (d *Data) loadEquipSlots(raw []equipSlotYAML) ([]SlotKind, error) {
+	var kinds []SlotKind
+	for _, s := range raw {
+		if s.ID == "" || s.Name == "" || s.Kind == "" {
+			return nil, fmt.Errorf("%s: equip slot %q needs an id, a name and a kind", itemsFile, s.ID)
+		}
+		if slices.ContainsFunc(d.slots, func(e EquipSlot) bool { return e.ID == s.ID }) {
+			return nil, fmt.Errorf("%s: duplicate equip slot %s", itemsFile, s.ID)
+		}
+		d.slots = append(d.slots, EquipSlot{ID: s.ID, Name: s.Name, Kind: SlotKind(s.Kind)})
+		if !slices.Contains(kinds, SlotKind(s.Kind)) {
+			kinds = append(kinds, SlotKind(s.Kind))
+		}
+	}
+	if len(d.slots) == 0 {
+		return nil, fmt.Errorf("%s: no equip_slots", itemsFile)
+	}
+	return kinds, nil
+}
+
+// loadRolls reads an equipment item's stat ranges: at least one, each [min, max] with 0 <= min <= max and max > 0.
+func loadRolls(stats map[string][]int) (Rolls, error) {
+	var r Rolls
+	if len(stats) == 0 {
+		return r, errors.New("equipment needs stats")
+	}
+	for _, name := range slices.Sorted(maps.Keys(stats)) {
+		field := rollField(&r, name)
+		if field == nil {
+			return r, fmt.Errorf("unknown stat %s", name)
+		}
+		v := stats[name]
+		if len(v) != 2 || v[0] < 0 || v[0] > v[1] || v[1] == 0 {
+			return r, fmt.Errorf("stat %s needs a range [min, max] with 0 <= min <= max and max above 0, got %v", name, v)
+		}
+		*field = Range{Min: v[0], Max: v[1]}
+	}
+	return r, nil
+}
+
+func rollField(r *Rolls, name string) *Range {
+	switch name {
+	case "attack":
+		return &r.Attack
+	case "defense":
+		return &r.Defense
+	case "str":
+		return &r.STR
+	case "dex":
+		return &r.DEX
+	case "int":
+		return &r.INT
+	case "agi":
+		return &r.AGI
+	case "vit":
+		return &r.VIT
+	case "accuracy":
+		return &r.Accuracy
+	case "evasion":
+		return &r.Evasion
+	case "crit_rate":
+		return &r.CritRate
+	case "crit_damage":
+		return &r.CritDamage
+	case "max_hp":
+		return &r.MaxHP
+	case "max_mp":
+		return &r.MaxMP
+	default:
+		return nil
+	}
 }
 
 type mobsYAML struct {

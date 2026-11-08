@@ -27,14 +27,25 @@ const (
 	Etc   Tab = "etc"
 )
 
-// Slot is where a piece of equipment goes.
-type Slot string
+// SlotKind is what an equipment item names as its slot; every equip slot of that kind takes it.
+type SlotKind string
 
-// The equipment slots.
-const (
-	Weapon Slot = "weapon"
-	Armor  Slot = "armor"
-)
+// EquipSlot is one of the slots a character wears equipment in.
+type EquipSlot struct {
+	ID   string
+	Name string
+	Kind SlotKind
+}
+
+// Range is what a stat rolls between, both ends included; the zero Range is a stat the item doesn't give.
+type Range struct {
+	Min, Max int
+}
+
+// Rolls are the range of each stat an equipment item gives; fields, not a map, so every sum runs in one order.
+type Rolls struct {
+	Attack, Defense, STR, DEX, INT, AGI, VIT, Accuracy, Evasion, CritRate, CritDamage, MaxHP, MaxMP Range
+}
 
 // MapKind separates safe towns from hunting maps.
 type MapKind string
@@ -102,17 +113,18 @@ type Class struct {
 
 // Item is an item template.
 type Item struct {
-	ID       string
-	Name     string
-	Tab      Tab
-	Slot     Slot         // equipment only
-	Class    kernel.Class // equipment only; empty: any class
-	MinLevel int
-	Attack   int // weapons
-	Defense  int // armor
-	HealHP   int // consumables
-	HealMP   int
-	MaxStack int // 1 for equipment, 100 for the rest
+	ID          string
+	Name        string
+	Tab         Tab
+	Stars       int // 1 to 7, the same for every copy
+	Description string
+	Slot        SlotKind     // equipment only
+	Class       kernel.Class // equipment only; empty: any class
+	MinLevel    int
+	Rolls       Rolls // equipment only: each copy rolls its stats in these ranges when it drops
+	HealHP      int   // consumables
+	HealMP      int
+	MaxStack    int // 1 for equipment, 100 for the rest
 }
 
 // Drop is one entry of a mob's drop table; each rolls independently.
@@ -188,6 +200,7 @@ type Data struct {
 	formulas  map[kernel.Class]Formulas
 	items     []Item
 	itemIdx   map[string]int
+	slots     []EquipSlot
 	mobs      []Mob
 	mobIdx    map[string]int
 	maps      []*Map

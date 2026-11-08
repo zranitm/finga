@@ -1,17 +1,34 @@
-# Item templates: tab is also the inventory tab (equip never stacks, use and etc stack to 100), and equipment may need a class and a minimum level.
+# Item templates: tab is also the inventory tab (equip never stacks, use and etc stack to 100); every item has stars (1 to 7) and a description, and equipment names a slot kind, may need a class and a level, and gives a range per stat that each copy rolls once, when it drops (rates in tenths of a percent).
+equip_slots: # the ten slots a character wears, in the character window's order; a kind fills every slot of that kind
+  - {id: weapon, name: Weapon, kind: weapon}
+  - {id: hat, name: Hat, kind: hat}
+  - {id: top, name: Top, kind: top}
+  - {id: bottom, name: Bottom, kind: bottom}
+  - {id: gloves, name: Gloves, kind: gloves}
+  - {id: shoes, name: Shoes, kind: shoes}
+  - {id: necklace, name: Necklace, kind: necklace}
+  - {id: earrings, name: Earrings, kind: earrings}
+  - {id: ring_1, name: Ring, kind: ring}
+  - {id: ring_2, name: Ring, kind: ring}
 items:
   # equip
-  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, attack: 10}
-  - {id: short_bow, name: Short Bow, tab: equip, slot: weapon, class: bowman, min_level: 1, attack: 9}
-  - {id: iron_sword, name: Iron Sword, tab: equip, slot: weapon, class: warrior, min_level: 8, attack: 18}
-  - {id: hunting_bow, name: Hunting Bow, tab: equip, slot: weapon, class: bowman, min_level: 8, attack: 16}
-  - {id: leather_cap, name: Leather Cap, tab: equip, slot: armor, min_level: 1, defense: 3}
-  - {id: leather_vest, name: Leather Vest, tab: equip, slot: armor, min_level: 5, defense: 5}
+  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, stars: 1,
+     description: "A practice blade light enough to swing all day.", stats: {attack: [10, 12]}}
+  - {id: short_bow, name: Short Bow, tab: equip, slot: weapon, class: bowman, min_level: 1, stars: 1,
+     description: "A small bow for a hunter's first steps.", stats: {attack: [9, 11]}}
+  - {id: iron_sword, name: Iron Sword, tab: equip, slot: weapon, class: warrior, min_level: 8, stars: 2,
+     description: "A plain blade that holds an edge.", stats: {attack: [16, 20]}}
+  - {id: hunting_bow, name: Hunting Bow, tab: equip, slot: weapon, class: bowman, min_level: 8, stars: 2,
+     description: "A sturdy bow that reaches across a clearing.", stats: {attack: [14, 18]}}
+  - {id: leather_cap, name: Leather Cap, tab: equip, slot: hat, min_level: 1, stars: 1,
+     description: "Keeps the sun out of your eyes and a few blows off your head.", stats: {defense: [3, 4]}}
+  - {id: leather_vest, name: Leather Vest, tab: equip, slot: top, min_level: 5, stars: 1,
+     description: "Stiff leather that turns a glancing hit.", stats: {defense: [5, 7]}}
   # use
-  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50}
-  - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30}
+  - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A sweet red tonic."}
+  - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30, stars: 1, description: "A cool blue tonic that clears the head."}
   # etc
-  - {id: slime_gel, name: Slime Gel, tab: etc}
-  - {id: mushroom_cap, name: Mushroom Cap, tab: etc}
-  - {id: boar_tusk, name: Boar Tusk, tab: etc}
-  - {id: bat_wing, name: Bat Wing, tab: etc}
+  - {id: slime_gel, name: Slime Gel, tab: etc, stars: 1, description: "Sticky, cold, and faintly glowing."}
+  - {id: mushroom_cap, name: Mushroom Cap, tab: etc, stars: 1, description: "The springy cap of a wandering mushroom."}
+  - {id: boar_tusk, name: Boar Tusk, tab: etc, stars: 1, description: "A curved tusk, still sharp."}
+  - {id: bat_wing, name: Bat Wing, tab: etc, stars: 1, description: "A thin leathery wing."}

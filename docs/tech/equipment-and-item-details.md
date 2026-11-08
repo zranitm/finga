@@ -37,7 +37,7 @@ From the code as it is (the rules this design keeps):
 
 - `stars`: 1 to 7, for every item.
 - `description`: one line, for every item.
-- For equipment, `slot` is one of `weapon`, `hat`, `top`, `bottom`, `gloves`, `shoes`, `necklace`, `earrings`, `ring`, and `stats` lists a range per stat, for example `stats: {attack: [16, 20], str: [0, 2]}`. The flat `attack` and `defense` fields go.
+- For equipment, `slot` names a slot kind, one of `weapon`, `hat`, `top`, `bottom`, `gloves`, `shoes`, `necklace`, `earrings`, `ring`, and `stats` lists a range per stat, for example `stats: {attack: [16, 20], str: [0, 2]}`. The flat `attack` and `defense` fields go.
 
 ```yaml
 - {id: iron_sword, name: Iron Sword, tab: equip, slot: weapon, class: warrior, min_level: 8, stars: 2,
@@ -45,10 +45,10 @@ From the code as it is (the rules this design keeps):
 ```
 
 - **Thirteen stats can roll:** `attack`, `defense`, `str`, `dex`, `int`, `agi`, `vit`, `accuracy`, `evasion`, `crit_rate`, `crit_damage`, `max_hp`, `max_mp`. Every value is a whole number. The two rates are in tenths of a percent (`crit_rate: [5, 15]` is 0.5% to 1.5%), so nothing stored is a float.
-- **Equip slots versus slot kinds:** a character has ten equip slots, `weapon`, `hat`, `top`, `bottom`, `gloves`, `shoes`, `necklace`, `earrings`, `ring_1`, and `ring_2`. A `ring` fits either ring slot; every other kind fits the slot of the same name.
-- **Validation** (`internal/gamedata/load.go`) refuses: stars outside 1–7, a range whose minimum is above its maximum or below zero, `stats` on a Use or Etc item, an unknown slot or stat, and equipment with no stats.
-- **Types:** `gamedata.Item` gains `Stars`, `Description`, and `Rolls`, a struct with one `Range{Min, Max}` per stat. These are fields, not a map, so sums and validation run in one fixed order, as the stat formulas already do.
-- **The client** gets all of it through `web/scripts/gen-gamedata.ts`, plus a generated list of the ten equip slots with their labels and slot kinds. Stars, descriptions, requirements, and ranges are static data the client already holds; only a copy's rolled values travel on the wire.
+- **Equip slots versus slot kinds:** a character has ten equip slots, `weapon`, `hat`, `top`, `bottom`, `gloves`, `shoes`, `necklace`, `earrings`, `ring_1`, and `ring_2`. `items.yaml` lists them under `equip_slots`, in the character window's order, each with a name and its kind. A `ring` fits either ring slot; every other kind fits the slot of the same name.
+- **Validation** (`internal/gamedata/load.go`) refuses: stars outside 1–7, a missing or multi-line description, a range whose minimum is above its maximum or below zero, a range that can only roll 0, `stats` on a Use or Etc item, a slot kind no equip slot has, an unknown stat, equipment with no stats, and an equip slot without an id, a name, or a kind, or listed twice.
+- **Types:** `gamedata.Item` gains `Stars`, `Description`, and `Rolls`, a struct with one `Range{Min, Max}` per stat; the zero `Range` is a stat the item doesn't give. These are fields, not a map, so sums and validation run in one fixed order, as the stat formulas already do. `Slot` becomes a `SlotKind`.
+- **The client** gets all of it through `web/scripts/gen-gamedata.ts`, plus the ten equip slots with their names and kinds (`equip-slots.ts`). Stars, descriptions, requirements, and ranges are static data the client already holds; only a copy's rolled values travel on the wire.
 
 ## 4. Stats: one model for the world, the item service, and the client
 
