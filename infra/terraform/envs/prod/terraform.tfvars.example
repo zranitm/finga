@@ -2,6 +2,10 @@
 hostname           = "play.example.com"
 cloudflare_zone_id = "0123456789abcdef0123456789abcdef"
 
+# Private while testing: only these addresses get past Cloudflare Access (a code by email). Remove to go public.
+# access_allowed_emails = ["you@example.com", "friend@example.com"]
+# cloudflare_account_id = "0123456789abcdef0123456789abcdef"
+
 # alarm_email = "you@example.com"
 # instance_type = "t4g.large"
 # create_github_oidc_provider = false   # if the account already has GitHub's OIDC provider

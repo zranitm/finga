@@ -23,7 +23,8 @@ provider "aws" {
   }
 }
 
-# Reads CLOUDFLARE_API_TOKEN: Zone DNS Edit, Zone SSL and Certificates Edit, Zone Settings Edit on the zone.
+# Reads CLOUDFLARE_API_TOKEN: Zone DNS Edit, Zone SSL and Certificates Edit, Zone Settings Edit on the zone; with
+# Access, also Access: Apps and Policies Edit and Access: Organizations, Identity Providers, and Groups Edit.
 provider "cloudflare" {}
 
 data "aws_caller_identity" "current" {}
@@ -149,6 +150,20 @@ module "edge" {
   hostname      = var.hostname
   ipv4_address  = module.host.public_ip
   zone_settings = var.cloudflare_zone_settings
+}
+
+# A sign-in in front of the whole hostname while access_allowed_emails lists anyone; emptying the list removes it
+# and the game is public.
+module "access" {
+  source = "../../modules/cloudflare-access"
+  count  = length(var.access_allowed_emails) > 0 ? 1 : 0
+
+  account_id          = var.cloudflare_account_id
+  name                = "Finga (${var.hostname})"
+  hostname            = var.hostname
+  allowed_emails      = var.access_allowed_emails
+  session_duration    = var.access_session_duration
+  create_one_time_pin = var.create_access_one_time_pin
 }
 
 # What the deploy reads from SSM (see infra/deploy/deploy.sh): env/ becomes Compose variables, files/ files to mount.
