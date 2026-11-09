@@ -27,7 +27,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const [dragging, setDragging] = useState<ItemView | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<ItemView | null>(null);
   const { pending, notice, setNotice, run, retry } = useItemRequests();
-  const hover = useItemHover();
+  const hover = useItemHover<{ tab: Tab; slot: number }>();
 
   const move = (item: ItemView, toTab: Tab, slot: number) => {
     if (toTab !== item.tab) {
@@ -136,7 +136,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                   item?.itemId === selected ? ' slot-selected' : ''
                 }`}
                 draggable={item !== null && !isPending}
-                {...hover.bind(item, item?.tab === 'equip')}
+                {...hover.bind({ tab, slot }, item, tab === 'equip')}
                 onDragStart={(e) => {
                   hover.clear();
                   setDragging(item);
@@ -204,7 +204,10 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
           </p>
         )}
       </div>
-      <ItemDetails hovered={hover.hovered} />
+      <ItemDetails
+        hovered={hover.hovered}
+        item={hover.hovered ? (slots[hover.hovered.key.tab][hover.hovered.key.slot] ?? null) : null}
+      />
     </WorldWindow>
   );
 }

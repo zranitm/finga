@@ -110,7 +110,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
   const expToNext = character.use((s) => s.expToNext);
   const equipment = inventory.use((s) => s.equipment);
   const { pending, notice, run, retry } = useItemRequests();
-  const hover = useItemHover();
+  const hover = useItemHover<EquipSlotId>();
 
   const unequip = (slot: EquipSlotId) => {
     if (equipment[slot] && !pending.has(slot)) {
@@ -141,7 +141,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
         aria-busy={p !== undefined}
         className={`slot equip-slot${item ? ` slot-equip ${starClass(item.template)}` : ''}${p ? ' slot-pending' : ''}`}
         draggable={item !== null && p === undefined}
-        {...hover.bind(item, false)}
+        {...hover.bind(slot.id, item, false)}
         onDragStart={(e) => {
           hover.clear();
           carry(e, { from: 'worn', equipSlot: slot.id });
@@ -206,7 +206,10 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
           )}
         </div>
       )}
-      <ItemDetails hovered={hover.hovered} />
+      <ItemDetails
+        hovered={hover.hovered}
+        item={hover.hovered ? equipment[hover.hovered.key] : null}
+      />
     </WorldWindow>
   );
 }

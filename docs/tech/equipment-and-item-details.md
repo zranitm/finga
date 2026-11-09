@@ -227,7 +227,7 @@ By layer (`web/eslint.config.js`):
 - **features/shared** (allowed by the layer rule, the only folder features can share):
   - an item's name, icon initials, and star colour class;
   - the drag data, and the pending-and-retry handling both windows use for item requests;
-  - the hover state;
+  - the hover state, which holds the hovered slot, not its item, so a card follows what the slot holds and leaves with an item that moves;
   - the comparison: which worn item to compare against, with the ring rule, and the difference per stat as if the two were swapped;
   - requirement checks for the red text.
 - **features/character:**

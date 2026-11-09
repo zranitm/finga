@@ -271,6 +271,39 @@ describe('item cards', () => {
     expect(screen.queryByRole('group', { name: 'Iron Sword' })).toBeNull();
   });
 
+  it('a hovered item that leaves its slot takes its card along, and what takes its place shows', async () => {
+    setup();
+    await userEvent.hover(cell('Iron Sword x1'));
+    const wooden = {
+      itemId: 'i-sword',
+      template: 'wooden_sword',
+      quantity: 1,
+      stats: { attack: 11 },
+    };
+    const iron = { itemId: 'i-iron', template: 'iron_sword', quantity: 1, stats: { attack: 17 } };
+    // Worn by a double-click: the swap puts the old weapon in the slot under the pointer.
+    act(() =>
+      inventory.getState().applyInventoryChanged(
+        create(InventoryChangedSchema, {
+          revision: 2n,
+          slots: [{ tab: 'equip', slot: 0, item: { ...wooden, tab: 'equip', slot: 0 } }],
+          equipment: [{ equipSlot: 'weapon', item: iron }],
+        }),
+      ),
+    );
+    expect(screen.queryByRole('group', { name: 'Iron Sword' })).toBeNull();
+    expect(screen.getByRole('group', { name: 'Wooden Sword' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Worn: Iron Sword' })).toBeInTheDocument();
+    act(() =>
+      inventory
+        .getState()
+        .applyInventoryChanged(
+          create(InventoryChangedSchema, { revision: 3n, slots: [{ tab: 'equip', slot: 0 }] }),
+        ),
+    );
+    expect(screen.queryByRole('group', { name: /Sword/ })).toBeNull();
+  });
+
   it('with nothing worn in its slot, the second card says so and every stat is a gain', async () => {
     setup();
     await userEvent.hover(cell('Leather Cap x1'));

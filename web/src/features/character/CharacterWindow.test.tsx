@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
 import {
+  InventoryChangedSchema,
   LevelUpSchema,
   ResponseSchema,
   StatsChangedSchema,
@@ -216,6 +217,25 @@ describe('CharacterWindow', () => {
     expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
     await userEvent.hover(slot('Hat, empty'));
     expect(screen.queryByRole('group', { name: /Leather|Wooden/ })).toBeNull();
+  });
+
+  it('a hovered worn item taken off takes its card along, and one put on later shows none until hovered', async () => {
+    setup();
+    await userEvent.hover(slot('Weapon: Wooden Sword'));
+    const unequipped = (revision: bigint, item?: typeof sword) =>
+      act(() =>
+        inventory.getState().applyInventoryChanged(
+          create(InventoryChangedSchema, {
+            revision,
+            equipment: [{ equipSlot: 'weapon', ...(item && { item }) }],
+          }),
+        ),
+      );
+    unequipped(2n);
+    expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
+    await userEvent.unhover(slot('Weapon, empty'));
+    unequipped(3n, sword);
+    expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
   });
 
   it('closes with its × button', async () => {
