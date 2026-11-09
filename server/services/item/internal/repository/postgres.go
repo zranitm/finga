@@ -162,10 +162,14 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 	if err != nil || it.Stats == nil {
 		return err
 	}
-	s := it.Stats
+	return r.AddRoll(ctx, it.ID, *it.Stats)
+}
+
+// AddRoll inserts an item's roll.
+func (r repo) AddRoll(ctx context.Context, id kernel.ItemID, s progression.ItemStats) error {
 	//nolint:gosec // stats are small
 	return r.q.InsertRoll(ctx, db.InsertRollParams{
-		ItemID: uuid.UUID(it.ID), Attack: int32(s.Attack), Defense: int32(s.Defense),
+		ItemID: uuid.UUID(id), Attack: int32(s.Attack), Defense: int32(s.Defense),
 		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
 		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
 		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Now: r.now,

@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -108,22 +109,60 @@ const (
 type Service struct {
 	store   Store
 	content Content
+	log     *slog.Logger
 }
 
 // Deps are what the service is built over.
 type Deps struct {
 	Store   Store
 	Content Content
+	Logger  *slog.Logger
 }
 
 // NewService wires the service over deps.
 func NewService(deps Deps) *Service {
-	return &Service{store: deps.Store, content: deps.Content}
+	return &Service{store: deps.Store, content: deps.Content, log: deps.Logger}
 }
 
-// Inventory lists the character's items, at the revision they show.
+// Inventory lists the character's items, at the revision they show; equipment with no roll reads as its lowest until the owner's next change writes it.
 func (s *Service) Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error) {
-	return s.store.Inventory(ctx, owner)
+	inv, err := s.store.Inventory(ctx, owner)
+	if err != nil {
+		return model.Inventory{}, err
+	}
+	s.unrolled(inv.Items)
+	return inv, nil
+}
+
+// lockInventory locks the owner's inventory, writing the lowest roll for equipment that has none.
+func (s *Service) lockInventory(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID) ([]model.Item, error) {
+	inv, err := uow.Items().LockInventory(ctx, owner)
+	if err != nil {
+		return nil, err
+	}
+	for _, it := range s.unrolled(inv) {
+		if err := uow.Items().AddRoll(ctx, it.ID, *it.Stats); err != nil {
+			return nil, err
+		}
+		s.log.WarnContext(ctx, "equipment had no roll; it now has its template's lowest", "item_id", it.ID, "template", it.TemplateID)
+	}
+	return inv, nil
+}
+
+// unrolled gives equipment with no roll its template's lowest, the rule migration 00008 used for older gear, and returns those items.
+// Only a build from before rolls writes such an item, as when an old and a new item service run against one database.
+func (s *Service) unrolled(inv []model.Item) []model.Item {
+	var out []model.Item
+	for i := range inv {
+		tmpl, ok := s.content.Item(inv[i].TemplateID)
+		if inv[i].Stats != nil || !ok || tmpl.Tab != gamedata.Equip {
+			continue
+		}
+		lowest := progression.Lowest(tmpl.Rolls)
+		inv[i].Stats = &lowest
+		out = append(out, inv[i])
+	}
+	return out
 }
 
 // Add fills stacks with room, then the first free slot; a full inventory writes nothing.
@@ -160,7 +199,7 @@ func takesRoll(tmpl gamedata.Item, stats *progression.ItemStats) bool {
 
 // add puts quantity of tmpl in the inventory; stats is equipment's roll, nil for anything else.
 func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, quantity int, stats *progression.ItemStats, cause model.Cause) (Result, error) {
-	inv, err := uow.Items().LockInventory(ctx, owner)
+	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Result{}, err
 	}
@@ -234,7 +273,7 @@ func (s *Service) Move(ctx context.Context, actor model.Actor, in MoveInput) (Re
 }
 
 func (s *Service) move(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in MoveInput) (Result, error) {
-	inv, err := uow.Items().LockInventory(ctx, owner)
+	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Result{}, err
 	}
@@ -364,7 +403,7 @@ func (s *Service) Equip(ctx context.Context, actor model.Actor, in EquipInput) (
 }
 
 func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in EquipInput) (Result, error) {
-	inv, err := uow.Items().LockInventory(ctx, owner)
+	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Result{}, err
 	}
@@ -439,7 +478,7 @@ func (s *Service) Unequip(ctx context.Context, actor model.Actor, in UnequipInpu
 }
 
 func (s *Service) unequip(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UnequipInput) (Result, error) {
-	inv, err := uow.Items().LockInventory(ctx, owner)
+	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return Result{}, err
 	}
@@ -563,7 +602,7 @@ func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class ker
 
 // wear puts a new equipment item straight into the first empty equip slot of its kind; nil, writing nothing, when every one is taken.
 func (s *Service) wear(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, tmpl gamedata.Item, stats *progression.ItemStats, cause model.Cause) (*model.WornSlot, error) {
-	inv, err := uow.Items().LockInventory(ctx, owner)
+	inv, err := s.lockInventory(ctx, uow, owner)
 	if err != nil {
 		return nil, err
 	}

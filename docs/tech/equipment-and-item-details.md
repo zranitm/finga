@@ -279,6 +279,7 @@ By layer (`web/eslint.config.js`):
   - Green slimes keep their drops, so a new player's first kills fill the Etc and Use tabs as before.
 - **Balance:** equipment bonuses have never applied in combat. Even a starter sword adds attack (+48% attack power for a level 1 warrior), so the content step raises mob HP until the weapon a player of the mob's level likely holds kills it in as many hits as before (open question 3): green slime 30 to 44, orange mushroom 70 to 90, wild boar 180 to 216, cave bat 150 to 180. Mob attack stays, so armor makes mobs hit softer, as it should.
 - **Deploy order:** item service first, then world, then gateway, then the client. The item service answers old callers as before, except an old world's pickup of equipment, which carries no roll: it is refused and the drop stays on the ground until that world restarts, seconds later in a release. Old clients ignore the new fields and never send `Equip`.
+- **An old item service beside the new schema:** an item service from before rolls, running against a database the migration has reached, writes equipment with no roll, as starter grants and pickups. Every read gives such an item its template's lowest roll, so it never counts as zero. The owner's next change writes that roll and logs a warning, so check 11 holds again and a later retune doesn't move it.
 
 ## 12. Build order
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -206,7 +207,7 @@ func TestInventoryProperties(t *testing.T) {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
-	svc := application.NewService(application.Deps{Store: store, Content: data})
+	svc := application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)})
 	templates := []string{"red_potion", "blue_potion", "slime_gel", "wooden_sword", "short_bow", "leather_cap", "leather_vest"}
 	var equipSlots []string
 	for _, s := range data.EquipSlots() {

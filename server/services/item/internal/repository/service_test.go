@@ -1,9 +1,11 @@
 package repository
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"slices"
 	"sync"
@@ -41,7 +43,7 @@ func newHarness(t *testing.T) *harness {
 	}
 	pool := cluster.DB(t)
 	store := NewPostgres(pool, nil)
-	return &harness{pool: pool, store: store, svc: application.NewService(application.Deps{Store: store, Content: data}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
+	return &harness{pool: pool, store: store, svc: application.NewService(application.Deps{Store: store, Content: data, Logger: slog.New(slog.DiscardHandler)}), data: data, actor: model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}}
 }
 
 func (h *harness) add(t *testing.T, key, template string, qty int) application.Result {
@@ -218,6 +220,34 @@ func TestRolls(t *testing.T) {
 			}
 			rolled(t, try, res.Changed[1].Item)
 		}
+	})
+	t.Run("equipment an older build wrote with no roll reads as its lowest, and the owner's next change writes it", func(t *testing.T) {
+		if _, err := h.pool.Exec(ctx, `DELETE FROM item_rolls WHERE item_id = $1`, sword.ID); err != nil {
+			t.Fatal(err)
+		}
+		lowest := progression.ItemStats{Attack: 16}
+		if inv := h.inventory(t); inv[0].Stats == nil || *inv[0].Stats != lowest {
+			t.Fatalf("read %+v, want the lowest roll %+v", inv[0].Stats, lowest)
+		}
+		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1`, sword.ID) != 0 {
+			t.Fatal("a read wrote the roll")
+		}
+		var logs bytes.Buffer
+		svc := application.NewService(application.Deps{Store: h.store, Content: h.data, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+		res, err := svc.Move(ctx, h.actor, application.MoveInput{Key: "r4", ItemID: sword.ID, Tab: gamedata.Equip, Slot: 3})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if it := res.Changed[1].Item; it.Stats == nil || *it.Stats != lowest {
+			t.Fatalf("moved %+v, want the lowest roll", it.Stats)
+		}
+		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND attack = 16`, sword.ID) != 1 {
+			t.Fatal("the change wrote no roll")
+		}
+		if !bytes.Contains(logs.Bytes(), []byte(`"level":"WARN","msg":"equipment had no roll; it now has its template's lowest"`)) || !bytes.Contains(logs.Bytes(), []byte(sword.ID.String())) {
+			t.Fatalf("logged %s", logs.String())
+		}
+		checkInvariants(t, h.pool, h.data)
 	})
 	t.Run("anything but equipment has no roll", func(t *testing.T) {
 		res := h.add(t, "r3", "red_potion", 3)
@@ -630,7 +660,7 @@ func TestOutboxRowsExistExactlyWhenTheChangeCommits(t *testing.T) {
 		t.Fatal("no ItemLooted row after a committed add")
 	}
 	// A transaction that fails after the add succeeds leaves no row.
-	svc := application.NewService(application.Deps{Store: rollingBack{h.store}, Content: h.data})
+	svc := application.NewService(application.Deps{Store: rollingBack{h.store}, Content: h.data, Logger: slog.New(slog.DiscardHandler)})
 	_, err := svc.Add(ctx, h.actor, application.AddInput{Key: "o2", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}})
 	if err == nil {
 		t.Fatal("no error")
@@ -665,7 +695,7 @@ func TestAnInventoryLockedPastTheTimeoutIsUnavailable(t *testing.T) {
 		})
 	}()
 	<-locked
-	_, err = application.NewService(application.Deps{Store: store, Content: h.data}).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
+	_, err = application.NewService(application.Deps{Store: store, Content: h.data, Logger: slog.New(slog.DiscardHandler)}).Add(ctx, h.actor, application.AddInput{Key: "late", TemplateID: "red_potion", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
 	close(release)
 	if !errors.Is(err, transient.ErrUnavailable) {
 		t.Fatalf("err = %v, want transient.ErrUnavailable", err)

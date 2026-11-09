@@ -5,6 +5,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/services/item/internal/model"
 )
 
@@ -30,6 +31,8 @@ type Repository interface {
 	// RecordStarterGrant records that owner got its starter kit; false when it already had.
 	RecordStarterGrant(ctx context.Context, owner kernel.CharacterID) (bool, error)
 	Insert(ctx context.Context, it model.Item) error
+	// AddRoll gives an existing item the roll it lacks.
+	AddRoll(ctx context.Context, id kernel.ItemID, stats progression.ItemStats) error
 	SetQuantity(ctx context.Context, id kernel.ItemID, quantity int) error
 	// SetSlot puts an item in an inventory slot, taking it off if it was worn.
 	SetSlot(ctx context.Context, id kernel.ItemID, tab gamedata.Tab, slot int) error
