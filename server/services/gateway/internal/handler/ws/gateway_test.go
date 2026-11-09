@@ -1807,6 +1807,10 @@ func TestPartyCommandsAndState(t *testing.T) {
 			ayla.expect("Pong") // the socket stayed up
 		})
 		part(t, "a stream that breaks without a restart registers everyone again, and sends no PartyState", func() {
+			// The service answers each Online with the member's party; with none to send, any PartyState is the gateway's own.
+			fs.mu.Lock()
+			clear(fs.of)
+			fs.mu.Unlock()
 			before := len(fs.onlineCalls())
 			fs.restart("boot-2")
 			select {
@@ -1814,6 +1818,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("no new subscription")
 			}
+			synctest.Wait() // the registrations land, so a PartyState they caused would come before the Pong
 			ayla.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 10}})
 			if m, _ := ayla.read(); m.Type != "Pong" {
 				t.Fatalf("got %+v; a PartyState was sent although the parties survived", m)
