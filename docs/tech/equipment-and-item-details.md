@@ -236,6 +236,7 @@ By layer (`web/eslint.config.js`):
   - Pending requests and retry work as in the inventory window.
 - **features/inventory:** double-click an Equip-tab item to equip. A drag carries the item ID in the drag data, so the character window can take it without either feature importing the other.
 - **styles:** a colour token per star count, used for names and icon frames. Icons stay initials until there is item art.
+- **game:** each item on the ground is a 32 px shape drawn at load from the item catalog. Equipment is drawn by its slot kind (the weapon by its class) in its stars' colour; a template the client doesn't know gets a generic shape.
 
 ## 9. When things fail
 

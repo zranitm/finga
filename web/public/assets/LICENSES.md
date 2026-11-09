@@ -32,8 +32,8 @@ licence; it is given here.
 
 ## Original placeholders (no files)
 
-The item templates with no match in the packs above (`wooden_sword`,
-`short_bow`, `iron_sword`, `hunting_bow`, `leather_cap`, `leather_vest`,
-`slime_gel`, `mushroom_cap`, `boar_tusk`, `bat_wing`) are 32 px shapes drawn
-at runtime by `src/game/scenes/preloader.ts` in the Kenney palette. They are
-original to this project and released under the same CC0 terms.
+Every item template with no match in the packs above is a 32 px shape drawn
+at runtime by `src/game/scenes/placeholders.ts`: equipment by its slot kind in
+its stars' colour, and the drop materials (`slime_gel`, `mushroom_cap`,
+`boar_tusk`, `bat_wing`) by hand in the Kenney palette. They are original to
+this project and released under the same CC0 terms.

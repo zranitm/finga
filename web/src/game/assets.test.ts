@@ -3,8 +3,11 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { items } from '@/gamedata/items';
+
 import { images, mapFile } from './assets';
-import { ITEM_PLACEHOLDERS, ITEM_TINTS, MAP_IDS, TEX, itemTexture } from './keys';
+import { MAP_IDS, TEX, UNKNOWN_ITEM, itemTexture } from './keys';
+import { drawPlaceholders } from './scenes/placeholders';
 
 const publicDir = path.resolve(process.cwd(), 'public');
 
@@ -31,9 +34,7 @@ describe('asset manifest', () => {
     for (const folder of folders) {
       expect(text).toContain(`\`${folder}/\``);
     }
-    for (const template of ITEM_PLACEHOLDERS) {
-      expect(text).toContain(template);
-    }
+    expect(text).toContain('src/game/scenes/placeholders.ts');
     expect(text).toContain('CC0');
   });
 
@@ -45,23 +46,61 @@ describe('asset manifest', () => {
     expect(itemTexture(template)).toBe(texture);
   });
 
-  it('every item template has art: a placeholder or a tint', () => {
-    const templates = [...ITEM_PLACEHOLDERS, ...Object.keys(ITEM_TINTS)].sort();
-    expect(templates).toEqual(
-      [
-        'wooden_sword',
-        'short_bow',
-        'iron_sword',
-        'hunting_bow',
-        'leather_cap',
-        'leather_vest',
-        'red_potion',
-        'blue_potion',
-        'slime_gel',
-        'mushroom_cap',
-        'boar_tusk',
-        'bat_wing',
-      ].sort(),
-    );
+  it('every item in the catalog has a texture, and so does one this client does not know', () => {
+    const { drawn } = drawAll();
+    const loaded = new Set<string>(images.map((a) => a.key));
+    for (const { id } of items) {
+      const key = itemTexture(id);
+      expect(drawn.has(key) || loaded.has(key), id).toBe(true);
+    }
+    expect(itemTexture('a_newer_servers_item')).toBe(UNKNOWN_ITEM);
+    expect(drawn.has(UNKNOWN_ITEM)).toBe(true);
+  });
+
+  it("draws equipment in its stars' colour, the one the item windows frame it with", () => {
+    const css = readFileSync(path.resolve(process.cwd(), 'src/styles/global.css'), 'utf8');
+    const { colors } = drawAll();
+    for (const item of items) {
+      if (item.tab !== 'equip') {
+        continue;
+      }
+      const star = /--star-(\d): #([0-9a-f]{6});/g;
+      const hex = [...css.matchAll(star)].find((m) => Number(m[1]) === item.stars)?.[2];
+      expect(colors.get(item.id), item.id).toContain(Number.parseInt(hex ?? '', 16));
+    }
   });
 });
+
+/** Runs drawPlaceholders on a scene that only records: the keys it drew, and the colours each used. */
+function drawAll(): { drawn: Set<string>; colors: Map<string, number[]> } {
+  const drawn = new Set<string>();
+  const colors = new Map<string, number[]>();
+  let used: number[] = [];
+  const g: Record<string, unknown> = {};
+  const graphics = new Proxy(g, {
+    get: (_, name: string) => {
+      if (name === 'generateTexture') {
+        return (key: string) => {
+          drawn.add(key);
+          colors.set(key, used);
+          used = [];
+          return graphics;
+        };
+      }
+      return (...args: unknown[]) => {
+        if (name === 'fillStyle') {
+          used.push(args[0] as number);
+        } else if (name === 'lineStyle') {
+          used.push(args[1] as number);
+        }
+        return graphics;
+      };
+    },
+  });
+  const scene = {
+    textures: { exists: (key: string) => drawn.has(key) },
+    make: { graphics: () => graphics },
+  };
+  drawPlaceholders(scene as unknown as Parameters<typeof drawPlaceholders>[0]);
+  return { drawn, colors };
+}

@@ -1,3 +1,5 @@
+import { items } from '@/gamedata/items';
+
 export const SCENES = {
   Boot: 'Boot',
   Preloader: 'Preloader',
@@ -55,28 +57,25 @@ export const TEX = {
 } as const;
 export type TextureKey = (typeof TEX)[keyof typeof TEX];
 
-/** Item textures drawn at runtime as placeholders, keyed by template id. */
-export const ITEM_PLACEHOLDERS = [
-  'wooden_sword',
-  'short_bow',
-  'iron_sword',
-  'hunting_bow',
-  'leather_cap',
-  'leather_vest',
-  'slime_gel',
-  'mushroom_cap',
-  'boar_tusk',
-  'bat_wing',
-] as const;
-
 /** Drawn from the flask texture with a tint. */
 export const ITEM_TINTS: Readonly<Record<string, number>> = {
   red_potion: 0xe04848,
   blue_potion: 0x4c8be0,
 };
 
+/** Every other template in the catalog gets a texture drawn at runtime under its id. */
+export const DRAWN_ITEMS: readonly string[] = items
+  .map((i) => i.id)
+  .filter((id) => !(id in ITEM_TINTS));
+
+/** Drawn for a template this client does not know, as from a newer server. */
+export const UNKNOWN_ITEM = 'item:unknown';
+
 export function itemTexture(template: string): string {
-  return template in ITEM_TINTS ? TEX.flask : template;
+  if (template in ITEM_TINTS) {
+    return TEX.flask;
+  }
+  return DRAWN_ITEMS.includes(template) ? template : UNKNOWN_ITEM;
 }
 
 export const MAP_IDS = ['town', 'forest', 'cave'] as const;
