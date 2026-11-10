@@ -91,7 +91,7 @@ func TestAReplyKeepsItsRevision(t *testing.T) {
 }
 
 // A reply with an equipment item, its roll stored beside it; rows like it replay for as long as keys live.
-const storedRollReply = `{"changed":[{"tab":"equip","slot":2,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"equip","Slot":2,"Quantity":1,"Stats":{"Attack":17,"CritRate":5}}}],"revision":3}`
+const storedRollReply = `{"changed":[{"tab":"equip","slot":2,"item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"equip","Slot":2,"Quantity":1,"Stats":{"PhysicalAttack":17,"CritRate":5}}}],"revision":3}`
 
 func TestAReplyKeepsAnItemsRoll(t *testing.T) {
 	res := storedResult(t)
@@ -120,7 +120,7 @@ func TestAReplyKeepsAnItemsRoll(t *testing.T) {
 }
 
 // An equip's reply: the slot the sword left, the equip slot it fills, and all that is worn after it.
-const storedEquipReply = `{"changed":[{"tab":"equip","slot":2}],"revision":4,"equipment":[{"slot":"weapon","item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"","Slot":0,"Quantity":1,"Stats":{"Attack":17},"EquipSlot":"weapon"}}],"worn":[{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"","Slot":0,"Quantity":1,"Stats":{"Attack":17},"EquipSlot":"weapon"}]}`
+const storedEquipReply = `{"changed":[{"tab":"equip","slot":2}],"revision":4,"equipment":[{"slot":"weapon","item":{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"","Slot":0,"Quantity":1,"Stats":{"PhysicalAttack":17},"EquipSlot":"weapon"}}],"worn":[{"ID":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9a0b","TemplateID":"iron_sword","Owner":"0190a0f4-1c2d-7e3f-8a4b-5c6d7e8f9012","Tab":"","Slot":0,"Quantity":1,"Stats":{"PhysicalAttack":17},"EquipSlot":"weapon"}]}`
 
 func TestAReplyKeepsWhatIsWorn(t *testing.T) {
 	sword := *storedResult(t).Changed[0].Item

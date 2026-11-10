@@ -74,18 +74,14 @@ func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
 	values := []string{c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String()}
 	if s := in.Stats; s != nil {
 		values = append(values, "stats")
-		for _, v := range []int{s.PhysicalAttack, s.PhysicalDefense, s.STR, s.DEX, s.INT, s.AGI, s.VIT, s.Accuracy, s.Evasion, s.CritRate, s.CritDamage, s.MaxHP, s.MaxMP} {
+		for _, v := range []int{
+			s.STR, s.DEX, s.INT, s.AGI, s.VIT, s.PhysicalAttack, s.MagicAttack, s.PhysicalDefense, s.MagicDefense, s.MaxHP, s.MaxMP, s.Accuracy, s.Evasion,
+			s.CritRate, s.CritDamage, s.Penetration, s.HPRegen, s.MPRegen, s.AttackSpeed, s.CooldownSpeed, s.MoveSpeed,
+		} {
 			values = append(values, strconv.Itoa(v))
 		}
-		// The later stats join only when rolled, so a roll of the first thirteen keeps the fingerprint it always had.
-		if more := []int{s.MagicAttack, s.MagicDefense, s.Penetration, s.HPRegen, s.MPRegen, s.AttackSpeed, s.CooldownSpeed, s.MoveSpeed}; slices.ContainsFunc(more, func(v int) bool { return v != 0 }) {
-			values = append(values, "more")
-			for _, v := range more {
-				values = append(values, strconv.Itoa(v))
-			}
-		}
 	}
-	return idempotency.Fingerprint("item.add/1", values...)
+	return idempotency.Fingerprint("item.add/2", values...)
 }
 
 func (in MoveInput) fingerprint(c kernel.CharacterID) []byte {

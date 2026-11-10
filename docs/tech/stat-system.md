@@ -164,7 +164,7 @@ classes:                   # base values per class; per_level grows them
   - `attack` is renamed `physical_attack` and `defense` is renamed `physical_defense`;
   - eight columns are added (magic attack, magic defense, penetration, both regens, and the three speeds), each `int NOT NULL DEFAULT 0`.
   - `Add` and `AddMany` take the 21-stat roll; check 11 is unchanged.
-  - Stored replies and fingerprints keep their format: replies keep the keys `Attack` and `Defense`, and an `Add` fingerprint gains the eight new stats only when one is rolled, so a retry from before the release still matches.
+  - Stored replies use the new names, and an `Add` fingerprint covers all 21 stats under a new version: the release starts from an empty database, so no reply or retry from before it remains.
 - **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item service checks `requires` in the same transaction and refuses with `stats_too_low`.
 - **Inactive items** need no protocol flag. The client applies the same rule (own stats from the sheet, requirements from the game data) to grey a worn item out. The server's sheet is what counts.
 

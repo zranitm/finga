@@ -41,16 +41,16 @@ type replyItem struct {
 	EquipSlot  string      `json:"EquipSlot,omitempty"`
 }
 
-// replyStats is a roll; a stat at 0 is left out, and physical attack and defense keep the keys replies were first stored under.
+// replyStats is a roll; a stat at 0 is left out.
 type replyStats struct {
 	STR             int `json:"STR,omitempty"`
 	DEX             int `json:"DEX,omitempty"`
 	INT             int `json:"INT,omitempty"`
 	AGI             int `json:"AGI,omitempty"`
 	VIT             int `json:"VIT,omitempty"`
-	PhysicalAttack  int `json:"Attack,omitempty"`
+	PhysicalAttack  int `json:"PhysicalAttack,omitempty"`
 	MagicAttack     int `json:"MagicAttack,omitempty"`
-	PhysicalDefense int `json:"Defense,omitempty"`
+	PhysicalDefense int `json:"PhysicalDefense,omitempty"`
 	MagicDefense    int `json:"MagicDefense,omitempty"`
 	MaxHP           int `json:"MaxHP,omitempty"`
 	MaxMP           int `json:"MaxMP,omitempty"`
