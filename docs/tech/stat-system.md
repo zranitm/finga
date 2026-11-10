@@ -85,7 +85,7 @@ classes:                   # base values per class; per_level grows them
   3. **Rates:** the base, plus *(limit − base) × points ÷ (points + k)*, plus the gear's rate, held to the limit. This covers crit rate and the three speeds.
   4. **Penetration:** gear only (skills later), held to 50%.
 - **`Sheet`** keeps the totals and the equipment's share of each (totals with gear minus totals without), and gains the new stats and the points.
-- **Requirements:** `Meets(item, level, class, own)` checks the level, the class for weapons, and each stat minimum against the character's **own** stats, not counting gear (decision 1). Worn items that don't meet their requirement are left out of the worn sum, so they add nothing until they do.
+- **Requirements:** `Meets(item, level, class, own)` checks the level, the class for weapons, and each stat minimum against the character's **own** stats, not counting gear: counting it would let one item's bonus unlock another, and taking an item off could switch others off in a chain. Worn items that don't meet their requirement are left out of the worn sum, so they add nothing until they do.
 - **Shared stat vectors** go in `server/testdata/stats/`: class, level, points, and worn stats, with the expected sheet. The Go tests and the client's preview (section 8) both replay them, so the preview can't drift from the server. They compare to 1e-9; the preview is display only.
 
 ## 5. Points: where they live and how they're spent
@@ -115,7 +115,7 @@ classes:                   # base values per class; per_level grows them
   - A worn item may become inactive, which is proposal 7 in the product pages.
   - It sends `StatsChanged` and checkpoints.
   - When currency arrives (F1), a paid reset becomes an economic action: the item service charges the wallet under an idempotency key, and the world applies the reset after the charge commits.
-- **Auto-assign runs in the client** (decision 2). When the account setting is on and a `LevelUp` arrives, the client spends every unspent point by its class's split, as the Auto-assign button does, with the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
+- **Auto-assign runs in the client,** so the world never has to read the account setting at join, which would be one more dependency for it. When the account setting is on and a `LevelUp` arrives, the client spends every unspent point by its class's split, as the Auto-assign button does, with the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
   - Two `LevelUp`s close together send two requests; the first is refused with `points_changed`, and the second spends everything.
   - The client reads the settings at login, so the switch is known before the first level-up.
   - The setting lives beside the control preset in the account service: `PUT /api/settings` gains `auto_assign_points`, false by default.
@@ -131,7 +131,7 @@ classes:                   # base values per class; per_level grows them
   - The hit chance is unchanged: accuracy against evasion, held between the limits in `stats.yaml` (20% and 99%), for every attack in both directions.
 - **Regen:**
   - Once a second (every `tick_rate_hz` ticks), each living player gains their HP and MP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP and MP never go past their maximums.
-  - It runs in towns too, never while dead (decision 3).
+  - It runs in towns too, since the combat page has HP and MP come back over time everywhere. It never runs while dead: HP stays 0 until the respawn sets it.
   - HP changes go out in the Delta as any change does, and the party hears each member's HP once a tick when it changed; the party copy keeps only a member's newest.
   - MP isn't in the Delta, so a second in which regen raises MP sends the player a `StatsChanged`.
 - **Inactive gear:** when a character's own stats change (spending, a reset) or an item is equipped, the world rebuilds the worn sum from the items whose requirements are met.
