@@ -35,7 +35,12 @@ func TestTalk(t *testing.T) {
 		}
 		got := eventsOf[model.NpcDialog](s)
 		want := model.NpcDialog{NPC: "town_guide",
-			Gives: []model.QuestOffer{{Quest: "slime_cleanup", State: model.OfferActive}, {Quest: "sticky_samples", State: model.OfferUnmet, Unmet: model.Unmet{Quests: []string{"slime_cleanup"}}}},
+			Gives: []model.QuestOffer{
+				{Quest: "slime_cleanup", State: model.OfferActive},
+				{Quest: "sticky_samples", State: model.OfferUnmet, Unmet: model.Unmet{Quests: []string{"slime_cleanup"}}},
+				{Quest: "meet_the_trainers", State: model.OfferUnmet, Unmet: model.Unmet{Quests: []string{"slime_cleanup"}}},
+				{Quest: "ready_for_the_wilds", State: model.OfferUnmet, Unmet: model.Unmet{Quests: []string{"slime_cleanup"}}},
+			},
 			Takes: []model.QuestTurnIn{{Quest: "slime_cleanup", Ready: false}},
 		}
 		if len(got) != 1 {

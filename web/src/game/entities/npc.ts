@@ -13,6 +13,10 @@ interface NpcArt {
 /** No NPC art yet: a tinted player figure per look, so NPCs read apart from players. */
 const looks: Readonly<Record<string, NpcArt>> = {
   guide: { texture: TEX.warriorStand, tint: 0xffd27a },
+  trainer_warrior: { texture: TEX.warriorStand, tint: 0xff9a8a },
+  trainer_magician: { texture: TEX.warriorStand, tint: 0xb8a0ff },
+  trainer_bowman: { texture: TEX.bowmanStand, tint: 0xb8f0a0 },
+  trainer_thief: { texture: TEX.bowmanStand, tint: 0x8a8aa8 },
 };
 const fallback: NpcArt = { texture: TEX.warriorStand, tint: 0xd8c8f0 };
 

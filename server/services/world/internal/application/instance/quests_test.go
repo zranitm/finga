@@ -27,7 +27,7 @@ func questData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	return worldtest.LoadDataWith(t, map[string]func(string) string{
 		"npcs.yaml": func(s string) string {
-			return strings.ReplaceAll(s, "[slime_cleanup, sticky_samples]", "[slime_cleanup, sticky_samples, errand, bounty]")
+			return strings.ReplaceAll(s, "ready_for_the_wilds]", "ready_for_the_wilds, errand, bounty]")
 		},
 		"quests.yaml": func(s string) string {
 			return s + `

@@ -75,7 +75,10 @@ func TestDialogTakesBackOnlyActiveQuests(t *testing.T) {
 	log := model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}, "sticky_samples": {Status: model.QuestActive, Progress: []int{0}}}
 	got := quests.Dialog(data, guide, quests.Character{Level: 2, Class: kernel.Warrior, Log: log})
 	want := model.NpcDialog{NPC: "town_guide",
-		Gives: []model.QuestOffer{{Quest: "slime_cleanup", State: model.OfferFinished}, {Quest: "sticky_samples", State: model.OfferActive}},
+		Gives: []model.QuestOffer{
+			{Quest: "slime_cleanup", State: model.OfferFinished}, {Quest: "sticky_samples", State: model.OfferActive},
+			{Quest: "meet_the_trainers", State: model.OfferAvailable}, {Quest: "ready_for_the_wilds", State: model.OfferAvailable},
+		},
 		Takes: []model.QuestTurnIn{{Quest: "sticky_samples", Ready: true}},
 	}
 	if !reflect.DeepEqual(got, want) {

@@ -21,3 +21,68 @@ quests:
     rewards:
       exp: 40
       items: [{item: leather_cap, quantity: 1}]
+  - id: meet_the_trainers
+    name: Meet the Trainers
+    giver: town_guide
+    turn_in: town_guide
+    level: 2
+    quests: [slime_cleanup]
+    objectives:
+      - {talk: warrior_trainer}
+      - {talk: magician_trainer}
+    rewards:
+      exp: 60
+      items: [{item: blue_potion, quantity: 5}]
+  - id: ready_for_the_wilds
+    name: Ready for the Wilds
+    giver: town_guide
+    turn_in: town_guide
+    level: 1
+    quests: [slime_cleanup]
+    objectives:
+      - {level: 5}
+    rewards:
+      exp: 100
+      items: [{item: leather_vest, quantity: 1}]
+  # The four trials, one-time, one per first class; promotion (classes design) asks for its own.
+  - id: warriors_trial
+    name: The Warrior's Trial
+    giver: warrior_trainer
+    turn_in: warrior_trainer
+    level: 10
+    objectives:
+      - {kill: wild_boar, count: 20}
+    rewards:
+      exp: 300
+      items: [{item: red_potion, quantity: 20}]
+  - id: thiefs_trial
+    name: The Thief's Trial
+    giver: thief_trainer
+    turn_in: thief_trainer
+    level: 10
+    objectives:
+      - {collect: bat_wing, count: 10}
+    rewards:
+      exp: 300
+      items: [{item: blue_potion, quantity: 10}]
+  - id: bowmans_trial
+    name: The Bowman's Trial
+    giver: bowman_trainer
+    turn_in: bowman_trainer
+    level: 10
+    objectives:
+      - {kill: orange_mushroom, count: 30}
+    rewards:
+      exp: 300
+      items: [{item: red_potion, quantity: 20}]
+  - id: magicians_trial
+    name: The Magician's Trial
+    giver: magician_trainer
+    turn_in: magician_trainer
+    level: 10
+    objectives:
+      - {collect: slime_gel, count: 15}
+      - {talk: town_guide}
+    rewards:
+      exp: 300
+      items: [{item: blue_potion, quantity: 10}]

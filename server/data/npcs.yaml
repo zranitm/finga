@@ -1,8 +1,32 @@
-# NPCs: each stands where a map's npcs layer places a point object named by its id, in one place only. look is the client's sprite key; gives and takes list the quests it hands out and takes back, and must agree with quests.yaml.
+# NPCs: each stands where a map's npcs layer places a point object named by its id, in one place only. look is the client's sprite key; gives and takes list the quests it hands out and takes back, and must agree with quests.yaml. A trainer names the class it will promote to; until promotions arrive it gives its trial.
 talk_reach: 60 # px from the character's centre to the NPC's point
 npcs:
   - id: town_guide
     name: Town Guide
     look: guide
-    gives: [slime_cleanup, sticky_samples]
-    takes: [slime_cleanup, sticky_samples]
+    gives: [slime_cleanup, sticky_samples, meet_the_trainers, ready_for_the_wilds]
+    takes: [slime_cleanup, sticky_samples, meet_the_trainers, ready_for_the_wilds]
+  - id: warrior_trainer
+    name: Warrior Trainer
+    look: trainer_warrior
+    trainer: warrior
+    gives: [warriors_trial]
+    takes: [warriors_trial]
+  - id: magician_trainer
+    name: Magician Trainer
+    look: trainer_magician
+    trainer: magician
+    gives: [magicians_trial]
+    takes: [magicians_trial]
+  - id: bowman_trainer
+    name: Bowman Trainer
+    look: trainer_bowman
+    trainer: bowman
+    gives: [bowmans_trial]
+    takes: [bowmans_trial]
+  - id: thief_trainer
+    name: Thief Trainer
+    look: trainer_thief
+    trainer: thief
+    gives: [thiefs_trial]
+    takes: [thiefs_trial]

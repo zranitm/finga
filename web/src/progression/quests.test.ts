@@ -131,9 +131,20 @@ describe('markerFor', () => {
     expect(markerFor(guide, player({ log: done }))).toBe('ready');
   });
 
-  it('shows nothing once everything it gives is done or out of reach of the conditions', () => {
-    expect(markerFor(guide, player({ level: 1, log: finishedCleanup }))).toBeNull();
-    expect(markerFor(guide, player({ level: 2, log: finishedCleanup }))).toBe('available');
+  it('shows nothing once everything it gives is taken care of', () => {
+    const all = Object.fromEntries(
+      guide.gives.map((id) => [
+        id,
+        { status: 'finished', progress: [], timesFinished: 1 } as const,
+      ]),
+    );
+    expect(markerFor(guide, player({ level: 5, log: all }))).toBeNull();
+  });
+
+  it('a trainer shows its trial only from level 10', () => {
+    const trainer = npcById('warrior_trainer')!;
+    expect(markerFor(trainer, player({ level: 9 }))).toBeNull();
+    expect(markerFor(trainer, player({ level: 10 }))).toBe('available');
   });
 });
 

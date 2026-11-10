@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -62,7 +63,7 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 		}
 		class, _ := data.Class([]kernel.Class{kernel.Warrior, kernel.Bowman}[k%2])
 		b := newBot(url, fmt.Sprintf("%s%s%d", prefix, stamp, k), strings.ToUpper(short[:1])+short[1:]+stamp+strconv.Itoa(k), k)
-		b.class, b.split, b.perLevel = class.ID, class.AutoAssign, data.StatRules().PointsPerLevel
+		b.class, b.split, b.perLevel, b.data = class.ID, class.AutoAssign, data.StatRules().PointsPerLevel, data
 		bots = append(bots, b)
 		wg.Go(func() { b.play(ctx, bots) })
 	}
@@ -72,16 +73,16 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.messages, s.refused, s.reconnects, s.loginFailures)
+		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.accepted, s.handedIn, s.messages, s.refused, s.reconnects, s.loginFailures)
 	}
-	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
-		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.messages, total.refused, total.reconnects, total.loginFailures)
+	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  quests taken %2d  handed in %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.accepted, total.handedIn, total.messages, total.refused, total.reconnects, total.loginFailures)
 	return report(metrics, itemMetrics, url)
 }
 
 type stats struct {
-	messages, kills, items, deaths, hops, chats, spends, refused, reconnects, loginFailures int
+	messages, kills, items, deaths, hops, chats, spends, accepted, handedIn, refused, reconnects, loginFailures int
 }
 
 func (s *stats) add(o stats) {
@@ -92,6 +93,8 @@ func (s *stats) add(o stats) {
 	s.hops += o.hops
 	s.chats += o.chats
 	s.spends += o.spends
+	s.accepted += o.accepted
+	s.handedIn += o.handedIn
 	s.refused += o.refused
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
@@ -105,6 +108,7 @@ type bot struct {
 	class    kernel.Class
 	split    gamedata.Stats // how a level's points are spent
 	perLevel int
+	data     *gamedata.Data
 	codec    *wsconn.ProtoCodec
 	rng      *rand.Rand
 
@@ -124,6 +128,9 @@ type bot struct {
 	held    *clientv1.Input
 	kills   *kills
 	inParty atomic.Bool
+	items   map[string]*clientv1.ItemView // by tab/slot
+	stop    int                           // the next town NPC to talk to on this visit
+	talked  time.Time                     // when it talked to that NPC; zero before
 }
 
 // kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
@@ -299,6 +306,7 @@ func (b *bot) enter(ctx context.Context, token string) error {
 	}()
 	b.dead = false
 	b.held = &clientv1.Input{}
+	b.stop, b.talked = 0, time.Time{}
 	if err := b.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: b.id}}); err != nil {
 		return err
 	}
@@ -365,6 +373,10 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.Welcome:
 		b.token = d.GetToken()
 		b.mapID = d.GetMapId()
+		b.items = map[string]*clientv1.ItemView{}
+		for _, it := range d.GetInventory() {
+			b.items[it.GetTab()+"/"+strconv.Itoa(int(it.GetSlot()))] = it
+		}
 	case *clientv1.Snapshot:
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
@@ -383,6 +395,7 @@ func (b *bot) observe(m wsconn.Message) {
 	case *clientv1.MapChange:
 		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 		b.held = &clientv1.Input{}
+		b.stop, b.talked = 0, time.Time{}
 		b.count(func(s *stats) { s.hops++ })
 	case *clientv1.Died:
 		if d.GetCharacterId() == b.id {
@@ -394,6 +407,7 @@ func (b *bot) observe(m wsconn.Message) {
 			b.dead = false
 			b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 			b.held = &clientv1.Input{}
+			b.stop, b.talked = 0, time.Time{}
 		}
 	case *clientv1.Loot:
 		if d.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && d.GetOwnerId() == b.id {
@@ -409,7 +423,79 @@ func (b *bot) observe(m wsconn.Message) {
 		b.command(&clientv1.PartyRespond{InviteId: d.GetInviteId(), Accept: true})
 	case *clientv1.PartyState:
 		b.inParty.Store(d.GetParty() != nil)
+	case *clientv1.InventoryChanged:
+		for _, sl := range d.GetSlots() {
+			key := sl.GetTab() + "/" + strconv.Itoa(int(sl.GetSlot()))
+			if sl.GetItem() == nil {
+				delete(b.items, key)
+			} else {
+				b.items[key] = sl.GetItem()
+			}
+		}
+	case *clientv1.NpcDialog:
+		for _, c := range b.answer(d) {
+			b.command(c)
+		}
+	case *clientv1.QuestChanged:
+		switch d.GetChange() {
+		case clientv1.QuestChange_QUEST_CHANGE_ACCEPTED:
+			b.count(func(s *stats) { s.accepted++ })
+		case clientv1.QuestChange_QUEST_CHANGE_HANDED_IN:
+			b.count(func(s *stats) { s.handedIn++ })
+		}
 	}
+}
+
+// answer is what the bot does with a dialog: hand in each quest that is ready, the items it asks for held, then take every quest open to it.
+func (b *bot) answer(d *clientv1.NpcDialog) []proto.Message {
+	var out []proto.Message
+	for _, t := range d.GetTakes() {
+		if t.GetReady() && b.holdsWhatItAsks(t.GetQuestId()) {
+			out = append(out, &clientv1.HandInQuest{NpcId: d.GetNpcId(), QuestId: t.GetQuestId()})
+		}
+	}
+	for _, o := range d.GetGives() {
+		if o.GetState() == clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE {
+			out = append(out, &clientv1.AcceptQuest{NpcId: d.GetNpcId(), QuestId: o.GetQuestId()})
+		}
+	}
+	return out
+}
+
+func (b *bot) holdsWhatItAsks(quest string) bool {
+	q, ok := b.data.Quest(quest)
+	if !ok {
+		return false
+	}
+	for _, o := range q.Objectives {
+		if o.Kind == gamedata.Collect && b.holding(o.Target) < o.Count {
+			return false
+		}
+	}
+	return true
+}
+
+// holding is how many of an item the bot's inventory holds.
+func (b *bot) holding(template string) int {
+	n := 0
+	for _, it := range b.items {
+		if it.GetTemplate() == template {
+			n += int(it.GetQuantity())
+		}
+	}
+	return n
+}
+
+// townNPCs are the NPCs of a map in the order a visit talks to them: right to left, as it arrives from the portal on the right.
+func townNPCs(data *gamedata.Data, mapID string) []gamedata.NPC {
+	var out []gamedata.NPC
+	for _, n := range data.NPCs() {
+		if n.MapID == mapID {
+			out = append(out, n)
+		}
+	}
+	slices.SortFunc(out, func(a, c gamedata.NPC) int { return int(c.At.X - a.At.X) })
+	return out
 }
 
 // loop makes 20 decisions a second until the connection closes or the session ends.
@@ -455,6 +541,9 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 		jump := stuck >= 4
 		switch b.mapID {
 		case "town":
+			if b.visitNPCs(jump) {
+				continue
+			}
 			if b.walkTo(townPortal, jump) {
 				b.command(&clientv1.EnterPortal{})
 				leaveForestAt = time.Now().Add(time.Duration(8+b.index) * time.Minute)
@@ -495,6 +584,25 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 			b.command(&clientv1.EnterPortal{})
 		}
 	}
+}
+
+// visitNPCs walks to each NPC on the map in turn and talks to it, a second for its dialog to answer; false once every one has been visited.
+func (b *bot) visitNPCs(jump bool) bool {
+	npcs := townNPCs(b.data, b.mapID)
+	if b.stop >= len(npcs) {
+		return false
+	}
+	if !b.talked.IsZero() {
+		if time.Since(b.talked) > time.Second {
+			b.stop, b.talked = b.stop+1, time.Time{}
+		}
+		return true
+	}
+	if n := npcs[b.stop]; b.walkTo(n.At.X, jump) {
+		b.command(&clientv1.Talk{NpcId: n.ID})
+		b.talked = time.Now()
+	}
+	return true
 }
 
 // walkTo holds a direction toward x and reports standing within 12 px.

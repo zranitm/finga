@@ -53,6 +53,8 @@ func TestQuests(t *testing.T) {
 		want := &clientv1.NpcDialog{NpcId: "town_guide", Gives: []*clientv1.QuestOffer{
 			{QuestId: "slime_cleanup", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
 			{QuestId: "sticky_samples", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 2, Quests: []string{"slime_cleanup"}}},
+			{QuestId: "meet_the_trainers", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 2, Quests: []string{"slime_cleanup"}}},
+			{QuestId: "ready_for_the_wilds", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Quests: []string{"slime_cleanup"}}},
 		}}
 		if d := quinn.talk(t, "t-1"); !proto.Equal(d, want) {
 			t.Fatalf("dialog %v, want %v", d, want)

@@ -552,6 +552,8 @@ func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 	want := &worldv1.NpcDialog{NpcId: "town_guide", Gives: []*worldv1.QuestOffer{
 		{QuestId: "slime_cleanup", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
 		{QuestId: "sticky_samples", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+		{QuestId: "meet_the_trainers", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+		{QuestId: "ready_for_the_wilds", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
 	}}
 	if !proto.Equal(got, want) {
 		t.Fatalf("dialog %v, want %v", got, want)
