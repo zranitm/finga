@@ -52,6 +52,8 @@ type player struct {
 	equipping     int           // equips and unequips in flight, which keep the player on this map
 	toldHP        int           // the HP and max HP the party last heard
 	toldMaxHP     int
+	hpCarry       int // regen's fractions, in thousandths of a point
+	mpCarry       int
 }
 
 func (i *Instance) add(j *joinMsg) {

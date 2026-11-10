@@ -126,11 +126,12 @@ classes:                   # base values per class; per_level grows them
 - **`model.Resolve`:**
   - The attacker gains both attacks and the defender both defenses, and `Resolve` picks the pair that matches the attack's type.
   - Penetration applies to either defense.
-  - The hit chance is unchanged: accuracy against evasion, held between 20% and 99%, for every attack in both directions.
+  - The hit chance is unchanged: accuracy against evasion, held between the limits in `stats.yaml` (20% and 99%), for every attack in both directions.
 - **Regen:**
   - Once a second (every `tick_rate_hz` ticks), each living player gains their HP and MP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP and MP never go past their maximums.
   - It runs in towns too, never while dead (decision 3).
-  - HP changes go out in the Delta as any change does, and the party copy's updates are already merged per member.
+  - HP changes go out in the Delta as any change does, and the party hears each member's HP once a tick when it changed; the party copy keeps only a member's newest.
+  - MP isn't in the Delta, so a second in which regen raises MP sends the player a `StatsChanged`.
 - **Inactive gear:** when a character's own stats change (spending, a reset) or an item is equipped, the world rebuilds the worn sum from the items whose requirements are met.
 
 ## 7. Speed

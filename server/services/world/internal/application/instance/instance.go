@@ -269,6 +269,9 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
+	if n%i.ticksFor(time.Second) == 0 {
+		i.regen()
+	}
 	for _, s := range i.ground.Collect() {
 		i.settle(s)
 	}

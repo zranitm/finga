@@ -5,6 +5,7 @@ package model
 import (
 	"math"
 
+	"finga/internal/gamedata"
 	"finga/internal/sim"
 )
 
@@ -13,19 +14,27 @@ type Roll interface {
 	Float64() float64
 }
 
-// Attacker are the attacking side's derived stats. Rates are fractions.
+// Attacker are the attacking side's derived stats and what its attack deals. Rates are fractions.
 type Attacker struct {
-	AttackPower float64
-	Accuracy    float64
-	CritRate    float64
-	CritDamage  float64
-	Penetration float64
+	Damage         gamedata.DamageType
+	PhysicalAttack float64
+	MagicAttack    float64
+	Accuracy       float64
+	CritRate       float64
+	CritDamage     float64
+	Penetration    float64
 }
 
 // Defender are the defending side's derived stats.
 type Defender struct {
-	Defense float64
-	Evasion float64
+	PhysicalDefense float64
+	MagicDefense    float64
+	Evasion         float64
+}
+
+// HitChance is what the chance to hit is held between, from stats.yaml.
+type HitChance struct {
+	Min, Max float64
 }
 
 // Hit is one resolved attack.
@@ -38,21 +47,23 @@ type Hit struct {
 const (
 	baseHitChance  = 0.80
 	hitPerAccuracy = 0.02
-	minHitChance   = 0.20
-	maxHitChance   = 0.99
 	minVariation   = 0.90
 	maxVariation   = 1.10
 	minDamage      = 1
 )
 
-// Resolve draws from r in a fixed order (hit, variation, crit), so replays match.
-func Resolve(a Attacker, d Defender, r Roll) Hit {
-	chance := math.Min(maxHitChance, math.Max(minHitChance, baseHitChance+hitPerAccuracy*(a.Accuracy-d.Evasion)))
+// Resolve meets the attack of the attack's damage type with the defense of that type; it draws from r in a fixed order (hit, variation, crit), so replays match.
+func Resolve(a Attacker, d Defender, limits HitChance, r Roll) Hit {
+	chance := math.Min(limits.Max, math.Max(limits.Min, baseHitChance+hitPerAccuracy*(a.Accuracy-d.Evasion)))
 	if r.Float64() >= chance {
 		return Hit{Miss: true}
 	}
-	raw := a.AttackPower * (minVariation + (maxVariation-minVariation)*r.Float64())
-	defense := d.Defense * (1 - a.Penetration)
+	attack, defense := a.PhysicalAttack, d.PhysicalDefense
+	if a.Damage == gamedata.Magic {
+		attack, defense = a.MagicAttack, d.MagicDefense
+	}
+	raw := attack * (minVariation + (maxVariation-minVariation)*r.Float64())
+	defense *= 1 - a.Penetration
 	damage := math.Max(minDamage, math.Round(raw*100/(100+defense)))
 	hit := Hit{Damage: int(damage)}
 	if r.Float64() < a.CritRate {
