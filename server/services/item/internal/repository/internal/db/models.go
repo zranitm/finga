@@ -53,6 +53,7 @@ type ItemEvent struct {
 	OccurredAt    time.Time
 	CreatedAt     dbx.Stamp
 	UpdatedAt     dbx.Stamp
+	QuestID       *string
 }
 
 type ItemRoll struct {

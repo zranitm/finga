@@ -27,6 +27,7 @@ type Service interface {
 	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
 	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
 	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
+	HandIn(ctx context.Context, actor model.Actor, in application.HandInInput) (application.Result, error)
 }
 
 // Server serves ItemService over the module.
@@ -242,6 +243,30 @@ func (s *Server) Unequip(ctx context.Context, req *itemv1.UnequipRequest) (*item
 		return nil, err
 	}
 	return &itemv1.UnequipResponse{Changed: slots(res), Equipment: equipment(res), Worn: items(res.Worn), Revision: res.Revision}, nil
+}
+
+// HandIn takes the items a quest asks for and gives its rewards.
+func (s *Server) HandIn(ctx context.Context, req *itemv1.HandInRequest) (*itemv1.HandInResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	in := application.HandInInput{Key: key, Quest: req.GetQuestId()}
+	for _, t := range req.GetTake() {
+		in.Take = append(in.Take, model.Grant{Item: t.GetTemplateId(), Quantity: int(t.GetQuantity())})
+	}
+	for _, g := range req.GetGive() {
+		in.Give = append(in.Give, application.Give{TemplateID: g.GetTemplateId(), Quantity: int(g.GetQuantity()), Stats: statsOf(g.GetStats())})
+	}
+	res, err := s.svc.HandIn(ctx, actor, in)
+	if err != nil {
+		return nil, err
+	}
+	return &itemv1.HandInResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 func actorOf(a *itemv1.Actor) (model.Actor, error) {

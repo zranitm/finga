@@ -48,6 +48,7 @@ var (
 	WrongEquipSlot       = Public{"wrong_equip_slot", "that item doesn't go there"}
 	NotEquipment         = Public{"not_equipment", "only equipment can be worn"}
 	NothingWorn          = Public{"nothing_worn", "nothing is worn there"}
+	NotEnoughItems       = Public{"not_enough_items", "you don't have everything it asks for"}
 	CharacterDead        = Public{"character_dead", "you can't do that while dead"}
 	NotEnoughPoints      = Public{"not_enough_points", "you don't have that many points"}
 	PointsChanged        = Public{"points_changed", "your points changed; try again"}

@@ -190,6 +190,11 @@
     "message": "no such endpoint"
   },
   {
+    "code": "not_enough_items",
+    "status": 409,
+    "message": "you don't have everything it asks for"
+  },
+  {
     "code": "not_enough_points",
     "status": 409,
     "message": "you don't have that many points"

@@ -38,6 +38,7 @@ export const errorCodes = [
   'no_free_reset',
   'no_party',
   'no_such_endpoint',
+  'not_enough_items',
   'not_enough_points',
   'not_equipment',
   'not_implemented',

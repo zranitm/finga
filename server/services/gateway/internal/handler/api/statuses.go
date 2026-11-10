@@ -46,6 +46,7 @@ var statuses = map[model.Public]int{
 	model.ItemWorn:             http.StatusConflict,
 	model.LevelTooLow:          http.StatusConflict,
 	model.StatsTooLow:          http.StatusConflict,
+	model.NotEnoughItems:       http.StatusConflict,
 	model.WrongClass:           http.StatusConflict,
 	model.WrongEquipSlot:       http.StatusBadRequest,
 	model.NotEquipment:         http.StatusBadRequest,

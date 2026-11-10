@@ -251,6 +251,9 @@ func (r eventRepo) Append(ctx context.Context, e model.Event) error {
 		u := e.Cause.ID
 		params.CauseID = &u
 	}
+	if e.Cause.Quest != "" {
+		params.QuestID = &e.Cause.Quest
+	}
 	return r.q.InsertItemEvent(ctx, params)
 }
 

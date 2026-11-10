@@ -39,6 +39,7 @@ type fakeItems struct {
 	discard   application.DiscardInput
 	equip     application.EquipInput
 	unequip   application.UnequipInput
+	handIn    application.HandInInput
 	class     kernel.Class
 	inventory model.Inventory
 	result    application.Result
@@ -101,6 +102,14 @@ func (f *fakeItems) Unequip(_ context.Context, actor model.Actor, in application
 	defer f.mu.Unlock()
 	f.record()
 	f.actor, f.unequip = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeItems) HandIn(_ context.Context, actor model.Actor, in application.HandInInput) (application.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record()
+	f.actor, f.handIn = actor, in
 	return f.result, f.err
 }
 
@@ -263,6 +272,23 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantChanged(t, res)
 	})
+	t.Run("HandIn, what it takes and what it gives with each roll", func(t *testing.T) {
+		key := uuidv7.NewString()
+		res, err := c.HandIn(ctx, &itemv1.HandInRequest{Actor: actor, IdempotencyKey: key, QuestId: "sticky_samples",
+			Take: []*itemv1.HandInTake{{TemplateId: "slime_gel", Quantity: 5}},
+			Give: []*itemv1.HandInGive{{TemplateId: "red_potion", Quantity: 10}, {TemplateId: "leather_cap", Quantity: 1, Stats: &itemv1.ItemStats{PhysicalDefense: 3}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		in := f.handIn
+		if in.Key != key || in.Quest != "sticky_samples" || len(in.Take) != 1 || in.Take[0] != (model.Grant{Item: "slime_gel", Quantity: 5}) || f.actor.Character != character {
+			t.Fatalf("hand-in %+v", in)
+		}
+		if len(in.Give) != 2 || in.Give[0] != (application.Give{TemplateID: "red_potion", Quantity: 10}) || in.Give[1].Stats == nil || *in.Give[1].Stats != (progression.ItemStats{PhysicalDefense: 3}) {
+			t.Fatalf("gives %+v", in.Give)
+		}
+		wantChanged(t, res)
+	})
 	t.Run("GrantStarter", func(t *testing.T) {
 		res, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "bowman"})
 		if err != nil {
@@ -337,6 +363,14 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			_, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: potion.ID.String(), Level: 1, Class: "paladin"})
 			return err
 		}, itemv1.Reason_REASON_UNKNOWN_CLASS},
+		{"a hand-in's idempotency key", func() error {
+			_, err := c.HandIn(ctx, &itemv1.HandInRequest{Actor: actor, IdempotencyKey: "slime_cleanup-1", QuestId: "slime_cleanup"})
+			return err
+		}, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY},
+		{"a hand-in's actor", func() error {
+			_, err := c.HandIn(ctx, &itemv1.HandInRequest{Actor: bad, IdempotencyKey: key1, QuestId: "slime_cleanup"})
+			return err
+		}, itemv1.Reason_REASON_BAD_ID},
 		{"an unequip's idempotency key", func() error {
 			_, err := c.Unequip(ctx, &itemv1.UnequipRequest{Actor: actor, IdempotencyKey: "nope", EquipSlot: "hat"})
 			return err

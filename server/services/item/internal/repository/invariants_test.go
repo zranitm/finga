@@ -86,6 +86,24 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 			t.Fatalf("found %v, want check 6's template totals alone", got)
 		}
 	})
+	t.Run("a quest reward recorded as the player's own", func(t *testing.T) {
+		h := newHarness(t)
+		h.add(t, "c1", "slime_gel", 10)
+		if _, err := h.svc.HandIn(ctx, h.actor, application.HandInInput{Key: uuidv7.NewString(), Quest: "q", Take: []model.Grant{{Item: "slime_gel", Quantity: 4}}, Give: []application.Give{{TemplateID: "red_potion", Quantity: 3}}}); err != nil {
+			t.Fatal(err)
+		}
+		checkInvariants(t, h.pool, h.data)
+		if _, err := h.pool.Exec(ctx, `UPDATE item_events SET cause_type = 'player', quest_id = NULL WHERE kind = 'created' AND cause_type = 'quest'`); err != nil {
+			t.Fatal(err)
+		}
+		got, err := itemtest.CheckInvariants(ctx, h.pool, h.data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || !strings.HasPrefix(got[0], "6 template totals") || !strings.Contains(got[0], "red_potion") {
+			t.Fatalf("found %v, want check 6's template totals for the reward alone", got)
+		}
+	})
 	t.Run("a merge whose split half is no longer the player's", func(t *testing.T) {
 		h := newHarness(t)
 		h.add(t, "c2", "red_potion", 100) // a full stack in slot 0
@@ -219,6 +237,7 @@ func TestInventoryProperties(t *testing.T) {
 	rapid.Check(t, func(rt *rapid.T) {
 		actor := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		var added []application.AddInput // every drop tried, whose keys a batch may reuse
+		var handedIn []application.HandInInput
 		steps := rapid.IntRange(1, 25).Draw(rt, "steps")
 		for i := range steps {
 			key := fmt.Sprintf("k%d", i)
@@ -233,7 +252,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 				return application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats}
 			}
-			switch rapid.IntRange(0, 5).Draw(rt, "op") {
+			switch rapid.IntRange(0, 6).Draw(rt, "op") {
 			case 0:
 				in := drop(key)
 				added = append(added, in)
@@ -304,6 +323,24 @@ func TestInventoryProperties(t *testing.T) {
 				if err != nil && !isRule(err) {
 					rt.Fatalf("equip: %v", err)
 				}
+			case 6:
+				// A hand-in taking and giving a few lines, or one tried before again, which replays even when its rewards roll anew.
+				in := application.HandInInput{Key: uuidv7.NewString(), Quest: "q"}
+				if len(handedIn) > 0 && rapid.Bool().Draw(rt, "again") {
+					in = rapid.SampledFrom(handedIn).Draw(rt, "earlier hand-in")
+				} else {
+					for range rapid.IntRange(0, 2).Draw(rt, "takes") {
+						in.Take = append(in.Take, model.Grant{Item: rapid.SampledFrom(templates).Draw(rt, "take"), Quantity: rapid.IntRange(1, 150).Draw(rt, "take qty")})
+					}
+					for range rapid.IntRange(0, 2).Draw(rt, "gives") {
+						d := drop("")
+						in.Give = append(in.Give, application.Give{TemplateID: d.TemplateID, Quantity: d.Quantity, Stats: d.Stats})
+					}
+					handedIn = append(handedIn, in)
+				}
+				if _, err := svc.HandIn(ctx, actor, in); err != nil && !isRule(err) {
+					rt.Fatalf("hand in: %v", err)
+				}
 			case 4:
 				in := application.UnequipInput{Key: key, EquipSlot: rapid.SampledFrom(equipSlots).Draw(rt, "equip slot")}
 				if rapid.Bool().Draw(rt, "chosen slot") {
@@ -340,6 +377,7 @@ func isRule(err error) bool {
 	for _, rule := range []error{
 		model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrStackFull, model.ErrNotFound,
 		model.ErrSlotTaken, model.ErrItemWorn, model.ErrLevelTooLow, model.ErrWrongClass, model.ErrStatsTooLow, model.ErrWrongEquipSlot, model.ErrNotEquipment, model.ErrNothingWorn,
+		model.ErrNotEnoughItems,
 	} {
 		if errorsIs(err, rule) {
 			return true

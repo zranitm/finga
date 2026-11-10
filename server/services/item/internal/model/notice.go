@@ -10,6 +10,7 @@ const (
 	NoticeGranted   NoticeKind = "granted"
 	NoticeLooted    NoticeKind = "looted"
 	NoticeDiscarded NoticeKind = "discarded"
+	NoticeHandedIn  NoticeKind = "handed_in"
 )
 
 // Notice tells other services about one item's change; it commits with the change.

@@ -57,6 +57,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(itemv1.Reason_REASON_WRONG_EQUIP_SLOT):       model.WrongEquipSlot,
 	grpcx.Key(itemv1.Reason_REASON_NOT_EQUIPMENT):          model.NotEquipment,
 	grpcx.Key(itemv1.Reason_REASON_NOTHING_WORN):           model.NothingWorn,
+	grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS):       model.NotEnoughItems,
 
 	grpcx.Key(socialv1.Reason_REASON_NOT_PARTY_LEADER):       model.NotPartyLeader,
 	grpcx.Key(socialv1.Reason_REASON_PARTY_FULL):             model.PartyFull,

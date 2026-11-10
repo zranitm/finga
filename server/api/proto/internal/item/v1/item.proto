@@ -22,6 +22,8 @@ service ItemService {
   rpc Equip(EquipRequest) returns (EquipResponse);
   // Unequip puts a worn item back in the Equip tab.
   rpc Unequip(UnequipRequest) returns (UnequipResponse);
+  // HandIn takes the items a quest asks for and gives its rewards, in one transaction: all of it, or nothing when either side fails.
+  rpc HandIn(HandInRequest) returns (HandInResponse);
 }
 
 // Reason names a failure a caller can meet; retrying the same request cannot help.
@@ -54,10 +56,12 @@ enum Reason {
   REASON_WRONG_EQUIP_SLOT = 19;
   REASON_NOT_EQUIPMENT = 20;
   REASON_NOTHING_WORN = 21;
-  // An AddMany with no drops, or with more than it takes.
+  // An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes.
   REASON_BAD_BATCH_SIZE = 22;
   // An equip whose item requires more of a primary stat than the character's own stats, without gear, have.
   REASON_STATS_TOO_LOW = 23;
+  // A hand-in asking for more of an item than the inventory's stacks hold; worn items never count.
+  REASON_NOT_ENOUGH_ITEMS = 24;
 }
 
 // Grant is what became of one drop of an AddMany.
@@ -294,4 +298,35 @@ message UnequipResponse {
   repeated Item worn = 3;
   // The inventory's revision after this change, which equipment shares.
   uint64 revision = 4;
+}
+
+message HandInRequest {
+  Actor actor = 1;
+  // A UUID the world derives from the character, the quest and its completion count, so a retry, or the same hand-in after a crash, gets the stored reply.
+  string idempotency_key = 2;
+  // The quest handed in, which the history of every item taken or given names.
+  string quest_id = 3;
+  // What the quest's collect objectives ask for, taken from the smallest stacks first.
+  repeated HandInTake take = 4;
+  // The quest's item rewards, each placed as Add would place it.
+  repeated HandInGive give = 5;
+}
+
+message HandInTake {
+  string template_id = 1;
+  int32 quantity = 2;
+}
+
+message HandInGive {
+  string template_id = 1;
+  int32 quantity = 2;
+  // Equipment's roll, one per line; refused on anything else. A repeat after a crash may roll again and still gets the stored reply.
+  ItemStats stats = 3;
+}
+
+message HandInResponse {
+  // The slots the hand-in emptied, shrank or filled, each as it stands after it.
+  repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay.
+  uint64 revision = 2;
 }

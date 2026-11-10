@@ -107,12 +107,12 @@ From the code, the rules this design keeps:
 
 ## 8. Item service: `HandIn`
 
-- **`HandIn{actor, idempotency_key, take: [{template, quantity}], give: [{template, quantity, stats}]}`** runs one transaction:
+- **`HandIn{actor, idempotency_key, quest_id, take: [{template, quantity}], give: [{template, quantity, stats}]}`** runs one transaction:
   1. The owner's lock and inventory rows, as other item calls take them.
   2. **Take:** each `take` line must be covered by the inventory's stacks of that template, never by worn items, or the call is refused with `not_enough_items`. The items are taken from the smallest stacks first.
   3. **Give:** each `give` line goes in as `Add` would place it. If it doesn't all fit, the call is refused with `inventory_full`, and nothing is taken.
-  4. **Item events:** a new kind, `handed_in` (a negative quantity, cause `quest`), for what is taken; `created` and `stacked` with cause `quest` for what is given.
-  5. One inventory revision, and the stored reply under the key, as for `Add`.
+  4. **Item events:** a new kind, `handed_in` (a negative quantity, cause `quest`), for what is taken; `created` and `stacked` with cause `quest` for what is given. Each names the quest in a new `quest_id` column, and its `cause_id` is the hand-in's key.
+  5. One inventory revision, and the stored reply under the key, as for `Add`. The rolls stay out of the key's fingerprint, so a hand-in repeated after a crash, which rolls again, still gets the stored reply.
 - **Check 6 changes:** "per template, held equals drops and starters less discards" becomes "held equals drops, starters, and quest rewards, less discards and hand-ins".
 
 ## 9. Protocol
