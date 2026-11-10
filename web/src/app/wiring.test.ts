@@ -2,9 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, getToken, setToken } from '@/net/token';
-import { ChatChannel, KickReason } from '@/protocol/messages';
+import { ChatChannel, KickReason, LootKind } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
@@ -29,6 +30,14 @@ const ayla = {
   maxMp: 28,
 };
 const potion = { itemId: 'i1', template: 'red_potion', tab: 'use', slot: 0, quantity: 5 };
+const gel = {
+  mapId: 'meadow',
+  dropId: 7,
+  ownerId: 'c-ayla',
+  ownerName: 'Ayla',
+  template: 'slime_gel',
+  quantity: 1,
+};
 const welcome: ServerInit<'welcome'> = {
   token: 'tok-rotated',
   character: ayla,
@@ -173,6 +182,7 @@ describe('wiring', () => {
     expect(inventory.getState().slots.use[0]).toBeNull();
     expect(party.getState().party).toBeNull();
     expect(chat.getState().lines).toEqual([]);
+    expect(combatLog.getState().lines).toEqual([]);
   });
 
   it('a reconnect shows as reconnecting with its attempt, and a user close as disconnected', async () => {
@@ -236,6 +246,53 @@ describe('wiring', () => {
     const { ws } = await connectedSocket();
     ws.push('response', d);
     expect(toasts.getState().toasts.map((t) => t.text)).toEqual([text]);
+  });
+
+  it('ExpGained, LevelUp and Loot also land in the combat log', async () => {
+    const { ws } = await connectedSocket();
+    ws.push('expGained', { amount: 5n, exp: 15n });
+    ws.push('levelUp', { character: { ...ayla, level: 2, exp: 0n } });
+    ws.push('loot', { ...gel, kind: LootKind.WAITING });
+    expect(combatLog.getState().lines).toMatchObject([
+      { kind: 'exp', amount: 5 },
+      { kind: 'level', level: 2 },
+      { kind: 'loot', loot: LootKind.WAITING, template: 'slime_gel' },
+    ]);
+    expect(combatLog.getState().waiting).toMatchObject([{ key: 'meadow/7' }]);
+  });
+
+  it.each([
+    {
+      name: 'a 4★ item this player collected',
+      d: { ...gel, kind: LootKind.COLLECTED, template: 'gold_ring' },
+      text: ['You got Gold Ring ★★★★'],
+    },
+    {
+      name: "a party member's 6★ item",
+      d: {
+        ...gel,
+        kind: LootKind.COLLECTED,
+        template: 'moonstone_ring',
+        ownerId: 'c-robin',
+        ownerName: 'Robin',
+      },
+      text: ['Robin got Moonstone Ring ★★★★★★'],
+    },
+    {
+      name: 'a 3★ item',
+      d: { ...gel, kind: LootKind.COLLECTED, template: 'silver_ring' },
+      text: [],
+    },
+    {
+      name: 'a 4★ item waiting for room',
+      d: { ...gel, kind: LootKind.WAITING, template: 'gold_ring' },
+      text: [],
+    },
+  ])('a Loot of $name toasts: $text', async ({ d, text }) => {
+    const { ws } = await connectedSocket();
+    ws.push('loot', d);
+    expect(toasts.getState().toasts.map((t) => t.text)).toEqual(text);
+    expect(toasts.getState().toasts.every((t) => t.kind === 'info')).toBe(true);
   });
 
   it('a Response with no request ID that is ok shows nothing', async () => {

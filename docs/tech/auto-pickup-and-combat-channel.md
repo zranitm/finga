@@ -125,7 +125,10 @@ By layer:
 - **protocol:** regenerated; `errorCodes` loses the two pickup codes.
 - **state:**
   - a `combatLog` store, holding up to 200 lines, fed by `ExpGained`, `LevelUp`, and `Loot` in `app/wiring`;
-  - a count of the player's drops waiting for room, for the HUD notice;
+  - in the same store, the player's drops waiting for room, by map and drop ID, for the HUD notice:
+    - a `WAITING` adds one, and a `COLLECTED` or `LOST` for it takes it away;
+    - a reconnect keeps them, since the world tells an owner on its map through their new connection;
+    - one never heard of again, as after a world restart, goes `drop_life` after its `WAITING`, since no drop waits longer. The client's game data gains `loot.yaml` for that;
   - the `chat` store unchanged.
 - **input:** the `pickup` action and its keys (Z, K) go from both presets.
 - **game:**
@@ -136,7 +139,7 @@ By layer:
 - **features:**
   - The chat box gains the tabs General, Party, and Combat. General shows map and party lines, Party only party lines, Combat the combat log. Typing sends map chat from General and Combat and party chat from Party, and `/p` still works everywhere. New lines never switch the tab.
   - Item names in combat lines take their star colour.
-  - A `Loot` (collected) of 4★ or more also pushes a toast.
+  - A `Loot` (collected) of 4★ or more also pushes a toast, naming who got it: the player or a party member.
   - The HUD shows "Inventory full: N waiting" while the count is above zero.
 
 ## 8. When things fail
