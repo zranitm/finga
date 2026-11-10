@@ -70,7 +70,7 @@ describe('inventory store', () => {
       want: { etc: { 2: null } },
     },
     {
-      name: 'a pickup fills a free slot',
+      name: "a drop's grant fills a free slot",
       before: [],
       change: [{ tab: 'etc', slot: 0, item: { ...gel, slot: 0 } }],
       want: { etc: { 0: { ...gel, slot: 0 } } },
@@ -132,7 +132,7 @@ describe('inventory revisions', () => {
     create(InventoryChangedSchema, { slots, revision });
 
   it('an older change arriving after a newer one leaves the newer slots be', () => {
-    // A pickup (revision 2) grows the stack in slot 1, then a move (revision 3) takes it to slot 5; the move's answer comes first.
+    // A drop's grant (revision 2) grows the stack in slot 1, then a move (revision 3) takes it to slot 5; the move's answer comes first.
     inventory.getState().applyWelcome(welcomeAt([stack], 1n));
     inventory.getState().applyInventoryChanged(
       changedAt(

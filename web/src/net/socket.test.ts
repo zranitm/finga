@@ -253,11 +253,9 @@ describe('GameSocket', () => {
       const ws = await connected(socket);
       socket.sendInput({ ...noInput, right: true }, 1);
       expect(socket.sendAction('attack')).toBe(true);
-      socket.sendAction('pickUp');
       socket.sendAction('enterPortal');
-      expect(ws.frames().slice(-3)).toMatchObject([
+      expect(ws.frames().slice(-2)).toMatchObject([
         { t: 'attack', seq: 1 },
-        { t: 'pickUp', seq: 1 },
         { t: 'enterPortal', seq: 1 },
       ]);
       expect(socket.sequence).toBe(1);

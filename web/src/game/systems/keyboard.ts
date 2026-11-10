@@ -13,7 +13,7 @@ export interface KeyboardOptions {
   readonly preset: () => Preset;
   /** A text field has the keyboard. */
   readonly typing: () => boolean;
-  /** Non-movement actions: attack, pickup, windows, chat. */
+  /** Non-movement actions: attack, windows, chat. */
   readonly onAction?: (action: Action) => void;
 }
 

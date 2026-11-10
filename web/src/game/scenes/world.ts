@@ -30,12 +30,13 @@ import {
   numberFor,
   parseRef,
 } from '../systems/combat-view';
+import { DropTracker, departure } from '../systems/drops';
+import type { DropChanges, Point } from '../systems/drops';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
-import { DropTracker, PickupSystem, boxCentre } from '../systems/pickup';
 import { PortalSystem, standsIn } from '../systems/portals';
 import { Predictor, wireState } from '../systems/prediction';
 
@@ -71,6 +72,7 @@ type Wire = Data<'snapshot'>['players'][number];
 type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
+const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
 const ARROW_RANGE = 420;
 const ARROW_MS = 300;
 
@@ -111,8 +113,6 @@ export class World extends Phaser.Scene {
 
   private readonly drops = new DropTracker();
   private readonly dropViews = new Map<number, DropView>();
-  private pickup: PickupSystem | null = null;
-  private hinted: number | null = null;
 
   private view: MapView | null = null;
   private portals: PortalSystem | null = null;
@@ -222,7 +222,6 @@ export class World extends Phaser.Scene {
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.drops.clear();
     this.numbers.clear();
-    this.pickup = new PickupSystem(() => socket.sendAction('pickUp'));
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
@@ -257,9 +256,6 @@ export class World extends Phaser.Scene {
           switch (action) {
             case 'attack':
               this.attack();
-              return;
-            case 'pickup':
-              this.pickUp();
               return;
             case 'inventory':
               ui.getState().toggleWindow('inventory');
@@ -309,6 +305,7 @@ export class World extends Phaser.Scene {
           m.d.removedMobs,
           m.d.drops,
           m.d.removedDrops,
+          m.d.collectedDrops,
           m.d.ackSeq,
           this.tickOf(m.tick),
         );
@@ -360,47 +357,40 @@ export class World extends Phaser.Scene {
     }
     this.drawRemotes(time);
     this.drawMobs(time);
-    this.hintDrops();
     this.numberLayer?.sync(this.numbers.update(time));
   }
 
-  private hintDrops(): void {
-    const p = this.predictor;
-    if (!p) {
-      return;
-    }
-    const c = boxCentre(p.state.x, p.state.y);
-    const near = this.drops.nearest(c.x, c.y)?.id ?? null;
-    if (near === this.hinted) {
-      return;
-    }
-    if (this.hinted !== null) {
-      this.dropViews.get(this.hinted)?.setHint(false);
-    }
-    if (near !== null) {
-      this.dropViews.get(near)?.setHint(true);
-    }
-    this.hinted = near;
-  }
-
-  private applyDrops(added: readonly DropWire[], removed: readonly number[]): void {
-    for (const id of removed) {
-      this.dropViews.get(id)?.destroy();
-      this.dropViews.delete(id);
-      if (this.hinted === id) {
-        this.hinted = null;
-      }
-    }
+  private applyDrops({ added, removed, collected }: DropChanges): void {
     for (const d of added) {
       this.dropViews.set(d.id, new DropView(this, d.template, d.x, d.y));
     }
+    for (const d of removed) {
+      this.depart(d.id, departure(false, undefined));
+    }
+    for (const d of collected) {
+      this.depart(d.id, departure(true, this.bodyOf(d.ownerId)));
+    }
   }
 
-  private pickUp(): void {
-    if (this.transitionState.dead || !this.placed || !this.pickup || !this.sender) {
-      return;
+  private depart(id: number, how: ReturnType<typeof departure>): void {
+    const v = this.dropViews.get(id);
+    this.dropViews.delete(id);
+    if (how.kind === 'fly') {
+      v?.flyTo(how.to);
+    } else {
+      v?.fade();
     }
-    this.pickup.press(this.hinted !== null, this.sender.currentTick);
+  }
+
+  /** Where a player on this map is drawn, at mid-body; undefined when they are not here. */
+  private bodyOf(id: string): Point | undefined {
+    const feet =
+      id === this.entry.characterId
+        ? this.placed && this.predictor
+          ? { x: this.predictor.state.x, y: this.predictor.state.y }
+          : undefined
+        : this.remoteViews.get(id)?.sprite;
+    return feet && { x: feet.x, y: feet.y - BODY_MID_PX };
   }
 
   private drawRemotes(now: number): void {
@@ -464,8 +454,7 @@ export class World extends Phaser.Scene {
     this.renderClock.update(tick, this.time.now);
     this.remotes?.applySnapshot(tick * this.timing.tickMs, players);
     this.mobs.applySnapshot(tick * this.timing.tickMs, mobs);
-    const changed = this.drops.applySnapshot(drops);
-    this.applyDrops(changed.added, changed.removed);
+    this.applyDrops(this.drops.applySnapshot(drops));
     const me = this.me(players);
     if (!me || !this.predictor || !this.player) {
       return;
@@ -484,14 +473,14 @@ export class World extends Phaser.Scene {
     removedMobs: readonly number[],
     drops: readonly DropWire[],
     removedDrops: readonly number[],
+    collectedDrops: readonly number[],
     ackSeq: number,
     tick: number,
   ): void {
     this.renderClock.update(tick, this.time.now);
     this.remotes?.applyDelta(tick * this.timing.tickMs, players, removed);
     this.mobs.applyDelta(tick * this.timing.tickMs, mobs, removedMobs);
-    const changed = this.drops.applyDelta(drops, removedDrops);
-    this.applyDrops(changed.added, changed.removed);
+    this.applyDrops(this.drops.applyDelta(drops, removedDrops, collectedDrops));
     const me = this.me(players);
     if (!me || !this.predictor || !this.placed) {
       return;
@@ -543,7 +532,6 @@ export class World extends Phaser.Scene {
       v.destroy();
     }
     this.dropViews.clear();
-    this.hinted = null;
     this.numbers.clear();
     this.numberLayer?.sync([]);
   }
@@ -717,7 +705,6 @@ export class World extends Phaser.Scene {
     this.predictor = null;
     this.sender = null;
     this.attackGate = null;
-    this.pickup = null;
     this.portals = null;
     this.view = null;
     this.placed = false;
