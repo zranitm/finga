@@ -1,8 +1,12 @@
 package e2e_test
 
 import (
+	"bytes"
 	"context"
+	"maps"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -27,15 +31,13 @@ type looter struct {
 	x, y      float64
 	hp        int32
 	drops     map[uint32]*clientv1.DropView
-	inventory int // InventoryChanged messages seen
-	// picked are drops removed in a tick that also brought this looter an InventoryChanged.
-	picked      map[uint32]*clientv1.DropView
-	removedTick uint64
-	removed     []*clientv1.DropView // the drops the Delta of removedTick took away
-	failures    []*clientv1.Response
-	seq         uint32
-	collected   map[uint32]bool // drops seen leave for an inventory
-	loots       []*clientv1.Loot
+	inventory int                           // InventoryChanged messages seen
+	seen      map[uint32]*clientv1.DropView // every drop seen on this map, gone or not
+	collected map[uint32]bool               // drops seen leave for an inventory
+	removed   map[uint32]bool               // drops seen leave without an owner taking them
+	loots     []*clientv1.Loot
+	failures  []*clientv1.Response
+	seq       uint32
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
@@ -46,9 +48,9 @@ type looter struct {
 }
 
 func newLooter(p *player, snap *clientv1.Snapshot) *looter {
-	l := &looter{player: p, drops: map[uint32]*clientv1.DropView{}, picked: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, seq: 2000}
+	l := &looter{player: p, drops: map[uint32]*clientv1.DropView{}, seen: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, removed: map[uint32]bool{}, seq: 2000}
 	for _, d := range snap.Drops {
-		l.drops[d.GetId()] = d
+		l.drops[d.GetId()], l.seen[d.GetId()] = d, d
 	}
 	for _, v := range snap.Players {
 		if v.GetId() == p.id {
@@ -67,13 +69,10 @@ func (l *looter) observe(m wsconn.Message) {
 			}
 		}
 		for _, dv := range d.Drops {
-			l.drops[dv.GetId()] = dv
+			l.drops[dv.GetId()], l.seen[dv.GetId()] = dv, dv
 		}
-		l.removedTick, l.removed = m.Tick, l.removed[:0]
 		for _, id := range d.RemovedDrops {
-			if dv, ok := l.drops[id]; ok {
-				l.removed = append(l.removed, dv)
-			}
+			l.removed[id] = true
 			delete(l.drops, id)
 		}
 		for _, id := range d.CollectedDrops {
@@ -81,9 +80,9 @@ func (l *looter) observe(m wsconn.Message) {
 			delete(l.drops, id)
 		}
 	case *clientv1.Snapshot:
-		l.drops = map[uint32]*clientv1.DropView{}
+		l.drops, l.seen = map[uint32]*clientv1.DropView{}, map[uint32]*clientv1.DropView{} // another map, whose drop IDs are its own
 		for _, dv := range d.Drops {
-			l.drops[dv.GetId()] = dv
+			l.drops[dv.GetId()], l.seen[dv.GetId()] = dv, dv
 		}
 		for _, v := range d.Players {
 			if v.GetId() == l.id {
@@ -92,11 +91,6 @@ func (l *looter) observe(m wsconn.Message) {
 		}
 	case *clientv1.InventoryChanged:
 		l.inventory++
-		if m.Tick == l.removedTick {
-			for _, dv := range l.removed {
-				l.picked[dv.GetId()] = dv
-			}
-		}
 	case *clientv1.Response:
 		if !d.GetOk() {
 			l.failures = append(l.failures, d)
@@ -168,11 +162,6 @@ func (l *looter) attack() error {
 	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.Attack{}})
 }
 
-func (l *looter) pickUp() error {
-	l.seq++
-	return l.trySend(wsconn.Message{Seq: l.seq, Data: &clientv1.PickUp{}})
-}
-
 // nearestDrop is the closest drop of the template ("" for any).
 func (l *looter) nearestDrop(template string) (*clientv1.DropView, bool) {
 	var best *clientv1.DropView
@@ -238,22 +227,12 @@ func (l *looter) walkTo(x float64, d time.Duration) bool {
 	return false
 }
 
-func (l *looter) loot(d time.Duration) int {
+// farm attacks every 850 ms for d, its drops flying to it on their own; it returns the InventoryChanged seen.
+func (l *looter) farm(d time.Duration) int {
 	deadline := time.Now().Add(d)
 	nextAttack := time.Now()
 	for time.Now().Before(deadline) {
-		if drop, ok := l.nearestDrop(""); ok {
-			if math.Abs(drop.X-l.x) >= 12 {
-				if l.input(&clientv1.Input{Right: drop.X > l.x, Left: drop.X < l.x}) != nil {
-					return l.inventory
-				}
-			} else {
-				_ = l.input(&clientv1.Input{})
-				if l.pickUp() != nil {
-					return l.inventory
-				}
-			}
-		} else if !time.Now().Before(nextAttack) {
+		if !time.Now().Before(nextAttack) {
 			if l.attack() != nil {
 				return l.inventory
 			}
@@ -263,9 +242,80 @@ func (l *looter) loot(d time.Duration) int {
 			return l.inventory
 		}
 	}
-	_ = l.input(&clientv1.Input{})
 	return l.inventory
 }
+
+// huntDrops attacks every 850 ms until n drops have been seen on the map, or d passes.
+func (l *looter) huntDrops(d time.Duration, n int) bool {
+	deadline := time.Now().Add(d)
+	next := time.Now()
+	for time.Now().Before(deadline) && len(l.seen) < n {
+		if !time.Now().Before(next) {
+			if err := l.attack(); err != nil {
+				return false
+			}
+			next = time.Now().Add(850 * time.Millisecond)
+		}
+		l.pump(100*time.Millisecond, nil)
+	}
+	return len(l.seen) >= n
+}
+
+// lootOf is what this looter heard became of a drop, of kind.
+func (l *looter) lootOf(drop uint32, kind clientv1.LootKind) []*clientv1.Loot {
+	var out []*clientv1.Loot
+	for _, lt := range l.loots {
+		if lt.GetDropId() == drop && lt.GetKind() == kind {
+			out = append(out, lt)
+		}
+	}
+	return out
+}
+
+// dataEdit replaces old with new in a game data file, or writes the whole file when old is empty.
+type dataEdit struct{ file, old, new string }
+
+// gameData is a copy of the game data with the edits made; a file that no longer holds what an edit replaces fails the test.
+func gameData(t *testing.T, edits ...dataEdit) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.CopyFS(dir, os.DirFS("../data")); err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range edits {
+		path := filepath.Join(dir, e.file)
+		b := []byte(e.new)
+		if e.old != "" {
+			was, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(was, []byte(e.old)) {
+				t.Fatalf("%s no longer holds what this test rewrites: %q", e.file, e.old)
+			}
+			b = bytes.Replace(was, []byte(e.old), b, 1)
+		}
+		if err := os.WriteFile(path, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+// slimesDrop has a green slime drop rows, in mobs.yaml's form, instead of its gel and potion.
+func slimesDrop(rows string) dataEdit {
+	return dataEdit{"mobs.yaml", "      - {item: slime_gel, chance: 0.6, min: 1, max: 2}\n      - {item: red_potion, chance: 0.15, min: 1, max: 1}\n", rows}
+}
+
+// lootTimes sets loot.yaml's three timings.
+func lootTimes(collectDelay, dropLife, roomCheck string) dataEdit {
+	return dataEdit{file: "loot.yaml", new: "collect_delay: " + collectDelay + "\ndrop_life: " + dropLife + "\nroom_check_every: " + roomCheck + "\n"}
+}
+
+const (
+	oneGel = "      - {item: slime_gel, chance: 1, min: 1, max: 1}\n"
+	oneCap = "      - {item: leather_cap, chance: 1, min: 1, max: 1}\n"
+)
 
 // welcome says Hello with a fresh login, replacing the old session, and returns the Welcome.
 func (s *stack) welcome(t *testing.T, username, id string) (*player, *clientv1.Welcome) {
@@ -424,30 +474,177 @@ func TestLootAndKeep(t *testing.T) {
 		s.checkInvariants(t)
 	})
 
-	t.Run("D5/a-retried-pickup-job-gives-one-item", func(t *testing.T) {
-		// The worker's exact item-service call, made twice with the drop's key as a retry would.
+	t.Run("D5/a-grant-retried-under-its-key-gives-one-item-whatever-the-batch", func(t *testing.T) {
+		// The world's exact item-service call, made again with the drop's key regrouped beside a new drop, as a retry after a lost reply would.
 		s := newStack(t)
 		_, id := s.createCharacter(t, "noah", "Noah", "warrior")
-		var account string
-		if err := s.db.QueryRow(context.Background(), `SELECT account_id FROM characters WHERE id = $1`, id).Scan(&account); err != nil {
-			t.Fatal(err)
+		actor := s.actor(t, id)
+		drop := func(key string) *itemv1.AddManyDrop {
+			return &itemv1.AddManyDrop{IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}}
 		}
-		key := uuidv7.NewString()
-		in := &itemv1.AddRequest{Actor: &itemv1.Actor{AccountId: account, CharacterId: id}, IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2,
-			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}}
-		first, err := s.items.Add(context.Background(), in)
+		key, other := uuidv7.NewString(), uuidv7.NewString()
+		first, err := s.items.AddMany(context.Background(), &itemv1.AddManyRequest{Actor: actor, Drops: []*itemv1.AddManyDrop{drop(key)}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		second, err := s.items.Add(context.Background(), in)
+		again, err := s.items.AddMany(context.Background(), &itemv1.AddManyRequest{Actor: actor, Drops: []*itemv1.AddManyDrop{drop(other), drop(key)}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(first.GetChanged()) != 1 || len(second.GetChanged()) != 1 || first.GetChanged()[0].GetItem().GetId() != second.GetChanged()[0].GetItem().GetId() {
-			t.Fatalf("first %+v second %+v", first, second)
+		if g := first.GetOutcomes()[0].GetGrant(); g != itemv1.Grant_GRANT_GRANTED {
+			t.Fatalf("the first try: %v", g)
 		}
-		if rows, quantity, events := s.itemTotals(t, id, "slime_gel"); rows != 1 || quantity != 2 || events != 1 {
-			t.Fatalf("%d rows holding %d with %d events", rows, quantity, events)
+		replay := again.GetOutcomes()[1]
+		if again.GetOutcomes()[0].GetGrant() != itemv1.Grant_GRANT_GRANTED || replay.GetGrant() != itemv1.Grant_GRANT_ALREADY_GRANTED ||
+			replay.GetRevision() != first.GetRevision() || replay.GetChanged()[0].GetItem().GetId() != first.GetChanged()[0].GetItem().GetId() {
+			t.Fatalf("the retry answered %+v; want the new drop granted and the old one its stored reply", again.GetOutcomes())
+		}
+		if rows, quantity, events := s.itemTotals(t, id, "slime_gel"); rows != 1 || quantity != 4 || events != 2 {
+			t.Fatalf("%d rows holding %d with %d events; want one stack of the two drops, one event each", rows, quantity, events)
+		}
+		s.checkInvariants(t)
+	})
+
+	t.Run("E3/a-party-takes-its-drops-in-turn-and-a-member-who-died-gets-none", func(t *testing.T) {
+		s := newStackOver(t, gameData(t, slimesDrop(oneGel)))
+		var ls []*looter
+		for _, n := range []struct {
+			user, name string
+			x          float64
+			hp         int
+		}{{"pia", "Pia", 380, 204}, {"ravi", "Ravi", 120, 8}} { // Ravi waits left of the slime field, weak enough to die in it later
+			token, id := s.createCharacter(t, n.user, n.name, "warrior")
+			s.place(t, id, "forest", n.x, 608, n.hp, 0)
+			p, snap := s.join(t, token, id)
+			ls = append(ls, newLooter(p, snap))
+		}
+		pia, ravi := ls[0], ls[1]
+		if r := pia.command(t, "inv", &clientv1.PartyInvite{CharacterId: ravi.id}); !r.GetOk() {
+			t.Fatalf("invite: %+v", r)
+		}
+		inv := take(t, ravi, "PartyInvited", &ravi.invites, 5*time.Second, nil)
+		if r := ravi.command(t, "acc", &clientv1.PartyRespond{InviteId: inv.GetInviteId(), Accept: true}); !r.GetOk() {
+			t.Fatalf("accept: %+v", r)
+		}
+		pia.partyState(t, 2)
+		ravi.partyState(t, 2) // the world's copy of the party follows the social service's stream
+		time.Sleep(500 * time.Millisecond)
+		pia.face(true)
+
+		// Pia kills; her drops go in turn, from the first member in join order: Pia, Ravi, Pia...
+		if !pia.huntDrops(90*time.Second, 2) {
+			t.Fatalf("%d drops in 90 s of hunting, want 2", len(pia.seen))
+		}
+		pia.pump(3*time.Second, nil)
+		ravi.pump(time.Second, nil)
+		ids := slices.Sorted(maps.Keys(pia.seen))
+		owned := map[string]int{}
+		for k, id := range ids {
+			want := []string{pia.id, ravi.id}[k%2]
+			if got := pia.seen[id].GetOwnerId(); got != want {
+				t.Fatalf("drop %d of %v is %s's, want %s's: the turn", id, ids, got, want)
+			}
+			owned[want]++
+			for _, l := range ls { // each member on the map hears each one collected, naming its owner
+				if got := l.lootOf(id, clientv1.LootKind_LOOT_KIND_COLLECTED); len(got) != 1 || got[0].GetOwnerId() != want {
+					t.Fatalf("%s heard %v of drop %d, want it collected for %s", l.id, got, id, want)
+				}
+			}
+		}
+		for _, l := range ls {
+			if _, quantity, _ := s.itemTotals(t, l.id, "slime_gel"); quantity != owned[l.id] {
+				t.Fatalf("%s holds %d gel, want the %d drops that were theirs", l.id, quantity, owned[l.id])
+			}
+		}
+
+		// Ravi dies, and respawns in the town: neither dead nor on another map does he get a turn.
+		ravi.dieAmongSlimes(t)
+		before := len(pia.seen)
+		if !pia.huntDrops(90*time.Second, before+2) {
+			t.Fatalf("no new drops in 90 s of hunting after Ravi died")
+		}
+		for _, id := range slices.Sorted(maps.Keys(pia.seen))[before:] {
+			if got := pia.seen[id].GetOwnerId(); got != pia.id {
+				t.Fatalf("drop %d went to %s with Ravi dead or gone", id, got)
+			}
+		}
+		s.checkInvariants(t)
+	})
+
+	t.Run("D1/a-full-inventory-keeps-a-drop-waiting-until-there-is-room-or-its-life-ends", func(t *testing.T) {
+		s := newStackOver(t, gameData(t, slimesDrop(oneCap), lootTimes("1s", "6s", "1s")))
+		token, id := s.createCharacter(t, "sol", "Sol", "warrior")
+		s.place(t, id, "forest", 380, 608, 204, 0)
+		for range 24 {
+			s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+		}
+		l, _ := s.hello(t, token, id)
+		l.face(true)
+		first, ok := l.hunt(90*time.Second, "leather_cap")
+		if !ok {
+			t.Fatal("no cap dropped in 90 s of hunting")
+		}
+		if !l.until(5*time.Second, func() bool { return len(l.lootOf(first.GetId(), clientv1.LootKind_LOOT_KIND_WAITING)) == 1 }) {
+			t.Fatalf("loot %v; want the cap waiting for room", l.loots)
+		}
+		if _, still := l.drops[first.GetId()]; !still || l.inventory != 0 {
+			t.Fatalf("the cap left the ground, or something reached the full Equip tab (%d changes)", l.inventory)
+		}
+
+		// A discard makes room: the waiting cap arrives within a room check.
+		var held string
+		if err := s.db.QueryRow(context.Background(), `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'leather_cap' LIMIT 1`, id).Scan(&held); err != nil {
+			t.Fatal(err)
+		}
+		if r := l.command(t, "d-1", &clientv1.InventoryDiscard{IdempotencyKey: key(), ItemId: held, Quantity: 1}); !r.GetOk() {
+			t.Fatalf("discard: %+v", r)
+		}
+		if !l.until(3*time.Second, func() bool { return l.collected[first.GetId()] }) || len(l.lootOf(first.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) != 1 {
+			t.Fatalf("collected %v, loot %v; want the cap collected once there was room", l.collected, l.loots)
+		}
+
+		// The tab is full again: the next cap waits out its life and is lost, never collected.
+		next, ok := l.hunt(90*time.Second, "leather_cap")
+		if !ok {
+			t.Fatal("no second cap in 90 s of hunting")
+		}
+		if !l.until(10*time.Second, func() bool { return l.removed[next.GetId()] }) {
+			t.Fatalf("the second cap never left the ground (loot %v)", l.loots)
+		}
+		if lost := l.lootOf(next.GetId(), clientv1.LootKind_LOOT_KIND_LOST); len(lost) != 1 || l.collected[next.GetId()] {
+			t.Fatalf("loot %v; want the second cap lost, and not collected", l.loots)
+		}
+		var caps int
+		if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM items WHERE owner_id = $1 AND template_id = 'leather_cap' AND location = 'inventory'`, id).Scan(&caps); err != nil {
+			t.Fatal(err)
+		}
+		if caps != 24 {
+			t.Fatalf("%d caps held, want the 24: one discarded, one collected", caps)
+		}
+		s.checkInvariants(t)
+	})
+
+	t.Run("D1/an-owner-who-takes-a-portal-before-collection-still-gets-the-drop", func(t *testing.T) {
+		s := newStackOver(t, gameData(t, slimesDrop(oneGel), lootTimes("8s", "60s", "2s")))
+		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
+		s.place(t, id, "forest", 300, 608, 204, 0)
+		p, snap := s.join(t, token, id)
+		l := newLooter(p, snap)
+		l.face(true)
+		gel, ok := l.hunt(90*time.Second, "slime_gel")
+		if !ok {
+			t.Fatal("no gel in 90 s of hunting")
+		}
+		l.hop(t, 64, "town", 1216) // the forest's to_town portal, within the 8 s before the gel flies
+		if !l.until(12*time.Second, func() bool { return l.inventory > 0 }) {
+			t.Fatal("no InventoryChanged in the town")
+		}
+		got := l.lootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)
+		if len(got) != 1 || got[0].GetMapId() != "forest" || got[0].GetOwnerId() != id {
+			t.Fatalf("loot %v; want the forest's gel collected for Uma", l.loots)
+		}
+		if _, quantity, _ := s.itemTotals(t, id, "slime_gel"); quantity < 1 {
+			t.Fatal("the gel is not in the inventory")
 		}
 		s.checkInvariants(t)
 	})
@@ -529,18 +726,18 @@ func TestCrashDuringPickups(t *testing.T) {
 		hunters = append(hunters, newLooter(p, snap))
 	}
 	var wg sync.WaitGroup
-	picked, swapped := make([]int, len(hunters)), make([]int, len(hunters))
+	collected, swapped := make([]int, len(hunters)), make([]int, len(hunters))
 	for k, h := range hunters {
 		swap := s.swapper(t, h.id)
-		wg.Go(func() { picked[k] = h.loot(25 * time.Second) })
+		wg.Go(func() { collected[k] = h.farm(25 * time.Second) })
 		wg.Go(func() { swapped[k] = swap(25 * time.Second) })
 	}
-	// Hard-kill the world and the item service while pickups and swaps are in flight; the gateway stays up.
+	// Hard-kill the world and the item service while grants and swaps are in flight; the gateway stays up.
 	time.Sleep(12 * time.Second)
 	worldProc.kill()
 	itemProc.kill()
 	wg.Wait()
-	t.Logf("pickups before the kill: %v; swaps: %v", picked, swapped)
+	t.Logf("inventory changes before the kill: %v; swaps: %v", collected, swapped)
 	s.checkInvariants(t)
 
 	itemProc.start()

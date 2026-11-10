@@ -92,7 +92,7 @@ services:
       migrate:
         condition: service_completed_successfully
 
-  # gRPC on 9003, ops on 9103.
+  # gRPC on 9003, ops on 9103 (published for make bots).
   item:
     restart: unless-stopped
     stop_grace_period: 15s   # shutdown_grace (10s), the last trace flush (2s) and a margin
@@ -103,6 +103,8 @@ services:
         SERVICE: item
         VERSION: ${VERSION:-dev}
     healthcheck: *healthcheck
+    ports:
+      - "127.0.0.1:${FINGA_ITEM_OPS_PORT:-9103}:9103"
     environment:
       <<: [*database, *tracing]
     env_file:

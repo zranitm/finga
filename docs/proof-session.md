@@ -10,17 +10,17 @@ the test clients; the bot that drives the session is `server/cmd/bot`
 
 | # | Criterion | How it is shown | Where |
 |---|-----------|-----------------|-------|
-| 1 | A 30 to 60 minute session with 3 to 4 players: walk, fight, level up, loot, travel, party, chat, no crash, no desync | `make bots` plays 4 bots for 30 minutes: town → forest, hunting in the slime field, pickups, map chat, a party, trips back to the town; the report counts kills, pickups, hops, chat lines, refused commands and reconnects | the session record below |
+| 1 | A 30 to 60 minute session with 3 to 4 players: walk, fight, level up, loot, travel, party, chat, no crash, no desync | `make bots` plays 4 bots for 30 minutes: town → forest, hunting in the slime field, its drops flying to it, map chat, a party, trips back to the town; the report counts kills, items collected, hops, chat lines, refused commands and reconnects, and reads the grant batch sizes and the item service's `AddMany` times | the session record below |
 | 2 | Tick p99 under 25 ms with the session's players on | `finga_tick_duration_seconds` per map, read by the bot at the end from the world service's `/metrics` (its ops port, 9104) and computed the way `histogram_quantile` does | the session record below |
-| 3 | A hard kill of the game server never creates or loses an item | `TestCrashDuringPickups` (server/test/loot_e2e_test.go): every service as its own process, three clients looting concurrently, the world and the item service killed without warning mid-pickup while the gateway keeps the sockets, both restarted, every client joined again, and `itemtest.CheckInvariants` passing before and after the restart (before the split into services it killed the one game server process) | `make test`, in CI |
-| 4 | A double pickup and a retried pickup each give exactly one item | end-to-end rows in server/test/loot_e2e_test.go: two PickUp messages in one tick, the same PickUp re-sent with the same `seq` after ignoring the reply, and the worker's add retried under the drop's key; one item event per drop taken, under distinct drop IDs | `make test`, in CI |
+| 3 | A hard kill of the game server never creates or loses an item | `TestCrashDuringPickups` (server/test/loot_e2e_test.go): every service as its own process, three clients hunting while their drops are collected and their swords swapped, the world and the item service killed without warning mid-grant while the gateway keeps the sockets, both restarted, every client joined again, and `itemtest.CheckInvariants` passing before and after the restart (before the split into services it killed the one game server process) | `make test`, in CI |
+| 4 | A double pickup and a retried pickup each give exactly one item | end-to-end rows in server/test/loot_e2e_test.go: since auto pickup no command takes a drop, so each drop is collected once by its owner, one item event per drop under distinct drop IDs; and a grant retried under the drop's key, regrouped beside a new drop, answers its stored reply and adds nothing | `make test`, in CI |
 
 Before the playtest with people:
 
 - [ ] `make up` from a clean clone, `make smoke` green
 - [ ] four accounts created, one per tester, on the same LAN: each opens `http://<the host's LAN address>:4173`, the client served by nginx under `make up` (same origin, so no CORS setting)
 - [ ] `/metrics` scraped or the bot's report run at the end for the tick p99
-- [ ] the crash test and the pickup rows green on the commit being played (`make test`)
+- [ ] the crash test and the loot rows green on the commit being played (`make test`)
 
 ## Session record
 

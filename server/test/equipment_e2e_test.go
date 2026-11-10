@@ -1,11 +1,8 @@
 package e2e_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -21,24 +18,7 @@ import (
 // capsOnly is a copy of the game data where a green slime drops a leather cap every kill, and nothing else.
 func capsOnly(t *testing.T) string {
 	t.Helper()
-	dir := t.TempDir()
-	if err := os.CopyFS(dir, os.DirFS("../data")); err != nil {
-		t.Fatal(err)
-	}
-	mobs := filepath.Join(dir, "mobs.yaml")
-	b, err := os.ReadFile(mobs)
-	if err != nil {
-		t.Fatal(err)
-	}
-	const slime = "      - {item: slime_gel, chance: 0.6, min: 1, max: 2}\n      - {item: red_potion, chance: 0.15, min: 1, max: 1}\n"
-	if !bytes.Contains(b, []byte(slime)) {
-		t.Fatal("mobs.yaml no longer lists the green slime's drops as this test rewrites them")
-	}
-	b = bytes.Replace(b, []byte(slime), []byte("      - {item: leather_cap, chance: 1, min: 1, max: 1}\n"), 1)
-	if err := os.WriteFile(mobs, b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return dir
+	return gameData(t, slimesDrop(oneCap))
 }
 
 // actor is the character as the item service names who acts.

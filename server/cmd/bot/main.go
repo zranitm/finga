@@ -32,15 +32,16 @@ func main() {
 	n := flag.Int("bots", 4, "how many bots")
 	duration := flag.Duration("duration", 30*time.Minute, "how long they play")
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
-	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick metrics are")
+	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick and grant batch metrics are")
+	itemMetrics := flag.String("item-metrics", "http://localhost:9103", "the item service's ops address, where the transaction times are")
 	flag.Parse()
-	if err := run(*url, *metrics, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *itemMetrics, *n, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url, metrics string, n int, duration time.Duration, prefix string) error {
+func run(url, metrics, itemMetrics string, n int, duration time.Duration, prefix string) error {
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -67,7 +68,7 @@ func run(url, metrics string, n int, duration time.Duration, prefix string) erro
 	}
 	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
 		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
-	return report(metrics, url)
+	return report(metrics, itemMetrics, url)
 }
 
 type stats struct {
@@ -441,11 +442,8 @@ func report(urls ...string) error {
 		}
 		raw = append(append(raw, body...), '\n')
 	}
-	type hist struct {
-		buckets map[float64]float64 // le → cumulative count
-		count   float64
-	}
 	byMap := map[string]*hist{}
+	batches, grants := newHist(), newHist() // drops per grant call; the item service's AddMany transactions
 	overruns := map[string]float64{}
 	online := ""
 	for line := range strings.SplitSeq(string(raw), "\n") {
@@ -454,11 +452,10 @@ func report(urls ...string) error {
 			labels, value := parseLine(line)
 			h := byMap[labels["map"]]
 			if h == nil {
-				h = &hist{buckets: map[float64]float64{}}
+				h = newHist()
 				byMap[labels["map"]] = h
 			}
-			le, _ := strconv.ParseFloat(labels["le"], 64)
-			h.buckets[le] = value
+			h.bucket(labels, value)
 		case strings.HasPrefix(line, "finga_tick_duration_seconds_count"):
 			labels, value := parseLine(line)
 			if h := byMap[labels["map"]]; h != nil {
@@ -467,6 +464,16 @@ func report(urls ...string) error {
 		case strings.HasPrefix(line, "finga_tick_overruns_total"):
 			labels, value := parseLine(line)
 			overruns[labels["map"]] = value
+		case strings.HasPrefix(line, "finga_item_calls_batch_size_bucket"):
+			batches.bucket(parseLine(line))
+		case strings.HasPrefix(line, "finga_item_calls_batch_size_count"):
+			_, batches.count = parseLine(line)
+		case strings.HasPrefix(line, "finga_item_calls_batch_size_sum"):
+			_, batches.sum = parseLine(line)
+		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_bucket{operation="AddMany"`):
+			grants.bucket(parseLine(line))
+		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_count{operation="AddMany"`):
+			_, grants.count = parseLine(line)
 		case strings.HasPrefix(line, "finga_players_online "):
 			online = strings.TrimSpace(strings.TrimPrefix(line, "finga_players_online")) // the last page's: the gateway's
 		}
@@ -474,7 +481,7 @@ func report(urls ...string) error {
 	if online != "" {
 		fmt.Printf("finga_players_online %s\n", online)
 	}
-	all := &hist{buckets: map[float64]float64{}}
+	all := newHist()
 	names := make([]string, 0, len(byMap))
 	for name, h := range byMap {
 		names = append(names, name)
@@ -485,42 +492,86 @@ func report(urls ...string) error {
 	}
 	sort.Strings(names)
 	line := func(name string, h *hist) {
-		fmt.Printf("%-8s ticks %8.0f  p50 %s  p99 %s  overruns %.0f\n", name, h.count, percentile(h.buckets, h.count, 0.50), percentile(h.buckets, h.count, 0.99), overruns[name])
+		fmt.Printf("%-8s ticks %8.0f  p50 %s  p99 %s  overruns %.0f\n", name, h.count, percentile(h, 0.50), percentile(h, 0.99), overruns[name])
 	}
 	for _, name := range names {
 		line(name, byMap[name])
 	}
 	line("all", all)
+	if batches.count > 0 {
+		fmt.Printf("\ngrant calls %.0f  drops per call: mean %.2f  p50 %s  p95 %s  max bucket %s\n", batches.count, batches.sum/batches.count,
+			drops(batches.quantile(0.50)), drops(batches.quantile(0.95)), drops(batches.quantile(1)))
+	}
+	if grants.count > 0 {
+		fmt.Printf("item AddMany transactions %.0f  p50 %s  p99 %s\n", grants.count, percentile(grants, 0.50), percentile(grants, 0.99))
+	}
 	return nil
 }
 
-// percentile interpolates within the bucket that crosses the rank, as histogram_quantile does.
-func percentile(buckets map[float64]float64, count float64, q float64) string {
-	if count == 0 {
-		return "n/a"
+// hist is a Prometheus histogram as /metrics shows it.
+type hist struct {
+	buckets map[float64]float64 // le → cumulative count
+	count   float64
+	sum     float64
+}
+
+func newHist() *hist { return &hist{buckets: map[float64]float64{}} }
+
+func (h *hist) bucket(labels map[string]string, value float64) {
+	le, _ := strconv.ParseFloat(labels["le"], 64)
+	h.buckets[le] += value
+}
+
+// quantile interpolates within the bucket that crosses the rank, as histogram_quantile does; over is a rank past the last finite bound, which v then is.
+func (h *hist) quantile(q float64) (v, bound float64, over, ok bool) {
+	if h.count == 0 {
+		return 0, 0, false, false
 	}
-	les := make([]float64, 0, len(buckets))
-	for le := range buckets {
+	les := make([]float64, 0, len(h.buckets))
+	for le := range h.buckets {
 		les = append(les, le)
 	}
 	sort.Float64s(les)
-	rank := q * count
+	rank := q * h.count
 	prevLE, prevCount := 0.0, 0.0
 	for _, le := range les {
-		c := buckets[le]
+		c := h.buckets[le]
 		if c >= rank {
 			if math.IsInf(le, 1) {
-				return fmt.Sprintf("> %.1f ms", prevLE*1000)
+				return prevLE, prevLE, true, true
 			}
 			frac := 0.0
 			if c > prevCount {
 				frac = (rank - prevCount) / (c - prevCount)
 			}
-			return fmt.Sprintf("%.2f ms (bucket ≤ %.0f ms)", (prevLE+(le-prevLE)*frac)*1000, le*1000)
+			return prevLE + (le-prevLE)*frac, le, false, true
 		}
 		prevLE, prevCount = le, c
 	}
-	return "n/a"
+	return 0, 0, false, false
+}
+
+// percentile is a quantile of seconds, in milliseconds.
+func percentile(h *hist, q float64) string {
+	v, bound, over, ok := h.quantile(q)
+	switch {
+	case !ok:
+		return "n/a"
+	case over:
+		return fmt.Sprintf("> %.1f ms", v*1000)
+	}
+	return fmt.Sprintf("%.2f ms (bucket ≤ %.0f ms)", v*1000, bound*1000)
+}
+
+// drops is a quantile of drops per call.
+func drops(v, bound float64, over, ok bool) string {
+	switch {
+	case !ok:
+		return "n/a"
+	case over:
+		return fmt.Sprintf("> %.0f", v)
+	}
+	return fmt.Sprintf("%.1f (bucket ≤ %.0f)", v, bound)
 }
 
 func parseLine(line string) (map[string]string, float64) {

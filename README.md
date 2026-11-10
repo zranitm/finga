@@ -70,7 +70,7 @@ same three on its ops port:
 | gateway         |      | 8080: /api, /ws; 9100                       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_GATEWAY_OPS_PORT`) |
 | account         | 9001 | 9101                                        |                                                                                        |
 | character       | 9002 | 9102                                        |                                                                                        |
-| item            | 9003 | 9103                                        |                                                                                        |
+| item            | 9003 | 9103                                        | 9103 (`FINGA_ITEM_OPS_PORT`), for `make bots`                                          |
 | world           | 9004 | 9104                                        | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots`                                         |
 | social          | 9005 | 9105                                        |                                                                                        |
 | Postgres        |      | 5432                                        | 5432 (`FINGA_POSTGRES_PORT`)                                                           |
