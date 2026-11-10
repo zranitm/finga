@@ -6,10 +6,17 @@ import { describe, expect, it } from 'vitest';
 import { tickTiming } from '@/lib/fixed-step';
 import type { Input } from '@/sim/input';
 import { parseMap } from '@/sim/map';
-import { NO_PLATFORM, params, standing, step } from '@/sim/step';
+import { NO_PLATFORM, faster, params, standing, step } from '@/sim/step';
 import type { State } from '@/sim/step';
 
-import { HISTORY_MS, Predictor, fromWire, platformUnder, wireState } from './prediction';
+import {
+  HISTORY_MS,
+  Predictor,
+  fromWire,
+  movementParams,
+  platformUnder,
+  wireState,
+} from './prediction';
 import type { WireState } from './prediction';
 
 const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -215,6 +222,32 @@ describe('Predictor', () => {
       pred.subStep();
     }
     expect(pred.state).toEqual(simulate(start, [R])[0]);
+  });
+});
+
+describe('move speed', () => {
+  it('speeds a hunting map’s movement by 1 + move speed in thousandths, and leaves a town’s alone', () => {
+    expect(movementParams('town', 0.3)).toBe(params);
+    expect(movementParams('hunting', 0)).toBe(params);
+    const p = movementParams('hunting', 0.0072);
+    expect(p).toEqual(faster(params, 1.007));
+    expect(p.walk_speed).toBeCloseTo(params.walk_speed * 1.007, 9);
+  });
+
+  it('the predictor walks at the new pace from the step after setParams', () => {
+    const fast = movementParams('hunting', 0.3);
+    const pred = new Predictor(g, TIMING);
+    pred.reset(wire(start));
+    run(pred, [R]);
+    const before = pred.state;
+    pred.setParams(fast);
+    run(pred, [R, R], 2);
+    let s = before;
+    for (let k = 0; k < STEPS * 2; k++) {
+      s = step(s, R, g, fast);
+    }
+    expect(pred.state).toEqual(s);
+    expect(pred.state.x - before.x).toBeGreaterThan(simulate(before, [R, R]).at(-1)!.x - before.x);
   });
 });
 

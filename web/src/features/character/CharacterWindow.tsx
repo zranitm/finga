@@ -1,19 +1,34 @@
-// Shows only what the server sent: the sheet is the numbers combat uses, and InventoryChanged moves what is worn.
+// The sheet is the server's, the numbers combat uses; only a staged point's preview is worked out here.
+import { useState } from 'react';
 import type { DragEvent } from 'react';
 
 import { Button } from '@/components/Button';
+import { Modal } from '@/components/Modal';
 import { carried, carry } from '@/features/shared/drag';
 import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
-import { initials, itemName, starClass } from '@/features/shared/items';
+import { initials, itemName, starClass, templateOf } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
 import type { GameSocket } from '@/net/socket';
-import type { CharacterView, DerivedStats, Stats } from '@/protocol/messages';
+import {
+  activeRoll,
+  addStats,
+  meets,
+  noPoints,
+  primaryKeys,
+  sheetOf,
+  total,
+} from '@/progression/stats';
+import type { DerivedKey, Primary, Sheet } from '@/progression/stats';
+import type { CharacterView, StatSheet } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
-import type { EquipSlotId } from '@/state/inventory';
+import type { EquipSlotId, Equipment } from '@/state/inventory';
+
+import { usePoints } from './usePoints';
+import type { Points } from './usePoints';
 
 export interface CharacterWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -37,49 +52,204 @@ function num(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-interface Row {
+type Show = (n: number) => string;
+const percent: Show = (n) => `${num(n * 100)}%`;
+const perSecond: Show = (n) => `${num(n)}/s`;
+
+interface DerivedRow {
+  readonly key: DerivedKey;
   readonly name: string;
-  readonly total: string;
-  /** The equipment's part, shown only when it adds something. */
-  readonly worn: string | null;
+  readonly show: Show;
 }
 
-function row(name: string, total: number, worn: number, show: (n: number) => string): Row {
-  return { name, total: show(total), worn: show(worn) === show(0) ? null : show(worn) };
-}
-
-const percent = (n: number) => `${num(n * 100)}%`;
-
-const primaryRows = (total: Stats | undefined, worn: Stats | undefined): Row[] =>
-  (['str', 'dex', 'int', 'agi', 'vit'] as const).map((k) =>
-    row(k.toUpperCase(), total?.[k] ?? 0, worn?.[k] ?? 0, num),
-  );
-
-const derivedRows = (total: DerivedStats | undefined, worn: DerivedStats | undefined): Row[] => [
-  row('Attack', total?.physicalAttack ?? 0, worn?.physicalAttack ?? 0, num),
-  row('Defense', total?.physicalDefense ?? 0, worn?.physicalDefense ?? 0, num),
-  row('Accuracy', total?.accuracy ?? 0, worn?.accuracy ?? 0, num),
-  row('Evasion', total?.evasion ?? 0, worn?.evasion ?? 0, num),
-  row('Crit rate', total?.critRate ?? 0, worn?.critRate ?? 0, percent),
-  row('Crit damage', total?.critDamage ?? 0, worn?.critDamage ?? 0, percent),
+// The sixteen in the four groups of Systems → Progression.
+const groups: readonly { readonly name: string; readonly rows: readonly DerivedRow[] }[] = [
+  {
+    name: 'Offense',
+    rows: [
+      { key: 'physicalAttack', name: 'Physical attack', show: num },
+      { key: 'magicAttack', name: 'Magic attack', show: num },
+      { key: 'accuracy', name: 'Accuracy', show: num },
+      { key: 'critRate', name: 'Crit rate', show: percent },
+      { key: 'critDamage', name: 'Crit damage', show: percent },
+      { key: 'penetration', name: 'Penetration', show: percent },
+    ],
+  },
+  {
+    name: 'Defense',
+    rows: [
+      { key: 'maxHp', name: 'Max HP', show: num },
+      { key: 'physicalDefense', name: 'Physical defense', show: num },
+      { key: 'magicDefense', name: 'Magic defense', show: num },
+      { key: 'evasion', name: 'Evasion', show: num },
+      { key: 'hpRegen', name: 'HP regen', show: perSecond },
+    ],
+  },
+  {
+    name: 'Resources',
+    rows: [
+      { key: 'maxMp', name: 'Max MP', show: num },
+      { key: 'mpRegen', name: 'MP regen', show: perSecond },
+    ],
+  },
+  {
+    name: 'Speed',
+    rows: [
+      { key: 'attackSpeed', name: 'Attack speed', show: percent },
+      { key: 'cooldownSpeed', name: 'Cooldown speed', show: percent },
+      { key: 'moveSpeed', name: 'Move speed (combat maps)', show: percent },
+    ],
+  },
 ];
 
-function StatTable({ label, rows }: { readonly label: string; readonly rows: readonly Row[] }) {
+/** The equipment's part, shown only when it adds something. */
+function Worn({ show, by }: { readonly show: Show; readonly by: number }) {
+  return show(by) === show(0) ? null : <span className="stat-worn"> (+{show(by)})</span>;
+}
+
+function DerivedTable({
+  group,
+  sheet,
+  preview,
+}: {
+  readonly group: (typeof groups)[number];
+  readonly sheet: StatSheet | undefined;
+  readonly preview: Sheet | null;
+}) {
   return (
-    <table className="character-stats" aria-label={label}>
+    <table className="character-stats" aria-label={group.name}>
+      <caption>{group.name}</caption>
       <tbody>
-        {rows.map((r) => (
-          <tr key={r.name}>
-            <th scope="row">{r.name}</th>
+        {group.rows.map(({ key, name, show }) => {
+          const now = show(sheet?.derived?.[key] ?? 0);
+          const then = preview ? show(preview.derived[key]) : now;
+          return (
+            <tr key={key}>
+              <th scope="row">{name}</th>
+              <td>
+                {now}
+                <Worn show={show} by={sheet?.derivedWorn?.[key] ?? 0} />
+                {then !== now && <span className="stat-preview"> → {then}</span>}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function PrimaryTable({
+  sheet,
+  points,
+}: {
+  readonly sheet: StatSheet | undefined;
+  readonly points: Points;
+}) {
+  return (
+    <table className="character-stats" aria-label="Primary stats">
+      <tbody>
+        {primaryKeys.map((k) => (
+          <tr key={k}>
+            <th scope="row">{k.toUpperCase()}</th>
             <td>
-              {r.total}
-              {r.worn !== null && <span className="stat-worn"> (+{r.worn})</span>}
+              {sheet?.primary?.[k] ?? 0}
+              <Worn show={num} by={sheet?.primaryWorn?.[k] ?? 0} />
+              {points.staged[k] > 0 && <span className="stat-preview"> +{points.staged[k]}</span>}
+              {points.unspent > 0 && (
+                <button
+                  type="button"
+                  className="stat-plus"
+                  aria-label={`Add a point to ${k.toUpperCase()}`}
+                  disabled={points.left === 0 || points.busy}
+                  onClick={() => points.stage(k)}
+                >
+                  +
+                </button>
+              )}
             </td>
           </tr>
         ))}
       </tbody>
     </table>
   );
+}
+
+function PointsBar({ points, onReset }: { readonly points: Points; readonly onReset: () => void }) {
+  const staged = total(points.staged) > 0;
+  return (
+    <div className="character-points" role="group" aria-label="Stat points">
+      <span className="character-points-left">
+        {points.unspent > 0 ? `Points: ${points.left}` : 'No points to spend'}
+      </span>
+      {staged && (
+        <>
+          <Button variant="quiet" disabled={points.busy} onClick={points.undo}>
+            Undo
+          </Button>
+          <Button disabled={points.busy} onClick={points.apply}>
+            Apply
+          </Button>
+        </>
+      )}
+      {points.unspent > 0 && !staged && (
+        <Button variant="quiet" disabled={points.busy} onClick={points.autoAssign}>
+          Auto-assign
+        </Button>
+      )}
+      <Button
+        variant="quiet"
+        disabled={points.busy || points.spent === 0 || !points.freeResetLeft}
+        title={points.freeResetLeft ? 'One free reset left' : 'The free reset is used'}
+        onClick={onReset}
+      >
+        Reset
+      </Button>
+    </div>
+  );
+}
+
+function ConfirmReset({
+  spent,
+  onReset,
+  onClose,
+}: {
+  readonly spent: number;
+  readonly onReset: () => void;
+  readonly onClose: () => void;
+}) {
+  return (
+    <Modal title="Reset stat points" onClose={onClose}>
+      <p>
+        All {spent} spent points go back to unspent. This uses your one free reset; later resets
+        will cost.
+      </p>
+      <Button variant="danger" onClick={onReset}>
+        Reset
+      </Button>
+      <Button variant="quiet" onClick={onClose}>
+        Cancel
+      </Button>
+    </Modal>
+  );
+}
+
+/** What the worn items give, with each template's requirements. */
+function wornItems(equipment: Equipment) {
+  return equipSlots.flatMap((s) => {
+    const item = equipment[s.id];
+    const t = item ? templateOf(item.template) : undefined;
+    return item && t ? [{ slot: s.id, template: t, roll: item.stats ?? {} }] : [];
+  });
+}
+
+/** The sheet the staged points would make, the gear they would switch on included; null with nothing staged. */
+function previewSheet(c: CharacterView, equipment: Equipment, staged: Primary): Sheet | null {
+  if (total(staged) === 0) {
+    return null;
+  }
+  const own = addStats(c.stats ?? noPoints, staged);
+  return sheetOf(c.class, c.level, own, activeRoll(wornItems(equipment), c.level, c.class, own));
 }
 
 function Vitals({
@@ -111,6 +281,15 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
   const equipment = inventory.use((s) => s.equipment);
   const { pending, notice, run, retry } = useItemRequests();
   const hover = useItemHover<EquipSlotId>();
+  const points = usePoints(socket);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const inactive = new Set(
+    c
+      ? wornItems(equipment)
+          .filter((w) => !meets(w.template, c.level, c.class, c.stats ?? noPoints))
+          .map((w) => w.slot)
+      : [],
+  );
 
   const unequip = (slot: EquipSlotId) => {
     if (equipment[slot] && !pending.has(slot)) {
@@ -137,9 +316,13 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
       <button
         key={slot.id}
         type="button"
-        aria-label={item ? `${label}: ${itemName(item.template)}` : `${label}, empty`}
+        aria-label={
+          item
+            ? `${label}: ${itemName(item.template)}${inactive.has(slot.id) ? ', inactive' : ''}`
+            : `${label}, empty`
+        }
         aria-busy={p !== undefined}
-        className={`slot equip-slot${item ? ` slot-equip ${starClass(item.template)}` : ''}${p ? ' slot-pending' : ''}`}
+        className={`slot equip-slot${item ? ` slot-equip ${starClass(item.template)}` : ''}${p ? ' slot-pending' : ''}${inactive.has(slot.id) ? ' slot-inactive' : ''}`}
         draggable={item !== null && p === undefined}
         {...hover.bind(slot.id, item, false)}
         onDragStart={(e) => {
@@ -165,6 +348,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
 
   const retryable = [...pending.entries()].find(([, p]) => p.retryable);
   const sheet = c?.sheet;
+  const preview = c ? previewSheet(c, equipment, points.staged) : null;
   return (
     <WorldWindow name="character" title="Character" onClose={onClose} initialX={24} initialY={80}>
       {c && (
@@ -181,15 +365,14 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
             <div className="character-figure" aria-hidden="true" />
             <div className="equip-column">{right.map(slotButton)}</div>
           </div>
+          <PointsBar points={points} onReset={() => setConfirmingReset(true)} />
           <div className="character-stat-tables">
-            <StatTable
-              label="Primary stats"
-              rows={primaryRows(sheet?.primary ?? c.stats, sheet?.primaryWorn)}
-            />
-            <StatTable
-              label="Derived stats"
-              rows={derivedRows(sheet?.derived, sheet?.derivedWorn)}
-            />
+            <PrimaryTable sheet={sheet} points={points} />
+            <div className="character-derived">
+              {groups.map((g) => (
+                <DerivedTable key={g.name} group={g} sheet={sheet} preview={preview} />
+              ))}
+            </div>
           </div>
           {retryable && (
             <div className="inventory-detail">
@@ -199,10 +382,20 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
               </Button>
             </div>
           )}
-          {notice && (
+          {(notice ?? points.notice) && (
             <p className="error" role="alert">
-              {notice}
+              {notice ?? points.notice}
             </p>
+          )}
+          {confirmingReset && (
+            <ConfirmReset
+              spent={points.spent}
+              onClose={() => setConfirmingReset(false)}
+              onReset={() => {
+                setConfirmingReset(false);
+                points.reset();
+              }}
+            />
           )}
         </div>
       )}

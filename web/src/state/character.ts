@@ -1,6 +1,10 @@
 // Per-tick positions never come through here; HP arrives only when it changes.
+import { create } from '@bufbuild/protobuf';
+
 import { expCurve } from '@/gamedata/exp-curve';
-import type { CharacterView, Data } from '@/protocol/messages';
+import { primaryKeys } from '@/progression/stats';
+import { StatsSchema } from '@/protocol/messages';
+import type { CharacterView, Data, StatSheet, Stats } from '@/protocol/messages';
 
 import { defineStore } from './store';
 
@@ -13,7 +17,7 @@ export interface CharacterState {
   readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
   applyWelcome(d: Data<'welcome'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
-  /** What the character wears changed: a new sheet, maxima, and the HP and MP the server clamped to them. */
+  /** The stats, gear or points changed: a new sheet, the own stats under it, maxima, and the HP and MP the server clamped to them. */
   applyStatsChanged(d: Data<'statsChanged'>): void;
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
@@ -28,6 +32,16 @@ export function expToNextLevel(level: number): number | null {
   }
   const entry = expCurve.exp_to_next.find((e) => e.level === level);
   return entry ? entry.exp : null;
+}
+
+/** The character's own stats, as requirements read them: the sheet's totals less what the gear adds. */
+export function ownStats(sheet: StatSheet): Stats {
+  return create(
+    StatsSchema,
+    Object.fromEntries(
+      primaryKeys.map((k) => [k, (sheet.primary?.[k] ?? 0) - (sheet.primaryWorn?.[k] ?? 0)]),
+    ),
+  );
 }
 
 export const character = defineStore<CharacterState>((set, get) => ({
@@ -48,7 +62,15 @@ export const character = defineStore<CharacterState>((set, get) => ({
     const c = get().character;
     if (c) {
       set({
-        character: { ...c, sheet: d.sheet, hp: d.hp, maxHp: d.maxHp, mp: d.mp, maxMp: d.maxMp },
+        character: {
+          ...c,
+          sheet: d.sheet,
+          stats: d.sheet ? ownStats(d.sheet) : c.stats,
+          hp: d.hp,
+          maxHp: d.maxHp,
+          mp: d.mp,
+          maxMp: d.maxMp,
+        },
       });
     }
   },

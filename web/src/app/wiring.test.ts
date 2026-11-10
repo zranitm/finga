@@ -10,6 +10,7 @@ import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { session } from '@/state/session';
+import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
@@ -293,6 +294,50 @@ describe('wiring', () => {
     ws.push('loot', d);
     expect(toasts.getState().toasts.map((t) => t.text)).toEqual(text);
     expect(toasts.getState().toasts.every((t) => t.kind === 'info')).toBe(true);
+  });
+
+  describe('auto-assign', () => {
+    const levelUp = (unspent: number) => ({
+      character: { ...ayla, level: 3, exp: 0n, sheet: { points: { unspent } } },
+    });
+    const spends = (ws: FakeWebSocket) => ws.frames().filter((f) => f.t === 'spendPoints');
+
+    it('with the setting on, a level-up spends every unspent point by the class’s split', async () => {
+      settings.getState().setAutoAssignPoints(true);
+      const { ws } = await connectedSocket();
+      ws.push('levelUp', levelUp(10));
+      const sent = spends(ws);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.d).toMatchObject({
+        expectedUnspent: 10,
+        points: { str: 6, dex: 0, int: 0, agi: 0, vit: 4 },
+      });
+    });
+
+    it('with the setting off, or nothing unspent, a level-up sends nothing', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('levelUp', levelUp(5));
+      settings.getState().setAutoAssignPoints(true);
+      ws.push('levelUp', levelUp(0));
+      expect(spends(ws)).toEqual([]);
+    });
+
+    it('points_changed is a later level-up’s to spend; another refusal says so', async () => {
+      settings.getState().setAutoAssignPoints(true);
+      const { ws } = await connectedSocket();
+      ws.push('levelUp', levelUp(5));
+      ws.push('response', { ok: false, code: 'points_changed' }, { req: spends(ws)[0]?.req ?? '' });
+      ws.push('levelUp', levelUp(10));
+      ws.push(
+        'response',
+        { ok: false, code: 'unavailable', message: 'the world is busy' },
+        { req: spends(ws)[1]?.req ?? '' },
+      );
+      await vi.runOnlyPendingTimersAsync();
+      expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+        'Could not auto-assign your points: the world is busy',
+      ]);
+    });
   });
 
   it('a Response with no request ID that is ok shows nothing', async () => {

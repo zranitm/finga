@@ -3,6 +3,7 @@ import { itemStats } from '@/components/item-stats';
 import type { StatKey } from '@/components/item-stats';
 import type { ItemTemplate, Unmet } from '@/components/ItemCard';
 import { equipSlots } from '@/gamedata/equip-slots';
+import { statsShort } from '@/progression/stats';
 import type { CharacterView, ItemStats } from '@/protocol/messages';
 import type { EquipSlotId, Equipment } from '@/state/inventory';
 
@@ -27,13 +28,14 @@ export function changes(
   return out;
 }
 
-/** The requirements the character misses; nothing without a character. */
+/** The requirements the character misses, stats against its own; nothing without a character. */
 export function unmet(t: ItemTemplate, c: CharacterView | null): Unmet {
   if (c === null) {
-    return { level: false, class: false };
+    return { level: false, class: false, stats: [] };
   }
   return {
     level: c.level < (t.min_level ?? 0),
     class: t.class !== undefined && t.class !== c.class,
+    stats: c.stats ? statsShort(t, c.stats) : [],
   };
 }

@@ -1,8 +1,10 @@
 import { create } from '@bufbuild/protobuf';
 import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  StatsChangedSchema,
   ExpGainedSchema,
   LevelUpSchema,
   LootKind,
@@ -12,6 +14,7 @@ import {
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 
 import { ConnectionNotice } from './ConnectionNotice';
@@ -35,6 +38,31 @@ const gained = (amount: bigint, exp: bigint) => create(ExpGainedSchema, { amount
 describe('Hud', () => {
   beforeEach(() => {
     resetStores();
+  });
+
+  it('a badge counts the unspent stat points and opens the character window', async () => {
+    character.getState().applyWelcome(welcome);
+    render(<Hud />);
+    expect(screen.queryByRole('button', { name: /stat point/ })).toBeNull();
+    const points = (unspent: number) =>
+      act(() =>
+        character.getState().applyStatsChanged(
+          create(StatsChangedSchema, {
+            sheet: { points: { unspent } },
+            hp: 150,
+            maxHp: 204,
+            mp: 20,
+            maxMp: 28,
+          }),
+        ),
+      );
+    points(1);
+    expect(screen.getByRole('button', { name: '1 stat point' })).toBeInTheDocument();
+    points(5);
+    await userEvent.click(screen.getByRole('button', { name: '5 stat points' }));
+    expect(ui.getState().windows).toContain('character');
+    points(0);
+    expect(screen.queryByRole('button', { name: /stat point/ })).toBeNull();
   });
 
   it('shows nothing before a character arrives', () => {

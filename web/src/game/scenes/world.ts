@@ -26,7 +26,7 @@ import {
   DamageNumbers,
   InvulnFlash,
   MobTracker,
-  classCooldownMs,
+  attackCooldownTicks,
   numberFor,
   parseRef,
 } from '../systems/combat-view';
@@ -38,7 +38,7 @@ import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { PortalSystem, standsIn } from '../systems/portals';
-import { Predictor, wireState } from '../systems/prediction';
+import { Predictor, movementParams, wireState } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
 
@@ -218,15 +218,35 @@ export class World extends Phaser.Scene {
 
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
     this.socket = socket;
-    this.predictor = new Predictor(view.geometry, this.timing);
+    const sheet = () => character.getState().character?.sheet;
+    this.predictor = new Predictor(
+      view.geometry,
+      this.timing,
+      movementParams(view.kind, sheet()?.derived?.moveSpeed ?? 0),
+    );
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.drops.clear();
     this.numbers.clear();
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
-    this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), this.timing.tickMs, () =>
-      socket.sendAction('attack'),
+    this.attackGate = new AttackGate(
+      attackCooldownTicks(sheet(), this.entry.cls, this.timing.tickMs),
+      this.timing.tickMs,
+      () => socket.sendAction('attack'),
+    );
+    // Gear, points and level-ups change the pace; StatsChanged and LevelUp bring the new sheet.
+    this.offs.push(
+      character.subscribe((now, before) => {
+        const next = now.character?.sheet;
+        if (next === before.character?.sheet) {
+          return;
+        }
+        this.attackGate?.setCooldownTicks(
+          attackCooldownTicks(next, this.entry.cls, this.timing.tickMs),
+        );
+        this.predictor?.setParams(movementParams(view.kind, next?.derived?.moveSpeed ?? 0));
+      }),
     );
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;

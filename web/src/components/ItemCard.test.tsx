@@ -31,17 +31,17 @@ describe('ItemCard', () => {
     expect(within(card).getByLabelText('2 stars')).toHaveTextContent('★★');
     expect(card).toHaveTextContent('★★ Weapon');
     expect(lines('Requirements')).toEqual(['Level 8', 'Warrior']);
-    expect(lines('Stats')).toEqual(['Attack 18 (16–20)']);
+    expect(lines('Stats')).toEqual(['Physical attack 18 (16–20)']);
     expect(card).toHaveTextContent('A plain blade that holds an edge.');
     expect(card).not.toHaveTextContent('Quantity');
   });
 
-  it('marks in red each requirement the character misses', () => {
+  it('marks in red each requirement the character misses, stat minimums included', () => {
     render(
       <ItemCard
-        template={template('hunting_bow')}
+        template={{ ...template('hunting_bow'), requires: { dex: 20, agi: 12 } }}
         view={view('i-1', 'hunting_bow', { physicalAttack: 15 })}
-        unmet={{ level: true, class: true }}
+        unmet={{ level: true, class: true, stats: ['dex'] }}
       />,
     );
     const reqs = within(screen.getByRole('list', { name: 'Requirements' })).getAllByRole(
@@ -50,6 +50,8 @@ describe('ItemCard', () => {
     expect(reqs.map((r) => [r.textContent, r.className])).toEqual([
       ['Level 8', 'unmet'],
       ['Bowman', 'unmet'],
+      ['DEX 20', 'unmet'],
+      ['AGI 12', ''],
     ]);
   });
 
@@ -61,7 +63,7 @@ describe('ItemCard', () => {
         changes={{ physicalDefense: 1, maxHp: -30 }}
       />,
     );
-    expect(lines('Stats')).toEqual(['Defense 4 (3–4) +1', 'Max HP −30']);
+    expect(lines('Stats')).toEqual(['Physical defense 4 (3–4) +1', 'Max HP −30']);
     expect(screen.getByText('+1', { exact: false })).toHaveClass('stat-gain');
     expect(screen.getByText('−30', { exact: false })).toHaveClass('stat-loss');
   });
@@ -85,8 +87,42 @@ describe('ItemCard', () => {
       />,
     );
     expect(screen.getByRole('group', { name: 'Opal Ring' })).toHaveTextContent('★★★★ Ring');
-    expect(lines('Stats')).toEqual(['Crit rate 1% (0.5%–1.5%) +0.5%', 'Max MP 0 (0–20)']);
+    expect(lines('Stats')).toEqual(['Max MP 0 (0–20)', 'Crit rate 1% (0.5%–1.5%) +0.5%']);
     expect(lines('Requirements')).toEqual(['Level 10']);
+  });
+
+  it('lists the new stats in their units: regen a point a second, speeds and penetration in percent', () => {
+    const boots: ItemTemplate = {
+      id: 'swift_boots',
+      name: 'Swift Boots',
+      tab: 'equip',
+      slot: 'shoes',
+      stars: 3,
+      description: '',
+      stats: {
+        magic_defense: [1, 3],
+        penetration: [0, 50],
+        hp_regen: [1, 5],
+        move_speed: [10, 30],
+      },
+    };
+    render(
+      <ItemCard
+        template={boots}
+        view={view('i-1', 'swift_boots', {
+          magicDefense: 2,
+          penetration: 25,
+          hpRegen: 5,
+          moveSpeed: 20,
+        })}
+      />,
+    );
+    expect(lines('Stats')).toEqual([
+      'Magic defense 2 (1–3)',
+      'Penetration 2.5% (0%–5%)',
+      'HP regen 0.5/s (0.1/s–0.5/s)',
+      'Move speed 2% (1%–3%)',
+    ]);
   });
 
   it('shows a Use item’s effect and a stack’s quantity, an Etc item its tab, and neither any requirements', () => {

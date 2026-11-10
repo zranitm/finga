@@ -115,7 +115,9 @@ classes:                   # base values per class; per_level grows them
   - A worn item may become inactive, which is proposal 7 in the product pages.
   - It sends `StatsChanged` and checkpoints.
   - When currency arrives (F1), a paid reset becomes an economic action: the item service charges the wallet under an idempotency key, and the world applies the reset after the charge commits.
-- **Auto-assign runs in the client** (decision 2). When the account setting is on and a `LevelUp` arrives, the client sends `SpendPoints` with its class's split and the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
+- **Auto-assign runs in the client** (decision 2). When the account setting is on and a `LevelUp` arrives, the client spends every unspent point by its class's split, as the Auto-assign button does, with the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
+  - Two `LevelUp`s close together send two requests; the first is refused with `points_changed`, and the second spends everything.
+  - The client reads the settings at login, so the switch is known before the first level-up.
   - The setting lives beside the control preset in the account service: `PUT /api/settings` gains `auto_assign_points`, false by default.
   - The Auto-assign button sends the same request on demand.
 - **Durability:** points, like level and EXP, live in the world and are saved by checkpoint. A world crash between Apply and its checkpoint loses the change, and the points come back unspent. That window is the same one a level-up has today.
@@ -205,6 +207,7 @@ classes:                   # base values per class; per_level grows them
 ## 10. Client
 
 - **gamedata:** the per-point table, diminishing returns, class bases, auto-assign splits, and item requirements.
+- **progression** (`web/src/progression`, a layer beside `sim`): the TypeScript port of `DeriveStats`, the requirement check, and the auto-assign split, replaying `server/testdata/stats`.
 - **sim:** `SpeedFactor` from the sheet in hunting maps; prediction uses it.
 - **game:** the attack gate uses `attack_cooldown_ticks`.
 - **state:** the character store keeps the sheet with its points; a staged-points draft lives in the window.
@@ -214,6 +217,7 @@ classes:                   # base values per class; per_level grows them
   - **Apply** sends `SpendPoints`, and **Undo** clears the draft;
   - the preview runs a TypeScript port of `DeriveStats` over the generated data, checked against the shared stat vectors;
   - **Auto-assign** and **Reset**; Reset asks for confirmation and shows whether the free one is left;
+  - a draft belongs to the unspent count it was staged from: if that count changes (a level-up, or an Apply that landed after its reply was lost), the draft is dropped, so a retried Apply never spends twice;
   - worn items below their requirement are greyed out.
 - **features/settings:** the auto-assign switch.
 - **app/wiring:** on `LevelUp`, when the setting is on, send the split.

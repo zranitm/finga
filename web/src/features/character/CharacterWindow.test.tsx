@@ -1,4 +1,5 @@
 import { create } from '@bufbuild/protobuf';
+import type { MessageInitShape } from '@bufbuild/protobuf';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +12,7 @@ import {
   StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
-import type { Data } from '@/protocol/messages';
+import type { Data, StatSheet, StatSheetSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { dataTransfer } from '@/testing/data-transfer';
@@ -75,7 +76,23 @@ function setup(answers: readonly (Data<'response'> | Error)[] = []) {
   return { calls, onClose };
 }
 
+/** A StatsChanged with the sheet changed as given, the vitals as they were. */
+function stats(change: Exclude<MessageInitShape<typeof StatSheetSchema>, StatSheet>) {
+  character.getState().applyStatsChanged(
+    create(StatsChangedSchema, {
+      sheet: { ...sheet, ...change },
+      hp: 180,
+      maxHp: 204,
+      mp: 28,
+      maxMp: 28,
+    }),
+  );
+}
+
 const slot = (name: string) => screen.getByRole('button', { name });
+const plus = (stat: string) => screen.getByRole('button', { name: `Add a point to ${stat}` });
+const button = (name: string) =>
+  within(screen.getByRole('group', { name: 'Stat points' })).getByRole('button', { name });
 const stat = (table: string, name: string) =>
   within(screen.getByRole('table', { name: table })).getByRole('rowheader', { name }).nextSibling;
 
@@ -119,11 +136,41 @@ describe('CharacterWindow', () => {
     setup();
     expect(stat('Primary stats', 'STR')).toHaveTextContent('13 (+1)');
     expect(stat('Primary stats', 'DEX')).toHaveTextContent(/^5$/);
-    expect(stat('Derived stats', 'Attack')).toHaveTextContent('31.5 (+11.5)');
-    expect(stat('Derived stats', 'Defense')).toHaveTextContent(/^3$/);
-    expect(stat('Derived stats', 'Evasion')).toHaveTextContent(/^8.75$/);
-    expect(stat('Derived stats', 'Crit rate')).toHaveTextContent('6.5% (+1%)');
-    expect(stat('Derived stats', 'Crit damage')).toHaveTextContent(/^150%$/);
+    expect(stat('Offense', 'Physical attack')).toHaveTextContent('31.5 (+11.5)');
+    expect(stat('Defense', 'Physical defense')).toHaveTextContent(/^3$/);
+    expect(stat('Defense', 'Evasion')).toHaveTextContent(/^8.75$/);
+    expect(stat('Offense', 'Crit rate')).toHaveTextContent('6.5% (+1%)');
+    expect(stat('Offense', 'Crit damage')).toHaveTextContent(/^150%$/);
+  });
+
+  it('shows the sixteen derived stats in four groups, in their units', () => {
+    setup();
+    const names = (table: string) =>
+      within(screen.getByRole('table', { name: table }))
+        .getAllByRole('rowheader')
+        .map((th) => th.textContent);
+    expect(names('Offense')).toEqual([
+      'Physical attack',
+      'Magic attack',
+      'Accuracy',
+      'Crit rate',
+      'Crit damage',
+      'Penetration',
+    ]);
+    expect(names('Defense')).toEqual([
+      'Max HP',
+      'Physical defense',
+      'Magic defense',
+      'Evasion',
+      'HP regen',
+    ]);
+    expect(names('Resources')).toEqual(['Max MP', 'MP regen']);
+    expect(names('Speed')).toEqual(['Attack speed', 'Cooldown speed', 'Move speed (combat maps)']);
+    act(() => {
+      stats({ derived: { ...sheet.derived, hpRegen: 0.5, moveSpeed: 0.0123 } });
+    });
+    expect(stat('Defense', 'HP regen')).toHaveTextContent(/^0.5\/s$/);
+    expect(stat('Speed', 'Move speed (combat maps)')).toHaveTextContent(/^1.23%$/);
   });
 
   it('every number follows the server while open: new stats, damage, a level-up', () => {
@@ -143,7 +190,7 @@ describe('CharacterWindow', () => {
         }),
       );
     });
-    expect(stat('Derived stats', 'Defense')).toHaveTextContent('7 (+4)');
+    expect(stat('Defense', 'Physical defense')).toHaveTextContent('7 (+4)');
     expect(screen.getByRole('dialog', { name: 'Character' })).toHaveTextContent('HP180 / 234');
     act(() => {
       character.getState().setVitals(150, 28);
@@ -210,7 +257,7 @@ describe('CharacterWindow', () => {
     setup();
     await userEvent.hover(slot('Weapon: Wooden Sword'));
     expect(screen.getByRole('group', { name: 'Wooden Sword' })).toHaveTextContent(
-      'Attack 10 (10–12)',
+      'Physical attack 10 (10–12)',
     );
     expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
     fireEvent.dragStart(slot('Weapon: Wooden Sword'));
@@ -236,6 +283,129 @@ describe('CharacterWindow', () => {
     await userEvent.unhover(slot('Weapon, empty'));
     unequipped(3n, sword);
     expect(screen.queryByRole('group', { name: 'Wooden Sword' })).toBeNull();
+  });
+
+  it('without points to spend there is no +, Apply or Auto-assign', () => {
+    setup();
+    expect(screen.queryByRole('button', { name: /^Add a point/ })).toBeNull();
+    expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent(
+      'No points to spend',
+    );
+    expect(screen.queryByRole('button', { name: 'Auto-assign' })).toBeNull();
+  });
+
+  it('+ stages points until none are left, previews what they change, and Undo returns them', async () => {
+    setup();
+    act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
+    for (const s of ['STR', 'STR', 'STR', 'VIT', 'VIT']) {
+      await userEvent.click(plus(s));
+    }
+    expect(plus('DEX')).toBeDisabled();
+    expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent('Points: 0');
+    expect(stat('Primary stats', 'STR')).toHaveTextContent('13 (+1) +3');
+    // 15 own STR and the sword's 1: 1.5 × 16 + 0.5 × 5 DEX + the sword's 10; 60 + 2 × 16 + 10 × 12 VIT.
+    expect(stat('Offense', 'Physical attack')).toHaveTextContent('31.5 (+11.5) → 36.5');
+    expect(stat('Defense', 'Max HP')).toHaveTextContent('204 → 212');
+    expect(stat('Offense', 'Accuracy')).not.toHaveTextContent('→');
+    await userEvent.click(button('Undo'));
+    expect(stat('Primary stats', 'STR')).toHaveTextContent(/^13 \(\+1\)\+$/);
+    expect(stat('Offense', 'Physical attack')).not.toHaveTextContent('→');
+    expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent('Points: 5');
+  });
+
+  it('Apply sends the staged points with the unspent count it saw, and clears them once applied', async () => {
+    const { calls } = setup([ok]);
+    act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
+    await userEvent.click(plus('DEX'));
+    await userEvent.click(plus('AGI'));
+    await userEvent.click(button('Apply'));
+    expect(calls).toEqual([
+      {
+        t: 'spendPoints',
+        d: { expectedUnspent: 5, points: { str: 0, dex: 1, int: 0, agi: 1, vit: 0 } },
+      },
+    ]);
+    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
+    expect(stat('Primary stats', 'DEX')).not.toHaveTextContent('+1');
+  });
+
+  it('a points_changed answer means it already landed; another refusal shows its reason', async () => {
+    setup([
+      new RequestError('points_changed', 'your points changed; try again'),
+      new RequestError('not_enough_points', "you don't have that many points"),
+    ]);
+    act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
+    await userEvent.click(plus('INT'));
+    await userEvent.click(button('Apply'));
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
+    await userEvent.click(plus('INT'));
+    await userEvent.click(button('Apply'));
+    expect(await screen.findByRole('alert')).toHaveTextContent("you don't have that many points");
+  });
+
+  it('a draft is void once the unspent count changes, so it is never spent from a stale count', async () => {
+    setup();
+    act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
+    await userEvent.click(plus('STR'));
+    act(() => stats({ points: { unspent: 10, spent: {}, freeResetLeft: true } }));
+    expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
+    expect(screen.getByRole('group', { name: 'Stat points' })).toHaveTextContent('Points: 10');
+  });
+
+  it('Auto-assign spends every unspent point by the class’s split', async () => {
+    const { calls } = setup([ok]);
+    act(() => stats({ points: { unspent: 7, spent: {}, freeResetLeft: true } }));
+    await userEvent.click(button('Auto-assign'));
+    expect(calls).toEqual([
+      {
+        t: 'spendPoints',
+        d: { expectedUnspent: 7, points: { str: 5, dex: 0, int: 0, agi: 0, vit: 2 } },
+      },
+    ]);
+  });
+
+  it('Reset asks first, then sends the count it saw; once the free reset is used it is off', async () => {
+    const { calls } = setup([ok]);
+    act(() => stats({ points: { unspent: 0, spent: { str: 3, vit: 2 }, freeResetLeft: true } }));
+    await userEvent.click(button('Reset'));
+    const ask = screen.getByRole('dialog', { name: 'Reset stat points' });
+    expect(ask).toHaveTextContent('All 5 spent points go back to unspent');
+    await userEvent.click(within(ask).getByRole('button', { name: 'Cancel' }));
+    expect(calls).toHaveLength(0);
+    await userEvent.click(button('Reset'));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Reset stat points' })).getByRole('button', {
+        name: 'Reset',
+      }),
+    );
+    expect(calls).toEqual([{ t: 'resetPoints', d: { expectedUnspent: 0 } }]);
+    act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: false } }));
+    expect(button('Reset')).toBeDisabled();
+    expect(button('Reset')).toHaveAttribute('title', 'The free reset is used');
+  });
+
+  it('a worn item whose requirement is not met is greyed out', () => {
+    act(() => {
+      inventory.getState().applyInventoryChanged(
+        create(InventoryChangedSchema, {
+          revision: 2n,
+          equipment: [
+            {
+              equipSlot: 'weapon',
+              item: {
+                itemId: 'i-bow',
+                template: 'hunting_bow',
+                quantity: 1,
+                stats: { physicalAttack: 15 },
+              },
+            },
+          ],
+        }),
+      );
+    });
+    setup();
+    expect(slot('Weapon: Hunting Bow, inactive')).toHaveClass('slot-inactive');
   });
 
   it('closes with its × button', async () => {

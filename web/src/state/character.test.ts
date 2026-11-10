@@ -137,6 +137,7 @@ describe('character store', () => {
     expect(c).toMatchObject({ hp: 204, maxHp: 234, mp: 28, maxMp: 28, level: 1, exp: 10n });
     expect(c?.sheet?.derivedWorn?.physicalAttack).toBe(11.5);
     expect(c?.sheet?.primary?.str).toBe(13);
+    expect(c?.stats).toMatchObject({ str: 12, dex: 5, int: 4, agi: 5, vit: 10 }); // own: less the gear's STR
     // Unequipping below the current HP: the server lowered it, and the store takes its word.
     character
       .getState()

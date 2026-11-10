@@ -1,7 +1,7 @@
 // The client never computes damage, hit chance or EXP; it shows what the server sent.
 import { classes } from '@/gamedata/classes';
 import { ticksIn } from '@/lib/fixed-step';
-import type { Data } from '@/protocol/messages';
+import type { Data, StatSheet } from '@/protocol/messages';
 
 import { RemoteBuffer } from './interpolation';
 import { wireState } from './prediction';
@@ -183,28 +183,40 @@ export class DamageNumbers {
   }
 }
 
-export function classCooldownMs(cls: string): number {
+function classCooldownMs(cls: string): number {
   return (classes.find((c) => c.id === cls) ?? classes[0]).attack.cooldown_ms;
 }
 
-/** Only stops a held key spamming the server, which enforces the cooldown itself, in whole ticks, so an attack the gate lets through never lands in it. */
+/** The sheet's count, which attack speed shortens; the class's cooldown in whole ticks before a sheet arrives. */
+export function attackCooldownTicks(
+  sheet: StatSheet | undefined,
+  cls: string,
+  tickMs: number,
+): number {
+  const ticks = sheet?.attackCooldownTicks ?? 0;
+  return ticks > 0 ? ticks : ticksIn(classCooldownMs(cls), tickMs);
+}
+
+/** Only stops a held key spamming the server, which enforces the cooldown itself; it counts the server's whole ticks, so an attack the gate lets through never lands in it. */
 export class AttackGate {
   private readyAt = Number.NEGATIVE_INFINITY;
-  private readonly cooldownMs: number;
 
   constructor(
-    cooldownMs: number,
-    tickMs: number,
+    private cooldownTicks: number,
+    private readonly tickMs: number,
     private readonly send: () => boolean,
-  ) {
-    this.cooldownMs = ticksIn(cooldownMs, tickMs) * tickMs;
+  ) {}
+
+  /** Attack speed changed: the next attack after this waits the new count. */
+  setCooldownTicks(ticks: number): void {
+    this.cooldownTicks = ticks;
   }
 
   tryAttack(now: number): boolean {
     if (now < this.readyAt) {
       return false;
     }
-    this.readyAt = now + this.cooldownMs;
+    this.readyAt = now + this.cooldownTicks * this.tickMs;
     return this.send();
   }
 

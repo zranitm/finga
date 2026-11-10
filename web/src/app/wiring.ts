@@ -1,6 +1,8 @@
 // The single place net and state meet.
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
+import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
+import { autoAssign } from '@/progression/stats';
 import { LootKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -10,6 +12,7 @@ import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
 import { session } from '@/state/session';
+import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
 
 export function wireSocket(socket: GameSocket): () => void {
@@ -34,6 +37,7 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
       combatLog.getState().applyLevelUp(m.d);
+      autoAssignPoints(socket, m.d);
     }),
     socket.on('statsChanged', (m) => {
       character.getState().applyStatsChanged(m.d);
@@ -104,6 +108,26 @@ export function responseText(d: Data<'response'>): string {
     default:
       return d.message || d.code || 'The server refused.';
   }
+}
+
+/** With the setting on, a level-up spends every unspent point by the class's split, as the window's button does. */
+function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
+  const c = d.character;
+  const unspent = c?.sheet?.points?.unspent ?? 0;
+  if (!c || unspent === 0 || !settings.getState().autoAssignPoints) {
+    return;
+  }
+  socket
+    .request('spendPoints', { expectedUnspent: unspent, points: autoAssign(c.class, unspent) })
+    .catch((err: unknown) => {
+      // points_changed: a later level-up's request spends them; without an answer, the badge still shows any left.
+      if (
+        err instanceof RequestError &&
+        !['points_changed', 'timeout', 'disconnected'].includes(err.code)
+      ) {
+        toasts.getState().push(`Could not auto-assign your points: ${err.message}`);
+      }
+    });
 }
 
 const RARE_STARS = 4;

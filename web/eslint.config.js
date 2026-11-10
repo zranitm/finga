@@ -9,7 +9,7 @@ import tseslint from 'typescript-eslint';
 // Top (generic) to bottom (specific): a folder imports only from layers above it, never its own layer.
 const layers = [
   ['lib', 'config', 'gamedata'],
-  ['protocol', 'sim'],
+  ['protocol', 'sim', 'progression'],
   ['net', 'state', 'input', 'components'],
   ['game', 'features'],
   ['app'],
