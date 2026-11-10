@@ -97,8 +97,11 @@ func rollOf(s *progression.ItemStats) *itemv1.ItemStats {
 	}
 	//nolint:gosec // stats are small
 	return &itemv1.ItemStats{
-		Attack: int32(s.PhysicalAttack), Defense: int32(s.PhysicalDefense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+		PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
+		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+		CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+		AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 	}
 }
 
@@ -116,8 +119,11 @@ func rollFrom(s *itemv1.ItemStats) *progression.ItemStats {
 		return nil
 	}
 	return &progression.ItemStats{
-		PhysicalAttack: int(s.GetAttack()), PhysicalDefense: int(s.GetDefense()), STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
-		Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()), CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()),
+		STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
+		PhysicalAttack: int(s.GetPhysicalAttack()), MagicAttack: int(s.GetMagicAttack()), PhysicalDefense: int(s.GetPhysicalDefense()), MagicDefense: int(s.GetMagicDefense()),
+		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
+		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()), MPRegen: int(s.GetMpRegen()),
+		AttackSpeed: int(s.GetAttackSpeed()), CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
 	}
 }
 
@@ -127,11 +133,12 @@ type Equipment struct{ c itemv1.ItemServiceClient }
 // NewEquipment adapts the item client.
 func NewEquipment(c itemv1.ItemServiceClient) Equipment { return Equipment{c: c} }
 
-// Equip wears an item, checked against the level and class sent.
+// Equip wears an item, checked against the level, class and own stats sent.
 func (e Equipment) Equip(ctx context.Context, c model.EquipCall) (model.Equipped, error) {
 	res, err := e.c.Equip(ctx, &itemv1.EquipRequest{
 		Actor: &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()}, IdempotencyKey: c.Key,
 		ItemId: c.Item.String(), EquipSlot: c.EquipSlot, Level: int32(c.Level), Class: c.Class.String(), //nolint:gosec // levels are small
+		Stats: &itemv1.PrimaryStats{Str: int32(c.Stats.STR), Dex: int32(c.Stats.DEX), Int: int32(c.Stats.INT), Agi: int32(c.Stats.AGI), Vit: int32(c.Stats.VIT)}, //nolint:gosec // stats are small
 	})
 	if err != nil {
 		return model.Equipped{}, ruleOr(err)

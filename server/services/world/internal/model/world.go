@@ -286,7 +286,7 @@ type EquipSlot struct {
 	Item *SlotItem
 }
 
-// EquipCall wears an inventory item, checked against the character's live level and class; Key is the client's request ID.
+// EquipCall wears an inventory item, checked against the character's live level, class and own stats, without gear; Key is the client's request ID.
 type EquipCall struct {
 	Account   kernel.AccountID
 	Character kernel.CharacterID
@@ -295,6 +295,7 @@ type EquipCall struct {
 	EquipSlot string // rings only
 	Level     int
 	Class     kernel.Class
+	Stats     gamedata.Stats
 }
 
 // UnequipCall puts a worn item back in the Equip tab, in ToSlot or, nil, the first free slot.

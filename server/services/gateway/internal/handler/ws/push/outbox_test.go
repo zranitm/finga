@@ -116,7 +116,7 @@ var (
 		DerivedWorn: &clientv1.DerivedStats{AttackPower: 11.5, Defense: 3, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, MaxHp: 30, MaxMp: 1},
 	}
 	// A bow with every stat rolled, as no real one is.
-	bow     = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{Attack: 9, Defense: 1, STR: 2, DEX: 3, INT: 4, AGI: 5, VIT: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHP: 11, MaxMP: 12}}
+	bow     = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{PhysicalAttack: 9, PhysicalDefense: 1, STR: 2, DEX: 3, INT: 4, AGI: 5, VIT: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHP: 11, MaxMP: 12}}
 	wireBow = &clientv1.ItemView{ItemId: "i-2", Template: "short_bow", Quantity: 1, Stats: &clientv1.ItemStats{Attack: 9, Defense: 1, Str: 2, Dex: 3, Int: 4, Agi: 5, Vit: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHp: 11, MaxMp: 12}}
 )
 

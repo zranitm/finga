@@ -442,7 +442,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	inv := until(t, stream, "the equip's InventoryChanged", func(m *worldv1.DeliverResponse) bool { return m.GetInventoryChanged() != nil }).GetInventoryChanged()
-	if eq := inv.GetEquipment(); inv.GetRevision() != 2 || len(eq) != 1 || eq[0].GetEquipSlot() != "hat" || eq[0].GetItem().GetStats().GetDefense() != 3 {
+	if eq := inv.GetEquipment(); inv.GetRevision() != 2 || len(eq) != 1 || eq[0].GetEquipSlot() != "hat" || eq[0].GetItem().GetStats().GetPhysicalDefense() != 3 {
 		t.Fatalf("inventory change %+v", inv)
 	}
 	stats := until(t, stream, "StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()

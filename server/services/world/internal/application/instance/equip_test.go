@@ -131,8 +131,8 @@ func TestEquipChangesStatsOnlyOnceTheResultArrives(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		if c := eq.equips[0]; c.Character != p.ID || c.Account != p.Account || c.Key != "k-1" || c.Level != 1 || c.Class != kernel.Warrior {
-			t.Fatalf("call %+v; want the live level and class", c)
+		if c := eq.equips[0]; c.Character != p.ID || c.Account != p.Account || c.Key != "k-1" || c.Level != 1 || c.Class != kernel.Warrior || c.Stats != p.Stats || c.Stats == (gamedata.Stats{}) {
+			t.Fatalf("call %+v; want the live level, class and own stats", c)
 		}
 		inv, stats := eventsOf[model.InventoryChanged](s), eventsOf[model.StatsChanged](s)
 		if len(inv) != 1 || inv[0].Revision != 5 || len(inv[0].Equipment) != 1 || inv[0].Equipment[0].Slot != "weapon" || len(inv[0].Slots) != 1 {

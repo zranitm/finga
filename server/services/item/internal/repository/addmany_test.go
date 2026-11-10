@@ -178,7 +178,7 @@ func TestAddMany(t *testing.T) {
 		if !errors.Is(b.Outcomes[0].Err, model.ErrBadQuantity) {
 			t.Fatalf("the drop %+v", b.Outcomes[0])
 		}
-		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND attack = 16`, sword.ID) != 1 {
+		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND physical_attack = 16`, sword.ID) != 1 {
 			t.Fatal("the sword's lowest roll wasn't kept")
 		}
 		checkInvariants(t, h.pool, h.data)

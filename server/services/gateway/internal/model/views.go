@@ -61,13 +61,13 @@ type ItemView struct {
 	Stats             *ItemStats // equipment's roll; nil for anything else
 }
 
-// ItemStats are what one equipment item gives, the rates in tenths of a percent.
+// ItemStats are what one equipment item gives: the five primary stats and the sixteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 type ItemStats struct {
-	Attack, Defense         int
-	STR, DEX, INT, AGI, VIT int
-	Accuracy, Evasion       int
-	CritRate, CritDamage    int
-	MaxHP, MaxMP            int
+	STR, DEX, INT, AGI, VIT                                    int
+	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense int
+	MaxHP, MaxMP, Accuracy, Evasion                            int
+	CritRate, CritDamage, Penetration, HPRegen, MPRegen        int
+	AttackSpeed, CooldownSpeed, MoveSpeed                      int
 }
 
 // EquipSlot is an equip slot and what it holds; Item is nil when it is empty.

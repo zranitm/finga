@@ -48,6 +48,7 @@ export const errorCodes = [
   'slot_holds_other_item',
   'slot_taken',
   'stack_full',
+  'stats_too_low',
   'target_not_on_map',
   'unauthenticated',
   'unavailable',

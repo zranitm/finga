@@ -43,6 +43,7 @@ var (
 	UnknownItem          = Public{"unknown_item", "unknown item"}
 	ItemWorn             = Public{"item_worn", "unequip it first"}
 	LevelTooLow          = Public{"level_too_low", "your level is too low for that item"}
+	StatsTooLow          = Public{"stats_too_low", "your stats are too low for that item"}
 	WrongClass           = Public{"wrong_class", "your class can't use that item"}
 	WrongEquipSlot       = Public{"wrong_equip_slot", "that item doesn't go there"}
 	NotEquipment         = Public{"not_equipment", "only equipment can be worn"}

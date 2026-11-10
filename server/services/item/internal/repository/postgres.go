@@ -188,10 +188,12 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 func (r repo) AddRoll(ctx context.Context, id kernel.ItemID, s progression.ItemStats) error {
 	//nolint:gosec // stats are small
 	return r.q.InsertRoll(ctx, db.InsertRollParams{
-		ItemID: uuid.UUID(id), Attack: int32(s.PhysicalAttack), Defense: int32(s.PhysicalDefense),
-		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
-		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Now: r.now,
+		ItemID: uuid.UUID(id),
+		Str:    int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+		PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
+		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+		CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+		AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed), Now: r.now,
 	})
 }
 
@@ -294,8 +296,11 @@ func withRolls(ctx context.Context, q *db.Queries, rows []db.Item) ([]model.Item
 	byItem := make(map[uuid.UUID]*progression.ItemStats, len(rolls))
 	for _, r := range rolls {
 		byItem[r.ItemID] = &progression.ItemStats{
-			PhysicalAttack: int(r.Attack), PhysicalDefense: int(r.Defense), STR: int(r.Str), DEX: int(r.Dex), INT: int(r.Int), AGI: int(r.Agi), VIT: int(r.Vit),
-			Accuracy: int(r.Accuracy), Evasion: int(r.Evasion), CritRate: int(r.CritRate), CritDamage: int(r.CritDamage), MaxHP: int(r.MaxHp), MaxMP: int(r.MaxMp),
+			STR: int(r.Str), DEX: int(r.Dex), INT: int(r.Int), AGI: int(r.Agi), VIT: int(r.Vit),
+			PhysicalAttack: int(r.PhysicalAttack), MagicAttack: int(r.MagicAttack), PhysicalDefense: int(r.PhysicalDefense), MagicDefense: int(r.MagicDefense),
+			MaxHP: int(r.MaxHp), MaxMP: int(r.MaxMp), Accuracy: int(r.Accuracy), Evasion: int(r.Evasion),
+			CritRate: int(r.CritRate), CritDamage: int(r.CritDamage), Penetration: int(r.Penetration), HPRegen: int(r.HpRegen), MPRegen: int(r.MpRegen),
+			AttackSpeed: int(r.AttackSpeed), CooldownSpeed: int(r.CooldownSpeed), MoveSpeed: int(r.MoveSpeed),
 		}
 	}
 	out := make([]model.Item, 0, len(rows))

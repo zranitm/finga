@@ -110,7 +110,7 @@ func itemView(it model.ItemView) *clientv1.ItemView {
 	v := &clientv1.ItemView{ItemId: it.ID, Template: it.Template, Tab: it.Tab, Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
 	if s := it.Stats; s != nil {
 		v.Stats = &clientv1.ItemStats{
-			Attack: int32(s.Attack), Defense: int32(s.Defense),
+			Attack: int32(s.PhysicalAttack), Defense: int32(s.PhysicalDefense),
 			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
 			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
 			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),

@@ -123,7 +123,7 @@ func TestCheckElevenCatchesBadRolls(t *testing.T) {
 		corrupt string
 	}{
 		{"equipment without a roll", `DELETE FROM item_rolls`},
-		{"a potion with a roll", `INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
+		{"a potion with a roll", `INSERT INTO item_rolls (item_id, physical_attack, physical_defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at)
 			SELECT id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, now(), now() FROM items WHERE template_id = 'red_potion'`},
 	}
 	for _, tt := range tests {
@@ -194,7 +194,7 @@ func TestTheWornChecksCatchCorruption(t *testing.T) {
 func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
 	h := newHarness(t)
 	h.added(t, "iron_sword")
-	if _, err := h.pool.Exec(context.Background(), `UPDATE item_rolls SET attack = attack + 100, str = 3`); err != nil {
+	if _, err := h.pool.Exec(context.Background(), `UPDATE item_rolls SET physical_attack = physical_attack + 100, str = 3`); err != nil {
 		t.Fatal(err)
 	}
 	checkInvariants(t, h.pool, h.data)
@@ -339,7 +339,7 @@ func TestInventoryProperties(t *testing.T) {
 func isRule(err error) bool {
 	for _, rule := range []error{
 		model.ErrInventoryFull, model.ErrBadQuantity, model.ErrBadSlot, model.ErrWrongTab, model.ErrDifferentItem, model.ErrStackFull, model.ErrNotFound,
-		model.ErrSlotTaken, model.ErrItemWorn, model.ErrLevelTooLow, model.ErrWrongClass, model.ErrWrongEquipSlot, model.ErrNotEquipment, model.ErrNothingWorn,
+		model.ErrSlotTaken, model.ErrItemWorn, model.ErrLevelTooLow, model.ErrWrongClass, model.ErrStatsTooLow, model.ErrWrongEquipSlot, model.ErrNotEquipment, model.ErrNothingWorn,
 	} {
 		if errorsIs(err, rule) {
 			return true

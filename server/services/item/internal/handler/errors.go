@@ -27,6 +27,7 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrItemWorn, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_ITEM_WORN},
 	{Err: model.ErrLevelTooLow, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_LEVEL_TOO_LOW},
 	{Err: model.ErrWrongClass, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_WRONG_CLASS},
+	{Err: model.ErrStatsTooLow, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_STATS_TOO_LOW},
 	{Err: model.ErrWrongEquipSlot, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_WRONG_EQUIP_SLOT},
 	{Err: model.ErrNotEquipment, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOT_EQUIPMENT},
 	{Err: model.ErrNothingWorn, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOTHING_WORN},

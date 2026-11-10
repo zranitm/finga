@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
@@ -176,21 +177,21 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantChanged(t, res)
 	})
-	t.Run("Add, equipment with its roll", func(t *testing.T) {
-		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5, MaxMP: 3}}
+	t.Run("Add, equipment with its roll, every stat in its own field", func(t *testing.T) {
+		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
+		roll := &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}
 		f.result = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 13}
 		defer func() { f.result = changed }()
 		res, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "iron_sword", Quantity: 1,
-			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP}, Stats: &itemv1.ItemStats{Attack: 17, CritRate: 5, MaxMp: 3}})
+			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP}, Stats: roll})
 		if err != nil {
 			t.Fatal(err)
 		}
 		if f.add.Stats == nil || *f.add.Stats != *sword.Stats {
 			t.Fatalf("roll sent %+v, want %+v", f.add.Stats, *sword.Stats)
 		}
-		got := res.GetChanged()[0].GetItem().GetStats()
-		if got.GetAttack() != 17 || got.GetCritRate() != 5 || got.GetMaxMp() != 3 || got.GetDefense() != 0 {
-			t.Fatalf("roll answered %+v", got)
+		if got := res.GetChanged()[0].GetItem().GetStats(); !proto.Equal(got, roll) {
+			t.Fatalf("roll answered %v, want %v", got, roll)
 		}
 	})
 	t.Run("Add without a cause ID", func(t *testing.T) {
@@ -226,18 +227,19 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Quantity: 1, Stats: &progression.ItemStats{PhysicalAttack: 17}, EquipSlot: "weapon"}
 		f.result = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 4}}, Equipment: []model.WornSlot{{Slot: "weapon", Item: &sword}}, Worn: []model.Item{sword}, Revision: 14}
 		defer func() { f.result = changed }()
-		res, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: sword.ID.String(), EquipSlot: "weapon", Level: 9, Class: "warrior"})
+		res, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: sword.ID.String(), EquipSlot: "weapon", Level: 9, Class: "warrior",
+			Stats: &itemv1.PrimaryStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.equip != (application.EquipInput{Key: key1, ItemID: sword.ID, EquipSlot: "weapon", Level: 9, Class: kernel.Warrior}) {
+		if f.equip != (application.EquipInput{Key: key1, ItemID: sword.ID, EquipSlot: "weapon", Level: 9, Class: kernel.Warrior, Stats: gamedata.Stats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5}}) {
 			t.Fatalf("equip %+v", f.equip)
 		}
 		eq, worn := res.GetEquipment(), res.GetWorn()
 		if len(res.GetChanged()) != 1 || res.GetChanged()[0].GetItem() != nil || res.GetChanged()[0].GetSlot() != 4 || res.GetRevision() != 14 {
 			t.Fatalf("changed %+v revision %d", res.GetChanged(), res.GetRevision())
 		}
-		if len(eq) != 1 || eq[0].GetEquipSlot() != "weapon" || eq[0].GetItem().GetId() != sword.ID.String() || eq[0].GetItem().GetEquipSlot() != "weapon" || eq[0].GetItem().GetStats().GetAttack() != 17 {
+		if len(eq) != 1 || eq[0].GetEquipSlot() != "weapon" || eq[0].GetItem().GetId() != sword.ID.String() || eq[0].GetItem().GetEquipSlot() != "weapon" || eq[0].GetItem().GetStats().GetPhysicalAttack() != 17 {
 			t.Fatalf("equipment %+v", eq)
 		}
 		if len(worn) != 1 || worn[0].GetId() != sword.ID.String() || worn[0].GetEquipSlot() != "weapon" {

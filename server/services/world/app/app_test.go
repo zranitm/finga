@@ -45,7 +45,7 @@ type items struct {
 
 // Inventory has the character wearing a cap worth 30 max HP.
 func (f *items) Inventory(context.Context, *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
-	hat := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Quantity: 1, EquipSlot: "hat", Stats: &itemv1.ItemStats{Defense: 3, MaxHp: 30}}
+	hat := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Quantity: 1, EquipSlot: "hat", Stats: &itemv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}
 	return &itemv1.InventoryResponse{Items: []*itemv1.Item{hat}, Revision: 1}, nil
 }
 

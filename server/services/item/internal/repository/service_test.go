@@ -175,6 +175,41 @@ func TestAdd(t *testing.T) {
 	})
 }
 
+// rollingEverything is the game data with one item rolling every stat, which items.yaml may not have.
+type rollingEverything struct {
+	*gamedata.Data
+	item string
+}
+
+func (r rollingEverything) Item(id string) (gamedata.Item, bool) {
+	it, ok := r.Data.Item(id)
+	if id == r.item {
+		for _, f := range reflect.ValueOf(&it.Rolls).Elem().Fields() {
+			f.Set(reflect.ValueOf(gamedata.Range{Min: 1, Max: 21}))
+		}
+	}
+	return it, ok
+}
+
+func TestEveryStatOfARollIsStoredReadBackAndReplayedInItsOwnField(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	h.svc = application.NewService(application.Deps{Store: h.store, Content: rollingEverything{h.data, "iron_sword"}, Logger: slog.New(slog.DiscardHandler)})
+	whole := application.AddInput{Key: "r-whole", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
+	for _, try := range []string{"the add", "its replay"} {
+		res, err := h.svc.Add(ctx, h.actor, whole)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := res.Changed[0].Item; got.Stats == nil || *got.Stats != *whole.Stats {
+			t.Fatalf("%s: %+v, want %+v", try, got.Stats, *whole.Stats)
+		}
+		if inv := h.inventory(t); len(inv) != 1 || inv[0].Stats == nil || *inv[0].Stats != *whole.Stats {
+			t.Fatalf("after %s, read back %+v; want the one sword with %+v", try, inv, *whole.Stats)
+		}
+	}
+}
+
 func TestRolls(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
@@ -195,7 +230,7 @@ func TestRolls(t *testing.T) {
 		rolled(t, "the added sword", &sword)
 		inv := h.inventory(t)
 		rolled(t, "the sword read back", &inv[0])
-		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND attack = 17`, sword.ID) != 1 {
+		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND physical_attack = 17`, sword.ID) != 1 {
 			t.Fatal("no roll row")
 		}
 	})
@@ -241,7 +276,7 @@ func TestRolls(t *testing.T) {
 		if it := res.Changed[1].Item; it.Stats == nil || *it.Stats != lowest {
 			t.Fatalf("moved %+v, want the lowest roll", it.Stats)
 		}
-		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND attack = 16`, sword.ID) != 1 {
+		if h.count(t, `SELECT count(*) FROM item_rolls WHERE item_id = $1 AND physical_attack = 16`, sword.ID) != 1 {
 			t.Fatal("the change wrote no roll")
 		}
 		if !bytes.Contains(logs.Bytes(), []byte(`"level":"WARN","msg":"equipment had no roll; it now has its template's lowest"`)) || !bytes.Contains(logs.Bytes(), []byte(sword.ID.String())) {

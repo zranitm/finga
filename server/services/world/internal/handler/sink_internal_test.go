@@ -85,7 +85,7 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := &streamSink{sub: sub}
-	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3, MaxHP: 30}}
+	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
 	if !s.Send(model.InventoryChanged{Tick: 4, Revision: 7, Slots: []model.Slot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
 		t.Fatal("the stream refused the change")
 	}
@@ -93,7 +93,7 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 		Revision: 7,
 		Slots:    []*worldv1.Slot{{Tab: "equip", Slot: 0}},
 		Equipment: []*worldv1.EquipSlot{
-			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3, MaxHp: 30}}},
+			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}},
 			{EquipSlot: "weapon"},
 		},
 	}}}

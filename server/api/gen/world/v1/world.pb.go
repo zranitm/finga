@@ -2646,24 +2646,32 @@ func (x *Item) GetStats() *ItemStats {
 	return nil
 }
 
-// ItemStats are what one equipment item gives, the same fields as the item service's, owned here.
+// ItemStats are what one equipment item gives, the same fields as the item service's, owned here: the five primary stats and the sixteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 type ItemStats struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Attack        int32                  `protobuf:"varint,1,opt,name=attack,proto3" json:"attack,omitempty"`
-	Defense       int32                  `protobuf:"varint,2,opt,name=defense,proto3" json:"defense,omitempty"`
-	Str           int32                  `protobuf:"varint,3,opt,name=str,proto3" json:"str,omitempty"`
-	Dex           int32                  `protobuf:"varint,4,opt,name=dex,proto3" json:"dex,omitempty"`
-	Int           int32                  `protobuf:"varint,5,opt,name=int,proto3" json:"int,omitempty"`
-	Agi           int32                  `protobuf:"varint,6,opt,name=agi,proto3" json:"agi,omitempty"`
-	Vit           int32                  `protobuf:"varint,7,opt,name=vit,proto3" json:"vit,omitempty"`
-	Accuracy      int32                  `protobuf:"varint,8,opt,name=accuracy,proto3" json:"accuracy,omitempty"`
-	Evasion       int32                  `protobuf:"varint,9,opt,name=evasion,proto3" json:"evasion,omitempty"`
-	CritRate      int32                  `protobuf:"varint,10,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
-	CritDamage    int32                  `protobuf:"varint,11,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
-	MaxHp         int32                  `protobuf:"varint,12,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
-	MaxMp         int32                  `protobuf:"varint,13,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PhysicalAttack  int32                  `protobuf:"varint,1,opt,name=physical_attack,json=physicalAttack,proto3" json:"physical_attack,omitempty"`
+	PhysicalDefense int32                  `protobuf:"varint,2,opt,name=physical_defense,json=physicalDefense,proto3" json:"physical_defense,omitempty"`
+	Str             int32                  `protobuf:"varint,3,opt,name=str,proto3" json:"str,omitempty"`
+	Dex             int32                  `protobuf:"varint,4,opt,name=dex,proto3" json:"dex,omitempty"`
+	Int             int32                  `protobuf:"varint,5,opt,name=int,proto3" json:"int,omitempty"`
+	Agi             int32                  `protobuf:"varint,6,opt,name=agi,proto3" json:"agi,omitempty"`
+	Vit             int32                  `protobuf:"varint,7,opt,name=vit,proto3" json:"vit,omitempty"`
+	Accuracy        int32                  `protobuf:"varint,8,opt,name=accuracy,proto3" json:"accuracy,omitempty"`
+	Evasion         int32                  `protobuf:"varint,9,opt,name=evasion,proto3" json:"evasion,omitempty"`
+	CritRate        int32                  `protobuf:"varint,10,opt,name=crit_rate,json=critRate,proto3" json:"crit_rate,omitempty"`
+	CritDamage      int32                  `protobuf:"varint,11,opt,name=crit_damage,json=critDamage,proto3" json:"crit_damage,omitempty"`
+	MaxHp           int32                  `protobuf:"varint,12,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	MaxMp           int32                  `protobuf:"varint,13,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
+	MagicAttack     int32                  `protobuf:"varint,14,opt,name=magic_attack,json=magicAttack,proto3" json:"magic_attack,omitempty"`
+	MagicDefense    int32                  `protobuf:"varint,15,opt,name=magic_defense,json=magicDefense,proto3" json:"magic_defense,omitempty"`
+	Penetration     int32                  `protobuf:"varint,16,opt,name=penetration,proto3" json:"penetration,omitempty"`
+	HpRegen         int32                  `protobuf:"varint,17,opt,name=hp_regen,json=hpRegen,proto3" json:"hp_regen,omitempty"`
+	MpRegen         int32                  `protobuf:"varint,18,opt,name=mp_regen,json=mpRegen,proto3" json:"mp_regen,omitempty"`
+	AttackSpeed     int32                  `protobuf:"varint,19,opt,name=attack_speed,json=attackSpeed,proto3" json:"attack_speed,omitempty"`
+	CooldownSpeed   int32                  `protobuf:"varint,20,opt,name=cooldown_speed,json=cooldownSpeed,proto3" json:"cooldown_speed,omitempty"`
+	MoveSpeed       int32                  `protobuf:"varint,21,opt,name=move_speed,json=moveSpeed,proto3" json:"move_speed,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ItemStats) Reset() {
@@ -2696,16 +2704,16 @@ func (*ItemStats) Descriptor() ([]byte, []int) {
 	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{30}
 }
 
-func (x *ItemStats) GetAttack() int32 {
+func (x *ItemStats) GetPhysicalAttack() int32 {
 	if x != nil {
-		return x.Attack
+		return x.PhysicalAttack
 	}
 	return 0
 }
 
-func (x *ItemStats) GetDefense() int32 {
+func (x *ItemStats) GetPhysicalDefense() int32 {
 	if x != nil {
-		return x.Defense
+		return x.PhysicalDefense
 	}
 	return 0
 }
@@ -2783,6 +2791,62 @@ func (x *ItemStats) GetMaxHp() int32 {
 func (x *ItemStats) GetMaxMp() int32 {
 	if x != nil {
 		return x.MaxMp
+	}
+	return 0
+}
+
+func (x *ItemStats) GetMagicAttack() int32 {
+	if x != nil {
+		return x.MagicAttack
+	}
+	return 0
+}
+
+func (x *ItemStats) GetMagicDefense() int32 {
+	if x != nil {
+		return x.MagicDefense
+	}
+	return 0
+}
+
+func (x *ItemStats) GetPenetration() int32 {
+	if x != nil {
+		return x.Penetration
+	}
+	return 0
+}
+
+func (x *ItemStats) GetHpRegen() int32 {
+	if x != nil {
+		return x.HpRegen
+	}
+	return 0
+}
+
+func (x *ItemStats) GetMpRegen() int32 {
+	if x != nil {
+		return x.MpRegen
+	}
+	return 0
+}
+
+func (x *ItemStats) GetAttackSpeed() int32 {
+	if x != nil {
+		return x.AttackSpeed
+	}
+	return 0
+}
+
+func (x *ItemStats) GetCooldownSpeed() int32 {
+	if x != nil {
+		return x.CooldownSpeed
+	}
+	return 0
+}
+
+func (x *ItemStats) GetMoveSpeed() int32 {
+	if x != nil {
+		return x.MoveSpeed
 	}
 	return 0
 }
@@ -4003,10 +4067,10 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x03tab\x18\x03 \x01(\tR\x03tab\x12\x12\n" +
 	"\x04slot\x18\x04 \x01(\x05R\x04slot\x12\x1a\n" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x122\n" +
-	"\x05stats\x18\x06 \x01(\v2\x1c.internal.world.v1.ItemStatsR\x05stats\"\xb9\x02\n" +
-	"\tItemStats\x12\x16\n" +
-	"\x06attack\x18\x01 \x01(\x05R\x06attack\x12\x18\n" +
-	"\adefense\x18\x02 \x01(\x05R\adefense\x12\x10\n" +
+	"\x05stats\x18\x06 \x01(\v2\x1c.internal.world.v1.ItemStatsR\x05stats\"\xe4\x04\n" +
+	"\tItemStats\x12'\n" +
+	"\x0fphysical_attack\x18\x01 \x01(\x05R\x0ephysicalAttack\x12)\n" +
+	"\x10physical_defense\x18\x02 \x01(\x05R\x0fphysicalDefense\x12\x10\n" +
 	"\x03str\x18\x03 \x01(\x05R\x03str\x12\x10\n" +
 	"\x03dex\x18\x04 \x01(\x05R\x03dex\x12\x10\n" +
 	"\x03int\x18\x05 \x01(\x05R\x03int\x12\x10\n" +
@@ -4019,7 +4083,16 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\vcrit_damage\x18\v \x01(\x05R\n" +
 	"critDamage\x12\x15\n" +
 	"\x06max_hp\x18\f \x01(\x05R\x05maxHp\x12\x15\n" +
-	"\x06max_mp\x18\r \x01(\x05R\x05maxMp\"\xd9\x01\n" +
+	"\x06max_mp\x18\r \x01(\x05R\x05maxMp\x12!\n" +
+	"\fmagic_attack\x18\x0e \x01(\x05R\vmagicAttack\x12#\n" +
+	"\rmagic_defense\x18\x0f \x01(\x05R\fmagicDefense\x12 \n" +
+	"\vpenetration\x18\x10 \x01(\x05R\vpenetration\x12\x19\n" +
+	"\bhp_regen\x18\x11 \x01(\x05R\ahpRegen\x12\x19\n" +
+	"\bmp_regen\x18\x12 \x01(\x05R\ampRegen\x12!\n" +
+	"\fattack_speed\x18\x13 \x01(\x05R\vattackSpeed\x12%\n" +
+	"\x0ecooldown_speed\x18\x14 \x01(\x05R\rcooldownSpeed\x12\x1d\n" +
+	"\n" +
+	"move_speed\x18\x15 \x01(\x05R\tmoveSpeed\"\xd9\x01\n" +
 	"\x04Loot\x12/\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x1b.internal.world.v1.LootKindR\x04kind\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x17\n" +

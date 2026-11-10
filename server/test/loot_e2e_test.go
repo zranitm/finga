@@ -365,7 +365,7 @@ func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	t.Helper()
 	ctx := context.Background()
 	actor := s.actor(t, id)
-	s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 10})
+	s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 10})
 	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'wooden_sword'`, id)
 	if err != nil {
 		t.Fatal(err)
@@ -576,7 +576,7 @@ func TestLootAndKeep(t *testing.T) {
 		token, id := s.createCharacter(t, "sol", "Sol", "warrior")
 		s.place(t, id, "forest", 380, 608, 184, 0)
 		for range 24 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		l, _ := s.hello(t, token, id)
 		l.face(true)

@@ -31,6 +31,7 @@ var (
 	ErrItemWorn       = errors.New("item: the item is worn; unequip it first")
 	ErrLevelTooLow    = errors.New("item: the character's level is below the item's")
 	ErrWrongClass     = errors.New("item: the item is for another class")
+	ErrStatsTooLow    = errors.New("item: the character's own stats are below the item's requirements")
 	ErrWrongEquipSlot = errors.New("item: the item doesn't go in that equip slot")
 	ErrNotEquipment   = errors.New("item: only equipment can be worn")
 	ErrNothingWorn    = errors.New("item: nothing is worn in that equip slot")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"testing"
 
@@ -132,6 +133,24 @@ func TestEquip(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	})
+	t.Run("an item's stat requirements, against the character's own stats", func(t *testing.T) {
+		svc := application.NewService(application.Deps{Store: h.store, Content: requiring{h.data, "leather_vest", gamedata.Stats{STR: 20, VIT: 15}}, Logger: slog.New(slog.DiscardHandler)})
+		vest := h.added(t, "leather_vest")
+		equip := func(own gamedata.Stats) error {
+			_, err := svc.Equip(ctx, h.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: vest.ID, Level: 5, Class: kernel.Warrior, Stats: own})
+			return err
+		}
+		revision := h.revision(t)
+		if err := equip(gamedata.Stats{STR: 20, VIT: 14}); !errors.Is(err, model.ErrStatsTooLow) {
+			t.Fatalf("one point short: %v, want stats too low", err)
+		}
+		if h.revision(t) != revision {
+			t.Fatal("a refused equip wrote")
+		}
+		if err := equip(gamedata.Stats{STR: 20, VIT: 15}); err != nil {
+			t.Fatalf("exactly enough: %v", err)
+		}
 	})
 	t.Run("a retry gets the stored reply, even after a level-up; other arguments under its key are refused", func(t *testing.T) {
 		hat := h.added(t, "leather_cap")
@@ -298,4 +317,19 @@ func TestAFullEquipTab(t *testing.T) {
 		}
 		checkInvariants(t, h.pool, h.data)
 	})
+}
+
+// requiring is the game data with one item needing stats, which items.yaml may not have.
+type requiring struct {
+	*gamedata.Data
+	item  string
+	needs gamedata.Stats
+}
+
+func (r requiring) Item(id string) (gamedata.Item, bool) {
+	it, ok := r.Data.Item(id)
+	if id == r.item {
+		it.Requires = r.needs
+	}
+	return it, ok
 }

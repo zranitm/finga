@@ -52,6 +52,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_CLASS):          model.UnknownClass,
 	grpcx.Key(itemv1.Reason_REASON_ITEM_WORN):              model.ItemWorn,
 	grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW):          model.LevelTooLow,
+	grpcx.Key(itemv1.Reason_REASON_STATS_TOO_LOW):          model.StatsTooLow,
 	grpcx.Key(itemv1.Reason_REASON_WRONG_CLASS):            model.WrongClass,
 	grpcx.Key(itemv1.Reason_REASON_WRONG_EQUIP_SLOT):       model.WrongEquipSlot,
 	grpcx.Key(itemv1.Reason_REASON_NOT_EQUIPMENT):          model.NotEquipment,

@@ -57,7 +57,7 @@ func (i *Instance) startEquip(m equipMsg) {
 		call = func(ctx context.Context) (model.Equipped, error) { return i.deps.Equipment.Unequip(ctx, c) }
 	} else {
 		c := *m.equip
-		c.Account, c.Character, c.Level, c.Class = p.Account, p.ID, p.Level, p.Class
+		c.Account, c.Character, c.Level, c.Class, c.Stats = p.Account, p.ID, p.Level, p.Class, p.Stats
 		call = func(ctx context.Context) (model.Equipped, error) { return i.deps.Equipment.Equip(ctx, c) }
 	}
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {

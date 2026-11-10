@@ -240,6 +240,11 @@
     "message": "that stack is full"
   },
   {
+    "code": "stats_too_low",
+    "status": 409,
+    "message": "your stats are too low for that item"
+  },
+  {
     "code": "target_not_on_map",
     "status": 404,
     "message": "that character is not on your map"

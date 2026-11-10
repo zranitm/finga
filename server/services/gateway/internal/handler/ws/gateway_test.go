@@ -823,8 +823,8 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		potion := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5}
-		leatherCap := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Tab: "equip", Slot: 2, Quantity: 1, Stats: &itemv1.ItemStats{Defense: 3, MaxHp: 30}}
-		sword := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "wooden_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{Attack: 10}}
+		leatherCap := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Tab: "equip", Slot: 2, Quantity: 1, Stats: &itemv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}
+		sword := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "wooden_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{PhysicalAttack: 10}}
 		items := &fakeItems{inventory: []*itemv1.Item{potion, leatherCap, sword}, revision: 4}
 		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
 		h.world.mu.Lock()
@@ -861,7 +861,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 		part(t, "the world's InventoryChanged carries the equip slots and rolls, and StatsChanged the sheet", func() {
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 20, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
 				Revision: 5, Slots: []*worldv1.Slot{{Tab: "equip", Slot: 2}},
-				Equipment: []*worldv1.EquipSlot{{EquipSlot: "hat", Item: &worldv1.Item{Id: leatherCap.GetId(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3, MaxHp: 30}}}},
+				Equipment: []*worldv1.EquipSlot{{EquipSlot: "hat", Item: &worldv1.Item{Id: leatherCap.GetId(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}}},
 			}}})
 			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
 			if len(ic.Slots) != 1 || ic.Slots[0].Item != nil || len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "hat" ||
@@ -879,7 +879,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 			}
 			// Then the cap comes off into the slot asked for: the item goes back in a tab, the equip slot empties.
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 21, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
-				Revision: 6, Slots: []*worldv1.Slot{{Tab: "equip", Slot: 7, Item: &worldv1.Item{Id: leatherCap.GetId(), TemplateId: "leather_cap", Tab: "equip", Slot: 7, Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3}}}},
+				Revision: 6, Slots: []*worldv1.Slot{{Tab: "equip", Slot: 7, Item: &worldv1.Item{Id: leatherCap.GetId(), TemplateId: "leather_cap", Tab: "equip", Slot: 7, Quantity: 1, Stats: &worldv1.ItemStats{PhysicalDefense: 3}}}},
 				Equipment: []*worldv1.EquipSlot{{EquipSlot: "hat"}},
 			}}})
 			ic = c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)

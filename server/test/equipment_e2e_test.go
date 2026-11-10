@@ -117,9 +117,9 @@ func TestEquipment(t *testing.T) {
 		token, id := s.createCharacter(t, "tess", "Tess", "warrior")
 		s.place(t, id, "forest", 380, 608, 184, 0)
 		// The Equip tab's 24 slots: a better sword in the first, caps in the rest.
-		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 12})
+		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
 		for range 23 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem()
@@ -181,9 +181,9 @@ func TestEquipment(t *testing.T) {
 	t.Run("E3/an-item-the-character-cannot-wear-is-refused-with-the-reason-and-nothing-moves", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
-		bow := s.give(t, id, "short_bow", &itemv1.ItemStats{Attack: 9})
-		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{Attack: 16})
-		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+		bow := s.give(t, id, "short_bow", &itemv1.ItemStats{PhysicalAttack: 9})
+		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 16})
+		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		l, w := s.hello(t, token, id)
 		sword := w.Equipment[0].GetItem().GetItemId()
 		var potion string
@@ -218,7 +218,7 @@ func TestEquipment(t *testing.T) {
 	t.Run("E4/what-is-worn-stays-through-a-map-change-and-logging-back-in", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "vic", "Vic", "warrior")
-		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 4})
+		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 4})
 		l, _ := s.hello(t, token, id)
 		l.send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: key(), ItemId: leatherCap}})
 		got := l.gather("Response", "StatsChanged")
@@ -275,7 +275,7 @@ func TestEquipment(t *testing.T) {
 	t.Run("E6/a-swap-during-a-world-restart-loses-and-duplicates-nothing-and-its-retry-applies", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "xan", "Xan", "warrior")
-		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 12})
+		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem().GetItemId()
 		swap := &clientv1.Equip{IdempotencyKey: key(), ItemId: better}
