@@ -110,7 +110,7 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 		Derived:     progression.Derived{MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, Accuracy: 21, Evasion: 9, PhysicalDefense: 18, CritRate: 0.06, CritDamage: 0.525},
 		DerivedWorn: progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3},
 	}
-	if !s.Send(model.StatsChanged{Tick: 5, Sheet: sheet, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+	if !s.Send(model.StatsChanged{Tick: 5, Sheet: model.Sheet{Sheet: sheet}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{

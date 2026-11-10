@@ -11,7 +11,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
@@ -75,7 +74,7 @@ func TestJoinByID(t *testing.T) {
 	account := kernel.NewAccountID()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
-		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
+		HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 	lost := ayla
 	lost.ID, lost.MapID = kernel.NewCharacterID(), "limbo"
@@ -208,7 +207,7 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 		account := kernel.NewAccountID()
 		dead := model.Character{
 			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
-			Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 0, MP: 28, MapID: forest.ID, X: 900, Y: 600,
+			HP: 0, MP: 28, MapID: forest.ID, X: 900, Y: 600,
 		}
 		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{dead.ID: dead}}, &fakeStarter{})
 		defer stop()
@@ -234,7 +233,7 @@ func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ ke
 func TestAHangingStarterGrantDoesNotFailTheJoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ayla := at(t, "Ayla", "town")
-		chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: {ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Stats: ayla.Stats, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}}}
+		chars := &fakeCharacters{chars: map[kernel.CharacterID]model.Character{ayla.ID: {ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}}}
 		w := worldtest.NewWorld(worldtest.LoadData(t), &fakeSaver{}, worldtest.Options{Characters: chars, Starter: hangingStarter{}})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})

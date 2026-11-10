@@ -29,6 +29,8 @@ const (
 	WorldService_Say_FullMethodName         = "/internal.world.v1.WorldService/Say"
 	WorldService_Equip_FullMethodName       = "/internal.world.v1.WorldService/Equip"
 	WorldService_Unequip_FullMethodName     = "/internal.world.v1.WorldService/Unequip"
+	WorldService_SpendPoints_FullMethodName = "/internal.world.v1.WorldService/SpendPoints"
+	WorldService_ResetPoints_FullMethodName = "/internal.world.v1.WorldService/ResetPoints"
 )
 
 // WorldServiceClient is the client API for WorldService service.
@@ -58,6 +60,10 @@ type WorldServiceClient interface {
 	Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error)
 	// Unequip puts a worn item back in the Equip tab; it answers once the new stats apply.
 	Unequip(ctx context.Context, in *UnequipRequest, opts ...grpc.CallOption) (*UnequipResponse, error)
+	// SpendPoints adds unspent points to the character's stats; it answers once the new stats apply, with StatsChanged on Deliver.
+	SpendPoints(ctx context.Context, in *SpendPointsRequest, opts ...grpc.CallOption) (*SpendPointsResponse, error)
+	// ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
+	ResetPoints(ctx context.Context, in *ResetPointsRequest, opts ...grpc.CallOption) (*ResetPointsResponse, error)
 }
 
 type worldServiceClient struct {
@@ -178,6 +184,26 @@ func (c *worldServiceClient) Unequip(ctx context.Context, in *UnequipRequest, op
 	return out, nil
 }
 
+func (c *worldServiceClient) SpendPoints(ctx context.Context, in *SpendPointsRequest, opts ...grpc.CallOption) (*SpendPointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SpendPointsResponse)
+	err := c.cc.Invoke(ctx, WorldService_SpendPoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServiceClient) ResetPoints(ctx context.Context, in *ResetPointsRequest, opts ...grpc.CallOption) (*ResetPointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetPointsResponse)
+	err := c.cc.Invoke(ctx, WorldService_ResetPoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServiceServer is the server API for WorldService service.
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
@@ -205,6 +231,10 @@ type WorldServiceServer interface {
 	Equip(context.Context, *EquipRequest) (*EquipResponse, error)
 	// Unequip puts a worn item back in the Equip tab; it answers once the new stats apply.
 	Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error)
+	// SpendPoints adds unspent points to the character's stats; it answers once the new stats apply, with StatsChanged on Deliver.
+	SpendPoints(context.Context, *SpendPointsRequest) (*SpendPointsResponse, error)
+	// ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
+	ResetPoints(context.Context, *ResetPointsRequest) (*ResetPointsResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }
 
@@ -244,6 +274,12 @@ func (UnimplementedWorldServiceServer) Equip(context.Context, *EquipRequest) (*E
 }
 func (UnimplementedWorldServiceServer) Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Unequip not implemented")
+}
+func (UnimplementedWorldServiceServer) SpendPoints(context.Context, *SpendPointsRequest) (*SpendPointsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SpendPoints not implemented")
+}
+func (UnimplementedWorldServiceServer) ResetPoints(context.Context, *ResetPointsRequest) (*ResetPointsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResetPoints not implemented")
 }
 func (UnimplementedWorldServiceServer) mustEmbedUnimplementedWorldServiceServer() {}
 func (UnimplementedWorldServiceServer) testEmbeddedByValue()                      {}
@@ -439,6 +475,42 @@ func _WorldService_Unequip_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_SpendPoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SpendPointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).SpendPoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_SpendPoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).SpendPoints(ctx, req.(*SpendPointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldService_ResetPoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetPointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).ResetPoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_ResetPoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).ResetPoints(ctx, req.(*ResetPointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldService_ServiceDesc is the grpc.ServiceDesc for WorldService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -481,6 +553,14 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Unequip",
 			Handler:    _WorldService_Unequip_Handler,
+		},
+		{
+			MethodName: "SpendPoints",
+			Handler:    _WorldService_SpendPoints_Handler,
+		},
+		{
+			MethodName: "ResetPoints",
+			Handler:    _WorldService_ResetPoints_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

@@ -43,7 +43,7 @@ var (
 	sessionID   = kernel.NewSessionID()
 	principal   = auth.Principal{AccountID: uuid.UUID(accountID), SessionID: uuid.UUID(sessionID)}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
+	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
 	errInternal = errors.New("pq: connection reset")
 )
 

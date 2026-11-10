@@ -175,7 +175,8 @@ func item(it *model.SlotItem) *worldv1.Item {
 	return out
 }
 
-func statSheet(s progression.Sheet) *worldv1.StatSheet {
+// statSheet carries the stats; the points join world.v1's sheet with the client protocol.
+func statSheet(s model.Sheet) *worldv1.StatSheet {
 	return &worldv1.StatSheet{Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn)}
 }
 

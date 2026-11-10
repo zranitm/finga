@@ -104,7 +104,7 @@ func character(c *characterv1.Character) (model.Character, error) {
 	if err != nil {
 		return model.Character{}, errmap.Wrap(err)
 	}
-	s := c.GetStats()
+	s := c.GetOwnStats()
 	return model.Character{
 		ID: id, Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
 		Stats: model.Stats{STR: int(s.GetStrength()), DEX: int(s.GetDexterity()), INT: int(s.GetIntelligence()), AGI: int(s.GetAgility()), VIT: int(s.GetVitality())},

@@ -160,7 +160,7 @@ func (e Equipment) Unequip(ctx context.Context, c model.UnequipCall) (model.Equi
 	return equipped(res.GetChanged(), res.GetEquipment(), res.GetWorn(), res.GetRevision())
 }
 
-// Worn sums what the character wears, at the inventory's revision.
+// Worn is what the character wears, at the inventory's revision.
 func (e Equipment) Worn(ctx context.Context, id kernel.CharacterID) (model.Worn, error) {
 	res, err := e.c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: id.String()})
 	if err != nil {
@@ -189,12 +189,12 @@ func equipped(changed []*itemv1.Slot, equipment []*itemv1.EquipSlot, worn []*ite
 	return out, nil
 }
 
-// wornOf sums the rolls of the worn items among items.
+// wornOf is the worn items among items, each with its template and roll.
 func wornOf(items []*itemv1.Item, revision uint64) model.Worn {
 	out := model.Worn{Revision: revision}
 	for _, it := range items {
 		if r := rollFrom(it.GetStats()); r != nil && it.GetEquipSlot() != "" {
-			out.Stats = out.Stats.Plus(*r)
+			out.Items = append(out.Items, model.WornItem{Template: it.GetTemplateId(), Stats: *r})
 		}
 	}
 	return out

@@ -28,6 +28,10 @@ service WorldService {
   rpc Equip(EquipRequest) returns (EquipResponse);
   // Unequip puts a worn item back in the Equip tab; it answers once the new stats apply.
   rpc Unequip(UnequipRequest) returns (UnequipResponse);
+  // SpendPoints adds unspent points to the character's stats; it answers once the new stats apply, with StatsChanged on Deliver.
+  rpc SpendPoints(SpendPointsRequest) returns (SpendPointsResponse);
+  // ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
+  rpc ResetPoints(ResetPointsRequest) returns (ResetPointsResponse);
 }
 
 enum Reason {
@@ -47,6 +51,14 @@ enum Reason {
   REASON_CLASS_UNAVAILABLE = 8;
   // A dead character can't change what it wears.
   REASON_CHARACTER_DEAD = 9;
+  // The character's unspent points are not the count the request expected: an earlier spend or a level-up came first.
+  REASON_POINTS_CHANGED = 10;
+  // The points add up to more than the character has unspent.
+  REASON_NOT_ENOUGH_POINTS = 11;
+  // The one free reset is used.
+  REASON_NO_FREE_RESET = 12;
+  // A negative number of points, or none at all.
+  REASON_BAD_POINTS = 13;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -470,3 +482,21 @@ message UnequipRequest {
 }
 
 message UnequipResponse {}
+
+message SpendPointsRequest {
+  Presence presence = 1;
+  // The unspent count the client saw; any other refuses the spend, so a retried one lands once.
+  int32 expected_unspent = 2;
+  // How many points go to each stat.
+  Stats points = 3;
+}
+
+message SpendPointsResponse {}
+
+message ResetPointsRequest {
+  Presence presence = 1;
+  // The unspent count the client saw; any other refuses the reset.
+  int32 expected_unspent = 2;
+}
+
+message ResetPointsResponse {}

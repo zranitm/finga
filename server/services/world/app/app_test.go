@@ -110,7 +110,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	ctx := t.Context()
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	chars := &characters{c: &characterv1.Character{
-		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10},
+		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1,
 		Hp: 184, Mp: 32, MapId: "town", X: 416, Y: 608,
 	}}
 	itemSvc := &items{}

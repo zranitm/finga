@@ -18,12 +18,35 @@ var (
 	// ErrClassUnavailable means the game data lacks the class: a server fault, not a refusal.
 	ErrClassUnavailable = errors.New("world: class not available")
 	ErrCharacterDead    = errors.New("world: a dead character can't change what it wears")
+	ErrPointsChanged    = errors.New("world: the unspent points are not the count expected")
+	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
+	ErrNoFreeReset      = errors.New("world: the free reset is used")
+	ErrBadPoints        = errors.New("world: points must be at least one in all, and none negative")
 )
 
-// Worn is what a character wears as the item service last counted it: the sum of the worn items' rolls, at the inventory's Revision.
+// Worn is what a character wears as the item service last counted it: each worn item, at the inventory's Revision.
 type Worn struct {
 	Revision uint64
+	Items    []WornItem
+}
+
+// WornItem is one worn item: its template and roll.
+type WornItem struct {
+	Template string
 	Stats    progression.ItemStats
+}
+
+// Points are a character's stat points: those spent in each stat, those left to spend, and whether the free reset is used.
+type Points struct {
+	Spent         gamedata.Stats
+	Unspent       int
+	FreeResetUsed bool
+}
+
+// Sheet is what the character window shows: the stats with the equipment's share, and the points.
+type Sheet struct {
+	progression.Sheet
+	Points Points
 }
 
 // Player is what an instance needs about a joining character.
@@ -34,7 +57,7 @@ type Player struct {
 	Class   kernel.Class
 	Level   int
 	Exp     int64
-	Stats   gamedata.Stats
+	Points  Points
 	HP      int
 	MP      int
 	X, Y    float64 // where to appear: feet centre
@@ -51,7 +74,7 @@ type Character struct {
 	Class   kernel.Class
 	Level   int
 	Exp     int64
-	Stats   gamedata.Stats
+	Points  Points
 	HP      int
 	MP      int
 	MapID   string
@@ -65,14 +88,14 @@ type View struct {
 	Class kernel.Class
 	Level int
 	Exp   int64
-	Stats gamedata.Stats
+	Stats gamedata.Stats // own: the class's starting stats plus the points
 	HP    int
 	MaxHP int
 	MP    int
 	MaxMP int
 	MapID string
 	X, Y  float64
-	Sheet progression.Sheet
+	Sheet Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
 }
@@ -187,7 +210,7 @@ type ExpGained struct {
 	Exp    int64
 }
 
-// LevelUp carries the player's new level, stats and restored HP and MP.
+// LevelUp carries the player's new level, own stats, sheet with the new points, and restored HP and MP.
 type LevelUp struct {
 	Tick  uint64
 	ID    kernel.CharacterID
@@ -200,13 +223,13 @@ type LevelUp struct {
 	MaxHP int
 	MP    int
 	MaxMP int
-	Sheet progression.Sheet
+	Sheet Sheet
 }
 
-// StatsChanged is the player's stats after what it wears changed.
+// StatsChanged is the player's stats after what it wears, its points or its regen changed.
 type StatsChanged struct {
 	Tick  uint64
-	Sheet progression.Sheet
+	Sheet Sheet
 	HP    int
 	MaxHP int
 	MP    int
@@ -232,14 +255,14 @@ func (LevelUp) event() {}
 
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {
-	ID    kernel.CharacterID
-	MapID string // the map it is on, or moving to
-	X, Y  float64
-	HP    int
-	MP    int
-	Level int
-	Exp   int64
-	Stats gamedata.Stats
+	ID     kernel.CharacterID
+	MapID  string // the map it is on, or moving to
+	X, Y   float64
+	HP     int
+	MP     int
+	Level  int
+	Exp    int64
+	Points Points
 }
 
 // DropView is an item on the ground as everyone sees it, with the player it will fly to.

@@ -8,7 +8,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/transient"
@@ -30,7 +29,7 @@ func (f fakeWardrobe) Worn(context.Context, kernel.CharacterID) (model.Worn, err
 type capEquipment struct{}
 
 func (capEquipment) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
-	return model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat", Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1}}}, Worn: model.Worn{Revision: 4, Stats: progression.ItemStats{MaxHP: 30}}}, nil
+	return model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat", Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1}}}, Worn: model.Worn{Revision: 4, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}}, nil
 }
 
 func (capEquipment) Unequip(context.Context, model.UnequipCall) (model.Equipped, error) {
@@ -51,7 +50,7 @@ func wearingWorld(t *testing.T, ayla model.Character, o worldtest.Options) (*wor
 func aylaInTown() model.Character {
 	return model.Character{
 		ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: "Ayla", Class: kernel.Warrior, Level: 1,
-		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
+		HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 }
 
@@ -59,7 +58,7 @@ func TestAJoinWearsWhatTheItemServiceSays(t *testing.T) {
 	ayla := aylaInTown()
 	t.Run("derived with it, the view carrying the sheet", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			w, stop := wearingWorld(t, ayla, worldtest.Options{Wardrobe: fakeWardrobe{worn: model.Worn{Revision: 3, Stats: progression.ItemStats{MaxHP: 30}}}})
+			w, stop := wearingWorld(t, ayla, worldtest.Options{Wardrobe: fakeWardrobe{worn: model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}}})
 			defer stop()
 			view, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c1", &worldtest.Sink{})
 			if err != nil {

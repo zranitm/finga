@@ -24,7 +24,7 @@ func (q *Queries) CountCharactersByAccount(ctx context.Context, accountID uuid.U
 }
 
 const getOwnedCharacter = `-- name: GetOwnedCharacter :one
-SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at FROM characters WHERE id = $1 AND account_id = $2
+SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used FROM characters WHERE id = $1 AND account_id = $2
 `
 
 type GetOwnedCharacterParams struct {
@@ -42,11 +42,11 @@ func (q *Queries) GetOwnedCharacter(ctx context.Context, arg GetOwnedCharacterPa
 		&i.Class,
 		&i.Level,
 		&i.Exp,
-		&i.Strength,
-		&i.Dexterity,
-		&i.Intelligence,
-		&i.Agility,
-		&i.Vitality,
+		&i.StrPoints,
+		&i.DexPoints,
+		&i.IntPoints,
+		&i.AgiPoints,
+		&i.VitPoints,
 		&i.UnspentPoints,
 		&i.Hp,
 		&i.Mp,
@@ -55,6 +55,7 @@ func (q *Queries) GetOwnedCharacter(ctx context.Context, arg GetOwnedCharacterPa
 		&i.PosY,
 		&i.UpdatedAt,
 		&i.CreatedAt,
+		&i.FreeResetUsed,
 	)
 	return i, err
 }
@@ -62,14 +63,14 @@ func (q *Queries) GetOwnedCharacter(ctx context.Context, arg GetOwnedCharacterPa
 const insertCharacter = `-- name: InsertCharacter :one
 INSERT INTO characters (
   id, account_id, name, class, level, exp,
-  strength, dexterity, intelligence, agility, vitality, unspent_points,
+  str_points, dex_points, int_points, agi_points, vit_points, unspent_points, free_reset_used,
   hp, mp, map_id, pos_x, pos_y, created_at, updated_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11, $12,
-  $13, $14, $15, $16, $17, $18, $18
+  $7, $8, $9, $10, $11, $12, $13,
+  $14, $15, $16, $17, $18, $19, $19
 )
-RETURNING id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at
+RETURNING id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used
 `
 
 type InsertCharacterParams struct {
@@ -79,12 +80,13 @@ type InsertCharacterParams struct {
 	Class         string
 	Level         int32
 	Exp           int64
-	Strength      int32
-	Dexterity     int32
-	Intelligence  int32
-	Agility       int32
-	Vitality      int32
+	StrPoints     int32
+	DexPoints     int32
+	IntPoints     int32
+	AgiPoints     int32
+	VitPoints     int32
 	UnspentPoints int32
+	FreeResetUsed bool
 	Hp            int32
 	Mp            int32
 	MapID         string
@@ -101,12 +103,13 @@ func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams
 		arg.Class,
 		arg.Level,
 		arg.Exp,
-		arg.Strength,
-		arg.Dexterity,
-		arg.Intelligence,
-		arg.Agility,
-		arg.Vitality,
+		arg.StrPoints,
+		arg.DexPoints,
+		arg.IntPoints,
+		arg.AgiPoints,
+		arg.VitPoints,
 		arg.UnspentPoints,
+		arg.FreeResetUsed,
 		arg.Hp,
 		arg.Mp,
 		arg.MapID,
@@ -122,11 +125,11 @@ func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams
 		&i.Class,
 		&i.Level,
 		&i.Exp,
-		&i.Strength,
-		&i.Dexterity,
-		&i.Intelligence,
-		&i.Agility,
-		&i.Vitality,
+		&i.StrPoints,
+		&i.DexPoints,
+		&i.IntPoints,
+		&i.AgiPoints,
+		&i.VitPoints,
 		&i.UnspentPoints,
 		&i.Hp,
 		&i.Mp,
@@ -135,12 +138,13 @@ func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams
 		&i.PosY,
 		&i.UpdatedAt,
 		&i.CreatedAt,
+		&i.FreeResetUsed,
 	)
 	return i, err
 }
 
 const listCharactersByAccount = `-- name: ListCharactersByAccount :many
-SELECT id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at FROM characters WHERE account_id = $1 ORDER BY created_at, id
+SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used FROM characters WHERE account_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UUID) ([]Character, error) {
@@ -159,11 +163,11 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 			&i.Class,
 			&i.Level,
 			&i.Exp,
-			&i.Strength,
-			&i.Dexterity,
-			&i.Intelligence,
-			&i.Agility,
-			&i.Vitality,
+			&i.StrPoints,
+			&i.DexPoints,
+			&i.IntPoints,
+			&i.AgiPoints,
+			&i.VitPoints,
 			&i.UnspentPoints,
 			&i.Hp,
 			&i.Mp,
@@ -172,6 +176,7 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 			&i.PosY,
 			&i.UpdatedAt,
 			&i.CreatedAt,
+			&i.FreeResetUsed,
 		); err != nil {
 			return nil, err
 		}
@@ -197,26 +202,29 @@ const saveCheckpoint = `-- name: SaveCheckpoint :execrows
 UPDATE characters
 SET map_id = $1, pos_x = $2, pos_y = $3, hp = $4, mp = $5,
     level = $6, exp = $7,
-    strength = $8, dexterity = $9, intelligence = $10,
-    agility = $11, vitality = $12, updated_at = $13
-WHERE id = $14
+    str_points = $8, dex_points = $9, int_points = $10,
+    agi_points = $11, vit_points = $12, unspent_points = $13,
+    free_reset_used = $14, updated_at = $15
+WHERE id = $16
 `
 
 type SaveCheckpointParams struct {
-	MapID        string
-	PosX         float32
-	PosY         float32
-	Hp           int32
-	Mp           int32
-	Level        int32
-	Exp          int64
-	Strength     int32
-	Dexterity    int32
-	Intelligence int32
-	Agility      int32
-	Vitality     int32
-	Now          dbx.Stamp
-	ID           uuid.UUID
+	MapID         string
+	PosX          float32
+	PosY          float32
+	Hp            int32
+	Mp            int32
+	Level         int32
+	Exp           int64
+	StrPoints     int32
+	DexPoints     int32
+	IntPoints     int32
+	AgiPoints     int32
+	VitPoints     int32
+	UnspentPoints int32
+	FreeResetUsed bool
+	Now           dbx.Stamp
+	ID            uuid.UUID
 }
 
 func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) (int64, error) {
@@ -228,11 +236,13 @@ func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) 
 		arg.Mp,
 		arg.Level,
 		arg.Exp,
-		arg.Strength,
-		arg.Dexterity,
-		arg.Intelligence,
-		arg.Agility,
-		arg.Vitality,
+		arg.StrPoints,
+		arg.DexPoints,
+		arg.IntPoints,
+		arg.AgiPoints,
+		arg.VitPoints,
+		arg.UnspentPoints,
+		arg.FreeResetUsed,
 		arg.Now,
 		arg.ID,
 	)
@@ -245,35 +255,35 @@ func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) 
 const saveLevelUp = `-- name: SaveLevelUp :execrows
 UPDATE characters
 SET level = $1, exp = $2,
-    strength = $3, dexterity = $4, intelligence = $5,
-    agility = $6, vitality = $7,
+    str_points = $3, dex_points = $4, int_points = $5,
+    agi_points = $6, vit_points = $7,
     hp = $8, mp = $9, updated_at = $10
 WHERE id = $11
 `
 
 type SaveLevelUpParams struct {
-	Level        int32
-	Exp          int64
-	Strength     int32
-	Dexterity    int32
-	Intelligence int32
-	Agility      int32
-	Vitality     int32
-	Hp           int32
-	Mp           int32
-	Now          dbx.Stamp
-	ID           uuid.UUID
+	Level     int32
+	Exp       int64
+	StrPoints int32
+	DexPoints int32
+	IntPoints int32
+	AgiPoints int32
+	VitPoints int32
+	Hp        int32
+	Mp        int32
+	Now       dbx.Stamp
+	ID        uuid.UUID
 }
 
 func (q *Queries) SaveLevelUp(ctx context.Context, arg SaveLevelUpParams) (int64, error) {
 	result, err := q.db.Exec(ctx, saveLevelUp,
 		arg.Level,
 		arg.Exp,
-		arg.Strength,
-		arg.Dexterity,
-		arg.Intelligence,
-		arg.Agility,
-		arg.Vitality,
+		arg.StrPoints,
+		arg.DexPoints,
+		arg.IntPoints,
+		arg.AgiPoints,
+		arg.VitPoints,
 		arg.Hp,
 		arg.Mp,
 		arg.Now,

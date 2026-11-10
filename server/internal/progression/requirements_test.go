@@ -8,6 +8,22 @@ import (
 	"finga/internal/progression"
 )
 
+// Only items whose requirements the own stats meet add anything: a ring's STR never unlocks the sword it falls short for.
+func TestActiveSumsTheWornItemsWhoseRequirementsAreMet(t *testing.T) {
+	sword := progression.WornItem{Item: gamedata.Item{ID: "knight_sword", Tab: gamedata.Equip, Slot: gamedata.Weapon, Class: kernel.Warrior, MinLevel: 20, Requires: gamedata.Stats{STR: 60}}, Stats: progression.ItemStats{PhysicalAttack: 30, CritRate: 20}}
+	ring := progression.WornItem{Item: gamedata.Item{ID: "power_ring", Tab: gamedata.Equip, Slot: "ring"}, Stats: progression.ItemStats{STR: 10}}
+	worn := []progression.WornItem{sword, ring}
+	if got, want := progression.Active(worn, 20, kernel.Warrior, gamedata.Stats{STR: 60}), (progression.ItemStats{PhysicalAttack: 30, CritRate: 20, STR: 10}); got != want {
+		t.Fatalf("meeting the sword's STR: %+v, want both items %+v", got, want)
+	}
+	if got, want := progression.Active(worn, 20, kernel.Warrior, gamedata.Stats{STR: 55}), (progression.ItemStats{STR: 10}); got != want {
+		t.Fatalf("5 STR short, with the ring's 10: %+v, want the ring alone %+v", got, want)
+	}
+	if got := progression.Active(nil, 1, kernel.Bowman, gamedata.Stats{}); got != (progression.ItemStats{}) {
+		t.Fatalf("nothing worn: %+v", got)
+	}
+}
+
 func TestMeetsChecksLevelClassAndOwnStats(t *testing.T) {
 	sword := gamedata.Item{ID: "knight_sword", Tab: gamedata.Equip, Slot: gamedata.Weapon, Class: kernel.Warrior, MinLevel: 20, Requires: gamedata.Stats{STR: 60, DEX: 15}}
 	cap := gamedata.Item{ID: "leather_cap", Tab: gamedata.Equip, Slot: "hat", MinLevel: 1}

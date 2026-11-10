@@ -55,24 +55,15 @@ func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gameda
 	}
 }
 
-// AllocationPlan says where a new level's points go.
-type AllocationPlan func(newLevel int) gamedata.Stats
-
-// AutoAssignPlan spends each level's points by the class's auto-assign split.
-func AutoAssignPlan(class gamedata.Class) AllocationPlan {
-	return func(int) gamedata.Stats { return class.AutoAssign }
-}
-
 // Award is the result of AwardExp.
 type Award struct {
 	Progress     Progress
-	Stats        gamedata.Stats
 	LevelsGained int
 }
 
-// AwardExp adds EXP and resolves level-ups; the caller restores HP and MP after one.
-func AwardExp(curve ExpCurve, p Progress, amount int64, stats gamedata.Stats, plan AllocationPlan) Award {
-	a := Award{Progress: p, Stats: stats}
+// AwardExp adds EXP and resolves level-ups; the caller gives each new level's points and restores HP and MP after one.
+func AwardExp(curve ExpCurve, p Progress, amount int64) Award {
+	a := Award{Progress: p}
 	if p.Level >= curve.LevelCap() {
 		a.Progress.Exp = 0
 		return a
@@ -90,7 +81,6 @@ func AwardExp(curve ExpCurve, p Progress, amount int64, stats gamedata.Stats, pl
 		a.Progress.Exp -= need
 		a.Progress.Level++
 		a.LevelsGained++
-		a.Stats = AddStats(a.Stats, plan(a.Progress.Level))
 	}
 }
 

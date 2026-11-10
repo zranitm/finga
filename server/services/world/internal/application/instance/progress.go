@@ -52,23 +52,25 @@ func (i *Instance) shareExp(killer *player, base int64) {
 	}
 }
 
-// award gives a player EXP; a level gained restores HP and MP, tells the party, and is saved at once.
+// award gives a player EXP; each level gained gives its points to spend, and a level-up restores HP and MP, tells the party, and is saved at once.
 func (i *Instance) award(p *player, amount int64) {
 	if amount <= 0 {
 		return
 	}
-	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, progression.AutoAssignPlan(p.class))
-	p.Level, p.Exp, p.Stats = a.Progress.Level, a.Progress.Exp, a.Stats
+	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount)
+	p.Level, p.Exp = a.Progress.Level, a.Progress.Exp
 	p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: amount, Exp: p.Exp})
 	if a.LevelsGained == 0 {
 		return
 	}
-	p.derived = i.derive(p)
+	p.Points.Unspent += a.LevelsGained * i.data.StatRules().PointsPerLevel
+	s := i.stats(p)
+	p.derived = s.Derived
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
 	p.private = append(p.private, model.LevelUp{
-		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats,
-		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: i.sheet(p),
+		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: s.Own,
+		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: s.Sheet,
 	})
 	i.tellParty(p, i.m.ID)
 	i.checkpoint(p)

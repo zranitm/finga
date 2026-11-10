@@ -43,21 +43,33 @@ const (
 	Reason_REASON_CLASS_UNAVAILABLE Reason = 8
 	// A dead character can't change what it wears.
 	Reason_REASON_CHARACTER_DEAD Reason = 9
+	// The character's unspent points are not the count the request expected: an earlier spend or a level-up came first.
+	Reason_REASON_POINTS_CHANGED Reason = 10
+	// The points add up to more than the character has unspent.
+	Reason_REASON_NOT_ENOUGH_POINTS Reason = 11
+	// The one free reset is used.
+	Reason_REASON_NO_FREE_RESET Reason = 12
+	// A negative number of points, or none at all.
+	Reason_REASON_BAD_POINTS Reason = 13
 )
 
 // Enum value maps for Reason.
 var (
 	Reason_name = map[int32]string{
-		0: "REASON_UNSPECIFIED",
-		1: "REASON_BUSY",
-		2: "REASON_NO_MAP",
-		3: "REASON_STOPPED",
-		4: "REASON_NOT_SUBSCRIBED",
-		5: "REASON_PICKUPS_UNAVAILABLE",
-		6: "REASON_PICKUP_BUSY",
-		7: "REASON_BAD_ID",
-		8: "REASON_CLASS_UNAVAILABLE",
-		9: "REASON_CHARACTER_DEAD",
+		0:  "REASON_UNSPECIFIED",
+		1:  "REASON_BUSY",
+		2:  "REASON_NO_MAP",
+		3:  "REASON_STOPPED",
+		4:  "REASON_NOT_SUBSCRIBED",
+		5:  "REASON_PICKUPS_UNAVAILABLE",
+		6:  "REASON_PICKUP_BUSY",
+		7:  "REASON_BAD_ID",
+		8:  "REASON_CLASS_UNAVAILABLE",
+		9:  "REASON_CHARACTER_DEAD",
+		10: "REASON_POINTS_CHANGED",
+		11: "REASON_NOT_ENOUGH_POINTS",
+		12: "REASON_NO_FREE_RESET",
+		13: "REASON_BAD_POINTS",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":         0,
@@ -70,6 +82,10 @@ var (
 		"REASON_BAD_ID":              7,
 		"REASON_CLASS_UNAVAILABLE":   8,
 		"REASON_CHARACTER_DEAD":      9,
+		"REASON_POINTS_CHANGED":      10,
+		"REASON_NOT_ENOUGH_POINTS":   11,
+		"REASON_NO_FREE_RESET":       12,
+		"REASON_BAD_POINTS":          13,
 	}
 )
 
@@ -3867,6 +3883,193 @@ func (*UnequipResponse) Descriptor() ([]byte, []int) {
 	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{50}
 }
 
+type SpendPointsRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	// The unspent count the client saw; any other refuses the spend, so a retried one lands once.
+	ExpectedUnspent int32 `protobuf:"varint,2,opt,name=expected_unspent,json=expectedUnspent,proto3" json:"expected_unspent,omitempty"`
+	// How many points go to each stat.
+	Points        *Stats `protobuf:"bytes,3,opt,name=points,proto3" json:"points,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SpendPointsRequest) Reset() {
+	*x = SpendPointsRequest{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SpendPointsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpendPointsRequest) ProtoMessage() {}
+
+func (x *SpendPointsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpendPointsRequest.ProtoReflect.Descriptor instead.
+func (*SpendPointsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *SpendPointsRequest) GetPresence() *Presence {
+	if x != nil {
+		return x.Presence
+	}
+	return nil
+}
+
+func (x *SpendPointsRequest) GetExpectedUnspent() int32 {
+	if x != nil {
+		return x.ExpectedUnspent
+	}
+	return 0
+}
+
+func (x *SpendPointsRequest) GetPoints() *Stats {
+	if x != nil {
+		return x.Points
+	}
+	return nil
+}
+
+type SpendPointsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SpendPointsResponse) Reset() {
+	*x = SpendPointsResponse{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SpendPointsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SpendPointsResponse) ProtoMessage() {}
+
+func (x *SpendPointsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SpendPointsResponse.ProtoReflect.Descriptor instead.
+func (*SpendPointsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{52}
+}
+
+type ResetPointsRequest struct {
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Presence *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	// The unspent count the client saw; any other refuses the reset.
+	ExpectedUnspent int32 `protobuf:"varint,2,opt,name=expected_unspent,json=expectedUnspent,proto3" json:"expected_unspent,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ResetPointsRequest) Reset() {
+	*x = ResetPointsRequest{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPointsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPointsRequest) ProtoMessage() {}
+
+func (x *ResetPointsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPointsRequest.ProtoReflect.Descriptor instead.
+func (*ResetPointsRequest) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ResetPointsRequest) GetPresence() *Presence {
+	if x != nil {
+		return x.Presence
+	}
+	return nil
+}
+
+func (x *ResetPointsRequest) GetExpectedUnspent() int32 {
+	if x != nil {
+		return x.ExpectedUnspent
+	}
+	return 0
+}
+
+type ResetPointsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResetPointsResponse) Reset() {
+	*x = ResetPointsResponse{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResetPointsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResetPointsResponse) ProtoMessage() {}
+
+func (x *ResetPointsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResetPointsResponse.ProtoReflect.Descriptor instead.
+func (*ResetPointsResponse) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{54}
+}
+
 var File_internal_world_v1_world_proto protoreflect.FileDescriptor
 
 const file_internal_world_v1_world_proto_rawDesc = "" +
@@ -4157,7 +4360,16 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\ato_slot\x18\x04 \x01(\x05H\x00R\x06toSlot\x88\x01\x01B\n" +
 	"\n" +
 	"\b_to_slot\"\x11\n" +
-	"\x0fUnequipResponse*\xff\x01\n" +
+	"\x0fUnequipResponse\"\xaa\x01\n" +
+	"\x12SpendPointsRequest\x127\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12)\n" +
+	"\x10expected_unspent\x18\x02 \x01(\x05R\x0fexpectedUnspent\x120\n" +
+	"\x06points\x18\x03 \x01(\v2\x18.internal.world.v1.StatsR\x06points\"\x15\n" +
+	"\x13SpendPointsResponse\"x\n" +
+	"\x12ResetPointsRequest\x127\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12)\n" +
+	"\x10expected_unspent\x18\x02 \x01(\x05R\x0fexpectedUnspent\"\x15\n" +
+	"\x13ResetPointsResponse*\xe9\x02\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vREASON_BUSY\x10\x01\x12\x11\n" +
@@ -4168,12 +4380,17 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x12REASON_PICKUP_BUSY\x10\x06\x1a\x02\b\x01\x12\x11\n" +
 	"\rREASON_BAD_ID\x10\a\x12\x1c\n" +
 	"\x18REASON_CLASS_UNAVAILABLE\x10\b\x12\x19\n" +
-	"\x15REASON_CHARACTER_DEAD\x10\t*i\n" +
+	"\x15REASON_CHARACTER_DEAD\x10\t\x12\x19\n" +
+	"\x15REASON_POINTS_CHANGED\x10\n" +
+	"\x12\x1c\n" +
+	"\x18REASON_NOT_ENOUGH_POINTS\x10\v\x12\x18\n" +
+	"\x14REASON_NO_FREE_RESET\x10\f\x12\x15\n" +
+	"\x11REASON_BAD_POINTS\x10\r*i\n" +
 	"\bLootKind\x12\x19\n" +
 	"\x15LOOT_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13LOOT_KIND_COLLECTED\x10\x01\x12\x15\n" +
 	"\x11LOOT_KIND_WAITING\x10\x02\x12\x12\n" +
-	"\x0eLOOT_KIND_LOST\x10\x032\xa8\x06\n" +
+	"\x0eLOOT_KIND_LOST\x10\x032\xe4\a\n" +
 	"\fWorldService\x12R\n" +
 	"\aDeliver\x12!.internal.world.v1.DeliverRequest\x1a\".internal.world.v1.DeliverResponse0\x01\x12G\n" +
 	"\x04Join\x12\x1e.internal.world.v1.JoinRequest\x1a\x1f.internal.world.v1.JoinResponse\x12J\n" +
@@ -4184,7 +4401,9 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\vEnterPortal\x12%.internal.world.v1.EnterPortalRequest\x1a&.internal.world.v1.EnterPortalResponse\x12D\n" +
 	"\x03Say\x12\x1d.internal.world.v1.SayRequest\x1a\x1e.internal.world.v1.SayResponse\x12J\n" +
 	"\x05Equip\x12\x1f.internal.world.v1.EquipRequest\x1a .internal.world.v1.EquipResponse\x12P\n" +
-	"\aUnequip\x12!.internal.world.v1.UnequipRequest\x1a\".internal.world.v1.UnequipResponseB Z\x1efinga/api/gen/world/v1;worldv1b\x06proto3"
+	"\aUnequip\x12!.internal.world.v1.UnequipRequest\x1a\".internal.world.v1.UnequipResponse\x12\\\n" +
+	"\vSpendPoints\x12%.internal.world.v1.SpendPointsRequest\x1a&.internal.world.v1.SpendPointsResponse\x12\\\n" +
+	"\vResetPoints\x12%.internal.world.v1.ResetPointsRequest\x1a&.internal.world.v1.ResetPointsResponseB Z\x1efinga/api/gen/world/v1;worldv1b\x06proto3"
 
 var (
 	file_internal_world_v1_world_proto_rawDescOnce sync.Once
@@ -4199,7 +4418,7 @@ func file_internal_world_v1_world_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_world_v1_world_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_world_v1_world_proto_msgTypes = make([]protoimpl.MessageInfo, 51)
+var file_internal_world_v1_world_proto_msgTypes = make([]protoimpl.MessageInfo, 55)
 var file_internal_world_v1_world_proto_goTypes = []any{
 	(Reason)(0),                 // 0: internal.world.v1.Reason
 	(LootKind)(0),               // 1: internal.world.v1.LootKind
@@ -4254,6 +4473,10 @@ var file_internal_world_v1_world_proto_goTypes = []any{
 	(*EquipResponse)(nil),       // 50: internal.world.v1.EquipResponse
 	(*UnequipRequest)(nil),      // 51: internal.world.v1.UnequipRequest
 	(*UnequipResponse)(nil),     // 52: internal.world.v1.UnequipResponse
+	(*SpendPointsRequest)(nil),  // 53: internal.world.v1.SpendPointsRequest
+	(*SpendPointsResponse)(nil), // 54: internal.world.v1.SpendPointsResponse
+	(*ResetPointsRequest)(nil),  // 55: internal.world.v1.ResetPointsRequest
+	(*ResetPointsResponse)(nil), // 56: internal.world.v1.ResetPointsResponse
 }
 var file_internal_world_v1_world_proto_depIdxs = []int32{
 	4,  // 0: internal.world.v1.CharacterView.stats:type_name -> internal.world.v1.Stats
@@ -4306,31 +4529,38 @@ var file_internal_world_v1_world_proto_depIdxs = []int32{
 	2,  // 47: internal.world.v1.SayRequest.presence:type_name -> internal.world.v1.Presence
 	2,  // 48: internal.world.v1.EquipRequest.presence:type_name -> internal.world.v1.Presence
 	2,  // 49: internal.world.v1.UnequipRequest.presence:type_name -> internal.world.v1.Presence
-	8,  // 50: internal.world.v1.WorldService.Deliver:input_type -> internal.world.v1.DeliverRequest
-	35, // 51: internal.world.v1.WorldService.Join:input_type -> internal.world.v1.JoinRequest
-	37, // 52: internal.world.v1.WorldService.Leave:input_type -> internal.world.v1.LeaveRequest
-	39, // 53: internal.world.v1.WorldService.Input:input_type -> internal.world.v1.InputRequest
-	41, // 54: internal.world.v1.WorldService.Attack:input_type -> internal.world.v1.AttackRequest
-	43, // 55: internal.world.v1.WorldService.PickUp:input_type -> internal.world.v1.PickUpRequest
-	45, // 56: internal.world.v1.WorldService.EnterPortal:input_type -> internal.world.v1.EnterPortalRequest
-	47, // 57: internal.world.v1.WorldService.Say:input_type -> internal.world.v1.SayRequest
-	49, // 58: internal.world.v1.WorldService.Equip:input_type -> internal.world.v1.EquipRequest
-	51, // 59: internal.world.v1.WorldService.Unequip:input_type -> internal.world.v1.UnequipRequest
-	9,  // 60: internal.world.v1.WorldService.Deliver:output_type -> internal.world.v1.DeliverResponse
-	36, // 61: internal.world.v1.WorldService.Join:output_type -> internal.world.v1.JoinResponse
-	38, // 62: internal.world.v1.WorldService.Leave:output_type -> internal.world.v1.LeaveResponse
-	40, // 63: internal.world.v1.WorldService.Input:output_type -> internal.world.v1.InputResponse
-	42, // 64: internal.world.v1.WorldService.Attack:output_type -> internal.world.v1.AttackResponse
-	44, // 65: internal.world.v1.WorldService.PickUp:output_type -> internal.world.v1.PickUpResponse
-	46, // 66: internal.world.v1.WorldService.EnterPortal:output_type -> internal.world.v1.EnterPortalResponse
-	48, // 67: internal.world.v1.WorldService.Say:output_type -> internal.world.v1.SayResponse
-	50, // 68: internal.world.v1.WorldService.Equip:output_type -> internal.world.v1.EquipResponse
-	52, // 69: internal.world.v1.WorldService.Unequip:output_type -> internal.world.v1.UnequipResponse
-	60, // [60:70] is the sub-list for method output_type
-	50, // [50:60] is the sub-list for method input_type
-	50, // [50:50] is the sub-list for extension type_name
-	50, // [50:50] is the sub-list for extension extendee
-	0,  // [0:50] is the sub-list for field type_name
+	2,  // 50: internal.world.v1.SpendPointsRequest.presence:type_name -> internal.world.v1.Presence
+	4,  // 51: internal.world.v1.SpendPointsRequest.points:type_name -> internal.world.v1.Stats
+	2,  // 52: internal.world.v1.ResetPointsRequest.presence:type_name -> internal.world.v1.Presence
+	8,  // 53: internal.world.v1.WorldService.Deliver:input_type -> internal.world.v1.DeliverRequest
+	35, // 54: internal.world.v1.WorldService.Join:input_type -> internal.world.v1.JoinRequest
+	37, // 55: internal.world.v1.WorldService.Leave:input_type -> internal.world.v1.LeaveRequest
+	39, // 56: internal.world.v1.WorldService.Input:input_type -> internal.world.v1.InputRequest
+	41, // 57: internal.world.v1.WorldService.Attack:input_type -> internal.world.v1.AttackRequest
+	43, // 58: internal.world.v1.WorldService.PickUp:input_type -> internal.world.v1.PickUpRequest
+	45, // 59: internal.world.v1.WorldService.EnterPortal:input_type -> internal.world.v1.EnterPortalRequest
+	47, // 60: internal.world.v1.WorldService.Say:input_type -> internal.world.v1.SayRequest
+	49, // 61: internal.world.v1.WorldService.Equip:input_type -> internal.world.v1.EquipRequest
+	51, // 62: internal.world.v1.WorldService.Unequip:input_type -> internal.world.v1.UnequipRequest
+	53, // 63: internal.world.v1.WorldService.SpendPoints:input_type -> internal.world.v1.SpendPointsRequest
+	55, // 64: internal.world.v1.WorldService.ResetPoints:input_type -> internal.world.v1.ResetPointsRequest
+	9,  // 65: internal.world.v1.WorldService.Deliver:output_type -> internal.world.v1.DeliverResponse
+	36, // 66: internal.world.v1.WorldService.Join:output_type -> internal.world.v1.JoinResponse
+	38, // 67: internal.world.v1.WorldService.Leave:output_type -> internal.world.v1.LeaveResponse
+	40, // 68: internal.world.v1.WorldService.Input:output_type -> internal.world.v1.InputResponse
+	42, // 69: internal.world.v1.WorldService.Attack:output_type -> internal.world.v1.AttackResponse
+	44, // 70: internal.world.v1.WorldService.PickUp:output_type -> internal.world.v1.PickUpResponse
+	46, // 71: internal.world.v1.WorldService.EnterPortal:output_type -> internal.world.v1.EnterPortalResponse
+	48, // 72: internal.world.v1.WorldService.Say:output_type -> internal.world.v1.SayResponse
+	50, // 73: internal.world.v1.WorldService.Equip:output_type -> internal.world.v1.EquipResponse
+	52, // 74: internal.world.v1.WorldService.Unequip:output_type -> internal.world.v1.UnequipResponse
+	54, // 75: internal.world.v1.WorldService.SpendPoints:output_type -> internal.world.v1.SpendPointsResponse
+	56, // 76: internal.world.v1.WorldService.ResetPoints:output_type -> internal.world.v1.ResetPointsResponse
+	65, // [65:77] is the sub-list for method output_type
+	53, // [53:65] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_internal_world_v1_world_proto_init() }
@@ -4367,7 +4597,7 @@ func file_internal_world_v1_world_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_world_v1_world_proto_rawDesc), len(file_internal_world_v1_world_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   51,
+			NumMessages:   55,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

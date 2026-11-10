@@ -202,8 +202,8 @@ func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
 		refused(t, err, "starter_grants.character_id 1 row")
 	})
 
-	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, strength, dexterity, intelligence, agility, vitality, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
-		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 12, 5, 4, 5, 10, 204, 28, 'town', 416, 608, now(), now())`
+	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
+		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 0, 0, 0, 0, 0, 184, 32, 'town', 416, 608, now(), now())`
 	const item = `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
 		VALUES ($1, 'red_potion', $2, 'inventory', 'use', 0, 1, now(), now())`
 	// A database migrated before the check existed: every service's tables and no check recorded.

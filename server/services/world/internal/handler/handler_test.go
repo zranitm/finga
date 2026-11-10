@@ -108,7 +108,7 @@ type wears struct{ err error }
 
 func (w wears) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
 	item := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3, MaxHP: 30}}
-	return model.Equipped{Slots: []model.Slot{{Tab: gamedata.Equip, Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: item}}, Worn: model.Worn{Revision: 2, Stats: *item.Stats}}, w.err
+	return model.Equipped{Slots: []model.Slot{{Tab: gamedata.Equip, Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: item}}, Worn: model.Worn{Revision: 2, Items: []model.WornItem{{Template: item.Template, Stats: *item.Stats}}}}, w.err
 }
 
 func (w wears) Unequip(context.Context, model.UnequipCall) (model.Equipped, error) {
@@ -147,7 +147,7 @@ func (s *stack) character(name string) model.Character {
 	town := s.data.Town()
 	ch := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Warrior, Level: 1,
-		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 184, MP: 28,
+		HP: 184, MP: 28,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
 	s.chars.add(ch)
@@ -452,6 +452,64 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 	to := int32(5)
 	if _, err := s.c.Unequip(s.ctx, &worldv1.UnequipRequest{Presence: presence, IdempotencyKey: "k-2", EquipSlot: "hat", ToSlot: &to}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Points are spent and reset over the real world, each refusal with its reason; a retried Apply finds the count changed.
+func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	town := s.data.Town()
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 3, Points: model.Points{Unspent: 10},
+		HP: 220, MP: 40, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+	}
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	spend := func(expected int32, add *worldv1.Stats) error {
+		_, err := s.c.SpendPoints(s.ctx, &worldv1.SpendPointsRequest{Presence: presence, ExpectedUnspent: expected, Points: add})
+		return err
+	}
+	if err := spend(10, &worldv1.Stats{Strength: 4, Vitality: 2}); err != nil {
+		t.Fatal(err)
+	}
+	stats := until(t, stream, "the spend's StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
+	if p := stats.GetSheet().GetPrimary(); p.GetStrength() != 16 || p.GetVitality() != 12 || stats.GetMaxHp() != 248 {
+		t.Fatalf("stats change %+v", stats)
+	}
+	for _, c := range []struct {
+		name     string
+		expected int32
+		add      *worldv1.Stats
+		code     codes.Code
+		reason   worldv1.Reason
+	}{
+		{"a retried Apply", 10, &worldv1.Stats{Strength: 4, Vitality: 2}, codes.FailedPrecondition, worldv1.Reason_REASON_POINTS_CHANGED},
+		{"more than unspent", 4, &worldv1.Stats{Strength: 5}, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_ENOUGH_POINTS},
+		{"a negative stat", 4, &worldv1.Stats{Strength: -1, Agility: 2}, codes.InvalidArgument, worldv1.Reason_REASON_BAD_POINTS},
+	} {
+		err := spend(c.expected, c.add)
+		if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(c.reason) || status.Code(err) != c.code {
+			t.Fatalf("%s: %v, want %v %v", c.name, err, c.code, c.reason)
+		}
+	}
+	if _, err := s.c.ResetPoints(s.ctx, &worldv1.ResetPointsRequest{Presence: presence, ExpectedUnspent: 4}); err != nil {
+		t.Fatal(err)
+	}
+	stats = until(t, stream, "the reset's StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
+	if p := stats.GetSheet().GetPrimary(); p.GetStrength() != 12 || p.GetVitality() != 10 || stats.GetMaxHp() != 220 {
+		t.Fatalf("stats change after the reset %+v", stats)
+	}
+	_, err := s.c.ResetPoints(s.ctx, &worldv1.ResetPointsRequest{Presence: presence, ExpectedUnspent: 10})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(worldv1.Reason_REASON_NO_FREE_RESET) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("a second reset: %v", err)
+	}
+	if _, err := s.c.SpendPoints(s.ctx, &worldv1.SpendPointsRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
+	}
+	if _, err := s.c.ResetPoints(s.ctx, &worldv1.ResetPointsRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String()}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("no connection: %v", err)
 	}
 }
 

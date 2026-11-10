@@ -71,13 +71,13 @@ func damages(s *worldtest.Sink) []model.Damage {
 // warriorAt is a new warrior, wearing the starter sword at its lowest roll as every new warrior does: two hits kill a slime.
 func warriorAt(x float64) model.Player {
 	p := worldtest.NewPlayer("Ayla", x, 608)
-	p.Worn = model.Worn{Revision: 1, Stats: progression.ItemStats{PhysicalAttack: 10}}
+	p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: 10}}}}
 	return p
 }
 
 func bowmanAt(x float64) model.Player {
-	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
-	p.Worn = model.Worn{Revision: 1, Stats: progression.ItemStats{PhysicalAttack: 8}}
+	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, HP: 105, MP: 33, X: x, Y: 608}
+	p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "short_bow", Stats: progression.ItemStats{PhysicalAttack: 8}}}}
 	return p
 }
 
@@ -450,16 +450,17 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 			t.Fatalf("level-up events %+v", lus)
 		}
 		lu := lus[0].(model.LevelUp)
-		// STR 15, VIT 12 after the auto-assign split; max HP 60+18+2×15+10×12 = 228, max MP 20+4+3×4 = 36.
-		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}) || lu.HP != 228 || lu.MaxHP != 228 || lu.MP != 36 || lu.MaxMP != 36 {
+		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×12+10×10 = 202, max MP 20+4+3×4 = 36.
+		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}) || lu.HP != 202 || lu.MaxHP != 202 || lu.MP != 36 || lu.MaxMP != 36 ||
+			lu.Sheet.Points != (model.Points{Unspent: 5}) {
 			t.Fatalf("level-up %+v", lu)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Level != 2 || v.HP != 228 || v.MaxHP != 228 {
+		if v.Level != 2 || v.HP != 202 || v.MaxHP != 202 {
 			t.Fatalf("view after level-up %+v", v)
 		}
 		// The level-up is checkpointed right away, with the whole progression.
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 228 || saved[0].Stats != lu.Stats {
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 202 || saved[0].Points != (model.Points{Unspent: 5}) {
 			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
 	})

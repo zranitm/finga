@@ -3,6 +3,7 @@ package instance_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -81,7 +82,7 @@ func sword() model.Equipped {
 	return model.Equipped{
 		Slots:     []model.Slot{{Tab: gamedata.Equip, Slot: 0}},
 		Equipment: []model.EquipSlot{{Slot: "weapon", Item: item}},
-		Worn:      model.Worn{Revision: 5, Stats: *item.Stats},
+		Worn:      model.Worn{Revision: 5, Items: []model.WornItem{{Template: item.Template, Stats: *item.Stats}}},
 	}
 }
 
@@ -131,7 +132,7 @@ func TestEquipChangesStatsOnlyOnceTheResultArrives(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		if c := eq.equips[0]; c.Character != p.ID || c.Account != p.Account || c.Key != "k-1" || c.Level != 1 || c.Class != kernel.Warrior || c.Stats != p.Stats || c.Stats == (gamedata.Stats{}) {
+		if c := eq.equips[0]; c.Character != p.ID || c.Account != p.Account || c.Key != "k-1" || c.Level != 1 || c.Class != kernel.Warrior || c.Stats != (gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}) {
 			t.Fatalf("call %+v; want the live level, class and own stats", c)
 		}
 		inv, stats := eventsOf[model.InventoryChanged](s), eventsOf[model.StatsChanged](s)
@@ -211,7 +212,7 @@ func TestUnequipLowersHPAndMPToTheNewMaximum(t *testing.T) {
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t)})
 		defer stop()
 		p := worldtest.NewPlayer("Ayla", 100, 608)
-		p.Connection, p.Worn = "c1", model.Worn{Revision: 3, Stats: progression.ItemStats{MaxHP: 50, MaxMP: 10}}
+		p.Connection, p.Worn = "c1", model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 50, MaxMP: 10}}}}
 		p.HP, p.MP = 234, 42 // full with the hat's 50 HP and 10 MP
 		s := join(t, inst, p)
 		if v, _ := s.Own(p.ID); v.MaxHP != 234 || v.HP != 234 {
@@ -258,7 +259,7 @@ func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 		defer stop()
 		tick(1)
 		p := warriorAt(250)
-		p.Exp, p.Worn = 18, model.Worn{Revision: 2, Stats: progression.ItemStats{PhysicalAttack: 10, MaxHP: 30}} // the sword, and 30 HP from elsewhere
+		p.Exp, p.Worn = 18, model.Worn{Revision: 2, Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: 10}}, {Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}
 		s := join(t, inst, p)
 		if v, _ := s.Own(p.ID); v.MaxHP != 214 {
 			t.Fatalf("max HP %d at join, want 184 and the worn 30", v.MaxHP)
@@ -268,8 +269,8 @@ func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 		_ = inst.Attack(p.ID)
 		tick(1)
 		lus := eventsOf[model.LevelUp](s)
-		if len(lus) != 1 || lus[0].MaxHP != 258 || lus[0].HP != 258 || lus[0].Sheet.DerivedWorn.MaxHP != 30 {
-			t.Fatalf("level-ups %+v; want max HP 228 and the worn 30, restored, with the equipment's share", lus)
+		if len(lus) != 1 || lus[0].MaxHP != 232 || lus[0].HP != 232 || lus[0].Sheet.DerivedWorn.MaxHP != 30 {
+			t.Fatalf("level-ups %+v; want max HP 202 and the worn 30, restored, with the equipment's share", lus)
 		}
 	})
 }
@@ -302,7 +303,7 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.moved[0].Worn != sword().Worn {
+			if len(tr.moved) != 1 || !reflect.DeepEqual(tr.moved[0].Worn, sword().Worn) {
 				t.Fatalf("moved %+v; want the respawn to carry the sword", tr.moved)
 			}
 		})
@@ -334,7 +335,7 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 			tick(1)
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.moved[0].Worn != sword().Worn {
+			if len(tr.moved) != 1 || !reflect.DeepEqual(tr.moved[0].Worn, sword().Worn) {
 				t.Fatalf("moved %+v; want the portal to carry the sword", tr.moved)
 			}
 		})

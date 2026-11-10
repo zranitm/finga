@@ -22,7 +22,7 @@ func NewSaver(c characterv1.CharacterServiceClient) Saver { return Saver{c: c} }
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
 		CharacterId: cp.ID.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP),
-		Level: int32(cp.Level), Exp: cp.Exp, Stats: statsOf(cp.Stats),
+		Level: int32(cp.Level), Exp: cp.Exp, Points: statsOf(cp.Points.Spent), UnspentPoints: int32(cp.Points.Unspent), FreeResetUsed: cp.Points.FreeResetUsed,
 	})
 	return err
 }
@@ -56,10 +56,13 @@ func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 	if err != nil {
 		return model.Character{}, err
 	}
-	st := ch.GetStats()
+	pts := ch.GetPoints()
 	return model.Character{
 		ID: id, Account: account, Name: ch.GetName(), Class: class, Level: int(ch.GetLevel()), Exp: ch.GetExp(),
-		Stats: gamedata.Stats{STR: int(st.GetStrength()), DEX: int(st.GetDexterity()), INT: int(st.GetIntelligence()), AGI: int(st.GetAgility()), VIT: int(st.GetVitality())},
-		HP:    int(ch.GetHp()), MP: int(ch.GetMp()), MapID: ch.GetMapId(), X: ch.GetX(), Y: ch.GetY(),
+		Points: model.Points{
+			Spent:   gamedata.Stats{STR: int(pts.GetStrength()), DEX: int(pts.GetDexterity()), INT: int(pts.GetIntelligence()), AGI: int(pts.GetAgility()), VIT: int(pts.GetVitality())},
+			Unspent: int(ch.GetUnspentPoints()), FreeResetUsed: ch.GetFreeResetUsed(),
+		},
+		HP: int(ch.GetHp()), MP: int(ch.GetMp()), MapID: ch.GetMapId(), X: ch.GetX(), Y: ch.GetY(),
 	}, nil
 }

@@ -281,7 +281,8 @@ func TestFightAndGrow(t *testing.T) {
 		if !ok || !gained {
 			t.Fatalf("no level-up in 40 s (exp gained: %v)", gained)
 		}
-		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 15 {
+		// The level's points wait unspent, so DEX stays the bowman's 12.
+		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 12 {
 			t.Fatalf("level-up %+v", lu.Character)
 		}
 		dl := time.Now().Add(5 * time.Second)

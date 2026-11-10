@@ -104,7 +104,7 @@ classes:                   # base values per class; per_level grows them
   1. **Refusals:**
      - `points_changed` when `expected_unspent` isn't the character's unspent count now;
      - `not_enough_points` when the points add up to more than that;
-     - a refusal for any negative number.
+     - `bad_points` for any negative number, or no points at all.
   2. Otherwise it adds the points and lowers the unspent count.
   3. It re-checks the worn items' requirements and re-derives.
   4. It sends `StatsChanged` and queues a checkpoint at once.
@@ -185,7 +185,8 @@ classes:                   # base values per class; per_level grows them
   - `not_enough_points`: "you don't have that many points";
   - `points_changed`: "your points changed; try again";
   - `no_free_reset`: "your free reset is used";
-  - `stats_too_low`: "your stats are too low for that item".
+  - `stats_too_low`: "your stats are too low for that item";
+  - `bad_points`: "spend at least one point, and none below zero".
 - **REST:** `auto_assign_points` in settings (`api/openapi.yaml`).
 - **Renames are allowed by moving buf's breaking rules from `FILE` to `WIRE`** (`server/buf.yaml`), in its own commit before any rename.
   - `WIRE` still refuses what would break a running client: a changed field number or type, or a field deleted without its number reserved.

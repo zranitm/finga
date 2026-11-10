@@ -19,6 +19,7 @@ type Service interface {
 	Create(ctx context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error)
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
+	Own(c model.Character) (gamedata.Stats, error)
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
@@ -92,7 +93,7 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 	}
 	cp := model.Checkpoint{
 		ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()),
-		Level: int(req.GetLevel()), Exp: req.GetExp(), Stats: statsOf(req.GetStats()),
+		Level: int(req.GetLevel()), Exp: req.GetExp(), Points: statsOf(req.GetPoints()), UnspentPoints: int(req.GetUnspentPoints()), FreeResetUsed: req.GetFreeResetUsed(),
 	}
 	if err := s.svc.SaveCheckpoint(ctx, cp); err != nil {
 		return nil, err
@@ -106,19 +107,20 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 	if err != nil {
 		return nil, err
 	}
-	lu := model.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Stats: statsOf(req.GetStats()), HP: int(req.GetHp()), MP: int(req.GetMp())}
+	lu := model.LevelUp{ID: id, Level: int(req.GetLevel()), Exp: req.GetExp(), Points: statsOf(req.GetPoints()), HP: int(req.GetHp()), MP: int(req.GetMp())}
 	if err := s.svc.SaveLevelUp(ctx, lu); err != nil {
 		return nil, err
 	}
 	return &characterv1.SaveLevelUpResponse{}, nil
 }
 
-// view leaves the maximums 0 when the class has no formulas (Load refuses that case).
+// view leaves the own stats and maximums 0 when the class is unknown (Load refuses that case).
 func (s *Server) view(c model.Character) *characterv1.Character {
+	own, _ := s.svc.Own(c)
 	d, _ := s.svc.Derived(c)
 	return &characterv1.Character{
 		Id: c.ID.String(), AccountId: c.AccountID.String(), Name: c.Name, Class: c.Class.String(),
-		Level: int32(c.Level), Exp: c.Exp, Stats: statsView(c.Stats), UnspentPoints: int32(c.UnspentPoints),
+		Level: int32(c.Level), Exp: c.Exp, Points: statsView(c.Points), UnspentPoints: int32(c.UnspentPoints), FreeResetUsed: c.FreeResetUsed, OwnStats: statsView(own),
 		Hp: int32(c.HP), MaxHp: int32(d.MaxHP), Mp: int32(c.MP), MaxMp: int32(d.MaxMP),
 		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt),
 	}

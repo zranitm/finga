@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	worldv1 "finga/api/gen/world/v1"
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/grpcx"
@@ -28,6 +29,8 @@ type World interface {
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
+	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
+	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 }
 
 // queue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
@@ -189,6 +192,32 @@ func (s *Server) Unequip(ctx context.Context, req *worldv1.UnequipRequest) (*wor
 		return nil, err
 	}
 	return &worldv1.UnequipResponse{}, nil
+}
+
+// SpendPoints adds unspent points to the character's stats and answers once the new stats apply.
+func (s *Server) SpendPoints(ctx context.Context, req *worldv1.SpendPointsRequest) (*worldv1.SpendPointsResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	pts := req.GetPoints()
+	add := gamedata.Stats{STR: int(pts.GetStrength()), DEX: int(pts.GetDexterity()), INT: int(pts.GetIntelligence()), AGI: int(pts.GetAgility()), VIT: int(pts.GetVitality())}
+	if err := s.world.SpendPoints(ctx, id, conn, int(req.GetExpectedUnspent()), add); err != nil {
+		return nil, err
+	}
+	return &worldv1.SpendPointsResponse{}, nil
+}
+
+// ResetPoints returns every spent point to unspent with the free reset and answers once the new stats apply.
+func (s *Server) ResetPoints(ctx context.Context, req *worldv1.ResetPointsRequest) (*worldv1.ResetPointsResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.ResetPoints(ctx, id, conn, int(req.GetExpectedUnspent())); err != nil {
+		return nil, err
+	}
+	return &worldv1.ResetPointsResponse{}, nil
 }
 
 // presence is the character a command is for and the connection it comes from.

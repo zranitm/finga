@@ -150,47 +150,29 @@ func rated(got, want progression.Derived) []pair {
 
 func TestAwardExp(t *testing.T) {
 	data := loadData(t) // exp_to_next: 1→20, 2→65, 3→129, 4→211 ... cap 30
-	warrior, _ := data.Class(kernel.Warrior)
-	preset := progression.AutoAssignPlan(warrior)
-	base := warrior.BaseStats
 	tests := []struct {
 		name       string
 		start      progression.Progress
 		amount     int64
 		wantAfter  progression.Progress
 		wantLevels int
-		wantStats  gamedata.Stats
 	}{
-		{"below the threshold accumulates", progression.Progress{Level: 1, Exp: 5}, 10, progression.Progress{Level: 1, Exp: 15}, 0, base},
-		{"exactly at the threshold levels up with 0 carried", progression.Progress{Level: 1, Exp: 5}, 15, progression.Progress{Level: 2, Exp: 0}, 1, progression.AddStats(base, warrior.AutoAssign)},
-		{"extra EXP carries over", progression.Progress{Level: 1, Exp: 0}, 30, progression.Progress{Level: 2, Exp: 10}, 1, progression.AddStats(base, warrior.AutoAssign)},
-		{"several levels at once", progression.Progress{Level: 1, Exp: 0}, 20 + 65 + 129 + 7, progression.Progress{Level: 4, Exp: 7}, 3, gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}},
-		{"reaching the cap discards the remainder", progression.Progress{Level: 29, Exp: 6000}, 1000, progression.Progress{Level: 30, Exp: 0}, 1, progression.AddStats(base, warrior.AutoAssign)},
-		{"at the cap nothing accumulates", progression.Progress{Level: 30, Exp: 0}, 5000, progression.Progress{Level: 30, Exp: 0}, 0, base},
-		{"zero EXP changes nothing", progression.Progress{Level: 3, Exp: 50}, 0, progression.Progress{Level: 3, Exp: 50}, 0, base},
+		{"below the threshold accumulates", progression.Progress{Level: 1, Exp: 5}, 10, progression.Progress{Level: 1, Exp: 15}, 0},
+		{"exactly at the threshold levels up with 0 carried", progression.Progress{Level: 1, Exp: 5}, 15, progression.Progress{Level: 2, Exp: 0}, 1},
+		{"extra EXP carries over", progression.Progress{Level: 1, Exp: 0}, 30, progression.Progress{Level: 2, Exp: 10}, 1},
+		{"several levels at once", progression.Progress{Level: 1, Exp: 0}, 20 + 65 + 129 + 7, progression.Progress{Level: 4, Exp: 7}, 3},
+		{"reaching the cap discards the remainder", progression.Progress{Level: 29, Exp: 6000}, 1000, progression.Progress{Level: 30, Exp: 0}, 1},
+		{"at the cap nothing accumulates", progression.Progress{Level: 30, Exp: 0}, 5000, progression.Progress{Level: 30, Exp: 0}, 0},
+		{"zero EXP changes nothing", progression.Progress{Level: 3, Exp: 50}, 0, progression.Progress{Level: 3, Exp: 50}, 0},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := progression.AwardExp(data, tt.start, tt.amount, base, preset)
+			got := progression.AwardExp(data, tt.start, tt.amount)
 			if got.Progress != tt.wantAfter || got.LevelsGained != tt.wantLevels {
 				t.Fatalf("got %+v (+%d), want %+v (+%d)", got.Progress, got.LevelsGained, tt.wantAfter, tt.wantLevels)
 			}
-			if got.Stats != tt.wantStats {
-				t.Fatalf("stats %+v, want %+v", got.Stats, tt.wantStats)
-			}
 		})
 	}
-	t.Run("the allocation plan is asked once per new level, with that level", func(t *testing.T) {
-		var asked []int
-		plan := func(level int) gamedata.Stats { asked = append(asked, level); return gamedata.Stats{INT: 5} }
-		got := progression.AwardExp(data, progression.Progress{Level: 1}, 20+65, base, plan)
-		if len(asked) != 2 || asked[0] != 2 || asked[1] != 3 {
-			t.Fatalf("asked for levels %v, want [2 3]", asked)
-		}
-		if got.Stats.INT != base.INT+10 {
-			t.Fatalf("INT %d, want %d", got.Stats.INT, base.INT+10)
-		}
-	})
 }
 
 func TestDeathPenalty(t *testing.T) {

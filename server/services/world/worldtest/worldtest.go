@@ -160,7 +160,7 @@ func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 
 // NewPlayer is a level 1 warrior named name at (x, y).
 func NewPlayer(name string, x, y float64) model.Player {
-	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28, X: x, Y: y}
+	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, HP: 204, MP: 28, X: x, Y: y}
 }
 
 // FixedRoll rolls v every time.

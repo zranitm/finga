@@ -34,6 +34,7 @@ enum Reason {
   REASON_UNKNOWN_CLASS = 7 [deprecated = true];
 }
 
+// Stats are a number per primary stat: the points spent in each, or the own stats.
 message Stats {
   int32 strength = 1;
   int32 dexterity = 2;
@@ -42,7 +43,7 @@ message Stats {
   int32 vitality = 5;
 }
 
-// Character is a character as stored, with its derived maximum HP and MP.
+// Character is a character as stored, with its derived own stats and maximum HP and MP.
 message Character {
   string id = 1;
   string account_id = 2;
@@ -52,7 +53,8 @@ message Character {
   int32 level = 5;
   // EXP within the current level.
   int64 exp = 6;
-  Stats stats = 7;
+  // The points spent in each stat; the own stats are the class's starting stats plus these.
+  Stats points = 7;
   int32 unspent_points = 8;
   int32 hp = 9;
   int32 max_hp = 10;
@@ -63,6 +65,10 @@ message Character {
   double x = 14;
   double y = 15;
   google.protobuf.Timestamp updated_at = 16;
+  // Whether the one free reset of the points is used.
+  bool free_reset_used = 17;
+  // The class's starting stats plus the points, without gear.
+  Stats own_stats = 18;
 }
 
 message CreateRequest {
@@ -102,9 +108,11 @@ message SaveCheckpointRequest {
   int32 hp = 5;
   int32 mp = 6;
   int64 exp = 7;
-  // The whole progression, so any checkpoint repairs a level-up save that was lost.
+  // The whole progression, so any checkpoint repairs a level-up save that was lost: the level, the points spent and unspent, and the free reset.
   int32 level = 8;
-  Stats stats = 9;
+  Stats points = 9;
+  int32 unspent_points = 10;
+  bool free_reset_used = 11;
 }
 
 message SaveCheckpointResponse {}
@@ -113,7 +121,7 @@ message SaveLevelUpRequest {
   string character_id = 1;
   int32 level = 2;
   int64 exp = 3;
-  Stats stats = 4;
+  Stats points = 4;
   int32 hp = 5;
   int32 mp = 6;
 }

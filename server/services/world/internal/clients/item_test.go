@@ -218,9 +218,9 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 	if own := req.GetStats(); !proto.Equal(own, &itemv1.PrimaryStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5}) {
 		t.Fatalf("own stats sent %v, want the character's", own)
 	}
-	want := progression.ItemStats{PhysicalAttack: 17, PhysicalDefense: 3, MaxHP: 15}
-	if got.Worn != (model.Worn{Revision: 21, Stats: want}) {
-		t.Fatalf("worn %+v; want everything worn summed at revision 21", got.Worn)
+	want := model.Worn{Revision: 21, Items: []model.WornItem{{Template: "iron_sword", Stats: progression.ItemStats{PhysicalAttack: 17, MaxHP: 5}}, {Template: "leather_cap", Stats: progression.ItemStats{PhysicalDefense: 3, MaxHP: 10}}}}
+	if !reflect.DeepEqual(got.Worn, want) {
+		t.Fatalf("worn %+v; want each item worn, with its template and roll, at revision 21", got.Worn)
 	}
 	if len(got.Slots) != 1 || got.Slots[0].Slot != 4 || got.Slots[0].Item != nil || len(got.Equipment) != 1 || got.Equipment[0].Slot != "weapon" || got.Equipment[0].Item.ID != sword || *got.Equipment[0].Item.Stats != (progression.ItemStats{PhysicalAttack: 17, MaxHP: 5}) {
 		t.Fatalf("changed %+v, equipment %+v", got.Slots, got.Equipment)
@@ -235,7 +235,7 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 	}
 
 	w, err := e.Worn(context.Background(), call.Character)
-	if err != nil || w != (model.Worn{Revision: 21, Stats: want}) {
+	if err != nil || !reflect.DeepEqual(w, want) {
 		t.Fatalf("worn %+v, %v", w, err)
 	}
 }
@@ -249,8 +249,8 @@ func TestAWornRollIsReadWhole(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}
-	if *got.Equipment[0].Item.Stats != want || got.Worn.Stats != want {
-		t.Fatalf("equipment %+v, worn %+v; want every stat in its own field", *got.Equipment[0].Item.Stats, got.Worn.Stats)
+	if *got.Equipment[0].Item.Stats != want || len(got.Worn.Items) != 1 || got.Worn.Items[0] != (model.WornItem{Template: "iron_sword", Stats: want}) {
+		t.Fatalf("equipment %+v, worn %+v; want every stat in its own field", *got.Equipment[0].Item.Stats, got.Worn.Items)
 	}
 }
 

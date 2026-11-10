@@ -50,7 +50,7 @@ func TestAJoinItsCallerGaveUpOnLeavesNoGhost(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := runningWorld(t)
 		ayla := at(t, "Ayla", "town")
-		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Stats: ayla.Stats, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}
+		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 		defer cancel()
 		if _, err := w.Join(ctx, ayla.Account, ayla.ID, "c-1", &worldtest.Sink{}); !errors.Is(err, context.DeadlineExceeded) {
@@ -227,7 +227,7 @@ func TestTwoJoinsAtOnceLeaveTheRegistryAndTheMapAgreeing(t *testing.T) {
 		watcher := &worldtest.Sink{}
 		w.enter(t, at(t, "Bo", "town"), "town", "c-bo", watcher)
 		ayla := at(t, "Ayla", "town")
-		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Stats: ayla.Stats, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}
+		w.chars.chars[ayla.ID] = model.Character{ID: ayla.ID, Account: ayla.Account, Name: ayla.Name, Class: ayla.Class, Level: 1, Points: ayla.Points, HP: ayla.HP, MP: ayla.MP, MapID: "town", X: ayla.X, Y: ayla.Y}
 		w.chars.mu.Lock()
 		w.chars.slow, w.chars.most = time.Second, 0 // a load slow enough for the other join to start meanwhile
 		w.chars.mu.Unlock()
