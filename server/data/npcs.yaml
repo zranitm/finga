@@ -1,0 +1,8 @@
+# NPCs: each stands where a map's npcs layer places a point object named by its id, in one place only. look is the client's sprite key; gives and takes list the quests it hands out and takes back, and must agree with quests.yaml.
+talk_reach: 60 # px from the character's centre to the NPC's point
+npcs:
+  - id: town_guide
+    name: Town Guide
+    look: guide
+    gives: [slime_cleanup, sticky_samples]
+    takes: [slime_cleanup, sticky_samples]

@@ -1,0 +1,23 @@
+# Task quests. Conditions: the least level, a class, and quests finished first. Objectives are {kill: mob, count}, {collect: item, count} (taken at hand-in), {talk: npc} or {level: n}. Rewards: exp and items; equipment comes one per line, since each copy rolls its own stats.
+quests:
+  - id: slime_cleanup
+    name: Slime Cleanup
+    giver: town_guide
+    turn_in: town_guide
+    level: 1
+    objectives:
+      - {kill: green_slime, count: 10}
+    rewards:
+      exp: 30
+      items: [{item: red_potion, quantity: 10}]
+  - id: sticky_samples
+    name: Sticky Samples
+    giver: town_guide
+    turn_in: town_guide
+    level: 2
+    quests: [slime_cleanup]
+    objectives:
+      - {collect: slime_gel, count: 5}
+    rewards:
+      exp: 40
+      items: [{item: leather_cap, quantity: 1}]

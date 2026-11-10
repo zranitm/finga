@@ -10,7 +10,7 @@
   "height": 20,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 7,
+  "nextlayerid": 8,
   "nextobjectid": 21,
   "tilesets": [],
   "properties": [
@@ -63,6 +63,7 @@
     ]},
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 18, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 576, "width": 32, "height": 32}
-    ]}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
   ]
 }
