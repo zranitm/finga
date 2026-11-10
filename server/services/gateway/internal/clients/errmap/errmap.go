@@ -52,6 +52,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(itemv1.Reason_REASON_UNKNOWN_CLASS):          model.UnknownClass,
 	grpcx.Key(itemv1.Reason_REASON_ITEM_WORN):              model.ItemWorn,
 	grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW):          model.LevelTooLow,
+	grpcx.Key(itemv1.Reason_REASON_STATS_TOO_LOW):          model.StatsTooLow,
 	grpcx.Key(itemv1.Reason_REASON_WRONG_CLASS):            model.WrongClass,
 	grpcx.Key(itemv1.Reason_REASON_WRONG_EQUIP_SLOT):       model.WrongEquipSlot,
 	grpcx.Key(itemv1.Reason_REASON_NOT_EQUIPMENT):          model.NotEquipment,
@@ -74,8 +75,12 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE): model.PartyChatUnavailable,
 	grpcx.Key(socialv1.Reason_REASON_BAD_ID):                 model.BadID,
 
-	grpcx.Key(worldv1.Reason_REASON_BAD_ID):         model.BadID,
-	grpcx.Key(worldv1.Reason_REASON_CHARACTER_DEAD): model.CharacterDead,
+	grpcx.Key(worldv1.Reason_REASON_BAD_ID):            model.BadID,
+	grpcx.Key(worldv1.Reason_REASON_CHARACTER_DEAD):    model.CharacterDead,
+	grpcx.Key(worldv1.Reason_REASON_POINTS_CHANGED):    model.PointsChanged,
+	grpcx.Key(worldv1.Reason_REASON_NOT_ENOUGH_POINTS): model.NotEnoughPoints,
+	grpcx.Key(worldv1.Reason_REASON_NO_FREE_RESET):     model.NoFreeReset,
+	grpcx.Key(worldv1.Reason_REASON_BAD_POINTS):        model.BadPoints,
 }
 
 // For is the Public form of a failed call: its reason's row, else Unavailable for a service down or busy, else Internal; the zero value for nil.

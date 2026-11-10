@@ -29,6 +29,7 @@ var (
 	portals   = limit{group: "portal", perSecond: 2, burst: 2}
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
+	points    = limit{group: "points", perSecond: 2, burst: 4}    // spends and resets together: an Apply, or an auto-assign on a level-up
 )
 
 // assumedTickRate sizes a per-tick limit until a join reports the world's rate.
@@ -51,7 +52,7 @@ const spanPrefix = "ws."
 
 // sampled are the commands whose traces are kept: each answers after calls across services; the rest only queue work.
 var sampled = map[string]bool{
-	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "Equip": true, "Unequip": true, "ChatSend": true,
+	"Hello": true, "InventoryMove": true, "InventoryDiscard": true, "Equip": true, "Unequip": true, "SpendPoints": true, "ResetPoints": true, "ChatSend": true,
 	"PartyInvite": true, "PartyRespond": true, "PartyLeave": true, "PartyKick": true, "PartyPromote": true,
 }
 
@@ -80,6 +81,9 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 	wsrouter.Handle(r, "InventoryDiscard", h.inventoryDiscard, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "Equip", h.equip, h.command(inventory, h.respond)...)
 	wsrouter.Handle(r, "Unequip", h.unequip, h.command(inventory, h.respond)...)
+
+	wsrouter.Handle(r, "SpendPoints", h.spendPoints, h.command(points, h.respond)...)
+	wsrouter.Handle(r, "ResetPoints", h.resetPoints, h.command(points, h.respond)...)
 
 	wsrouter.Handle(r, "PartyInvite", h.partyInvite, h.command(party, h.respond)...)
 	wsrouter.Handle(r, "PartyRespond", h.partyRespond, h.command(party, h.respond)...)

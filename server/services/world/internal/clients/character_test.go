@@ -33,11 +33,11 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	s := clients.NewSaver(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
 	id := kernel.NewCharacterID()
 	ctx := context.Background()
-	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Stats: gamedata.Stats{STR: 21, VIT: 16}}); err != nil {
+	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}}); err != nil {
 		t.Fatal(err)
 	}
 	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 ||
-		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetStats().GetStrength() != 21 || cp.GetStats().GetVitality() != 16 {
+		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetPoints().GetStrength() != 9 || cp.GetPoints().GetVitality() != 4 || cp.GetUnspentPoints() != 2 || !cp.GetFreeResetUsed() {
 		t.Fatalf("checkpoint %+v", cp)
 	}
 	if s.Retryable(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || !s.Retryable(status.Error(codes.Unavailable, "down")) {
@@ -62,7 +62,7 @@ func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characte
 func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	id, account := kernel.NewCharacterID(), kernel.NewAccountID()
 	f := &loads{char: &characterv1.Character{Id: id.String(), Name: "Ayla", Class: "bowman", Level: 3, Exp: 40,
-		Stats: &characterv1.Stats{Strength: 5, Dexterity: 18, Intelligence: 4, Agility: 14, Vitality: 5}, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600}}
+		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600}}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	characterv1.RegisterCharacterServiceServer(srv, f)
 	c := clients.NewCharacters(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
@@ -71,7 +71,7 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Bowman, Level: 3, Exp: 40,
-		Stats: gamedata.Stats{STR: 5, DEX: 18, INT: 4, AGI: 14, VIT: 5}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600}
+		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600}
 	if got != want || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
 		t.Fatalf("got %+v from %+v", got, f.req)
 	}

@@ -32,11 +32,17 @@ type field struct {
 }
 
 // fieldsOf pairs each stat's range with its value in s.
-func fieldsOf(r gamedata.Rolls, s *ItemStats) [13]field {
-	return [13]field{
-		{r.Attack, &s.Attack}, {r.Defense, &s.Defense},
-		{r.STR, &s.STR}, {r.DEX, &s.DEX}, {r.INT, &s.INT}, {r.AGI, &s.AGI}, {r.VIT, &s.VIT},
-		{r.Accuracy, &s.Accuracy}, {r.Evasion, &s.Evasion}, {r.CritRate, &s.CritRate}, {r.CritDamage, &s.CritDamage},
-		{r.MaxHP, &s.MaxHP}, {r.MaxMP, &s.MaxMP},
+func fieldsOf(r gamedata.Rolls, s *ItemStats) [21]field {
+	ranges := [21]gamedata.Range{
+		r.STR, r.DEX, r.INT, r.AGI, r.VIT,
+		r.PhysicalAttack, r.MagicAttack, r.PhysicalDefense, r.MagicDefense,
+		r.MaxHP, r.MaxMP, r.Accuracy, r.Evasion,
+		r.CritRate, r.CritDamage, r.Penetration, r.HPRegen, r.MPRegen,
+		r.AttackSpeed, r.CooldownSpeed, r.MoveSpeed,
 	}
+	var out [21]field
+	for k, v := range s.values() {
+		out[k] = field{ranges[k], v}
+	}
+	return out
 }

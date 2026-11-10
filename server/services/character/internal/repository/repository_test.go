@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 func sample(account kernel.AccountID, name string) model.Character {
 	return model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Warrior, Level: 1, Exp: 0,
-		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
+		Points: gamedata.Stats{STR: 1, AGI: 2}, UnspentPoints: 3, FreeResetUsed: true, HP: 184, MP: 32,
 		MapID: "town", X: 416, Y: 608,
 	}
 }
@@ -119,7 +119,7 @@ func TestRepository(t *testing.T) {
 
 	t.Run("a checkpoint saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
-		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}}
+		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3, DEX: 1, INT: 2, AGI: 4, VIT: 5}, UnspentPoints: 0, FreeResetUsed: false}
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
 			t.Fatal(err)
 		}
@@ -127,19 +127,19 @@ func TestRepository(t *testing.T) {
 		if got.MapID != "forest" || got.X != 300.5 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || !got.UpdatedAt.After(before.UpdatedAt) {
 			t.Fatalf("got %+v", got)
 		}
-		if got.Level != 2 || got.Stats != cp.Stats {
-			t.Fatalf("level %d, stats %+v: a checkpoint saves the whole progression", got.Level, got.Stats)
+		if got.Level != 2 || got.Points != cp.Points || got.UnspentPoints != 0 || got.FreeResetUsed {
+			t.Fatalf("level %d, points %+v, unspent %d, reset used %v: a checkpoint saves the whole progression", got.Level, got.Points, got.UnspentPoints, got.FreeResetUsed)
 		}
 	})
 
 	t.Run("a level-up saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
-		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MP: 32}
+		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 6, VIT: 4}, HP: 250, MP: 32}
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveLevelUp(ctx, lu) }); err != nil {
 			t.Fatal(err)
 		}
 		got := load(t)
-		if got.Level != 2 || got.Exp != 3 || got.Stats != lu.Stats || got.HP != 250 || got.MP != 32 || !got.UpdatedAt.After(before.UpdatedAt) {
+		if got.Level != 2 || got.Exp != 3 || got.Points != lu.Points || got.HP != 250 || got.MP != 32 || !got.UpdatedAt.After(before.UpdatedAt) {
 			t.Fatalf("got %+v", got)
 		}
 		if got.MapID != "forest" {

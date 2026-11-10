@@ -8,7 +8,6 @@ import (
 	"github.com/cenkalti/backoff/v5"
 
 	"finga/internal/kernel"
-	"finga/internal/progression"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
 )
@@ -45,11 +44,12 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
-	formulas, ok := w.data.Formulas(c.Class)
+	class, ok := w.data.Class(c.Class)
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
-	derived := progression.DeriveStats(formulas, c.Stats, c.Level, worn.Stats)
+	stats := instance.StatsOf(w.data, class, c.Level, c.Points, worn, w.tick)
+	derived := stats.Derived
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {
 			return model.View{}, err
@@ -59,7 +59,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -81,9 +81,9 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	return model.View{
-		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats,
+		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: stats.Own,
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
-		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: progression.SheetOf(formulas, c.Stats, c.Level, worn.Stats), JoinSeq: at.gen,
+		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: stats.Sheet, JoinSeq: at.gen,
 	}, nil
 }
 
@@ -180,7 +180,7 @@ func (w *World) respawned(c model.Character, maxHP int) (model.Character, error)
 
 // withCheckpoint is c as cp left it.
 func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
-	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Stats = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Stats
+	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points
 	return c
 }
 

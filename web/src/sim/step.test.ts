@@ -4,7 +4,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { Input } from './input';
-import { NO_PLATFORM, overlaps, params, standing, step } from './step';
+import { NO_PLATFORM, faster, overlaps, params, speedFactor, standing, step } from './step';
 import type { Geometry, State } from './step';
 
 const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -12,6 +12,7 @@ const noInput: Input = { left: false, right: false, up: false, down: false, jump
 // The vectors are the contract with the Go sim: every intermediate state must match exactly.
 interface Vector {
   readonly name: string;
+  readonly speed_factor?: number;
   readonly geometry: Geometry;
   readonly start: State;
   readonly inputs: readonly { readonly input: Partial<Input>; readonly repeat: number }[];
@@ -29,13 +30,17 @@ const vectors = readdirSync(vectorsDir)
 const required = [
   'ceiling',
   'climb-rope',
+  'climb-rope-fast',
   'drop-through',
   'fall-clamp',
+  'fall-clamp-fast',
+  'jump-onto-platform-fast',
   'jump-through-platform',
   'jump',
   'land-on-platform',
   'ledge',
   'platform-edge',
+  'walk-fast',
   'walk-flat',
   'wall',
 ];
@@ -57,10 +62,11 @@ describe('movement vectors', () => {
   it.each(vectors)('$file replays exactly', ({ file, vector }) => {
     expect(vector.name).toBe(file.replace(/\.json$/, ''));
     let s = vector.start;
+    const p = faster(params, vector.speed_factor ?? 1);
     const got: State[] = [];
     for (const run of vector.inputs) {
       for (let k = 0; k < run.repeat; k++) {
-        s = step(s, { ...noInput, ...run.input }, vector.geometry);
+        s = step(s, { ...noInput, ...run.input }, vector.geometry, p);
         got.push(s);
       }
     }
@@ -68,6 +74,18 @@ describe('movement vectors', () => {
     got.forEach((state, i) => {
       expect(normalise(state), `sub-step ${i + 1}`).toEqual(normalise(vector.expected[i]!));
     });
+  });
+});
+
+describe('speed', () => {
+  it('rounds the factor to thousandths, as the server does', () => {
+    expect([0, 0.3, 0.007317073170731708, 0.12345].map(speedFactor)).toEqual([
+      1, 1.3, 1.007, 1.123,
+    ]);
+  });
+
+  it('leaves the params alone at a factor of 1', () => {
+    expect(faster(params, 1)).toBe(params);
   });
 });
 

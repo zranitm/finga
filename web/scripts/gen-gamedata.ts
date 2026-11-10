@@ -75,6 +75,9 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
 const mobsFile = must(load('mobs.yaml'), isRecord, 'mobs.yaml');
 const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs');
 
+// stats.yaml: what each point gives, the curves, the limits and each class's bases, for the character window's preview.
+const stats = must(load('stats.yaml'), isRecord, 'stats.yaml');
+
 // loot.yaml: each duration becomes milliseconds, as drop_life_ms.
 const lootFile = must(load('loot.yaml'), isRecord, 'loot.yaml');
 const loot = Object.fromEntries(
@@ -94,6 +97,7 @@ const files: Record<string, unknown> = {
   'classes.ts': classes,
   'mobs.ts': mobs,
   'loot.ts': loot,
+  'stats.ts': stats,
 };
 for (const [name, value] of Object.entries(files)) {
   const exportName = name.replace('.ts', '').replace(/-(\w)/g, (_, c: string) => c.toUpperCase());

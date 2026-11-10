@@ -52,24 +52,25 @@ func (i *Instance) shareExp(killer *player, base int64) {
 	}
 }
 
-// award gives a player EXP; a level gained restores HP and MP, tells the party, and is saved at once.
+// award gives a player EXP; each level gained gives its points to spend, and a level-up restores HP and MP, tells the party, and is saved at once.
 func (i *Instance) award(p *player, amount int64) {
 	if amount <= 0 {
 		return
 	}
-	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, progression.PresetPlan(p.class))
-	p.Level, p.Exp, p.Stats = a.Progress.Level, a.Progress.Exp, a.Stats
+	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount)
+	p.Level, p.Exp = a.Progress.Level, a.Progress.Exp
 	p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: amount, Exp: p.Exp})
 	if a.LevelsGained == 0 {
 		return
 	}
-	formulas, _ := i.data.Formulas(p.Class)
-	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, p.Worn.Stats)
+	p.Points.Unspent += a.LevelsGained * i.data.StatRules().PointsPerLevel
+	s := i.stats(p)
+	p.derived = s.Derived
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
 	p.private = append(p.private, model.LevelUp{
-		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: p.Stats,
-		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: i.sheet(p),
+		Tick: i.tick, ID: p.ID, Name: p.Name, Class: p.Class, Level: p.Level, Exp: p.Exp, Stats: s.Own,
+		HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP, Sheet: s.Sheet,
 	})
 	i.tellParty(p, i.m.ID)
 	i.checkpoint(p)
@@ -89,4 +90,14 @@ func (i *Instance) retellParties() {
 
 func (i *Instance) tellParty(p *player, mapID string) {
 	i.deps.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
+	p.toldHP, p.toldMaxHP = p.HP, p.derived.MaxHP
+}
+
+// tellHP tells the party of each player whose HP or max HP changed since it last heard, once a tick; the copy keeps only a member's newest.
+func (i *Instance) tellHP() {
+	for _, id := range i.order {
+		if p := i.players[id]; p.HP != p.toldHP || p.derived.MaxHP != p.toldMaxHP {
+			i.tellParty(p, i.m.ID)
+		}
+	}
 }

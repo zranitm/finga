@@ -29,6 +29,8 @@ message ClientMessage {
     Hello hello = 16;
     Equip equip = 17;
     Unequip unequip = 18;
+    SpendPoints spend_points = 19;
+    ResetPoints reset_points = 20;
   }
 }
 
@@ -163,6 +165,20 @@ message Unequip {
   optional int32 to_slot = 3;
 }
 
+// SpendPoints adds unspent points to the stats; answered once they apply, with StatsChanged before the Response.
+message SpendPoints {
+  // The unspent count the client saw; any other is refused with points_changed, so a retried Apply lands once.
+  int32 expected_unspent = 1;
+  // How many points go to each stat.
+  Stats points = 2;
+}
+
+// ResetPoints returns every spent point to unspent, using the one free reset.
+message ResetPoints {
+  // The unspent count the client saw; any other is refused with points_changed.
+  int32 expected_unspent = 1;
+}
+
 message Ping {
   // Unix milliseconds.
   int64 client_time = 1;
@@ -192,24 +208,41 @@ message CharacterView {
   StatSheet sheet = 11;
 }
 
-// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it, so a capped rate shows what the equipment really adds; the points; and the basic attack's cooldown, which the attack gate counts.
 message StatSheet {
   Stats primary = 1;
   Stats primary_worn = 2;
   DerivedStats derived = 3;
   DerivedStats derived_worn = 4;
+  Points points = 5;
+  uint32 attack_cooldown_ticks = 6;
 }
 
-// DerivedStats are the computed stats; rates are fractions.
+// Points are the stat points: those not yet spent, those spent in each stat, and whether the free reset is left.
+message Points {
+  int32 unspent = 1;
+  Stats spent = 2;
+  bool free_reset_left = 3;
+}
+
+// DerivedStats are the computed stats: rates, crit damage and penetration as fractions, regen in points a second.
 message DerivedStats {
-  double attack_power = 1;
-  double defense = 2;
+  double physical_attack = 1;
+  double physical_defense = 2;
   double accuracy = 3;
   double evasion = 4;
   double crit_rate = 5;
   double crit_damage = 6;
   int32 max_hp = 7;
   int32 max_mp = 8;
+  double magic_attack = 9;
+  double magic_defense = 10;
+  double penetration = 11;
+  double hp_regen = 12;
+  double mp_regen = 13;
+  double attack_speed = 14;
+  double cooldown_speed = 15;
+  double move_speed = 16;
 }
 
 // ItemView is one inventory slot's item, or a worn one.
@@ -224,10 +257,10 @@ message ItemView {
   ItemStats stats = 6;
 }
 
-// ItemStats are what one equipment item gives, a whole number per stat, the rates in tenths of a percent.
+// ItemStats are what one equipment item gives, a whole number per stat: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 message ItemStats {
-  int32 attack = 1;
-  int32 defense = 2;
+  int32 physical_attack = 1;
+  int32 physical_defense = 2;
   int32 str = 3;
   int32 dex = 4;
   int32 int = 5;
@@ -239,6 +272,14 @@ message ItemStats {
   int32 crit_damage = 11;
   int32 max_hp = 12;
   int32 max_mp = 13;
+  int32 magic_attack = 14;
+  int32 magic_defense = 15;
+  int32 penetration = 16;
+  int32 hp_regen = 17;
+  int32 mp_regen = 18;
+  int32 attack_speed = 19;
+  int32 cooldown_speed = 20;
+  int32 move_speed = 21;
 }
 
 // EquipSlot is one equip slot and what it holds; item is unset when it is empty.

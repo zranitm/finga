@@ -31,7 +31,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C3. HP, death, and respawn](./combat-and-progression/c3-hp-death-and-respawn.md) | OD-06 | P0 | Draft |
 | [C4. EXP and levels](./combat-and-progression/c4-exp-and-levels.md) | OD-13 | P0 | Draft |
 | [C5. Skills](./combat-and-progression/c5-skills.md) |  | P1 | Draft |
-| [C6. Stat allocation](./combat-and-progression/c6-stat-allocation.md) |  | P2 | Draft |
+| [C6. Stat allocation](./combat-and-progression/c6-stat-allocation.md) | OD-16, OD-17, OD-18 | P1 | Draft |
 | [C7. Party dungeons and bosses](./combat-and-progression/c7-party-dungeons-and-bosses.md) |  | P2 | Draft |
 
 ## D. Items and inventory

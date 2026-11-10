@@ -45,13 +45,24 @@ type CharacterView struct {
 type StatSheet struct {
 	Primary, PrimaryWorn Stats
 	Derived, DerivedWorn DerivedStats
+	Points               Points
+	AttackCooldownTicks  int
 }
 
-// DerivedStats are the computed stats; rates are fractions.
+// Points are the stat points: unspent, spent in each stat, and whether the free reset is left.
+type Points struct {
+	Unspent       int
+	Spent         Stats
+	FreeResetLeft bool
+}
+
+// DerivedStats are the computed stats: rates, crit damage and penetration as fractions, regen in points a second.
 type DerivedStats struct {
-	AttackPower, Defense, Accuracy, Evasion float64
-	CritRate, CritDamage                    float64
-	MaxHP, MaxMP                            int
+	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense float64
+	Accuracy, Evasion, CritRate, CritDamage, Penetration       float64
+	HPRegen, MPRegen                                           float64
+	AttackSpeed, CooldownSpeed, MoveSpeed                      float64
+	MaxHP, MaxMP                                               int
 }
 
 // ItemView is an item in the player's inventory, or a worn one, which is in no tab.
@@ -61,13 +72,13 @@ type ItemView struct {
 	Stats             *ItemStats // equipment's roll; nil for anything else
 }
 
-// ItemStats are what one equipment item gives, the rates in tenths of a percent.
+// ItemStats are what one equipment item gives: the five primary stats and the sixteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 type ItemStats struct {
-	Attack, Defense         int
-	STR, DEX, INT, AGI, VIT int
-	Accuracy, Evasion       int
-	CritRate, CritDamage    int
-	MaxHP, MaxMP            int
+	STR, DEX, INT, AGI, VIT                                    int
+	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense int
+	MaxHP, MaxMP, Accuracy, Evasion                            int
+	CritRate, CritDamage, Penetration, HPRegen, MPRegen        int
+	AttackSpeed, CooldownSpeed, MoveSpeed                      int
 }
 
 // EquipSlot is an equip slot and what it holds; Item is nil when it is empty.

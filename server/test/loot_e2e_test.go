@@ -365,7 +365,7 @@ func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	t.Helper()
 	ctx := context.Background()
 	actor := s.actor(t, id)
-	s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 10})
+	s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 10})
 	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'wooden_sword'`, id)
 	if err != nil {
 		t.Fatal(err)
@@ -408,7 +408,7 @@ func TestLootAndKeep(t *testing.T) {
 	t.Run("D1-D2/a-kill-drops-an-item-everyone-sees-and-it-flies-to-its-killer-as-one-item", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "liam", "Liam", "warrior")
-		s.place(t, id, "forest", 380, 608, 204, 0)
+		s.place(t, id, "forest", 380, 608, 184, 0)
 		p, snap := s.join(t, token, id)
 		killer := newLooter(p, snap)
 		token2, id2 := s.createCharacter(t, "mia", "Mia", "bowman")
@@ -512,7 +512,7 @@ func TestLootAndKeep(t *testing.T) {
 			user, name string
 			x          float64
 			hp         int
-		}{{"pia", "Pia", 380, 204}, {"ravi", "Ravi", 120, 8}} { // Ravi waits left of the slime field, weak enough to die in it later
+		}{{"pia", "Pia", 380, 184}, {"ravi", "Ravi", 120, 8}} { // Ravi waits left of the slime field, weak enough to die in it later
 			token, id := s.createCharacter(t, n.user, n.name, "warrior")
 			s.place(t, id, "forest", n.x, 608, n.hp, 0)
 			p, snap := s.join(t, token, id)
@@ -574,9 +574,9 @@ func TestLootAndKeep(t *testing.T) {
 	t.Run("D1/a-full-inventory-keeps-a-drop-waiting-until-there-is-room-or-its-life-ends", func(t *testing.T) {
 		s := newStackOver(t, gameData(t, slimesDrop(oneCap), lootTimes("1s", "6s", "1s")))
 		token, id := s.createCharacter(t, "sol", "Sol", "warrior")
-		s.place(t, id, "forest", 380, 608, 204, 0)
+		s.place(t, id, "forest", 380, 608, 184, 0)
 		for range 24 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		l, _ := s.hello(t, token, id)
 		l.face(true)
@@ -632,7 +632,7 @@ func TestLootAndKeep(t *testing.T) {
 	t.Run("D1/an-owner-who-takes-a-portal-before-collection-still-gets-the-drop", func(t *testing.T) {
 		s := newStackOver(t, gameData(t, slimesDrop(oneGel), lootTimes("8s", "60s", "2s")))
 		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
-		s.place(t, id, "forest", 300, 608, 204, 0)
+		s.place(t, id, "forest", 300, 608, 184, 0)
 		p, snap := s.join(t, token, id)
 		l := newLooter(p, snap)
 		l.face(true)
@@ -727,7 +727,7 @@ func TestCrashDuringPickups(t *testing.T) {
 	var hunters []*looter
 	for k, n := range names {
 		token, id := s.createCharacter(t, n[0], n[1], "warrior")
-		s.place(t, id, "forest", 300+float64(k)*80, 608, 204, 0)
+		s.place(t, id, "forest", 300+float64(k)*80, 608, 184, 0)
 		p, snap := s.join(t, token, id)
 		p.face(true)
 		hunters = append(hunters, newLooter(p, snap))

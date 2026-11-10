@@ -4,6 +4,7 @@ import (
 	"math"
 
 	"finga/internal/gamedata"
+	"finga/internal/kernel"
 )
 
 // deathPenaltyRate is the share of the current level's requirement lost on death.
@@ -14,57 +15,55 @@ func AddStats(a, b gamedata.Stats) gamedata.Stats {
 	return gamedata.Stats{STR: a.STR + b.STR, DEX: a.DEX + b.DEX, INT: a.INT + b.INT, AGI: a.AGI + b.AGI, VIT: a.VIT + b.VIT}
 }
 
-// tenthsOfAPercent turns an item's rate into a fraction.
-const tenthsOfAPercent = 1000
+// An item's whole numbers in the units of the derived stats.
+const (
+	tenthsOfAPercent = 1000 // rates, crit damage and penetration
+	tenthsOfAPoint   = 10   // regen
+)
 
-// DeriveStats computes the derived stats over the character's primary stats and what it wears: worn primary stats join the character's before the formulas, and the worn flat bonuses add after them; rates are capped last, and HP and MP round down.
-func DeriveStats(f gamedata.Formulas, base gamedata.Stats, level int, worn ItemStats) Derived {
-	s := AddStats(base, worn.Primary())
+// DeriveStats computes the sixteen derived stats of a character of class at level, with own primary stats (the class's starting stats plus the points spent) wearing worn. Worn primary stats count as own ones, toward the curves too; each flat stat is the class's base at level plus each point's amount plus the worn bonus; a rate is its curve plus the worn rate, held to its limit; penetration comes from gear alone. HP and MP round down.
+func DeriveStats(r gamedata.StatRules, class kernel.Class, level int, own gamedata.Stats, worn ItemStats) Derived {
+	p := AddStats(own, worn.Primary())
+	base := r.Classes[class]
+	flat := func(g gamedata.Grows, of func(gamedata.Flats[float64]) float64) float64 {
+		pp := r.PerPoint
+		return g.At(level) +
+			of(pp.STR)*float64(p.STR) + of(pp.DEX)*float64(p.DEX) + of(pp.INT)*float64(p.INT) +
+			of(pp.AGI)*float64(p.AGI) + of(pp.VIT)*float64(p.VIT)
+	}
+	rate := func(c gamedata.Curve, gear int) float64 {
+		points := float64(max(p.Of(c.Stat), 0))
+		return min(c.Base+(c.Limit-c.Base)*points/(points+c.K)+float64(gear)/tenthsOfAPercent, c.Limit)
+	}
 	return Derived{
-		MaxHP:       int(math.Floor(eval(f.MaxHP, s, level))) + worn.MaxHP,
-		MaxMP:       int(math.Floor(eval(f.MaxMP, s, level))) + worn.MaxMP,
-		AttackPower: eval(f.AttackPower, s, level) + float64(worn.Attack),
-		Accuracy:    eval(f.Accuracy, s, level) + float64(worn.Accuracy),
-		Evasion:     eval(f.Evasion, s, level) + float64(worn.Evasion),
-		Defense:     eval(f.Defense, s, level) + float64(worn.Defense),
-		CritRate:    capped(f.CritRate, eval(f.CritRate, s, level)+float64(worn.CritRate)/tenthsOfAPercent),
-		CritDamage:  capped(f.CritDamage, eval(f.CritDamage, s, level)+float64(worn.CritDamage)/tenthsOfAPercent),
-		Penetration: capped(f.Penetration, eval(f.Penetration, s, level)),
+		MaxHP:           int(math.Floor(flat(base.MaxHP, func(f gamedata.Flats[float64]) float64 { return f.MaxHP }))) + worn.MaxHP,
+		MaxMP:           int(math.Floor(flat(base.MaxMP, func(f gamedata.Flats[float64]) float64 { return f.MaxMP }))) + worn.MaxMP,
+		PhysicalAttack:  flat(base.PhysicalAttack, func(f gamedata.Flats[float64]) float64 { return f.PhysicalAttack }) + float64(worn.PhysicalAttack),
+		MagicAttack:     flat(base.MagicAttack, func(f gamedata.Flats[float64]) float64 { return f.MagicAttack }) + float64(worn.MagicAttack),
+		PhysicalDefense: flat(base.PhysicalDefense, func(f gamedata.Flats[float64]) float64 { return f.PhysicalDefense }) + float64(worn.PhysicalDefense),
+		MagicDefense:    flat(base.MagicDefense, func(f gamedata.Flats[float64]) float64 { return f.MagicDefense }) + float64(worn.MagicDefense),
+		Accuracy:        flat(base.Accuracy, func(f gamedata.Flats[float64]) float64 { return f.Accuracy }) + float64(worn.Accuracy),
+		Evasion:         flat(base.Evasion, func(f gamedata.Flats[float64]) float64 { return f.Evasion }) + float64(worn.Evasion),
+		CritRate:        rate(r.Curves.CritRate, worn.CritRate),
+		CritDamage:      flat(base.CritDamage, func(f gamedata.Flats[float64]) float64 { return f.CritDamage }) + float64(worn.CritDamage)/tenthsOfAPercent,
+		Penetration:     min(float64(worn.Penetration)/tenthsOfAPercent, r.Penetration),
+		HPRegen:         flat(base.HPRegen, func(f gamedata.Flats[float64]) float64 { return f.HPRegen }) + float64(worn.HPRegen)/tenthsOfAPoint,
+		MPRegen:         flat(base.MPRegen, func(f gamedata.Flats[float64]) float64 { return f.MPRegen }) + float64(worn.MPRegen)/tenthsOfAPoint,
+		AttackSpeed:     rate(r.Curves.AttackSpeed, worn.AttackSpeed),
+		CooldownSpeed:   rate(r.Curves.CooldownSpeed, worn.CooldownSpeed),
+		MoveSpeed:       rate(r.Curves.MoveSpeed, worn.MoveSpeed),
 	}
-}
-
-func eval(f gamedata.Formula, s gamedata.Stats, level int) float64 {
-	return f.Base +
-		f.Coef.STR*float64(s.STR) + f.Coef.DEX*float64(s.DEX) + f.Coef.INT*float64(s.INT) +
-		f.Coef.AGI*float64(s.AGI) + f.Coef.VIT*float64(s.VIT) +
-		f.PerLevel*float64(level-1)
-}
-
-func capped(f gamedata.Formula, v float64) float64 {
-	if f.Cap > 0 && v > f.Cap {
-		return f.Cap
-	}
-	return v
-}
-
-// AllocationPlan says where a new level's points go.
-type AllocationPlan func(newLevel int) gamedata.Stats
-
-// PresetPlan allocates the class's level-up preset.
-func PresetPlan(class gamedata.Class) AllocationPlan {
-	return func(int) gamedata.Stats { return class.LevelUpPoints }
 }
 
 // Award is the result of AwardExp.
 type Award struct {
 	Progress     Progress
-	Stats        gamedata.Stats
 	LevelsGained int
 }
 
-// AwardExp adds EXP and resolves level-ups; the caller restores HP and MP after one.
-func AwardExp(curve ExpCurve, p Progress, amount int64, stats gamedata.Stats, plan AllocationPlan) Award {
-	a := Award{Progress: p, Stats: stats}
+// AwardExp adds EXP and resolves level-ups; the caller gives each new level's points and restores HP and MP after one.
+func AwardExp(curve ExpCurve, p Progress, amount int64) Award {
+	a := Award{Progress: p}
 	if p.Level >= curve.LevelCap() {
 		a.Progress.Exp = 0
 		return a
@@ -82,7 +81,6 @@ func AwardExp(curve ExpCurve, p Progress, amount int64, stats gamedata.Stats, pl
 		a.Progress.Exp -= need
 		a.Progress.Level++
 		a.LevelsGained++
-		a.Stats = AddStats(a.Stats, plan(a.Progress.Level))
 	}
 }
 

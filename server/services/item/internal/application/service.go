@@ -48,8 +48,9 @@ type EquipInput struct {
 	Key       string
 	ItemID    kernel.ItemID
 	EquipSlot string // rings only: empty, the first empty slot of the item's kind, else the first
-	Level     int    // the character's live level and class, which the item's requirements are checked against
+	Level     int    // the character's live level, class and own stats, which the item's requirements are checked against
 	Class     kernel.Class
+	Stats     gamedata.Stats
 }
 
 // UnequipInput puts a worn item back in the Equip tab.
@@ -72,10 +73,15 @@ type Result struct {
 func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
 	values := []string{c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String()}
 	if s := in.Stats; s != nil {
-		values = append(values, "stats", strconv.Itoa(s.Attack), strconv.Itoa(s.Defense), strconv.Itoa(s.STR), strconv.Itoa(s.DEX), strconv.Itoa(s.INT), strconv.Itoa(s.AGI), strconv.Itoa(s.VIT),
-			strconv.Itoa(s.Accuracy), strconv.Itoa(s.Evasion), strconv.Itoa(s.CritRate), strconv.Itoa(s.CritDamage), strconv.Itoa(s.MaxHP), strconv.Itoa(s.MaxMP))
+		values = append(values, "stats")
+		for _, v := range []int{
+			s.STR, s.DEX, s.INT, s.AGI, s.VIT, s.PhysicalAttack, s.MagicAttack, s.PhysicalDefense, s.MagicDefense, s.MaxHP, s.MaxMP, s.Accuracy, s.Evasion,
+			s.CritRate, s.CritDamage, s.Penetration, s.HPRegen, s.MPRegen, s.AttackSpeed, s.CooldownSpeed, s.MoveSpeed,
+		} {
+			values = append(values, strconv.Itoa(v))
+		}
 	}
-	return idempotency.Fingerprint("item.add/1", values...)
+	return idempotency.Fingerprint("item.add/2", values...)
 }
 
 func (in MoveInput) fingerprint(c kernel.CharacterID) []byte {
@@ -86,7 +92,7 @@ func (in DiscardInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.discard/1", c.String(), in.ItemID.String(), strconv.Itoa(in.Quantity))
 }
 
-// The level and class stay out: a retry after a level-up is the same request.
+// The level, class and own stats stay out: a retry after a level-up or a spend is the same request.
 func (in EquipInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.equip/1", c.String(), in.ItemID.String(), in.EquipSlot)
 }
@@ -554,11 +560,14 @@ func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.Charac
 	if err != nil {
 		return Result{}, err
 	}
-	if in.Level < tmpl.MinLevel {
+	switch progression.Meets(tmpl, in.Level, in.Class, in.Stats) {
+	case progression.LevelUnmet:
 		return Result{}, model.ErrLevelTooLow
-	}
-	if tmpl.Class != "" && tmpl.Class != in.Class {
+	case progression.ClassUnmet:
 		return Result{}, model.ErrWrongClass
+	case progression.StatsUnmet:
+		return Result{}, model.ErrStatsTooLow
+	case progression.NothingUnmet:
 	}
 	now, cause := time.Now(), playerCause(in.Key)
 	left := model.Slot{Tab: it.Tab, Slot: it.Slot}

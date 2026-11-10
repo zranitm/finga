@@ -56,6 +56,8 @@ enum Reason {
   REASON_NOTHING_WORN = 21;
   // An AddMany with no drops, or with more than it takes.
   REASON_BAD_BATCH_SIZE = 22;
+  // An equip whose item requires more of a primary stat than the character's own stats, without gear, have.
+  REASON_STATS_TOO_LOW = 23;
 }
 
 // Grant is what became of one drop of an AddMany.
@@ -102,10 +104,10 @@ message Item {
   string equip_slot = 7;
 }
 
-// ItemStats are what one equipment item gives, a whole number per stat, the rates in tenths of a percent.
+// An equipment roll, or what a character wears: the five primary stats and the sixteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 message ItemStats {
-  int32 attack = 1;
-  int32 defense = 2;
+  int32 physical_attack = 1;
+  int32 physical_defense = 2;
   int32 str = 3;
   int32 dex = 4;
   int32 int = 5;
@@ -117,6 +119,23 @@ message ItemStats {
   int32 crit_damage = 11;
   int32 max_hp = 12;
   int32 max_mp = 13;
+  int32 magic_attack = 14;
+  int32 magic_defense = 15;
+  int32 penetration = 16;
+  int32 hp_regen = 17;
+  int32 mp_regen = 18;
+  int32 attack_speed = 19;
+  int32 cooldown_speed = 20;
+  int32 move_speed = 21;
+}
+
+// A character's own primary stats: their class's starting stats and the points they spent, without gear.
+message PrimaryStats {
+  int32 str = 1;
+  int32 dex = 2;
+  int32 int = 3;
+  int32 agi = 4;
+  int32 vit = 5;
 }
 
 // Slot is one changed inventory slot; item is unset when it emptied.
@@ -246,6 +265,8 @@ message EquipRequest {
   // The character's live level and class, which the item's requirements are checked against; a retry after a level-up is the same request.
   int32 level = 5;
   string class = 6;
+  // The character's own stats, which the item's stat requirements are checked against; a retry after spending points is the same request.
+  PrimaryStats stats = 7;
 }
 
 // EquipResponse is what the equip changed, and everything worn after it, so the world can replace its sum.

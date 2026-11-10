@@ -80,7 +80,7 @@ func (f *fakeAccounts) RevokeAll(_ context.Context, id uuid.UUID) error {
 
 func (f *fakeAccounts) Settings(_ context.Context, id kernel.AccountID) (model.Settings, error) {
 	f.settingOf = id
-	return model.Settings{ControlPreset: model.PresetWASD}, f.call()
+	return model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true}, f.call()
 }
 
 func (f *fakeAccounts) UpdateSettings(_ context.Context, id kernel.AccountID, s model.Settings) error {
@@ -147,15 +147,15 @@ func TestEachCallMapsItsFields(t *testing.T) {
 	})
 	t.Run("GetSettings", func(t *testing.T) {
 		res, err := c.GetSettings(ctx, &accountv1.GetSettingsRequest{AccountId: accountID.String()})
-		if err != nil || res.GetSettings().GetControlPreset() != "wasd" || f.settingOf != kernel.AccountID(accountID) {
+		if err != nil || res.GetSettings().GetControlPreset() != "wasd" || !res.GetSettings().GetAutoAssignPoints() || f.settingOf != kernel.AccountID(accountID) {
 			t.Fatalf("res %+v err %v", res, err)
 		}
 	})
 	t.Run("UpdateSettings", func(t *testing.T) {
-		if _, err := c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: accountID.String(), Settings: &accountv1.Settings{ControlPreset: "wasd"}}); err != nil {
+		if _, err := c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: accountID.String(), Settings: &accountv1.Settings{ControlPreset: "wasd", AutoAssignPoints: true}}); err != nil {
 			t.Fatal(err)
 		}
-		if f.updated.ControlPreset != model.PresetWASD || f.settingOf != kernel.AccountID(accountID) {
+		if f.updated != (model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true}) || f.settingOf != kernel.AccountID(accountID) {
 			t.Fatalf("updated %+v for %v", f.updated, f.settingOf)
 		}
 	})

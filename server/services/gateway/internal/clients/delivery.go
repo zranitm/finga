@@ -78,13 +78,20 @@ func stats(st *worldv1.Stats) model.Stats {
 }
 
 func statSheet(s *worldv1.StatSheet) model.StatSheet {
-	return model.StatSheet{Primary: stats(s.GetPrimary()), PrimaryWorn: stats(s.GetPrimaryWorn()), Derived: derived(s.GetDerived()), DerivedWorn: derived(s.GetDerivedWorn())}
+	p := s.GetPoints()
+	return model.StatSheet{
+		Primary: stats(s.GetPrimary()), PrimaryWorn: stats(s.GetPrimaryWorn()), Derived: derived(s.GetDerived()), DerivedWorn: derived(s.GetDerivedWorn()),
+		Points:              model.Points{Unspent: int(p.GetUnspent()), Spent: stats(p.GetSpent()), FreeResetLeft: p.GetFreeResetLeft()},
+		AttackCooldownTicks: int(s.GetAttackCooldownTicks()),
+	}
 }
 
 func derived(d *worldv1.DerivedStats) model.DerivedStats {
 	return model.DerivedStats{
-		AttackPower: d.GetAttackPower(), Defense: d.GetDefense(), Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(),
-		CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
+		PhysicalAttack: d.GetPhysicalAttack(), MagicAttack: d.GetMagicAttack(), PhysicalDefense: d.GetPhysicalDefense(), MagicDefense: d.GetMagicDefense(),
+		Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(), CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), Penetration: d.GetPenetration(),
+		HPRegen: d.GetHpRegen(), MPRegen: d.GetMpRegen(), AttackSpeed: d.GetAttackSpeed(), CooldownSpeed: d.GetCooldownSpeed(), MoveSpeed: d.GetMoveSpeed(),
+		MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
 	}
 }
 
@@ -137,8 +144,16 @@ func worldSlots(slots []*worldv1.Slot) []model.InventorySlot {
 
 // roll is an item's roll in the item service's contract or the world's, which share its fields.
 type roll interface {
-	GetAttack() int32
-	GetDefense() int32
+	GetPhysicalAttack() int32
+	GetMagicAttack() int32
+	GetPhysicalDefense() int32
+	GetMagicDefense() int32
+	GetPenetration() int32
+	GetHpRegen() int32
+	GetMpRegen() int32
+	GetAttackSpeed() int32
+	GetCooldownSpeed() int32
+	GetMoveSpeed() int32
 	GetStr() int32
 	GetDex() int32
 	GetInt() int32
@@ -154,10 +169,11 @@ type roll interface {
 
 func rollOf(s roll) *model.ItemStats {
 	return &model.ItemStats{
-		Attack: int(s.GetAttack()), Defense: int(s.GetDefense()),
 		STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
-		Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()), CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()),
-		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()),
+		PhysicalAttack: int(s.GetPhysicalAttack()), MagicAttack: int(s.GetMagicAttack()), PhysicalDefense: int(s.GetPhysicalDefense()), MagicDefense: int(s.GetMagicDefense()),
+		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
+		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()), MPRegen: int(s.GetMpRegen()),
+		AttackSpeed: int(s.GetAttackSpeed()), CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
 	}
 }
 

@@ -1,18 +1,18 @@
-# Playable classes (Thief and Magician come in Stage 2): level_up_points is each level's preset, and starter_items are granted once, after the character is created.
+# Playable classes (Thief and Magician come in Stage 2): the attack's shape and damage type, auto_assign is the split the Auto-assign button and setting spend a level's points by, and starter_items are granted once, after the character is created.
 classes:
   - id: warrior
     name: Warrior
-    attack: {kind: melee, width: 64, height: 56, cooldown: 600ms}
+    attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
-    level_up_points: {str: 3, vit: 2}
+    auto_assign: {str: 3, vit: 2}
     starter_items:
       - {item: wooden_sword, quantity: 1}
       - {item: red_potion, quantity: 5}
   - id: bowman
     name: Bowman
-    attack: {kind: ranged, range: 420, cooldown: 800ms}
+    attack: {kind: ranged, damage: physical, range: 420, cooldown: 800ms}
     base_stats: {str: 5, dex: 12, int: 4, agi: 10, vit: 5}
-    level_up_points: {dex: 3, agi: 2}
+    auto_assign: {dex: 3, agi: 2}
     starter_items:
       - {item: short_bow, quantity: 1}
       - {item: red_potion, quantity: 5}

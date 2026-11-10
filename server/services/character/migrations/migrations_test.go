@@ -139,3 +139,29 @@ func TestCreatedAtIsBackfilledFromUpdatedAt(t *testing.T) {
 		t.Fatalf("created_at %v, updated_at %v, want both %v", created, updated, saved)
 	}
 }
+
+// A character's stat columns hold the points spent, never negative, and it starts with its free reset.
+func TestPointsAreNeverNegative(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	insert := func(name string, str, unspent int) error {
+		_, err := pool.Exec(ctx, `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
+			VALUES ($1, $1, $2, 'warrior', 3, 0, $3, 0, 0, 0, 0, $4, 184, 32, 'town', 416, 608, now(), now())`, uuidv7.New(), name, str, unspent)
+		return err
+	}
+	if err := insert("Ayla", 5, 5); err != nil {
+		t.Fatal(err)
+	}
+	var used bool
+	if err := pool.QueryRow(ctx, `SELECT free_reset_used FROM characters WHERE name = 'Ayla'`).Scan(&used); err != nil || used {
+		t.Fatalf("free_reset_used %v, %v; want false", used, err)
+	}
+	for _, c := range []struct{ str, unspent int }{{-1, 0}, {0, -1}} {
+		if err := insert("Robin", c.str, c.unspent); err == nil || !strings.Contains(err.Error(), "points_not_negative") {
+			t.Fatalf("points %+v stored: %v", c, err)
+		}
+	}
+}

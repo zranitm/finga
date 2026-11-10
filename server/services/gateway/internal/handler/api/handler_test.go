@@ -43,7 +43,7 @@ var (
 	sessionID   = kernel.NewSessionID()
 	principal   = auth.Principal{AccountID: uuid.UUID(accountID), SessionID: uuid.UUID(sessionID)}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
+	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
 	errInternal = errors.New("pq: connection reset")
 )
 
@@ -395,7 +395,7 @@ func TestSettings(t *testing.T) {
 			if in.GetAccountId() != accountID.String() {
 				t.Fatalf("id %s", in.GetAccountId())
 			}
-			return &accountv1.GetSettingsResponse{Settings: &accountv1.Settings{ControlPreset: "wasd"}}, nil
+			return &accountv1.GetSettingsResponse{Settings: &accountv1.Settings{ControlPreset: "wasd", AutoAssignPoints: true}}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -403,7 +403,7 @@ func TestSettings(t *testing.T) {
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body.ControlPreset != "wasd" {
+		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true}) {
 			t.Fatalf("body %+v", body)
 		}
 	})
@@ -414,14 +414,17 @@ func TestSettings(t *testing.T) {
 			saved = in
 			return &accountv1.UpdateSettingsResponse{}, nil
 		}
-		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed())
-		if rec.Code != http.StatusOK || saved.GetSettings().GetControlPreset() != "wasd" || saved.GetAccountId() != accountID.String() {
+		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd","auto_assign_points":true}`, authed())
+		if rec.Code != http.StatusOK || saved.GetSettings().GetControlPreset() != "wasd" || !saved.GetSettings().GetAutoAssignPoints() || saved.GetAccountId() != accountID.String() {
 			t.Fatalf("status %d saved %+v", rec.Code, saved)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body.ControlPreset != "wasd" {
+		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true}) {
 			t.Fatalf("body %+v", body)
+		}
+		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.GetSettings().GetAutoAssignPoints() {
+			t.Fatalf("status %d saved %+v; want auto-assign left out as false", rec.Code, saved)
 		}
 	})
 	t.Run("write with malformed input", func(t *testing.T) {

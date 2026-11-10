@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/transient"
@@ -51,6 +52,16 @@ func (w *World) Equip(ctx context.Context, id kernel.CharacterID, conn, key stri
 // Unequip puts a worn item back in the Equip tab and returns once the stats apply.
 func (w *World) Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Unequip(ctx, id, conn, key, equipSlot, toSlot) })
+}
+
+// SpendPoints adds points to the character's stats and returns once the new stats apply.
+func (w *World) SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendPoints(ctx, id, conn, expected, points) })
+}
+
+// ResetPoints returns every spent point to unspent with the free reset and returns once the new stats apply.
+func (w *World) ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.ResetPoints(ctx, id, conn, expected) })
 }
 
 // wait runs a command whose caller waits for its outcome, so one it can't take is unavailable, for the caller to retry.

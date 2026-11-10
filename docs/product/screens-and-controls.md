@@ -12,10 +12,10 @@ The screens players see and the keys they use. This is the input for the design 
 | **Inventory** | See items by tab; discard them | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
-| **Settings** | Choose a control preset | P0 |
+| **Settings** | Choose a control preset; turn on spending stat points automatically at level-up (off by default) | P0 |
 | **Character select** | Pick a character to play | P1 |
 | **Channel select** | Pick or switch channel | P1 |
-| **Character window** | See level, EXP, HP, MP, stats, and the ten equipment slots; equip and unequip | P1 |
+| **Character window** | See level, EXP, HP, MP, every stat, and the ten equipment slots; equip and unequip; spend, auto-assign, and reset stat points | P1 |
 | **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
 | **Skill bar** | Assign skills to keys | P1 |

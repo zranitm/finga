@@ -3,7 +3,6 @@ package gamedata
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,7 +26,6 @@ const (
 	mapsDir      = "maps"
 	mapExt       = ".tmj"
 
-	levelUpPoints   = 5
 	defaultMaxStack = 100
 	maxStars        = 7
 )
@@ -36,7 +34,6 @@ const (
 func Load(dir string) (*Data, error) {
 	d := &Data{
 		classIdx: map[kernel.Class]int{},
-		formulas: map[kernel.Class]Formulas{},
 		itemIdx:  map[string]int{},
 		mobIdx:   map[string]int{},
 		mapIdx:   map[string]int{},
@@ -133,16 +130,17 @@ type classesYAML struct {
 }
 
 type classYAML struct {
-	ID            string     `yaml:"id"`
-	Name          string     `yaml:"name"`
-	Attack        attackYAML `yaml:"attack"`
-	BaseStats     Stats      `yaml:"base_stats"`
-	LevelUpPoints Stats      `yaml:"level_up_points"`
-	StarterItems  []Grant    `yaml:"starter_items"`
+	ID           string     `yaml:"id"`
+	Name         string     `yaml:"name"`
+	Attack       attackYAML `yaml:"attack"`
+	BaseStats    Stats      `yaml:"base_stats"`
+	AutoAssign   Stats      `yaml:"auto_assign"`
+	StarterItems []Grant    `yaml:"starter_items"`
 }
 
 type attackYAML struct {
 	Kind     string        `yaml:"kind"`
+	Damage   string        `yaml:"damage"`
 	Width    float64       `yaml:"width"`
 	Height   float64       `yaml:"height"`
 	Range    float64       `yaml:"range"`
@@ -181,114 +179,23 @@ func (d *Data) loadClasses(dir string) error {
 		if c.Attack.Cooldown <= 0 {
 			return fmt.Errorf("%s: class %s: cooldown must be positive", classesFile, id)
 		}
-		if got := c.LevelUpPoints.Total(); got != levelUpPoints {
-			return fmt.Errorf("%s: class %s: level_up_points must add up to %d, got %d", classesFile, id, levelUpPoints, got)
+		damage, err := parseDamage(c.Attack.Damage)
+		if err != nil {
+			return fmt.Errorf("%s: class %s: attack: %w", classesFile, id, err)
+		}
+		if c.AutoAssign.STR < 0 || c.AutoAssign.DEX < 0 || c.AutoAssign.INT < 0 || c.AutoAssign.AGI < 0 || c.AutoAssign.VIT < 0 {
+			return fmt.Errorf("%s: class %s: auto_assign must not be negative", classesFile, id)
 		}
 		d.classIdx[id] = len(d.classes)
 		d.classes = append(d.classes, Class{
 			ID: id, Name: c.Name,
-			Attack:        Attack{Kind: kind, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Cooldown: c.Attack.Cooldown},
-			BaseStats:     c.BaseStats,
-			LevelUpPoints: c.LevelUpPoints,
-			StarterItems:  c.StarterItems,
+			Attack:       Attack{Kind: kind, Damage: damage, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Cooldown: c.Attack.Cooldown},
+			BaseStats:    c.BaseStats,
+			AutoAssign:   c.AutoAssign,
+			StarterItems: c.StarterItems,
 		})
 	}
 	return nil
-}
-
-type formulaYAML struct {
-	Base     float64            `yaml:"base"`
-	PerLevel float64            `yaml:"per_level"`
-	Coef     map[string]float64 `yaml:"coef"`
-	Cap      float64            `yaml:"cap"`
-}
-
-var derivedStats = []string{"max_hp", "max_mp", "attack_power", "accuracy", "evasion", "crit_rate", "crit_damage", "defense", "penetration"}
-
-func (d *Data) loadStats(dir string) error {
-	var file map[string]map[string]formulaYAML
-	if err := readYAML(dir, statsFile, &file); err != nil {
-		return err
-	}
-	for _, className := range slices.Sorted(sortedKeys(file)) {
-		id, err := kernel.ParseClass(className)
-		if err != nil {
-			return fmt.Errorf("%s: class %q: not a class", statsFile, className)
-		}
-		if _, ok := d.classIdx[id]; !ok {
-			return fmt.Errorf("%s: class %s: not in %s", statsFile, id, classesFile)
-		}
-		stats := file[className]
-		for _, name := range slices.Sorted(sortedKeys(stats)) {
-			if !slices.Contains(derivedStats, name) {
-				return fmt.Errorf("%s: class %s: unknown derived stat %q", statsFile, id, name)
-			}
-		}
-		var f Formulas
-		for _, name := range derivedStats {
-			raw, ok := stats[name]
-			if !ok {
-				return fmt.Errorf("%s: class %s: missing formula %s", statsFile, id, name)
-			}
-			formula, err := toFormula(raw)
-			if err != nil {
-				return fmt.Errorf("%s: class %s: %s: %w", statsFile, id, name, err)
-			}
-			*formulaField(&f, name) = formula
-		}
-		d.formulas[id] = f
-	}
-	for _, c := range d.classes {
-		if _, ok := d.formulas[c.ID]; !ok {
-			return fmt.Errorf("%s: class %s: no formulas", statsFile, c.ID)
-		}
-	}
-	return nil
-}
-
-func toFormula(raw formulaYAML) (Formula, error) {
-	f := Formula{Base: raw.Base, PerLevel: raw.PerLevel, Cap: raw.Cap}
-	for _, stat := range slices.Sorted(sortedKeys(raw.Coef)) {
-		v := raw.Coef[stat]
-		switch stat {
-		case "str":
-			f.Coef.STR = v
-		case "dex":
-			f.Coef.DEX = v
-		case "int":
-			f.Coef.INT = v
-		case "agi":
-			f.Coef.AGI = v
-		case "vit":
-			f.Coef.VIT = v
-		default:
-			return Formula{}, fmt.Errorf("unknown primary stat %s", stat)
-		}
-	}
-	return f, nil
-}
-
-func formulaField(f *Formulas, name string) *Formula {
-	switch name {
-	case "max_hp":
-		return &f.MaxHP
-	case "max_mp":
-		return &f.MaxMP
-	case "attack_power":
-		return &f.AttackPower
-	case "accuracy":
-		return &f.Accuracy
-	case "evasion":
-		return &f.Evasion
-	case "crit_rate":
-		return &f.CritRate
-	case "crit_damage":
-		return &f.CritDamage
-	case "defense":
-		return &f.Defense
-	default:
-		return &f.Penetration
-	}
 }
 
 type expCurveYAML struct {
@@ -354,6 +261,7 @@ type itemYAML struct {
 	Slot        string           `yaml:"slot"`
 	Class       string           `yaml:"class"`
 	MinLevel    int              `yaml:"min_level"`
+	Requires    map[string]int   `yaml:"requires"`
 	Stats       map[string][]int `yaml:"stats"`
 	HealHP      int              `yaml:"heal_hp"`
 	HealMP      int              `yaml:"heal_mp"`
@@ -394,6 +302,12 @@ func (d *Data) loadItems(dir string) error {
 				return fmt.Errorf("%s: item %s: %w", itemsFile, it.ID, err)
 			}
 			it.Rolls = rolls
+			if it.Requires, err = loadRequires(raw.Requires); err != nil {
+				return fmt.Errorf("%s: item %s: %w", itemsFile, it.ID, err)
+			}
+			if raw.Class != "" && it.Slot != Weapon {
+				return fmt.Errorf("%s: item %s: only a weapon keeps a class", itemsFile, it.ID)
+			}
 			if raw.Class != "" {
 				class, err := kernel.ParseClass(raw.Class)
 				if err != nil {
@@ -406,8 +320,8 @@ func (d *Data) loadItems(dir string) error {
 			}
 			it.MaxStack = 1 // equipment never stacks
 		case Use, Etc:
-			if raw.Slot != "" || raw.Class != "" || raw.Stats != nil {
-				return fmt.Errorf("%s: item %s: only equipment has a slot, a class or stats", itemsFile, it.ID)
+			if raw.Slot != "" || raw.Class != "" || raw.Stats != nil || raw.Requires != nil {
+				return fmt.Errorf("%s: item %s: only equipment has a slot, a class, requirements or stats", itemsFile, it.ID)
 			}
 			if it.MaxStack == 0 {
 				it.MaxStack = defaultMaxStack
@@ -445,78 +359,27 @@ func (d *Data) loadEquipSlots(raw []equipSlotYAML) ([]SlotKind, error) {
 	return kinds, nil
 }
 
-// loadRolls reads an equipment item's stat ranges: at least one, each [min, max] with 0 <= min <= max and max > 0.
-func loadRolls(stats map[string][]int) (Rolls, error) {
-	var r Rolls
-	if len(stats) == 0 {
-		return r, errors.New("equipment needs stats")
-	}
-	for _, name := range slices.Sorted(maps.Keys(stats)) {
-		field := rollField(&r, name)
-		if field == nil {
-			return r, fmt.Errorf("unknown stat %s", name)
-		}
-		v := stats[name]
-		if len(v) != 2 || v[0] < 0 || v[0] > v[1] || v[1] == 0 {
-			return r, fmt.Errorf("stat %s needs a range [min, max] with 0 <= min <= max and max above 0, got %v", name, v)
-		}
-		*field = Range{Min: v[0], Max: v[1]}
-	}
-	return r, nil
-}
-
-func rollField(r *Rolls, name string) *Range {
-	switch name {
-	case "attack":
-		return &r.Attack
-	case "defense":
-		return &r.Defense
-	case "str":
-		return &r.STR
-	case "dex":
-		return &r.DEX
-	case "int":
-		return &r.INT
-	case "agi":
-		return &r.AGI
-	case "vit":
-		return &r.VIT
-	case "accuracy":
-		return &r.Accuracy
-	case "evasion":
-		return &r.Evasion
-	case "crit_rate":
-		return &r.CritRate
-	case "crit_damage":
-		return &r.CritDamage
-	case "max_hp":
-		return &r.MaxHP
-	case "max_mp":
-		return &r.MaxMP
-	default:
-		return nil
-	}
-}
-
 type mobsYAML struct {
 	Mobs []mobYAML `yaml:"mobs"`
 }
 
 type mobYAML struct {
-	ID       string     `yaml:"id"`
-	Name     string     `yaml:"name"`
-	Level    int        `yaml:"level"`
-	HP       int        `yaml:"hp"`
-	Attack   int        `yaml:"attack"`
-	Defense  int        `yaml:"defense"`
-	Accuracy int        `yaml:"accuracy"`
-	Evasion  int        `yaml:"evasion"`
-	Exp      int64      `yaml:"exp"`
-	Speed    float64    `yaml:"speed"`
-	Width    float64    `yaml:"width"`
-	Height   float64    `yaml:"height"`
-	Behavior string     `yaml:"behavior"`
-	Drops    []dropYAML `yaml:"drops"`
+	ID              string     `yaml:"id"`
+	Name            string     `yaml:"name"`
+	Level           int        `yaml:"level"`
+	HP              int        `yaml:"hp"`
+	Attack          int        `yaml:"attack"`
+	Damage          string     `yaml:"damage"`
+	PhysicalDefense int        `yaml:"physical_defense"`
+	MagicDefense    int        `yaml:"magic_defense"`
+	Accuracy        int        `yaml:"accuracy"`
+	Evasion         int        `yaml:"evasion"`
+	Exp             int64      `yaml:"exp"`
+	Speed           float64    `yaml:"speed"`
+	Width           float64    `yaml:"width"`
+	Height          float64    `yaml:"height"`
+	Behavior        string     `yaml:"behavior"`
+	Drops           []dropYAML `yaml:"drops"`
 }
 
 type dropYAML struct {
@@ -544,8 +407,16 @@ func (d *Data) loadMobs(dir string) error {
 		if raw.Behavior != "patrol" {
 			return fmt.Errorf("%s: mob %s: unknown behavior %q (Stage 1 has patrol)", mobsFile, raw.ID, raw.Behavior)
 		}
+		damage, err := parseDamage(raw.Damage)
+		if err != nil {
+			return fmt.Errorf("%s: mob %s: %w", mobsFile, raw.ID, err)
+		}
+		if raw.Attack < 0 || raw.PhysicalDefense < 0 || raw.MagicDefense < 0 || raw.Accuracy < 0 || raw.Evasion < 0 {
+			return fmt.Errorf("%s: mob %s: attack, defenses, accuracy and evasion must not be negative", mobsFile, raw.ID)
+		}
 		mob := Mob{
-			ID: raw.ID, Name: raw.Name, Level: raw.Level, HP: raw.HP, Attack: raw.Attack, Defense: raw.Defense,
+			ID: raw.ID, Name: raw.Name, Level: raw.Level, HP: raw.HP, Attack: raw.Attack, Damage: damage,
+			PhysicalDefense: raw.PhysicalDefense, MagicDefense: raw.MagicDefense,
 			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, Width: raw.Width, Height: raw.Height,
 			Behavior: raw.Behavior,
 		}
@@ -615,14 +486,13 @@ func (d *Data) loadMaps(dir string) error {
 	return nil
 }
 
-func sortedKeys[V any](m map[string]V) func(func(string) bool) {
-	return func(yield func(string) bool) {
-		for k := range m {
-			if !yield(k) {
-				return
-			}
-		}
+// parseDamage reads a damage type: physical or magic.
+func parseDamage(raw string) (DamageType, error) {
+	switch d := DamageType(raw); d {
+	case Physical, Magic:
+		return d, nil
 	}
+	return "", fmt.Errorf("damage must be physical or magic, got %q", raw)
 }
 
 // validateStarters checks starter items: known templates, positive quantities, one of each equipment piece.

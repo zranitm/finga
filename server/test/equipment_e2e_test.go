@@ -98,14 +98,14 @@ func TestEquipment(t *testing.T) {
 		token, id := s.createCharacter(t, "sam", "Sam", "warrior")
 		_, w := s.hello(t, token, id)
 		if len(w.Equipment) != 1 || w.Equipment[0].GetEquipSlot() != "weapon" || w.Equipment[0].GetItem().GetTemplate() != "wooden_sword" ||
-			w.Equipment[0].GetItem().GetStats().GetAttack() != 10 || w.Equipment[0].GetItem().GetTab() != "" {
+			w.Equipment[0].GetItem().GetStats().GetPhysicalAttack() != 10 || w.Equipment[0].GetItem().GetTab() != "" {
 			t.Fatalf("equipment %+v; want the wooden sword in the weapon slot at its lowest roll", w.Equipment)
 		}
 		if len(w.Inventory) != 1 || w.Inventory[0].GetTemplate() != "red_potion" {
 			t.Fatalf("inventory %+v; want the potions alone", w.Inventory)
 		}
 		c := w.GetCharacter()
-		if sheet := c.GetSheet(); sheet.GetDerivedWorn().GetAttackPower() < 10 || sheet.GetDerived().GetAttackPower() <= sheet.GetDerivedWorn().GetAttackPower() ||
+		if sheet := c.GetSheet(); sheet.GetDerivedWorn().GetPhysicalAttack() < 10 || sheet.GetDerived().GetPhysicalAttack() <= sheet.GetDerivedWorn().GetPhysicalAttack() ||
 			sheet.GetDerived().GetMaxHp() != c.GetMaxHp() || sheet.GetDerived().GetMaxMp() != c.GetMaxMp() {
 			t.Fatalf("sheet %+v of %+v; want the sword's attack in the totals and in the equipment's share, and the maxima combat uses", sheet, c)
 		}
@@ -115,18 +115,18 @@ func TestEquipment(t *testing.T) {
 	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-drop-waits-on-the-ground", func(t *testing.T) {
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.createCharacter(t, "tess", "Tess", "warrior")
-		s.place(t, id, "forest", 380, 608, 204, 0)
+		s.place(t, id, "forest", 380, 608, 184, 0)
 		// The Equip tab's 24 slots: a better sword in the first, caps in the rest.
-		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 12})
+		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
 		for range 23 {
-			s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+			s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem()
 		if len(w.Inventory) != 25 || starter.GetTemplate() != "wooden_sword" {
 			t.Fatalf("welcome with %d items and %+v worn; want the full Equip tab, the potions, and the starter sword worn", len(w.Inventory), w.Equipment)
 		}
-		before := w.GetCharacter().GetSheet().GetDerivedWorn().GetAttackPower()
+		before := w.GetCharacter().GetSheet().GetDerivedWorn().GetPhysicalAttack()
 
 		l.send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: key(), ItemId: better}})
 		got := l.gather("Response", "InventoryChanged", "StatsChanged")
@@ -138,7 +138,7 @@ func TestEquipment(t *testing.T) {
 			len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "weapon" || ic.Equipment[0].GetItem().GetItemId() != better || ic.Revision <= w.InventoryRevision {
 			t.Fatalf("swap changed %+v; want the starter sword in the slot the better one left, the better one worn", ic)
 		}
-		if sc := got["StatsChanged"].Data.(*clientv1.StatsChanged); sc.GetSheet().GetDerivedWorn().GetAttackPower() <= before {
+		if sc := got["StatsChanged"].Data.(*clientv1.StatsChanged); sc.GetSheet().GetDerivedWorn().GetPhysicalAttack() <= before {
 			t.Fatalf("stats after the swap %+v; want more than the %v attack power the starter sword gave", sc, before)
 		}
 
@@ -181,9 +181,9 @@ func TestEquipment(t *testing.T) {
 	t.Run("E3/an-item-the-character-cannot-wear-is-refused-with-the-reason-and-nothing-moves", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "uma", "Uma", "warrior")
-		bow := s.give(t, id, "short_bow", &itemv1.ItemStats{Attack: 9})
-		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{Attack: 16})
-		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 3})
+		bow := s.give(t, id, "short_bow", &itemv1.ItemStats{PhysicalAttack: 9})
+		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 16})
+		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		l, w := s.hello(t, token, id)
 		sword := w.Equipment[0].GetItem().GetItemId()
 		var potion string
@@ -218,7 +218,7 @@ func TestEquipment(t *testing.T) {
 	t.Run("E4/what-is-worn-stays-through-a-map-change-and-logging-back-in", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "vic", "Vic", "warrior")
-		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{Defense: 4})
+		leatherCap := s.give(t, id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 4})
 		l, _ := s.hello(t, token, id)
 		l.send(wsconn.Message{ReqID: "e-1", Data: &clientv1.Equip{IdempotencyKey: key(), ItemId: leatherCap}})
 		got := l.gather("Response", "StatsChanged")
@@ -226,7 +226,7 @@ func TestEquipment(t *testing.T) {
 			t.Fatalf("equip answered %+v", got["Response"])
 		}
 		sheet := got["StatsChanged"].Data.(*clientv1.StatsChanged).GetSheet()
-		if sheet.GetDerivedWorn().GetDefense() != 4 {
+		if sheet.GetDerivedWorn().GetPhysicalDefense() != 4 {
 			t.Fatalf("sheet %+v; want the cap's 4 defense as the equipment's share", sheet)
 		}
 		l.hop(t, 1216, "forest", 64)
@@ -236,7 +236,7 @@ func TestEquipment(t *testing.T) {
 			wearing[e.GetEquipSlot()] = e.GetItem()
 		}
 		if w.GetMapId() != "forest" || len(wearing) != 2 || wearing["weapon"].GetTemplate() != "wooden_sword" ||
-			wearing["hat"].GetItemId() != leatherCap || wearing["hat"].GetStats().GetDefense() != 4 {
+			wearing["hat"].GetItemId() != leatherCap || wearing["hat"].GetStats().GetPhysicalDefense() != 4 {
 			t.Fatalf("welcomed on %s wearing %+v; want the forest, the sword and the cap", w.GetMapId(), w.Equipment)
 		}
 		if !proto.Equal(w.GetCharacter().GetSheet(), sheet) {
@@ -275,7 +275,7 @@ func TestEquipment(t *testing.T) {
 	t.Run("E6/a-swap-during-a-world-restart-loses-and-duplicates-nothing-and-its-retry-applies", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "xan", "Xan", "warrior")
-		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 12})
+		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem().GetItemId()
 		swap := &clientv1.Equip{IdempotencyKey: key(), ItemId: better}
@@ -302,7 +302,7 @@ func TestEquipment(t *testing.T) {
 			t.Fatalf("worn after the retry: %v, want the better sword", worn)
 		}
 		_, again := s.welcome(t, "xan", id)
-		if len(again.Equipment) != 1 || again.Equipment[0].GetItem().GetItemId() != better || again.GetCharacter().GetSheet().GetDerivedWorn().GetAttackPower() <= w.GetCharacter().GetSheet().GetDerivedWorn().GetAttackPower() {
+		if len(again.Equipment) != 1 || again.Equipment[0].GetItem().GetItemId() != better || again.GetCharacter().GetSheet().GetDerivedWorn().GetPhysicalAttack() <= w.GetCharacter().GetSheet().GetDerivedWorn().GetPhysicalAttack() {
 			t.Fatalf("welcomed wearing %+v with sheet %+v; want the better sword and its attack", again.Equipment, again.GetCharacter().GetSheet())
 		}
 		s.checkInvariants(t)

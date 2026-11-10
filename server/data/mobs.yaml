@@ -1,4 +1,4 @@
-# Mob types, with stats, patrol behavior and drop tables whose entries roll independently: four mobs for the forest (levels 1 to 10) and the cave (10 to 20).
+# Mob types, with stats, the damage type of their contact attack, patrol behavior and drop tables whose entries roll independently: four mobs for the forest (levels 1 to 10) and the cave (10 to 20).
 # HP is set so the weapon a player of the mob's level likely holds kills it in as many hits as an unarmed one did before equipment applied in combat.
 # The cave drops the gear of levels 20 to 29 rarely, until a map has mobs that high.
 mobs:
@@ -7,7 +7,9 @@ mobs:
     level: 1
     hp: 44
     attack: 6
-    defense: 2
+    damage: physical
+    physical_defense: 2
+    magic_defense: 1
     accuracy: 8
     evasion: 2
     exp: 5
@@ -23,7 +25,9 @@ mobs:
     level: 4
     hp: 90
     attack: 12
-    defense: 5
+    damage: physical
+    physical_defense: 5
+    magic_defense: 3
     accuracy: 12
     evasion: 4
     exp: 14
@@ -45,7 +49,9 @@ mobs:
     level: 10
     hp: 216
     attack: 28
-    defense: 12
+    damage: physical
+    physical_defense: 12
+    magic_defense: 6
     accuracy: 20
     evasion: 8
     exp: 45
@@ -68,7 +74,9 @@ mobs:
     level: 14
     hp: 180
     attack: 34
-    defense: 8
+    damage: magic
+    physical_defense: 8
+    magic_defense: 8
     accuracy: 26
     evasion: 18
     exp: 62

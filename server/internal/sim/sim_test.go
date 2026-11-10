@@ -329,6 +329,47 @@ func TestRopes(t *testing.T) {
 	})
 }
 
+// The factor rounds to thousandths, so Go and TypeScript multiply by the same number.
+func TestSpeedFactor(t *testing.T) {
+	for _, c := range []struct{ moveSpeed, want float64 }{{0, 1}, {0.3, 1.3}, {0.007317073170731708, 1.007}, {0.12345, 1.123}} {
+		if got := sim.SpeedFactor(c.moveSpeed); got != c.want {
+			t.Errorf("SpeedFactor(%v) = %v, want %v", c.moveSpeed, got, c.want)
+		}
+	}
+	if p := params(); p.Faster(1) != p {
+		t.Fatal("a factor of 1 changed the params")
+	}
+}
+
+// A faster character plays its jump faster: the arc keeps its height and its length, within the sub-steps' rounding, and lands in about 1/f of the sub-steps.
+func TestFasterKeepsAJumpsShape(t *testing.T) {
+	g := sim.Geometry{Solids: []sim.Rect{{X: 0, Y: 500, W: 5000, H: 32}}}
+	arc := func(p sim.Params) (height, length float64, steps int) {
+		s := sim.State{X: 200, Y: 500, OnGround: true, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
+		in := sim.Input{Right: true, Jump: true}
+		top := s.Y
+		for steps = 1; steps < 1000; steps++ {
+			s = sim.Step(s, in, g, p)
+			in.Jump = false
+			top = min(top, s.Y)
+			if s.OnGround {
+				break
+			}
+		}
+		return 500 - top, s.X - 200, steps
+	}
+	h1, l1, n1 := arc(params())
+	for _, f := range []float64{1.1, 1.3} {
+		h, l, n := arc(params().Faster(f))
+		if math.Abs(h-h1) > 0.03*h1 || math.Abs(l-l1) > params().WalkSpeed*f*params().Dt {
+			t.Errorf("at %v: height %.1f and length %.1f, want %.1f and %.1f", f, h, l, h1, l1)
+		}
+		if want := float64(n1) / f; math.Abs(float64(n)-want) > 1 {
+			t.Errorf("at %v: landed after %d sub-steps, want about %.1f", f, n, want)
+		}
+	}
+}
+
 func TestStepIsPure(t *testing.T) {
 	// Same inputs, same state; Step never changes its arguments.
 	p := params()

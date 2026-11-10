@@ -50,6 +50,10 @@ type player struct {
 	changed       bool          // HP, level or death changed this tick
 	private       []model.Event // events for this player only
 	equipping     int           // equips and unequips in flight, which keep the player on this map
+	toldHP        int           // the HP and max HP the party last heard
+	toldMaxHP     int
+	hpCarry       int // regen's fractions, in thousandths of a point
+	mpCarry       int
 }
 
 func (i *Instance) add(j *joinMsg) {
@@ -57,20 +61,19 @@ func (i *Instance) add(j *joinMsg) {
 		i.remove(j.player.ID) // a stale presence; the new connection wins
 	}
 	class, ok := i.data.Class(j.player.Class)
-	formulas, ok2 := i.data.Formulas(j.player.Class)
-	if !ok || !ok2 {
+	if !ok {
 		j.done <- model.ErrClassUnavailable
 		return
 	}
 	p := &player{
-		Player:  j.player,
-		sink:    j.sink,
-		state:   sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
-		joined:  true,
-		slot:    i.nextSlot,
-		class:   class,
-		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, j.player.Worn.Stats),
+		Player: j.player,
+		sink:   j.sink,
+		state:  sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
+		joined: true,
+		slot:   i.nextSlot,
+		class:  class,
 	}
+	p.derived = i.derive(p)
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)
 	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks
@@ -143,8 +146,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		}
 		before := p.state
 		if !p.dead && !hold {
+			moves := i.movement(p)
 			for range i.subSteps {
-				p.state = sim.Step(p.state, p.held, i.m.Geometry, i.params)
+				p.state = sim.Step(p.state, p.held, i.m.Geometry, moves)
 			}
 		}
 		p.moved = p.state != before
@@ -167,7 +171,7 @@ func (i *Instance) playerBox(p *player) model.Rect {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Stats: p.Stats}
+	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
 		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, RespawnHP(p.derived.MaxHP)

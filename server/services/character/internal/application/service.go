@@ -9,6 +9,7 @@ import (
 
 	"github.com/cenkalti/backoff/v5"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/services/character/internal/model"
@@ -65,15 +66,11 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	if !ok {
 		return model.Character{}, model.ErrClassUnavailable
 	}
-	formulas, ok := s.content.Formulas(in.Class)
-	if !ok {
-		return model.Character{}, model.ErrClassUnavailable
-	}
 	town := s.content.Town()
-	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.ItemStats{})
+	derived := progression.DeriveStats(s.content.StatRules(), class.ID, 1, class.BaseStats, progression.ItemStats{})
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
-		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
+		Level: 1, Exp: 0, HP: derived.MaxHP, MP: derived.MaxMP,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
 	var stored model.Character
@@ -143,11 +140,20 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	})
 }
 
+// Own is a character's own stats: their class's starting stats plus the points they spent.
+func (s *Service) Own(c model.Character) (gamedata.Stats, error) {
+	class, ok := s.content.Class(c.Class)
+	if !ok {
+		return gamedata.Stats{}, model.ErrClassUnavailable
+	}
+	return progression.AddStats(class.BaseStats, c.Points), nil
+}
+
 // Derived computes a character's derived stats with no equipment.
 func (s *Service) Derived(c model.Character) (progression.Derived, error) {
-	formulas, ok := s.content.Formulas(c.Class)
-	if !ok {
-		return progression.Derived{}, model.ErrClassUnavailable
+	own, err := s.Own(c)
+	if err != nil {
+		return progression.Derived{}, err
 	}
-	return progression.DeriveStats(formulas, c.Stats, c.Level, progression.ItemStats{}), nil
+	return progression.DeriveStats(s.content.StatRules(), c.Class, c.Level, own, progression.ItemStats{}), nil
 }

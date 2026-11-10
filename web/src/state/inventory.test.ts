@@ -220,7 +220,7 @@ describe('equipment', () => {
   });
 
   const worn = (itemId: string, template: string) =>
-    create(ItemViewSchema, { itemId, template, quantity: 1, stats: { attack: 10 } });
+    create(ItemViewSchema, { itemId, template, quantity: 1, stats: { physicalAttack: 10 } });
   const starter = worn('i-sword', 'wooden_sword');
   const better = worn('i-better', 'wooden_sword');
   const leatherCap = worn('i-cap', 'leather_cap');
@@ -262,7 +262,7 @@ describe('equipment', () => {
     inventory.getState().applyWelcome(welcomeWearing([{ equipSlot: 'weapon', item: starter }], 1n));
     const { equipment } = inventory.getState();
     expect(equipment.weapon).toEqual(starter);
-    expect(equipment.weapon?.stats?.attack).toBe(10);
+    expect(equipment.weapon?.stats?.physicalAttack).toBe(10);
     expect(equipment.hat).toBeNull();
   });
 

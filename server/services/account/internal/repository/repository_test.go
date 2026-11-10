@@ -94,7 +94,7 @@ func TestAccounts(t *testing.T) {
 
 	t.Run("settings are read and written", func(t *testing.T) {
 		id, _ := insertAccount(t, store, "bob")
-		want := model.Settings{ControlPreset: model.PresetWASD}
+		want := model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true}
 		err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Accounts().UpdateSettings(ctx, id, want) })
 		if err != nil {
 			t.Fatal(err)

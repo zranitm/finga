@@ -215,7 +215,7 @@ func (s *Server) Equip(ctx context.Context, req *itemv1.EquipRequest) (*itemv1.E
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Equip(ctx, actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: class})
+	res, err := s.svc.Equip(ctx, actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: class, Stats: primaryOf(req.GetStats())})
 	if err != nil {
 		return nil, err
 	}
@@ -295,11 +295,19 @@ func itemOf(it model.Item) *itemv1.Item {
 	if s := it.Stats; s != nil {
 		//nolint:gosec // stats are small
 		out.Stats = &itemv1.ItemStats{
-			Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
+			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+			AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 		}
 	}
 	return out
+}
+
+// primaryOf is a character's own primary stats as sent; none sent is all zero.
+func primaryOf(s *itemv1.PrimaryStats) gamedata.Stats {
+	return gamedata.Stats{STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit())}
 }
 
 // statsOf is a roll as sent, nil when none was.
@@ -308,8 +316,11 @@ func statsOf(s *itemv1.ItemStats) *progression.ItemStats {
 		return nil
 	}
 	return &progression.ItemStats{
-		Attack: int(s.GetAttack()), Defense: int(s.GetDefense()), STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
-		Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()), CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()),
+		STR: int(s.GetStr()), DEX: int(s.GetDex()), INT: int(s.GetInt()), AGI: int(s.GetAgi()), VIT: int(s.GetVit()),
+		PhysicalAttack: int(s.GetPhysicalAttack()), MagicAttack: int(s.GetMagicAttack()), PhysicalDefense: int(s.GetPhysicalDefense()), MagicDefense: int(s.GetMagicDefense()),
+		MaxHP: int(s.GetMaxHp()), MaxMP: int(s.GetMaxMp()), Accuracy: int(s.GetAccuracy()), Evasion: int(s.GetEvasion()),
+		CritRate: int(s.GetCritRate()), CritDamage: int(s.GetCritDamage()), Penetration: int(s.GetPenetration()), HPRegen: int(s.GetHpRegen()), MPRegen: int(s.GetMpRegen()),
+		AttackSpeed: int(s.GetAttackSpeed()), CooldownSpeed: int(s.GetCooldownSpeed()), MoveSpeed: int(s.GetMoveSpeed()),
 	}
 }
 

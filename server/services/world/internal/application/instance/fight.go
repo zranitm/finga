@@ -1,6 +1,7 @@
 package instance
 
 import (
+	"math"
 	"slices"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 )
 
 const (
+	thousandths      = 1000
 	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
 	invulnerability  = time.Second // after contact damage
@@ -24,6 +26,41 @@ const (
 func RespawnHP(maxHP int) int { return max(1, maxHP*respawnHPPercent/100) }
 
 func (i *Instance) ticksFor(d time.Duration) uint64 { return model.TicksIn(d, i.tuning.TickInterval) }
+
+// regen gives each living player a second of HP and MP regen, in towns too; MP is not in the Delta, so its rise goes to the player in StatsChanged.
+func (i *Instance) regen() {
+	for _, id := range i.order {
+		p := i.players[id]
+		if p.dead {
+			continue
+		}
+		if regained(&p.HP, &p.hpCarry, p.derived.HPRegen, p.derived.MaxHP) {
+			p.changed = true
+		}
+		if regained(&p.MP, &p.mpCarry, p.derived.MPRegen, p.derived.MaxMP) {
+			p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: i.sheet(p), HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+		}
+	}
+}
+
+// regained adds a second of perSecond to v, held to most, carrying the fraction in thousandths so small rates add up exactly; the carry empties at the maximum.
+func regained(v, carry *int, perSecond float64, most int) bool {
+	if *v >= most {
+		*carry = 0
+		return false
+	}
+	*carry += int(math.Round(perSecond * thousandths))
+	gain := *carry / thousandths
+	*carry %= thousandths
+	if gain == 0 {
+		return false
+	}
+	*v = min(*v+gain, most)
+	if *v == most {
+		*carry = 0
+	}
+	return true
+}
 
 // resolveAttacks swings each queued attack once its cooldown ends, so one sent a little early is not lost; a town has none.
 func (i *Instance) resolveAttacks() {
@@ -37,9 +74,9 @@ func (i *Instance) resolveAttacks() {
 		if town || p.dead {
 			continue
 		}
-		p.cooldownUntil = i.tick + i.ticksFor(p.class.Attack.Cooldown)
+		p.cooldownUntil = i.tick + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
 		blow, reached := i.arena.Strike(mobs.Strike{
-			By: p.ID, Attack: p.class.Attack, Power: attackerOf(p.derived),
+			By: p.ID, Attack: p.class.Attack, Power: attackerOf(p.derived, p.class.Attack.Damage),
 			X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
 		})
 		if !reached {
@@ -135,10 +172,14 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 	return left
 }
 
-func attackerOf(d progression.Derived) model.Attacker {
-	return model.Attacker{AttackPower: d.AttackPower, Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration}
+// attackerOf is a player's basic attack, of their class's damage type.
+func attackerOf(d progression.Derived, damage gamedata.DamageType) model.Attacker {
+	return model.Attacker{
+		Damage: damage, PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack,
+		Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
+	}
 }
 
 func defenderOf(d progression.Derived) model.Defender {
-	return model.Defender{Defense: d.Defense, Evasion: d.Evasion}
+	return model.Defender{PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense, Evasion: d.Evasion}
 }

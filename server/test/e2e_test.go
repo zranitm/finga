@@ -299,7 +299,7 @@ func TestAcceptance(t *testing.T) {
 		token := login.body["token"].(string)
 		created := s.call("POST", "/api/characters", token, map[string]string{"name": "Ayla", "class": "warrior"})
 		s.mustStatus(created, http.StatusCreated)
-		if created.body["level"] != float64(1) || created.body["class"] != "warrior" || created.body["map_id"] != "town" || created.body["hp"] != float64(204) {
+		if created.body["level"] != float64(1) || created.body["class"] != "warrior" || created.body["map_id"] != "town" || created.body["hp"] != float64(184) {
 			t.Fatalf("character %v", created.body)
 		}
 		s.mustStatus(s.call("POST", "/api/characters", token, map[string]string{"name": "ayla", "class": "bowman"}), http.StatusConflict)

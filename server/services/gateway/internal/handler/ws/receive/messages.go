@@ -91,6 +91,17 @@ func (h *Handler) unequip(c *msgContext, in *clientv1.Unequip) (any, error) {
 	return nil, h.gw.Unequip(c.Ctx, c.Session.session, out)
 }
 
+// spendPoints answers once the world applied the points; StatsChanged comes first, on the world's stream.
+func (h *Handler) spendPoints(c *msgContext, in *clientv1.SpendPoints) (any, error) {
+	p := in.GetPoints()
+	pts := model.Stats{STR: int(p.GetStr()), DEX: int(p.GetDex()), INT: int(p.GetInt()), AGI: int(p.GetAgi()), VIT: int(p.GetVit())}
+	return nil, h.gw.SpendPoints(c.Ctx, c.Session.session, model.PointsSpend{ExpectedUnspent: int(in.GetExpectedUnspent()), Points: pts})
+}
+
+func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {
+	return nil, h.gw.ResetPoints(c.Ctx, c.Session.session, int(in.GetExpectedUnspent()))
+}
+
 // changed is an inventory command's follow-up: the changed slots, if any.
 func changed(ic model.InventoryChanged, err error) (any, error) {
 	if err != nil || len(ic.Slots) == 0 {

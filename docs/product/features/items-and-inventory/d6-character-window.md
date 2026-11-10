@@ -11,7 +11,8 @@
 
 - The C key opens and closes the window in both control presets; so does its close button.
 - It shows the character's name, class, level, EXP toward the next level, and current and maximum HP and MP.
-- It shows the five primary stats and the derived stats: Attack, Defense, Accuracy, Evasion, Crit rate, and Crit damage.
+- It shows the five primary stats and the sixteen derived stats (Systems → Progression), grouped as offense, defense, resources, and speed. Move speed is marked as applying in combat maps only.
+- While stat points are unspent, it shows them, with a **+** beside each primary stat (C6).
 - Each stat shows its total and, beside it, the part that comes from equipment, for example "STR 25 (+4)".
 - It shows all ten equipment slots, arranged around a figure of the character (proposal). A worn item shows its icon framed in its star colour; an empty slot shows the slot's name.
 - Hovering a worn item shows its details (D7).
@@ -21,7 +22,6 @@
 
 ## Not in this feature
 
-- Spending stat points (C6, P2). Stats grow automatically at level-up for now.
 - Looking at another player's character.
 
 ## Rules

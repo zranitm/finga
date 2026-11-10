@@ -239,7 +239,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	})
 }
 
-// A player walks 200 px a second whatever the tick rate, as the client predicts.
+// A player walks 200 px a second whatever the tick rate, as the client predicts; a new warrior's 5 AGI make that 1.007 times as far in a hunting map.
 func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 	for _, interval := range []time.Duration{50 * time.Millisecond, 100 * time.Millisecond} {
 		t.Run(interval.String(), func(t *testing.T) {
@@ -262,8 +262,8 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 					time.Sleep(interval)
 					synctest.Wait()
 				}
-				if v, _ := s.Own(p.ID); math.Abs(v.State.X-300) > 1 {
-					t.Fatalf("x = %.1f after a second, want 300", v.State.X)
+				if v, _ := s.Own(p.ID); math.Abs(v.State.X-301.4) > 0.01 {
+					t.Fatalf("x = %.2f after a second, want 301.4", v.State.X)
 				}
 			})
 		})
@@ -559,7 +559,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints before 30 s", len(got))
 			}
 		}
-		{ // one checkpoint per player at the interval, with the live state
+		{ // one checkpoint per player at the interval, with the live state: MP regenerated from 28 to its maximum
 			time.Sleep(2 * time.Second)
 			synctest.Wait()
 			got := collect()
@@ -567,7 +567,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 204 || cp.MP != 28 || cp.Level != 1 || cp.Stats != p.Stats {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 184 || cp.MP != 32 || cp.Level != 1 || cp.Points != p.Points {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}

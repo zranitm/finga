@@ -28,6 +28,10 @@ service WorldService {
   rpc Equip(EquipRequest) returns (EquipResponse);
   // Unequip puts a worn item back in the Equip tab; it answers once the new stats apply.
   rpc Unequip(UnequipRequest) returns (UnequipResponse);
+  // SpendPoints adds unspent points to the character's stats; it answers once the new stats apply, with StatsChanged on Deliver.
+  rpc SpendPoints(SpendPointsRequest) returns (SpendPointsResponse);
+  // ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
+  rpc ResetPoints(ResetPointsRequest) returns (ResetPointsResponse);
 }
 
 enum Reason {
@@ -47,6 +51,14 @@ enum Reason {
   REASON_CLASS_UNAVAILABLE = 8;
   // A dead character can't change what it wears.
   REASON_CHARACTER_DEAD = 9;
+  // The character's unspent points are not the count the request expected: an earlier spend or a level-up came first.
+  REASON_POINTS_CHANGED = 10;
+  // The points add up to more than the character has unspent.
+  REASON_NOT_ENOUGH_POINTS = 11;
+  // The one free reset is used.
+  REASON_NO_FREE_RESET = 12;
+  // A negative number of points, or none at all.
+  REASON_BAD_POINTS = 13;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -94,24 +106,41 @@ message CharacterView {
   StatSheet sheet = 14;
 }
 
-// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it; the points; and the basic attack's cooldown in ticks.
 message StatSheet {
   Stats primary = 1;
   Stats primary_worn = 2;
   DerivedStats derived = 3;
   DerivedStats derived_worn = 4;
+  Points points = 5;
+  uint32 attack_cooldown_ticks = 6;
 }
 
-// DerivedStats are the computed stats; rates are fractions.
+// Points are the stat points: those not yet spent, those spent in each stat, and whether the free reset is left.
+message Points {
+  int32 unspent = 1;
+  Stats spent = 2;
+  bool free_reset_left = 3;
+}
+
+// DerivedStats are the computed stats: rates, crit damage and penetration as fractions, regen in points a second.
 message DerivedStats {
-  double attack_power = 1;
-  double defense = 2;
+  double physical_attack = 1;
+  double physical_defense = 2;
   double accuracy = 3;
   double evasion = 4;
   double crit_rate = 5;
   double crit_damage = 6;
   int32 max_hp = 7;
   int32 max_mp = 8;
+  double magic_attack = 9;
+  double magic_defense = 10;
+  double penetration = 11;
+  double hp_regen = 12;
+  double mp_regen = 13;
+  double attack_speed = 14;
+  double cooldown_speed = 15;
+  double move_speed = 16;
 }
 
 message DeliverRequest {
@@ -335,10 +364,10 @@ message Item {
   ItemStats stats = 6;
 }
 
-// ItemStats are what one equipment item gives, the same fields as the item service's, owned here.
+// ItemStats are what one equipment item gives, the same fields as the item service's, owned here: the five primary stats and the sixteen derived, rates, crit damage and penetration in tenths of a percent, regen in tenths of a point a second.
 message ItemStats {
-  int32 attack = 1;
-  int32 defense = 2;
+  int32 physical_attack = 1;
+  int32 physical_defense = 2;
   int32 str = 3;
   int32 dex = 4;
   int32 int = 5;
@@ -350,6 +379,14 @@ message ItemStats {
   int32 crit_damage = 11;
   int32 max_hp = 12;
   int32 max_mp = 13;
+  int32 magic_attack = 14;
+  int32 magic_defense = 15;
+  int32 penetration = 16;
+  int32 hp_regen = 17;
+  int32 mp_regen = 18;
+  int32 attack_speed = 19;
+  int32 cooldown_speed = 20;
+  int32 move_speed = 21;
 }
 
 // LootKind is what became of a drop.
@@ -462,3 +499,21 @@ message UnequipRequest {
 }
 
 message UnequipResponse {}
+
+message SpendPointsRequest {
+  Presence presence = 1;
+  // The unspent count the client saw; any other refuses the spend, so a retried one lands once.
+  int32 expected_unspent = 2;
+  // How many points go to each stat.
+  Stats points = 3;
+}
+
+message SpendPointsResponse {}
+
+message ResetPointsRequest {
+  Presence presence = 1;
+  // The unspent count the client saw; any other refuses the reset.
+  int32 expected_unspent = 2;
+}
+
+message ResetPointsResponse {}

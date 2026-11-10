@@ -51,6 +51,7 @@ type Arena struct {
 	spawns  []spawnState
 	nextMob uint64
 	removed []uint64 // this tick's
+	hit     model.HitChance
 }
 
 // Deps are the map the arena runs; all are required.
@@ -67,7 +68,8 @@ type Tuning struct {
 
 // NewArena spawns every area's mobs on the map, so it is full before its first tick.
 func NewArena(d Deps, t Tuning) *Arena {
-	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns))}
+	rules := d.Data.StatRules()
+	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: model.HitChance{Min: rules.MinHit, Max: rules.MaxHit}}
 	for s, area := range d.Map.Spawns {
 		for range area.Max {
 			a.spawn(s)
@@ -179,7 +181,7 @@ func (a *Arena) Strike(s Strike) (Blow, bool) {
 		return Blow{}, false
 	}
 	mb := a.mobs[idx]
-	h := model.Resolve(s.Power, model.Defender{Defense: float64(mb.def.Defense), Evasion: float64(mb.def.Evasion)}, a.roll)
+	h := model.Resolve(s.Power, defenderOf(mb.def), a.hit, a.roll)
 	b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
 	if h.Miss {
 		return b, true
@@ -207,10 +209,25 @@ func (a *Arena) Touch(id kernel.CharacterID, box model.Rect, d model.Defender) (
 		if !box.Overlaps(mb.box()) {
 			continue
 		}
-		h := model.Resolve(model.Attacker{AttackPower: float64(mb.def.Attack), Accuracy: float64(mb.def.Accuracy)}, d, a.roll)
+		h := model.Resolve(attackerOf(mb.def), d, a.hit, a.roll)
 		return model.Damage{Tick: a.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}, mb.x, true
 	}
 	return model.Damage{}, 0, false
+}
+
+// attackerOf is a mob's contact attack, its one attack number of its damage type.
+func attackerOf(m gamedata.Mob) model.Attacker {
+	a := model.Attacker{Damage: m.Damage, Accuracy: float64(m.Accuracy)}
+	if m.Damage == gamedata.Magic {
+		a.MagicAttack = float64(m.Attack)
+	} else {
+		a.PhysicalAttack = float64(m.Attack)
+	}
+	return a
+}
+
+func defenderOf(m gamedata.Mob) model.Defender {
+	return model.Defender{PhysicalDefense: float64(m.PhysicalDefense), MagicDefense: float64(m.MagicDefense), Evasion: float64(m.Evasion)}
 }
 
 // Views are every mob, as a Snapshot shows them.

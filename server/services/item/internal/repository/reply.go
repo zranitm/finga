@@ -43,19 +43,27 @@ type replyItem struct {
 
 // replyStats is a roll; a stat at 0 is left out.
 type replyStats struct {
-	Attack     int `json:"Attack,omitempty"`
-	Defense    int `json:"Defense,omitempty"`
-	STR        int `json:"STR,omitempty"`
-	DEX        int `json:"DEX,omitempty"`
-	INT        int `json:"INT,omitempty"`
-	AGI        int `json:"AGI,omitempty"`
-	VIT        int `json:"VIT,omitempty"`
-	Accuracy   int `json:"Accuracy,omitempty"`
-	Evasion    int `json:"Evasion,omitempty"`
-	CritRate   int `json:"CritRate,omitempty"`
-	CritDamage int `json:"CritDamage,omitempty"`
-	MaxHP      int `json:"MaxHP,omitempty"`
-	MaxMP      int `json:"MaxMP,omitempty"`
+	STR             int `json:"STR,omitempty"`
+	DEX             int `json:"DEX,omitempty"`
+	INT             int `json:"INT,omitempty"`
+	AGI             int `json:"AGI,omitempty"`
+	VIT             int `json:"VIT,omitempty"`
+	PhysicalAttack  int `json:"PhysicalAttack,omitempty"`
+	MagicAttack     int `json:"MagicAttack,omitempty"`
+	PhysicalDefense int `json:"PhysicalDefense,omitempty"`
+	MagicDefense    int `json:"MagicDefense,omitempty"`
+	MaxHP           int `json:"MaxHP,omitempty"`
+	MaxMP           int `json:"MaxMP,omitempty"`
+	Accuracy        int `json:"Accuracy,omitempty"`
+	Evasion         int `json:"Evasion,omitempty"`
+	CritRate        int `json:"CritRate,omitempty"`
+	CritDamage      int `json:"CritDamage,omitempty"`
+	Penetration     int `json:"Penetration,omitempty"`
+	HPRegen         int `json:"HPRegen,omitempty"`
+	MPRegen         int `json:"MPRegen,omitempty"`
+	AttackSpeed     int `json:"AttackSpeed,omitempty"`
+	CooldownSpeed   int `json:"CooldownSpeed,omitempty"`
+	MoveSpeed       int `json:"MoveSpeed,omitempty"`
 }
 
 func encodeReply(res application.Result) ([]byte, error) {
@@ -82,8 +90,9 @@ func encodeItem(it *model.Item) *replyItem {
 	out := &replyItem{ID: it.ID.String(), TemplateID: it.TemplateID, Owner: it.Owner.String(), Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity, EquipSlot: it.EquipSlot}
 	if st := it.Stats; st != nil {
 		out.Stats = &replyStats{
-			Attack: st.Attack, Defense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
-			Accuracy: st.Accuracy, Evasion: st.Evasion, CritRate: st.CritRate, CritDamage: st.CritDamage, MaxHP: st.MaxHP, MaxMP: st.MaxMP,
+			STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
+			PhysicalAttack: st.PhysicalAttack, MagicAttack: st.MagicAttack, PhysicalDefense: st.PhysicalDefense, MagicDefense: st.MagicDefense, MaxHP: st.MaxHP, MaxMP: st.MaxMP, Accuracy: st.Accuracy, Evasion: st.Evasion,
+			CritRate: st.CritRate, CritDamage: st.CritDamage, Penetration: st.Penetration, HPRegen: st.HPRegen, MPRegen: st.MPRegen, AttackSpeed: st.AttackSpeed, CooldownSpeed: st.CooldownSpeed, MoveSpeed: st.MoveSpeed,
 		}
 	}
 	return out
@@ -140,8 +149,9 @@ func decodeItem(ri *replyItem) (*model.Item, error) {
 	it := &model.Item{ID: id, TemplateID: ri.TemplateID, Owner: owner, Tab: gamedata.Tab(ri.Tab), Slot: ri.Slot, Quantity: ri.Quantity, EquipSlot: ri.EquipSlot}
 	if st := ri.Stats; st != nil {
 		it.Stats = &progression.ItemStats{
-			Attack: st.Attack, Defense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
-			Accuracy: st.Accuracy, Evasion: st.Evasion, CritRate: st.CritRate, CritDamage: st.CritDamage, MaxHP: st.MaxHP, MaxMP: st.MaxMP,
+			STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
+			PhysicalAttack: st.PhysicalAttack, MagicAttack: st.MagicAttack, PhysicalDefense: st.PhysicalDefense, MagicDefense: st.MagicDefense, MaxHP: st.MaxHP, MaxMP: st.MaxMP, Accuracy: st.Accuracy, Evasion: st.Evasion,
+			CritRate: st.CritRate, CritDamage: st.CritDamage, Penetration: st.Penetration, HPRegen: st.HPRegen, MPRegen: st.MPRegen, AttackSpeed: st.AttackSpeed, CooldownSpeed: st.CooldownSpeed, MoveSpeed: st.MoveSpeed,
 		}
 	}
 	return it, nil

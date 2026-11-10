@@ -4,7 +4,7 @@
 
 These are also the inventory tabs.
 
-- **Equipment:** weapons, armor, and accessories. Each piece is one of a kind and is worn in a slot to raise stats. It has stars and rolled stats, and may need a minimum level or a class.
+- **Equipment:** weapons, armor, and accessories. Each piece is one of a kind and is worn in a slot to raise stats. It has stars and rolled stats, and may need a minimum level, minimum stats, or a class.
 - **Use:** consumables such as potions. Stackable.
 - **Etc:** materials and mob drops with no direct use, sold to shops or other players. Stackable.
 
@@ -20,8 +20,8 @@ Every item type names its slot. A ring fits either ring slot.
 
 ## Requirements
 
-- A minimum level, and for weapons a class. No stat requirements (OD-19: level and class only).
-- Armor and accessories may name a class too, but most fit every class (proposal).
+- A minimum level and minimum primary stats, for example 25 STR (OD-19: decided, stat requirements too).
+- Weapons also name a class, since the class decides the attack's shape. Armor and accessories use stat requirements instead of a class (proposal).
 - An item the character doesn't meet can be kept, traded, and compared, but not worn.
 
 ## Rarity: stars
@@ -34,11 +34,11 @@ Every item type names its slot. A ring fits either ring slot.
 
 ## Equipment stats
 
-- An item type lists which stats it gives and a range for each, for example Attack 16–20.
-- Stats equipment can give: Attack, Defense, the five primary stats (STR, DEX, INT, AGI, VIT), Accuracy, Evasion, Crit rate, Crit damage, max HP, and max MP (proposal).
+- An item type lists which stats it gives and a range for each, for example Physical attack 16–20.
+- Equipment can give any of the five primary stats and any of the sixteen derived stats (Progression).
 - Each copy rolls every one of its stats within its range, once, when it drops. The roll never changes after that, so two copies of the same item can differ.
 - Starter items have the lowest value of each range, so every new character starts the same (proposal).
-- The stats of all worn items add up and apply right away, in combat and in the character window alike. Caps on rates still apply (OD-18).
+- The stats of all worn items add up and apply right away, in combat and in the character window alike. They add on top of what points give, and a stat's limit is the ceiling for the total (Progression).
 
 ## Drops
 

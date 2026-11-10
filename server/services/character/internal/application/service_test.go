@@ -53,9 +53,9 @@ func TestCreate(t *testing.T) {
 			{"owned by the account", c.AccountID == owner},
 			{"name kept as given", c.Name == "Ayla"},
 			{"level 1 with no EXP", c.Level == 1 && c.Exp == 0},
-			{"base stats of the class", c.Stats == warrior.BaseStats},
-			{"no unspent points", c.UnspentPoints == 0},
-			{"HP and MP full: 204 and 28 for a level 1 warrior", c.HP == 204 && c.MP == 28},
+			{"no points, so its own stats are the class's starting stats", c.Points == (gamedata.Stats{}) && own(t, svc, c) == warrior.BaseStats},
+			{"no unspent points, and the free reset left", c.UnspentPoints == 0 && !c.FreeResetUsed},
+			{"HP and MP full: 184 and 32 for a level 1 warrior", c.HP == 184 && c.MP == 32},
 			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
 			{"stored", len(store.chars) == 1},
 			{"returned as stored, with the store's updated_at", c == store.chars[c.ID] && !c.UpdatedAt.IsZero()},
@@ -73,7 +73,7 @@ func TestCreate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.Stats != (gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}) || c.HP != 105 || c.MP != 33 {
+		if own(t, svc, c) != (gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}) || c.HP != 110 || c.MP != 37 {
 			t.Fatalf("bowman = %+v", c)
 		}
 	})
@@ -194,23 +194,24 @@ func TestSaves(t *testing.T) {
 	}
 
 	t.Run("a checkpoint updates position, HP, MP and the whole progression", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}}
+		cp := model.Checkpoint{ID: c.ID, MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3}, UnspentPoints: 2, FreeResetUsed: true}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
 		got := store.chars[c.ID]
-		if got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 2 || got.Stats != cp.Stats {
+		if got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 2 ||
+			got.Points != cp.Points || got.UnspentPoints != 2 || !got.FreeResetUsed {
 			t.Fatalf("after checkpoint: %+v", got)
 		}
 	})
 
-	t.Run("a level-up updates level, EXP, stats, HP and MP", func(t *testing.T) {
-		lu := model.LevelUp{ID: c.ID, Level: 2, Exp: 3, Stats: gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}, HP: 250, MP: 32}
+	t.Run("a level-up updates level, EXP, points, HP and MP", func(t *testing.T) {
+		lu := model.LevelUp{ID: c.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 3, VIT: 2}, HP: 250, MP: 32}
 		if err := svc.SaveLevelUp(ctx, lu); err != nil {
 			t.Fatal(err)
 		}
 		got := store.chars[c.ID]
-		if got.Level != 2 || got.Exp != 3 || got.Stats != lu.Stats || got.HP != 250 || got.MP != 32 {
+		if got.Level != 2 || got.Exp != 3 || got.Points != lu.Points || got.HP != 250 || got.MP != 32 {
 			t.Fatalf("after level-up: %+v", got)
 		}
 	})
@@ -234,13 +235,33 @@ func TestDerivedForACharacter(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, err := svc.Derived(c)
-	if err != nil || d.MaxHP != 204 || d.AttackPower != 21 {
+	if err != nil || d.MaxHP != 184 || d.PhysicalAttack != 20.5 {
 		t.Fatalf("derived = %+v, %v", d, err)
+	}
+	c.Points = gamedata.Stats{STR: 2, VIT: 3} // 2·1.5 more attack; 2·2 + 3·10 more HP
+	if d, err := svc.Derived(c); err != nil || d.MaxHP != 218 || d.PhysicalAttack != 23.5 {
+		t.Fatalf("derived with points = %+v, %v; want them on top of the starting stats", d, err)
+	}
+	if o, err := svc.Own(c); err != nil || o != (gamedata.Stats{STR: 14, DEX: 5, INT: 4, AGI: 5, VIT: 13}) {
+		t.Fatalf("own = %+v, %v", o, err)
 	}
 	c.Class = kernel.Thief
 	if _, err := svc.Derived(c); !errors.Is(err, model.ErrClassUnavailable) {
 		t.Fatalf("thief: %v", err)
 	}
+	if _, err := svc.Own(c); !errors.Is(err, model.ErrClassUnavailable) {
+		t.Fatalf("thief's own stats: %v", err)
+	}
+}
+
+// own is c's own stats, as the service gives them.
+func own(t *testing.T, svc *application.Service, c model.Character) gamedata.Stats {
+	t.Helper()
+	o, err := svc.Own(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return o
 }
 
 func TestCharacterSlots(t *testing.T) {

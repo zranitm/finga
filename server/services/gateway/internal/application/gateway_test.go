@@ -379,6 +379,10 @@ func (w *world) EnterPortal(context.Context, model.Presence) error              
 func (w *world) Say(context.Context, model.Presence, string, string) error        { return nil }
 func (w *world) Equip(context.Context, model.Presence, model.ItemEquip) error     { return nil }
 func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) error { return nil }
+func (w *world) SpendPoints(context.Context, model.Presence, model.PointsSpend) error {
+	return nil
+}
+func (w *world) ResetPoints(context.Context, model.Presence, int) error { return nil }
 func (w *world) FollowDeliveries(ctx context.Context, _ string, deliver func(model.WorldEvent)) {
 	if w.followPanic != "" {
 		panic(w.followPanic)

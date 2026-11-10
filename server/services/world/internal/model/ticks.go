@@ -16,3 +16,8 @@ func TicksIn(d, interval time.Duration) uint64 {
 	}
 	return max(uint64(math.Ceil(ticks)), 1)
 }
+
+// AttackCooldownTicks is a basic attack's cooldown sped up by attack speed, in ticks of interval: ⌈cooldown ÷ (1 + speed) ÷ interval⌉, the sped-up cooldown first cut to whole nanoseconds.
+func AttackCooldownTicks(cooldown time.Duration, speed float64, interval time.Duration) uint64 {
+	return TicksIn(time.Duration(math.Round(float64(cooldown)/(1+speed))), interval)
+}

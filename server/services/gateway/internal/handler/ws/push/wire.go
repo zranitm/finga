@@ -36,13 +36,19 @@ func stats(st model.Stats) *clientv1.Stats {
 }
 
 func statSheet(s model.StatSheet) *clientv1.StatSheet {
-	return &clientv1.StatSheet{Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn)}
+	return &clientv1.StatSheet{
+		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
+		Points:              &clientv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: s.Points.FreeResetLeft},
+		AttackCooldownTicks: uint32(s.AttackCooldownTicks),
+	}
 }
 
 func derived(d model.DerivedStats) *clientv1.DerivedStats {
 	return &clientv1.DerivedStats{
-		AttackPower: d.AttackPower, Defense: d.Defense, Accuracy: d.Accuracy, Evasion: d.Evasion,
-		CritRate: d.CritRate, CritDamage: d.CritDamage, MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP),
+		PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack, PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense,
+		Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
+		HpRegen: d.HPRegen, MpRegen: d.MPRegen, AttackSpeed: d.AttackSpeed, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
+		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP),
 	}
 }
 
@@ -110,10 +116,11 @@ func itemView(it model.ItemView) *clientv1.ItemView {
 	v := &clientv1.ItemView{ItemId: it.ID, Template: it.Template, Tab: it.Tab, Slot: int32(it.Slot), Quantity: int32(it.Quantity)}
 	if s := it.Stats; s != nil {
 		v.Stats = &clientv1.ItemStats{
-			Attack: int32(s.Attack), Defense: int32(s.Defense),
 			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
-			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
+			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+			AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 		}
 	}
 	return v

@@ -56,8 +56,8 @@ const primaryRows = (total: Stats | undefined, worn: Stats | undefined): Row[] =
   );
 
 const derivedRows = (total: DerivedStats | undefined, worn: DerivedStats | undefined): Row[] => [
-  row('Attack', total?.attackPower ?? 0, worn?.attackPower ?? 0, num),
-  row('Defense', total?.defense ?? 0, worn?.defense ?? 0, num),
+  row('Attack', total?.physicalAttack ?? 0, worn?.physicalAttack ?? 0, num),
+  row('Defense', total?.physicalDefense ?? 0, worn?.physicalDefense ?? 0, num),
   row('Accuracy', total?.accuracy ?? 0, worn?.accuracy ?? 0, num),
   row('Evasion', total?.evasion ?? 0, worn?.evasion ?? 0, num),
   row('Crit rate', total?.critRate ?? 0, worn?.critRate ?? 0, percent),

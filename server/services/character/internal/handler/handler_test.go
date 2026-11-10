@@ -28,7 +28,7 @@ var (
 	owner = kernel.NewAccountID()
 	ayla  = model.Character{
 		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Warrior, Level: 3, Exp: 40,
-		Stats: gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 14}, UnspentPoints: 1, HP: 150, MP: 20,
+		Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true, HP: 150, MP: 20,
 		MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC),
 	}
 )
@@ -62,6 +62,10 @@ func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account 
 	return ayla, f.err
 }
 
+func (f *fakeCharacters) Own(model.Character) (gamedata.Stats, error) {
+	return gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 13}, f.derivedErr
+}
+
 func (f *fakeCharacters) Derived(model.Character) (progression.Derived, error) {
 	return progression.Derived{MaxHP: 250, MaxMP: 30}, f.derivedErr
 }
@@ -87,14 +91,14 @@ func client(t *testing.T, f *fakeCharacters) characterv1.CharacterServiceClient 
 
 func wantAyla(t *testing.T, c *characterv1.Character, withMax bool) {
 	t.Helper()
-	s := c.GetStats()
+	pts, own := c.GetPoints(), c.GetOwnStats()
 	if c.GetId() != ayla.ID.String() || c.GetAccountId() != owner.String() || c.GetName() != "Ayla" || c.GetClass() != "warrior" || c.GetLevel() != 3 || c.GetExp() != 40 ||
-		s.GetStrength() != 18 || s.GetVitality() != 14 || c.GetUnspentPoints() != 1 || c.GetHp() != 150 || c.GetMp() != 20 ||
+		pts.GetStrength() != 6 || pts.GetVitality() != 3 || c.GetUnspentPoints() != 1 || !c.GetFreeResetUsed() || c.GetHp() != 150 || c.GetMp() != 20 ||
 		c.GetMapId() != "forest" || c.GetX() != 412.5 || c.GetY() != 608 || !c.GetUpdatedAt().AsTime().Equal(ayla.UpdatedAt) {
 		t.Fatalf("character %+v", c)
 	}
-	if withMax && (c.GetMaxHp() != 250 || c.GetMaxMp() != 30) {
-		t.Fatalf("maximums %d %d", c.GetMaxHp(), c.GetMaxMp())
+	if withMax && (c.GetMaxHp() != 250 || c.GetMaxMp() != 30 || own.GetStrength() != 18 || own.GetVitality() != 13) {
+		t.Fatalf("maximums %d %d, own stats %v", c.GetMaxHp(), c.GetMaxMp(), own)
 	}
 }
 
@@ -124,20 +128,20 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantAyla(t, res.GetCharacter(), true)
 	})
 	t.Run("SaveCheckpoint", func(t *testing.T) {
-		stats := &characterv1.Stats{Strength: 21, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 16}
-		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 4, Exp: 7, Stats: stats}); err != nil {
+		points := &characterv1.Stats{Strength: 9, Dexterity: 1, Intelligence: 2, Agility: 3, Vitality: 4}
+		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true}); err != nil {
 			t.Fatal(err)
 		}
-		if f.checkpoint != (model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 4, Exp: 7, Stats: gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}}) {
+		if f.checkpoint != (model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true}) {
 			t.Fatalf("checkpoint %+v", f.checkpoint)
 		}
 	})
 	t.Run("SaveLevelUp", func(t *testing.T) {
-		stats := &characterv1.Stats{Strength: 21, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 16}
-		if _, err := c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{CharacterId: ayla.ID.String(), Level: 4, Exp: 3, Stats: stats, Hp: 280, Mp: 31}); err != nil {
+		points := &characterv1.Stats{Strength: 9, Vitality: 6}
+		if _, err := c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{CharacterId: ayla.ID.String(), Level: 4, Exp: 3, Points: points, Hp: 280, Mp: 31}); err != nil {
 			t.Fatal(err)
 		}
-		want := model.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Stats: gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}, HP: 280, MP: 31}
+		want := model.LevelUp{ID: ayla.ID, Level: 4, Exp: 3, Points: gamedata.Stats{STR: 9, VIT: 6}, HP: 280, MP: 31}
 		if f.levelUp != want {
 			t.Fatalf("level-up %+v", f.levelUp)
 		}

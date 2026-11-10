@@ -14,8 +14,8 @@ export interface StatInfo {
 }
 
 export const itemStats: readonly StatInfo[] = [
-  { key: 'attack', data: 'attack', label: 'Attack', rate: false },
-  { key: 'defense', data: 'defense', label: 'Defense', rate: false },
+  { key: 'physicalAttack', data: 'physical_attack', label: 'Attack', rate: false },
+  { key: 'physicalDefense', data: 'physical_defense', label: 'Defense', rate: false },
   { key: 'str', data: 'str', label: 'STR', rate: false },
   { key: 'dex', data: 'dex', label: 'DEX', rate: false },
   { key: 'int', data: 'int', label: 'INT', rate: false },

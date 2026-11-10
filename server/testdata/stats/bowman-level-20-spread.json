@@ -1,0 +1,66 @@
+{
+  "name": "bowman-level-20-spread",
+  "notes": "Nineteen levels' points spread over every stat.",
+  "class": "bowman",
+  "level": 20,
+  "points": {
+    "str": 20,
+    "dex": 30,
+    "int": 10,
+    "agi": 25,
+    "vit": 10
+  },
+  "worn": {},
+  "expected": {
+    "primary": {
+      "str": 25,
+      "dex": 42,
+      "int": 14,
+      "agi": 35,
+      "vit": 15
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 478,
+      "max_mp": 162,
+      "physical_attack": 58.5,
+      "magic_attack": 42,
+      "physical_defense": 18,
+      "magic_defense": 17.5,
+      "accuracy": 57,
+      "evasion": 43,
+      "crit_rate": 0.14545454545454545,
+      "crit_damage": 0.71,
+      "penetration": 0,
+      "hp_regen": 0.75,
+      "mp_regen": 0.7000000000000001,
+      "attack_speed": 0.0945945945945946,
+      "cooldown_speed": 0.026168224299065422,
+      "move_speed": 0.04468085106382979
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

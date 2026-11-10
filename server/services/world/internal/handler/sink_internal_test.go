@@ -85,7 +85,7 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := &streamSink{sub: sub}
-	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{Defense: 3, MaxHP: 30}}
+	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
 	if !s.Send(model.InventoryChanged{Tick: 4, Revision: 7, Slots: []model.Slot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
 		t.Fatal("the stream refused the change")
 	}
@@ -93,7 +93,7 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 		Revision: 7,
 		Slots:    []*worldv1.Slot{{Tab: "equip", Slot: 0}},
 		Equipment: []*worldv1.EquipSlot{
-			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Defense: 3, MaxHp: 30}}},
+			{EquipSlot: "hat", Item: &worldv1.Item{Id: hat.ID.String(), TemplateId: "leather_cap", Quantity: 1, Stats: &worldv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}},
 			{EquipSlot: "weapon"},
 		},
 	}}}
@@ -102,22 +102,32 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	}
 }
 
+// Every stat of the sheet, the points and the cooldown reach world.v1, the free reset as the one left.
 func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := &streamSink{sub: sub}
 	sheet := progression.Sheet{
 		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
-		Derived:     progression.Derived{MaxHP: 234, MaxMP: 28, AttackPower: 33.5, Accuracy: 21, Evasion: 9, Defense: 18, CritRate: 0.06, CritDamage: 0.525},
-		DerivedWorn: progression.Derived{MaxHP: 30, AttackPower: 12.5, Defense: 3},
+		Derived: progression.Derived{
+			MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
+			Penetration: 0.05, HPRegen: 0.5, MPRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007,
+		},
+		DerivedWorn: progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05},
 	}
-	if !s.Send(model.StatsChanged{Tick: 5, Sheet: sheet, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+	points := model.Points{Spent: gamedata.Stats{STR: 4}, Unspent: 1, FreeResetUsed: true}
+	if !s.Send(model.StatsChanged{Tick: 5, Sheet: model.Sheet{Sheet: sheet, Points: points, AttackCooldownTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
 		Sheet: &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 16, Vitality: 10}, PrimaryWorn: &worldv1.Stats{Strength: 4},
-			Derived:     &worldv1.DerivedStats{AttackPower: 33.5, Defense: 18, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525, MaxHp: 234, MaxMp: 28},
-			DerivedWorn: &worldv1.DerivedStats{AttackPower: 12.5, Defense: 3, MaxHp: 30},
+			Derived: &worldv1.DerivedStats{
+				PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
+				Penetration: 0.05, HpRegen: 0.5, MpRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 234, MaxMp: 28,
+			},
+			DerivedWorn:         &worldv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05, MaxHp: 30},
+			Points:              &worldv1.Points{Unspent: 1, Spent: &worldv1.Stats{Strength: 4}, FreeResetLeft: false},
+			AttackCooldownTicks: 12,
 		},
 		Hp: 200, MaxHp: 234, Mp: 20, MaxMp: 28,
 	}}}

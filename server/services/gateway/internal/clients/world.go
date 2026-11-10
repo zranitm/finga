@@ -77,6 +77,19 @@ func (w World) Unequip(ctx context.Context, p model.Presence, in model.ItemUnequ
 	return errmap.Wrap(err)
 }
 
+// SpendPoints adds points to the stats; it answers once the world applied them.
+func (w World) SpendPoints(ctx context.Context, p model.Presence, in model.PointsSpend) error {
+	pts := &worldv1.Stats{Strength: int32(in.Points.STR), Dexterity: int32(in.Points.DEX), Intelligence: int32(in.Points.INT), Agility: int32(in.Points.AGI), Vitality: int32(in.Points.VIT)} //nolint:gosec // they came in as int32
+	_, err := w.c.SpendPoints(ctx, &worldv1.SpendPointsRequest{Presence: presence(p), ExpectedUnspent: int32(in.ExpectedUnspent), Points: pts})                                               //nolint:gosec // they came in as int32
+	return errmap.Wrap(err)
+}
+
+// ResetPoints uses the free reset; it answers once the world applied it.
+func (w World) ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error {
+	_, err := w.c.ResetPoints(ctx, &worldv1.ResetPointsRequest{Presence: presence(p), ExpectedUnspent: int32(expectedUnspent)}) //nolint:gosec // it came in as int32
+	return errmap.Wrap(err)
+}
+
 // Say hands a cleaned map line to the player's map.
 func (w World) Say(ctx context.Context, p model.Presence, name, text string) error {
 	_, err := w.c.Say(ctx, &worldv1.SayRequest{Presence: presence(p), SenderName: name, Text: text})

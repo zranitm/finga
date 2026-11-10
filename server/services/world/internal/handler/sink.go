@@ -165,20 +165,29 @@ func item(it *model.SlotItem) *worldv1.Item {
 	if s := it.Stats; s != nil {
 		//nolint:gosec // stats are small
 		out.Stats = &worldv1.ItemStats{
-			Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
-			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
+			Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			PhysicalAttack: int32(s.PhysicalAttack), MagicAttack: int32(s.MagicAttack), PhysicalDefense: int32(s.PhysicalDefense), MagicDefense: int32(s.MagicDefense),
+			MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion),
+			CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), Penetration: int32(s.Penetration), HpRegen: int32(s.HPRegen), MpRegen: int32(s.MPRegen),
+			AttackSpeed: int32(s.AttackSpeed), CooldownSpeed: int32(s.CooldownSpeed), MoveSpeed: int32(s.MoveSpeed),
 		}
 	}
 	return out
 }
 
-func statSheet(s progression.Sheet) *worldv1.StatSheet {
-	return &worldv1.StatSheet{Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn)}
+func statSheet(s model.Sheet) *worldv1.StatSheet {
+	return &worldv1.StatSheet{
+		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
+		Points:              &worldv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: !s.Points.FreeResetUsed}, //nolint:gosec // points are small
+		AttackCooldownTicks: uint32(s.AttackCooldownTicks),                                                                                           //nolint:gosec // a cooldown is a few ticks
+	}
 }
 
 func derived(d progression.Derived) *worldv1.DerivedStats {
 	return &worldv1.DerivedStats{
-		AttackPower: d.AttackPower, Defense: d.Defense, Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage,
+		PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack, PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense,
+		Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
+		HpRegen: d.HPRegen, MpRegen: d.MPRegen, AttackSpeed: d.AttackSpeed, CooldownSpeed: d.CooldownSpeed, MoveSpeed: d.MoveSpeed,
 		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP), //nolint:gosec // HP and MP are small
 	}
 }

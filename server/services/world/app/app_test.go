@@ -45,7 +45,7 @@ type items struct {
 
 // Inventory has the character wearing a cap worth 30 max HP.
 func (f *items) Inventory(context.Context, *itemv1.InventoryRequest) (*itemv1.InventoryResponse, error) {
-	hat := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Quantity: 1, EquipSlot: "hat", Stats: &itemv1.ItemStats{Defense: 3, MaxHp: 30}}
+	hat := &itemv1.Item{Id: kernel.NewItemID().String(), TemplateId: "leather_cap", Quantity: 1, EquipSlot: "hat", Stats: &itemv1.ItemStats{PhysicalDefense: 3, MaxHp: 30}}
 	return &itemv1.InventoryResponse{Items: []*itemv1.Item{hat}, Revision: 1}, nil
 }
 
@@ -110,8 +110,8 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	ctx := t.Context()
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	chars := &characters{c: &characterv1.Character{
-		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1, Stats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10},
-		Hp: 204, Mp: 28, MapId: "town", X: 416, Y: 608,
+		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1,
+		Hp: 184, Mp: 32, MapId: "town", X: 416, Y: 608,
 	}}
 	itemSvc := &items{}
 	log := runnertest.NewLog()
@@ -152,8 +152,8 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.GetCharacter().GetMaxHp() != 234 || res.GetCharacter().GetMapId() != "town" {
-		t.Fatalf("view %+v; want 204 HP and the worn cap's 30", res.GetCharacter())
+	if res.GetCharacter().GetMaxHp() != 214 || res.GetCharacter().GetMapId() != "town" {
+		t.Fatalf("view %+v; want 184 HP and the worn cap's 30", res.GetCharacter())
 	}
 	if m, err := stream.Recv(); err != nil || m.GetSnapshot().GetMapId() != "town" || m.GetCharacterId() != id.String() {
 		t.Fatalf("snapshot %+v %v", m, err)

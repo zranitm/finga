@@ -19,6 +19,26 @@ export interface Params {
 
 export const params: Params = movement;
 
+/** 1 plus a move speed, rounded to thousandths so the server and the client multiply by the same number. */
+export function speedFactor(moveSpeed: number): number {
+  return Math.round((1 + moveSpeed) * 1000) / 1000;
+}
+
+/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump keeps its shape. */
+export function faster(p: Params, f: number): Params {
+  if (f === 1) {
+    return p;
+  }
+  return {
+    ...p,
+    walk_speed: p.walk_speed * f,
+    climb_speed: p.climb_speed * f,
+    jump_velocity: p.jump_velocity * f,
+    max_fall_speed: p.max_fall_speed * f,
+    gravity: p.gravity * (f * f),
+  };
+}
+
 export interface Rect {
   readonly x: number;
   readonly y: number;

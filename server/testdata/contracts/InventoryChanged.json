@@ -11,7 +11,7 @@
           "slot": 4,
           "quantity": 1,
           "stats": {
-            "defense": 2
+            "physical_defense": 2
           }
         }
       }
@@ -25,7 +25,7 @@
           "template": "leather_cap",
           "quantity": 1,
           "stats": {
-            "defense": 3,
+            "physical_defense": 3,
             "max_hp": 30
           }
         }

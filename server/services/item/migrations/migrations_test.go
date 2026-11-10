@@ -301,7 +301,7 @@ func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
 	lowest := map[string][2]int{
 		"wooden_sword": {10, 0}, "short_bow": {9, 0}, "iron_sword": {16, 0}, "hunting_bow": {14, 0}, "leather_cap": {0, 3}, "leather_vest": {0, 5},
 	}
-	rows, err := pool.Query(ctx, `SELECT i.template_id, r.attack, r.defense, r.created_at FROM item_rolls r JOIN items i ON i.id = r.item_id`)
+	rows, err := pool.Query(ctx, `SELECT i.template_id, r.physical_attack, r.physical_defense, r.created_at FROM item_rolls r JOIN items i ON i.id = r.item_id`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,6 +323,33 @@ func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
 	}
 	if n != len(before)+1 {
 		t.Fatalf("%d rolls, want one per equipment item, destroyed too", n)
+	}
+}
+
+// A roll from before the stat system keeps its stats under their new names, and gives none of the new ones.
+func TestARollKeepsItsStatsUnderTheirNewNames(t *testing.T) {
+	ctx := context.Background()
+	pool := cluster.DB(t)
+	if err := pgtest.MigrationsBefore(migrations.FS, migrations.Table, "00010_stat_rolls.sql")(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	id, at := uuidv7.New(), time.Date(2026, 11, 9, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(ctx, `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at) VALUES ($1, 'leather_cap', $2, 'inventory', 'equip', 0, 1, $3, $3)`, id, uuidv7.New(), at); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO item_rolls (item_id, attack, defense, str, dex, "int", agi, vit, accuracy, evasion, crit_rate, crit_damage, max_hp, max_mp, created_at, updated_at) VALUES ($1, 2, 4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, $2, $2)`, id, at); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	var attack, defense, str, magicAttack, penetration, moveSpeed int
+	if err := pool.QueryRow(ctx, `SELECT physical_attack, physical_defense, str, magic_attack, penetration, move_speed FROM item_rolls WHERE item_id = $1`, id).
+		Scan(&attack, &defense, &str, &magicAttack, &penetration, &moveSpeed); err != nil {
+		t.Fatal(err)
+	}
+	if attack != 2 || defense != 4 || str != 1 || magicAttack != 0 || penetration != 0 || moveSpeed != 0 {
+		t.Fatalf("roll: physical attack %d, physical defense %d, STR %d, new stats %d %d %d", attack, defense, str, magicAttack, penetration, moveSpeed)
 	}
 }
 

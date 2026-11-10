@@ -43,11 +43,16 @@ var (
 	UnknownItem          = Public{"unknown_item", "unknown item"}
 	ItemWorn             = Public{"item_worn", "unequip it first"}
 	LevelTooLow          = Public{"level_too_low", "your level is too low for that item"}
+	StatsTooLow          = Public{"stats_too_low", "your stats are too low for that item"}
 	WrongClass           = Public{"wrong_class", "your class can't use that item"}
 	WrongEquipSlot       = Public{"wrong_equip_slot", "that item doesn't go there"}
 	NotEquipment         = Public{"not_equipment", "only equipment can be worn"}
 	NothingWorn          = Public{"nothing_worn", "nothing is worn there"}
 	CharacterDead        = Public{"character_dead", "you can't do that while dead"}
+	NotEnoughPoints      = Public{"not_enough_points", "you don't have that many points"}
+	PointsChanged        = Public{"points_changed", "your points changed; try again"}
+	NoFreeReset          = Public{"no_free_reset", "your free reset is used"}
+	BadPoints            = Public{"bad_points", "spend at least one point, and none below zero"}
 	NotPartyLeader       = Public{"not_party_leader", "only the party leader can do that"}
 	PartyFull            = Public{"party_full", "the party is full"}
 	AlreadyInParty       = Public{"already_in_party", "already in a party"}

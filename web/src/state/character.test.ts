@@ -125,8 +125,8 @@ describe('character store', () => {
     const sheet = {
       primary: { str: 13, dex: 5, int: 4, agi: 5, vit: 10 },
       primaryWorn: { str: 1 },
-      derived: { attackPower: 31.5, defense: 4, maxHp: 234, maxMp: 28 },
-      derivedWorn: { attackPower: 11.5, defense: 4, maxHp: 30 },
+      derived: { physicalAttack: 31.5, physicalDefense: 4, maxHp: 234, maxMp: 28 },
+      derivedWorn: { physicalAttack: 11.5, physicalDefense: 4, maxHp: 30 },
     };
     character
       .getState()
@@ -135,7 +135,7 @@ describe('character store', () => {
       );
     const c = character.getState().character;
     expect(c).toMatchObject({ hp: 204, maxHp: 234, mp: 28, maxMp: 28, level: 1, exp: 10n });
-    expect(c?.sheet?.derivedWorn?.attackPower).toBe(11.5);
+    expect(c?.sheet?.derivedWorn?.physicalAttack).toBe(11.5);
     expect(c?.sheet?.primary?.str).toBe(13);
     // Unequipping below the current HP: the server lowered it, and the store takes its word.
     character

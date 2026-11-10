@@ -1,21 +1,19 @@
-# Derived stats per class, base + Σ coef × stat + per_level × (level − 1) + equipment (the weapon's attack, the armor's defense), with rates as fractions (0.05 is 5%) kept under cap.
-warrior:
-  max_hp:       {base: 60, per_level: 18, coef: {vit: 12, str: 2}}
-  max_mp:       {base: 20, per_level: 4, coef: {int: 2}}
-  attack_power: {coef: {str: 1.5, vit: 0.3}}
-  accuracy:     {base: 10, coef: {dex: 1.0, str: 0.5}}
-  evasion:      {base: 5, coef: {agi: 0.8}}
-  crit_rate:    {base: 0.05, coef: {agi: 0.002}, cap: 0.6}
-  crit_damage:  {base: 0.5, coef: {dex: 0.005}}
-  defense:      {base: 5, coef: {vit: 1.0}}
-  penetration:  {cap: 0.5}
-bowman:
-  max_hp:       {base: 50, per_level: 12, coef: {vit: 9, agi: 1}}
-  max_mp:       {base: 25, per_level: 5, coef: {int: 2}}
-  attack_power: {coef: {dex: 1.5, agi: 0.3}}
-  accuracy:     {base: 15, coef: {dex: 1.2}}
-  evasion:      {base: 8, coef: {agi: 1.0}}
-  crit_rate:    {base: 0.05, coef: {agi: 0.003}, cap: 0.6}
-  crit_damage:  {base: 0.5, coef: {dex: 0.008}}
-  defense:      {base: 3, coef: {vit: 0.6}}
-  penetration:  {cap: 0.5}
+# What each point of a primary stat gives, every class alike; rates are fractions (0.05 is 5%), regen is points a second.
+points_per_level: 5
+per_point:                 # what one point gives, every class alike
+  str: {physical_attack: 1.5, max_hp: 2}
+  dex: {physical_attack: 0.5, magic_attack: 0.5, accuracy: 1, crit_damage: 0.005}
+  int: {magic_attack: 1.5, max_mp: 3, mp_regen: 0.05, magic_defense: 0.5}
+  agi: {evasion: 1}
+  vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
+diminishing:               # base + (limit − base) × points ÷ (points + k)
+  crit_rate:      {stat: dex, base: 0.05, limit: 0.60, k: 200}
+  attack_speed:   {stat: agi, limit: 0.50, k: 150}
+  cooldown_speed: {stat: int, limit: 0.40, k: 200}
+  move_speed:     {stat: agi, limit: 0.30, k: 200}
+limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
+classes:                   # base values per class; per_level grows them
+  warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10},
+            evasion: {base: 5}, physical_defense: {base: 5}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
+  bowman:  {max_hp: {base: 50, per_level: 12}, max_mp: {base: 25, per_level: 5}, accuracy: {base: 15},
+            evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}

@@ -18,6 +18,15 @@ const (
 	Ranged AttackKind = "ranged" // a straight shot along the facing direction
 )
 
+// DamageType is what an attack deals, and so which defense meets it.
+type DamageType string
+
+// The damage types.
+const (
+	Physical DamageType = "physical"
+	Magic    DamageType = "magic"
+)
+
 // Tab is an inventory tab, which is also the item type.
 type Tab string
 
@@ -31,6 +40,9 @@ const (
 // SlotKind is what an equipment item names as its slot; every equip slot of that kind takes it.
 type SlotKind string
 
+// Weapon is the slot kind of weapons, the only equipment that may keep a class.
+const Weapon SlotKind = "weapon"
+
 // EquipSlot is one of the slots a character wears equipment in.
 type EquipSlot struct {
 	ID   string
@@ -43,9 +55,13 @@ type Range struct {
 	Min, Max int
 }
 
-// Rolls are the range of each stat an equipment item gives; fields, not a map, so every sum runs in one order.
+// Rolls are the range of each stat an equipment item gives, the five primary and the sixteen derived; fields, not a map, so every sum runs in one order.
 type Rolls struct {
-	Attack, Defense, STR, DEX, INT, AGI, VIT, Accuracy, Evasion, CritRate, CritDamage, MaxHP, MaxMP Range
+	STR, DEX, INT, AGI, VIT                                    Range
+	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense Range
+	MaxHP, MaxMP, Accuracy, Evasion                            Range
+	CritRate, CritDamage, Penetration, HPRegen, MPRegen        Range
+	AttackSpeed, CooldownSpeed, MoveSpeed                      Range
 }
 
 // MapKind separates safe towns from hunting maps.
@@ -59,37 +75,77 @@ const (
 
 // Stats are the five primary stats.
 type Stats struct {
-	STR int `yaml:"str"`
-	DEX int `yaml:"dex"`
-	INT int `yaml:"int"`
-	AGI int `yaml:"agi"`
-	VIT int `yaml:"vit"`
+	STR int `yaml:"str" json:"str"`
+	DEX int `yaml:"dex" json:"dex"`
+	INT int `yaml:"int" json:"int"`
+	AGI int `yaml:"agi" json:"agi"`
+	VIT int `yaml:"vit" json:"vit"`
 }
 
 // Total is the sum of the five stats.
 func (s Stats) Total() int { return s.STR + s.DEX + s.INT + s.AGI + s.VIT }
 
-// Coef is a coefficient per primary stat; fields, not a map, so every formula sums in one order.
-type Coef struct {
-	STR, DEX, INT, AGI, VIT float64
+// Primary names one of the five primary stats.
+type Primary int
+
+// The primary stats, in their fixed order.
+const (
+	STR Primary = iota
+	DEX
+	INT
+	AGI
+	VIT
+)
+
+// Of is one primary stat's value.
+func (s Stats) Of(p Primary) int {
+	return [...]int{s.STR, s.DEX, s.INT, s.AGI, s.VIT}[p]
 }
 
-// Formula is one derived stat: base + Σ coef × stat + per_level × (level − 1), capped when Cap > 0.
-type Formula struct {
-	Base     float64
-	PerLevel float64
-	Coef     Coef
-	Cap      float64 // 0: no cap
+// PerPrimary holds one value per primary stat.
+type PerPrimary[T any] struct {
+	STR, DEX, INT, AGI, VIT T
 }
 
-// Formulas are a class's nine derived stats.
-type Formulas struct {
-	MaxHP, MaxMP, AttackPower, Accuracy, Evasion, CritRate, CritDamage, Defense, Penetration Formula
+// Flats holds one value per flat derived stat, the ones a point adds a fixed amount to; fields, not a map, so every sum runs in one order.
+type Flats[T any] struct {
+	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense    T
+	MaxHP, MaxMP, Accuracy, Evasion, CritDamage, HPRegen, MPRegen T
 }
 
-// Attack is a class's basic attack shape.
+// Rates holds one value per rate with diminishing returns.
+type Rates[T any] struct {
+	CritRate, AttackSpeed, CooldownSpeed, MoveSpeed T
+}
+
+// Grows is a class's base for a flat stat at level 1, and what each level after adds.
+type Grows struct {
+	Base, PerLevel float64
+}
+
+// At is the base at level.
+func (g Grows) At(level int) float64 { return g.Base + g.PerLevel*float64(level-1) }
+
+// Curve is a rate with diminishing returns over one primary stat: base + (limit − base) × points ÷ (points + k).
+type Curve struct {
+	Stat           Primary
+	Base, Limit, K float64
+}
+
+// StatRules are data/stats.yaml: what each point gives, every class alike, each class's bases, and the limits.
+type StatRules struct {
+	PointsPerLevel int
+	PerPoint       PerPrimary[Flats[float64]]
+	Curves         Rates[Curve]
+	Penetration    float64 // its limit; only gear gives it
+	MinHit, MaxHit float64 // what the hit chance is held between
+	Classes        map[kernel.Class]Flats[Grows]
+}
+
+// Attack is a class's basic attack: its shape and what it deals.
 type Attack struct {
 	Kind     AttackKind
+	Damage   DamageType
 	Width    float64 // melee box in front of the character
 	Height   float64
 	Range    float64 // ranged shot length
@@ -104,12 +160,12 @@ type Grant struct {
 
 // Class is a playable class.
 type Class struct {
-	ID            kernel.Class
-	Name          string
-	Attack        Attack
-	BaseStats     Stats // primary stats at level 1
-	LevelUpPoints Stats
-	StarterItems  []Grant
+	ID           kernel.Class
+	Name         string
+	Attack       Attack
+	BaseStats    Stats // primary stats at level 1
+	AutoAssign   Stats // how Auto-assign spends a level's points
+	StarterItems []Grant
 }
 
 // Item is an item template.
@@ -120,8 +176,9 @@ type Item struct {
 	Stars       int // 1 to 7, the same for every copy
 	Description string
 	Slot        SlotKind     // equipment only
-	Class       kernel.Class // equipment only; empty: any class
+	Class       kernel.Class // weapons only; empty: any class
 	MinLevel    int
+	Requires    Stats // equipment only: the least of each primary stat a character's own stats must reach
 	Rolls       Rolls // equipment only: each copy rolls its stats in these ranges when it drops
 	HealHP      int   // consumables
 	HealMP      int
@@ -138,20 +195,22 @@ type Drop struct {
 
 // Mob is a mob type.
 type Mob struct {
-	ID       string
-	Name     string
-	Level    int
-	HP       int
-	Attack   int
-	Defense  int
-	Accuracy int
-	Evasion  int
-	Exp      int64
-	Speed    float64 // px/s
-	Width    float64
-	Height   float64
-	Behavior string
-	Drops    []Drop
+	ID              string
+	Name            string
+	Level           int
+	HP              int
+	Attack          int
+	Damage          DamageType // what its contact attack deals
+	PhysicalDefense int
+	MagicDefense    int
+	Accuracy        int
+	Evasion         int
+	Exp             int64
+	Speed           float64 // px/s
+	Width           float64
+	Height          float64
+	Behavior        string
+	Drops           []Drop
 }
 
 // Point is a position in map pixels: a character's feet centre.
@@ -206,7 +265,7 @@ type Data struct {
 	loot      Loot
 	classes   []Class
 	classIdx  map[kernel.Class]int
-	formulas  map[kernel.Class]Formulas
+	stats     StatRules
 	items     []Item
 	itemIdx   map[string]int
 	slots     []EquipSlot
@@ -236,11 +295,8 @@ func (d *Data) Class(id kernel.Class) (Class, bool) {
 	return d.classes[i], true
 }
 
-// Formulas are a class's derived-stat formulas.
-func (d *Data) Formulas(id kernel.Class) (Formulas, bool) {
-	f, ok := d.formulas[id]
-	return f, ok
-}
+// StatRules are what each point gives, each class's bases, and the limits.
+func (d *Data) StatRules() StatRules { return d.stats }
 
 // Item finds an item template.
 func (d *Data) Item(id string) (Item, bool) {

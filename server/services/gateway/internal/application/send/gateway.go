@@ -22,7 +22,7 @@ type Sessions interface {
 	Rotate(ctx context.Context, sessionID uuid.UUID) (string, error)
 }
 
-// World is the world service's commands; each is fire and forget, but Equip and Unequip, which answer once the new stats apply.
+// World is the world service's commands; each is fire and forget, but Equip, Unequip, SpendPoints and ResetPoints, which answer once the new stats apply.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
 	Attack(ctx context.Context, p model.Presence) error
@@ -30,6 +30,8 @@ type World interface {
 	Say(ctx context.Context, p model.Presence, name, text string) error
 	Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error
 	Unequip(ctx context.Context, p model.Presence, in model.ItemUnequip) error
+	SpendPoints(ctx context.Context, p model.Presence, in model.PointsSpend) error
+	ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error
 }
 
 // Items is the item service: the inventory and its commands.

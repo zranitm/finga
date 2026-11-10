@@ -34,7 +34,7 @@ func newArena(t *testing.T, roll float64) *mobs.Arena {
 }
 
 // strong hits whatever it reaches, for more than a slime's HP.
-var strong = model.Attacker{AttackPower: 1000, Accuracy: 100}
+var strong = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1000, Accuracy: 100}
 
 func meleeAt(x float64, facing int) mobs.Strike {
 	return mobs.Strike{By: kernel.NewCharacterID(), Attack: gamedata.Attack{Kind: gamedata.Melee, Width: 60, Height: 60}, Power: strong, X: x, Y: floor, Facing: facing, Height: 60}
@@ -164,6 +164,51 @@ func TestTouchHurtsAPlayerOverlappingAMob(t *testing.T) {
 	}
 	if _, _, touched := a.Touch(id, model.Rect{X: 600, Y: floor - 50, W: 30, H: 50}, model.Defender{}); touched {
 		t.Fatal("a player far from every slime was touched")
+	}
+}
+
+// A mob's touch meets the defense of its damage type: a slime's physical, a bat's magic.
+func TestATouchMeetsTheDefenseOfTheMobsDamageType(t *testing.T) {
+	touch := func(mob string, d model.Defender) int {
+		t.Helper()
+		m := slimes(time.Hour)
+		m.Spawns[0].Mob, m.Spawns[0].Max = mob, 1
+		a := mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
+		v := a.Views()[0]
+		dealt, _, touched := a.Touch(kernel.NewCharacterID(), model.Rect{X: v.X - 15, Y: v.Y - 20, W: 30, H: 20}, d)
+		if !touched || dealt.Miss {
+			t.Fatalf("%s: dealt %+v touched %v", mob, dealt, touched)
+		}
+		return dealt.Amount
+	}
+	walls := model.Defender{PhysicalDefense: 100, MagicDefense: 100}
+	// Bat attack 34: 34·100/200 = 17 against either 100; a slime's 6: 6·100/200 = 3.
+	for _, c := range []struct {
+		mob        string
+		d          model.Defender
+		want       int
+		meaningFor string
+	}{
+		{"cave_bat", model.Defender{PhysicalDefense: 100}, 34, "a bat ignores physical defense"},
+		{"cave_bat", walls, 17, "a bat meets magic defense"},
+		{"green_slime", model.Defender{MagicDefense: 100}, 6, "a slime ignores magic defense"},
+		{"green_slime", walls, 3, "a slime meets physical defense"},
+	} {
+		if got := touch(c.mob, c.d); got != c.want {
+			t.Errorf("%s: %d damage, want %d", c.meaningFor, got, c.want)
+		}
+	}
+}
+
+// A magic strike meets a mob's magic defense: a slime's is 1, its physical 2.
+func TestAMagicStrikeMeetsAMobsMagicDefense(t *testing.T) {
+	a := newArena(t, 0.5)
+	s := meleeAt(spawnX-20, 1)
+	s.Power = model.Attacker{Damage: gamedata.Magic, MagicAttack: 30.3, PhysicalAttack: 1000, Accuracy: 100}
+	blow, reached := a.Strike(s)
+	// 30.3·100/101 = 30
+	if !reached || blow.Damage.Amount != 30 || blow.Killed != nil {
+		t.Fatalf("blow %+v reached %v; want 30 against magic defense 1", blow, reached)
 	}
 }
 

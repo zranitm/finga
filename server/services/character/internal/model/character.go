@@ -25,9 +25,10 @@ type Character struct {
 	Name          string
 	Class         kernel.Class
 	Level         int
-	Exp           int64 // within the current level
-	Stats         gamedata.Stats
+	Exp           int64          // within the current level
+	Points        gamedata.Stats // spent in each stat; the own stats are the class's starting stats plus these
 	UnspentPoints int
+	FreeResetUsed bool
 	HP            int
 	MP            int
 	MapID         string
@@ -37,22 +38,24 @@ type Character struct {
 
 // Checkpoint is the non-economic state saved periodically, on map change and logout.
 type Checkpoint struct {
-	ID    kernel.CharacterID
-	MapID string
-	X, Y  float64
-	HP    int
-	MP    int
-	Level int
-	Exp   int64
-	Stats gamedata.Stats
+	ID            kernel.CharacterID
+	MapID         string
+	X, Y          float64
+	HP            int
+	MP            int
+	Level         int
+	Exp           int64
+	Points        gamedata.Stats
+	UnspentPoints int
+	FreeResetUsed bool
 }
 
 // LevelUp is saved right away when a character gains a level.
 type LevelUp struct {
-	ID    kernel.CharacterID
-	Level int
-	Exp   int64
-	Stats gamedata.Stats
-	HP    int
-	MP    int
+	ID     kernel.CharacterID
+	Level  int
+	Exp    int64
+	Points gamedata.Stats
+	HP     int
+	MP     int
 }

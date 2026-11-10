@@ -4,6 +4,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
+	"finga/internal/gamedata"
 	"finga/services/world/internal/model"
 )
 
@@ -19,9 +20,12 @@ func (r *rolls) Float64() float64 {
 	return v
 }
 
+// hit is stats.yaml's hit chance limits.
+var hit = model.HitChance{Min: 0.20, Max: 0.99}
+
 func TestResolve(t *testing.T) {
-	warrior := model.Attacker{AttackPower: 21, Accuracy: 21, CritRate: 0.06, CritDamage: 0.525}
-	slime := model.Defender{Defense: 2, Evasion: 2}
+	warrior := model.Attacker{PhysicalAttack: 21, Accuracy: 21, CritRate: 0.06, CritDamage: 0.525}
+	slime := model.Defender{PhysicalDefense: 2, Evasion: 2}
 	tests := []struct {
 		name string
 		a    model.Attacker
@@ -41,27 +45,50 @@ func TestResolve(t *testing.T) {
 		{"crit", warrior, slime, []float64{0.5, 0.5, 0.059}, model.Hit{Damage: 32, Crit: true}},
 		{"a crit roll at the rate is not a crit", warrior, slime, []float64{0.5, 0.5, 0.06}, model.Hit{Damage: 21}},
 		// hit chance 0.80 + 0.02·(0 − 50) = −0.2 → clamped to 0.20
-		{"hit chance floors at 20%", model.Attacker{AttackPower: 10}, model.Defender{Evasion: 50}, []float64{0.19, 0.5, 0.5}, model.Hit{Damage: 10}},
-		{"and a roll of 0.20 misses there", model.Attacker{AttackPower: 10}, model.Defender{Evasion: 50}, []float64{0.20, 0.5, 0.5}, model.Hit{Miss: true}},
+		{"hit chance floors at 20%", model.Attacker{PhysicalAttack: 10}, model.Defender{Evasion: 50}, []float64{0.19, 0.5, 0.5}, model.Hit{Damage: 10}},
+		{"and a roll of 0.20 misses there", model.Attacker{PhysicalAttack: 10}, model.Defender{Evasion: 50}, []float64{0.20, 0.5, 0.5}, model.Hit{Miss: true}},
 		// 10·100/(100+100) = 5
-		{"defense halves at 100", model.Attacker{AttackPower: 10}, model.Defender{Defense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 5}},
+		{"defense halves at 100", model.Attacker{PhysicalAttack: 10}, model.Defender{PhysicalDefense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 5}},
 		// penetration 50%: defense 50 → 10·100/150 = 6.67 → 7
-		{"penetration cuts defense", model.Attacker{AttackPower: 10, Penetration: 0.5}, model.Defender{Defense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 7}},
+		{"penetration cuts defense", model.Attacker{PhysicalAttack: 10, Penetration: 0.5}, model.Defender{PhysicalDefense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 7}},
 		// 1·0.9·100/1100 = 0.08 → max(1, 0) = 1
-		{"minimum damage is 1", model.Attacker{AttackPower: 1}, model.Defender{Defense: 1000}, []float64{0.5, 0.0, 0.5}, model.Hit{Damage: 1}},
-		{"a crit on minimum damage rounds from the formula", model.Attacker{AttackPower: 1, CritRate: 1, CritDamage: 0.5}, model.Defender{Defense: 1000}, []float64{0.5, 0.0, 0.0}, model.Hit{Damage: 2, Crit: true}},
+		{"minimum damage is 1", model.Attacker{PhysicalAttack: 1}, model.Defender{PhysicalDefense: 1000}, []float64{0.5, 0.0, 0.5}, model.Hit{Damage: 1}},
+		// 10·100/(100+100) = 5: magic meets magic defense, whatever the physical numbers
+		{"a magic attack meets magic defense", model.Attacker{Damage: gamedata.Magic, MagicAttack: 10, PhysicalAttack: 1000}, model.Defender{MagicDefense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 5}},
+		{"a physical attack ignores magic defense", model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, MagicAttack: 1000}, model.Defender{MagicDefense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 10}},
+		{"a magic attack ignores physical defense", model.Attacker{Damage: gamedata.Magic, MagicAttack: 10}, model.Defender{PhysicalDefense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 10}},
+		// penetration 50%: magic defense 50 → 10·100/150 = 6.67 → 7
+		{"penetration cuts magic defense too", model.Attacker{Damage: gamedata.Magic, MagicAttack: 10, Penetration: 0.5}, model.Defender{MagicDefense: 100}, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 7}},
+		{"a crit on minimum damage rounds from the formula", model.Attacker{PhysicalAttack: 1, CritRate: 1, CritDamage: 0.5}, model.Defender{PhysicalDefense: 1000}, []float64{0.5, 0.0, 0.0}, model.Hit{Damage: 2, Crit: true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := model.Resolve(tt.a, tt.d, &rolls{seq: tt.seq})
+			got := model.Resolve(tt.a, tt.d, hit, &rolls{seq: tt.seq})
 			if got != tt.want {
 				t.Fatalf("got %+v, want %+v", got, tt.want)
 			}
 		})
 	}
+	t.Run("the hit chance is held between the limits it is given", func(t *testing.T) {
+		narrow := model.HitChance{Min: 0.5, Max: 0.6}
+		sure, unsure := model.Attacker{PhysicalAttack: 10, Accuracy: 100}, model.Attacker{PhysicalAttack: 10}
+		for _, c := range []struct {
+			a    model.Attacker
+			roll float64
+			miss bool
+		}{{sure, 0.59, false}, {sure, 0.6, true}, {unsure, 0.49, false}, {unsure, 0.5, true}} {
+			d := model.Defender{}
+			if c.a == unsure {
+				d.Evasion = 100
+			}
+			if h := model.Resolve(c.a, d, narrow, &rolls{seq: []float64{c.roll, 0.5, 0.5}}); h.Miss != c.miss {
+				t.Errorf("accuracy %v, roll %v: %+v, want miss %v", c.a.Accuracy, c.roll, h, c.miss)
+			}
+		}
+	})
 	t.Run("a miss draws once, so the next roll is the next attack's", func(t *testing.T) {
 		r := &rolls{seq: []float64{0.995, 0.5, 0.5, 0.5}}
-		if h := model.Resolve(warrior, slime, r); !h.Miss {
+		if h := model.Resolve(warrior, slime, hit, r); !h.Miss {
 			t.Fatalf("first: %+v", h)
 		}
 		if r.i != 1 {
@@ -72,7 +99,7 @@ func TestResolve(t *testing.T) {
 		a := rand.New(rand.NewPCG(7, 11)) //nolint:gosec // deterministic test
 		b := rand.New(rand.NewPCG(7, 11)) //nolint:gosec // deterministic test
 		for range 100 {
-			if model.Resolve(warrior, slime, a) != model.Resolve(warrior, slime, b) {
+			if model.Resolve(warrior, slime, hit, a) != model.Resolve(warrior, slime, hit, b) {
 				t.Fatal("replays diverged")
 			}
 		}

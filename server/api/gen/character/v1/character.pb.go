@@ -89,6 +89,7 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{0}
 }
 
+// Stats are a number per primary stat: the points spent in each, or the own stats.
 type Stats struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Strength      int32                  `protobuf:"varint,1,opt,name=strength,proto3" json:"strength,omitempty"`
@@ -165,7 +166,7 @@ func (x *Stats) GetVitality() int32 {
 	return 0
 }
 
-// Character is a character as stored, with its derived maximum HP and MP.
+// Character is a character as stored, with its derived own stats and maximum HP and MP.
 type Character struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -175,8 +176,9 @@ type Character struct {
 	Class string `protobuf:"bytes,4,opt,name=class,proto3" json:"class,omitempty"`
 	Level int32  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
 	// EXP within the current level.
-	Exp           int64  `protobuf:"varint,6,opt,name=exp,proto3" json:"exp,omitempty"`
-	Stats         *Stats `protobuf:"bytes,7,opt,name=stats,proto3" json:"stats,omitempty"`
+	Exp int64 `protobuf:"varint,6,opt,name=exp,proto3" json:"exp,omitempty"`
+	// The points spent in each stat; the own stats are the class's starting stats plus these.
+	Points        *Stats `protobuf:"bytes,7,opt,name=points,proto3" json:"points,omitempty"`
 	UnspentPoints int32  `protobuf:"varint,8,opt,name=unspent_points,json=unspentPoints,proto3" json:"unspent_points,omitempty"`
 	Hp            int32  `protobuf:"varint,9,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp         int32  `protobuf:"varint,10,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
@@ -184,9 +186,13 @@ type Character struct {
 	MaxMp         int32  `protobuf:"varint,12,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`
 	MapId         string `protobuf:"bytes,13,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	// Feet centre, map pixels.
-	X             float64                `protobuf:"fixed64,14,opt,name=x,proto3" json:"x,omitempty"`
-	Y             float64                `protobuf:"fixed64,15,opt,name=y,proto3" json:"y,omitempty"`
-	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	X         float64                `protobuf:"fixed64,14,opt,name=x,proto3" json:"x,omitempty"`
+	Y         float64                `protobuf:"fixed64,15,opt,name=y,proto3" json:"y,omitempty"`
+	UpdatedAt *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	// Whether the one free reset of the points is used.
+	FreeResetUsed bool `protobuf:"varint,17,opt,name=free_reset_used,json=freeResetUsed,proto3" json:"free_reset_used,omitempty"`
+	// The class's starting stats plus the points, without gear.
+	OwnStats      *Stats `protobuf:"bytes,18,opt,name=own_stats,json=ownStats,proto3" json:"own_stats,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -263,9 +269,9 @@ func (x *Character) GetExp() int64 {
 	return 0
 }
 
-func (x *Character) GetStats() *Stats {
+func (x *Character) GetPoints() *Stats {
 	if x != nil {
-		return x.Stats
+		return x.Points
 	}
 	return nil
 }
@@ -329,6 +335,20 @@ func (x *Character) GetY() float64 {
 func (x *Character) GetUpdatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *Character) GetFreeResetUsed() bool {
+	if x != nil {
+		return x.FreeResetUsed
+	}
+	return false
+}
+
+func (x *Character) GetOwnStats() *Stats {
+	if x != nil {
+		return x.OwnStats
 	}
 	return nil
 }
@@ -632,9 +652,11 @@ type SaveCheckpointRequest struct {
 	Hp    int32   `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
 	Mp    int32   `protobuf:"varint,6,opt,name=mp,proto3" json:"mp,omitempty"`
 	Exp   int64   `protobuf:"varint,7,opt,name=exp,proto3" json:"exp,omitempty"`
-	// The whole progression, so any checkpoint repairs a level-up save that was lost.
+	// The whole progression, so any checkpoint repairs a level-up save that was lost: the level, the points spent and unspent, and the free reset.
 	Level         int32  `protobuf:"varint,8,opt,name=level,proto3" json:"level,omitempty"`
-	Stats         *Stats `protobuf:"bytes,9,opt,name=stats,proto3" json:"stats,omitempty"`
+	Points        *Stats `protobuf:"bytes,9,opt,name=points,proto3" json:"points,omitempty"`
+	UnspentPoints int32  `protobuf:"varint,10,opt,name=unspent_points,json=unspentPoints,proto3" json:"unspent_points,omitempty"`
+	FreeResetUsed bool   `protobuf:"varint,11,opt,name=free_reset_used,json=freeResetUsed,proto3" json:"free_reset_used,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -725,11 +747,25 @@ func (x *SaveCheckpointRequest) GetLevel() int32 {
 	return 0
 }
 
-func (x *SaveCheckpointRequest) GetStats() *Stats {
+func (x *SaveCheckpointRequest) GetPoints() *Stats {
 	if x != nil {
-		return x.Stats
+		return x.Points
 	}
 	return nil
+}
+
+func (x *SaveCheckpointRequest) GetUnspentPoints() int32 {
+	if x != nil {
+		return x.UnspentPoints
+	}
+	return 0
+}
+
+func (x *SaveCheckpointRequest) GetFreeResetUsed() bool {
+	if x != nil {
+		return x.FreeResetUsed
+	}
+	return false
 }
 
 type SaveCheckpointResponse struct {
@@ -773,7 +809,7 @@ type SaveLevelUpRequest struct {
 	CharacterId   string                 `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
 	Level         int32                  `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
 	Exp           int64                  `protobuf:"varint,3,opt,name=exp,proto3" json:"exp,omitempty"`
-	Stats         *Stats                 `protobuf:"bytes,4,opt,name=stats,proto3" json:"stats,omitempty"`
+	Points        *Stats                 `protobuf:"bytes,4,opt,name=points,proto3" json:"points,omitempty"`
 	Hp            int32                  `protobuf:"varint,5,opt,name=hp,proto3" json:"hp,omitempty"`
 	Mp            int32                  `protobuf:"varint,6,opt,name=mp,proto3" json:"mp,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -831,9 +867,9 @@ func (x *SaveLevelUpRequest) GetExp() int64 {
 	return 0
 }
 
-func (x *SaveLevelUpRequest) GetStats() *Stats {
+func (x *SaveLevelUpRequest) GetPoints() *Stats {
 	if x != nil {
-		return x.Stats
+		return x.Points
 	}
 	return nil
 }
@@ -898,7 +934,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\tdexterity\x18\x02 \x01(\x05R\tdexterity\x12\"\n" +
 	"\fintelligence\x18\x03 \x01(\x05R\fintelligence\x12\x18\n" +
 	"\aagility\x18\x04 \x01(\x05R\aagility\x12\x1a\n" +
-	"\bvitality\x18\x05 \x01(\x05R\bvitality\"\xa3\x03\n" +
+	"\bvitality\x18\x05 \x01(\x05R\bvitality\"\x88\x04\n" +
 	"\tCharacter\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -906,8 +942,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
 	"\x05class\x18\x04 \x01(\tR\x05class\x12\x14\n" +
 	"\x05level\x18\x05 \x01(\x05R\x05level\x12\x10\n" +
-	"\x03exp\x18\x06 \x01(\x03R\x03exp\x122\n" +
-	"\x05stats\x18\a \x01(\v2\x1c.internal.character.v1.StatsR\x05stats\x12%\n" +
+	"\x03exp\x18\x06 \x01(\x03R\x03exp\x124\n" +
+	"\x06points\x18\a \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12%\n" +
 	"\x0eunspent_points\x18\b \x01(\x05R\runspentPoints\x12\x0e\n" +
 	"\x02hp\x18\t \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\n" +
@@ -918,7 +954,9 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x01x\x18\x0e \x01(\x01R\x01x\x12\f\n" +
 	"\x01y\x18\x0f \x01(\x01R\x01y\x129\n" +
 	"\n" +
-	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"X\n" +
+	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12&\n" +
+	"\x0ffree_reset_used\x18\x11 \x01(\bR\rfreeResetUsed\x129\n" +
+	"\town_stats\x18\x12 \x01(\v2\x1c.internal.character.v1.StatsR\bownStats\"X\n" +
 	"\rCreateRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
@@ -938,7 +976,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\"N\n" +
 	"\fLoadResponse\x12>\n" +
-	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\"\xe9\x01\n" +
+	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\"\xba\x02\n" +
 	"\x15SaveCheckpointRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
@@ -947,14 +985,17 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
 	"\x02mp\x18\x06 \x01(\x05R\x02mp\x12\x10\n" +
 	"\x03exp\x18\a \x01(\x03R\x03exp\x12\x14\n" +
-	"\x05level\x18\b \x01(\x05R\x05level\x122\n" +
-	"\x05stats\x18\t \x01(\v2\x1c.internal.character.v1.StatsR\x05stats\"\x18\n" +
-	"\x16SaveCheckpointResponse\"\xb3\x01\n" +
+	"\x05level\x18\b \x01(\x05R\x05level\x124\n" +
+	"\x06points\x18\t \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12%\n" +
+	"\x0eunspent_points\x18\n" +
+	" \x01(\x05R\runspentPoints\x12&\n" +
+	"\x0ffree_reset_used\x18\v \x01(\bR\rfreeResetUsed\"\x18\n" +
+	"\x16SaveCheckpointResponse\"\xb5\x01\n" +
 	"\x12SaveLevelUpRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\x05R\x05level\x12\x10\n" +
-	"\x03exp\x18\x03 \x01(\x03R\x03exp\x122\n" +
-	"\x05stats\x18\x04 \x01(\v2\x1c.internal.character.v1.StatsR\x05stats\x12\x0e\n" +
+	"\x03exp\x18\x03 \x01(\x03R\x03exp\x124\n" +
+	"\x06points\x18\x04 \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12\x0e\n" +
 	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
 	"\x02mp\x18\x06 \x01(\x05R\x02mp\"\x15\n" +
 	"\x13SaveLevelUpResponse*\xe6\x01\n" +
@@ -1005,28 +1046,29 @@ var file_internal_character_v1_character_proto_goTypes = []any{
 	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
 }
 var file_internal_character_v1_character_proto_depIdxs = []int32{
-	1,  // 0: internal.character.v1.Character.stats:type_name -> internal.character.v1.Stats
+	1,  // 0: internal.character.v1.Character.points:type_name -> internal.character.v1.Stats
 	13, // 1: internal.character.v1.Character.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 2: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
-	2,  // 3: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
-	2,  // 4: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
-	1,  // 5: internal.character.v1.SaveCheckpointRequest.stats:type_name -> internal.character.v1.Stats
-	1,  // 6: internal.character.v1.SaveLevelUpRequest.stats:type_name -> internal.character.v1.Stats
-	3,  // 7: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
-	5,  // 8: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
-	7,  // 9: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
-	9,  // 10: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
-	11, // 11: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
-	4,  // 12: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
-	6,  // 13: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
-	8,  // 14: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
-	10, // 15: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
-	12, // 16: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	1,  // 2: internal.character.v1.Character.own_stats:type_name -> internal.character.v1.Stats
+	2,  // 3: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
+	2,  // 4: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
+	2,  // 5: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
+	1,  // 6: internal.character.v1.SaveCheckpointRequest.points:type_name -> internal.character.v1.Stats
+	1,  // 7: internal.character.v1.SaveLevelUpRequest.points:type_name -> internal.character.v1.Stats
+	3,  // 8: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
+	5,  // 9: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
+	7,  // 10: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
+	9,  // 11: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
+	11, // 12: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
+	4,  // 13: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
+	6,  // 14: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
+	8,  // 15: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
+	10, // 16: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
+	12, // 17: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
+	13, // [13:18] is the sub-list for method output_type
+	8,  // [8:13] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_internal_character_v1_character_proto_init() }

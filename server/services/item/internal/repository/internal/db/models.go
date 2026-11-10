@@ -56,22 +56,30 @@ type ItemEvent struct {
 }
 
 type ItemRoll struct {
-	ItemID     uuid.UUID
-	Attack     int32
-	Defense    int32
-	Str        int32
-	Dex        int32
-	Int        int32
-	Agi        int32
-	Vit        int32
-	Accuracy   int32
-	Evasion    int32
-	CritRate   int32
-	CritDamage int32
-	MaxHp      int32
-	MaxMp      int32
-	CreatedAt  dbx.Stamp
-	UpdatedAt  dbx.Stamp
+	ItemID          uuid.UUID
+	PhysicalAttack  int32
+	PhysicalDefense int32
+	Str             int32
+	Dex             int32
+	Int             int32
+	Agi             int32
+	Vit             int32
+	Accuracy        int32
+	Evasion         int32
+	CritRate        int32
+	CritDamage      int32
+	MaxHp           int32
+	MaxMp           int32
+	CreatedAt       dbx.Stamp
+	UpdatedAt       dbx.Stamp
+	MagicAttack     int32
+	MagicDefense    int32
+	Penetration     int32
+	HpRegen         int32
+	MpRegen         int32
+	AttackSpeed     int32
+	CooldownSpeed   int32
+	MoveSpeed       int32
 }
 
 type Outbox struct {

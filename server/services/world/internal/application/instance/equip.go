@@ -26,11 +26,16 @@ func (i *Instance) Unequip(ctx context.Context, id kernel.CharacterID, conn, key
 
 func (i *Instance) askEquip(ctx context.Context, m equipMsg) error {
 	m.done = make(chan error, 1)
+	return i.ask(ctx, m, m.done)
+}
+
+// ask posts m and waits for its outcome on done, ctx's end, or the map stopping.
+func (i *Instance) ask(ctx context.Context, m message, done <-chan error) error {
 	if err := i.post(m); err != nil {
 		return err
 	}
 	select {
-	case err := <-m.done:
+	case err := <-done:
 		return err
 	case <-ctx.Done():
 		return ctx.Err()
@@ -39,7 +44,7 @@ func (i *Instance) askEquip(ctx context.Context, m equipMsg) error {
 	}
 }
 
-// startEquip hands the call to a worker with the player's live level and class; the player stays on the map until its result settles.
+// startEquip hands the call to a worker with the player's live level, class and own stats; the player stays on the map until its result settles.
 func (i *Instance) startEquip(m equipMsg) {
 	p, ok := i.players[m.id]
 	switch {
@@ -57,7 +62,7 @@ func (i *Instance) startEquip(m equipMsg) {
 		call = func(ctx context.Context) (model.Equipped, error) { return i.deps.Equipment.Unequip(ctx, c) }
 	} else {
 		c := *m.equip
-		c.Account, c.Character, c.Level, c.Class = p.Account, p.ID, p.Level, p.Class
+		c.Account, c.Character, c.Level, c.Class, c.Stats = p.Account, p.ID, p.Level, p.Class, i.stats(p).Own
 		call = func(ctx context.Context) (model.Equipped, error) { return i.deps.Equipment.Equip(ctx, c) }
 	}
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
@@ -88,22 +93,16 @@ func (i *Instance) settleEquip(m equippedMsg) {
 	m.done <- m.err
 }
 
-// putOn takes what the player now wears, re-derives, lowers HP and MP to any new maximum, and tells the player and the party.
+// putOn takes what the player now wears, re-derives, and tells the player and the party.
 func (i *Instance) putOn(p *player, eq model.Equipped) {
 	p.Worn = eq.Worn
-	formulas, _ := i.data.Formulas(p.Class)
-	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, p.Worn.Stats)
-	p.HP, p.MP = min(p.HP, p.derived.MaxHP), min(p.MP, p.derived.MaxMP)
-	p.changed = true
-	p.private = append(p.private,
-		model.InventoryChanged{Tick: i.tick, Revision: eq.Worn.Revision, Slots: eq.Slots, Equipment: eq.Equipment},
-		model.StatsChanged{Tick: i.tick, Sheet: i.sheet(p), HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP},
-	)
+	p.private = append(p.private, model.InventoryChanged{Tick: i.tick, Revision: eq.Worn.Revision, Slots: eq.Slots, Equipment: eq.Equipment})
+	i.restat(p)
 	i.tellParty(p, i.m.ID)
 }
 
+// derive is the player's derived stats, from their class, level, points and what they wear.
+func (i *Instance) derive(p *player) progression.Derived { return i.stats(p).Derived }
+
 // sheet is what the player's character window shows.
-func (i *Instance) sheet(p *player) progression.Sheet {
-	formulas, _ := i.data.Formulas(p.Class)
-	return progression.SheetOf(formulas, p.Stats, p.Level, p.Worn.Stats)
-}
+func (i *Instance) sheet(p *player) model.Sheet { return i.stats(p).Sheet }

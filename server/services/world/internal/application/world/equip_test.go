@@ -8,7 +8,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/transient"
@@ -30,7 +29,7 @@ func (f fakeWardrobe) Worn(context.Context, kernel.CharacterID) (model.Worn, err
 type capEquipment struct{}
 
 func (capEquipment) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
-	return model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat", Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1}}}, Worn: model.Worn{Revision: 4, Stats: progression.ItemStats{MaxHP: 30}}}, nil
+	return model.Equipped{Equipment: []model.EquipSlot{{Slot: "hat", Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1}}}, Worn: model.Worn{Revision: 4, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}}, nil
 }
 
 func (capEquipment) Unequip(context.Context, model.UnequipCall) (model.Equipped, error) {
@@ -51,7 +50,7 @@ func wearingWorld(t *testing.T, ayla model.Character, o worldtest.Options) (*wor
 func aylaInTown() model.Character {
 	return model.Character{
 		ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: "Ayla", Class: kernel.Warrior, Level: 1,
-		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
+		HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 }
 
@@ -59,14 +58,14 @@ func TestAJoinWearsWhatTheItemServiceSays(t *testing.T) {
 	ayla := aylaInTown()
 	t.Run("derived with it, the view carrying the sheet", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			w, stop := wearingWorld(t, ayla, worldtest.Options{Wardrobe: fakeWardrobe{worn: model.Worn{Revision: 3, Stats: progression.ItemStats{MaxHP: 30}}}})
+			w, stop := wearingWorld(t, ayla, worldtest.Options{Wardrobe: fakeWardrobe{worn: model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}}})
 			defer stop()
 			view, err := w.Join(context.Background(), ayla.Account, ayla.ID, "c1", &worldtest.Sink{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if view.MaxHP != 234 || view.HP != 234 || view.Sheet.DerivedWorn.MaxHP != 30 || view.Sheet.Derived.MaxHP != 234 {
-				t.Fatalf("view %+v; want 204 HP and the worn 30, in the sheet too", view)
+			if view.MaxHP != 214 || view.HP != 214 || view.Sheet.DerivedWorn.MaxHP != 30 || view.Sheet.Derived.MaxHP != 214 {
+				t.Fatalf("view %+v; want 184 HP and the worn 30, in the sheet too", view)
 			}
 		})
 	})
@@ -111,8 +110,8 @@ func TestEquipGoesToTheCharactersMap(t *testing.T) {
 				stats = append(stats, sc)
 			}
 		}
-		if len(stats) != 1 || stats[0].MaxHP != 234 {
-			t.Fatalf("stats %+v; want the cap's 30 HP on top of 204", stats)
+		if len(stats) != 1 || stats[0].MaxHP != 214 {
+			t.Fatalf("stats %+v; want the cap's 30 HP on top of 184", stats)
 		}
 		if err := w.Unequip(context.Background(), ayla.ID, "c1", "k-2", "hat", nil); err == nil {
 			t.Fatal("an unequip the item service refused answered ok")

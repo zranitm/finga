@@ -16,11 +16,11 @@ type Character struct {
 	Class         string
 	Level         int32
 	Exp           int64
-	Strength      int32
-	Dexterity     int32
-	Intelligence  int32
-	Agility       int32
-	Vitality      int32
+	StrPoints     int32
+	DexPoints     int32
+	IntPoints     int32
+	AgiPoints     int32
+	VitPoints     int32
 	UnspentPoints int32
 	Hp            int32
 	Mp            int32
@@ -29,4 +29,5 @@ type Character struct {
 	PosY          float32
 	UpdatedAt     dbx.Stamp
 	CreatedAt     dbx.Stamp
+	FreeResetUsed bool
 }

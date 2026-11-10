@@ -91,7 +91,10 @@ type fakeWorld struct {
 	says       []*worldv1.SayRequest
 	equips     []*worldv1.EquipRequest
 	unequips   []*worldv1.UnequipRequest
-	equipErr   error         // Equip and Unequip fail with it
+	equipErr   error // Equip and Unequip fail with it
+	spends     []*worldv1.SpendPointsRequest
+	resets     []*worldv1.ResetPointsRequest
+	pointsErr  error         // SpendPoints and ResetPoints fail with it
 	calls      []string      // commands in arrival order
 	traceIDs   []string      // each Join's and Attack's, in arrival order
 	hold       chan struct{} // set: Subscribed goes out only during the first join
@@ -371,6 +374,32 @@ func (f *fakeWorld) Unequip(_ context.Context, req *worldv1.UnequipRequest) (*wo
 	defer f.mu.Unlock()
 	f.unequips = append(f.unequips, req)
 	return &worldv1.UnequipResponse{}, f.equipErr
+}
+
+func (f *fakeWorld) SpendPoints(_ context.Context, req *worldv1.SpendPointsRequest) (*worldv1.SpendPointsResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.spends = append(f.spends, req)
+	return &worldv1.SpendPointsResponse{}, f.pointsErr
+}
+
+func (f *fakeWorld) ResetPoints(_ context.Context, req *worldv1.ResetPointsRequest) (*worldv1.ResetPointsResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.resets = append(f.resets, req)
+	return &worldv1.ResetPointsResponse{}, f.pointsErr
+}
+
+func (f *fakeWorld) failPoints(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.pointsErr = err
+}
+
+func (f *fakeWorld) pointsCalls() ([]*worldv1.SpendPointsRequest, []*worldv1.ResetPointsRequest) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.SpendPointsRequest(nil), f.spends...), append([]*worldv1.ResetPointsRequest(nil), f.resets...)
 }
 
 func (f *fakeWorld) failEquips(err error) {

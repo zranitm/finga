@@ -129,7 +129,7 @@ describe('wiring', () => {
       name: 'StatsChanged',
       push: (ws: FakeWebSocket) =>
         ws.push('statsChanged', {
-          sheet: { derivedWorn: { defense: 4 } },
+          sheet: { derivedWorn: { physicalDefense: 4 } },
           hp: 204,
           maxHp: 234,
           mp: 28,
@@ -138,7 +138,7 @@ describe('wiring', () => {
       check: () =>
         expect(character.getState().character).toMatchObject({
           maxHp: 234,
-          sheet: { derivedWorn: { defense: 4 } },
+          sheet: { derivedWorn: { physicalDefense: 4 } },
         }),
     },
     {

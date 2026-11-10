@@ -269,9 +269,13 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
+	if n%i.ticksFor(time.Second) == 0 {
+		i.regen()
+	}
 	for _, s := range i.ground.Collect() {
 		i.settle(s)
 	}
+	i.tellHP()
 	for _, id := range i.order {
 		if p := i.players[id]; p.slot == n%i.ticksPer {
 			i.checkpoint(p)
@@ -322,6 +326,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.startEquip(m)
 		case equippedMsg:
 			i.settleEquip(m)
+		case pointsMsg:
+			i.settlePoints(m)
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})

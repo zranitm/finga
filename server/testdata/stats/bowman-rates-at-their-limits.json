@@ -1,0 +1,72 @@
+{
+  "name": "bowman-rates-at-their-limits",
+  "notes": "Far more DEX, INT and AGI than a level gives, and gear past every limit: each rate and penetration stop at their limits, and the equipment's share is only what was left below them.",
+  "class": "bowman",
+  "level": 30,
+  "points": {
+    "str": 0,
+    "dex": 400,
+    "int": 300,
+    "agi": 445,
+    "vit": 0
+  },
+  "worn": {
+    "crit_rate": 400,
+    "penetration": 900,
+    "attack_speed": 400,
+    "cooldown_speed": 400,
+    "move_speed": 400
+  },
+  "expected": {
+    "primary": {
+      "str": 5,
+      "dex": 412,
+      "int": 304,
+      "agi": 455,
+      "vit": 5
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 458,
+      "max_mp": 1082,
+      "physical_attack": 213.5,
+      "magic_attack": 662,
+      "physical_defense": 8,
+      "magic_defense": 157.5,
+      "accuracy": 427,
+      "evasion": 463,
+      "crit_rate": 0.6,
+      "crit_damage": 2.56,
+      "penetration": 0.5,
+      "hp_regen": 0.25,
+      "mp_regen": 15.200000000000001,
+      "attack_speed": 0.5,
+      "cooldown_speed": 0.4,
+      "move_speed": 0.3
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0.1797385620915033,
+      "crit_damage": 0,
+      "penetration": 0.5,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0.1239669421487603,
+      "cooldown_speed": 0.15873015873015875,
+      "move_speed": 0.09160305343511449
+    }
+  }
+}
