@@ -34,6 +34,7 @@ var (
 	ErrWrongEquipSlot = errors.New("item: the item doesn't go in that equip slot")
 	ErrNotEquipment   = errors.New("item: only equipment can be worn")
 	ErrNothingWorn    = errors.New("item: nothing is worn in that equip slot")
+	ErrBadBatch       = errors.New("item: a batch holds no drops, or more than one call takes")
 )
 
 // SlotsPerTab is the inventory size of each tab.

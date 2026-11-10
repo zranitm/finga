@@ -218,11 +218,11 @@ func TestInventoryProperties(t *testing.T) {
 
 	rapid.Check(t, func(rt *rapid.T) {
 		actor := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+		var added []application.AddInput // every drop tried, whose keys a batch may reuse
 		steps := rapid.IntRange(1, 25).Draw(rt, "steps")
 		for i := range steps {
 			key := fmt.Sprintf("k%d", i)
-			switch rapid.IntRange(0, 4).Draw(rt, "op") {
-			case 0:
+			drop := func(key string) application.AddInput {
 				tmpl := rapid.SampledFrom(templates).Draw(rt, "template")
 				it, _ := data.Item(tmpl)
 				qty := rapid.IntRange(1, it.MaxStack).Draw(rt, "qty")
@@ -231,9 +231,37 @@ func TestInventoryProperties(t *testing.T) {
 					roll := progression.Rolled(it.Rolls, func(r gamedata.Range) int { return rapid.IntRange(r.Min, r.Max).Draw(rt, "stat") })
 					stats = &roll
 				}
-				_, err := svc.Add(ctx, actor, application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats})
-				if err != nil && !isRule(err) {
+				return application.AddInput{Key: key, TemplateID: tmpl, Quantity: qty, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: stats}
+			}
+			switch rapid.IntRange(0, 5).Draw(rt, "op") {
+			case 0:
+				in := drop(key)
+				added = append(added, in)
+				if _, err := svc.Add(ctx, actor, in); err != nil && !isRule(err) {
 					rt.Fatalf("add: %v", err)
+				}
+			case 5:
+				// New drops, and now and then one added before: the same again, which replays, or under other arguments, which is refused.
+				var drops []application.AddInput
+				for j := range rapid.IntRange(1, 4).Draw(rt, "drops") {
+					in := drop(fmt.Sprintf("%s-%d", key, j))
+					if len(added) > 0 && rapid.Bool().Draw(rt, "an old key") {
+						in = rapid.SampledFrom(added).Draw(rt, "old drop")
+						if rapid.Bool().Draw(rt, "other arguments") {
+							in.Quantity++
+						}
+					}
+					drops = append(drops, in)
+				}
+				added = append(added, drops...)
+				b, err := svc.AddMany(ctx, actor, drops)
+				if err != nil {
+					rt.Fatalf("add many: %v", err)
+				}
+				for _, out := range b.Outcomes {
+					if out.Err != nil && !isRule(out.Err) && !errors.Is(out.Err, model.ErrKeyReused) && !errors.Is(out.Err, model.ErrBadQuantity) {
+						rt.Fatalf("a drop refused by %v", out.Err)
+					}
 				}
 			case 1:
 				read, _ := svc.Inventory(ctx, actor.Character)

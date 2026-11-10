@@ -44,10 +44,11 @@ func (p *Postgres) InTx(ctx context.Context, fn func(uow application.UnitOfWork)
 func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 	q, now := db.New(tx), dbx.Now()
 	return unitOfWork{
+		tx:      tx,
 		items:   repo{q: q, now: now},
 		events:  eventRepo{q: q, now: now},
 		notices: notices{w: outboxpg.NewWriter(tx, now)},
-		idem:    idem{store: idempotencypg.NewStore(tx, now)},
+		idem:    idem{tx: tx, store: idempotencypg.NewStore(tx, now)},
 	}
 }
 
@@ -79,6 +80,7 @@ func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) (mod
 
 // unitOfWork stamps every row it writes with now, the transaction's time on the app's clock.
 type unitOfWork struct {
+	tx      pgx.Tx
 	items   repo
 	events  eventRepo
 	notices notices
@@ -96,6 +98,23 @@ func (u unitOfWork) Notices() application.Notices { return u.notices }
 
 // Idempotency is the idempotency store bound to the transaction.
 func (u unitOfWork) Idempotency() application.Idempotency { return u.idem }
+
+// Savepoint runs fn under a savepoint, rolled back to when fn fails; only one is open at a time.
+func (u unitOfWork) Savepoint(ctx context.Context, fn func() error) error {
+	if _, err := u.tx.Exec(ctx, `SAVEPOINT one`); err != nil {
+		return err
+	}
+	if err := fn(); err != nil {
+		for _, undo := range []string{`ROLLBACK TO SAVEPOINT one`, `RELEASE SAVEPOINT one`} {
+			if _, undoErr := u.tx.Exec(ctx, undo); undoErr != nil {
+				return errors.Join(err, undoErr)
+			}
+		}
+		return err
+	}
+	_, err := u.tx.Exec(ctx, `RELEASE SAVEPOINT one`)
+	return err
+}
 
 type repo struct {
 	q   *db.Queries
@@ -234,7 +253,15 @@ func (r eventRepo) Append(ctx context.Context, e model.Event) error {
 }
 
 // idem adapts pkg/idempotency, storing the Result as a reply.
-type idem struct{ store idempotency.Store }
+type idem struct {
+	tx    pgx.Tx
+	store idempotency.Store
+}
+
+// Lock takes key's lock for the account until the transaction ends.
+func (i idem) Lock(ctx context.Context, owner kernel.AccountID, scope, key string) error {
+	return idempotencypg.Lock(ctx, i.tx, owner.String(), scope, key)
+}
 
 // Run runs fn once per key for the account.
 func (i idem) Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (application.Result, error)) (application.Result, error) {

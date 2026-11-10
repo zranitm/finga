@@ -79,14 +79,14 @@ Today players skip part of the loot: in the proof session the bots made 699 pick
 ### In the item service: `AddMany`
 
 - **`AddMany{actor, drops}`**, where each drop is `{idempotency_key, template, quantity, stats, cause}`, all for the one owner in `actor`. It runs one transaction:
-  1. The owner's lock and inventory rows, as `Add` takes them today.
+  1. Every drop's key lock, sorted, then the owner's lock and inventory rows. `Add` takes its key's lock before the owner's, so no batch and no `Add` can wait on each other in a circle.
   2. For each drop, in order, a savepoint and then the existing per-key `idempotencypg.Do` under that drop's key, with the same fingerprint as `Add` (`item.add/1`). A drop granted once, by `Add` or by an earlier batch, answers its stored reply; a new one runs `Add`'s body.
-  3. A drop that fails a rule, such as `inventory_full` or a bad roll, rolls back to its savepoint, so a half-filled stack never stays, and stores no reply. The other drops carry on.
-  4. One inventory revision for the whole batch, taken last, only if something changed.
-- **The answer** has, per drop, its outcome (`GRANTED`, `ALREADY_GRANTED`, or the rule's reason), plus the batch's changed slots and its revision. The world settles each drop from its own outcome and sends the owner one `InventoryChanged` for the batch.
+  3. A drop that fails a rule, such as `inventory_full` or a bad roll, rolls back to its savepoint, so a half-filled stack never stays, and stores no reply. The other drops carry on. A malformed key or cause is refused for that drop alone, too.
+  4. One inventory revision for the whole batch. The first drop that changes something takes it, so each drop's stored reply carries it, and a batch that grants nothing takes none.
+- **The answer** has, per drop, its outcome: `GRANTED`, `ALREADY_GRANTED`, or `REFUSED` with the rule's reason. It also has the slots this call's grants changed, each as the last of them left it, and the batch's revision. An already-granted drop carries its stored reply, slots and revision, as `Add` would replay it. The world settles each drop from its own outcome and sends the owner one `InventoryChanged` for the batch's grants; a replayed reply goes as its own, which the client applies only where it is newer.
 - **Keys stay per drop**, and that is what makes a batch safe to retry. A batch retried after a lost reply carries the same keys, and its drops may have been regrouped with new ones. Each key answers for its own drop: one item per drop, whatever the grouping.
 - **Errors that aren't a drop's own,** such as the database or the network, fail the whole call. All its drops become unsettled and are retried under their keys, as a single grant is today.
-- **Size:** at most `batch_max` drops per call; the service refuses a larger batch.
+- **Size:** at most 32 drops per call; the service refuses an empty or larger batch (`bad_batch_size`), and the world's `batch_max` can't be set above it.
 - **`Add` stays,** for other callers and for a world that is still the old version during a deploy. The item service deploys first, as for equipment.
 
 At the load-test target of 1,000 players on one node, the drops come to the low hundreds a second. With batching, the calls stay below the number of owners collecting at any moment, well within the pool of 8 workers and its queue of 1,024 jobs. `finga_item_calls_inflight`, the batch-size histogram, and the item service's transaction latency show the margin.

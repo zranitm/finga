@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ import (
 type Service interface {
 	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
 	Add(ctx context.Context, actor model.Actor, in application.AddInput) (application.Result, error)
+	AddMany(ctx context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error)
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
 	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
@@ -68,6 +70,72 @@ func (s *Server) Add(ctx context.Context, req *itemv1.AddRequest) (*itemv1.AddRe
 		return nil, err
 	}
 	return &itemv1.AddResponse{Changed: slots(res), Revision: res.Revision}, nil
+}
+
+// AddMany grants a batch of drops for one owner; a drop with a malformed key or cause is refused alone, as a rule refuses one.
+func (s *Server) AddMany(ctx context.Context, req *itemv1.AddManyRequest) (*itemv1.AddManyResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	drops := req.GetDrops()
+	if len(drops) == 0 || len(drops) > application.MaxBatch {
+		return nil, model.ErrBadBatch
+	}
+	resp := &itemv1.AddManyResponse{Outcomes: make([]*itemv1.DropOutcome, len(drops))}
+	var ins []application.AddInput
+	var at []int // each input's drop
+	for i, d := range drops {
+		in, err := addInputOf(d)
+		if err != nil {
+			resp.Outcomes[i] = refused(err)
+			continue
+		}
+		ins, at = append(ins, in), append(at, i)
+	}
+	if len(ins) == 0 {
+		return resp, nil
+	}
+	b, err := s.svc.AddMany(ctx, actor, ins)
+	if err != nil {
+		return nil, err
+	}
+	for k, out := range b.Outcomes {
+		switch {
+		case out.Err != nil:
+			resp.Outcomes[at[k]] = refused(out.Err)
+		case out.Replayed:
+			resp.Outcomes[at[k]] = &itemv1.DropOutcome{Grant: itemv1.Grant_GRANT_ALREADY_GRANTED, Changed: slots(out.Result), Revision: out.Result.Revision}
+		default:
+			resp.Outcomes[at[k]] = &itemv1.DropOutcome{Grant: itemv1.Grant_GRANT_GRANTED}
+		}
+	}
+	resp.Changed, resp.Revision = slots(application.Result{Changed: b.Changed}), b.Revision
+	return resp, nil
+}
+
+func addInputOf(d *itemv1.AddManyDrop) (application.AddInput, error) {
+	key, err := keyOf(d.GetIdempotencyKey())
+	if err != nil {
+		return application.AddInput{}, err
+	}
+	cause, err := causeOf(d.GetCause())
+	if err != nil {
+		return application.AddInput{}, err
+	}
+	return application.AddInput{Key: key, TemplateID: d.GetTemplateId(), Quantity: int(d.GetQuantity()), Cause: cause, Stats: statsOf(d.GetStats())}, nil
+}
+
+// refused is a drop's refusal, with the reason Errors gives its rule.
+func refused(err error) *itemv1.DropOutcome {
+	out := &itemv1.DropOutcome{Grant: itemv1.Grant_GRANT_REFUSED}
+	for _, row := range Errors {
+		if r, ok := row.Reason.(itemv1.Reason); ok && errors.Is(err, row.Err) {
+			out.Reason = r
+			break
+		}
+	}
+	return out
 }
 
 // Move moves an item within its tab.

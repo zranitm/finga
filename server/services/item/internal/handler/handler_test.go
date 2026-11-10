@@ -32,6 +32,8 @@ type fakeItems struct {
 	owner     kernel.CharacterID
 	actor     model.Actor
 	add       application.AddInput
+	addMany   []application.AddInput
+	batch     application.Batch
 	move      application.MoveInput
 	discard   application.DiscardInput
 	equip     application.EquipInput
@@ -59,6 +61,14 @@ func (f *fakeItems) Add(_ context.Context, actor model.Actor, in application.Add
 	f.record()
 	f.actor, f.add = actor, in
 	return f.result, f.err
+}
+
+func (f *fakeItems) AddMany(_ context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record()
+	f.actor, f.addMany = actor, drops
+	return f.batch, f.err
 }
 
 func (f *fakeItems) Move(_ context.Context, actor model.Actor, in application.MoveInput) (application.Result, error) {
@@ -340,6 +350,58 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 	}
 	if f.calls != 0 {
 		t.Fatalf("the module was called %d times", f.calls)
+	}
+}
+
+// Each drop gets its own outcome in the request's order; a malformed one is refused alone, before the module runs the rest.
+func TestAddManyAnswersEachDrop(t *testing.T) {
+	key3 := "k-" + uuidv7.NewString()
+	drop := func(key string, cause itemv1.CauseType) *itemv1.AddManyDrop {
+		return &itemv1.AddManyDrop{IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2, Cause: &itemv1.Cause{Type: cause}}
+	}
+	f := &fakeItems{batch: application.Batch{
+		Outcomes: []application.Outcome{{}, {Replayed: true, Result: changed}, {Err: fmt.Errorf("add: %w", model.ErrInventoryFull)}},
+		Changed:  []model.Slot{{Tab: gamedata.Etc, Slot: 1}},
+		Revision: 13,
+	}}
+	res, err := client(t, f).AddMany(context.Background(), &itemv1.AddManyRequest{Actor: actor, Drops: []*itemv1.AddManyDrop{
+		drop(key1, itemv1.CauseType_CAUSE_TYPE_DROP),
+		drop("not-a-uuid", itemv1.CauseType_CAUSE_TYPE_DROP),
+		drop(key2, itemv1.CauseType_CAUSE_TYPE_DROP),
+		drop(key3, itemv1.CauseType_CAUSE_TYPE_UNSPECIFIED),
+		drop(key3, itemv1.CauseType_CAUSE_TYPE_DROP),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.addMany) != 3 || f.addMany[0].Key != key1 || f.addMany[1].Key != key2 || f.addMany[2].Key != key3 || f.addMany[0].TemplateID != "slime_gel" || f.addMany[0].Quantity != 2 || f.addMany[0].Cause.Type != model.CauseDrop || f.actor.Character != character {
+		t.Fatalf("the module got %+v for %+v", f.addMany, f.actor)
+	}
+	out := res.GetOutcomes()
+	grants := []itemv1.Grant{itemv1.Grant_GRANT_GRANTED, itemv1.Grant_GRANT_REFUSED, itemv1.Grant_GRANT_ALREADY_GRANTED, itemv1.Grant_GRANT_REFUSED, itemv1.Grant_GRANT_REFUSED}
+	reasons := []itemv1.Reason{0, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY, 0, itemv1.Reason_REASON_BAD_CAUSE, itemv1.Reason_REASON_INVENTORY_FULL}
+	for i := range grants {
+		if out[i].GetGrant() != grants[i] || out[i].GetReason() != reasons[i] {
+			t.Fatalf("drop %d: %+v, want %v %v", i, out[i], grants[i], reasons[i])
+		}
+	}
+	wantChanged(t, out[2]) // the replay's stored reply
+	if res.GetRevision() != 13 || len(res.GetChanged()) != 1 || res.GetChanged()[0].GetTab() != "etc" || res.GetChanged()[0].GetSlot() != 1 {
+		t.Fatalf("the batch changed %+v at %d", res.GetChanged(), res.GetRevision())
+	}
+}
+
+func TestAddManyRefusesABatchOfNoDropsOrTooMany(t *testing.T) {
+	for _, n := range []int{0, application.MaxBatch + 1} {
+		f := &fakeItems{}
+		drops := make([]*itemv1.AddManyDrop, n)
+		for i := range drops {
+			drops[i] = &itemv1.AddManyDrop{IdempotencyKey: "k-" + uuidv7.NewString(), TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP}}
+		}
+		_, err := client(t, f).AddMany(context.Background(), &itemv1.AddManyRequest{Actor: actor, Drops: drops})
+		if r, _ := grpcx.ReasonOf(err); status.Code(err) != codes.InvalidArgument || r != grpcx.Key(itemv1.Reason_REASON_BAD_BATCH_SIZE) || f.calls != 0 {
+			t.Fatalf("%d drops: %v after %d calls", n, err, f.calls)
+		}
 	}
 }
 

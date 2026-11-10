@@ -21,6 +21,8 @@ type UnitOfWork interface {
 	Events() EventRepository
 	Notices() Notices
 	Idempotency() Idempotency
+	// Savepoint runs fn; when fn fails, everything it wrote is undone and the transaction carries on.
+	Savepoint(ctx context.Context, fn func() error) error
 }
 
 // Repository reads and writes the items table; owned methods put the owner in the WHERE clause.
@@ -55,6 +57,8 @@ type Notices interface {
 // Idempotency runs a command once per key and replays its Result; one key with another fingerprint is ErrKeyReused.
 type Idempotency interface {
 	Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (Result, error)) (Result, error)
+	// Lock takes the lock Run takes for key, until the transaction ends.
+	Lock(ctx context.Context, owner kernel.AccountID, scope, key string) error
 }
 
 // Content is what the use cases need from game data.

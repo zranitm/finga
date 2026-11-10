@@ -10,6 +10,8 @@ service ItemService {
   rpc Inventory(InventoryRequest) returns (InventoryResponse);
   // Add fills the first stack with room, then the first free slot; a pickup's key is its drop ID.
   rpc Add(AddRequest) returns (AddResponse);
+  // AddMany adds up to 32 drops for one owner in one transaction, each under its own key as Add would take it; a drop a rule refuses changes nothing and stores no reply, and the others carry on.
+  rpc AddMany(AddManyRequest) returns (AddManyResponse);
   // Move moves an item to a slot of its tab, merging into a stack of the same item there.
   rpc Move(MoveRequest) returns (MoveResponse);
   // Discard destroys an item or part of a stack.
@@ -52,6 +54,19 @@ enum Reason {
   REASON_WRONG_EQUIP_SLOT = 19;
   REASON_NOT_EQUIPMENT = 20;
   REASON_NOTHING_WORN = 21;
+  // An AddMany with no drops, or with more than it takes.
+  REASON_BAD_BATCH_SIZE = 22;
+}
+
+// Grant is what became of one drop of an AddMany.
+enum Grant {
+  GRANT_UNSPECIFIED = 0;
+  // Added by this call.
+  GRANT_GRANTED = 1;
+  // Added before under its key, by Add or an earlier batch: its stored reply comes back.
+  GRANT_ALREADY_GRANTED = 2;
+  // A rule refused it, as Add would have: nothing of it changed, and nothing is stored under its key.
+  GRANT_REFUSED = 3;
 }
 
 enum CauseType {
@@ -143,6 +158,42 @@ message AddResponse {
   repeated Slot changed = 1;
   // The inventory's revision after this change, kept by a replay; 0 when nothing changed, or when the reply replayed was stored before revisions.
   uint64 revision = 2;
+}
+
+message AddManyRequest {
+  // The owner of every drop; its account scopes their keys.
+  Actor actor = 1;
+  repeated AddManyDrop drops = 2;
+}
+
+// AddManyDrop is one drop of a batch, with what Add would take for it.
+message AddManyDrop {
+  // The drop's own key, as Add would take it: a UUID, optionally prefixed k-.
+  string idempotency_key = 1;
+  string template_id = 2;
+  int32 quantity = 3;
+  Cause cause = 4;
+  // The drop's roll: required for equipment, refused on anything else.
+  ItemStats stats = 5;
+}
+
+message AddManyResponse {
+  // One per drop, in the request's order.
+  repeated DropOutcome outcomes = 1;
+  // The slots this call's grants changed, each as it stands after the last of them.
+  repeated Slot changed = 2;
+  // The inventory's revision after this call's grants; 0 when it granted nothing.
+  uint64 revision = 3;
+}
+
+// DropOutcome is one drop's: granted now, granted before, or refused by a rule.
+message DropOutcome {
+  Grant grant = 1;
+  // Why a refused drop was refused.
+  Reason reason = 2;
+  // An already granted drop's stored reply: the slots its grant changed, at the revision it took, as Add would replay them.
+  repeated Slot changed = 3;
+  uint64 revision = 4;
 }
 
 message MoveRequest {

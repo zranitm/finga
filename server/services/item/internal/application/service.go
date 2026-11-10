@@ -3,7 +3,9 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -167,18 +169,12 @@ func (s *Service) unrolled(inv []model.Item) []model.Item {
 
 // Add fills stacks with room, then the first free slot; a full inventory writes nothing.
 func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Result, error) {
-	tmpl, ok := s.content.Item(in.TemplateID)
-	if !ok {
-		return Result{}, model.ErrUnknownItem
-	}
-	if in.Quantity < 1 || in.Quantity > tmpl.MaxStack {
-		return Result{}, model.ErrBadQuantity
-	}
-	if !takesRoll(tmpl, in.Stats) {
-		return Result{}, model.ErrBadRoll
+	tmpl, err := s.addable(in)
+	if err != nil {
+		return Result{}, err
 	}
 	var res Result
-	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
 			res, err := s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Stats, in.Cause)
@@ -187,6 +183,139 @@ func (s *Service) Add(ctx context.Context, actor model.Actor, in AddInput) (Resu
 		return err
 	})
 	return res, err
+}
+
+// addable is the template in adds, unless a rule refuses the add before it runs.
+func (s *Service) addable(in AddInput) (gamedata.Item, error) {
+	tmpl, ok := s.content.Item(in.TemplateID)
+	if !ok {
+		return gamedata.Item{}, model.ErrUnknownItem
+	}
+	if in.Quantity < 1 || in.Quantity > tmpl.MaxStack {
+		return gamedata.Item{}, model.ErrBadQuantity
+	}
+	if !takesRoll(tmpl, in.Stats) {
+		return gamedata.Item{}, model.ErrBadRoll
+	}
+	return tmpl, nil
+}
+
+// MaxBatch is the most drops one AddMany takes.
+const MaxBatch = 32
+
+// Outcome is one drop's of a batch.
+type Outcome struct {
+	Err      error  // the rule that refused it; nil when it was granted
+	Replayed bool   // granted before, under its key
+	Result   Result // a replayed drop's stored reply
+}
+
+// Batch is what an AddMany did: each drop's outcome, in order, and the slots its new grants changed at the revision they took.
+type Batch struct {
+	Outcomes []Outcome
+	Changed  []model.Slot // each as it stands after the last grant
+	Revision uint64       // 0 when nothing was granted
+}
+
+// dropRules are the refusals that are one drop's own; anything else fails the whole batch.
+var dropRules = []error{model.ErrUnknownItem, model.ErrBadQuantity, model.ErrBadRoll, model.ErrInventoryFull, model.ErrKeyReused}
+
+// AddMany adds each drop as Add would, all for one owner in one transaction: a drop a rule refuses rolls back to its savepoint and stores no reply, and the others carry on.
+func (s *Service) AddMany(ctx context.Context, actor model.Actor, drops []AddInput) (Batch, error) {
+	if len(drops) == 0 || len(drops) > MaxBatch {
+		return Batch{}, model.ErrBadBatch
+	}
+	var b Batch
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		b = Batch{Outcomes: make([]Outcome, len(drops))}
+		// The keys' locks before the owner's, in one order, as Add takes its key's before the owner's: no batch and no Add wait on each other in a circle.
+		keys := make([]string, 0, len(drops))
+		for _, in := range drops {
+			keys = append(keys, in.Key)
+		}
+		slices.Sort(keys)
+		for _, k := range slices.Compact(keys) {
+			if err := uow.Idempotency().Lock(ctx, actor.Account, scopeAdd, k); err != nil {
+				return err
+			}
+		}
+		// Read once outside the drops' savepoints, so equipment found without a roll keeps the one it is given whatever becomes of the drops.
+		if _, err := s.lockInventory(ctx, uow, actor.Character); err != nil {
+			return err
+		}
+		type place struct {
+			tab  gamedata.Tab
+			slot int
+		}
+		changed := map[place]int{} // a slot's index in b.Changed
+		for i, in := range drops {
+			out, err := s.addOne(ctx, uow, actor, in, &b.Revision)
+			if err != nil {
+				return err
+			}
+			b.Outcomes[i] = out.outcome
+			for _, sl := range out.granted {
+				k := place{sl.Tab, sl.Slot}
+				if at, seen := changed[k]; seen {
+					b.Changed[at] = sl
+					continue
+				}
+				changed[k] = len(b.Changed)
+				b.Changed = append(b.Changed, sl)
+			}
+		}
+		return nil
+	})
+	return b, err
+}
+
+type batchOutcome struct {
+	outcome Outcome
+	granted []model.Slot // the slots a new grant changed
+}
+
+// addOne is one drop of a batch under its own savepoint; the first grant that changes something takes the batch's revision, which every later one shares.
+func (s *Service) addOne(ctx context.Context, uow UnitOfWork, actor model.Actor, in AddInput, revision *uint64) (batchOutcome, error) {
+	tmpl, err := s.addable(in)
+	if err != nil {
+		return batchOutcome{outcome: Outcome{Err: err}}, nil
+	}
+	ran, took := false, false
+	var res Result
+	err = uow.Savepoint(ctx, func() error {
+		var err error
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeAdd, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
+			ran = true
+			res, err := s.add(ctx, uow, actor.Character, tmpl, in.Quantity, in.Stats, in.Cause)
+			if err != nil || len(res.Changed) == 0 {
+				return res, err
+			}
+			if *revision == 0 {
+				if *revision, err = uow.Items().NextRevision(ctx, actor.Character); err != nil {
+					return Result{}, err
+				}
+				took = true
+			}
+			res.Revision = *revision
+			return res, nil
+		})
+		return err
+	})
+	switch {
+	case err == nil && ran:
+		return batchOutcome{granted: res.Changed}, nil
+	case err == nil:
+		return batchOutcome{outcome: Outcome{Replayed: true, Result: res}}, nil
+	}
+	if took {
+		*revision = 0 // undone with the savepoint
+	}
+	for _, rule := range dropRules {
+		if errors.Is(err, rule) {
+			return batchOutcome{outcome: Outcome{Err: err}}, nil
+		}
+	}
+	return batchOutcome{}, err
 }
 
 // takesRoll reports whether tmpl takes stats as its roll: equipment one within its ranges, anything else none.
