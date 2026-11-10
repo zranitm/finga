@@ -25,10 +25,9 @@ import (
 
 const (
 	lootWindow  = 10 * time.Second // only the killer and their party may take it
-	dropLife    = 60 * time.Second
-	pickupRange = 40.0 // px from the character's centre
-	dropSpread  = 24.0 // px either side of the mob
-	dropSpacing = 20.0 // px between several drops of one mob
+	pickupRange = 40.0             // px from the character's centre
+	dropSpread  = 24.0             // px either side of the mob
+	dropSpacing = 20.0             // px between several drops of one mob
 	callTimeout = 5 * time.Second
 )
 
@@ -56,7 +55,7 @@ type Deps struct {
 	Parties   Parties
 	Traces    trace.TracerProvider // starts each pickup's trace
 	Roll      model.Roll           // the map's random source, used only on its tick goroutine
-	Data      *gamedata.Data       // the item templates equipment rolls its stats from
+	Data      *gamedata.Data       // the loot timings, and the item templates equipment rolls its stats from
 	Logger    *slog.Logger
 }
 
@@ -137,7 +136,7 @@ func (g *Ground) Roll(mob gamedata.Mob, x, y float64, killer kernel.CharacterID)
 		d := &drop{
 			id: g.nextID, key: uuidv7.New(), template: entry.Item, quantity: qty, stats: stats,
 			x: x + (g.roll.Float64()*2-1)*dropSpread + float64(n)*dropSpacing, y: y, killer: killer,
-			windowEnd: g.tick + model.TicksIn(lootWindow, g.interval), expiresAt: g.tick + model.TicksIn(dropLife, g.interval),
+			windowEnd: g.tick + model.TicksIn(lootWindow, g.interval), expiresAt: g.tick + model.TicksIn(g.deps.Data.Loot().DropLife, g.interval),
 		}
 		g.drops = append(g.drops, d)
 		g.added = append(g.added, d.view())

@@ -1,0 +1,4 @@
+# How drops behave on the ground: when one flies to its owner, how long it can wait for room, and how often a full inventory is asked again.
+collect_delay: 1s      # from the kill until the drop flies to its owner
+drop_life: 60s         # a drop still on the ground then is lost
+room_check_every: 2s   # an owner's drops waiting for room are tried again this often

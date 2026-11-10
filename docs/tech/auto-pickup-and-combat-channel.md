@@ -157,7 +157,7 @@ Nothing is built for currency now. When it is, a currency drop in a party become
 
 ## 10. Testing
 
-- **Game data:** `loot.yaml` validation: positive durations, and a room check shorter than the drop's life.
+- **Game data:** `loot.yaml` validation: positive durations, and a collect delay and a room check both shorter than the drop's life.
 - **Item service, `AddMany`:**
   - a batch of new drops;
   - a batch mixing granted and new keys;

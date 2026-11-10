@@ -393,7 +393,7 @@ func TestAnUnknownOutcomeKeepsTheDropForItsPicker(t *testing.T) {
 }
 
 func TestADropPastItsLifeLeavesUnlessAPickupHoldsIt(t *testing.T) {
-	late := 1 + uint64(60*time.Second/tick)
+	late := lateTick(t)
 	for _, held := range []bool{false, true} {
 		synctest.Test(t, func(t *testing.T) {
 			s := newScene(t, &pickups{answers: []answer{{slots: gel}}}, false)
@@ -414,8 +414,10 @@ func TestADropPastItsLifeLeavesUnlessAPickupHoldsIt(t *testing.T) {
 	}
 }
 
-// late is the tick the slime's drop, rolled at tick 1, reaches the end of its life.
-const late = 1 + uint64(60*time.Second/tick)
+// lateTick is the tick the slime's drop, rolled at tick 1, reaches the end of its life.
+func lateTick(t *testing.T) uint64 {
+	return 1 + uint64(worldtest.LoadData(t).Loot().DropLife/tick)
+}
 
 // unsettle has the killer reach for the drop with the item service down, so its outcome is unknown; done hears each later grant.
 func (s scene) unsettle(t *testing.T) <-chan loot.Result {
@@ -434,6 +436,7 @@ func (s scene) unsettle(t *testing.T) <-chan loot.Result {
 
 // A drop whose grant may have landed is not just dropped at the end of its life: a last grant under its key tells the picker.
 func TestAnUnsettledDropTriesOnceMoreAsItExpires(t *testing.T) {
+	late := lateTick(t)
 	tests := []struct {
 		name  string
 		after []answer // the item service's answers to the last try
@@ -475,6 +478,7 @@ func TestAnUnsettledDropTriesOnceMoreAsItExpires(t *testing.T) {
 
 // With every worker busy, an unsettled drop stays past its life until one is free for its last try.
 func TestAnUnsettledDropWaitsForAWorkerToTryOnceMore(t *testing.T) {
+	late := lateTick(t)
 	synctest.Test(t, func(t *testing.T) {
 		s := newScene(t, &pickups{answers: []answer{{err: errDown}, {err: errDown}, {slots: gel}}}, true)
 		results := s.unsettle(t)

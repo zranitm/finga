@@ -18,6 +18,7 @@ import (
 
 const (
 	movementFile = "movement.yaml"
+	lootFile     = "loot.yaml"
 	classesFile  = "classes.yaml"
 	statsFile    = "stats.yaml"
 	expCurveFile = "exp_curve.yaml"
@@ -40,7 +41,7 @@ func Load(dir string) (*Data, error) {
 		mobIdx:   map[string]int{},
 		mapIdx:   map[string]int{},
 	}
-	steps := []func(string) error{d.loadMovement, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps}
+	steps := []func(string) error{d.loadMovement, d.loadLoot, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
@@ -97,6 +98,33 @@ func (d *Data) loadMovement(dir string) error {
 		Dt: m.Dt, WalkSpeed: m.WalkSpeed, JumpVelocity: m.JumpVelocity, Gravity: m.Gravity, MaxFallSpeed: m.MaxFallSpeed,
 		ClimbSpeed: m.ClimbSpeed, DropThrough: m.DropThrough, Width: m.Width, Height: m.Height,
 	}
+	return nil
+}
+
+type lootYAML struct {
+	CollectDelay   time.Duration `yaml:"collect_delay"`
+	DropLife       time.Duration `yaml:"drop_life"`
+	RoomCheckEvery time.Duration `yaml:"room_check_every"`
+}
+
+func (d *Data) loadLoot(dir string) error {
+	var l lootYAML
+	if err := readYAML(dir, lootFile, &l); err != nil {
+		return err
+	}
+	for _, v := range []struct {
+		name  string
+		value time.Duration
+	}{{"collect_delay", l.CollectDelay}, {"drop_life", l.DropLife}, {"room_check_every", l.RoomCheckEvery}} {
+		if v.value <= 0 {
+			return fmt.Errorf("%s: %s must be positive", lootFile, v.name)
+		}
+	}
+	// A drop must have time to fly, and to be asked about again, before it is lost.
+	if l.CollectDelay >= l.DropLife || l.RoomCheckEvery >= l.DropLife {
+		return fmt.Errorf("%s: collect_delay and room_check_every must be shorter than drop_life", lootFile)
+	}
+	d.loot = Loot(l)
 	return nil
 }
 
