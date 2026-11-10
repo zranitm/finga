@@ -19,12 +19,13 @@ const vectorsDir = "../../testdata/movement"
 
 // vector is one file: a scenario with its inputs and the state after each sub-step.
 type vector struct {
-	Name     string       `json:"name"`
-	Notes    string       `json:"notes,omitempty"`
-	Geometry sim.Geometry `json:"geometry"`
-	Start    sim.State    `json:"start"`
-	Inputs   []inputRun   `json:"inputs"`
-	Expected []sim.State  `json:"expected"`
+	Name        string       `json:"name"`
+	Notes       string       `json:"notes,omitempty"`
+	SpeedFactor float64      `json:"speed_factor,omitempty"` // unset is 1
+	Geometry    sim.Geometry `json:"geometry"`
+	Start       sim.State    `json:"start"`
+	Inputs      []inputRun   `json:"inputs"`
+	Expected    []sim.State  `json:"expected"`
 }
 
 // inputRun holds one input for Repeat sub-steps.
@@ -37,6 +38,7 @@ type inputRun struct {
 var requiredVectors = []string{
 	"walk-flat", "jump", "ledge", "land-on-platform", "jump-through-platform",
 	"drop-through", "climb-rope", "wall", "ceiling", "platform-edge", "fall-clamp",
+	"walk-fast", "climb-rope-fast", "jump-onto-platform-fast", "fall-clamp-fast",
 }
 
 func TestVectors(t *testing.T) {
@@ -81,6 +83,9 @@ func TestVectors(t *testing.T) {
 
 func replay(v vector) []sim.State {
 	p := params()
+	if v.SpeedFactor != 0 {
+		p = p.Faster(v.SpeedFactor)
+	}
 	s := v.Start
 	var out []sim.State
 	for _, run := range v.Inputs {

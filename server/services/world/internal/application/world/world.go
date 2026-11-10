@@ -45,6 +45,7 @@ type World struct {
 	saves *coalesce.Queue[kernel.CharacterID, model.Checkpoint]
 	// flushTimeout bounds the last saves on shutdown, all together.
 	flushTimeout time.Duration
+	tick         time.Duration // every map's
 	// Transfers run beside the ticks until Run stops them.
 	background     sync.WaitGroup
 	jobsCtx        context.Context
@@ -78,7 +79,7 @@ func New(d Deps, t Tuning) *World {
 	w := &World{
 		data: data, deps: d, instances: map[string]*instance.Instance{}, presences: newPresences(), locks: keylock.New[kernel.CharacterID](),
 		saves:        coalesce.New(func(cp model.Checkpoint) kernel.CharacterID { return cp.ID }),
-		flushTimeout: t.FlushTimeout,
+		flushTimeout: t.FlushTimeout, tick: t.TickInterval,
 	}
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {

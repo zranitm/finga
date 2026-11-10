@@ -1,6 +1,8 @@
 // Package sim is the deterministic movement simulation, mirrored by web/src/sim: no clock, randomness or map iteration.
 package sim
 
+import "math"
+
 // NoPlatform is the Ground and DropPlatform value when no one-way platform is involved.
 const NoPlatform = -1
 
@@ -15,6 +17,22 @@ type Params struct {
 	DropThrough  float64 `json:"drop_through"`   // seconds a dropped-through platform is ignored
 	Width        float64 `json:"width"`          // character box
 	Height       float64 `json:"height"`
+}
+
+// SpeedFactor is 1 plus a move speed, rounded to thousandths so Go and TypeScript multiply by the same number.
+func SpeedFactor(moveSpeed float64) float64 { return math.Round((1+moveSpeed)*1000) / 1000 }
+
+// Faster is p played f times as fast: walking, climbing, a jump's launch and the fall's clamp by f, and gravity by f², so a jump keeps its height and length and takes 1/f of the time; the drop-through stays a time.
+func (p Params) Faster(f float64) Params {
+	if f == 1 {
+		return p
+	}
+	p.WalkSpeed = float64(p.WalkSpeed * f)
+	p.ClimbSpeed = float64(p.ClimbSpeed * f)
+	p.JumpVelocity = float64(p.JumpVelocity * f)
+	p.MaxFallSpeed = float64(p.MaxFallSpeed * f)
+	p.Gravity = float64(p.Gravity * float64(f*f))
+	return p
 }
 
 // Rect is a half-open axis-aligned rectangle in pixels, y down, with its top-left corner at (X, Y).

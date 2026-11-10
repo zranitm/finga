@@ -152,7 +152,7 @@ classes:                   # base values per class; per_level grows them
 - **The factor** is 1 + move speed, rounded to thousandths, so Go and TypeScript multiply by the same number. *f²* is computed as `f × f` the same way on both sides, with each product rounded explicitly, as the sim already does against fused multiply-adds.
 - **The drop-through time** (0.25 s) stays a time; at a faster fall it still clears a platform.
 - **Towns:** *f* is 1 there; both sides read the map's kind from the shared map data.
-- **Vectors:** the movement vectors gain cases with *f* above 1 (walking, climbing a rope, a jump onto a platform, a fall at the clamp), in a hunting map and in a town. Both the Go and TypeScript sims must match them.
+- **Vectors:** the movement vectors gain cases at *f* = 1.3, the most move speed gives (walking, climbing a rope, a jump onto a platform, a fall at the clamp). Both the Go and TypeScript sims must match them. The sim knows no map kind, so the world's tests, and the client's, check that a town keeps *f* at 1.
 - **Speed changes take a moment to reach the client:**
   - gear, points, or a level-up change the factor on the server from the next tick;
   - the client switches when `StatsChanged` arrives;

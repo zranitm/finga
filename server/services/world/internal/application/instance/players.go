@@ -146,8 +146,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 		}
 		before := p.state
 		if !p.dead && !hold {
+			moves := i.movement(p)
 			for range i.subSteps {
-				p.state = sim.Step(p.state, p.held, i.m.Geometry, i.params)
+				p.state = sim.Step(p.state, p.held, i.m.Geometry, moves)
 			}
 		}
 		p.moved = p.state != before

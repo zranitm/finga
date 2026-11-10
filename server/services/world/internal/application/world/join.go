@@ -48,7 +48,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
-	stats := instance.StatsOf(w.data, class, c.Level, c.Points, worn)
+	stats := instance.StatsOf(w.data, class, c.Level, c.Points, worn, w.tick)
 	derived := stats.Derived
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {

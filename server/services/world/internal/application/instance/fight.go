@@ -74,7 +74,7 @@ func (i *Instance) resolveAttacks() {
 		if town || p.dead {
 			continue
 		}
-		p.cooldownUntil = i.tick + i.ticksFor(p.class.Attack.Cooldown)
+		p.cooldownUntil = i.tick + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
 		blow, reached := i.arena.Strike(mobs.Strike{
 			By: p.ID, Attack: p.class.Attack, Power: attackerOf(p.derived, p.class.Attack.Damage),
 			X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
