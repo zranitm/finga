@@ -272,6 +272,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	for _, s := range i.ground.Collect() {
 		i.settle(s)
 	}
+	i.tellHP()
 	for _, id := range i.order {
 		if p := i.players[id]; p.slot == n%i.ticksPer {
 			i.checkpoint(p)

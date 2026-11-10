@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"finga/internal/kernel"
+	"finga/internal/sim"
 	"finga/services/world/internal/model"
 )
 
@@ -197,6 +198,29 @@ func TestMapChatReachesOnlyTheMap(t *testing.T) {
 		}
 		if len(chats(sc)) != 0 {
 			t.Fatal("a line crossed maps")
+		}
+	})
+}
+
+// A party sees a member's HP fall to a mob, once for the tick it fell in.
+func TestPartyHearsHPLostToAMob(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		parties := &fakeParties{}
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{Parties: parties})
+		defer stop()
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		s := join(t, inst, warriorAt(260))
+		id := idOf(t, s)
+		worldtest.Walk(inst, id, 0, sim.Input{Right: true}, 2)
+		worldtest.Walk(inst, id, 2, sim.Input{}, 5)
+		if got := damages(s); len(got) != 1 || got[0].Amount != 5 {
+			t.Fatalf("damages %+v; want the slime's one hit", got)
+		}
+		ups := parties.updated()
+		if len(ups) != 2 || ups[1] != (partyUpdate{id, "arena", 1, 179, 184}) {
+			t.Fatalf("updates %+v; want the join's, then 179 of 184 once", ups)
 		}
 	})
 }

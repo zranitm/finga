@@ -88,4 +88,14 @@ func (i *Instance) retellParties() {
 
 func (i *Instance) tellParty(p *player, mapID string) {
 	i.deps.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
+	p.toldHP, p.toldMaxHP = p.HP, p.derived.MaxHP
+}
+
+// tellHP tells the party of each player whose HP or max HP changed since it last heard, once a tick; the copy keeps only a member's newest.
+func (i *Instance) tellHP() {
+	for _, id := range i.order {
+		if p := i.players[id]; p.HP != p.toldHP || p.derived.MaxHP != p.toldMaxHP {
+			i.tellParty(p, i.m.ID)
+		}
+	}
 }

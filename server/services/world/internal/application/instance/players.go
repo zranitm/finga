@@ -50,6 +50,8 @@ type player struct {
 	changed       bool          // HP, level or death changed this tick
 	private       []model.Event // events for this player only
 	equipping     int           // equips and unequips in flight, which keep the player on this map
+	toldHP        int           // the HP and max HP the party last heard
+	toldMaxHP     int
 }
 
 func (i *Instance) add(j *joinMsg) {
