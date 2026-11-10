@@ -108,6 +108,8 @@ export class World extends Phaser.Scene {
   private readonly numbers = new DamageNumbers();
   private numberLayer: DamageNumberLayer | null = null;
   private attackGate: AttackGate | null = null;
+  /** The attack key is down: the gate lets a strike through at each cooldown. */
+  private attackHeld = false;
   private readonly flash = new InvulnFlash();
   private transitionState: TransitionState = initialTransition;
 
@@ -254,18 +256,28 @@ export class World extends Phaser.Scene {
       bindKeyboard({
         target: {
           press: (a) => {
+            if (a === 'attack') {
+              this.attackHeld = true;
+              this.attack();
+              return;
+            }
             sender.press(a);
             if (a === 'up') {
               portals.keyDown(this.inPortal());
             }
           },
           release: (a) => {
+            if (a === 'attack') {
+              this.attackHeld = false;
+              return;
+            }
             sender.release(a);
             if (a === 'up') {
               portals.keyUp();
             }
           },
           releaseAll: () => {
+            this.attackHeld = false;
             sender.releaseAll();
             portals.keyUp();
           },
@@ -274,9 +286,6 @@ export class World extends Phaser.Scene {
         typing: isTyping,
         onAction: (action) => {
           switch (action) {
-            case 'attack':
-              this.attack();
-              return;
             case 'inventory':
               ui.getState().toggleWindow('inventory');
               return;
@@ -361,6 +370,9 @@ export class World extends Phaser.Scene {
       return;
     }
     const dead = this.transitionState.dead;
+    if (this.attackHeld) {
+      this.attack();
+    }
     for (const step of this.clock.advance(deltaMs)) {
       if (dead) {
         continue; // the server holds a dead player
@@ -725,6 +737,7 @@ export class World extends Phaser.Scene {
     this.predictor = null;
     this.sender = null;
     this.attackGate = null;
+    this.attackHeld = false;
     this.portals = null;
     this.view = null;
     this.placed = false;

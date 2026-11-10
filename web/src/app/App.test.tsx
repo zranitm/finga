@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,6 +10,7 @@ import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
 import { KickReason } from '@/protocol/messages';
+import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { Script } from '@/testing/fake-fetch';
 import { FakeGame } from '@/testing/fake-phaser';
@@ -98,8 +99,10 @@ describe('App', () => {
     ]);
     expect(game.registry.get(REGISTRY.visit)).toBe(visit);
 
+    act(() => ui.getState().openWindow('character'));
     await userEvent.click(screen.getByRole('button', { name: 'Back to characters' }));
     expect(game.stopped).toEqual([SCENES.World]);
+    expect(ui.getState().windows).toEqual([]); // the next Play opens none
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
     await waitFor(() => expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument());

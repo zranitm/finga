@@ -142,7 +142,8 @@ classes:                   # base values per class; per_level grows them
 
 - The world computes each player's cooldown in ticks: *⌈class cooldown ÷ (1 + attack speed) ÷ tick⌉*.
 - The sheet carries it as `attack_cooldown_ticks`.
-- The client's attack gate (`combat-view.ts`) uses that number instead of the class cooldown, so the gate and the server count the same ticks.
+- The client's attack gate (`combat-view.ts`) uses that number instead of the class cooldown, so the gate and the server count the same ticks. Holding the attack key strikes again at each cooldown.
+- **The cooldown moves a whole tick at a time.** At 20 ticks a second, a warrior's 600 ms becomes 550 ms only from about 9.1% attack speed, and a bowman's 800 ms becomes 750 ms from about 6.7%. Less than that shows in the character window but doesn't change the pace yet.
 
 ### Move speed
 

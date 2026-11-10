@@ -86,6 +86,8 @@ body {
 
 .window {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   min-width: 240px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -107,7 +109,9 @@ body {
   touch-action: none;
 }
 .window-body {
+  min-height: 0;
   padding: 12px;
+  overflow-y: auto;
 }
 
 .bar {

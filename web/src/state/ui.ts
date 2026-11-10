@@ -17,6 +17,8 @@ export interface UiState {
   closeWindow(name: WindowName): void;
   /** Escape's: the top-most window, whatever has focus. */
   closeTopWindow(): void;
+  /** Leaving the world: no window or chat stays asked for. */
+  clear(): void;
 }
 
 const without = (windows: readonly WindowName[], name: WindowName) =>
@@ -56,5 +58,8 @@ export const ui = defineStore<UiState>((set, get) => ({
     if (top !== undefined) {
       get().closeWindow(top);
     }
+  },
+  clear: () => {
+    set({ windows: [], chatOpen: false });
   },
 }));

@@ -138,6 +138,8 @@ function WorldOverlay({
   const characterOpen = ui.use((s) => s.windows.includes('character'));
   const partyOpen = ui.use((s) => s.windows.includes('party'));
   const me = characterStore.use((s) => s.character?.id ?? '');
+  // The next entry starts with no window open, whichever way this one ends.
+  useEffect(() => () => ui.getState().clear(), []);
   return (
     <>
       <Hud />

@@ -46,6 +46,11 @@ export function isMovement(action: Action): boolean {
   return movement.includes(action);
 }
 
+/** Acts while held: movement, and attack, which strikes again at each cooldown. */
+export function isHeld(action: Action): boolean {
+  return action === 'attack' || isMovement(action);
+}
+
 export function heldInput(held: ReadonlySet<Action>): Input {
   return {
     left: held.has('left'),
