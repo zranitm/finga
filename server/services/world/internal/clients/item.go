@@ -13,58 +13,82 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// Pickups adapts the item service to loot.Pickups.
-type Pickups struct{ c itemv1.ItemServiceClient }
+// Loot adapts the item service to loot.Items.
+type Loot struct{ c itemv1.ItemServiceClient }
 
-// NewPickups adapts the item client.
-func NewPickups(c itemv1.ItemServiceClient) Pickups { return Pickups{c: c} }
+// NewLoot adapts the item client.
+func NewLoot(c itemv1.ItemServiceClient) Loot { return Loot{c: c} }
 
-// Add keys the grant by the drop's ID, so a retry or replay grants it once.
-func (p Pickups) Add(ctx context.Context, in model.Pickup) (model.Inventory, error) {
-	drop := in.DropID.String()
-	res, err := p.c.Add(ctx, &itemv1.AddRequest{
-		Actor:          &itemv1.Actor{AccountId: in.Account.String(), CharacterId: in.Character.String()},
-		IdempotencyKey: drop,
-		TemplateId:     in.Template,
-		Quantity:       int32(in.Quantity),
-		Cause:          &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: drop},
-		Stats:          rollOf(in.Stats),
-	})
-	if err != nil {
-		return model.Inventory{}, err
+// AddMany grants an owner's drops, each keyed by its drop's own key, so a retried or regrouped call grants each once.
+func (l Loot) AddMany(ctx context.Context, in model.GrantCall) (model.Granted, error) {
+	req := &itemv1.AddManyRequest{Actor: &itemv1.Actor{AccountId: in.Account.String(), CharacterId: in.Character.String()}}
+	for _, d := range in.Drops {
+		key := d.Key.String()
+		req.Drops = append(req.Drops, &itemv1.AddManyDrop{
+			IdempotencyKey: key, TemplateId: d.Template, Quantity: int32(d.Quantity), //nolint:gosec // quantities are small
+			Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP, Id: key}, Stats: rollOf(d.Stats),
+		})
 	}
-	out := make([]model.Slot, 0, len(res.GetChanged()))
-	for _, s := range res.GetChanged() {
+	res, err := l.c.AddMany(ctx, req)
+	if err != nil {
+		return model.Granted{}, err
+	}
+	added, err := changedSlots(res.GetChanged())
+	if err != nil {
+		return model.Granted{}, err
+	}
+	out := model.Granted{Added: model.Inventory{Revision: res.GetRevision(), Slots: added}}
+	for _, o := range res.GetOutcomes() {
+		outcome, err := grantOutcome(o)
+		if err != nil {
+			return model.Granted{}, err
+		}
+		out.Outcomes = append(out.Outcomes, outcome)
+	}
+	return out, nil
+}
+
+// grantOutcome is one drop's answer; a key reused under another fingerprint means an earlier try granted the drop.
+func grantOutcome(o *itemv1.DropOutcome) (model.GrantOutcome, error) {
+	switch o.GetGrant() {
+	case itemv1.Grant_GRANT_GRANTED:
+		return model.GrantOutcome{Kind: model.GrantAdded}, nil
+	case itemv1.Grant_GRANT_ALREADY_GRANTED:
+		slots, err := changedSlots(o.GetChanged())
+		return model.GrantOutcome{Kind: model.GrantReplayed, Replayed: model.Inventory{Revision: o.GetRevision(), Slots: slots}}, err
+	case itemv1.Grant_GRANT_REFUSED:
+		switch o.GetReason() {
+		case itemv1.Reason_REASON_INVENTORY_FULL:
+			return model.GrantOutcome{Kind: model.GrantNoRoom}, nil
+		case itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED:
+			return model.GrantOutcome{Kind: model.GrantReplayed}, nil
+		default:
+			return model.GrantOutcome{Kind: model.GrantRefused, Reason: o.GetReason().String()}, nil
+		}
+	default:
+		return model.GrantOutcome{}, fmt.Errorf("a drop's outcome %v is unknown", o.GetGrant())
+	}
+}
+
+// changedSlots are slots as the item service sends them; an emptied one has no item.
+func changedSlots(in []*itemv1.Slot) ([]model.Slot, error) {
+	var out []model.Slot
+	for _, s := range in {
 		slot := model.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
 		if it := s.GetItem(); it != nil {
-			if slot.Item, err = slotItem(it); err != nil {
-				return model.Inventory{}, err
+			item, err := slotItem(it)
+			if err != nil {
+				return nil, err
 			}
+			slot.Item = item
 		}
 		out = append(out, slot)
 	}
-	return model.Inventory{Revision: res.GetRevision(), Slots: out}, nil
+	return out, nil
 }
 
-// Inventory reads every item the character holds, each as the slot it fills.
-func (p Pickups) Inventory(ctx context.Context, id kernel.CharacterID) (model.Inventory, error) {
-	res, err := p.c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: id.String()})
-	if err != nil {
-		return model.Inventory{}, err
-	}
-	out := make([]model.Slot, 0, len(res.GetItems()))
-	for _, it := range res.GetItems() {
-		if it.GetEquipSlot() != "" {
-			continue // worn, so in no inventory slot
-		}
-		item, err := slotItem(it)
-		if err != nil {
-			return model.Inventory{}, err
-		}
-		out = append(out, model.Slot{Tab: gamedata.Tab(it.GetTab()), Slot: int(it.GetSlot()), Item: item})
-	}
-	return model.Inventory{Revision: res.GetRevision(), Slots: out}, nil
-}
+// Retryable is a failure without a reason; a rule never passes on retry.
+func (Loot) Retryable(err error) bool { return !grpcx.IsRule(err) }
 
 // rollOf is a roll as the item service takes it, nil for none.
 func rollOf(s *progression.ItemStats) *itemv1.ItemStats {
@@ -139,18 +163,11 @@ func (e Equipment) Worn(ctx context.Context, id kernel.CharacterID) (model.Worn,
 }
 
 func equipped(changed []*itemv1.Slot, equipment []*itemv1.EquipSlot, worn []*itemv1.Item, revision uint64) (model.Equipped, error) {
-	out := model.Equipped{Worn: wornOf(worn, revision)}
-	for _, s := range changed {
-		slot := model.Slot{Tab: gamedata.Tab(s.GetTab()), Slot: int(s.GetSlot())}
-		if it := s.GetItem(); it != nil {
-			item, err := slotItem(it)
-			if err != nil {
-				return model.Equipped{}, err
-			}
-			slot.Item = item
-		}
-		out.Slots = append(out.Slots, slot)
+	slots, err := changedSlots(changed)
+	if err != nil {
+		return model.Equipped{}, err
 	}
+	out := model.Equipped{Slots: slots, Worn: wornOf(worn, revision)}
 	for _, s := range equipment {
 		slot := model.EquipSlot{Slot: s.GetEquipSlot()}
 		if it := s.GetItem(); it != nil {
@@ -182,15 +199,6 @@ func ruleOr(err error) error {
 		return err
 	}
 	return fmt.Errorf("%w: %w", transient.ErrUnavailable, err)
-}
-
-// Retryable is a failure without a reason; a rule never passes on retry.
-func (Pickups) Retryable(err error) bool { return !grpcx.IsRule(err) }
-
-// Granted is a reused key: an earlier try, under another fingerprint, already granted the drop.
-func (Pickups) Granted(err error) bool {
-	r, ok := grpcx.ReasonOf(err)
-	return ok && r == grpcx.Key(itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED)
 }
 
 // Starter adapts the item service to world.Starter.

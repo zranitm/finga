@@ -20,6 +20,7 @@ checkpoint_interval: 30s
 flush_timeout: 10s       # the last saves on shutdown, all together; after shutdown_grace
 item_calls:
   workers: 8             # the pool that runs the calls to the item service off the tick
+  batch_max: 32          # drops one grant call may carry, at most the item service's 32
 dependencies:            # where this service dials the ones it calls
   character: localhost:9002
   item: localhost:9003

@@ -1,12 +1,9 @@
 package handler
 
 import (
-	"log/slog"
-
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
 	"finga/internal/progression"
-	"finga/pkg/grpcx"
 	"finga/pkg/hub"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/model"
@@ -17,7 +14,6 @@ type streamSink struct {
 	sub       *hub.Sub[*worldv1.DeliverResponse]
 	character string
 	conn      string
-	log       *slog.Logger
 }
 
 // Stream is the player's gateway's stream, which every player joined through that gateway shares.
@@ -65,25 +61,26 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{
 			Slots: slots(ev.Slots), Revision: ev.Revision, Equipment: equipSlots(ev.Equipment),
 		}}}
-	case model.PickupFailed:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: s.pickupFailed(ev.Err)}}
+	case model.Loot:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
+			Kind: lootKind(ev.Kind), MapId: ev.MapID, DropId: ev.DropID, OwnerId: ev.Owner.String(), OwnerName: ev.OwnerName, Template: ev.Template, Quantity: int32(ev.Quantity),
+		}}}
 	case model.Detached:
 		return &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}}
 	}
 	return nil
 }
 
-// pickupFailed logs a reasonless failure here, where its cause is known.
-func (s *streamSink) pickupFailed(err error) *worldv1.PickupFailed {
-	st, explained := Errors.Status(err)
-	if !explained {
-		s.log.Error("pickup failed", "character_id", s.character, "err", err)
+func lootKind(k model.LootKind) worldv1.LootKind {
+	switch k {
+	case model.LootCollected:
+		return worldv1.LootKind_LOOT_KIND_COLLECTED
+	case model.LootWaiting:
+		return worldv1.LootKind_LOOT_KIND_WAITING
+	case model.LootLost:
+		return worldv1.LootKind_LOOT_KIND_LOST
 	}
-	r, ok := grpcx.ReasonOf(st.Err())
-	if !ok {
-		return &worldv1.PickupFailed{}
-	}
-	return &worldv1.PickupFailed{ErrorDomain: r.Domain, ErrorReason: r.Name}
+	return worldv1.LootKind_LOOT_KIND_UNSPECIFIED
 }
 
 func entityRef(r model.EntityRef) *worldv1.EntityRef {
@@ -130,7 +127,7 @@ func dropViews(ds []model.DropView) []*worldv1.DropView {
 	}
 	out := make([]*worldv1.DropView, 0, len(ds))
 	for _, d := range ds {
-		out = append(out, &worldv1.DropView{Id: d.ID, Template: d.Template, Quantity: int32(d.Quantity), X: d.X, Y: d.Y})
+		out = append(out, &worldv1.DropView{Id: d.ID, Template: d.Template, Quantity: int32(d.Quantity), X: d.X, Y: d.Y, OwnerId: d.Owner.String()})
 	}
 	return out
 }
@@ -204,7 +201,7 @@ func (g gatewayStream) SendFrame(f *model.Frame, to []model.Recipient) bool {
 func encodeFrame(f *model.Frame) *worldv1.Delta {
 	d := &worldv1.Delta{
 		Players: playerViews(f.Players), Mobs: mobViews(f.Mobs), Drops: dropViews(f.Drops),
-		RemovedMobs: f.RemovedMobs, RemovedDrops: f.RemovedDrops,
+		RemovedMobs: f.RemovedMobs, RemovedDrops: f.RemovedDrops, CollectedDrops: f.CollectedDrops,
 	}
 	for _, id := range f.Removed {
 		d.RemovedPlayers = append(d.RemovedPlayers, id.String())

@@ -16,8 +16,10 @@ service WorldService {
   rpc Input(InputRequest) returns (InputResponse);
   // Attack queues a basic attack the way the character faces.
   rpc Attack(AttackRequest) returns (AttackResponse);
-  // PickUp asks for the nearest eligible drop in reach.
-  rpc PickUp(PickUpRequest) returns (PickUpResponse);
+  // PickUp does nothing: drops fly to their owners by themselves. It answers for a gateway that still routes the key.
+  rpc PickUp(PickUpRequest) returns (PickUpResponse) {
+    option deprecated = true;
+  }
   // EnterPortal takes the portal the character stands in, if any.
   rpc EnterPortal(EnterPortalRequest) returns (EnterPortalResponse);
   // Say is a map chat line, already cleaned by the social service.
@@ -37,8 +39,9 @@ enum Reason {
   REASON_STOPPED = 3;
   // No Deliver stream is open for the gateway.
   REASON_NOT_SUBSCRIBED = 4;
-  REASON_PICKUPS_UNAVAILABLE = 5;
-  REASON_PICKUP_BUSY = 6;
+  // Retired with PickUp: nothing answers them.
+  REASON_PICKUPS_UNAVAILABLE = 5 [deprecated = true];
+  REASON_PICKUP_BUSY = 6 [deprecated = true];
   REASON_BAD_ID = 7;
   // The character's class has no formulas in the game data.
   REASON_CLASS_UNAVAILABLE = 8;
@@ -137,10 +140,12 @@ message DeliverResponse {
     LevelUp level_up = 11;
     Chat chat = 12;
     InventoryChanged inventory_changed = 13;
-    PickupFailed pickup_failed = 14;
+    // Retired with PickUp: never sent.
+    PickupFailed pickup_failed = 14 [deprecated = true];
     Detached detached = 16;
     Frame frame = 17;
     StatsChanged stats_changed = 18;
+    Loot loot = 19;
   }
 }
 
@@ -206,6 +211,8 @@ message DropView {
   int32 quantity = 3;
   double x = 4;
   double y = 5;
+  // The character it flies to once collected.
+  string owner_id = 6;
 }
 
 // Snapshot is the whole map, sent on join.
@@ -225,7 +232,10 @@ message Delta {
   repeated DropView drops = 4;
   repeated string removed_players = 5;
   repeated uint64 removed_mobs = 6;
+  // Drops gone without reaching an inventory: expired or lost.
   repeated uint64 removed_drops = 7;
+  // Drops that left the ground for their owners' inventories.
+  repeated uint64 collected_drops = 8;
 }
 
 // Teleport moves the player to another map; the target instance sends the Snapshot.
@@ -283,7 +293,7 @@ message Chat {
   string text = 3;
 }
 
-// InventoryChanged is the slots and equip slots a committed pickup, equip or unequip changed.
+// InventoryChanged is the slots and equip slots a committed grant, equip or unequip changed.
 message InventoryChanged {
   repeated Slot slots = 1;
   // The inventory's revision these slots show, from the item service; 0 when it gave none.
@@ -342,7 +352,30 @@ message ItemStats {
   int32 max_mp = 13;
 }
 
-// PickupFailed says why a pickup did not happen; the drop stays.
+// LootKind is what became of a drop.
+enum LootKind {
+  LOOT_KIND_UNSPECIFIED = 0;
+  // In its owner's inventory.
+  LOOT_KIND_COLLECTED = 1;
+  // On the ground until its owner has room.
+  LOOT_KIND_WAITING = 2;
+  // Gone at the end of its life, never collected.
+  LOOT_KIND_LOST = 3;
+}
+
+// Loot tells a player what became of a drop: collected goes to its owner and the party members on the map, waiting and lost to the owner only.
+message Loot {
+  LootKind kind = 1;
+  // The map whose drop it is: drop IDs are a map's own.
+  string map_id = 2;
+  uint64 drop_id = 3;
+  string owner_id = 4;
+  string owner_name = 5;
+  string template = 6;
+  int32 quantity = 7;
+}
+
+// PickupFailed said why a pickup did not happen. Retired with PickUp.
 message PickupFailed {
   // The proto package of the service whose Reason this is.
   string error_domain = 1;

@@ -30,15 +30,12 @@ func (quiet) CallDone()                                        {}
 // nothing stands in for the services this test never reaches: the item, character and save paths.
 type nothing struct{}
 
-func (nothing) Add(context.Context, model.Pickup) (model.Inventory, error) {
-	return model.Inventory{}, errNever
+func (nothing) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
+	return model.Granted{}, errNever
 }
-func (nothing) Retryable(error) bool { return false }
-func (nothing) Granted(error) bool   { return false }
-func (nothing) Refused(error) bool   { return false }
-func (nothing) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
-	return model.Inventory{}, errNever
-}
+func (nothing) Retryable(error) bool                                   { return false }
+func (nothing) Refused(error) bool                                     { return false }
+func (nothing) ObserveBatch(int)                                       {}
 func (nothing) SaveCheckpoint(context.Context, model.Checkpoint) error { return errNever }
 func (nothing) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {
 	return model.Character{}, errNever
@@ -54,7 +51,6 @@ var errNever = errors.New("not reached in this test")
 type alone struct{}
 
 func (alone) Party(kernel.CharacterID) model.Party             { return model.Party{} }
-func (alone) SameParty(_, _ kernel.CharacterID) bool           { return false }
 func (alone) Update(kernel.CharacterID, string, int, int, int) {}
 func (alone) Epoch() uint64                                    { return 0 }
 
@@ -67,9 +63,9 @@ func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 		}
 		rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 		w := New(Deps{
-			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Items: nothing{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: quiet{}, Panics: rec}, itemcalls.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
+			NewRoll: func() model.Roll { return half{} }, Observer: quiet{}, Parties: alone{}, Items: nothing{}, Batches: nothing{}, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: quiet{}, Panics: rec}, itemcalls.Options{Workers: 1}), Traces: noop.NewTracerProvider(),
 			Data: data, Saver: nothing{}, Characters: nothing{}, Starter: nothing{}, SaveObserver: nothing{}, Panics: rec, Logger: slog.New(slog.DiscardHandler),
-		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second})
+		}, Tuning{TickInterval: 50 * time.Millisecond, CheckpointInterval: time.Hour, FlushTimeout: time.Second, BatchMax: 32})
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan struct{})
 		go func() { defer close(done); _ = w.Run(ctx) }()

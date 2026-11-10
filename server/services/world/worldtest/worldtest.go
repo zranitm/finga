@@ -192,7 +192,7 @@ func worldTraces() *tracing.Provider {
 	return tp
 }
 
-// Options are what a test sets; Fill gives the rest a 50 ms tick, rolls of 0.5 and services that do nothing.
+// Options are what a test sets; Fill gives the rest a 50 ms tick, rolls of 0.5, grant calls of up to 32 drops and services that do nothing.
 type Options struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
@@ -200,7 +200,9 @@ type Options struct {
 	NewRoll            func() model.Roll
 	Observer           instance.TickObserver
 	Transfer           instance.Mover // a map's; the World moves players itself
-	Items              loot.Pickups
+	Items              loot.Items
+	Batches            loot.Observer
+	BatchMax           int // drops per grant call
 	Equipment          instance.Equipment
 	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
@@ -229,6 +231,10 @@ func (o Options) Fill() Options {
 	if o.Items == nil {
 		o.Items = nobody{}
 	}
+	if o.Batches == nil {
+		o.Batches = nobody{}
+	}
+	o.BatchMax = cmp.Or(o.BatchMax, 32)
 	if o.Equipment == nil {
 		o.Equipment = nobody{}
 	}
@@ -261,7 +267,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Equipment: o.Equipment, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -292,7 +298,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 	if cps == nil {
 		cps = &Checkpoints{}
 	}
-	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval})
+	return instance.New(instance.Deps{Services: o.Services(), Map: m, Data: data, Saves: cps, Mover: o.Transfer, Logger: o.Logger}, instance.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, BatchMax: o.BatchMax})
 }
 
 // NewWorld builds a World over data with o filled in.
@@ -301,7 +307,7 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
 	return world.New(world.Deps{
 		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe,
 		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
-	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout})
+	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax})
 }
 
 // Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.
@@ -347,9 +353,6 @@ func (nobody) Dropped(*instance.Instance, kernel.CharacterID, string) {}
 // Party is none.
 func (nobody) Party(kernel.CharacterID) model.Party { return model.Party{} }
 
-// SameParty is never.
-func (nobody) SameParty(_, _ kernel.CharacterID) bool { return false }
-
 // Epoch never changes.
 func (nobody) Epoch() uint64 { return 0 }
 
@@ -368,18 +371,13 @@ func (nobody) Retryable(error) bool { return false }
 // SaveDropped counts nothing.
 func (nobody) SaveDropped(string) {}
 
-// Granted is never.
-func (nobody) Granted(error) bool { return false }
-
-// Inventory refuses.
-func (nobody) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
-	return model.Inventory{}, errNobody
+// AddMany refuses.
+func (nobody) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
+	return model.Granted{}, errNobody
 }
 
-// Add refuses.
-func (nobody) Add(context.Context, model.Pickup) (model.Inventory, error) {
-	return model.Inventory{}, errNobody
-}
+// ObserveBatch counts nothing.
+func (nobody) ObserveBatch(int) {}
 
 // GrantStarter grants nothing, and does not fail a join.
 func (nobody) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {

@@ -22,7 +22,8 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 	}
 	frame := &model.Frame{
 		Tick: 3, Players: []model.PlayerView{{ID: kernel.NewCharacterID(), Name: "Ayla"}}, Mobs: []model.MobView{{ID: 4}},
-		Drops: []model.DropView{{ID: 5}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{7},
+		Drops: []model.DropView{{ID: 5, Owner: kernel.NewCharacterID()}}, Removed: []kernel.CharacterID{kernel.NewCharacterID()}, RemovedMobs: []uint64{6}, RemovedDrops: []uint64{7},
+		CollectedDrops: []uint64{8},
 	}
 	ayla, robin := kernel.NewCharacterID(), kernel.NewCharacterID()
 	if !a.Stream().SendFrame(frame, []model.Recipient{{Character: ayla, Connection: "c-a", AckSeq: 8}, {Character: robin, Connection: "c-b"}}) {
@@ -42,8 +43,8 @@ func TestAFrameGoesToItsGatewayOnce(t *testing.T) {
 	if !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
-	if d := got.GetFrame().GetDelta(); len(d.GetPlayers()) != 1 || len(d.GetMobs()) != 1 || len(d.GetDrops()) != 1 || len(d.GetRemovedPlayers()) != 1 ||
-		len(d.GetRemovedMobs()) != 1 || len(d.GetRemovedDrops()) != 1 {
+	if d := got.GetFrame().GetDelta(); len(d.GetPlayers()) != 1 || len(d.GetMobs()) != 1 || len(d.GetDrops()) != 1 || d.GetDrops()[0].GetOwnerId() != frame.Drops[0].Owner.String() ||
+		len(d.GetRemovedPlayers()) != 1 || len(d.GetRemovedMobs()) != 1 || len(d.GetRemovedDrops()) != 1 || len(d.GetCollectedDrops()) != 1 {
 		t.Fatalf("the frame lost a part: %v", d)
 	}
 }
@@ -122,5 +123,29 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	}}}
 	if got := <-sub.C(); !proto.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+// Loot tells what became of a drop, naming its owner, so a party member's line can say who got it.
+func TestLootCarriesWhatBecameOfTheDrop(t *testing.T) {
+	owner := kernel.NewCharacterID()
+	for kind, want := range map[model.LootKind]worldv1.LootKind{
+		model.LootCollected: worldv1.LootKind_LOOT_KIND_COLLECTED,
+		model.LootWaiting:   worldv1.LootKind_LOOT_KIND_WAITING,
+		model.LootLost:      worldv1.LootKind_LOOT_KIND_LOST,
+		0:                   worldv1.LootKind_LOOT_KIND_UNSPECIFIED,
+	} {
+		sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+		s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+		if !s.Send(model.Loot{Tick: 6, Kind: kind, MapID: "forest", DropID: 9, Owner: owner, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}) {
+			t.Fatal("the stream refused the loot")
+		}
+		got := <-sub.C()
+		wantMsg := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 6, Event: &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
+			Kind: want, MapId: "forest", DropId: 9, OwnerId: owner.String(), OwnerName: "Robin", Template: "slime_gel", Quantity: 2,
+		}}}
+		if !proto.Equal(got, wantMsg) {
+			t.Fatalf("got %v, want %v", got, wantMsg)
+		}
 	}
 }

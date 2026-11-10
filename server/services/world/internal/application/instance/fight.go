@@ -47,7 +47,7 @@ func (i *Instance) resolveAttacks() {
 		}
 		i.events = append(i.events, blow.Damage)
 		if k := blow.Killed; k != nil {
-			i.ground.Roll(k.Mob, k.X, k.Y, p.ID)
+			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y))
 			i.shareExp(p, k.Mob.Exp)
 		}
 	}

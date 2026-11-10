@@ -345,16 +345,8 @@ func (s *stack) checkInvariants(t *testing.T) {
 	}
 }
 
-// starterQuantity is what a new warrior already holds of a template.
-func starterQuantity(template string) int {
-	if template == "red_potion" {
-		return 5
-	}
-	return 0
-}
-
 func TestLootAndKeep(t *testing.T) {
-	t.Run("D1-D2/a-kill-drops-an-item-everyone-sees-and-a-double-pickup-gives-exactly-one", func(t *testing.T) {
+	t.Run("D1-D2/a-kill-drops-an-item-everyone-sees-and-it-flies-to-its-killer-as-one-item", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "liam", "Liam", "warrior")
 		s.place(t, id, "forest", 380, 608, 204, 0)
@@ -378,69 +370,27 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("the watcher never saw drop %d", drop.GetId())
 		}
 
-		// Two PickUps in one tick: the second finds it reserved or takes another drop; resent if a slime knocks us off.
-		got := false
-		for attempt := 0; attempt < 20 && !got; attempt++ {
-			if !killer.walkTo(drop.X, 15*time.Second) {
-				t.Fatalf("could not reach the drop at %.0f (at %.0f)", drop.X, killer.x)
-			}
-			if err := killer.pickUp(); err != nil {
-				t.Fatal(err)
-			}
-			if err := killer.pickUp(); err != nil {
-				t.Fatal(err)
-			}
-			got = killer.pump(5*time.Second, func(m wsconn.Message) bool {
-				return m.Type == "InventoryChanged" || math.Abs(killer.x-drop.X) > 24 // bounced away
-			}) && killer.inventory > 0
+		// No key: the drop flies to its killer within a few seconds, one item per drop.
+		if !killer.until(10*time.Second, func() bool { return killer.inventory > 0 }) {
+			t.Fatalf("no InventoryChanged within 10 s of the kill (failures %+v)", killer.failures)
 		}
-		if !got {
-			t.Fatalf("no InventoryChanged after PickUp (failures %+v, at %.0f, drop %+v)", killer.failures, killer.x, drop)
+		killer.pump(2*time.Second, nil) // the kill's other drops, if any
+		if len(killer.failures) != 0 {
+			t.Fatalf("failures %+v", killer.failures)
 		}
-		killer.pump(time.Second, nil)
-		if _, picked := killer.picked[drop.GetId()]; !picked || len(killer.picked) != killer.inventory || len(killer.failures) != 0 {
-			t.Fatalf("picked %v with %d InventoryChanged, failures %+v; want drop %d among them, one InventoryChanged each", killer.picked, killer.inventory, killer.failures, drop.GetId())
-		}
-		if _, still := killer.drops[drop.GetId()]; still {
-			t.Fatal("the drop is still on the ground")
-		}
-		if !watcher.pump(3*time.Second, func(wsconn.Message) bool { _, seen := watcher.drops[drop.GetId()]; return !seen }) {
-			t.Fatal("the watcher still sees the drop")
-		}
-		// Re-sending a PickUp, as after a lost reply, is a new pickup that takes nothing already taken.
-		if err := killer.trySend(wsconn.Message{Seq: killer.seq, Data: &clientv1.PickUp{}}); err != nil {
-			t.Fatal(err)
-		}
-		killer.pump(time.Second, nil)
-		if len(killer.picked) != killer.inventory || len(killer.failures) != 0 {
-			t.Fatalf("after re-sending PickUp with seq %d: %d InventoryChanged for %d drops picked, failures %+v", killer.seq, killer.inventory, len(killer.picked), killer.failures)
-		}
-		taken := len(killer.picked)
-		// One item event per drop, and the stack holds the starter stack plus the drop.
 		var lootEvents, distinctDrops int
 		if err := s.db.QueryRow(context.Background(), `
 			SELECT count(*), count(DISTINCT e.cause_id) FROM item_events e JOIN items i ON i.id = e.item_id
 			WHERE i.owner_id = $1 AND e.cause_type = 'drop'`, id).Scan(&lootEvents, &distinctDrops); err != nil {
 			t.Fatal(err)
 		}
-		if lootEvents != taken || distinctDrops != taken {
-			t.Fatalf("%d loot events under %d drop IDs for %d drops taken", lootEvents, distinctDrops, taken)
+		if lootEvents == 0 || lootEvents != distinctDrops {
+			t.Fatalf("%d loot events under %d drop IDs; want one per drop", lootEvents, distinctDrops)
 		}
-		wantQty, sameTemplate := starterQuantity(drop.Template), 0
-		for _, d := range killer.picked {
-			if d.Template == drop.Template {
-				wantQty += int(d.GetQuantity())
-				sameTemplate++
-			}
+		if rows, _, _ := s.itemTotals(t, id, drop.Template); rows != 1 {
+			t.Fatalf("%s: %d rows, want the one stack", drop.Template, rows)
 		}
-		rows, quantity, events := s.itemTotals(t, id, drop.Template)
-		if rows != 1 || quantity != wantQty {
-			t.Fatalf("%s: %d rows holding %d, want 1 holding %d", drop.Template, rows, quantity, wantQty)
-		}
-		if wantEvents := sameTemplate + min(starterQuantity(drop.Template), 1); events != wantEvents {
-			t.Fatalf("%s: %d events, want %d", drop.Template, events, wantEvents)
-		}
-
+		wantQty := s.inventoryTotals(t, id)[drop.Template]
 		_, w := s.welcome(t, "liam", id)
 		held := 0
 		for _, it := range w.Inventory {

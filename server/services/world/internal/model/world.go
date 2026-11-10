@@ -8,8 +8,6 @@ import (
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/internal/sim"
-
-	"github.com/google/uuid"
 )
 
 // The world's errors.
@@ -134,7 +132,9 @@ type Frame struct {
 	Drops        []DropView // new on the ground
 	Removed      []kernel.CharacterID
 	RemovedMobs  []uint64
-	RemovedDrops []uint64
+	RemovedDrops []uint64 // gone without an owner taking them: expired or lost
+	// CollectedDrops left the ground for their owners' inventories.
+	CollectedDrops []uint64
 }
 
 // Recipient is a player a frame goes to, with AckSeq, the latest input applied for it.
@@ -242,12 +242,13 @@ type Checkpoint struct {
 	Stats gamedata.Stats
 }
 
-// DropView is an item on the ground as everyone sees it.
+// DropView is an item on the ground as everyone sees it, with the player it will fly to.
 type DropView struct {
 	ID       uint64
 	Template string
 	Quantity int
 	X, Y     float64
+	Owner    kernel.CharacterID
 }
 
 // InventoryChanged tells the player which slots and equip slots a committed change touched, as they stood at the inventory's Revision.
@@ -264,7 +265,7 @@ type Inventory struct {
 	Slots    []Slot
 }
 
-// Slot is one inventory slot a pickup touched; Item is nil when it emptied.
+// Slot is one inventory slot a change touched; Item is nil when it emptied.
 type Slot struct {
 	Tab  gamedata.Tab
 	Slot int
@@ -312,28 +313,4 @@ type Equipped struct {
 	Worn      Worn
 }
 
-// PickupFailed says why a pickup failed; the drop stays on the ground.
-type PickupFailed struct {
-	Tick uint64
-	Err  error
-}
-
-// The pickup errors the world raises itself.
-var (
-	ErrPickupsUnavailable = errors.New("world: pickups unavailable")
-	ErrPickupBusy         = errors.New("world: pickup workers busy")
-)
-
 func (InventoryChanged) event() {}
-
-func (PickupFailed) event() {}
-
-// Pickup is one pickup for the item service; DropID is its idempotency key.
-type Pickup struct {
-	Account   kernel.AccountID // scopes the idempotency key
-	Character kernel.CharacterID
-	DropID    uuid.UUID
-	Template  string
-	Quantity  int
-	Stats     *progression.ItemStats // equipment's roll, nil for anything else
-}

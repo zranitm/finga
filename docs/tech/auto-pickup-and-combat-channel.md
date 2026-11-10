@@ -27,7 +27,7 @@ From the code (the rules this design keeps):
 | World: a full inventory | The pickup fails; the drop is free again | The drop waits, owned. One grant per owner is retried every 2 seconds until there is room or the drop's life ends. |
 | Social stream | `Membership{character_ids, members}` | Adds `party_id`, so a map can keep a turn per party |
 | Game data | Loot timings are constants in `ground.go` | `data/loot.yaml`: `collect_delay` (1s), `drop_life` (60s), `room_check_every` (2s) |
-| Client protocol | `PickUp`; drops have no owner; a removed drop just goes | `DropView.owner`; `Delta.collected_drops`; a new `Loot` message; `PickUp` unused |
+| Client protocol | `PickUp`; drops have no owner; a removed drop just goes | `DropView.owner_id`; `Delta.collected_drops`; a new `Loot` message; `PickUp` unused |
 | Gateway | Routes `PickUp` to the world | No `PickUp` route; `pickup_busy` and `pickups_unavailable` retire |
 | Client | Pickup key, pickup hint, one chat list | No pickup key; drops fly to their owner; chat box tabs General, Party, Combat; a combat log; a toast for 4★ and up |
 | Item service | `Add` per pickup | `AddMany`: several drops for one owner in one transaction, each under its own key and savepoint; `Add` stays |
@@ -44,7 +44,7 @@ From the code (the rules this design keeps):
   - **A dead member is skipped**, and so is one on another map.
 - **The party ID:** the social service's party stream gains `party_id` in `Membership` (internal, additive), and the world's party copy keeps it, so the turn is keyed by party and not by a member list that changes.
 - **Turns are per map:** members on two maps take turns separately, which matches the rule that only members on the map are eligible.
-- **A world restart** loses the turns and starts each party again from its first member. Nothing else depends on them.
+- **A world restart** loses the turns and starts each party again from its first member. Nothing else depends on them. A map also forgets a party's turn it hasn't used for 10 minutes.
 - **Saved with each drop at the kill:** the owner's account ID, which scopes the idempotency key, and the owner's delivery sink. A grant made after the owner has left the map still reaches their connection, through `tell` as today.
 
 ## 4. Collecting a drop
@@ -56,11 +56,12 @@ A drop goes through these states, all inside `Ground` on the map's tick:
 | **Falling** | From the kill until `collectAt` = kill tick + `collect_delay`. Everyone sees it on the ground. |
 | **Collecting** | From `collectAt` the drop is due. Its owner's due drops go to the item-call pool as one batch (`item.AddMany`, section 5), each with its key, template, quantity, and roll. When the pool's queue is full, they just try again next tick; nobody is told, since nobody asked. |
 | **Collected** | The result comes back through the inbox (`Settle`). The drop leaves the ground, listed in this tick's `collected_drops`, and the owner gets `InventoryChanged` and a `Loot` (collected). Party members on the map get the same `Loot`, naming the owner. |
-| **Waiting for room** | The item service answered `inventory_full` for this drop. The drop stays on the ground, owned, and the owner gets one `Loot` (waiting). The owner's waiting drops are retried together, as one batch, every `room_check_every`. A player with a full inventory therefore costs one item-service call every 2 seconds, however many drops wait. |
-| **Unsettled** | The item service didn't answer, so the grant may have committed. As today, it is retried under the same key: every `room_check_every`, and once more as the drop's life ends (the existing last try in `Expire`). The key makes every retry safe. |
+| **Waiting for room** | The item service answered `inventory_full` for this drop. The drop stays on the ground, owned, and the owner gets one `Loot` (waiting). The owner's waiting drops are retried together, as one batch, every `room_check_every`, counted from the last answer, and they go along with any other call the owner makes meanwhile. A player with a full inventory therefore costs one item-service call every 2 seconds, however many drops wait. |
+| **Refused** | The item service refused it by another rule, such as a bad roll or an unknown item. No retry passes such a rule, so the drop is lost at once, and the world logs the reason. |
+| **Unsettled** | The item service didn't answer, so the grant may have committed. As today, it is retried under the same key: every `room_check_every`, and once more as the drop's life ends. A drop past its life whose call is still out waits for the answer, and one never sent, the pool being full, still gets that one try. The key makes every retry safe. |
 | **Lost** | `drop_life` passed with the drop still waiting. It leaves the ground (`removed_drops`, not `collected_drops`), and the owner gets a `Loot` (lost). |
 
-- **What goes:** `PickUp`, `Picker`, `pickupRange`, `lootWindow`, `reservedBy`, the `pickMsg` inbox message, and `ErrPickupBusy`. `Settle` stays, now once per drop from the batch's per-drop outcomes, and so does the single quick retry on a worker. The inventory read after a lost reply goes too: a retried batch's already-granted drops answer their stored replies.
+- **What goes:** `PickUp`, `Picker`, `pickupRange`, `lootWindow`, `reservedBy`, the `pickMsg` inbox message, `PickupFailed`, `ErrPickupBusy` and `ErrPickupsUnavailable`. `Settle` stays, now once per call, settling each drop from its own outcome, and so does the single quick retry on a worker. The inventory read after a lost reply goes too: a retried batch's already-granted drops answer their stored replies.
 - **Logged out or reconnecting:** the grant still commits, since it needs only the account and character IDs. The `InventoryChanged` and `Loot` go to a connection that no longer exists and are dropped. The player sees the item in the next Welcome.
 - **Death of the owner** doesn't change anything: ownership was settled at the kill.
 
@@ -73,7 +74,7 @@ Today players skip part of the loot: in the proof session the bots made 699 pick
 - **The rule:** an owner never has more than one grant call in flight. When that call's result comes back through the inbox, every drop of theirs that came due meanwhile goes in the next call, oldest first, up to `item_calls.batch_max` (world config, 32 to start).
 - **No waiting at low load:** when nothing is in flight, a due drop goes at once, alone or with the other drops of the same kill. The 1-second delay is never stretched to fill a batch.
 - **Under load, batches grow by themselves:** the slower the item service answers, the more drops each call carries. Calls per second stay near the number of owners who are collecting, not the number of drops.
-- **The same rule covers waiting drops:** the owner's waiting drops are the batch retried every `room_check_every`. Drops that are still unsettled go back into the owner's next batch under their own keys.
+- **The same rule covers waiting drops:** the owner's waiting drops are the batch retried every `room_check_every`, and they ride along in any call the owner makes before then. Drops that are still unsettled go back into the owner's next batch under their own keys.
 - A metric, `finga_item_calls_batch_size` (a histogram), shows how full the batches run.
 
 ### In the item service: `AddMany`
@@ -97,9 +98,9 @@ At the load-test target of 1,000 players on one node, the drops come to the low 
 
 | Message | Change |
 | --- | --- |
-| `DropView` | Gains `owner` (character ID), so every client knows where a drop will fly |
+| `DropView` | Gains `owner_id` (character ID), so every client knows where a drop will fly |
 | `Delta` | Gains `repeated uint32 collected_drops`: drops that left the ground because they were collected. `removed_drops` keeps meaning "gone": expired or lost. |
-| `Loot` (server) | New: `kind` (`COLLECTED`, `WAITING`, `LOST`), `drop_id`, `owner` (ID), `owner_name`, `template`, `quantity`. `COLLECTED` goes to the owner and to party members on the map; `WAITING` and `LOST` go to the owner only. |
+| `Loot` (server) | New: `kind` (`COLLECTED`, `WAITING`, `LOST`), `map_id`, `drop_id`, `owner_id`, `owner_name`, `template`, `quantity`. Drop IDs are a map's own, so `map_id` tells two maps' drops apart. `COLLECTED` goes to the owner and to party members on the map; `WAITING` and `LOST` go to the owner only. |
 | `PickUp` (client) | Marked deprecated; the gateway no longer routes it, so a press from an older client does nothing |
 
 - EXP and level-ups need nothing new: the combat channel reads the existing `ExpGained` (a negative amount is the death penalty) and `LevelUp`.
@@ -110,10 +111,11 @@ At the load-test target of 1,000 players on one node, the drops come to the low 
 
 - `social.v1`: `Membership` gains `party_id`.
 - `world.v1`:
-  - the `PickUp` rpc is deprecated and no longer called;
+  - the `PickUp` rpc is deprecated: it answers and does nothing, for a gateway that still routes the key;
+  - `pickup_failed` and the reasons `pickups_unavailable` and `pickup_busy` are deprecated, never sent;
   - `DeliverResponse` gains `Loot`;
   - the delta frame gains `collected_drops`;
-  - `DropView` gains `owner`.
+  - `DropView` gains `owner_id`.
 - `item.v1`: new `AddMany` (section 5); `Add` unchanged.
 
 ## 7. Client
@@ -197,9 +199,9 @@ On `feat/auto-pickup`, based on `main` after PR #2. Each step is one commit, gre
    - owners at the kill and round-robin;
    - automatic grants batched per owner over `AddMany`;
    - waiting for room and lost drops;
-   - `Loot` and `collected_drops` in the world's own model.
+   - `Loot` and `collected_drops` in the world's own model and in `world.v1`, its contract with the gateway.
    `PickUp` stops doing anything in the world.
-5. **Gateway and protocol:** `DropView.owner`, `Delta.collected_drops`, `Loot`, the `PickUp` route removed, the two codes retired, contracts, and the bot.
+5. **Gateway and protocol:** `DropView.owner_id`, `Delta.collected_drops`, `Loot`, the `PickUp` route removed, the two codes retired, contracts, and the bot.
 6. **End to end and the crash test**, rewritten for auto pickup, and a `make bots` run to record the batch sizes and the item service's latency.
 7. **Client, drops:** no pickup key or hint; drops fly or fade.
 8. **Client, combat channel:** the combat log, chat tabs, the 4★ toast, and the HUD waiting notice.

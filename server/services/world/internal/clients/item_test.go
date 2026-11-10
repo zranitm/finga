@@ -3,6 +3,7 @@ package clients_test
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -24,7 +25,8 @@ import (
 type items struct {
 	itemv1.UnimplementedItemServiceServer
 	mu       sync.Mutex
-	adds     []*itemv1.AddRequest
+	batches  []*itemv1.AddManyRequest
+	answer   *itemv1.AddManyResponse // every AddMany's
 	grants   []*itemv1.GrantStarterRequest
 	equips   []*itemv1.EquipRequest
 	unequips []*itemv1.UnequipRequest
@@ -43,11 +45,11 @@ func (f *items) Inventory(_ context.Context, req *itemv1.InventoryRequest) (*ite
 	return &itemv1.InventoryResponse{Items: f.held, Revision: f.revision}, f.err
 }
 
-func (f *items) Add(_ context.Context, req *itemv1.AddRequest) (*itemv1.AddResponse, error) {
+func (f *items) AddMany(_ context.Context, req *itemv1.AddManyRequest) (*itemv1.AddManyResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.adds = append(f.adds, req)
-	return &itemv1.AddResponse{Changed: f.changed, Revision: f.revision}, f.err
+	f.batches = append(f.batches, req)
+	return f.answer, f.err
 }
 
 func (f *items) GrantStarter(_ context.Context, req *itemv1.GrantStarterRequest) (*itemv1.GrantStarterResponse, error) {
@@ -78,49 +80,90 @@ func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
 	return itemv1.NewItemServiceClient(grpctest.Conn(t, srv))
 }
 
-func TestPickupsAddTheDropUnderItsOwnKey(t *testing.T) {
-	gel := kernel.NewItemID()
-	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 2, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7}}, {Tab: "etc", Slot: 4}}, revision: 31}
-	p := clients.NewPickups(itemClient(t, f))
-	in := model.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuidv7.New(), Template: "slime_gel", Quantity: 2}
-	changed, err := p.Add(context.Background(), in)
-	if err != nil {
+func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
+	f := &items{answer: &itemv1.AddManyResponse{Outcomes: []*itemv1.DropOutcome{{Grant: itemv1.Grant_GRANT_GRANTED}, {Grant: itemv1.Grant_GRANT_GRANTED}}}}
+	in := model.GrantCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Drops: []model.Grant{
+		{Key: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{Attack: 17, CritRate: 5, MaxMP: 3}},
+		{Key: uuidv7.New(), Template: "slime_gel", Quantity: 2},
+	}}
+	if _, err := clients.NewLoot(itemClient(t, f)).AddMany(context.Background(), in); err != nil {
 		t.Fatal(err)
 	}
-	req := f.adds[0]
-	if req.GetIdempotencyKey() != in.DropID.String() || req.GetCause().GetId() != in.DropID.String() || req.GetCause().GetType() != itemv1.CauseType_CAUSE_TYPE_DROP {
-		t.Fatalf("the drop ID is not both the key and the cause: %+v", req)
-	}
-	if req.GetActor().GetAccountId() != in.Account.String() || req.GetActor().GetCharacterId() != in.Character.String() || req.GetTemplateId() != "slime_gel" || req.GetQuantity() != 2 {
+	req := f.batches[0]
+	if req.GetActor().GetAccountId() != in.Account.String() || req.GetActor().GetCharacterId() != in.Character.String() || len(req.GetDrops()) != 2 {
 		t.Fatalf("request %+v", req)
 	}
-	want := []model.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}}
-	if slots := changed.Slots; len(slots) != 2 || slots[0].Tab != want[0].Tab || *slots[0].Item != *want[0].Item || slots[1].Item != nil || slots[1].Slot != 4 || changed.Revision != 31 {
-		t.Fatalf("changed %+v, want the two slots at revision 31", changed)
+	for k, d := range req.GetDrops() {
+		key := in.Drops[k].Key.String()
+		if d.GetIdempotencyKey() != key || d.GetCause().GetId() != key || d.GetCause().GetType() != itemv1.CauseType_CAUSE_TYPE_DROP {
+			t.Fatalf("drop %d: its key is not both the idempotency key and the cause: %+v", k, d)
+		}
+		if d.GetTemplateId() != in.Drops[k].Template || int(d.GetQuantity()) != in.Drops[k].Quantity {
+			t.Fatalf("drop %d: %+v", k, d)
+		}
 	}
-}
-
-func TestPickupsSendEquipmentsRoll(t *testing.T) {
-	f := &items{}
-	p := clients.NewPickups(itemClient(t, f))
-	in := model.Pickup{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), DropID: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{Attack: 17, CritRate: 5, MaxMP: 3}}
-	if _, err := p.Add(context.Background(), in); err != nil {
-		t.Fatal(err)
+	if s := req.GetDrops()[0].GetStats(); s.GetAttack() != 17 || s.GetCritRate() != 5 || s.GetMaxMp() != 3 || s.GetDefense() != 0 {
+		t.Fatalf("the sword's roll sent %+v", s)
 	}
-	if s := f.adds[0].GetStats(); s.GetAttack() != 17 || s.GetCritRate() != 5 || s.GetMaxMp() != 3 || s.GetDefense() != 0 {
-		t.Fatalf("roll sent %+v", s)
-	}
-	in.DropID, in.Template, in.Stats = uuidv7.New(), "slime_gel", nil
-	if _, err := p.Add(context.Background(), in); err != nil {
-		t.Fatal(err)
-	}
-	if s := f.adds[1].GetStats(); s != nil {
+	if s := req.GetDrops()[1].GetStats(); s != nil {
 		t.Fatalf("a gel sent the roll %+v", s)
 	}
 }
 
-func TestPickupsRetryOnlyWhatMayPass(t *testing.T) {
-	p := clients.NewPickups(nil)
+// Each drop's answer becomes its outcome: a reused key, under another fingerprint, means an earlier try granted it.
+func TestLootReadsEachDropsAnswer(t *testing.T) {
+	gel, potion := kernel.NewItemID(), kernel.NewItemID()
+	f := &items{answer: &itemv1.AddManyResponse{
+		Outcomes: []*itemv1.DropOutcome{
+			{Grant: itemv1.Grant_GRANT_GRANTED},
+			{Grant: itemv1.Grant_GRANT_ALREADY_GRANTED, Changed: []*itemv1.Slot{{Tab: "use", Slot: 1, Item: &itemv1.Item{Id: potion.String(), TemplateId: "red_potion", Quantity: 1}}}, Revision: 8},
+			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_INVENTORY_FULL},
+			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED},
+			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_BAD_ROLL},
+		},
+		Changed:  []*itemv1.Slot{{Tab: "etc", Slot: 2, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Quantity: 7}}, {Tab: "etc", Slot: 4}},
+		Revision: 31,
+	}}
+	got, err := clients.NewLoot(itemClient(t, f)).AddMany(context.Background(), model.GrantCall{Drops: make([]model.Grant, 5)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := model.Granted{
+		Outcomes: []model.GrantOutcome{
+			{Kind: model.GrantAdded},
+			{Kind: model.GrantReplayed, Replayed: model.Inventory{Revision: 8, Slots: []model.Slot{{Tab: gamedata.Use, Slot: 1, Item: &model.SlotItem{ID: potion, Template: "red_potion", Quantity: 1}}}}},
+			{Kind: model.GrantNoRoom},
+			{Kind: model.GrantReplayed},
+			{Kind: model.GrantRefused, Reason: "REASON_BAD_ROLL"},
+		},
+		Added: model.Inventory{Revision: 31, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got  %+v\nwant %+v", got, want)
+	}
+}
+
+func TestLootFailsAnAnswerItCannotRead(t *testing.T) {
+	bad := &itemv1.Item{Id: "nope", TemplateId: "slime_gel"}
+	for name, answer := range map[string]*itemv1.AddManyResponse{
+		"an outcome it does not know":           {Outcomes: []*itemv1.DropOutcome{{}}},
+		"a malformed item ID among the changes": {Outcomes: []*itemv1.DropOutcome{{Grant: itemv1.Grant_GRANT_GRANTED}}, Changed: []*itemv1.Slot{{Item: bad}}},
+		"a malformed item ID in a stored reply": {Outcomes: []*itemv1.DropOutcome{{Grant: itemv1.Grant_GRANT_ALREADY_GRANTED, Changed: []*itemv1.Slot{{Item: bad}}}}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := clients.NewLoot(itemClient(t, &items{answer: answer})).AddMany(context.Background(), model.GrantCall{Drops: make([]model.Grant, 1)}); err == nil {
+				t.Fatal("read")
+			}
+		})
+	}
+	down := status.Error(codes.Unavailable, "down")
+	if _, err := clients.NewLoot(itemClient(t, &items{err: down})).AddMany(context.Background(), model.GrantCall{Drops: make([]model.Grant, 1)}); status.Code(err) != codes.Unavailable {
+		t.Fatalf("an outage arrived as %v", err)
+	}
+}
+
+func TestLootRetriesOnlyWhatMayPass(t *testing.T) {
+	p := clients.NewLoot(nil)
 	tests := []struct {
 		name string
 		err  error
@@ -149,47 +192,6 @@ func TestStarterAsksForTheClassOnJoin(t *testing.T) {
 	}
 	if g := f.grants[0]; g.GetClass() != "warrior" || g.GetActor().GetCharacterId() != id.String() || g.GetActor().GetAccountId() != account.String() {
 		t.Fatalf("grant %+v", g)
-	}
-}
-
-// A key that already served another fingerprint means an earlier try granted the drop.
-func TestPickupsKnowAGrantByItsReusedKey(t *testing.T) {
-	p := clients.NewPickups(nil)
-	if !p.Granted(grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED)) {
-		t.Fatal("a reused key is not a grant")
-	}
-	if p.Granted(grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL)) || p.Granted(status.Error(codes.Unavailable, "down")) {
-		t.Fatal("another failure counts as a grant")
-	}
-}
-
-func TestPickupsReadTheWholeInventoryAsSlotsAtItsRevision(t *testing.T) {
-	gel, potion, ayla := kernel.NewItemID(), kernel.NewItemID(), kernel.NewCharacterID()
-	f := &items{held: []*itemv1.Item{
-		{Id: gel.String(), TemplateId: "slime_gel", Tab: "etc", Slot: 2, Quantity: 7},
-		{Id: potion.String(), TemplateId: "red_potion", Tab: "use", Slot: 0, Quantity: 5},
-		{Id: kernel.NewItemID().String(), TemplateId: "wooden_sword", Quantity: 1, EquipSlot: "weapon"}, // worn: in no slot
-	}, revision: 12}
-	inv, err := clients.NewPickups(itemClient(t, f)).Inventory(context.Background(), ayla)
-	if err != nil {
-		t.Fatal(err)
-	}
-	slots := inv.Slots
-	want := []model.Slot{
-		{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}},
-		{Tab: gamedata.Use, Slot: 0, Item: &model.SlotItem{ID: potion, Template: "red_potion", Quantity: 5}},
-	}
-	if len(f.asked) != 1 || f.asked[0] != ayla.String() || len(slots) != len(want) || inv.Revision != 12 {
-		t.Fatalf("asked %v, read %+v; want the two slots at revision 12", f.asked, inv)
-	}
-	for k := range want {
-		if slots[k].Tab != want[k].Tab || slots[k].Slot != want[k].Slot || *slots[k].Item != *want[k].Item {
-			t.Fatalf("slot %d = %+v, want %+v", k, slots[k], want[k])
-		}
-	}
-	f.held = []*itemv1.Item{{Id: "nope", TemplateId: "slime_gel", Tab: "etc"}}
-	if _, err := clients.NewPickups(itemClient(t, f)).Inventory(context.Background(), ayla); err == nil {
-		t.Fatal("an item with a malformed ID was read")
 	}
 }
 

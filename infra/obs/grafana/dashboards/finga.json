@@ -283,7 +283,7 @@
       "type": "timeseries",
       "id": 8,
       "title": "Item calls in flight",
-      "description": "",
+      "description": "Calls to the item service queued or running, and how many drops each grant call carries: batches grow when the item service answers slowly.",
       "datasource": {
         "type": "prometheus",
         "uid": "mimir"
@@ -332,6 +332,24 @@
           },
           "expr": "sum(rate(finga_ws_slow_consumer_disconnects_total[$__rate_interval]))",
           "legendFormat": "slow consumers kicked /s"
+        },
+        {
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "sum(rate(finga_item_calls_batch_size_sum[$__rate_interval])) / sum(rate(finga_item_calls_batch_size_count[$__rate_interval]))",
+          "legendFormat": "drops per grant call"
+        },
+        {
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(finga_item_calls_batch_size_bucket[$__rate_interval])))",
+          "legendFormat": "drops per grant call, p95"
         }
       ]
     },

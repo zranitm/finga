@@ -26,10 +26,11 @@ const (
 	inboxSize  = 4096
 )
 
-// Tuning is how often a map ticks and checkpoints its players.
+// Tuning is how often a map ticks and checkpoints its players, and how many drops one grant call may carry.
 type Tuning struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
+	BatchMax           int
 }
 
 // Services are what every map of a World calls; all are required.
@@ -37,10 +38,11 @@ type Services struct {
 	NewRoll   func() model.Roll // each map's random source, used only on its tick goroutine
 	Observer  TickObserver
 	Parties   Parties
-	Items     loot.Pickups
+	Items     loot.Items
+	Batches   loot.Observer
 	Equipment Equipment
 	ItemCalls *itemcalls.Pool
-	Traces    trace.TracerProvider // starts each pickup's trace
+	Traces    trace.TracerProvider // starts each grant call's trace
 }
 
 // Deps are one map's: the map, where its checkpoints go and who takes its players to other maps, with the shared services; all are required.
@@ -50,7 +52,7 @@ type Deps struct {
 	Data   *gamedata.Data
 	Saves  Checkpoints
 	Mover  Mover
-	Logger *slog.Logger // what the map's work off the tick, such as a pickup's grant, can only tell the log
+	Logger *slog.Logger // what the map's work off the tick, such as a grant call, can only tell the log
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.
@@ -102,14 +104,7 @@ type (
 		in  sim.Input
 	}
 	attackMsg struct{ id kernel.CharacterID }
-	pickMsg   struct {
-		id    kernel.CharacterID
-		cause trace.SpanContext
-	}
-	pickedMsg struct {
-		result loot.Result
-		sink   Sink // the picker's, for a result that arrives after they left the map
-	}
+	settleMsg struct{ result loot.Result }
 	portalMsg struct{ id kernel.CharacterID }
 	// equipMsg asks to equip or unequip, whichever is set; done hears the outcome once it applies.
 	equipMsg struct {
@@ -137,8 +132,7 @@ func (*joinMsg) message()    {}
 func (leaveMsg) message()    {}
 func (inputMsg) message()    {}
 func (attackMsg) message()   {}
-func (pickMsg) message()     {}
-func (pickedMsg) message()   {}
+func (settleMsg) message()   {}
 func (portalMsg) message()   {}
 func (equipMsg) message()    {}
 func (equippedMsg) message() {}
@@ -154,17 +148,20 @@ var (
 func New(d Deps, t Tuning) *Instance {
 	params := d.Data.Movement()
 	roll := d.NewRoll()
-	return &Instance{
+	i := &Instance{
 		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, mover: d.Mover, saves: d.Saves,
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inputs:   inputTicksAt(t.TickInterval),
 		inbox:    make(chan message, inboxSize),
 		stopped:  make(chan struct{}),
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
-		ground:   loot.NewGround(loot.Deps{Items: d.Items, ItemCalls: d.ItemCalls, Parties: d.Parties, Traces: d.Traces, Roll: roll, Data: d.Data, Logger: d.Logger}, loot.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
 	}
+	i.ground = loot.NewGround(loot.Deps{
+		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Logger: d.Logger, Settle: i.settled,
+	}, loot.Tuning{TickInterval: t.TickInterval, BatchMax: t.BatchMax})
+	return i
 }
 
 // MapID is the map the instance runs.
@@ -217,11 +214,6 @@ func (i *Instance) Input(id kernel.CharacterID, seq uint32, in sim.Input) error 
 // Attack queues a basic attack; the tick enforces the cooldown.
 func (i *Instance) Attack(id kernel.CharacterID) error {
 	return i.post(attackMsg{id: id})
-}
-
-// PickUp asks for the nearest eligible drop within reach; the pickup's trace links to ctx's span, the command's.
-func (i *Instance) PickUp(ctx context.Context, id kernel.CharacterID) error {
-	return i.post(pickMsg{id: id, cause: trace.SpanContextFromContext(ctx)})
 }
 
 // EnterPortal takes the portal the character stands in, if any.
@@ -277,7 +269,9 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
-	i.ground.Expire()
+	for _, s := range i.ground.Collect() {
+		i.settle(s)
+	}
 	for _, id := range i.order {
 		if p := i.players[id]; p.slot == n%i.ticksPer {
 			i.checkpoint(p)
@@ -318,14 +312,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			if p, ok := i.players[m.id]; ok {
 				p.attackQueued = true
 			}
-		case pickMsg:
-			if p, ok := i.players[m.id]; ok {
-				i.pickUp(p, m.cause)
-			}
-		case pickedMsg:
-			if e, ok := i.ground.Settle(m.result); ok {
-				i.tell(m.result.Who, m.sink, e)
-			}
+		case settleMsg:
+			i.settle(i.ground.Settle(m.result))
 		case portalMsg:
 			if p, ok := i.players[m.id]; ok && i.enterPortal(p) {
 				removed = append(removed, m.id)
@@ -351,29 +339,38 @@ func (i *Instance) drain() []kernel.CharacterID {
 	return removed
 }
 
-// pickUp hands the nearest drop the player may take to a worker, whose result comes back through the inbox.
-func (i *Instance) pickUp(p *player, cause trace.SpanContext) {
-	if p.dead {
-		return
-	}
-	sink := p.sink
-	picker := loot.Picker{ID: p.ID, Account: p.Account, X: p.state.X, Y: p.state.Y - i.params.Height/2, Cause: cause}
-	err := i.ground.PickUp(picker, func(ctx context.Context, r loot.Result) {
-		select {
-		case i.inbox <- pickedMsg{result: r, sink: sink}:
-		case <-ctx.Done(): // the map stopped first; its inbox may never drain
-		}
-	})
-	if err != nil {
-		p.private = append(p.private, model.PickupFailed{Tick: i.tick, Err: err})
+// settled posts a grant call's answer to the tick, unless the map has stopped and nothing drains the inbox.
+func (i *Instance) settled(ctx context.Context, r loot.Result) {
+	select {
+	case i.inbox <- settleMsg{result: r}:
+	case <-i.stopped:
+	case <-ctx.Done():
 	}
 }
 
-// tell sends a player an event of their own, with the tick's broadcast, or now through sink if they left the map.
-func (i *Instance) tell(id kernel.CharacterID, sink Sink, e model.Event) {
-	if p, ok := i.players[id]; ok {
+// settle tells a drop's owner what came of it, and the party members on the map what it collected.
+func (i *Instance) settle(s loot.Settled) {
+	for _, e := range s.Inventory {
+		i.tell(s.Owner, e)
+	}
+	for _, l := range s.Loot {
+		i.tell(s.Owner, l)
+		if l.Kind != model.LootCollected {
+			continue
+		}
+		for _, id := range i.deps.Parties.Party(s.Owner.ID).Members {
+			if p, ok := i.players[id]; ok && id != s.Owner.ID {
+				p.private = append(p.private, l)
+			}
+		}
+	}
+}
+
+// tell sends a drop's owner an event of their own, with the tick's broadcast, or now through their sink if they left the map.
+func (i *Instance) tell(o loot.Owner, e model.Event) {
+	if p, ok := i.players[o.ID]; ok {
 		p.private = append(p.private, e)
 		return
 	}
-	sink.Send(e) // they left through a portal or a death since; the connection is the same
+	o.Sink.Send(e) // they left through a portal or a death since, or logged out
 }

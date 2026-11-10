@@ -133,7 +133,7 @@ console, `source`, `sampling`), and each internal service `grpc.listen` and
 | `account`   | `database.url`, `database.max_conns`; `password` (`time`, `memory_kib`, `threads`), the Argon2id cost |
 | `character` | `database`, `data_dir`, `dependencies.item`                                       |
 | `item`      | `database`, `data_dir`                                                            |
-| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `dependencies` on character, item and social |
+| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item service's 32), `dependencies` on character, item and social |
 | `social`    | none                                                                              |
 | `migrate`   | `database`, `log` only                                                            |
 

@@ -24,9 +24,10 @@ type Config struct {
 	Dependencies       Dependencies     `mapstructure:"dependencies"`
 }
 
-// ItemCalls is the worker pool that runs the calls to the item service off the tick.
+// ItemCalls is the worker pool that runs the calls to the item service off the tick, and how many drops one grant call may carry: at most the item service's 32.
 type ItemCalls struct {
-	Workers int `mapstructure:"workers" validate:"min=1"`
+	Workers  int `mapstructure:"workers" validate:"min=1"`
+	BatchMax int `mapstructure:"batch_max" validate:"min=1,max=32"`
 }
 
 // TickInterval is the time between two ticks of a map.

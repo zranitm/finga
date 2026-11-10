@@ -93,6 +93,7 @@ func TestWorldMetrics(t *testing.T) {
 	m.CallQueued()
 	m.CallQueued()
 	m.CallDone()
+	m.ObserveBatch(3)
 	m.SaveDropped("unexplained")
 	if got := sample(t, reg, "finga_saves_dropped_total", "reason", "unexplained"); got != 1 {
 		t.Fatalf("saves dropped %v, want 1", got)
@@ -105,6 +106,9 @@ func TestWorldMetrics(t *testing.T) {
 	}
 	if got := sample(t, reg, "finga_item_calls_inflight"); got != 1 {
 		t.Fatalf("finga_item_calls_inflight = %v, want 1", got)
+	}
+	if got := sample(t, reg, "finga_item_calls_batch_size"); got != 1 {
+		t.Fatalf("batches observed %v, want 1", got)
 	}
 	if _, err := telemetry.NewWorldMetrics(reg, nil); err == nil {
 		t.Fatal("a second registration succeeded")

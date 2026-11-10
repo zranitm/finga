@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -109,13 +110,13 @@ func TestThePartyCopy(t *testing.T) {
 		}
 
 		{ // memberships are read from the copy, as this world subscribed
-			if !p.SameParty(ann, bo) {
+			if !slices.Contains(p.Party(ann).Members, bo) {
 				t.Fatal("ann and bo are not in one party")
 			}
 			if got := p.Party(bo); got.ID != "party-1" || len(got.Members) != 2 || got.Members[0] != ann {
 				t.Fatalf("members %v", got)
 			}
-			if p.SameParty(ann, cy) || p.Party(cy).Members != nil {
+			if slices.Contains(p.Party(ann).Members, cy) || p.Party(cy).Members != nil {
 				t.Fatal("cy has a party")
 			}
 			if social.worlds[0] != "world-1" {
@@ -126,7 +127,7 @@ func TestThePartyCopy(t *testing.T) {
 			social.events <- model.Membership{Characters: []kernel.CharacterID{bo}}
 			social.events <- model.Membership{Characters: []kernel.CharacterID{ann}, Party: model.Party{ID: "party-2", Members: []kernel.CharacterID{ann}}}
 			synctest.Wait()
-			if p.SameParty(ann, bo) || p.Party(bo).Members != nil || len(p.Party(ann).Members) != 1 {
+			if slices.Contains(p.Party(ann).Members, bo) || p.Party(bo).Members != nil || len(p.Party(ann).Members) != 1 {
 				t.Fatalf("after bo left: ann %v, bo %v", p.Party(ann).Members, p.Party(bo).Members)
 			}
 		}
@@ -144,7 +145,7 @@ func TestThePartyCopy(t *testing.T) {
 			social.events <- model.PartiesSubscribed{}
 			social.events <- model.Membership{Characters: []kernel.CharacterID{bo, cy}, Party: model.Party{ID: "party-5", Members: []kernel.CharacterID{bo, cy}}}
 			synctest.Wait()
-			if !p.SameParty(bo, cy) || p.Party(ann).Members != nil {
+			if !slices.Contains(p.Party(bo).Members, cy) || p.Party(ann).Members != nil {
 				t.Fatalf("after the new subscription: ann %v, bo %v", p.Party(ann).Members, p.Party(bo).Members)
 			}
 			if p.Epoch() != 2 {

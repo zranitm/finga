@@ -1,21 +1,40 @@
 package instance
 
 import (
+	"finga/internal/gamedata"
 	"finga/internal/progression"
+	"finga/services/world/internal/application/loot"
 	"finga/services/world/internal/model"
 )
 
-// shareExp splits a kill's EXP, plus 10% per extra member, among the live party on this map.
-func (i *Instance) shareExp(killer *player, base int64) {
-	sharers := []*player{killer}
-	for _, id := range i.deps.Parties.Party(killer.ID).Members {
-		if id == killer.ID {
-			continue
-		}
-		if m, ok := i.players[id]; ok && !m.dead {
-			sharers = append(sharers, m)
+// present is the killer and their party's other members alive on this map, who share a kill.
+func (i *Instance) present(killer *player, party model.Party) []*player {
+	out := []*player{killer}
+	for _, id := range party.Members {
+		if m, ok := i.players[id]; ok && id != killer.ID && !m.dead {
+			out = append(out, m)
 		}
 	}
+	return out
+}
+
+// claim is who may own a kill's drops: the killer, in turn with their party's members alive on this map.
+func (i *Instance) claim(killer *player, mob gamedata.Mob, x, y float64) loot.Kill {
+	party := i.deps.Parties.Party(killer.ID)
+	k := loot.Kill{Mob: mob, X: x, Y: y, Killer: ownerOf(killer), Party: party}
+	for _, m := range i.present(killer, party) {
+		k.Eligible = append(k.Eligible, ownerOf(m))
+	}
+	return k
+}
+
+func ownerOf(p *player) loot.Owner {
+	return loot.Owner{ID: p.ID, Account: p.Account, Name: p.Name, Sink: p.sink}
+}
+
+// shareExp splits a kill's EXP, plus 10% per extra member, among the live party on this map.
+func (i *Instance) shareExp(killer *player, base int64) {
+	sharers := i.present(killer, i.deps.Parties.Party(killer.ID))
 	n := int64(len(sharers))
 	if n == 1 {
 		i.award(killer, base)

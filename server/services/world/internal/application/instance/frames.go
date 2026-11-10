@@ -21,8 +21,8 @@ func (i *Instance) broadcast(changed, removed []kernel.CharacterID) []kernel.Cha
 		}
 	}
 	mobs, removedMobs := i.arena.Changes()
-	drops, removedDrops := i.ground.Changes()
-	frame := &model.Frame{Tick: i.tick, Players: views, Mobs: mobs, Drops: drops, Removed: removed, RemovedMobs: removedMobs, RemovedDrops: removedDrops}
+	drops, removedDrops, collected := i.ground.Changes()
+	frame := &model.Frame{Tick: i.tick, Players: views, Mobs: mobs, Drops: drops, Removed: removed, RemovedMobs: removedMobs, RemovedDrops: removedDrops, CollectedDrops: collected}
 	refused := i.sendFrame(frame)
 	var dropped []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {

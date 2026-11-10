@@ -132,7 +132,7 @@ func TestEquipment(t *testing.T) {
 		s.checkInvariants(t)
 	})
 
-	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-pickup-is-refused-leaving-the-drop", func(t *testing.T) {
+	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-drop-waits-on-the-ground", func(t *testing.T) {
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.createCharacter(t, "tess", "Tess", "warrior")
 		s.place(t, id, "forest", 380, 608, 204, 0)
@@ -166,29 +166,14 @@ func TestEquipment(t *testing.T) {
 			t.Fatalf("an unequip into the full tab answered %+v, want inventory_full and why", r)
 		}
 
-		// A slime drops a cap; the full tab has no slot for it, so it stays on the ground.
+		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
 		l.face(true)
 		drop, ok := l.hunt(90*time.Second, "leather_cap")
 		if !ok {
 			t.Fatal("no cap dropped in 90 s of hunting")
 		}
-		refused := false
-		for attempt := 0; attempt < 10 && !refused; attempt++ {
-			if !l.walkTo(drop.X, 15*time.Second) {
-				t.Fatalf("could not reach the cap at %.0f (at %.0f)", drop.X, l.x)
-			}
-			if err := l.pickUp(); err != nil {
-				t.Fatal(err)
-			}
-			refused = l.pump(3*time.Second, func(m wsconn.Message) bool {
-				r, isResponse := m.Data.(*clientv1.Response)
-				return isResponse && r.GetCode() == "inventory_full"
-			})
-		}
-		if !refused {
-			t.Fatalf("no inventory_full after PickUp (failures %+v, at %.0f, drop %+v)", l.failures, l.x, drop)
-		}
-		l.pump(time.Second, nil)
+		// No key: past its collect delay and a room check, the cap is still on the ground and nothing reached the inventory.
+		l.pump(4*time.Second, nil)
 		if _, still := l.drops[drop.GetId()]; !still || l.inventory != 1 {
 			t.Fatalf("the cap left the ground or something reached the inventory: drops %v, %d InventoryChanged", l.drops, l.inventory)
 		}
