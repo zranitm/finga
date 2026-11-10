@@ -53,7 +53,7 @@ var errNever = errors.New("not reached in this test")
 // alone is a party service where everyone is in no party.
 type alone struct{}
 
-func (alone) Members(kernel.CharacterID) []kernel.CharacterID  { return nil }
+func (alone) Party(kernel.CharacterID) model.Party             { return model.Party{} }
 func (alone) SameParty(_, _ kernel.CharacterID) bool           { return false }
 func (alone) Update(kernel.CharacterID, string, int, int, int) {}
 func (alone) Epoch() uint64                                    { return 0 }

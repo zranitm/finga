@@ -44,7 +44,7 @@ type Copy struct {
 	updates *coalesce.Queue[kernel.CharacterID, model.MemberUpdate]
 
 	mu    sync.Mutex
-	table map[kernel.CharacterID][]kernel.CharacterID
+	table map[kernel.CharacterID]model.Party
 	epoch atomic.Uint64 // the party stream's subscriptions so far
 }
 
@@ -62,7 +62,7 @@ type Options struct {
 // NewCopy builds the copy, which follows social's party stream once Run starts it.
 func NewCopy(d Deps, o Options) *Copy {
 	return &Copy{
-		social: d.Social, worldID: o.World, log: d.Logger, table: map[kernel.CharacterID][]kernel.CharacterID{},
+		social: d.Social, worldID: o.World, log: d.Logger, table: map[kernel.CharacterID]model.Party{},
 		updates: coalesce.New(func(u model.MemberUpdate) kernel.CharacterID { return u.ID }),
 	}
 }
@@ -70,18 +70,20 @@ func NewCopy(d Deps, o Options) *Copy {
 // Epoch counts the party stream's subscriptions: a new one means social may have restarted and lost what the maps told it.
 func (p *Copy) Epoch() uint64 { return p.epoch.Load() }
 
-// Members lists the IDs of a character's party, nil without one.
-func (p *Copy) Members(id kernel.CharacterID) []kernel.CharacterID {
+// Party is a character's party, the zero one without.
+func (p *Copy) Party(id kernel.CharacterID) model.Party {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return slices.Clone(p.table[id])
+	party := p.table[id]
+	party.Members = slices.Clone(party.Members)
+	return party
 }
 
 // SameParty reports whether two characters share a party.
 func (p *Copy) SameParty(a, b kernel.CharacterID) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return slices.Contains(p.table[a], b)
+	return slices.Contains(p.table[a].Members, b)
 }
 
 // Update queues what a map saw of a member, replacing an older update still waiting; it never blocks.
@@ -117,11 +119,11 @@ func (p *Copy) apply(ctx context.Context, e model.PartyEvent) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 		for _, id := range e.Characters {
-			if len(e.Members) == 0 {
+			if len(e.Party.Members) == 0 {
 				delete(p.table, id)
 				continue
 			}
-			p.table[id] = e.Members
+			p.table[id] = e.Party
 		}
 	}
 }

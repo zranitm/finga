@@ -45,7 +45,8 @@ type TickObserver interface {
 
 // Parties answers party questions from inside a tick, and takes what the map saw of a member.
 type Parties interface {
-	Members(id kernel.CharacterID) []kernel.CharacterID
+	// Party is a character's party, the zero one without.
+	Party(id kernel.CharacterID) model.Party
 	SameParty(a, b kernel.CharacterID) bool
 	Update(id kernel.CharacterID, mapID string, level, hp, maxHP int)
 	// Epoch changes when the party stream subscribes again, after which the map tells every player's state again.

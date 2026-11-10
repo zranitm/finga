@@ -22,6 +22,7 @@ import (
 	"finga/pkg/uuidv7"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
+	"finga/services/social/internal/model"
 	"finga/services/social/internal/repository"
 )
 
@@ -295,18 +296,21 @@ func TestWatchParties(t *testing.T) {
 	if m := recv(t, stream); m.GetSubscribed().GetBootId() != "boot-1" {
 		t.Fatalf("first %+v", m)
 	}
+	var first, second string // the two parties' IDs
 	t.Run("the current memberships follow Subscribed", func(t *testing.T) {
 		ms := recv(t, stream).GetMembership()
-		if len(ms.GetCharacterIds()) != 2 || len(ms.GetMembers()) != 2 {
+		if len(ms.GetCharacterIds()) != 2 || len(ms.GetMembers()) != 2 || ms.GetPartyId() == "" {
 			t.Fatalf("membership %+v", ms)
 		}
+		first = ms.GetPartyId()
 	})
 	t.Run("then each change", func(t *testing.T) {
 		s.party(t, cy, di)
 		ms := recv(t, stream).GetMembership()
-		if len(ms.GetMembers()) != 2 || (ms.GetMembers()[0] != cy.String() && ms.GetMembers()[1] != cy.String()) {
+		if len(ms.GetMembers()) != 2 || (ms.GetMembers()[0] != cy.String() && ms.GetMembers()[1] != cy.String()) || ms.GetPartyId() == "" || ms.GetPartyId() == first {
 			t.Fatalf("membership %+v", ms)
 		}
+		second = ms.GetPartyId()
 	})
 	t.Run("a leaver's party is empty, the rest keep theirs", func(t *testing.T) {
 		if _, err := s.c.LeaveParty(s.ctx, &socialv1.LeavePartyRequest{CharacterId: di.String()}); err != nil {
@@ -321,8 +325,8 @@ func TestWatchParties(t *testing.T) {
 				rest = ms
 			}
 		}
-		if left == nil || left.GetCharacterIds()[0] != di.String() || rest == nil || len(rest.GetMembers()) != 1 || rest.GetMembers()[0] != cy.String() {
-			t.Fatalf("left %+v rest %+v", left, rest)
+		if left == nil || left.GetCharacterIds()[0] != di.String() || left.GetPartyId() != "" || rest == nil || len(rest.GetMembers()) != 1 || rest.GetMembers()[0] != cy.String() || rest.GetPartyId() != second {
+			t.Fatalf("left %+v rest %+v; the party keeps its ID as members leave", left, rest)
 		}
 	})
 }
@@ -333,9 +337,9 @@ type manyParties struct {
 	n int
 }
 
-func (m manyParties) Memberships(ctx context.Context, visit func(members []kernel.CharacterID)) error {
+func (m manyParties) Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error {
 	for range m.n {
-		visit([]kernel.CharacterID{kernel.NewCharacterID(), kernel.NewCharacterID()})
+		visit(model.NewPartyID(), []kernel.CharacterID{kernel.NewCharacterID(), kernel.NewCharacterID()})
 	}
 	return m.Parties.Memberships(ctx, visit)
 }

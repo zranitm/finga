@@ -8,7 +8,7 @@ import (
 // shareExp splits a kill's EXP, plus 10% per extra member, among the live party on this map.
 func (i *Instance) shareExp(killer *player, base int64) {
 	sharers := []*player{killer}
-	for _, id := range i.deps.Parties.Members(killer.ID) {
+	for _, id := range i.deps.Parties.Party(killer.ID).Members {
 		if id == killer.ID {
 			continue
 		}

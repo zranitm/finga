@@ -209,6 +209,8 @@ message WatchPartiesResponse {
 message Membership {
   repeated string character_ids = 1;
   repeated string members = 2;
+  // The party's ID, empty when members is; a world keys what it keeps per party by it, as members come and go.
+  string party_id = 3;
 }
 
 message UpdateMemberRequest {

@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"finga/services/world/worldtest"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -39,19 +40,20 @@ type partyUpdate struct {
 	maxHP int
 }
 
-func (f *fakeParties) Members(id kernel.CharacterID) []kernel.CharacterID {
+// Party is the first party holding id, named by its place in f.parties.
+func (f *fakeParties) Party(id kernel.CharacterID) model.Party {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for _, p := range f.parties {
+	for k, p := range f.parties {
 		if slices.Contains(p, id) {
-			return slices.Clone(p)
+			return model.Party{ID: fmt.Sprintf("party-%d", k), Members: slices.Clone(p)}
 		}
 	}
-	return nil
+	return model.Party{}
 }
 
 func (f *fakeParties) SameParty(a, b kernel.CharacterID) bool {
-	return slices.Contains(f.Members(a), b)
+	return slices.Contains(f.Party(a).Members, b)
 }
 
 func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {

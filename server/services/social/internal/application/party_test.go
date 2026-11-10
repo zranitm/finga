@@ -468,9 +468,13 @@ func TestMembershipsVisitsEveryPartyOnce(t *testing.T) {
 	f.invite(t, "ann", "bo")
 	f.invite(t, "cy", "di")
 	var seen [][]kernel.CharacterID
-	must(t, f.svc.Memberships(f.ctx, func(members []kernel.CharacterID) { seen = append(seen, members) }))
-	if len(seen) != 2 {
-		t.Fatalf("visited %d parties, want 2", len(seen))
+	parties := map[model.PartyID]bool{}
+	must(t, f.svc.Memberships(f.ctx, func(party model.PartyID, members []kernel.CharacterID) {
+		seen = append(seen, members)
+		parties[party] = true
+	}))
+	if len(seen) != 2 || len(parties) != 2 || parties[model.PartyID{}] {
+		t.Fatalf("visited %d parties under IDs %v, want 2 under their own", len(seen), parties)
 	}
 	got := map[kernel.CharacterID]int{}
 	for _, members := range seen {
@@ -518,7 +522,7 @@ func TestAStoreFailureIsReturnedAndNobodyIsTold(t *testing.T) {
 		"Invite":      invErr,
 		"Leave":       f.svc.Leave(f.ctx, f.id("Ayla")),
 		"Of":          ofErr,
-		"Memberships": f.svc.Memberships(f.ctx, func([]kernel.CharacterID) {}),
+		"Memberships": f.svc.Memberships(f.ctx, func(model.PartyID, []kernel.CharacterID) {}),
 	} {
 		if !errors.Is(err, broken) {
 			t.Errorf("%s: %v, want the store's error", name, err)

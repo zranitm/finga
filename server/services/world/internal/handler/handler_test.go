@@ -64,7 +64,7 @@ func (saver) Refused(error) bool                                     { return fa
 // idle stands in for every world service these tests leave alone.
 type idle struct{}
 
-func (idle) Members(kernel.CharacterID) []kernel.CharacterID  { return nil }
+func (idle) Party(kernel.CharacterID) model.Party             { return model.Party{} }
 func (idle) SameParty(_, _ kernel.CharacterID) bool           { return false }
 func (idle) Epoch() uint64                                    { return 0 }
 func (idle) Update(kernel.CharacterID, string, int, int, int) {}

@@ -344,8 +344,8 @@ func (nobody) Transfer(*instance.Instance, model.Player, instance.Sink, string) 
 // Dropped forgets nobody.
 func (nobody) Dropped(*instance.Instance, kernel.CharacterID, string) {}
 
-// Members is no party.
-func (nobody) Members(kernel.CharacterID) []kernel.CharacterID { return nil }
+// Party is none.
+func (nobody) Party(kernel.CharacterID) model.Party { return model.Party{} }
 
 // SameParty is never.
 func (nobody) SameParty(_, _ kernel.CharacterID) bool { return false }
