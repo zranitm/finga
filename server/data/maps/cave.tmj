@@ -11,7 +11,7 @@
   "tilewidth": 32,
   "tileheight": 32,
   "nextlayerid": 7,
-  "nextobjectid": 20,
+  "nextobjectid": 21,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -35,7 +35,8 @@
     {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 11, "name": "ledge_rope", "type": "", "rotation": 0, "visible": true, "x": 444, "y": 448, "width": 8, "height": 160},
       {"id": 12, "name": "shelf_rope", "type": "", "rotation": 0, "visible": true, "x": 1180, "y": 288, "width": 8, "height": 128},
-      {"id": 13, "name": "pillar_rope", "type": "", "rotation": 0, "visible": true, "x": 1660, "y": 384, "width": 8, "height": 224}
+      {"id": 13, "name": "pillar_rope", "type": "", "rotation": 0, "visible": true, "x": 1660, "y": 384, "width": 8, "height": 224},
+      {"id": 20, "name": "floor_rope", "type": "", "rotation": 0, "visible": true, "x": 916, "y": 416, "width": 8, "height": 192}
     ]},
     {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 14, "name": "from_forest", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 544, "width": 32, "height": 64, "properties": [
