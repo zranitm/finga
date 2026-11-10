@@ -129,6 +129,7 @@ From the code, the rules this design keeps:
 | `AbandonQuest` | client | New: `quest`; Response |
 | `Welcome` | server | New `quests`: the log, active quests with progress, and finished quests with counts |
 | `QuestChanged` | server | New: what happened (accepted, progressed, handed in, or abandoned), and the quest's status, progress, and count after it |
+| `QuestLog` | server | New: the whole log again, which the gateway sends when it joins the character again on its own (the world restarted, or its stream broke), since changes sent meanwhile were lost |
 
 - **New error codes:**
   - `npc_out_of_reach`: "move closer";
@@ -169,7 +170,8 @@ From the code, the rules this design keeps:
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
 | A `HandIn` reply is lost; the pool retries | Nothing unusual | Same key: the stored reply comes back, and nothing is taken or given twice |
-| World crashes after the item commit, before the quest is saved | After the rejoin the quest is still active; handing it in again finishes it | Same key (the count didn't move), so the item service answers its stored reply and gives nothing twice |
+| World crashes after the item commit, before the quest is saved | After the rejoin the quest is still active; handing it in again finishes it. One with items to bring waits until they're held again, and none of them are taken | Same key (the count didn't move), so the item service answers its stored reply and gives nothing twice |
+| The world's stream breaks, or the world restarts | Nothing unusual: the quest log is put right | The rejoin sends `QuestLog`, and the changes after it follow |
 | That crash also lost some kills since the last save | The quest may need a few kills again before it can be handed in | Progress is saved like EXP; nothing is duplicated |
 | The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
 | Item service down during a hand-in | "Try again in a moment"; nothing changed | The call failed as a whole, or committed and answers the same next time |

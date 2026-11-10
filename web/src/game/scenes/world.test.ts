@@ -273,6 +273,11 @@ describe('World', () => {
       expect(ui.getState().windows).toEqual([]);
       press('KeyZ');
       expect(talks()).toEqual([]);
+      // A dialog answering a Talk from the tick the player died in arrives after the death.
+      quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
+      ui.getState().openWindow('npc');
+      frames(1);
+      expect(ui.getState().windows).toEqual([]);
     });
 
     it('Q opens and closes the quest log', async () => {

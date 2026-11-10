@@ -399,6 +399,21 @@ describe('wiring', () => {
       ]);
     });
 
+    it('a QuestLog after a rejoin replaces the log, and a quest it finds ready gets its line', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });
+      ws.push('questLog', {
+        quests: [{ questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [10] }],
+      });
+      expect(quests.getState().log).toEqual({
+        slime_cleanup: { status: 'active', progress: [10], timesFinished: 0 },
+      });
+      expect(combatLog.getState().lines.at(-1)).toMatchObject({
+        change: 'ready',
+        quest: 'slime_cleanup',
+      });
+    });
+
     it('leaving the world forgets the log and the dialog', async () => {
       const { ws } = await connectedSocket();
       ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });

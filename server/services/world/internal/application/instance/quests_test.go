@@ -441,3 +441,31 @@ func TestHandingInAQuest(t *testing.T) {
 		})
 	})
 }
+
+// A change in the tick a player leaves the map still reaches them: the hand-off sends it with the tick's other private events.
+func TestAQuestChangeInThePortalsTickReachesThePlayer(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := questData(t)
+		tr := &transferRecorder{}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour, ItemCalls: runningPool(t), Transfer: tr})
+		defer stop()
+		at := data.Town().Portals[0].Arrival()
+		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		p.Connection, p.Quests = "c1", model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{3}}}
+		s := join(t, inst, p)
+		done := make(chan error, 1)
+		go func() { done <- inst.AbandonQuest(context.Background(), p.ID, "c1", "slime_cleanup") }()
+		synctest.Wait()
+		_ = inst.EnterPortal(p.ID)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if moved(tr) != 1 {
+			t.Fatal("the portal wasn't taken in the abandon's tick")
+		}
+		if got, want := changes(s), []model.QuestChanged{{ID: "slime_cleanup", Change: model.QuestAbandoned}}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("quest changes %+v, want %+v", got, want)
+		}
+	})
+}

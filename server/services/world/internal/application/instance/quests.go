@@ -246,17 +246,21 @@ func (i *Instance) questChanged(p *player, id string, c model.QuestChange) {
 // tellQuests tells each player the quests that changed this tick, as they stand now.
 func (i *Instance) tellQuests() {
 	for _, id := range i.order {
-		p := i.players[id]
-		for _, quest := range slices.Sorted(maps.Keys(p.questChanges)) {
-			e := model.QuestChanged{Tick: i.tick, ID: quest, Change: p.questChanges[quest]}
-			if q, ok := p.Quests[quest]; ok {
-				q.Progress = slices.Clone(q.Progress)
-				e.Quest = q
-			}
-			p.private = append(p.private, e)
-		}
-		clear(p.questChanges)
+		i.tellQuestsOf(i.players[id])
 	}
+}
+
+// tellQuestsOf queues p's quest changes so far this tick; a hand-off calls it before p leaves the map.
+func (i *Instance) tellQuestsOf(p *player) {
+	for _, quest := range slices.Sorted(maps.Keys(p.questChanges)) {
+		e := model.QuestChanged{Tick: i.tick, ID: quest, Change: p.questChanges[quest]}
+		if q, ok := p.Quests[quest]; ok {
+			q.Progress = slices.Clone(q.Progress)
+			e.Quest = q
+		}
+		p.private = append(p.private, e)
+	}
+	clear(p.questChanges)
 }
 
 // between picks a whole number from lo to hi with the map's random source, as a drop's roll does.

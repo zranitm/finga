@@ -72,5 +72,11 @@ type QuestChanged struct {
 	Quest  QuestState
 }
 
+// QuestLog replaces the player's whole log, after a join the player didn't ask for.
+type QuestLog struct {
+	Quests []QuestState
+}
+
 func (NpcDialog) push()    {}
 func (QuestChanged) push() {}
+func (QuestLog) push()     {}

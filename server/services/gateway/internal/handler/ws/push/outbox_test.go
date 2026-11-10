@@ -215,6 +215,11 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.QuestChanged{Change: model.QuestAbandoned, Quest: model.QuestState{Quest: "a"}},
 			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "a"}},
 		},
+		{
+			model.QuestLog{Quests: []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}}},
+			&clientv1.QuestLog{Quests: []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}}},
+		},
+		{model.QuestLog{}, &clientv1.QuestLog{}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {

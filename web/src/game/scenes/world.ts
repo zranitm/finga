@@ -636,7 +636,7 @@ export class World extends Phaser.Scene {
     });
   }
 
-  /** The NPC's dialog closes once the player walks out of its reach, or off its map. */
+  /** The NPC's dialog closes once the player dies, walks out of its reach, or leaves its map. */
   private closeDialogOutOfReach(): void {
     if (!ui.getState().windows.includes('npc')) {
       return;
@@ -644,7 +644,8 @@ export class World extends Phaser.Scene {
     const dialog = quests.getState().dialog;
     const npc = dialog ? npcById(dialog.npcId) : undefined;
     const p = this.predictor;
-    if (!npc || !p || npc.map !== this.mapId || !inReach(npc, p.state.x, p.state.y)) {
+    const gone = !npc || !p || npc.map !== this.mapId || !inReach(npc, p.state.x, p.state.y);
+    if (gone || this.transitionState.dead) {
       ui.getState().closeWindow('npc');
     }
   }

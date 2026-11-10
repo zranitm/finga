@@ -47,6 +47,10 @@ export function wireSocket(socket: GameSocket): () => void {
       quests.getState().applyNpcDialog(m.d);
       ui.getState().openWindow('npc');
     }),
+    socket.on('questLog', (m) => {
+      quests.getState().applyQuestLog(m.d);
+      announceReady();
+    }),
     socket.on('questChanged', (m) => {
       quests.getState().applyQuestChanged(m.d);
       combatLog.getState().applyQuestChanged(m.d);

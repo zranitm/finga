@@ -12,6 +12,8 @@ export interface QuestsState {
   /** What the NPC offered when last talked to; the window shows it while open. */
   readonly dialog: NpcDialog | null;
   applyWelcome(d: Data<'welcome'>): void;
+  /** The whole log again, after the server joined the character again on its own. */
+  applyQuestLog(d: Data<'questLog'>): void;
   applyQuestChanged(d: Data<'questChanged'>): void;
   applyNpcDialog(d: Data<'npcDialog'>): void;
   clear(): void;
@@ -29,18 +31,25 @@ export function entryOf(q: QuestState): LogEntry | null {
   }
 }
 
+function logOf(states: readonly QuestState[]): Log {
+  const log: Record<string, LogEntry> = {};
+  for (const q of states) {
+    const entry = entryOf(q);
+    if (entry) {
+      log[q.questId] = entry;
+    }
+  }
+  return log;
+}
+
 export const quests = defineStore<QuestsState>((set, get) => ({
   log: {},
   dialog: null,
   applyWelcome: (d) => {
-    const log: Record<string, LogEntry> = {};
-    for (const q of d.quests) {
-      const entry = entryOf(q);
-      if (entry) {
-        log[q.questId] = entry;
-      }
-    }
-    set({ log, dialog: null });
+    set({ log: logOf(d.quests), dialog: null });
+  },
+  applyQuestLog: (d) => {
+    set({ log: logOf(d.quests) });
   },
   applyQuestChanged: (d) => {
     const q = d.quest;

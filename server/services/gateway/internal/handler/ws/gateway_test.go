@@ -2027,10 +2027,17 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		if d := ayla.expect("Delta"); d.Tick != 500 {
 			t.Fatalf("delta tick %d", d.Tick)
 		}
-		// Bruno's last checkpoint is in the forest; Ayla's is where she was.
+		// Bruno's last checkpoint is in the forest; Ayla's is where she was. The restarted world loads the quest logs saved.
 		h.world.save(brunoID, "forest", 64, 608)
+		h.world.mu.Lock()
+		h.world.quests = []*worldv1.QuestState{{QuestId: "slime_cleanup", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}
+		h.world.mu.Unlock()
 		h.world.restart("boot-2")
 
+		wantLog := &clientv1.QuestLog{Quests: []*clientv1.QuestState{{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}}
+		if m, _ := ayla.read(); m.Type != "QuestLog" || !proto.Equal(m.Data.(*clientv1.QuestLog), wantLog) {
+			t.Fatalf("ayla got %+v first, want the quest log the join found", m)
+		}
 		snap := ayla.expect("Snapshot")
 		if snap.Tick <= 500 {
 			t.Fatalf("snapshot tick %d after 500: the ticks went back on the connection", snap.Tick)
@@ -2039,8 +2046,11 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		if status != -1 || m.Type != "MapChange" || m.Data.(*clientv1.MapChange).GetMapId() != "forest" || m.Data.(*clientv1.MapChange).X != 64 {
 			t.Fatalf("bruno got %+v (status %d), want MapChange to the forest first", m, status)
 		}
+		if m, _ := bruno.read(); m.Type != "QuestLog" || !proto.Equal(m.Data.(*clientv1.QuestLog), wantLog) {
+			t.Fatalf("bruno got %+v after MapChange, want the quest log", m)
+		}
 		if m, _ := bruno.read(); m.Type != "Snapshot" {
-			t.Fatalf("bruno got %s after MapChange, want the Snapshot", m.Type)
+			t.Fatalf("bruno got %s after the quest log, want the Snapshot", m.Type)
 		}
 		joins := h.world.joins()
 		if len(joins) != 4 || joins[2].GetConnectionId() == "" {

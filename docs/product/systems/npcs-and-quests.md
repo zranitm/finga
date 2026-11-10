@@ -54,7 +54,7 @@ There is no story: a quest is a task with a reward, and narrative quests stay a 
   | The Warrior's Trial | Warrior trainer | defeat 20 Wild Boars |
   | The Thief's Trial | Thief trainer | bring 10 Bat Wings |
   | The Bowman's Trial | Bowman trainer | defeat 30 Orange Mushrooms |
-  | The Magician's Trial | Magician trainer | bring 15 Slime Gel, then talk to the town guide |
+  | The Magician's Trial | Magician trainer | bring 15 Slime Gel and talk to the town guide |
 
 ## Later
 

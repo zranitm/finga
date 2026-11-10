@@ -199,10 +199,15 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		return
 	}
 	s.joinSeq.Store(joined.JoinSeq)
-	var first func()
+	// The log as this join found it, ahead of the stream: changes sent while it was broken are lost.
+	log := model.Delivery{Push: model.QuestLog{Quests: joined.Quests}}
+	first := func() { s.outbox.Deliver(log) }
 	if joined.MapID != before {
 		moved := model.Delivery{Push: model.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}}
-		first = func() { s.outbox.Deliver(moved) }
+		first = func() {
+			s.outbox.Deliver(moved)
+			s.outbox.Deliver(log)
+		}
 	}
 	s.out.release(joined.MapID, first)
 	r.mu.Lock()
