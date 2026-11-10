@@ -127,7 +127,7 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C1/mobs-appear-wander-and-are-the-same-for-everyone", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "fiona", "Fiona", "bowman")
-		s.place(t, id, "forest", 380, 608, 105, 0)
+		s.place(t, id, "forest", 380, 608, 134, 0)
 		p, snap := s.join(t, token, id)
 		if len(snap.Mobs) < 3 {
 			t.Fatalf("forest snapshot has %d mobs", len(snap.Mobs))
@@ -164,7 +164,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal("no mob moved within 3 s")
 		}
 		token2, id2 := s.createCharacter(t, "greg", "Greg", "warrior")
-		s.place(t, id2, "forest", 400, 608, 184, 0)
+		s.place(t, id2, "forest", 400, 608, 144, 0)
 		_, snap2 := s.join(t, token2, id2)
 		if len(snap2.Mobs) != len(snap.Mobs) {
 			t.Fatalf("second player sees %d mobs, first saw %d", len(snap2.Mobs), len(snap.Mobs))
@@ -183,10 +183,10 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C2/attacks-hit-mobs-in-range-and-everyone-sees-the-damage", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "hana", "Hana", "bowman")
-		s.place(t, id, "forest", 380, 608, 105, 0)
+		s.place(t, id, "forest", 380, 608, 134, 0)
 		p, _ := s.join(t, token, id)
 		token2, id2 := s.createCharacter(t, "ivan", "Ivan", "warrior")
-		s.place(t, id2, "forest", 360, 608, 184, 0)
+		s.place(t, id2, "forest", 360, 608, 144, 0)
 		watcher, _ := s.join(t, token2, id2)
 		p.drain(300 * time.Millisecond)
 		p.face(true)
@@ -231,7 +231,7 @@ func TestFightAndGrow(t *testing.T) {
 		p, _ := s.join(t, token, id)
 		p.dieAmongSlimes(t)
 		r := p.expect("Respawned").Data.(*clientv1.Respawned)
-		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 92 {
+		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 72 {
 			t.Fatalf("respawned %+v", r)
 		}
 		if mc := p.expect("MapChange").Data.(*clientv1.MapChange); mc.GetMapId() != "town" {
@@ -262,7 +262,7 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C4/a-kill-gives-exp-and-levels-up-and-the-level-is-saved", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "kim", "Kim", "bowman")
-		s.place(t, id, "forest", 380, 608, 105, 18) // two EXP short of level 2
+		s.place(t, id, "forest", 380, 608, 134, 18) // two EXP short of level 2
 		p, _ := s.join(t, token, id)
 		p.drain(300 * time.Millisecond)
 		p.face(true)
@@ -281,8 +281,8 @@ func TestFightAndGrow(t *testing.T) {
 		if !ok || !gained {
 			t.Fatalf("no level-up in 40 s (exp gained: %v)", gained)
 		}
-		// The level's points wait unspent, so DEX stays the bowman's 12.
-		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 12 {
+		// The level's points wait unspent, so DEX stays the starting 7.
+		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 7 || lu.GetCharacter().GetSheet().GetPoints().GetUnspent() != 5 {
 			t.Fatalf("level-up %+v", lu.Character)
 		}
 		dl := time.Now().Add(5 * time.Second)
@@ -301,7 +301,8 @@ func TestFightAndGrow(t *testing.T) {
 	t.Run("C5/a-level's-points-are-spent-and-reset-over-the-socket-and-saved-at-once", func(t *testing.T) {
 		s := newStack(t)
 		token, id := s.createCharacter(t, "lena", "Lena", "warrior")
-		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5 WHERE id = $1`, id); err != nil {
+		// MP full (level 2's 45), so no regen sends a StatsChanged of its own.
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5, mp = 45 WHERE id = $1`, id); err != nil {
 			t.Fatal(err)
 		}
 		l, w := s.hello(t, token, id)
@@ -354,5 +355,33 @@ func TestFightAndGrow(t *testing.T) {
 		if r := l.gather("Response")["Response"]; r.ReqID != "r-2" || r.Data.(*clientv1.Response).GetCode() != "no_free_reset" {
 			t.Fatalf("a second reset answered %+v; want no_free_reset", r)
 		}
+	})
+
+	t.Run("C6/a-bat's-touch-is-magic-and-meets-magic-defense", func(t *testing.T) {
+		s := newStack(t)
+		token, id := s.createCharacter(t, "nell", "Nell", "warrior")
+		s.place(t, id, "cave", 1500, 384, 400, 0) // on the pillar top, where the bats fly
+		// 100 INT: magic defense 3 + 0.5 × 107 + 0.5 × 7 = 60, physical defense 5 + 7 = 12.
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 21, int_points = 100 WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		p, _ := s.join(t, token, id)
+		deadline := time.Now().Add(30 * time.Second)
+		for time.Now().Before(deadline) {
+			m, ok := p.read(time.Until(deadline))
+			if !ok {
+				break
+			}
+			d, isDamage := m.Data.(*clientv1.Damage)
+			if !isDamage || d.Target != "p:"+id || d.Miss {
+				continue
+			}
+			// Attack 22 · 100 / 160 = 13.75, ±10%: 12 to 15; against the physical 12 it would be 18 to 22.
+			if !strings.HasPrefix(d.Source, "m:") || d.Amount < 12 || d.Amount > 15 {
+				t.Fatalf("damage %+v; want a bat's touch of 12 to 15, meeting magic defense", d)
+			}
+			return
+		}
+		t.Fatal("no bat touched the player in 30 s")
 	})
 }

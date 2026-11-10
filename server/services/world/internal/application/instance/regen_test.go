@@ -5,6 +5,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/services/world/internal/model"
@@ -46,7 +47,7 @@ func everyApart(t *testing.T, what string, ticks []uint64, n uint64, want int) {
 	}
 }
 
-// A new warrior (VIT 10, INT 4) regains 0.5 HP and 0.2 MP a second, in a town too: the fractions carry, so HP rises by one every two seconds and MP every five.
+// A warrior with VIT 10 and INT 20 regains 0.5 HP and 1 MP a second, in a town too: the fractions carry, so HP rises by one every two seconds and MP every second.
 func TestRegenAddsUpExactly(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -54,6 +55,7 @@ func TestRegenAddsUpExactly(t *testing.T) {
 		defer stop()
 		x, y := worldtest.TownSpawn(t, data)
 		p := worldtest.NewPlayer("Ayla", x, y)
+		p.Points = model.Points{Spent: gamedata.Stats{VIT: 3, INT: 13}}
 		p.HP, p.MP = 100, 20
 		s := join(t, inst, p)
 		time.Sleep(20 * time.Second)
@@ -63,13 +65,13 @@ func TestRegenAddsUpExactly(t *testing.T) {
 		var mpTicks []uint64
 		mp := 20
 		for _, c := range worldtest.Of[model.StatsChanged](s) {
-			if c.MP != mp+1 || c.MaxMP != 32 || c.HP == 0 {
-				t.Fatalf("stats changed %+v after MP %d; want one more MP of 32", c, mp)
+			if c.MP != mp+1 || c.MaxMP != 80 || c.HP == 0 {
+				t.Fatalf("stats changed %+v after MP %d; want one more MP of 80", c, mp)
 			}
 			mp = c.MP
 			mpTicks = append(mpTicks, c.Tick)
 		}
-		everyApart(t, "MP", mpTicks, 100, 4)
+		everyApart(t, "MP", mpTicks, 20, 20)
 		if v, _ := s.Own(p.ID); v.HP != 110 {
 			t.Fatalf("HP %d after 20 s, want 110", v.HP)
 		}
@@ -84,19 +86,19 @@ func TestRegenStopsAtTheMaximum(t *testing.T) {
 		defer stop()
 		x, y := worldtest.TownSpawn(t, data)
 		p := worldtest.NewPlayer("Ayla", x, y)
-		p.HP, p.MP = 183, 32
+		p.HP, p.MP = 143, 41
 		s := join(t, inst, p)
 		time.Sleep(10 * time.Second)
 		synctest.Wait()
 		for _, d := range s.Deltas() {
 			for _, pv := range d.Players {
-				if pv.ID == p.ID && pv.HP > 184 {
-					t.Fatalf("HP %d past its maximum 184 at tick %d", pv.HP, d.Tick)
+				if pv.ID == p.ID && pv.HP > 144 {
+					t.Fatalf("HP %d past its maximum 144 at tick %d", pv.HP, d.Tick)
 				}
 			}
 		}
-		if v, _ := s.Own(p.ID); v.HP != 184 {
-			t.Fatalf("HP %d, want the maximum 184", v.HP)
+		if v, _ := s.Own(p.ID); v.HP != 144 {
+			t.Fatalf("HP %d, want the maximum 144", v.HP)
 		}
 		if got := worldtest.Of[model.StatsChanged](s); len(got) != 0 {
 			t.Fatalf("stats changed %+v at full MP", got)

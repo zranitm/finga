@@ -182,15 +182,15 @@ func TestATouchMeetsTheDefenseOfTheMobsDamageType(t *testing.T) {
 		return dealt.Amount
 	}
 	walls := model.Defender{PhysicalDefense: 100, MagicDefense: 100}
-	// Bat attack 34: 34·100/200 = 17 against either 100; a slime's 6: 6·100/200 = 3.
+	// Bat attack 22: 22·100/200 = 11 against either 100; a slime's 6: 6·100/200 = 3.
 	for _, c := range []struct {
 		mob        string
 		d          model.Defender
 		want       int
 		meaningFor string
 	}{
-		{"cave_bat", model.Defender{PhysicalDefense: 100}, 34, "a bat ignores physical defense"},
-		{"cave_bat", walls, 17, "a bat meets magic defense"},
+		{"cave_bat", model.Defender{PhysicalDefense: 100}, 22, "a bat ignores physical defense"},
+		{"cave_bat", walls, 11, "a bat meets magic defense"},
 		{"green_slime", model.Defender{MagicDefense: 100}, 6, "a slime ignores magic defense"},
 		{"green_slime", walls, 3, "a slime meets physical defense"},
 	} {

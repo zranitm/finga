@@ -79,11 +79,21 @@ describe('bindKeyboard', () => {
     },
   );
 
+  it('attack is held like movement: its down presses it once, its repeats add nothing, its up releases it', () => {
+    const { target, onAction, key } = setup('classic');
+    key('keydown', 'KeyX');
+    key('keydown', 'KeyX', { repeat: true });
+    key('keydown', 'KeyX', { repeat: true });
+    expect(target.press.mock.calls).toEqual([['attack']]);
+    key('keyup', 'KeyX');
+    expect(target.release).toHaveBeenCalledWith('attack');
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
   it.each([
-    { code: 'KeyX', action: 'attack' },
     { code: 'KeyI', action: 'inventory' },
     { code: 'Enter', action: 'chat' },
-  ])('$code under classic reports $action once, not as a movement key', ({ code, action }) => {
+  ])('$code under classic reports $action once, not as a held key', ({ code, action }) => {
     const { target, onAction, state, key } = setup('classic');
     key('keydown', code);
     key('keydown', code, { repeat: true });

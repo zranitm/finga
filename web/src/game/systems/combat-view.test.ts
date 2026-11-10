@@ -1,7 +1,7 @@
 import { create } from '@bufbuild/protobuf';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MobViewSchema } from '@/protocol/messages';
+import { MobViewSchema, StatSheetSchema } from '@/protocol/messages';
 
 import {
   AttackGate,
@@ -9,7 +9,7 @@ import {
   InvulnFlash,
   MobTracker,
   NUMBER_LIFE_MS,
-  classCooldownMs,
+  attackCooldownTicks,
   numberFor,
   parseRef,
 } from './combat-view';
@@ -112,17 +112,9 @@ describe('numberFor and DamageNumbers', () => {
 });
 
 describe('AttackGate', () => {
-  it.each([
-    { cls: 'warrior', ms: 600 },
-    { cls: 'bowman', ms: 800 },
-    { cls: 'unknown', ms: 600 },
-  ])('$cls cools down for $ms ms', ({ cls, ms }) => {
-    expect(classCooldownMs(cls)).toBe(ms);
-  });
-
   it('the attack key during cooldown sends nothing; after cooldown sends exactly one Attack', () => {
     const send = vi.fn(() => true);
-    const g = new AttackGate(600, 50, send);
+    const g = new AttackGate(12, 50, send);
     expect(g.tryAttack(1000)).toBe(true);
     expect(g.tryAttack(1100)).toBe(false);
     expect(g.tryAttack(1599)).toBe(false);
@@ -133,25 +125,29 @@ describe('AttackGate', () => {
     expect(g.tryAttack(1601)).toBe(true);
   });
 
-  it.each([
-    { hz: 12, cooldownMs: 600, waitMs: 8000 / 12 }, // 7.2 ticks, which the server makes 8
-    { hz: 12, cooldownMs: 800, waitMs: 10000 / 12 }, // 9.6 ticks, made 10
-    { hz: 20, cooldownMs: 600, waitMs: 600 }, // 12 whole ticks
-    { hz: 30, cooldownMs: 800, waitMs: 800 }, // 24 whole ticks
-  ])(
-    'at $hz Hz a $cooldownMs ms cooldown waits $waitMs ms, the whole ticks the server counts',
-    ({ hz, cooldownMs, waitMs }) => {
-      const g = new AttackGate(cooldownMs, 1000 / hz, () => true);
-      expect(g.tryAttack(1000)).toBe(true);
-      expect(g.tryAttack(1000 + waitMs - 1)).toBe(false);
-      expect(g.tryAttack(1000 + waitMs)).toBe(true);
-    },
-  );
+  it('waits the ticks the sheet says, and a new count from attack speed applies from the next attack', () => {
+    const g = new AttackGate(8, 1000 / 12, () => true);
+    expect(g.tryAttack(1000)).toBe(true);
+    g.setCooldownTicks(6);
+    expect(g.tryAttack(1000 + 8000 / 12 - 1)).toBe(false);
+    expect(g.tryAttack(1000 + 8000 / 12)).toBe(true);
+    expect(g.tryAttack(1000 + 8000 / 12 + 500 - 1)).toBe(false);
+    expect(g.tryAttack(1000 + 8000 / 12 + 500)).toBe(true);
+  });
 
-  it('a refused send (socket closed) still starts the cooldown', () => {
-    const g = new AttackGate(600, 50, () => false);
-    expect(g.tryAttack(0)).toBe(false);
-    expect(g.tryAttack(1)).toBe(false);
+  it.each([
+    { name: 'the sheet’s count', ticks: 11, hz: 20, want: 11 },
+    {
+      name: 'before a sheet, the class’s 600 ms in whole ticks at 12 Hz',
+      ticks: 0,
+      hz: 12,
+      want: 8,
+    },
+    { name: 'and at 20 Hz', ticks: 0, hz: 20, want: 12 },
+    { name: 'a bowman’s 800 ms at 12 Hz', ticks: 0, hz: 12, want: 10, cls: 'bowman' },
+  ])('the cooldown is $name', ({ ticks, hz, want, cls = 'warrior' }) => {
+    const sheet = ticks > 0 ? create(StatSheetSchema, { attackCooldownTicks: ticks }) : undefined;
+    expect(attackCooldownTicks(sheet, cls, 1000 / hz)).toBe(want);
   });
 });
 

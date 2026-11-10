@@ -143,7 +143,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 				}
 			}
 		}
-		{ // two hits kill it (30 damage each with the starter sword, against 44 HP); it leaves the map
+		{ // two hits kill it (24 damage each with the starter sword, against 34 HP); it leaves the map
 			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
@@ -152,7 +152,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			if got := damages(s); len(got) != 2 || got[0].Amount != 30 || got[1].Amount != 30 {
+			if got := damages(s); len(got) != 2 || got[0].Amount != 24 || got[1].Amount != 24 {
 				t.Fatalf("damages %+v", got)
 			}
 			if len(mobsIn(s)) != 0 {
@@ -216,7 +216,7 @@ func TestAttacks(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(near)
-			if len(got) != 1 || got[0].Amount != 30 || got[0].Crit || got[0].Miss || got[0].Source.Player != idOf(t, near) || !got[0].Target.IsMob() {
+			if len(got) != 1 || got[0].Amount != 24 || got[0].Crit || got[0].Miss || got[0].Source.Player != idOf(t, near) || !got[0].Target.IsMob() {
 				t.Fatalf("damages %+v", got)
 			}
 			_ = inst.Leave(idOf(t, near), "", nil)
@@ -230,7 +230,7 @@ func TestAttacks(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(s)
-			if len(got) != 1 || got[0].Amount != 21 { // physical attack 13.5 at level 1 (STR 5 × 1.5 + DEX 12 × 0.5), and the bow's 8
+			if len(got) != 1 || got[0].Amount != 22 { // physical attack 14 at level 1 (STR 7 × 1.5 + DEX 7 × 0.5), and the bow's 8
 				t.Fatalf("damages %+v", got)
 			}
 			_ = inst.Leave(idOf(t, s), "", nil)
@@ -308,13 +308,13 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 		if len(got) != 1 || !got[0].Source.IsMob() || got[0].Target.Player != id {
 			t.Fatalf("damages %+v", got)
 		}
-		// Slime attack 6 against defense 15: 6·100/115 = 5.2 → 5.
+		// Slime attack 6 against defense 12: 6·100/112 = 5.4 → 5.
 		if got[0].Amount != 5 {
 			t.Fatalf("contact damage %d, want 5", got[0].Amount)
 		}
 		v, _ := s.Own(id)
-		if v.HP != 179 {
-			t.Fatalf("HP %d, want 179", v.HP)
+		if v.HP != 139 {
+			t.Fatalf("HP %d, want 139", v.HP)
 		}
 		if v.State.VY >= 0 {
 			t.Fatalf("no knockback hop: %+v", v.State)
@@ -328,7 +328,7 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 			var ticks []uint64
 			for _, d := range s.Deltas() {
 				for _, pv := range d.Players {
-					if pv.ID == id && !pv.Invulnerable && pv.HP == 179 {
+					if pv.ID == id && !pv.Invulnerable && pv.HP == 139 {
 						ticks = append(ticks, d.Tick)
 					}
 				}
@@ -396,7 +396,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			r := resp[0].(model.Respawned)
 			town := data.Town()
-			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 92 {
+			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 72 {
 				t.Fatalf("respawned %+v", r)
 			}
 			tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
@@ -405,7 +405,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 92 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X {
+			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 72 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X {
 				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
 			}
 		}
@@ -450,17 +450,17 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 			t.Fatalf("level-up events %+v", lus)
 		}
 		lu := lus[0].(model.LevelUp)
-		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×12+10×10 = 202, max MP 20+4+3×4 = 36.
-		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}) || lu.HP != 202 || lu.MaxHP != 202 || lu.MP != 36 || lu.MaxMP != 36 ||
+		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×7+10×7 = 162, max MP 20+4+3×7 = 45.
+		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || lu.HP != 162 || lu.MaxHP != 162 || lu.MP != 45 || lu.MaxMP != 45 ||
 			lu.Sheet.Points != (model.Points{Unspent: 5}) {
 			t.Fatalf("level-up %+v", lu)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Level != 2 || v.HP != 202 || v.MaxHP != 202 {
+		if v.Level != 2 || v.HP != 162 || v.MaxHP != 162 {
 			t.Fatalf("view after level-up %+v", v)
 		}
 		// The level-up is checkpointed right away, with the whole progression.
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 202 || saved[0].Points != (model.Points{Unspent: 5}) {
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 162 || saved[0].Points != (model.Points{Unspent: 5}) {
 			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
 	})
@@ -586,7 +586,7 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 			t.Fatalf("respawned %+v", resp)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Dead || v.HP != 92 || v.State.X != 100 || v.State.Y != 608 {
+		if v.Dead || v.HP != 72 || v.State.X != 100 || v.State.Y != 608 {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
 		if len(ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
@@ -617,8 +617,8 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		synctest.Wait()
 		town := data.Town()
 		saved := cps.Drain()
-		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 92 || saved[0].Exp != 9 {
-			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 92 HP and EXP 9", saved)
+		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 72 || saved[0].Exp != 9 {
+			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 72 HP and EXP 9", saved)
 		}
 	})
 }

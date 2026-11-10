@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Bar } from '@/components/Bar';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
+import { ui } from '@/state/ui';
 
 const EXP_FLASH_MS = 2000;
 
@@ -30,9 +31,24 @@ export function Hud() {
         {...(capped && { text: 'MAX' })}
       />
       <ExpDelta />
+      <PointsBadge />
       <WaitingNotice />
     </div>
   );
+}
+
+/** Unspent stat points, until spent; it opens the character window to spend them. */
+function PointsBadge() {
+  const unspent = character.use((s) => s.character?.sheet?.points?.unspent ?? 0);
+  return unspent > 0 ? (
+    <button
+      type="button"
+      className="hud-points"
+      onClick={() => ui.getState().openWindow('character')}
+    >
+      {unspent} stat {unspent === 1 ? 'point' : 'points'}
+    </button>
+  ) : null;
 }
 
 function WaitingNotice() {

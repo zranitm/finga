@@ -19,14 +19,14 @@ Five, which players raise by spending points:
 | **AGI** | Speed and dodging |
 | **VIT** | Toughness |
 
-Starting stats at level 1, per class (proposal, to tune):
+Starting stats at level 1, the same for every class:
 
 | Class | STR | DEX | INT | AGI | VIT |
 | --- | --- | --- | --- | --- | --- |
-| Warrior | 12 | 6 | 4 | 4 | 10 |
-| Bowman | 9 | 11 | 4 | 7 | 5 |
+| Warrior | 7 | 7 | 7 | 7 | 7 |
+| Bowman | 7 | 7 | 7 | 7 | 7 |
 
-Thief and Magician get theirs when they arrive.
+Thief and Magician start the same when they arrive. The class shows in how points are spent, not in where a character starts, so the later Beginner (who starts with 7 in each stat before choosing a class) needs no rebalancing.
 
 ## Spending points
 

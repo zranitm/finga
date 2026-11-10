@@ -35,6 +35,8 @@ export type ControlPreset = 'classic' | 'wasd';
 
 export interface Settings {
   readonly control_preset: ControlPreset;
+  /** False when the account never set it. */
+  readonly auto_assign_points?: boolean;
 }
 
 export interface HttpResponse {

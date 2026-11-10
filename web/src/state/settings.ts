@@ -9,7 +9,10 @@ export const PRESET_KEY = 'finga.settings.preset';
 
 export interface SettingsState {
   readonly preset: Preset;
+  /** Spend each level-up's points by the class's split; the account's setting, off until it says so. */
+  readonly autoAssignPoints: boolean;
   setPreset(preset: Preset): void;
+  setAutoAssignPoints(on: boolean): void;
 }
 
 export function isPreset(value: unknown): value is Preset {
@@ -47,8 +50,12 @@ function safeStorage(): Storage | null {
 
 export const settings = defineStore<SettingsState>((set) => ({
   preset: loadCachedPreset(),
+  autoAssignPoints: false,
   setPreset: (preset) => {
     cachePreset(preset);
     set({ preset });
+  },
+  setAutoAssignPoints: (autoAssignPoints) => {
+    set({ autoAssignPoints });
   },
 }));

@@ -80,7 +80,7 @@ func TestPortals(t *testing.T) {
 
 		{ // a portal takes the player to the linked spot on the target map, with HP as it was
 			ayla := worldtest.NewPlayer("Ayla", toForest.Arrival().X, toForest.Arrival().Y)
-			ayla.HP = 150
+			ayla.HP = 120
 			sa := &worldtest.Sink{}
 			w.enter(t, ayla, "town", "c-ayla", sa)
 			time.Sleep(worldtest.TickInterval)
@@ -102,7 +102,7 @@ func TestPortals(t *testing.T) {
 					me = v
 				}
 			}
-			if me.ID != ayla.ID || me.State.X != arrival.X || me.State.Y != arrival.Y || me.HP != 150 {
+			if me.ID != ayla.ID || me.State.X != arrival.X || me.State.Y != arrival.Y || me.HP != 120 {
 				t.Fatalf("in the forest snapshot: %+v", me)
 			}
 			// Never out of every instance for more than one tick.
@@ -118,7 +118,7 @@ func TestPortals(t *testing.T) {
 				}
 			}
 			saver.mu.Unlock()
-			if cp == nil || cp.MapID != "forest" || cp.X != arrival.X || cp.HP != 150 {
+			if cp == nil || cp.MapID != "forest" || cp.X != arrival.X || cp.HP != 120 {
 				t.Fatalf("checkpoint on the way out: %+v", cp)
 			}
 			if present, removed := seenIn(sr, ayla.ID); removed != 1 || present == 0 {

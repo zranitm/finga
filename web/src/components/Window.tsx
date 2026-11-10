@@ -15,6 +15,10 @@ export interface WindowProps {
   readonly children: ReactNode;
 }
 
+// A window ends this far above the bottom, clear of the bottom-left Back to characters button, and scrolls what doesn't fit.
+const BOTTOM_CLEAR_PX = 64;
+const MIN_HEIGHT_PX = 160;
+
 /** Takes focus on open, so Escape closes it; the game's keys still reach the game. */
 export function Window({
   title,
@@ -66,7 +70,12 @@ export function Window({
       role="dialog"
       aria-label={title}
       tabIndex={-1}
-      style={{ left: pos.x, top: pos.y, zIndex: layer }}
+      style={{
+        left: pos.x,
+        top: pos.y,
+        zIndex: layer,
+        maxHeight: `max(${MIN_HEIGHT_PX}px, calc(100vh - ${pos.y + BOTTOM_CLEAR_PX}px))`,
+      }}
       onKeyDown={onKeyDown}
       onPointerDownCapture={onRaise}
       onFocus={onRaise}

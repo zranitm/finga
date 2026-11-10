@@ -48,7 +48,7 @@ func TestTheSheetCarriesTheAttackCooldown(t *testing.T) {
 	}
 }
 
-// Boots with 30% move speed walk 1.3 times as far as a town's pace in a hunting map, a new warrior's 5 AGI 1.007 times, and both at the town's pace in a town.
+// Boots with 30% move speed walk 1.3 times as far as a town's pace in a hunting map, a new warrior's 7 AGI 1.01 times, and both at the town's pace in a town.
 func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
 	walked := func(t *testing.T, m func(*gamedata.Data) *gamedata.Map, moveSpeed int) float64 {
 		t.Helper()
@@ -79,7 +79,7 @@ func TestMoveSpeedCountsInHuntingMapsOnly(t *testing.T) {
 	if pace <= 0 || townFast != pace {
 		t.Fatalf("in town: walked %v px with the boots, %v without; want the same", townFast, pace)
 	}
-	if base, fast := walked(t, hunting, 0), walked(t, hunting, 300); math.Abs(base-1.007*pace) > 1e-6 || math.Abs(fast-1.3*pace) > 1e-6 {
-		t.Fatalf("in a hunting map: walked %v px without the boots and %v with them, against the town's %v; want 1.007 and 1.3 times as far", base, fast, pace)
+	if base, fast := walked(t, hunting, 0), walked(t, hunting, 300); math.Abs(base-1.01*pace) > 1e-6 || math.Abs(fast-1.3*pace) > 1e-6 {
+		t.Fatalf("in a hunting map: walked %v px without the boots and %v with them, against the town's %v; want 1.01 and 1.3 times as far", base, fast, pace)
 	}
 }

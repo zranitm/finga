@@ -93,32 +93,43 @@ describe('unmet', () => {
     stars: 1,
     description: '',
   };
-  const warrior = (level: number) => create(CharacterViewSchema, { class: 'warrior', level });
+  const warrior = (level: number) =>
+    create(CharacterViewSchema, {
+      class: 'warrior',
+      level,
+      stats: { str: 12, dex: 5, int: 4, agi: 5, vit: 10 },
+    });
 
   it.each([
     {
       name: 'a level-1 warrior misses both of a level-8 bow',
       t: bow,
       c: warrior(1),
-      want: { level: true, class: true },
+      want: { level: true, class: true, stats: [] },
     },
     {
       name: 'a level-8 warrior misses only its class',
       t: bow,
       c: warrior(8),
-      want: { level: false, class: true },
+      want: { level: false, class: true, stats: [] },
     },
     {
       name: 'an item for every class asks only the level',
       t: cap,
       c: warrior(1),
-      want: { level: false, class: false },
+      want: { level: false, class: false, stats: [] },
+    },
+    {
+      name: 'each stat minimum is held against the own stats',
+      t: { ...cap, requires: { str: 13, vit: 10 } },
+      c: warrior(1),
+      want: { level: false, class: false, stats: ['str'] },
     },
     {
       name: 'without a character nothing is marked',
-      t: bow,
+      t: { ...bow, requires: { str: 99 } },
       c: null,
-      want: { level: false, class: false },
+      want: { level: false, class: false, stats: [] },
     },
   ])('$name', ({ t, c, want }) => {
     expect(unmet(t, c)).toEqual(want);

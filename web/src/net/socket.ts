@@ -66,7 +66,9 @@ type RequestType =
   | 'partyRespond'
   | 'partyLeave'
   | 'partyKick'
-  | 'partyPromote';
+  | 'partyPromote'
+  | 'spendPoints'
+  | 'resetPoints';
 type ActionType = 'attack' | 'enterPortal';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */

@@ -65,6 +65,19 @@ describe('Window', () => {
     fireEvent.pointerMove(bar, { clientX: 500, clientY: 500, pointerId: 1 }); // not dragging any more
     expect(dialog).toHaveStyle({ left: '140px', top: '80px' });
   });
+
+  it('is never taller than the viewport below it, less the bottom strip, and its body scrolls the rest', () => {
+    render(
+      <Window title="Character" onClose={vi.fn()} initialX={24} initialY={80}>
+        <p>stats</p>
+      </Window>,
+    );
+    // 80 from the top and 64 kept clear at the bottom, never under 160; the engine may reorder the sum.
+    const max = screen.getByRole('dialog', { name: 'Character' }).style.maxHeight;
+    expect(max).toMatch(/^max\(160px, /);
+    expect(max).toMatch(/100vh/);
+    expect(max).toMatch(/-\s?144px/);
+  });
 });
 
 describe('Modal', () => {

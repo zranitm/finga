@@ -266,11 +266,11 @@ describe('item cards', () => {
     setup();
     await userEvent.hover(cell('Iron Sword x1'));
     const hovered = screen.getByRole('group', { name: 'Iron Sword' });
-    expect(hovered).toHaveTextContent('Attack 17 (16–20) +6');
+    expect(hovered).toHaveTextContent('Physical attack 17 (16–20) +6');
     expect(within(hovered).getByText('Level 8')).toHaveClass('unmet');
     expect(within(hovered).getByText('Warrior')).not.toHaveClass('unmet');
     expect(screen.getByRole('group', { name: 'Worn: Wooden Sword' })).toHaveTextContent(
-      'Attack 11 (10–12)',
+      'Physical attack 11 (10–12)',
     );
     await userEvent.unhover(cell('Iron Sword x1'));
     expect(screen.queryByRole('group', { name: 'Iron Sword' })).toBeNull();
@@ -318,7 +318,7 @@ describe('item cards', () => {
     setup();
     await userEvent.hover(cell('Leather Cap x1'));
     expect(screen.getByRole('group', { name: 'Leather Cap' })).toHaveTextContent(
-      'Defense 4 (3–4) +4',
+      'Physical defense 4 (3–4) +4',
     );
     expect(screen.getByRole('group', { name: 'Worn: nothing' })).toBeInTheDocument();
   });

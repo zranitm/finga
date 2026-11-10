@@ -1,6 +1,8 @@
 # Equipment, rolled stats, and item details
 
 > **Status: approved · 2026-11-08,** with the defaults of every open question in section 13. The high-level design for [D3. Equipment](../product/features/items-and-inventory/d3-equipment.md), [D6. Character window](../product/features/items-and-inventory/d6-character-window.md), [D7. Item details and comparison](../product/features/items-and-inventory/d7-item-details-and-comparison.md), and the rules in [Systems → Items](../product/systems/items.md). It describes the code as it stands and the change it plans; once built, the page is kept true to the code.
+>
+> **Superseded in part by [Stat system](stat-system.md):** equipment rolls 21 stats, `attack` and `defense` are now `physical_attack` and `physical_defense`, items may require stats, only weapons keep a class, and the character window previews staged points. Where the two pages differ on stats, that page is the current one.
 
 ## 1. What has to hold
 
@@ -15,7 +17,7 @@ From the code as it is (the rules this design keeps):
 
 - **The tick never waits on another service.** Anything that needs the item service runs on the world's item-call workers (`itemcalls`, renamed from `economy` in step 0) and comes back into the map instance's inbox, as drop grants do.
 - **No transaction spans two services.** An equip or unequip is one transaction in the item service.
-- **Rules stay on the server.** The client checks requirements only to decide what to send and what to colour red; the server decides. The client has no stat formulas (it never reads `data/stats.yaml`) and does not get them: it shows the numbers the server sends.
+- **Rules stay on the server.** The client checks requirements only to decide what to send and what to colour red; the server decides. The client shows the numbers the server sends; its only copy of the stat formulas is the character window's preview of staged points, which the shared stat vectors keep equal to the server's ([Stat system](stat-system.md), section 10).
 - **Every item change is an item event and takes the inventory's next revision**, so clients apply changes in order.
 - **The protocol only grows.** New messages and fields are additive, so `make breaking` passes and an older client ignores what it doesn't know.
 

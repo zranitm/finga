@@ -218,7 +218,7 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "conn-1", ayla)
-	if view.GetId() != ayla.ID.String() || view.GetName() != "Ayla" || view.GetMapId() != "town" || view.GetMaxHp() != 184 || view.GetStats().GetStrength() != 12 {
+	if view.GetId() != ayla.ID.String() || view.GetName() != "Ayla" || view.GetMapId() != "town" || view.GetMaxHp() != 144 || view.GetStats().GetStrength() != 7 {
 		t.Fatalf("view %+v", view)
 	}
 	first, err := gw.Recv()
@@ -434,7 +434,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 	stream := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "c1", ayla)
-	if view.GetSheet().GetDerived().GetMaxHp() != view.GetMaxHp() || view.GetSheet().GetPrimary().GetStrength() != 12 {
+	if view.GetSheet().GetDerived().GetMaxHp() != view.GetMaxHp() || view.GetSheet().GetPrimary().GetStrength() != 7 {
 		t.Fatalf("the joined view's sheet %+v", view.GetSheet())
 	}
 	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
@@ -446,7 +446,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 		t.Fatalf("inventory change %+v", inv)
 	}
 	stats := until(t, stream, "StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
-	if stats.GetMaxHp() != 214 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetPhysicalDefense() != 3 {
+	if stats.GetMaxHp() != 174 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetPhysicalDefense() != 3 {
 		t.Fatalf("stats change %+v", stats)
 	}
 	to := int32(5)
@@ -475,7 +475,7 @@ func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	stats := until(t, stream, "the spend's StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
-	if p := stats.GetSheet().GetPrimary(); p.GetStrength() != 16 || p.GetVitality() != 12 || stats.GetMaxHp() != 248 {
+	if p := stats.GetSheet().GetPrimary(); p.GetStrength() != 11 || p.GetVitality() != 9 || stats.GetMaxHp() != 208 {
 		t.Fatalf("stats change %+v", stats)
 	}
 	for _, c := range []struct {
@@ -498,7 +498,7 @@ func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 		t.Fatal(err)
 	}
 	stats = until(t, stream, "the reset's StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
-	if p := stats.GetSheet().GetPrimary(); p.GetStrength() != 12 || p.GetVitality() != 10 || stats.GetMaxHp() != 220 {
+	if p := stats.GetSheet().GetPrimary(); p.GetStrength() != 7 || p.GetVitality() != 7 || stats.GetMaxHp() != 180 {
 		t.Fatalf("stats change after the reset %+v", stats)
 	}
 	_, err := s.c.ResetPoints(s.ctx, &worldv1.ResetPointsRequest{Presence: presence, ExpectedUnspent: 10})

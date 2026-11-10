@@ -63,7 +63,7 @@ classes:                   # base values per class; per_level grows them
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
 ```
 
-- **`classes.yaml`:** each class gains `attack.damage` (`physical` or `magic`) and `auto_assign` (the recommended split, which must sum to `points_per_level`). `base_stats` takes the new starting values, and `level_up_points` goes.
+- **`classes.yaml`:** each class gains `attack.damage` (`physical` or `magic`) and `auto_assign` (the recommended split, which must sum to `points_per_level`). `base_stats` takes the new starting values, 7 in each stat for every class, and `level_up_points` goes.
 - **`mobs.yaml`:** each mob gains `damage` (`physical` or `magic`) and `magic_defense`, and `defense` is renamed `physical_defense`. Cave bats deal magic damage.
 - **`items.yaml`:** `attack` and `defense` in `stats` become `physical_attack` and `physical_defense`, and the other new derived stats may roll. `requires: {str: 25}` lists stat minimums. `class` is allowed on weapons only.
 - **Units:** every rolled value is a whole number. Rates (crit rate, crit damage, penetration, the three speeds) are in tenths of a percent. Regen is in tenths of a point per second.
@@ -85,7 +85,7 @@ classes:                   # base values per class; per_level grows them
   3. **Rates:** the base, plus *(limit − base) × points ÷ (points + k)*, plus the gear's rate, held to the limit. This covers crit rate and the three speeds.
   4. **Penetration:** gear only (skills later), held to 50%.
 - **`Sheet`** keeps the totals and the equipment's share of each (totals with gear minus totals without), and gains the new stats and the points.
-- **Requirements:** `Meets(item, level, class, own)` checks the level, the class for weapons, and each stat minimum against the character's **own** stats, not counting gear (decision 1). Worn items that don't meet their requirement are left out of the worn sum, so they add nothing until they do.
+- **Requirements:** `Meets(item, level, class, own)` checks the level, the class for weapons, and each stat minimum against the character's **own** stats, not counting gear: counting it would let one item's bonus unlock another, and taking an item off could switch others off in a chain. Worn items that don't meet their requirement are left out of the worn sum, so they add nothing until they do.
 - **Shared stat vectors** go in `server/testdata/stats/`: class, level, points, and worn stats, with the expected sheet. The Go tests and the client's preview (section 8) both replay them, so the preview can't drift from the server. They compare to 1e-9; the preview is display only.
 
 ## 5. Points: where they live and how they're spent
@@ -115,7 +115,9 @@ classes:                   # base values per class; per_level grows them
   - A worn item may become inactive, which is proposal 7 in the product pages.
   - It sends `StatsChanged` and checkpoints.
   - When currency arrives (F1), a paid reset becomes an economic action: the item service charges the wallet under an idempotency key, and the world applies the reset after the charge commits.
-- **Auto-assign runs in the client** (decision 2). When the account setting is on and a `LevelUp` arrives, the client sends `SpendPoints` with its class's split and the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
+- **Auto-assign runs in the client,** so the world never has to read the account setting at join, which would be one more dependency for it. When the account setting is on and a `LevelUp` arrives, the client spends every unspent point by its class's split, as the Auto-assign button does, with the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
+  - Two `LevelUp`s close together send two requests; the first is refused with `points_changed`, and the second spends everything.
+  - The client reads the settings at login, so the switch is known before the first level-up.
   - The setting lives beside the control preset in the account service: `PUT /api/settings` gains `auto_assign_points`, false by default.
   - The Auto-assign button sends the same request on demand.
 - **Durability:** points, like level and EXP, live in the world and are saved by checkpoint. A world crash between Apply and its checkpoint loses the change, and the points come back unspent. That window is the same one a level-up has today.
@@ -129,7 +131,7 @@ classes:                   # base values per class; per_level grows them
   - The hit chance is unchanged: accuracy against evasion, held between the limits in `stats.yaml` (20% and 99%), for every attack in both directions.
 - **Regen:**
   - Once a second (every `tick_rate_hz` ticks), each living player gains their HP and MP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP and MP never go past their maximums.
-  - It runs in towns too, never while dead (decision 3).
+  - It runs in towns too, since the combat page has HP and MP come back over time everywhere. It never runs while dead: HP stays 0 until the respawn sets it.
   - HP changes go out in the Delta as any change does, and the party hears each member's HP once a tick when it changed; the party copy keeps only a member's newest.
   - MP isn't in the Delta, so a second in which regen raises MP sends the player a `StatsChanged`.
 - **Inactive gear:** when a character's own stats change (spending, a reset) or an item is equipped, the world rebuilds the worn sum from the items whose requirements are met.
@@ -140,7 +142,8 @@ classes:                   # base values per class; per_level grows them
 
 - The world computes each player's cooldown in ticks: *⌈class cooldown ÷ (1 + attack speed) ÷ tick⌉*.
 - The sheet carries it as `attack_cooldown_ticks`.
-- The client's attack gate (`combat-view.ts`) uses that number instead of the class cooldown, so the gate and the server count the same ticks.
+- The client's attack gate (`combat-view.ts`) uses that number instead of the class cooldown, so the gate and the server count the same ticks. Holding the attack key strikes again at each cooldown.
+- **The cooldown moves a whole tick at a time.** At 20 ticks a second, a warrior's 600 ms becomes 550 ms only from about 9.1% attack speed, and a bowman's 800 ms becomes 750 ms from about 6.7%. Less than that shows in the character window but doesn't change the pace yet.
 
 ### Move speed
 
@@ -205,6 +208,7 @@ classes:                   # base values per class; per_level grows them
 ## 10. Client
 
 - **gamedata:** the per-point table, diminishing returns, class bases, auto-assign splits, and item requirements.
+- **progression** (`web/src/progression`, a layer beside `sim`): the TypeScript port of `DeriveStats`, the requirement check, and the auto-assign split, replaying `server/testdata/stats`.
 - **sim:** `SpeedFactor` from the sheet in hunting maps; prediction uses it.
 - **game:** the attack gate uses `attack_cooldown_ticks`.
 - **state:** the character store keeps the sheet with its points; a staged-points draft lives in the window.
@@ -214,6 +218,7 @@ classes:                   # base values per class; per_level grows them
   - **Apply** sends `SpendPoints`, and **Undo** clears the draft;
   - the preview runs a TypeScript port of `DeriveStats` over the generated data, checked against the shared stat vectors;
   - **Auto-assign** and **Reset**; Reset asks for confirmation and shows whether the free one is left;
+  - a draft belongs to the unspent count it was staged from: if that count changes (a level-up, or an Apply that landed after its reply was lost), the draft is dropped, so a retried Apply never spends twice;
   - worn items below their requirement are greyed out.
 - **features/settings:** the auto-assign switch.
 - **app/wiring:** on `LevelUp`, when the setting is on, send the split.

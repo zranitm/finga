@@ -115,7 +115,7 @@ func TestEquipment(t *testing.T) {
 	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-drop-waits-on-the-ground", func(t *testing.T) {
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.createCharacter(t, "tess", "Tess", "warrior")
-		s.place(t, id, "forest", 380, 608, 184, 0)
+		s.place(t, id, "forest", 380, 608, 144, 0)
 		// The Equip tab's 24 slots: a better sword in the first, caps in the rest.
 		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 12})
 		for range 23 {
@@ -304,6 +304,45 @@ func TestEquipment(t *testing.T) {
 		_, again := s.welcome(t, "xan", id)
 		if len(again.Equipment) != 1 || again.Equipment[0].GetItem().GetItemId() != better || again.GetCharacter().GetSheet().GetDerivedWorn().GetPhysicalAttack() <= w.GetCharacter().GetSheet().GetDerivedWorn().GetPhysicalAttack() {
 			t.Fatalf("welcomed wearing %+v with sheet %+v; want the better sword and its attack", again.Equipment, again.GetCharacter().GetSheet())
+		}
+		s.checkInvariants(t)
+	})
+
+	t.Run("E7/an-item-below-its-stat-requirement-is-refused-until-points-meet-it-and-adds-nothing-after-a-reset", func(t *testing.T) {
+		s := newStack(t)
+		token, id := s.createCharacter(t, "wade", "Wade", "warrior")
+		// Level 8 with its 35 points unspent, and MP full (69), so no regen sends a StatsChanged of its own.
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 8, unspent_points = 35, mp = 69 WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 18}) // needs STR 20
+		l, _ := s.hello(t, token, id)
+		if r := l.command(t, "e-1", &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}); r.GetOk() || r.GetCode() != "stats_too_low" {
+			t.Fatalf("equipping with STR 7 answered %+v, want stats_too_low", r)
+		}
+		l.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 35, Points: &clientv1.Stats{Str: 13}}})
+		if r := l.gather("Response", "StatsChanged")["Response"]; !r.Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("spend answered %+v", r)
+		}
+		time.Sleep(250 * time.Millisecond) // under the inventory limit
+		l.send(wsconn.Message{ReqID: "e-2", Data: &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}})
+		got := l.gather("Response", "StatsChanged")
+		if !got["Response"].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("equipping with STR 20 answered %+v", got["Response"])
+		}
+		if sheet := got["StatsChanged"].Data.(*clientv1.StatsChanged).GetSheet(); sheet.GetDerivedWorn().GetPhysicalAttack() != 18 {
+			t.Fatalf("sheet %+v; want the sword's 18 attack", sheet)
+		}
+		l.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.ResetPoints{ExpectedUnspent: 22}})
+		got = l.gather("Response", "StatsChanged")
+		if !got["Response"].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("reset answered %+v", got["Response"])
+		}
+		if sheet := got["StatsChanged"].Data.(*clientv1.StatsChanged).GetSheet(); sheet.GetPrimary().GetStr() != 7 || sheet.GetDerivedWorn().GetPhysicalAttack() != 0 {
+			t.Fatalf("sheet after the reset %+v; want STR 7 and the sword adding nothing", sheet)
+		}
+		if worn := s.worn(t, id); worn["weapon"] != iron {
+			t.Fatalf("worn %v; want the sword still worn", worn)
 		}
 		s.checkInvariants(t)
 	})

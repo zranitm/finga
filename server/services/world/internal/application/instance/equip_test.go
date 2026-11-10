@@ -132,7 +132,7 @@ func TestEquipChangesStatsOnlyOnceTheResultArrives(t *testing.T) {
 		if err := <-done; err != nil {
 			t.Fatal(err)
 		}
-		if c := eq.equips[0]; c.Character != p.ID || c.Account != p.Account || c.Key != "k-1" || c.Level != 1 || c.Class != kernel.Warrior || c.Stats != (gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}) {
+		if c := eq.equips[0]; c.Character != p.ID || c.Account != p.Account || c.Key != "k-1" || c.Level != 1 || c.Class != kernel.Warrior || c.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) {
 			t.Fatalf("call %+v; want the live level, class and own stats", c)
 		}
 		inv, stats := eventsOf[model.InventoryChanged](s), eventsOf[model.StatsChanged](s)
@@ -213,18 +213,18 @@ func TestUnequipLowersHPAndMPToTheNewMaximum(t *testing.T) {
 		defer stop()
 		p := worldtest.NewPlayer("Ayla", 100, 608)
 		p.Connection, p.Worn = "c1", model.Worn{Revision: 3, Items: []model.WornItem{{Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 50, MaxMP: 10}}}}
-		p.HP, p.MP = 234, 42 // full with the hat's 50 HP and 10 MP
+		p.HP, p.MP = 194, 51 // full with the hat's 50 HP and 10 MP
 		s := join(t, inst, p)
-		if v, _ := s.Own(p.ID); v.MaxHP != 234 || v.HP != 234 {
-			t.Fatalf("joined %+v; want the hat's 50 HP in a full 234", v)
+		if v, _ := s.Own(p.ID); v.MaxHP != 194 || v.HP != 194 {
+			t.Fatalf("joined %+v; want the hat's 50 HP in a full 194", v)
 		}
 		if err := inst.Unequip(context.Background(), p.ID, "c1", "k-2", "hat", nil); err != nil {
 			t.Fatal(err)
 		}
 		tick(1)
 		stats := eventsOf[model.StatsChanged](s)
-		if len(stats) != 1 || stats[0].MaxHP != 184 || stats[0].HP != 184 || stats[0].MaxMP != 32 || stats[0].MP != 32 {
-			t.Fatalf("stats %+v; want HP and MP down to the new maximums, 184 and 32", stats)
+		if len(stats) != 1 || stats[0].MaxHP != 144 || stats[0].HP != 144 || stats[0].MaxMP != 41 || stats[0].MP != 41 {
+			t.Fatalf("stats %+v; want HP and MP down to the new maximums, 144 and 41", stats)
 		}
 		if c := eq.unequips[0]; c.EquipSlot != "hat" || c.ToSlot != nil || c.Key != "k-2" {
 			t.Fatalf("call %+v", c)
@@ -261,16 +261,16 @@ func TestWornStatsAtJoinAndLevelUp(t *testing.T) {
 		p := warriorAt(250)
 		p.Exp, p.Worn = 18, model.Worn{Revision: 2, Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: 10}}, {Template: "leather_cap", Stats: progression.ItemStats{MaxHP: 30}}}}
 		s := join(t, inst, p)
-		if v, _ := s.Own(p.ID); v.MaxHP != 214 {
-			t.Fatalf("max HP %d at join, want 184 and the worn 30", v.MaxHP)
+		if v, _ := s.Own(p.ID); v.MaxHP != 174 {
+			t.Fatalf("max HP %d at join, want 144 and the worn 30", v.MaxHP)
 		}
 		_ = inst.Attack(p.ID) // two hits kill the slime, its 5 EXP a level
 		tick(13)
 		_ = inst.Attack(p.ID)
 		tick(1)
 		lus := eventsOf[model.LevelUp](s)
-		if len(lus) != 1 || lus[0].MaxHP != 232 || lus[0].HP != 232 || lus[0].Sheet.DerivedWorn.MaxHP != 30 {
-			t.Fatalf("level-ups %+v; want max HP 202 and the worn 30, restored, with the equipment's share", lus)
+		if len(lus) != 1 || lus[0].MaxHP != 192 || lus[0].HP != 192 || lus[0].Sheet.DerivedWorn.MaxHP != 30 {
+			t.Fatalf("level-ups %+v; want max HP 162 and the worn 30, restored, with the equipment's share", lus)
 		}
 	})
 }

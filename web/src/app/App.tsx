@@ -14,7 +14,7 @@ import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
-import { SettingsPanel } from '@/features/settings/SettingsPanel';
+import { loadSettings, SettingsPanel } from '@/features/settings/SettingsPanel';
 import type { Character } from '@/net/rest';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
@@ -65,6 +65,10 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
 
   // Leaving the logged-in screens for any reason (log out, kick) leaves the world too.
   useEffect(() => () => svc.game.leave(), [svc]);
+  // Auto-assign acts on level-ups, so the account's settings are needed before play, not only in the panel.
+  useEffect(() => {
+    void loadSettings(svc.rest);
+  }, [svc]);
 
   if (playing === null) {
     return (
@@ -134,6 +138,8 @@ function WorldOverlay({
   const characterOpen = ui.use((s) => s.windows.includes('character'));
   const partyOpen = ui.use((s) => s.windows.includes('party'));
   const me = characterStore.use((s) => s.character?.id ?? '');
+  // The next entry starts with no window open, whichever way this one ends.
+  useEffect(() => () => ui.getState().clear(), []);
   return (
     <>
       <Hud />

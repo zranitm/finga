@@ -26,7 +26,7 @@ import {
   DamageNumbers,
   InvulnFlash,
   MobTracker,
-  classCooldownMs,
+  attackCooldownTicks,
   numberFor,
   parseRef,
 } from '../systems/combat-view';
@@ -38,7 +38,7 @@ import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { PortalSystem, standsIn } from '../systems/portals';
-import { Predictor, wireState } from '../systems/prediction';
+import { Predictor, movementParams, wireState } from '../systems/prediction';
 
 import { groundStyle, mapTiles } from './world-layout';
 
@@ -108,6 +108,8 @@ export class World extends Phaser.Scene {
   private readonly numbers = new DamageNumbers();
   private numberLayer: DamageNumberLayer | null = null;
   private attackGate: AttackGate | null = null;
+  /** The attack key is down: the gate lets a strike through at each cooldown. */
+  private attackHeld = false;
   private readonly flash = new InvulnFlash();
   private transitionState: TransitionState = initialTransition;
 
@@ -218,15 +220,35 @@ export class World extends Phaser.Scene {
 
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
     this.socket = socket;
-    this.predictor = new Predictor(view.geometry, this.timing);
+    const sheet = () => character.getState().character?.sheet;
+    this.predictor = new Predictor(
+      view.geometry,
+      this.timing,
+      movementParams(view.kind, sheet()?.derived?.moveSpeed ?? 0),
+    );
     this.remotes = new RemotePlayers(this.entry.characterId, this.timing.tickMs);
     this.drops.clear();
     this.numbers.clear();
     const portals = new PortalSystem(() => socket.sendAction('enterPortal'));
     this.portals = portals;
     this.numberLayer = new DamageNumberLayer(this);
-    this.attackGate = new AttackGate(classCooldownMs(this.entry.cls), this.timing.tickMs, () =>
-      socket.sendAction('attack'),
+    this.attackGate = new AttackGate(
+      attackCooldownTicks(sheet(), this.entry.cls, this.timing.tickMs),
+      this.timing.tickMs,
+      () => socket.sendAction('attack'),
+    );
+    // Gear, points and level-ups change the pace; StatsChanged and LevelUp bring the new sheet.
+    this.offs.push(
+      character.subscribe((now, before) => {
+        const next = now.character?.sheet;
+        if (next === before.character?.sheet) {
+          return;
+        }
+        this.attackGate?.setCooldownTicks(
+          attackCooldownTicks(next, this.entry.cls, this.timing.tickMs),
+        );
+        this.predictor?.setParams(movementParams(view.kind, next?.derived?.moveSpeed ?? 0));
+      }),
     );
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
@@ -234,18 +256,28 @@ export class World extends Phaser.Scene {
       bindKeyboard({
         target: {
           press: (a) => {
+            if (a === 'attack') {
+              this.attackHeld = true;
+              this.attack();
+              return;
+            }
             sender.press(a);
             if (a === 'up') {
               portals.keyDown(this.inPortal());
             }
           },
           release: (a) => {
+            if (a === 'attack') {
+              this.attackHeld = false;
+              return;
+            }
             sender.release(a);
             if (a === 'up') {
               portals.keyUp();
             }
           },
           releaseAll: () => {
+            this.attackHeld = false;
             sender.releaseAll();
             portals.keyUp();
           },
@@ -254,9 +286,6 @@ export class World extends Phaser.Scene {
         typing: isTyping,
         onAction: (action) => {
           switch (action) {
-            case 'attack':
-              this.attack();
-              return;
             case 'inventory':
               ui.getState().toggleWindow('inventory');
               return;
@@ -341,6 +370,9 @@ export class World extends Phaser.Scene {
       return;
     }
     const dead = this.transitionState.dead;
+    if (this.attackHeld) {
+      this.attack();
+    }
     for (const step of this.clock.advance(deltaMs)) {
       if (dead) {
         continue; // the server holds a dead player
@@ -705,6 +737,7 @@ export class World extends Phaser.Scene {
     this.predictor = null;
     this.sender = null;
     this.attackGate = null;
+    this.attackHeld = false;
     this.portals = null;
     this.view = null;
     this.placed = false;

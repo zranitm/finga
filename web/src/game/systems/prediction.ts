@@ -1,7 +1,15 @@
 import type { TickTiming } from '@/lib/fixed-step';
 import { RingBuffer } from '@/lib/ring-buffer';
 import type { Input } from '@/sim/input';
-import { NO_PLATFORM, params as defaultParams, standing, step } from '@/sim/step';
+import type { MapKind } from '@/sim/map';
+import {
+  NO_PLATFORM,
+  params as defaultParams,
+  faster,
+  speedFactor,
+  standing,
+  step,
+} from '@/sim/step';
 import type { Geometry, Params, State } from '@/sim/step';
 
 export const RESET_DISTANCE_PX = 4;
@@ -51,6 +59,11 @@ export interface TickEntry {
 
 export type Reconciled = 'match' | 'reset' | 'stale' | 'ahead';
 
+/** The movement a player predicts with: its move speed in hunting maps, and everyone's one pace in towns, as the world moves it. */
+export function movementParams(kind: MapKind, moveSpeed: number): Params {
+  return kind === 'hunting' ? faster(defaultParams, speedFactor(moveSpeed)) : defaultParams;
+}
+
 /** The platform index the feet stand on, as sim/step would record it. */
 export function platformUnder(x: number, y: number, g: Geometry, p: Params): number {
   for (let i = 0; i < g.platforms.length; i++) {
@@ -92,10 +105,15 @@ export class Predictor {
   constructor(
     private readonly g: Geometry,
     timing: Pick<TickTiming, 'tickMs' | 'stepsPerTick'>,
-    private readonly p: Params = defaultParams,
+    private p: Params = defaultParams,
   ) {
     this.stepsPerTick = timing.stepsPerTick;
     this.history = new RingBuffer<TickEntry>(Math.ceil(HISTORY_MS / timing.tickMs));
+  }
+
+  /** A new move speed applies from the next step; what was predicted before it, the usual reconciliation corrects. */
+  setParams(p: Params): void {
+    this.p = p;
   }
 
   reset(server: WireState): void {

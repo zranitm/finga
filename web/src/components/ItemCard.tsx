@@ -1,6 +1,8 @@
 // What one copy of an item is; the caller decides what to compare it with and what the character misses.
 import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
+import { primaryKeys } from '@/progression/stats';
+import type { PrimaryKey } from '@/progression/stats';
 import type { ItemView } from '@/protocol/messages';
 
 import { itemStats, statText } from './item-stats';
@@ -14,6 +16,8 @@ export interface ItemTemplate {
   readonly slot?: string;
   readonly class?: string;
   readonly min_level?: number;
+  /** The least of each own stat the item asks for. */
+  readonly requires?: Readonly<Partial<Record<PrimaryKey, number>>>;
   readonly stars: number;
   readonly description: string;
   readonly stats?: Readonly<Record<string, readonly [number, number]>>;
@@ -24,6 +28,8 @@ export interface ItemTemplate {
 export interface Unmet {
   readonly level: boolean;
   readonly class: boolean;
+  /** The stats the character's own ones fall short of. */
+  readonly stats: readonly PrimaryKey[];
 }
 
 export interface ItemCardProps {
@@ -65,6 +71,7 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
     (info) => t.stats?.[info.data] !== undefined || changes?.[info.key] !== undefined,
   );
   const className = classes.find((c) => c.id === t.class)?.name ?? t.class;
+  const required = primaryKeys.filter((k) => (t.requires?.[k] ?? 0) > 0);
   return (
     <div className="item-card" role="group" aria-label={heading ? `${heading}: ${t.name}` : t.name}>
       {heading && <div className="item-card-heading">{heading}</div>}
@@ -72,7 +79,7 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
       <div className="item-card-type">
         <span aria-label={`${t.stars} stars`}>{'★'.repeat(t.stars)}</span> {typeName(t)}
       </div>
-      {(t.min_level !== undefined || className !== undefined) && (
+      {(t.min_level !== undefined || className !== undefined || required.length > 0) && (
         <ul className="item-card-requirements" aria-label="Requirements">
           {t.min_level !== undefined && (
             <li className={unmet?.level ? 'unmet' : undefined}>Level {t.min_level}</li>
@@ -80,6 +87,11 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
           {className !== undefined && (
             <li className={unmet?.class ? 'unmet' : undefined}>{className}</li>
           )}
+          {required.map((k) => (
+            <li key={k} className={unmet?.stats.includes(k) ? 'unmet' : undefined}>
+              {k.toUpperCase()} {t.requires?.[k]}
+            </li>
+          ))}
         </ul>
       )}
       {rows.length > 0 && (
