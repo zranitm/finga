@@ -23,7 +23,7 @@ describe('ItemCard', () => {
     render(
       <ItemCard
         template={template('iron_sword')}
-        view={view('i-1', 'iron_sword', { attack: 18 })}
+        view={view('i-1', 'iron_sword', { physicalAttack: 18 })}
       />,
     );
     const card = screen.getByRole('group', { name: 'Iron Sword' });
@@ -40,7 +40,7 @@ describe('ItemCard', () => {
     render(
       <ItemCard
         template={template('hunting_bow')}
-        view={view('i-1', 'hunting_bow', { attack: 15 })}
+        view={view('i-1', 'hunting_bow', { physicalAttack: 15 })}
         unmet={{ level: true, class: true }}
       />,
     );
@@ -57,8 +57,8 @@ describe('ItemCard', () => {
     render(
       <ItemCard
         template={template('leather_cap')}
-        view={view('i-1', 'leather_cap', { defense: 4 })}
-        changes={{ defense: 1, maxHp: -30 }}
+        view={view('i-1', 'leather_cap', { physicalDefense: 4 })}
+        changes={{ physicalDefense: 1, maxHp: -30 }}
       />,
     );
     expect(lines('Stats')).toEqual(['Defense 4 (3–4) +1', 'Max HP −30']);

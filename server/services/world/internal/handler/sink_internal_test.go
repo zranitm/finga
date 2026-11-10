@@ -102,22 +102,32 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	}
 }
 
+// Every stat of the sheet, the points and the cooldown reach world.v1, the free reset as the one left.
 func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := &streamSink{sub: sub}
 	sheet := progression.Sheet{
 		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
-		Derived:     progression.Derived{MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, Accuracy: 21, Evasion: 9, PhysicalDefense: 18, CritRate: 0.06, CritDamage: 0.525},
-		DerivedWorn: progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3},
+		Derived: progression.Derived{
+			MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
+			Penetration: 0.05, HPRegen: 0.5, MPRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007,
+		},
+		DerivedWorn: progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05},
 	}
-	if !s.Send(model.StatsChanged{Tick: 5, Sheet: model.Sheet{Sheet: sheet}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+	points := model.Points{Spent: gamedata.Stats{STR: 4}, Unspent: 1, FreeResetUsed: true}
+	if !s.Send(model.StatsChanged{Tick: 5, Sheet: model.Sheet{Sheet: sheet, Points: points, AttackCooldownTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
 		Sheet: &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 16, Vitality: 10}, PrimaryWorn: &worldv1.Stats{Strength: 4},
-			Derived:     &worldv1.DerivedStats{AttackPower: 33.5, Defense: 18, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525, MaxHp: 234, MaxMp: 28},
-			DerivedWorn: &worldv1.DerivedStats{AttackPower: 12.5, Defense: 3, MaxHp: 30},
+			Derived: &worldv1.DerivedStats{
+				PhysicalAttack: 33.5, MagicAttack: 8.5, PhysicalDefense: 18, MagicDefense: 10, Accuracy: 21, Evasion: 9, CritRate: 0.06, CritDamage: 0.525,
+				Penetration: 0.05, HpRegen: 0.5, MpRegen: 0.2, AttackSpeed: 0.016, CooldownSpeed: 0.008, MoveSpeed: 0.007, MaxHp: 234, MaxMp: 28,
+			},
+			DerivedWorn:         &worldv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05, MaxHp: 30},
+			Points:              &worldv1.Points{Unspent: 1, Spent: &worldv1.Stats{Strength: 4}, FreeResetLeft: false},
+			AttackCooldownTicks: 12,
 		},
 		Hp: 200, MaxHp: 234, Mp: 20, MaxMp: 28,
 	}}}

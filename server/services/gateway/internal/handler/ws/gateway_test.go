@@ -830,7 +830,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 12, Vitality: 10}, PrimaryWorn: &worldv1.Stats{},
-			Derived: &worldv1.DerivedStats{AttackPower: 34.5, Defense: 5, CritRate: 0.05, MaxHp: 204, MaxMp: 28}, DerivedWorn: &worldv1.DerivedStats{AttackPower: 10},
+			Derived: &worldv1.DerivedStats{PhysicalAttack: 34.5, PhysicalDefense: 5, CritRate: 0.05, MaxHp: 204, MaxMp: 28}, DerivedWorn: &worldv1.DerivedStats{PhysicalAttack: 10},
 		}
 		h.world.mu.Unlock()
 		c := h.dial(t)
@@ -839,10 +839,10 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 		if len(w.Inventory) != 2 || w.Inventory[1].GetItemId() != leatherCap.GetId() || w.Inventory[1].GetStats().GetMaxHp() != 30 || w.Inventory[0].GetStats() != nil {
 			t.Fatalf("welcome inventory %+v; want the potion with no stats, the cap with its roll", w.Inventory)
 		}
-		if len(w.Equipment) != 1 || w.Equipment[0].GetEquipSlot() != "weapon" || w.Equipment[0].GetItem().GetItemId() != sword.GetId() || w.Equipment[0].GetItem().GetStats().GetAttack() != 10 || w.Equipment[0].GetItem().GetTab() != "" {
+		if len(w.Equipment) != 1 || w.Equipment[0].GetEquipSlot() != "weapon" || w.Equipment[0].GetItem().GetItemId() != sword.GetId() || w.Equipment[0].GetItem().GetStats().GetPhysicalAttack() != 10 || w.Equipment[0].GetItem().GetTab() != "" {
 			t.Fatalf("welcome equipment %+v; want the sword in the weapon slot with its roll", w.Equipment)
 		}
-		if s := w.GetCharacter().GetSheet(); s.GetPrimary().GetStr() != 12 || s.GetPrimary().GetVit() != 10 || s.GetDerived().GetAttackPower() != 34.5 || s.GetDerived().GetCritRate() != 0.05 || s.GetDerived().GetMaxHp() != 204 || s.GetDerivedWorn().GetAttackPower() != 10 {
+		if s := w.GetCharacter().GetSheet(); s.GetPrimary().GetStr() != 12 || s.GetPrimary().GetVit() != 10 || s.GetDerived().GetPhysicalAttack() != 34.5 || s.GetDerived().GetCritRate() != 0.05 || s.GetDerived().GetMaxHp() != 204 || s.GetDerivedWorn().GetPhysicalAttack() != 10 {
 			t.Fatalf("welcome sheet %+v", s)
 		}
 		c.expect("Snapshot")
@@ -865,16 +865,16 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 			}}})
 			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
 			if len(ic.Slots) != 1 || ic.Slots[0].Item != nil || len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "hat" ||
-				ic.Equipment[0].GetItem().GetItemId() != leatherCap.GetId() || ic.Equipment[0].GetItem().GetStats().GetDefense() != 3 || ic.Revision != 5 {
+				ic.Equipment[0].GetItem().GetItemId() != leatherCap.GetId() || ic.Equipment[0].GetItem().GetStats().GetPhysicalDefense() != 3 || ic.Revision != 5 {
 				t.Fatalf("inventory changed %+v", ic)
 			}
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 20, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
-				Sheet: &worldv1.StatSheet{Derived: &worldv1.DerivedStats{Defense: 8, MaxHp: 234}, DerivedWorn: &worldv1.DerivedStats{Defense: 3, MaxHp: 30}},
+				Sheet: &worldv1.StatSheet{Derived: &worldv1.DerivedStats{PhysicalDefense: 8, MaxHp: 234}, DerivedWorn: &worldv1.DerivedStats{PhysicalDefense: 3, MaxHp: 30}},
 				Hp:    204, MaxHp: 234, Mp: 28, MaxMp: 28,
 			}}})
 			m := c.expect("StatsChanged")
 			sc := m.Data.(*clientv1.StatsChanged)
-			if m.Tick != 20 || sc.Hp != 204 || sc.MaxHp != 234 || sc.Mp != 28 || sc.MaxMp != 28 || sc.GetSheet().GetDerived().GetMaxHp() != 234 || sc.GetSheet().GetDerivedWorn().GetDefense() != 3 {
+			if m.Tick != 20 || sc.Hp != 204 || sc.MaxHp != 234 || sc.Mp != 28 || sc.MaxMp != 28 || sc.GetSheet().GetDerived().GetMaxHp() != 234 || sc.GetSheet().GetDerivedWorn().GetPhysicalDefense() != 3 {
 				t.Fatalf("stats changed %+v at tick %d", sc, m.Tick)
 			}
 			// Then the cap comes off into the slot asked for: the item goes back in a tab, the equip slot empties.
@@ -883,7 +883,7 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 				Equipment: []*worldv1.EquipSlot{{EquipSlot: "hat"}},
 			}}})
 			ic = c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
-			if len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "hat" || ic.Equipment[0].Item != nil || ic.Slots[0].GetItem().GetStats().GetDefense() != 3 {
+			if len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "hat" || ic.Equipment[0].Item != nil || ic.Slots[0].GetItem().GetStats().GetPhysicalDefense() != 3 {
 				t.Fatalf("after unequip %+v; want the hat slot empty and the cap with its roll in the tab", ic)
 			}
 		})
@@ -2309,4 +2309,63 @@ func TestAnEncodeFailureIsLoggedAsAnError(t *testing.T) {
 			t.Fatalf("log lacks %s: %s", want, got)
 		}
 	}
+}
+
+func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.world.mu.Lock()
+		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
+			Primary: &worldv1.Stats{Strength: 12}, Points: &worldv1.Points{Unspent: 5, Spent: &worldv1.Stats{}, FreeResetLeft: true}, AttackCooldownTicks: 12,
+			Derived: &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
+		}
+		h.world.mu.Unlock()
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		s := c.expect("Welcome").Data.(*clientv1.Welcome).GetCharacter().GetSheet()
+		if p := s.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || s.GetAttackCooldownTicks() != 12 ||
+			s.GetDerived().GetMagicAttack() != 8.5 || s.GetDerived().GetMagicDefense() != 10 || s.GetDerived().GetHpRegen() != 0.5 || s.GetDerived().GetMoveSpeed() != 0.007 {
+			t.Fatalf("welcome sheet %+v; want the points, the cooldown and the new derived stats", s)
+		}
+		c.expect("Snapshot")
+
+		part(t, "SpendPoints and ResetPoints go to the world as the sender, answering once they applied", func() {
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}})
+			c.send(wsconn.Message{ReqID: "p-2", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}})
+			for _, req := range []string{"p-1", "p-2"} {
+				if r := c.expect("Response"); r.ReqID != req || !r.Data.(*clientv1.Response).GetOk() {
+					t.Fatalf("response %+v, want ok to %s", r, req)
+				}
+			}
+			spends, resets := h.world.pointsCalls()
+			if len(spends) != 1 || spends[0].GetPresence().GetCharacterId() != aylaID.String() || spends[0].GetPresence().GetConnectionId() == "" ||
+				spends[0].GetExpectedUnspent() != 5 || spends[0].GetPoints().GetStrength() != 3 || spends[0].GetPoints().GetVitality() != 2 {
+				t.Fatalf("spends %+v", spends)
+			}
+			if len(resets) != 1 || resets[0].GetExpectedUnspent() != 0 || resets[0].GetPresence().GetCharacterId() != aylaID.String() {
+				t.Fatalf("resets %+v", resets)
+			}
+		})
+		part(t, "a refusal answers the world's reason", func() {
+			for _, tt := range []struct {
+				reason worldv1.Reason
+				code   codes.Code
+				msg    proto.Message
+				want   string
+			}{
+				{worldv1.Reason_REASON_POINTS_CHANGED, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 1}}, "points_changed"},
+				{worldv1.Reason_REASON_NOT_ENOUGH_POINTS, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, "not_enough_points"},
+				{worldv1.Reason_REASON_BAD_POINTS, codes.InvalidArgument, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, "bad_points"},
+				{worldv1.Reason_REASON_NO_FREE_RESET, codes.FailedPrecondition, &clientv1.ResetPoints{ExpectedUnspent: 5}, "no_free_reset"},
+			} {
+				time.Sleep(time.Second) // under the points limit of 2 a second
+				h.world.failPoints(grpctest.Error(tt.code, tt.reason))
+				c.send(wsconn.Message{ReqID: "r-" + tt.want, Data: tt.msg})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != tt.want {
+					t.Fatalf("response %+v, want %s", r, tt.want)
+				}
+			}
+			h.world.failPoints(nil)
+		})
+	})
 }

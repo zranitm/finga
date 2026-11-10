@@ -395,7 +395,7 @@ func TestSettings(t *testing.T) {
 			if in.GetAccountId() != accountID.String() {
 				t.Fatalf("id %s", in.GetAccountId())
 			}
-			return &accountv1.GetSettingsResponse{Settings: &accountv1.Settings{ControlPreset: "wasd"}}, nil
+			return &accountv1.GetSettingsResponse{Settings: &accountv1.Settings{ControlPreset: "wasd", AutoAssignPoints: true}}, nil
 		}
 		rec := h.do("GET", "/api/settings", "", authed())
 		if rec.Code != http.StatusOK {
@@ -403,7 +403,7 @@ func TestSettings(t *testing.T) {
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body.ControlPreset != "wasd" {
+		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true}) {
 			t.Fatalf("body %+v", body)
 		}
 	})
@@ -414,14 +414,17 @@ func TestSettings(t *testing.T) {
 			saved = in
 			return &accountv1.UpdateSettingsResponse{}, nil
 		}
-		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd"}`, authed())
-		if rec.Code != http.StatusOK || saved.GetSettings().GetControlPreset() != "wasd" || saved.GetAccountId() != accountID.String() {
+		rec := h.do("PUT", "/api/settings", `{"control_preset":"wasd","auto_assign_points":true}`, authed())
+		if rec.Code != http.StatusOK || saved.GetSettings().GetControlPreset() != "wasd" || !saved.GetSettings().GetAutoAssignPoints() || saved.GetAccountId() != accountID.String() {
 			t.Fatalf("status %d saved %+v", rec.Code, saved)
 		}
 		var body api.SettingsResponse
 		decode(t, rec, &body)
-		if body.ControlPreset != "wasd" {
+		if body != (api.SettingsResponse{ControlPreset: "wasd", AutoAssignPoints: true}) {
 			t.Fatalf("body %+v", body)
+		}
+		if rec := h.do("PUT", "/api/settings", `{"control_preset":"classic"}`, authed()); rec.Code != http.StatusOK || saved.GetSettings().GetAutoAssignPoints() {
+			t.Fatalf("status %d saved %+v; want auto-assign left out as false", rec.Code, saved)
 		}
 	})
 	t.Run("write with malformed input", func(t *testing.T) {

@@ -34,7 +34,8 @@ const (
 
 // Settings are the account's settings, stored as JSON.
 type Settings struct {
-	ControlPreset Preset `json:"control_preset"`
+	ControlPreset    Preset `json:"control_preset"`
+	AutoAssignPoints bool   `json:"auto_assign_points"` // the client spends each level's points by the class's split
 }
 
 // DefaultSettings are a new account's settings.

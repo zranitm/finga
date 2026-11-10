@@ -29,21 +29,38 @@
           "str": 1
         },
         "derived": {
-          "attack_power": 49.5,
-          "defense": 3,
-          "accuracy": 16.5,
-          "evasion": 8.75,
+          "physical_attack": 49.5,
+          "physical_defense": 17,
+          "accuracy": 15,
+          "evasion": 10,
           "crit_rate": 0.065,
-          "crit_damage": 1.5,
+          "crit_damage": 0.525,
           "max_hp": 280,
-          "max_mp": 32
+          "max_mp": 36,
+          "magic_attack": 8.5,
+          "magic_defense": 11,
+          "penetration": 0.02,
+          "hp_regen": 0.6,
+          "mp_regen": 0.2,
+          "attack_speed": 0.016,
+          "cooldown_speed": 0.008,
+          "move_speed": 0.007
         },
         "derived_worn": {
-          "attack_power": 12.5,
-          "defense": 3,
+          "physical_attack": 12.5,
+          "physical_defense": 3,
           "crit_rate": 0.01,
-          "max_hp": 30
-        }
+          "max_hp": 30,
+          "penetration": 0.02
+        },
+        "points": {
+          "spent": {
+            "str": 3,
+            "vit": 2
+          },
+          "free_reset_left": true
+        },
+        "attack_cooldown_ticks": 12
       }
     }
   }

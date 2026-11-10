@@ -107,17 +107,39 @@ func TestNothingFollowsTheEnd(t *testing.T) {
 var (
 	sheet = model.StatSheet{
 		Primary: model.Stats{STR: 5, DEX: 13, INT: 4, AGI: 10, VIT: 5}, PrimaryWorn: model.Stats{DEX: 1},
-		Derived:     model.DerivedStats{AttackPower: 41.5, Defense: 3, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, MaxHP: 135, MaxMP: 33},
-		DerivedWorn: model.DerivedStats{AttackPower: 11.5, Defense: 3, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, MaxHP: 30, MaxMP: 1},
+		Derived: model.DerivedStats{
+			PhysicalAttack: 41.5, MagicAttack: 8, PhysicalDefense: 3, MagicDefense: 4.5, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, Penetration: 0.05,
+			HPRegen: 0.25, MPRegen: 0.2, AttackSpeed: 0.03, CooldownSpeed: 0.01, MoveSpeed: 0.014, MaxHP: 135, MaxMP: 33,
+		},
+		DerivedWorn: model.DerivedStats{
+			PhysicalAttack: 11.5, MagicAttack: 0.5, PhysicalDefense: 3, MagicDefense: 1, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, Penetration: 0.05,
+			HPRegen: 0.1, MPRegen: 0.1, AttackSpeed: 0.02, CooldownSpeed: 0.005, MoveSpeed: 0.01, MaxHP: 30, MaxMP: 1,
+		},
+		Points:              model.Points{Unspent: 2, Spent: model.Stats{DEX: 1, AGI: 2}, FreeResetLeft: true},
+		AttackCooldownTicks: 16,
 	}
 	wireSheet = &clientv1.StatSheet{
 		Primary: &clientv1.Stats{Str: 5, Dex: 13, Int: 4, Agi: 10, Vit: 5}, PrimaryWorn: &clientv1.Stats{Dex: 1},
-		Derived:     &clientv1.DerivedStats{AttackPower: 41.5, Defense: 3, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, MaxHp: 135, MaxMp: 33},
-		DerivedWorn: &clientv1.DerivedStats{AttackPower: 11.5, Defense: 3, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, MaxHp: 30, MaxMp: 1},
+		Derived: &clientv1.DerivedStats{
+			PhysicalAttack: 41.5, MagicAttack: 8, PhysicalDefense: 3, MagicDefense: 4.5, Accuracy: 30, Evasion: 12.5, CritRate: 0.1, CritDamage: 1.5, Penetration: 0.05,
+			HpRegen: 0.25, MpRegen: 0.2, AttackSpeed: 0.03, CooldownSpeed: 0.01, MoveSpeed: 0.014, MaxHp: 135, MaxMp: 33,
+		},
+		DerivedWorn: &clientv1.DerivedStats{
+			PhysicalAttack: 11.5, MagicAttack: 0.5, PhysicalDefense: 3, MagicDefense: 1, Accuracy: 2, Evasion: 0.5, CritRate: 0.01, CritDamage: 0.1, Penetration: 0.05,
+			HpRegen: 0.1, MpRegen: 0.1, AttackSpeed: 0.02, CooldownSpeed: 0.005, MoveSpeed: 0.01, MaxHp: 30, MaxMp: 1,
+		},
+		Points:              &clientv1.Points{Unspent: 2, Spent: &clientv1.Stats{Dex: 1, Agi: 2}, FreeResetLeft: true},
+		AttackCooldownTicks: 16,
 	}
 	// A bow with every stat rolled, as no real one is.
-	bow     = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{PhysicalAttack: 9, PhysicalDefense: 1, STR: 2, DEX: 3, INT: 4, AGI: 5, VIT: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHP: 11, MaxMP: 12}}
-	wireBow = &clientv1.ItemView{ItemId: "i-2", Template: "short_bow", Quantity: 1, Stats: &clientv1.ItemStats{Attack: 9, Defense: 1, Str: 2, Dex: 3, Int: 4, Agi: 5, Vit: 6, Accuracy: 7, Evasion: 8, CritRate: 9, CritDamage: 10, MaxHp: 11, MaxMp: 12}}
+	bow = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{
+		STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHP: 10, MaxMP: 11, Accuracy: 12, Evasion: 13,
+		CritRate: 14, CritDamage: 15, Penetration: 16, HPRegen: 17, MPRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21,
+	}}
+	wireBow = &clientv1.ItemView{ItemId: "i-2", Template: "short_bow", Quantity: 1, Stats: &clientv1.ItemStats{
+		Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13,
+		CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21,
+	}}
 )
 
 func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {

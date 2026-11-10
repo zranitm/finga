@@ -184,7 +184,7 @@ func (h *api) updateSettings(c *gin.Context) {
 	if decode(c, &req) != nil || missing(c, req.ControlPreset) {
 		return
 	}
-	s := model.Settings{ControlPreset: req.ControlPreset}
+	s := model.Settings{ControlPreset: req.ControlPreset, AutoAssignPoints: req.AutoAssignPoints}
 	if err := h.lobby.UpdateSettings(c.Request.Context(), principalFrom(c), s); err != nil {
 		writeError(c, err)
 		return

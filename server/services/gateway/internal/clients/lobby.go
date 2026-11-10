@@ -52,12 +52,12 @@ func (a Accounts) Settings(ctx context.Context, account kernel.AccountID) (model
 	if err != nil {
 		return model.Settings{}, errmap.Wrap(err)
 	}
-	return model.Settings{ControlPreset: res.GetSettings().GetControlPreset()}, nil
+	return model.Settings{ControlPreset: res.GetSettings().GetControlPreset(), AutoAssignPoints: res.GetSettings().GetAutoAssignPoints()}, nil
 }
 
 // UpdateSettings replaces the account's settings.
 func (a Accounts) UpdateSettings(ctx context.Context, account kernel.AccountID, s model.Settings) error {
-	_, err := a.c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: account.String(), Settings: &accountv1.Settings{ControlPreset: s.ControlPreset}})
+	_, err := a.c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: account.String(), Settings: &accountv1.Settings{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints}})
 	return errmap.Wrap(err)
 }
 

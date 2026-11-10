@@ -1,0 +1,10 @@
+{
+  "req": "r-10",
+  "spend_points": {
+    "expected_unspent": 5,
+    "points": {
+      "str": 3,
+      "vit": 2
+    }
+  }
+}

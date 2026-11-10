@@ -140,7 +140,7 @@ func (s *Server) UpdateSettings(ctx context.Context, req *accountv1.UpdateSettin
 	if err != nil {
 		return nil, err
 	}
-	st := model.Settings{ControlPreset: model.Preset(req.GetSettings().GetControlPreset())}
+	st := model.Settings{ControlPreset: model.Preset(req.GetSettings().GetControlPreset()), AutoAssignPoints: req.GetSettings().GetAutoAssignPoints()}
 	if err := s.svc.UpdateSettings(ctx, id, st); err != nil {
 		return nil, err
 	}
@@ -157,7 +157,7 @@ func (s *Server) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.
 }
 
 func settingsOf(s model.Settings) *accountv1.Settings {
-	return &accountv1.Settings{ControlPreset: string(s.ControlPreset)}
+	return &accountv1.Settings{ControlPreset: string(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints}
 }
 
 // parseSession reads a session ID the gateway sent; a malformed one is kernel.ErrBadID.

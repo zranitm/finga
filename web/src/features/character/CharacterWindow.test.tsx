@@ -25,8 +25,8 @@ const sheet = {
   primary: { str: 13, dex: 5, int: 4, agi: 5, vit: 10 },
   primaryWorn: { str: 1 },
   derived: {
-    attackPower: 31.5,
-    defense: 3,
+    physicalAttack: 31.5,
+    physicalDefense: 3,
     accuracy: 15,
     evasion: 8.75,
     critRate: 0.065,
@@ -34,7 +34,7 @@ const sheet = {
     maxHp: 204,
     maxMp: 28,
   },
-  derivedWorn: { attackPower: 11.5, critRate: 0.01 },
+  derivedWorn: { physicalAttack: 11.5, critRate: 0.01 },
 };
 const ayla = {
   id: 'c1',
@@ -53,7 +53,7 @@ const sword = {
   itemId: 'i-sword',
   template: 'wooden_sword',
   quantity: 1,
-  stats: { attack: 10, str: 1 },
+  stats: { physicalAttack: 10, str: 1 },
 };
 const welcome = create(WelcomeSchema, {
   token: 't',
@@ -133,8 +133,8 @@ describe('CharacterWindow', () => {
         create(StatsChangedSchema, {
           sheet: {
             ...sheet,
-            derived: { ...sheet.derived, defense: 7, maxHp: 234 },
-            derivedWorn: { defense: 4, maxHp: 30 },
+            derived: { ...sheet.derived, physicalDefense: 7, maxHp: 234 },
+            derivedWorn: { physicalDefense: 4, maxHp: 30 },
           },
           hp: 180,
           maxHp: 234,

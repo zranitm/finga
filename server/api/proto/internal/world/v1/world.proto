@@ -106,24 +106,41 @@ message CharacterView {
   StatSheet sheet = 14;
 }
 
-// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it.
+// StatSheet is what the character window shows: the totals, and the equipment's share of each, the totals less those without it; the points; and the basic attack's cooldown in ticks.
 message StatSheet {
   Stats primary = 1;
   Stats primary_worn = 2;
   DerivedStats derived = 3;
   DerivedStats derived_worn = 4;
+  Points points = 5;
+  uint32 attack_cooldown_ticks = 6;
 }
 
-// DerivedStats are the computed stats; rates are fractions.
+// Points are the stat points: those not yet spent, those spent in each stat, and whether the free reset is left.
+message Points {
+  int32 unspent = 1;
+  Stats spent = 2;
+  bool free_reset_left = 3;
+}
+
+// DerivedStats are the computed stats: rates, crit damage and penetration as fractions, regen in points a second.
 message DerivedStats {
-  double attack_power = 1;
-  double defense = 2;
+  double physical_attack = 1;
+  double physical_defense = 2;
   double accuracy = 3;
   double evasion = 4;
   double crit_rate = 5;
   double crit_damage = 6;
   int32 max_hp = 7;
   int32 max_mp = 8;
+  double magic_attack = 9;
+  double magic_defense = 10;
+  double penetration = 11;
+  double hp_regen = 12;
+  double mp_regen = 13;
+  double attack_speed = 14;
+  double cooldown_speed = 15;
+  double move_speed = 16;
 }
 
 message DeliverRequest {

@@ -133,7 +133,7 @@ func TestEverySampleSurvivesTheBinaryFormat(t *testing.T) {
 func TestCatalogueCoversPage4(t *testing.T) {
 	want := map[string][]string{
 		"client": {"Attack", "ChatSend", "EnterPortal", "Equip", "Hello", "Input", "InventoryDiscard", "InventoryMove",
-			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping", "Unequip"},
+			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping", "ResetPoints", "SpendPoints", "Unequip"},
 		"server": {"ChatMessage", "Correction", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
 			"LevelUp", "Loot", "MapChange", "PartyInvited", "PartyState", "Pong", "Respawned", "Response", "Snapshot", "StatsChanged", "Welcome"},
 	}

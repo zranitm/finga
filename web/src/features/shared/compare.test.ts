@@ -46,22 +46,29 @@ describe('slotFor', () => {
 
 describe('changes', () => {
   it('is the hovered roll less the worn one, per stat, leaving out what stays the same', () => {
-    expect(changes(stats({ attack: 18, str: 2 }), stats({ attack: 16, str: 2 }))).toEqual({
-      attack: 2,
+    expect(
+      changes(stats({ physicalAttack: 18, str: 2 }), stats({ physicalAttack: 16, str: 2 })),
+    ).toEqual({
+      physicalAttack: 2,
     });
-    expect(changes(stats({ attack: 14 }), stats({ attack: 16 }))).toEqual({ attack: -2 });
+    expect(changes(stats({ physicalAttack: 14 }), stats({ physicalAttack: 16 }))).toEqual({
+      physicalAttack: -2,
+    });
   });
 
   it('counts a stat only one of the two has in full', () => {
-    expect(changes(stats({ defense: 4 }), stats({ maxHp: 30, critRate: 5 }))).toEqual({
-      defense: 4,
+    expect(changes(stats({ physicalDefense: 4 }), stats({ maxHp: 30, critRate: 5 }))).toEqual({
+      physicalDefense: 4,
       maxHp: -30,
       critRate: -5,
     });
   });
 
   it('with nothing worn, every stat is a gain; with no roll at all, nothing changes', () => {
-    expect(changes(stats({ defense: 4, agi: 1 }), undefined)).toEqual({ defense: 4, agi: 1 });
+    expect(changes(stats({ physicalDefense: 4, agi: 1 }), undefined)).toEqual({
+      physicalDefense: 4,
+      agi: 1,
+    });
     expect(changes(undefined, undefined)).toEqual({});
   });
 });

@@ -78,13 +78,20 @@ func stats(st *worldv1.Stats) model.Stats {
 }
 
 func statSheet(s *worldv1.StatSheet) model.StatSheet {
-	return model.StatSheet{Primary: stats(s.GetPrimary()), PrimaryWorn: stats(s.GetPrimaryWorn()), Derived: derived(s.GetDerived()), DerivedWorn: derived(s.GetDerivedWorn())}
+	p := s.GetPoints()
+	return model.StatSheet{
+		Primary: stats(s.GetPrimary()), PrimaryWorn: stats(s.GetPrimaryWorn()), Derived: derived(s.GetDerived()), DerivedWorn: derived(s.GetDerivedWorn()),
+		Points:              model.Points{Unspent: int(p.GetUnspent()), Spent: stats(p.GetSpent()), FreeResetLeft: p.GetFreeResetLeft()},
+		AttackCooldownTicks: int(s.GetAttackCooldownTicks()),
+	}
 }
 
 func derived(d *worldv1.DerivedStats) model.DerivedStats {
 	return model.DerivedStats{
-		AttackPower: d.GetAttackPower(), Defense: d.GetDefense(), Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(),
-		CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
+		PhysicalAttack: d.GetPhysicalAttack(), MagicAttack: d.GetMagicAttack(), PhysicalDefense: d.GetPhysicalDefense(), MagicDefense: d.GetMagicDefense(),
+		Accuracy: d.GetAccuracy(), Evasion: d.GetEvasion(), CritRate: d.GetCritRate(), CritDamage: d.GetCritDamage(), Penetration: d.GetPenetration(),
+		HPRegen: d.GetHpRegen(), MPRegen: d.GetMpRegen(), AttackSpeed: d.GetAttackSpeed(), CooldownSpeed: d.GetCooldownSpeed(), MoveSpeed: d.GetMoveSpeed(),
+		MaxHP: int(d.GetMaxHp()), MaxMP: int(d.GetMaxMp()),
 	}
 }
 

@@ -72,6 +72,12 @@ type ItemEquip struct {
 	EquipSlot      string
 }
 
+// PointsSpend adds points to the stats, out of the unspent ones, if their count is still ExpectedUnspent.
+type PointsSpend struct {
+	ExpectedUnspent int
+	Points          Stats
+}
+
 // ItemUnequip puts a worn item back in the Equip tab, in ToSlot or, when nil, the first free slot.
 type ItemUnequip struct {
 	IdempotencyKey string

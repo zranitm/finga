@@ -297,4 +297,62 @@ func TestFightAndGrow(t *testing.T) {
 		}
 		t.Fatal("the level-up was not saved within 5 s")
 	})
+
+	t.Run("C5/a-level's-points-are-spent-and-reset-over-the-socket-and-saved-at-once", func(t *testing.T) {
+		s := newStack(t)
+		token, id := s.createCharacter(t, "lena", "Lena", "warrior")
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET level = 2, unspent_points = 5 WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		l, w := s.hello(t, token, id)
+		before := w.GetCharacter().GetSheet()
+		if p := before.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || p.GetSpent().GetStr() != 0 || before.GetAttackCooldownTicks() == 0 {
+			t.Fatalf("welcome sheet %+v; want the level's 5 points unspent, the free reset left and an attack cooldown", before)
+		}
+		saved := func(want string, q string) {
+			t.Helper()
+			var ok bool
+			for dl := time.Now().Add(5 * time.Second); time.Now().Before(dl) && !ok; time.Sleep(100 * time.Millisecond) {
+				if err := s.db.QueryRow(context.Background(), q, id).Scan(&ok); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !ok {
+				t.Fatalf("not saved within 5 s: %s", want)
+			}
+		}
+
+		l.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}})
+		got := l.gather("Response", "StatsChanged")
+		if !got["Response"].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("spend answered %+v", got["Response"])
+		}
+		spent := got["StatsChanged"].Data.(*clientv1.StatsChanged).GetSheet()
+		if p := spent.GetPoints(); p.GetUnspent() != 0 || p.GetSpent().GetStr() != 3 || p.GetSpent().GetVit() != 2 ||
+			spent.GetPrimary().GetStr() != before.GetPrimary().GetStr()+3 || spent.GetDerived().GetMaxHp() <= before.GetDerived().GetMaxHp() {
+			t.Fatalf("sheet after spending %+v; want 3 STR and 2 VIT on top of %+v", spent, before)
+		}
+		saved("3 STR and 2 VIT spent", `SELECT str_points = 3 AND vit_points = 2 AND unspent_points = 0 FROM characters WHERE id = $1`)
+
+		l.send(wsconn.Message{ReqID: "s-2", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Dex: 1}}})
+		if r := l.gather("Response")["Response"]; r.ReqID != "s-2" || r.Data.(*clientv1.Response).GetCode() != "points_changed" {
+			t.Fatalf("a spend from a stale count answered %+v; want points_changed", r)
+		}
+
+		l.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}})
+		got = l.gather("Response", "StatsChanged")
+		if !got["Response"].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("reset answered %+v", got["Response"])
+		}
+		if after := got["StatsChanged"].Data.(*clientv1.StatsChanged).GetSheet(); !proto.Equal(after.GetPrimary(), before.GetPrimary()) ||
+			after.GetPoints().GetUnspent() != 5 || after.GetPoints().GetFreeResetLeft() {
+			t.Fatalf("sheet after the reset %+v; want the stats of %+v, 5 points back and no free reset left", after, before)
+		}
+		saved("the reset", `SELECT str_points = 0 AND vit_points = 0 AND unspent_points = 5 AND free_reset_used FROM characters WHERE id = $1`)
+
+		l.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.ResetPoints{ExpectedUnspent: 5}})
+		if r := l.gather("Response")["Response"]; r.ReqID != "r-2" || r.Data.(*clientv1.Response).GetCode() != "no_free_reset" {
+			t.Fatalf("a second reset answered %+v; want no_free_reset", r)
+		}
+	})
 }

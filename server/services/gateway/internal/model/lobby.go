@@ -15,7 +15,8 @@ type Account struct {
 
 // Settings are an account's settings.
 type Settings struct {
-	ControlPreset string
+	ControlPreset    string
+	AutoAssignPoints bool
 }
 
 // Stats are a character's five primary stats.

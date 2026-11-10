@@ -446,7 +446,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 		t.Fatalf("inventory change %+v", inv)
 	}
 	stats := until(t, stream, "StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
-	if stats.GetMaxHp() != 214 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetDefense() != 3 {
+	if stats.GetMaxHp() != 214 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetPhysicalDefense() != 3 {
 		t.Fatalf("stats change %+v", stats)
 	}
 	to := int32(5)

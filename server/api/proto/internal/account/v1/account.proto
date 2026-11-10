@@ -64,6 +64,8 @@ message Account {
 message Settings {
   // classic or wasd.
   string control_preset = 1;
+  // Whether the client spends each level's points by the class's split on its own; false by default.
+  bool auto_assign_points = 2;
 }
 
 message RegisterRequest {

@@ -233,7 +233,7 @@ describe('item cards', () => {
           tab: 'equip',
           slot: 0,
           quantity: 1,
-          stats: { attack: 17 },
+          stats: { physicalAttack: 17 },
         },
         {
           itemId: 'i-cap',
@@ -241,14 +241,19 @@ describe('item cards', () => {
           tab: 'equip',
           slot: 1,
           quantity: 1,
-          stats: { defense: 4 },
+          stats: { physicalDefense: 4 },
         },
         potion,
       ],
       equipment: [
         {
           equipSlot: 'weapon',
-          item: { itemId: 'i-sword', template: 'wooden_sword', quantity: 1, stats: { attack: 11 } },
+          item: {
+            itemId: 'i-sword',
+            template: 'wooden_sword',
+            quantity: 1,
+            stats: { physicalAttack: 11 },
+          },
         },
       ],
       inventoryRevision: 1n,
@@ -278,9 +283,14 @@ describe('item cards', () => {
       itemId: 'i-sword',
       template: 'wooden_sword',
       quantity: 1,
-      stats: { attack: 11 },
+      stats: { physicalAttack: 11 },
     };
-    const iron = { itemId: 'i-iron', template: 'iron_sword', quantity: 1, stats: { attack: 17 } };
+    const iron = {
+      itemId: 'i-iron',
+      template: 'iron_sword',
+      quantity: 1,
+      stats: { physicalAttack: 17 },
+    };
     // Worn by a double-click: the swap puts the old weapon in the slot under the pointer.
     act(() =>
       inventory.getState().applyInventoryChanged(
