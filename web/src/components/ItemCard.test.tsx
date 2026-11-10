@@ -30,7 +30,7 @@ describe('ItemCard', () => {
     expect(within(card).getByText('Iron Sword')).toHaveClass('item-card-name', 'stars-2');
     expect(within(card).getByLabelText('2 stars')).toHaveTextContent('★★');
     expect(card).toHaveTextContent('★★ Weapon');
-    expect(lines('Requirements')).toEqual(['Level 8', 'Warrior']);
+    expect(lines('Requirements')).toEqual(['Level 8', 'Warrior', 'STR 20']);
     expect(lines('Stats')).toEqual(['Physical attack 18 (16–20)']);
     expect(card).toHaveTextContent('A plain blade that holds an edge.');
     expect(card).not.toHaveTextContent('Quantity');

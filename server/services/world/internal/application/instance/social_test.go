@@ -219,8 +219,8 @@ func TestPartyHearsHPLostToAMob(t *testing.T) {
 			t.Fatalf("damages %+v; want the slime's one hit", got)
 		}
 		ups := parties.updated()
-		if len(ups) != 2 || ups[1] != (partyUpdate{id, "arena", 1, 179, 184}) {
-			t.Fatalf("updates %+v; want the join's, then 179 of 184 once", ups)
+		if len(ups) != 2 || ups[1] != (partyUpdate{id, "arena", 1, 139, 144}) {
+			t.Fatalf("updates %+v; want the join's, then 139 of 144 once", ups)
 		}
 	})
 }
@@ -236,13 +236,13 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		synctest.Wait()
 		p := warriorAt(250)
 		p.Exp = 18 // two short of level 2
-		p.HP = 150
+		p.HP = 120
 		join(t, inst, p)
 		parties.mu.Lock()
 		ups := slices.Clone(parties.updates)
 		parties.mu.Unlock()
 		// A join is a map change too; after a world restart it is what corrects the frames social kept.
-		if len(ups) != 1 || ups[0] != (partyUpdate{p.ID, "arena", 1, 150, 184}) {
+		if len(ups) != 1 || ups[0] != (partyUpdate{p.ID, "arena", 1, 120, 144}) {
 			t.Fatalf("updates after a join: %+v", ups)
 		}
 		killSlime(t, inst, p.ID)

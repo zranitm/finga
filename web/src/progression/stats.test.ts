@@ -100,7 +100,7 @@ describe('requirements', () => {
 describe('autoAssign', () => {
   it.each([
     { name: "a level's points follow the split", cls: 'warrior', n: 5, want: { str: 3, vit: 2 } },
-    { name: 'two levels double it', cls: 'bowman', n: 10, want: { dex: 6, agi: 4 } },
+    { name: 'two levels double it', cls: 'bowman', n: 10, want: { str: 4, dex: 4, agi: 2 } },
     { name: 'a part follows it stat by stat', cls: 'warrior', n: 9, want: { str: 6, vit: 3 } },
     { name: 'none gives nothing', cls: 'warrior', n: 0, want: {} },
   ])('$name', ({ cls, n, want }) => {

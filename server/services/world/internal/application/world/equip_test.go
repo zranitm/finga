@@ -64,8 +64,8 @@ func TestAJoinWearsWhatTheItemServiceSays(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if view.MaxHP != 214 || view.HP != 214 || view.Sheet.DerivedWorn.MaxHP != 30 || view.Sheet.Derived.MaxHP != 214 {
-				t.Fatalf("view %+v; want 184 HP and the worn 30, in the sheet too", view)
+			if view.MaxHP != 174 || view.HP != 174 || view.Sheet.DerivedWorn.MaxHP != 30 || view.Sheet.Derived.MaxHP != 174 {
+				t.Fatalf("view %+v; want 144 HP and the worn 30, in the sheet too", view)
 			}
 		})
 	})
@@ -110,8 +110,8 @@ func TestEquipGoesToTheCharactersMap(t *testing.T) {
 				stats = append(stats, sc)
 			}
 		}
-		if len(stats) != 1 || stats[0].MaxHP != 214 {
-			t.Fatalf("stats %+v; want the cap's 30 HP on top of 184", stats)
+		if len(stats) != 1 || stats[0].MaxHP != 174 {
+			t.Fatalf("stats %+v; want the cap's 30 HP on top of 144", stats)
 		}
 		if err := w.Unequip(context.Background(), ayla.ID, "c1", "k-2", "hat", nil); err == nil {
 			t.Fatal("an unequip the item service refused answered ok")

@@ -11,7 +11,7 @@ import (
 	"finga/internal/progression"
 )
 
-// Expected values are worked out by hand from stats.yaml and classes.yaml: a warrior starts at STR 12, DEX 5, INT 4, AGI 5, VIT 10, and auto-assign adds STR 3 and VIT 2 a level; a bowman starts at STR 5, DEX 12, INT 4, AGI 10, VIT 5.
+// Expected values are worked out by hand from stats.yaml and classes.yaml: every class starts at 7 in each stat, and a warrior's auto-assign adds STR 3 and VIT 2 a level.
 func TestDeriveStats(t *testing.T) {
 	data := loadData(t)
 	tests := []struct {
@@ -23,34 +23,34 @@ func TestDeriveStats(t *testing.T) {
 		{
 			"warrior level 1", kernel.Warrior, 1,
 			progression.Derived{
-				MaxHP: 60 + 2*12 + 10*10, MaxMP: 20 + 3*4,
-				PhysicalAttack: 1.5*12 + 0.5*5, MagicAttack: 0.5*5 + 1.5*4, PhysicalDefense: 5 + 10, MagicDefense: 3 + 0.5*4 + 0.5*10,
-				Accuracy: 10 + 5, Evasion: 5 + 5,
-				CritRate: 0.05 + 0.55*5.0/205, CritDamage: 0.5 + 0.005*5,
-				HPRegen: 0.05 * 10, MPRegen: 0.05 * 4,
-				AttackSpeed: 0.5 * 5.0 / 155, CooldownSpeed: 0.4 * 4.0 / 204, MoveSpeed: 0.3 * 5.0 / 205,
+				MaxHP: 60 + 2*7 + 10*7, MaxMP: 20 + 3*7,
+				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 5 + 7, MagicDefense: 3 + 0.5*7 + 0.5*7,
+				Accuracy: 10 + 7, Evasion: 5 + 7,
+				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
+				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
-			"warrior level 10, auto-assigned: STR 39 and VIT 28", kernel.Warrior, 10,
+			"warrior level 10, auto-assigned: STR 34 and VIT 25", kernel.Warrior, 10,
 			progression.Derived{
-				MaxHP: 60 + 18*9 + 2*39 + 10*28, MaxMP: 20 + 4*9 + 3*4,
-				PhysicalAttack: 1.5*39 + 0.5*5, MagicAttack: 0.5*5 + 1.5*4, PhysicalDefense: 5 + 28, MagicDefense: 3 + 0.5*4 + 0.5*28,
-				Accuracy: 10 + 5, Evasion: 5 + 5,
-				CritRate: 0.05 + 0.55*5.0/205, CritDamage: 0.5 + 0.005*5,
-				HPRegen: 0.05 * 28, MPRegen: 0.05 * 4,
-				AttackSpeed: 0.5 * 5.0 / 155, CooldownSpeed: 0.4 * 4.0 / 204, MoveSpeed: 0.3 * 5.0 / 205,
+				MaxHP: 60 + 18*9 + 2*34 + 10*25, MaxMP: 20 + 4*9 + 3*7,
+				PhysicalAttack: 1.5*34 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 5 + 25, MagicDefense: 3 + 0.5*7 + 0.5*25,
+				Accuracy: 10 + 7, Evasion: 5 + 7,
+				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
+				HPRegen: 0.05 * 25, MPRegen: 0.05 * 7,
+				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 		{
-			"bowman level 1", kernel.Bowman, 1,
+			"bowman level 1: the same stats, a bowman's bases", kernel.Bowman, 1,
 			progression.Derived{
-				MaxHP: 50 + 2*5 + 10*5, MaxMP: 25 + 3*4,
-				PhysicalAttack: 1.5*5 + 0.5*12, MagicAttack: 0.5*12 + 1.5*4, PhysicalDefense: 3 + 5, MagicDefense: 3 + 0.5*4 + 0.5*5,
-				Accuracy: 15 + 12, Evasion: 8 + 10,
-				CritRate: 0.05 + 0.55*12.0/212, CritDamage: 0.5 + 0.005*12,
-				HPRegen: 0.05 * 5, MPRegen: 0.05 * 4,
-				AttackSpeed: 0.5 * 10.0 / 160, CooldownSpeed: 0.4 * 4.0 / 204, MoveSpeed: 0.3 * 10.0 / 210,
+				MaxHP: 50 + 2*7 + 10*7, MaxMP: 25 + 3*7,
+				PhysicalAttack: 1.5*7 + 0.5*7, MagicAttack: 0.5*7 + 1.5*7, PhysicalDefense: 3 + 7, MagicDefense: 3 + 0.5*7 + 0.5*7,
+				Accuracy: 15 + 7, Evasion: 8 + 7,
+				CritRate: 0.05 + 0.55*7.0/207, CritDamage: 0.5 + 0.005*7,
+				HPRegen: 0.05 * 7, MPRegen: 0.05 * 7,
+				AttackSpeed: 0.5 * 7.0 / 157, CooldownSpeed: 0.4 * 7.0 / 207, MoveSpeed: 0.3 * 7.0 / 207,
 			},
 		},
 	}
@@ -87,7 +87,7 @@ func TestDeriveStats(t *testing.T) {
 		got := progression.DeriveStats(data.StatRules(), kernel.Bowman, 1, class.BaseStats, progression.ItemStats{STR: 4, DEX: 6, AGI: 9})
 		want := progression.DeriveStats(data.StatRules(), kernel.Bowman, 1, progression.AddStats(class.BaseStats, gamedata.Stats{STR: 4, DEX: 6, AGI: 9}), progression.ItemStats{})
 		assertDerived(t, got, want)
-		if got.MoveSpeed != 0.3*19.0/219 {
+		if got.MoveSpeed != 0.3*16.0/216 {
 			t.Fatalf("move speed %v; worn AGI should move the curve", got.MoveSpeed)
 		}
 	})

@@ -63,7 +63,7 @@ classes:                   # base values per class; per_level grows them
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
 ```
 
-- **`classes.yaml`:** each class gains `attack.damage` (`physical` or `magic`) and `auto_assign` (the recommended split, which must sum to `points_per_level`). `base_stats` takes the new starting values, and `level_up_points` goes.
+- **`classes.yaml`:** each class gains `attack.damage` (`physical` or `magic`) and `auto_assign` (the recommended split, which must sum to `points_per_level`). `base_stats` takes the new starting values, 7 in each stat for every class, and `level_up_points` goes.
 - **`mobs.yaml`:** each mob gains `damage` (`physical` or `magic`) and `magic_defense`, and `defense` is renamed `physical_defense`. Cave bats deal magic damage.
 - **`items.yaml`:** `attack` and `defense` in `stats` become `physical_attack` and `physical_defense`, and the other new derived stats may roll. `requires: {str: 25}` lists stat minimums. `class` is allowed on weapons only.
 - **Units:** every rolled value is a whole number. Rates (crit rate, crit damage, penetration, the three speeds) are in tenths of a percent. Regen is in tenths of a point per second.

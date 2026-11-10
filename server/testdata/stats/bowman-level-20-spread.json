@@ -13,11 +13,11 @@
   "worn": {},
   "expected": {
     "primary": {
-      "str": 25,
-      "dex": 42,
-      "int": 14,
-      "agi": 35,
-      "vit": 15
+      "str": 27,
+      "dex": 37,
+      "int": 17,
+      "agi": 32,
+      "vit": 17
     },
     "primary_worn": {
       "str": 0,
@@ -27,22 +27,22 @@
       "vit": 0
     },
     "derived": {
-      "max_hp": 478,
-      "max_mp": 162,
-      "physical_attack": 58.5,
-      "magic_attack": 42,
-      "physical_defense": 18,
-      "magic_defense": 17.5,
-      "accuracy": 57,
-      "evasion": 43,
-      "crit_rate": 0.14545454545454545,
-      "crit_damage": 0.71,
+      "max_hp": 502,
+      "max_mp": 171,
+      "physical_attack": 59,
+      "magic_attack": 44,
+      "physical_defense": 20,
+      "magic_defense": 20,
+      "accuracy": 52,
+      "evasion": 40,
+      "crit_rate": 0.13586497890295357,
+      "crit_damage": 0.685,
       "penetration": 0,
-      "hp_regen": 0.75,
-      "mp_regen": 0.7000000000000001,
-      "attack_speed": 0.0945945945945946,
-      "cooldown_speed": 0.026168224299065422,
-      "move_speed": 0.04468085106382979
+      "hp_regen": 0.8500000000000001,
+      "mp_regen": 0.8500000000000001,
+      "attack_speed": 0.08791208791208792,
+      "cooldown_speed": 0.03133640552995392,
+      "move_speed": 0.041379310344827586
     },
     "derived_worn": {
       "max_hp": 0,

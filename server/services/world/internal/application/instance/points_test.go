@@ -31,7 +31,7 @@ func atLevel3(t *testing.T, points model.Points, hp int) (*instance.Instance, *w
 	return inst, s, cps, p
 }
 
-// A level 3 warrior's max HP is 60+18×2, plus 2 a STR and 10 a VIT: 220 with the class's 12 STR and 10 VIT.
+// A level 3 warrior's max HP is 60+18×2, plus 2 a STR and 10 a VIT: 180 with the starting 7 STR and 7 VIT.
 func TestSpendingPoints(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		inst, s, cps, p := atLevel3(t, model.Points{Unspent: 10}, 100)
@@ -64,13 +64,13 @@ func TestSpendingPoints(t *testing.T) {
 		}
 		want := model.Points{Spent: gamedata.Stats{STR: 4, VIT: 2}, Unspent: 4}
 		changed := eventsOf[model.StatsChanged](s)
-		if len(changed) != 1 || changed[0].Sheet.Points != want || changed[0].Sheet.Primary != (gamedata.Stats{STR: 16, DEX: 5, INT: 4, AGI: 5, VIT: 12}) || changed[0].MaxHP != 248 {
-			t.Fatalf("stats changed %+v; want 4 more STR and 2 more VIT, 248 max HP", changed)
+		if len(changed) != 1 || changed[0].Sheet.Points != want || changed[0].Sheet.Primary != (gamedata.Stats{STR: 11, DEX: 7, INT: 7, AGI: 7, VIT: 9}) || changed[0].MaxHP != 208 {
+			t.Fatalf("stats changed %+v; want 4 more STR and 2 more VIT, 208 max HP", changed)
 		}
 		if saved := cps.Drain(); len(saved) != 1 || saved[0].Points != want {
 			t.Fatalf("checkpoints %+v; want the spend saved at once", saved)
 		}
-		if v, _ := s.Own(p.ID); v.MaxHP != 248 || v.HP > 101 {
+		if v, _ := s.Own(p.ID); v.MaxHP != 208 || v.HP > 101 {
 			t.Fatalf("view %+v; want the new max HP to everyone, and HP not refilled", v)
 		}
 		if err := spend("c2", 4, gamedata.Stats{STR: 1}); !errors.Is(err, transient.ErrUnavailable) {
@@ -96,10 +96,10 @@ func TestResettingPoints(t *testing.T) {
 		}
 		want := model.Points{Unspent: 10, FreeResetUsed: true}
 		changed := eventsOf[model.StatsChanged](s)
-		if len(changed) != 1 || changed[0].Sheet.Points != want || changed[0].MaxHP != 220 || changed[0].HP != 220 {
-			t.Fatalf("stats changed %+v; want every point unspent and HP down to 220", changed)
+		if len(changed) != 1 || changed[0].Sheet.Points != want || changed[0].MaxHP != 180 || changed[0].HP != 180 {
+			t.Fatalf("stats changed %+v; want every point unspent and HP down to 180", changed)
 		}
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].Points != want || saved[0].HP != 220 {
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].Points != want || saved[0].HP != 180 {
 			t.Fatalf("checkpoints %+v; want the reset saved at once", saved)
 		}
 		if err := reset(10); !errors.Is(err, model.ErrNoFreeReset) {
@@ -126,7 +126,7 @@ func (r requiring) Item(id string) (gamedata.Item, bool) {
 // A worn item below its requirements stays worn and adds nothing; the own stats alone decide, so another item's STR never unlocks it.
 func TestStatsOfCountsOnlyTheWornItemsWhoseRequirementsAreMet(t *testing.T) {
 	data := worldtest.LoadData(t)
-	content := requiring{data, "wooden_sword", gamedata.Stats{STR: 15}}
+	content := requiring{data, "wooden_sword", gamedata.Stats{STR: 10}}
 	warrior, _ := data.Class(kernel.Warrior)
 	worn := model.Worn{Items: []model.WornItem{
 		{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: 10}},
@@ -134,12 +134,12 @@ func TestStatsOfCountsOnlyTheWornItemsWhoseRequirementsAreMet(t *testing.T) {
 		{Template: "no_such_item", Stats: progression.ItemStats{MaxHP: 1000}},
 	}}
 	short := instance.StatsOf(content, warrior, 3, model.Points{Spent: gamedata.Stats{STR: 2}}, worn, worldtest.TickInterval)
-	if w := short.Sheet.DerivedWorn; w.PhysicalAttack != 5*1.5 || short.Own.STR != 14 || short.Sheet.PrimaryWorn.STR != 5 {
-		t.Fatalf("own STR 14 and the cap's 5: worn share %+v, own %+v; want the sword left out", w, short.Own)
+	if w := short.Sheet.DerivedWorn; w.PhysicalAttack != 5*1.5 || short.Own.STR != 9 || short.Sheet.PrimaryWorn.STR != 5 {
+		t.Fatalf("own STR 9 and the cap's 5: worn share %+v, own %+v; want the sword left out", w, short.Own)
 	}
 	met := instance.StatsOf(content, warrior, 3, model.Points{Spent: gamedata.Stats{STR: 3}}, worn, worldtest.TickInterval)
 	if w := met.Sheet.DerivedWorn; w.PhysicalAttack != 10+5*1.5 || met.Derived.MaxHP != short.Derived.MaxHP+2 {
-		t.Fatalf("own STR 15: worn share %+v; want the sword counted", w)
+		t.Fatalf("own STR 10: worn share %+v; want the sword counted", w)
 	}
 	if met.Sheet.Points != (model.Points{Spent: gamedata.Stats{STR: 3}}) {
 		t.Fatalf("sheet points %+v", met.Sheet.Points)

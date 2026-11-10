@@ -87,7 +87,7 @@ func TestPlayTogether(t *testing.T) {
 	var ls []*looter
 	for k, n := range names {
 		token, id := s.createCharacter(t, n[0], n[1], "warrior")
-		s.place(t, id, "forest", xs[k], 608, 184, 0)
+		s.place(t, id, "forest", xs[k], 608, 144, 0)
 		p, snap := s.join(t, token, id)
 		ls = append(ls, newLooter(p, snap))
 	}

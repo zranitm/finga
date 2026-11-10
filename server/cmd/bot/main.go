@@ -23,6 +23,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
+	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -34,14 +36,19 @@ func main() {
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
 	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick and grant batch metrics are")
 	itemMetrics := flag.String("item-metrics", "http://localhost:9103", "the item service's ops address, where the transaction times are")
+	dataDir := flag.String("data", "data", "the game data, for the classes' auto-assign splits")
 	flag.Parse()
-	if err := run(*url, *metrics, *itemMetrics, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *itemMetrics, *dataDir, *n, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url, metrics, itemMetrics string, n int, duration time.Duration, prefix string) error {
+func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duration, prefix string) error {
+	data, err := gamedata.Load(dataDir)
+	if err != nil {
+		return err
+	}
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -53,7 +60,9 @@ func run(url, metrics, itemMetrics string, n int, duration time.Duration, prefix
 		if len(short) > 3 {
 			short = short[:3]
 		}
+		class, _ := data.Class([]kernel.Class{kernel.Warrior, kernel.Bowman}[k%2])
 		b := newBot(url, fmt.Sprintf("%s%s%d", prefix, stamp, k), strings.ToUpper(short[:1])+short[1:]+stamp+strconv.Itoa(k), k)
+		b.class, b.split, b.perLevel = class.ID, class.AutoAssign, data.StatRules().PointsPerLevel
 		bots = append(bots, b)
 		wg.Go(func() { b.play(ctx, bots) })
 	}
@@ -63,16 +72,16 @@ func run(url, metrics, itemMetrics string, n int, duration time.Duration, prefix
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
-			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.messages, s.refused, s.reconnects, s.loginFailures)
+		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.spends, s.messages, s.refused, s.reconnects, s.loginFailures)
 	}
-	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
-		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
+	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  spends %2d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.spends, total.messages, total.refused, total.reconnects, total.loginFailures)
 	return report(metrics, itemMetrics, url)
 }
 
 type stats struct {
-	messages, kills, items, deaths, hops, chats, refused, reconnects, loginFailures int
+	messages, kills, items, deaths, hops, chats, spends, refused, reconnects, loginFailures int
 }
 
 func (s *stats) add(o stats) {
@@ -82,6 +91,7 @@ func (s *stats) add(o stats) {
 	s.deaths += o.deaths
 	s.hops += o.hops
 	s.chats += o.chats
+	s.spends += o.spends
 	s.refused += o.refused
 	s.reconnects += o.reconnects
 	s.loginFailures += o.loginFailures
@@ -92,6 +102,9 @@ type bot struct {
 	name     string
 	charName string // 3 to 12 letters and digits
 	index    int
+	class    kernel.Class
+	split    gamedata.Stats // how a level's points are spent
+	perLevel int
 	codec    *wsconn.ProtoCodec
 	rng      *rand.Rand
 
@@ -212,7 +225,7 @@ func (b *bot) signUp(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	created, err := b.rest(ctx, "POST", "/api/characters", token, map[string]string{"name": b.charName, "class": []string{"warrior", "bowman"}[b.index%2]})
+	created, err := b.rest(ctx, "POST", "/api/characters", token, map[string]string{"name": b.charName, "class": b.class.String()})
 	if err != nil {
 		return "", err
 	}
@@ -327,6 +340,19 @@ func (b *bot) command(d proto.Message) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
 }
 
+// spend puts a level-up's points into the class's split, as a player with the client's auto-assign setting does.
+func (b *bot) spend(c *clientv1.CharacterView) {
+	unspent := c.GetSheet().GetPoints().GetUnspent()
+	if c.GetId() != b.id || b.perLevel == 0 || unspent < int32(b.perLevel) {
+		return
+	}
+	k, s := unspent/int32(b.perLevel), b.split
+	b.command(&clientv1.SpendPoints{ExpectedUnspent: unspent, Points: &clientv1.Stats{
+		Str: k * int32(s.STR), Dex: k * int32(s.DEX), Int: k * int32(s.INT), Agi: k * int32(s.AGI), Vit: k * int32(s.VIT),
+	}})
+	b.count(func(s *stats) { s.spends++ })
+}
+
 func (b *bot) killed(n int) {
 	if n > 0 {
 		b.count(func(s *stats) { s.kills += n })
@@ -377,6 +403,8 @@ func (b *bot) observe(m wsconn.Message) {
 		if !d.GetOk() {
 			b.count(func(s *stats) { s.refused++ })
 		}
+	case *clientv1.LevelUp:
+		b.spend(d.GetCharacter())
 	case *clientv1.PartyInvited:
 		b.command(&clientv1.PartyRespond{InviteId: d.GetInviteId(), Accept: true})
 	case *clientv1.PartyState:

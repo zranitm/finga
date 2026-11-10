@@ -3,7 +3,7 @@ classes:
   - id: warrior
     name: Warrior
     attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
-    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
+    base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     auto_assign: {str: 3, vit: 2}
     starter_items:
       - {item: wooden_sword, quantity: 1}
@@ -11,8 +11,8 @@ classes:
   - id: bowman
     name: Bowman
     attack: {kind: ranged, damage: physical, range: 420, cooldown: 800ms}
-    base_stats: {str: 5, dex: 12, int: 4, agi: 10, vit: 5}
-    auto_assign: {dex: 3, agi: 2}
+    base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
+    auto_assign: {str: 2, dex: 2, agi: 1}
     starter_items:
       - {item: short_bow, quantity: 1}
       - {item: red_potion, quantity: 5}

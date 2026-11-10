@@ -111,7 +111,7 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
 	chars := &characters{c: &characterv1.Character{
 		Id: id.String(), Name: "Ayla", Class: "warrior", Level: 1,
-		Hp: 184, Mp: 32, MapId: "town", X: 416, Y: 608,
+		Hp: 144, Mp: 41, MapId: "town", X: 416, Y: 608,
 	}}
 	itemSvc := &items{}
 	log := runnertest.NewLog()
@@ -152,8 +152,8 @@ func TestAJoinOverTheRealListenersLoadsGrantsAndDelivers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.GetCharacter().GetMaxHp() != 214 || res.GetCharacter().GetMapId() != "town" {
-		t.Fatalf("view %+v; want 184 HP and the worn cap's 30", res.GetCharacter())
+	if res.GetCharacter().GetMaxHp() != 174 || res.GetCharacter().GetMapId() != "town" {
+		t.Fatalf("view %+v; want 144 HP and the worn cap's 30", res.GetCharacter())
 	}
 	if m, err := stream.Recv(); err != nil || m.GetSnapshot().GetMapId() != "town" || m.GetCharacterId() != id.String() {
 		t.Fatalf("snapshot %+v %v", m, err)

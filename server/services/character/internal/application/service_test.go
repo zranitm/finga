@@ -55,7 +55,7 @@ func TestCreate(t *testing.T) {
 			{"level 1 with no EXP", c.Level == 1 && c.Exp == 0},
 			{"no points, so its own stats are the class's starting stats", c.Points == (gamedata.Stats{}) && own(t, svc, c) == warrior.BaseStats},
 			{"no unspent points, and the free reset left", c.UnspentPoints == 0 && !c.FreeResetUsed},
-			{"HP and MP full: 184 and 32 for a level 1 warrior", c.HP == 184 && c.MP == 32},
+			{"HP and MP full: 144 and 41 for a level 1 warrior", c.HP == 144 && c.MP == 41},
 			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
 			{"stored", len(store.chars) == 1},
 			{"returned as stored, with the store's updated_at", c == store.chars[c.ID] && !c.UpdatedAt.IsZero()},
@@ -67,13 +67,13 @@ func TestCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("a bowman gets its own base stats and HP", func(t *testing.T) {
+	t.Run("a bowman starts with the same stats as every class, and its own HP and MP", func(t *testing.T) {
 		svc, _, _ := newService(t)
 		c, err := svc.Create(ctx, owner, application.CreateInput{Name: "Robin", Class: kernel.Bowman})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if own(t, svc, c) != (gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}) || c.HP != 110 || c.MP != 37 {
+		if own(t, svc, c) != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || c.HP != 134 || c.MP != 46 {
 			t.Fatalf("bowman = %+v", c)
 		}
 	})
@@ -235,14 +235,14 @@ func TestDerivedForACharacter(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, err := svc.Derived(c)
-	if err != nil || d.MaxHP != 184 || d.PhysicalAttack != 20.5 {
+	if err != nil || d.MaxHP != 144 || d.PhysicalAttack != 14 {
 		t.Fatalf("derived = %+v, %v", d, err)
 	}
 	c.Points = gamedata.Stats{STR: 2, VIT: 3} // 2·1.5 more attack; 2·2 + 3·10 more HP
-	if d, err := svc.Derived(c); err != nil || d.MaxHP != 218 || d.PhysicalAttack != 23.5 {
+	if d, err := svc.Derived(c); err != nil || d.MaxHP != 178 || d.PhysicalAttack != 17 {
 		t.Fatalf("derived with points = %+v, %v; want them on top of the starting stats", d, err)
 	}
-	if o, err := svc.Own(c); err != nil || o != (gamedata.Stats{STR: 14, DEX: 5, INT: 4, AGI: 5, VIT: 13}) {
+	if o, err := svc.Own(c); err != nil || o != (gamedata.Stats{STR: 9, DEX: 7, INT: 7, AGI: 7, VIT: 10}) {
 		t.Fatalf("own = %+v, %v", o, err)
 	}
 	c.Class = kernel.Thief

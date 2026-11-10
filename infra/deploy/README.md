@@ -217,6 +217,27 @@ aws ssm get-parameter --name /finga/prod/env/FINGA_POSTGRES_PASSWORD --with-decr
 gh workflow run deploy
 ```
 
+## One-time steps for a release
+
+A release that can't run on the data before it is listed here, with what to do on the host before deploying it.
+Each step is done once, before the first deploy of a commit at or after the one named.
+
+**The stat system (12b044d, #5) starts from an empty database.** Its migrations change what the character
+columns mean (stat totals become points spent), so characters from before it would load with wrong stats; the
+product decided on a fresh start rather than a conversion. If production has never been deployed, skip this: the
+first deploy starts empty anyway. Otherwise, on the host:
+
+```bash
+sudo /opt/finga/current/infra/deploy/pg.sh backup                 # keep the old world; it restores only into a release before 12b044d
+sudo finga-compose stop gateway world social item character account
+sudo finga-compose exec postgres psql -U finga -d postgres \
+  -c 'DROP DATABASE finga WITH (FORCE)' -c 'CREATE DATABASE finga OWNER finga'
+```
+
+Then deploy the release (Actions → deploy, or `sudo compose-release <sha>`): its migrations build every table from
+scratch. Every account and character is gone, so players sign up again. From then on, `pg.sh restore` takes only
+dumps made after the reset.
+
 ## When something's wrong
 
 | Symptom | Likely cause |

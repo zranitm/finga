@@ -1,11 +1,11 @@
 # Mob types, with stats, the damage type of their contact attack, patrol behavior and drop tables whose entries roll independently: four mobs for the forest (levels 1 to 10) and the cave (10 to 20).
-# HP is set so the weapon a player of the mob's level likely holds kills it in as many hits as an unarmed one did before equipment applied in combat.
+# HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs about as many hits to kill it, and survives about as many of its touches, as before the stat system; a bat's magic touch meets the low magic defense most builds have, so it hits for less.
 # The cave drops the gear of levels 20 to 29 rarely, until a map has mobs that high.
 mobs:
   - id: green_slime
     name: Green Slime
     level: 1
-    hp: 44
+    hp: 34
     attack: 6
     damage: physical
     physical_defense: 2
@@ -23,7 +23,7 @@ mobs:
   - id: orange_mushroom
     name: Orange Mushroom
     level: 4
-    hp: 90
+    hp: 72
     attack: 12
     damage: physical
     physical_defense: 5
@@ -47,8 +47,8 @@ mobs:
   - id: wild_boar
     name: Wild Boar
     level: 10
-    hp: 216
-    attack: 28
+    hp: 178
+    attack: 25
     damage: physical
     physical_defense: 12
     magic_defense: 6
@@ -72,8 +72,8 @@ mobs:
   - id: cave_bat
     name: Cave Bat
     level: 14
-    hp: 180
-    attack: 34
+    hp: 140
+    attack: 22
     damage: magic
     physical_defense: 8
     magic_defense: 8
