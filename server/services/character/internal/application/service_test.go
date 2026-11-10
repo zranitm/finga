@@ -55,7 +55,7 @@ func TestCreate(t *testing.T) {
 			{"level 1 with no EXP", c.Level == 1 && c.Exp == 0},
 			{"base stats of the class", c.Stats == warrior.BaseStats},
 			{"no unspent points", c.UnspentPoints == 0},
-			{"HP and MP full: 204 and 28 for a level 1 warrior", c.HP == 204 && c.MP == 28},
+			{"HP and MP full: 184 and 32 for a level 1 warrior", c.HP == 184 && c.MP == 32},
 			{"starts in the town at its player spawn", c.MapID == town.ID && c.X == town.PlayerSpawn.X && c.Y == town.PlayerSpawn.Y},
 			{"stored", len(store.chars) == 1},
 			{"returned as stored, with the store's updated_at", c == store.chars[c.ID] && !c.UpdatedAt.IsZero()},
@@ -73,7 +73,7 @@ func TestCreate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if c.Stats != (gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}) || c.HP != 105 || c.MP != 33 {
+		if c.Stats != (gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}) || c.HP != 110 || c.MP != 37 {
 			t.Fatalf("bowman = %+v", c)
 		}
 	})
@@ -234,7 +234,7 @@ func TestDerivedForACharacter(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, err := svc.Derived(c)
-	if err != nil || d.MaxHP != 204 || d.AttackPower != 21 {
+	if err != nil || d.MaxHP != 184 || d.PhysicalAttack != 20.5 {
 		t.Fatalf("derived = %+v, %v", d, err)
 	}
 	c.Class = kernel.Thief

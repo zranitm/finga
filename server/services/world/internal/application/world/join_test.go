@@ -92,7 +92,7 @@ func TestJoinByID(t *testing.T) {
 				t.Fatal(err)
 			}
 			// HP is clamped to the derived maximum, as the instance does.
-			if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "town" || view.MaxHP != 204 || view.HP != 204 || view.MaxMP != 28 || view.X != 416 {
+			if view.ID != ayla.ID || view.Name != "Ayla" || view.MapID != "town" || view.MaxHP != 184 || view.HP != 184 || view.MaxMP != 32 || view.X != 416 {
 				t.Fatalf("view %+v", view)
 			}
 			if len(starter.grants) != 1 || starter.grants[0] != ayla.ID {
@@ -217,8 +217,8 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 			t.Fatal(err)
 		}
 		town, _ := data.Map(forest.Town)
-		if v.MapID != town.ID || v.X != town.PlayerSpawn.X || v.Y != town.PlayerSpawn.Y || v.HP != 102 {
-			t.Fatalf("joined %+v, want %s's spawn with 102 HP", v, town.ID)
+		if v.MapID != town.ID || v.X != town.PlayerSpawn.X || v.Y != town.PlayerSpawn.Y || v.HP != 92 {
+			t.Fatalf("joined %+v, want %s's spawn with 92 HP", v, town.ID)
 		}
 	})
 }

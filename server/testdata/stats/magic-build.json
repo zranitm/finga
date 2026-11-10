@@ -1,0 +1,69 @@
+{
+  "name": "magic-build",
+  "notes": "A warrior who spent everything on INT: magic attack and defense, MP and MP regen, and cooldown speed.",
+  "class": "warrior",
+  "level": 15,
+  "points": {
+    "str": 0,
+    "dex": 0,
+    "int": 70,
+    "agi": 0,
+    "vit": 0
+  },
+  "worn": {
+    "magic_attack": 20,
+    "mp_regen": 10
+  },
+  "expected": {
+    "primary": {
+      "str": 12,
+      "dex": 5,
+      "int": 74,
+      "agi": 5,
+      "vit": 10
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 436,
+      "max_mp": 298,
+      "physical_attack": 20.5,
+      "magic_attack": 133.5,
+      "physical_defense": 15,
+      "magic_defense": 45,
+      "accuracy": 15,
+      "evasion": 10,
+      "crit_rate": 0.06341463414634146,
+      "crit_damage": 0.525,
+      "penetration": 0,
+      "hp_regen": 0.5,
+      "mp_regen": 4.7,
+      "attack_speed": 0.016129032258064516,
+      "cooldown_speed": 0.10802919708029197,
+      "move_speed": 0.007317073170731708
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 20,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 1,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

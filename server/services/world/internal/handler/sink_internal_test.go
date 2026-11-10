@@ -85,7 +85,7 @@ func TestAnInventoryChangeCarriesItsRevision(t *testing.T) {
 func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
 	s := &streamSink{sub: sub}
-	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{Defense: 3, MaxHP: 30}}
+	hat := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3, MaxHP: 30}}
 	if !s.Send(model.InventoryChanged{Tick: 4, Revision: 7, Slots: []model.Slot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: hat}, {Slot: "weapon"}}}) {
 		t.Fatal("the stream refused the change")
 	}
@@ -107,8 +107,8 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	s := &streamSink{sub: sub}
 	sheet := progression.Sheet{
 		Primary: gamedata.Stats{STR: 16, VIT: 10}, PrimaryWorn: gamedata.Stats{STR: 4},
-		Derived:     progression.Derived{MaxHP: 234, MaxMP: 28, AttackPower: 33.5, Accuracy: 21, Evasion: 9, Defense: 18, CritRate: 0.06, CritDamage: 0.525},
-		DerivedWorn: progression.Derived{MaxHP: 30, AttackPower: 12.5, Defense: 3},
+		Derived:     progression.Derived{MaxHP: 234, MaxMP: 28, PhysicalAttack: 33.5, Accuracy: 21, Evasion: 9, PhysicalDefense: 18, CritRate: 0.06, CritDamage: 0.525},
+		DerivedWorn: progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3},
 	}
 	if !s.Send(model.StatsChanged{Tick: 5, Sheet: sheet, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")

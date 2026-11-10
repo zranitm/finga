@@ -177,7 +177,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantChanged(t, res)
 	})
 	t.Run("Add, equipment with its roll", func(t *testing.T) {
-		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{Attack: 17, CritRate: 5, MaxMP: 3}}
+		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Tab: gamedata.Equip, Slot: 2, Quantity: 1, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5, MaxMP: 3}}
 		f.result = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 13}
 		defer func() { f.result = changed }()
 		res, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "iron_sword", Quantity: 1,
@@ -223,7 +223,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantChanged(t, res)
 	})
 	t.Run("Equip, answering what is worn", func(t *testing.T) {
-		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Quantity: 1, Stats: &progression.ItemStats{Attack: 17}, EquipSlot: "weapon"}
+		sword := model.Item{ID: kernel.NewItemID(), TemplateID: "iron_sword", Owner: character, Quantity: 1, Stats: &progression.ItemStats{PhysicalAttack: 17}, EquipSlot: "weapon"}
 		f.result = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 4}}, Equipment: []model.WornSlot{{Slot: "weapon", Item: &sword}}, Worn: []model.Item{sword}, Revision: 14}
 		defer func() { f.result = changed }()
 		res, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: sword.ID.String(), EquipSlot: "weapon", Level: 9, Class: "warrior"})

@@ -10,6 +10,7 @@ import { expCurve } from '@/gamedata/exp-curve';
 import { items } from '@/gamedata/items';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
+import { stats } from '@/gamedata/stats';
 
 const dataDir = path.resolve(process.cwd(), '..', 'server', 'data');
 
@@ -47,10 +48,27 @@ describe('generated gamedata', () => {
     const raw = yaml('classes.yaml').classes as Record<string, unknown>[];
     expect(classes.map((c) => c.id)).toEqual(raw.map((c) => c.id));
     const warrior = classes.find((c) => c.id === 'warrior');
-    expect(warrior?.attack).toEqual({ kind: 'melee', width: 64, height: 56, cooldown_ms: 600 });
+    expect(warrior?.attack).toEqual({
+      kind: 'melee',
+      damage: 'physical',
+      width: 64,
+      height: 56,
+      cooldown_ms: 600,
+    });
     const bowman = classes.find((c) => c.id === 'bowman');
-    expect(bowman?.attack).toEqual({ kind: 'ranged', range: 420, cooldown_ms: 800 });
+    expect(bowman?.attack).toEqual({
+      kind: 'ranged',
+      damage: 'physical',
+      range: 420,
+      cooldown_ms: 800,
+    });
     expect(warrior?.base_stats).toEqual(raw[0]!.base_stats);
+    expect(warrior?.auto_assign).toEqual(raw[0]!.auto_assign);
+  });
+
+  it('the stat rules equal stats.yaml', () => {
+    expect(stats).toEqual(yaml('stats.yaml'));
+    expect(stats.per_point.str.physical_attack).toBe(1.5);
   });
 
   it('mobs equal mobs.yaml', () => {

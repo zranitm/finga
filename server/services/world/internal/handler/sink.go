@@ -165,7 +165,7 @@ func item(it *model.SlotItem) *worldv1.Item {
 	if s := it.Stats; s != nil {
 		//nolint:gosec // stats are small
 		out.Stats = &worldv1.ItemStats{
-			Attack: int32(s.Attack), Defense: int32(s.Defense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
+			Attack: int32(s.PhysicalAttack), Defense: int32(s.PhysicalDefense), Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
 			Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage), MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP),
 		}
 	}
@@ -178,7 +178,7 @@ func statSheet(s progression.Sheet) *worldv1.StatSheet {
 
 func derived(d progression.Derived) *worldv1.DerivedStats {
 	return &worldv1.DerivedStats{
-		AttackPower: d.AttackPower, Defense: d.Defense, Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage,
+		AttackPower: d.PhysicalAttack, Defense: d.PhysicalDefense, Accuracy: d.Accuracy, Evasion: d.Evasion, CritRate: d.CritRate, CritDamage: d.CritDamage,
 		MaxHp: int32(d.MaxHP), MaxMp: int32(d.MaxMP), //nolint:gosec // HP and MP are small
 	}
 }

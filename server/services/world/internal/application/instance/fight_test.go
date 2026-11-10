@@ -71,12 +71,14 @@ func damages(s *worldtest.Sink) []model.Damage {
 // warriorAt is a new warrior, wearing the starter sword at its lowest roll as every new warrior does: two hits kill a slime.
 func warriorAt(x float64) model.Player {
 	p := worldtest.NewPlayer("Ayla", x, 608)
-	p.Worn = model.Worn{Revision: 1, Stats: progression.ItemStats{Attack: 10}}
+	p.Worn = model.Worn{Revision: 1, Stats: progression.ItemStats{PhysicalAttack: 10}}
 	return p
 }
 
 func bowmanAt(x float64) model.Player {
-	return model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
+	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, Stats: gamedata.Stats{STR: 5, DEX: 12, INT: 4, AGI: 10, VIT: 5}, HP: 105, MP: 33, X: x, Y: 608}
+	p.Worn = model.Worn{Revision: 1, Stats: progression.ItemStats{PhysicalAttack: 8}}
+	return p
 }
 
 func join(t *testing.T, inst *instance.Instance, p model.Player) *worldtest.Sink {
@@ -228,7 +230,7 @@ func TestAttacks(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			got := damages(s)
-			if len(got) != 1 || got[0].Amount != 21 {
+			if len(got) != 1 || got[0].Amount != 21 { // physical attack 13.5 at level 1 (STR 5 × 1.5 + DEX 12 × 0.5), and the bow's 8
 				t.Fatalf("damages %+v", got)
 			}
 			_ = inst.Leave(idOf(t, s), "", nil)
@@ -311,8 +313,8 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 			t.Fatalf("contact damage %d, want 5", got[0].Amount)
 		}
 		v, _ := s.Own(id)
-		if v.HP != 199 {
-			t.Fatalf("HP %d, want 199", v.HP)
+		if v.HP != 179 {
+			t.Fatalf("HP %d, want 179", v.HP)
 		}
 		if v.State.VY >= 0 {
 			t.Fatalf("no knockback hop: %+v", v.State)
@@ -326,7 +328,7 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 			var ticks []uint64
 			for _, d := range s.Deltas() {
 				for _, pv := range d.Players {
-					if pv.ID == id && !pv.Invulnerable && pv.HP == 199 {
+					if pv.ID == id && !pv.Invulnerable && pv.HP == 179 {
 						ticks = append(ticks, d.Tick)
 					}
 				}
@@ -394,7 +396,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			r := resp[0].(model.Respawned)
 			town := data.Town()
-			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 102 {
+			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 92 {
 				t.Fatalf("respawned %+v", r)
 			}
 			tel := ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })
@@ -403,7 +405,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			}
 			tr.mu.Lock()
 			defer tr.mu.Unlock()
-			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 102 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X {
+			if len(tr.moved) != 1 || tr.to[0] != town.ID || tr.moved[0].HP != 92 || tr.moved[0].Exp != 9 || tr.moved[0].X != town.PlayerSpawn.X {
 				t.Fatalf("transfer %+v to %v", tr.moved, tr.to)
 			}
 		}
@@ -448,16 +450,16 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 			t.Fatalf("level-up events %+v", lus)
 		}
 		lu := lus[0].(model.LevelUp)
-		// STR 15, VIT 12 after the preset; max HP 60+144+30+18 = 252, max MP 20+8+4 = 32.
-		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}) || lu.HP != 252 || lu.MaxHP != 252 || lu.MP != 32 || lu.MaxMP != 32 {
+		// STR 15, VIT 12 after the auto-assign split; max HP 60+18+2×15+10×12 = 228, max MP 20+4+3×4 = 36.
+		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 15, DEX: 5, INT: 4, AGI: 5, VIT: 12}) || lu.HP != 228 || lu.MaxHP != 228 || lu.MP != 36 || lu.MaxMP != 36 {
 			t.Fatalf("level-up %+v", lu)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Level != 2 || v.HP != 252 || v.MaxHP != 252 {
+		if v.Level != 2 || v.HP != 228 || v.MaxHP != 228 {
 			t.Fatalf("view after level-up %+v", v)
 		}
 		// The level-up is checkpointed right away, with the whole progression.
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 252 || saved[0].Stats != lu.Stats {
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 228 || saved[0].Stats != lu.Stats {
 			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
 	})
@@ -583,7 +585,7 @@ func TestATownRevivesItsOwnDead(t *testing.T) {
 			t.Fatalf("respawned %+v", resp)
 		}
 		v, _ := s.Own(p.ID)
-		if v.Dead || v.HP != 102 || v.State.X != 100 || v.State.Y != 608 {
+		if v.Dead || v.HP != 92 || v.State.X != 100 || v.State.Y != 608 {
 			t.Fatalf("after respawn in place: %+v", v)
 		}
 		if len(ofType(s, func(e any) bool { _, ok := e.(model.Teleport); return ok })) != 0 || len(tr.moved) != 0 {
@@ -614,8 +616,8 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		synctest.Wait()
 		town := data.Town()
 		saved := cps.Drain()
-		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 102 || saved[0].Exp != 9 {
-			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 102 HP and EXP 9", saved)
+		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 92 || saved[0].Exp != 9 {
+			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 92 HP and EXP 9", saved)
 		}
 	})
 }

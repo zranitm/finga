@@ -97,7 +97,7 @@ func TestAReplyKeepsAnItemsRoll(t *testing.T) {
 	res := storedResult(t)
 	sword := *res.Changed[0].Item
 	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity = "iron_sword", gamedata.Equip, 2, 1
-	sword.Stats = &progression.ItemStats{Attack: 17, CritRate: 5}
+	sword.Stats = &progression.ItemStats{PhysicalAttack: 17, CritRate: 5}
 	res = application.Result{Changed: []model.Slot{{Tab: gamedata.Equip, Slot: 2, Item: &sword}}, Revision: 3}
 	raw, err := encodeReply(res)
 	if err != nil {
@@ -125,7 +125,7 @@ const storedEquipReply = `{"changed":[{"tab":"equip","slot":2}],"revision":4,"eq
 func TestAReplyKeepsWhatIsWorn(t *testing.T) {
 	sword := *storedResult(t).Changed[0].Item
 	sword.TemplateID, sword.Tab, sword.Slot, sword.Quantity, sword.EquipSlot = "iron_sword", "", 0, 1, "weapon"
-	sword.Stats = &progression.ItemStats{Attack: 17}
+	sword.Stats = &progression.ItemStats{PhysicalAttack: 17}
 	res := application.Result{
 		Changed:   []model.Slot{{Tab: gamedata.Equip, Slot: 2}},
 		Equipment: []model.WornSlot{{Slot: "weapon", Item: &sword}},

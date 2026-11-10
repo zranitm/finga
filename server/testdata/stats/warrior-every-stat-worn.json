@@ -1,0 +1,88 @@
+{
+  "name": "warrior-every-stat-worn",
+  "notes": "Gear giving each of the twenty-one stats: primary stats count as own ones, the rest add in their units.",
+  "class": "warrior",
+  "level": 5,
+  "points": {
+    "str": 12,
+    "dex": 0,
+    "int": 0,
+    "agi": 0,
+    "vit": 8
+  },
+  "worn": {
+    "str": 3,
+    "dex": 2,
+    "int": 1,
+    "agi": 4,
+    "vit": 5,
+    "physical_attack": 12,
+    "magic_attack": 3,
+    "physical_defense": 7,
+    "magic_defense": 4,
+    "max_hp": 40,
+    "max_mp": 10,
+    "accuracy": 6,
+    "evasion": 5,
+    "crit_rate": 25,
+    "crit_damage": 80,
+    "penetration": 150,
+    "hp_regen": 15,
+    "mp_regen": 8,
+    "attack_speed": 30,
+    "cooldown_speed": 20,
+    "move_speed": 40
+  },
+  "expected": {
+    "primary": {
+      "str": 27,
+      "dex": 7,
+      "int": 5,
+      "agi": 9,
+      "vit": 23
+    },
+    "primary_worn": {
+      "str": 3,
+      "dex": 2,
+      "int": 1,
+      "agi": 4,
+      "vit": 5
+    },
+    "derived": {
+      "max_hp": 456,
+      "max_mp": 61,
+      "physical_attack": 56,
+      "magic_attack": 14,
+      "physical_defense": 35,
+      "magic_defense": 21,
+      "accuracy": 23,
+      "evasion": 19,
+      "crit_rate": 0.09359903381642512,
+      "crit_damage": 0.615,
+      "penetration": 0.15,
+      "hp_regen": 2.6500000000000004,
+      "mp_regen": 1.05,
+      "attack_speed": 0.05830188679245283,
+      "cooldown_speed": 0.02975609756097561,
+      "move_speed": 0.05291866028708134
+    },
+    "derived_worn": {
+      "max_hp": 96,
+      "max_mp": 13,
+      "physical_attack": 17.5,
+      "magic_attack": 5.5,
+      "physical_defense": 12,
+      "magic_defense": 7,
+      "accuracy": 8,
+      "evasion": 9,
+      "crit_rate": 0.030184399670083656,
+      "crit_damage": 0.08999999999999997,
+      "penetration": 0.15,
+      "hp_regen": 1.7500000000000004,
+      "mp_regen": 0.8500000000000001,
+      "attack_speed": 0.042172854534388314,
+      "cooldown_speed": 0.021912960306073648,
+      "move_speed": 0.04560158711634963
+    }
+  }
+}

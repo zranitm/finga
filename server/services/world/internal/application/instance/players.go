@@ -57,20 +57,19 @@ func (i *Instance) add(j *joinMsg) {
 		i.remove(j.player.ID) // a stale presence; the new connection wins
 	}
 	class, ok := i.data.Class(j.player.Class)
-	formulas, ok2 := i.data.Formulas(j.player.Class)
-	if !ok || !ok2 {
+	if !ok {
 		j.done <- model.ErrClassUnavailable
 		return
 	}
 	p := &player{
-		Player:  j.player,
-		sink:    j.sink,
-		state:   sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
-		joined:  true,
-		slot:    i.nextSlot,
-		class:   class,
-		derived: progression.DeriveStats(formulas, j.player.Stats, j.player.Level, j.player.Worn.Stats),
+		Player: j.player,
+		sink:   j.sink,
+		state:  sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
+		joined: true,
+		slot:   i.nextSlot,
+		class:  class,
 	}
+	p.derived = i.derive(p)
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)
 	i.nextSlot = (i.nextSlot + 1) % i.ticksPer // players joining together save on different ticks

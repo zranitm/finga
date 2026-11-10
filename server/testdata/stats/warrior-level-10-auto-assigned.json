@@ -1,0 +1,66 @@
+{
+  "name": "warrior-level-10-auto-assigned",
+  "notes": "Nine levels spent by the warrior's auto-assign split, STR 3 and VIT 2.",
+  "class": "warrior",
+  "level": 10,
+  "points": {
+    "str": 27,
+    "dex": 0,
+    "int": 0,
+    "agi": 0,
+    "vit": 18
+  },
+  "worn": {},
+  "expected": {
+    "primary": {
+      "str": 39,
+      "dex": 5,
+      "int": 4,
+      "agi": 5,
+      "vit": 28
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 580,
+      "max_mp": 68,
+      "physical_attack": 61,
+      "magic_attack": 8.5,
+      "physical_defense": 33,
+      "magic_defense": 19,
+      "accuracy": 15,
+      "evasion": 10,
+      "crit_rate": 0.06341463414634146,
+      "crit_damage": 0.525,
+      "penetration": 0,
+      "hp_regen": 1.4000000000000001,
+      "mp_regen": 0.2,
+      "attack_speed": 0.016129032258064516,
+      "cooldown_speed": 0.00784313725490196,
+      "move_speed": 0.007317073170731708
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

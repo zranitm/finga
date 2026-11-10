@@ -91,8 +91,7 @@ func (i *Instance) settleEquip(m equippedMsg) {
 // putOn takes what the player now wears, re-derives, lowers HP and MP to any new maximum, and tells the player and the party.
 func (i *Instance) putOn(p *player, eq model.Equipped) {
 	p.Worn = eq.Worn
-	formulas, _ := i.data.Formulas(p.Class)
-	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, p.Worn.Stats)
+	p.derived = i.derive(p)
 	p.HP, p.MP = min(p.HP, p.derived.MaxHP), min(p.MP, p.derived.MaxMP)
 	p.changed = true
 	p.private = append(p.private,
@@ -102,8 +101,12 @@ func (i *Instance) putOn(p *player, eq model.Equipped) {
 	i.tellParty(p, i.m.ID)
 }
 
+// derive is the player's derived stats, from their class, level, own stats and what they wear.
+func (i *Instance) derive(p *player) progression.Derived {
+	return progression.DeriveStats(i.data.StatRules(), p.Class, p.Level, p.Stats, p.Worn.Stats)
+}
+
 // sheet is what the player's character window shows.
 func (i *Instance) sheet(p *player) progression.Sheet {
-	formulas, _ := i.data.Formulas(p.Class)
-	return progression.SheetOf(formulas, p.Stats, p.Level, p.Worn.Stats)
+	return progression.SheetOf(i.data.StatRules(), p.Class, p.Level, p.Stats, p.Worn.Stats)
 }

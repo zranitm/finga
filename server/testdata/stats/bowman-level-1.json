@@ -1,0 +1,66 @@
+{
+  "name": "bowman-level-1",
+  "notes": "A new bowman.",
+  "class": "bowman",
+  "level": 1,
+  "points": {
+    "str": 0,
+    "dex": 0,
+    "int": 0,
+    "agi": 0,
+    "vit": 0
+  },
+  "worn": {},
+  "expected": {
+    "primary": {
+      "str": 5,
+      "dex": 12,
+      "int": 4,
+      "agi": 10,
+      "vit": 5
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 110,
+      "max_mp": 37,
+      "physical_attack": 13.5,
+      "magic_attack": 12,
+      "physical_defense": 8,
+      "magic_defense": 7.5,
+      "accuracy": 27,
+      "evasion": 18,
+      "crit_rate": 0.08113207547169812,
+      "crit_damage": 0.56,
+      "penetration": 0,
+      "hp_regen": 0.25,
+      "mp_regen": 0.2,
+      "attack_speed": 0.03125,
+      "cooldown_speed": 0.00784313725490196,
+      "move_speed": 0.014285714285714285
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

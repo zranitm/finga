@@ -57,14 +57,13 @@ func (i *Instance) award(p *player, amount int64) {
 	if amount <= 0 {
 		return
 	}
-	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, progression.PresetPlan(p.class))
+	a := progression.AwardExp(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, amount, p.Stats, progression.AutoAssignPlan(p.class))
 	p.Level, p.Exp, p.Stats = a.Progress.Level, a.Progress.Exp, a.Stats
 	p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: amount, Exp: p.Exp})
 	if a.LevelsGained == 0 {
 		return
 	}
-	formulas, _ := i.data.Formulas(p.Class)
-	p.derived = progression.DeriveStats(formulas, p.Stats, p.Level, p.Worn.Stats)
+	p.derived = i.derive(p)
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP
 	p.changed = true
 	p.private = append(p.private, model.LevelUp{

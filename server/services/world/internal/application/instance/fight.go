@@ -136,9 +136,9 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 }
 
 func attackerOf(d progression.Derived) model.Attacker {
-	return model.Attacker{AttackPower: d.AttackPower, Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration}
+	return model.Attacker{AttackPower: d.PhysicalAttack, Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration}
 }
 
 func defenderOf(d progression.Derived) model.Defender {
-	return model.Defender{Defense: d.Defense, Evasion: d.Evasion}
+	return model.Defender{Defense: d.PhysicalDefense, Evasion: d.Evasion}
 }

@@ -218,7 +218,7 @@ func TestPartyHearsLevelsRespawnsAndMapChanges(t *testing.T) {
 		ups := slices.Clone(parties.updates)
 		parties.mu.Unlock()
 		// A join is a map change too; after a world restart it is what corrects the frames social kept.
-		if len(ups) != 1 || ups[0] != (partyUpdate{p.ID, "arena", 1, 150, 204}) {
+		if len(ups) != 1 || ups[0] != (partyUpdate{p.ID, "arena", 1, 150, 184}) {
 			t.Fatalf("updates after a join: %+v", ups)
 		}
 		killSlime(t, inst, p.ID)

@@ -567,7 +567,7 @@ func TestCheckpoints(t *testing.T) {
 				t.Fatalf("%d checkpoints at 30 s, want 1", len(got))
 			}
 			cp := got[0]
-			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 204 || cp.MP != 28 || cp.Level != 1 || cp.Stats != p.Stats {
+			if cp.ID != p.ID || cp.MapID != "town" || cp.X <= x || cp.Exp != 12 || cp.HP != 184 || cp.MP != 28 || cp.Level != 1 || cp.Stats != p.Stats {
 				t.Fatalf("checkpoint %+v", cp)
 			}
 		}

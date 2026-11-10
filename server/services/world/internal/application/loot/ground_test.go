@@ -309,7 +309,7 @@ func TestEquipmentRollsItsStatsAsItDrops(t *testing.T) {
 				s := sceneWith(t, &grants{answers: []answer{every(model.GrantAdded)}}, options{roll: worldtest.FixedRoll{V: tt.roll}})
 				s.g.Roll(solo(boar, owner("Ayla")))
 				s.until(s.delay)
-				if got := s.items.made(); len(got) != 1 || got[0].Drops[0].Stats == nil || *got[0].Drops[0].Stats != (progression.ItemStats{Attack: tt.attack}) {
+				if got := s.items.made(); len(got) != 1 || got[0].Drops[0].Stats == nil || *got[0].Drops[0].Stats != (progression.ItemStats{PhysicalAttack: tt.attack}) {
 					t.Fatalf("granted %+v, want a sword of attack %d", got, tt.attack)
 				}
 			})

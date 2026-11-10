@@ -9,10 +9,10 @@ import (
 	"finga/internal/progression"
 )
 
-var sword = gamedata.Rolls{Attack: gamedata.Range{Min: 10, Max: 12}, CritRate: gamedata.Range{Min: 5, Max: 15}}
+var sword = gamedata.Rolls{PhysicalAttack: gamedata.Range{Min: 10, Max: 12}, CritRate: gamedata.Range{Min: 5, Max: 15}, MoveSpeed: gamedata.Range{Min: 1, Max: 3}}
 
 func TestTheLowestRollTakesEachMinimum(t *testing.T) {
-	if got, want := progression.Lowest(sword), (progression.ItemStats{Attack: 10, CritRate: 5}); got != want {
+	if got, want := progression.Lowest(sword), (progression.ItemStats{PhysicalAttack: 10, CritRate: 5, MoveSpeed: 1}); got != want {
 		t.Fatalf("lowest %+v, want %+v", got, want)
 	}
 }
@@ -23,12 +23,13 @@ func TestARollFitsItsRanges(t *testing.T) {
 		roll progression.ItemStats
 		want bool
 	}{
-		{"the lowest", progression.ItemStats{Attack: 10, CritRate: 5}, true},
-		{"the highest", progression.ItemStats{Attack: 12, CritRate: 15}, true},
-		{"between", progression.ItemStats{Attack: 11, CritRate: 9}, true},
-		{"one stat below its range", progression.ItemStats{Attack: 9, CritRate: 5}, false},
-		{"one stat above its range", progression.ItemStats{Attack: 10, CritRate: 16}, false},
-		{"a stat the item doesn't give", progression.ItemStats{Attack: 10, CritRate: 5, STR: 1}, false},
+		{"the lowest", progression.ItemStats{PhysicalAttack: 10, CritRate: 5, MoveSpeed: 1}, true},
+		{"the highest", progression.ItemStats{PhysicalAttack: 12, CritRate: 15, MoveSpeed: 3}, true},
+		{"between", progression.ItemStats{PhysicalAttack: 11, CritRate: 9, MoveSpeed: 2}, true},
+		{"one stat below its range", progression.ItemStats{PhysicalAttack: 9, CritRate: 5, MoveSpeed: 1}, false},
+		{"the last stat above its range", progression.ItemStats{PhysicalAttack: 10, CritRate: 5, MoveSpeed: 4}, false},
+		{"a stat the item doesn't give", progression.ItemStats{PhysicalAttack: 10, CritRate: 5, MoveSpeed: 1, STR: 1}, false},
+		{"a new stat the item doesn't give", progression.ItemStats{PhysicalAttack: 10, CritRate: 5, MoveSpeed: 1, Penetration: 1}, false},
 		{"nothing at all", progression.ItemStats{}, false},
 	}
 	for _, tt := range tests {
@@ -46,8 +47,16 @@ func TestRolledPicksEveryStatInOneOrder(t *testing.T) {
 		picked = append(picked, r)
 		return r.Max
 	})
-	if len(picked) != 13 || picked[0] != sword.Attack || picked[9] != sword.CritRate {
-		t.Fatalf("picked %v; want all thirteen stats, attack first and crit rate tenth", picked)
+	if len(picked) != 21 || picked[5] != sword.PhysicalAttack || picked[13] != sword.CritRate || picked[20] != sword.MoveSpeed {
+		t.Fatalf("picked %v; want all twenty-one stats, the five primary first, physical attack sixth, crit rate fourteenth and move speed last", picked)
+	}
+}
+
+func TestPlusAddsEveryStat(t *testing.T) {
+	a := progression.ItemStats{STR: 1, PhysicalAttack: 2, Penetration: 3, MoveSpeed: 4}
+	b := progression.ItemStats{STR: 10, MagicDefense: 20, Penetration: 30, MoveSpeed: 40}
+	if got, want := a.Plus(b), (progression.ItemStats{STR: 11, PhysicalAttack: 2, MagicDefense: 20, Penetration: 33, MoveSpeed: 44}); got != want {
+		t.Fatalf("got %+v, want %+v", got, want)
 	}
 }
 
@@ -58,8 +67,11 @@ func TestEveryPickWithinTheRangesFits(t *testing.T) {
 			return gamedata.Range{Min: lo, Max: rapid.IntRange(lo, lo+50).Draw(t, stat+" max")}
 		}
 		r := gamedata.Rolls{
-			Attack: in("attack"), Defense: in("defense"), STR: in("str"), DEX: in("dex"), INT: in("int"), AGI: in("agi"), VIT: in("vit"),
-			Accuracy: in("accuracy"), Evasion: in("evasion"), CritRate: in("crit rate"), CritDamage: in("crit damage"), MaxHP: in("max hp"), MaxMP: in("max mp"),
+			STR: in("str"), DEX: in("dex"), INT: in("int"), AGI: in("agi"), VIT: in("vit"),
+			PhysicalAttack: in("physical attack"), MagicAttack: in("magic attack"), PhysicalDefense: in("physical defense"), MagicDefense: in("magic defense"),
+			MaxHP: in("max hp"), MaxMP: in("max mp"), Accuracy: in("accuracy"), Evasion: in("evasion"),
+			CritRate: in("crit rate"), CritDamage: in("crit damage"), Penetration: in("penetration"), HPRegen: in("hp regen"), MPRegen: in("mp regen"),
+			AttackSpeed: in("attack speed"), CooldownSpeed: in("cooldown speed"), MoveSpeed: in("move speed"),
 		}
 		roll := progression.Rolled(r, func(in gamedata.Range) int { return rapid.IntRange(in.Min, in.Max).Draw(t, "value") })
 		if !roll.Fits(r) {

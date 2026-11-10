@@ -83,7 +83,7 @@ func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
 func TestLootAsksForAnOwnersDropsEachUnderItsOwnKey(t *testing.T) {
 	f := &items{answer: &itemv1.AddManyResponse{Outcomes: []*itemv1.DropOutcome{{Grant: itemv1.Grant_GRANT_GRANTED}, {Grant: itemv1.Grant_GRANT_GRANTED}}}}
 	in := model.GrantCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Drops: []model.Grant{
-		{Key: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{Attack: 17, CritRate: 5, MaxMP: 3}},
+		{Key: uuidv7.New(), Template: "iron_sword", Quantity: 1, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5, MaxMP: 3}},
 		{Key: uuidv7.New(), Template: "slime_gel", Quantity: 2},
 	}}
 	if _, err := clients.NewLoot(itemClient(t, f)).AddMany(context.Background(), in); err != nil {
@@ -213,11 +213,11 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 	if req.GetIdempotencyKey() != "k-1" || req.GetItemId() != sword.String() || req.GetLevel() != 9 || req.GetClass() != "warrior" || req.GetActor().GetCharacterId() != call.Character.String() || req.GetActor().GetAccountId() != call.Account.String() {
 		t.Fatalf("request %+v", req)
 	}
-	want := progression.ItemStats{Attack: 17, Defense: 3, MaxHP: 15}
+	want := progression.ItemStats{PhysicalAttack: 17, PhysicalDefense: 3, MaxHP: 15}
 	if got.Worn != (model.Worn{Revision: 21, Stats: want}) {
 		t.Fatalf("worn %+v; want everything worn summed at revision 21", got.Worn)
 	}
-	if len(got.Slots) != 1 || got.Slots[0].Slot != 4 || got.Slots[0].Item != nil || len(got.Equipment) != 1 || got.Equipment[0].Slot != "weapon" || got.Equipment[0].Item.ID != sword || *got.Equipment[0].Item.Stats != (progression.ItemStats{Attack: 17, MaxHP: 5}) {
+	if len(got.Slots) != 1 || got.Slots[0].Slot != 4 || got.Slots[0].Item != nil || len(got.Equipment) != 1 || got.Equipment[0].Slot != "weapon" || got.Equipment[0].Item.ID != sword || *got.Equipment[0].Item.Stats != (progression.ItemStats{PhysicalAttack: 17, MaxHP: 5}) {
 		t.Fatalf("changed %+v, equipment %+v", got.Slots, got.Equipment)
 	}
 

@@ -179,7 +179,7 @@ func (a *Arena) Strike(s Strike) (Blow, bool) {
 		return Blow{}, false
 	}
 	mb := a.mobs[idx]
-	h := model.Resolve(s.Power, model.Defender{Defense: float64(mb.def.Defense), Evasion: float64(mb.def.Evasion)}, a.roll)
+	h := model.Resolve(s.Power, model.Defender{Defense: float64(mb.def.PhysicalDefense), Evasion: float64(mb.def.Evasion)}, a.roll)
 	b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
 	if h.Miss {
 		return b, true

@@ -30,7 +30,7 @@ func TestFingerprintsAreStable(t *testing.T) {
 		want string
 	}{
 		{"add", AddInput{Key: "k-1", TemplateID: "slime_gel", Quantity: 3, Cause: model.Cause{Type: model.CauseDrop, ID: drop}}.fingerprint(c), "4b9139f2119c59ece19bb810e5be6562a12018c124918fb30695d0f444515826"},
-		{"add with a roll", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{Attack: 17, CritRate: 5}}.fingerprint(c), "7d0437335f33ffc45e881b77150141f19e6140fbe95a066eaa793f4f7f764e66"},
+		{"add with a roll", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5}}.fingerprint(c), "7d0437335f33ffc45e881b77150141f19e6140fbe95a066eaa793f4f7f764e66"},
 		{"move", MoveInput{Key: "k-1", ItemID: item, Tab: gamedata.Use, Slot: 7}.fingerprint(c), "75b5e3b6161dbf0fe70935cb9e77fbb717c119ff92df45c1c9d951780f49e026"},
 		{"equip", EquipInput{Key: "k-1", ItemID: item, EquipSlot: "ring_2", Level: 9, Class: kernel.Warrior}.fingerprint(c), "4d802f08e9649e4e7d82a0577e6e6b94655d4a9ab4f4dbd0ce2474cab43d8023"},
 		{"unequip", UnequipInput{Key: "k-1", EquipSlot: "ring_2"}.fingerprint(c), "073208012179538dcf3df878102415c402d45d6bb8c5bb35a7a4072838584c51"},
@@ -60,9 +60,9 @@ func TestAFingerprintNamesTheCharacterNotTheKey(t *testing.T) {
 // A roll is part of an add: the same drop rolled otherwise is another request.
 func TestAnAddsRollIsPartOfItsFingerprint(t *testing.T) {
 	c := kernel.NewCharacterID()
-	in := AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}, Stats: &progression.ItemStats{Attack: 17}}
+	in := AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}, Stats: &progression.ItemStats{PhysicalAttack: 17}}
 	other := in
-	other.Stats = &progression.ItemStats{Attack: 18}
+	other.Stats = &progression.ItemStats{PhysicalAttack: 18}
 	none := in
 	none.Stats = nil
 	if hex.EncodeToString(in.fingerprint(c)) == hex.EncodeToString(other.fingerprint(c)) || hex.EncodeToString(in.fingerprint(c)) == hex.EncodeToString(none.fingerprint(c)) {

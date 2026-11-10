@@ -107,7 +107,7 @@ type stack struct {
 type wears struct{ err error }
 
 func (w wears) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
-	item := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{Defense: 3, MaxHP: 30}}
+	item := &model.SlotItem{ID: kernel.NewItemID(), Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3, MaxHP: 30}}
 	return model.Equipped{Slots: []model.Slot{{Tab: gamedata.Equip, Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "hat", Item: item}}, Worn: model.Worn{Revision: 2, Stats: *item.Stats}}, w.err
 }
 
@@ -147,7 +147,7 @@ func (s *stack) character(name string) model.Character {
 	town := s.data.Town()
 	ch := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Warrior, Level: 1,
-		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 204, MP: 28,
+		Stats: gamedata.Stats{STR: 12, DEX: 5, INT: 4, AGI: 5, VIT: 10}, HP: 184, MP: 28,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
 	s.chars.add(ch)
@@ -218,7 +218,7 @@ func TestJoinSendsTheSnapshotThenFramesOnTheGatewaysStream(t *testing.T) {
 	gw := s.gateway(t, "gw-1")
 	ayla := s.character("Ayla")
 	view := s.join(t, "gw-1", "conn-1", ayla)
-	if view.GetId() != ayla.ID.String() || view.GetName() != "Ayla" || view.GetMapId() != "town" || view.GetMaxHp() != 204 || view.GetStats().GetStrength() != 12 {
+	if view.GetId() != ayla.ID.String() || view.GetName() != "Ayla" || view.GetMapId() != "town" || view.GetMaxHp() != 184 || view.GetStats().GetStrength() != 12 {
 		t.Fatalf("view %+v", view)
 	}
 	first, err := gw.Recv()
@@ -446,7 +446,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 		t.Fatalf("inventory change %+v", inv)
 	}
 	stats := until(t, stream, "StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
-	if stats.GetMaxHp() != 234 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetDefense() != 3 {
+	if stats.GetMaxHp() != 214 || stats.GetSheet().GetDerivedWorn().GetMaxHp() != 30 || stats.GetSheet().GetDerivedWorn().GetDefense() != 3 {
 		t.Fatalf("stats change %+v", stats)
 	}
 	to := int32(5)

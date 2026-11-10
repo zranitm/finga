@@ -164,7 +164,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatal("no mob moved within 3 s")
 		}
 		token2, id2 := s.createCharacter(t, "greg", "Greg", "warrior")
-		s.place(t, id2, "forest", 400, 608, 204, 0)
+		s.place(t, id2, "forest", 400, 608, 184, 0)
 		_, snap2 := s.join(t, token2, id2)
 		if len(snap2.Mobs) != len(snap.Mobs) {
 			t.Fatalf("second player sees %d mobs, first saw %d", len(snap2.Mobs), len(snap.Mobs))
@@ -186,7 +186,7 @@ func TestFightAndGrow(t *testing.T) {
 		s.place(t, id, "forest", 380, 608, 105, 0)
 		p, _ := s.join(t, token, id)
 		token2, id2 := s.createCharacter(t, "ivan", "Ivan", "warrior")
-		s.place(t, id2, "forest", 360, 608, 204, 0)
+		s.place(t, id2, "forest", 360, 608, 184, 0)
 		watcher, _ := s.join(t, token2, id2)
 		p.drain(300 * time.Millisecond)
 		p.face(true)
@@ -231,7 +231,7 @@ func TestFightAndGrow(t *testing.T) {
 		p, _ := s.join(t, token, id)
 		p.dieAmongSlimes(t)
 		r := p.expect("Respawned").Data.(*clientv1.Respawned)
-		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 102 {
+		if r.GetCharacterId() != id || r.GetMapId() != "town" || r.GetHp() != 92 {
 			t.Fatalf("respawned %+v", r)
 		}
 		if mc := p.expect("MapChange").Data.(*clientv1.MapChange); mc.GetMapId() != "town" {

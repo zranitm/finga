@@ -52,37 +52,33 @@ room_check_every: 2s
 classes:
   - id: warrior
     name: Warrior
-    attack: {kind: melee, width: 64, height: 56, cooldown: 600ms}
+    attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
-    level_up_points: {str: 3, vit: 2}
+    auto_assign: {str: 3, vit: 2}
     starter_items: [{item: wooden_sword, quantity: 1}]
   - id: bowman
     name: Bowman
-    attack: {kind: ranged, range: 420, cooldown: 800ms}
+    attack: {kind: ranged, damage: magic, range: 420, cooldown: 800ms}
     base_stats: {str: 5, dex: 12, int: 4, agi: 10, vit: 5}
-    level_up_points: {dex: 3, agi: 2}
+    auto_assign: {dex: 3, agi: 2}
 `,
 		"stats.yaml": `
-warrior:
-  max_hp:       {base: 60, per_level: 18, coef: {vit: 12, str: 2}}
-  max_mp:       {base: 20, per_level: 4, coef: {int: 2}}
-  attack_power: {coef: {str: 1.5, vit: 0.3}}
-  accuracy:     {base: 10, coef: {dex: 1.0, str: 0.5}}
-  evasion:      {base: 5, coef: {agi: 0.8}}
-  crit_rate:    {base: 0.05, coef: {agi: 0.002}, cap: 0.6}
-  crit_damage:  {base: 0.5, coef: {dex: 0.005}}
-  defense:      {base: 5, coef: {vit: 1.0}}
-  penetration:  {cap: 0.5}
-bowman:
-  max_hp:       {base: 50, per_level: 12, coef: {vit: 9, agi: 1}}
-  max_mp:       {base: 25, per_level: 5, coef: {int: 2}}
-  attack_power: {coef: {dex: 1.5, agi: 0.3}}
-  accuracy:     {base: 15, coef: {dex: 1.2}}
-  evasion:      {base: 8, coef: {agi: 1.0}}
-  crit_rate:    {base: 0.05, coef: {agi: 0.003}, cap: 0.6}
-  crit_damage:  {base: 0.5, coef: {dex: 0.008}}
-  defense:      {base: 3, coef: {vit: 0.6}}
-  penetration:  {cap: 0.5}
+points_per_level: 5
+per_point:
+  str: {physical_attack: 1.5, max_hp: 2}
+  dex: {physical_attack: 0.5, magic_attack: 0.5, accuracy: 1, crit_damage: 0.005}
+  int: {magic_attack: 1.5, max_mp: 3, mp_regen: 0.05, magic_defense: 0.5}
+  agi: {evasion: 1}
+  vit: {max_hp: 10, physical_defense: 1, magic_defense: 0.5, hp_regen: 0.05}
+diminishing:
+  crit_rate:      {stat: dex, base: 0.05, limit: 0.60, k: 200}
+  attack_speed:   {stat: agi, limit: 0.50, k: 150}
+  cooldown_speed: {stat: int, limit: 0.40, k: 200}
+  move_speed:     {stat: agi, limit: 0.30, k: 200}
+limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
+classes:
+  warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10}, crit_damage: {base: 0.5}}
+  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}
 `,
 		"exp_curve.yaml": `
 level_cap: 4
@@ -98,7 +94,8 @@ equip_slots:
   - {id: ring_1, name: Ring, kind: ring}
   - {id: ring_2, name: Ring, kind: ring}
 items:
-  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, stars: 1, description: "A practice blade.", stats: {attack: [10, 12], str: [0, 2]}}
+  - {id: wooden_sword, name: Wooden Sword, tab: equip, slot: weapon, class: warrior, min_level: 1, stars: 1, description: "A practice blade.", stats: {physical_attack: [10, 12], str: [0, 2]}}
+  - {id: leather_cap, name: Leather Cap, tab: equip, slot: hat, stars: 1, description: "A cap.", requires: {str: 8, vit: 6}, stats: {physical_defense: [3, 4], move_speed: [5, 10], hp_regen: [1, 2]}}
   - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A red tonic."}
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
@@ -109,7 +106,9 @@ mobs:
     level: 1
     hp: 30
     attack: 6
-    defense: 2
+    damage: physical
+    physical_defense: 2
+    magic_defense: 1
     accuracy: 8
     evasion: 2
     exp: 5
@@ -228,33 +227,56 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("classes with every derived stat", func(t *testing.T) {
+	t.Run("classes, with their attacks and auto-assign splits", func(t *testing.T) {
 		for _, class := range []kernel.Class{kernel.Warrior, kernel.Bowman} {
-			c, ok := d.Class(class)
-			if !ok || c.ID != class {
+			if c, ok := d.Class(class); !ok || c.ID != class {
 				t.Fatalf("class %s missing", class)
-			}
-			f, ok := d.Formulas(class)
-			if !ok {
-				t.Fatalf("formulas for %s missing", class)
-			}
-			if f.MaxHP.Base == 0 || f.AttackPower.Coef.STR+f.AttackPower.Coef.DEX == 0 || f.CritRate.Cap != 0.6 || f.Penetration.Cap != 0.5 {
-				t.Fatalf("formulas for %s not loaded: %+v", class, f)
 			}
 		}
 		if _, ok := d.Class(kernel.Thief); ok {
 			t.Fatal("thief is not in the fixture but was found")
 		}
 		w, _ := d.Class(kernel.Warrior)
-		if w.Attack.Kind != gamedata.Melee || w.Attack.Width != 64 || w.Attack.Cooldown != 600*time.Millisecond {
+		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Cooldown: 600 * time.Millisecond}) {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
-		if w.LevelUpPoints != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats.STR != 12 {
-			t.Fatalf("warrior stats = %+v / %+v", w.BaseStats, w.LevelUpPoints)
+		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats.STR != 12 {
+			t.Fatalf("warrior stats = %+v / %+v", w.BaseStats, w.AutoAssign)
 		}
 		b, _ := d.Class(kernel.Bowman)
-		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 {
+		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic {
 			t.Fatalf("bowman attack = %+v", b.Attack)
+		}
+	})
+	t.Run("the stat rules", func(t *testing.T) {
+		r := d.StatRules()
+		if r.PointsPerLevel != 5 {
+			t.Fatalf("points per level %d", r.PointsPerLevel)
+		}
+		if want := (gamedata.Flats[float64]{PhysicalAttack: 0.5, MagicAttack: 0.5, Accuracy: 1, CritDamage: 0.005}); r.PerPoint.DEX != want {
+			t.Fatalf("a point of DEX gives %+v, want %+v", r.PerPoint.DEX, want)
+		}
+		if want := (gamedata.Flats[float64]{MaxHP: 10, PhysicalDefense: 1, MagicDefense: 0.5, HPRegen: 0.05}); r.PerPoint.VIT != want {
+			t.Fatalf("a point of VIT gives %+v, want %+v", r.PerPoint.VIT, want)
+		}
+		want := gamedata.Rates[gamedata.Curve]{
+			CritRate:      gamedata.Curve{Stat: gamedata.DEX, Base: 0.05, Limit: 0.60, K: 200},
+			AttackSpeed:   gamedata.Curve{Stat: gamedata.AGI, Limit: 0.50, K: 150},
+			CooldownSpeed: gamedata.Curve{Stat: gamedata.INT, Limit: 0.40, K: 200},
+			MoveSpeed:     gamedata.Curve{Stat: gamedata.AGI, Limit: 0.30, K: 200},
+		}
+		if r.Curves != want {
+			t.Fatalf("curves %+v, want %+v", r.Curves, want)
+		}
+		if r.Penetration != 0.5 || r.MinHit != 0.2 || r.MaxHit != 0.99 {
+			t.Fatalf("limits: penetration %v, hit %v to %v", r.Penetration, r.MinHit, r.MaxHit)
+		}
+		w := r.Classes[kernel.Warrior]
+		if w.MaxHP != (gamedata.Grows{Base: 60, PerLevel: 18}) || w.CritDamage.Base != 0.5 || w.MaxHP.At(3) != 96 {
+			t.Fatalf("warrior bases %+v", w)
+		}
+		if b := r.Classes[kernel.Bowman]; b.Accuracy.Base != 15 || b.MaxMP != (gamedata.Grows{}) {
+			t.Fatalf("bowman bases %+v: a stat left out has no base", b)
 		}
 	})
 	t.Run("the loot timings", func(t *testing.T) {
@@ -284,8 +306,12 @@ func TestValidDataLoads(t *testing.T) {
 		if !ok || it.Tab != gamedata.Equip || it.Slot != "weapon" || it.Class != kernel.Warrior || it.MaxStack != 1 || it.Stars != 1 || it.Description != "A practice blade." {
 			t.Fatalf("wooden_sword = %+v", it)
 		}
-		if want := (gamedata.Rolls{Attack: gamedata.Range{Min: 10, Max: 12}, STR: gamedata.Range{Max: 2}}); it.Rolls != want {
-			t.Fatalf("wooden_sword rolls %+v, want %+v", it.Rolls, want)
+		if want := (gamedata.Rolls{PhysicalAttack: gamedata.Range{Min: 10, Max: 12}, STR: gamedata.Range{Max: 2}}); it.Rolls != want || it.Requires != (gamedata.Stats{}) {
+			t.Fatalf("wooden_sword rolls %+v, want %+v, and no requirements", it.Rolls, want)
+		}
+		cap, _ := d.Item("leather_cap")
+		if want := (gamedata.Rolls{PhysicalDefense: gamedata.Range{Min: 3, Max: 4}, MoveSpeed: gamedata.Range{Min: 5, Max: 10}, HPRegen: gamedata.Range{Min: 1, Max: 2}}); cap.Rolls != want || cap.Requires != (gamedata.Stats{STR: 8, VIT: 6}) || cap.Class != "" {
+			t.Fatalf("leather_cap = %+v", cap)
 		}
 		if gel, _ := d.Item("slime_gel"); gel.Stars != 2 || gel.Rolls != (gamedata.Rolls{}) {
 			t.Fatalf("slime_gel = %+v", gel)
@@ -295,7 +321,7 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("red_potion = %+v", potion)
 		}
 		m, ok := d.Mob("green_slime")
-		if !ok || m.Level != 1 || m.HP != 30 || len(m.Drops) != 2 || m.Drops[0].Item != "slime_gel" || m.Drops[0].Max != 2 {
+		if !ok || m.Level != 1 || m.HP != 30 || m.Damage != gamedata.Physical || m.PhysicalDefense != 2 || m.MagicDefense != 1 || len(m.Drops) != 2 || m.Drops[0].Item != "slime_gel" || m.Drops[0].Max != 2 {
 			t.Fatalf("green_slime = %+v", m)
 		}
 		if _, ok := d.Item("nope"); ok {
@@ -404,7 +430,9 @@ func TestRejections(t *testing.T) {
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
-		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol}", []string{"mobs.yaml", "green_slime", "duplicate"}},
+		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol}", []string{"mobs.yaml", "green_slime", "duplicate"}},
+		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
+		{"a mob with a negative defense", "mobs.yaml", `magic_defense: 1`, `magic_defense: -1`, []string{"mobs.yaml", "green_slime", "negative"}},
 		{"duplicate class IDs", "classes.yaml", `id: bowman`, `id: warrior`, []string{"classes.yaml", "warrior", "duplicate"}},
 		{"a map missing a required layer", "maps/town.tmj", `"name":"ropes"`, `"name":"strings"`, []string{"town.tmj", "ropes"}},
 		{"a map without a kind", "maps/town.tmj", `"name":"kind"`, `"name":"mood"`, []string{"town.tmj", "kind"}},
@@ -416,11 +444,26 @@ func TestRejections(t *testing.T) {
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must cover every level below the cap", "exp_curve.yaml", "  - {level: 3, exp: 129}\n", "", []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must not go past the cap", "exp_curve.yaml", `level_cap: 4`, `level_cap: 3`, []string{"exp_curve.yaml", "level 3"}},
-		{"a class without a formula for a derived stat", "stats.yaml", "  evasion:      {base: 8, coef: {agi: 1.0}}\n", "", []string{"stats.yaml", "bowman", "evasion"}},
-		{"a formula with an unknown primary stat", "stats.yaml", `coef: {vit: 12, str: 2}`, `coef: {vit: 12, luk: 2}`, []string{"stats.yaml", "luk"}},
-		{"a formula for a class that doesn't exist", "stats.yaml", "bowman:", "thief:\n  max_hp: {base: 1}\nbowman:", []string{"stats.yaml", "thief"}},
+		{"points per level below one", "stats.yaml", `points_per_level: 5`, `points_per_level: 0`, []string{"stats.yaml", "points_per_level"}},
+		{"a point of a stat that isn't primary", "stats.yaml", `  agi: {evasion: 1}`, `  luk: {evasion: 1}`, []string{"stats.yaml", "luk"}},
+		{"a point giving a rate, which has its curve", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: 1, crit_rate: 0.01}`, []string{"stats.yaml", "agi", "crit_rate"}},
+		{"a point giving a negative amount", "stats.yaml", `  agi: {evasion: 1}`, `  agi: {evasion: -1}`, []string{"stats.yaml", "agi", "evasion", "negative"}},
+		{"a curve over a stat that isn't primary", "stats.yaml", `{stat: dex, base: 0.05`, `{stat: luk, base: 0.05`, []string{"stats.yaml", "crit_rate", "luk"}},
+		{"a limit at its base", "stats.yaml", `base: 0.05, limit: 0.60`, `base: 0.05, limit: 0.05`, []string{"stats.yaml", "crit_rate", "limit"}},
+		{"a limit below its base", "stats.yaml", `base: 0.05, limit: 0.60`, `base: 0.05, limit: 0.01`, []string{"stats.yaml", "crit_rate", "limit"}},
+		{"a k of zero", "stats.yaml", `limit: 0.50, k: 150`, `limit: 0.50, k: 0`, []string{"stats.yaml", "attack_speed", "k"}},
+		{"a k below zero", "stats.yaml", `limit: 0.50, k: 150`, `limit: 0.50, k: -5`, []string{"stats.yaml", "attack_speed", "k"}},
+		{"a rate without a curve", "stats.yaml", "  move_speed:     {stat: agi, limit: 0.30, k: 200}\n", "", []string{"stats.yaml", "move_speed"}},
+		{"a curve for a rate that doesn't exist", "stats.yaml", "diminishing:\n", "diminishing:\n  luck_rate: {stat: agi, limit: 0.3, k: 1}\n", []string{"stats.yaml", "luck_rate"}},
+		{"penetration above one", "stats.yaml", `penetration: 0.50`, `penetration: 1.5`, []string{"stats.yaml", "penetration"}},
+		{"a hit chance whose least is above its most", "stats.yaml", `hit_chance: [0.20, 0.99]`, `hit_chance: [0.99, 0.20]`, []string{"stats.yaml", "hit_chance"}},
+		{"class bases for a class that doesn't exist", "stats.yaml", "  bowman:", "  thief: {max_hp: {base: 1}}\n  bowman:", []string{"stats.yaml", "thief"}},
+		{"a class base for a rate", "stats.yaml", `accuracy: {base: 15}`, `accuracy: {base: 15}, crit_rate: {base: 0.1}`, []string{"stats.yaml", "bowman", "crit_rate"}},
+		{"a class without bases", "stats.yaml", "  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}\n", "", []string{"stats.yaml", "bowman"}},
 		{"a class with an unknown attack kind", "classes.yaml", `kind: melee`, `kind: magic`, []string{"classes.yaml", "warrior", "magic"}},
-		{"a class whose level-up preset isn't five points", "classes.yaml", `level_up_points: {str: 3, vit: 2}`, `level_up_points: {str: 3, vit: 3}`, []string{"classes.yaml", "warrior", "5"}},
+		{"an attack with an unknown damage type", "classes.yaml", `damage: physical`, `damage: fire`, []string{"classes.yaml", "warrior", "fire"}},
+		{"an auto-assign split that doesn't add up to the points a level gives", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 3, vit: 3}`, []string{"classes.yaml", "warrior", "auto_assign", "5"}},
+		{"an auto-assign split with a negative stat", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 6, vit: -1}`, []string{"classes.yaml", "warrior", "auto_assign"}},
 		{"a class id that isn't a class", "classes.yaml", `id: bowman`, `id: archer`, []string{"classes.yaml", "archer"}},
 		{"a starter item that doesn't exist", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: excalibur, quantity: 1}]`, []string{"classes.yaml", "warrior", "excalibur"}},
 		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "warrior", "wooden_sword"}},
@@ -430,12 +473,18 @@ func TestRejections(t *testing.T) {
 		{"no stars", "items.yaml", `tab: etc, stars: 2, `, `tab: etc, `, []string{"items.yaml", "slime_gel", "stars"}},
 		{"stars above seven", "items.yaml", `stars: 2`, `stars: 8`, []string{"items.yaml", "slime_gel", "stars"}},
 		{"no description", "items.yaml", `, description: "Sticky."`, ``, []string{"items.yaml", "slime_gel", "description"}},
-		{"equipment without stats", "items.yaml", `, stats: {attack: [10, 12], str: [0, 2]}`, ``, []string{"items.yaml", "wooden_sword", "stats"}},
+		{"equipment without stats", "items.yaml", `, stats: {physical_attack: [10, 12], str: [0, 2]}`, ``, []string{"items.yaml", "wooden_sword", "stats"}},
 		{"an unknown stat", "items.yaml", `str: [0, 2]`, `luck: [0, 2]`, []string{"items.yaml", "wooden_sword", "luck"}},
-		{"a range whose minimum is above its maximum", "items.yaml", `attack: [10, 12]`, `attack: [12, 10]`, []string{"items.yaml", "wooden_sword", "attack"}},
+		{"a range whose minimum is above its maximum", "items.yaml", `physical_attack: [10, 12]`, `physical_attack: [12, 10]`, []string{"items.yaml", "wooden_sword", "physical_attack"}},
 		{"a range below zero", "items.yaml", `str: [0, 2]`, `str: [-1, 2]`, []string{"items.yaml", "wooden_sword", "str"}},
 		{"a range that only rolls zero", "items.yaml", `str: [0, 2]`, `str: [0, 0]`, []string{"items.yaml", "wooden_sword", "str"}},
-		{"a range that isn't two numbers", "items.yaml", `attack: [10, 12]`, `attack: [10]`, []string{"items.yaml", "wooden_sword", "attack"}},
+		{"a range that isn't two numbers", "items.yaml", `physical_attack: [10, 12]`, `physical_attack: [10]`, []string{"items.yaml", "wooden_sword", "physical_attack"}},
+		{"the old name of physical attack", "items.yaml", `physical_attack: [10, 12]`, `attack: [10, 12]`, []string{"items.yaml", "wooden_sword", "attack"}},
+		{"a class on armor: only weapons keep one", "items.yaml", `slot: hat, `, `slot: hat, class: warrior, `, []string{"items.yaml", "leather_cap", "weapon"}},
+		{"a requirement on a stat that isn't primary", "items.yaml", `requires: {str: 8, vit: 6}`, `requires: {str: 8, luk: 6}`, []string{"items.yaml", "leather_cap", "luk"}},
+		{"a requirement on a derived stat", "items.yaml", `requires: {str: 8, vit: 6}`, `requires: {str: 8, max_hp: 6}`, []string{"items.yaml", "leather_cap", "max_hp"}},
+		{"a requirement below one", "items.yaml", `requires: {str: 8, vit: 6}`, `requires: {str: 8, vit: 0}`, []string{"items.yaml", "leather_cap", "vit"}},
+		{"requirements on a use item", "items.yaml", `heal_hp: 50, `, `heal_hp: 50, requires: {str: 1}, `, []string{"items.yaml", "red_potion", "requirements"}},
 		{"stats on a use item", "items.yaml", `heal_hp: 50, `, `heal_hp: 50, stats: {max_hp: [1, 2]}, `, []string{"items.yaml", "red_potion", "stats"}},
 		{"duplicate equip slots", "items.yaml", `id: ring_2`, `id: ring_1`, []string{"items.yaml", "ring_1", "duplicate"}},
 		{"an equip slot without a kind", "items.yaml", `{id: hat, name: Hat, kind: hat}`, `{id: hat, name: Hat}`, []string{"items.yaml", "hat", "kind"}},
@@ -551,6 +600,11 @@ func allLoaded(d *gamedata.Data, ids []string) bool {
 	return true
 }
 
+func mobDamage(d *gamedata.Data, id string) gamedata.DamageType {
+	m, _ := d.Mob(id)
+	return m.Damage
+}
+
 // The real content is checked on every run, so a broken reference fails CI.
 func TestRealDataLoads(t *testing.T) {
 	d, err := gamedata.Load("../../data")
@@ -568,6 +622,7 @@ func TestRealDataLoads(t *testing.T) {
 		{"three to four mobs", len(d.Mobs()) >= 3 && len(d.Mobs()) <= 4},
 		{"every listed item loaded", len(items) > 0 && allLoaded(d, items)},
 		{"the expected movement constants", d.Movement() == wantMovement},
+		{"cave bats deal magic damage, the forest's mobs physical", mobDamage(d, "cave_bat") == gamedata.Magic && mobDamage(d, "green_slime") == gamedata.Physical},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

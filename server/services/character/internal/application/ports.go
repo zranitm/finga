@@ -40,6 +40,6 @@ type Repository interface {
 // Content is what the use cases need from game data.
 type Content interface {
 	Class(id kernel.Class) (gamedata.Class, bool)
-	Formulas(id kernel.Class) (gamedata.Formulas, bool)
+	StatRules() gamedata.StatRules
 	Town() *gamedata.Map
 }

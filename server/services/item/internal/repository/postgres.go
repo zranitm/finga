@@ -188,7 +188,7 @@ func (r repo) Insert(ctx context.Context, it model.Item) error {
 func (r repo) AddRoll(ctx context.Context, id kernel.ItemID, s progression.ItemStats) error {
 	//nolint:gosec // stats are small
 	return r.q.InsertRoll(ctx, db.InsertRollParams{
-		ItemID: uuid.UUID(id), Attack: int32(s.Attack), Defense: int32(s.Defense),
+		ItemID: uuid.UUID(id), Attack: int32(s.PhysicalAttack), Defense: int32(s.PhysicalDefense),
 		Str: int32(s.STR), Dex: int32(s.DEX), Int: int32(s.INT), Agi: int32(s.AGI), Vit: int32(s.VIT),
 		Accuracy: int32(s.Accuracy), Evasion: int32(s.Evasion), CritRate: int32(s.CritRate), CritDamage: int32(s.CritDamage),
 		MaxHp: int32(s.MaxHP), MaxMp: int32(s.MaxMP), Now: r.now,
@@ -294,7 +294,7 @@ func withRolls(ctx context.Context, q *db.Queries, rows []db.Item) ([]model.Item
 	byItem := make(map[uuid.UUID]*progression.ItemStats, len(rolls))
 	for _, r := range rolls {
 		byItem[r.ItemID] = &progression.ItemStats{
-			Attack: int(r.Attack), Defense: int(r.Defense), STR: int(r.Str), DEX: int(r.Dex), INT: int(r.Int), AGI: int(r.Agi), VIT: int(r.Vit),
+			PhysicalAttack: int(r.Attack), PhysicalDefense: int(r.Defense), STR: int(r.Str), DEX: int(r.Dex), INT: int(r.Int), AGI: int(r.Agi), VIT: int(r.Vit),
 			Accuracy: int(r.Accuracy), Evasion: int(r.Evasion), CritRate: int(r.CritRate), CritDamage: int(r.CritDamage), MaxHP: int(r.MaxHp), MaxMP: int(r.MaxMp),
 		}
 	}

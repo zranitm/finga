@@ -178,7 +178,7 @@ func TestAdd(t *testing.T) {
 func TestRolls(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	in := application.AddInput{Key: "r1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{Attack: 17}}
+	in := application.AddInput{Key: "r1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: &progression.ItemStats{PhysicalAttack: 17}}
 	rolled := func(t *testing.T, what string, it *model.Item) {
 		t.Helper()
 		if it == nil || it.Stats == nil || *it.Stats != *in.Stats {
@@ -206,7 +206,7 @@ func TestRolls(t *testing.T) {
 		}
 		rolled(t, "the replayed sword", again.Changed[0].Item)
 		other := in
-		other.Stats = &progression.ItemStats{Attack: 18}
+		other.Stats = &progression.ItemStats{PhysicalAttack: 18}
 		if _, err := h.svc.Add(ctx, h.actor, other); !errors.Is(err, model.ErrKeyReused) {
 			t.Fatalf("err = %v, want ErrKeyReused", err)
 		}
@@ -225,7 +225,7 @@ func TestRolls(t *testing.T) {
 		if _, err := h.pool.Exec(ctx, `DELETE FROM item_rolls WHERE item_id = $1`, sword.ID); err != nil {
 			t.Fatal(err)
 		}
-		lowest := progression.ItemStats{Attack: 16}
+		lowest := progression.ItemStats{PhysicalAttack: 16}
 		if inv := h.inventory(t); inv[0].Stats == nil || *inv[0].Stats != lowest {
 			t.Fatalf("read %+v, want the lowest roll %+v", inv[0].Stats, lowest)
 		}
@@ -262,9 +262,9 @@ func TestRolls(t *testing.T) {
 			stats    *progression.ItemStats
 		}{
 			{"equipment without a roll", "iron_sword", nil},
-			{"a stat above its range", "iron_sword", &progression.ItemStats{Attack: 21}},
-			{"a stat below its range", "iron_sword", &progression.ItemStats{Attack: 15}},
-			{"a stat the template doesn't give", "iron_sword", &progression.ItemStats{Attack: 17, STR: 1}},
+			{"a stat above its range", "iron_sword", &progression.ItemStats{PhysicalAttack: 21}},
+			{"a stat below its range", "iron_sword", &progression.ItemStats{PhysicalAttack: 15}},
+			{"a stat the template doesn't give", "iron_sword", &progression.ItemStats{PhysicalAttack: 17, STR: 1}},
 			{"a potion with a roll", "red_potion", &progression.ItemStats{}},
 		}
 		for k, tt := range tests {

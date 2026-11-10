@@ -82,7 +82,7 @@ func encodeItem(it *model.Item) *replyItem {
 	out := &replyItem{ID: it.ID.String(), TemplateID: it.TemplateID, Owner: it.Owner.String(), Tab: string(it.Tab), Slot: it.Slot, Quantity: it.Quantity, EquipSlot: it.EquipSlot}
 	if st := it.Stats; st != nil {
 		out.Stats = &replyStats{
-			Attack: st.Attack, Defense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
+			Attack: st.PhysicalAttack, Defense: st.PhysicalDefense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
 			Accuracy: st.Accuracy, Evasion: st.Evasion, CritRate: st.CritRate, CritDamage: st.CritDamage, MaxHP: st.MaxHP, MaxMP: st.MaxMP,
 		}
 	}
@@ -140,7 +140,7 @@ func decodeItem(ri *replyItem) (*model.Item, error) {
 	it := &model.Item{ID: id, TemplateID: ri.TemplateID, Owner: owner, Tab: gamedata.Tab(ri.Tab), Slot: ri.Slot, Quantity: ri.Quantity, EquipSlot: ri.EquipSlot}
 	if st := ri.Stats; st != nil {
 		it.Stats = &progression.ItemStats{
-			Attack: st.Attack, Defense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
+			PhysicalAttack: st.Attack, PhysicalDefense: st.Defense, STR: st.STR, DEX: st.DEX, INT: st.INT, AGI: st.AGI, VIT: st.VIT,
 			Accuracy: st.Accuracy, Evasion: st.Evasion, CritRate: st.CritRate, CritDamage: st.CritDamage, MaxHP: st.MaxHP, MaxMP: st.MaxMP,
 		}
 	}

@@ -11,7 +11,7 @@ import (
 	"finga/internal/progression"
 )
 
-// Expected values are worked out by hand from the formulas and classes.yaml.
+// Expected values are worked out by hand from stats.yaml and classes.yaml: a warrior starts at STR 12, DEX 5, INT 4, AGI 5, VIT 10, and auto-assign adds STR 3 and VIT 2 a level; a bowman starts at STR 5, DEX 12, INT 4, AGI 10, VIT 5.
 func TestDeriveStats(t *testing.T) {
 	data := loadData(t)
 	tests := []struct {
@@ -22,112 +22,136 @@ func TestDeriveStats(t *testing.T) {
 	}{
 		{
 			"warrior level 1", kernel.Warrior, 1,
-			progression.Derived{MaxHP: 204, MaxMP: 28, AttackPower: 21, Accuracy: 21, Evasion: 9, Defense: 15, CritRate: 0.06, CritDamage: 0.525},
+			progression.Derived{
+				MaxHP: 60 + 2*12 + 10*10, MaxMP: 20 + 3*4,
+				PhysicalAttack: 1.5*12 + 0.5*5, MagicAttack: 0.5*5 + 1.5*4, PhysicalDefense: 5 + 10, MagicDefense: 3 + 0.5*4 + 0.5*10,
+				Accuracy: 10 + 5, Evasion: 5 + 5,
+				CritRate: 0.05 + 0.55*5.0/205, CritDamage: 0.5 + 0.005*5,
+				HPRegen: 0.05 * 10, MPRegen: 0.05 * 4,
+				AttackSpeed: 0.5 * 5.0 / 155, CooldownSpeed: 0.4 * 4.0 / 204, MoveSpeed: 0.3 * 5.0 / 205,
+			},
 		},
 		{
-			"warrior level 10", kernel.Warrior, 10,
-			progression.Derived{MaxHP: 636, MaxMP: 64, AttackPower: 66.9, Accuracy: 34.5, Evasion: 9, Defense: 33, CritRate: 0.06, CritDamage: 0.525},
-		},
-		{
-			"warrior level 30", kernel.Warrior, 30,
-			progression.Derived{MaxHP: 1596, MaxMP: 144, AttackPower: 168.9, Accuracy: 64.5, Evasion: 9, Defense: 73, CritRate: 0.06, CritDamage: 0.525},
+			"warrior level 10, auto-assigned: STR 39 and VIT 28", kernel.Warrior, 10,
+			progression.Derived{
+				MaxHP: 60 + 18*9 + 2*39 + 10*28, MaxMP: 20 + 4*9 + 3*4,
+				PhysicalAttack: 1.5*39 + 0.5*5, MagicAttack: 0.5*5 + 1.5*4, PhysicalDefense: 5 + 28, MagicDefense: 3 + 0.5*4 + 0.5*28,
+				Accuracy: 10 + 5, Evasion: 5 + 5,
+				CritRate: 0.05 + 0.55*5.0/205, CritDamage: 0.5 + 0.005*5,
+				HPRegen: 0.05 * 28, MPRegen: 0.05 * 4,
+				AttackSpeed: 0.5 * 5.0 / 155, CooldownSpeed: 0.4 * 4.0 / 204, MoveSpeed: 0.3 * 5.0 / 205,
+			},
 		},
 		{
 			"bowman level 1", kernel.Bowman, 1,
-			progression.Derived{MaxHP: 105, MaxMP: 33, AttackPower: 21, Accuracy: 29.4, Evasion: 18, Defense: 6, CritRate: 0.08, CritDamage: 0.596},
-		},
-		{
-			"bowman level 10", kernel.Bowman, 10,
-			progression.Derived{MaxHP: 231, MaxMP: 78, AttackPower: 66.9, Accuracy: 61.8, Evasion: 36, Defense: 6, CritRate: 0.134, CritDamage: 0.812},
-		},
-		{
-			"bowman level 30", kernel.Bowman, 30,
-			progression.Derived{MaxHP: 511, MaxMP: 178, AttackPower: 168.9, Accuracy: 133.8, Evasion: 76, Defense: 6, CritRate: 0.254, CritDamage: 1.292},
+			progression.Derived{
+				MaxHP: 50 + 2*5 + 10*5, MaxMP: 25 + 3*4,
+				PhysicalAttack: 1.5*5 + 0.5*12, MagicAttack: 0.5*12 + 1.5*4, PhysicalDefense: 3 + 5, MagicDefense: 3 + 0.5*4 + 0.5*5,
+				Accuracy: 15 + 12, Evasion: 8 + 10,
+				CritRate: 0.05 + 0.55*12.0/212, CritDamage: 0.5 + 0.005*12,
+				HPRegen: 0.05 * 5, MPRegen: 0.05 * 4,
+				AttackSpeed: 0.5 * 10.0 / 160, CooldownSpeed: 0.4 * 4.0 / 204, MoveSpeed: 0.3 * 10.0 / 210,
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			class, _ := data.Class(tt.class)
-			formulas, _ := data.Formulas(tt.class)
-			stats := class.BaseStats
+			own := class.BaseStats
 			for range tt.level - 1 {
-				stats = progression.AddStats(stats, class.LevelUpPoints)
+				own = progression.AddStats(own, class.AutoAssign)
 			}
-			got := progression.DeriveStats(formulas, stats, tt.level, progression.ItemStats{})
-			assertDerived(t, got, tt.want)
+			assertDerived(t, progression.DeriveStats(data.StatRules(), tt.class, tt.level, own, progression.ItemStats{}), tt.want)
 		})
 	}
 
-	t.Run("worn flat bonuses add to each derived stat", func(t *testing.T) {
+	t.Run("each worn derived stat adds in its unit: rates, crit damage and penetration in tenths of a percent, regen in tenths of a point", func(t *testing.T) {
 		class, _ := data.Class(kernel.Warrior)
-		formulas, _ := data.Formulas(kernel.Warrior)
-		worn := progression.ItemStats{Attack: 10, Defense: 3, Accuracy: 4, Evasion: 2, CritRate: 15, CritDamage: 50, MaxHP: 30, MaxMP: 7}
-		got := progression.DeriveStats(formulas, class.BaseStats, 1, worn)
-		assertDerived(t, got, progression.Derived{MaxHP: 234, MaxMP: 35, AttackPower: 31, Accuracy: 25, Evasion: 11, Defense: 18, CritRate: 0.075, CritDamage: 0.575})
+		worn := progression.ItemStats{
+			PhysicalAttack: 10, MagicAttack: 4, PhysicalDefense: 3, MagicDefense: 2, MaxHP: 30, MaxMP: 7, Accuracy: 4, Evasion: 2,
+			CritRate: 15, CritDamage: 50, Penetration: 120, HPRegen: 5, MPRegen: 3, AttackSpeed: 20, CooldownSpeed: 10, MoveSpeed: 30,
+		}
+		bare := progression.DeriveStats(data.StatRules(), kernel.Warrior, 1, class.BaseStats, progression.ItemStats{})
+		want := bare
+		want.MaxHP, want.MaxMP = bare.MaxHP+30, bare.MaxMP+7
+		want.PhysicalAttack, want.MagicAttack, want.PhysicalDefense, want.MagicDefense = bare.PhysicalAttack+10, bare.MagicAttack+4, bare.PhysicalDefense+3, bare.MagicDefense+2
+		want.Accuracy, want.Evasion = bare.Accuracy+4, bare.Evasion+2
+		want.CritRate, want.CritDamage, want.Penetration = bare.CritRate+0.015, bare.CritDamage+0.05, 0.12
+		want.HPRegen, want.MPRegen = bare.HPRegen+0.5, bare.MPRegen+0.3
+		want.AttackSpeed, want.CooldownSpeed, want.MoveSpeed = bare.AttackSpeed+0.02, bare.CooldownSpeed+0.01, bare.MoveSpeed+0.03
+		assertDerived(t, progression.DeriveStats(data.StatRules(), kernel.Warrior, 1, class.BaseStats, worn), want)
 	})
 
-	t.Run("worn primary stats feed the formulas through the class's coefficients", func(t *testing.T) {
-		class, _ := data.Class(kernel.Warrior)
-		formulas, _ := data.Formulas(kernel.Warrior)
-		got := progression.DeriveStats(formulas, class.BaseStats, 1, progression.ItemStats{STR: 4, VIT: 2})
-		want := progression.DeriveStats(formulas, progression.AddStats(class.BaseStats, gamedata.Stats{STR: 4, VIT: 2}), 1, progression.ItemStats{})
+	t.Run("worn primary stats count as own ones, toward the curves too", func(t *testing.T) {
+		class, _ := data.Class(kernel.Bowman)
+		got := progression.DeriveStats(data.StatRules(), kernel.Bowman, 1, class.BaseStats, progression.ItemStats{STR: 4, DEX: 6, AGI: 9})
+		want := progression.DeriveStats(data.StatRules(), kernel.Bowman, 1, progression.AddStats(class.BaseStats, gamedata.Stats{STR: 4, DEX: 6, AGI: 9}), progression.ItemStats{})
 		assertDerived(t, got, want)
-		if got.AttackPower <= 21 {
-			t.Fatalf("attack power %v; worn STR should raise a warrior's", got.AttackPower)
+		if got.MoveSpeed != 0.3*19.0/219 {
+			t.Fatalf("move speed %v; worn AGI should move the curve", got.MoveSpeed)
 		}
 	})
 
-	t.Run("a worn crit rate stops at the cap too", func(t *testing.T) {
-		formulas, _ := data.Formulas(kernel.Bowman)
-		if got := progression.DeriveStats(formulas, gamedata.Stats{AGI: 150}, 1, progression.ItemStats{CritRate: 200}); got.CritRate != 0.6 {
-			t.Fatalf("crit rate %v, want the 0.6 cap", got.CritRate)
+	t.Run("a rate with worn bonuses stops at its limit", func(t *testing.T) {
+		got := progression.DeriveStats(data.StatRules(), kernel.Bowman, 1, gamedata.Stats{DEX: 900, AGI: 900, INT: 900}, progression.ItemStats{CritRate: 500, AttackSpeed: 500, CooldownSpeed: 500, MoveSpeed: 500})
+		if got.CritRate != 0.6 || got.AttackSpeed != 0.5 || got.CooldownSpeed != 0.4 || got.MoveSpeed != 0.3 {
+			t.Fatalf("rates %v, %v, %v, %v; want their limits 0.6, 0.5, 0.4, 0.3", got.CritRate, got.AttackSpeed, got.CooldownSpeed, got.MoveSpeed)
 		}
 	})
 
-	t.Run("crit rate stops at the 60% cap", func(t *testing.T) {
-		formulas, _ := data.Formulas(kernel.Bowman)
-		got := progression.DeriveStats(formulas, gamedata.Stats{AGI: 200}, 1, progression.ItemStats{}) // 0.05 + 0.6 = 0.65 uncapped
-		if got.CritRate != 0.6 {
-			t.Fatalf("crit rate %v, want 0.6", got.CritRate)
+	t.Run("penetration comes from gear alone, and stops at 50%", func(t *testing.T) {
+		if got := progression.DeriveStats(data.StatRules(), kernel.Warrior, 30, gamedata.Stats{STR: 500, DEX: 500, INT: 500, AGI: 500, VIT: 500}, progression.ItemStats{}); got.Penetration != 0 {
+			t.Fatalf("penetration %v from points", got.Penetration)
+		}
+		if got := progression.DeriveStats(data.StatRules(), kernel.Warrior, 1, gamedata.Stats{}, progression.ItemStats{Penetration: 900}); got.Penetration != 0.5 {
+			t.Fatalf("penetration %v, want the 0.5 limit", got.Penetration)
 		}
 	})
 
-	t.Run("no equipment gives penetration", func(t *testing.T) {
-		formulas, _ := data.Formulas(kernel.Warrior)
-		worn := progression.ItemStats{Attack: 50, Defense: 50, STR: 50, DEX: 50, INT: 50, AGI: 50, VIT: 50, Accuracy: 50, Evasion: 50, CritRate: 50, CritDamage: 50, MaxHP: 50, MaxMP: 50}
-		if got := progression.DeriveStats(formulas, gamedata.Stats{}, 1, worn); got.Penetration != 0 {
-			t.Fatalf("penetration %v from equipment", got.Penetration)
+	t.Run("a class with no base for a stat starts it at zero, and a class the rules don't know has no bases", func(t *testing.T) {
+		if got := progression.DeriveStats(data.StatRules(), kernel.Warrior, 1, gamedata.Stats{}, progression.ItemStats{}); got.PhysicalAttack != 0 || got.MaxHP != 60 {
+			t.Fatalf("a warrior with no stats: attack %v, max HP %d; want 0 and the base 60", got.PhysicalAttack, got.MaxHP)
+		}
+		if got := progression.DeriveStats(data.StatRules(), kernel.Thief, 5, gamedata.Stats{}, progression.ItemStats{}); got.MaxHP != 0 || got.CritRate != 0.05 {
+			t.Fatalf("a thief: max HP %d, crit rate %v; want 0 and the curve's base", got.MaxHP, got.CritRate)
 		}
 	})
 }
 
-func assertDerived(t *testing.T, got, want progression.Derived) {
+func assertDerived(t testing.TB, got, want progression.Derived) {
 	t.Helper()
 	if got.MaxHP != want.MaxHP || got.MaxMP != want.MaxMP {
 		t.Fatalf("HP/MP %d/%d, want %d/%d", got.MaxHP, got.MaxMP, want.MaxHP, want.MaxMP)
 	}
-	for _, f := range []struct {
-		name      string
-		got, want float64
-	}{
-		{"attack power", got.AttackPower, want.AttackPower},
-		{"accuracy", got.Accuracy, want.Accuracy},
-		{"evasion", got.Evasion, want.Evasion},
-		{"defense", got.Defense, want.Defense},
-		{"crit rate", got.CritRate, want.CritRate},
-		{"crit damage", got.CritDamage, want.CritDamage},
-		{"penetration", got.Penetration, want.Penetration},
-	} {
+	for _, f := range rated(got, want) {
 		if math.Abs(f.got-f.want) > 1e-9 {
 			t.Fatalf("%s = %v, want %v", f.name, f.got, f.want)
 		}
 	}
 }
 
+type pair struct {
+	name      string
+	got, want float64
+}
+
+// rated pairs every derived stat of the two.
+func rated(got, want progression.Derived) []pair {
+	return []pair{
+		{"max HP", float64(got.MaxHP), float64(want.MaxHP)}, {"max MP", float64(got.MaxMP), float64(want.MaxMP)},
+		{"physical attack", got.PhysicalAttack, want.PhysicalAttack}, {"magic attack", got.MagicAttack, want.MagicAttack},
+		{"physical defense", got.PhysicalDefense, want.PhysicalDefense}, {"magic defense", got.MagicDefense, want.MagicDefense},
+		{"accuracy", got.Accuracy, want.Accuracy}, {"evasion", got.Evasion, want.Evasion},
+		{"crit rate", got.CritRate, want.CritRate}, {"crit damage", got.CritDamage, want.CritDamage}, {"penetration", got.Penetration, want.Penetration},
+		{"HP regen", got.HPRegen, want.HPRegen}, {"MP regen", got.MPRegen, want.MPRegen},
+		{"attack speed", got.AttackSpeed, want.AttackSpeed}, {"cooldown speed", got.CooldownSpeed, want.CooldownSpeed}, {"move speed", got.MoveSpeed, want.MoveSpeed},
+	}
+}
+
 func TestAwardExp(t *testing.T) {
 	data := loadData(t) // exp_to_next: 1→20, 2→65, 3→129, 4→211 ... cap 30
 	warrior, _ := data.Class(kernel.Warrior)
-	preset := func(int) gamedata.Stats { return warrior.LevelUpPoints }
+	preset := progression.AutoAssignPlan(warrior)
 	base := warrior.BaseStats
 	tests := []struct {
 		name       string
@@ -138,10 +162,10 @@ func TestAwardExp(t *testing.T) {
 		wantStats  gamedata.Stats
 	}{
 		{"below the threshold accumulates", progression.Progress{Level: 1, Exp: 5}, 10, progression.Progress{Level: 1, Exp: 15}, 0, base},
-		{"exactly at the threshold levels up with 0 carried", progression.Progress{Level: 1, Exp: 5}, 15, progression.Progress{Level: 2, Exp: 0}, 1, progression.AddStats(base, warrior.LevelUpPoints)},
-		{"extra EXP carries over", progression.Progress{Level: 1, Exp: 0}, 30, progression.Progress{Level: 2, Exp: 10}, 1, progression.AddStats(base, warrior.LevelUpPoints)},
+		{"exactly at the threshold levels up with 0 carried", progression.Progress{Level: 1, Exp: 5}, 15, progression.Progress{Level: 2, Exp: 0}, 1, progression.AddStats(base, warrior.AutoAssign)},
+		{"extra EXP carries over", progression.Progress{Level: 1, Exp: 0}, 30, progression.Progress{Level: 2, Exp: 10}, 1, progression.AddStats(base, warrior.AutoAssign)},
 		{"several levels at once", progression.Progress{Level: 1, Exp: 0}, 20 + 65 + 129 + 7, progression.Progress{Level: 4, Exp: 7}, 3, gamedata.Stats{STR: 21, DEX: 5, INT: 4, AGI: 5, VIT: 16}},
-		{"reaching the cap discards the remainder", progression.Progress{Level: 29, Exp: 6000}, 1000, progression.Progress{Level: 30, Exp: 0}, 1, progression.AddStats(base, warrior.LevelUpPoints)},
+		{"reaching the cap discards the remainder", progression.Progress{Level: 29, Exp: 6000}, 1000, progression.Progress{Level: 30, Exp: 0}, 1, progression.AddStats(base, warrior.AutoAssign)},
 		{"at the cap nothing accumulates", progression.Progress{Level: 30, Exp: 0}, 5000, progression.Progress{Level: 30, Exp: 0}, 0, base},
 		{"zero EXP changes nothing", progression.Progress{Level: 3, Exp: 50}, 0, progression.Progress{Level: 3, Exp: 50}, 0, base},
 	}
@@ -209,43 +233,84 @@ func loadData(t *testing.T) *gamedata.Data {
 	return d
 }
 
-// Whatever is worn, no derived stat drops, the flat bonuses add exactly, and the caps hold.
+func drawStats(t *rapid.T, upTo int, label string) gamedata.Stats {
+	stat := rapid.IntRange(0, upTo)
+	return gamedata.Stats{STR: stat.Draw(t, label+" str"), DEX: stat.Draw(t, label+" dex"), INT: stat.Draw(t, label+" int"), AGI: stat.Draw(t, label+" agi"), VIT: stat.Draw(t, label+" vit")}
+}
+
+func drawWorn(t *rapid.T, upTo int) progression.ItemStats {
+	b := rapid.IntRange(0, upTo)
+	return progression.ItemStats{
+		STR: b.Draw(t, "w str"), DEX: b.Draw(t, "w dex"), INT: b.Draw(t, "w int"), AGI: b.Draw(t, "w agi"), VIT: b.Draw(t, "w vit"),
+		PhysicalAttack: b.Draw(t, "physical attack"), MagicAttack: b.Draw(t, "magic attack"), PhysicalDefense: b.Draw(t, "physical defense"), MagicDefense: b.Draw(t, "magic defense"),
+		MaxHP: b.Draw(t, "max hp"), MaxMP: b.Draw(t, "max mp"), Accuracy: b.Draw(t, "accuracy"), Evasion: b.Draw(t, "evasion"),
+		CritRate: b.Draw(t, "crit rate"), CritDamage: b.Draw(t, "crit damage"), Penetration: b.Draw(t, "penetration"), HPRegen: b.Draw(t, "hp regen"), MPRegen: b.Draw(t, "mp regen"),
+		AttackSpeed: b.Draw(t, "attack speed"), CooldownSpeed: b.Draw(t, "cooldown speed"), MoveSpeed: b.Draw(t, "move speed"),
+	}
+}
+
+var classes = []kernel.Class{kernel.Warrior, kernel.Bowman}
+
+// Whatever is worn, no derived stat drops, and the limits hold.
 func TestWearingNeverLowersAStat(t *testing.T) {
 	data := loadData(t)
+	r := data.StatRules()
 	rapid.Check(t, func(t *rapid.T) {
-		class := rapid.SampledFrom([]kernel.Class{kernel.Warrior, kernel.Bowman}).Draw(t, "class")
-		formulas, _ := data.Formulas(class)
-		stat := rapid.IntRange(0, 200)
-		base := gamedata.Stats{STR: stat.Draw(t, "str"), DEX: stat.Draw(t, "dex"), INT: stat.Draw(t, "int"), AGI: stat.Draw(t, "agi"), VIT: stat.Draw(t, "vit")}
-		level := rapid.IntRange(1, 30).Draw(t, "level")
-		bonus := rapid.IntRange(0, 500)
-		worn := progression.ItemStats{
-			Attack: bonus.Draw(t, "attack"), Defense: bonus.Draw(t, "defense"),
-			STR: bonus.Draw(t, "w_str"), DEX: bonus.Draw(t, "w_dex"), INT: bonus.Draw(t, "w_int"), AGI: bonus.Draw(t, "w_agi"), VIT: bonus.Draw(t, "w_vit"),
-			Accuracy: bonus.Draw(t, "accuracy"), Evasion: bonus.Draw(t, "evasion"), CritRate: bonus.Draw(t, "crit_rate"), CritDamage: bonus.Draw(t, "crit_damage"),
-			MaxHP: bonus.Draw(t, "max_hp"), MaxMP: bonus.Draw(t, "max_mp"),
-		}
-		bare := progression.DeriveStats(formulas, base, level, progression.ItemStats{})
-		dressed := progression.DeriveStats(formulas, base, level, worn)
-		for _, f := range []struct {
-			name       string
-			bare, worn float64
-		}{
-			{"max HP", float64(bare.MaxHP), float64(dressed.MaxHP)}, {"max MP", float64(bare.MaxMP), float64(dressed.MaxMP)},
-			{"attack power", bare.AttackPower, dressed.AttackPower}, {"accuracy", bare.Accuracy, dressed.Accuracy},
-			{"evasion", bare.Evasion, dressed.Evasion}, {"defense", bare.Defense, dressed.Defense},
-			{"crit rate", bare.CritRate, dressed.CritRate}, {"crit damage", bare.CritDamage, dressed.CritDamage},
-		} {
-			if f.worn < f.bare {
-				t.Fatalf("%s fell from %v to %v with %+v worn", f.name, f.bare, f.worn, worn)
+		class := rapid.SampledFrom(classes).Draw(t, "class")
+		own, level, worn := drawStats(t, 200, "own"), rapid.IntRange(1, 30).Draw(t, "level"), drawWorn(t, 500)
+		bare := progression.DeriveStats(r, class, level, own, progression.ItemStats{})
+		dressed := progression.DeriveStats(r, class, level, own, worn)
+		for _, f := range rated(dressed, bare) {
+			if f.got < f.want {
+				t.Fatalf("%s fell from %v to %v with %+v worn", f.name, f.want, f.got, worn)
 			}
 		}
-		if dressed.CritRate > formulas.CritRate.Cap || dressed.Penetration > formulas.Penetration.Cap {
-			t.Fatalf("crit rate %v, penetration %v past their caps", dressed.CritRate, dressed.Penetration)
+		c := r.Curves
+		if dressed.CritRate > c.CritRate.Limit || dressed.AttackSpeed > c.AttackSpeed.Limit || dressed.CooldownSpeed > c.CooldownSpeed.Limit || dressed.MoveSpeed > c.MoveSpeed.Limit || dressed.Penetration > r.Penetration {
+			t.Fatalf("a rate past its limit: %+v", dressed)
 		}
-		flat := progression.DeriveStats(formulas, base, level, progression.ItemStats{Attack: worn.Attack, MaxHP: worn.MaxHP})
-		if flat.MaxHP != bare.MaxHP+worn.MaxHP || math.Abs(flat.AttackPower-bare.AttackPower-float64(worn.Attack)) > 1e-9 {
-			t.Fatalf("flat bonuses: max HP %d from %d, attack %v from %v, with %+v", flat.MaxHP, bare.MaxHP, flat.AttackPower, bare.AttackPower, worn)
+	})
+}
+
+// A point more in any stat never lowers a derived stat.
+func TestAPointNeverLowersAStat(t *testing.T) {
+	data := loadData(t)
+	r := data.StatRules()
+	rapid.Check(t, func(t *rapid.T) {
+		class := rapid.SampledFrom(classes).Draw(t, "class")
+		own, level, worn := drawStats(t, 300, "own"), rapid.IntRange(1, 30).Draw(t, "level"), drawWorn(t, 50)
+		more := own
+		switch rapid.IntRange(0, 4).Draw(t, "stat") {
+		case 0:
+			more.STR++
+		case 1:
+			more.DEX++
+		case 2:
+			more.INT++
+		case 3:
+			more.AGI++
+		default:
+			more.VIT++
+		}
+		before, after := progression.DeriveStats(r, class, level, own, worn), progression.DeriveStats(r, class, level, more, worn)
+		for _, f := range rated(after, before) {
+			if f.got < f.want {
+				t.Fatalf("%s fell from %v to %v from %+v to %+v", f.name, f.want, f.got, own, more)
+			}
+		}
+	})
+}
+
+// Points alone bring a rate ever closer to its limit, never to it.
+func TestPointsAloneNeverReachALimit(t *testing.T) {
+	data := loadData(t)
+	r := data.StatRules()
+	rapid.Check(t, func(t *rapid.T) {
+		class := rapid.SampledFrom(classes).Draw(t, "class")
+		got := progression.DeriveStats(r, class, rapid.IntRange(1, 30).Draw(t, "level"), drawStats(t, 100000, "own"), progression.ItemStats{})
+		c := r.Curves
+		if got.CritRate >= c.CritRate.Limit || got.AttackSpeed >= c.AttackSpeed.Limit || got.CooldownSpeed >= c.CooldownSpeed.Limit || got.MoveSpeed >= c.MoveSpeed.Limit {
+			t.Fatalf("a rate at its limit from points alone: %+v", got)
 		}
 	})
 }

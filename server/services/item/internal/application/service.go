@@ -72,7 +72,7 @@ type Result struct {
 func (in AddInput) fingerprint(c kernel.CharacterID) []byte {
 	values := []string{c.String(), in.TemplateID, strconv.Itoa(in.Quantity), string(in.Cause.Type), in.Cause.ID.String()}
 	if s := in.Stats; s != nil {
-		values = append(values, "stats", strconv.Itoa(s.Attack), strconv.Itoa(s.Defense), strconv.Itoa(s.STR), strconv.Itoa(s.DEX), strconv.Itoa(s.INT), strconv.Itoa(s.AGI), strconv.Itoa(s.VIT),
+		values = append(values, "stats", strconv.Itoa(s.PhysicalAttack), strconv.Itoa(s.PhysicalDefense), strconv.Itoa(s.STR), strconv.Itoa(s.DEX), strconv.Itoa(s.INT), strconv.Itoa(s.AGI), strconv.Itoa(s.VIT),
 			strconv.Itoa(s.Accuracy), strconv.Itoa(s.Evasion), strconv.Itoa(s.CritRate), strconv.Itoa(s.CritDamage), strconv.Itoa(s.MaxHP), strconv.Itoa(s.MaxMP))
 	}
 	return idempotency.Fingerprint("item.add/1", values...)

@@ -65,12 +65,8 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	if !ok {
 		return model.Character{}, model.ErrClassUnavailable
 	}
-	formulas, ok := s.content.Formulas(in.Class)
-	if !ok {
-		return model.Character{}, model.ErrClassUnavailable
-	}
 	town := s.content.Town()
-	derived := progression.DeriveStats(formulas, class.BaseStats, 1, progression.ItemStats{})
+	derived := progression.DeriveStats(s.content.StatRules(), class.ID, 1, class.BaseStats, progression.ItemStats{})
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,
 		Level: 1, Exp: 0, Stats: class.BaseStats, HP: derived.MaxHP, MP: derived.MaxMP,
@@ -145,9 +141,8 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 
 // Derived computes a character's derived stats with no equipment.
 func (s *Service) Derived(c model.Character) (progression.Derived, error) {
-	formulas, ok := s.content.Formulas(c.Class)
-	if !ok {
+	if _, ok := s.content.Class(c.Class); !ok {
 		return progression.Derived{}, model.ErrClassUnavailable
 	}
-	return progression.DeriveStats(formulas, c.Stats, c.Level, progression.ItemStats{}), nil
+	return progression.DeriveStats(s.content.StatRules(), c.Class, c.Level, c.Stats, progression.ItemStats{}), nil
 }

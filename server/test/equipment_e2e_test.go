@@ -115,7 +115,7 @@ func TestEquipment(t *testing.T) {
 	t.Run("E2/on-a-full-equip-tab-a-swap-works-and-a-drop-waits-on-the-ground", func(t *testing.T) {
 		s := newStackOver(t, capsOnly(t))
 		token, id := s.createCharacter(t, "tess", "Tess", "warrior")
-		s.place(t, id, "forest", 380, 608, 204, 0)
+		s.place(t, id, "forest", 380, 608, 184, 0)
 		// The Equip tab's 24 slots: a better sword in the first, caps in the rest.
 		better := s.give(t, id, "wooden_sword", &itemv1.ItemStats{Attack: 12})
 		for range 23 {

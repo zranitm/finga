@@ -45,11 +45,10 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
-	formulas, ok := w.data.Formulas(c.Class)
-	if !ok {
+	if _, ok := w.data.Class(c.Class); !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
-	derived := progression.DeriveStats(formulas, c.Stats, c.Level, worn.Stats)
+	derived := progression.DeriveStats(w.data.StatRules(), c.Class, c.Level, c.Stats, worn.Stats)
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {
 			return model.View{}, err
@@ -83,7 +82,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	return model.View{
 		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: c.Stats,
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
-		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: progression.SheetOf(formulas, c.Stats, c.Level, worn.Stats), JoinSeq: at.gen,
+		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: progression.SheetOf(w.data.StatRules(), c.Class, c.Level, c.Stats, worn.Stats), JoinSeq: at.gen,
 	}, nil
 }
 
