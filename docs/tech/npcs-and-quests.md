@@ -91,12 +91,12 @@ From the code, the rules this design keeps:
 - **Talk:** a `Talk` to an NPC named by an active `{talk}` objective completes it.
 - **Level:** read from the live level when needed. It needs no counter.
 - **Collect:** counted by the item service when the quest is handed in, since the world doesn't hold inventories. The client shows the progress ("Slime Gel 7/15") from its own inventory store, for display.
-- **Telling the player:** each change sends the owner a **`QuestChanged`** (the quest's status and progress), which the quest log applies and the combat channel turns into a line. Kills are merged per tick, so a burst of kills makes one message.
+- **Telling the player:** each change sends the owner a **`QuestChanged`** (the quest's status and progress, and what happened: accepted, progressed, handed in, or abandoned), which the quest log applies and the combat channel turns into a line. Changes are merged per tick, so a burst of kills makes one message.
 
 ## 7. Accepting, abandoning, and handing in
 
 - **`AcceptQuest{npc, quest}`:** the NPC must give it and be in reach, and the quest's conditions must be met. It is refused when the quest is already active, a one-time quest is already finished, or 20 are active. On success the quest becomes active with zero progress, and is saved at once.
-- **`AbandonQuest{quest}`:** no NPC is needed. The quest leaves the log, its progress is lost, and the change is saved at once.
+- **`AbandonQuest{quest}`:** no NPC is needed. The quest leaves the log, its progress is lost, and the change is saved at once. Abandoning a quest that isn't active does nothing, so a retry is safe; one whose hand-in is in flight is refused until it settles.
 - **`HandInQuest{npc, quest}`:**
   1. **On the tick:** the NPC must take this quest and be in reach. Every kill, talk, and level objective must be complete, or the hand-in is refused with `quest_not_ready`.
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.

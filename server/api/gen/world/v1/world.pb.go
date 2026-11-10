@@ -53,6 +53,16 @@ const (
 	Reason_REASON_BAD_POINTS Reason = 13
 	// The NPC isn't on the character's map, or is farther than the talk reach.
 	Reason_REASON_NPC_OUT_OF_REACH Reason = 14
+	// The NPC doesn't give, or take back, that quest.
+	Reason_REASON_QUEST_UNAVAILABLE      Reason = 15
+	Reason_REASON_QUEST_CONDITIONS_UNMET Reason = 16
+	Reason_REASON_QUEST_ALREADY_ACTIVE   Reason = 17
+	// A one-time quest the character has finished.
+	Reason_REASON_QUEST_ALREADY_FINISHED Reason = 18
+	// The character has the most active quests already.
+	Reason_REASON_TOO_MANY_QUESTS Reason = 19
+	// The quest isn't active, or a kill, talk or level objective is left.
+	Reason_REASON_QUEST_NOT_READY Reason = 20
 )
 
 // Enum value maps for Reason.
@@ -73,23 +83,35 @@ var (
 		12: "REASON_NO_FREE_RESET",
 		13: "REASON_BAD_POINTS",
 		14: "REASON_NPC_OUT_OF_REACH",
+		15: "REASON_QUEST_UNAVAILABLE",
+		16: "REASON_QUEST_CONDITIONS_UNMET",
+		17: "REASON_QUEST_ALREADY_ACTIVE",
+		18: "REASON_QUEST_ALREADY_FINISHED",
+		19: "REASON_TOO_MANY_QUESTS",
+		20: "REASON_QUEST_NOT_READY",
 	}
 	Reason_value = map[string]int32{
-		"REASON_UNSPECIFIED":         0,
-		"REASON_BUSY":                1,
-		"REASON_NO_MAP":              2,
-		"REASON_STOPPED":             3,
-		"REASON_NOT_SUBSCRIBED":      4,
-		"REASON_PICKUPS_UNAVAILABLE": 5,
-		"REASON_PICKUP_BUSY":         6,
-		"REASON_BAD_ID":              7,
-		"REASON_CLASS_UNAVAILABLE":   8,
-		"REASON_CHARACTER_DEAD":      9,
-		"REASON_POINTS_CHANGED":      10,
-		"REASON_NOT_ENOUGH_POINTS":   11,
-		"REASON_NO_FREE_RESET":       12,
-		"REASON_BAD_POINTS":          13,
-		"REASON_NPC_OUT_OF_REACH":    14,
+		"REASON_UNSPECIFIED":            0,
+		"REASON_BUSY":                   1,
+		"REASON_NO_MAP":                 2,
+		"REASON_STOPPED":                3,
+		"REASON_NOT_SUBSCRIBED":         4,
+		"REASON_PICKUPS_UNAVAILABLE":    5,
+		"REASON_PICKUP_BUSY":            6,
+		"REASON_BAD_ID":                 7,
+		"REASON_CLASS_UNAVAILABLE":      8,
+		"REASON_CHARACTER_DEAD":         9,
+		"REASON_POINTS_CHANGED":         10,
+		"REASON_NOT_ENOUGH_POINTS":      11,
+		"REASON_NO_FREE_RESET":          12,
+		"REASON_BAD_POINTS":             13,
+		"REASON_NPC_OUT_OF_REACH":       14,
+		"REASON_QUEST_UNAVAILABLE":      15,
+		"REASON_QUEST_CONDITIONS_UNMET": 16,
+		"REASON_QUEST_ALREADY_ACTIVE":   17,
+		"REASON_QUEST_ALREADY_FINISHED": 18,
+		"REASON_TOO_MANY_QUESTS":        19,
+		"REASON_QUEST_NOT_READY":        20,
 	}
 )
 
@@ -232,6 +254,113 @@ func (x QuestOfferState) Number() protoreflect.EnumNumber {
 // Deprecated: Use QuestOfferState.Descriptor instead.
 func (QuestOfferState) EnumDescriptor() ([]byte, []int) {
 	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{2}
+}
+
+// QuestStatus is where a character stands with a quest of its log.
+type QuestStatus int32
+
+const (
+	// Not in the log: abandoned before it was ever finished.
+	QuestStatus_QUEST_STATUS_UNSPECIFIED QuestStatus = 0
+	QuestStatus_QUEST_STATUS_ACTIVE      QuestStatus = 1
+	QuestStatus_QUEST_STATUS_FINISHED    QuestStatus = 2
+)
+
+// Enum value maps for QuestStatus.
+var (
+	QuestStatus_name = map[int32]string{
+		0: "QUEST_STATUS_UNSPECIFIED",
+		1: "QUEST_STATUS_ACTIVE",
+		2: "QUEST_STATUS_FINISHED",
+	}
+	QuestStatus_value = map[string]int32{
+		"QUEST_STATUS_UNSPECIFIED": 0,
+		"QUEST_STATUS_ACTIVE":      1,
+		"QUEST_STATUS_FINISHED":    2,
+	}
+)
+
+func (x QuestStatus) Enum() *QuestStatus {
+	p := new(QuestStatus)
+	*p = x
+	return p
+}
+
+func (x QuestStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (QuestStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_world_v1_world_proto_enumTypes[3].Descriptor()
+}
+
+func (QuestStatus) Type() protoreflect.EnumType {
+	return &file_internal_world_v1_world_proto_enumTypes[3]
+}
+
+func (x QuestStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use QuestStatus.Descriptor instead.
+func (QuestStatus) EnumDescriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{3}
+}
+
+// QuestChange is what happened to a quest, for the combat channel's line.
+type QuestChange int32
+
+const (
+	QuestChange_QUEST_CHANGE_UNSPECIFIED QuestChange = 0
+	QuestChange_QUEST_CHANGE_PROGRESSED  QuestChange = 1
+	QuestChange_QUEST_CHANGE_ACCEPTED    QuestChange = 2
+	QuestChange_QUEST_CHANGE_HANDED_IN   QuestChange = 3
+	QuestChange_QUEST_CHANGE_ABANDONED   QuestChange = 4
+)
+
+// Enum value maps for QuestChange.
+var (
+	QuestChange_name = map[int32]string{
+		0: "QUEST_CHANGE_UNSPECIFIED",
+		1: "QUEST_CHANGE_PROGRESSED",
+		2: "QUEST_CHANGE_ACCEPTED",
+		3: "QUEST_CHANGE_HANDED_IN",
+		4: "QUEST_CHANGE_ABANDONED",
+	}
+	QuestChange_value = map[string]int32{
+		"QUEST_CHANGE_UNSPECIFIED": 0,
+		"QUEST_CHANGE_PROGRESSED":  1,
+		"QUEST_CHANGE_ACCEPTED":    2,
+		"QUEST_CHANGE_HANDED_IN":   3,
+		"QUEST_CHANGE_ABANDONED":   4,
+	}
+)
+
+func (x QuestChange) Enum() *QuestChange {
+	p := new(QuestChange)
+	*p = x
+	return p
+}
+
+func (x QuestChange) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (QuestChange) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_world_v1_world_proto_enumTypes[4].Descriptor()
+}
+
+func (QuestChange) Type() protoreflect.EnumType {
+	return &file_internal_world_v1_world_proto_enumTypes[4]
+}
+
+func (x QuestChange) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use QuestChange.Descriptor instead.
+func (QuestChange) EnumDescriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{4}
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -987,6 +1116,7 @@ type DeliverResponse struct {
 	//	*DeliverResponse_StatsChanged
 	//	*DeliverResponse_Loot
 	//	*DeliverResponse_NpcDialog
+	//	*DeliverResponse_QuestChanged
 	Event         isDeliverResponse_Event `protobuf_oneof:"event"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1205,6 +1335,15 @@ func (x *DeliverResponse) GetNpcDialog() *NpcDialog {
 	return nil
 }
 
+func (x *DeliverResponse) GetQuestChanged() *QuestChanged {
+	if x != nil {
+		if x, ok := x.Event.(*DeliverResponse_QuestChanged); ok {
+			return x.QuestChanged
+		}
+	}
+	return nil
+}
+
 type isDeliverResponse_Event interface {
 	isDeliverResponse_Event()
 }
@@ -1283,6 +1422,10 @@ type DeliverResponse_NpcDialog struct {
 	NpcDialog *NpcDialog `protobuf:"bytes,20,opt,name=npc_dialog,json=npcDialog,proto3,oneof"`
 }
 
+type DeliverResponse_QuestChanged struct {
+	QuestChanged *QuestChanged `protobuf:"bytes,21,opt,name=quest_changed,json=questChanged,proto3,oneof"`
+}
+
 func (*DeliverResponse_Subscribed) isDeliverResponse_Event() {}
 
 func (*DeliverResponse_Snapshot) isDeliverResponse_Event() {}
@@ -1316,6 +1459,8 @@ func (*DeliverResponse_StatsChanged) isDeliverResponse_Event() {}
 func (*DeliverResponse_Loot) isDeliverResponse_Event() {}
 
 func (*DeliverResponse_NpcDialog) isDeliverResponse_Event() {}
+
+func (*DeliverResponse_QuestChanged) isDeliverResponse_Event() {}
 
 // Frame is a map's Delta for one tick, sent once to each gateway with players there, each recipient getting it with its own ack_seq.
 type Frame struct {
@@ -3310,7 +3455,9 @@ type JoinResponse struct {
 	// The world's ticks per second; the client times its prediction and interpolation by it.
 	TickRateHz uint32 `protobuf:"varint,2,opt,name=tick_rate_hz,json=tickRateHz,proto3" json:"tick_rate_hz,omitempty"`
 	// Rises with each join, across restarts too, so the character's later login has the higher one; social orders logins by it.
-	JoinSeq       uint64 `protobuf:"varint,3,opt,name=join_seq,json=joinSeq,proto3" json:"join_seq,omitempty"`
+	JoinSeq uint64 `protobuf:"varint,3,opt,name=join_seq,json=joinSeq,proto3" json:"join_seq,omitempty"`
+	// The quest log: active quests with their counts, and finished ones with how often.
+	Quests        []*QuestState `protobuf:"bytes,4,rep,name=quests,proto3" json:"quests,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3364,6 +3511,13 @@ func (x *JoinResponse) GetJoinSeq() uint64 {
 		return x.JoinSeq
 	}
 	return 0
+}
+
+func (x *JoinResponse) GetQuests() []*QuestState {
+	if x != nil {
+		return x.Quests
+	}
+	return nil
 }
 
 type LeaveRequest struct {
@@ -4617,6 +4771,410 @@ func (x *QuestTurnIn) GetReady() bool {
 	return false
 }
 
+type AcceptQuestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Presence      *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	NpcId         string                 `protobuf:"bytes,2,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	QuestId       string                 `protobuf:"bytes,3,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AcceptQuestRequest) Reset() {
+	*x = AcceptQuestRequest{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AcceptQuestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AcceptQuestRequest) ProtoMessage() {}
+
+func (x *AcceptQuestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AcceptQuestRequest.ProtoReflect.Descriptor instead.
+func (*AcceptQuestRequest) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *AcceptQuestRequest) GetPresence() *Presence {
+	if x != nil {
+		return x.Presence
+	}
+	return nil
+}
+
+func (x *AcceptQuestRequest) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *AcceptQuestRequest) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+type AcceptQuestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AcceptQuestResponse) Reset() {
+	*x = AcceptQuestResponse{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AcceptQuestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AcceptQuestResponse) ProtoMessage() {}
+
+func (x *AcceptQuestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AcceptQuestResponse.ProtoReflect.Descriptor instead.
+func (*AcceptQuestResponse) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{63}
+}
+
+type AbandonQuestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Presence      *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	QuestId       string                 `protobuf:"bytes,2,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbandonQuestRequest) Reset() {
+	*x = AbandonQuestRequest{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbandonQuestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbandonQuestRequest) ProtoMessage() {}
+
+func (x *AbandonQuestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbandonQuestRequest.ProtoReflect.Descriptor instead.
+func (*AbandonQuestRequest) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *AbandonQuestRequest) GetPresence() *Presence {
+	if x != nil {
+		return x.Presence
+	}
+	return nil
+}
+
+func (x *AbandonQuestRequest) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+type AbandonQuestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AbandonQuestResponse) Reset() {
+	*x = AbandonQuestResponse{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AbandonQuestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AbandonQuestResponse) ProtoMessage() {}
+
+func (x *AbandonQuestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AbandonQuestResponse.ProtoReflect.Descriptor instead.
+func (*AbandonQuestResponse) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{65}
+}
+
+type HandInQuestRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Presence      *Presence              `protobuf:"bytes,1,opt,name=presence,proto3" json:"presence,omitempty"`
+	NpcId         string                 `protobuf:"bytes,2,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	QuestId       string                 `protobuf:"bytes,3,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandInQuestRequest) Reset() {
+	*x = HandInQuestRequest{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandInQuestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandInQuestRequest) ProtoMessage() {}
+
+func (x *HandInQuestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandInQuestRequest.ProtoReflect.Descriptor instead.
+func (*HandInQuestRequest) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *HandInQuestRequest) GetPresence() *Presence {
+	if x != nil {
+		return x.Presence
+	}
+	return nil
+}
+
+func (x *HandInQuestRequest) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *HandInQuestRequest) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+type HandInQuestResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HandInQuestResponse) Reset() {
+	*x = HandInQuestResponse{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HandInQuestResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HandInQuestResponse) ProtoMessage() {}
+
+func (x *HandInQuestResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HandInQuestResponse.ProtoReflect.Descriptor instead.
+func (*HandInQuestResponse) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{67}
+}
+
+// QuestState is one quest of a character's log.
+type QuestState struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	QuestId string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	Status  QuestStatus            `protobuf:"varint,2,opt,name=status,proto3,enum=internal.world.v1.QuestStatus" json:"status,omitempty"`
+	// One count per objective, in the quest's order; empty when finished. A collect objective's count is the inventory's, which the client reads itself.
+	Progress []int32 `protobuf:"varint,3,rep,packed,name=progress,proto3" json:"progress,omitempty"`
+	// Completions so far; a repeatable quest active again keeps its count.
+	TimesFinished int32 `protobuf:"varint,4,opt,name=times_finished,json=timesFinished,proto3" json:"times_finished,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestState) Reset() {
+	*x = QuestState{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[68]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestState) ProtoMessage() {}
+
+func (x *QuestState) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[68]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestState.ProtoReflect.Descriptor instead.
+func (*QuestState) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{68}
+}
+
+func (x *QuestState) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+func (x *QuestState) GetStatus() QuestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return QuestStatus_QUEST_STATUS_UNSPECIFIED
+}
+
+func (x *QuestState) GetProgress() []int32 {
+	if x != nil {
+		return x.Progress
+	}
+	return nil
+}
+
+func (x *QuestState) GetTimesFinished() int32 {
+	if x != nil {
+		return x.TimesFinished
+	}
+	return 0
+}
+
+// QuestChanged is one quest of the player's log after a tick, which merges that tick's changes to it.
+type QuestChanged struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Change        QuestChange            `protobuf:"varint,1,opt,name=change,proto3,enum=internal.world.v1.QuestChange" json:"change,omitempty"`
+	Quest         *QuestState            `protobuf:"bytes,2,opt,name=quest,proto3" json:"quest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestChanged) Reset() {
+	*x = QuestChanged{}
+	mi := &file_internal_world_v1_world_proto_msgTypes[69]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestChanged) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestChanged) ProtoMessage() {}
+
+func (x *QuestChanged) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_world_v1_world_proto_msgTypes[69]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestChanged.ProtoReflect.Descriptor instead.
+func (*QuestChanged) Descriptor() ([]byte, []int) {
+	return file_internal_world_v1_world_proto_rawDescGZIP(), []int{69}
+}
+
+func (x *QuestChanged) GetChange() QuestChange {
+	if x != nil {
+		return x.Change
+	}
+	return QuestChange_QUEST_CHANGE_UNSPECIFIED
+}
+
+func (x *QuestChanged) GetQuest() *QuestState {
+	if x != nil {
+		return x.Quest
+	}
+	return nil
+}
+
 var File_internal_world_v1_world_proto protoreflect.FileDescriptor
 
 const file_internal_world_v1_world_proto_rawDesc = "" +
@@ -4687,7 +5245,7 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"move_speed\x18\x10 \x01(\x01R\tmoveSpeed\"/\n" +
 	"\x0eDeliverRequest\x12\x1d\n" +
 	"\n" +
-	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\xef\b\n" +
+	"gateway_id\x18\x01 \x01(\tR\tgatewayId\"\xb7\t\n" +
 	"\x0fDeliverResponse\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12#\n" +
 	"\rconnection_id\x18\x0f \x01(\tR\fconnectionId\x12\x12\n" +
@@ -4713,7 +5271,8 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\rstats_changed\x18\x12 \x01(\v2\x1f.internal.world.v1.StatsChangedH\x00R\fstatsChanged\x12-\n" +
 	"\x04loot\x18\x13 \x01(\v2\x17.internal.world.v1.LootH\x00R\x04loot\x12=\n" +
 	"\n" +
-	"npc_dialog\x18\x14 \x01(\v2\x1c.internal.world.v1.NpcDialogH\x00R\tnpcDialogB\a\n" +
+	"npc_dialog\x18\x14 \x01(\v2\x1c.internal.world.v1.NpcDialogH\x00R\tnpcDialog\x12F\n" +
+	"\rquest_changed\x18\x15 \x01(\v2\x1f.internal.world.v1.QuestChangedH\x00R\fquestChangedB\a\n" +
 	"\x05event\"u\n" +
 	"\x05Frame\x12.\n" +
 	"\x05delta\x18\x01 \x01(\v2\x18.internal.world.v1.DeltaR\x05delta\x12<\n" +
@@ -4879,12 +5438,13 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\rconnection_id\x18\x02 \x01(\tR\fconnectionId\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x03 \x01(\tR\taccountId\x12!\n" +
-	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"\x8b\x01\n" +
+	"\fcharacter_id\x18\x04 \x01(\tR\vcharacterId\"\xc2\x01\n" +
 	"\fJoinResponse\x12>\n" +
 	"\tcharacter\x18\x01 \x01(\v2 .internal.world.v1.CharacterViewR\tcharacter\x12 \n" +
 	"\ftick_rate_hz\x18\x02 \x01(\rR\n" +
 	"tickRateHz\x12\x19\n" +
-	"\bjoin_seq\x18\x03 \x01(\x04R\ajoinSeq\"p\n" +
+	"\bjoin_seq\x18\x03 \x01(\x04R\ajoinSeq\x125\n" +
+	"\x06quests\x18\x04 \x03(\v2\x1d.internal.world.v1.QuestStateR\x06quests\"p\n" +
 	"\fLeaveRequest\x127\n" +
 	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12'\n" +
 	"\rconnection_id\x18\x02 \x01(\tB\x02\x18\x01R\fconnectionId\"\x0f\n" +
@@ -4954,7 +5514,30 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x06quests\x18\x03 \x03(\tR\x06quests\">\n" +
 	"\vQuestTurnIn\x12\x19\n" +
 	"\bquest_id\x18\x01 \x01(\tR\aquestId\x12\x14\n" +
-	"\x05ready\x18\x02 \x01(\bR\x05ready*\x86\x03\n" +
+	"\x05ready\x18\x02 \x01(\bR\x05ready\"\x7f\n" +
+	"\x12AcceptQuestRequest\x127\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x15\n" +
+	"\x06npc_id\x18\x02 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bquest_id\x18\x03 \x01(\tR\aquestId\"\x15\n" +
+	"\x13AcceptQuestResponse\"i\n" +
+	"\x13AbandonQuestRequest\x127\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x19\n" +
+	"\bquest_id\x18\x02 \x01(\tR\aquestId\"\x16\n" +
+	"\x14AbandonQuestResponse\"\x7f\n" +
+	"\x12HandInQuestRequest\x127\n" +
+	"\bpresence\x18\x01 \x01(\v2\x1b.internal.world.v1.PresenceR\bpresence\x12\x15\n" +
+	"\x06npc_id\x18\x02 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bquest_id\x18\x03 \x01(\tR\aquestId\"\x15\n" +
+	"\x13HandInQuestResponse\"\xa2\x01\n" +
+	"\n" +
+	"QuestState\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\x126\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x1e.internal.world.v1.QuestStatusR\x06status\x12\x1a\n" +
+	"\bprogress\x18\x03 \x03(\x05R\bprogress\x12%\n" +
+	"\x0etimes_finished\x18\x04 \x01(\x05R\rtimesFinished\"{\n" +
+	"\fQuestChanged\x126\n" +
+	"\x06change\x18\x01 \x01(\x0e2\x1e.internal.world.v1.QuestChangeR\x06change\x123\n" +
+	"\x05quest\x18\x02 \x01(\v2\x1d.internal.world.v1.QuestStateR\x05quest*\xc3\x04\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vREASON_BUSY\x10\x01\x12\x11\n" +
@@ -4971,7 +5554,13 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x18REASON_NOT_ENOUGH_POINTS\x10\v\x12\x18\n" +
 	"\x14REASON_NO_FREE_RESET\x10\f\x12\x15\n" +
 	"\x11REASON_BAD_POINTS\x10\r\x12\x1b\n" +
-	"\x17REASON_NPC_OUT_OF_REACH\x10\x0e*i\n" +
+	"\x17REASON_NPC_OUT_OF_REACH\x10\x0e\x12\x1c\n" +
+	"\x18REASON_QUEST_UNAVAILABLE\x10\x0f\x12!\n" +
+	"\x1dREASON_QUEST_CONDITIONS_UNMET\x10\x10\x12\x1f\n" +
+	"\x1bREASON_QUEST_ALREADY_ACTIVE\x10\x11\x12!\n" +
+	"\x1dREASON_QUEST_ALREADY_FINISHED\x10\x12\x12\x1a\n" +
+	"\x16REASON_TOO_MANY_QUESTS\x10\x13\x12\x1a\n" +
+	"\x16REASON_QUEST_NOT_READY\x10\x14*i\n" +
 	"\bLootKind\x12\x19\n" +
 	"\x15LOOT_KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13LOOT_KIND_COLLECTED\x10\x01\x12\x15\n" +
@@ -4982,7 +5571,18 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\x1bQUEST_OFFER_STATE_AVAILABLE\x10\x01\x12\x1c\n" +
 	"\x18QUEST_OFFER_STATE_ACTIVE\x10\x02\x12\x1e\n" +
 	"\x1aQUEST_OFFER_STATE_FINISHED\x10\x03\x12&\n" +
-	"\"QUEST_OFFER_STATE_CONDITIONS_UNMET\x10\x042\xad\b\n" +
+	"\"QUEST_OFFER_STATE_CONDITIONS_UNMET\x10\x04*_\n" +
+	"\vQuestStatus\x12\x1c\n" +
+	"\x18QUEST_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13QUEST_STATUS_ACTIVE\x10\x01\x12\x19\n" +
+	"\x15QUEST_STATUS_FINISHED\x10\x02*\x9b\x01\n" +
+	"\vQuestChange\x12\x1c\n" +
+	"\x18QUEST_CHANGE_UNSPECIFIED\x10\x00\x12\x1b\n" +
+	"\x17QUEST_CHANGE_PROGRESSED\x10\x01\x12\x19\n" +
+	"\x15QUEST_CHANGE_ACCEPTED\x10\x02\x12\x1a\n" +
+	"\x16QUEST_CHANGE_HANDED_IN\x10\x03\x12\x1a\n" +
+	"\x16QUEST_CHANGE_ABANDONED\x10\x042\xca\n" +
+	"\n" +
 	"\fWorldService\x12R\n" +
 	"\aDeliver\x12!.internal.world.v1.DeliverRequest\x1a\".internal.world.v1.DeliverResponse0\x01\x12G\n" +
 	"\x04Join\x12\x1e.internal.world.v1.JoinRequest\x1a\x1f.internal.world.v1.JoinResponse\x12J\n" +
@@ -4996,7 +5596,10 @@ const file_internal_world_v1_world_proto_rawDesc = "" +
 	"\aUnequip\x12!.internal.world.v1.UnequipRequest\x1a\".internal.world.v1.UnequipResponse\x12\\\n" +
 	"\vSpendPoints\x12%.internal.world.v1.SpendPointsRequest\x1a&.internal.world.v1.SpendPointsResponse\x12\\\n" +
 	"\vResetPoints\x12%.internal.world.v1.ResetPointsRequest\x1a&.internal.world.v1.ResetPointsResponse\x12G\n" +
-	"\x04Talk\x12\x1e.internal.world.v1.TalkRequest\x1a\x1f.internal.world.v1.TalkResponseB Z\x1efinga/api/gen/world/v1;worldv1b\x06proto3"
+	"\x04Talk\x12\x1e.internal.world.v1.TalkRequest\x1a\x1f.internal.world.v1.TalkResponse\x12\\\n" +
+	"\vAcceptQuest\x12%.internal.world.v1.AcceptQuestRequest\x1a&.internal.world.v1.AcceptQuestResponse\x12_\n" +
+	"\fAbandonQuest\x12&.internal.world.v1.AbandonQuestRequest\x1a'.internal.world.v1.AbandonQuestResponse\x12\\\n" +
+	"\vHandInQuest\x12%.internal.world.v1.HandInQuestRequest\x1a&.internal.world.v1.HandInQuestResponseB Z\x1efinga/api/gen/world/v1;worldv1b\x06proto3"
 
 var (
 	file_internal_world_v1_world_proto_rawDescOnce sync.Once
@@ -5010,168 +5613,192 @@ func file_internal_world_v1_world_proto_rawDescGZIP() []byte {
 	return file_internal_world_v1_world_proto_rawDescData
 }
 
-var file_internal_world_v1_world_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_world_v1_world_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_internal_world_v1_world_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_internal_world_v1_world_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
 var file_internal_world_v1_world_proto_goTypes = []any{
-	(Reason)(0),                 // 0: internal.world.v1.Reason
-	(LootKind)(0),               // 1: internal.world.v1.LootKind
-	(QuestOfferState)(0),        // 2: internal.world.v1.QuestOfferState
-	(*Presence)(nil),            // 3: internal.world.v1.Presence
-	(*Keys)(nil),                // 4: internal.world.v1.Keys
-	(*Stats)(nil),               // 5: internal.world.v1.Stats
-	(*CharacterView)(nil),       // 6: internal.world.v1.CharacterView
-	(*StatSheet)(nil),           // 7: internal.world.v1.StatSheet
-	(*Points)(nil),              // 8: internal.world.v1.Points
-	(*DerivedStats)(nil),        // 9: internal.world.v1.DerivedStats
-	(*DeliverRequest)(nil),      // 10: internal.world.v1.DeliverRequest
-	(*DeliverResponse)(nil),     // 11: internal.world.v1.DeliverResponse
-	(*Frame)(nil),               // 12: internal.world.v1.Frame
-	(*Recipient)(nil),           // 13: internal.world.v1.Recipient
-	(*Detached)(nil),            // 14: internal.world.v1.Detached
-	(*Subscribed)(nil),          // 15: internal.world.v1.Subscribed
-	(*PlayerView)(nil),          // 16: internal.world.v1.PlayerView
-	(*MobView)(nil),             // 17: internal.world.v1.MobView
-	(*DropView)(nil),            // 18: internal.world.v1.DropView
-	(*Snapshot)(nil),            // 19: internal.world.v1.Snapshot
-	(*Delta)(nil),               // 20: internal.world.v1.Delta
-	(*Teleport)(nil),            // 21: internal.world.v1.Teleport
-	(*EntityRef)(nil),           // 22: internal.world.v1.EntityRef
-	(*Damage)(nil),              // 23: internal.world.v1.Damage
-	(*Died)(nil),                // 24: internal.world.v1.Died
-	(*Respawned)(nil),           // 25: internal.world.v1.Respawned
-	(*ExpGained)(nil),           // 26: internal.world.v1.ExpGained
-	(*LevelUp)(nil),             // 27: internal.world.v1.LevelUp
-	(*Chat)(nil),                // 28: internal.world.v1.Chat
-	(*InventoryChanged)(nil),    // 29: internal.world.v1.InventoryChanged
-	(*EquipSlot)(nil),           // 30: internal.world.v1.EquipSlot
-	(*StatsChanged)(nil),        // 31: internal.world.v1.StatsChanged
-	(*Slot)(nil),                // 32: internal.world.v1.Slot
-	(*Item)(nil),                // 33: internal.world.v1.Item
-	(*ItemStats)(nil),           // 34: internal.world.v1.ItemStats
-	(*Loot)(nil),                // 35: internal.world.v1.Loot
-	(*PickupFailed)(nil),        // 36: internal.world.v1.PickupFailed
-	(*JoinRequest)(nil),         // 37: internal.world.v1.JoinRequest
-	(*JoinResponse)(nil),        // 38: internal.world.v1.JoinResponse
-	(*LeaveRequest)(nil),        // 39: internal.world.v1.LeaveRequest
-	(*LeaveResponse)(nil),       // 40: internal.world.v1.LeaveResponse
-	(*InputRequest)(nil),        // 41: internal.world.v1.InputRequest
-	(*InputResponse)(nil),       // 42: internal.world.v1.InputResponse
-	(*AttackRequest)(nil),       // 43: internal.world.v1.AttackRequest
-	(*AttackResponse)(nil),      // 44: internal.world.v1.AttackResponse
-	(*PickUpRequest)(nil),       // 45: internal.world.v1.PickUpRequest
-	(*PickUpResponse)(nil),      // 46: internal.world.v1.PickUpResponse
-	(*EnterPortalRequest)(nil),  // 47: internal.world.v1.EnterPortalRequest
-	(*EnterPortalResponse)(nil), // 48: internal.world.v1.EnterPortalResponse
-	(*SayRequest)(nil),          // 49: internal.world.v1.SayRequest
-	(*SayResponse)(nil),         // 50: internal.world.v1.SayResponse
-	(*EquipRequest)(nil),        // 51: internal.world.v1.EquipRequest
-	(*EquipResponse)(nil),       // 52: internal.world.v1.EquipResponse
-	(*UnequipRequest)(nil),      // 53: internal.world.v1.UnequipRequest
-	(*UnequipResponse)(nil),     // 54: internal.world.v1.UnequipResponse
-	(*SpendPointsRequest)(nil),  // 55: internal.world.v1.SpendPointsRequest
-	(*SpendPointsResponse)(nil), // 56: internal.world.v1.SpendPointsResponse
-	(*ResetPointsRequest)(nil),  // 57: internal.world.v1.ResetPointsRequest
-	(*ResetPointsResponse)(nil), // 58: internal.world.v1.ResetPointsResponse
-	(*TalkRequest)(nil),         // 59: internal.world.v1.TalkRequest
-	(*TalkResponse)(nil),        // 60: internal.world.v1.TalkResponse
-	(*NpcDialog)(nil),           // 61: internal.world.v1.NpcDialog
-	(*QuestOffer)(nil),          // 62: internal.world.v1.QuestOffer
-	(*QuestConditions)(nil),     // 63: internal.world.v1.QuestConditions
-	(*QuestTurnIn)(nil),         // 64: internal.world.v1.QuestTurnIn
+	(Reason)(0),                  // 0: internal.world.v1.Reason
+	(LootKind)(0),                // 1: internal.world.v1.LootKind
+	(QuestOfferState)(0),         // 2: internal.world.v1.QuestOfferState
+	(QuestStatus)(0),             // 3: internal.world.v1.QuestStatus
+	(QuestChange)(0),             // 4: internal.world.v1.QuestChange
+	(*Presence)(nil),             // 5: internal.world.v1.Presence
+	(*Keys)(nil),                 // 6: internal.world.v1.Keys
+	(*Stats)(nil),                // 7: internal.world.v1.Stats
+	(*CharacterView)(nil),        // 8: internal.world.v1.CharacterView
+	(*StatSheet)(nil),            // 9: internal.world.v1.StatSheet
+	(*Points)(nil),               // 10: internal.world.v1.Points
+	(*DerivedStats)(nil),         // 11: internal.world.v1.DerivedStats
+	(*DeliverRequest)(nil),       // 12: internal.world.v1.DeliverRequest
+	(*DeliverResponse)(nil),      // 13: internal.world.v1.DeliverResponse
+	(*Frame)(nil),                // 14: internal.world.v1.Frame
+	(*Recipient)(nil),            // 15: internal.world.v1.Recipient
+	(*Detached)(nil),             // 16: internal.world.v1.Detached
+	(*Subscribed)(nil),           // 17: internal.world.v1.Subscribed
+	(*PlayerView)(nil),           // 18: internal.world.v1.PlayerView
+	(*MobView)(nil),              // 19: internal.world.v1.MobView
+	(*DropView)(nil),             // 20: internal.world.v1.DropView
+	(*Snapshot)(nil),             // 21: internal.world.v1.Snapshot
+	(*Delta)(nil),                // 22: internal.world.v1.Delta
+	(*Teleport)(nil),             // 23: internal.world.v1.Teleport
+	(*EntityRef)(nil),            // 24: internal.world.v1.EntityRef
+	(*Damage)(nil),               // 25: internal.world.v1.Damage
+	(*Died)(nil),                 // 26: internal.world.v1.Died
+	(*Respawned)(nil),            // 27: internal.world.v1.Respawned
+	(*ExpGained)(nil),            // 28: internal.world.v1.ExpGained
+	(*LevelUp)(nil),              // 29: internal.world.v1.LevelUp
+	(*Chat)(nil),                 // 30: internal.world.v1.Chat
+	(*InventoryChanged)(nil),     // 31: internal.world.v1.InventoryChanged
+	(*EquipSlot)(nil),            // 32: internal.world.v1.EquipSlot
+	(*StatsChanged)(nil),         // 33: internal.world.v1.StatsChanged
+	(*Slot)(nil),                 // 34: internal.world.v1.Slot
+	(*Item)(nil),                 // 35: internal.world.v1.Item
+	(*ItemStats)(nil),            // 36: internal.world.v1.ItemStats
+	(*Loot)(nil),                 // 37: internal.world.v1.Loot
+	(*PickupFailed)(nil),         // 38: internal.world.v1.PickupFailed
+	(*JoinRequest)(nil),          // 39: internal.world.v1.JoinRequest
+	(*JoinResponse)(nil),         // 40: internal.world.v1.JoinResponse
+	(*LeaveRequest)(nil),         // 41: internal.world.v1.LeaveRequest
+	(*LeaveResponse)(nil),        // 42: internal.world.v1.LeaveResponse
+	(*InputRequest)(nil),         // 43: internal.world.v1.InputRequest
+	(*InputResponse)(nil),        // 44: internal.world.v1.InputResponse
+	(*AttackRequest)(nil),        // 45: internal.world.v1.AttackRequest
+	(*AttackResponse)(nil),       // 46: internal.world.v1.AttackResponse
+	(*PickUpRequest)(nil),        // 47: internal.world.v1.PickUpRequest
+	(*PickUpResponse)(nil),       // 48: internal.world.v1.PickUpResponse
+	(*EnterPortalRequest)(nil),   // 49: internal.world.v1.EnterPortalRequest
+	(*EnterPortalResponse)(nil),  // 50: internal.world.v1.EnterPortalResponse
+	(*SayRequest)(nil),           // 51: internal.world.v1.SayRequest
+	(*SayResponse)(nil),          // 52: internal.world.v1.SayResponse
+	(*EquipRequest)(nil),         // 53: internal.world.v1.EquipRequest
+	(*EquipResponse)(nil),        // 54: internal.world.v1.EquipResponse
+	(*UnequipRequest)(nil),       // 55: internal.world.v1.UnequipRequest
+	(*UnequipResponse)(nil),      // 56: internal.world.v1.UnequipResponse
+	(*SpendPointsRequest)(nil),   // 57: internal.world.v1.SpendPointsRequest
+	(*SpendPointsResponse)(nil),  // 58: internal.world.v1.SpendPointsResponse
+	(*ResetPointsRequest)(nil),   // 59: internal.world.v1.ResetPointsRequest
+	(*ResetPointsResponse)(nil),  // 60: internal.world.v1.ResetPointsResponse
+	(*TalkRequest)(nil),          // 61: internal.world.v1.TalkRequest
+	(*TalkResponse)(nil),         // 62: internal.world.v1.TalkResponse
+	(*NpcDialog)(nil),            // 63: internal.world.v1.NpcDialog
+	(*QuestOffer)(nil),           // 64: internal.world.v1.QuestOffer
+	(*QuestConditions)(nil),      // 65: internal.world.v1.QuestConditions
+	(*QuestTurnIn)(nil),          // 66: internal.world.v1.QuestTurnIn
+	(*AcceptQuestRequest)(nil),   // 67: internal.world.v1.AcceptQuestRequest
+	(*AcceptQuestResponse)(nil),  // 68: internal.world.v1.AcceptQuestResponse
+	(*AbandonQuestRequest)(nil),  // 69: internal.world.v1.AbandonQuestRequest
+	(*AbandonQuestResponse)(nil), // 70: internal.world.v1.AbandonQuestResponse
+	(*HandInQuestRequest)(nil),   // 71: internal.world.v1.HandInQuestRequest
+	(*HandInQuestResponse)(nil),  // 72: internal.world.v1.HandInQuestResponse
+	(*QuestState)(nil),           // 73: internal.world.v1.QuestState
+	(*QuestChanged)(nil),         // 74: internal.world.v1.QuestChanged
 }
 var file_internal_world_v1_world_proto_depIdxs = []int32{
-	5,  // 0: internal.world.v1.CharacterView.stats:type_name -> internal.world.v1.Stats
-	7,  // 1: internal.world.v1.CharacterView.sheet:type_name -> internal.world.v1.StatSheet
-	5,  // 2: internal.world.v1.StatSheet.primary:type_name -> internal.world.v1.Stats
-	5,  // 3: internal.world.v1.StatSheet.primary_worn:type_name -> internal.world.v1.Stats
-	9,  // 4: internal.world.v1.StatSheet.derived:type_name -> internal.world.v1.DerivedStats
-	9,  // 5: internal.world.v1.StatSheet.derived_worn:type_name -> internal.world.v1.DerivedStats
-	8,  // 6: internal.world.v1.StatSheet.points:type_name -> internal.world.v1.Points
-	5,  // 7: internal.world.v1.Points.spent:type_name -> internal.world.v1.Stats
-	15, // 8: internal.world.v1.DeliverResponse.subscribed:type_name -> internal.world.v1.Subscribed
-	19, // 9: internal.world.v1.DeliverResponse.snapshot:type_name -> internal.world.v1.Snapshot
-	20, // 10: internal.world.v1.DeliverResponse.delta:type_name -> internal.world.v1.Delta
-	21, // 11: internal.world.v1.DeliverResponse.teleport:type_name -> internal.world.v1.Teleport
-	23, // 12: internal.world.v1.DeliverResponse.damage:type_name -> internal.world.v1.Damage
-	24, // 13: internal.world.v1.DeliverResponse.died:type_name -> internal.world.v1.Died
-	25, // 14: internal.world.v1.DeliverResponse.respawned:type_name -> internal.world.v1.Respawned
-	26, // 15: internal.world.v1.DeliverResponse.exp_gained:type_name -> internal.world.v1.ExpGained
-	27, // 16: internal.world.v1.DeliverResponse.level_up:type_name -> internal.world.v1.LevelUp
-	28, // 17: internal.world.v1.DeliverResponse.chat:type_name -> internal.world.v1.Chat
-	29, // 18: internal.world.v1.DeliverResponse.inventory_changed:type_name -> internal.world.v1.InventoryChanged
-	36, // 19: internal.world.v1.DeliverResponse.pickup_failed:type_name -> internal.world.v1.PickupFailed
-	14, // 20: internal.world.v1.DeliverResponse.detached:type_name -> internal.world.v1.Detached
-	12, // 21: internal.world.v1.DeliverResponse.frame:type_name -> internal.world.v1.Frame
-	31, // 22: internal.world.v1.DeliverResponse.stats_changed:type_name -> internal.world.v1.StatsChanged
-	35, // 23: internal.world.v1.DeliverResponse.loot:type_name -> internal.world.v1.Loot
-	61, // 24: internal.world.v1.DeliverResponse.npc_dialog:type_name -> internal.world.v1.NpcDialog
-	20, // 25: internal.world.v1.Frame.delta:type_name -> internal.world.v1.Delta
-	13, // 26: internal.world.v1.Frame.recipients:type_name -> internal.world.v1.Recipient
-	16, // 27: internal.world.v1.Snapshot.players:type_name -> internal.world.v1.PlayerView
-	17, // 28: internal.world.v1.Snapshot.mobs:type_name -> internal.world.v1.MobView
-	18, // 29: internal.world.v1.Snapshot.drops:type_name -> internal.world.v1.DropView
-	16, // 30: internal.world.v1.Delta.players:type_name -> internal.world.v1.PlayerView
-	17, // 31: internal.world.v1.Delta.mobs:type_name -> internal.world.v1.MobView
-	18, // 32: internal.world.v1.Delta.drops:type_name -> internal.world.v1.DropView
-	22, // 33: internal.world.v1.Damage.source:type_name -> internal.world.v1.EntityRef
-	22, // 34: internal.world.v1.Damage.target:type_name -> internal.world.v1.EntityRef
-	6,  // 35: internal.world.v1.LevelUp.character:type_name -> internal.world.v1.CharacterView
-	32, // 36: internal.world.v1.InventoryChanged.slots:type_name -> internal.world.v1.Slot
-	30, // 37: internal.world.v1.InventoryChanged.equipment:type_name -> internal.world.v1.EquipSlot
-	33, // 38: internal.world.v1.EquipSlot.item:type_name -> internal.world.v1.Item
-	7,  // 39: internal.world.v1.StatsChanged.sheet:type_name -> internal.world.v1.StatSheet
-	33, // 40: internal.world.v1.Slot.item:type_name -> internal.world.v1.Item
-	34, // 41: internal.world.v1.Item.stats:type_name -> internal.world.v1.ItemStats
-	1,  // 42: internal.world.v1.Loot.kind:type_name -> internal.world.v1.LootKind
-	6,  // 43: internal.world.v1.JoinResponse.character:type_name -> internal.world.v1.CharacterView
-	3,  // 44: internal.world.v1.LeaveRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 45: internal.world.v1.InputRequest.presence:type_name -> internal.world.v1.Presence
-	4,  // 46: internal.world.v1.InputRequest.keys:type_name -> internal.world.v1.Keys
-	3,  // 47: internal.world.v1.AttackRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 48: internal.world.v1.PickUpRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 49: internal.world.v1.EnterPortalRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 50: internal.world.v1.SayRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 51: internal.world.v1.EquipRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 52: internal.world.v1.UnequipRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 53: internal.world.v1.SpendPointsRequest.presence:type_name -> internal.world.v1.Presence
-	5,  // 54: internal.world.v1.SpendPointsRequest.points:type_name -> internal.world.v1.Stats
-	3,  // 55: internal.world.v1.ResetPointsRequest.presence:type_name -> internal.world.v1.Presence
-	3,  // 56: internal.world.v1.TalkRequest.presence:type_name -> internal.world.v1.Presence
-	62, // 57: internal.world.v1.NpcDialog.gives:type_name -> internal.world.v1.QuestOffer
-	64, // 58: internal.world.v1.NpcDialog.takes:type_name -> internal.world.v1.QuestTurnIn
-	2,  // 59: internal.world.v1.QuestOffer.state:type_name -> internal.world.v1.QuestOfferState
-	63, // 60: internal.world.v1.QuestOffer.unmet:type_name -> internal.world.v1.QuestConditions
-	10, // 61: internal.world.v1.WorldService.Deliver:input_type -> internal.world.v1.DeliverRequest
-	37, // 62: internal.world.v1.WorldService.Join:input_type -> internal.world.v1.JoinRequest
-	39, // 63: internal.world.v1.WorldService.Leave:input_type -> internal.world.v1.LeaveRequest
-	41, // 64: internal.world.v1.WorldService.Input:input_type -> internal.world.v1.InputRequest
-	43, // 65: internal.world.v1.WorldService.Attack:input_type -> internal.world.v1.AttackRequest
-	45, // 66: internal.world.v1.WorldService.PickUp:input_type -> internal.world.v1.PickUpRequest
-	47, // 67: internal.world.v1.WorldService.EnterPortal:input_type -> internal.world.v1.EnterPortalRequest
-	49, // 68: internal.world.v1.WorldService.Say:input_type -> internal.world.v1.SayRequest
-	51, // 69: internal.world.v1.WorldService.Equip:input_type -> internal.world.v1.EquipRequest
-	53, // 70: internal.world.v1.WorldService.Unequip:input_type -> internal.world.v1.UnequipRequest
-	55, // 71: internal.world.v1.WorldService.SpendPoints:input_type -> internal.world.v1.SpendPointsRequest
-	57, // 72: internal.world.v1.WorldService.ResetPoints:input_type -> internal.world.v1.ResetPointsRequest
-	59, // 73: internal.world.v1.WorldService.Talk:input_type -> internal.world.v1.TalkRequest
-	11, // 74: internal.world.v1.WorldService.Deliver:output_type -> internal.world.v1.DeliverResponse
-	38, // 75: internal.world.v1.WorldService.Join:output_type -> internal.world.v1.JoinResponse
-	40, // 76: internal.world.v1.WorldService.Leave:output_type -> internal.world.v1.LeaveResponse
-	42, // 77: internal.world.v1.WorldService.Input:output_type -> internal.world.v1.InputResponse
-	44, // 78: internal.world.v1.WorldService.Attack:output_type -> internal.world.v1.AttackResponse
-	46, // 79: internal.world.v1.WorldService.PickUp:output_type -> internal.world.v1.PickUpResponse
-	48, // 80: internal.world.v1.WorldService.EnterPortal:output_type -> internal.world.v1.EnterPortalResponse
-	50, // 81: internal.world.v1.WorldService.Say:output_type -> internal.world.v1.SayResponse
-	52, // 82: internal.world.v1.WorldService.Equip:output_type -> internal.world.v1.EquipResponse
-	54, // 83: internal.world.v1.WorldService.Unequip:output_type -> internal.world.v1.UnequipResponse
-	56, // 84: internal.world.v1.WorldService.SpendPoints:output_type -> internal.world.v1.SpendPointsResponse
-	58, // 85: internal.world.v1.WorldService.ResetPoints:output_type -> internal.world.v1.ResetPointsResponse
-	60, // 86: internal.world.v1.WorldService.Talk:output_type -> internal.world.v1.TalkResponse
-	74, // [74:87] is the sub-list for method output_type
-	61, // [61:74] is the sub-list for method input_type
-	61, // [61:61] is the sub-list for extension type_name
-	61, // [61:61] is the sub-list for extension extendee
-	0,  // [0:61] is the sub-list for field type_name
+	7,  // 0: internal.world.v1.CharacterView.stats:type_name -> internal.world.v1.Stats
+	9,  // 1: internal.world.v1.CharacterView.sheet:type_name -> internal.world.v1.StatSheet
+	7,  // 2: internal.world.v1.StatSheet.primary:type_name -> internal.world.v1.Stats
+	7,  // 3: internal.world.v1.StatSheet.primary_worn:type_name -> internal.world.v1.Stats
+	11, // 4: internal.world.v1.StatSheet.derived:type_name -> internal.world.v1.DerivedStats
+	11, // 5: internal.world.v1.StatSheet.derived_worn:type_name -> internal.world.v1.DerivedStats
+	10, // 6: internal.world.v1.StatSheet.points:type_name -> internal.world.v1.Points
+	7,  // 7: internal.world.v1.Points.spent:type_name -> internal.world.v1.Stats
+	17, // 8: internal.world.v1.DeliverResponse.subscribed:type_name -> internal.world.v1.Subscribed
+	21, // 9: internal.world.v1.DeliverResponse.snapshot:type_name -> internal.world.v1.Snapshot
+	22, // 10: internal.world.v1.DeliverResponse.delta:type_name -> internal.world.v1.Delta
+	23, // 11: internal.world.v1.DeliverResponse.teleport:type_name -> internal.world.v1.Teleport
+	25, // 12: internal.world.v1.DeliverResponse.damage:type_name -> internal.world.v1.Damage
+	26, // 13: internal.world.v1.DeliverResponse.died:type_name -> internal.world.v1.Died
+	27, // 14: internal.world.v1.DeliverResponse.respawned:type_name -> internal.world.v1.Respawned
+	28, // 15: internal.world.v1.DeliverResponse.exp_gained:type_name -> internal.world.v1.ExpGained
+	29, // 16: internal.world.v1.DeliverResponse.level_up:type_name -> internal.world.v1.LevelUp
+	30, // 17: internal.world.v1.DeliverResponse.chat:type_name -> internal.world.v1.Chat
+	31, // 18: internal.world.v1.DeliverResponse.inventory_changed:type_name -> internal.world.v1.InventoryChanged
+	38, // 19: internal.world.v1.DeliverResponse.pickup_failed:type_name -> internal.world.v1.PickupFailed
+	16, // 20: internal.world.v1.DeliverResponse.detached:type_name -> internal.world.v1.Detached
+	14, // 21: internal.world.v1.DeliverResponse.frame:type_name -> internal.world.v1.Frame
+	33, // 22: internal.world.v1.DeliverResponse.stats_changed:type_name -> internal.world.v1.StatsChanged
+	37, // 23: internal.world.v1.DeliverResponse.loot:type_name -> internal.world.v1.Loot
+	63, // 24: internal.world.v1.DeliverResponse.npc_dialog:type_name -> internal.world.v1.NpcDialog
+	74, // 25: internal.world.v1.DeliverResponse.quest_changed:type_name -> internal.world.v1.QuestChanged
+	22, // 26: internal.world.v1.Frame.delta:type_name -> internal.world.v1.Delta
+	15, // 27: internal.world.v1.Frame.recipients:type_name -> internal.world.v1.Recipient
+	18, // 28: internal.world.v1.Snapshot.players:type_name -> internal.world.v1.PlayerView
+	19, // 29: internal.world.v1.Snapshot.mobs:type_name -> internal.world.v1.MobView
+	20, // 30: internal.world.v1.Snapshot.drops:type_name -> internal.world.v1.DropView
+	18, // 31: internal.world.v1.Delta.players:type_name -> internal.world.v1.PlayerView
+	19, // 32: internal.world.v1.Delta.mobs:type_name -> internal.world.v1.MobView
+	20, // 33: internal.world.v1.Delta.drops:type_name -> internal.world.v1.DropView
+	24, // 34: internal.world.v1.Damage.source:type_name -> internal.world.v1.EntityRef
+	24, // 35: internal.world.v1.Damage.target:type_name -> internal.world.v1.EntityRef
+	8,  // 36: internal.world.v1.LevelUp.character:type_name -> internal.world.v1.CharacterView
+	34, // 37: internal.world.v1.InventoryChanged.slots:type_name -> internal.world.v1.Slot
+	32, // 38: internal.world.v1.InventoryChanged.equipment:type_name -> internal.world.v1.EquipSlot
+	35, // 39: internal.world.v1.EquipSlot.item:type_name -> internal.world.v1.Item
+	9,  // 40: internal.world.v1.StatsChanged.sheet:type_name -> internal.world.v1.StatSheet
+	35, // 41: internal.world.v1.Slot.item:type_name -> internal.world.v1.Item
+	36, // 42: internal.world.v1.Item.stats:type_name -> internal.world.v1.ItemStats
+	1,  // 43: internal.world.v1.Loot.kind:type_name -> internal.world.v1.LootKind
+	8,  // 44: internal.world.v1.JoinResponse.character:type_name -> internal.world.v1.CharacterView
+	73, // 45: internal.world.v1.JoinResponse.quests:type_name -> internal.world.v1.QuestState
+	5,  // 46: internal.world.v1.LeaveRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 47: internal.world.v1.InputRequest.presence:type_name -> internal.world.v1.Presence
+	6,  // 48: internal.world.v1.InputRequest.keys:type_name -> internal.world.v1.Keys
+	5,  // 49: internal.world.v1.AttackRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 50: internal.world.v1.PickUpRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 51: internal.world.v1.EnterPortalRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 52: internal.world.v1.SayRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 53: internal.world.v1.EquipRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 54: internal.world.v1.UnequipRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 55: internal.world.v1.SpendPointsRequest.presence:type_name -> internal.world.v1.Presence
+	7,  // 56: internal.world.v1.SpendPointsRequest.points:type_name -> internal.world.v1.Stats
+	5,  // 57: internal.world.v1.ResetPointsRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 58: internal.world.v1.TalkRequest.presence:type_name -> internal.world.v1.Presence
+	64, // 59: internal.world.v1.NpcDialog.gives:type_name -> internal.world.v1.QuestOffer
+	66, // 60: internal.world.v1.NpcDialog.takes:type_name -> internal.world.v1.QuestTurnIn
+	2,  // 61: internal.world.v1.QuestOffer.state:type_name -> internal.world.v1.QuestOfferState
+	65, // 62: internal.world.v1.QuestOffer.unmet:type_name -> internal.world.v1.QuestConditions
+	5,  // 63: internal.world.v1.AcceptQuestRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 64: internal.world.v1.AbandonQuestRequest.presence:type_name -> internal.world.v1.Presence
+	5,  // 65: internal.world.v1.HandInQuestRequest.presence:type_name -> internal.world.v1.Presence
+	3,  // 66: internal.world.v1.QuestState.status:type_name -> internal.world.v1.QuestStatus
+	4,  // 67: internal.world.v1.QuestChanged.change:type_name -> internal.world.v1.QuestChange
+	73, // 68: internal.world.v1.QuestChanged.quest:type_name -> internal.world.v1.QuestState
+	12, // 69: internal.world.v1.WorldService.Deliver:input_type -> internal.world.v1.DeliverRequest
+	39, // 70: internal.world.v1.WorldService.Join:input_type -> internal.world.v1.JoinRequest
+	41, // 71: internal.world.v1.WorldService.Leave:input_type -> internal.world.v1.LeaveRequest
+	43, // 72: internal.world.v1.WorldService.Input:input_type -> internal.world.v1.InputRequest
+	45, // 73: internal.world.v1.WorldService.Attack:input_type -> internal.world.v1.AttackRequest
+	47, // 74: internal.world.v1.WorldService.PickUp:input_type -> internal.world.v1.PickUpRequest
+	49, // 75: internal.world.v1.WorldService.EnterPortal:input_type -> internal.world.v1.EnterPortalRequest
+	51, // 76: internal.world.v1.WorldService.Say:input_type -> internal.world.v1.SayRequest
+	53, // 77: internal.world.v1.WorldService.Equip:input_type -> internal.world.v1.EquipRequest
+	55, // 78: internal.world.v1.WorldService.Unequip:input_type -> internal.world.v1.UnequipRequest
+	57, // 79: internal.world.v1.WorldService.SpendPoints:input_type -> internal.world.v1.SpendPointsRequest
+	59, // 80: internal.world.v1.WorldService.ResetPoints:input_type -> internal.world.v1.ResetPointsRequest
+	61, // 81: internal.world.v1.WorldService.Talk:input_type -> internal.world.v1.TalkRequest
+	67, // 82: internal.world.v1.WorldService.AcceptQuest:input_type -> internal.world.v1.AcceptQuestRequest
+	69, // 83: internal.world.v1.WorldService.AbandonQuest:input_type -> internal.world.v1.AbandonQuestRequest
+	71, // 84: internal.world.v1.WorldService.HandInQuest:input_type -> internal.world.v1.HandInQuestRequest
+	13, // 85: internal.world.v1.WorldService.Deliver:output_type -> internal.world.v1.DeliverResponse
+	40, // 86: internal.world.v1.WorldService.Join:output_type -> internal.world.v1.JoinResponse
+	42, // 87: internal.world.v1.WorldService.Leave:output_type -> internal.world.v1.LeaveResponse
+	44, // 88: internal.world.v1.WorldService.Input:output_type -> internal.world.v1.InputResponse
+	46, // 89: internal.world.v1.WorldService.Attack:output_type -> internal.world.v1.AttackResponse
+	48, // 90: internal.world.v1.WorldService.PickUp:output_type -> internal.world.v1.PickUpResponse
+	50, // 91: internal.world.v1.WorldService.EnterPortal:output_type -> internal.world.v1.EnterPortalResponse
+	52, // 92: internal.world.v1.WorldService.Say:output_type -> internal.world.v1.SayResponse
+	54, // 93: internal.world.v1.WorldService.Equip:output_type -> internal.world.v1.EquipResponse
+	56, // 94: internal.world.v1.WorldService.Unequip:output_type -> internal.world.v1.UnequipResponse
+	58, // 95: internal.world.v1.WorldService.SpendPoints:output_type -> internal.world.v1.SpendPointsResponse
+	60, // 96: internal.world.v1.WorldService.ResetPoints:output_type -> internal.world.v1.ResetPointsResponse
+	62, // 97: internal.world.v1.WorldService.Talk:output_type -> internal.world.v1.TalkResponse
+	68, // 98: internal.world.v1.WorldService.AcceptQuest:output_type -> internal.world.v1.AcceptQuestResponse
+	70, // 99: internal.world.v1.WorldService.AbandonQuest:output_type -> internal.world.v1.AbandonQuestResponse
+	72, // 100: internal.world.v1.WorldService.HandInQuest:output_type -> internal.world.v1.HandInQuestResponse
+	85, // [85:101] is the sub-list for method output_type
+	69, // [69:85] is the sub-list for method input_type
+	69, // [69:69] is the sub-list for extension type_name
+	69, // [69:69] is the sub-list for extension extendee
+	0,  // [0:69] is the sub-list for field type_name
 }
 
 func init() { file_internal_world_v1_world_proto_init() }
@@ -5197,6 +5824,7 @@ func file_internal_world_v1_world_proto_init() {
 		(*DeliverResponse_StatsChanged)(nil),
 		(*DeliverResponse_Loot)(nil),
 		(*DeliverResponse_NpcDialog)(nil),
+		(*DeliverResponse_QuestChanged)(nil),
 	}
 	file_internal_world_v1_world_proto_msgTypes[19].OneofWrappers = []any{
 		(*EntityRef_CharacterId)(nil),
@@ -5208,8 +5836,8 @@ func file_internal_world_v1_world_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_world_v1_world_proto_rawDesc), len(file_internal_world_v1_world_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   62,
+			NumEnums:      5,
+			NumMessages:   70,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

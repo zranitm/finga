@@ -59,6 +59,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
+	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
@@ -83,7 +84,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	return model.View{
 		ID: c.ID, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Stats: stats.Own,
 		HP: min(c.HP, derived.MaxHP), MaxHP: derived.MaxHP, MP: min(c.MP, derived.MaxMP), MaxMP: derived.MaxMP,
-		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: stats.Sheet, JoinSeq: at.gen,
+		MapID: c.MapID, X: c.X, Y: c.Y, Sheet: stats.Sheet, JoinSeq: at.gen, Quests: log,
 	}, nil
 }
 

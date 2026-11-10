@@ -245,6 +245,31 @@
     "message": "your points changed; try again"
   },
   {
+    "code": "quest_already_active",
+    "status": 409,
+    "message": "you have that quest already"
+  },
+  {
+    "code": "quest_already_finished",
+    "status": 409,
+    "message": "you've finished that quest"
+  },
+  {
+    "code": "quest_conditions_unmet",
+    "status": 409,
+    "message": "you don't meet that quest's conditions yet"
+  },
+  {
+    "code": "quest_not_ready",
+    "status": 409,
+    "message": "that quest isn't finished yet"
+  },
+  {
+    "code": "quest_unavailable",
+    "status": 409,
+    "message": "that quest isn't offered here"
+  },
+  {
     "code": "rate_limited",
     "status": 429,
     "message": "slow down"
@@ -278,6 +303,11 @@
     "code": "target_not_on_map",
     "status": 404,
     "message": "that character is not on your map"
+  },
+  {
+    "code": "too_many_quests",
+    "status": 409,
+    "message": "you have 20 quests already"
   },
   {
     "code": "unauthenticated",

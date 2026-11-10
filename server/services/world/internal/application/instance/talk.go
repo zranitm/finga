@@ -39,6 +39,7 @@ func (i *Instance) talk(m talkMsg) {
 		m.done <- model.ErrNpcOutOfReach
 		return
 	}
+	i.progress(p, gamedata.TalkTo, npc.ID)
 	d := quests.Dialog(i.data, npc, i.questsOf(p))
 	d.Tick = i.tick
 	p.private = append(p.private, d)

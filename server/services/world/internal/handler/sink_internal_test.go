@@ -188,3 +188,29 @@ func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
+
+func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
+	for _, c := range []struct {
+		in   model.QuestChanged
+		want *worldv1.QuestChanged
+	}{
+		{model.QuestChanged{Tick: 3, ID: "a", Change: model.QuestProgressed, Quest: model.Quest{Status: model.QuestActive, Progress: []int{4, 0}, TimesFinished: 1}},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED, Quest: &worldv1.QuestState{QuestId: "a", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4, 0}, TimesFinished: 1}}},
+		{model.QuestChanged{Tick: 3, ID: "b", Change: model.QuestHandedIn, Quest: model.Quest{Status: model.QuestFinished, TimesFinished: 2}},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_HANDED_IN, Quest: &worldv1.QuestState{QuestId: "b", Status: worldv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}}},
+		{model.QuestChanged{Tick: 3, ID: "c", Change: model.QuestAbandoned},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &worldv1.QuestState{QuestId: "c"}}},
+		{model.QuestChanged{Tick: 3, ID: "d", Change: model.QuestAccepted, Quest: model.Quest{Status: model.QuestActive, Progress: []int{0}}},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_ACCEPTED, Quest: &worldv1.QuestState{QuestId: "d", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{0}}}},
+	} {
+		sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+		s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+		if !s.Send(c.in) {
+			t.Fatal("the stream refused the change")
+		}
+		want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: c.want}}
+		if got := <-sub.C(); !proto.Equal(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}

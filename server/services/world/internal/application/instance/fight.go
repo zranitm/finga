@@ -86,6 +86,7 @@ func (i *Instance) resolveAttacks() {
 		if k := blow.Killed; k != nil {
 			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y))
 			i.shareExp(p, k.Mob.Exp)
+			i.countKill(p, k.Mob.ID)
 		}
 	}
 }
@@ -146,8 +147,8 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 	var left []kernel.CharacterID
 	for _, id := range slices.Clone(i.order) {
 		p := i.players[id]
-		if !p.dead || p.deadUntil > i.tick || p.equipping > 0 && i.m.Town != i.m.ID {
-			continue // an equip in flight settles here before the respawn hands the player off
+		if !p.dead || p.deadUntil > i.tick || p.itemCalls > 0 && i.m.Town != i.m.ID {
+			continue // an item call in flight settles here before the respawn hands the player off
 		}
 		p.dead = false
 		p.HP = RespawnHP(p.derived.MaxHP)

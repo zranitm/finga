@@ -127,7 +127,7 @@ func rollFrom(s *itemv1.ItemStats) *progression.ItemStats {
 	}
 }
 
-// Equipment adapts the item service to instance.Equipment and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
+// Equipment adapts the item service to instance.Equipment, instance.HandIns and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
 type Equipment struct{ c itemv1.ItemServiceClient }
 
 // NewEquipment adapts the item client.
@@ -158,6 +158,26 @@ func (e Equipment) Unequip(ctx context.Context, c model.UnequipCall) (model.Equi
 		return model.Equipped{}, ruleOr(err)
 	}
 	return equipped(res.GetChanged(), res.GetEquipment(), res.GetWorn(), res.GetRevision())
+}
+
+// HandIn takes what a quest asks to collect and gives its item rewards, under the hand-in's key.
+func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
+	req := &itemv1.HandInRequest{Actor: &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()}, IdempotencyKey: c.Key, QuestId: c.Quest}
+	for _, t := range c.Take {
+		req.Take = append(req.Take, &itemv1.HandInTake{TemplateId: t.Item, Quantity: int32(t.Quantity)}) //nolint:gosec // quantities are small
+	}
+	for _, g := range c.Give {
+		req.Give = append(req.Give, &itemv1.HandInGive{TemplateId: g.Template, Quantity: int32(g.Quantity), Stats: rollOf(g.Stats)}) //nolint:gosec // quantities are small
+	}
+	res, err := e.c.HandIn(ctx, req)
+	if err != nil {
+		return model.Inventory{}, ruleOr(err)
+	}
+	slots, err := changedSlots(res.GetChanged())
+	if err != nil {
+		return model.Inventory{}, err
+	}
+	return model.Inventory{Revision: res.GetRevision(), Slots: slots}, nil
 }
 
 // Worn is what the character wears, at the inventory's revision.

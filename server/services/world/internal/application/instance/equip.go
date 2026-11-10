@@ -78,14 +78,14 @@ func (i *Instance) startEquip(m equipMsg) {
 		m.done <- fmt.Errorf("%w: every item-call worker is busy", transient.ErrUnavailable)
 		return
 	}
-	p.equipping++
+	p.itemCalls++
 }
 
 // settleEquip applies a result newer than what the player wears, then answers the caller.
 func (i *Instance) settleEquip(m equippedMsg) {
 	p, ok := i.players[m.id]
 	if ok && p.Connection == m.conn {
-		p.equipping--
+		p.itemCalls--
 	}
 	if ok && m.err == nil && m.result.Worn.Revision > p.Worn.Revision {
 		i.putOn(p, m.result)

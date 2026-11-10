@@ -19,6 +19,12 @@ var (
 	ErrClassUnavailable = errors.New("world: class not available")
 	ErrCharacterDead    = errors.New("world: a dead character can't do that")
 	ErrNpcOutOfReach    = errors.New("world: the NPC isn't on the map, or is out of reach")
+	ErrQuestUnavailable = errors.New("world: the NPC doesn't give, or take back, that quest")
+	ErrQuestUnmet       = errors.New("world: the character doesn't meet the quest's conditions")
+	ErrQuestActive      = errors.New("world: the quest is already active")
+	ErrQuestFinished    = errors.New("world: the one-time quest is already finished")
+	ErrTooManyQuests    = errors.New("world: the most active quests are already taken")
+	ErrQuestNotReady    = errors.New("world: the quest isn't active, or a kill, talk or level objective is left")
 	ErrPointsChanged    = errors.New("world: the unspent points are not the count expected")
 	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
 	ErrNoFreeReset      = errors.New("world: the free reset is used")
@@ -102,6 +108,7 @@ type View struct {
 	Sheet Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
+	Quests  Quests // a copy of the log the player joined with
 }
 
 // PlayerView is a player as everyone on the map sees it.

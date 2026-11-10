@@ -69,6 +69,21 @@ func (w *World) Talk(ctx context.Context, id kernel.CharacterID, conn, npc strin
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Talk(ctx, id, conn, npc) })
 }
 
+// AcceptQuest takes a quest the NPC within reach gives, and returns once it is in the log.
+func (w *World) AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.AcceptQuest(ctx, id, conn, npc, quest) })
+}
+
+// AbandonQuest drops an active quest and its progress.
+func (w *World) AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.AbandonQuest(ctx, id, conn, quest) })
+}
+
+// HandInQuest hands a ready quest in to the NPC within reach, and returns once the item service's answer applies.
+func (w *World) HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.HandInQuest(ctx, id, conn, npc, quest) })
+}
+
 // wait runs a command whose caller waits for its outcome, so one it can't take is unavailable, for the caller to retry.
 func (w *World) wait(id kernel.CharacterID, conn string, run func(*instance.Instance) error) error {
 	at, ok := w.presences.at(id, conn)

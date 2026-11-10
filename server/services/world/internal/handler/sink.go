@@ -69,8 +69,31 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}}
 	case model.NpcDialog:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: npcDialog(ev)}}
+	case model.QuestChanged:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{Change: questChanges[ev.Change], Quest: questState(ev.ID, ev.Quest)}}}
 	}
 	return nil
+}
+
+var questChanges = map[model.QuestChange]worldv1.QuestChange{
+	model.QuestProgressed: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED,
+	model.QuestAccepted:   worldv1.QuestChange_QUEST_CHANGE_ACCEPTED,
+	model.QuestHandedIn:   worldv1.QuestChange_QUEST_CHANGE_HANDED_IN,
+	model.QuestAbandoned:  worldv1.QuestChange_QUEST_CHANGE_ABANDONED,
+}
+
+var questStatuses = map[model.QuestStatus]worldv1.QuestStatus{
+	model.QuestActive:   worldv1.QuestStatus_QUEST_STATUS_ACTIVE,
+	model.QuestFinished: worldv1.QuestStatus_QUEST_STATUS_FINISHED,
+}
+
+// questState is one quest of a log; a zero quest, one that left the log, has no status.
+func questState(id string, q model.Quest) *worldv1.QuestState {
+	progress := make([]int32, len(q.Progress))
+	for k, n := range q.Progress {
+		progress[k] = int32(n) //nolint:gosec // counts are small
+	}
+	return &worldv1.QuestState{QuestId: id, Status: questStatuses[q.Status], Progress: progress, TimesFinished: int32(q.TimesFinished)} //nolint:gosec // counts are small
 }
 
 var offerStates = map[model.OfferState]worldv1.QuestOfferState{

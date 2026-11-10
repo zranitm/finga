@@ -4,7 +4,9 @@ import (
 	"maps"
 	"slices"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 )
 
 // QuestStatus is where a character stands with a quest.
@@ -76,3 +78,41 @@ type NpcDialog struct {
 }
 
 func (NpcDialog) event() {}
+
+// QuestChange is what happened to a quest of the log, for the combat channel's line.
+type QuestChange uint8
+
+// The quest changes, least telling first: when one tick holds several, the player hears the last of them in this order.
+const (
+	QuestProgressed QuestChange = iota + 1
+	QuestAccepted
+	QuestHandedIn
+	QuestAbandoned
+)
+
+// QuestChanged is one quest of the player's log after a tick: Quest.Status is 0 when it left the log.
+type QuestChanged struct {
+	Tick   uint64
+	ID     string
+	Change QuestChange
+	Quest  Quest
+}
+
+func (QuestChanged) event() {}
+
+// HandInCall takes what a quest asks to collect and gives its item rewards, under a key the world derives from the character, the quest and the completion.
+type HandInCall struct {
+	Account   kernel.AccountID
+	Character kernel.CharacterID
+	Key       string
+	Quest     string
+	Take      []gamedata.Grant
+	Give      []Reward
+}
+
+// Reward is one item line a hand-in gives; equipment comes one per line, with its roll.
+type Reward struct {
+	Template string
+	Quantity int
+	Stats    *progression.ItemStats
+}

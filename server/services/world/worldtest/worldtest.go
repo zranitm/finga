@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -151,6 +152,31 @@ func LoadData(t *testing.T) *gamedata.Data {
 	return d
 }
 
+// LoadDataWith loads a copy of the game data the server ships, each file named in edits changed by its function first.
+func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.Data {
+	t.Helper()
+	_, here, _, _ := runtime.Caller(0)
+	src, dst := filepath.Join(filepath.Dir(here), "..", "..", "..", "data"), t.TempDir()
+	if err := os.CopyFS(dst, os.DirFS(src)); err != nil {
+		t.Fatal(err)
+	}
+	for name, edit := range edits {
+		path := filepath.Join(dst, name)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(edit(string(raw))), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d, err := gamedata.Load(dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d
+}
+
 // TownSpawn is where players appear in the town.
 func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 	t.Helper()
@@ -204,6 +230,7 @@ type Options struct {
 	Batches            loot.Observer
 	BatchMax           int // drops per grant call
 	Equipment          instance.Equipment
+	HandIns            instance.HandIns
 	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
 	Characters         world.Characters
@@ -238,6 +265,9 @@ func (o Options) Fill() Options {
 	if o.Equipment == nil {
 		o.Equipment = nobody{}
 	}
+	if o.HandIns == nil {
+		o.HandIns = nobody{}
+	}
 	if o.ItemCalls == nil {
 		o.ItemCalls = itemcalls.NewPool(itemcalls.Deps{Observer: nobody{}, Panics: DiscardPanics()}, itemcalls.Options{Workers: 1})
 	}
@@ -267,7 +297,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -401,3 +431,8 @@ func (nobody) Unequip(context.Context, model.UnequipCall) (model.Equipped, error
 
 // Worn wears nothing, so a join goes on.
 func (nobody) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { return model.Worn{}, nil }
+
+// HandIn refuses.
+func (nobody) HandIn(context.Context, model.HandInCall) (model.Inventory, error) {
+	return model.Inventory{}, errNobody
+}

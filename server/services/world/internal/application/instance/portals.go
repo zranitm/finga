@@ -8,9 +8,9 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// enterPortal reports whether the player left through a portal; an equip in flight settles here first.
+// enterPortal reports whether the player left through a portal; an item call in flight settles here first.
 func (i *Instance) enterPortal(p *player) bool {
-	if p.dead || p.equipping > 0 {
+	if p.dead || p.itemCalls > 0 {
 		return false
 	}
 	for _, portal := range i.m.Portals {

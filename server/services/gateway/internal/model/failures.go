@@ -55,6 +55,12 @@ var (
 	NoFreeReset          = Public{"no_free_reset", "your free reset is used"}
 	BadPoints            = Public{"bad_points", "spend at least one point, and none below zero"}
 	NpcOutOfReach        = Public{"npc_out_of_reach", "move closer"}
+	QuestUnavailable     = Public{"quest_unavailable", "that quest isn't offered here"}
+	QuestConditionsUnmet = Public{"quest_conditions_unmet", "you don't meet that quest's conditions yet"}
+	QuestAlreadyActive   = Public{"quest_already_active", "you have that quest already"}
+	QuestAlreadyFinished = Public{"quest_already_finished", "you've finished that quest"}
+	TooManyQuests        = Public{"too_many_quests", "you have 20 quests already"}
+	QuestNotReady        = Public{"quest_not_ready", "that quest isn't finished yet"}
 	NotPartyLeader       = Public{"not_party_leader", "only the party leader can do that"}
 	PartyFull            = Public{"party_full", "the party is full"}
 	AlreadyInParty       = Public{"already_in_party", "already in a party"}
