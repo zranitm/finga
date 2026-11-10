@@ -1,0 +1,7 @@
+{
+  "req": "r-13",
+  "accept_quest": {
+    "npc_id": "town_guide",
+    "quest_id": "slime_cleanup"
+  }
+}

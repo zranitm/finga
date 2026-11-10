@@ -50,6 +50,13 @@ type Welcome struct {
 	MapID             string
 	ServerTime        time.Time
 	TickRateHz        int
+	Quests            []QuestState
+}
+
+// QuestAsk is a dialog's request about one quest at an NPC.
+type QuestAsk struct {
+	NPC   string
+	Quest string
 }
 
 // Keys are the keys a player holds.

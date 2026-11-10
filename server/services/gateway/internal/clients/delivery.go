@@ -43,9 +43,68 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 			Kind: lootKinds[ev.GetKind()], MapID: ev.GetMapId(), DropID: ev.GetDropId(), Owner: ev.GetOwnerId(), OwnerName: ev.GetOwnerName(),
 			Template: ev.GetTemplate(), Quantity: int(ev.GetQuantity()),
 		}, true
+	case m.GetNpcDialog() != nil:
+		return npcDialog(m.GetNpcDialog()), true
+	case m.GetQuestChanged() != nil:
+		ev := m.GetQuestChanged()
+		return model.QuestChanged{Change: questChanges[ev.GetChange()], Quest: questState(ev.GetQuest())}, true
 	}
 	return nil, false
 }
+
+func npcDialog(d *worldv1.NpcDialog) model.NpcDialog {
+	out := model.NpcDialog{NPC: d.GetNpcId()}
+	for _, o := range d.GetGives() {
+		u := o.GetUnmet()
+		out.Gives = append(out.Gives, model.QuestOffer{
+			Quest: o.GetQuestId(), State: offerStates[o.GetState()],
+			Unmet: model.QuestConditions{Level: int(u.GetLevel()), Class: u.GetClass(), Quests: u.GetQuests()},
+		})
+	}
+	for _, t := range d.GetTakes() {
+		out.Takes = append(out.Takes, model.QuestTurnIn{Quest: t.GetQuestId(), Ready: t.GetReady()})
+	}
+	return out
+}
+
+func questStates(qs []*worldv1.QuestState) []model.QuestState {
+	if len(qs) == 0 {
+		return nil
+	}
+	out := make([]model.QuestState, 0, len(qs))
+	for _, q := range qs {
+		out = append(out, questState(q))
+	}
+	return out
+}
+
+func questState(q *worldv1.QuestState) model.QuestState {
+	var progress []int
+	for _, n := range q.GetProgress() {
+		progress = append(progress, int(n))
+	}
+	return model.QuestState{Quest: q.GetQuestId(), Status: questStatuses[q.GetStatus()], Progress: progress, TimesFinished: int(q.GetTimesFinished())}
+}
+
+// offerStates, questStatuses and questChanges are the world's quest enums; an unknown value is the zero one.
+var (
+	offerStates = map[worldv1.QuestOfferState]model.QuestOfferState{
+		worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE:        model.OfferAvailable,
+		worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE:           model.OfferActive,
+		worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED:         model.OfferFinished,
+		worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET: model.OfferUnmet,
+	}
+	questStatuses = map[worldv1.QuestStatus]model.QuestStatus{
+		worldv1.QuestStatus_QUEST_STATUS_ACTIVE:   model.QuestActive,
+		worldv1.QuestStatus_QUEST_STATUS_FINISHED: model.QuestFinished,
+	}
+	questChanges = map[worldv1.QuestChange]model.QuestChange{
+		worldv1.QuestChange_QUEST_CHANGE_PROGRESSED: model.QuestProgressed,
+		worldv1.QuestChange_QUEST_CHANGE_ACCEPTED:   model.QuestAccepted,
+		worldv1.QuestChange_QUEST_CHANGE_HANDED_IN:  model.QuestHandedIn,
+		worldv1.QuestChange_QUEST_CHANGE_ABANDONED:  model.QuestAbandoned,
+	}
+)
 
 // frameOf is a Frame's Delta, which every recipient shares.
 func frameOf(d *worldv1.Delta) *model.Frame {

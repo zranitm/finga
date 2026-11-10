@@ -31,6 +31,10 @@ message ClientMessage {
     Unequip unequip = 18;
     SpendPoints spend_points = 19;
     ResetPoints reset_points = 20;
+    Talk talk = 21;
+    AcceptQuest accept_quest = 22;
+    AbandonQuest abandon_quest = 23;
+    HandInQuest hand_in_quest = 24;
   }
 }
 
@@ -60,6 +64,8 @@ message ServerMessage {
     Kicked kicked = 19;
     StatsChanged stats_changed = 20;
     Loot loot = 21;
+    NpcDialog npc_dialog = 22;
+    QuestChanged quest_changed = 23;
   }
 }
 
@@ -177,6 +183,28 @@ message SpendPoints {
 message ResetPoints {
   // The unspent count the client saw; any other is refused with points_changed.
   int32 expected_unspent = 1;
+}
+
+// Talk opens the dialog of an NPC within talk reach; an NpcDialog follows on its own, and the Response says whether one comes.
+message Talk {
+  string npc_id = 1;
+}
+
+// AcceptQuest takes a quest the NPC within reach gives; a QuestChanged follows.
+message AcceptQuest {
+  string npc_id = 1;
+  string quest_id = 2;
+}
+
+// AbandonQuest drops an active quest and its progress; one not active is left as it is.
+message AbandonQuest {
+  string quest_id = 1;
+}
+
+// HandInQuest hands a ready quest in to the NPC within reach that takes it; InventoryChanged, QuestChanged and ExpGained follow.
+message HandInQuest {
+  string npc_id = 1;
+  string quest_id = 2;
 }
 
 message Ping {
@@ -321,6 +349,8 @@ message Welcome {
   uint64 inventory_revision = 9;
   // What is worn, one entry per filled equip slot, at inventory_revision too.
   repeated EquipSlot equipment = 10;
+  // The quest log: active quests with their counts, and finished ones with how often.
+  repeated QuestState quests = 11;
 }
 
 // PlayerView is a character on the map as everyone sees it.
@@ -523,4 +553,79 @@ message Kicked {
 message Pong {
   int64 client_time = 1;
   int64 server_time = 2;
+}
+
+// NpcDialog is what an NPC offers the character now, as the server would allow it.
+message NpcDialog {
+  string npc_id = 1;
+  // The quests it gives, in npcs.yaml's order.
+  repeated QuestOffer gives = 2;
+  // The character's active quests it takes back.
+  repeated QuestTurnIn takes = 3;
+}
+
+// QuestOfferState is where a quest an NPC gives stands for the character.
+enum QuestOfferState {
+  QUEST_OFFER_STATE_UNSPECIFIED = 0;
+  QUEST_OFFER_STATE_AVAILABLE = 1;
+  QUEST_OFFER_STATE_ACTIVE = 2;
+  // A one-time quest already finished.
+  QUEST_OFFER_STATE_FINISHED = 3;
+  // The character doesn't meet its conditions yet; unmet lists them.
+  QUEST_OFFER_STATE_CONDITIONS_UNMET = 4;
+}
+
+message QuestOffer {
+  string quest_id = 1;
+  QuestOfferState state = 2;
+  QuestConditions unmet = 3;
+}
+
+// QuestConditions are what a character lacks to accept a quest; an unset field is met.
+message QuestConditions {
+  // The least level, when the character's is lower.
+  int32 level = 1;
+  // The class it asks for, when the character is another.
+  string class = 2;
+  // The quests to finish first.
+  repeated string quests = 3;
+}
+
+// QuestTurnIn is an active quest an NPC takes back: ready once every kill, talk and level objective is done; what it asks to collect is counted at hand-in.
+message QuestTurnIn {
+  string quest_id = 1;
+  bool ready = 2;
+}
+
+// QuestStatus is where a character stands with a quest of its log.
+enum QuestStatus {
+  // Not in the log: abandoned before it was ever finished.
+  QUEST_STATUS_UNSPECIFIED = 0;
+  QUEST_STATUS_ACTIVE = 1;
+  QUEST_STATUS_FINISHED = 2;
+}
+
+// QuestState is one quest of the character's log.
+message QuestState {
+  string quest_id = 1;
+  QuestStatus status = 2;
+  // One count per objective, in the quest's order; empty when finished. A collect objective's count stays 0: the client counts its inventory.
+  repeated int32 progress = 3;
+  // Completions so far; a repeatable quest active again keeps its count.
+  int32 times_finished = 4;
+}
+
+// QuestChange is what happened to a quest, for the combat channel's line.
+enum QuestChange {
+  QUEST_CHANGE_UNSPECIFIED = 0;
+  QUEST_CHANGE_PROGRESSED = 1;
+  QUEST_CHANGE_ACCEPTED = 2;
+  QUEST_CHANGE_HANDED_IN = 3;
+  QUEST_CHANGE_ABANDONED = 4;
+}
+
+// QuestChanged is one quest of the log after a server tick, which merges that tick's changes to it.
+message QuestChanged {
+  QuestChange change = 1;
+  QuestState quest = 2;
 }

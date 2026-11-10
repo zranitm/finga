@@ -94,11 +94,14 @@ type fakeWorld struct {
 	equipErr   error // Equip and Unequip fail with it
 	spends     []*worldv1.SpendPointsRequest
 	resets     []*worldv1.ResetPointsRequest
-	pointsErr  error         // SpendPoints and ResetPoints fail with it
-	calls      []string      // commands in arrival order
-	traceIDs   []string      // each Join's and Attack's, in arrival order
-	hold       chan struct{} // set: Subscribed goes out only during the first join
-	joinGate   chan struct{} // set: a join reports on joining, then waits for the gate to close
+	pointsErr  error                 // SpendPoints and ResetPoints fail with it
+	quests     []*worldv1.QuestState // the log Join reports
+	questCalls []proto.Message       // Talk, AcceptQuest, AbandonQuest and HandInQuest requests
+	questErr   error                 // the four fail with it
+	calls      []string              // commands in arrival order
+	traceIDs   []string              // each Join's and Attack's, in arrival order
+	hold       chan struct{}         // set: Subscribed goes out only during the first join
+	joinGate   chan struct{}         // set: a join reports on joining, then waits for the gate to close
 	joining    chan struct{}
 	block      chan struct{} // when set, Attack waits for it (or its context)
 	blocked    chan error    // Attack reports here that it is waiting, then why it stopped
@@ -217,7 +220,7 @@ func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv
 		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
 	}}}
 	hz := cmp.Or(f.tickRate, 30)
-	return &worldv1.JoinResponse{Character: v, TickRateHz: hz, JoinSeq: uint64(len(f.joined))}, nil
+	return &worldv1.JoinResponse{Character: v, TickRateHz: hz, JoinSeq: uint64(len(f.joined)), Quests: f.quests}, nil
 }
 
 // save is the character's checkpoint, which the next join loads.
@@ -388,6 +391,41 @@ func (f *fakeWorld) ResetPoints(_ context.Context, req *worldv1.ResetPointsReque
 	defer f.mu.Unlock()
 	f.resets = append(f.resets, req)
 	return &worldv1.ResetPointsResponse{}, f.pointsErr
+}
+
+func (f *fakeWorld) Talk(_ context.Context, req *worldv1.TalkRequest) (*worldv1.TalkResponse, error) {
+	return &worldv1.TalkResponse{}, f.questCall(req)
+}
+
+func (f *fakeWorld) AcceptQuest(_ context.Context, req *worldv1.AcceptQuestRequest) (*worldv1.AcceptQuestResponse, error) {
+	return &worldv1.AcceptQuestResponse{}, f.questCall(req)
+}
+
+func (f *fakeWorld) AbandonQuest(_ context.Context, req *worldv1.AbandonQuestRequest) (*worldv1.AbandonQuestResponse, error) {
+	return &worldv1.AbandonQuestResponse{}, f.questCall(req)
+}
+
+func (f *fakeWorld) HandInQuest(_ context.Context, req *worldv1.HandInQuestRequest) (*worldv1.HandInQuestResponse, error) {
+	return &worldv1.HandInQuestResponse{}, f.questCall(req)
+}
+
+func (f *fakeWorld) questCall(req proto.Message) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.questCalls = append(f.questCalls, req)
+	return f.questErr
+}
+
+func (f *fakeWorld) failQuests(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.questErr = err
+}
+
+func (f *fakeWorld) questList() []proto.Message {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]proto.Message(nil), f.questCalls...)
 }
 
 func (f *fakeWorld) failPoints(err error) {

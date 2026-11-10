@@ -2,6 +2,7 @@ package ws_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -2366,6 +2367,139 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				}
 			}
 			h.world.failPoints(nil)
+		})
+	})
+}
+
+func TestQuestCommandsAndEvents(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.world.mu.Lock()
+		h.world.quests = []*worldv1.QuestState{
+			{QuestId: "slime_cleanup", Status: worldv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1},
+			{QuestId: "sticky_samples", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{0}},
+		}
+		h.world.mu.Unlock()
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		want := []*clientv1.QuestState{
+			{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1},
+			{QuestId: "sticky_samples", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{0}},
+		}
+		if got := c.expect("Welcome").Data.(*clientv1.Welcome).GetQuests(); !slices.EqualFunc(got, want, func(a, b *clientv1.QuestState) bool { return proto.Equal(a, b) }) {
+			t.Fatalf("welcome quests %v, want %v", got, want)
+		}
+		c.expect("Snapshot")
+
+		part(t, "the four commands go to the world as the sender, answering once it applied them", func() {
+			c.send(wsconn.Message{ReqID: "q-1", Data: &clientv1.Talk{NpcId: "town_guide"}})
+			c.send(wsconn.Message{ReqID: "q-2", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}})
+			c.send(wsconn.Message{ReqID: "q-3", Data: &clientv1.AbandonQuest{QuestId: "slime_cleanup"}})
+			c.send(wsconn.Message{ReqID: "q-4", Data: &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}})
+			for _, req := range []string{"q-1", "q-2", "q-3", "q-4"} {
+				if r := c.expect("Response"); r.ReqID != req || !r.Data.(*clientv1.Response).GetOk() {
+					t.Fatalf("response %+v, want ok to %s", r, req)
+				}
+			}
+			calls := h.world.questList()
+			wantCalls := []proto.Message{
+				&worldv1.TalkRequest{NpcId: "town_guide"},
+				&worldv1.AcceptQuestRequest{NpcId: "town_guide", QuestId: "slime_cleanup"},
+				&worldv1.AbandonQuestRequest{QuestId: "slime_cleanup"},
+				&worldv1.HandInQuestRequest{NpcId: "town_guide", QuestId: "sticky_samples"},
+			}
+			if len(calls) != len(wantCalls) {
+				t.Fatalf("world calls %v, want %v", calls, wantCalls)
+			}
+			for i, call := range calls {
+				p := call.ProtoReflect()
+				presence := p.Get(p.Descriptor().Fields().ByName("presence")).Message().Interface().(*worldv1.Presence)
+				if presence.GetCharacterId() != aylaID.String() || presence.GetConnectionId() == "" {
+					t.Fatalf("call %d %v isn't Ayla's through her connection", i, call)
+				}
+				p.Clear(p.Descriptor().Fields().ByName("presence"))
+				if !proto.Equal(call, wantCalls[i]) {
+					t.Fatalf("call %d %v, want %v", i, call, wantCalls[i])
+				}
+			}
+		})
+		part(t, "the dialog and a changed quest reach the client", func() {
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 20, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
+				NpcId: "town_guide",
+				Gives: []*worldv1.QuestOffer{
+					{QuestId: "slime_cleanup", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED, Unmet: &worldv1.QuestConditions{}},
+					{QuestId: "sticky_samples", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &worldv1.QuestConditions{Level: 2, Class: "warrior", Quests: []string{"slime_cleanup"}}},
+				},
+				Takes: []*worldv1.QuestTurnIn{{QuestId: "sticky_samples", Ready: true}},
+			}}})
+			wantDialog := &clientv1.NpcDialog{
+				NpcId: "town_guide",
+				Gives: []*clientv1.QuestOffer{
+					{QuestId: "slime_cleanup", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+					{QuestId: "sticky_samples", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 2, Class: "warrior", Quests: []string{"slime_cleanup"}}},
+				},
+				Takes: []*clientv1.QuestTurnIn{{QuestId: "sticky_samples", Ready: true}},
+			}
+			if d := c.expect("NpcDialog"); !proto.Equal(d.Data.(*clientv1.NpcDialog), wantDialog) {
+				t.Fatalf("dialog %v, want %v", d.Data, wantDialog)
+			}
+			for _, tt := range []struct {
+				change worldv1.QuestChange
+				status worldv1.QuestStatus
+				want   *clientv1.QuestChanged
+			}{
+				{worldv1.QuestChange_QUEST_CHANGE_PROGRESSED, worldv1.QuestStatus_QUEST_STATUS_ACTIVE, &clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_PROGRESSED, Quest: &clientv1.QuestState{QuestId: "q", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{3, 1}}}},
+				{worldv1.QuestChange_QUEST_CHANGE_ACCEPTED, worldv1.QuestStatus_QUEST_STATUS_ACTIVE, &clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ACCEPTED, Quest: &clientv1.QuestState{QuestId: "q", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{3, 1}}}},
+				{worldv1.QuestChange_QUEST_CHANGE_HANDED_IN, worldv1.QuestStatus_QUEST_STATUS_FINISHED, &clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_HANDED_IN, Quest: &clientv1.QuestState{QuestId: "q", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, Progress: []int32{3, 1}}}},
+				{worldv1.QuestChange_QUEST_CHANGE_ABANDONED, worldv1.QuestStatus_QUEST_STATUS_UNSPECIFIED, &clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "q", Progress: []int32{3, 1}}}},
+			} {
+				h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 21, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{
+					Change: tt.change, Quest: &worldv1.QuestState{QuestId: "q", Status: tt.status, Progress: []int32{3, 1}},
+				}}})
+				if m := c.expect("QuestChanged"); m.Tick != 21 || !proto.Equal(m.Data.(*clientv1.QuestChanged), tt.want) {
+					t.Fatalf("quest changed %v at %d, want %v", m.Data, m.Tick, tt.want)
+				}
+			}
+		})
+		part(t, "a refusal answers the world's reason, and the item service's for a hand-in", func() {
+			for _, tt := range []struct {
+				err  error
+				msg  proto.Message
+				want string
+			}{
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NPC_OUT_OF_REACH), &clientv1.Talk{NpcId: "town_guide"}, "npc_out_of_reach"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_UNAVAILABLE), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "nope"}, "quest_unavailable"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_CONDITIONS_UNMET), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_conditions_unmet"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_ALREADY_ACTIVE), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_already_active"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_ALREADY_FINISHED), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}, "quest_already_finished"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_TOO_MANY_QUESTS), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "too_many_quests"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_NOT_READY), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_not_ready"},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_ENOUGH_ITEMS), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "not_enough_items"},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "inventory_full"},
+			} {
+				time.Sleep(time.Second) // under the dialog limit of 5 a second
+				h.world.failQuests(tt.err)
+				c.send(wsconn.Message{ReqID: "r-" + tt.want, Data: tt.msg})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != tt.want {
+					t.Fatalf("response %+v, want %s", r, tt.want)
+				}
+			}
+			h.world.failQuests(nil)
+		})
+		part(t, "the dialog limit allows five at once and refuses the sixth", func() {
+			time.Sleep(time.Second)
+			for i := range 6 {
+				c.send(wsconn.Message{ReqID: fmt.Sprintf("t-%d", i), Data: &clientv1.Talk{NpcId: "town_guide"}})
+			}
+			// The refused one is answered at once on the read loop, ahead of the queue: match by request ID.
+			answers := map[string]string{}
+			for range 6 {
+				m := c.expect("Response")
+				answers[m.ReqID] = cmp.Or(m.Data.(*clientv1.Response).GetCode(), "ok")
+			}
+			if answers["t-5"] != "rate_limited" || answers["t-0"] != "ok" || answers["t-4"] != "ok" || len(answers) != 6 {
+				t.Fatalf("answers %v", answers)
+			}
 		})
 	})
 }

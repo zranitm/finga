@@ -196,6 +196,25 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
 		{model.PartyInvited{InviteID: "inv-2", From: "p-1", FromName: "Robin"}, &clientv1.PartyInvited{InviteId: "inv-2", From: "p-1", FromName: "Robin"}},
+		{
+			model.NpcDialog{NPC: "town_guide", Gives: []model.QuestOffer{
+				{Quest: "a", State: model.OfferAvailable}, {Quest: "b", State: model.OfferActive}, {Quest: "c", State: model.OfferFinished},
+				{Quest: "d", State: model.OfferUnmet, Unmet: model.QuestConditions{Level: 5, Class: "thief", Quests: []string{"a"}}},
+			}, Takes: []model.QuestTurnIn{{Quest: "b", Ready: true}, {Quest: "e"}}},
+			&clientv1.NpcDialog{NpcId: "town_guide", Gives: []*clientv1.QuestOffer{
+				{QuestId: "a", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE}, {QuestId: "b", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE},
+				{QuestId: "c", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+				{QuestId: "d", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 5, Class: "thief", Quests: []string{"a"}}},
+			}, Takes: []*clientv1.QuestTurnIn{{QuestId: "b", Ready: true}, {QuestId: "e"}}},
+		},
+		{
+			model.QuestChanged{Change: model.QuestProgressed, Quest: model.QuestState{Quest: "a", Status: model.QuestActive, Progress: []int{2, 0}, TimesFinished: 3}},
+			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_PROGRESSED, Quest: &clientv1.QuestState{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{2, 0}, TimesFinished: 3}},
+		},
+		{
+			model.QuestChanged{Change: model.QuestAbandoned, Quest: model.QuestState{Quest: "a"}},
+			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "a"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {
@@ -241,7 +260,7 @@ func TestAFramesPlayersShareOneEncoding(t *testing.T) {
 	}
 }
 
-func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
+func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionAndItsQuests(t *testing.T) {
 	s := &socket{}
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
@@ -252,6 +271,7 @@ func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
 		InventoryRevision: 8,
 		MapID:             "town",
 		ServerTime:        at,
+		Quests:            []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}},
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
@@ -261,6 +281,7 @@ func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
 		InventoryRevision: 8,
 		MapId:             "town",
 		ServerTime:        at.UnixMilli(),
+		Quests:            []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}},
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

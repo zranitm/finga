@@ -77,6 +77,10 @@ func samples() []wsconn.Message {
 		{Type: "Unequip", ReqID: "r-9", Data: &clientv1.Unequip{IdempotencyKey: "k-4", EquipSlot: "hat", ToSlot: proto.Int32(7)}},
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
+		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
+		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
+		{Type: "AbandonQuest", ReqID: "r-14", Data: &clientv1.AbandonQuest{QuestId: "slime_cleanup"}},
+		{Type: "HandInQuest", ReqID: "r-15", Data: &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}},
 		{Type: "Ping", Data: &clientv1.Ping{ClientTime: 1761000000000}},
 
 		{Type: "Welcome", Data: &clientv1.Welcome{
@@ -84,6 +88,10 @@ func samples() []wsconn.Message {
 			Inventory:         []*clientv1.ItemView{{ItemId: item1, Template: "red_potion", Tab: "use", Slot: 0, Quantity: 3}, {ItemId: item3, Template: "leather_cap", Tab: "equip", Slot: 4, Quantity: 1, Stats: leatherCap().GetStats()}},
 			Equipment:         []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: sword()}},
 			InventoryRevision: 7,
+			Quests: []*clientv1.QuestState{
+				{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1},
+				{QuestId: "sticky_samples", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{0}},
+			},
 		}},
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
@@ -105,6 +113,19 @@ func samples() []wsconn.Message {
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},
 		{Type: "PartyInvited", Data: &clientv1.PartyInvited{InviteId: "inv-1", From: charA, FromName: "Ayla"}},
+		// The guide's dialog for a level 1 character with the cleanup under way.
+		{Type: "NpcDialog", Data: &clientv1.NpcDialog{
+			NpcId: "town_guide",
+			Gives: []*clientv1.QuestOffer{
+				{QuestId: "slime_cleanup", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE},
+				{QuestId: "sticky_samples", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 2, Quests: []string{"slime_cleanup"}}},
+			},
+			Takes: []*clientv1.QuestTurnIn{{QuestId: "slime_cleanup", Ready: false}},
+		}},
+		{Type: "QuestChanged", Tick: 81237, Data: &clientv1.QuestChanged{
+			Change: clientv1.QuestChange_QUEST_CHANGE_PROGRESSED,
+			Quest:  &clientv1.QuestState{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{5}},
+		}},
 		{Type: "Response", ReqID: "r-6", Data: &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
 		{Type: "Kicked", Data: &clientv1.Kicked{Reason: clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE}},
 		{Type: "Pong", Data: &clientv1.Pong{ClientTime: 1761000000000, ServerTime: 1761000000050}},

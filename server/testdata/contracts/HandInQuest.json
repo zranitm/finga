@@ -1,0 +1,7 @@
+{
+  "req": "r-15",
+  "hand_in_quest": {
+    "npc_id": "town_guide",
+    "quest_id": "sticky_samples"
+  }
+}

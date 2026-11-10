@@ -40,7 +40,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 	}
 	defer join.Release() // a failure or a panic before Finish gives the join up
 	c := join.Joined.Character
-	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now(), TickRateHz: join.Joined.TickRateHz}
+	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now(), TickRateHz: join.Joined.TickRateHz, Quests: join.Joined.Quests}
 	inv, err := g.deps.Items.Inventory(ctx, charID)
 	if err != nil {
 		g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)

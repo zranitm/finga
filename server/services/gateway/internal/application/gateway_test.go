@@ -382,7 +382,11 @@ func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) erro
 func (w *world) SpendPoints(context.Context, model.Presence, model.PointsSpend) error {
 	return nil
 }
-func (w *world) ResetPoints(context.Context, model.Presence, int) error { return nil }
+func (w *world) ResetPoints(context.Context, model.Presence, int) error            { return nil }
+func (w *world) Talk(context.Context, model.Presence, string) error                { return nil }
+func (w *world) AcceptQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }
+func (w *world) AbandonQuest(context.Context, model.Presence, string) error        { return nil }
+func (w *world) HandInQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }
 func (w *world) FollowDeliveries(ctx context.Context, _ string, deliver func(model.WorldEvent)) {
 	if w.followPanic != "" {
 		panic(w.followPanic)

@@ -123,12 +123,12 @@ From the code, the rules this design keeps:
 
 | Message | Direction | Change |
 | --- | --- | --- |
-| `Talk` | client | New: `npc`; answered with a Response, after an `NpcDialog` |
+| `Talk` | client | New: `npc`; answered with a Response, while the `NpcDialog` comes on its own |
 | `NpcDialog` | server | New: the NPC, its quests to give and take with their states and unmet conditions, and its promotions with each condition met or not |
 | `AcceptQuest`, `HandInQuest` | client | New: `npc`, `quest`; Response |
 | `AbandonQuest` | client | New: `quest`; Response |
-| `QuestLog` | server | New, in `Welcome`: active quests with progress, and finished quests with counts |
-| `QuestChanged` | server | New: one quest's status, progress, and count |
+| `Welcome` | server | New `quests`: the log, active quests with progress, and finished quests with counts |
+| `QuestChanged` | server | New: what happened (accepted, progressed, handed in, or abandoned), and the quest's status, progress, and count after it |
 
 - **New error codes:**
   - `npc_out_of_reach`: "move closer";

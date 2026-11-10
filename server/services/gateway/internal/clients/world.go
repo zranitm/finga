@@ -33,7 +33,10 @@ func (w World) Join(ctx context.Context, gateway, conn string, account kernel.Ac
 		return model.Joined{}, errmap.Wrap(err)
 	}
 	c := res.GetCharacter()
-	return model.Joined{Character: characterView(c), MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY(), TickRateHz: int(res.GetTickRateHz()), JoinSeq: res.GetJoinSeq()}, nil
+	return model.Joined{
+		Character: characterView(c), MapID: c.GetMapId(), X: c.GetX(), Y: c.GetY(), TickRateHz: int(res.GetTickRateHz()), JoinSeq: res.GetJoinSeq(),
+		Quests: questStates(res.GetQuests()),
+	}, nil
 }
 
 // Leave removes the player if it joined through the presence's connection.
@@ -93,6 +96,30 @@ func (w World) ResetPoints(ctx context.Context, p model.Presence, expectedUnspen
 // Say hands a cleaned map line to the player's map.
 func (w World) Say(ctx context.Context, p model.Presence, name, text string) error {
 	_, err := w.c.Say(ctx, &worldv1.SayRequest{Presence: presence(p), SenderName: name, Text: text})
+	return errmap.Wrap(err)
+}
+
+// Talk opens an NPC's dialog; it answers once the NpcDialog is on its way.
+func (w World) Talk(ctx context.Context, p model.Presence, npc string) error {
+	_, err := w.c.Talk(ctx, &worldv1.TalkRequest{Presence: presence(p), NpcId: npc})
+	return errmap.Wrap(err)
+}
+
+// AcceptQuest takes a quest an NPC gives; it answers once the quest is in the log.
+func (w World) AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error {
+	_, err := w.c.AcceptQuest(ctx, &worldv1.AcceptQuestRequest{Presence: presence(p), NpcId: in.NPC, QuestId: in.Quest})
+	return errmap.Wrap(err)
+}
+
+// AbandonQuest drops an active quest and its progress.
+func (w World) AbandonQuest(ctx context.Context, p model.Presence, quest string) error {
+	_, err := w.c.AbandonQuest(ctx, &worldv1.AbandonQuestRequest{Presence: presence(p), QuestId: quest})
+	return errmap.Wrap(err)
+}
+
+// HandInQuest hands a ready quest in to an NPC; it answers once its items and EXP applied.
+func (w World) HandInQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error {
+	_, err := w.c.HandInQuest(ctx, &worldv1.HandInQuestRequest{Presence: presence(p), NpcId: in.NPC, QuestId: in.Quest})
 	return errmap.Wrap(err)
 }
 
