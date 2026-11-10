@@ -67,7 +67,7 @@ A drop goes through these states, all inside `Ground` on the map's tick:
 
 ## 5. Batching grants
 
-Today players skip part of the loot: in the proof session the bots made 699 pickups in 1,398 kills. With auto pickup every drop is collected, so without batching the item service would take about twice the writes for the same kills, one transaction and one call per drop. Batching groups an owner's drops into one call and one transaction.
+With auto pickup every drop is a write: at least as many as before, and more wherever players used to leave drops on the ground. Without batching that is one transaction and one call per drop. Batching groups an owner's drops into one call and one transaction, so under load the calls stay near the number of owners collecting, not the number of drops. The step 6 bot run (4 bots for 30 minutes: every call carried one drop, `AddMany` p99 22.9 ms) shows it adds no delay at low load; its gain under heavy load is not measured yet.
 
 ### In the world: one call in flight per owner
 
