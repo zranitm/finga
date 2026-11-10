@@ -109,11 +109,60 @@ type bot struct {
 	dead    bool
 	seq     uint32
 	held    *clientv1.Input
+	kills   *kills
 	inParty atomic.Bool
 }
 
+// kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
+type kills struct {
+	tick    uint64
+	removed map[uint32]bool   // the mobs removed at tick
+	last    map[uint32]string // each mob's last landed blow at tick, by source
+}
+
+func newKills() *kills { return &kills{removed: map[uint32]bool{}, last: map[uint32]string{}} }
+
+// at moves to tick and returns the bot's kills in the tick before.
+func (k *kills) at(tick uint64, me string) int {
+	if tick == k.tick {
+		return 0
+	}
+	n := 0
+	for id := range k.removed {
+		if k.last[id] == "p:"+me {
+			n++
+		}
+	}
+	k.tick = tick
+	clear(k.removed)
+	clear(k.last)
+	return n
+}
+
+// removedMobs takes a Delta's removed mobs.
+func (k *kills) removedMobs(tick uint64, ids []uint32, me string) int {
+	n := k.at(tick, me)
+	for _, id := range ids {
+		k.removed[id] = true
+	}
+	return n
+}
+
+// blow takes a Damage; a tick's Delta comes before its Damage, but either order counts.
+func (k *kills) blow(tick uint64, d *clientv1.Damage, me string) int {
+	n := k.at(tick, me)
+	mob, ok := strings.CutPrefix(d.GetTarget(), "m:")
+	if !ok || d.GetMiss() {
+		return n
+	}
+	if id, err := strconv.ParseUint(mob, 10, 32); err == nil {
+		k.last[uint32(id)] = d.GetSource()
+	}
+	return n
+}
+
 func newBot(url, name, charName string, index int) *bot {
-	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano())))}
+	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano()))), kills: newKills()}
 }
 
 func (b *bot) snapshot() stats {
@@ -278,6 +327,12 @@ func (b *bot) command(d proto.Message) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
 }
 
+func (b *bot) killed(n int) {
+	if n > 0 {
+		b.count(func(s *stats) { s.kills += n })
+	}
+}
+
 func (b *bot) observe(m wsconn.Message) {
 	b.count(func(s *stats) { s.messages++ })
 	switch d := m.Data.(type) {
@@ -296,6 +351,9 @@ func (b *bot) observe(m wsconn.Message) {
 				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
 			}
 		}
+		b.killed(b.kills.removedMobs(m.Tick, d.GetRemovedMobs(), b.id))
+	case *clientv1.Damage:
+		b.killed(b.kills.blow(m.Tick, d, b.id))
 	case *clientv1.MapChange:
 		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 		b.held = &clientv1.Input{}
@@ -311,8 +369,6 @@ func (b *bot) observe(m wsconn.Message) {
 			b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 			b.held = &clientv1.Input{}
 		}
-	case *clientv1.ExpGained:
-		b.count(func(s *stats) { s.kills++ })
 	case *clientv1.Loot:
 		if d.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && d.GetOwnerId() == b.id {
 			b.count(func(s *stats) { s.items++ })
@@ -499,7 +555,7 @@ func report(urls ...string) error {
 	}
 	line("all", all)
 	if batches.count > 0 {
-		fmt.Printf("\ngrant calls %.0f  drops per call: mean %.2f  p50 %s  p95 %s  max bucket %s\n", batches.count, batches.sum/batches.count,
+		fmt.Printf("\ngrant calls %.0f  drops per call: mean %.2f  p50 %s  p95 %s  max %s\n", batches.count, batches.sum/batches.count,
 			drops(batches.quantile(0.50)), drops(batches.quantile(0.95)), drops(batches.quantile(1)))
 	}
 	if grants.count > 0 {
@@ -560,10 +616,10 @@ func percentile(h *hist, q float64) string {
 	case over:
 		return fmt.Sprintf("> %.1f ms", v*1000)
 	}
-	return fmt.Sprintf("%.2f ms (bucket ≤ %.0f ms)", v*1000, bound*1000)
+	return fmt.Sprintf("%.2f ms (bucket ≤ %s ms)", v*1000, strconv.FormatFloat(math.Round(bound*1e6)/1e3, 'f', -1, 64))
 }
 
-// drops is a quantile of drops per call.
+// drops is a quantile of drops per call as its bucket: a count interpolated within a bucket, as from 0 in the first, could read as a call with no drop.
 func drops(v, bound float64, over, ok bool) string {
 	switch {
 	case !ok:
@@ -571,7 +627,7 @@ func drops(v, bound float64, over, ok bool) string {
 	case over:
 		return fmt.Sprintf("> %.0f", v)
 	}
-	return fmt.Sprintf("%.1f (bucket ≤ %.0f)", v, bound)
+	return fmt.Sprintf("≤ %.0f", bound)
 }
 
 func parseLine(line string) (map[string]string, float64) {

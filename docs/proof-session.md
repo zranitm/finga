@@ -44,9 +44,14 @@ town     ticks    36245  p50 0.25 ms (bucket ≤ 0 ms)  p99 0.50 ms (bucket ≤ 
 all      ticks   108735  p50 0.27 ms (bucket ≤ 0 ms)  p99 0.97 ms (bucket ≤ 1 ms)  overruns 0
 ```
 
+Two things the bot of that commit printed wrong, fixed since:
+
+- **"kills"** counted every `ExpGained`, so a party kill counted once per member on the map, and a death's EXP loss once more. The bot now counts its own killing blows.
+- **"bucket ≤ 0 ms"** is the 0.5 ms bucket, rounded to whole milliseconds.
+
 | # | Criterion | Result |
 |---|-----------|--------|
-| 1 | 30 to 60 minute session, 3 to 4 players | 30 minutes, 4 bots: 1,398 kills, 699 pickups, 9 deaths with respawns in the town, 34 map changes, 213 chat lines, a party of four, 157,019 messages received, 0 refused commands, 0 disconnects; the bowman bot that kept walking into the mushrooms died seven times and came back each time |
+| 1 | 30 to 60 minute session, 3 to 4 players | 30 minutes, 4 bots: 1,398 EXP awards (the "kills" above), 699 pickups, 9 deaths with respawns in the town, 34 map changes, 213 chat lines, a party of four, 157,019 messages received, 0 refused commands, 0 disconnects; the bowman bot that kept walking into the mushrooms died seven times and came back each time |
 | 2 | Tick p99 under 25 ms | forest 1.48 ms, town and cave 0.50 ms, all maps 0.97 ms; 0 overruns in 108,735 ticks (the histogram's 25 ms bucket was never reached, so the real p99 is at most the 2 ms bucket's upper edge) |
 | 3 | A hard kill never creates or loses an item | `TestCrashDuringPickups` green in `make test` on this commit |
 | 4 | Double and retried pickups give one item | the D1/D2/D5 rows of `TestLootAndKeep` green in `make test` on this commit |
