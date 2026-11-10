@@ -10,7 +10,6 @@ export type Action =
   | 'down'
   | 'jump' // with down on a one-way platform: drop through
   | 'attack'
-  | 'pickup'
   | 'inventory'
   | 'character'
   | 'party'
@@ -24,7 +23,6 @@ export const actions: readonly Action[] = [
   'down',
   'jump',
   'attack',
-  'pickup',
   'inventory',
   'character',
   'party',

@@ -80,7 +80,8 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Data:         data,
 		NewRoll:      newRoll,
 		Observer:     metrics,
-		Items:        clients.NewPickups(items),
+		Items:        clients.NewLoot(items),
+		Batches:      metrics,
 		Equipment:    equipment,
 		Wardrobe:     equipment,
 		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: metrics, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
@@ -92,10 +93,10 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Panics:       rec,
 		Logger:       log,
 		SaveObserver: metrics,
-	}, world.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout})
+	}, world.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax})
 	h.Task("parties", parties.Run)
 	h.Task("world", maps.Run)
-	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz, Logger: log}))
+	worldv1.RegisterWorldServiceServer(h.GRPC, handler.New(maps, handler.Options{BootID: nodeID, TickRateHz: cfg.TickRateHz}))
 	log.InfoContext(ctx, "built", "maps", len(data.Maps()), "classes", len(data.Classes()), "mobs", len(data.Mobs()))
 	return h, nil
 }

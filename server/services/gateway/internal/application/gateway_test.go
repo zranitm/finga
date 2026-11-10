@@ -376,7 +376,6 @@ func (w *world) Leave(context.Context, model.Presence) error {
 func (w *world) Input(context.Context, model.Presence, uint32, model.Keys) error  { return nil }
 func (w *world) Attack(context.Context, model.Presence) error                     { return nil }
 func (w *world) EnterPortal(context.Context, model.Presence) error                { return nil }
-func (w *world) PickUp(context.Context, model.Presence) error                     { return nil }
 func (w *world) Say(context.Context, model.Presence, string, string) error        { return nil }
 func (w *world) Equip(context.Context, model.Presence, model.ItemEquip) error     { return nil }
 func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) error { return nil }

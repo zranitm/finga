@@ -215,16 +215,6 @@
     "message": "the party is full"
   },
   {
-    "code": "pickup_busy",
-    "status": 503,
-    "message": "try again in a moment"
-  },
-  {
-    "code": "pickups_unavailable",
-    "status": 503,
-    "message": "pickups are not available"
-  },
-  {
     "code": "rate_limited",
     "status": 429,
     "message": "slow down"

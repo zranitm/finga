@@ -1672,9 +1672,11 @@ func (*WatchPartiesResponse_Membership) isWatchPartiesResponse_Event() {}
 
 // Membership sets each listed character's party to members (empty: none).
 type Membership struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CharacterIds  []string               `protobuf:"bytes,1,rep,name=character_ids,json=characterIds,proto3" json:"character_ids,omitempty"`
-	Members       []string               `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	CharacterIds []string               `protobuf:"bytes,1,rep,name=character_ids,json=characterIds,proto3" json:"character_ids,omitempty"`
+	Members      []string               `protobuf:"bytes,2,rep,name=members,proto3" json:"members,omitempty"`
+	// The party's ID, empty when members is; a world keys what it keeps per party by it, as members come and go.
+	PartyId       string `protobuf:"bytes,3,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1721,6 +1723,13 @@ func (x *Membership) GetMembers() []string {
 		return x.Members
 	}
 	return nil
+}
+
+func (x *Membership) GetPartyId() string {
+	if x != nil {
+		return x.PartyId
+	}
+	return ""
 }
 
 type UpdateMemberRequest struct {
@@ -1933,11 +1942,12 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\n" +
 	"membership\x18\x02 \x01(\v2\x1e.internal.social.v1.MembershipH\x00R\n" +
 	"membershipB\a\n" +
-	"\x05event\"K\n" +
+	"\x05event\"f\n" +
 	"\n" +
 	"Membership\x12#\n" +
 	"\rcharacter_ids\x18\x01 \x03(\tR\fcharacterIds\x12\x18\n" +
-	"\amembers\x18\x02 \x03(\tR\amembers\"\x8c\x01\n" +
+	"\amembers\x18\x02 \x03(\tR\amembers\x12\x19\n" +
+	"\bparty_id\x18\x03 \x01(\tR\apartyId\"\x8c\x01\n" +
 	"\x13UpdateMemberRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x14\n" +

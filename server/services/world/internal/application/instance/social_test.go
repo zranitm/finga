@@ -2,6 +2,7 @@ package instance_test
 
 import (
 	"finga/services/world/worldtest"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -39,19 +40,16 @@ type partyUpdate struct {
 	maxHP int
 }
 
-func (f *fakeParties) Members(id kernel.CharacterID) []kernel.CharacterID {
+// Party is the first party holding id, named by its place in f.parties.
+func (f *fakeParties) Party(id kernel.CharacterID) model.Party {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for _, p := range f.parties {
+	for k, p := range f.parties {
 		if slices.Contains(p, id) {
-			return slices.Clone(p)
+			return model.Party{ID: fmt.Sprintf("party-%d", k), Members: slices.Clone(p)}
 		}
 	}
-	return nil
-}
-
-func (f *fakeParties) SameParty(a, b kernel.CharacterID) bool {
-	return slices.Contains(f.Members(a), b)
+	return model.Party{}
 }
 
 func (f *fakeParties) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
@@ -162,35 +160,6 @@ func TestExpSharing(t *testing.T) {
 			})
 		})
 	}
-}
-
-func TestPartyMembersLootInsideTheWindow(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		data := worldtest.LoadData(t)
-		items := newFakePickups()
-		killer, member, stranger := warriorAt(250), warriorAt(300), warriorAt(300)
-		parties := &fakeParties{parties: [][]kernel.CharacterID{{killer.ID, member.ID}}}
-		inst, stop := runLootArena(t, data, items, 0.3, worldtest.Options{Parties: parties})
-		defer stop()
-		time.Sleep(worldtest.TickInterval)
-		synctest.Wait()
-		join(t, inst, killer)
-		killSlime(t, inst, killer.ID)
-		ss := join(t, inst, stranger)
-		sm := join(t, inst, member)
-		_ = inst.PickUp(t.Context(), stranger.ID)
-		time.Sleep(3 * worldtest.TickInterval)
-		synctest.Wait()
-		if items.callCount() != 0 || len(inventoryChanges(ss)) != 0 {
-			t.Fatal("a stranger looted inside the window")
-		}
-		_ = inst.PickUp(t.Context(), member.ID)
-		time.Sleep(3 * worldtest.TickInterval)
-		synctest.Wait()
-		if items.callCount() != 1 || len(inventoryChanges(sm)) != 1 {
-			t.Fatalf("calls %d changes %d: a party member could not loot inside the window", items.callCount(), len(inventoryChanges(sm)))
-		}
-	})
 }
 
 func chats(s *worldtest.Sink) []model.Chat {

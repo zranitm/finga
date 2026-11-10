@@ -135,7 +135,7 @@ func TestCatalogueCoversPage4(t *testing.T) {
 		"client": {"Attack", "ChatSend", "EnterPortal", "Equip", "Hello", "Input", "InventoryDiscard", "InventoryMove",
 			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping", "Unequip"},
 		"server": {"ChatMessage", "Correction", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
-			"LevelUp", "MapChange", "PartyInvited", "PartyState", "Pong", "Respawned", "Response", "Snapshot", "StatsChanged", "Welcome"},
+			"LevelUp", "Loot", "MapChange", "PartyInvited", "PartyState", "Pong", "Respawned", "Response", "Snapshot", "StatsChanged", "Welcome"},
 	}
 	if got := clientMessages; !slices.Equal(got, want["client"]) {
 		t.Errorf("client messages %v", got)

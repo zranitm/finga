@@ -16,8 +16,6 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrStopped, Code: codes.Unavailable, Reason: worldv1.Reason_REASON_STOPPED},
 	{Err: model.ErrClassUnavailable, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_CLASS_UNAVAILABLE},
 	{Err: model.ErrCharacterDead, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_CHARACTER_DEAD},
-	{Err: model.ErrPickupsUnavailable, Code: codes.Unavailable, Reason: worldv1.Reason_REASON_PICKUPS_UNAVAILABLE},
-	{Err: model.ErrPickupBusy, Code: codes.ResourceExhausted, Reason: worldv1.Reason_REASON_PICKUP_BUSY},
 	{Err: ErrNotSubscribed, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NOT_SUBSCRIBED},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: worldv1.Reason_REASON_BAD_ID},
 }

@@ -33,11 +33,6 @@ func (w *World) Attack(id kernel.CharacterID, conn string) error {
 	return w.command(id, conn, func(i *instance.Instance) error { return i.Attack(id) })
 }
 
-// PickUp asks for the nearest eligible drop; the pickup's trace links to ctx's span.
-func (w *World) PickUp(ctx context.Context, id kernel.CharacterID, conn string) error {
-	return w.command(id, conn, func(i *instance.Instance) error { return i.PickUp(ctx, id) })
-}
-
 // EnterPortal takes the portal the character stands in.
 func (w *World) EnterPortal(id kernel.CharacterID, conn string) error {
 	return w.command(id, conn, func(i *instance.Instance) error { return i.EnterPortal(id) })

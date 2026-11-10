@@ -46,7 +46,7 @@ func samples() []wsconn.Message {
 		return &clientv1.MobView{Id: 7, Type: "green_slime", X: 500, Y: 608, Facing: -1, Hp: 30, MaxHp: 30}
 	}
 	drop := func() *clientv1.DropView {
-		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608}
+		return &clientv1.DropView{Id: 12, Template: "slime_gel", Quantity: 2, X: 520, Y: 608, OwnerId: charA}
 	}
 	party := func() *clientv1.PartyView {
 		return &clientv1.PartyView{Leader: charA, Members: []*clientv1.PartyMember{
@@ -79,7 +79,7 @@ func samples() []wsconn.Message {
 			InventoryRevision: 7,
 		}},
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}}},
-		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}}},
+		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
 		{Type: "Correction", Tick: 81235, Data: &clientv1.Correction{Seq: 117, X: 416, Y: 608, OnGround: true}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "Died", Tick: 81236, Data: &clientv1.Died{CharacterId: charA, X: 500, Y: 608}},
@@ -93,6 +93,7 @@ func samples() []wsconn.Message {
 			Revision:  8,
 		}},
 		{Type: "StatsChanged", Data: &clientv1.StatsChanged{Sheet: sheet(), Hp: 250, MaxHp: 280, Mp: 32, MaxMp: 32}},
+		{Type: "Loot", Tick: 81236, Data: &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 10, OwnerId: charB, OwnerName: "Robin", Template: "slime_gel", Quantity: 2}},
 		{Type: "MapChange", Data: &clientv1.MapChange{MapId: "forest", X: 64, Y: 608}},
 		{Type: "ChatMessage", Data: &clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Sender: charA, SenderName: "Ayla", Text: "hello there"}},
 		{Type: "PartyState", Data: &clientv1.PartyState{Party: party()}},

@@ -10,17 +10,17 @@ the test clients; the bot that drives the session is `server/cmd/bot`
 
 | # | Criterion | How it is shown | Where |
 |---|-----------|-----------------|-------|
-| 1 | A 30 to 60 minute session with 3 to 4 players: walk, fight, level up, loot, travel, party, chat, no crash, no desync | `make bots` plays 4 bots for 30 minutes: town → forest, hunting in the slime field, pickups, map chat, a party, trips back to the town; the report counts kills, pickups, hops, chat lines, refused commands and reconnects | the session record below |
+| 1 | A 30 to 60 minute session with 3 to 4 players: walk, fight, level up, loot, travel, party, chat, no crash, no desync | `make bots` plays 4 bots for 30 minutes: town → forest, hunting in the slime field, its drops flying to it, map chat, a party, trips back to the town; the report counts kills, items collected, hops, chat lines, refused commands and reconnects, and reads the grant batch sizes and the item service's `AddMany` times | the session record below |
 | 2 | Tick p99 under 25 ms with the session's players on | `finga_tick_duration_seconds` per map, read by the bot at the end from the world service's `/metrics` (its ops port, 9104) and computed the way `histogram_quantile` does | the session record below |
-| 3 | A hard kill of the game server never creates or loses an item | `TestCrashDuringPickups` (server/test/loot_e2e_test.go): every service as its own process, three clients looting concurrently, the world and the item service killed without warning mid-pickup while the gateway keeps the sockets, both restarted, every client joined again, and `itemtest.CheckInvariants` passing before and after the restart (before the split into services it killed the one game server process) | `make test`, in CI |
-| 4 | A double pickup and a retried pickup each give exactly one item | end-to-end rows in server/test/loot_e2e_test.go: two PickUp messages in one tick, the same PickUp re-sent with the same `seq` after ignoring the reply, and the worker's add retried under the drop's key; one item event per drop taken, under distinct drop IDs | `make test`, in CI |
+| 3 | A hard kill of the game server never creates or loses an item | `TestCrashDuringPickups` (server/test/loot_e2e_test.go): every service as its own process, three clients hunting while their drops are collected and their swords swapped, the world and the item service killed without warning mid-grant while the gateway keeps the sockets, both restarted, every client joined again, and `itemtest.CheckInvariants` passing before and after the restart (before the split into services it killed the one game server process) | `make test`, in CI |
+| 4 | A double pickup and a retried pickup each give exactly one item | end-to-end rows in server/test/loot_e2e_test.go: since auto pickup no command takes a drop, so each drop is collected once by its owner, one item event per drop under distinct drop IDs; and a grant retried under the drop's key, regrouped beside a new drop, answers its stored reply and adds nothing | `make test`, in CI |
 
 Before the playtest with people:
 
 - [ ] `make up` from a clean clone, `make smoke` green
 - [ ] four accounts created, one per tester, on the same LAN: each opens `http://<the host's LAN address>:4173`, the client served by nginx under `make up` (same origin, so no CORS setting)
 - [ ] `/metrics` scraped or the bot's report run at the end for the tick p99
-- [ ] the crash test and the pickup rows green on the commit being played (`make test`)
+- [ ] the crash test and the loot rows green on the commit being played (`make test`)
 
 ## Session record
 
@@ -44,9 +44,14 @@ town     ticks    36245  p50 0.25 ms (bucket ≤ 0 ms)  p99 0.50 ms (bucket ≤ 
 all      ticks   108735  p50 0.27 ms (bucket ≤ 0 ms)  p99 0.97 ms (bucket ≤ 1 ms)  overruns 0
 ```
 
+Two things the bot of that commit printed wrong, fixed since:
+
+- **"kills"** counted every `ExpGained`, so a party kill counted once per member on the map, and a death's EXP loss once more. The bot now counts its own killing blows.
+- **"bucket ≤ 0 ms"** is the 0.5 ms bucket, rounded to whole milliseconds.
+
 | # | Criterion | Result |
 |---|-----------|--------|
-| 1 | 30 to 60 minute session, 3 to 4 players | 30 minutes, 4 bots: 1,398 kills, 699 pickups, 9 deaths with respawns in the town, 34 map changes, 213 chat lines, a party of four, 157,019 messages received, 0 refused commands, 0 disconnects; the bowman bot that kept walking into the mushrooms died seven times and came back each time |
+| 1 | 30 to 60 minute session, 3 to 4 players | 30 minutes, 4 bots: 1,398 EXP awards (the "kills" above), 699 pickups, 9 deaths with respawns in the town, 34 map changes, 213 chat lines, a party of four, 157,019 messages received, 0 refused commands, 0 disconnects; the bowman bot that kept walking into the mushrooms died seven times and came back each time |
 | 2 | Tick p99 under 25 ms | forest 1.48 ms, town and cave 0.50 ms, all maps 0.97 ms; 0 overruns in 108,735 ticks (the histogram's 25 ms bucket was never reached, so the real p99 is at most the 2 ms bucket's upper edge) |
 | 3 | A hard kill never creates or loses an item | `TestCrashDuringPickups` green in `make test` on this commit |
 | 4 | Double and retried pickups give one item | the D1/D2/D5 rows of `TestLootAndKeep` green in `make test` on this commit |

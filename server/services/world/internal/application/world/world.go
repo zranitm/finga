@@ -64,11 +64,12 @@ type Deps struct {
 	SaveObserver SaveObserver
 }
 
-// Tuning is how often the maps tick and checkpoint, and how long the last saves may take on shutdown.
+// Tuning is how often the maps tick and checkpoint, how long the last saves may take on shutdown, and how many drops one grant call may carry.
 type Tuning struct {
 	TickInterval       time.Duration
 	CheckpointInterval time.Duration
 	FlushTimeout       time.Duration
+	BatchMax           int
 }
 
 // New builds an instance for every map in d.Data; the World moves their players between maps.
@@ -81,7 +82,7 @@ func New(d Deps, t Tuning) *World {
 	}
 	w.jobsCtx, w.stopBackground = context.WithCancel(context.Background())
 	for _, m := range data.Maps() {
-		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval})
+		w.instances[m.ID] = instance.New(instance.Deps{Services: d.Services, Map: m, Data: data, Saves: w.saves, Mover: w, Logger: d.Logger}, instance.Tuning{TickInterval: t.TickInterval, CheckpointInterval: t.CheckpointInterval, BatchMax: t.BatchMax})
 		w.order = append(w.order, m.ID)
 	}
 	return w

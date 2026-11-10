@@ -8,8 +8,8 @@ The screens players see and the keys they use. This is the input for the design 
 | --- | --- | --- |
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name and one of the four classes | P0 |
-| **Game view and HUD** | Play: the map, plus HP, MP, and EXP bars, level, chat box, and party panel; currency from P1 | P0 |
-| **Inventory** | See items by tab; drop or discard them | P0 |
+| **Game view and HUD** | Play: the map, plus HP, MP, and EXP bars, level, chat box with General, Party, and Combat tabs, and party panel; currency from P1 | P0 |
+| **Inventory** | See items by tab; discard them | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
 | **Settings** | Choose a control preset | P0 |
@@ -32,12 +32,13 @@ Keyboard only (OD-20). Attacks go the way the character faces; the mouse is used
 | Drop through a platform | Down + Space | S + Space |
 | Enter a portal | Up, while standing on it | W, while standing on it |
 | Attack | X | J |
-| Pick up | Z | K |
 | Inventory | I | I |
 | Party | P | P |
 | Character window | C | C |
 | Chat | Enter | Enter |
 | Close the top window | Esc | Esc |
 | Skills (P1) | 1 to 6 | 1 to 6 |
+
+There is no pickup key: drops are collected automatically (D1), so Z and K are free in both presets.
 
 Remappable keys: later (P2).

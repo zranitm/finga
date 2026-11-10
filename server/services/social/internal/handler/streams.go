@@ -57,12 +57,14 @@ func (s *Streams) PartyChanged(members []kernel.CharacterID, p *model.Party) {
 		s.send(id, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_PartyState{PartyState: state}})
 	}
 	var now []kernel.CharacterID
+	party := ""
 	if p != nil {
 		for _, m := range p.Members {
 			now = append(now, m.ID)
 		}
+		party = p.ID.String()
 	}
-	s.watchers.Broadcast(membership(members, now))
+	s.watchers.Broadcast(membership(members, now, party))
 }
 
 // Alone sends the member an empty PartyState; the worlds already hold them in no party.

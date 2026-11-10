@@ -31,6 +31,7 @@ type Frame struct {
 	Drops                     []DropView
 	RemovedPlayers            []string
 	RemovedMobs, RemovedDrops []uint64
+	CollectedDrops            []uint64 // left the ground for their owners' inventories
 }
 
 // MapChange moves the player to another map.
@@ -77,7 +78,7 @@ type ChatMessage struct {
 	Text               string
 }
 
-// InventoryChanged is the slots and equip slots a pickup, a move or an equip changed, at the inventory's revision after it.
+// InventoryChanged is the slots and equip slots a grant, a move or an equip changed, at the inventory's revision after it.
 type InventoryChanged struct {
 	Revision  uint64
 	Slots     []InventorySlot
@@ -91,9 +92,24 @@ type StatsChanged struct {
 	MP, MaxMP int
 }
 
-// PickupFailed is a pickup the item service refused, as the player sees it.
-type PickupFailed struct {
-	Why Public
+// LootKind is what became of a drop.
+type LootKind int
+
+// What became of a drop.
+const (
+	LootCollected LootKind = iota + 1
+	LootWaiting
+	LootLost
+)
+
+// Loot is what became of a drop: the player's own, or a party member's they saw collected.
+type Loot struct {
+	Kind             LootKind
+	MapID            string
+	DropID           uint64
+	Owner, OwnerName string
+	Template         string
+	Quantity         int
 }
 
 // PartyState is the player's party; nil means none.
@@ -118,6 +134,6 @@ func (LevelUp) push()          {}
 func (ChatMessage) push()      {}
 func (InventoryChanged) push() {}
 func (StatsChanged) push()     {}
-func (PickupFailed) push()     {}
+func (Loot) push()             {}
 func (PartyState) push()       {}
 func (PartyInvited) push()     {}

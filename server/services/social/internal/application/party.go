@@ -251,8 +251,8 @@ func (s *PartyService) Of(ctx context.Context, id kernel.CharacterID) (model.Par
 	return p, ok && err == nil, err
 }
 
-// Memberships visits every party's member IDs; nothing changes until it returns, and visit must not block.
-func (s *PartyService) Memberships(ctx context.Context, visit func(members []kernel.CharacterID)) error {
+// Memberships visits every party's ID and member IDs; nothing changes until it returns, and visit must not block.
+func (s *PartyService) Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var parties []model.Party
@@ -263,7 +263,7 @@ func (s *PartyService) Memberships(ctx context.Context, visit func(members []ker
 		return err
 	}
 	for _, p := range parties {
-		visit(ids(p))
+		visit(p.ID, ids(p))
 	}
 	return nil
 }

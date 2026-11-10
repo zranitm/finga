@@ -21,6 +21,9 @@ var tickBuckets = []float64{.0005, .001, .002, .005, .01, .015, .025, .05, .1, .
 // Transaction buckets cover a local Postgres (sub-millisecond) to a slow one.
 var txBuckets = []float64{.0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1}
 
+// batchBuckets are drops per grant call, up to the item service's 32.
+var batchBuckets = []float64{1, 2, 4, 8, 16, 32}
+
 func register(reg prometheus.Registerer, cs ...prometheus.Collector) error {
 	for _, c := range cs {
 		if err := reg.Register(c); err != nil {
@@ -35,6 +38,7 @@ type WorldMetrics struct {
 	tickDuration *prometheus.HistogramVec // by map
 	tickOverruns *prometheus.CounterVec   // by map
 	itemCalls    prometheus.Gauge
+	batchSize    prometheus.Histogram
 	savesDropped *prometheus.CounterVec // by reason
 }
 
@@ -50,6 +54,9 @@ func NewWorldMetrics(reg prometheus.Registerer, dropReasons []string) (*WorldMet
 		itemCalls: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: observability.Namespace, Name: "item_calls_inflight", Help: "Calls to the item service waiting for a worker or running.",
 		}),
+		batchSize: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: observability.Namespace, Name: "item_calls_batch_size", Help: "Drops carried by each grant call to the item service.", Buckets: batchBuckets,
+		}),
 		savesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: observability.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why. One at shutdown is counted after /metrics has closed: alert on its ERROR log line instead, \"persistence failed\" with dropped=shutdown.",
 		}, []string{"reason"}),
@@ -57,7 +64,7 @@ func NewWorldMetrics(reg prometheus.Registerer, dropReasons []string) (*WorldMet
 	for _, reason := range dropReasons {
 		m.savesDropped.WithLabelValues(reason)
 	}
-	return m, register(reg, m.tickDuration, m.tickOverruns, m.itemCalls, m.savesDropped)
+	return m, register(reg, m.tickDuration, m.tickOverruns, m.itemCalls, m.batchSize, m.savesDropped)
 }
 
 // SaveDropped counts a checkpoint given up on.
@@ -76,6 +83,9 @@ func (m *WorldMetrics) CallQueued() { m.itemCalls.Inc() }
 
 // CallDone counts a call to the item service done.
 func (m *WorldMetrics) CallDone() { m.itemCalls.Dec() }
+
+// ObserveBatch records how many drops a grant call carries.
+func (m *WorldMetrics) ObserveBatch(drops int) { m.batchSize.Observe(float64(drops)) }
 
 // GatewayMetrics are the gateway's: its players and their WebSocket traffic.
 type GatewayMetrics struct {

@@ -18,7 +18,16 @@ export function initials(template: string): string {
   return words.length > 1 ? `${words[0]![0]}${words[1]![0]}` : itemName(template).slice(0, 2);
 }
 
-/** The class that frames an icon in its star colour; 1 when the template is unknown. */
+/** 1 when the template is unknown. */
+export function starsOf(template: string): number {
+  return templateOf(template)?.stars ?? 1;
+}
+
+/** The class that gives an icon's frame or an item's name its star colour. */
 export function starClass(template: string): string {
-  return `stars-${templateOf(template)?.stars ?? 1}`;
+  return `stars-${starsOf(template)}`;
+}
+
+export function starMarks(template: string): string {
+  return '★'.repeat(starsOf(template));
 }

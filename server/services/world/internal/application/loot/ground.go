@@ -1,18 +1,13 @@
-// Package loot runs a map's drops: rolled from kills, its killer's party's for a while, granted by the item service.
+// Package loot runs a map's drops: rolled from kills, each owned by one player from the moment it falls, and collected for them through the item service.
 package loot
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"log/slog"
-	"math"
 	"slices"
 	"time"
 
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
 	"finga/internal/gamedata"
@@ -24,93 +19,121 @@ import (
 )
 
 const (
-	lootWindow  = 10 * time.Second // only the killer and their party may take it
-	dropLife    = 60 * time.Second
-	pickupRange = 40.0 // px from the character's centre
 	dropSpread  = 24.0 // px either side of the mob
 	dropSpacing = 20.0 // px between several drops of one mob
-	callTimeout = 5 * time.Second
 )
 
-// Pickups is the item service, called from the item-call pool, never inside a tick.
-type Pickups interface {
-	// Add grants the pickup and returns the slots it changed, at the revision it took.
-	Add(ctx context.Context, p model.Pickup) (model.Inventory, error)
-	// Retryable reports whether a failed Add is transient (a full inventory is not).
+// Items is the item service, called from the item-call pool, never inside a tick.
+type Items interface {
+	// AddMany grants one owner's drops in one call, answering each drop.
+	AddMany(ctx context.Context, c model.GrantCall) (model.Granted, error)
+	// Retryable reports whether a failed call is transient.
 	Retryable(err error) bool
-	// Granted reports whether a failed Add means an earlier try, whose reply was lost, granted the drop.
-	Granted(err error) bool
-	// Inventory is the character's whole inventory at its revision, for a grant whose own reply was lost.
-	Inventory(ctx context.Context, id kernel.CharacterID) (model.Inventory, error)
 }
 
-// Parties tells whether a picker shares the killer's party, from inside a tick.
-type Parties interface {
-	SameParty(a, b kernel.CharacterID) bool
+// Observer sees how many drops each grant call carries.
+type Observer interface {
+	ObserveBatch(drops int)
+}
+
+// Sink is where an owner who left the map hears of their drops; Send must not block.
+type Sink interface {
+	Send(model.Event) bool
+}
+
+// Owner is who a drop goes to: the character, the account that scopes its grant's key, the name their party sees, and where they hear of it once they left the map.
+type Owner struct {
+	ID      kernel.CharacterID
+	Account kernel.AccountID
+	Name    string
+	Sink    Sink
 }
 
 // Deps are what a map's ground calls; all are required.
 type Deps struct {
-	Items     Pickups
+	MapID     string
+	Items     Items
 	ItemCalls *itemcalls.Pool
-	Parties   Parties
-	Traces    trace.TracerProvider // starts each pickup's trace
+	Observer  Observer
+	Traces    trace.TracerProvider // starts each grant call's trace
 	Roll      model.Roll           // the map's random source, used only on its tick goroutine
-	Data      *gamedata.Data       // the item templates equipment rolls its stats from
+	Data      *gamedata.Data       // the loot timings, and the item templates equipment rolls its stats from
 	Logger    *slog.Logger
+	// Settle takes a grant call's Result back to the map's tick; it runs on a worker, and must return once the map has stopped.
+	Settle func(ctx context.Context, r Result)
 }
 
-// Tuning is the map's tick.
+// Tuning is the map's tick, and how many drops one grant call may carry.
 type Tuning struct {
 	TickInterval time.Duration
+	BatchMax     int
 }
 
-// drop is an item on the ground, in memory only until a pickup commits.
+// drop is an item on the ground, in memory only until its grant commits.
 type drop struct {
-	id         uint64    // the wire ID
-	key        uuid.UUID // the idempotency key of its pickup
-	template   string
-	quantity   int
-	stats      *progression.ItemStats // equipment's roll, nil for anything else
-	x, y       float64
-	killer     kernel.CharacterID
-	windowEnd  uint64 // tick until which only the killer may take it
-	expiresAt  uint64
-	reservedBy kernel.CharacterID // zero when free
-	// unsettled: its pickup's outcome is unknown, so only reservedBy retries it, as the item service keys per account.
-	unsettled bool
-	last      *pickup // the latest pickup, which an unsettled drop tries once more as it expires
+	id        uint64    // the wire ID
+	key       uuid.UUID // the idempotency key of its grant, the same on every try
+	template  string
+	quantity  int
+	stats     *progression.ItemStats // equipment's roll, nil for anything else
+	x, y      float64
+	owner     kernel.CharacterID
+	collectAt uint64 // it falls until then
+	expiresAt uint64
+	state     state
+	told      bool // its owner heard it waits for room
+	last      bool // its life ended: one more try under its key, then it is lost
 }
 
-// pickup is one grant of a drop: what to ask the item service, the command it links to, and who hears the outcome.
-type pickup struct {
-	drop  uint64
-	in    model.Pickup
-	cause trace.SpanContext
-	done  func(ctx context.Context, r Result)
-}
+type state int
+
+const (
+	fresh     state = iota // never answered: falling until collectAt, then due
+	sent                   // in its owner's call in flight
+	noRoom                 // refused for room; tried again at its owner's room check
+	unsettled              // its call failed, so it may be granted; tried again under its key
+)
 
 func (d *drop) view() model.DropView {
-	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y}
+	return model.DropView{ID: d.id, Template: d.template, Quantity: d.quantity, X: d.x, Y: d.y, Owner: d.owner}
 }
 
-// Ground is one map's drops; only the map's tick goroutine touches it, and its pickups run on the item-call pool.
-type Ground struct {
-	roll     model.Roll
-	interval time.Duration // the map's tick
-	deps     Deps
-	tracer   trace.Tracer
+// owner is an owner's grant calls: at most one in flight, and when the drops waiting for room or an answer go again.
+type owner struct {
+	Owner
+	drops   int // on the ground
+	busy    bool
+	retryAt uint64
+}
 
-	tick    uint64
-	drops   []*drop
-	nextID  uint64
-	added   []model.DropView // this tick's
-	removed []uint64
+// Ground is one map's drops; only the map's tick goroutine touches it, and its grant calls run on the item-call pool.
+type Ground struct {
+	roll   model.Roll
+	deps   Deps
+	tuning Tuning
+	tracer trace.Tracer
+	// The loot timings in ticks.
+	collectDelay, life, roomCheck, turnIdle uint64
+
+	tick      uint64
+	drops     []*drop // oldest first
+	nextID    uint64
+	owners    map[kernel.CharacterID]*owner
+	turns     map[string]*turn // by party
+	added     []model.DropView // this tick's
+	removed   []uint64
+	collected []uint64
 }
 
 // NewGround is a map's empty ground.
 func NewGround(d Deps, t Tuning) *Ground {
-	return &Ground{roll: d.Roll, interval: t.TickInterval, deps: d, tracer: d.Traces.Tracer(tracerName)}
+	ticks := func(d time.Duration) uint64 { return model.TicksIn(d, t.TickInterval) }
+	l := d.Data.Loot()
+	return &Ground{
+		roll: d.Roll, deps: d, tuning: t, tracer: d.Traces.Tracer(tracerName),
+		collectDelay: ticks(l.CollectDelay), life: ticks(l.DropLife), roomCheck: ticks(l.RoomCheckEvery), turnIdle: ticks(turnIdle),
+		owners: map[kernel.CharacterID]*owner{}, turns: map[string]*turn{},
+	}
 }
 
 // Begin starts tick n, forgetting the last tick's changes.
@@ -118,12 +141,23 @@ func (g *Ground) Begin(n uint64) {
 	g.tick = n
 	g.added = g.added[:0]
 	g.removed = g.removed[:0]
+	g.collected = g.collected[:0]
 }
 
-// Roll drops what mob's table gives around where it died at (x, y), killer's to take first.
-func (g *Ground) Roll(mob gamedata.Mob, x, y float64, killer kernel.CharacterID) {
+// Kill is a mob's death as its drops need it: where they fall, and who may own them.
+type Kill struct {
+	Mob    gamedata.Mob
+	X, Y   float64 // where it died
+	Killer Owner
+	Party  model.Party // the killer's; the zero one alone
+	// Eligible are the party's members alive on the map, the killer among them.
+	Eligible []Owner
+}
+
+// Roll drops what the mob's table gives around where it died, each owned by the next eligible party member in turn, or by the killer alone.
+func (g *Ground) Roll(k Kill) {
 	n := 0
-	for _, entry := range mob.Drops {
+	for _, entry := range k.Mob.Drops {
 		if g.roll.Float64() >= entry.Chance {
 			continue
 		}
@@ -133,16 +167,29 @@ func (g *Ground) Roll(mob gamedata.Mob, x, y float64, killer kernel.CharacterID)
 			rolled := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return g.between(r.Min, r.Max) })
 			stats = &rolled
 		}
+		to := g.next(k)
+		g.own(to)
 		g.nextID++
 		d := &drop{
 			id: g.nextID, key: uuidv7.New(), template: entry.Item, quantity: qty, stats: stats,
-			x: x + (g.roll.Float64()*2-1)*dropSpread + float64(n)*dropSpacing, y: y, killer: killer,
-			windowEnd: g.tick + model.TicksIn(lootWindow, g.interval), expiresAt: g.tick + model.TicksIn(dropLife, g.interval),
+			x: k.X + (g.roll.Float64()*2-1)*dropSpread + float64(n)*dropSpacing, y: k.Y, owner: to.ID,
+			collectAt: g.tick + g.collectDelay, expiresAt: g.tick + g.life,
 		}
 		g.drops = append(g.drops, d)
 		g.added = append(g.added, d.view())
 		n++
 	}
+}
+
+// own counts a drop for o, whose newest sink is their latest connection.
+func (g *Ground) own(o Owner) {
+	st, ok := g.owners[o.ID]
+	if !ok {
+		st = &owner{}
+		g.owners[o.ID] = st
+	}
+	st.Owner = o
+	st.drops++
 }
 
 // between is a whole number from lo to hi, both included, uniformly; a range of one number draws nothing.
@@ -151,155 +198,6 @@ func (g *Ground) between(lo, hi int) int {
 		return lo
 	}
 	return min(lo+int(g.roll.Float64()*float64(hi-lo+1)), hi)
-}
-
-// Expire takes away the drops past their life that no pickup holds; an unsettled one goes with a last grant under its key.
-func (g *Ground) Expire() {
-	g.drops = slices.DeleteFunc(g.drops, func(d *drop) bool {
-		if d.expiresAt > g.tick || !d.reservedBy.IsZero() && !d.unsettled {
-			return false
-		}
-		if d.unsettled && !g.submit(*d.last, true) {
-			return false // no worker free for its last try; the next tick asks again
-		}
-		g.removed = append(g.removed, d.id)
-		return true
-	})
-}
-
-// Picker is a player reaching for a drop, from their centre.
-type Picker struct {
-	ID      kernel.CharacterID
-	Account kernel.AccountID
-	X, Y    float64
-	Cause   trace.SpanContext // the command that asked, which the pickup's trace links to
-}
-
-// Result is a pickup's outcome, which the map settles on its tick.
-type Result struct {
-	Who     kernel.CharacterID
-	drop    uint64
-	changed model.Inventory
-	err     error
-	last    bool // the try an unsettled drop made as it expired
-}
-
-// PickUp reserves the nearest drop p may take for a worker to grant, which hands done the Result; else ErrPickupBusy.
-func (g *Ground) PickUp(p Picker, done func(ctx context.Context, r Result)) error {
-	var best *drop
-	bestDist := math.Inf(1)
-	for _, d := range g.drops {
-		if !d.reservedBy.IsZero() && (!d.unsettled || d.reservedBy != p.ID) {
-			continue
-		}
-		if d.windowEnd > g.tick && d.killer != p.ID && !g.deps.Parties.SameParty(d.killer, p.ID) {
-			continue // someone else's loot for now (the killer's party may)
-		}
-		if dist := math.Hypot(d.x-p.X, d.y-p.Y); dist <= pickupRange && dist < bestDist {
-			best, bestDist = d, dist
-		}
-	}
-	if best == nil {
-		return nil
-	}
-	in := model.Pickup{Account: p.Account, Character: p.ID, DropID: best.key, Template: best.template, Quantity: best.quantity, Stats: best.stats}
-	pu := pickup{drop: best.id, in: in, cause: p.Cause, done: done}
-	if !g.submit(pu, false) {
-		return model.ErrPickupBusy
-	}
-	best.reservedBy, best.unsettled, best.last = p.ID, false, &pu
-	return nil
-}
-
-// submit hands a worker the grant of pu, false when none can take it.
-func (g *Ground) submit(pu pickup, last bool) bool {
-	return g.deps.ItemCalls.Submit(func(ctx context.Context) {
-		r := g.grant(ctx, pu)
-		r.last = last
-		pu.done(ctx, r)
-	})
-}
-
-const tracerName = "finga/services/world/internal/application/loot"
-
-// pickupSpan names a pickup's trace: the call a tick hands to a worker.
-const pickupSpan = "world.pickup"
-
-// EntryPoint reports whether a root span of this name starts a trace that is kept: a pickup's.
-func EntryPoint(span string) bool { return span == pickupSpan }
-
-// grant asks the item service for the drop, on a worker, retrying a transient failure once under the same key; its span is a consumer's, of the job a tick handed over.
-func (g *Ground) grant(ctx context.Context, pu pickup) Result {
-	in := pu.in
-	opts := []trace.SpanStartOption{trace.WithNewRoot(), trace.WithSpanKind(trace.SpanKindConsumer), trace.WithAttributes(
-		attribute.String("character_id", in.Character.String()), attribute.String("drop_id", in.DropID.String()))}
-	if pu.cause.IsValid() {
-		opts = append(opts, trace.WithLinks(trace.Link{SpanContext: pu.cause}))
-	}
-	ctx, span := g.tracer.Start(ctx, pickupSpan, opts...)
-	defer span.End()
-	changed, err := g.add(ctx, in)
-	if err != nil && g.deps.Items.Retryable(err) {
-		changed, err = g.add(ctx, in) // the key makes a retry harmless
-		if err != nil && g.deps.Items.Retryable(err) {
-			err = fmt.Errorf("%w: %w", model.ErrPickupsUnavailable, err)
-		}
-	}
-	if err != nil && g.deps.Items.Granted(err) {
-		changed, err = g.held(ctx, in), nil // granted, though the slots it changed went with the lost reply
-	}
-	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-	}
-	return Result{Who: in.Character, drop: pu.drop, changed: changed, err: err}
-}
-
-func (g *Ground) add(ctx context.Context, in model.Pickup) (model.Inventory, error) {
-	ctx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	return g.deps.Items.Add(ctx, in)
-}
-
-// held is the picker's slots holding the drop's item, where its grant landed, at the revision read; nothing, logged and on the trace, when the read fails.
-func (g *Ground) held(ctx context.Context, in model.Pickup) model.Inventory {
-	readCtx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	inv, err := g.deps.Items.Inventory(readCtx, in.Character)
-	if err != nil {
-		span := trace.SpanFromContext(ctx)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "granted, but the inventory could not be read")
-		g.deps.Logger.WarnContext(ctx, "pickup granted, but the inventory could not be read; the player sees it at the next change", "character_id", in.Character, "drop_id", in.DropID, "err", err)
-		return model.Inventory{}
-	}
-	inv.Slots = slices.DeleteFunc(inv.Slots, func(s model.Slot) bool { return s.Item == nil || s.Item.Template != in.Template })
-	return inv
-}
-
-// Settle applies a pickup's outcome, removing, freeing or holding its drop; it returns what to tell the picker.
-func (g *Ground) Settle(r Result) (model.Event, bool) {
-	k := slices.IndexFunc(g.drops, func(d *drop) bool { return d.id == r.drop })
-	if r.err != nil && r.last {
-		return nil, false // the drop is gone, and the picker heard of the failure already
-	}
-	if r.err != nil {
-		if k >= 0 && g.drops[k].reservedBy == r.Who {
-			if errors.Is(r.err, model.ErrPickupsUnavailable) {
-				g.drops[k].unsettled = true // the add may have committed before its reply was lost
-			} else {
-				g.drops[k].reservedBy, g.drops[k].last = kernel.CharacterID{}, nil
-			}
-		}
-		return model.PickupFailed{Tick: g.tick, Err: r.err}, true
-	}
-	if k >= 0 {
-		g.drops = slices.Delete(g.drops, k, k+1)
-		g.removed = append(g.removed, r.drop)
-	}
-	if len(r.changed.Slots) == 0 {
-		return nil, false
-	}
-	return model.InventoryChanged{Tick: g.tick, Revision: r.changed.Revision, Slots: r.changed.Slots}, true
 }
 
 // Views are every drop, as a Snapshot shows them.
@@ -311,7 +209,7 @@ func (g *Ground) Views() []model.DropView {
 	return out
 }
 
-// Changes are the drops added and removed this tick.
-func (g *Ground) Changes() (added []model.DropView, removed []uint64) {
-	return slices.Clone(g.added), slices.Clone(g.removed)
+// Changes are the drops added this tick, those gone without an owner taking them, and those collected.
+func (g *Ground) Changes() (added []model.DropView, removed, collected []uint64) {
+	return slices.Clone(g.added), slices.Clone(g.removed), slices.Clone(g.collected)
 }

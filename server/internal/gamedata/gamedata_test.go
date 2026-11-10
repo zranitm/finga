@@ -43,6 +43,11 @@ drop_through: 0.25
 width: 24
 height: 56
 `,
+		"loot.yaml": `
+collect_delay: 1s
+drop_life: 60s
+room_check_every: 2s
+`,
 		"classes.yaml": `
 classes:
   - id: warrior
@@ -252,6 +257,11 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("bowman attack = %+v", b.Attack)
 		}
 	})
+	t.Run("the loot timings", func(t *testing.T) {
+		if got, want := d.Loot(), (gamedata.Loot{CollectDelay: time.Second, DropLife: time.Minute, RoomCheckEvery: 2 * time.Second}); got != want {
+			t.Fatalf("loot %+v, want %+v", got, want)
+		}
+	})
 	t.Run("the EXP curve", func(t *testing.T) {
 		if d.LevelCap() != 4 {
 			t.Fatalf("cap %d", d.LevelCap())
@@ -432,6 +442,10 @@ func TestRejections(t *testing.T) {
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 1900`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
+		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},
+		{"a drop must fly before it is lost", "loot.yaml", `collect_delay: 1s`, `collect_delay: 60s`, []string{"loot.yaml", "drop_life"}},
+		{"a full inventory must be asked again before the drop is lost", "loot.yaml", `room_check_every: 2s`, `room_check_every: 90s`, []string{"loot.yaml", "drop_life"}},
+		{"a loot timing that isn't a duration", "loot.yaml", `drop_life: 60s`, `drop_life: a minute`, []string{"loot.yaml"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

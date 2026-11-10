@@ -70,7 +70,7 @@ same three on its ops port:
 | gateway         |      | 8080: /api, /ws; 9100                       | 8080 (`FINGA_PORT`), for `make smoke` and `make bots`; 9100 (`FINGA_GATEWAY_OPS_PORT`) |
 | account         | 9001 | 9101                                        |                                                                                        |
 | character       | 9002 | 9102                                        |                                                                                        |
-| item            | 9003 | 9103                                        |                                                                                        |
+| item            | 9003 | 9103                                        | 9103 (`FINGA_ITEM_OPS_PORT`), for `make bots`                                          |
 | world           | 9004 | 9104                                        | 9104 (`FINGA_WORLD_OPS_PORT`), for `make bots`                                         |
 | social          | 9005 | 9105                                        |                                                                                        |
 | Postgres        |      | 5432                                        | 5432 (`FINGA_POSTGRES_PORT`)                                                           |
@@ -133,7 +133,7 @@ console, `source`, `sampling`), and each internal service `grpc.listen` and
 | `account`   | `database.url`, `database.max_conns`; `password` (`time`, `memory_kib`, `threads`), the Argon2id cost |
 | `character` | `database`, `data_dir`, `dependencies.item`                                       |
 | `item`      | `database`, `data_dir`                                                            |
-| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `dependencies` on character, item and social |
+| `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item service's 32), `dependencies` on character, item and social |
 | `social`    | none                                                                              |
 | `migrate`   | `database`, `log` only                                                            |
 

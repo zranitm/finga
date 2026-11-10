@@ -43,14 +43,17 @@ Every item type names its slot. A ring fits either ring slot.
 ## Drops
 
 - Each mob type has a drop list: which items and currency it can drop, and the chance of each.
-- Drops land on the ground, can be picked up, and vanish after a while.
-- Who can pick up a drop: OD-05 (default: the killer or their party first for a short window, then anyone).
+- Drops land on the ground and are collected automatically; there is no pickup key. After a short delay (1 second to start, tunable in game data) a drop flies to its owner and goes into their inventory, wherever they are on the map.
+- Every drop belongs to one player from the moment it falls (OD-05: decided, replacing the old default of "the killer or their party first, then anyone"):
+  - hunting alone, the killer;
+  - in a party, the members on the map take turns (Social → Party).
+- Nobody can take a drop that isn't theirs. A drop that can't be collected vanishes after 60 seconds.
 
 ## Inventory
 
 - Each tab has a fixed number of slots. Stacks have a maximum size.
-- With a full inventory, a pickup fails and the drop stays on the ground.
-- Items can be dropped on the ground or discarded. A worn item must be unequipped first.
+- With a full inventory, a drop waits on the ground for its owner and is collected within a few seconds of a slot freeing up. The owner is told what is waiting. A drop still waiting after 60 seconds vanishes.
+- Items can be discarded. A worn item must be unequipped first. Items can no longer be dropped on the ground for someone else, since nobody could pick them up; giving items is trade (F3, F4).
 
 ## Integrity
 

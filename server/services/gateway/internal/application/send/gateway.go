@@ -27,7 +27,6 @@ type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
 	Attack(ctx context.Context, p model.Presence) error
 	EnterPortal(ctx context.Context, p model.Presence) error
-	PickUp(ctx context.Context, p model.Presence) error
 	Say(ctx context.Context, p model.Presence, name, text string) error
 	Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error
 	Unequip(ctx context.Context, p model.Presence, in model.ItemUnequip) error

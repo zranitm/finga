@@ -1,5 +1,6 @@
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
@@ -16,6 +17,7 @@ export function resetStores(): void {
     inventory,
     party,
     chat,
+    combatLog,
     connection,
     settings,
     ui,

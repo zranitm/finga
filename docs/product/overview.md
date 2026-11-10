@@ -37,7 +37,7 @@ A browser-based 2D side-scrolling MMORPG-lite, inspired by MapleStory. Pick one 
 
 ## Core loops
 
-- **Moment to moment (seconds):** move, jump, attack, pick up loot.
+- **Moment to moment (seconds):** move, jump, attack, and watch the loot fly in.
 - **Session (30–60 minutes):** hunt a map, fill the inventory, return to town, sell and restock, upgrade gear.
 - **Long term (weeks):** reach higher levels and new maps, collect better gear, build wealth on the marketplace, take on party dungeons.
 

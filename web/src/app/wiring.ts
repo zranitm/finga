@@ -1,8 +1,11 @@
 // The single place net and state meet.
+import { itemName, starMarks, starsOf } from '@/features/shared/items';
 import type { GameSocket, StatusEvent } from '@/net/socket';
+import { LootKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
@@ -30,12 +33,18 @@ export function wireSocket(socket: GameSocket): () => void {
     }),
     socket.on('levelUp', (m) => {
       character.getState().applyLevelUp(m.d);
+      combatLog.getState().applyLevelUp(m.d);
     }),
     socket.on('statsChanged', (m) => {
       character.getState().applyStatsChanged(m.d);
     }),
     socket.on('expGained', (m) => {
       character.getState().applyExpGained(m.d);
+      combatLog.getState().applyExpGained(m.d);
+    }),
+    socket.on('loot', (m) => {
+      combatLog.getState().applyLoot(m.d);
+      toastRareFind(m.d);
     }),
     socket.on('pong', () => {
       connection.getState().setRtt(socket.rtt);
@@ -84,12 +93,9 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** For a refused command with no req: a pickup, a chat line. */
+/** For a refused command with no req: an attack, a portal, a chat line. */
 export function responseText(d: Data<'response'>): string {
   switch (d.code) {
-    case 'inventory_full':
-      return 'Your inventory is full.';
-    case 'pickup_busy':
     case 'unavailable':
       return 'The server is busy. Try again.';
     case 'rate_limited':
@@ -100,10 +106,22 @@ export function responseText(d: Data<'response'>): string {
   }
 }
 
+const RARE_STARS = 4;
+
+/** A collected item of 4★ and up, this player's or a party member's, also shows as a toast. */
+function toastRareFind(d: Data<'loot'>): void {
+  if (d.kind !== LootKind.COLLECTED || starsOf(d.template) < RARE_STARS) {
+    return;
+  }
+  const who = d.ownerId === character.getState().character?.id ? 'You' : d.ownerName;
+  toasts.getState().push(`${who} got ${itemName(d.template)} ${starMarks(d.template)}`, 'info');
+}
+
 export function leaveWorld(): void {
   character.getState().clear();
   inventory.getState().clear();
   party.getState().clear();
   chat.getState().clear();
+  combatLog.getState().clear();
   session.getState().logOut();
 }

@@ -36,7 +36,7 @@ describe('golden messages', () => {
     expect(goldens.map((g) => g.name).sort()).toEqual(
       [...clientCases.keys(), ...serverCases.keys()].sort(),
     );
-    expect([clientCases.size, serverCases.size]).toEqual([16, 18]);
+    expect([clientCases.size, serverCases.size]).toEqual([16, 19]);
   });
 
   it.each(serverGoldens)('$name decodes as its ServerMessage and re-encodes the same', (g) => {
@@ -124,9 +124,9 @@ describe('decode rejects', () => {
       want: /bad frame/,
     },
     {
-      name: 'a binary message from a newer server (field 21)',
+      name: 'a binary message from a newer server (field 22)',
       codec: binaryCodec,
-      raw: new Uint8Array([0xaa, 0x01, 0x00]).buffer,
+      raw: new Uint8Array([0xb2, 0x01, 0x00]).buffer,
       want: /no body/,
     },
     { name: 'a text frame on the binary codec', codec: binaryCodec, raw: '{}', want: /text frame/ },

@@ -47,7 +47,8 @@ type WorldServiceClient interface {
 	Input(ctx context.Context, in *InputRequest, opts ...grpc.CallOption) (*InputResponse, error)
 	// Attack queues a basic attack the way the character faces.
 	Attack(ctx context.Context, in *AttackRequest, opts ...grpc.CallOption) (*AttackResponse, error)
-	// PickUp asks for the nearest eligible drop in reach.
+	// Deprecated: Do not use.
+	// PickUp does nothing: drops fly to their owners by themselves. It answers for a gateway that still routes the key.
 	PickUp(ctx context.Context, in *PickUpRequest, opts ...grpc.CallOption) (*PickUpResponse, error)
 	// EnterPortal takes the portal the character stands in, if any.
 	EnterPortal(ctx context.Context, in *EnterPortalRequest, opts ...grpc.CallOption) (*EnterPortalResponse, error)
@@ -126,6 +127,7 @@ func (c *worldServiceClient) Attack(ctx context.Context, in *AttackRequest, opts
 	return out, nil
 }
 
+// Deprecated: Do not use.
 func (c *worldServiceClient) PickUp(ctx context.Context, in *PickUpRequest, opts ...grpc.CallOption) (*PickUpResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PickUpResponse)
@@ -192,7 +194,8 @@ type WorldServiceServer interface {
 	Input(context.Context, *InputRequest) (*InputResponse, error)
 	// Attack queues a basic attack the way the character faces.
 	Attack(context.Context, *AttackRequest) (*AttackResponse, error)
-	// PickUp asks for the nearest eligible drop in reach.
+	// Deprecated: Do not use.
+	// PickUp does nothing: drops fly to their owners by themselves. It answers for a gateway that still routes the key.
 	PickUp(context.Context, *PickUpRequest) (*PickUpResponse, error)
 	// EnterPortal takes the portal the character stands in, if any.
 	EnterPortal(context.Context, *EnterPortalRequest) (*EnterPortalResponse, error)

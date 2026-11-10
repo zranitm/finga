@@ -1,11 +1,7 @@
 package clients
 
 import (
-	"google.golang.org/grpc/codes"
-
 	worldv1 "finga/api/gen/world/v1"
-	"finga/pkg/grpcx"
-	"finga/services/gateway/internal/clients/errmap"
 	"finga/services/gateway/internal/model"
 )
 
@@ -41,8 +37,12 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 	case m.GetStatsChanged() != nil:
 		ev := m.GetStatsChanged()
 		return model.StatsChanged{Sheet: statSheet(ev.GetSheet()), HP: int(ev.GetHp()), MaxHP: int(ev.GetMaxHp()), MP: int(ev.GetMp()), MaxMP: int(ev.GetMaxMp())}, true
-	case m.GetPickupFailed() != nil:
-		return model.PickupFailed{Why: pickupFailure(m.GetPickupFailed())}, true
+	case m.GetLoot() != nil:
+		ev := m.GetLoot()
+		return model.Loot{
+			Kind: lootKinds[ev.GetKind()], MapID: ev.GetMapId(), DropID: ev.GetDropId(), Owner: ev.GetOwnerId(), OwnerName: ev.GetOwnerName(),
+			Template: ev.GetTemplate(), Quantity: int(ev.GetQuantity()),
+		}, true
 	}
 	return nil, false
 }
@@ -51,16 +51,15 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 func frameOf(d *worldv1.Delta) *model.Frame {
 	return &model.Frame{
 		Players: playerViews(d.GetPlayers()), Mobs: mobViews(d.GetMobs()), Drops: dropViews(d.GetDrops()),
-		RemovedPlayers: d.GetRemovedPlayers(), RemovedMobs: d.GetRemovedMobs(), RemovedDrops: d.GetRemovedDrops(),
+		RemovedPlayers: d.GetRemovedPlayers(), RemovedMobs: d.GetRemovedMobs(), RemovedDrops: d.GetRemovedDrops(), CollectedDrops: d.GetCollectedDrops(),
 	}
 }
 
-// pickupFailure is a failed pickup as the player sees it; one without a reason is internal.
-func pickupFailure(f *worldv1.PickupFailed) model.Public {
-	if f.GetErrorReason() == "" {
-		return model.Internal
-	}
-	return errmap.For(grpcx.ErrorFor(codes.Unknown, grpcx.Reason{Domain: f.GetErrorDomain(), Name: f.GetErrorReason()}))
+// lootKinds are the world's kinds of loot; an unknown one is the zero kind.
+var lootKinds = map[worldv1.LootKind]model.LootKind{
+	worldv1.LootKind_LOOT_KIND_COLLECTED: model.LootCollected,
+	worldv1.LootKind_LOOT_KIND_WAITING:   model.LootWaiting,
+	worldv1.LootKind_LOOT_KIND_LOST:      model.LootLost,
 }
 
 func entity(r *worldv1.EntityRef) model.Entity {
@@ -122,12 +121,12 @@ func dropViews(ds []*worldv1.DropView) []model.DropView {
 	}
 	out := make([]model.DropView, 0, len(ds))
 	for _, d := range ds {
-		out = append(out, model.DropView{ID: d.GetId(), Template: d.GetTemplate(), Quantity: int(d.GetQuantity()), X: d.GetX(), Y: d.GetY()})
+		out = append(out, model.DropView{ID: d.GetId(), Template: d.GetTemplate(), Quantity: int(d.GetQuantity()), X: d.GetX(), Y: d.GetY(), Owner: d.GetOwnerId()})
 	}
 	return out
 }
 
-// worldSlots are the slots a pickup or an equip changed, as the world's contract carries them.
+// worldSlots are the slots a grant or an equip changed, as the world's contract carries them.
 func worldSlots(slots []*worldv1.Slot) []model.InventorySlot {
 	out := make([]model.InventorySlot, 0, len(slots))
 	for _, s := range slots {

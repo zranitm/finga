@@ -44,8 +44,6 @@ func TestForGivesEachServiceErrorItsOwnFailure(t *testing.T) {
 		{grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), model.PartyFull},
 		{grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER), model.NotPartyLeader},
 		{grpctest.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), model.InviteExpired},
-		{grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), model.PickupsUnavailable},
-		{grpctest.Error(codes.ResourceExhausted, worldv1.Reason_REASON_PICKUP_BUSY), model.PickupBusy},
 	}
 	for _, tt := range tests {
 		t.Run(tt.want.Code, func(t *testing.T) {
@@ -127,6 +125,7 @@ var contracts = []protoreflect.EnumDescriptor{
 var handledByTheGateway = []grpcx.Reason{
 	grpcx.Key(itemv1.Reason_REASON_BAD_CAUSE),
 	grpcx.Key(itemv1.Reason_REASON_BAD_ROLL),
+	grpcx.Key(itemv1.Reason_REASON_BAD_BATCH_SIZE),
 	grpcx.Key(worldv1.Reason_REASON_BUSY),
 	grpcx.Key(worldv1.Reason_REASON_NO_MAP),
 	grpcx.Key(worldv1.Reason_REASON_STOPPED),
@@ -157,7 +156,6 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "unavailable"},
 		{"a world too busy to take a join", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), model.ErrUnavailable, "unavailable"},
 		{"a world that is stopping", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_STOPPED), model.ErrUnavailable, "unavailable"},
-		{"pickups unavailable keep their own code", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_PICKUPS_UNAVAILABLE), model.ErrUnavailable, "pickups_unavailable"},
 		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, "internal"},
 	}
 	for _, tt := range tests {

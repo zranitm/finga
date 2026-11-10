@@ -28,7 +28,7 @@ type Parties interface {
 	Kick(ctx context.Context, leader, target kernel.CharacterID) error
 	Promote(ctx context.Context, leader, target kernel.CharacterID) error
 	Update(ctx context.Context, id kernel.CharacterID, mapID string, level, hp, maxHP int) error
-	Memberships(ctx context.Context, visit func(members []kernel.CharacterID)) error
+	Memberships(ctx context.Context, visit func(party model.PartyID, members []kernel.CharacterID)) error
 }
 
 // Chat is what the handler needs from the chat module.
@@ -108,8 +108,8 @@ func (s *Server) WatchParties(req *socialv1.WatchPartiesRequest, stream grpc.Ser
 	}
 	sub := s.streams.watchers.Subscribe(req.GetWorldId())
 	first := []*socialv1.WatchPartiesResponse{{Event: &socialv1.WatchPartiesResponse_Subscribed{Subscribed: &socialv1.Subscribed{BootId: s.streams.bootID}}}}
-	if err := s.parties.Memberships(stream.Context(), func(members []kernel.CharacterID) {
-		first = append(first, membership(members, members))
+	if err := s.parties.Memberships(stream.Context(), func(party model.PartyID, members []kernel.CharacterID) {
+		first = append(first, membership(members, members, party.String()))
 	}); err != nil {
 		sub.Close()
 		return err
@@ -254,9 +254,10 @@ func (s *Server) UpdateMember(ctx context.Context, req *socialv1.UpdateMemberReq
 	return &socialv1.UpdateMemberResponse{}, nil
 }
 
-func membership(characters, members []kernel.CharacterID) *socialv1.WatchPartiesResponse {
+// membership sets characters' party to members, under party's ID; empty members and ID for none.
+func membership(characters, members []kernel.CharacterID, party string) *socialv1.WatchPartiesResponse {
 	return &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Membership{Membership: &socialv1.Membership{
-		CharacterIds: strings(characters), Members: strings(members),
+		CharacterIds: strings(characters), Members: strings(members), PartyId: party,
 	}}}
 }
 

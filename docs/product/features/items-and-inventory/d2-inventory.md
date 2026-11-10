@@ -11,7 +11,7 @@
 
 - Tabs by item type (Equipment, Use, Etc), each with a fixed number of slots.
 - Use and Etc items stack.
-- Items can be dropped on the ground or discarded.
+- Items can be discarded.
 - The inventory is unchanged after logging out and back in.
 
 ## Rules

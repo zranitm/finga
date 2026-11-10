@@ -193,9 +193,17 @@ type Map struct {
 	PlayerSpawn Point // where players appear; in towns, the respawn point
 }
 
+// Loot is how drops behave on the ground.
+type Loot struct {
+	CollectDelay   time.Duration // from the kill until a drop flies to its owner
+	DropLife       time.Duration // a drop still on the ground then is lost
+	RoomCheckEvery time.Duration // how often an owner's drops waiting for room are tried again
+}
+
 // Data is everything loaded, read-only after Load.
 type Data struct {
 	movement  sim.Params
+	loot      Loot
 	classes   []Class
 	classIdx  map[kernel.Class]int
 	formulas  map[kernel.Class]Formulas
@@ -212,6 +220,9 @@ type Data struct {
 
 // Movement is the simulation's constants.
 func (d *Data) Movement() sim.Params { return d.movement }
+
+// Loot is how drops behave on the ground.
+func (d *Data) Loot() Loot { return d.loot }
 
 // Classes lists the playable classes in file order.
 func (d *Data) Classes() []Class { return d.classes }

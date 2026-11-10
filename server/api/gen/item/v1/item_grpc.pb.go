@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ItemService_Inventory_FullMethodName    = "/internal.item.v1.ItemService/Inventory"
 	ItemService_Add_FullMethodName          = "/internal.item.v1.ItemService/Add"
+	ItemService_AddMany_FullMethodName      = "/internal.item.v1.ItemService/AddMany"
 	ItemService_Move_FullMethodName         = "/internal.item.v1.ItemService/Move"
 	ItemService_Discard_FullMethodName      = "/internal.item.v1.ItemService/Discard"
 	ItemService_GrantStarter_FullMethodName = "/internal.item.v1.ItemService/GrantStarter"
@@ -38,6 +39,8 @@ type ItemServiceClient interface {
 	Inventory(ctx context.Context, in *InventoryRequest, opts ...grpc.CallOption) (*InventoryResponse, error)
 	// Add fills the first stack with room, then the first free slot; a pickup's key is its drop ID.
 	Add(ctx context.Context, in *AddRequest, opts ...grpc.CallOption) (*AddResponse, error)
+	// AddMany adds up to 32 drops for one owner in one transaction, each under its own key as Add would take it; a drop a rule refuses changes nothing and stores no reply, and the others carry on.
+	AddMany(ctx context.Context, in *AddManyRequest, opts ...grpc.CallOption) (*AddManyResponse, error)
 	// Move moves an item to a slot of its tab, merging into a stack of the same item there.
 	Move(ctx context.Context, in *MoveRequest, opts ...grpc.CallOption) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
@@ -72,6 +75,16 @@ func (c *itemServiceClient) Add(ctx context.Context, in *AddRequest, opts ...grp
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(AddResponse)
 	err := c.cc.Invoke(ctx, ItemService_Add_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemServiceClient) AddMany(ctx context.Context, in *AddManyRequest, opts ...grpc.CallOption) (*AddManyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AddManyResponse)
+	err := c.cc.Invoke(ctx, ItemService_AddMany_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -138,6 +151,8 @@ type ItemServiceServer interface {
 	Inventory(context.Context, *InventoryRequest) (*InventoryResponse, error)
 	// Add fills the first stack with room, then the first free slot; a pickup's key is its drop ID.
 	Add(context.Context, *AddRequest) (*AddResponse, error)
+	// AddMany adds up to 32 drops for one owner in one transaction, each under its own key as Add would take it; a drop a rule refuses changes nothing and stores no reply, and the others carry on.
+	AddMany(context.Context, *AddManyRequest) (*AddManyResponse, error)
 	// Move moves an item to a slot of its tab, merging into a stack of the same item there.
 	Move(context.Context, *MoveRequest) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
@@ -163,6 +178,9 @@ func (UnimplementedItemServiceServer) Inventory(context.Context, *InventoryReque
 }
 func (UnimplementedItemServiceServer) Add(context.Context, *AddRequest) (*AddResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Add not implemented")
+}
+func (UnimplementedItemServiceServer) AddMany(context.Context, *AddManyRequest) (*AddManyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AddMany not implemented")
 }
 func (UnimplementedItemServiceServer) Move(context.Context, *MoveRequest) (*MoveResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Move not implemented")
@@ -232,6 +250,24 @@ func _ItemService_Add_Handler(srv interface{}, ctx context.Context, dec func(int
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ItemServiceServer).Add(ctx, req.(*AddRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemService_AddMany_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AddManyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).AddMany(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_AddMany_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).AddMany(ctx, req.(*AddManyRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -340,6 +376,10 @@ var ItemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Add",
 			Handler:    _ItemService_Add_Handler,
+		},
+		{
+			MethodName: "AddMany",
+			Handler:    _ItemService_AddMany_Handler,
 		},
 		{
 			MethodName: "Move",

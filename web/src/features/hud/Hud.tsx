@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 
 import { Bar } from '@/components/Bar';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 
 const EXP_FLASH_MS = 2000;
 
@@ -29,8 +30,16 @@ export function Hud() {
         {...(capped && { text: 'MAX' })}
       />
       <ExpDelta />
+      <WaitingNotice />
     </div>
   );
+}
+
+function WaitingNotice() {
+  const waiting = combatLog.use((s) => s.waiting.length);
+  return waiting > 0 ? (
+    <span className="hud-waiting">Inventory full: {waiting} waiting</span>
+  ) : null;
 }
 
 function ExpDelta() {

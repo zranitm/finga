@@ -50,9 +50,8 @@ func (h *Handler) attack(c *msgContext, _ *clientv1.Attack) (any, error) {
 	return nil, h.gw.Attack(c.Ctx, c.Session.session)
 }
 
-func (h *Handler) pickUp(c *msgContext, _ *clientv1.PickUp) (any, error) {
-	return nil, h.gw.PickUp(c.Ctx, c.Session.session)
-}
+// ignore answers a retired PickUp an older client still sends with nothing: drops fly to their owners by themselves.
+func (h *Handler) ignore(*msgContext, *clientv1.PickUp) (any, error) { return nil, nil }
 
 func (h *Handler) enterPortal(c *msgContext, _ *clientv1.EnterPortal) (any, error) {
 	return nil, h.gw.EnterPortal(c.Ctx, c.Session.session)

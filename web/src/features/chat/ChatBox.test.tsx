@@ -4,8 +4,19 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isTyping } from '@/input/typing';
-import { ChatChannel, ChatMessageSchema } from '@/protocol/messages';
+import {
+  CharacterViewSchema,
+  ChatChannel,
+  ChatMessageSchema,
+  ExpGainedSchema,
+  LevelUpSchema,
+  LootKind,
+  LootSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
+import { character } from '@/state/character';
 import { chat } from '@/state/chat';
+import { combatLog } from '@/state/combat-log';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -13,6 +24,20 @@ import { ChatBox, MAX_CHAT_CHARS, parseLine } from './ChatBox';
 
 const line = (channel: ChatChannel, senderName: string, text: string) =>
   create(ChatMessageSchema, { channel, sender: `c-${senderName}`, senderName, text });
+
+const loot = (kind: LootKind, template: string, quantity: number, ownerName = 'Ayla') =>
+  create(LootSchema, {
+    kind,
+    mapId: 'meadow',
+    dropId: 7,
+    ownerId: `c-${ownerName.toLowerCase()}`,
+    ownerName,
+    template,
+    quantity,
+  });
+
+const tab = (name: string) => screen.getByRole('tab', { name });
+const shown = () => screen.getAllByRole('listitem').map((li) => li.textContent);
 
 function setup() {
   const send = vi.fn(() => true);
@@ -26,13 +51,21 @@ describe('ChatBox', () => {
   });
 
   it.each([
-    { raw: 'hello', want: { channel: ChatChannel.MAP, text: 'hello' } },
-    { raw: '/p hello there', want: { channel: ChatChannel.PARTY, text: 'hello there' } },
-    { raw: '/p', want: { channel: ChatChannel.PARTY, text: '' } },
-    { raw: '/party no', want: { channel: ChatChannel.MAP, text: '/party no' } },
-    { raw: '  spaced  ', want: { channel: ChatChannel.MAP, text: 'spaced' } },
-  ])('parseLine($raw)', ({ raw, want }) => {
-    expect(parseLine(raw)).toEqual(want);
+    { raw: 'hello', tab: 'general', want: { channel: ChatChannel.MAP, text: 'hello' } },
+    {
+      raw: '/p hello there',
+      tab: 'general',
+      want: { channel: ChatChannel.PARTY, text: 'hello there' },
+    },
+    { raw: '/p', tab: 'general', want: { channel: ChatChannel.PARTY, text: '' } },
+    { raw: '/party no', tab: 'general', want: { channel: ChatChannel.MAP, text: '/party no' } },
+    { raw: '  spaced  ', tab: 'general', want: { channel: ChatChannel.MAP, text: 'spaced' } },
+    { raw: 'hello', tab: 'party', want: { channel: ChatChannel.PARTY, text: 'hello' } },
+    { raw: '/p hello', tab: 'party', want: { channel: ChatChannel.PARTY, text: 'hello' } },
+    { raw: 'hello', tab: 'combat', want: { channel: ChatChannel.MAP, text: 'hello' } },
+    { raw: '/p hello', tab: 'combat', want: { channel: ChatChannel.PARTY, text: 'hello' } },
+  ] as const)('parseLine($raw) from $tab', ({ raw, tab, want }) => {
+    expect(parseLine(raw, tab)).toEqual(want);
   });
 
   it('Enter sends ChatSend with the typed text on the map channel, clears and leaves', async () => {
@@ -105,5 +138,146 @@ describe('ChatBox', () => {
       }
     });
     expect(screen.getAllByRole('listitem')).toHaveLength(8);
+  });
+
+  describe('tabs', () => {
+    beforeEach(() => {
+      act(() => {
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'hi'), 1);
+        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 2);
+        combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: 12n, exp: 40n }));
+      });
+    });
+
+    it('General shows map and party lines, Party only party lines, Combat the combat log', async () => {
+      setup();
+      expect(tab('General')).toHaveAttribute('aria-selected', 'true');
+      expect(shown()).toEqual(['[Map] Robin: hi', '[Party] Ayla: go']);
+      await userEvent.click(tab('Party'));
+      expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
+      expect(tab('General')).toHaveAttribute('aria-selected', 'false');
+      expect(shown()).toEqual(['[Party] Ayla: go']);
+      await userEvent.click(tab('Combat'));
+      expect(shown()).toEqual(['You gained 12 EXP.']);
+    });
+
+    it('new lines never switch the tab', async () => {
+      setup();
+      await userEvent.click(tab('Party'));
+      act(() => {
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'again'), 3);
+        combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'slime_gel', 1));
+      });
+      expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
+      expect(shown()).toEqual(['[Party] Ayla: go']);
+    });
+
+    it.each([
+      { from: 'Party', typed: 'on my way', want: ChatChannel.PARTY, text: 'on my way' },
+      { from: 'Combat', typed: 'nice drop', want: ChatChannel.MAP, text: 'nice drop' },
+      { from: 'Combat', typed: '/p mine', want: ChatChannel.PARTY, text: 'mine' },
+    ])('typing from $from sends "$typed" as $want', async ({ from, typed, want, text }) => {
+      const { send, input } = setup();
+      await userEvent.click(tab(from));
+      await userEvent.type(input(), `${typed}{Enter}`);
+      expect(send).toHaveBeenCalledWith('chatSend', { channel: want, text });
+    });
+
+    it('the Party tab says where a line goes', async () => {
+      const { input } = setup();
+      expect(input()).toHaveAttribute('placeholder', 'Enter to chat; /p for the party');
+      await userEvent.click(tab('Party'));
+      expect(input()).toHaveAttribute('placeholder', 'Enter to chat with the party');
+    });
+
+    it('switching tabs while typing keeps the draft and the focus', async () => {
+      const { input } = setup();
+      await userEvent.type(input(), 'half a');
+      await userEvent.click(tab('Party'));
+      expect(input()).toHaveFocus();
+      expect(input()).toHaveValue('half a');
+    });
+  });
+
+  describe('combat lines', () => {
+    beforeEach(() => {
+      act(() => {
+        character.getState().applyWelcome(
+          create(WelcomeSchema, {
+            character: create(CharacterViewSchema, { id: 'c-ayla', name: 'Ayla', level: 4 }),
+          }),
+        );
+      });
+    });
+
+    it.each([
+      {
+        name: 'EXP from a kill',
+        add: () =>
+          combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: 12n, exp: 40n })),
+        text: 'You gained 12 EXP.',
+      },
+      {
+        name: 'EXP lost on death',
+        add: () =>
+          combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: -30n, exp: 10n })),
+        text: 'You lost 30 EXP.',
+      },
+      {
+        name: 'a level-up',
+        add: () =>
+          combatLog
+            .getState()
+            .applyLevelUp(
+              create(LevelUpSchema, { character: create(CharacterViewSchema, { level: 5 }) }),
+            ),
+        text: 'You reached level 5!',
+      },
+      {
+        name: 'an item this player collected',
+        add: () => combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'slime_gel', 2)),
+        text: 'You got Slime Gel ★ ×2.',
+      },
+      {
+        name: "a party member's item",
+        add: () =>
+          combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'iron_sword', 1, 'Robin')),
+        text: 'Robin got Iron Sword ★★.',
+      },
+      {
+        name: 'a drop waiting for room',
+        add: () => combatLog.getState().applyLoot(loot(LootKind.WAITING, 'slime_gel', 2)),
+        text: 'Inventory full: Slime Gel ★ ×2 waits on the ground.',
+      },
+      {
+        name: 'a drop lost uncollected',
+        add: () => combatLog.getState().applyLoot(loot(LootKind.LOST, 'slime_gel', 1)),
+        text: 'Slime Gel ★ disappeared uncollected.',
+      },
+    ])('$name reads "$text"', async ({ add, text }) => {
+      setup();
+      await userEvent.click(tab('Combat'));
+      act(add);
+      expect(shown()).toEqual([text]);
+    });
+
+    it('an item name takes its star colour', async () => {
+      setup();
+      await userEvent.click(tab('Combat'));
+      act(() => combatLog.getState().applyLoot(loot(LootKind.COLLECTED, 'gold_ring', 1)));
+      expect(screen.getByText('Gold Ring ★★★★')).toHaveClass('stars-4');
+    });
+
+    it('the last eight show', async () => {
+      setup();
+      await userEvent.click(tab('Combat'));
+      act(() => {
+        for (let i = 1; i <= 10; i++) {
+          combatLog.getState().applyExpGained(create(ExpGainedSchema, { amount: BigInt(i) }));
+        }
+      });
+      expect(shown()).toHaveLength(8);
+      expect(shown()[0]).toBe('You gained 3 EXP.');
+    });
   });
 });

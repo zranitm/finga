@@ -2,7 +2,6 @@ package handler_test
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"path/filepath"
 	"sync"
@@ -64,21 +63,17 @@ func (saver) Refused(error) bool                                     { return fa
 // idle stands in for every world service these tests leave alone.
 type idle struct{}
 
-func (idle) Members(kernel.CharacterID) []kernel.CharacterID  { return nil }
-func (idle) SameParty(_, _ kernel.CharacterID) bool           { return false }
+func (idle) Party(kernel.CharacterID) model.Party             { return model.Party{} }
 func (idle) Epoch() uint64                                    { return 0 }
 func (idle) Update(kernel.CharacterID, string, int, int, int) {}
 func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
 	return nil
 }
-func (idle) Add(context.Context, model.Pickup) (model.Inventory, error) {
-	return model.Inventory{}, nil
+func (idle) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
+	return model.Granted{}, nil
 }
-func (idle) Retryable(error) bool { return false }
-func (idle) Granted(error) bool   { return false }
-func (idle) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
-	return model.Inventory{}, nil
-}
+func (idle) Retryable(error) bool                             { return false }
+func (idle) ObserveBatch(int)                                 {}
 func (idle) ObserveTick(string, time.Duration, time.Duration) {}
 func (idle) CallQueued()                                      {}
 func (idle) CallDone()                                        {}
@@ -133,16 +128,16 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Equipment: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
-	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second})
+	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	done := make(chan struct{})
 	go func() { defer close(done); _ = w.Run(ctx) }()
 	t.Cleanup(func() { cancel(); <-done })
 
 	sinks := make(chan instance.Sink, 1)
-	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", TickRateHz: 20, Logger: slog.New(slog.DiscardHandler)})
+	srv := handler.New(capturing{World: w, sinks: sinks}, handler.Options{BootID: "boot-1", TickRateHz: 20})
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	worldv1.RegisterWorldServiceServer(g, srv)
 	return &stack{c: worldv1.NewWorldServiceClient(grpctest.Conn(t, g)), ctx: ctx, chars: chars, sinks: sinks, account: kernel.NewAccountID(), data: data}
@@ -285,8 +280,13 @@ func TestACommandCountsOnlyFromTheConnectionThatJoined(t *testing.T) {
 		}
 	})
 	t.Run("a bad character ID", func(t *testing.T) {
-		_, err := s.c.PickUp(s.ctx, &worldv1.PickUpRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "conn-1"}})
+		_, err := s.c.Attack(s.ctx, &worldv1.AttackRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "conn-1"}})
 		if r, _ := grpcx.ReasonOf(err); r != grpcx.Key(worldv1.Reason_REASON_BAD_ID) {
+			t.Fatalf("err = %v", err)
+		}
+	})
+	t.Run("a pickup, retired, is answered and does nothing", func(t *testing.T) {
+		if _, err := s.c.PickUp(s.ctx, &worldv1.PickUpRequest{Presence: &worldv1.Presence{CharacterId: "nope"}}); err != nil {
 			t.Fatalf("err = %v", err)
 		}
 	})
@@ -387,34 +387,6 @@ func TestAFullQueueEndsTheGatewaysStream(t *testing.T) {
 		s.join(t, "gw-1", "conn-2", ayla)
 		until(t, gw, "the snapshot", func(m *worldv1.DeliverResponse) bool { return m.GetSnapshot() != nil })
 	})
-}
-
-func TestPickupFailuresCrossWithTheirReason(t *testing.T) {
-	s := newStack(t)
-	gw := s.gateway(t, "gw-1")
-	ayla := s.character("Ayla")
-	s.join(t, "gw-1", "conn-1", ayla)
-	sink := <-s.sinks
-	until(t, gw, "the snapshot", func(m *worldv1.DeliverResponse) bool { return m.GetSnapshot() != nil })
-	cases := []struct {
-		name string
-		err  error
-		want grpcx.Reason
-	}{
-		{"the item service's, passed through", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)},
-		{"the world's own", model.ErrPickupBusy, grpcx.Key(worldv1.Reason_REASON_PICKUP_BUSY)},
-		{"one nobody expected crosses empty", errors.New("disk on fire"), grpcx.Reason{}},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			sink.Send(model.PickupFailed{Tick: 7, Err: c.err})
-			m := until(t, gw, "the failure", func(m *worldv1.DeliverResponse) bool { return m.GetPickupFailed() != nil })
-			f := m.GetPickupFailed()
-			if m.GetTick() != 7 || f.GetErrorDomain() != c.want.Domain || f.GetErrorReason() != c.want.Name {
-				t.Fatalf("got %+v", m)
-			}
-		})
-	}
 }
 
 // Detached reaches the gateway on the connection's stream, so it joins the player again.

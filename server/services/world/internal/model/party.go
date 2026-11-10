@@ -13,10 +13,16 @@ type PartiesSubscribed struct{}
 // PartiesLost is a subscription that broke; another follows.
 type PartiesLost struct{ Err error }
 
-// Membership gives each of Characters its party's members; none means they have no party.
+// Membership gives each of Characters its party; none means they have no party.
 type Membership struct {
 	Characters []kernel.CharacterID
-	Members    []kernel.CharacterID
+	Party      Party
+}
+
+// Party is a party as the world knows it: its members in join order, under an ID that stays as they come and go.
+type Party struct {
+	ID      string
+	Members []kernel.CharacterID
 }
 
 func (PartiesSubscribed) partyEvent() {}

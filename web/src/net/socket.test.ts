@@ -253,11 +253,9 @@ describe('GameSocket', () => {
       const ws = await connected(socket);
       socket.sendInput({ ...noInput, right: true }, 1);
       expect(socket.sendAction('attack')).toBe(true);
-      socket.sendAction('pickUp');
       socket.sendAction('enterPortal');
-      expect(ws.frames().slice(-3)).toMatchObject([
+      expect(ws.frames().slice(-2)).toMatchObject([
         { t: 'attack', seq: 1 },
-        { t: 'pickUp', seq: 1 },
         { t: 'enterPortal', seq: 1 },
       ]);
       expect(socket.sequence).toBe(1);
@@ -288,7 +286,7 @@ describe('GameSocket', () => {
       const ws = await connected(socket);
       const errors: ProtocolError[] = [];
       socket.onProtocolError((e) => errors.push(e));
-      expect(() => ws.pushRaw(new Uint8Array([0xaa, 0x01, 0x00]).buffer)).not.toThrow(); // field 21
+      expect(() => ws.pushRaw(new Uint8Array([0xb2, 0x01, 0x00]).buffer)).not.toThrow(); // field 22
       expect(() => ws.pushRaw(new Uint8Array([0xff]).buffer)).not.toThrow();
       expect(() => ws.pushRaw('a text frame')).not.toThrow();
       expect(() => ws.pushRaw(new Blob())).not.toThrow();

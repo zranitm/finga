@@ -746,13 +746,12 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 		}
 		c.expect("Snapshot")
 
-		part(t, "PickUp is routed as the sender", func() {
+		part(t, "PickUp, retired, reaches nothing and is answered with nothing", func() {
 			c.send(wsconn.Message{Seq: 4, Data: &clientv1.PickUp{}})
-			waitFor(t, "the pickup", h.world.pickupList, 1)
-			h.world.mu.Lock()
-			defer h.world.mu.Unlock()
-			if len(h.world.pickups) != 1 || h.world.pickups[0].GetCharacterId() != aylaID.String() {
-				t.Fatalf("pickups %v", h.world.pickups)
+			c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}})
+			c.expect("Pong")
+			if got := h.world.pickupList(); len(got) != 0 {
+				t.Fatalf("pickups %v reached the world", got)
 			}
 		})
 		part(t, "InventoryMove answers ok and sends the changed slots at their revision, with the connection's identity", func() {
@@ -797,17 +796,18 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 				t.Fatal("the service was called")
 			}
 		})
-		part(t, "drops and pickup results reach the client", func() {
-			h.world.delta(aylaID, 12, &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20}}, RemovedDrops: []uint64{2}})
+		part(t, "drops, where they fly, and what became of them reach the client", func() {
+			h.world.delta(aylaID, 12, &worldv1.Delta{Drops: []*worldv1.DropView{{Id: 3, Template: "slime_gel", Quantity: 2, X: 10, Y: 20, OwnerId: aylaID.String()}}, RemovedDrops: []uint64{2}, CollectedDrops: []uint64{1}})
 			d := c.expect("Delta").Data.(*clientv1.Delta)
-			if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.RemovedDrops[0] != 2 {
+			if len(d.Drops) != 1 || d.Drops[0].Template != "slime_gel" || d.Drops[0].OwnerId != aylaID.String() || d.RemovedDrops[0] != 2 || len(d.CollectedDrops) != 1 || d.CollectedDrops[0] != 1 {
 				t.Fatalf("delta %+v", d)
 			}
-			full := grpcx.Key(itemv1.Reason_REASON_INVENTORY_FULL)
-			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 13, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{ErrorDomain: full.Domain, ErrorReason: full.Name}}})
-			r := c.expect("Response").Data.(*clientv1.Response)
-			if r.GetOk() || r.Code != "inventory_full" || r.Message != "your inventory is full" {
-				t.Fatalf("response %+v", r)
+			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 13, Event: &worldv1.DeliverResponse_Loot{Loot: &worldv1.Loot{
+				Kind: worldv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 1, OwnerId: aylaID.String(), OwnerName: "Ayla", Template: "slime_gel", Quantity: 2,
+			}}})
+			want := &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 1, OwnerId: aylaID.String(), OwnerName: "Ayla", Template: "slime_gel", Quantity: 2}
+			if l := c.expect("Loot"); l.Tick == 0 || !proto.Equal(l.Data.(*clientv1.Loot), want) {
+				t.Fatalf("loot %+v, want %v", l, want)
 			}
 			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 14, Event: &worldv1.DeliverResponse_InventoryChanged{InventoryChanged: &worldv1.InventoryChanged{Revision: 6, Slots: []*worldv1.Slot{
 				{Tab: "etc", Slot: 1, Item: &worldv1.Item{Id: kernel.NewItemID().String(), TemplateId: "slime_gel", Tab: "etc", Slot: 1, Quantity: 2}},
@@ -815,10 +815,6 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			ic := c.expect("InventoryChanged").Data.(*clientv1.InventoryChanged)
 			if len(ic.Slots) != 1 || ic.Slots[0].GetItem().GetTemplate() != "slime_gel" || ic.Revision != 6 {
 				t.Fatalf("inventory changed %+v, want the gel at revision 6", ic)
-			}
-			h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 15, Event: &worldv1.DeliverResponse_PickupFailed{PickupFailed: &worldv1.PickupFailed{}}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "internal" {
-				t.Fatalf("a failure the world could not name: %+v", r)
 			}
 		})
 	})
@@ -1134,14 +1130,14 @@ func TestAnAnsweredCommandKeepsItsTrace(t *testing.T) {
 	})
 }
 
-// failingPickUps is a world whose PickUp fails in a way the gateway cannot name, and whose Attack is unreachable.
-type failingPickUps struct{ worldv1.WorldServiceClient }
+// failingPortals is a world whose EnterPortal fails in a way the gateway cannot name, and whose Attack is unreachable.
+type failingPortals struct{ worldv1.WorldServiceClient }
 
-func (failingPickUps) PickUp(context.Context, *worldv1.PickUpRequest, ...grpc.CallOption) (*worldv1.PickUpResponse, error) {
+func (failingPortals) EnterPortal(context.Context, *worldv1.EnterPortalRequest, ...grpc.CallOption) (*worldv1.EnterPortalResponse, error) {
 	return nil, status.Error(codes.Internal, "world bug")
 }
 
-func (failingPickUps) Attack(context.Context, *worldv1.AttackRequest, ...grpc.CallOption) (*worldv1.AttackResponse, error) {
+func (failingPortals) Attack(context.Context, *worldv1.AttackRequest, ...grpc.CallOption) (*worldv1.AttackResponse, error) {
 	return nil, status.Error(codes.Unavailable, "connection refused")
 }
 
@@ -1150,7 +1146,7 @@ func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
 		logs := &lockedBuffer{}
 		fw := newFakeWorld()
 		h := newHarnessOn(t, fw, func(d *deps) {
-			d.World = failingPickUps{fw.client(t)}
+			d.World = failingPortals{fw.client(t)}
 			d.Logger = slog.New(slog.NewJSONHandler(logs, nil))
 		})
 		c := h.dial(t)
@@ -1162,14 +1158,14 @@ func TestAWorldCommandsUnexpectedFailureIsLoggedSampled(t *testing.T) {
 			return strings.Count(logs.String(), `"msg":"command failed"`)
 		}
 		c.send(wsconn.Message{Data: &clientv1.Attack{}}) // a world restarting is no bug: its stream's warnings tell
-		for range 3 {
-			c.send(wsconn.Message{Data: &clientv1.PickUp{}})
+		for range 2 {                                    // the portal limit's burst
+			c.send(wsconn.Message{Data: &clientv1.EnterPortal{}})
 		}
-		if n := failures(); n != 1 || !strings.Contains(logs.String(), `"type":"PickUp"`) || !strings.Contains(logs.String(), "world bug") {
-			t.Fatalf("%d failures logged, want the first pickup of a burst with its cause: %s", n, logs.String())
+		if n := failures(); n != 1 || !strings.Contains(logs.String(), `"type":"EnterPortal"`) || !strings.Contains(logs.String(), "world bug") {
+			t.Fatalf("%d failures logged, want the first of a burst with its cause: %s", n, logs.String())
 		}
 		time.Sleep(15 * time.Second) // past the log's gap, before a ping this client is not reading to answer
-		c.send(wsconn.Message{Data: &clientv1.PickUp{}})
+		c.send(wsconn.Message{Data: &clientv1.EnterPortal{}})
 		if n := failures(); n != 2 {
 			t.Fatalf("%d failures logged, want one more once the burst is long past", n)
 		}
@@ -2115,11 +2111,10 @@ func TestCommandsReachTheServicesInTheOrderTheyArrived(t *testing.T) {
 		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
 		c.send(wsconn.Message{Seq: 2, Data: &clientv1.Attack{}})
 		c.send(wsconn.Message{Seq: 3, Data: &clientv1.Input{}})
-		c.send(wsconn.Message{Seq: 4, Data: &clientv1.PickUp{}})
-		c.send(wsconn.Message{Seq: 5, Data: &clientv1.EnterPortal{}})
-		c.send(wsconn.Message{Seq: 6, Data: &clientv1.Input{Left: true}})
-		got := waitFor(t, "six commands", h.world.callList, 6)
-		want := []string{"input 1", "attack", "input 3", "pickup", "portal", "input 6"}
+		c.send(wsconn.Message{Seq: 4, Data: &clientv1.EnterPortal{}})
+		c.send(wsconn.Message{Seq: 5, Data: &clientv1.Input{Left: true}})
+		got := waitFor(t, "five commands", h.world.callList, 5)
+		want := []string{"input 1", "attack", "input 3", "portal", "input 5"}
 		if strings.Join(got, ", ") != strings.Join(want, ", ") {
 			t.Fatalf("calls %v, want %v", got, want)
 		}

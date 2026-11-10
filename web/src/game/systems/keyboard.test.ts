@@ -81,7 +81,6 @@ describe('bindKeyboard', () => {
 
   it.each([
     { code: 'KeyX', action: 'attack' },
-    { code: 'KeyZ', action: 'pickup' },
     { code: 'KeyI', action: 'inventory' },
     { code: 'Enter', action: 'chat' },
   ])('$code under classic reports $action once, not as a movement key', ({ code, action }) => {

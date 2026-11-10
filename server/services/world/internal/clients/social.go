@@ -33,7 +33,7 @@ func (s Social) FollowParties(ctx context.Context, world string, on func(model.P
 			return
 		}
 		if ms := m.GetMembership(); ms != nil {
-			on(model.Membership{Characters: characterIDs(ms.GetCharacterIds()), Members: characterIDs(ms.GetMembers())})
+			on(model.Membership{Characters: characterIDs(ms.GetCharacterIds()), Party: model.Party{ID: ms.GetPartyId(), Members: characterIDs(ms.GetMembers())}})
 		}
 	}, grpcx.FollowOptions{Panics: s.panics, OnBreak: func(err error) { on(model.PartiesLost{Err: err}) }})
 }

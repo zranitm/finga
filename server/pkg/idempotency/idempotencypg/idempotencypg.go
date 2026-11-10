@@ -45,11 +45,19 @@ func Prune(ctx context.Context, db dbx.DBTX, before time.Time, limit int) (int64
 	return tag.RowsAffected(), nil
 }
 
+// Lock takes the lock Do takes for a key, until db's transaction ends, so a caller can take several keys' locks in one order before another lock of its own.
+func Lock(ctx context.Context, db dbx.DBTX, owner, scope, key string) error {
+	if _, err := db.Exec(ctx, lockSQL, lockID(owner, scope, key)); err != nil {
+		return fmt.Errorf("idempotency: lock: %w", err)
+	}
+	return nil
+}
+
 // Do implements idempotency.Store.
 func (s *store) Do(ctx context.Context, owner, scope, key string, fingerprint []byte, fn func() ([]byte, error)) ([]byte, error) {
 	// Serialise uses of one key: the second waits for the first to commit, then sees its row.
-	if _, err := s.db.Exec(ctx, lockSQL, lockID(owner, scope, key)); err != nil {
-		return nil, fmt.Errorf("idempotency: lock: %w", err)
+	if err := Lock(ctx, s.db, owner, scope, key); err != nil {
+		return nil, err
 	}
 	var storedHash, response []byte
 	err := s.db.QueryRow(ctx, findSQL, owner, scope, key).Scan(&storedHash, &response)

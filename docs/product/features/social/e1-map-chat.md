@@ -9,7 +9,7 @@
 
 ## Acceptance
 
-- Messages appear in the chat box and as a bubble above the speaker.
+- Messages appear in the chat box's General tab and as a bubble above the speaker.
 - A player who sends messages too fast is muted for a short time.
 
 ## Rules

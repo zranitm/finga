@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -102,20 +103,20 @@ func TestThePartyCopy(t *testing.T) {
 		p := runCopy(t, social, slog.New(slog.NewJSONHandler(&logs, nil)))
 		ann, bo, cy := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
 		social.events <- model.PartiesSubscribed{}
-		social.events <- model.Membership{Characters: []kernel.CharacterID{ann, bo}, Members: []kernel.CharacterID{ann, bo}}
+		social.events <- model.Membership{Characters: []kernel.CharacterID{ann, bo}, Party: model.Party{ID: "party-1", Members: []kernel.CharacterID{ann, bo}}}
 		synctest.Wait() // applied
 		if p.Epoch() != 1 {
 			t.Fatalf("epoch %d after the first subscription", p.Epoch())
 		}
 
 		{ // memberships are read from the copy, as this world subscribed
-			if !p.SameParty(ann, bo) {
+			if !slices.Contains(p.Party(ann).Members, bo) {
 				t.Fatal("ann and bo are not in one party")
 			}
-			if got := p.Members(bo); len(got) != 2 || got[0] != ann {
+			if got := p.Party(bo); got.ID != "party-1" || len(got.Members) != 2 || got.Members[0] != ann {
 				t.Fatalf("members %v", got)
 			}
-			if p.SameParty(ann, cy) || p.Members(cy) != nil {
+			if slices.Contains(p.Party(ann).Members, cy) || p.Party(cy).Members != nil {
 				t.Fatal("cy has a party")
 			}
 			if social.worlds[0] != "world-1" {
@@ -124,37 +125,37 @@ func TestThePartyCopy(t *testing.T) {
 		}
 		{ // a leaver has none, the others keep theirs
 			social.events <- model.Membership{Characters: []kernel.CharacterID{bo}}
-			social.events <- model.Membership{Characters: []kernel.CharacterID{ann}, Members: []kernel.CharacterID{ann}}
+			social.events <- model.Membership{Characters: []kernel.CharacterID{ann}, Party: model.Party{ID: "party-2", Members: []kernel.CharacterID{ann}}}
 			synctest.Wait()
-			if p.SameParty(ann, bo) || p.Members(bo) != nil || len(p.Members(ann)) != 1 {
-				t.Fatalf("after bo left: ann %v, bo %v", p.Members(ann), p.Members(bo))
+			if slices.Contains(p.Party(ann).Members, bo) || p.Party(bo).Members != nil || len(p.Party(ann).Members) != 1 {
+				t.Fatalf("after bo left: ann %v, bo %v", p.Party(ann).Members, p.Party(bo).Members)
 			}
 		}
 		{ // a lost stream clears the copy, and is logged; the next subscription rebuilds it
-			social.events <- model.Membership{Characters: []kernel.CharacterID{ann, cy}, Members: []kernel.CharacterID{ann, cy}}
+			social.events <- model.Membership{Characters: []kernel.CharacterID{ann, cy}, Party: model.Party{ID: "party-3", Members: []kernel.CharacterID{ann, cy}}}
 			social.events <- model.PartiesLost{Err: errUnavailable}
 			synctest.Wait()
-			if p.Members(ann) != nil || p.Members(cy) != nil {
+			if p.Party(ann).Members != nil || p.Party(cy).Members != nil {
 				t.Fatal("a party outlived the lost stream")
 			}
 			if !strings.Contains(logs.String(), `"msg":"party stream broke; nobody has a party until it is back"`) {
 				t.Fatalf("log %q", logs.String())
 			}
-			social.events <- model.Membership{Characters: []kernel.CharacterID{ann}, Members: []kernel.CharacterID{ann, bo}}
+			social.events <- model.Membership{Characters: []kernel.CharacterID{ann}, Party: model.Party{ID: "party-4", Members: []kernel.CharacterID{ann, bo}}}
 			social.events <- model.PartiesSubscribed{}
-			social.events <- model.Membership{Characters: []kernel.CharacterID{bo, cy}, Members: []kernel.CharacterID{bo, cy}}
+			social.events <- model.Membership{Characters: []kernel.CharacterID{bo, cy}, Party: model.Party{ID: "party-5", Members: []kernel.CharacterID{bo, cy}}}
 			synctest.Wait()
-			if !p.SameParty(bo, cy) || p.Members(ann) != nil {
-				t.Fatalf("after the new subscription: ann %v, bo %v", p.Members(ann), p.Members(bo))
+			if !slices.Contains(p.Party(bo).Members, cy) || p.Party(ann).Members != nil {
+				t.Fatalf("after the new subscription: ann %v, bo %v", p.Party(ann).Members, p.Party(bo).Members)
 			}
 			if p.Epoch() != 2 {
 				t.Fatalf("epoch %d after the second subscription; the maps tell social their players again on each", p.Epoch())
 			}
 		}
 		{ // a copy handed out is the caller's
-			got := p.Members(bo)
+			got := p.Party(bo).Members
 			got[0] = kernel.NewCharacterID()
-			if p.Members(bo)[0] != bo {
+			if p.Party(bo).Members[0] != bo {
 				t.Fatal("changing a returned list changed the copy")
 			}
 		}

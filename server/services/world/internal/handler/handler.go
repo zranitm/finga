@@ -4,7 +4,6 @@ package handler
 import (
 	"context"
 	"errors"
-	"log/slog"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,7 +24,6 @@ type World interface {
 	Leave(ctx context.Context, id kernel.CharacterID, conn string) error
 	Input(id kernel.CharacterID, conn string, seq uint32, in sim.Input) error
 	Attack(id kernel.CharacterID, conn string) error
-	PickUp(ctx context.Context, id kernel.CharacterID, conn string) error
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
@@ -45,7 +43,6 @@ type Server struct {
 	bootID   string
 	tickRate uint32
 	deliver  *hub.Hub[*worldv1.DeliverResponse]
-	log      *slog.Logger
 }
 
 // Options configure the server.
@@ -54,12 +51,11 @@ type Options struct {
 	BootID string
 	// TickRateHz is the maps' ticks per second, told to each joining client.
 	TickRateHz int
-	Logger     *slog.Logger
 }
 
 // New builds the server.
 func New(w World, opts Options) *Server {
-	return &Server{world: w, bootID: opts.BootID, tickRate: uint32(opts.TickRateHz), deliver: hub.New[*worldv1.DeliverResponse](queue), log: opts.Logger}
+	return &Server{world: w, bootID: opts.BootID, tickRate: uint32(opts.TickRateHz), deliver: hub.New[*worldv1.DeliverResponse](queue)}
 }
 
 // Deliver streams one gateway's events, starting with Subscribed.
@@ -88,7 +84,7 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	if req.GetConnectionId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "connection_id is required")
 	}
-	v, err := s.world.Join(ctx, account, id, req.GetConnectionId(), &streamSink{sub: sub, character: id.String(), conn: req.GetConnectionId(), log: s.log})
+	v, err := s.world.Join(ctx, account, id, req.GetConnectionId(), &streamSink{sub: sub, character: id.String(), conn: req.GetConnectionId()})
 	if err != nil {
 		return nil, err
 	}
@@ -133,15 +129,8 @@ func (s *Server) Attack(_ context.Context, req *worldv1.AttackRequest) (*worldv1
 	return &worldv1.AttackResponse{}, nil
 }
 
-// PickUp asks for the nearest eligible drop.
-func (s *Server) PickUp(ctx context.Context, req *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
-	id, conn, err := presence(req.GetPresence())
-	if err != nil {
-		return nil, err
-	}
-	if err := s.world.PickUp(ctx, id, conn); err != nil {
-		return nil, err
-	}
+// PickUp does nothing: drops fly to their owners by themselves. It answers a gateway that still routes the key.
+func (*Server) PickUp(context.Context, *worldv1.PickUpRequest) (*worldv1.PickUpResponse, error) {
 	return &worldv1.PickUpResponse{}, nil
 }
 

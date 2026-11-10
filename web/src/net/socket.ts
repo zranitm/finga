@@ -67,7 +67,7 @@ type RequestType =
   | 'partyLeave'
   | 'partyKick'
   | 'partyPromote';
-type ActionType = 'attack' | 'pickUp' | 'enterPortal';
+type ActionType = 'attack' | 'enterPortal';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */
 export interface Received<T extends MessageType> {
@@ -205,7 +205,7 @@ export class GameSocket {
     };
   }
 
-  /** A Response with no req: a failed pickup, a refused chat line. */
+  /** A Response with no req: a refused attack, portal or chat line. */
   onUnmatchedResponse(handler: (d: Data<'response'>) => void): () => void {
     this.unmatchedHandlers.add(handler);
     return () => {

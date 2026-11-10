@@ -165,7 +165,12 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			&clientv1.InventoryChanged{Revision: 6, Slots: []*clientv1.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: wireBow}, {EquipSlot: "hat"}}},
 		},
 		{model.StatsChanged{Sheet: sheet, HP: 50, MaxHP: 135, MP: 10, MaxMP: 33}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135, Mp: 10, MaxMp: 33}},
-		{model.PickupFailed{Why: model.InventoryFull}, &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
+		{
+			model.Loot{Kind: model.LootCollected, MapID: "forest", DropID: 7, Owner: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
+			&clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 7, OwnerId: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
+		},
+		{model.Loot{Kind: model.LootWaiting, DropID: 8}, &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_WAITING, DropId: 8}},
+		{model.Loot{Kind: model.LootLost, DropID: 9}, &clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_LOST, DropId: 9}},
 		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
 		{model.PartyInvited{InviteID: "inv-2", From: "p-1", FromName: "Robin"}, &clientv1.PartyInvited{InviteId: "inv-2", From: "p-1", FromName: "Robin"}},

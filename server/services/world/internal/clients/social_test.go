@@ -91,9 +91,10 @@ func TestFollowPartiesTranslatesTheStream(t *testing.T) {
 	w.events <- &socialv1.WatchPartiesResponse{Event: &socialv1.WatchPartiesResponse_Membership{Membership: &socialv1.Membership{
 		CharacterIds: []string{ann.String(), "not-an-id", bo.String()},
 		Members:      []string{bo.String(), "not-an-id", ann.String()},
+		PartyId:      "party-1",
 	}}}
 	m, ok := next(t, events).(model.Membership)
-	if !ok || len(m.Characters) != 2 || m.Characters[0] != ann || m.Characters[1] != bo || len(m.Members) != 2 || m.Members[0] != bo || m.Members[1] != ann {
+	if !ok || len(m.Characters) != 2 || m.Characters[0] != ann || m.Characters[1] != bo || m.Party.ID != "party-1" || len(m.Party.Members) != 2 || m.Party.Members[0] != bo || m.Party.Members[1] != ann {
 		t.Fatalf("membership %#v; an ID that does not parse is left out", m)
 	}
 

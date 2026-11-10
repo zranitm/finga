@@ -32,15 +32,16 @@ func main() {
 	n := flag.Int("bots", 4, "how many bots")
 	duration := flag.Duration("duration", 30*time.Minute, "how long they play")
 	prefix := flag.String("prefix", "bot", "account name prefix (letters and digits)")
-	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick metrics are")
+	metrics := flag.String("metrics", "http://localhost:9104", "the world service's ops address, where the tick and grant batch metrics are")
+	itemMetrics := flag.String("item-metrics", "http://localhost:9103", "the item service's ops address, where the transaction times are")
 	flag.Parse()
-	if err := run(*url, *metrics, *n, *duration, *prefix); err != nil {
+	if err := run(*url, *metrics, *itemMetrics, *n, *duration, *prefix); err != nil {
 		fmt.Fprintln(os.Stderr, "bot:", err)
 		os.Exit(1)
 	}
 }
 
-func run(url, metrics string, n int, duration time.Duration, prefix string) error {
+func run(url, metrics, itemMetrics string, n int, duration time.Duration, prefix string) error {
 	start := time.Now()
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
@@ -62,22 +63,22 @@ func run(url, metrics string, n int, duration time.Duration, prefix string) erro
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  pickups %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
-			b.name, s.kills, s.pickups, s.deaths, s.hops, s.chats, s.messages, s.refused, s.reconnects, s.loginFailures)
+		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.messages, s.refused, s.reconnects, s.loginFailures)
 	}
-	fmt.Printf("%-14s kills %3d  pickups %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
-		"total", total.kills, total.pickups, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
-	return report(metrics, url)
+	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
+	return report(metrics, itemMetrics, url)
 }
 
 type stats struct {
-	messages, kills, pickups, deaths, hops, chats, refused, reconnects, loginFailures int
+	messages, kills, items, deaths, hops, chats, refused, reconnects, loginFailures int
 }
 
 func (s *stats) add(o stats) {
 	s.messages += o.messages
 	s.kills += o.kills
-	s.pickups += o.pickups
+	s.items += o.items
 	s.deaths += o.deaths
 	s.hops += o.hops
 	s.chats += o.chats
@@ -106,14 +107,62 @@ type bot struct {
 	mapID   string
 	x, y    float64
 	dead    bool
-	drops   map[uint32]*clientv1.DropView
 	seq     uint32
 	held    *clientv1.Input
+	kills   *kills
 	inParty atomic.Bool
 }
 
+// kills finds a bot's kills. A blow that empties a mob's HP removes it, so no later blow lands on it: the last landed blow on a mob removed in a tick is its kill, known once the next tick starts.
+type kills struct {
+	tick    uint64
+	removed map[uint32]bool   // the mobs removed at tick
+	last    map[uint32]string // each mob's last landed blow at tick, by source
+}
+
+func newKills() *kills { return &kills{removed: map[uint32]bool{}, last: map[uint32]string{}} }
+
+// at moves to tick and returns the bot's kills in the tick before.
+func (k *kills) at(tick uint64, me string) int {
+	if tick == k.tick {
+		return 0
+	}
+	n := 0
+	for id := range k.removed {
+		if k.last[id] == "p:"+me {
+			n++
+		}
+	}
+	k.tick = tick
+	clear(k.removed)
+	clear(k.last)
+	return n
+}
+
+// removedMobs takes a Delta's removed mobs.
+func (k *kills) removedMobs(tick uint64, ids []uint32, me string) int {
+	n := k.at(tick, me)
+	for _, id := range ids {
+		k.removed[id] = true
+	}
+	return n
+}
+
+// blow takes a Damage; a tick's Delta comes before its Damage, but either order counts.
+func (k *kills) blow(tick uint64, d *clientv1.Damage, me string) int {
+	n := k.at(tick, me)
+	mob, ok := strings.CutPrefix(d.GetTarget(), "m:")
+	if !ok || d.GetMiss() {
+		return n
+	}
+	if id, err := strconv.ParseUint(mob, 10, 32); err == nil {
+		k.last[uint32(id)] = d.GetSource()
+	}
+	return n
+}
+
 func newBot(url, name, charName string, index int) *bot {
-	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano())))}
+	return &bot{url: url, name: name, charName: charName, index: index, codec: protocol.ClientCodec(wsconn.Binary), rng: rand.New(rand.NewPCG(uint64(index), uint64(time.Now().UnixNano()))), kills: newKills()}
 }
 
 func (b *bot) snapshot() stats {
@@ -235,7 +284,6 @@ func (b *bot) enter(ctx context.Context, token string) error {
 			b.msgs <- m
 		}
 	}()
-	b.drops = map[uint32]*clientv1.DropView{}
 	b.dead = false
 	b.held = &clientv1.Input{}
 	if err := b.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: b.id}}); err != nil {
@@ -279,6 +327,12 @@ func (b *bot) command(d proto.Message) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
 }
 
+func (b *bot) killed(n int) {
+	if n > 0 {
+		b.count(func(s *stats) { s.kills += n })
+	}
+}
+
 func (b *bot) observe(m wsconn.Message) {
 	b.count(func(s *stats) { s.messages++ })
 	switch d := m.Data.(type) {
@@ -286,10 +340,6 @@ func (b *bot) observe(m wsconn.Message) {
 		b.token = d.GetToken()
 		b.mapID = d.GetMapId()
 	case *clientv1.Snapshot:
-		b.drops = map[uint32]*clientv1.DropView{}
-		for _, dv := range d.GetDrops() {
-			b.drops[dv.GetId()] = dv
-		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
 				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
@@ -301,12 +351,9 @@ func (b *bot) observe(m wsconn.Message) {
 				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
 			}
 		}
-		for _, dv := range d.GetDrops() {
-			b.drops[dv.GetId()] = dv
-		}
-		for _, id := range d.GetRemovedDrops() {
-			delete(b.drops, id)
-		}
+		b.killed(b.kills.removedMobs(m.Tick, d.GetRemovedMobs(), b.id))
+	case *clientv1.Damage:
+		b.killed(b.kills.blow(m.Tick, d, b.id))
 	case *clientv1.MapChange:
 		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 		b.held = &clientv1.Input{}
@@ -322,10 +369,10 @@ func (b *bot) observe(m wsconn.Message) {
 			b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
 			b.held = &clientv1.Input{}
 		}
-	case *clientv1.ExpGained:
-		b.count(func(s *stats) { s.kills++ })
-	case *clientv1.InventoryChanged:
-		b.count(func(s *stats) { s.pickups++ })
+	case *clientv1.Loot:
+		if d.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && d.GetOwnerId() == b.id {
+			b.count(func(s *stats) { s.items++ })
+		}
 	case *clientv1.Response:
 		if !d.GetOk() {
 			b.count(func(s *stats) { s.refused++ })
@@ -391,25 +438,16 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 				}
 				continue
 			}
-			if drop, ok := b.nearestDrop(); ok && math.Abs(drop.GetX()-b.x) < 160 {
-				if math.Abs(drop.GetX()-b.x) < 12 {
-					b.input(&clientv1.Input{})
-					b.command(&clientv1.PickUp{})
+			if b.walkTo(target, jump) { // drops fly to their owners: the bot only hunts
+				if target == forestRight {
+					target = forestLeft
 				} else {
-					b.walkTo(drop.GetX(), jump)
+					target = forestRight
 				}
-			} else {
-				if b.walkTo(target, jump) {
-					if target == forestRight {
-						target = forestLeft
-					} else {
-						target = forestRight
-					}
-				}
-				if time.Now().After(nextAttack) {
-					b.command(&clientv1.Attack{})
-					nextAttack = time.Now().Add(900 * time.Millisecond)
-				}
+			}
+			if time.Now().After(nextAttack) {
+				b.command(&clientv1.Attack{})
+				nextAttack = time.Now().Add(900 * time.Millisecond)
 			}
 			if time.Now().After(nextChat) {
 				b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
@@ -442,17 +480,6 @@ func (b *bot) walkTo(x float64, jump bool) bool {
 	return false
 }
 
-func (b *bot) nearestDrop() (*clientv1.DropView, bool) {
-	var best *clientv1.DropView
-	bestDist := math.Inf(1)
-	for _, d := range b.drops {
-		if dist := math.Abs(d.GetX() - b.x); dist < bestDist {
-			best, bestDist = d, dist
-		}
-	}
-	return best, bestDist < math.Inf(1)
-}
-
 func scrape(url string) ([]byte, error) {
 	res, err := http.Get(url) //nolint:gosec // the operator names the address
 	if err != nil {
@@ -471,11 +498,8 @@ func report(urls ...string) error {
 		}
 		raw = append(append(raw, body...), '\n')
 	}
-	type hist struct {
-		buckets map[float64]float64 // le → cumulative count
-		count   float64
-	}
 	byMap := map[string]*hist{}
+	batches, grants := newHist(), newHist() // drops per grant call; the item service's AddMany transactions
 	overruns := map[string]float64{}
 	online := ""
 	for line := range strings.SplitSeq(string(raw), "\n") {
@@ -484,11 +508,10 @@ func report(urls ...string) error {
 			labels, value := parseLine(line)
 			h := byMap[labels["map"]]
 			if h == nil {
-				h = &hist{buckets: map[float64]float64{}}
+				h = newHist()
 				byMap[labels["map"]] = h
 			}
-			le, _ := strconv.ParseFloat(labels["le"], 64)
-			h.buckets[le] = value
+			h.bucket(labels, value)
 		case strings.HasPrefix(line, "finga_tick_duration_seconds_count"):
 			labels, value := parseLine(line)
 			if h := byMap[labels["map"]]; h != nil {
@@ -497,6 +520,16 @@ func report(urls ...string) error {
 		case strings.HasPrefix(line, "finga_tick_overruns_total"):
 			labels, value := parseLine(line)
 			overruns[labels["map"]] = value
+		case strings.HasPrefix(line, "finga_item_calls_batch_size_bucket"):
+			batches.bucket(parseLine(line))
+		case strings.HasPrefix(line, "finga_item_calls_batch_size_count"):
+			_, batches.count = parseLine(line)
+		case strings.HasPrefix(line, "finga_item_calls_batch_size_sum"):
+			_, batches.sum = parseLine(line)
+		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_bucket{operation="AddMany"`):
+			grants.bucket(parseLine(line))
+		case strings.HasPrefix(line, `finga_db_tx_duration_seconds_count{operation="AddMany"`):
+			_, grants.count = parseLine(line)
 		case strings.HasPrefix(line, "finga_players_online "):
 			online = strings.TrimSpace(strings.TrimPrefix(line, "finga_players_online")) // the last page's: the gateway's
 		}
@@ -504,7 +537,7 @@ func report(urls ...string) error {
 	if online != "" {
 		fmt.Printf("finga_players_online %s\n", online)
 	}
-	all := &hist{buckets: map[float64]float64{}}
+	all := newHist()
 	names := make([]string, 0, len(byMap))
 	for name, h := range byMap {
 		names = append(names, name)
@@ -515,42 +548,86 @@ func report(urls ...string) error {
 	}
 	sort.Strings(names)
 	line := func(name string, h *hist) {
-		fmt.Printf("%-8s ticks %8.0f  p50 %s  p99 %s  overruns %.0f\n", name, h.count, percentile(h.buckets, h.count, 0.50), percentile(h.buckets, h.count, 0.99), overruns[name])
+		fmt.Printf("%-8s ticks %8.0f  p50 %s  p99 %s  overruns %.0f\n", name, h.count, percentile(h, 0.50), percentile(h, 0.99), overruns[name])
 	}
 	for _, name := range names {
 		line(name, byMap[name])
 	}
 	line("all", all)
+	if batches.count > 0 {
+		fmt.Printf("\ngrant calls %.0f  drops per call: mean %.2f  p50 %s  p95 %s  max %s\n", batches.count, batches.sum/batches.count,
+			drops(batches.quantile(0.50)), drops(batches.quantile(0.95)), drops(batches.quantile(1)))
+	}
+	if grants.count > 0 {
+		fmt.Printf("item AddMany transactions %.0f  p50 %s  p99 %s\n", grants.count, percentile(grants, 0.50), percentile(grants, 0.99))
+	}
 	return nil
 }
 
-// percentile interpolates within the bucket that crosses the rank, as histogram_quantile does.
-func percentile(buckets map[float64]float64, count float64, q float64) string {
-	if count == 0 {
-		return "n/a"
+// hist is a Prometheus histogram as /metrics shows it.
+type hist struct {
+	buckets map[float64]float64 // le → cumulative count
+	count   float64
+	sum     float64
+}
+
+func newHist() *hist { return &hist{buckets: map[float64]float64{}} }
+
+func (h *hist) bucket(labels map[string]string, value float64) {
+	le, _ := strconv.ParseFloat(labels["le"], 64)
+	h.buckets[le] += value
+}
+
+// quantile interpolates within the bucket that crosses the rank, as histogram_quantile does; over is a rank past the last finite bound, which v then is.
+func (h *hist) quantile(q float64) (v, bound float64, over, ok bool) {
+	if h.count == 0 {
+		return 0, 0, false, false
 	}
-	les := make([]float64, 0, len(buckets))
-	for le := range buckets {
+	les := make([]float64, 0, len(h.buckets))
+	for le := range h.buckets {
 		les = append(les, le)
 	}
 	sort.Float64s(les)
-	rank := q * count
+	rank := q * h.count
 	prevLE, prevCount := 0.0, 0.0
 	for _, le := range les {
-		c := buckets[le]
+		c := h.buckets[le]
 		if c >= rank {
 			if math.IsInf(le, 1) {
-				return fmt.Sprintf("> %.1f ms", prevLE*1000)
+				return prevLE, prevLE, true, true
 			}
 			frac := 0.0
 			if c > prevCount {
 				frac = (rank - prevCount) / (c - prevCount)
 			}
-			return fmt.Sprintf("%.2f ms (bucket ≤ %.0f ms)", (prevLE+(le-prevLE)*frac)*1000, le*1000)
+			return prevLE + (le-prevLE)*frac, le, false, true
 		}
 		prevLE, prevCount = le, c
 	}
-	return "n/a"
+	return 0, 0, false, false
+}
+
+// percentile is a quantile of seconds, in milliseconds.
+func percentile(h *hist, q float64) string {
+	v, bound, over, ok := h.quantile(q)
+	switch {
+	case !ok:
+		return "n/a"
+	case over:
+		return fmt.Sprintf("> %.1f ms", v*1000)
+	}
+	return fmt.Sprintf("%.2f ms (bucket ≤ %s ms)", v*1000, strconv.FormatFloat(math.Round(bound*1e6)/1e3, 'f', -1, 64))
+}
+
+// drops is a quantile of drops per call as its bucket: a count interpolated within a bucket, as from 0 in the first, could read as a call with no drop.
+func drops(v, bound float64, over, ok bool) string {
+	switch {
+	case !ok:
+		return "n/a"
+	case over:
+		return fmt.Sprintf("> %.0f", v)
+	}
+	return fmt.Sprintf("≤ %.0f", bound)
 }
 
 func parseLine(line string) (map[string]string, float64) {
