@@ -7,7 +7,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | Feature | Decisions | Priority | Status |
 | --- | --- | --- | --- |
 | [A1. Sign up and log in](./account-and-character/a1-sign-up-and-log-in.md) | OD-08 | P0 | Draft |
-| [A2. Create a character](./account-and-character/a2-create-a-character.md) | OD-15 | P0 | Draft |
+| [A2. Create a character](./account-and-character/a2-create-a-character.md) |  | P0 | Draft |
 | [A3. Character slots and select](./account-and-character/a3-character-slots-and-select.md) | OD-09 | P1 | Draft |
 | [A4. Appearance customization](./account-and-character/a4-appearance-customization.md) |  | P2 | Draft |
 
@@ -33,6 +33,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [C5. Skills](./combat-and-progression/c5-skills.md) |  | P1 | Draft |
 | [C6. Stat allocation](./combat-and-progression/c6-stat-allocation.md) | OD-16, OD-17, OD-18 | P1 | Draft |
 | [C7. Party dungeons and bosses](./combat-and-progression/c7-party-dungeons-and-bosses.md) |  | P2 | Draft |
+| [C8. Class promotion](./combat-and-progression/c8-class-promotion.md) |  | P1 | Draft |
 
 ## D. Items and inventory
 
@@ -72,3 +73,10 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | Feature | Decisions | Priority | Status |
 | --- | --- | --- | --- |
 | [G1. Gacha](./gacha/g1-gacha.md) | OD-01 | TBD | Draft |
+
+## H. NPCs and quests
+
+| Feature | Decisions | Priority | Status |
+| --- | --- | --- | --- |
+| [H1. NPCs](./npcs-and-quests/h1-npcs.md) |  | P1 | Draft |
+| [H2. Task quests](./npcs-and-quests/h2-task-quests.md) |  | P1 | Draft |
