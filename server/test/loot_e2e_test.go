@@ -599,7 +599,10 @@ func TestLootAndKeep(t *testing.T) {
 		if r := l.command(t, "d-1", &clientv1.InventoryDiscard{IdempotencyKey: key(), ItemId: held, Quantity: 1}); !r.GetOk() {
 			t.Fatalf("discard: %+v", r)
 		}
-		if !l.until(3*time.Second, func() bool { return l.collected[first.GetId()] }) || len(l.lootOf(first.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) != 1 {
+		// A tick's frame goes before its owner's events: wait for the Loot, which follows collected_drops.
+		if !l.until(3*time.Second, func() bool {
+			return l.collected[first.GetId()] && len(l.lootOf(first.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1
+		}) {
 			t.Fatalf("collected %v, loot %v; want the cap collected once there was room", l.collected, l.loots)
 		}
 
@@ -608,10 +611,12 @@ func TestLootAndKeep(t *testing.T) {
 		if !ok {
 			t.Fatal("no second cap in 90 s of hunting")
 		}
-		if !l.until(10*time.Second, func() bool { return l.removed[next.GetId()] }) {
-			t.Fatalf("the second cap never left the ground (loot %v)", l.loots)
+		if !l.until(10*time.Second, func() bool {
+			return l.removed[next.GetId()] && len(l.lootOf(next.GetId(), clientv1.LootKind_LOOT_KIND_LOST)) == 1
+		}) {
+			t.Fatalf("the second cap never left the ground as lost (loot %v)", l.loots)
 		}
-		if lost := l.lootOf(next.GetId(), clientv1.LootKind_LOOT_KIND_LOST); len(lost) != 1 || l.collected[next.GetId()] {
+		if l.collected[next.GetId()] {
 			t.Fatalf("loot %v; want the second cap lost, and not collected", l.loots)
 		}
 		var caps int
@@ -636,8 +641,10 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatal("no gel in 90 s of hunting")
 		}
 		l.hop(t, 64, "town", 1216) // the forest's to_town portal, within the 8 s before the gel flies
-		if !l.until(12*time.Second, func() bool { return l.inventory > 0 }) {
-			t.Fatal("no InventoryChanged in the town")
+		if !l.until(12*time.Second, func() bool {
+			return l.inventory > 0 && len(l.lootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)) == 1 // the Loot follows its InventoryChanged
+		}) {
+			t.Fatalf("no InventoryChanged and Loot in the town (loot %v)", l.loots)
 		}
 		got := l.lootOf(gel.GetId(), clientv1.LootKind_LOOT_KIND_COLLECTED)
 		if len(got) != 1 || got[0].GetMapId() != "forest" || got[0].GetOwnerId() != id {
