@@ -81,7 +81,9 @@ From the code, the rules this design keeps:
   - `progress int[]`, one count per objective;
   - `times_finished`, and timestamps.
   - Active quests are at most 20 per character; finished one-time quests stay as rows with `times_finished = 1`.
-- **Held live by the world.** The world loads it at join with the character (`Load` returns it), and saves it with the character's checkpoint, which carries only the changed rows. Quest progress therefore has the same durability as EXP: saved every 30 seconds and at once on accept, abandon, and hand-in. A crash loses at most the kills counted since the last save.
+- **Held live by the world.** The world loads it at join with the character (`Load` returns it), and saves it with the character's checkpoint.
+  - **Each checkpoint carries the whole quest log,** as it carries the whole progression: the world keeps only each character's newest unsaved checkpoint, so a checkpoint carrying only the rows that changed would lose them when a newer one replaced it, or when its save was given up. The character service writes only the rows that differ, and deletes those not listed: a quest abandoned before it was ever finished.
+  - **A repeatable quest abandoned after a completion** goes back to finished, keeping its count. Quest progress therefore has the same durability as EXP: saved every 30 seconds and at once on accept, abandon, and hand-in. A crash loses at most the kills counted since the last save.
 
 ## 6. Progress
 

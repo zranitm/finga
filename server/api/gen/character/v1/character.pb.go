@@ -36,6 +36,8 @@ const (
 	//
 	// Deprecated: Marked as deprecated in internal/character/v1/character.proto.
 	Reason_REASON_UNKNOWN_CLASS Reason = 7
+	// A checkpoint's quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion.
+	Reason_REASON_BAD_QUEST Reason = 8
 )
 
 // Enum value maps for Reason.
@@ -49,6 +51,7 @@ var (
 		5: "REASON_CHARACTER_SLOTS_FULL",
 		6: "REASON_BAD_ID",
 		7: "REASON_UNKNOWN_CLASS",
+		8: "REASON_BAD_QUEST",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":          0,
@@ -59,6 +62,7 @@ var (
 		"REASON_CHARACTER_SLOTS_FULL": 5,
 		"REASON_BAD_ID":               6,
 		"REASON_UNKNOWN_CLASS":        7,
+		"REASON_BAD_QUEST":            8,
 	}
 )
 
@@ -89,6 +93,129 @@ func (Reason) EnumDescriptor() ([]byte, []int) {
 	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{0}
 }
 
+// QuestStatus is where a character stands with a quest.
+type QuestStatus int32
+
+const (
+	QuestStatus_QUEST_STATUS_UNSPECIFIED QuestStatus = 0
+	// Accepted and not handed in yet.
+	QuestStatus_QUEST_STATUS_ACTIVE QuestStatus = 1
+	// Handed in, and not active again.
+	QuestStatus_QUEST_STATUS_FINISHED QuestStatus = 2
+)
+
+// Enum value maps for QuestStatus.
+var (
+	QuestStatus_name = map[int32]string{
+		0: "QUEST_STATUS_UNSPECIFIED",
+		1: "QUEST_STATUS_ACTIVE",
+		2: "QUEST_STATUS_FINISHED",
+	}
+	QuestStatus_value = map[string]int32{
+		"QUEST_STATUS_UNSPECIFIED": 0,
+		"QUEST_STATUS_ACTIVE":      1,
+		"QUEST_STATUS_FINISHED":    2,
+	}
+)
+
+func (x QuestStatus) Enum() *QuestStatus {
+	p := new(QuestStatus)
+	*p = x
+	return p
+}
+
+func (x QuestStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (QuestStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_character_v1_character_proto_enumTypes[1].Descriptor()
+}
+
+func (QuestStatus) Type() protoreflect.EnumType {
+	return &file_internal_character_v1_character_proto_enumTypes[1]
+}
+
+func (x QuestStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use QuestStatus.Descriptor instead.
+func (QuestStatus) EnumDescriptor() ([]byte, []int) {
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{1}
+}
+
+// Quest is a character's state of one quest.
+type Quest struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	QuestId string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	Status  QuestStatus            `protobuf:"varint,2,opt,name=status,proto3,enum=internal.character.v1.QuestStatus" json:"status,omitempty"`
+	// One count per objective, in the quest's order; empty when finished.
+	Progress []int32 `protobuf:"varint,3,rep,packed,name=progress,proto3" json:"progress,omitempty"`
+	// Completions so far; a repeatable quest active again keeps its count.
+	TimesFinished int32 `protobuf:"varint,4,opt,name=times_finished,json=timesFinished,proto3" json:"times_finished,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Quest) Reset() {
+	*x = Quest{}
+	mi := &file_internal_character_v1_character_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Quest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Quest) ProtoMessage() {}
+
+func (x *Quest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_character_v1_character_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Quest.ProtoReflect.Descriptor instead.
+func (*Quest) Descriptor() ([]byte, []int) {
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *Quest) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+func (x *Quest) GetStatus() QuestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return QuestStatus_QUEST_STATUS_UNSPECIFIED
+}
+
+func (x *Quest) GetProgress() []int32 {
+	if x != nil {
+		return x.Progress
+	}
+	return nil
+}
+
+func (x *Quest) GetTimesFinished() int32 {
+	if x != nil {
+		return x.TimesFinished
+	}
+	return 0
+}
+
 // Stats are a number per primary stat: the points spent in each, or the own stats.
 type Stats struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -103,7 +230,7 @@ type Stats struct {
 
 func (x *Stats) Reset() {
 	*x = Stats{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[0]
+	mi := &file_internal_character_v1_character_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -115,7 +242,7 @@ func (x *Stats) String() string {
 func (*Stats) ProtoMessage() {}
 
 func (x *Stats) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[0]
+	mi := &file_internal_character_v1_character_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -128,7 +255,7 @@ func (x *Stats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stats.ProtoReflect.Descriptor instead.
 func (*Stats) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{0}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Stats) GetStrength() int32 {
@@ -199,7 +326,7 @@ type Character struct {
 
 func (x *Character) Reset() {
 	*x = Character{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[1]
+	mi := &file_internal_character_v1_character_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -211,7 +338,7 @@ func (x *Character) String() string {
 func (*Character) ProtoMessage() {}
 
 func (x *Character) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[1]
+	mi := &file_internal_character_v1_character_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -224,7 +351,7 @@ func (x *Character) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Character.ProtoReflect.Descriptor instead.
 func (*Character) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{1}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Character) GetId() string {
@@ -364,7 +491,7 @@ type CreateRequest struct {
 
 func (x *CreateRequest) Reset() {
 	*x = CreateRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[2]
+	mi := &file_internal_character_v1_character_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -376,7 +503,7 @@ func (x *CreateRequest) String() string {
 func (*CreateRequest) ProtoMessage() {}
 
 func (x *CreateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[2]
+	mi := &file_internal_character_v1_character_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -389,7 +516,7 @@ func (x *CreateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRequest.ProtoReflect.Descriptor instead.
 func (*CreateRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{2}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *CreateRequest) GetAccountId() string {
@@ -422,7 +549,7 @@ type CreateResponse struct {
 
 func (x *CreateResponse) Reset() {
 	*x = CreateResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[3]
+	mi := &file_internal_character_v1_character_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -434,7 +561,7 @@ func (x *CreateResponse) String() string {
 func (*CreateResponse) ProtoMessage() {}
 
 func (x *CreateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[3]
+	mi := &file_internal_character_v1_character_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -447,7 +574,7 @@ func (x *CreateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateResponse.ProtoReflect.Descriptor instead.
 func (*CreateResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{3}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CreateResponse) GetCharacter() *Character {
@@ -466,7 +593,7 @@ type ListRequest struct {
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[4]
+	mi := &file_internal_character_v1_character_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -478,7 +605,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[4]
+	mi := &file_internal_character_v1_character_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -491,7 +618,7 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{4}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListRequest) GetAccountId() string {
@@ -510,7 +637,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[5]
+	mi := &file_internal_character_v1_character_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -522,7 +649,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[5]
+	mi := &file_internal_character_v1_character_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -535,7 +662,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{5}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListResponse) GetCharacters() []*Character {
@@ -556,7 +683,7 @@ type LoadRequest struct {
 
 func (x *LoadRequest) Reset() {
 	*x = LoadRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[6]
+	mi := &file_internal_character_v1_character_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -568,7 +695,7 @@ func (x *LoadRequest) String() string {
 func (*LoadRequest) ProtoMessage() {}
 
 func (x *LoadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[6]
+	mi := &file_internal_character_v1_character_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -581,7 +708,7 @@ func (x *LoadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadRequest.ProtoReflect.Descriptor instead.
 func (*LoadRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{6}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LoadRequest) GetCharacterId() string {
@@ -599,15 +726,17 @@ func (x *LoadRequest) GetAccountId() string {
 }
 
 type LoadResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Character     *Character             `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Character *Character             `protobuf:"bytes,1,opt,name=character,proto3" json:"character,omitempty"`
+	// Its active and finished quests.
+	Quests        []*Quest `protobuf:"bytes,2,rep,name=quests,proto3" json:"quests,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LoadResponse) Reset() {
 	*x = LoadResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[7]
+	mi := &file_internal_character_v1_character_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -619,7 +748,7 @@ func (x *LoadResponse) String() string {
 func (*LoadResponse) ProtoMessage() {}
 
 func (x *LoadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[7]
+	mi := &file_internal_character_v1_character_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -632,12 +761,19 @@ func (x *LoadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadResponse.ProtoReflect.Descriptor instead.
 func (*LoadResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{7}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *LoadResponse) GetCharacter() *Character {
 	if x != nil {
 		return x.Character
+	}
+	return nil
+}
+
+func (x *LoadResponse) GetQuests() []*Quest {
+	if x != nil {
+		return x.Quests
 	}
 	return nil
 }
@@ -657,13 +793,15 @@ type SaveCheckpointRequest struct {
 	Points        *Stats `protobuf:"bytes,9,opt,name=points,proto3" json:"points,omitempty"`
 	UnspentPoints int32  `protobuf:"varint,10,opt,name=unspent_points,json=unspentPoints,proto3" json:"unspent_points,omitempty"`
 	FreeResetUsed bool   `protobuf:"varint,11,opt,name=free_reset_used,json=freeResetUsed,proto3" json:"free_reset_used,omitempty"`
+	// Every quest the character has, active and finished, so any checkpoint repairs one that was lost: a stored quest not listed goes, as one abandoned before it was ever finished does.
+	Quests        []*Quest `protobuf:"bytes,12,rep,name=quests,proto3" json:"quests,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SaveCheckpointRequest) Reset() {
 	*x = SaveCheckpointRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[8]
+	mi := &file_internal_character_v1_character_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -675,7 +813,7 @@ func (x *SaveCheckpointRequest) String() string {
 func (*SaveCheckpointRequest) ProtoMessage() {}
 
 func (x *SaveCheckpointRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[8]
+	mi := &file_internal_character_v1_character_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -688,7 +826,7 @@ func (x *SaveCheckpointRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveCheckpointRequest.ProtoReflect.Descriptor instead.
 func (*SaveCheckpointRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{8}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SaveCheckpointRequest) GetCharacterId() string {
@@ -768,6 +906,13 @@ func (x *SaveCheckpointRequest) GetFreeResetUsed() bool {
 	return false
 }
 
+func (x *SaveCheckpointRequest) GetQuests() []*Quest {
+	if x != nil {
+		return x.Quests
+	}
+	return nil
+}
+
 type SaveCheckpointResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -776,7 +921,7 @@ type SaveCheckpointResponse struct {
 
 func (x *SaveCheckpointResponse) Reset() {
 	*x = SaveCheckpointResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[9]
+	mi := &file_internal_character_v1_character_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -788,7 +933,7 @@ func (x *SaveCheckpointResponse) String() string {
 func (*SaveCheckpointResponse) ProtoMessage() {}
 
 func (x *SaveCheckpointResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[9]
+	mi := &file_internal_character_v1_character_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -801,7 +946,7 @@ func (x *SaveCheckpointResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveCheckpointResponse.ProtoReflect.Descriptor instead.
 func (*SaveCheckpointResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{9}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{10}
 }
 
 type SaveLevelUpRequest struct {
@@ -818,7 +963,7 @@ type SaveLevelUpRequest struct {
 
 func (x *SaveLevelUpRequest) Reset() {
 	*x = SaveLevelUpRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[10]
+	mi := &file_internal_character_v1_character_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -830,7 +975,7 @@ func (x *SaveLevelUpRequest) String() string {
 func (*SaveLevelUpRequest) ProtoMessage() {}
 
 func (x *SaveLevelUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[10]
+	mi := &file_internal_character_v1_character_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -843,7 +988,7 @@ func (x *SaveLevelUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveLevelUpRequest.ProtoReflect.Descriptor instead.
 func (*SaveLevelUpRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{10}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SaveLevelUpRequest) GetCharacterId() string {
@@ -896,7 +1041,7 @@ type SaveLevelUpResponse struct {
 
 func (x *SaveLevelUpResponse) Reset() {
 	*x = SaveLevelUpResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[11]
+	mi := &file_internal_character_v1_character_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +1053,7 @@ func (x *SaveLevelUpResponse) String() string {
 func (*SaveLevelUpResponse) ProtoMessage() {}
 
 func (x *SaveLevelUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[11]
+	mi := &file_internal_character_v1_character_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,14 +1066,19 @@ func (x *SaveLevelUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveLevelUpResponse.ProtoReflect.Descriptor instead.
 func (*SaveLevelUpResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{11}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{12}
 }
 
 var File_internal_character_v1_character_proto protoreflect.FileDescriptor
 
 const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\n" +
-	"%internal/character/v1/character.proto\x12\x15internal.character.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x01\n" +
+	"%internal/character/v1/character.proto\x12\x15internal.character.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xa1\x01\n" +
+	"\x05Quest\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\x12:\n" +
+	"\x06status\x18\x02 \x01(\x0e2\".internal.character.v1.QuestStatusR\x06status\x12\x1a\n" +
+	"\bprogress\x18\x03 \x03(\x05R\bprogress\x12%\n" +
+	"\x0etimes_finished\x18\x04 \x01(\x05R\rtimesFinished\"\x9b\x01\n" +
 	"\x05Stats\x12\x1a\n" +
 	"\bstrength\x18\x01 \x01(\x05R\bstrength\x12\x1c\n" +
 	"\tdexterity\x18\x02 \x01(\x05R\tdexterity\x12\"\n" +
@@ -974,9 +1124,10 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\vLoadRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x02 \x01(\tR\taccountId\"N\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\"\x84\x01\n" +
 	"\fLoadResponse\x12>\n" +
-	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\"\xba\x02\n" +
+	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\x124\n" +
+	"\x06quests\x18\x02 \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\"\xf0\x02\n" +
 	"\x15SaveCheckpointRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
@@ -989,7 +1140,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x06points\x18\t \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12%\n" +
 	"\x0eunspent_points\x18\n" +
 	" \x01(\x05R\runspentPoints\x12&\n" +
-	"\x0ffree_reset_used\x18\v \x01(\bR\rfreeResetUsed\"\x18\n" +
+	"\x0ffree_reset_used\x18\v \x01(\bR\rfreeResetUsed\x124\n" +
+	"\x06quests\x18\f \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\"\x18\n" +
 	"\x16SaveCheckpointResponse\"\xb5\x01\n" +
 	"\x12SaveLevelUpRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x14\n" +
@@ -998,7 +1150,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x06points\x18\x04 \x01(\v2\x1c.internal.character.v1.StatsR\x06points\x12\x0e\n" +
 	"\x02hp\x18\x05 \x01(\x05R\x02hp\x12\x0e\n" +
 	"\x02mp\x18\x06 \x01(\x05R\x02mp\"\x15\n" +
-	"\x13SaveLevelUpResponse*\xe6\x01\n" +
+	"\x13SaveLevelUpResponse*\xfc\x01\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aREASON_CHARACTER_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -1007,7 +1159,12 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x18REASON_CLASS_UNAVAILABLE\x10\x04\x12\x1f\n" +
 	"\x1bREASON_CHARACTER_SLOTS_FULL\x10\x05\x12\x11\n" +
 	"\rREASON_BAD_ID\x10\x06\x12\x1c\n" +
-	"\x14REASON_UNKNOWN_CLASS\x10\a\x1a\x02\b\x012\xe5\x03\n" +
+	"\x14REASON_UNKNOWN_CLASS\x10\a\x1a\x02\b\x01\x12\x14\n" +
+	"\x10REASON_BAD_QUEST\x10\b*_\n" +
+	"\vQuestStatus\x12\x1c\n" +
+	"\x18QUEST_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13QUEST_STATUS_ACTIVE\x10\x01\x12\x19\n" +
+	"\x15QUEST_STATUS_FINISHED\x10\x022\xe5\x03\n" +
 	"\x10CharacterService\x12U\n" +
 	"\x06Create\x12$.internal.character.v1.CreateRequest\x1a%.internal.character.v1.CreateResponse\x12O\n" +
 	"\x04List\x12\".internal.character.v1.ListRequest\x1a#.internal.character.v1.ListResponse\x12O\n" +
@@ -1027,48 +1184,53 @@ func file_internal_character_v1_character_proto_rawDescGZIP() []byte {
 	return file_internal_character_v1_character_proto_rawDescData
 }
 
-var file_internal_character_v1_character_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_internal_character_v1_character_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_internal_character_v1_character_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_internal_character_v1_character_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_internal_character_v1_character_proto_goTypes = []any{
 	(Reason)(0),                    // 0: internal.character.v1.Reason
-	(*Stats)(nil),                  // 1: internal.character.v1.Stats
-	(*Character)(nil),              // 2: internal.character.v1.Character
-	(*CreateRequest)(nil),          // 3: internal.character.v1.CreateRequest
-	(*CreateResponse)(nil),         // 4: internal.character.v1.CreateResponse
-	(*ListRequest)(nil),            // 5: internal.character.v1.ListRequest
-	(*ListResponse)(nil),           // 6: internal.character.v1.ListResponse
-	(*LoadRequest)(nil),            // 7: internal.character.v1.LoadRequest
-	(*LoadResponse)(nil),           // 8: internal.character.v1.LoadResponse
-	(*SaveCheckpointRequest)(nil),  // 9: internal.character.v1.SaveCheckpointRequest
-	(*SaveCheckpointResponse)(nil), // 10: internal.character.v1.SaveCheckpointResponse
-	(*SaveLevelUpRequest)(nil),     // 11: internal.character.v1.SaveLevelUpRequest
-	(*SaveLevelUpResponse)(nil),    // 12: internal.character.v1.SaveLevelUpResponse
-	(*timestamppb.Timestamp)(nil),  // 13: google.protobuf.Timestamp
+	(QuestStatus)(0),               // 1: internal.character.v1.QuestStatus
+	(*Quest)(nil),                  // 2: internal.character.v1.Quest
+	(*Stats)(nil),                  // 3: internal.character.v1.Stats
+	(*Character)(nil),              // 4: internal.character.v1.Character
+	(*CreateRequest)(nil),          // 5: internal.character.v1.CreateRequest
+	(*CreateResponse)(nil),         // 6: internal.character.v1.CreateResponse
+	(*ListRequest)(nil),            // 7: internal.character.v1.ListRequest
+	(*ListResponse)(nil),           // 8: internal.character.v1.ListResponse
+	(*LoadRequest)(nil),            // 9: internal.character.v1.LoadRequest
+	(*LoadResponse)(nil),           // 10: internal.character.v1.LoadResponse
+	(*SaveCheckpointRequest)(nil),  // 11: internal.character.v1.SaveCheckpointRequest
+	(*SaveCheckpointResponse)(nil), // 12: internal.character.v1.SaveCheckpointResponse
+	(*SaveLevelUpRequest)(nil),     // 13: internal.character.v1.SaveLevelUpRequest
+	(*SaveLevelUpResponse)(nil),    // 14: internal.character.v1.SaveLevelUpResponse
+	(*timestamppb.Timestamp)(nil),  // 15: google.protobuf.Timestamp
 }
 var file_internal_character_v1_character_proto_depIdxs = []int32{
-	1,  // 0: internal.character.v1.Character.points:type_name -> internal.character.v1.Stats
-	13, // 1: internal.character.v1.Character.updated_at:type_name -> google.protobuf.Timestamp
-	1,  // 2: internal.character.v1.Character.own_stats:type_name -> internal.character.v1.Stats
-	2,  // 3: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
-	2,  // 4: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
-	2,  // 5: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
-	1,  // 6: internal.character.v1.SaveCheckpointRequest.points:type_name -> internal.character.v1.Stats
-	1,  // 7: internal.character.v1.SaveLevelUpRequest.points:type_name -> internal.character.v1.Stats
-	3,  // 8: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
-	5,  // 9: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
-	7,  // 10: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
-	9,  // 11: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
-	11, // 12: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
-	4,  // 13: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
-	6,  // 14: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
-	8,  // 15: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
-	10, // 16: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
-	12, // 17: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	1,  // 0: internal.character.v1.Quest.status:type_name -> internal.character.v1.QuestStatus
+	3,  // 1: internal.character.v1.Character.points:type_name -> internal.character.v1.Stats
+	15, // 2: internal.character.v1.Character.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 3: internal.character.v1.Character.own_stats:type_name -> internal.character.v1.Stats
+	4,  // 4: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
+	4,  // 5: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
+	4,  // 6: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
+	2,  // 7: internal.character.v1.LoadResponse.quests:type_name -> internal.character.v1.Quest
+	3,  // 8: internal.character.v1.SaveCheckpointRequest.points:type_name -> internal.character.v1.Stats
+	2,  // 9: internal.character.v1.SaveCheckpointRequest.quests:type_name -> internal.character.v1.Quest
+	3,  // 10: internal.character.v1.SaveLevelUpRequest.points:type_name -> internal.character.v1.Stats
+	5,  // 11: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
+	7,  // 12: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
+	9,  // 13: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
+	11, // 14: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
+	13, // 15: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
+	6,  // 16: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
+	8,  // 17: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
+	10, // 18: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
+	12, // 19: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
+	14, // 20: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_internal_character_v1_character_proto_init() }
@@ -1081,8 +1243,8 @@ func file_internal_character_v1_character_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_character_v1_character_proto_rawDesc), len(file_internal_character_v1_character_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   12,
+			NumEnums:      2,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

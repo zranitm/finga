@@ -31,3 +31,13 @@ type Character struct {
 	CreatedAt     dbx.Stamp
 	FreeResetUsed bool
 }
+
+type CharacterQuest struct {
+	CharacterID   uuid.UUID
+	QuestID       string
+	Status        string
+	Progress      []int32
+	TimesFinished int32
+	CreatedAt     dbx.Stamp
+	UpdatedAt     dbx.Stamp
+}
