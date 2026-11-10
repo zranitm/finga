@@ -14,6 +14,11 @@
 - See each member's level, HP, and current map.
 - Party chat.
 - Members on the same map share EXP from kills.
+- Living members on the same map take turns getting drops from kills, one drop each (round-robin); a member who is dead when the mob dies is skipped. Every member on the map sees who got what in the combat channel (E5).
+
+## Later
+
+- A bidding system for party loot, replacing round-robin.
 - The party stays together across maps and channels, and disbands when the last member leaves.
 
 ## Rules

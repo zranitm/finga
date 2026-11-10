@@ -9,6 +9,7 @@
 ## Sources and sinks
 
 - **Sources (currency enters the game):** mob drops, and selling to NPC shops (P1).
+- **Currency drops** are collected automatically like items (Items → Drops). In a party, each one is split evenly among the living members on the map (Social → Party).
 - **Sinks (currency leaves the game):** buying from NPC shops (P1), and the marketplace fee on each sale.
 - **Transfers (currency moves between players):** marketplace purchases, and direct trades (P2).
 - Goal: over time, sinks roughly balance sources, so prices stay stable.

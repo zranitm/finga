@@ -54,6 +54,7 @@ What players can do, grouped by game area; each feature has its acceptance crite
 | [E2. Whispers](./social/e2-whispers.md) |  | P1 | Draft |
 | [E3. Party (up to 4)](./social/e3-party-up-to-4.md) | OD-04, OD-05 | P0 | Draft |
 | [E4. Friends list](./social/e4-friends-list.md) |  | P2 | Draft |
+| [E5. Combat channel](./social/e5-combat-channel.md) |  | P1 | Draft |
 
 ## F. Economy
 

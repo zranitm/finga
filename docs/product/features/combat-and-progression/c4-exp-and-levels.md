@@ -13,6 +13,7 @@
 - Each mob type gives a set amount of EXP.
 - Reaching the threshold levels the character up and raises stats.
 - The EXP bar and level are always visible.
+- EXP gained and lost, and level-ups, show in the combat channel (E5).
 
 ## Rules
 

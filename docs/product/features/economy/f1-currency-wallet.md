@@ -10,6 +10,7 @@
 ## Acceptance
 
 - The balance is always visible and never goes below zero.
+- Currency drops are collected automatically (D1). In a party, each is split evenly among the living members on the map, and each share shows in that member's combat channel (E5).
 - Currency is never created or lost by mistake.
 - Every change can be traced to its cause: a drop, a shop, a trade, or a fee.
 
