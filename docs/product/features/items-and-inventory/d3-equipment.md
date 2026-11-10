@@ -14,7 +14,8 @@
 - Equip an item from the inventory with a double-click, or by dragging it onto its slot in the character window (D6).
 - Equipping into a filled slot swaps the two: the worn item goes back to the inventory, into the slot the new one left.
 - Unequip with a double-click on the worn item, or by dragging it back to the inventory. With a full Equip tab, nothing moves and the player is told why.
-- An item above the character's level, or for another class, can't be equipped. Nothing moves and the player is told why.
+- An item above the character's level, for another class, or needing more of a stat than the character has, can't be equipped. Nothing moves and the player is told why.
+- A reset (C6) that leaves the character below a worn item's stat requirement leaves the item worn but adds none of its stats until the requirement is met again (proposal).
 - Stats change right away, in combat and in the character window. Every player sees the same results in combat.
 - What a character wears is unchanged after a map change, a death, a disconnect, or logging out and back in.
 - A worn item is never duplicated or lost, even if the game disconnects in the middle of a swap (D5).

@@ -14,8 +14,8 @@
   - the name, in the colour of its stars;
   - its stars, from 1★ to 7★;
   - its type: the slot for equipment (for example "Weapon" or "Ring"), otherwise Use or Etc;
-  - its requirements, minimum level and class, each in red when the character doesn't meet it;
-  - for equipment, every stat this copy rolled, with the item type's range beside it, for example "Attack 18 (16–20)" (proposal);
+  - its requirements, minimum level, minimum stats, and class, each in red when the character doesn't meet it;
+  - for equipment, every stat this copy rolled, with the item type's range beside it, for example "Physical attack 18 (16–20)" (proposal);
   - for Use items, the effect, for example "Restores 50 HP"; for a stack, the quantity;
   - a one-line description.
 - Two copies of the same equipment can show different stats: the card always shows the hovered copy's own.
