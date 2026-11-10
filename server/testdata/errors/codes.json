@@ -225,6 +225,11 @@
     "message": "nothing is worn there"
   },
   {
+    "code": "npc_out_of_reach",
+    "status": 409,
+    "message": "move closer"
+  },
+  {
     "code": "party_chat_unavailable",
     "status": 503,
     "message": "party chat is not available"

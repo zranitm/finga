@@ -328,6 +328,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settleEquip(m)
 		case pointsMsg:
 			i.settlePoints(m)
+		case talkMsg:
+			i.talk(m)
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})

@@ -54,6 +54,7 @@ var (
 	PointsChanged        = Public{"points_changed", "your points changed; try again"}
 	NoFreeReset          = Public{"no_free_reset", "your free reset is used"}
 	BadPoints            = Public{"bad_points", "spend at least one point, and none below zero"}
+	NpcOutOfReach        = Public{"npc_out_of_reach", "move closer"}
 	NotPartyLeader       = Public{"not_party_leader", "only the party leader can do that"}
 	PartyFull            = Public{"party_full", "the party is full"}
 	AlreadyInParty       = Public{"already_in_party", "already in a party"}

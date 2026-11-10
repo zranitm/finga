@@ -17,7 +17,8 @@ var (
 	ErrStopped = errors.New("world: instance is not running")
 	// ErrClassUnavailable means the game data lacks the class: a server fault, not a refusal.
 	ErrClassUnavailable = errors.New("world: class not available")
-	ErrCharacterDead    = errors.New("world: a dead character can't change what it wears")
+	ErrCharacterDead    = errors.New("world: a dead character can't do that")
+	ErrNpcOutOfReach    = errors.New("world: the NPC isn't on the map, or is out of reach")
 	ErrPointsChanged    = errors.New("world: the unspent points are not the count expected")
 	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
 	ErrNoFreeReset      = errors.New("world: the free reset is used")
@@ -64,7 +65,8 @@ type Player struct {
 	X, Y    float64 // where to appear: feet centre
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
-	Worn       Worn // travels with the player between maps
+	Worn       Worn   // travels with the player between maps
+	Quests     Quests // travels with the player too
 }
 
 // Character is a character as last saved, loaded to join.
@@ -80,6 +82,7 @@ type Character struct {
 	MP      int
 	MapID   string
 	X, Y    float64
+	Quests  Quests
 }
 
 // View is the joined player's own character, with derived maximums.
@@ -264,6 +267,7 @@ type Checkpoint struct {
 	Level  int
 	Exp    int64
 	Points Points
+	Quests Quests // the whole log, a copy of the player's
 }
 
 // DropView is an item on the ground as everyone sees it, with the player it will fly to.

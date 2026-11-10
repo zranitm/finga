@@ -59,7 +59,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -178,9 +178,9 @@ func (w *World) respawned(c model.Character, maxHP int) (model.Character, error)
 	return c, nil
 }
 
-// withCheckpoint is c as cp left it.
+// withCheckpoint is c as cp left it; the quests are a copy, as the saver may still read cp's.
 func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
-	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points
+	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points, c.Quests = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points, cp.Quests.Clone()
 	return c
 }
 

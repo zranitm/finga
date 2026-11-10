@@ -67,8 +67,32 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		}}}
 	case model.Detached:
 		return &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}}
+	case model.NpcDialog:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: npcDialog(ev)}}
 	}
 	return nil
+}
+
+var offerStates = map[model.OfferState]worldv1.QuestOfferState{
+	model.OfferAvailable: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE,
+	model.OfferActive:    worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE,
+	model.OfferFinished:  worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED,
+	model.OfferUnmet:     worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET,
+}
+
+func npcDialog(d model.NpcDialog) *worldv1.NpcDialog {
+	out := &worldv1.NpcDialog{NpcId: d.NPC}
+	for _, o := range d.Gives {
+		offer := &worldv1.QuestOffer{QuestId: o.Quest, State: offerStates[o.State]}
+		if o.State == model.OfferUnmet {
+			offer.Unmet = &worldv1.QuestConditions{Level: int32(o.Unmet.Level), Class: o.Unmet.Class.String(), Quests: o.Unmet.Quests} //nolint:gosec // levels are small
+		}
+		out.Gives = append(out.Gives, offer)
+	}
+	for _, t := range d.Takes {
+		out.Takes = append(out.Takes, &worldv1.QuestTurnIn{QuestId: t.Quest, Ready: t.Ready})
+	}
+	return out
 }
 
 func lootKind(k model.LootKind) worldv1.LootKind {

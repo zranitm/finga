@@ -32,6 +32,8 @@ service WorldService {
   rpc SpendPoints(SpendPointsRequest) returns (SpendPointsResponse);
   // ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
   rpc ResetPoints(ResetPointsRequest) returns (ResetPointsResponse);
+  // Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
+  rpc Talk(TalkRequest) returns (TalkResponse);
 }
 
 enum Reason {
@@ -59,6 +61,8 @@ enum Reason {
   REASON_NO_FREE_RESET = 12;
   // A negative number of points, or none at all.
   REASON_BAD_POINTS = 13;
+  // The NPC isn't on the character's map, or is farther than the talk reach.
+  REASON_NPC_OUT_OF_REACH = 14;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -175,6 +179,7 @@ message DeliverResponse {
     Frame frame = 17;
     StatsChanged stats_changed = 18;
     Loot loot = 19;
+    NpcDialog npc_dialog = 20;
   }
 }
 
@@ -517,3 +522,52 @@ message ResetPointsRequest {
 }
 
 message ResetPointsResponse {}
+
+message TalkRequest {
+  Presence presence = 1;
+  string npc_id = 2;
+}
+
+message TalkResponse {}
+
+// NpcDialog is what an NPC offers the character now, from its live state, so it agrees with what the world would allow.
+message NpcDialog {
+  string npc_id = 1;
+  // The quests it gives, in npcs.yaml's order.
+  repeated QuestOffer gives = 2;
+  // The character's active quests it takes back.
+  repeated QuestTurnIn takes = 3;
+}
+
+// QuestOfferState is where a quest an NPC gives stands for the character.
+enum QuestOfferState {
+  QUEST_OFFER_STATE_UNSPECIFIED = 0;
+  QUEST_OFFER_STATE_AVAILABLE = 1;
+  QUEST_OFFER_STATE_ACTIVE = 2;
+  // A one-time quest already finished.
+  QUEST_OFFER_STATE_FINISHED = 3;
+  // The character doesn't meet its conditions yet; unmet lists them.
+  QUEST_OFFER_STATE_CONDITIONS_UNMET = 4;
+}
+
+message QuestOffer {
+  string quest_id = 1;
+  QuestOfferState state = 2;
+  QuestConditions unmet = 3;
+}
+
+// QuestConditions are what a character lacks to accept a quest; an unset field is met.
+message QuestConditions {
+  // The least level, when the character's is lower.
+  int32 level = 1;
+  // The class it asks for, when the character is another.
+  string class = 2;
+  // The quests to finish first.
+  repeated string quests = 3;
+}
+
+// QuestTurnIn is an active quest an NPC takes back: ready once every kill, talk and level objective is done; the item service counts what it asks to collect.
+message QuestTurnIn {
+  string quest_id = 1;
+  bool ready = 2;
+}

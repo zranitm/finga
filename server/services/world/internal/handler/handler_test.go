@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
@@ -525,5 +526,36 @@ func TestAnEquipRefusalKeepsTheItemServicesReason(t *testing.T) {
 	}
 	if _, err := s.c.Equip(s.ctx, &worldv1.EquipRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, IdempotencyKey: "k-1", ItemId: "nope"}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("a malformed item ID: %v", err)
+	}
+}
+
+// Talk answers once the dialog is on the stream, computed from the quest log the join loaded.
+func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
+	}
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	if _, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: presence, NpcId: "town_guide"}); err != nil {
+		t.Fatal(err)
+	}
+	got := until(t, stream, "the dialog", func(m *worldv1.DeliverResponse) bool { return m.GetNpcDialog() != nil }).GetNpcDialog()
+	want := &worldv1.NpcDialog{NpcId: "town_guide", Gives: []*worldv1.QuestOffer{
+		{QuestId: "slime_cleanup", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+		{QuestId: "sticky_samples", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+	}}
+	if !proto.Equal(got, want) {
+		t.Fatalf("dialog %v, want %v", got, want)
+	}
+	_, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: presence, NpcId: "nobody"})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(worldv1.Reason_REASON_NPC_OUT_OF_REACH) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("an NPC not on the map: %v", err)
+	}
+	if _, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
 	}
 }

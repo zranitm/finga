@@ -159,3 +159,32 @@ func TestLootCarriesWhatBecameOfTheDrop(t *testing.T) {
 		}
 	}
 }
+
+func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	if !s.Send(model.NpcDialog{Tick: 4, NPC: "guide",
+		Gives: []model.QuestOffer{
+			{Quest: "a", State: model.OfferAvailable},
+			{Quest: "b", State: model.OfferActive},
+			{Quest: "c", State: model.OfferFinished},
+			{Quest: "d", State: model.OfferUnmet, Unmet: model.Unmet{Level: 5, Class: kernel.Bowman, Quests: []string{"a"}}},
+		},
+		Takes: []model.QuestTurnIn{{Quest: "b", Ready: true}},
+	}) {
+		t.Fatal("the stream refused the dialog")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
+		NpcId: "guide",
+		Gives: []*worldv1.QuestOffer{
+			{QuestId: "a", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+			{QuestId: "b", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE},
+			{QuestId: "c", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+			{QuestId: "d", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &worldv1.QuestConditions{Level: 5, Class: "bowman", Quests: []string{"a"}}},
+		},
+		Takes: []*worldv1.QuestTurnIn{{QuestId: "b", Ready: true}},
+	}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}

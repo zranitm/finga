@@ -82,6 +82,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_NOT_ENOUGH_POINTS): model.NotEnoughPoints,
 	grpcx.Key(worldv1.Reason_REASON_NO_FREE_RESET):     model.NoFreeReset,
 	grpcx.Key(worldv1.Reason_REASON_BAD_POINTS):        model.BadPoints,
+	grpcx.Key(worldv1.Reason_REASON_NPC_OUT_OF_REACH):  model.NpcOutOfReach,
 }
 
 // For is the Public form of a failed call: its reason's row, else Unavailable for a service down or busy, else Internal; the zero value for nil.

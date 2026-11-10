@@ -64,6 +64,11 @@ func (w *World) ResetPoints(ctx context.Context, id kernel.CharacterID, conn str
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.ResetPoints(ctx, id, conn, expected) })
 }
 
+// Talk sends the character the dialog of an NPC within reach on its map.
+func (w *World) Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Talk(ctx, id, conn, npc) })
+}
+
 // wait runs a command whose caller waits for its outcome, so one it can't take is unavailable, for the caller to retry.
 func (w *World) wait(id kernel.CharacterID, conn string, run func(*instance.Instance) error) error {
 	at, ok := w.presences.at(id, conn)

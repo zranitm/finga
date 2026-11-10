@@ -45,6 +45,7 @@ export const errorCodes = [
   'not_party_leader',
   'not_party_member',
   'nothing_worn',
+  'npc_out_of_reach',
   'party_chat_unavailable',
   'party_full',
   'points_changed',

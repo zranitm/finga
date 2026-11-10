@@ -31,6 +31,7 @@ type World interface {
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
+	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 }
 
 // queue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
@@ -218,6 +219,18 @@ func (s *Server) ResetPoints(ctx context.Context, req *worldv1.ResetPointsReques
 		return nil, err
 	}
 	return &worldv1.ResetPointsResponse{}, nil
+}
+
+// Talk sends the character the dialog of an NPC within reach, and answers once it is queued.
+func (s *Server) Talk(ctx context.Context, req *worldv1.TalkRequest) (*worldv1.TalkResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.Talk(ctx, id, conn, req.GetNpcId()); err != nil {
+		return nil, err
+	}
+	return &worldv1.TalkResponse{}, nil
 }
 
 // presence is the character a command is for and the connection it comes from.

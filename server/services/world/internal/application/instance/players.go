@@ -65,6 +65,9 @@ func (i *Instance) add(j *joinMsg) {
 		j.done <- model.ErrClassUnavailable
 		return
 	}
+	if j.player.Quests == nil {
+		j.player.Quests = model.Quests{}
+	}
 	p := &player{
 		Player: j.player,
 		sink:   j.sink,
@@ -171,7 +174,7 @@ func (i *Instance) playerBox(p *player) model.Rect {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points}
+	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points, Quests: p.Quests.Clone()}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
 		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, RespawnHP(p.derived.MaxHP)
