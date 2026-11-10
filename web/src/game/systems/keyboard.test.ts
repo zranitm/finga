@@ -54,7 +54,7 @@ describe('bindKeyboard', () => {
   );
 
   it.each([
-    { name: 'a key not in the preset', code: 'KeyQ' },
+    { name: 'a key not in the preset', code: 'KeyV' },
     { name: 'the other preset’s key', code: 'KeyD' },
   ])('$name does nothing, and keeps its default', ({ code }) => {
     const { target, key } = setup('classic');

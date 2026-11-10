@@ -149,16 +149,20 @@ From the code, the rules this design keeps:
 
 ## 10. Client
 
-- **game:** NPC sprites with name labels, drawn from the generated positions, and markers above them.
+- **game:** NPC sprites with name labels, drawn from the generated positions, and markers above them, worked out on the client from the log, the level, and the inventory:
+  - a gold **?** when the NPC takes back a quest that is ready;
+  - else a gold **!** when it gives one the player can take;
+  - else a grey **?** when it takes back one still under way.
 - **Talk key:**
   - The Talk key (Z in Classic, E in WASD) finds the nearest NPC within `talk_reach` and sends `Talk`; with none in reach it does nothing.
   - The Z key in Classic was pickup's. The `input` presets gain a `talk` action.
 - **The NPC dialog** (`features/npc`):
   - It lists what `NpcDialog` offers, with unmet conditions greyed and explained.
   - Accept, Hand in, and Promote send their requests, and close the dialog on success.
+  - Hand in is enabled once the quest is ready by the live log and inventory, items to bring included, so it doesn't wait for another Talk.
   - Walking out of reach closes it.
 - **The quest log** (`features/quests`, Q): active quests with each objective's progress. Collect objectives are counted from the inventory store. Each quest has an Abandon button.
-- **The combat channel** gains lines for quest progress, quests ready to hand in, and quests finished.
+- **The combat channel** gains lines for a quest taken, kill and talk progress, a quest ready to hand in (when its last kill, item, or level comes), a quest finished, and a quest abandoned.
 
 ## 11. When things fail
 

@@ -12,8 +12,8 @@ export interface SettingsPanelProps {
 }
 
 const labels: Record<Preset, string> = {
-  classic: 'Classic: arrows, Space, X attack',
-  wasd: 'WASD: W A S D, Space, J attack',
+  classic: 'Classic: arrows, Space, X attack, Z talk',
+  wasd: 'WASD: W A S D, Space, J attack, E talk',
 };
 
 /** The account's saved settings win over the local ones once they arrive; until then, the cached preset and no auto-assign stay in force. */

@@ -12,6 +12,9 @@ import {
   LevelUpSchema,
   LootKind,
   LootSchema,
+  QuestChange,
+  QuestChangedSchema,
+  QuestStatus,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -24,6 +27,12 @@ import { ChatBox, MAX_CHAT_CHARS, parseLine } from './ChatBox';
 
 const line = (channel: ChatChannel, senderName: string, text: string) =>
   create(ChatMessageSchema, { channel, sender: `c-${senderName}`, senderName, text });
+
+const questChanged = (change: QuestChange, questId: string, progress: number[] = []) =>
+  create(QuestChangedSchema, {
+    change,
+    quest: { questId, status: QuestStatus.ACTIVE, progress },
+  });
 
 const loot = (kind: LootKind, template: string, quantity: number, ownerName = 'Ayla') =>
   create(LootSchema, {
@@ -253,6 +262,49 @@ describe('ChatBox', () => {
         name: 'a drop lost uncollected',
         add: () => combatLog.getState().applyLoot(loot(LootKind.LOST, 'slime_gel', 1)),
         text: 'Slime Gel ★ disappeared uncollected.',
+      },
+      {
+        name: 'a quest taken',
+        add: () =>
+          combatLog
+            .getState()
+            .applyQuestChanged(questChanged(QuestChange.ACCEPTED, 'slime_cleanup')),
+        text: 'Quest taken: Slime Cleanup.',
+      },
+      {
+        name: 'a kill counted',
+        add: () =>
+          combatLog
+            .getState()
+            .applyQuestChanged(questChanged(QuestChange.PROGRESSED, 'slime_cleanup', [3])),
+        text: 'Slime Cleanup: Green Slime 3/10',
+      },
+      {
+        name: 'a quest ready to hand in',
+        add: () => combatLog.getState().questReady('sticky_samples'),
+        text: 'Sticky Samples is ready to hand in to Town Guide.',
+      },
+      {
+        name: 'a quest finished',
+        add: () =>
+          combatLog
+            .getState()
+            .applyQuestChanged(questChanged(QuestChange.HANDED_IN, 'slime_cleanup')),
+        text: 'Quest finished: Slime Cleanup!',
+      },
+      {
+        name: 'a quest abandoned',
+        add: () =>
+          combatLog
+            .getState()
+            .applyQuestChanged(questChanged(QuestChange.ABANDONED, 'slime_cleanup')),
+        text: 'Quest abandoned: Slime Cleanup.',
+      },
+      {
+        name: 'a quest this client does not know',
+        add: () =>
+          combatLog.getState().applyQuestChanged(questChanged(QuestChange.ACCEPTED, 'later')),
+        text: 'Quest taken: later.',
       },
     ])('$name reads "$text"', async ({ add, text }) => {
       setup();

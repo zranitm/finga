@@ -12,9 +12,11 @@ const table: Record<Preset, Record<string, string>> = {
     down: 'ArrowDown',
     jump: 'Space',
     attack: 'KeyX',
+    talk: 'KeyZ',
     inventory: 'KeyI',
     character: 'KeyC',
     party: 'KeyP',
+    quests: 'KeyQ',
     chat: 'Enter',
     close: 'Escape',
   },
@@ -25,9 +27,11 @@ const table: Record<Preset, Record<string, string>> = {
     down: 'KeyS',
     jump: 'Space',
     attack: 'KeyJ',
+    talk: 'KeyE',
     inventory: 'KeyI',
     character: 'KeyC',
     party: 'KeyP',
+    quests: 'KeyQ',
     chat: 'Enter',
     close: 'Escape',
   },
@@ -47,7 +51,8 @@ describe('key presets', () => {
   it.each([
     { preset: 'classic' as const, code: 'KeyA' },
     { preset: 'wasd' as const, code: 'ArrowLeft' },
-    { preset: 'classic' as const, code: 'KeyQ' },
+    { preset: 'classic' as const, code: 'KeyE' },
+    { preset: 'wasd' as const, code: 'KeyZ' },
     { preset: 'wasd' as const, code: 'Tab' },
   ])('$preset: $code maps to nothing', ({ preset, code }) => {
     expect(actionFor(code, preset)).toBeUndefined();

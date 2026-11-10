@@ -2,16 +2,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, getToken, setToken } from '@/net/token';
-import { ChatChannel, KickReason, LootKind } from '@/protocol/messages';
+import {
+  ChatChannel,
+  KickReason,
+  LootKind,
+  QuestChange,
+  QuestOfferState,
+  QuestStatus,
+} from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
+import { ui } from '@/state/ui';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
@@ -294,6 +303,111 @@ describe('wiring', () => {
     ws.push('loot', d);
     expect(toasts.getState().toasts.map((t) => t.text)).toEqual(text);
     expect(toasts.getState().toasts.every((t) => t.kind === 'info')).toBe(true);
+  });
+
+  describe('quests', () => {
+    const samples = (status: QuestStatus) => ({
+      questId: 'sticky_samples',
+      status,
+      progress: status === QuestStatus.ACTIVE ? [0] : [],
+    });
+    const gels = (quantity: number, revision: bigint) => ({
+      revision,
+      slots: [
+        {
+          tab: 'etc',
+          slot: 0,
+          item: { itemId: 'g1', template: 'slime_gel', tab: 'etc', slot: 0, quantity },
+        },
+      ],
+    });
+
+    it('the log arrives in Welcome, and a quest ready then gets no line', async () => {
+      FakeWebSocket.reset();
+      setToken('tok-login');
+      const socket = new GameSocket({ url: 'ws://game.test/ws', WebSocket: fakeWebSocketClass });
+      wireSocket(socket);
+      const p = socket.connect('c-ayla');
+      const ws = FakeWebSocket.latest();
+      ws.open();
+      ws.push('welcome', {
+        ...welcome,
+        quests: [
+          { questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [10] },
+          { questId: 'first', status: QuestStatus.FINISHED, timesFinished: 2 },
+        ],
+      });
+      await p;
+      expect(quests.getState().log).toEqual({
+        slime_cleanup: { status: 'active', progress: [10], timesFinished: 0 },
+        first: { status: 'finished', progress: [], timesFinished: 2 },
+      });
+      expect(combatLog.getState().lines).toEqual([]);
+    });
+
+    it('an NpcDialog opens the dialog window', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('npcDialog', {
+        npcId: 'town_guide',
+        gives: [{ questId: 'slime_cleanup', state: QuestOfferState.AVAILABLE }],
+      });
+      expect(quests.getState().dialog?.npcId).toBe('town_guide');
+      expect(ui.getState().windows).toEqual(['npc']);
+    });
+
+    it('QuestChanged updates the log and adds its line; an abandoned quest leaves the log', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });
+      expect(quests.getState().log.sticky_samples?.status).toBe('active');
+      ws.push('questChanged', {
+        change: QuestChange.ABANDONED,
+        quest: samples(QuestStatus.UNSPECIFIED),
+      });
+      expect(quests.getState().log).toEqual({});
+      expect(combatLog.getState().lines).toMatchObject([
+        { kind: 'quest', change: 'accepted', quest: 'sticky_samples' },
+        { kind: 'quest', change: 'abandoned', quest: 'sticky_samples' },
+      ]);
+    });
+
+    it('a quest becomes ready with its last item collected, once', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });
+      ws.push('inventoryChanged', gels(4, 2n));
+      ws.push('inventoryChanged', gels(5, 3n));
+      ws.push('inventoryChanged', gels(6, 4n));
+      const ready = combatLog
+        .getState()
+        .lines.filter((l) => l.kind === 'quest' && l.change === 'ready');
+      expect(ready).toMatchObject([{ quest: 'sticky_samples' }]);
+      ws.push('questChanged', {
+        change: QuestChange.HANDED_IN,
+        quest: samples(QuestStatus.FINISHED),
+      });
+      expect(combatLog.getState().lines.at(-1)).toMatchObject({ change: 'finished' });
+    });
+
+    it('a kill that finishes a quest gets a progress line and a ready line', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('questChanged', {
+        change: QuestChange.PROGRESSED,
+        quest: { questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [10] },
+      });
+      expect(combatLog.getState().lines).toMatchObject([
+        { kind: 'quest', change: 'progressed', quest: 'slime_cleanup', progress: [10] },
+        { kind: 'quest', change: 'ready', quest: 'slime_cleanup' },
+      ]);
+    });
+
+    it('leaving the world forgets the log and the dialog', async () => {
+      const { ws } = await connectedSocket();
+      ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });
+      ws.push('npcDialog', { npcId: 'town_guide' });
+      ws.push('kicked', { reason: KickReason.LOGGED_IN_ELSEWHERE });
+      ws.closeFromServer(4003);
+      expect(quests.getState().log).toEqual({});
+      expect(quests.getState().dialog).toBeNull();
+    });
   });
 
   describe('auto-assign', () => {

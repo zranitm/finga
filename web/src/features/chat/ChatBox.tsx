@@ -4,11 +4,12 @@ import type { KeyboardEvent } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
 import type { GameSocket } from '@/net/socket';
+import { npcById, objectiveLabel, questById, questName } from '@/progression/quests';
 import { ChatChannel, LootKind } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
-import type { CombatLine } from '@/state/combat-log';
+import type { CombatLine, QuestLineKind } from '@/state/combat-log';
 import { ui } from '@/state/ui';
 
 export const MAX_CHAT_CHARS = 120;
@@ -169,7 +170,51 @@ function CombatText({ line, me }: { readonly line: CombatLine; readonly me: stri
         case LootKind.LOST:
           return <>{item} disappeared uncollected.</>;
       }
+      return null;
     }
+    case 'quest':
+      return <QuestText change={line.change} quest={line.quest} progress={line.progress} />;
+  }
+}
+
+function QuestText({
+  change,
+  quest,
+  progress,
+}: {
+  readonly change: QuestLineKind;
+  readonly quest: string;
+  readonly progress: readonly number[];
+}) {
+  const name = <span className="chat-quest">{questName(quest)}</span>;
+  switch (change) {
+    case 'accepted':
+      return <>Quest taken: {name}.</>;
+    case 'progressed': {
+      // Kills and talks: the counts the server keeps; items and levels show in the quest log.
+      const counted = (questById(quest)?.objectives ?? []).flatMap((o, k) =>
+        o.kind === 'kill' || o.kind === 'talk'
+          ? [`${objectiveLabel(o)} ${Math.min(progress[k] ?? 0, o.count)}/${o.count}`]
+          : [],
+      );
+      return (
+        <>
+          {name}: {counted.join(', ')}
+        </>
+      );
+    }
+    case 'ready': {
+      const to = npcById(questById(quest)?.turn_in ?? '')?.name;
+      return (
+        <>
+          {name} is ready to hand in{to ? ` to ${to}` : ''}.
+        </>
+      );
+    }
+    case 'finished':
+      return <>Quest finished: {name}!</>;
+    case 'abandoned':
+      return <>Quest abandoned: {name}.</>;
   }
 }
 

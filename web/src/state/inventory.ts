@@ -128,3 +128,16 @@ export const inventory = defineStore<InventoryState>((set, get) => ({
     });
   },
 }));
+
+/** How many of an item the tabs hold; worn items aren't counted, as a hand-in never takes them. */
+export function heldOf(slots: Slots, template: string): number {
+  let n = 0;
+  for (const tab of tabs) {
+    for (const item of slots[tab]) {
+      if (item?.template === template) {
+        n += item.quantity;
+      }
+    }
+  }
+  return n;
+}

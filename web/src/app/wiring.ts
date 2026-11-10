@@ -2,6 +2,7 @@
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
+import { readyQuests } from '@/progression/quests';
 import { autoAssign } from '@/progression/stats';
 import { LootKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
@@ -11,19 +12,45 @@ import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
+import { questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
+import { ui } from '@/state/ui';
 
 export function wireSocket(socket: GameSocket): () => void {
+  // The quests ready to hand in: one that becomes ready gets a line in the Combat tab.
+  let ready = new Set<string>();
+  const announceReady = () => {
+    const now = readyQuests(questPlayer());
+    for (const id of now) {
+      if (!ready.has(id)) {
+        combatLog.getState().questReady(id);
+      }
+    }
+    ready = new Set(now);
+  };
   const offs = [
     socket.on('welcome', (m) => {
       character.getState().applyWelcome(m.d);
       inventory.getState().applyWelcome(m.d);
       party.getState().applyWelcome();
+      quests.getState().applyWelcome(m.d);
+      ui.getState().closeWindow('npc');
+      ready = new Set(readyQuests(questPlayer()));
     }),
     socket.on('inventoryChanged', (m) => {
       inventory.getState().applyInventoryChanged(m.d);
+      announceReady();
+    }),
+    socket.on('npcDialog', (m) => {
+      quests.getState().applyNpcDialog(m.d);
+      ui.getState().openWindow('npc');
+    }),
+    socket.on('questChanged', (m) => {
+      quests.getState().applyQuestChanged(m.d);
+      combatLog.getState().applyQuestChanged(m.d);
+      announceReady();
     }),
     socket.on('partyState', (m) => {
       party.getState().applyPartyState(m.d);
@@ -38,6 +65,7 @@ export function wireSocket(socket: GameSocket): () => void {
       character.getState().applyLevelUp(m.d);
       combatLog.getState().applyLevelUp(m.d);
       autoAssignPoints(socket, m.d);
+      announceReady();
     }),
     socket.on('statsChanged', (m) => {
       character.getState().applyStatsChanged(m.d);
@@ -145,6 +173,7 @@ export function leaveWorld(): void {
   character.getState().clear();
   inventory.getState().clear();
   party.getState().clear();
+  quests.getState().clear();
   chat.getState().clear();
   combatLog.getState().clear();
   session.getState().logOut();
