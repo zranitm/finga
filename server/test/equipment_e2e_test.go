@@ -172,10 +172,19 @@ func TestEquipment(t *testing.T) {
 		if !ok {
 			t.Fatal("no cap dropped in 90 s of hunting")
 		}
-		// No key: past its collect delay and a room check, the cap is still on the ground and nothing reached the inventory.
+		// No key: past its collect delay and a room check, the cap is still on the ground, waiting, and nothing reached the inventory.
 		l.pump(4*time.Second, nil)
 		if _, still := l.drops[drop.GetId()]; !still || l.inventory != 1 {
 			t.Fatalf("the cap left the ground or something reached the inventory: drops %v, %d InventoryChanged", l.drops, l.inventory)
+		}
+		var waiting int
+		for _, lt := range l.loots {
+			if lt.GetDropId() == drop.GetId() && lt.GetKind() == clientv1.LootKind_LOOT_KIND_WAITING {
+				waiting++
+			}
+		}
+		if waiting != 1 {
+			t.Fatalf("loot %v; want the cap told waiting, once", l.loots)
 		}
 		var tab, caps int
 		if err := s.db.QueryRow(context.Background(), `

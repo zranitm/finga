@@ -208,16 +208,6 @@ describe('wiring', () => {
 
   it.each([
     {
-      name: 'inventory_full',
-      d: { ok: false, code: 'inventory_full' },
-      text: 'Your inventory is full.',
-    },
-    {
-      name: 'pickup_busy',
-      d: { ok: false, code: 'pickup_busy' },
-      text: 'The server is busy. Try again.',
-    },
-    {
       name: 'unavailable (a service down or busy)',
       d: { ok: false, code: 'unavailable', message: 'the server is busy; try again' },
       text: 'The server is busy. Try again.',
@@ -239,8 +229,8 @@ describe('wiring', () => {
     },
     {
       name: 'another refusal with a message',
-      d: { ok: false, code: 'pickups_unavailable', message: 'pickups are not available' },
-      text: 'pickups are not available',
+      d: { ok: false, code: 'target_not_on_map', message: 'that character is not on your map' },
+      text: 'that character is not on your map',
     },
   ])('a Response with no request ID and $name shows a toast', async ({ d, text }) => {
     const { ws } = await connectedSocket();

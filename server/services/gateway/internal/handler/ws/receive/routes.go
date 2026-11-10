@@ -26,7 +26,6 @@ type limit struct {
 var (
 	inputs    = limit{group: "input", perTick: 1.5} // one a tick, plus half again for a burst after a stall
 	attacks   = limit{group: "attack", perSecond: 10, burst: 10}
-	pickups   = limit{group: "pickup", perSecond: 10, burst: 10}
 	portals   = limit{group: "portal", perSecond: 2, burst: 2}
 	inventory = limit{group: "inventory", perSecond: 5, burst: 5} // moves, discards, equips and unequips together
 	party     = limit{group: "party", perSecond: 2, burst: 5}     // the five party commands together; a leader may use each at once
@@ -74,7 +73,7 @@ func (h *Handler) routes() *wsrouter.Router[*Inbox] {
 
 	wsrouter.Handle(r, "Input", h.input, h.command(inputs, h.logged)...)
 	wsrouter.Handle(r, "Attack", h.attack, h.command(attacks, h.logged)...)
-	wsrouter.Handle(r, "PickUp", h.pickUp, h.command(pickups, h.logged)...)
+	wsrouter.Handle(r, "PickUp", h.ignore)
 	wsrouter.Handle(r, "EnterPortal", h.enterPortal, h.command(portals, h.logged)...)
 
 	wsrouter.Handle(r, "InventoryMove", h.inventoryMove, h.command(inventory, h.respond)...)

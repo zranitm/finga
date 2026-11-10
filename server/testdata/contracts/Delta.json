@@ -47,7 +47,8 @@
         "template": "slime_gel",
         "quantity": 2,
         "x": 520,
-        "y": 608
+        "y": 608,
+        "owner_id": "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6a7b"
       }
     ],
     "removed_players": [
@@ -58,6 +59,9 @@
     ],
     "removed_drops": [
       11
+    ],
+    "collected_drops": [
+      10
     ]
   }
 }

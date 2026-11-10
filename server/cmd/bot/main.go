@@ -62,22 +62,22 @@ func run(url, metrics string, n int, duration time.Duration, prefix string) erro
 	for _, b := range bots {
 		s := b.snapshot()
 		total.add(s)
-		fmt.Printf("%-14s kills %3d  pickups %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
-			b.name, s.kills, s.pickups, s.deaths, s.hops, s.chats, s.messages, s.refused, s.reconnects, s.loginFailures)
+		fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n",
+			b.name, s.kills, s.items, s.deaths, s.hops, s.chats, s.messages, s.refused, s.reconnects, s.loginFailures)
 	}
-	fmt.Printf("%-14s kills %3d  pickups %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
-		"total", total.kills, total.pickups, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
+	fmt.Printf("%-14s kills %3d  items collected %3d  deaths %2d  hops %3d  chat %3d  messages %7d  refused %3d  reconnects %d  login failures %d\n\n",
+		"total", total.kills, total.items, total.deaths, total.hops, total.chats, total.messages, total.refused, total.reconnects, total.loginFailures)
 	return report(metrics, url)
 }
 
 type stats struct {
-	messages, kills, pickups, deaths, hops, chats, refused, reconnects, loginFailures int
+	messages, kills, items, deaths, hops, chats, refused, reconnects, loginFailures int
 }
 
 func (s *stats) add(o stats) {
 	s.messages += o.messages
 	s.kills += o.kills
-	s.pickups += o.pickups
+	s.items += o.items
 	s.deaths += o.deaths
 	s.hops += o.hops
 	s.chats += o.chats
@@ -106,7 +106,6 @@ type bot struct {
 	mapID   string
 	x, y    float64
 	dead    bool
-	drops   map[uint32]*clientv1.DropView
 	seq     uint32
 	held    *clientv1.Input
 	inParty atomic.Bool
@@ -235,7 +234,6 @@ func (b *bot) enter(ctx context.Context, token string) error {
 			b.msgs <- m
 		}
 	}()
-	b.drops = map[uint32]*clientv1.DropView{}
 	b.dead = false
 	b.held = &clientv1.Input{}
 	if err := b.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: b.id}}); err != nil {
@@ -286,10 +284,6 @@ func (b *bot) observe(m wsconn.Message) {
 		b.token = d.GetToken()
 		b.mapID = d.GetMapId()
 	case *clientv1.Snapshot:
-		b.drops = map[uint32]*clientv1.DropView{}
-		for _, dv := range d.GetDrops() {
-			b.drops[dv.GetId()] = dv
-		}
 		for _, v := range d.GetPlayers() {
 			if v.GetId() == b.id {
 				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
@@ -300,12 +294,6 @@ func (b *bot) observe(m wsconn.Message) {
 			if v.GetId() == b.id {
 				b.x, b.y, b.dead = v.GetX(), v.GetY(), v.GetDead()
 			}
-		}
-		for _, dv := range d.GetDrops() {
-			b.drops[dv.GetId()] = dv
-		}
-		for _, id := range d.GetRemovedDrops() {
-			delete(b.drops, id)
 		}
 	case *clientv1.MapChange:
 		b.mapID, b.x, b.y = d.GetMapId(), d.GetX(), d.GetY()
@@ -324,8 +312,10 @@ func (b *bot) observe(m wsconn.Message) {
 		}
 	case *clientv1.ExpGained:
 		b.count(func(s *stats) { s.kills++ })
-	case *clientv1.InventoryChanged:
-		b.count(func(s *stats) { s.pickups++ })
+	case *clientv1.Loot:
+		if d.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && d.GetOwnerId() == b.id {
+			b.count(func(s *stats) { s.items++ })
+		}
 	case *clientv1.Response:
 		if !d.GetOk() {
 			b.count(func(s *stats) { s.refused++ })
@@ -391,25 +381,16 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 				}
 				continue
 			}
-			if drop, ok := b.nearestDrop(); ok && math.Abs(drop.GetX()-b.x) < 160 {
-				if math.Abs(drop.GetX()-b.x) < 12 {
-					b.input(&clientv1.Input{})
-					b.command(&clientv1.PickUp{})
+			if b.walkTo(target, jump) { // drops fly to their owners: the bot only hunts
+				if target == forestRight {
+					target = forestLeft
 				} else {
-					b.walkTo(drop.GetX(), jump)
+					target = forestRight
 				}
-			} else {
-				if b.walkTo(target, jump) {
-					if target == forestRight {
-						target = forestLeft
-					} else {
-						target = forestRight
-					}
-				}
-				if time.Now().After(nextAttack) {
-					b.command(&clientv1.Attack{})
-					nextAttack = time.Now().Add(900 * time.Millisecond)
-				}
+			}
+			if time.Now().After(nextAttack) {
+				b.command(&clientv1.Attack{})
+				nextAttack = time.Now().Add(900 * time.Millisecond)
 			}
 			if time.Now().After(nextChat) {
 				b.command(&clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: fmt.Sprintf("%s at %.0f, %d kills", b.name, b.x, b.snapshot().kills)})
@@ -440,17 +421,6 @@ func (b *bot) walkTo(x float64, jump bool) bool {
 	}
 	b.input(&clientv1.Input{Right: dx > 0, Left: dx < 0, Jump: jump})
 	return false
-}
-
-func (b *bot) nearestDrop() (*clientv1.DropView, bool) {
-	var best *clientv1.DropView
-	bestDist := math.Inf(1)
-	for _, d := range b.drops {
-		if dist := math.Abs(d.GetX() - b.x); dist < bestDist {
-			best, bestDist = d, dist
-		}
-	}
-	return best, bestDist < math.Inf(1)
 }
 
 func scrape(url string) ([]byte, error) {

@@ -27,6 +27,7 @@ type DropView struct {
 	Template string
 	Quantity int
 	X, Y     float64
+	Owner    string // the character it flies to
 }
 
 // CharacterView is the player's own character.

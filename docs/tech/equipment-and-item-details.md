@@ -13,7 +13,7 @@ From the product pages:
 
 From the code as it is (the rules this design keeps):
 
-- **The tick never waits on another service.** Anything that needs the item service runs on the world's item-call workers (`itemcalls`, renamed from `economy` in step 0) and comes back into the map instance's inbox, as pickups do.
+- **The tick never waits on another service.** Anything that needs the item service runs on the world's item-call workers (`itemcalls`, renamed from `economy` in step 0) and comes back into the map instance's inbox, as drop grants do.
 - **No transaction spans two services.** An equip or unequip is one transaction in the item service.
 - **Rules stay on the server.** The client checks requirements only to decide what to send and what to colour red; the server decides. The client has no stat formulas (it never reads `data/stats.yaml`) and does not get them: it shows the numbers the server sends.
 - **Every item change is an item event and takes the inventory's next revision**, so clients apply changes in order.
@@ -97,7 +97,7 @@ The world computes the sheet, because only the world holds the live level, stats
 - **Equip:**
   - The item must be the owner's, in the inventory, and equipment; one already worn answers `ErrItemWorn`.
   - Its slot kind must fit the equip slot, and the level and class must be met.
-  - An empty equip slot just receives the item. A filled one swaps: the worn item takes the inventory slot the new one left, so a swap works with a full Equip tab. The new item moves in first, and the slot it left is never free in between, so a pickup racing the swap finds the tab still full.
+  - An empty equip slot just receives the item. A filled one swaps: the worn item takes the inventory slot the new one left, so a swap works with a full Equip tab. The new item moves in first, and the slot it left is never free in between, so a drop's grant racing the swap finds the tab still full.
   - Events: `equipped` for the new item and `unequipped` for the old.
 - **Unequip:** the slot must hold an item, and the target inventory slot must be free, otherwise `inventory_full` or `slot_taken`. Event: `unequipped`.
 - **A worn item can't be moved or discarded:** `Move` and `Discard` answer the new `ErrItemWorn` instead of today's "not found", so the player is told to unequip first.
@@ -118,11 +118,11 @@ Checks 5, 6, and 8 hold unchanged. Check 6 already sums every item's quantity wh
 
 ### A drop rolls its stats
 
-`Ground.Roll` (world, at mob death) already picks each drop's template and quantity with the instance's seeded random generator. For equipment it also rolls each stat within its range, uniformly, and keeps the roll on the in-memory drop. The pickup carries it: `model.Pickup` gains the roll, and `item.Add` sends it under the drop's key.
+`Ground.Roll` (world, at mob death) already picks each drop's template and quantity with the instance's seeded random generator. For equipment it also rolls each stat within its range, uniformly, and keeps the roll on the in-memory drop. The drop's grant carries it under the drop's key: today `model.Grant`, sent by `item.AddMany` ([Auto pickup and the combat channel](./auto-pickup-and-combat-channel.md)).
 
 - **One roll per drop:** the drop's key is the idempotency key, so a retried `Add` carries the same roll and gets the stored reply. Two players can't both take the drop, because the reservation is unchanged.
 - **Replays stay exact:** rolling with the instance's generator, beside the drop table, keeps a recorded fight's loot identical on replay.
-- **A world crash before pickup** loses the drop and its roll together, as today: drops live only in memory.
+- **A world crash before the drop is collected** loses the drop and its roll together, as today: drops live only in memory.
 - `DropView` does not carry the roll: ground drops show no details (D7).
 
 ### Equip and unequip

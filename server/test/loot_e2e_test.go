@@ -3,6 +3,7 @@ package e2e_test
 import (
 	"context"
 	"math"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +34,8 @@ type looter struct {
 	removed     []*clientv1.DropView // the drops the Delta of removedTick took away
 	failures    []*clientv1.Response
 	seq         uint32
+	collected   map[uint32]bool // drops seen leave for an inventory
+	loots       []*clientv1.Loot
 
 	// Recorded for the social rows, consumed by their helpers.
 	responses   []reply
@@ -43,7 +46,7 @@ type looter struct {
 }
 
 func newLooter(p *player, snap *clientv1.Snapshot) *looter {
-	l := &looter{player: p, drops: map[uint32]*clientv1.DropView{}, picked: map[uint32]*clientv1.DropView{}, seq: 2000}
+	l := &looter{player: p, drops: map[uint32]*clientv1.DropView{}, picked: map[uint32]*clientv1.DropView{}, collected: map[uint32]bool{}, seq: 2000}
 	for _, d := range snap.Drops {
 		l.drops[d.GetId()] = d
 	}
@@ -71,6 +74,10 @@ func (l *looter) observe(m wsconn.Message) {
 			if dv, ok := l.drops[id]; ok {
 				l.removed = append(l.removed, dv)
 			}
+			delete(l.drops, id)
+		}
+		for _, id := range d.CollectedDrops {
+			l.collected[id] = true
 			delete(l.drops, id)
 		}
 	case *clientv1.Snapshot:
@@ -103,6 +110,8 @@ func (l *looter) observe(m wsconn.Message) {
 		l.chatLines = append(l.chatLines, d)
 	case *clientv1.ExpGained:
 		l.exp = append(l.exp, d)
+	case *clientv1.Loot:
+		l.loots = append(l.loots, d)
 	}
 }
 
@@ -377,6 +386,17 @@ func TestLootAndKeep(t *testing.T) {
 		killer.pump(2*time.Second, nil) // the kill's other drops, if any
 		if len(killer.failures) != 0 {
 			t.Fatalf("failures %+v", killer.failures)
+		}
+		if !killer.collected[drop.GetId()] || !slices.ContainsFunc(killer.loots, func(l *clientv1.Loot) bool {
+			return l.GetKind() == clientv1.LootKind_LOOT_KIND_COLLECTED && l.GetDropId() == drop.GetId() && l.GetOwnerId() == id && l.GetOwnerName() == "Liam"
+		}) {
+			t.Fatalf("collected %v, loot %v; want drop %d collected for Liam", killer.collected, killer.loots, drop.GetId())
+		}
+		if drop.GetOwnerId() != id {
+			t.Fatalf("the drop shows owner %q, want its killer", drop.GetOwnerId())
+		}
+		if !watcher.until(3*time.Second, func() bool { return watcher.collected[drop.GetId()] }) || len(watcher.loots) != 0 {
+			t.Fatalf("the watcher saw collected %v and loot %v; want the drop collected, and no loot of a stranger's", watcher.collected, watcher.loots)
 		}
 		var lootEvents, distinctDrops int
 		if err := s.db.QueryRow(context.Background(), `

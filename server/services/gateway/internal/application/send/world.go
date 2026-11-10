@@ -17,11 +17,6 @@ func (g *Gateway) Attack(ctx context.Context, s *session.Session) error {
 	return g.deps.World.Attack(ctx, s.Presence())
 }
 
-// PickUp picks up the drop under the player; the outcome arrives on the world's stream.
-func (g *Gateway) PickUp(ctx context.Context, s *session.Session) error {
-	return g.deps.World.PickUp(ctx, s.Presence())
-}
-
 // EnterPortal takes the portal the player stands in.
 func (g *Gateway) EnterPortal(ctx context.Context, s *session.Session) error {
 	return g.deps.World.EnterPortal(ctx, s.Presence())

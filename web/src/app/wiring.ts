@@ -84,12 +84,9 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** For a refused command with no req: a pickup, a chat line. */
+/** For a refused command with no req: an attack, a portal, a chat line. */
 export function responseText(d: Data<'response'>): string {
   switch (d.code) {
-    case 'inventory_full':
-      return 'Your inventory is full.';
-    case 'pickup_busy':
     case 'unavailable':
       return 'The server is busy. Try again.';
     case 'rate_limited':

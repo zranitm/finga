@@ -43,8 +43,6 @@ export const errorCodes = [
   'nothing_worn',
   'party_chat_unavailable',
   'party_full',
-  'pickup_busy',
-  'pickups_unavailable',
   'rate_limited',
   'session_race',
   'slot_holds_other_item',

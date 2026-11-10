@@ -60,12 +60,6 @@ func (w World) EnterPortal(ctx context.Context, p model.Presence) error {
 	return errmap.Wrap(err)
 }
 
-// PickUp picks up the drop under the player.
-func (w World) PickUp(ctx context.Context, p model.Presence) error {
-	_, err := w.c.PickUp(ctx, &worldv1.PickUpRequest{Presence: presence(p)})
-	return errmap.Wrap(err)
-}
-
 // Equip wears an item; it answers once the world applied the new stats.
 func (w World) Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error {
 	_, err := w.c.Equip(ctx, &worldv1.EquipRequest{Presence: presence(p), IdempotencyKey: in.IdempotencyKey, ItemId: in.Item.String(), EquipSlot: in.EquipSlot})
@@ -93,13 +87,13 @@ func (w World) Say(ctx context.Context, p model.Presence, name, text string) err
 func (w World) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.WorldEvent)) {
 	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[worldv1.DeliverResponse], error) {
 		return w.c.Deliver(ctx, &worldv1.DeliverRequest{GatewayId: gateway})
-	}, func(m *worldv1.DeliverResponse) { w.delivered(ctx, m, deliver) }, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
+	}, func(m *worldv1.DeliverResponse) { delivered(m, deliver) }, grpcx.FollowOptions{Panics: w.panics, OnBreak: func(err error) {
 		w.log.WarnContext(ctx, "world stream broke; subscribing again", "err", err)
 	}})
 }
 
 // delivered turns one message of the stream into its events: a Frame into one per recipient, all sharing it.
-func (w World) delivered(ctx context.Context, m *worldv1.DeliverResponse, deliver func(model.WorldEvent)) {
+func delivered(m *worldv1.DeliverResponse, deliver func(model.WorldEvent)) {
 	if m.GetSubscribed() != nil {
 		deliver(model.WorldSubscribed{})
 		return
@@ -120,9 +114,6 @@ func (w World) delivered(ctx context.Context, m *worldv1.DeliverResponse, delive
 	p, ok := worldPush(m)
 	if !ok {
 		return
-	}
-	if f := m.GetPickupFailed(); f != nil && f.GetErrorReason() == "" {
-		w.log.WarnContext(ctx, "pickup failed for a reason the world could not name", "character_id", m.GetCharacterId())
 	}
 	deliver(model.WorldDelivery{Connection: m.GetConnectionId(), Character: character, Delivery: model.Delivery{Tick: m.GetTick(), Push: p}})
 }

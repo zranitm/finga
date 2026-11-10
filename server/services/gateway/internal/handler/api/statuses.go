@@ -65,8 +65,6 @@ var statuses = map[model.Public]int{
 	model.ChatNoParty:          http.StatusNotFound,
 	model.ChatRateLimited:      http.StatusTooManyRequests,
 	model.PartyChatUnavailable: http.StatusServiceUnavailable,
-	model.PickupsUnavailable:   http.StatusServiceUnavailable,
-	model.PickupBusy:           http.StatusServiceUnavailable,
 }
 
 // status is p's HTTP status; one the table lacks answers 500, and TestEveryFailureHasAStatus keeps that from happening.

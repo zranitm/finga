@@ -7,14 +7,15 @@ option go_package = "finga/api/gen/client/v1;clientv1";
 
 // ClientMessage is one frame from the browser. Hot messages take field numbers below 16, a one-byte tag.
 message ClientMessage {
-  // Input, Attack, PickUp and EnterPortal carry the input sequence number.
+  // Input, Attack and EnterPortal carry the input sequence number.
   uint32 seq = 1;
   // A command that wants a Response sets req; the Response carries it back.
   string req = 2;
   oneof body {
     Input input = 3;
     Attack attack = 4;
-    PickUp pick_up = 5;
+    // Retired: drops fly to their owners. The gateway ignores it, so an older client's press does nothing.
+    PickUp pick_up = 5 [deprecated = true];
     EnterPortal enter_portal = 6;
     Ping ping = 7;
     ChatSend chat_send = 8;
@@ -56,6 +57,7 @@ message ServerMessage {
     Welcome welcome = 18;
     Kicked kicked = 19;
     StatsChanged stats_changed = 20;
+    Loot loot = 21;
   }
 }
 
@@ -96,7 +98,7 @@ message Input {
 // Attack swings or shoots the way the character faces.
 message Attack {}
 
-// PickUp takes the nearest eligible drop in range.
+// PickUp took the nearest eligible drop in range. Retired: drops fly to their owners.
 message PickUp {}
 
 // EnterPortal uses the portal the character stands in.
@@ -319,6 +321,8 @@ message DropView {
   int32 quantity = 3;
   double x = 4;
   double y = 5;
+  // The character it flies to once collected.
+  string owner_id = 6;
 }
 
 // Snapshot is everything on the map, on join and map change.
@@ -338,7 +342,10 @@ message Delta {
   repeated string removed_players = 5;
   // A mob leaves the map only by dying, so these are the mobs killed this tick.
   repeated uint32 removed_mobs = 6;
+  // Drops gone without reaching an inventory: expired or lost.
   repeated uint32 removed_drops = 7;
+  // Drops that left the ground for their owners' inventories: each flies to its owner.
+  repeated uint32 collected_drops = 8;
 }
 
 // Correction tells the client its prediction diverged at seq.
@@ -399,6 +406,29 @@ message InventoryChanged {
   // The count of the inventory's and equipment's changes; 0 is a change stored before revisions, applied as it comes.
   uint64 revision = 2;
   repeated EquipSlot equipment = 3;
+}
+
+// LootKind is what became of a drop.
+enum LootKind {
+  LOOT_KIND_UNSPECIFIED = 0;
+  // In its owner's inventory.
+  LOOT_KIND_COLLECTED = 1;
+  // On the ground until its owner has room.
+  LOOT_KIND_WAITING = 2;
+  // Gone at the end of its life, never collected.
+  LOOT_KIND_LOST = 3;
+}
+
+// Loot tells what became of a drop: collected goes to its owner and the party members on the map, waiting and lost to the owner only.
+message Loot {
+  LootKind kind = 1;
+  // The map whose drop it is: drop IDs are a map's own.
+  string map_id = 2;
+  uint32 drop_id = 3;
+  string owner_id = 4;
+  string owner_name = 5;
+  string template = 6;
+  int32 quantity = 7;
 }
 
 // StatsChanged is the player's stats after what it wears changed.

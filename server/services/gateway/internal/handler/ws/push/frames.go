@@ -25,6 +25,7 @@ func (f *Frames) shared(frame *model.Frame) *wsconn.Shared {
 		f.frame, f.encoded = frame, wsconn.NewShared(&clientv1.Delta{
 			Players: playerViews(frame.Players), Mobs: mobViews(frame.Mobs), Drops: dropViews(frame.Drops),
 			RemovedPlayers: frame.RemovedPlayers, RemovedMobs: instanceIDs(frame.RemovedMobs), RemovedDrops: instanceIDs(frame.RemovedDrops),
+			CollectedDrops: instanceIDs(frame.CollectedDrops),
 		})
 	}
 	return f.encoded

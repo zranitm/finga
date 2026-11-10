@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -44,7 +43,7 @@ func BenchmarkAMapsFrameOffTheWorldStream(b *testing.B) {
 				if err := proto.Unmarshal(raw, &m); err != nil {
 					b.Fatal(err)
 				}
-				World{}.delivered(context.Background(), &m, deliver)
+				delivered(&m, deliver)
 			}
 			if got == 0 {
 				b.Fatal("nothing delivered")

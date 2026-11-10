@@ -81,7 +81,7 @@ func dropViews(ds []model.DropView) []*clientv1.DropView {
 	}
 	out := make([]*clientv1.DropView, 0, len(ds))
 	for _, d := range ds {
-		out = append(out, &clientv1.DropView{Id: uint32(d.ID), Template: d.Template, Quantity: int32(d.Quantity), X: d.X, Y: d.Y})
+		out = append(out, &clientv1.DropView{Id: uint32(d.ID), Template: d.Template, Quantity: int32(d.Quantity), X: d.X, Y: d.Y, OwnerId: d.Owner})
 	}
 	return out
 }
@@ -150,6 +150,12 @@ func partyView(p *model.PartyView) *clientv1.PartyView {
 var chatChannels = map[model.ChatChannel]clientv1.ChatChannel{
 	model.ChatMap:   clientv1.ChatChannel_CHAT_CHANNEL_MAP,
 	model.ChatParty: clientv1.ChatChannel_CHAT_CHANNEL_PARTY,
+}
+
+var lootKinds = map[model.LootKind]clientv1.LootKind{
+	model.LootCollected: clientv1.LootKind_LOOT_KIND_COLLECTED,
+	model.LootWaiting:   clientv1.LootKind_LOOT_KIND_WAITING,
+	model.LootLost:      clientv1.LootKind_LOOT_KIND_LOST,
 }
 
 // entityRef is how the client names a player or a mob: p:<character id> or m:<mob id>.

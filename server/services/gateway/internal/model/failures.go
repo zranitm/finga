@@ -63,6 +63,4 @@ var (
 	ChatNoParty          = Public{"chat_no_party", "you have no party"}
 	ChatRateLimited      = Public{"chat_rate_limited", "slow down"}
 	PartyChatUnavailable = Public{"party_chat_unavailable", "party chat is not available"}
-	PickupsUnavailable   = Public{"pickups_unavailable", "pickups are not available"}
-	PickupBusy           = Public{"pickup_busy", "try again in a moment"}
 )
