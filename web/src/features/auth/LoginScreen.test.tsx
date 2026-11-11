@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isTyping } from '@/input/typing';
 import { createRestClient } from '@/net/rest';
 import { clearToken, getToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
 import { connection } from '@/state/connection';
 import { fakeFetch } from '@/testing/fake-fetch';
@@ -47,10 +48,10 @@ describe('LoginScreen', () => {
     expect(onLoggedIn).not.toHaveBeenCalled();
   });
 
-  it('a 401 shows the server message', async () => {
+  it('a 401 shows the client’s words for it', async () => {
     const ff = fakeFetch(() => ({
       status: 401,
-      body: { code: 'unauthenticated', message: 'invalid credentials or session' },
+      body: { code: ERR.UNAUTHENTICATED, message: 'invalid credentials or session' },
     }));
     render(
       <LoginScreen rest={createRestClient({ origin: '', fetch: ff.fetch })} onLoggedIn={vi.fn()} />,
@@ -58,13 +59,15 @@ describe('LoginScreen', () => {
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'wrong horse');
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('invalid credentials or session');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Wrong username or password, or your session has ended.',
+    );
   });
 
-  it('the login throttle shows a wait message', async () => {
+  it('the login throttle shows the client’s wait message', async () => {
     const ff = fakeFetch(() => ({
       status: 429,
-      body: { code: 'login_rate_limited', message: 'too many login attempts' },
+      body: { code: ERR.LOGIN_RATE_LIMITED, message: 'too many login attempts' },
     }));
     render(
       <LoginScreen rest={createRestClient({ origin: '', fetch: ff.fetch })} onLoggedIn={vi.fn()} />,
@@ -72,7 +75,9 @@ describe('LoginScreen', () => {
     await userEvent.type(screen.getByLabelText('Username'), 'alice');
     await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/wait a minute/i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Too many login attempts. Try again in a minute.',
+    );
   });
 
   it('a successful login keeps the token and moves on', async () => {

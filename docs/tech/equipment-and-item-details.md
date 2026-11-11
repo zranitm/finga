@@ -101,7 +101,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - Its slot kind must fit the equip slot, and the level and class must be met.
   - An empty equip slot just receives the item. A filled one swaps: the worn item takes the inventory slot the new one left, so a swap works with a full Equip tab. The new item moves in first, and the slot it left is never free in between, so a drop's grant racing the swap finds the tab still full.
   - Events: `equipped` for the new item and `unequipped` for the old.
-- **Unequip:** the slot must hold an item, and the target inventory slot must be free, otherwise `equip_tab_full` or `slot_taken`. Event: `unequipped`.
+- **Unequip:** the slot must hold an item, and the target inventory slot must be free, otherwise `EQUIP_TAB_FULL` or `SLOT_TAKEN`. Event: `unequipped`.
 - **A worn item can't be moved or discarded:** `Move` and `Discard` answer the new `ErrItemWorn` instead of today's "not found", so the player is told to unequip first.
 - **The revision moves once per change**, through the existing `revised`, so inventory and equipment share one revision counter.
 - **Idempotency** works as for `Move`: `idempotencypg.Do` under the account's key, the stored reply returned on a retry, and a reused key with other arguments refused.
@@ -154,8 +154,8 @@ sequenceDiagram
 - **Why through the world, unlike `InventoryMove`:** two things only the world has. The level check needs the live level, and combat needs the new stats. Sending it straight to the item service would need the level from somewhere else and a second message to tell the world.
 - **The world's handler waits; the tick doesn't.** The `Equip` RPC posts a message with a reply channel and waits for the outcome, within the gateway's 5-second limit. The tick only drains the inbox, hands the job to a worker, and later applies the result.
 - **On the tick, before the call:**
-  - A dead character is refused with `character_dead`.
-  - When no worker is free, the map's inbox is full, or the connection no longer holds the character (mid-transfer, say), the answer is `unavailable`: the client may retry, and the key makes the retry safe.
+  - A dead character is refused with `CHARACTER_DEAD`.
+  - When no worker is free, the map's inbox is full, or the connection no longer holds the character (mid-transfer, say), the answer is `UNAVAILABLE`: the client may retry, and the key makes the retry safe.
 - **On the tick, after the call:**
   - The world replaces the player's worn sum with the one returned, re-derives, and lowers HP and MP to any new maximum (D3). It does so only when the result's revision is newer than the worn sum's, so a result that lands after a rejoin read something newer changes nothing.
   - It marks the player changed, so the next Delta carries the new max HP to everyone on the map.
@@ -193,14 +193,14 @@ sequenceDiagram
 | `StatsChanged` (server) | New: the sheet, HP, max HP, MP, max MP |
 
 - Golden files for every new or changed message go in `server/testdata/contracts/`, which the client's protocol tests read too.
-- **New error codes**, each with a service reason, an errmap row, a status, the regenerated `codes.json`, and the client's `errorCodes`:
-  - `level_too_low`: "your level is too low for that item";
-  - `wrong_class`: "your class can't use that item";
-  - `wrong_equip_slot`: "that item doesn't go there";
-  - `not_equipment`: "only equipment can be worn";
-  - `nothing_worn`: "nothing is worn there";
-  - `item_worn`: "unequip it first";
-  - `character_dead`: "you can't do that while dead".
+- **New error codes**, each with a service reason, an errmap row, a status, its number in `codes.json`, and the client's words:
+  - `LEVEL_TOO_LOW` (220014): "Your level is too low for that item.";
+  - `WRONG_CLASS` (220020): "Your class can't use that item.";
+  - `WRONG_EQUIP_SLOT` (220021): "That item doesn't go there.";
+  - `NOT_EQUIPMENT` (220022): "Only equipment can be worn.";
+  - `NOTHING_WORN` (220023): "Nothing is worn there.";
+  - `ITEM_WORN` (220013): "Unequip it first.";
+  - `CHARACTER_DEAD` (330001): "You can't do that while dead."
 
 ### Internal contracts
 
@@ -216,7 +216,7 @@ sequenceDiagram
 By layer (`web/eslint.config.js`):
 
 - **gamedata:** generated stars, descriptions, slot kinds, ranges, and the ten equip slots.
-- **protocol:** regenerated types; `errorCodes` gains the seven new codes.
+- **protocol:** regenerated types; `errors.ts` words the seven new codes.
 - **net:** `RequestType` gains `equip` and `unequip`; requests keep one idempotency key per attempt, and a retry after a timeout reuses it, as inventory moves do.
 - **state:**
   - `inventory` gains `equipment`, one entry per equip slot with a revision per entry, applied by the same rule as inventory slots: a newer revision replaces, an older one is skipped.
@@ -244,7 +244,7 @@ By layer (`web/eslint.config.js`):
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| Item service down | Equip answers `unavailable`; a join waits and retries | Nothing changed, so a retry is the same request |
+| Item service down | Equip answers `UNAVAILABLE`; a join waits and retries | Nothing changed, so a retry is the same request |
 | Request times out, the change committed | Retry with the same key gets the stored reply; the world applies it | Idempotency key per request |
 | World crashes after the commit, before applying | A short freeze; the rejoin reloads worn items, so stats are right | The item service is the record; the world's sum is a copy |
 | Gateway restarts mid-equip | Reconnect; the Welcome shows what is worn | Same as above |
@@ -295,8 +295,8 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
 1. **Game data:** stars, descriptions, slot kinds, ranges, validation, and the client generator. No behaviour changes.
 2. **Stats model:** `ItemStats` and `DeriveStats` over the worn sum, in `internal/progression`. `Sheet` comes with its first caller, the world, in step 5.
 3. **Item service, rolls:** the `item_rolls` table, `Add` with a roll, starter items at the lowest roll, check 11, and the backfill. The world rolls at drop time in the same step, since `Add` refuses equipment without a roll.
-4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item service, as no client route exists yet). The item service's six new error codes reach the client in this step, since `item_worn` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
-5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`, with `character_dead` reaching the client as its reason arrives.
+4. **Item service, equipping:** the `equipped` location, `Equip` and `Unequip`, worn items refusing move and discard, checks 9, 10, and 12, and the property and crash tests (the crash test swaps through the item service, as no client route exists yet). The item service's six new error codes reach the client in this step, since `ITEM_WORN` can already answer a move. The gateway and the world leave worn items out of their inventory views until they show and use them.
+5. **World:** worn items at join, `Equip` and `Unequip` through the workers, the `Sheet`, re-derive and `StatsChanged`, with `CHARACTER_DEAD` reaching the client as its reason arrives.
 6. **Gateway and protocol:** routes, Welcome and InventoryChanged with equipment, the contracts, and starter equipment worn from the start, now that the client shows it.
 7. **Client, character window:** stores, the C key, the window, and equipping by double-click and drag.
 8. **Client, item card:** the hover card and the comparison.

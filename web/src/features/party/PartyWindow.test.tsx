@@ -3,10 +3,11 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RequestError } from '@/net/socket';
+import { ERR } from '@/protocol/errors';
 import { PartyInvitedSchema, PartyStateSchema } from '@/protocol/messages';
 import { nearby } from '@/state/nearby';
 import { party } from '@/state/party';
+import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 
 import { INVITE_SECONDS, InviteToasts } from './InviteToast';
@@ -89,11 +90,8 @@ describe('PartyWindow', () => {
     expect(screen.getByText('You are not in a party.')).toBeInTheDocument();
   });
 
-  it('the leader sees kick and promote for the others, members see leave only, and a refusal shows the reason', async () => {
-    const { socket, calls } = fakeSocket([
-      new RequestError('not_party_member', 'no such member'),
-      { ok: true },
-    ]);
+  it('the leader sees kick and promote for the others, members see leave only, and a refusal shows its words', async () => {
+    const { socket, calls } = fakeSocket([refusal(ERR.NOT_PARTY_MEMBER), { ok: true }]);
     render(<PartyWindow socket={socket} me="c-ayla" onClose={vi.fn()} />);
     act(() =>
       party
@@ -109,7 +107,9 @@ describe('PartyWindow', () => {
     expect(screen.getByRole('meter', { name: 'Robin HP' })).toHaveAttribute('aria-valuenow', '40');
     expect(screen.getByText(/offline/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Kick' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('no such member');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That character isn’t in your party.',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Promote' }));
     expect(calls.map((c) => c.t)).toEqual(['partyKick', 'partyPromote']);
     expect(calls[1]?.d).toEqual({ characterId: 'c-robin' });

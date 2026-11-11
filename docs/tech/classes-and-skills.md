@@ -129,9 +129,9 @@ skills:
 - **Level-up:** each level adds `skill_points_per_level` to the unspent skill points, beside the stat points, and is saved at once as today.
 - **`SpendSkillPoints{expected_unspent, points: {skill: n}}`:** the same compare-and-set as stat points. On the tick:
   1. **Refusals:**
-     - `skill_points_changed` when the unspent count isn't the expected one;
-     - `not_enough_skill_points` when the points add up to more than that;
-     - `skill_not_learnable` for a skill outside the class and the classes below it;
+     - `SKILL_POINTS_CHANGED` when the unspent count isn't the expected one;
+     - `NOT_ENOUGH_SKILL_POINTS` when the points add up to more than that;
+     - `SKILL_NOT_LEARNABLE` for a skill outside the class and the classes below it;
      - a refusal for any negative number.
   2. Otherwise the points are added.
   3. For any skill whose stage changed, a **`SkillEvolved`** goes to the player (and the combat channel), and passive bonuses re-derive.
@@ -166,7 +166,7 @@ skills:
   - points in the named skills;
   - finished quests, from the quest log.
 - **`Promote{npc, class}`** goes through the gateway with a Response. On the tick:
-  1. **Checks:** the NPC must be in reach and train that class, the class's parent must be the character's class, and every condition must still be met. Otherwise the request is refused with `promotion_conditions_unmet`, `npc_out_of_reach`, or `not_your_next_class`.
+  1. **Checks:** the NPC must be in reach and train that class, the class's parent must be the character's class, and every condition must still be met. Otherwise the request is refused with `PROMOTION_CONDITIONS_UNMET`, `NPC_OUT_OF_REACH`, or `NOT_YOUR_NEXT_CLASS`.
   2. **Apply:**
      - the class changes, with the basic attack and the base values;
      - the stats re-derive, and HP and MP are restored to the new maximums (open question 1);
@@ -192,12 +192,12 @@ skills:
 | `Promoted` | server | New: the new class |
 | `PartyMember` | server | Gains `class` |
 
-- **New error codes:**
-  - `skill_points_changed`;
-  - `not_enough_skill_points`;
-  - `skill_not_learnable`;
-  - `promotion_conditions_unmet`: "you don't meet every condition yet";
-  - `not_your_next_class`.
+- **New error codes**, each the next number in its area (33, the world):
+  - `SKILL_POINTS_CHANGED`;
+  - `NOT_ENOUGH_SKILL_POINTS`;
+  - `SKILL_NOT_LEARNABLE`;
+  - `PROMOTION_CONDITIONS_UNMET`: "You don't meet every condition yet.";
+  - `NOT_YOUR_NEXT_CLASS`.
   - `SkillRefused` reasons: `no_mp`, `on_cooldown`, `not_in_town`, `dead`, `not_learned`.
 - **REST:**
   - `POST /api/characters` without `class`;
@@ -235,7 +235,7 @@ skills:
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| `SpendSkillPoints` reply lost; retried | Nothing unusual | Compare-and-set: the retry is refused with `skill_points_changed`, and `SkillsChanged` already arrived |
+| `SpendSkillPoints` reply lost; retried | Nothing unusual | Compare-and-set: the retry is refused with `SKILL_POINTS_CHANGED`, and `SkillsChanged` already arrived |
 | World crash between a spend or promotion and its save | After the rejoin, the points are unspent or the character is a Beginner again | Same window as a level-up; doing it again is allowed, and nothing is gained twice |
 | An evolution total changes in the data | Characters' skills re-form at their next join | Stages are derived from points, never stored |
 | A class is added to the data | It appears in its trainer's dialog | Classes are IDs checked against data, not a list in code |

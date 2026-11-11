@@ -9,7 +9,8 @@ import (
 
 // Public is a failure as a client sees it; Message is the gateway's own, never an error's text, so causes never leak.
 type Public struct {
-	Code    string
+	Code    int    // six digits: the area, then the case (failures.go)
+	Name    string // EQUIP_TAB_FULL: the code in source and in logs
 	Message string
 }
 

@@ -6,8 +6,7 @@ import type { BackoffOptions } from '@/lib/backoff';
 import { requestId } from '@/lib/id';
 import { binaryCodec, ProtocolError } from '@/protocol/codec';
 import type { Codec, ServerFrame } from '@/protocol/codec';
-import { isErrorCode } from '@/protocol/errors';
-import type { ErrorCode } from '@/protocol/errors';
+import { errorText } from '@/protocol/errors';
 import { ClientMessageSchema, KickReason } from '@/protocol/messages';
 import type {
   ClientBodyInit,
@@ -49,7 +48,7 @@ export interface StatusEvent {
 
 export class RequestError extends Error {
   constructor(
-    readonly code: ErrorCode | 'timeout' | 'disconnected',
+    readonly code: number | 'timeout' | 'disconnected', // the server's refusal code, or why no answer came
     message: string,
   ) {
     super(message);
@@ -467,9 +466,7 @@ export class GameSocket {
           if (r.ok) {
             p.resolve(r);
           } else {
-            p.reject(
-              new RequestError(isErrorCode(r.code) ? r.code : 'internal', r.message || 'refused'),
-            );
+            p.reject(new RequestError(r.code, errorText(r.code)));
           }
         } else {
           for (const h of this.unmatchedHandlers) {

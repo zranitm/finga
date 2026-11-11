@@ -116,7 +116,7 @@ func (o *Outbox) Close(code int, reason string) {
 
 // ErrorResponse is a failure as the client reads it, for a command or a push.
 func ErrorResponse(p model.Public) *clientv1.Response {
-	return &clientv1.Response{Ok: false, Code: p.Code, Message: p.Message}
+	return &clientv1.Response{Ok: false, Code: int32(p.Code)}
 }
 
 // send enqueues a message, unless the connection ended.

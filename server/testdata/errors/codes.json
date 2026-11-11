@@ -1,387 +1,464 @@
 [
   {
-    "code": "account_not_found",
-    "status": 404,
-    "message": "account not found"
-  },
-  {
-    "code": "agi_too_low",
-    "status": 409,
-    "message": "the item requires more AGI than the character's own"
-  },
-  {
-    "code": "already_in_party",
-    "status": 409,
-    "message": "the player accepting an invite is in a party already"
-  },
-  {
-    "code": "already_invited",
-    "status": 409,
-    "message": "already invited"
-  },
-  {
-    "code": "bad_character_name",
-    "status": 400,
-    "message": "name must be 3 to 12 letters and digits, starting with a letter"
-  },
-  {
-    "code": "bad_chat_channel",
-    "status": 400,
-    "message": "unknown chat channel"
-  },
-  {
-    "code": "bad_control_preset",
-    "status": 400,
-    "message": "control preset must be classic or wasd"
-  },
-  {
-    "code": "bad_id",
-    "status": 400,
-    "message": "malformed ID"
-  },
-  {
-    "code": "bad_password",
-    "status": 400,
-    "message": "password must be 8 to 128 characters"
-  },
-  {
-    "code": "bad_points",
-    "status": 400,
-    "message": "spend at least one point, and none below zero"
-  },
-  {
-    "code": "bad_quantity",
-    "status": 400,
-    "message": "quantity must be at least 1 and no more than the item holds"
-  },
-  {
-    "code": "bad_slot",
-    "status": 400,
-    "message": "slot must be within the tab"
-  },
-  {
-    "code": "bad_username",
-    "status": 400,
-    "message": "username must be 3 to 16 letters, digits or underscores"
-  },
-  {
-    "code": "body_timeout",
-    "status": 408,
-    "message": "request body not received in time"
-  },
-  {
-    "code": "body_too_large",
-    "status": 413,
-    "message": "request body too large"
-  },
-  {
-    "code": "character_dead",
-    "status": 409,
-    "message": "you can't do that while dead"
-  },
-  {
-    "code": "character_not_found",
-    "status": 404,
-    "message": "character not found"
-  },
-  {
-    "code": "character_slots_full",
-    "status": 409,
-    "message": "this account already has the most characters allowed"
-  },
-  {
-    "code": "chat_empty",
-    "status": 400,
-    "message": "nothing to say"
-  },
-  {
-    "code": "chat_no_party",
-    "status": 404,
-    "message": "you have no party"
-  },
-  {
-    "code": "chat_rate_limited",
-    "status": 429,
-    "message": "slow down"
-  },
-  {
-    "code": "chat_too_long",
-    "status": 400,
-    "message": "that chat line is too long"
-  },
-  {
-    "code": "class_unavailable",
-    "status": 400,
-    "message": "that class is not available"
-  },
-  {
-    "code": "dex_too_low",
-    "status": 409,
-    "message": "the item requires more DEX than the character's own"
-  },
-  {
-    "code": "equip_tab_full",
-    "status": 409,
-    "message": "the Equip tab has no free slot"
-  },
-  {
-    "code": "etc_tab_full",
-    "status": 409,
-    "message": "the Etc tab has no free slot"
-  },
-  {
-    "code": "idempotency_key_reused",
-    "status": 409,
-    "message": "that request was already made with other arguments"
-  },
-  {
-    "code": "int_too_low",
-    "status": 409,
-    "message": "the item requires more INT than the character's own"
-  },
-  {
-    "code": "internal",
-    "status": 500,
-    "message": "something went wrong"
-  },
-  {
-    "code": "invite_expired",
-    "status": 404,
-    "message": "the invite has expired"
-  },
-  {
-    "code": "invite_self",
-    "status": 400,
-    "message": "you cannot invite yourself"
-  },
-  {
-    "code": "item_not_found",
-    "status": 404,
-    "message": "item not found"
-  },
-  {
-    "code": "item_worn",
-    "status": 409,
-    "message": "unequip it first"
-  },
-  {
-    "code": "level_too_low",
-    "status": 409,
-    "message": "your level is too low for that item"
-  },
-  {
-    "code": "login_rate_limited",
-    "status": 429,
-    "message": "too many login attempts, try again in a minute"
-  },
-  {
-    "code": "malformed_body",
+    "code": 100001,
+    "name": "MALFORMED_BODY",
     "status": 400,
     "message": "malformed request body"
   },
   {
-    "code": "method_not_allowed",
-    "status": 405,
-    "message": "method not allowed"
-  },
-  {
-    "code": "missing_field",
+    "code": 100002,
+    "name": "MISSING_FIELD",
     "status": 400,
     "message": "missing a required field"
   },
   {
-    "code": "name_taken",
-    "status": 409,
-    "message": "that name is taken"
+    "code": 100003,
+    "name": "BODY_TOO_LARGE",
+    "status": 413,
+    "message": "request body too large"
   },
   {
-    "code": "no_free_reset",
-    "status": 409,
-    "message": "your free reset is used"
+    "code": 100004,
+    "name": "BODY_TIMEOUT",
+    "status": 408,
+    "message": "request body not received in time"
   },
   {
-    "code": "no_party",
-    "status": 404,
-    "message": "not in a party"
-  },
-  {
-    "code": "no_such_endpoint",
+    "code": 100005,
+    "name": "NO_SUCH_ENDPOINT",
     "status": 404,
     "message": "no such endpoint"
   },
   {
-    "code": "not_enough_items",
-    "status": 409,
-    "message": "you don't have everything it asks for"
+    "code": 100006,
+    "name": "METHOD_NOT_ALLOWED",
+    "status": 405,
+    "message": "method not allowed"
   },
   {
-    "code": "not_enough_points",
-    "status": 409,
-    "message": "you don't have that many points"
-  },
-  {
-    "code": "not_equipment",
-    "status": 400,
-    "message": "only equipment can be worn"
-  },
-  {
-    "code": "not_implemented",
-    "status": 501,
-    "message": "not available yet"
-  },
-  {
-    "code": "not_party_leader",
-    "status": 409,
-    "message": "only the party leader can do that"
-  },
-  {
-    "code": "not_party_member",
-    "status": 404,
-    "message": "not a member of your party"
-  },
-  {
-    "code": "nothing_worn",
-    "status": 409,
-    "message": "nothing is worn there"
-  },
-  {
-    "code": "npc_out_of_reach",
-    "status": 409,
-    "message": "move closer"
-  },
-  {
-    "code": "party_chat_unavailable",
-    "status": 503,
-    "message": "party chat is not available"
-  },
-  {
-    "code": "party_full",
-    "status": 409,
-    "message": "the party is full"
-  },
-  {
-    "code": "points_changed",
-    "status": 409,
-    "message": "your points changed; try again"
-  },
-  {
-    "code": "quest_already_active",
-    "status": 409,
-    "message": "you have that quest already"
-  },
-  {
-    "code": "quest_already_finished",
-    "status": 409,
-    "message": "you've finished that quest"
-  },
-  {
-    "code": "quest_conditions_unmet",
-    "status": 409,
-    "message": "you don't meet that quest's conditions yet"
-  },
-  {
-    "code": "quest_not_ready",
-    "status": 409,
-    "message": "that quest isn't finished yet"
-  },
-  {
-    "code": "quest_unavailable",
-    "status": 409,
-    "message": "that quest isn't offered here"
-  },
-  {
-    "code": "rate_limited",
+    "code": 100007,
+    "name": "RATE_LIMITED",
     "status": 429,
     "message": "slow down"
   },
   {
-    "code": "session_race",
-    "status": 409,
-    "message": "another login is in progress, try again"
+    "code": 100008,
+    "name": "NOT_IMPLEMENTED",
+    "status": 501,
+    "message": "not available yet"
   },
   {
-    "code": "slot_holds_other_item",
-    "status": 409,
-    "message": "that slot holds a different item"
+    "code": 100009,
+    "name": "BAD_ID",
+    "status": 400,
+    "message": "malformed ID"
   },
   {
-    "code": "slot_taken",
-    "status": 409,
-    "message": "that slot is taken"
+    "code": 100010,
+    "name": "INTERNAL",
+    "status": 500,
+    "message": "something went wrong"
   },
   {
-    "code": "stack_full",
-    "status": 409,
-    "message": "that stack is full"
-  },
-  {
-    "code": "str_too_low",
-    "status": 409,
-    "message": "the item requires more STR than the character's own"
-  },
-  {
-    "code": "target_in_party",
-    "status": 409,
-    "message": "the character invited is in a party already"
-  },
-  {
-    "code": "target_not_on_map",
-    "status": 404,
-    "message": "that character is not on your map"
-  },
-  {
-    "code": "too_many_quests",
-    "status": 409,
-    "message": "you have the most active quests already"
-  },
-  {
-    "code": "unauthenticated",
-    "status": 401,
-    "message": "invalid credentials or session"
-  },
-  {
-    "code": "unavailable",
+    "code": 100011,
+    "name": "UNAVAILABLE",
     "status": 503,
     "message": "the server is busy; try again"
   },
   {
-    "code": "unknown_class",
-    "status": 400,
-    "message": "unknown class"
+    "code": 110001,
+    "name": "UNAUTHENTICATED",
+    "status": 401,
+    "message": "invalid credentials or session"
   },
   {
-    "code": "unknown_item",
-    "status": 400,
-    "message": "unknown item"
+    "code": 110002,
+    "name": "ACCOUNT_NOT_FOUND",
+    "status": 404,
+    "message": "account not found"
   },
   {
-    "code": "use_tab_full",
-    "status": 409,
-    "message": "the Use tab has no free slot"
-  },
-  {
-    "code": "username_taken",
+    "code": 110003,
+    "name": "USERNAME_TAKEN",
     "status": 409,
     "message": "that username is taken"
   },
   {
-    "code": "vit_too_low",
+    "code": 110004,
+    "name": "LOGIN_RATE_LIMITED",
+    "status": 429,
+    "message": "too many login attempts, try again in a minute"
+  },
+  {
+    "code": 110005,
+    "name": "BAD_USERNAME",
+    "status": 400,
+    "message": "username must be 3 to 16 letters, digits or underscores"
+  },
+  {
+    "code": 110006,
+    "name": "BAD_PASSWORD",
+    "status": 400,
+    "message": "password must be 8 to 128 characters"
+  },
+  {
+    "code": 110007,
+    "name": "BAD_CONTROL_PRESET",
+    "status": 400,
+    "message": "control preset must be classic or wasd"
+  },
+  {
+    "code": 110008,
+    "name": "SESSION_RACE",
+    "status": 409,
+    "message": "another login is in progress, try again"
+  },
+  {
+    "code": 120001,
+    "name": "CHARACTER_NOT_FOUND",
+    "status": 404,
+    "message": "character not found"
+  },
+  {
+    "code": 120002,
+    "name": "NAME_TAKEN",
+    "status": 409,
+    "message": "that name is taken"
+  },
+  {
+    "code": 120003,
+    "name": "BAD_CHARACTER_NAME",
+    "status": 400,
+    "message": "name must be 3 to 12 letters and digits, starting with a letter"
+  },
+  {
+    "code": 120004,
+    "name": "CLASS_UNAVAILABLE",
+    "status": 400,
+    "message": "that class is not available"
+  },
+  {
+    "code": 120005,
+    "name": "CHARACTER_SLOTS_FULL",
+    "status": 409,
+    "message": "this account already has the most characters allowed"
+  },
+  {
+    "code": 120006,
+    "name": "UNKNOWN_CLASS",
+    "status": 400,
+    "message": "unknown class"
+  },
+  {
+    "code": 220001,
+    "name": "ITEM_NOT_FOUND",
+    "status": 404,
+    "message": "item not found"
+  },
+  {
+    "code": 220002,
+    "name": "SLOT_TAKEN",
+    "status": 409,
+    "message": "that slot is taken"
+  },
+  {
+    "code": 220003,
+    "name": "SLOT_HOLDS_OTHER_ITEM",
+    "status": 409,
+    "message": "that slot holds a different item"
+  },
+  {
+    "code": 220004,
+    "name": "STACK_FULL",
+    "status": 409,
+    "message": "that stack is full"
+  },
+  {
+    "code": 220005,
+    "name": "EQUIP_TAB_FULL",
+    "status": 409,
+    "message": "the Equip tab has no free slot"
+  },
+  {
+    "code": 220006,
+    "name": "USE_TAB_FULL",
+    "status": 409,
+    "message": "the Use tab has no free slot"
+  },
+  {
+    "code": 220007,
+    "name": "ETC_TAB_FULL",
+    "status": 409,
+    "message": "the Etc tab has no free slot"
+  },
+  {
+    "code": 220008,
+    "name": "IDEMPOTENCY_KEY_REUSED",
+    "status": 409,
+    "message": "that request was already made with other arguments"
+  },
+  {
+    "code": 220009,
+    "name": "BAD_QUANTITY",
+    "status": 400,
+    "message": "quantity must be at least 1 and no more than the item holds"
+  },
+  {
+    "code": 220010,
+    "name": "BAD_SLOT",
+    "status": 400,
+    "message": "slot must be within the tab"
+  },
+  {
+    "code": 220011,
+    "name": "WRONG_TAB",
+    "status": 400,
+    "message": "an item stays in its own tab"
+  },
+  {
+    "code": 220012,
+    "name": "UNKNOWN_ITEM",
+    "status": 400,
+    "message": "unknown item"
+  },
+  {
+    "code": 220013,
+    "name": "ITEM_WORN",
+    "status": 409,
+    "message": "unequip it first"
+  },
+  {
+    "code": 220014,
+    "name": "LEVEL_TOO_LOW",
+    "status": 409,
+    "message": "your level is too low for that item"
+  },
+  {
+    "code": 220015,
+    "name": "STR_TOO_LOW",
+    "status": 409,
+    "message": "the item requires more STR than the character's own"
+  },
+  {
+    "code": 220016,
+    "name": "DEX_TOO_LOW",
+    "status": 409,
+    "message": "the item requires more DEX than the character's own"
+  },
+  {
+    "code": 220017,
+    "name": "INT_TOO_LOW",
+    "status": 409,
+    "message": "the item requires more INT than the character's own"
+  },
+  {
+    "code": 220018,
+    "name": "AGI_TOO_LOW",
+    "status": 409,
+    "message": "the item requires more AGI than the character's own"
+  },
+  {
+    "code": 220019,
+    "name": "VIT_TOO_LOW",
     "status": 409,
     "message": "the item requires more VIT than the character's own"
   },
   {
-    "code": "wrong_class",
+    "code": 220020,
+    "name": "WRONG_CLASS",
     "status": 409,
     "message": "your class can't use that item"
   },
   {
-    "code": "wrong_equip_slot",
+    "code": 220021,
+    "name": "WRONG_EQUIP_SLOT",
     "status": 400,
     "message": "that item doesn't go there"
   },
   {
-    "code": "wrong_tab",
+    "code": 220022,
+    "name": "NOT_EQUIPMENT",
     "status": 400,
-    "message": "an item stays in its own tab"
+    "message": "only equipment can be worn"
+  },
+  {
+    "code": 220023,
+    "name": "NOTHING_WORN",
+    "status": 409,
+    "message": "nothing is worn there"
+  },
+  {
+    "code": 220024,
+    "name": "NOT_ENOUGH_ITEMS",
+    "status": 409,
+    "message": "you don't have everything it asks for"
+  },
+  {
+    "code": 330001,
+    "name": "CHARACTER_DEAD",
+    "status": 409,
+    "message": "you can't do that while dead"
+  },
+  {
+    "code": 330002,
+    "name": "NOT_ENOUGH_POINTS",
+    "status": 409,
+    "message": "you don't have that many points"
+  },
+  {
+    "code": 330003,
+    "name": "POINTS_CHANGED",
+    "status": 409,
+    "message": "your points changed; try again"
+  },
+  {
+    "code": 330004,
+    "name": "NO_FREE_RESET",
+    "status": 409,
+    "message": "your free reset is used"
+  },
+  {
+    "code": 330005,
+    "name": "BAD_POINTS",
+    "status": 400,
+    "message": "spend at least one point, and none below zero"
+  },
+  {
+    "code": 330006,
+    "name": "NPC_OUT_OF_REACH",
+    "status": 409,
+    "message": "move closer"
+  },
+  {
+    "code": 330007,
+    "name": "QUEST_UNAVAILABLE",
+    "status": 409,
+    "message": "that quest isn't offered here"
+  },
+  {
+    "code": 330008,
+    "name": "QUEST_CONDITIONS_UNMET",
+    "status": 409,
+    "message": "you don't meet that quest's conditions yet"
+  },
+  {
+    "code": 330009,
+    "name": "QUEST_ALREADY_ACTIVE",
+    "status": 409,
+    "message": "you have that quest already"
+  },
+  {
+    "code": 330010,
+    "name": "QUEST_ALREADY_FINISHED",
+    "status": 409,
+    "message": "you've finished that quest"
+  },
+  {
+    "code": 330011,
+    "name": "TOO_MANY_QUESTS",
+    "status": 409,
+    "message": "you have the most active quests already"
+  },
+  {
+    "code": 330012,
+    "name": "QUEST_NOT_READY",
+    "status": 409,
+    "message": "that quest isn't finished yet"
+  },
+  {
+    "code": 440001,
+    "name": "NOT_PARTY_LEADER",
+    "status": 409,
+    "message": "only the party leader can do that"
+  },
+  {
+    "code": 440002,
+    "name": "PARTY_FULL",
+    "status": 409,
+    "message": "the party is full"
+  },
+  {
+    "code": 440003,
+    "name": "ALREADY_IN_PARTY",
+    "status": 409,
+    "message": "the player accepting an invite is in a party already"
+  },
+  {
+    "code": 440004,
+    "name": "TARGET_IN_PARTY",
+    "status": 409,
+    "message": "the character invited is in a party already"
+  },
+  {
+    "code": 440005,
+    "name": "NO_PARTY",
+    "status": 404,
+    "message": "not in a party"
+  },
+  {
+    "code": 440006,
+    "name": "NOT_PARTY_MEMBER",
+    "status": 404,
+    "message": "not a member of your party"
+  },
+  {
+    "code": 440007,
+    "name": "TARGET_NOT_ON_MAP",
+    "status": 404,
+    "message": "that character is not on your map"
+  },
+  {
+    "code": 440008,
+    "name": "ALREADY_INVITED",
+    "status": 409,
+    "message": "already invited"
+  },
+  {
+    "code": 440009,
+    "name": "INVITE_EXPIRED",
+    "status": 404,
+    "message": "the invite has expired"
+  },
+  {
+    "code": 440010,
+    "name": "INVITE_SELF",
+    "status": 400,
+    "message": "you cannot invite yourself"
+  },
+  {
+    "code": 440011,
+    "name": "CHAT_EMPTY",
+    "status": 400,
+    "message": "nothing to say"
+  },
+  {
+    "code": 440012,
+    "name": "CHAT_TOO_LONG",
+    "status": 400,
+    "message": "that chat line is too long"
+  },
+  {
+    "code": 440013,
+    "name": "BAD_CHAT_CHANNEL",
+    "status": 400,
+    "message": "unknown chat channel"
+  },
+  {
+    "code": 440014,
+    "name": "CHAT_NO_PARTY",
+    "status": 404,
+    "message": "you have no party"
+  },
+  {
+    "code": 440015,
+    "name": "CHAT_RATE_LIMITED",
+    "status": 429,
+    "message": "slow down"
+  },
+  {
+    "code": 440016,
+    "name": "PARTY_CHAT_UNAVAILABLE",
+    "status": 503,
+    "message": "party chat is not available"
   }
 ]

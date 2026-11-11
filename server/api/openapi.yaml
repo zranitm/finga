@@ -7,10 +7,12 @@ info:
     Gameplay runs over the WebSocket at /ws, described in proto/client/v1/client.proto.
     Errors return an HTTP status and a body with `code` and `message`. The
     status is the class of failure (400 bad input, 401, 404, 409 a rule the
-    request ran into, 429, 503, 500); the code names the exact failure
-    (username_taken, name_taken, character_slots_full) and the message is
-    safe to show a player. testdata/errors/codes.json lists every code with
-    its status and message. Authenticated calls send `Authorization: Bearer TOKEN`.
+    request ran into, 429, 503, 500). The code, six digits, names the exact
+    failure: two digits for the area (10 requests, 11 accounts and sessions,
+    12 characters, 22 items, 33 the world and quests, 44 parties and chat),
+    then four for the case. The client words each code itself; the message
+    is for developers. testdata/errors/codes.json lists every code with its
+    name, status and message. Authenticated calls send `Authorization: Bearer TOKEN`.
 servers:
   - url: http://localhost:8080
 paths:
@@ -127,7 +129,7 @@ components:
       scheme: bearer
   responses:
     Error:
-      description: An error with a code and a player-safe message
+      description: An error with its code and a message for developers
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -202,5 +204,5 @@ components:
       type: object
       required: [code, message]
       properties:
-        code: { type: string, description: "The exact failure, for example name_taken; testdata/errors/codes.json lists them all" }
-        message: { type: string }
+        code: { type: integer, description: "The exact failure, six digits, for example 120002 (NAME_TAKEN); testdata/errors/codes.json lists them all" }
+        message: { type: string, description: "For developers; the client words the code itself" }

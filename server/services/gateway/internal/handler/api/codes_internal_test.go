@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"encoding/json"
@@ -9,17 +10,19 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"testing"
 )
 
 var update = flag.Bool("update", false, "rewrite testdata/errors/codes.json")
 
-// codesFile is the list the client checks its own code list against.
+// codesFile is the catalog the client words its codes from.
 var codesFile = filepath.Join("..", "..", "..", "..", "..", "testdata", "errors", "codes.json")
 
 // codeRow is one failure as codes.json writes it.
 type codeRow struct {
-	Code    string `json:"code"`
+	Code    int    `json:"code"`
+	Name    string `json:"name"`
 	Status  int    `json:"status"`
 	Message string `json:"message"`
 }
@@ -28,24 +31,24 @@ type codeRow struct {
 func everyCode() []codeRow {
 	out := make([]codeRow, 0, len(statuses))
 	for p, status := range statuses {
-		out = append(out, codeRow{Code: p.Code, Status: status, Message: p.Message})
+		out = append(out, codeRow{Code: p.Code, Name: p.Name, Status: status, Message: p.Message})
 	}
 	slices.SortFunc(out, func(a, b codeRow) int { return cmp.Compare(a.Code, b.Code) })
 	return out
 }
 
-func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
+func TestCodesAreUniqueAndNamedAndMatchTheGoldenList(t *testing.T) {
 	codes := everyCode()
-	snake := regexp.MustCompile(`^[a-z]+(_[a-z]+)*$`)
-	seen := map[string]bool{}
+	upper := regexp.MustCompile(`^[A-Z]+(_[A-Z]+)*$`)
+	seen, names := map[int]bool{}, map[string]bool{}
 	for _, p := range codes {
-		if !snake.MatchString(p.Code) {
-			t.Errorf("code %q is not snake_case", p.Code)
+		if !upper.MatchString(p.Name) {
+			t.Errorf("%d's name %q is not UPPER_SNAKE_CASE", p.Code, p.Name)
 		}
-		if seen[p.Code] {
-			t.Errorf("code %q is used twice; every failure gets its own", p.Code)
+		if seen[p.Code] || names[p.Name] {
+			t.Errorf("%d %s is used twice; every failure gets its own code and name", p.Code, p.Name)
 		}
-		seen[p.Code] = true
+		seen[p.Code], names[p.Name] = true, true
 		if p.Status < 400 || p.Status > 599 || p.Message == "" {
 			t.Errorf("%+v needs an error status and a message", p)
 		}
@@ -55,6 +58,23 @@ func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = append(got, '\n')
+	committed, err := os.ReadFile(codesFile)
+	if err != nil && !*update {
+		t.Fatalf("%v (run go test ./services/gateway/internal/handler/api -update)", err)
+	}
+	var before []codeRow
+	if err := json.Unmarshal(committed, &before); err != nil && !*update {
+		t.Fatalf("%s: %v", codesFile, err)
+	}
+	now := map[int]string{}
+	for _, p := range codes {
+		now[p.Code] = p.Name
+	}
+	for _, p := range before {
+		if now[p.Code] != p.Name {
+			t.Errorf("%d was %s: a code is never dropped or reused; keep it declared in failures.go, marked retired", p.Code, p.Name)
+		}
+	}
 	if *update {
 		if err := os.MkdirAll(filepath.Dir(codesFile), 0o755); err != nil {
 			t.Fatal(err)
@@ -62,26 +82,23 @@ func TestCodesAreUniqueSnakeCaseAndMatchTheGoldenList(t *testing.T) {
 		if err := os.WriteFile(codesFile, got, 0o600); err != nil {
 			t.Fatal(err)
 		}
+		return
 	}
-	want, err := os.ReadFile(codesFile)
-	if err != nil {
-		t.Fatalf("%v (run go test ./services/gateway/internal/handler/api -update)", err)
-	}
-	if !bytes.Equal(bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n")), got) {
+	if !bytes.Equal(bytes.ReplaceAll(committed, []byte("\r\n"), []byte("\n")), got) {
 		t.Fatalf("%s is stale; run go test ./services/gateway/internal/handler/api -update", codesFile)
 	}
 }
 
 // A failure the model declares without a status would answer 500 and be missing from codes.json.
 func TestEveryFailureHasAStatus(t *testing.T) {
-	codes := map[string]bool{}
+	codes := map[int]bool{}
 	for p := range statuses {
 		codes[p.Code] = true
 	}
 	declared := declaredFailures(t)
-	for _, code := range declared {
-		if !codes[code] {
-			t.Errorf("%s has no status", code)
+	for _, d := range declared {
+		if !codes[d.code] {
+			t.Errorf("%d %s has no status", d.code, d.name)
 		}
 	}
 	if len(statuses) != len(declared) {
@@ -89,21 +106,52 @@ func TestEveryFailureHasAStatus(t *testing.T) {
 	}
 }
 
-var declaration = regexp.MustCompile(`= Public\{"([a-z_]+)"`)
+// Each code sits in its area's block in failures.go, and an area's codes count up from 0001 with no gap.
+func TestEachCodeIsNumberedInItsArea(t *testing.T) {
+	last := map[int]int{}
+	for _, d := range declaredFailures(t) {
+		if d.code/10000 != d.area {
+			t.Errorf("%d %s is declared under area %d", d.code, d.name, d.area)
+		}
+		if d.code%10000 != last[d.area]+1 {
+			t.Errorf("%d %s follows %d%04d: an area's codes count up from 0001", d.code, d.name, d.area, last[d.area])
+		}
+		last[d.area] = d.code % 10000
+	}
+}
 
-// declaredFailures are the codes of the Publics model/failures.go declares.
-func declaredFailures(t *testing.T) []string {
+var (
+	areaHeader  = regexp.MustCompile(`^// (\d\d): `)
+	declaration = regexp.MustCompile(`= Public\{(\d{6}), "([A-Z_]+)"`)
+)
+
+type declared struct {
+	area, code int
+	name       string
+}
+
+// declaredFailures are the Publics model/failures.go declares, each with the area of the block it sits in.
+func declaredFailures(t *testing.T) []declared {
 	t.Helper()
 	src, err := os.ReadFile(filepath.Join("..", "..", "model", "failures.go"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var codes []string
-	for _, m := range declaration.FindAllSubmatch(src, -1) {
-		codes = append(codes, string(m[1]))
+	var out []declared
+	area := 0
+	lines := bufio.NewScanner(bytes.NewReader(src))
+	for lines.Scan() {
+		if m := areaHeader.FindStringSubmatch(lines.Text()); m != nil {
+			area, _ = strconv.Atoi(m[1])
+			continue
+		}
+		if m := declaration.FindStringSubmatch(lines.Text()); m != nil {
+			code, _ := strconv.Atoi(m[1])
+			out = append(out, declared{area: area, code: code, name: m[2]})
+		}
 	}
-	if len(codes) == 0 {
+	if len(out) == 0 {
 		t.Fatal("found no Public in failures.go: is the pattern broken?")
 	}
-	return codes
+	return out
 }

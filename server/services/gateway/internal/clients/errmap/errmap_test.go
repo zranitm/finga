@@ -46,7 +46,7 @@ func TestForGivesEachServiceErrorItsOwnFailure(t *testing.T) {
 		{grpctest.Error(codes.NotFound, socialv1.Reason_REASON_INVITE_EXPIRED), model.InviteExpired},
 	}
 	for _, tt := range tests {
-		t.Run(tt.want.Code, func(t *testing.T) {
+		t.Run(tt.want.Name, func(t *testing.T) {
 			if got := errmap.For(tt.err); got != tt.want {
 				t.Fatalf("For(%v) = %+v, want %+v", tt.err, got, tt.want)
 			}
@@ -59,7 +59,7 @@ func TestForFindsTheErrorThroughWrappingAndNeverShowsTheCause(t *testing.T) {
 	err := fmt.Errorf("create character: %w", fmt.Errorf("%w: %w", grpctest.Error(codes.AlreadyExists, characterv1.Reason_REASON_NAME_TAKEN), cause))
 	got := errmap.For(err)
 	if got != model.NameTaken {
-		t.Fatalf("For = %+v, want name_taken", got)
+		t.Fatalf("For = %+v, want NAME_TAKEN", got)
 	}
 	if strings.Contains(got.Message, "duplicate") || strings.Contains(got.Message, "characters_name_key") {
 		t.Fatalf("the cause leaked into the message: %q", got.Message)
@@ -150,20 +150,20 @@ func TestWrapNamesWhatTheUseCasesActOn(t *testing.T) {
 		name string
 		err  error
 		kind error // nil: none
-		code string
+		code model.Public
 	}{
-		{"a reason is its Public", grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, "party_full"},
-		{"the world not holding the stream", grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, "internal"},
-		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, "unavailable"},
-		{"a world too busy to take a join", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), model.ErrUnavailable, "unavailable"},
-		{"a world that is stopping", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_STOPPED), model.ErrUnavailable, "unavailable"},
-		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, "internal"},
+		{"a reason is its Public", grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_PARTY_FULL), nil, model.PartyFull},
+		{"the world not holding the stream", grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_SUBSCRIBED), model.ErrNotSubscribed, model.Internal},
+		{"a service that cannot be reached", status.Error(codes.Unavailable, "connection refused"), model.ErrUnavailable, model.Unavailable},
+		{"a world too busy to take a join", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_BUSY), model.ErrUnavailable, model.Unavailable},
+		{"a world that is stopping", grpctest.Error(codes.Unavailable, worldv1.Reason_REASON_STOPPED), model.ErrUnavailable, model.Unavailable},
+		{"a failure with no reason", status.Error(codes.Internal, "boom"), nil, model.Internal},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := errmap.Wrap(tt.err)
-			if got := model.PublicOf(err); got.Code != tt.code {
-				t.Fatalf("PublicOf = %+v, want %s", got, tt.code)
+			if got := model.PublicOf(err); got != tt.code {
+				t.Fatalf("PublicOf = %+v, want %s", got, tt.code.Name)
 			}
 			for _, kind := range []error{model.ErrNotSubscribed, model.ErrUnavailable} {
 				if errors.Is(err, kind) != errors.Is(tt.kind, kind) {

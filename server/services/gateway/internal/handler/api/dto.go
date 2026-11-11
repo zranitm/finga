@@ -79,9 +79,9 @@ type SettingsResponse struct {
 	ChatPinned       bool   `json:"chat_pinned"`
 }
 
-// ErrorResponse is every error body: a stable code and a message safe to show the player.
+// ErrorResponse is every error body: a stable six-digit code, which the client words itself, and a message for developers.
 type ErrorResponse struct {
-	Code    string `json:"code"`
+	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 

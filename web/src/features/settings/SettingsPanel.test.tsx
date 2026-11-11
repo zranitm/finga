@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createRestClient } from '@/net/rest';
+import { ERR } from '@/protocol/errors';
 import { PRESET_KEY, settings } from '@/state/settings';
 import { fakeFetch } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
@@ -100,14 +101,16 @@ describe('SettingsPanel', () => {
     const onClose = vi.fn();
     const ff = fakeFetch(({ method }) =>
       method === 'PUT'
-        ? { status: 500, body: { code: 'internal', message: 'database unavailable' } }
+        ? { status: 500, body: { code: ERR.INTERNAL, message: 'database unavailable' } }
         : { status: 200, body: { control_preset: 'classic' } },
     );
     render(
       <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={onClose} />,
     );
     await userEvent.click(screen.getByLabelText(/WASD/));
-    expect(await screen.findByRole('alert')).toHaveTextContent('database unavailable');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Something went wrong on the server. Try again.',
+    );
     expect(settings.getState().preset).toBe('wasd');
     await userEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalledTimes(1);

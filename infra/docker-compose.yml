@@ -200,6 +200,7 @@ services:
       context: ../web
       additional_contexts:
         gamedata: ../server/data
+        errors: ../server/testdata/errors
         proto: ../server/api/proto
         edge: ./nginx
     ports:

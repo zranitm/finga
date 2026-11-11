@@ -9,6 +9,7 @@ import type { WorldData } from '@/game/scenes/world';
 import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
@@ -67,7 +68,7 @@ describe('App', () => {
       if (path === '/api/characters' && method === 'GET')
         return { status: 200, body: { characters: [sampleCharacter] } };
       if (path === '/api/sessions/current') return { status: 204 };
-      return { status: 404, body: { code: 'no_such_endpoint', message: 'nope' } };
+      return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
     render(<App services={svc} />);
     expect(FakeGame.live()).toHaveLength(1); // the canvas is there behind the login screen

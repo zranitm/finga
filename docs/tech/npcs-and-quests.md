@@ -62,13 +62,13 @@ From the code, the rules this design keeps:
 
 - **NPCs are static map content.** Each map instance loads its NPCs from the map at start. They aren't in Snapshots or Deltas, since the client draws them from the same map data. They don't collide, can't be attacked, and never change.
 - **`Talk{npc}`** comes from the client through the gateway, with a Response, under a "dialog" rate limit (5 a second). On the tick:
-  - It is refused with `npc_out_of_reach` when the NPC isn't on this map or is out of reach, or with `character_dead` while dead.
+  - It is refused with `NPC_OUT_OF_REACH` when the NPC isn't on this map or is out of reach, or with `CHARACTER_DEAD` while dead.
   - Otherwise the world sends the player an **`NpcDialog`**: the NPC, and what it offers this character now.
     - **quests to give:** each with its state, *available*, *active*, *finished* (one-time), or *conditions unmet*, and the unmet conditions listed;
     - **quests to take back:** each *ready* or *not ready*;
     - **promotions,** for trainers (classes design): each condition with *met* or *not met*.
   - The dialog is computed from the player's live state, so it can't disagree with what the server would allow.
-- **Dialog actions** (`AcceptQuest`, `HandInQuest`, `Promote`) each name the NPC and are re-checked on their own tick: reach, state, conditions. A dialog left open while the player walks away fails cleanly with `npc_out_of_reach`.
+- **Dialog actions** (`AcceptQuest`, `HandInQuest`, `Promote`) each name the NPC and are re-checked on their own tick: reach, state, conditions. A dialog left open while the player walks away fails cleanly with `NPC_OUT_OF_REACH`.
 - **Markers** are computed by the client, from its generated data and its copy of the character's state: level, class, stats, skills, the quest log, and inventory counts.
   - **When they change:** they are recomputed on the events that can change them: a level-up, points spent, a quest accepted, progressed, abandoned, or handed in, a promotion, a map change, or an inventory change.
   - **No server messages:** all of these already reach the client, so markers cost the server nothing.
@@ -98,7 +98,7 @@ From the code, the rules this design keeps:
 - **`AcceptQuest{npc, quest}`:** the NPC must give it and be in reach, and the quest's conditions must be met. It is refused when the quest is already active, a one-time quest is already finished, or 20 are active. On success the quest becomes active with zero progress, and is queued to save at once.
 - **`AbandonQuest{quest}`:** no NPC is needed. The quest leaves the log, its progress is lost, and the change is queued to save at once. Abandoning a quest that isn't active does nothing, so a retry is safe; one whose hand-in is in flight is refused until it settles.
 - **`HandInQuest{npc, quest}`:**
-  1. **On the tick:** the NPC must take this quest and be in reach. Every kill, talk, and level objective must be complete, or the hand-in is refused with `quest_not_ready`.
+  1. **On the tick:** the NPC must take this quest and be in reach. Every kill, talk, and level objective must be complete, or the hand-in is refused with `QUEST_NOT_READY`.
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.
   3. **The item call:** a job goes to the item-call pool: `item.HandIn` with the collect objectives to take and the rewards to give.
      - It names the quest and the completion it makes, `times_finished + 1`. The item service hands each completion in once, so a retry, or a hand-in repeated after a crash, takes and gives nothing twice.
@@ -106,7 +106,7 @@ From the code, the rules this design keeps:
      - The log has a warning for each try that failed, an error for a hand-in given up, and an info line for each one a join finished.
   4. **The result comes back through the inbox:**
      - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`. This holds for the character on the map whatever its connection, so a reconnect meanwhile still gets it;
-     - on `not_enough_items` or a full tab: nothing changed anywhere, and the player is told;
+     - on `NOT_ENOUGH_ITEMS` or a full tab: nothing changed anywhere, and the player is told;
      - when the character has left the map: nothing changes there, and its next join finishes the quest.
 - **Repeatable quests** finish with a new count each time, so each completion is handed in on its own.
 - **At every join**, the world asks the item service (`HandedIn`) about the next completion of each active quest with items to take or give. Each one it handed in finishes as a hand-in's answer would: the same events, and the change queued to save. The join fails while the item service can't answer, as it does while the worn items can't be read.
@@ -115,8 +115,8 @@ From the code, the rules this design keeps:
 
 - **`HandIn{actor, quest_id, completion, take: [{template, quantity}], give: [{template, quantity, stats}]}`** runs one transaction:
   1. The owner's lock, then the completion's row in `quest_hand_ins`. If there is one, its stored reply comes back and nothing changes, whatever the call's lines; other lines are logged. Otherwise the inventory rows are locked, as other item calls lock them.
-  2. **Take:** each `take` line must be covered by the inventory's stacks of that template, never by worn items, or the call is refused with `not_enough_items`. The items are taken from the smallest stacks first.
-  3. **Give:** each `give` line goes in as `Add` would place it. If it doesn't all fit, the call is refused with the full tab's code (`equip_tab_full`, `use_tab_full` or `etc_tab_full`), and nothing is taken.
+  2. **Take:** each `take` line must be covered by the inventory's stacks of that template, never by worn items, or the call is refused with `NOT_ENOUGH_ITEMS`. The items are taken from the smallest stacks first.
+  3. **Give:** each `give` line goes in as `Add` would place it. If it doesn't all fit, the call is refused with the full tab's code (`EQUIP_TAB_FULL`, `USE_TAB_FULL` or `ETC_TAB_FULL`), and nothing is taken.
   4. **Item events:** a new kind, `handed_in` (a negative quantity, cause `quest`), for what is taken; `created` and `stacked` with cause `quest` for what is given. Each names the quest in a new `quest_id` column, and its `cause_id` is the hand-in's ID.
   5. One inventory revision, and a row in `quest_hand_ins` for the character, the quest, and the completion, with the reply. The row is kept for good. A refusal records nothing.
 - **`HandedIn{character_id, completions: [{quest_id, completion}]}`:** which of up to 32 completions were handed in, each with its stored reply.
@@ -136,14 +136,14 @@ From the code, the rules this design keeps:
 | `QuestChanged` | server | New: what happened (accepted, progressed, handed in, or abandoned), and the quest's status, progress, and count after it |
 
 - **New error codes:**
-  - `npc_out_of_reach`: "move closer";
-  - `quest_unavailable`: "that quest isn't offered here";
-  - `quest_conditions_unmet`: "you don't meet that quest's conditions yet";
-  - `quest_already_active`;
-  - `quest_already_finished`;
-  - `too_many_quests`: "you have the most active quests already" (`max_active` in `quests.yaml`);
-  - `quest_not_ready`: "that quest isn't finished yet";
-  - `not_enough_items`: "you don't have everything it asks for".
+  - `NPC_OUT_OF_REACH` (330006): "Move closer.";
+  - `QUEST_UNAVAILABLE` (330007): "That quest isn't offered here.";
+  - `QUEST_CONDITIONS_UNMET` (330008): "You don't meet that quest's conditions yet.";
+  - `QUEST_ALREADY_ACTIVE` (330009);
+  - `QUEST_ALREADY_FINISHED` (330010);
+  - `TOO_MANY_QUESTS` (330011): "You have 20 quests already.", the number being `max_active` in `quests.yaml`;
+  - `QUEST_NOT_READY` (330012): "That quest isn't finished yet.";
+  - `NOT_ENOUGH_ITEMS` (220024): "You don't have everything the quest asks for."
 - **Gateway routes:** `Talk`, `AcceptQuest`, `AbandonQuest`, and `HandInQuest` go to the world under a new dialog limit (5 a second), with `respond`.
 
 ### Internal contracts
@@ -207,7 +207,7 @@ From the code, the rules this design keeps:
   - abandon;
   - kill progress for the killer and for the EXP sharers, and not for a dead member or one on another map;
   - talk objectives;
-  - hand-in: not ready, success, `not_enough_items`, and a full inventory;
+  - hand-in: not ready, success, `NOT_ENOUGH_ITEMS`, and a full inventory;
   - a try the item service was down for, tried again as the same completion; a refusal, tried once; an item service down or hung, given up within 4 seconds, with each try logged;
   - an answer after a reconnect on the map finishing the quest, and one after the character left changing nothing there;
   - a join finishing each completion the item service handed in, once;

@@ -4,6 +4,7 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { readyQuests } from '@/progression/quests';
 import { autoAssign } from '@/progression/stats';
+import { ERR, errorText } from '@/protocol/errors';
 import { LootKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -92,7 +93,7 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.onStatus(applyStatus),
     socket.onUnmatchedResponse((d) => {
       if (!d.ok) {
-        toasts.getState().push(responseText(d));
+        toasts.getState().push(errorText(d.code));
       }
     }),
   ];
@@ -133,19 +134,6 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** For a refused command with no req: an attack, a portal, a chat line. */
-export function responseText(d: Data<'response'>): string {
-  switch (d.code) {
-    case 'unavailable':
-      return 'The server is busy. Try again.';
-    case 'rate_limited':
-    case 'chat_rate_limited':
-      return 'Too fast. Wait a moment.';
-    default:
-      return d.message || d.code || 'The server refused.';
-  }
-}
-
 /** With the setting on, a level-up spends every unspent point by the class's split, as the window's button does. */
 function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
   const c = d.character;
@@ -156,10 +144,10 @@ function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
   socket
     .request('spendPoints', { expectedUnspent: unspent, points: autoAssign(c.class, unspent) })
     .catch((err: unknown) => {
-      // points_changed: a later level-up's request spends them; without an answer, the badge still shows any left.
+      // POINTS_CHANGED: a later level-up's request spends them; without an answer, the badge still shows any left.
       if (
         err instanceof RequestError &&
-        !['points_changed', 'timeout', 'disconnected'].includes(err.code)
+        !([ERR.POINTS_CHANGED, 'timeout', 'disconnected'] as const).some((c) => c === err.code)
       ) {
         toasts.getState().push(`Could not auto-assign your points: ${err.message}`);
       }

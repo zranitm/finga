@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	codeKey  = "finga.refusal_code"
-	causeKey = "finga.internal_cause"
+	refusalKey = "finga.refusal"
+	causeKey   = "finga.internal_cause"
 )
 
 // writeError answers err as model.PublicOf maps it; the error's text never reaches the body, only the request log.
@@ -22,9 +22,9 @@ func writeError(c *gin.Context, err error) {
 	writePublic(c, p)
 }
 
-// writePublic sends p and notes its code for the request log.
+// writePublic sends p and notes it for the request log.
 func writePublic(c *gin.Context, p model.Public) {
-	c.Set(codeKey, p.Code)
+	c.Set(refusalKey, p)
 	writeJSON(c, status(p), ErrorResponse{Code: p.Code, Message: p.Message})
 }
 

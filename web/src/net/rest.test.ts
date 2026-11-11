@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { ERR } from '@/protocol/errors';
+
 import { createRestClient, RestError } from './rest';
 import type { FetchLike, HttpResponse } from './rest';
 import { clearToken, getToken, setToken } from './token';
@@ -159,32 +161,39 @@ describe('rest client', () => {
 
   it.each([
     {
-      name: 'a 409 on create character keeps its own code, name_taken',
+      name: 'a 409 on create character keeps its own code, NAME_TAKEN',
       status: 409,
-      body: { code: 'name_taken', message: 'that name is taken' },
-      code: 'name_taken',
-      message: 'that name is taken',
+      body: { code: ERR.NAME_TAKEN, message: 'that name is taken' },
+      code: ERR.NAME_TAKEN,
+      message: 'That name is taken.',
     },
     {
       name: 'a 401 maps to unauthenticated',
       status: 401,
-      body: { code: 'unauthenticated', message: 'invalid credentials or session' },
-      code: 'unauthenticated',
-      message: 'invalid credentials or session',
+      body: { code: ERR.UNAUTHENTICATED, message: 'invalid credentials or session' },
+      code: ERR.UNAUTHENTICATED,
+      message: 'Wrong username or password, or your session has ended.',
     },
     {
-      name: 'a 429 keeps its own code, login_rate_limited',
+      name: 'a 429 keeps its own code, LOGIN_RATE_LIMITED',
       status: 429,
-      body: { code: 'login_rate_limited', message: 'too many login attempts' },
-      code: 'login_rate_limited',
-      message: 'too many login attempts',
+      body: { code: ERR.LOGIN_RATE_LIMITED, message: 'too many login attempts' },
+      code: ERR.LOGIN_RATE_LIMITED,
+      message: 'Too many login attempts. Try again in a minute.',
     },
     {
-      name: 'an unknown code becomes internal',
+      name: 'a number this client does not know is kept, and worded with its number',
+      status: 500,
+      body: { code: 220999, message: 'short and stout' },
+      code: 220999,
+      message: 'Something went wrong (error 220999).',
+    },
+    {
+      name: 'a code that is not a number is malformed',
       status: 500,
       body: { code: 'teapot', message: 'short and stout' },
-      code: 'internal',
-      message: 'short and stout',
+      code: 'malformed',
+      message: /HTTP 500/,
     },
     {
       name: 'an error without a code is malformed',
@@ -224,7 +233,7 @@ describe('rest client', () => {
     },
   ])('logout everywhere $name', async ({ status, rejects, kept }) => {
     const { fetch, calls } = fakeFetch(() =>
-      status === 204 ? { status } : { status, body: { code: 'internal', message: 'nope' } },
+      status === 204 ? { status } : { status, body: { code: ERR.INTERNAL, message: 'nope' } },
     );
     const client = createRestClient({ origin: '', fetch });
     setToken('tok-1');
@@ -243,7 +252,7 @@ describe('rest client', () => {
   it('logout forgets the token even when the server call fails', async () => {
     const { fetch } = fakeFetch(() => ({
       status: 401,
-      body: { code: 'unauthenticated', message: 'gone' },
+      body: { code: ERR.UNAUTHENTICATED, message: 'gone' },
     }));
     const client = createRestClient({ origin: '', fetch });
     setToken('tok-old');

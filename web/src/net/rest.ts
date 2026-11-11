@@ -1,7 +1,6 @@
 // The token is read on every call, so a rotation after Hello is picked up at once.
 import { env } from '@/config/env';
-import { isErrorCode } from '@/protocol/errors';
-import type { ErrorCode } from '@/protocol/errors';
+import { errorText } from '@/protocol/errors';
 
 import { clearToken, getToken, setToken } from './token';
 
@@ -52,7 +51,7 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<HttpResponse
 export class RestError extends Error {
   constructor(
     readonly status: number,
-    readonly code: ErrorCode | 'network' | 'malformed',
+    readonly code: number | 'network' | 'malformed', // a server's refusal, words from errorText, or a call with no readable answer
     message: string,
   ) {
     super(message);
@@ -154,10 +153,10 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
 }
 
 function toRestError(status: number, body: unknown): RestError {
-  if (typeof body === 'object' && body !== null && 'code' in body && 'message' in body) {
-    const { code, message } = body;
-    if (typeof code === 'string' && typeof message === 'string') {
-      return new RestError(status, isErrorCode(code) ? code : 'internal', message);
+  if (typeof body === 'object' && body !== null && 'code' in body) {
+    const { code } = body;
+    if (typeof code === 'number') {
+      return new RestError(status, code, errorText(code));
     }
   }
   return new RestError(status, 'malformed', `HTTP ${status} without an error body`);

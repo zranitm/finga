@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import { ERR } from '@/protocol/errors';
 import {
   InventoryChangedSchema,
   LevelUpSchema,
@@ -16,6 +17,7 @@ import type { Data, StatSheet, StatSheetSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { dataTransfer } from '@/testing/data-transfer';
+import { refusal } from '@/testing/refusal';
 import { withoutKeys } from '@/testing/requests';
 import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
@@ -237,10 +239,10 @@ describe('CharacterWindow', () => {
     });
   });
 
-  it('a refusal shows the server’s reason, and nothing moves', async () => {
-    setup([new RequestError('equip_tab_full', 'the Equip tab has no free slot')]);
+  it('a refusal shows the client’s words for it, and nothing moves', async () => {
+    setup([refusal(ERR.EQUIP_TAB_FULL)]);
     await userEvent.dblClick(slot('Weapon: Wooden Sword'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('the Equip tab has no free slot');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Your Equip tab is full.');
     expect(slot('Weapon: Wooden Sword')).toHaveAttribute('aria-busy', 'false');
   });
 
@@ -329,11 +331,8 @@ describe('CharacterWindow', () => {
     expect(stat('Primary stats', 'DEX')).not.toHaveTextContent('+1');
   });
 
-  it('a points_changed answer means it already landed; another refusal shows its reason', async () => {
-    setup([
-      new RequestError('points_changed', 'your points changed; try again'),
-      new RequestError('not_enough_points', "you don't have that many points"),
-    ]);
+  it('a points_changed answer means it already landed; another refusal shows its words', async () => {
+    setup([refusal(ERR.POINTS_CHANGED), refusal(ERR.NOT_ENOUGH_POINTS)]);
     act(() => stats({ points: { unspent: 5, spent: {}, freeResetLeft: true } }));
     await userEvent.click(plus('INT'));
     await userEvent.click(button('Apply'));
@@ -341,7 +340,7 @@ describe('CharacterWindow', () => {
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
     await userEvent.click(plus('INT'));
     await userEvent.click(button('Apply'));
-    expect(await screen.findByRole('alert')).toHaveTextContent("you don't have that many points");
+    expect(await screen.findByRole('alert')).toHaveTextContent('You don’t have that many points.');
   });
 
   it('a draft is void once the unspent count changes, so it is never spent from a stale count', async () => {

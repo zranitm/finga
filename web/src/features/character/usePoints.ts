@@ -5,6 +5,7 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { addStats, autoAssign, noPoints, total } from '@/progression/stats';
 import type { Primary, PrimaryKey } from '@/progression/stats';
+import { ERR } from '@/protocol/errors';
 import { character } from '@/state/character';
 
 export interface Points {
@@ -45,7 +46,7 @@ export function usePoints(socket: Pick<GameSocket, 'request'>): Points {
       await request();
       setDraft({ base: unspent, points: noPoints });
     } catch (err) {
-      if (err instanceof RequestError && err.code === 'points_changed') {
+      if (err instanceof RequestError && err.code === ERR.POINTS_CHANGED) {
         // The count moved: a resent request that already landed, whose StatsChanged is here.
         setDraft({ base: unspent, points: noPoints });
       } else if (

@@ -1,7 +1,6 @@
 {
   "req": "r-6",
   "response": {
-    "code": "inventory_full",
-    "message": "your inventory is full"
+    "code": 220005
   }
 }

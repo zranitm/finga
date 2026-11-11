@@ -125,8 +125,10 @@ func requestLog(log *slog.Logger, rec *panics.Recorder) gin.HandlerFunc {
 			}
 			args := []any{"method", r.Method, "path", r.URL.Path, "status", c.Writer.Status(), "duration_ms", float64(time.Since(start).Microseconds()) / 1000}
 			level := slog.LevelInfo
-			if code := c.GetString(codeKey); code != "" {
-				args = append(args, "code", code)
+			if v, ok := c.Get(refusalKey); ok {
+				if p, ok := v.(model.Public); ok {
+					args = append(args, "code", p.Code, "refusal", p.Name)
+				}
 			}
 			if v, ok := c.Get(causeKey); ok {
 				if err, ok := v.(error); ok {

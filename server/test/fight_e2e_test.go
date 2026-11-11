@@ -336,8 +336,8 @@ func TestFightAndGrow(t *testing.T) {
 		saved("3 STR and 2 VIT spent", `SELECT str_points = 3 AND vit_points = 2 AND unspent_points = 0 FROM characters WHERE id = $1`)
 
 		l.send(wsconn.Message{ReqID: "s-2", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Dex: 1}}})
-		if r := l.gather("Response")["Response"]; r.ReqID != "s-2" || r.Data.(*clientv1.Response).GetCode() != "points_changed" {
-			t.Fatalf("a spend from a stale count answered %+v; want points_changed", r)
+		if r := l.gather("Response")["Response"]; r.ReqID != "s-2" || r.Data.(*clientv1.Response).GetCode() != code("POINTS_CHANGED") {
+			t.Fatalf("a spend from a stale count answered %+v; want POINTS_CHANGED", r)
 		}
 
 		l.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}})
@@ -352,8 +352,8 @@ func TestFightAndGrow(t *testing.T) {
 		saved("the reset", `SELECT str_points = 0 AND vit_points = 0 AND unspent_points = 5 AND free_reset_used FROM characters WHERE id = $1`)
 
 		l.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.ResetPoints{ExpectedUnspent: 5}})
-		if r := l.gather("Response")["Response"]; r.ReqID != "r-2" || r.Data.(*clientv1.Response).GetCode() != "no_free_reset" {
-			t.Fatalf("a second reset answered %+v; want no_free_reset", r)
+		if r := l.gather("Response")["Response"]; r.ReqID != "r-2" || r.Data.(*clientv1.Response).GetCode() != code("NO_FREE_RESET") {
+			t.Fatalf("a second reset answered %+v; want NO_FREE_RESET", r)
 		}
 	})
 

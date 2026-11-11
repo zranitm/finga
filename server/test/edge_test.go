@@ -47,9 +47,12 @@ func TestEdge(t *testing.T) {
 			if ct := header.Get("Content-Type"); ct != "application/json" {
 				t.Fatalf("Content-Type %q", ct)
 			}
-			var e struct{ Code, Message string }
-			if err := json.Unmarshal([]byte(got), &e); err != nil || e.Code != "login_rate_limited" || e.Message != "too many login attempts, try again in a minute" {
-				t.Fatalf("body %q (err %v), want the gateway's login_rate_limited", got, err)
+			var e struct {
+				Code    int32
+				Message string
+			}
+			if err := json.Unmarshal([]byte(got), &e); err != nil || e.Code != code("LOGIN_RATE_LIMITED") || e.Message != "too many login attempts, try again in a minute" {
+				t.Fatalf("body %q (err %v), want the gateway's LOGIN_RATE_LIMITED", got, err)
 			}
 			return
 		}
@@ -68,8 +71,8 @@ func TestEdge(t *testing.T) {
 			switch status {
 			case http.StatusUnauthorized:
 			case http.StatusTooManyRequests:
-				if got != `{"code":"rate_limited","message":"slow down"}` {
-					t.Fatalf("body %q, want the gateway's rate_limited", got)
+				if want := fmt.Sprintf(`{"code":%d,"message":"slow down"}`, code("RATE_LIMITED")); got != want {
+					t.Fatalf("body %q, want the gateway's RATE_LIMITED %s", got, want)
 				}
 				return
 			default:
