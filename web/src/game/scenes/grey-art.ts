@@ -1,7 +1,9 @@
 // A tint multiplies onto the art, so a tinted mob draws from a grey copy brightened to white: the green slime tinted blue would stay green.
 import type Phaser from 'phaser';
 
-import { greyKey } from '../keys';
+import { mobSprites } from '../entities/mob';
+import { animations, greyKey } from '../keys';
+import type { Anim } from '../keys';
 
 /** RGBA pixels made grey by luminance, then scaled so the lightest opaque one is white. */
 export function greyPixels(p: Uint8ClampedArray): void {
@@ -39,4 +41,18 @@ export function addGreyCopies(scene: Phaser.Scene, keys: readonly string[]): voi
     ctx.putImageData(data, 0, 0);
     canvas.refresh();
   }
+}
+
+/** What the tinted mobs draw from: a grey copy of each mob texture, and of each mob animation over the grey frames. */
+export function greyMobArt(): { textures: string[]; animations: Anim[] } {
+  const moves = new Set(mobSprites.map((s) => s.move));
+  const anims = animations.filter((a) => moves.has(a.key));
+  const textures = new Set([
+    ...mobSprites.flatMap((s) => [s.stand, s.dead]),
+    ...anims.flatMap((a) => a.frames),
+  ]);
+  return {
+    textures: [...textures],
+    animations: anims.map((a) => ({ ...a, key: greyKey(a.key), frames: a.frames.map(greyKey) })),
+  };
 }

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mobs } from '@/gamedata/mobs';
 
 import { ANIM, TEX, greyKey } from '../keys';
-import { greyMobArt } from '../scenes/preloader';
+import { greyMobArt } from '../scenes/grey-art';
 
 import { mobArt } from './mob';
 

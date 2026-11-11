@@ -96,6 +96,24 @@ export const ANIM = {
   flyMove: 'fly:move',
 } as const;
 
+export interface Anim {
+  readonly key: string;
+  readonly frames: readonly string[];
+  readonly frameRate: number;
+}
+
+/** The looping animations, each over its frames' textures. */
+export const animations: readonly Anim[] = [
+  { key: ANIM.warriorWalk, frames: [TEX.warriorWalk1, TEX.warriorWalk2], frameRate: 8 },
+  { key: ANIM.warriorClimb, frames: [TEX.warriorClimb1, TEX.warriorClimb2], frameRate: 6 },
+  { key: ANIM.bowmanWalk, frames: [TEX.bowmanWalk1, TEX.bowmanWalk2], frameRate: 8 },
+  { key: ANIM.bowmanClimb, frames: [TEX.bowmanClimb1, TEX.bowmanClimb2], frameRate: 6 },
+  { key: ANIM.slimeMove, frames: [TEX.slimeStand, TEX.slimeMove], frameRate: 4 },
+  { key: ANIM.snailMove, frames: [TEX.snailStand, TEX.snailMove], frameRate: 3 },
+  { key: ANIM.mouseMove, frames: [TEX.mouseStand, TEX.mouseMove], frameRate: 8 },
+  { key: ANIM.flyMove, frames: [TEX.flyStand, TEX.flyMove], frameRate: 10 },
+];
+
 /** The grey copy of a texture or animation, which a tint colours fully. */
 export const greyKey = (key: string): string => `${key}:grey`;
 
