@@ -433,7 +433,7 @@ describe('wiring', () => {
       ]);
     });
 
-    it("a rejoin's Welcome, with no token, puts back the server's state and keeps the token; a quest ready since gets its line, and the PartyState after it refills the party", async () => {
+    it("a rejoin's Welcome, with no token, puts back the server's state and keeps the token; a quest ready since gets its line, and the party stays until the PartyState after it", async () => {
       const { ws } = await connectedSocket();
       const token = getToken();
       ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });
@@ -453,11 +453,17 @@ describe('wiring', () => {
         change: 'ready',
         quest: 'slime_cleanup',
       });
-      expect(party.getState().party).toBeNull();
+      expect(party.getState().party?.leader).toBe('c-ayla'); // no empty panel between the two
       ws.push('partyState', {
-        party: { leader: 'c-ayla', members: [{ characterId: 'c-ayla', name: 'Ayla' }] },
+        party: {
+          leader: 'c-ayla',
+          members: [
+            { characterId: 'c-ayla', name: 'Ayla' },
+            { characterId: 'c-robin', name: 'Robin' },
+          ],
+        },
       });
-      expect(party.getState().party?.leader).toBe('c-ayla');
+      expect(party.getState().party?.members).toHaveLength(2);
     });
 
     it("a login's Welcome tells no quest ready: the log starts there", async () => {

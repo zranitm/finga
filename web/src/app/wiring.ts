@@ -34,12 +34,13 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('welcome', (m) => {
       character.getState().applyWelcome(m.d);
       inventory.getState().applyWelcome(m.d);
-      party.getState().applyWelcome();
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
       if (m.d.token === '') {
-        announceReady(); // a rejoin the server made, with no token: play went on, so a quest ready since gets its line
+        // A rejoin the server made, with no token: play went on, so a quest ready since gets its line, and the party stays until the PartyState right behind.
+        announceReady();
       } else {
+        party.getState().applyWelcome();
         ready = new Set(readyQuests(questPlayer()));
       }
     }),
