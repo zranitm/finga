@@ -94,7 +94,7 @@ What 100 points buy, with no equipment, on top of the class's base values:
 
 ## Death
 
-- Death penalty: lose a small percentage of current EXP, outside towns only.
+- Death penalty, outside towns only: lose 5% of the EXP the current level needs to reach the next, rounded down. A level-5 character, needing 309, loses 15. Nothing is lost at the level cap.
 - EXP never drops below the start of the current level, so a character can never lose a level.
 
 ## Later
