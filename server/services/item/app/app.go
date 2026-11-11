@@ -11,10 +11,11 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata/load"
 	"finga/internal/host"
-	"finga/internal/telemetry"
 	"finga/pkg/idempotency/idempotencypg"
 	"finga/pkg/outbox/outboxpg"
+	"finga/pkg/outbox/outboxprom"
 	"finga/pkg/retention"
+	"finga/pkg/retention/retentionprom"
 	"finga/services/item/config"
 	"finga/services/item/internal/application"
 	"finga/services/item/internal/handler"
@@ -34,11 +35,11 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	outboxMetrics, err := telemetry.NewOutboxMetrics(reg)
+	outboxMetrics, err := outboxprom.New(reg)
 	if err != nil {
 		return nil, err
 	}
-	retentionMetrics, err := telemetry.NewRetentionMetrics(reg)
+	retentionMetrics, err := retentionprom.New(reg)
 	if err != nil {
 		return nil, err
 	}
