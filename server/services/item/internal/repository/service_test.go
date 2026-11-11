@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/dbx"
@@ -37,7 +38,7 @@ type harness struct {
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	data, err := gamedata.Load("../../../../data")
+	data, err := load.Dir("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

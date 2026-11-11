@@ -67,7 +67,7 @@ classes:                   # base values per class; per_level grows them
 - **`mobs.yaml`:** each mob gains `damage` (`physical` or `magic`) and `magic_defense`, and `defense` is renamed `physical_defense`. Cave bats deal magic damage.
 - **`items.yaml`:** `attack` and `defense` in `stats` become `physical_attack` and `physical_defense`, and the other new derived stats may roll. `requires: {str: 25}` lists stat minimums. `class` is allowed on weapons only.
 - **Units:** every rolled value is a whole number. Rates (crit rate, crit damage, penetration, the three speeds) are in tenths of a percent. Regen is in tenths of a point per second.
-- **Validation** (`internal/gamedata/load.go`) refuses:
+- **Validation** (`internal/gamedata/load`) refuses:
   - an unknown stat or class;
   - an auto-assign split that doesn't sum to `points_per_level`;
   - a limit at or below its base, or a `k` of zero or less;

@@ -1,16 +1,22 @@
-package gamedata
+package load
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
+	"finga/internal/gamedata"
 	"finga/internal/sim"
 	"finga/pkg/tiled"
 )
 
 const (
+	mapsDir = "maps"
+	mapExt  = ".tmj"
+
 	layerSolids      = "solids"
 	layerPlatforms   = "platforms"
 	layerRopes       = "ropes"
@@ -34,13 +40,68 @@ const (
 
 var requiredLayers = []string{layerSolids, layerPlatforms, layerRopes, layerPortals, layerSpawns, layerPlayerSpawn, layerNPCs}
 
-func (d *Data) loadMap(path string) (*Map, error) {
+func (l *loader) loadMaps(dir string) error {
+	entries, err := os.ReadDir(filepath.Join(dir, mapsDir))
+	if err != nil {
+		return fmt.Errorf("%s: %w", mapsDir, err)
+	}
+	for _, e := range entries { // ReadDir sorts by name
+		if e.IsDir() || filepath.Ext(e.Name()) != mapExt {
+			continue
+		}
+		m, err := l.loadMap(filepath.Join(dir, mapsDir, e.Name()))
+		if err != nil {
+			return err
+		}
+		l.maps.add(m.ID, m)
+	}
+	if len(l.maps.list) == 0 {
+		return fmt.Errorf("%s: no %s maps", mapsDir, mapExt)
+	}
+	// Portals can only be checked once every map is loaded.
+	for _, m := range l.maps.list {
+		file := m.ID + mapExt
+		for _, p := range m.Portals {
+			target, ok := l.maps.get(p.TargetMap)
+			if !ok {
+				return fmt.Errorf("%s: layer %q: object %q: target map %q does not exist", file, layerPortals, p.Name, p.TargetMap)
+			}
+			if !slices.ContainsFunc(target.Portals, func(q gamedata.Portal) bool { return q.Name == p.TargetPortal }) {
+				return fmt.Errorf("%s: layer %q: object %q: target portal %q not in map %q", file, layerPortals, p.Name, p.TargetPortal, p.TargetMap)
+			}
+		}
+	}
+	for _, m := range l.maps.list {
+		town, ok := l.maps.get(m.Town)
+		if !ok || town.Kind != gamedata.Town {
+			return fmt.Errorf("%s%s: map property %q names %q, which is not a town", m.ID, mapExt, propTown, m.Town)
+		}
+	}
+	for _, m := range l.maps.list {
+		if !m.Start {
+			continue
+		}
+		if l.start != nil {
+			return fmt.Errorf("maps: %s and %s both have the property %q; new characters start in one town", l.start.ID+mapExt, m.ID+mapExt, propStart)
+		}
+		if m.Kind != gamedata.Town {
+			return fmt.Errorf("%s%s: the map property %q is for a town, where new characters start", m.ID, mapExt, propStart)
+		}
+		l.start = m
+	}
+	if l.start == nil {
+		return fmt.Errorf("maps: no town has the property %q, where new characters start", propStart)
+	}
+	return nil
+}
+
+func (l *loader) loadMap(path string) (*gamedata.Map, error) {
 	file := filepath.Base(path)
 	tm, err := tiled.Load(path)
 	if err != nil {
 		return nil, err
 	}
-	m := &Map{
+	m := &gamedata.Map{
 		ID:     strings.TrimSuffix(file, mapExt),
 		Width:  tm.PixelWidth(),
 		Height: tm.PixelHeight(),
@@ -49,8 +110,8 @@ func (d *Data) loadMap(path string) (*Map, error) {
 	if !ok {
 		return nil, fmt.Errorf("%s: missing map property %q", file, propKind)
 	}
-	m.Kind = MapKind(kind)
-	if m.Kind != Town && m.Kind != Hunting {
+	m.Kind = gamedata.MapKind(kind)
+	if m.Kind != gamedata.Town && m.Kind != gamedata.Hunting {
 		return nil, fmt.Errorf("%s: unknown %s %q", file, propKind, kind)
 	}
 	if m.Name, ok = tm.Properties.String(propName); !ok || m.Name == "" {
@@ -58,12 +119,12 @@ func (d *Data) loadMap(path string) (*Map, error) {
 	}
 	m.Start, _ = tm.Properties.Bool(propStart)
 	// A hunting map names its respawn town; loadMaps checks it exists.
-	if m.Kind == Town {
+	if m.Kind == gamedata.Town {
 		m.Town = m.ID
 	} else if m.Town, ok = tm.Properties.String(propTown); !ok {
 		return nil, fmt.Errorf("%s: missing map property %q", file, propTown)
 	}
-	if m.Kind == Hunting {
+	if m.Kind == gamedata.Hunting {
 		lo, okLo := tm.Properties.Int(propMinLevel)
 		hi, okHi := tm.Properties.Int(propMaxLevel)
 		if !okLo || !okHi || lo < 1 || hi < lo {
@@ -98,18 +159,18 @@ func (d *Data) loadMap(path string) (*Map, error) {
 				return nil, fmt.Errorf("%s: duplicate portal %q", file, o.Name)
 			}
 		}
-		m.Portals = append(m.Portals, Portal{Name: o.Name, Area: rect(o), TargetMap: targetMap, TargetPortal: targetPortal})
+		m.Portals = append(m.Portals, gamedata.Portal{Name: o.Name, Area: rect(o), TargetMap: targetMap, TargetPortal: targetPortal})
 	}
 
 	for _, o := range layers[layerSpawns].Objects {
-		if m.Kind == Town {
+		if m.Kind == gamedata.Town {
 			return nil, fmt.Errorf("%s: a town has no mobs, but layer %q has spawn %q", file, layerSpawns, o.Name)
 		}
 		mob, ok := o.Properties.String(propMob)
 		if !ok {
 			return nil, fmt.Errorf("%s: layer %q: object %q: missing property %q", file, layerSpawns, o.Name, propMob)
 		}
-		mt, ok := d.Mob(mob)
+		mt, ok := l.mobs.get(mob)
 		if !ok {
 			return nil, fmt.Errorf("%s: layer %q: object %q: unknown mob %q", file, layerSpawns, o.Name, mob)
 		}
@@ -124,10 +185,10 @@ func (d *Data) loadMap(path string) (*Map, error) {
 		if !ok || respawn < 0 {
 			return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a non-negative integer", file, layerSpawns, o.Name, propRespawn)
 		}
-		m.Spawns = append(m.Spawns, Spawn{Mob: mob, Max: maxMobs, Respawn: time.Duration(respawn) * time.Second, Area: rect(o)})
+		m.Spawns = append(m.Spawns, gamedata.Spawn{Mob: mob, Max: maxMobs, Respawn: time.Duration(respawn) * time.Second, Area: rect(o)})
 	}
 
-	if elite, normal := spawnsElite(d, m.Spawns); elite != "" && !normal {
+	if elite, normal := spawnsElite(l, m.Spawns); elite != "" && !normal {
 		return nil, fmt.Errorf("%s: layer %q: elite %s needs a normal mob on its map to stand out from", file, layerSpawns, elite)
 	}
 
@@ -139,15 +200,15 @@ func (d *Data) loadMap(path string) (*Map, error) {
 
 	// loadNPCs matches each object to npcs.yaml by its name.
 	for _, o := range layers[layerNPCs].Objects {
-		m.NPCs = append(m.NPCs, Placement{NPC: o.Name, At: feet(o)})
+		m.NPCs = append(m.NPCs, gamedata.Placement{NPC: o.Name, At: feet(o)})
 	}
 	return m, nil
 }
 
 // spawnsElite is an elite the spawns keep, if any, and whether they keep a normal mob too.
-func spawnsElite(d *Data, spawns []Spawn) (elite string, normal bool) {
+func spawnsElite(l *loader, spawns []gamedata.Spawn) (elite string, normal bool) {
 	for _, s := range spawns {
-		if mob, _ := d.Mob(s.Mob); mob.Elite {
+		if mob, _ := l.mobs.get(s.Mob); mob.Elite {
 			elite = mob.ID
 		} else {
 			normal = true
@@ -157,8 +218,8 @@ func spawnsElite(d *Data, spawns []Spawn) (elite string, normal bool) {
 }
 
 // feet is where an object stands: its bottom centre, which for a point object is the point.
-func feet(o tiled.Object) Point {
-	return Point{X: o.X + o.Width/2, Y: o.Y + o.Height}
+func feet(o tiled.Object) gamedata.Point {
+	return gamedata.Point{X: o.X + o.Width/2, Y: o.Y + o.Height}
 }
 
 func rects(l tiled.Layer) []sim.Rect {

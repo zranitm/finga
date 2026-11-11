@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 	"finga/pkg/panics"
@@ -145,7 +146,7 @@ func (o *Observer) Ticks() int {
 func LoadData(t *testing.T) *gamedata.Data {
 	t.Helper()
 	_, here, _, _ := runtime.Caller(0)
-	d, err := gamedata.Load(filepath.Join(filepath.Dir(here), "..", "..", "..", "data"))
+	d, err := load.Dir(filepath.Join(filepath.Dir(here), "..", "..", "..", "data"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +171,7 @@ func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.
 			t.Fatal(err)
 		}
 	}
-	d, err := gamedata.Load(dst)
+	d, err := load.Dir(dst)
 	if err != nil {
 		t.Fatal(err)
 	}

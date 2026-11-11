@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/model"
@@ -384,7 +385,7 @@ func TestStarterItemsAfterTheCommit(t *testing.T) {
 
 func loadData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	d, err := gamedata.Load("../../../../data")
+	d, err := load.Dir("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

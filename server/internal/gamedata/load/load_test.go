@@ -1,4 +1,4 @@
-package gamedata_test
+package load_test
 
 import (
 	"cmp"
@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/sim"
 )
@@ -278,7 +279,7 @@ func write(t *testing.T, files map[string]string) string {
 }
 
 func TestValidDataLoads(t *testing.T) {
-	d, err := gamedata.Load(write(t, fixture()))
+	d, err := load.Dir(write(t, fixture()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +491,7 @@ func TestValidDataLoads(t *testing.T) {
 }
 
 func TestTiledConversion(t *testing.T) {
-	d, err := gamedata.Load(write(t, fixture()))
+	d, err := load.Dir(write(t, fixture()))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -663,7 +664,7 @@ func TestRejections(t *testing.T) {
 			if files[tt.file] == before {
 				t.Fatalf("replacement %q not found in %s", tt.old, tt.file)
 			}
-			_, err := gamedata.Load(write(t, files))
+			_, err := load.Dir(write(t, files))
 			if err == nil {
 				t.Fatal("no error")
 			}
@@ -685,7 +686,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			{layer: "portals", name: "from_town", x: 80, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
 			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
 		})
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "from_town") || !strings.Contains(err.Error(), "field.tmj") {
 			t.Fatalf("err = %v", err)
 		}
@@ -696,7 +697,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
 			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
 		})
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "player_spawn") || !strings.Contains(err.Error(), "field.tmj") {
 			t.Fatalf("err = %v", err)
 		}
@@ -707,7 +708,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
 			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
 		})
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "town.tmj") || !strings.Contains(err.Error(), "village.tmj") || !strings.Contains(err.Error(), "start") {
 			t.Fatalf("err = %v", err)
 		}
@@ -715,7 +716,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	t.Run("a map file that isn't JSON", func(t *testing.T) {
 		files := fixture()
 		files["maps/field.tmj"] = "{not json"
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "field.tmj") {
 			t.Fatalf("err = %v", err)
 		}
@@ -723,7 +724,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	t.Run("a missing data file", func(t *testing.T) {
 		files := fixture()
 		delete(files, "mobs.yaml")
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "mobs.yaml") {
 			t.Fatalf("err = %v", err)
 		}
@@ -732,7 +733,7 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 		files := fixture()
 		delete(files, "maps/town.tmj")
 		delete(files, "maps/field.tmj")
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "maps") {
 			t.Fatalf("err = %v", err)
 		}
@@ -747,7 +748,7 @@ func TestEliteMobs(t *testing.T) {
 		files := fixture()
 		files["mobs.yaml"] = strings.TrimRight(files["mobs.yaml"], "\n") + king
 		files["maps/field.tmj"] = strings.Replace(files["maps/field.tmj"], slimes, slimes+kingSpawn, 1)
-		d, err := gamedata.Load(write(t, files))
+		d, err := load.Dir(write(t, files))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -761,7 +762,7 @@ func TestEliteMobs(t *testing.T) {
 	t.Run("an elite alone on its map", func(t *testing.T) {
 		files := fixture()
 		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "    level: 1\n", "    level: 1\n    elite: true\n", 1)
-		_, err := gamedata.Load(write(t, files))
+		_, err := load.Dir(write(t, files))
 		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "green_slime") || !strings.Contains(err.Error(), "normal") {
 			t.Fatalf("err = %v", err)
 		}
@@ -771,7 +772,7 @@ func TestEliteMobs(t *testing.T) {
 // realItems are the item IDs data/items.yaml lists.
 func realItems(t *testing.T) []string {
 	t.Helper()
-	raw, err := os.ReadFile("../../data/items.yaml")
+	raw, err := os.ReadFile("../../../data/items.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -827,7 +828,7 @@ func mobDamage(d *gamedata.Data, id string) gamedata.DamageType {
 
 // The real content is checked on every run, so a broken reference fails CI.
 func TestRealDataLoads(t *testing.T) {
-	d, err := gamedata.Load("../../data")
+	d, err := load.Dir("../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

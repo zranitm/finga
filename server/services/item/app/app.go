@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/idempotency/idempotencypg"
@@ -26,7 +26,7 @@ const outboxCountEvery = 15 * time.Second
 
 // Build wires the item service; it fails fast on bad game data or an unreachable database.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.DataDir)
+	data, err := load.Dir(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}

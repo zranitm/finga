@@ -18,6 +18,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/grpcx"
@@ -137,7 +138,7 @@ func newStack(t *testing.T) *stack { return newStackWearing(t, wears{}) }
 
 func newStackWearing(t *testing.T, eq wears) *stack {
 	t.Helper()
-	data, err := gamedata.Load(filepath.Join("..", "..", "..", "..", "data"))
+	data, err := load.Dir(filepath.Join("..", "..", "..", "..", "data"))
 	if err != nil {
 		t.Fatal(err)
 	}

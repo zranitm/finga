@@ -1,4 +1,4 @@
-package gamedata_test
+package load_test
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/sim"
 )
 
@@ -165,7 +166,7 @@ func speeds(d *gamedata.Data, m *gamedata.Map) []float64 {
 // On every map, at each speed it is played at, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area.
 // Each platform and block top is a step up from below, so none is reached only by a detour over it. A faster character jumps a little lower, and the test's jump is stepMargin lower still.
 func TestEveryPortalAndSpawnCanBeReached(t *testing.T) {
-	d, err := gamedata.Load("../../data")
+	d, err := load.Dir("../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

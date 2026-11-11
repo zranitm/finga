@@ -7,6 +7,7 @@ import (
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 )
@@ -208,7 +209,7 @@ func TestAddStats(t *testing.T) {
 
 func loadData(t *testing.T) *gamedata.Data {
 	t.Helper()
-	d, err := gamedata.Load("../../data")
+	d, err := load.Dir("../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

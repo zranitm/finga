@@ -14,7 +14,7 @@ import (
 	itemv1 "finga/api/gen/item/v1"
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/uuidv7"
@@ -39,7 +39,7 @@ func wholeSteps(hz int, dt float64) error {
 
 // Build wires the world service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.DataDir)
+	data, err := load.Dir(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}

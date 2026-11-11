@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/pkg/idempotency/idempotencypg/idempotencypgtest"
 	"finga/pkg/outbox/outboxpg/outboxpgtest"
 	"finga/pkg/pgtest"
@@ -252,7 +252,7 @@ func TestEquipmentIsBackfilledWithItsLowestRoll(t *testing.T) {
 	if err := pgtest.MigrationsBefore(migrations.FS, migrations.Table, rolls)(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	data, err := gamedata.Load("../../../data")
+	data, err := load.Dir("../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

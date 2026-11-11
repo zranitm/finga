@@ -8,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	socialv1 "finga/api/gen/social/v1"
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/internal/telemetry"
 	"finga/pkg/retention"
@@ -21,7 +21,7 @@ import (
 
 // Build wires the social service; parties live in memory, so a restart forgets them.
 func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.DataDir)
+	data, err := load.Dir(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}

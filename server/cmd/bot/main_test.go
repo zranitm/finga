@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 )
 
 func TestKillsAreTheBotsOwnKillingBlows(t *testing.T) {
@@ -80,7 +80,7 @@ func TestTheReportPrintsBucketBoundsAsTheyAre(t *testing.T) {
 }
 
 func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
-	data, err := gamedata.Load("../../data")
+	data, err := load.Dir("../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
