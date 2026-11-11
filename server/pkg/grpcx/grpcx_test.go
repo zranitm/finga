@@ -564,7 +564,7 @@ func TestIsTransient(t *testing.T) {
 		{"exhausted", status.Error(codes.ResourceExhausted, "too many"), true},
 		{"cancelled", status.Error(codes.Canceled, "shutting down"), true},
 		{"a local deadline", fmt.Errorf("save: %w", context.DeadlineExceeded), true},
-		{"a rule", grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Reason{Domain: "item", Name: "INVENTORY_FULL"}), false},
+		{"a rule", grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Reason{Domain: "item", Name: "EQUIP_TAB_FULL"}), false},
 		{"internal", status.Error(codes.Internal, "bug"), false},
 		{"not a status", errors.New("bad reply"), false},
 	}

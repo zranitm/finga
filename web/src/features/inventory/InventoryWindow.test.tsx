@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { itemName } from '@/features/shared/items';
 import { RequestError } from '@/net/socket';
+import { ERR } from '@/protocol/errors';
 import {
   InventoryChangedSchema,
   ResponseSchema,
@@ -18,6 +19,7 @@ import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { dataTransfer } from '@/testing/data-transfer';
+import { refusal } from '@/testing/refusal';
 import { withoutKeys } from '@/testing/requests';
 import type { SentRequest } from '@/testing/requests';
 import { resetStores } from '@/testing/reset-stores';
@@ -106,11 +108,11 @@ describe('InventoryWindow', () => {
     await waitFor(() => expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'false'));
   });
 
-  it('a refused Response clears the pending mark and shows the reason, the item never having moved', async () => {
-    setup([new RequestError('slot_taken', 'that slot is taken')]);
+  it('a refused Response clears the pending mark and shows its words, the item never having moved', async () => {
+    setup([refusal(ERR.SLOT_TAKEN)]);
     fireEvent.dragStart(cell('Wooden Sword x1'));
     fireEvent.drop(cell('Leather Cap x1'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('that slot is taken');
+    expect(await screen.findByRole('alert')).toHaveTextContent('That slot is taken.');
     expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'false');
     expect(screen.getAllByRole('gridcell')[0]).toHaveAccessibleName('Wooden Sword x1');
   });
@@ -138,10 +140,10 @@ describe('InventoryWindow', () => {
   });
 
   it('an equip the server refuses shows why', async () => {
-    setup([new RequestError('level_too_low', 'your level is too low for that item')]);
+    setup([refusal(ERR.LEVEL_TOO_LOW)]);
     await userEvent.dblClick(cell('Leather Cap x1'));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'your level is too low for that item',
+      'Your level is too low for that item.',
     );
   });
 

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import { ERR } from '@/protocol/errors';
 import {
   InventoryChangedSchema,
   NpcDialogSchema,
@@ -15,6 +16,7 @@ import {
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { quests } from '@/state/quests';
+import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 
 import { NpcWindow, unmetText } from './NpcWindow';
@@ -113,11 +115,11 @@ describe('NpcWindow', () => {
         gives: [{ questId: 'slime_cleanup', state: QuestOfferState.AVAILABLE }],
       }),
     );
-    const { socket } = fakeSocket([new RequestError('npc_out_of_reach', 'move closer')]);
+    const { socket } = fakeSocket([refusal(ERR.NPC_OUT_OF_REACH)]);
     const onClose = vi.fn();
     render(<NpcWindow socket={socket} onClose={onClose} />);
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('move closer');
+    expect(screen.getByRole('alert')).toHaveTextContent('Move closer.');
     expect(onClose).not.toHaveBeenCalled();
   });
 

@@ -20,9 +20,10 @@ docs/     the product design, the proof-session checklist
 ```
 
 The server is the reference for everything the two sides share: the client
-generates its game data from `server/data/`, copies the maps from there, and
-its tests check `server/testdata/` (the message golden files, the movement
-vectors, the error codes). The root `Makefile` drives all three parts.
+generates its game data from `server/data/` and its error codes from
+`server/testdata/errors/codes.json`, copies the maps from there, and its tests
+check `server/testdata/` (the message golden files, the movement vectors, the
+error codes). The root `Makefile` drives all three parts.
 
 ## Build and run
 
@@ -196,10 +197,14 @@ generated code committed in `server/api/gen/`:
   world, whose events arrive on one delivery stream per gateway; when the
   world restarts, every socket stays open and each player is joined again.
   Its adapters' `errmap` turns the reason a service's failure carries into
-  what a client sees: a code of its own (`party_full`) and the player
-  message, to which the REST handler adds an HTTP status; a failure it does
-  not know answers `internal` and is logged. In layers, its model has its
-  own views of what a player is shown, and its use cases (the REST API's
+  what a client sees: a six-digit code (440002, `PARTY_FULL`), to which the
+  REST handler adds an HTTP status and a message for developers; a failure it
+  does not know answers `INTERNAL` and is logged. A code's first two digits
+  are its area (10 requests, 11 accounts, 12 characters, 22 items, 33 the
+  world and quests, 44 parties and chat), and each area counts up in
+  `model/failures.go`; a code is never reused. The client words every code
+  itself, and one it doesn't know shows its number. In layers, its model has
+  its own views of what a player is shown, and its use cases (the REST API's
   Lobby, the connections' Gateway) know neither gRPC nor HTTP nor the
   socket, nor any client message. On
   SIGTERM the gateway turns unready, tells every connection to reconnect

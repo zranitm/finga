@@ -1,7 +1,6 @@
 // The token is read on every call, so a rotation after Hello is picked up at once.
 import { env } from '@/config/env';
-import { isErrorCode } from '@/protocol/errors';
-import type { ErrorCode } from '@/protocol/errors';
+import { errorText, noAnswerText, refusalCode } from '@/protocol/errors';
 
 import { clearToken, getToken, setToken } from './token';
 
@@ -52,7 +51,7 @@ export type FetchLike = (url: string, init: RequestInit) => Promise<HttpResponse
 export class RestError extends Error {
   constructor(
     readonly status: number,
-    readonly code: ErrorCode | 'network' | 'malformed',
+    readonly code: number | 'network' | 'malformed', // the server's refusal code, or why no readable answer came
     message: string,
   ) {
     super(message);
@@ -99,7 +98,10 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
         ...(body !== undefined && { body: JSON.stringify(body) }),
       });
     } catch (err) {
-      throw new RestError(0, 'network', err instanceof Error ? err.message : 'network failure');
+      console.info(
+        `finga: ${method} ${path} reached no server: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new RestError(0, 'network', noAnswerText.network);
     }
     if (res.status === 204) {
       return undefined as T;
@@ -108,10 +110,11 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
     try {
       parsed = await res.json();
     } catch {
-      throw new RestError(res.status, 'malformed', `${method} ${path}: the body is not JSON`);
+      console.info(`finga: ${method} ${path} answered ${res.status} with a body that is not JSON`);
+      throw new RestError(res.status, 'malformed', noAnswerText.malformed);
     }
     if (!res.ok) {
-      throw toRestError(res.status, parsed);
+      throw toRestError(`${method} ${path}`, res.status, parsed);
     }
     return parsed as T;
   }
@@ -153,12 +156,14 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
   };
 }
 
-function toRestError(status: number, body: unknown): RestError {
-  if (typeof body === 'object' && body !== null && 'code' in body && 'message' in body) {
-    const { code, message } = body;
-    if (typeof code === 'string' && typeof message === 'string') {
-      return new RestError(status, isErrorCode(code) ? code : 'internal', message);
+function toRestError(call: string, status: number, body: unknown): RestError {
+  if (typeof body === 'object' && body !== null && 'code' in body) {
+    const { code } = body;
+    if (typeof code === 'number') {
+      const refused = refusalCode(code);
+      return new RestError(status, refused, errorText(refused));
     }
   }
-  return new RestError(status, 'malformed', `HTTP ${status} without an error body`);
+  console.info(`finga: ${call} answered ${status} without an error body`);
+  return new RestError(status, 'malformed', noAnswerText.malformed);
 }

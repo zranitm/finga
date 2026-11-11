@@ -43,7 +43,7 @@ func newStackOver(t *testing.T, wrap func(handler.Parties) handler.Parties) *sta
 	t.Helper()
 	streams := handler.NewStreams("boot-1")
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	srv := handler.New(wrap(parties), application.NewChatService(application.ChatDeps{Parties: parties}), streams)
+	srv := handler.New(wrap(parties), application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -349,7 +349,7 @@ func TestWatchPartiesSendsASnapshotLargerThanItsQueue(t *testing.T) {
 	const many = 5000 // the queue holds 4096
 	streams := handler.NewStreams("boot-1")
 	parties := application.NewPartyService(application.PartyDeps{Store: repository.NewMemory(), Notifier: streams})
-	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(application.ChatDeps{Parties: parties}), streams)
+	srv := handler.New(manyParties{Parties: parties, n: many}, application.NewChatService(application.ChatDeps{Parties: parties, LineMax: 120}), streams)
 	g := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
 	socialv1.RegisterSocialServiceServer(g, srv)
 	ctx := t.Context()

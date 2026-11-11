@@ -1,4 +1,5 @@
 # Task quests. Conditions: the least level, a class, and quests finished first. Objectives are {kill: mob, count}, {collect: item, count} (taken at hand-in), {talk: npc} or {level: n}. Rewards: exp and items; equipment comes one per line, since each copy rolls its own stats.
+max_active: 20 # quests a character has active at once
 quests:
   - id: slime_cleanup
     name: Slime Cleanup

@@ -24,9 +24,10 @@ const (
 type Reason int32
 
 const (
-	Reason_REASON_UNSPECIFIED       Reason = 0
-	Reason_REASON_NOT_PARTY_LEADER  Reason = 1
-	Reason_REASON_PARTY_FULL        Reason = 2
+	Reason_REASON_UNSPECIFIED      Reason = 0
+	Reason_REASON_NOT_PARTY_LEADER Reason = 1
+	Reason_REASON_PARTY_FULL       Reason = 2
+	// Accepting an invite while in a party.
 	Reason_REASON_ALREADY_IN_PARTY  Reason = 3
 	Reason_REASON_NO_PARTY          Reason = 4
 	Reason_REASON_NOT_PARTY_MEMBER  Reason = 5
@@ -44,6 +45,8 @@ const (
 	// Deprecated: Marked as deprecated in internal/social/v1/social.proto.
 	Reason_REASON_PARTY_CHAT_UNAVAILABLE Reason = 15
 	Reason_REASON_BAD_ID                 Reason = 16
+	// Inviting a character who is already in a party.
+	Reason_REASON_TARGET_IN_PARTY Reason = 17
 )
 
 // Enum value maps for Reason.
@@ -66,6 +69,7 @@ var (
 		14: "REASON_CHAT_RATE_LIMITED",
 		15: "REASON_PARTY_CHAT_UNAVAILABLE",
 		16: "REASON_BAD_ID",
+		17: "REASON_TARGET_IN_PARTY",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":            0,
@@ -85,6 +89,7 @@ var (
 		"REASON_CHAT_RATE_LIMITED":      14,
 		"REASON_PARTY_CHAT_UNAVAILABLE": 15,
 		"REASON_BAD_ID":                 16,
+		"REASON_TARGET_IN_PARTY":        17,
 	}
 )
 
@@ -1954,7 +1959,7 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\x05level\x18\x03 \x01(\x05R\x05level\x12\x0e\n" +
 	"\x02hp\x18\x04 \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\"\x16\n" +
-	"\x14UpdateMemberResponse*\xd0\x03\n" +
+	"\x14UpdateMemberResponse*\xec\x03\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17REASON_NOT_PARTY_LEADER\x10\x01\x12\x15\n" +
@@ -1973,7 +1978,8 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\x14REASON_CHAT_NO_PARTY\x10\r\x12\x1c\n" +
 	"\x18REASON_CHAT_RATE_LIMITED\x10\x0e\x12%\n" +
 	"\x1dREASON_PARTY_CHAT_UNAVAILABLE\x10\x0f\x1a\x02\b\x01\x12\x11\n" +
-	"\rREASON_BAD_ID\x10\x10*Y\n" +
+	"\rREASON_BAD_ID\x10\x10\x12\x1a\n" +
+	"\x16REASON_TARGET_IN_PARTY\x10\x11*Y\n" +
 	"\vChatChannel\x12\x1c\n" +
 	"\x18CHAT_CHANNEL_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CHAT_CHANNEL_MAP\x10\x01\x12\x16\n" +

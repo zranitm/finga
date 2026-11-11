@@ -112,7 +112,7 @@ message PickUp {}
 // EnterPortal uses the portal the character stands in.
 message EnterPortal {}
 
-// ChatSend is a chat line, up to 120 characters.
+// ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 message ChatSend {
   ChatChannel channel = 1;
   string text = 2;
@@ -539,10 +539,13 @@ message PartyInvited {
 
 // Response answers a command that carried a req, or reports a refused one without.
 message Response {
+  // 2 was the code as text and 3 a message for the player; the client words the code itself.
+  reserved 2, 3;
+  reserved "message";
+
   bool ok = 1;
-  // An error code from server/testdata/errors/codes.json; empty when ok.
-  string code = 2;
-  string message = 3;
+  // A six-digit code from server/testdata/errors/codes.json, which says exactly what happened; 0 when ok.
+  int32 code = 4;
 }
 
 // Kicked precedes a server-side close.

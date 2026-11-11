@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRestClient } from '@/net/rest';
 import type { FetchLike } from '@/net/rest';
 import { clearToken, getToken, setToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { Script } from '@/testing/fake-fetch';
 import { resetStores } from '@/testing/reset-stores';
@@ -77,12 +78,12 @@ describe('CharactersScreen', () => {
     expect(ff.of('POST', '/api/characters')).toHaveLength(0);
   });
 
-  it('creates a character with the chosen class and shows a 409 as the server says it', async () => {
+  it('creates a character with the chosen class and shows a 409 in the client’s words', async () => {
     const { ff } = setup(({ method, path, body }) => {
       if (method === 'POST' && path === '/api/characters') {
         const b = body as { name: string; class: string };
         return b.name === 'Ayla'
-          ? { status: 409, body: { code: 'name_taken', message: 'that name is taken' } }
+          ? { status: 409, body: { code: ERR.NAME_TAKEN, message: 'that name is taken' } }
           : {
               status: 201,
               body: { ...sampleCharacter, id: 'c-robin', name: b.name, class: b.class },
@@ -93,7 +94,7 @@ describe('CharactersScreen', () => {
     await screen.findByRole('form', { name: 'Create a character' });
     await userEvent.type(screen.getByLabelText('Name'), 'Ayla');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('that name is taken');
+    expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.');
     await userEvent.clear(screen.getByLabelText('Name'));
     await userEvent.type(screen.getByLabelText('Name'), 'Robin');
     await userEvent.click(screen.getByLabelText('Bowman'));
@@ -119,7 +120,7 @@ describe('CharactersScreen', () => {
         ? {
             status: 409,
             body: {
-              code: 'character_slots_full',
+              code: ERR.CHARACTER_SLOTS_FULL,
               message: 'this account already has the most characters allowed',
             },
           }
@@ -128,7 +129,9 @@ describe('CharactersScreen', () => {
     await screen.findByText('Ayla, level 1 warrior');
     await userEvent.type(screen.getByLabelText('Name'), 'Robin');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent(/most characters allowed/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This account already has the most characters allowed.',
+    );
   });
 
   it('log out calls DELETE /api/sessions/current, clears the token, and leaves', async () => {
@@ -156,12 +159,12 @@ describe('CharactersScreen', () => {
   it('a failed log out everywhere stays, says why, and keeps the session', async () => {
     const { onLoggedOut } = setup(({ method }) =>
       method === 'DELETE'
-        ? { status: 503, body: { code: 'unavailable', message: 'the account service is down' } }
+        ? { status: 503, body: { code: ERR.UNAVAILABLE, message: 'the account service is down' } }
         : list([]),
     );
     await screen.findByRole('form', { name: 'Create a character' });
     await userEvent.click(screen.getByRole('button', { name: 'Log out everywhere' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('the account service is down');
+    expect(await screen.findByRole('alert')).toHaveTextContent('The server is busy. Try again.');
     expect(onLoggedOut).not.toHaveBeenCalled();
     expect(getToken()).toBe('tok-1');
   });
@@ -198,7 +201,7 @@ describe('CharactersScreen', () => {
   it('a failed log out everywhere can be tried again', async () => {
     const { ff } = setup(({ method }) =>
       method === 'DELETE'
-        ? { status: 503, body: { code: 'unavailable', message: 'down' } }
+        ? { status: 503, body: { code: ERR.UNAVAILABLE, message: 'down' } }
         : list([]),
     );
     await screen.findByRole('form', { name: 'Create a character' });
@@ -213,10 +216,12 @@ describe('CharactersScreen', () => {
   it('opens settings, and shows a failure to load', async () => {
     const { onSettings } = setup(({ method }) =>
       method === 'GET'
-        ? { status: 500, body: { code: 'internal', message: 'database unavailable' } }
+        ? { status: 500, body: { code: ERR.INTERNAL, message: 'database unavailable' } }
         : list([]),
     );
-    expect(await screen.findByRole('alert')).toHaveTextContent('database unavailable');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Something went wrong on the server. Try again.',
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onSettings).toHaveBeenCalledTimes(1);
   });

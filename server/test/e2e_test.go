@@ -97,7 +97,7 @@ func newStackOver(t *testing.T, data string) *stack {
 			Dependencies: characterconfig.Dependencies{Item: item.addr}}
 	}, characterapp.Build)
 	social := runService(t, func(at listen) socialconfig.Config {
-		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
+		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, socialapp.Build)
 	world := runService(t, func(at listen) worldconfig.Config {
 		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data,
@@ -287,7 +287,7 @@ func TestAcceptance(t *testing.T) {
 		}
 		r := s.call("POST", "/api/sessions", "", map[string]string{"username": "bob", "password": "correct horse"})
 		s.mustStatus(r, http.StatusTooManyRequests)
-		if r.body["code"] != "login_rate_limited" {
+		if r.body["code"] != float64(code("LOGIN_RATE_LIMITED")) {
 			t.Fatalf("body %v", r.body)
 		}
 	})

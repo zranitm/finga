@@ -115,11 +115,11 @@ func TestPlayTogether(t *testing.T) {
 				}
 			}
 		}
-		// A member cannot invite, and a full party's leader cannot invite anyone: party_full answers first.
-		if r := ben.command(t, "inv-x", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != "not_party_leader" {
+		// A member cannot invite, and a full party's leader cannot invite anyone: PARTY_FULL answers first.
+		if r := ben.command(t, "inv-x", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != code("NOT_PARTY_LEADER") {
 			t.Fatalf("member invites: %+v", r)
 		}
-		if r := ann.command(t, "inv-y", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != "party_full" {
+		if r := ann.command(t, "inv-y", &clientv1.PartyInvite{CharacterId: cat.id}); r.GetOk() || r.Code != code("PARTY_FULL") {
 			t.Fatalf("inviting from a full party: %+v", r)
 		}
 	})
@@ -133,12 +133,12 @@ func TestPlayTogether(t *testing.T) {
 			}
 		}
 		ann.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, strings.Repeat("x", 121))
-		if r := ann.response(t); r.GetOk() || r.Code != "chat_too_long" {
+		if r := ann.response(t); r.GetOk() || r.Code != code("CHAT_TOO_LONG") {
 			t.Fatalf("121 characters: %+v", r)
 		}
 		for _, channel := range []clientv1.ChatChannel{clientv1.ChatChannel_CHAT_CHANNEL_UNSPECIFIED, 7} {
 			ann.say(t, channel, "which channel?")
-			if r := ann.response(t); r.GetOk() || r.Code != "bad_chat_channel" {
+			if r := ann.response(t); r.GetOk() || r.Code != code("BAD_CHAT_CHANNEL") {
 				t.Fatalf("channel %v: %+v", channel, r)
 			}
 		}
@@ -146,7 +146,7 @@ func TestPlayTogether(t *testing.T) {
 			ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "spam "+string(rune('a'+k)))
 		}
 		ben.say(t, clientv1.ChatChannel_CHAT_CHANNEL_MAP, "spam d")
-		if r := ben.response(t); r.GetOk() || r.Code != "chat_rate_limited" {
+		if r := ben.response(t); r.GetOk() || r.Code != code("CHAT_RATE_LIMITED") {
 			t.Fatalf("fourth line: %+v", r)
 		}
 		ann.hears(t, "spam c")
@@ -222,7 +222,7 @@ func TestPlayTogether(t *testing.T) {
 		for _, l := range []*looter{ann, cat, dan} {
 			l.partyState(t, 3)
 		}
-		if r := cat.command(t, "kick", &clientv1.PartyKick{CharacterId: dan.id}); r.GetOk() || r.Code != "not_party_leader" {
+		if r := cat.command(t, "kick", &clientv1.PartyKick{CharacterId: dan.id}); r.GetOk() || r.Code != code("NOT_PARTY_LEADER") {
 			t.Fatalf("a member kicks: %+v", r)
 		}
 		if r := ann.command(t, "leave", &clientv1.PartyLeave{}); !r.GetOk() {

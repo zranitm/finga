@@ -126,7 +126,7 @@ func samples() []wsconn.Message {
 			Change: clientv1.QuestChange_QUEST_CHANGE_PROGRESSED,
 			Quest:  &clientv1.QuestState{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{5}},
 		}},
-		{Type: "Response", ReqID: "r-6", Data: &clientv1.Response{Code: "inventory_full", Message: "your inventory is full"}},
+		{Type: "Response", ReqID: "r-6", Data: &clientv1.Response{Code: 220005}},
 		{Type: "Kicked", Data: &clientv1.Kicked{Reason: clientv1.KickReason_KICK_REASON_LOGGED_IN_ELSEWHERE}},
 		{Type: "Pong", Data: &clientv1.Pong{ClientTime: 1761000000000, ServerTime: 1761000000050}},
 	}

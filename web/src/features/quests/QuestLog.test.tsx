@@ -3,11 +3,12 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { RequestError } from '@/net/socket';
+import { ERR } from '@/protocol/errors';
 import { QuestChangedSchema, QuestStatus, WelcomeSchema } from '@/protocol/messages';
 import { character } from '@/state/character';
 import { inventory } from '@/state/inventory';
 import { quests } from '@/state/quests';
+import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 
 import { QuestLog } from './QuestLog';
@@ -95,11 +96,11 @@ describe('QuestLog', () => {
 
   it('a refused abandon says why', async () => {
     enter([{ questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [2] }]);
-    const { socket } = fakeSocket([new RequestError('unavailable', 'try again in a moment')]);
+    const { socket } = fakeSocket([refusal(ERR.UNAVAILABLE)]);
     render(<QuestLog socket={socket} onClose={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Abandon' }));
     await userEvent.click(screen.getAllByRole('button', { name: 'Abandon' }).at(-1)!);
-    expect(screen.getByRole('alert')).toHaveTextContent('try again in a moment');
+    expect(screen.getByRole('alert')).toHaveTextContent('The server is busy. Try again.');
   });
 
   it('with nothing under way it says where quests come from, and counts the finished ones', () => {

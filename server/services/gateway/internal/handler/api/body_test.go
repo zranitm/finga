@@ -17,6 +17,7 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/services/gateway/internal/handler/api"
+	"finga/services/gateway/internal/model"
 )
 
 // pipeListener hands the server one end of each net.Pipe, so a real http.Server runs in a synctest bubble.
@@ -80,8 +81,8 @@ func TestABodyThatStallsTimesOut(t *testing.T) {
 		if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 			t.Fatal(err)
 		}
-		if res.StatusCode != http.StatusRequestTimeout || body.Code != "body_timeout" {
-			t.Fatalf("status %d code %q, want 408 body_timeout", res.StatusCode, body.Code)
+		if res.StatusCode != http.StatusRequestTimeout || body.Code != model.BodyTimeout.Code {
+			t.Fatalf("status %d code %d, want 408 %s", res.StatusCode, body.Code, model.BodyTimeout.Name)
 		}
 		if waited := time.Since(start); waited != 10*time.Second {
 			t.Errorf("answered after %v, want 10s", waited)

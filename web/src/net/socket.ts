@@ -6,8 +6,7 @@ import type { BackoffOptions } from '@/lib/backoff';
 import { requestId } from '@/lib/id';
 import { binaryCodec, ProtocolError } from '@/protocol/codec';
 import type { Codec, ServerFrame } from '@/protocol/codec';
-import { isErrorCode } from '@/protocol/errors';
-import type { ErrorCode } from '@/protocol/errors';
+import { errorText, noAnswerText, refusalCode } from '@/protocol/errors';
 import { ClientMessageSchema, KickReason } from '@/protocol/messages';
 import type {
   ClientBodyInit,
@@ -49,7 +48,7 @@ export interface StatusEvent {
 
 export class RequestError extends Error {
   constructor(
-    readonly code: ErrorCode | 'timeout' | 'disconnected',
+    readonly code: number | 'timeout' | 'disconnected', // the server's refusal code, or why no answer came
     message: string,
   ) {
     super(message);
@@ -265,9 +264,8 @@ export class GameSocket {
         resent: false,
         timer: setTimeout(() => {
           this.pending.delete(req);
-          reject(
-            new RequestError('timeout', `${t}: no response within ${this.requestTimeoutMs} ms`),
-          );
+          console.info(`finga: ${t} got no response within ${this.requestTimeoutMs} ms`);
+          reject(new RequestError('timeout', noAnswerText.timeout));
         }, this.requestTimeoutMs),
       };
       this.pending.set(req, pending);
@@ -422,7 +420,8 @@ export class GameSocket {
       this.pending.delete(req);
       if (p.resent) {
         clearTimeout(p.timer);
-        p.reject(new RequestError('disconnected', `${p.t}: the connection dropped twice`));
+        console.info(`finga: ${p.t} lost its answer: the connection dropped twice`);
+        p.reject(new RequestError('disconnected', noAnswerText.disconnected));
         continue;
       }
       p.resent = true;
@@ -435,7 +434,8 @@ export class GameSocket {
   private failPending(code: 'disconnected', why: string): void {
     for (const [req, p] of this.pending) {
       clearTimeout(p.timer);
-      p.reject(new RequestError(code, `${p.t}: ${why}`));
+      console.info(`finga: ${p.t} lost its answer: ${why}`);
+      p.reject(new RequestError(code, noAnswerText[code]));
       this.pending.delete(req);
     }
   }
@@ -467,9 +467,8 @@ export class GameSocket {
           if (r.ok) {
             p.resolve(r);
           } else {
-            p.reject(
-              new RequestError(isErrorCode(r.code) ? r.code : 'internal', r.message || 'refused'),
-            );
+            const code = refusalCode(r.code);
+            p.reject(new RequestError(code, errorText(code)));
           }
         } else {
           for (const h of this.unmatchedHandlers) {

@@ -14,7 +14,7 @@ import (
 	"finga/services/gateway/internal/application/session"
 )
 
-// A protocol message without a route fails here rather than answering not_implemented in a game.
+// A protocol message without a route fails here rather than answering NOT_IMPLEMENTED in a game.
 func TestEveryClientMessageHasARoute(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	reg := session.NewRegistry(session.Deps{Logger: log, Traces: noop.NewTracerProvider()}, session.Options{})

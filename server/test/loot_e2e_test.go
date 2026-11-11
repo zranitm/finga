@@ -700,7 +700,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("replayed move at revision %d, want the 2 it took", ic.Revision)
 		}
 		p.send(wsconn.Message{ReqID: "m-3", Data: &clientv1.InventoryMove{IdempotencyKey: keys["move-3"], ItemId: potions.GetItemId(), Tab: "etc", Slot: 1}})
-		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "wrong_tab" {
+		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != code("WRONG_TAB") {
 			t.Fatalf("cross-tab move %+v", r)
 		}
 		p.send(wsconn.Message{ReqID: "d-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: keys["discard-1"], ItemId: potions.GetItemId(), Quantity: 2}})
@@ -712,7 +712,7 @@ func TestLootAndKeep(t *testing.T) {
 			t.Fatalf("after discard %+v, want revision 3", ic)
 		}
 		p.send(wsconn.Message{ReqID: "d-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: keys["discard-2"], ItemId: potions.GetItemId(), Quantity: 9}})
-		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_quantity" {
+		if r := p.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != code("BAD_QUANTITY") {
 			t.Fatalf("over-discard %+v", r)
 		}
 		if rows, quantity, _ := s.itemTotals(t, id, "red_potion"); rows != 1 || quantity != 3 {

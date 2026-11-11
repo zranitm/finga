@@ -9,6 +9,7 @@ import type { WorldData } from '@/game/scenes/world';
 import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import { KickReason } from '@/protocol/messages';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
@@ -67,7 +68,7 @@ describe('App', () => {
       if (path === '/api/characters' && method === 'GET')
         return { status: 200, body: { characters: [sampleCharacter] } };
       if (path === '/api/sessions/current') return { status: 204 };
-      return { status: 404, body: { code: 'no_such_endpoint', message: 'nope' } };
+      return { status: 404, body: { code: ERR.NO_SUCH_ENDPOINT, message: 'nope' } };
     });
     render(<App services={svc} />);
     expect(FakeGame.live()).toHaveLength(1); // the canvas is there behind the login screen
@@ -136,6 +137,24 @@ describe('App', () => {
     expect(await screen.findByRole('form', { name: 'Log in' })).toBeInTheDocument();
     expect(game.stopped).toEqual([SCENES.World]);
     expect(screen.getByText(/logged in somewhere else/i)).toBeInTheDocument();
+  });
+
+  it('a connection that closes before Welcome says the world could not be entered, in the client’s words', async () => {
+    const { services: svc } = services(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      return { status: 200, body: { characters: [sampleCharacter] } };
+    });
+    render(<App services={svc} />);
+    await userEvent.type(screen.getByLabelText('Username'), 'alice');
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.closeFromServer(1006);
+    const dialog = await screen.findByRole('dialog', { name: 'Could not enter the world' });
+    expect(dialog).toHaveTextContent('Try again in a moment.');
+    expect(dialog).not.toHaveTextContent(/Welcome|1006/);
   });
 
   it('opens settings from the characters screen', async () => {

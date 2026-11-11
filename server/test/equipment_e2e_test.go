@@ -142,8 +142,8 @@ func TestEquipment(t *testing.T) {
 			t.Fatalf("stats after the swap %+v; want more than the %v attack power the starter sword gave", sc, before)
 		}
 
-		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != "inventory_full" || r.GetMessage() == "" {
-			t.Fatalf("an unequip into the full tab answered %+v, want inventory_full and why", r)
+		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != code("EQUIP_TAB_FULL") {
+			t.Fatalf("an unequip into the full tab answered %+v, want EQUIP_TAB_FULL", r)
 		}
 
 		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
@@ -196,16 +196,16 @@ func TestEquipment(t *testing.T) {
 			msg  proto.Message
 			code string
 		}{
-			{&clientv1.Equip{IdempotencyKey: key(), ItemId: bow}, "wrong_class"},
-			{&clientv1.Equip{IdempotencyKey: key(), ItemId: iron}, "level_too_low"},
-			{&clientv1.Equip{IdempotencyKey: key(), ItemId: potion}, "not_equipment"},
-			{&clientv1.Equip{IdempotencyKey: key(), ItemId: leatherCap, EquipSlot: "weapon"}, "wrong_equip_slot"},
-			{&clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "hat"}, "nothing_worn"},
-			{&clientv1.InventoryMove{IdempotencyKey: key(), ItemId: sword, Tab: "equip", Slot: 9}, "item_worn"},
+			{&clientv1.Equip{IdempotencyKey: key(), ItemId: bow}, "WRONG_CLASS"},
+			{&clientv1.Equip{IdempotencyKey: key(), ItemId: iron}, "LEVEL_TOO_LOW"},
+			{&clientv1.Equip{IdempotencyKey: key(), ItemId: potion}, "NOT_EQUIPMENT"},
+			{&clientv1.Equip{IdempotencyKey: key(), ItemId: leatherCap, EquipSlot: "weapon"}, "WRONG_EQUIP_SLOT"},
+			{&clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "hat"}, "NOTHING_WORN"},
+			{&clientv1.InventoryMove{IdempotencyKey: key(), ItemId: sword, Tab: "equip", Slot: 9}, "ITEM_WORN"},
 		} {
 			time.Sleep(250 * time.Millisecond) // under the inventory limit of 5 a second
-			if r := l.command(t, fmt.Sprintf("r-%d", k), tt.msg); r.GetOk() || r.GetCode() != tt.code || r.GetMessage() == "" {
-				t.Fatalf("%T answered %+v, want %s and why", tt.msg, r, tt.code)
+			if r := l.command(t, fmt.Sprintf("r-%d", k), tt.msg); r.GetOk() || r.GetCode() != code(tt.code) {
+				t.Fatalf("%T answered %+v, want %s", tt.msg, r, tt.code)
 			}
 		}
 		l.pump(500*time.Millisecond, nil)
@@ -257,8 +257,8 @@ func TestEquipment(t *testing.T) {
 		sword := w.Equipment[0].GetItem().GetItemId()
 		l.dieAmongSlimes(t)
 		// Respawn waits three seconds; the unequip arrives well within them.
-		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != "character_dead" || r.GetMessage() == "" {
-			t.Fatalf("an unequip while dead answered %+v, want character_dead and why", r)
+		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != code("CHARACTER_DEAD") {
+			t.Fatalf("an unequip while dead answered %+v, want CHARACTER_DEAD", r)
 		}
 		if r := l.expect("Respawned").Data.(*clientv1.Respawned); r.GetHp() != w.GetCharacter().GetMaxHp()/2 {
 			t.Fatalf("respawned with %d HP, want half the %d maximum with equipment", r.GetHp(), w.GetCharacter().GetMaxHp())
@@ -317,8 +317,8 @@ func TestEquipment(t *testing.T) {
 		}
 		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 18}) // needs STR 20
 		l, _ := s.hello(t, token, id)
-		if r := l.command(t, "e-1", &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}); r.GetOk() || r.GetCode() != "stats_too_low" {
-			t.Fatalf("equipping with STR 7 answered %+v, want stats_too_low", r)
+		if r := l.command(t, "e-1", &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}); r.GetOk() || r.GetCode() != code("STR_TOO_LOW") {
+			t.Fatalf("equipping with STR 7 answered %+v, want STR_TOO_LOW", r)
 		}
 		l.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 35, Points: &clientv1.Stats{Str: 13}}})
 		if r := l.gather("Response", "StatsChanged")["Response"]; !r.Data.(*clientv1.Response).GetOk() {

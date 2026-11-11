@@ -14,6 +14,7 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNotLeader, Code: codes.FailedPrecondition, Reason: socialv1.Reason_REASON_NOT_PARTY_LEADER},
 	{Err: model.ErrFull, Code: codes.FailedPrecondition, Reason: socialv1.Reason_REASON_PARTY_FULL},
 	{Err: model.ErrInParty, Code: codes.FailedPrecondition, Reason: socialv1.Reason_REASON_ALREADY_IN_PARTY},
+	{Err: model.ErrTargetInParty, Code: codes.FailedPrecondition, Reason: socialv1.Reason_REASON_TARGET_IN_PARTY},
 	{Err: model.ErrNoParty, Code: codes.NotFound, Reason: socialv1.Reason_REASON_NO_PARTY},
 	{Err: model.ErrNotMember, Code: codes.NotFound, Reason: socialv1.Reason_REASON_NOT_PARTY_MEMBER},
 	{Err: model.ErrNotHere, Code: codes.NotFound, Reason: socialv1.Reason_REASON_TARGET_NOT_ON_MAP},

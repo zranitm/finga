@@ -29,7 +29,6 @@ const (
 	Reason_REASON_ITEM_NOT_FOUND         Reason = 1
 	Reason_REASON_SLOT_TAKEN             Reason = 2
 	Reason_REASON_SLOT_HOLDS_OTHER_ITEM  Reason = 3
-	Reason_REASON_INVENTORY_FULL         Reason = 4
 	Reason_REASON_IDEMPOTENCY_KEY_REUSED Reason = 5
 	Reason_REASON_BAD_QUANTITY           Reason = 6
 	Reason_REASON_BAD_SLOT               Reason = 7
@@ -55,10 +54,18 @@ const (
 	Reason_REASON_NOTHING_WORN     Reason = 21
 	// An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes.
 	Reason_REASON_BAD_BATCH_SIZE Reason = 22
-	// An equip whose item requires more of a primary stat than the character's own stats, without gear, have.
-	Reason_REASON_STATS_TOO_LOW Reason = 23
 	// A hand-in asking for more of an item than the inventory's stacks hold; worn items never count.
 	Reason_REASON_NOT_ENOUGH_ITEMS Reason = 24
+	// No free slot in the tab an added or unequipped item goes to: an add, a hand-in's reward, or an unequip.
+	Reason_REASON_EQUIP_TAB_FULL Reason = 25
+	Reason_REASON_USE_TAB_FULL   Reason = 26
+	Reason_REASON_ETC_TAB_FULL   Reason = 27
+	// An equip whose item requires more of this primary stat than the character's own stats, without gear, have; the first short in STR, DEX, INT, AGI, VIT order.
+	Reason_REASON_STR_TOO_LOW Reason = 28
+	Reason_REASON_DEX_TOO_LOW Reason = 29
+	Reason_REASON_INT_TOO_LOW Reason = 30
+	Reason_REASON_AGI_TOO_LOW Reason = 31
+	Reason_REASON_VIT_TOO_LOW Reason = 32
 )
 
 // Enum value maps for Reason.
@@ -68,7 +75,6 @@ var (
 		1:  "REASON_ITEM_NOT_FOUND",
 		2:  "REASON_SLOT_TAKEN",
 		3:  "REASON_SLOT_HOLDS_OTHER_ITEM",
-		4:  "REASON_INVENTORY_FULL",
 		5:  "REASON_IDEMPOTENCY_KEY_REUSED",
 		6:  "REASON_BAD_QUANTITY",
 		7:  "REASON_BAD_SLOT",
@@ -87,15 +93,21 @@ var (
 		20: "REASON_NOT_EQUIPMENT",
 		21: "REASON_NOTHING_WORN",
 		22: "REASON_BAD_BATCH_SIZE",
-		23: "REASON_STATS_TOO_LOW",
 		24: "REASON_NOT_ENOUGH_ITEMS",
+		25: "REASON_EQUIP_TAB_FULL",
+		26: "REASON_USE_TAB_FULL",
+		27: "REASON_ETC_TAB_FULL",
+		28: "REASON_STR_TOO_LOW",
+		29: "REASON_DEX_TOO_LOW",
+		30: "REASON_INT_TOO_LOW",
+		31: "REASON_AGI_TOO_LOW",
+		32: "REASON_VIT_TOO_LOW",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":            0,
 		"REASON_ITEM_NOT_FOUND":         1,
 		"REASON_SLOT_TAKEN":             2,
 		"REASON_SLOT_HOLDS_OTHER_ITEM":  3,
-		"REASON_INVENTORY_FULL":         4,
 		"REASON_IDEMPOTENCY_KEY_REUSED": 5,
 		"REASON_BAD_QUANTITY":           6,
 		"REASON_BAD_SLOT":               7,
@@ -114,8 +126,15 @@ var (
 		"REASON_NOT_EQUIPMENT":          20,
 		"REASON_NOTHING_WORN":           21,
 		"REASON_BAD_BATCH_SIZE":         22,
-		"REASON_STATS_TOO_LOW":          23,
 		"REASON_NOT_ENOUGH_ITEMS":       24,
+		"REASON_EQUIP_TAB_FULL":         25,
+		"REASON_USE_TAB_FULL":           26,
+		"REASON_ETC_TAB_FULL":           27,
+		"REASON_STR_TOO_LOW":            28,
+		"REASON_DEX_TOO_LOW":            29,
+		"REASON_INT_TOO_LOW":            30,
+		"REASON_AGI_TOO_LOW":            31,
+		"REASON_VIT_TOO_LOW":            32,
 	}
 )
 
@@ -2669,13 +2688,12 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"completion\x18\x02 \x01(\x05R\n" +
 	"completion\x120\n" +
 	"\achanged\x18\x03 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
-	"\brevision\x18\x04 \x01(\x04R\brevision*\x88\x05\n" +
+	"\brevision\x18\x04 \x01(\x04R\brevision*\xd1\x06\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +
 	"\x11REASON_SLOT_TAKEN\x10\x02\x12 \n" +
-	"\x1cREASON_SLOT_HOLDS_OTHER_ITEM\x10\x03\x12\x19\n" +
-	"\x15REASON_INVENTORY_FULL\x10\x04\x12!\n" +
+	"\x1cREASON_SLOT_HOLDS_OTHER_ITEM\x10\x03\x12!\n" +
 	"\x1dREASON_IDEMPOTENCY_KEY_REUSED\x10\x05\x12\x17\n" +
 	"\x13REASON_BAD_QUANTITY\x10\x06\x12\x13\n" +
 	"\x0fREASON_BAD_SLOT\x10\a\x12\x14\n" +
@@ -2694,9 +2712,16 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x17REASON_WRONG_EQUIP_SLOT\x10\x13\x12\x18\n" +
 	"\x14REASON_NOT_EQUIPMENT\x10\x14\x12\x17\n" +
 	"\x13REASON_NOTHING_WORN\x10\x15\x12\x19\n" +
-	"\x15REASON_BAD_BATCH_SIZE\x10\x16\x12\x18\n" +
-	"\x14REASON_STATS_TOO_LOW\x10\x17\x12\x1b\n" +
-	"\x17REASON_NOT_ENOUGH_ITEMS\x10\x18*_\n" +
+	"\x15REASON_BAD_BATCH_SIZE\x10\x16\x12\x1b\n" +
+	"\x17REASON_NOT_ENOUGH_ITEMS\x10\x18\x12\x19\n" +
+	"\x15REASON_EQUIP_TAB_FULL\x10\x19\x12\x17\n" +
+	"\x13REASON_USE_TAB_FULL\x10\x1a\x12\x17\n" +
+	"\x13REASON_ETC_TAB_FULL\x10\x1b\x12\x16\n" +
+	"\x12REASON_STR_TOO_LOW\x10\x1c\x12\x16\n" +
+	"\x12REASON_DEX_TOO_LOW\x10\x1d\x12\x16\n" +
+	"\x12REASON_INT_TOO_LOW\x10\x1e\x12\x16\n" +
+	"\x12REASON_AGI_TOO_LOW\x10\x1f\x12\x16\n" +
+	"\x12REASON_VIT_TOO_LOW\x10 \"\x04\b\x04\x10\x04\"\x04\b\x17\x10\x17*\x15REASON_INVENTORY_FULL*\x14REASON_STATS_TOO_LOW*_\n" +
 	"\x05Grant\x12\x15\n" +
 	"\x11GRANT_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rGRANT_GRANTED\x10\x01\x12\x19\n" +

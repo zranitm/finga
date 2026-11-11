@@ -3,6 +3,7 @@ package clients_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -140,14 +141,16 @@ func TestLootReadsEachDropsAnswer(t *testing.T) {
 		Outcomes: []*itemv1.DropOutcome{
 			{Grant: itemv1.Grant_GRANT_GRANTED},
 			{Grant: itemv1.Grant_GRANT_ALREADY_GRANTED, Changed: []*itemv1.Slot{{Tab: "use", Slot: 1, Item: &itemv1.Item{Id: potion.String(), TemplateId: "red_potion", Quantity: 1}}}, Revision: 8},
-			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_INVENTORY_FULL},
+			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_ETC_TAB_FULL},
 			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED},
+			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_USE_TAB_FULL},
+			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_EQUIP_TAB_FULL},
 			{Grant: itemv1.Grant_GRANT_REFUSED, Reason: itemv1.Reason_REASON_BAD_ROLL},
 		},
 		Changed:  []*itemv1.Slot{{Tab: "etc", Slot: 2, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Quantity: 7}}, {Tab: "etc", Slot: 4}},
 		Revision: 31,
 	}}
-	got, err := clients.NewLoot(itemClient(t, f)).AddMany(context.Background(), model.GrantCall{Drops: make([]model.Grant, 5)})
+	got, err := clients.NewLoot(itemClient(t, f)).AddMany(context.Background(), model.GrantCall{Drops: make([]model.Grant, 7)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,6 +160,8 @@ func TestLootReadsEachDropsAnswer(t *testing.T) {
 			{Kind: model.GrantReplayed, Replayed: model.Inventory{Revision: 8, Slots: []model.Slot{{Tab: gamedata.Use, Slot: 1, Item: &model.SlotItem{ID: potion, Template: "red_potion", Quantity: 1}}}}},
 			{Kind: model.GrantNoRoom},
 			{Kind: model.GrantReplayed},
+			{Kind: model.GrantNoRoom}, // every tab's full waits for room
+			{Kind: model.GrantNoRoom},
 			{Kind: model.GrantRefused, Reason: "REASON_BAD_ROLL"},
 		},
 		Added: model.Inventory{Revision: 31, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 2, Item: &model.SlotItem{ID: gel, Template: "slime_gel", Quantity: 7}}, {Tab: gamedata.Etc, Slot: 4}}},
@@ -192,7 +197,7 @@ func TestLootRetriesOnlyWhatMayPass(t *testing.T) {
 		err  error
 		want bool
 	}{
-		{"a full inventory is a rule", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), false},
+		{"a full tab is a rule", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_EQUIP_TAB_FULL), false},
 		{"an unreachable service may pass", status.Error(codes.Unavailable, "connection refused"), true},
 		{"an unexplained failure may pass", status.Error(codes.Internal, "internal error"), true},
 		{"a malformed item ID in a reply", errors.New("bad item ID"), true},
@@ -344,6 +349,29 @@ func TestHandedInAsksEachCompletionAndReadsWhatChanged(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 	_, err = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")})).HandedIn(context.Background(), id, []model.Completion{{Quest: "bounty", Completion: 1}})
+	if !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("an outage arrived as %v; want it transient", err)
+	}
+}
+
+// The item service takes 32 completions a call; the game data's active-quest cap may be higher.
+func TestHandedInAsksInBatchesOfTheItemServicesLimit(t *testing.T) {
+	f := &items{}
+	asked := make([]model.Completion, 33)
+	for k := range asked {
+		asked[k] = model.Completion{Quest: fmt.Sprintf("q%02d", k), Completion: 1}
+	}
+	got, err := clients.NewEquipment(itemClient(t, f)).HandedIn(context.Background(), kernel.NewCharacterID(), asked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.lookups) != 2 || len(f.lookups[0].GetCompletions()) != 32 || len(f.lookups[1].GetCompletions()) != 1 {
+		t.Fatalf("asked %d times; want 32 completions, then 1", len(f.lookups))
+	}
+	if len(got) != 2 || got[0].Quest != "q00" || got[1].Quest != "q32" {
+		t.Fatalf("got %+v; want each batch's answer, in order", got)
+	}
+	_, err = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")})).HandedIn(context.Background(), kernel.NewCharacterID(), asked)
 	if !errors.Is(err, transient.ErrUnavailable) {
 		t.Fatalf("an outage arrived as %v; want it transient", err)
 	}

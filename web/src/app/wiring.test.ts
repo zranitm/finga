@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, getToken, setToken } from '@/net/token';
+import { ERR } from '@/protocol/errors';
 import {
   ChatChannel,
   KickReason,
@@ -229,28 +230,28 @@ describe('wiring', () => {
   it.each([
     {
       name: 'unavailable (a service down or busy)',
-      d: { ok: false, code: 'unavailable', message: 'the server is busy; try again' },
+      d: { ok: false, code: ERR.UNAVAILABLE },
       text: 'The server is busy. Try again.',
     },
     {
       name: 'chat_rate_limited (a chat line too soon)',
-      d: { ok: false, code: 'chat_rate_limited', message: 'slow down' },
+      d: { ok: false, code: ERR.CHAT_RATE_LIMITED },
       text: 'Too fast. Wait a moment.',
     },
     {
       name: 'rate_limited (any message too soon)',
-      d: { ok: false, code: 'rate_limited', message: 'slow down' },
+      d: { ok: false, code: ERR.RATE_LIMITED },
       text: 'Too fast. Wait a moment.',
     },
     {
       name: 'chat_no_party (a party line with no party)',
-      d: { ok: false, code: 'chat_no_party', message: 'you have no party' },
-      text: 'you have no party',
+      d: { ok: false, code: ERR.CHAT_NO_PARTY },
+      text: 'You’re not in a party.',
     },
     {
       name: 'another refusal with a message',
-      d: { ok: false, code: 'target_not_on_map', message: 'that character is not on your map' },
-      text: 'that character is not on your map',
+      d: { ok: false, code: ERR.TARGET_NOT_ON_MAP },
+      text: 'That character isn’t on your map.',
     },
   ])('a Response with no request ID and $name shows a toast', async ({ d, text }) => {
     const { ws } = await connectedSocket();
@@ -517,16 +518,16 @@ describe('wiring', () => {
       settings.getState().setAutoAssignPoints(true);
       const { ws } = await connectedSocket();
       ws.push('levelUp', levelUp(5));
-      ws.push('response', { ok: false, code: 'points_changed' }, { req: spends(ws)[0]?.req ?? '' });
-      ws.push('levelUp', levelUp(10));
       ws.push(
         'response',
-        { ok: false, code: 'unavailable', message: 'the world is busy' },
-        { req: spends(ws)[1]?.req ?? '' },
+        { ok: false, code: ERR.POINTS_CHANGED },
+        { req: spends(ws)[0]?.req ?? '' },
       );
+      ws.push('levelUp', levelUp(10));
+      ws.push('response', { ok: false, code: ERR.UNAVAILABLE }, { req: spends(ws)[1]?.req ?? '' });
       await vi.runOnlyPendingTimersAsync();
       expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
-        'Could not auto-assign your points: the world is busy',
+        'Could not auto-assign your points: The server is busy. Try again.',
       ]);
     });
   });

@@ -1,0 +1,2 @@
+# Chat. The social service refuses a longer line; the client counts against the same length.
+line_max: 120 # characters, after cleaning

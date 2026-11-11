@@ -122,7 +122,7 @@ func (i *Instance) accept(p *player, npc gamedata.NPC, id string) error {
 		return model.ErrQuestUnmet
 	case model.OfferAvailable:
 	}
-	if quests.Active(p.Quests) >= quests.MaxActive {
+	if quests.Active(p.Quests) >= i.data.MaxActiveQuests() {
 		return model.ErrTooManyQuests
 	}
 	p.Quests[id] = model.Quest{Status: model.QuestActive, Progress: make([]int, len(q.Objectives)), TimesFinished: p.Quests[id].TimesFinished}

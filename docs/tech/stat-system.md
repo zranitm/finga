@@ -102,21 +102,21 @@ classes:                   # base values per class; per_level grows them
 - **Level-up:** `AwardExp` loses its allocation plan. Each level adds `points_per_level` to unspent, and the world checkpoints at once, as it does on a level-up today. `LevelUp` carries the sheet with the unspent count.
 - **`SpendPoints{expected_unspent, points}`** comes from the client through the gateway with a Response, like `Equip`. On the tick:
   1. **Refusals:**
-     - `points_changed` when `expected_unspent` isn't the character's unspent count now;
-     - `not_enough_points` when the points add up to more than that;
-     - `bad_points` for any negative number, or no points at all.
+     - `POINTS_CHANGED` when `expected_unspent` isn't the character's unspent count now;
+     - `NOT_ENOUGH_POINTS` when the points add up to more than that;
+     - `BAD_POINTS` for any negative number, or no points at all.
   2. Otherwise it adds the points and lowers the unspent count.
   3. It re-checks the worn items' requirements and re-derives.
   4. It sends `StatsChanged` and queues a checkpoint at once.
-- **Why `expected_unspent` and not an idempotency key:** the world holds this state in memory, with no key table. The comparison makes a retried Apply harmless: the first one lands, a retry finds the count changed and is refused, and the client already has the result from `StatsChanged`. The client treats `points_changed` as "already done", not as an error.
+- **Why `expected_unspent` and not an idempotency key:** the world holds this state in memory, with no key table. The comparison makes a retried Apply harmless: the first one lands, a retry finds the count changed and is refused, and the client already has the result from `StatsChanged`. The client treats `POINTS_CHANGED` as "already done", not as an error.
 - **`ResetPoints{expected_unspent}`:**
-  - It is refused with `no_free_reset` once the free reset is used.
+  - It is refused with `NO_FREE_RESET` once the free reset is used.
   - Otherwise every point goes back to unspent (`points_per_level × (level − 1)`), the flag is set, and the world re-derives.
   - A worn item may become inactive, which is proposal 7 in the product pages.
   - It sends `StatsChanged` and checkpoints.
   - When currency arrives (F1), a paid reset becomes an economic action: the item service charges the wallet under an idempotency key, and the world applies the reset after the charge commits.
 - **Auto-assign runs in the client,** so the world never has to read the account setting at join, which would be one more dependency for it. When the account setting is on and a `LevelUp` arrives, the client spends every unspent point by its class's split, as the Auto-assign button does, with the `expected_unspent` from the `LevelUp`. Level-ups only happen while playing, so the client is always there to do it.
-  - Two `LevelUp`s close together send two requests; the first is refused with `points_changed`, and the second spends everything.
+  - Two `LevelUp`s close together send two requests; the first is refused with `POINTS_CHANGED`, and the second spends everything.
   - The client reads the settings at login, so the switch is known before the first level-up.
   - The setting lives beside the control preset in the account service: `PUT /api/settings` gains `auto_assign_points`, false by default.
   - The Auto-assign button sends the same request on demand.
@@ -169,7 +169,7 @@ classes:                   # base values per class; per_level grows them
   - eight columns are added (magic attack, magic defense, penetration, both regens, and the three speeds), each `int NOT NULL DEFAULT 0`.
   - `Add` and `AddMany` take the 21-stat roll; check 11 is unchanged.
   - Stored replies use the new names, and an `Add` fingerprint covers all 21 stats under a new version: the release starts from an empty database, so no reply or retry from before it remains.
-- **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item service checks `requires` in the same transaction and refuses with `stats_too_low`.
+- **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item service checks `requires` in the same transaction and refuses with the first stat short, in STR, DEX, INT, AGI, VIT order: `STR_TOO_LOW`, `DEX_TOO_LOW`, `INT_TOO_LOW`, `AGI_TOO_LOW` or `VIT_TOO_LOW`.
 - **Inactive items** need no protocol flag. The client applies the same rule (own stats from the sheet, requirements from the game data) to grey a worn item out. The server's sheet is what counts.
 
 ## 9. Protocol
@@ -185,11 +185,11 @@ classes:                   # base values per class; per_level grows them
 | `ResetPoints` (client) | New: `expected_unspent`; answered with a Response |
 
 - **New error codes:**
-  - `not_enough_points`: "you don't have that many points";
-  - `points_changed`: "your points changed; try again";
-  - `no_free_reset`: "your free reset is used";
-  - `stats_too_low`: "your stats are too low for that item";
-  - `bad_points`: "spend at least one point, and none below zero".
+  - `NOT_ENOUGH_POINTS` (330002): "You don't have that many points.";
+  - `POINTS_CHANGED` (330003): "Your points changed. Try again.";
+  - `NO_FREE_RESET` (330004): "Your free reset is used.";
+  - `STR_TOO_LOW` to `VIT_TOO_LOW` (220015 to 220019): "Your STR is too low for that item.", one per stat;
+  - `BAD_POINTS` (330005): "Spend at least one point."
 - **REST:** `auto_assign_points` in settings (`api/openapi.yaml`).
 - **Renames are allowed by moving buf's breaking rules from `FILE` to `WIRE`** (`server/buf.yaml`), in its own commit before any rename.
   - `WIRE` still refuses what would break a running client: a changed field number or type, or a field deleted without its number reserved.
@@ -241,7 +241,7 @@ There is no conversion code, as the product page decided.
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| `SpendPoints` reply lost, client retries | Nothing unusual | The retry finds the count changed and is refused with `points_changed`; the client already has `StatsChanged` |
+| `SpendPoints` reply lost, client retries | Nothing unusual | The retry finds the count changed and is refused with `POINTS_CHANGED`; the client already has `StatsChanged` |
 | World crash between Apply and its checkpoint | After the rejoin, those points are unspent again | Same window as a level-up today; nothing is lost twice or gained |
 | The preview differs from the server | The numbers settle to the server's after Apply | The preview is display only, and the shared vectors keep the two in step |
 | Speed changes mid-run | A small correction | Normal reconciliation |

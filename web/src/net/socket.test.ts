@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { jsonCodec } from '@/protocol/codec';
 import type { ProtocolError } from '@/protocol/codec';
+import { ERR } from '@/protocol/errors';
 import { ChatChannel, KickReason, WelcomeSchema } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
@@ -152,24 +153,32 @@ describe('GameSocket', () => {
         slot: 3,
       });
       const frame = ws.frames().at(-1);
-      ws.push(
-        'response',
-        { ok: false, code: 'inventory_full', message: 'full' },
-        { req: frame?.req ?? '' },
-      );
+      ws.push('response', { ok: false, code: ERR.ETC_TAB_FULL }, { req: frame?.req ?? '' });
       const err = (await p.catch((e: unknown) => e)) as RequestError;
       expect(err).toBeInstanceOf(RequestError);
-      expect(err.code).toBe('inventory_full');
-      expect(err.message).toBe('full');
+      expect(err.code).toBe(ERR.ETC_TAB_FULL);
+      expect(err.message).toBe('Your Etc tab is full.');
     });
 
-    it('a refusal with a code this client does not know, and no message, is internal and refused', async () => {
+    it('a refusal with a code this client does not know keeps its number and names it', async () => {
       const socket = newSocket();
       const ws = await connected(socket);
       const p = socket.request('partyLeave', {});
-      ws.push('response', { ok: false, code: 'teapot' }, { req: ws.frames().at(-1)?.req ?? '' });
+      ws.push('response', { ok: false, code: 220999 }, { req: ws.frames().at(-1)?.req ?? '' });
       const err = (await p.catch((e: unknown) => e)) as RequestError;
-      expect([err.code, err.message]).toEqual(['internal', 'refused']);
+      expect([err.code, err.message]).toEqual([220999, 'Something went wrong (error 220999).']);
+    });
+
+    it('a refusal with no code is internal', async () => {
+      const socket = newSocket();
+      const ws = await connected(socket);
+      const p = socket.request('partyLeave', {});
+      ws.push('response', { ok: false, code: 0 }, { req: ws.frames().at(-1)?.req ?? '' });
+      const err = (await p.catch((e: unknown) => e)) as RequestError;
+      expect([err.code, err.message]).toEqual([
+        ERR.INTERNAL,
+        'Something went wrong on the server. Try again.',
+      ]);
     });
 
     it('times out when no Response comes', async () => {
@@ -186,11 +195,11 @@ describe('GameSocket', () => {
       const ws = await connected(socket);
       const unmatched: Data<'response'>[] = [];
       socket.onUnmatchedResponse((d) => unmatched.push(d));
-      ws.push('response', { ok: false, code: 'rate_limited', message: 'slow down' });
+      ws.push('response', { ok: false, code: ERR.RATE_LIMITED });
       ws.push('response', { ok: true }, { req: 'r-unknown' });
       expect(unmatched).toMatchObject([
-        { ok: false, code: 'rate_limited', message: 'slow down' },
-        { ok: true, code: '', message: '' },
+        { ok: false, code: ERR.RATE_LIMITED },
+        { ok: true, code: 0 },
       ]);
     });
 

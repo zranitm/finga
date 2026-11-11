@@ -1435,7 +1435,7 @@ func (*EnterPortal) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{6}
 }
 
-// ChatSend is a chat line, up to 120 characters.
+// ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 type ChatSend struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Channel       ChatChannel            `protobuf:"varint,1,opt,name=channel,proto3,enum=client.v1.ChatChannel" json:"channel,omitempty"`
@@ -4885,9 +4885,8 @@ func (x *PartyInvited) GetFromName() string {
 type Response struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Ok    bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	// An error code from server/testdata/errors/codes.json; empty when ok.
-	Code          string `protobuf:"bytes,2,opt,name=code,proto3" json:"code,omitempty"`
-	Message       string `protobuf:"bytes,3,opt,name=message,proto3" json:"message,omitempty"`
+	// A six-digit code from server/testdata/errors/codes.json, which says exactly what happened; 0 when ok.
+	Code          int32 `protobuf:"varint,4,opt,name=code,proto3" json:"code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4929,18 +4928,11 @@ func (x *Response) GetOk() bool {
 	return false
 }
 
-func (x *Response) GetCode() string {
+func (x *Response) GetCode() int32 {
 	if x != nil {
 		return x.Code
 	}
-	return ""
-}
-
-func (x *Response) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
+	return 0
 }
 
 // Kicked precedes a server-side close.
@@ -5763,11 +5755,10 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\fPartyInvited\x12\x1b\n" +
 	"\tinvite_id\x18\x01 \x01(\tR\binviteId\x12\x12\n" +
 	"\x04from\x18\x02 \x01(\tR\x04from\x12\x1b\n" +
-	"\tfrom_name\x18\x03 \x01(\tR\bfromName\"H\n" +
+	"\tfrom_name\x18\x03 \x01(\tR\bfromName\"C\n" +
 	"\bResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x12\n" +
-	"\x04code\x18\x02 \x01(\tR\x04code\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"7\n" +
+	"\x04code\x18\x04 \x01(\x05R\x04codeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\amessage\"7\n" +
 	"\x06Kicked\x12-\n" +
 	"\x06reason\x18\x01 \x01(\x0e2\x15.client.v1.KickReasonR\x06reason\"H\n" +
 	"\x04Pong\x12\x1f\n" +

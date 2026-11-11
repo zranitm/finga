@@ -268,25 +268,27 @@ type Loot struct {
 
 // Data is everything loaded, read-only after Load.
 type Data struct {
-	movement  sim.Params
-	loot      Loot
-	classes   []Class
-	classIdx  map[kernel.Class]int
-	stats     StatRules
-	items     []Item
-	itemIdx   map[string]int
-	slots     []EquipSlot
-	mobs      []Mob
-	mobIdx    map[string]int
-	maps      []*Map
-	mapIdx    map[string]int
-	levelCap  int
-	expToNext []int64 // index level-1, for levels 1..cap-1
-	npcs      []NPC
-	npcIdx    map[string]int
-	talkReach float64
-	quests    []Quest
-	questIdx  map[string]int
+	movement    sim.Params
+	loot        Loot
+	classes     []Class
+	classIdx    map[kernel.Class]int
+	stats       StatRules
+	items       []Item
+	itemIdx     map[string]int
+	slots       []EquipSlot
+	mobs        []Mob
+	mobIdx      map[string]int
+	maps        []*Map
+	mapIdx      map[string]int
+	levelCap    int
+	expToNext   []int64 // index level-1, for levels 1..cap-1
+	npcs        []NPC
+	npcIdx      map[string]int
+	talkReach   float64
+	quests      []Quest
+	questIdx    map[string]int
+	maxActive   int
+	chatLineMax int
 }
 
 // Movement is the simulation's constants.
@@ -294,6 +296,9 @@ func (d *Data) Movement() sim.Params { return d.movement }
 
 // Loot is how drops behave on the ground.
 func (d *Data) Loot() Loot { return d.loot }
+
+// ChatLineMax is the most characters a chat line holds, after cleaning.
+func (d *Data) ChatLineMax() int { return d.chatLineMax }
 
 // Classes lists the playable classes in file order.
 func (d *Data) Classes() []Class { return d.classes }

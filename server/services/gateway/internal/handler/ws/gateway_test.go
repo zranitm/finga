@@ -2,7 +2,6 @@ package ws_test
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -47,6 +46,7 @@ import (
 	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/clients"
 	"finga/services/gateway/internal/handler/ws"
+	"finga/services/gateway/internal/model"
 )
 
 const (
@@ -448,21 +448,18 @@ func TestRateLimits(t *testing.T) {
 		if got := h.world.inputCount(); got < 30 || got >= 40 {
 			t.Fatalf("%d inputs forwarded of 40 sent at once, want the burst of 30 and what refilled meanwhile", got)
 		}
-		part(t, "a limited command with a request ID is answered rate_limited", func() {
+		part(t, "a limited command with a request ID is answered RATE_LIMITED", func() {
 			for i := range 6 {
 				c.send(wsconn.Message{ReqID: fmt.Sprintf("r-%d", i), Data: &clientv1.InventoryMove{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Tab: "use", Slot: int32(i)}})
 			}
 			// The refused one is answered at once on the read loop, ahead of the queue: match by request ID.
-			codes := map[string]string{}
+			codes := map[string]int32{} // 0 is ok
 			for range 6 {
 				m := c.expect("Response")
 				r := m.Data.(*clientv1.Response)
 				codes[m.ReqID] = r.Code
-				if r.GetOk() {
-					codes[m.ReqID] = "ok"
-				}
 			}
-			if codes["r-5"] != "rate_limited" || codes["r-0"] != "ok" || len(codes) != 6 {
+			if codes["r-5"] != int32(model.RateLimited.Code) || codes["r-0"] != 0 || len(codes) != 6 {
 				t.Fatalf("codes %v", codes)
 			}
 		})
@@ -584,7 +581,7 @@ func TestARefusedCommandAnswersWithAResponse(t *testing.T) {
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.PartyLeave{}})
 		m := c.expect("Response")
-		if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != "no_party" {
+		if m.ReqID != "r-1" || m.Data.(*clientv1.Response).GetOk() || m.Data.(*clientv1.Response).Code != int32(model.NoParty.Code) {
 			t.Fatalf("response %+v", m)
 		}
 		c.send(wsconn.Message{Seq: 1, Data: &clientv1.Attack{}}) // no request ID: silently ignored
@@ -782,16 +779,16 @@ func TestInventoryInWelcomeAndCommands(t *testing.T) {
 			items.err = grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_QUANTITY)
 			c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-2", ItemId: potion.GetId(), Quantity: 9}})
 			r := c.expect("Response").Data.(*clientv1.Response)
-			if r.GetOk() || r.Code != "bad_quantity" || r.Message == "" {
+			if r.GetOk() || r.Code != int32(model.BadQuantity.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			items.err = nil
 		})
-		part(t, "a malformed item ID is bad_id without reaching the service", func() {
+		part(t, "a malformed item ID is BAD_ID without reaching the service", func() {
 			before := len(items.discards)
 			c.send(wsconn.Message{ReqID: "r-3", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k-3", ItemId: "nope", Quantity: 1}})
 			r := c.expect("Response").Data.(*clientv1.Response)
-			if r.GetOk() || r.Code != "bad_id" {
+			if r.GetOk() || r.Code != int32(model.BadID.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			if len(items.discards) != before {
@@ -908,27 +905,27 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 			for _, tt := range []struct {
 				err  error
 				msg  proto.Message
-				code string
+				code model.Public
 			}{
-				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_LEVEL_TOO_LOW), &clientv1.Equip{IdempotencyKey: "k-4", ItemId: leatherCap.GetId()}, "level_too_low"},
-				{grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_WRONG_EQUIP_SLOT), &clientv1.Equip{IdempotencyKey: "k-5", ItemId: leatherCap.GetId(), EquipSlot: "ring_9"}, "wrong_equip_slot"},
-				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOTHING_WORN), &clientv1.Unequip{IdempotencyKey: "k-6", EquipSlot: "cape"}, "nothing_worn"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_CHARACTER_DEAD), &clientv1.Unequip{IdempotencyKey: "k-7", EquipSlot: "weapon"}, "character_dead"},
-				{status.Error(codes.Unavailable, "busy"), &clientv1.Equip{IdempotencyKey: "k-8", ItemId: leatherCap.GetId()}, "unavailable"},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_LEVEL_TOO_LOW), &clientv1.Equip{IdempotencyKey: "k-4", ItemId: leatherCap.GetId()}, model.LevelTooLow},
+				{grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_WRONG_EQUIP_SLOT), &clientv1.Equip{IdempotencyKey: "k-5", ItemId: leatherCap.GetId(), EquipSlot: "ring_9"}, model.WrongEquipSlot},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOTHING_WORN), &clientv1.Unequip{IdempotencyKey: "k-6", EquipSlot: "cape"}, model.NothingWorn},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_CHARACTER_DEAD), &clientv1.Unequip{IdempotencyKey: "k-7", EquipSlot: "weapon"}, model.CharacterDead},
+				{status.Error(codes.Unavailable, "busy"), &clientv1.Equip{IdempotencyKey: "k-8", ItemId: leatherCap.GetId()}, model.Unavailable},
 			} {
 				time.Sleep(time.Second) // under the inventory limit of 5 a second
 				h.world.failEquips(tt.err)
-				c.send(wsconn.Message{ReqID: "r-" + tt.code, Data: tt.msg})
-				if r := c.expect("Response"); r.ReqID != "r-"+tt.code || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != tt.code {
-					t.Fatalf("response %+v, want %s", r, tt.code)
+				c.send(wsconn.Message{ReqID: "r-" + tt.code.Name, Data: tt.msg})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.code.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.code.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.code.Name)
 				}
 			}
 			h.world.failEquips(nil)
 		})
-		part(t, "a malformed item ID is bad_id without reaching the world", func() {
+		part(t, "a malformed item ID is BAD_ID without reaching the world", func() {
 			before, _ := h.world.equipCalls()
 			c.send(wsconn.Message{ReqID: "r-9", Data: &clientv1.Equip{IdempotencyKey: "k-9", ItemId: "nope"}})
-			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
 				t.Fatalf("response %+v", r)
 			}
 			if after, _ := h.world.equipCalls(); len(after) != len(before) {
@@ -953,7 +950,7 @@ func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-1", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: kernel.NewItemID().String(), Quantity: 1}})
 		r := c.expect("Response").Data.(*clientv1.Response)
-		if r.GetOk() || r.Code != "internal" || strings.Contains(r.Message, "connection reset") {
+		if r.GetOk() || r.Code != int32(model.Internal.Code) || strings.Contains(r.String(), "connection reset") {
 			t.Fatalf("response %+v; the cause must stay out of it", r)
 		}
 		got := logs.String()
@@ -997,7 +994,7 @@ func TestAPanicInACommandAnswersInternalAndTheConnectionLivesOn(t *testing.T) {
 		if attrs := attribute.NewSet(root.Attributes()...); !attrs.HasValue("character_id") {
 			t.Fatalf("the span names no character: %v", root.Attributes())
 		}
-		if r := m.Data.(*clientv1.Response); m.ReqID != "r-1" || r.GetOk() || r.Code != "internal" || strings.Contains(r.Message, "nil map") {
+		if r := m.Data.(*clientv1.Response); m.ReqID != "r-1" || r.GetOk() || r.Code != int32(model.Internal.Code) || strings.Contains(r.String(), "nil map") {
 			t.Fatalf("response %q %+v; the panic must stay out of it", m.ReqID, r)
 		}
 		c.send(wsconn.Message{Data: &clientv1.Ping{ClientTime: 5}})
@@ -1244,7 +1241,7 @@ func TestAMalformedItemIDNeverReachesTheItemService(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		c.send(wsconn.Message{ReqID: "r-2", Data: &clientv1.InventoryDiscard{IdempotencyKey: "k", ItemId: "x", Quantity: 1}})
-		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
+		if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
 			t.Fatalf("a malformed item ID: %+v", r)
 		}
 		items.mu.Lock()
@@ -1653,7 +1650,7 @@ func TestChatRouting(t *testing.T) {
 		})
 		part(t, "a line on no channel is refused", func() {
 			ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Text: "where?"}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_chat_channel" {
+			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadChatChannel.Code) {
 				t.Fatalf("response %+v", r)
 			}
 		})
@@ -1663,7 +1660,7 @@ func TestChatRouting(t *testing.T) {
 			fs.mu.Unlock()
 			ayla.send(wsconn.Message{Data: &clientv1.ChatSend{Channel: clientv1.ChatChannel_CHAT_CHANNEL_MAP, Text: "..."}})
 			r := ayla.expect("Response")
-			if r.ReqID != "" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != "chat_too_long" {
+			if r.ReqID != "" || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(model.ChatTooLong.Code) {
 				t.Fatalf("response %+v", r)
 			}
 		})
@@ -1754,14 +1751,14 @@ func TestPartyCommandsAndState(t *testing.T) {
 		part(t, "errors map to the Response code", func() {
 			time.Sleep(time.Second) // the five above spent the party budget's burst; two more refill in a second
 			ayla.send(wsconn.Message{ReqID: "p-x", Data: &clientv1.PartyInvite{CharacterId: "nope"}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "bad_id" {
+			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
 				t.Fatalf("malformed id: %+v", r)
 			}
 			fs.mu.Lock()
 			fs.err = grpctest.Error(codes.FailedPrecondition, socialv1.Reason_REASON_NOT_PARTY_LEADER)
 			fs.mu.Unlock()
 			ayla.send(wsconn.Message{ReqID: "p-y", Data: &clientv1.PartyKick{CharacterId: brunoID.String()}})
-			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != "not_party_leader" || r.Message == "" {
+			if r := ayla.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.NotPartyLeader.Code) {
 				t.Fatalf("not leader: %+v", r)
 			}
 			fs.mu.Lock()
@@ -2160,7 +2157,7 @@ func TestAFullCommandQueueAnswersRateLimited(t *testing.T) {
 		c.send(wsconn.Message{Seq: 4, Data: &clientv1.Input{Left: true}}) // dropped: no request ID to answer
 		c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.PartyLeave{}})
 		r := c.expect("Response")
-		if r.ReqID != "p-1" || r.Data.(*clientv1.Response).Code != "rate_limited" {
+		if r.ReqID != "p-1" || r.Data.(*clientv1.Response).Code != int32(model.RateLimited.Code) {
 			t.Fatalf("response %+v", r)
 		}
 		close(h.world.block)
@@ -2374,18 +2371,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				reason worldv1.Reason
 				code   codes.Code
 				msg    proto.Message
-				want   string
+				want   model.Public
 			}{
-				{worldv1.Reason_REASON_POINTS_CHANGED, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 1}}, "points_changed"},
-				{worldv1.Reason_REASON_NOT_ENOUGH_POINTS, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, "not_enough_points"},
-				{worldv1.Reason_REASON_BAD_POINTS, codes.InvalidArgument, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, "bad_points"},
-				{worldv1.Reason_REASON_NO_FREE_RESET, codes.FailedPrecondition, &clientv1.ResetPoints{ExpectedUnspent: 5}, "no_free_reset"},
+				{worldv1.Reason_REASON_POINTS_CHANGED, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 1}}, model.PointsChanged},
+				{worldv1.Reason_REASON_NOT_ENOUGH_POINTS, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, model.NotEnoughPoints},
+				{worldv1.Reason_REASON_BAD_POINTS, codes.InvalidArgument, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, model.BadPoints},
+				{worldv1.Reason_REASON_NO_FREE_RESET, codes.FailedPrecondition, &clientv1.ResetPoints{ExpectedUnspent: 5}, model.NoFreeReset},
 			} {
 				time.Sleep(time.Second) // under the points limit of 2 a second
 				h.world.failPoints(grpctest.Error(tt.code, tt.reason))
-				c.send(wsconn.Message{ReqID: "r-" + tt.want, Data: tt.msg})
-				if r := c.expect("Response"); r.ReqID != "r-"+tt.want || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != tt.want {
-					t.Fatalf("response %+v, want %s", r, tt.want)
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: tt.msg})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.want.Name)
 				}
 			}
 			h.world.failPoints(nil)
@@ -2487,23 +2484,23 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 			for _, tt := range []struct {
 				err  error
 				msg  proto.Message
-				want string
+				want model.Public
 			}{
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NPC_OUT_OF_REACH), &clientv1.Talk{NpcId: "town_guide"}, "npc_out_of_reach"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_UNAVAILABLE), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "nope"}, "quest_unavailable"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_CONDITIONS_UNMET), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_conditions_unmet"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_ALREADY_ACTIVE), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_already_active"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_ALREADY_FINISHED), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}, "quest_already_finished"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_TOO_MANY_QUESTS), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "too_many_quests"},
-				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_NOT_READY), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_not_ready"},
-				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_ENOUGH_ITEMS), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "not_enough_items"},
-				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "inventory_full"},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NPC_OUT_OF_REACH), &clientv1.Talk{NpcId: "town_guide"}, model.NpcOutOfReach},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_UNAVAILABLE), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "nope"}, model.QuestUnavailable},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_CONDITIONS_UNMET), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.QuestConditionsUnmet},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_ALREADY_ACTIVE), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.QuestAlreadyActive},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_ALREADY_FINISHED), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}, model.QuestAlreadyFinished},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_TOO_MANY_QUESTS), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.TooManyQuests},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_NOT_READY), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.QuestNotReady},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_ENOUGH_ITEMS), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.NotEnoughItems},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_USE_TAB_FULL), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, model.UseTabFull},
 			} {
 				time.Sleep(time.Second) // under the dialog limit of 5 a second
 				h.world.failQuests(tt.err)
-				c.send(wsconn.Message{ReqID: "r-" + tt.want, Data: tt.msg})
-				if r := c.expect("Response"); r.ReqID != "r-"+tt.want || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != tt.want {
-					t.Fatalf("response %+v, want %s", r, tt.want)
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: tt.msg})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.want.Name)
 				}
 			}
 			h.world.failQuests(nil)
@@ -2514,12 +2511,12 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 				c.send(wsconn.Message{ReqID: fmt.Sprintf("t-%d", i), Data: &clientv1.Talk{NpcId: "town_guide"}})
 			}
 			// The refused one is answered at once on the read loop, ahead of the queue: match by request ID.
-			answers := map[string]string{}
+			answers := map[string]int32{} // 0 is ok
 			for range 6 {
 				m := c.expect("Response")
-				answers[m.ReqID] = cmp.Or(m.Data.(*clientv1.Response).GetCode(), "ok")
+				answers[m.ReqID] = m.Data.(*clientv1.Response).GetCode()
 			}
-			if answers["t-5"] != "rate_limited" || answers["t-0"] != "ok" || answers["t-4"] != "ok" || len(answers) != 6 {
+			if answers["t-5"] != int32(model.RateLimited.Code) || answers["t-0"] != 0 || answers["t-4"] != 0 || len(answers) != 6 {
 				t.Fatalf("answers %v", answers)
 			}
 		})

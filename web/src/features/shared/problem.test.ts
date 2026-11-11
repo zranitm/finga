@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import { ERR } from '@/protocol/errors';
+import { refusal } from '@/testing/refusal';
 
 import { problemOf } from './problem';
 
 describe('problemOf', () => {
-  it("gives the server's reason", () => {
-    expect(problemOf(new RequestError('quest_not_ready', "that quest isn't finished yet"))).toBe(
-      "that quest isn't finished yet",
-    );
+  it('gives the refusal’s words', () => {
+    expect(problemOf(refusal(ERR.QUEST_NOT_READY))).toBe('That quest isn’t finished yet.');
   });
 
   it('says only that there is no answer yet, for a timeout or a dropped connection', () => {

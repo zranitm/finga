@@ -438,7 +438,7 @@ message Loot {
 message PickupFailed {
   // The proto package of the service whose Reason this is.
   string error_domain = 1;
-  // The Reason's value name, such as REASON_INVENTORY_FULL; empty when unexpected.
+  // The Reason's value name, such as REASON_EQUIP_TAB_FULL; empty when unexpected.
   string error_reason = 2;
 }
 

@@ -136,7 +136,7 @@ func TestAdd(t *testing.T) {
 			t.Fatalf("%d sword rows, want 2", swords)
 		}
 	})
-	t.Run("a full inventory gives inventory_full and writes nothing", func(t *testing.T) {
+	t.Run("a full Etc tab refuses the gel and writes nothing", func(t *testing.T) {
 		for i := range model.SlotsPerTab - 2 { // the etc tab fills with 22 more gels
 			h.add(t, "fill-"+string(rune('a'+i)), "slime_gel", 100)
 		}
@@ -144,7 +144,7 @@ func TestAdd(t *testing.T) {
 		h.add(t, "fill-y", "slime_gel", 100)
 		items, events, outbox := h.count(t, `SELECT count(*) FROM items`), h.count(t, `SELECT count(*) FROM item_events`), h.count(t, `SELECT count(*) FROM outbox`)
 		_, err := h.svc.Add(ctx, h.actor, application.AddInput{Key: "full", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
-		if !errors.Is(err, model.ErrInventoryFull) {
+		if !errors.Is(err, model.ErrEtcTabFull) {
 			t.Fatalf("err = %v", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items`) != items || h.count(t, `SELECT count(*) FROM item_events`) != events || h.count(t, `SELECT count(*) FROM outbox`) != outbox {

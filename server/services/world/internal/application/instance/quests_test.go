@@ -19,7 +19,6 @@ import (
 	"finga/internal/sim"
 	"finga/pkg/transient"
 	"finga/services/world/internal/application/instance"
-	"finga/services/world/internal/application/quests"
 	"finga/services/world/internal/model"
 	"finga/services/world/worldtest"
 )
@@ -168,7 +167,7 @@ func TestAcceptingAQuest(t *testing.T) {
 		{"one already active", 1, model.Quests{"errand": {Status: model.QuestActive, Progress: []int{0, 0}}}, "errand", model.ErrQuestActive},
 		{"a one-time quest finished", 3, model.Quests{"slime_cleanup": finished}, "slime_cleanup", model.ErrQuestFinished},
 		{"below its level, its quest first not finished", 1, nil, "sticky_samples", model.ErrQuestUnmet},
-		{"with the most active already", 1, twentyActive(), "errand", model.ErrTooManyQuests},
+		{"with the most active already", 1, mostActive(worldtest.LoadData(t).MaxActiveQuests()), "errand", model.ErrTooManyQuests},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
@@ -219,9 +218,9 @@ func TestAcceptingAQuest(t *testing.T) {
 	})
 }
 
-func twentyActive() model.Quests {
+func mostActive(n int) model.Quests {
 	log := model.Quests{}
-	for k := range quests.MaxActive {
+	for k := range n {
 		log[fmt.Sprintf("q%d", k)] = model.Quest{Status: model.QuestActive}
 	}
 	return log

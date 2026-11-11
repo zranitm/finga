@@ -69,10 +69,10 @@ func TestQuests(t *testing.T) {
 				return q.GetChange() == clientv1.QuestChange_QUEST_CHANGE_ACCEPTED && slices.Equal(q.GetQuest().GetProgress(), []int32{0, 0})
 			})
 		}
-		if r := quinn.command(t, "a-2", &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != "quest_conditions_unmet" {
+		if r := quinn.command(t, "a-2", &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != code("QUEST_CONDITIONS_UNMET") {
 			t.Fatalf("accepting the second early: %+v", r)
 		}
-		if r := quinn.command(t, "h-1", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}); r.GetOk() || r.GetCode() != "quest_not_ready" {
+		if r := quinn.command(t, "h-1", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}); r.GetOk() || r.GetCode() != code("QUEST_NOT_READY") {
 			t.Fatalf("handing in with nothing done: %+v", r)
 		}
 	})
@@ -88,7 +88,7 @@ func TestQuests(t *testing.T) {
 		quinn.partyState(t, 2)
 		// Ria waits on the forest's town portal, out of the slimes' field; Quinn hunts in it.
 		ria.hop(t, 1216, "forest", 64)
-		if r := ria.command(t, "t-2", &clientv1.Talk{NpcId: "town_guide"}); r.GetOk() || r.GetCode() != "npc_out_of_reach" {
+		if r := ria.command(t, "t-2", &clientv1.Talk{NpcId: "town_guide"}); r.GetOk() || r.GetCode() != code("NPC_OUT_OF_REACH") {
 			t.Fatalf("talking to the guide from the forest: %+v", r)
 		}
 		quinn.hop(t, 1216, "forest", 64)
@@ -151,7 +151,7 @@ func TestQuests(t *testing.T) {
 		if after["slime_gel"] != before["slime_gel"]-1 || after["red_potion"] != before["red_potion"]+10 {
 			t.Fatalf("held %v before the hand-in and %v after; want one gel taken and ten potions given", before, after)
 		}
-		if r := quinn.command(t, "h-3", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}); r.GetOk() || r.GetCode() != "quest_not_ready" {
+		if r := quinn.command(t, "h-3", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}); r.GetOk() || r.GetCode() != code("QUEST_NOT_READY") {
 			t.Fatalf("handing in again: %+v", r)
 		}
 	})
@@ -164,7 +164,7 @@ func TestQuests(t *testing.T) {
 			s.give(t, quinn.id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		before := s.inventoryTotals(t, quinn.id)
-		if r := quinn.command(t, "h-4", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != "inventory_full" {
+		if r := quinn.command(t, "h-4", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != code("EQUIP_TAB_FULL") {
 			t.Fatalf("handing in with a full Equip tab: %+v", r)
 		}
 		if after := s.inventoryTotals(t, quinn.id); after["slime_gel"] != before["slime_gel"] || after["leather_cap"] != 24 {
@@ -213,7 +213,7 @@ func TestQuests(t *testing.T) {
 			return q.GetChange() == clientv1.QuestChange_QUEST_CHANGE_HANDED_IN && q.GetQuest().GetStatus() == clientv1.QuestStatus_QUEST_STATUS_FINISHED && q.GetQuest().GetTimesFinished() == 1
 		})
 		take(t, back, "ExpGained", &back.exp, 5*time.Second, func(e *clientv1.ExpGained) bool { return e.GetAmount() == 40 })
-		if r := back.command(t, "h-5", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != "quest_not_ready" {
+		if r := back.command(t, "h-5", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != code("QUEST_NOT_READY") {
 			t.Fatalf("handing in again: %+v", r)
 		}
 		after := s.inventoryTotals(t, quinn.id)

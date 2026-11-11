@@ -17,17 +17,19 @@ type Parties interface {
 // ChatService cleans, limits and routes.
 type ChatService struct {
 	parties Parties
+	lineMax int
 	limiter *ratelimit.Buckets
 }
 
 // ChatDeps are what the chat service is built over.
 type ChatDeps struct {
 	Parties Parties
+	LineMax int // characters a line holds, after cleaning
 }
 
 // NewChatService makes the service over deps.
 func NewChatService(deps ChatDeps) *ChatService {
-	return &ChatService{parties: deps.Parties, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
+	return &ChatService{parties: deps.Parties, lineMax: deps.LineMax, limiter: ratelimit.NewBuckets(model.LineRatePerSecond, model.LineBurst)}
 }
 
 // Send cleans and rate-limits a line; map lines have nil recipients, party lines the whole party.
@@ -39,7 +41,7 @@ func (s *ChatService) Send(ctx context.Context, from model.Sender, channel model
 	if model.Blank(text) {
 		return model.Message{}, nil, model.ErrEmpty
 	}
-	if utf8.RuneCountInString(text) > model.LineMaxLen {
+	if utf8.RuneCountInString(text) > s.lineMax {
 		return model.Message{}, nil, model.ErrTooLong
 	}
 	if !s.limiter.Allow(from.ID.String()) {
