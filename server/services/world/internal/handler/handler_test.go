@@ -123,6 +123,11 @@ func (w wears) HandIn(context.Context, model.HandInCall) (model.Inventory, error
 	return model.Inventory{Revision: 4, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}}}, w.err
 }
 
+// HandedIn finds none handed in.
+func (wears) HandedIn(context.Context, kernel.CharacterID, []model.Completion) ([]model.HandedIn, error) {
+	return nil, nil
+}
+
 func newStack(t *testing.T) *stack { return newStackWearing(t, wears{}) }
 
 func newStackWearing(t *testing.T, eq wears) *stack {
@@ -134,7 +139,7 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)

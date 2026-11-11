@@ -236,6 +236,7 @@ type Options struct {
 	Characters         world.Characters
 	Starter            world.Starter
 	Wardrobe           world.Wardrobe
+	HandedIns          world.HandedIns
 	Logger             *slog.Logger // the World's
 	Traces             trace.TracerProvider
 	SaveObserver       world.SaveObserver
@@ -282,6 +283,9 @@ func (o Options) Fill() Options {
 	}
 	if o.Wardrobe == nil {
 		o.Wardrobe = nobody{}
+	}
+	if o.HandedIns == nil {
+		o.HandedIns = nobody{}
 	}
 	if o.Logger == nil {
 		o.Logger = slog.New(slog.DiscardHandler)
@@ -335,7 +339,7 @@ func NewInstance(m *gamedata.Map, data *gamedata.Data, cps *Checkpoints, o Optio
 func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
 	o = o.Fill()
 	return world.New(world.Deps{
-		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe,
+		Services: o.Services(), Data: data, Saver: saver, Characters: o.Characters, Starter: o.Starter, Wardrobe: o.Wardrobe, HandedIns: o.HandedIns,
 		Panics: DiscardPanics(), Logger: o.Logger, SaveObserver: o.SaveObserver,
 	}, world.Tuning{TickInterval: o.TickInterval, CheckpointInterval: o.CheckpointInterval, FlushTimeout: o.FlushTimeout, BatchMax: o.BatchMax})
 }
@@ -431,6 +435,11 @@ func (nobody) Unequip(context.Context, model.UnequipCall) (model.Equipped, error
 
 // Worn wears nothing, so a join goes on.
 func (nobody) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { return model.Worn{}, nil }
+
+// HandedIn finds none handed in, so a join goes on.
+func (nobody) HandedIn(context.Context, kernel.CharacterID, []model.Completion) ([]model.HandedIn, error) {
+	return nil, nil
+}
 
 // HandIn refuses.
 func (nobody) HandIn(context.Context, model.HandInCall) (model.Inventory, error) {

@@ -73,6 +73,8 @@ type Player struct {
 	Connection string
 	Worn       Worn   // travels with the player between maps
 	Quests     Quests // travels with the player too
+	// HandedIn are completions the item service handed in while the world missed the reply; the map's join finishes them.
+	HandedIn []HandedIn
 }
 
 // Character is a character as last saved, loaded to join.

@@ -4,11 +4,14 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"github.com/cenkalti/backoff/v5"
 
 	"finga/internal/kernel"
 	"finga/services/world/internal/application/instance"
+	"finga/services/world/internal/application/quests"
 	"finga/services/world/internal/model"
 )
 
@@ -39,6 +42,10 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if pending {
 		c = withCheckpoint(c, unsaved)
 	}
+	handedIn, err := w.handedIn(ctx, id, c.Quests)
+	if err != nil {
+		return model.View{}, err
+	}
 	w.grantStarter(ctx, account, id, c.Class)
 	worn, err := w.worn(ctx, id) // after the grant, so starter equipment counts
 	if err != nil {
@@ -60,7 +67,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 		return model.View{}, err
 	}
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests, HandedIn: handedIn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -92,6 +99,23 @@ func (w *World) worn(ctx context.Context, id kernel.CharacterID) (model.Worn, er
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	return w.deps.Wardrobe.Worn(ctx, id)
+}
+
+// handedIn asks the item service about the next completion of each active quest with items to take or give, so one handed in while the world missed the reply still finishes.
+func (w *World) handedIn(ctx context.Context, id kernel.CharacterID, log model.Quests) ([]model.HandedIn, error) {
+	var asked []model.Completion
+	for _, quest := range slices.Sorted(maps.Keys(log)) {
+		q, ok := w.data.Quest(quest)
+		if entry := log[quest]; ok && entry.Status == model.QuestActive && quests.HandsItems(q) {
+			asked = append(asked, model.Completion{Quest: quest, Completion: entry.TimesFinished + 1})
+		}
+	}
+	if len(asked) == 0 {
+		return nil, nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	return w.deps.HandedIns.HandedIn(ctx, id, asked)
 }
 
 func (w *World) load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error) {

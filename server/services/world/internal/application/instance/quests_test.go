@@ -62,6 +62,7 @@ type fakeHandIns struct {
 	answer model.Inventory
 	err    error
 	gate   chan struct{}
+	down   int // the first down calls find the item service unavailable
 }
 
 func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
@@ -75,6 +76,9 @@ func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.Inv
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls = append(f.calls, c)
+	if len(f.calls) <= f.down {
+		return model.Inventory{}, fmt.Errorf("%w: the item service is down", transient.ErrUnavailable)
+	}
 	return f.answer, f.err
 }
 
@@ -349,8 +353,8 @@ func TestHandingInAQuest(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{err: errors.New("not enough items")}
 			q := newQuestTown(t, 1, ready(0), f)
-			if err := q.handIn("bounty"); err == nil || err.Error() != "not enough items" {
-				t.Fatalf("err = %v, want the item service's", err)
+			if err := q.handIn("bounty"); err == nil || err.Error() != "not enough items" || len(f.called()) != 1 {
+				t.Fatalf("err = %v after %d calls, want the item service's after one", err, len(f.called()))
 			}
 			if len(changes(q.sink)) != 0 || len(eventsOf[model.ExpGained](q.sink)) != 0 || len(q.cps.Drain()) != 0 {
 				t.Fatal("a refused hand-in changed something")
@@ -365,6 +369,122 @@ func TestHandingInAQuest(t *testing.T) {
 				t.Fatalf("called %+v; both are the first completion", got)
 			}
 		})
+	})
+	t.Run("a try the item service was down for is tried again, as the same completion", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := &fakeHandIns{answer: answer, down: 2}
+			q := newQuestTown(t, 1, ready(0), f)
+			if err := q.handIn("bounty"); err != nil {
+				t.Fatal(err)
+			}
+			if got := f.called(); len(got) != 3 || got[0].Completion != 1 || !reflect.DeepEqual(got[0], got[2]) {
+				t.Fatalf("called %+v", got)
+			}
+			if got := changes(q.sink); len(got) != 1 || got[0].Change != model.QuestHandedIn || q.saved(t)["bounty"].TimesFinished != 1 {
+				t.Fatalf("told %+v", got)
+			}
+		})
+	})
+	t.Run("an item service down past the tries leaves the quest as it was", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := &fakeHandIns{answer: answer, down: 1000}
+			q := newQuestTown(t, 1, ready(0), f)
+			if err := q.handIn("bounty"); !errors.Is(err, transient.ErrUnavailable) || len(f.called()) < 2 {
+				t.Fatalf("err = %v after %d calls", err, len(f.called()))
+			}
+			if len(changes(q.sink)) != 0 || len(q.cps.Drain()) != 0 {
+				t.Fatal("something changed")
+			}
+		})
+	})
+	t.Run("an answer after the character joined again through another connection finishes the quest for it", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			q := newQuestTown(t, 1, ready(0), f)
+			first := make(chan error, 1)
+			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
+			tick(1)
+			again := q.p
+			again.Connection, again.Quests = "c2", ready(0)
+			s := join(t, q.inst, again)
+			close(f.gate)
+			tick(1)
+			if err := <-first; err != nil {
+				t.Fatal(err)
+			}
+			if got := changes(s); len(got) != 1 || got[0].Change != model.QuestHandedIn {
+				t.Fatalf("told %+v", got)
+			}
+			if inv := eventsOf[model.InventoryChanged](s); len(inv) != 1 || inv[0].Revision != 7 {
+				t.Fatalf("inventory changes %+v", inv)
+			}
+			if cps := q.cps.Drain(); len(cps) == 0 || cps[len(cps)-1].Quests["bounty"].TimesFinished != 1 {
+				t.Fatalf("saved %+v", cps)
+			}
+		})
+	})
+	t.Run("an answer after the character left the map changes nothing here", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			q := newQuestTown(t, 1, ready(0), f)
+			first := make(chan error, 1)
+			go func() { first <- q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty") }()
+			tick(1)
+			if err := q.inst.Leave(q.p.ID, "c1", nil); err != nil {
+				t.Fatal(err)
+			}
+			tick(1)
+			close(f.gate)
+			tick(1)
+			if err := <-first; !errors.Is(err, transient.ErrUnavailable) {
+				t.Fatalf("err = %v", err)
+			}
+			if len(changes(q.sink)) != 0 {
+				t.Fatal("the quest changed")
+			}
+		})
+	})
+	t.Run("a join finishes each completion the item service handed in, unless the log moved past it", func(t *testing.T) {
+		for _, c := range []struct {
+			name     string
+			log      model.Quests
+			handedIn []model.HandedIn
+			finished int // the completion it finishes; 0 none
+		}{
+			{"the next completion", ready(0), []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer}}, 1},
+			{"a repeatable quest's next", ready(2), []model.HandedIn{{Quest: "bounty", Completion: 3, Items: answer}}, 3},
+			{"one already finished", model.Quests{"bounty": {Status: model.QuestFinished, TimesFinished: 1}}, []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer}}, 0},
+			{"one past the next", ready(0), []model.HandedIn{{Quest: "bounty", Completion: 2, Items: answer}}, 0},
+			{"a quest not in the log", nil, []model.HandedIn{{Quest: "bounty", Completion: 1, Items: answer}}, 0},
+		} {
+			t.Run(c.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					cps := &worldtest.Checkpoints{}
+					inst, stop := worldtest.Run(t, questData(t), cps, worldtest.Options{CheckpointInterval: time.Hour})
+					defer stop()
+					p := worldtest.NewPlayer("Ayla", 450, 608)
+					p.Connection, p.Quests, p.HandedIn = "c1", c.log, c.handedIn
+					s := join(t, inst, p)
+					got := changes(s)
+					if c.finished == 0 {
+						if len(got) != 0 || len(eventsOf[model.InventoryChanged](s)) != 0 {
+							t.Fatalf("told %+v", got)
+						}
+						return
+					}
+					done := model.Quest{Status: model.QuestFinished, TimesFinished: c.finished}
+					if !reflect.DeepEqual(got, []model.QuestChanged{{ID: "bounty", Change: model.QuestHandedIn, Quest: done}}) {
+						t.Fatalf("told %+v", got)
+					}
+					if inv := eventsOf[model.InventoryChanged](s); len(inv) != 1 || inv[0].Revision != 7 {
+						t.Fatalf("inventory changes %+v", inv)
+					}
+					if saved := cps.Drain(); len(saved) != 1 || !reflect.DeepEqual(saved[0].Quests["bounty"], done) {
+						t.Fatalf("saved %+v", saved)
+					}
+				})
+			})
+		}
 	})
 	t.Run("a repeatable quest hands in its next completion", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {

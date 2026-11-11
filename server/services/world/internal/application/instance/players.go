@@ -94,6 +94,10 @@ func (i *Instance) add(j *joinMsg) {
 		return
 	}
 	i.tellParty(p, i.m.ID) // a join is a map change, and after a restart it corrects what social kept
+	for _, h := range p.HandedIn {
+		i.handedIn(p, h)
+	}
+	p.HandedIn = nil
 	j.done <- nil
 }
 

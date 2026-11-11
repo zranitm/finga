@@ -84,6 +84,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Batches:      metrics,
 		Equipment:    equipment,
 		HandIns:      equipment,
+		HandedIns:    equipment,
 		Wardrobe:     equipment,
 		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: metrics, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
 		Parties:      parties,

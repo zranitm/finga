@@ -22,6 +22,11 @@ type Wardrobe interface {
 	Worn(ctx context.Context, id kernel.CharacterID) (model.Worn, error)
 }
 
+// HandedIns finds which completions the item service handed in; a join fails while it can't, as a hand-in the world missed would be lost.
+type HandedIns interface {
+	HandedIn(ctx context.Context, id kernel.CharacterID, asked []model.Completion) ([]model.HandedIn, error)
+}
+
 // Saver persists checkpoints, from the persistence worker, never from a tick.
 type Saver interface {
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error

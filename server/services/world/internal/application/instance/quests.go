@@ -2,10 +2,13 @@ package instance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"time"
+
+	"github.com/cenkalti/backoff/v5"
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
@@ -14,8 +17,13 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// handInTimeout bounds one hand-in call to the item service.
-const handInTimeout = 5 * time.Second
+// A hand-in's call to the item service is tried again after a timeout or an outage, for up to handInFor, as a completion is handed in once whatever the tries; a refusal is final.
+const (
+	handInTimeout    = 5 * time.Second // one try
+	handInFor        = 20 * time.Second
+	handInRetryFirst = 200 * time.Millisecond
+	handInRetryMax   = 2 * time.Second
+)
 
 type questAction uint8
 
@@ -154,17 +162,15 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 		return fmt.Errorf("%w: its hand-in is in flight", transient.ErrUnavailable)
 	}
 	completion := entry.TimesFinished + 1
-	take, give := quests.Items(i.data, q, i.between)
-	if len(take)+len(give) == 0 {
+	if !quests.HandsItems(q) {
 		i.finish(p, q, completion, model.Inventory{})
 		m.done <- nil
 		return nil
 	}
+	take, give := quests.Items(i.data, q, i.between)
 	call := model.HandInCall{Account: p.Account, Character: p.ID, Quest: q.ID, Completion: completion, Take: take, Give: give}
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
-		callCtx, cancel := context.WithTimeout(ctx, handInTimeout)
-		result, err := i.deps.HandIns.HandIn(callCtx, call)
-		cancel()
+		result, err := i.callHandIn(ctx, call)
 		select {
 		case i.inbox <- handedInMsg{id: p.ID, conn: p.Connection, quest: q.ID, completion: completion, result: result, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain
@@ -181,7 +187,21 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	return nil
 }
 
-// settleHandIn finishes the quest once the item service has taken and given; a refusal changed nothing anywhere. A player gone meanwhile hands it in again on return, under the same key.
+// callHandIn tries the hand-in until the item service answers or refuses, or handInFor passes.
+func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.Inventory, error) {
+	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
+	return backoff.Retry(ctx, func() (model.Inventory, error) {
+		tryCtx, cancel := context.WithTimeout(ctx, handInTimeout)
+		defer cancel()
+		result, err := i.deps.HandIns.HandIn(tryCtx, call)
+		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
+			return result, backoff.Permanent(err)
+		}
+		return result, err
+	}, backoff.WithBackOff(wait), backoff.WithMaxElapsedTime(handInFor))
+}
+
+// settleHandIn finishes the quest once the item service has taken and given, for the character on this map whatever its connection; a refusal changed nothing anywhere. A character gone from the map finishes it at its next join.
 func (i *Instance) settleHandIn(m handedInMsg) {
 	p, ok := i.players[m.id]
 	if ok && p.Connection == m.conn {
@@ -191,12 +211,20 @@ func (i *Instance) settleHandIn(m handedInMsg) {
 	switch {
 	case m.err != nil:
 		m.done <- m.err
-	case !ok || p.Connection != m.conn:
-		m.done <- fmt.Errorf("%w: the character left the map before the hand-in applied", transient.ErrUnavailable)
+	case !ok:
+		m.done <- fmt.Errorf("%w: the character left the map before the hand-in applied; its next join finishes the quest", transient.ErrUnavailable)
 	default:
-		q, _ := i.data.Quest(m.quest)
-		i.finish(p, q, m.completion, m.result)
+		i.handedIn(p, model.HandedIn{Quest: m.quest, Completion: m.completion, Items: m.result})
 		m.done <- nil
+	}
+}
+
+// handedIn finishes a completion the item service handed in, unless the log has moved past it: a join's and a reply's for one completion finish it once.
+func (i *Instance) handedIn(p *player, h model.HandedIn) {
+	entry, ok := p.Quests[h.Quest]
+	q, known := i.data.Quest(h.Quest)
+	if ok && known && entry.Status == model.QuestActive && entry.TimesFinished == h.Completion-1 {
+		i.finish(p, q, h.Completion, h.Items)
 	}
 }
 

@@ -2,6 +2,8 @@
 package quests
 
 import (
+	"slices"
+
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -91,6 +93,11 @@ func Count(entry model.Quest, k int) int {
 		return entry.Progress[k]
 	}
 	return 0
+}
+
+// HandsItems is whether handing q in takes or gives items, and so goes through the item service.
+func HandsItems(q gamedata.Quest) bool {
+	return len(q.Rewards.Items) > 0 || slices.ContainsFunc(q.Objectives, func(o gamedata.Objective) bool { return o.Kind == gamedata.Collect })
 }
 
 // Items is what handing q in asks the item service for: its collect objectives to take, and its item rewards to give, equipment rolled by between, which picks a whole number in a range.

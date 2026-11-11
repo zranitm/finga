@@ -110,6 +110,19 @@ type HandInCall struct {
 	Give       []Reward
 }
 
+// Completion is one completion of a quest: 1 the first time it is handed in.
+type Completion struct {
+	Quest      string
+	Completion int
+}
+
+// HandedIn is a completion the item service handed in, with what it did to the inventory.
+type HandedIn struct {
+	Quest      string
+	Completion int
+	Items      Inventory
+}
+
 // Reward is one item line a hand-in gives; equipment comes one per line, with its roll.
 type Reward struct {
 	Template string
