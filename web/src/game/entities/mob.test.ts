@@ -24,6 +24,11 @@ describe('mob art', () => {
     }
   });
 
+  it("an elite is drawn bigger, a normal mob at the art's size", () => {
+    expect(mobArt('mossback_snail')).toMatchObject({ elite: true, scale: 1.5 });
+    expect(mobArt('spore_slime')).toMatchObject({ elite: false, scale: 1 });
+  });
+
   it('a mob the data does not know is a magenta slime', () => {
     expect(mobArt('from_a_newer_server')).toMatchObject({
       stand: TEX.slimeStand,

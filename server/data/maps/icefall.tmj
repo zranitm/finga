@@ -1,0 +1,141 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 75,
+  "height": 35,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 8,
+  "nextobjectid": 56,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"},
+    {"name": "town", "type": "string", "value": "crossroads"},
+    {"name": "name", "type": "string", "value": "Icefall"},
+    {"name": "ground", "type": "string", "value": "snow"},
+    {"name": "background", "type": "string", "value": "snow"},
+    {"name": "min_level", "type": "int", "value": 28},
+    {"name": "max_level", "type": "int", "value": 29}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 1088, "width": 2400, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 1088},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2368, "y": 0, "width": 32, "height": 1088}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 4, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 320, "y": 992, "width": 128, "height": 8},
+      {"id": 5, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 1024, "y": 992, "width": 128, "height": 8},
+      {"id": 6, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1728, "y": 992, "width": 128, "height": 8},
+      {"id": 7, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 128, "y": 864, "width": 256, "height": 8},
+      {"id": 8, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 640, "y": 864, "width": 320, "height": 8},
+      {"id": 9, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 864, "width": 320, "height": 8},
+      {"id": 10, "name": "t2_4", "type": "", "rotation": 0, "visible": true, "x": 2016, "y": 864, "width": 256, "height": 8},
+      {"id": 11, "name": "t3_1", "type": "", "rotation": 0, "visible": true, "x": 384, "y": 736, "width": 192, "height": 8},
+      {"id": 12, "name": "t3_2", "type": "", "rotation": 0, "visible": true, "x": 1024, "y": 736, "width": 224, "height": 8},
+      {"id": 13, "name": "t3_3", "type": "", "rotation": 0, "visible": true, "x": 1664, "y": 736, "width": 256, "height": 8},
+      {"id": 14, "name": "t4_1", "type": "", "rotation": 0, "visible": true, "x": 128, "y": 608, "width": 224, "height": 8},
+      {"id": 15, "name": "t4_2", "type": "", "rotation": 0, "visible": true, "x": 768, "y": 608, "width": 192, "height": 8},
+      {"id": 16, "name": "t4_3", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 608, "width": 256, "height": 8},
+      {"id": 17, "name": "t4_4", "type": "", "rotation": 0, "visible": true, "x": 2048, "y": 608, "width": 224, "height": 8},
+      {"id": 18, "name": "t5_1", "type": "", "rotation": 0, "visible": true, "x": 512, "y": 480, "width": 224, "height": 8},
+      {"id": 19, "name": "t5_2", "type": "", "rotation": 0, "visible": true, "x": 1120, "y": 480, "width": 192, "height": 8},
+      {"id": 20, "name": "t5_3", "type": "", "rotation": 0, "visible": true, "x": 1728, "y": 480, "width": 224, "height": 8},
+      {"id": 21, "name": "t6_1", "type": "", "rotation": 0, "visible": true, "x": 192, "y": 352, "width": 192, "height": 8},
+      {"id": 22, "name": "t6_2", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 352, "width": 256, "height": 8},
+      {"id": 23, "name": "t6_3", "type": "", "rotation": 0, "visible": true, "x": 1536, "y": 352, "width": 192, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 24, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 152, "y": 864, "width": 8, "height": 224},
+      {"id": 25, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 664, "y": 864, "width": 8, "height": 224},
+      {"id": 26, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 928, "y": 864, "width": 8, "height": 224},
+      {"id": 27, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1368, "y": 864, "width": 8, "height": 224},
+      {"id": 28, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1632, "y": 864, "width": 8, "height": 224},
+      {"id": 29, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2040, "y": 864, "width": 8, "height": 224},
+      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 408, "y": 736, "width": 8, "height": 256},
+      {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1048, "y": 736, "width": 8, "height": 256},
+      {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1688, "y": 736, "width": 8, "height": 352},
+      {"id": 33, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 152, "y": 608, "width": 8, "height": 256},
+      {"id": 34, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 792, "y": 608, "width": 8, "height": 256},
+      {"id": 35, "name": "rope_t4_3", "type": "", "rotation": 0, "visible": true, "x": 1368, "y": 608, "width": 8, "height": 256},
+      {"id": 36, "name": "rope_t4_4", "type": "", "rotation": 0, "visible": true, "x": 2072, "y": 608, "width": 8, "height": 256},
+      {"id": 37, "name": "rope_t5_1", "type": "", "rotation": 0, "visible": true, "x": 536, "y": 480, "width": 8, "height": 256},
+      {"id": 38, "name": "rope_t5_2", "type": "", "rotation": 0, "visible": true, "x": 1144, "y": 480, "width": 8, "height": 256},
+      {"id": 39, "name": "rope_t5_3", "type": "", "rotation": 0, "visible": true, "x": 1752, "y": 480, "width": 8, "height": 256},
+      {"id": 40, "name": "rope_t6_1", "type": "", "rotation": 0, "visible": true, "x": 216, "y": 352, "width": 8, "height": 256},
+      {"id": 41, "name": "rope_t6_2", "type": "", "rotation": 0, "visible": true, "x": 920, "y": 352, "width": 8, "height": 256},
+      {"id": 42, "name": "rope_t6_3", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 352, "width": 8, "height": 256}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 43, "name": "from_frost", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 1024, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "frost_trail"},
+        {"name": "target_portal", "type": "string", "value": "to_icefall"}
+      ]},
+      {"id": 44, "name": "to_peak", "type": "", "rotation": 0, "visible": true, "x": 1680, "y": 288, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "glacier_peak"},
+        {"name": "target_portal", "type": "string", "value": "from_icefall"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 45, "name": "icewing_1", "type": "", "rotation": 0, "visible": true, "x": 100, "y": 1008, "width": 2200, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "icewing"},
+        {"name": "max", "type": "int", "value": 3},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 46, "name": "icewing_2", "type": "", "rotation": 0, "visible": true, "x": 640, "y": 784, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "icewing"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 47, "name": "icewing_3", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 784, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "icewing"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 48, "name": "icewing_4", "type": "", "rotation": 0, "visible": true, "x": 1024, "y": 656, "width": 224, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "icewing"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 49, "name": "icewing_5", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 528, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "icewing"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 50, "name": "icewing_6", "type": "", "rotation": 0, "visible": true, "x": 512, "y": 400, "width": 224, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "icewing"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 51, "name": "glacier_snail_7", "type": "", "rotation": 0, "visible": true, "x": 2016, "y": 784, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "glacier_snail"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 52, "name": "glacier_snail_8", "type": "", "rotation": 0, "visible": true, "x": 2048, "y": 528, "width": 224, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "glacier_snail"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 53, "name": "glacier_snail_9", "type": "", "rotation": 0, "visible": true, "x": 1728, "y": 400, "width": 224, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "glacier_snail"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 54, "name": "glacier_snail_10", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 272, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "glacier_snail"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 55, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 1056, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+  ]
+}

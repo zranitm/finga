@@ -177,6 +177,9 @@ export class World extends Phaser.Scene {
       .setScrollFactor(0)
       .setDisplaySize(cam.width, cam.height)
       .setDepth(-2);
+    if (style.backgroundTint !== null) {
+      this.background.setTint(style.backgroundTint);
+    }
     const onResize = (size: Phaser.Structs.Size) => {
       this.background?.setDisplaySize(size.width, size.height);
     };
@@ -184,7 +187,13 @@ export class World extends Phaser.Scene {
     this.offs.push(() => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
 
     for (const t of mapTiles(view)) {
-      this.add.tileSprite(t.x, t.y, t.w, t.h, t.texture).setOrigin(0, 0).setTileScale(ART_SCALE);
+      const tile = this.add
+        .tileSprite(t.x, t.y, t.w, t.h, t.texture)
+        .setOrigin(0, 0)
+        .setTileScale(ART_SCALE);
+      if (t.tint !== null) {
+        tile.setTint(t.tint);
+      }
     }
 
     // Hidden until the server says where the player is.

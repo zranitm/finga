@@ -5,37 +5,53 @@ import type { Rect } from '@/sim/step';
 import { TEX, TILE } from '../keys';
 import type { TextureKey } from '../keys';
 
-export interface GroundStyle {
-  readonly top: TextureKey;
-  readonly fill: TextureKey;
-  readonly platform: TextureKey;
+export interface GroundStyle extends Ground {
   readonly background: TextureKey;
+  readonly backgroundTint: number | null;
 }
 
+// A tint stands in for art the packs in public/assets lack, such as sand or snow.
 interface Ground {
   readonly top: TextureKey;
   readonly fill: TextureKey;
   readonly platform: TextureKey;
+  readonly tint: number | null;
+}
+
+interface Background {
+  readonly texture: TextureKey;
+  readonly tint: number | null;
 }
 
 type GroundName = (typeof maps)[number]['ground'];
 type BackgroundName = (typeof maps)[number]['background'];
 
+const dirt = { top: TEX.dirtMid, fill: TEX.dirtCenter, platform: TEX.dirtHalf };
+const stone = { top: TEX.stoneMid, fill: TEX.stoneCenter, platform: TEX.stoneHalf };
+
 const grounds = {
-  dirt: { top: TEX.dirtMid, fill: TEX.dirtCenter, platform: TEX.dirtHalf },
-  grass: { top: TEX.grassMid, fill: TEX.grassCenter, platform: TEX.grassHalf },
-  stone: { top: TEX.stoneMid, fill: TEX.stoneCenter, platform: TEX.stoneHalf },
+  dirt: { ...dirt, tint: null },
+  grass: { top: TEX.grassMid, fill: TEX.grassCenter, platform: TEX.grassHalf, tint: null },
+  stone: { ...stone, tint: null },
+  sand: { ...dirt, tint: 0xf2d79a },
+  snow: { ...stone, tint: 0xe6f2ff },
+  brick: { ...stone, tint: 0x8c7f9e },
 };
 
 const backgrounds = {
-  land: TEX.bgLand,
-  grass: TEX.bgGrass,
-  cave: TEX.bgCave,
+  land: { texture: TEX.bgLand, tint: null },
+  grass: { texture: TEX.bgGrass, tint: null },
+  cave: { texture: TEX.bgCave, tint: null },
+  shroom: { texture: TEX.bgShroom, tint: null },
+  dawn: { texture: TEX.bgLand, tint: 0xffd8b0 },
+  desert: { texture: TEX.bgLand, tint: 0xffe2a8 },
+  snow: { texture: TEX.bgCave, tint: 0xeef6ff },
+  dusk: { texture: TEX.bgLand, tint: 0x8a7aa8 },
 };
 
 // A ground or background a map names but these tables lack fails the type check.
 const _grounds: Record<GroundName, Ground> = grounds;
-const _backgrounds: Record<BackgroundName, TextureKey> = backgrounds;
+const _backgrounds: Record<BackgroundName, Background> = backgrounds;
 void _grounds;
 void _backgrounds;
 
@@ -44,7 +60,8 @@ export function groundStyle(mapId: string): GroundStyle {
   if (!map) {
     throw new Error(`world-layout: map ${mapId} is not in the game data`);
   }
-  return { ...grounds[map.ground], background: backgrounds[map.background] };
+  const bg = backgrounds[map.background];
+  return { ...grounds[map.ground], background: bg.texture, backgroundTint: bg.tint };
 }
 
 /** The banner shown on entering a map: its name, and for a hunting map its level range. */
@@ -62,14 +79,15 @@ export interface Tile {
   readonly y: number;
   readonly w: number;
   readonly h: number;
+  readonly tint: number | null;
 }
 
 export function solidTiles(solids: readonly Rect[], s: GroundStyle): Tile[] {
   const out: Tile[] = [];
   for (const r of solids) {
-    out.push({ texture: s.top, x: r.x, y: r.y, w: r.w, h: Math.min(TILE, r.h) });
+    out.push({ texture: s.top, x: r.x, y: r.y, w: r.w, h: Math.min(TILE, r.h), tint: s.tint });
     if (r.h > TILE) {
-      out.push({ texture: s.fill, x: r.x, y: r.y + TILE, w: r.w, h: r.h - TILE });
+      out.push({ texture: s.fill, x: r.x, y: r.y + TILE, w: r.w, h: r.h - TILE, tint: s.tint });
     }
   }
   return out;
@@ -77,16 +95,23 @@ export function solidTiles(solids: readonly Rect[], s: GroundStyle): Tile[] {
 
 /** Half-tile art hangs from the top edge, whatever the platform's height. */
 export function platformTiles(platforms: readonly Rect[], s: GroundStyle): Tile[] {
-  return platforms.map((r) => ({ texture: s.platform, x: r.x, y: r.y, w: r.w, h: TILE }));
+  return platforms.map((r) => ({
+    texture: s.platform,
+    x: r.x,
+    y: r.y,
+    w: r.w,
+    h: TILE,
+    tint: s.tint,
+  }));
 }
 
 export function ropeTiles(ropes: readonly Rect[]): Tile[] {
   const out: Tile[] = [];
   for (const r of ropes) {
     const x = r.x + r.w / 2 - TILE / 2;
-    out.push({ texture: TEX.ladderTop, x, y: r.y, w: TILE, h: Math.min(TILE, r.h) });
+    out.push({ texture: TEX.ladderTop, x, y: r.y, w: TILE, h: Math.min(TILE, r.h), tint: null });
     if (r.h > TILE) {
-      out.push({ texture: TEX.ladderMid, x, y: r.y + TILE, w: TILE, h: r.h - TILE });
+      out.push({ texture: TEX.ladderMid, x, y: r.y + TILE, w: TILE, h: r.h - TILE, tint: null });
     }
   }
   return out;
@@ -96,9 +121,23 @@ export function portalTiles(portals: MapView['portals']): Tile[] {
   const out: Tile[] = [];
   for (const p of portals) {
     const a = p.area;
-    out.push({ texture: TEX.doorClosedTop, x: a.x, y: a.y, w: a.w, h: Math.min(TILE, a.h) });
+    out.push({
+      texture: TEX.doorClosedTop,
+      x: a.x,
+      y: a.y,
+      w: a.w,
+      h: Math.min(TILE, a.h),
+      tint: null,
+    });
     if (a.h > TILE) {
-      out.push({ texture: TEX.doorClosedMid, x: a.x, y: a.y + TILE, w: a.w, h: a.h - TILE });
+      out.push({
+        texture: TEX.doorClosedMid,
+        x: a.x,
+        y: a.y + TILE,
+        w: a.w,
+        h: a.h - TILE,
+        tint: null,
+      });
     }
   }
   return out;

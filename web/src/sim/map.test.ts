@@ -40,7 +40,7 @@ describe('parseMap', () => {
       solids: 6,
       platforms: 4,
       ropes: 4,
-      portals: 1,
+      portals: 2,
       spawns: 3,
     },
   ])(

@@ -74,13 +74,16 @@ describe('generated gamedata', () => {
     expect(stats.per_point.str.physical_attack).toBe(1.5);
   });
 
-  it('mobs equal mobs.yaml, a mob not marked elite as normal and an untinted one as null', () => {
-    const raw = yaml('mobs.yaml').mobs as { elite?: boolean; look: { tint?: number } }[];
+  it('mobs equal mobs.yaml, a mob not marked elite as normal, an untinted one as null and an unscaled one as 1', () => {
+    const raw = yaml('mobs.yaml').mobs as {
+      elite?: boolean;
+      look: { tint?: number; scale?: number };
+    }[];
     expect(mobs).toEqual(
       raw.map((m) => ({
         ...m,
         elite: m.elite ?? false,
-        look: { ...m.look, tint: m.look.tint ?? null },
+        look: { ...m.look, tint: m.look.tint ?? null, scale: m.look.scale ?? 1 },
       })),
     );
   });

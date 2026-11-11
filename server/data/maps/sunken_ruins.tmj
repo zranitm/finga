@@ -1,0 +1,129 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 80,
+  "height": 30,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 8,
+  "nextobjectid": 47,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"},
+    {"name": "town", "type": "string", "value": "crossroads"},
+    {"name": "name", "type": "string", "value": "Sunken Ruins"},
+    {"name": "ground", "type": "string", "value": "sand"},
+    {"name": "background", "type": "string", "value": "desert"},
+    {"name": "min_level", "type": "int", "value": 25},
+    {"name": "max_level", "type": "int", "value": 26}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 928, "width": 2560, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 928},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2528, "y": 0, "width": 32, "height": 928},
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 640, "y": 768, "width": 64, "height": 160},
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1280, "y": 768, "width": 64, "height": 160},
+      {"id": 6, "name": "block_3", "type": "", "rotation": 0, "visible": true, "x": 1920, "y": 768, "width": 64, "height": 160}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 7, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 544, "y": 832, "width": 96, "height": 8},
+      {"id": 8, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 832, "width": 96, "height": 8},
+      {"id": 9, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1184, "y": 832, "width": 96, "height": 8},
+      {"id": 10, "name": "t1_4", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 832, "width": 96, "height": 8},
+      {"id": 11, "name": "t1_5", "type": "", "rotation": 0, "visible": true, "x": 1824, "y": 832, "width": 96, "height": 8},
+      {"id": 12, "name": "t1_6", "type": "", "rotation": 0, "visible": true, "x": 1984, "y": 832, "width": 96, "height": 8},
+      {"id": 13, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 640, "width": 320, "height": 8},
+      {"id": 14, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 832, "y": 640, "width": 384, "height": 8},
+      {"id": 15, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1472, "y": 640, "width": 384, "height": 8},
+      {"id": 16, "name": "t2_4", "type": "", "rotation": 0, "visible": true, "x": 2112, "y": 640, "width": 320, "height": 8},
+      {"id": 17, "name": "t3_1", "type": "", "rotation": 0, "visible": true, "x": 576, "y": 512, "width": 192, "height": 8},
+      {"id": 18, "name": "t3_2", "type": "", "rotation": 0, "visible": true, "x": 1216, "y": 512, "width": 192, "height": 8},
+      {"id": 19, "name": "t3_3", "type": "", "rotation": 0, "visible": true, "x": 1856, "y": 512, "width": 192, "height": 8},
+      {"id": 20, "name": "t4_1", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 384, "width": 256, "height": 8},
+      {"id": 21, "name": "t4_2", "type": "", "rotation": 0, "visible": true, "x": 1536, "y": 384, "width": 256, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 22, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 280, "y": 640, "width": 8, "height": 288},
+      {"id": 23, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 544, "y": 640, "width": 8, "height": 192},
+      {"id": 24, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 856, "y": 640, "width": 8, "height": 288},
+      {"id": 25, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1184, "y": 640, "width": 8, "height": 192},
+      {"id": 26, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1496, "y": 640, "width": 8, "height": 288},
+      {"id": 27, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1824, "y": 640, "width": 8, "height": 192},
+      {"id": 28, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2136, "y": 640, "width": 8, "height": 288},
+      {"id": 29, "name": "rope_t2_4", "type": "", "rotation": 0, "visible": true, "x": 2400, "y": 640, "width": 8, "height": 288},
+      {"id": 30, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 600, "y": 512, "width": 8, "height": 320},
+      {"id": 31, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1240, "y": 512, "width": 8, "height": 320},
+      {"id": 32, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 512, "width": 8, "height": 320},
+      {"id": 33, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 920, "y": 384, "width": 8, "height": 256},
+      {"id": 34, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 384, "width": 8, "height": 256}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 35, "name": "from_cliffs", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 864, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "sandstone_cliffs"},
+        {"name": "target_portal", "type": "string", "value": "to_ruins"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 36, "name": "tomb_rat_1", "type": "", "rotation": 0, "visible": true, "x": 100, "y": 848, "width": 440, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "tomb_rat"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 37, "name": "tomb_rat_2", "type": "", "rotation": 0, "visible": true, "x": 800, "y": 848, "width": 380, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "tomb_rat"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 38, "name": "tomb_rat_3", "type": "", "rotation": 0, "visible": true, "x": 1440, "y": 848, "width": 380, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "tomb_rat"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 39, "name": "tomb_rat_4", "type": "", "rotation": 0, "visible": true, "x": 2080, "y": 848, "width": 420, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "tomb_rat"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 40, "name": "tomb_rat_5", "type": "", "rotation": 0, "visible": true, "x": 832, "y": 560, "width": 384, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "tomb_rat"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 41, "name": "tomb_rat_6", "type": "", "rotation": 0, "visible": true, "x": 1472, "y": 560, "width": 384, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "tomb_rat"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 42, "name": "ruin_wisp_7", "type": "", "rotation": 0, "visible": true, "x": 1216, "y": 432, "width": 192, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "ruin_wisp"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 43, "name": "ruin_wisp_8", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 304, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "ruin_wisp"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 44, "name": "ruin_wisp_9", "type": "", "rotation": 0, "visible": true, "x": 1536, "y": 304, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "ruin_wisp"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 45, "name": "ruin_wisp_10", "type": "", "rotation": 0, "visible": true, "x": 2112, "y": 560, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "ruin_wisp"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 46, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 896, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+  ]
+}

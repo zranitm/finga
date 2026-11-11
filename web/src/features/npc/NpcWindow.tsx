@@ -43,6 +43,7 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
     }
   };
 
+  const lines = npcById(npc)?.lines ?? [];
   const takes = dialog.takes.flatMap((t) => questById(t.questId) ?? []);
   // A quest under way that this NPC also takes back shows once, under Hand in.
   const gives = dialog.gives.filter(
@@ -57,7 +58,12 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
       initialY={120}
     >
       <div className="npc-dialog">
-        {gives.length === 0 && takes.length === 0 && (
+        {lines.map((line) => (
+          <p key={line} className="npc-line">
+            {line}
+          </p>
+        ))}
+        {lines.length === 0 && gives.length === 0 && takes.length === 0 && (
           <p className="muted">Nothing for you right now.</p>
         )}
         {takes.length > 0 && (

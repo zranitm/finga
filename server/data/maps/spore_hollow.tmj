@@ -1,0 +1,116 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 75,
+  "height": 27,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 8,
+  "nextobjectid": 39,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"},
+    {"name": "town", "type": "string", "value": "crossroads"},
+    {"name": "name", "type": "string", "value": "Spore Hollow"},
+    {"name": "ground", "type": "string", "value": "grass"},
+    {"name": "background", "type": "string", "value": "shroom"},
+    {"name": "min_level", "type": "int", "value": 17},
+    {"name": "max_level", "type": "int", "value": 18}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 832, "width": 2400, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 832},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2368, "y": 0, "width": 32, "height": 832},
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 768, "width": 64, "height": 64},
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1504, "y": 768, "width": 96, "height": 64}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 6, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 160, "y": 736, "width": 160, "height": 8},
+      {"id": 7, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 736, "width": 128, "height": 8},
+      {"id": 8, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1888, "y": 736, "width": 160, "height": 8},
+      {"id": 9, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 352, "y": 608, "width": 384, "height": 8},
+      {"id": 10, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 1120, "y": 608, "width": 320, "height": 8},
+      {"id": 11, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1760, "y": 608, "width": 352, "height": 8},
+      {"id": 12, "name": "t3_1", "type": "", "rotation": 0, "visible": true, "x": 608, "y": 480, "width": 192, "height": 8},
+      {"id": 13, "name": "t3_2", "type": "", "rotation": 0, "visible": true, "x": 1408, "y": 480, "width": 224, "height": 8},
+      {"id": 14, "name": "t3_3", "type": "", "rotation": 0, "visible": true, "x": 2112, "y": 480, "width": 256, "height": 8},
+      {"id": 15, "name": "t4_1", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 352, "width": 160, "height": 8},
+      {"id": 16, "name": "t4_2", "type": "", "rotation": 0, "visible": true, "x": 1696, "y": 352, "width": 192, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 17, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 376, "y": 608, "width": 8, "height": 224},
+      {"id": 18, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 608, "width": 8, "height": 160},
+      {"id": 19, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1144, "y": 608, "width": 8, "height": 224},
+      {"id": 20, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1408, "y": 608, "width": 8, "height": 224},
+      {"id": 21, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1784, "y": 608, "width": 8, "height": 224},
+      {"id": 22, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 2080, "y": 608, "width": 8, "height": 224},
+      {"id": 23, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 632, "y": 480, "width": 8, "height": 128},
+      {"id": 24, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1432, "y": 480, "width": 8, "height": 128},
+      {"id": 25, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 2136, "y": 480, "width": 8, "height": 352},
+      {"id": 26, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 920, "y": 352, "width": 8, "height": 480},
+      {"id": 27, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1720, "y": 352, "width": 8, "height": 480}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 28, "name": "from_grove", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 768, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "shroom_grove"},
+        {"name": "target_portal", "type": "string", "value": "to_hollow"}
+      ]},
+      {"id": 29, "name": "to_heights", "type": "", "rotation": 0, "visible": true, "x": 2304, "y": 416, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "toadstool_heights"},
+        {"name": "target_portal", "type": "string", "value": "from_hollow"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 30, "name": "dust_moth_1", "type": "", "rotation": 0, "visible": true, "x": 200, "y": 752, "width": 480, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "dust_moth"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 31, "name": "dust_moth_2", "type": "", "rotation": 0, "visible": true, "x": 790, "y": 752, "width": 690, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "dust_moth"},
+        {"name": "max", "type": "int", "value": 3},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 32, "name": "dust_moth_3", "type": "", "rotation": 0, "visible": true, "x": 1620, "y": 752, "width": 680, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "dust_moth"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 33, "name": "dust_moth_4", "type": "", "rotation": 0, "visible": true, "x": 352, "y": 528, "width": 384, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "dust_moth"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 34, "name": "dust_moth_5", "type": "", "rotation": 0, "visible": true, "x": 1120, "y": 528, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "dust_moth"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 35, "name": "toadstool_rat_6", "type": "", "rotation": 0, "visible": true, "x": 1760, "y": 528, "width": 352, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "toadstool_rat"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 36, "name": "toadstool_rat_7", "type": "", "rotation": 0, "visible": true, "x": 896, "y": 272, "width": 160, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "toadstool_rat"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 37, "name": "toadstool_rat_8", "type": "", "rotation": 0, "visible": true, "x": 1696, "y": 272, "width": 192, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "toadstool_rat"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 38, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 800, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+  ]
+}

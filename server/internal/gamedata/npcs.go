@@ -74,6 +74,7 @@ type npcYAML struct {
 	Trainer string   `yaml:"trainer"`
 	Gives   []string `yaml:"gives"`
 	Takes   []string `yaml:"takes"`
+	Lines   []string `yaml:"lines"` // what the client shows it saying; the server only checks none is empty
 }
 
 type questsYAML struct {
@@ -122,6 +123,9 @@ func (d *Data) loadNPCs(dir string) error {
 		}
 		if _, dup := d.npcIdx[n.ID]; dup {
 			return fmt.Errorf("%s: duplicate npc %q", npcsFile, n.ID)
+		}
+		if slices.Contains(n.Lines, "") {
+			return fmt.Errorf("%s: npc %q: a line is empty", npcsFile, n.ID)
 		}
 		npc := NPC{ID: n.ID, Name: n.Name, Look: n.Look, Gives: n.Gives, Takes: n.Takes}
 		// A trainer may teach a class the data doesn't offer yet; it gives its trial until promotions arrive.

@@ -1,0 +1,128 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 80,
+  "height": 33,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 8,
+  "nextobjectid": 47,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"},
+    {"name": "town", "type": "string", "value": "crossroads"},
+    {"name": "name", "type": "string", "value": "Glacier Peak"},
+    {"name": "ground", "type": "string", "value": "snow"},
+    {"name": "background", "type": "string", "value": "snow"},
+    {"name": "min_level", "type": "int", "value": 29},
+    {"name": "max_level", "type": "int", "value": 30}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 1024, "width": 2560, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 1024},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2528, "y": 0, "width": 32, "height": 1024},
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 576, "y": 960, "width": 96, "height": 64},
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1408, "y": 960, "width": 128, "height": 64},
+      {"id": 6, "name": "block_3", "type": "", "rotation": 0, "visible": true, "x": 2112, "y": 960, "width": 96, "height": 64}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 7, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 928, "width": 128, "height": 8},
+      {"id": 8, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 928, "width": 160, "height": 8},
+      {"id": 9, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 1760, "y": 928, "width": 160, "height": 8},
+      {"id": 10, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 448, "y": 800, "width": 288, "height": 8},
+      {"id": 11, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 1152, "y": 800, "width": 320, "height": 8},
+      {"id": 12, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1920, "y": 800, "width": 288, "height": 8},
+      {"id": 13, "name": "t3_1", "type": "", "rotation": 0, "visible": true, "x": 128, "y": 672, "width": 224, "height": 8},
+      {"id": 14, "name": "t3_2", "type": "", "rotation": 0, "visible": true, "x": 736, "y": 672, "width": 256, "height": 8},
+      {"id": 15, "name": "t3_3", "type": "", "rotation": 0, "visible": true, "x": 1472, "y": 672, "width": 288, "height": 8},
+      {"id": 16, "name": "t3_4", "type": "", "rotation": 0, "visible": true, "x": 2208, "y": 672, "width": 224, "height": 8},
+      {"id": 17, "name": "t4_1", "type": "", "rotation": 0, "visible": true, "x": 384, "y": 544, "width": 224, "height": 8},
+      {"id": 18, "name": "t4_2", "type": "", "rotation": 0, "visible": true, "x": 1088, "y": 544, "width": 224, "height": 8},
+      {"id": 19, "name": "t4_3", "type": "", "rotation": 0, "visible": true, "x": 1856, "y": 544, "width": 256, "height": 8},
+      {"id": 20, "name": "t5_1", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 416, "width": 256, "height": 8},
+      {"id": 21, "name": "t5_2", "type": "", "rotation": 0, "visible": true, "x": 1440, "y": 416, "width": 256, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 22, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 472, "y": 800, "width": 8, "height": 224},
+      {"id": 23, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1176, "y": 800, "width": 8, "height": 224},
+      {"id": 24, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1440, "y": 800, "width": 8, "height": 160},
+      {"id": 25, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1944, "y": 800, "width": 8, "height": 224},
+      {"id": 26, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 152, "y": 672, "width": 8, "height": 352},
+      {"id": 27, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 760, "y": 672, "width": 8, "height": 352},
+      {"id": 28, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1496, "y": 672, "width": 8, "height": 288},
+      {"id": 29, "name": "rope_t3_4", "type": "", "rotation": 0, "visible": true, "x": 2232, "y": 672, "width": 8, "height": 352},
+      {"id": 30, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 408, "y": 544, "width": 8, "height": 480},
+      {"id": 31, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1112, "y": 544, "width": 8, "height": 384},
+      {"id": 32, "name": "rope_t4_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 544, "width": 8, "height": 384},
+      {"id": 33, "name": "rope_t5_1", "type": "", "rotation": 0, "visible": true, "x": 728, "y": 416, "width": 8, "height": 384},
+      {"id": 34, "name": "rope_t5_2", "type": "", "rotation": 0, "visible": true, "x": 1464, "y": 416, "width": 8, "height": 384}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 35, "name": "from_icefall", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 960, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "icefall"},
+        {"name": "target_portal", "type": "string", "value": "to_peak"}
+      ]},
+      {"id": 36, "name": "to_keep", "type": "", "rotation": 0, "visible": true, "x": 1632, "y": 352, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "fallen_keep"},
+        {"name": "target_portal", "type": "string", "value": "from_peak"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 37, "name": "crystal_slime_1", "type": "", "rotation": 0, "visible": true, "x": 100, "y": 944, "width": 460, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 38, "name": "crystal_slime_2", "type": "", "rotation": 0, "visible": true, "x": 690, "y": 944, "width": 700, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 39, "name": "crystal_slime_3", "type": "", "rotation": 0, "visible": true, "x": 1550, "y": 944, "width": 550, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 40, "name": "crystal_slime_4", "type": "", "rotation": 0, "visible": true, "x": 448, "y": 720, "width": 288, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 41, "name": "crystal_slime_5", "type": "", "rotation": 0, "visible": true, "x": 1152, "y": 720, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 42, "name": "crystal_slime_6", "type": "", "rotation": 0, "visible": true, "x": 1920, "y": 720, "width": 288, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "crystal_slime"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 43, "name": "rime_rat_7", "type": "", "rotation": 0, "visible": true, "x": 1472, "y": 592, "width": 288, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "rime_rat"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 44, "name": "rime_rat_8", "type": "", "rotation": 0, "visible": true, "x": 1088, "y": 464, "width": 224, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "rime_rat"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 45, "name": "rime_rat_9", "type": "", "rotation": 0, "visible": true, "x": 704, "y": 336, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "rime_rat"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 46, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 992, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+  ]
+}

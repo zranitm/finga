@@ -1,0 +1,118 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 80,
+  "height": 27,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 8,
+  "nextobjectid": 37,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "hunting"},
+    {"name": "town", "type": "string", "value": "crossroads"},
+    {"name": "name", "type": "string", "value": "Dune Road"},
+    {"name": "ground", "type": "string", "value": "sand"},
+    {"name": "background", "type": "string", "value": "desert"},
+    {"name": "min_level", "type": "int", "value": 21},
+    {"name": "max_level", "type": "int", "value": 22}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 832, "width": 2560, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 832},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2528, "y": 0, "width": 32, "height": 832},
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 512, "y": 800, "width": 128, "height": 32},
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 1152, "y": 768, "width": 96, "height": 64},
+      {"id": 6, "name": "block_3", "type": "", "rotation": 0, "visible": true, "x": 1792, "y": 800, "width": 160, "height": 32}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 7, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 768, "y": 736, "width": 192, "height": 8},
+      {"id": 8, "name": "t1_2", "type": "", "rotation": 0, "visible": true, "x": 1408, "y": 736, "width": 160, "height": 8},
+      {"id": 9, "name": "t1_3", "type": "", "rotation": 0, "visible": true, "x": 2112, "y": 736, "width": 192, "height": 8},
+      {"id": 10, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 608, "width": 320, "height": 8},
+      {"id": 11, "name": "t2_2", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 608, "width": 384, "height": 8},
+      {"id": 12, "name": "t2_3", "type": "", "rotation": 0, "visible": true, "x": 1664, "y": 608, "width": 320, "height": 8},
+      {"id": 13, "name": "t3_1", "type": "", "rotation": 0, "visible": true, "x": 608, "y": 480, "width": 192, "height": 8},
+      {"id": 14, "name": "t3_2", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 480, "width": 224, "height": 8},
+      {"id": 15, "name": "t3_3", "type": "", "rotation": 0, "visible": true, "x": 2048, "y": 480, "width": 256, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 16, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 280, "y": 608, "width": 8, "height": 224},
+      {"id": 17, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 544, "y": 608, "width": 8, "height": 192},
+      {"id": 18, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 984, "y": 608, "width": 8, "height": 224},
+      {"id": 19, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1312, "y": 608, "width": 8, "height": 224},
+      {"id": 20, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1688, "y": 608, "width": 8, "height": 224},
+      {"id": 21, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1952, "y": 608, "width": 8, "height": 224},
+      {"id": 22, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 632, "y": 480, "width": 8, "height": 320},
+      {"id": 23, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 1368, "y": 480, "width": 8, "height": 352},
+      {"id": 24, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 2072, "y": 480, "width": 8, "height": 352}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 25, "name": "from_crossroads", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 768, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "crossroads"},
+        {"name": "target_portal", "type": "string", "value": "to_dune"}
+      ]},
+      {"id": 26, "name": "to_cliffs", "type": "", "rotation": 0, "visible": true, "x": 2480, "y": 768, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "sandstone_cliffs"},
+        {"name": "target_portal", "type": "string", "value": "from_dune"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 27, "name": "sand_mouse_1", "type": "", "rotation": 0, "visible": true, "x": 100, "y": 752, "width": 400, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "sand_mouse"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 28, "name": "sand_mouse_2", "type": "", "rotation": 0, "visible": true, "x": 660, "y": 752, "width": 480, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "sand_mouse"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 29, "name": "sand_mouse_3", "type": "", "rotation": 0, "visible": true, "x": 1260, "y": 752, "width": 520, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "sand_mouse"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 30, "name": "sand_mouse_4", "type": "", "rotation": 0, "visible": true, "x": 1960, "y": 752, "width": 480, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "sand_mouse"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 9}
+      ]},
+      {"id": 31, "name": "sand_mouse_5", "type": "", "rotation": 0, "visible": true, "x": 256, "y": 528, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "sand_mouse"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 32, "name": "sand_mouse_6", "type": "", "rotation": 0, "visible": true, "x": 960, "y": 528, "width": 384, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "sand_mouse"},
+        {"name": "max", "type": "int", "value": 2},
+        {"name": "respawn_seconds", "type": "int", "value": 10}
+      ]},
+      {"id": 33, "name": "shellback_scarab_7", "type": "", "rotation": 0, "visible": true, "x": 1664, "y": 528, "width": 320, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "shellback_scarab"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 34, "name": "shellback_scarab_8", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 400, "width": 224, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "shellback_scarab"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]},
+      {"id": 35, "name": "shellback_scarab_9", "type": "", "rotation": 0, "visible": true, "x": 2048, "y": 400, "width": 256, "height": 80, "properties": [
+        {"name": "mob", "type": "string", "value": "shellback_scarab"},
+        {"name": "max", "type": "int", "value": 1},
+        {"name": "respawn_seconds", "type": "int", "value": 12}
+      ]}
+    ]},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 36, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 800, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []}
+  ]
+}

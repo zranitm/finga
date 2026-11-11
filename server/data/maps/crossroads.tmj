@@ -1,0 +1,59 @@
+{
+  "type": "map",
+  "version": "1.10",
+  "tiledversion": "1.11.0",
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "compressionlevel": -1,
+  "infinite": false,
+  "width": 50,
+  "height": 22,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "nextlayerid": 8,
+  "nextobjectid": 13,
+  "tilesets": [],
+  "properties": [
+    {"name": "kind", "type": "string", "value": "town"},
+    {"name": "town", "type": "string", "value": "crossroads"},
+    {"name": "name", "type": "string", "value": "Crossroads"},
+    {"name": "ground", "type": "string", "value": "dirt"},
+    {"name": "background", "type": "string", "value": "dawn"}
+  ],
+  "layers": [
+    {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 672, "width": 1600, "height": 32},
+      {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 672},
+      {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 1568, "y": 0, "width": 32, "height": 672},
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 736, "y": 608, "width": 64, "height": 64}
+    ]},
+    {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 5, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 224, "y": 576, "width": 224, "height": 8},
+      {"id": 6, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 1024, "y": 448, "width": 224, "height": 8}
+    ]},
+    {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 7, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 1048, "y": 448, "width": 8, "height": 224}
+    ]},
+    {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 8, "name": "from_heights", "type": "", "rotation": 0, "visible": true, "x": 48, "y": 608, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "toadstool_heights"},
+        {"name": "target_portal", "type": "string", "value": "to_crossroads"}
+      ]},
+      {"id": 9, "name": "to_dune", "type": "", "rotation": 0, "visible": true, "x": 1344, "y": 608, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "dune_road"},
+        {"name": "target_portal", "type": "string", "value": "from_crossroads"}
+      ]},
+      {"id": 10, "name": "to_frost", "type": "", "rotation": 0, "visible": true, "x": 1520, "y": 608, "width": 32, "height": 64, "properties": [
+        {"name": "target_map", "type": "string", "value": "frost_trail"},
+        {"name": "target_portal", "type": "string", "value": "from_crossroads"}
+      ]}
+    ]},
+    {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
+    {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 11, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 624, "y": 640, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 12, "name": "crossroads_guide", "type": "", "rotation": 0, "visible": true, "x": 512, "y": 672, "width": 0, "height": 0, "point": true}
+    ]}
+  ]
+}

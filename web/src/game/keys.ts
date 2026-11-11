@@ -62,6 +62,9 @@ export type TextureKey = (typeof TEX)[keyof typeof TEX];
 export const ITEM_TINTS: Readonly<Record<string, number>> = {
   red_potion: 0xe04848,
   blue_potion: 0x4c8be0,
+  orange_potion: 0xf08a3a,
+  white_potion: 0xf4f4f4,
+  mana_elixir: 0x9a6ae0,
 };
 
 /** Every other template in the catalog gets a texture drawn at runtime under its id. */
@@ -80,10 +83,6 @@ export function itemTexture(template: string): string {
 }
 
 export const MAP_IDS = maps.map((m) => m.id);
-export type MapId = (typeof maps)[number]['id'];
-export function isMapId(id: string): id is MapId {
-  return (MAP_IDS as readonly string[]).includes(id);
-}
 export const mapKey = (id: string): string => `map:${id}`;
 
 export const ANIM = {

@@ -91,6 +91,8 @@ const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
     look: {
       sprite: must(look.sprite, isString, `${String(m.id)} look.sprite`),
       tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),
+      scale:
+        look.scale === undefined ? 1 : must(look.scale, isNumber, `${String(m.id)} look.scale`),
     },
   };
 });
@@ -158,7 +160,7 @@ const npcs = {
     if (!at) {
       throw new Error(`gamedata: npc ${String(n.id)} stands on no map`);
     }
-    return { trainer: null, gives: [], takes: [], ...n, ...at };
+    return { trainer: null, gives: [], takes: [], lines: [], ...n, ...at };
   }),
 };
 

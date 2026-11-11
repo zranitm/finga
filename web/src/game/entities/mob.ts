@@ -14,6 +14,7 @@ interface Sprite {
 
 interface MobArt extends Sprite {
   readonly tint: number | null;
+  readonly scale: number; // times the art's usual size
   readonly elite: boolean; // its HP bar has a gold frame
 }
 
@@ -31,15 +32,15 @@ const _sprites: Record<SpriteName, Sprite> = sprites;
 void _sprites;
 
 // A mob from a newer server: magenta so it cannot pass for a real one.
-const UNKNOWN_MOB: MobArt = { ...sprites.slime, tint: 0xff00ff, elite: false };
+const UNKNOWN_MOB: MobArt = { ...sprites.slime, tint: 0xff00ff, scale: 1, elite: false };
 
 export function mobArt(type: string): MobArt {
   const mob = mobs.find((m) => m.id === type);
   if (!mob) {
     return UNKNOWN_MOB;
   }
-  const { sprite, tint } = mob.look;
-  return { ...sprites[sprite], tint, elite: mob.elite };
+  const { sprite, tint, scale } = mob.look;
+  return { ...sprites[sprite], tint, scale, elite: mob.elite };
 }
 
 const BAR_W = 32;
@@ -55,7 +56,10 @@ export class MobView {
 
   constructor(scene: Phaser.Scene, type: string) {
     this.art = mobArt(type);
-    this.sprite = scene.add.sprite(0, 0, this.art.stand).setOrigin(0.5, 1).setScale(ART_SCALE);
+    this.sprite = scene.add
+      .sprite(0, 0, this.art.stand)
+      .setOrigin(0.5, 1)
+      .setScale(ART_SCALE * this.art.scale);
     if (this.art.tint !== null) {
       this.sprite.setTint(this.art.tint);
     }
@@ -78,7 +82,7 @@ export class MobView {
     }
     this.bar.clear();
     const x = s.x - BAR_W / 2;
-    const y = s.y - BAR_ABOVE;
+    const y = s.y - BAR_ABOVE * this.art.scale;
     if (this.art.elite) {
       this.bar.lineStyle(1, ELITE_FRAME, 1).strokeRect(x - 1, y - 1, BAR_W + 2, BAR_H + 2);
     }

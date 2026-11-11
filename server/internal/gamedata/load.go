@@ -402,10 +402,11 @@ type mobYAML struct {
 	Drops           []dropYAML `yaml:"drops"`
 }
 
-// lookYAML is the client's art for a mob: a sprite it draws, tinted; the server only checks it is there.
+// lookYAML is the client's art for a mob: a sprite it draws, tinted and scaled; the server only checks it is there.
 type lookYAML struct {
-	Sprite string `yaml:"sprite"`
-	Tint   *int   `yaml:"tint"`
+	Sprite string   `yaml:"sprite"`
+	Tint   *int     `yaml:"tint"`
+	Scale  *float64 `yaml:"scale"`
 }
 
 type dropYAML struct {
@@ -430,8 +431,8 @@ func (d *Data) loadMobs(dir string) error {
 		if raw.Level < 1 || raw.HP < 1 || raw.Width <= 0 || raw.Height <= 0 || raw.Speed < 0 || raw.Exp < 0 {
 			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, width and height positive, speed and exp not negative", mobsFile, raw.ID)
 		}
-		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) {
-			return fmt.Errorf("%s: mob %s: look needs a sprite, and a tint is an RGB color", mobsFile, raw.ID)
+		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) || raw.Look.Scale != nil && *raw.Look.Scale <= 0 {
+			return fmt.Errorf("%s: mob %s: look needs a sprite, a tint is an RGB color and a scale is positive", mobsFile, raw.ID)
 		}
 		if raw.Behavior != "patrol" {
 			return fmt.Errorf("%s: mob %s: unknown behavior %q (Stage 1 has patrol)", mobsFile, raw.ID, raw.Behavior)
