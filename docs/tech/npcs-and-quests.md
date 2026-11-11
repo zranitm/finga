@@ -106,7 +106,7 @@ From the code, the rules this design keeps:
      - The log has a warning for each try that failed, an error for a hand-in given up, and an info line for each one a join finished.
   4. **The result comes back through the inbox:**
      - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`. This holds for the character on the map whatever its connection, so a reconnect meanwhile still gets it;
-     - on `not_enough_items` or `inventory_full`: nothing changed anywhere, and the player is told;
+     - on `not_enough_items` or a full tab: nothing changed anywhere, and the player is told;
      - when the character has left the map: nothing changes there, and its next join finishes the quest.
 - **Repeatable quests** finish with a new count each time, so each completion is handed in on its own.
 - **At every join**, the world asks the item service (`HandedIn`) about the next completion of each active quest with items to take or give. Each one it handed in finishes as a hand-in's answer would: the same events, and the change queued to save. The join fails while the item service can't answer, as it does while the worn items can't be read.
@@ -116,7 +116,7 @@ From the code, the rules this design keeps:
 - **`HandIn{actor, quest_id, completion, take: [{template, quantity}], give: [{template, quantity, stats}]}`** runs one transaction:
   1. The owner's lock, then the completion's row in `quest_hand_ins`. If there is one, its stored reply comes back and nothing changes, whatever the call's lines; other lines are logged. Otherwise the inventory rows are locked, as other item calls lock them.
   2. **Take:** each `take` line must be covered by the inventory's stacks of that template, never by worn items, or the call is refused with `not_enough_items`. The items are taken from the smallest stacks first.
-  3. **Give:** each `give` line goes in as `Add` would place it. If it doesn't all fit, the call is refused with `inventory_full`, and nothing is taken.
+  3. **Give:** each `give` line goes in as `Add` would place it. If it doesn't all fit, the call is refused with the full tab's code (`equip_tab_full`, `use_tab_full` or `etc_tab_full`), and nothing is taken.
   4. **Item events:** a new kind, `handed_in` (a negative quantity, cause `quest`), for what is taken; `created` and `stacked` with cause `quest` for what is given. Each names the quest in a new `quest_id` column, and its `cause_id` is the hand-in's ID.
   5. One inventory revision, and a row in `quest_hand_ins` for the character, the quest, and the completion, with the reply. The row is kept for good. A refusal records nothing.
 - **`HandedIn{character_id, completions: [{quest_id, completion}]}`:** which of up to 32 completions were handed in, each with its stored reply.

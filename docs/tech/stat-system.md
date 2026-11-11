@@ -169,7 +169,7 @@ classes:                   # base values per class; per_level grows them
   - eight columns are added (magic attack, magic defense, penetration, both regens, and the three speeds), each `int NOT NULL DEFAULT 0`.
   - `Add` and `AddMany` take the 21-stat roll; check 11 is unchanged.
   - Stored replies use the new names, and an `Add` fingerprint covers all 21 stats under a new version: the release starts from an empty database, so no reply or retry from before it remains.
-- **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item service checks `requires` in the same transaction and refuses with `stats_too_low`.
+- **`Equip`:** the world sends the character's own primary stats alongside the level and class. The item service checks `requires` in the same transaction and refuses with the first stat short, in STR, DEX, INT, AGI, VIT order: `str_too_low`, `dex_too_low`, `int_too_low`, `agi_too_low` or `vit_too_low`.
 - **Inactive items** need no protocol flag. The client applies the same rule (own stats from the sheet, requirements from the game data) to grey a worn item out. The server's sheet is what counts.
 
 ## 9. Protocol
@@ -188,7 +188,7 @@ classes:                   # base values per class; per_level grows them
   - `not_enough_points`: "you don't have that many points";
   - `points_changed`: "your points changed; try again";
   - `no_free_reset`: "your free reset is used";
-  - `stats_too_low`: "your stats are too low for that item";
+  - `str_too_low`, `dex_too_low`, `int_too_low`, `agi_too_low` and `vit_too_low`: the item requires more of that stat than the character's own;
   - `bad_points`: "spend at least one point, and none below zero".
 - **REST:** `auto_assign_points` in settings (`api/openapi.yaml`).
 - **Renames are allowed by moving buf's breaking rules from `FILE` to `WIRE`** (`server/buf.yaml`), in its own commit before any rename.

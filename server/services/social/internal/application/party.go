@@ -137,7 +137,7 @@ func (s *PartyService) Invite(ctx context.Context, from, to kernel.CharacterID) 
 			return model.ErrNotHere
 		}
 		if _, ok := tx.PartyOf(to); ok {
-			return model.ErrInParty
+			return model.ErrTargetInParty
 		}
 		if slices.ContainsFunc(tx.Invites(), func(i model.Invite) bool { return i.From == from && i.To == to }) {
 			return model.ErrAlreadyAsked

@@ -19,7 +19,9 @@ var (
 	ErrSlotTaken      = errors.New("item: slot taken")
 	ErrDifferentItem  = errors.New("item: slot holds a different item")
 	ErrStackFull      = errors.New("item: the stack in that slot is full")
-	ErrInventoryFull  = errors.New("item: inventory full")
+	ErrEquipTabFull   = errors.New("item: no free slot in the Equip tab")
+	ErrUseTabFull     = errors.New("item: no free slot in the Use tab")
+	ErrEtcTabFull     = errors.New("item: no free slot in the Etc tab")
 	ErrKeyReused      = errors.New("item: idempotency key reused with other arguments")
 	ErrBadKey         = errors.New("item: idempotency key is not a UUID")
 	ErrBadCause       = errors.New("item: unknown cause type")
@@ -31,13 +33,29 @@ var (
 	ErrItemWorn       = errors.New("item: the item is worn; unequip it first")
 	ErrLevelTooLow    = errors.New("item: the character's level is below the item's")
 	ErrWrongClass     = errors.New("item: the item is for another class")
-	ErrStatsTooLow    = errors.New("item: the character's own stats are below the item's requirements")
+	ErrSTRTooLow      = errors.New("item: the item requires more STR than the character's own")
+	ErrDEXTooLow      = errors.New("item: the item requires more DEX than the character's own")
+	ErrINTTooLow      = errors.New("item: the item requires more INT than the character's own")
+	ErrAGITooLow      = errors.New("item: the item requires more AGI than the character's own")
+	ErrVITTooLow      = errors.New("item: the item requires more VIT than the character's own")
 	ErrWrongEquipSlot = errors.New("item: the item doesn't go in that equip slot")
 	ErrNotEquipment   = errors.New("item: only equipment can be worn")
 	ErrNothingWorn    = errors.New("item: nothing is worn in that equip slot")
 	ErrBadBatch       = errors.New("item: a batch holds no drops, or more than one call takes")
 	ErrNotEnoughItems = errors.New("item: the inventory's stacks hold less than the hand-in asks for")
 )
+
+// TabFull is the error for tab having no free slot.
+func TabFull(tab gamedata.Tab) error {
+	switch tab {
+	case gamedata.Equip:
+		return ErrEquipTabFull
+	case gamedata.Use:
+		return ErrUseTabFull
+	default:
+		return ErrEtcTabFull
+	}
+}
 
 // SlotsPerTab is the inventory size of each tab.
 const SlotsPerTab = 24

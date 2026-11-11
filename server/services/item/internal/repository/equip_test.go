@@ -142,8 +142,11 @@ func TestEquip(t *testing.T) {
 			return err
 		}
 		revision := h.revision(t)
-		if err := equip(gamedata.Stats{STR: 20, VIT: 14}); !errors.Is(err, model.ErrStatsTooLow) {
-			t.Fatalf("one point short: %v, want stats too low", err)
+		if err := equip(gamedata.Stats{STR: 20, VIT: 14}); !errors.Is(err, model.ErrVITTooLow) {
+			t.Fatalf("VIT a point short: %v, want VIT too low", err)
+		}
+		if err := equip(gamedata.Stats{STR: 19, VIT: 14}); !errors.Is(err, model.ErrSTRTooLow) {
+			t.Fatalf("STR and VIT short: %v, want STR too low, the first", err)
 		}
 		if h.revision(t) != revision {
 			t.Fatal("a refused equip wrote")
@@ -279,8 +282,8 @@ func TestAFullEquipTab(t *testing.T) {
 		off, on := heldIn(wearing, gamedata.Equip, 7), wornIn(next, "weapon")
 		wantResult(t, res, []model.Slot{{Tab: gamedata.Equip, Slot: 7, Item: &off}}, []model.WornSlot{{Slot: "weapon", Item: &on}}, []model.Item{on})
 		items, events := h.count(t, `SELECT count(*) FROM items`), h.count(t, `SELECT count(*) FROM item_events`)
-		if err := pickUp(h); !errors.Is(err, model.ErrInventoryFull) {
-			t.Fatalf("pickup: %v, want ErrInventoryFull", err)
+		if err := pickUp(h); !errors.Is(err, model.ErrEquipTabFull) {
+			t.Fatalf("pickup: %v, want ErrEquipTabFull", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items`) != items || h.count(t, `SELECT count(*) FROM item_events`) != events {
 			t.Fatal("the refused pickup wrote")
@@ -292,8 +295,8 @@ func TestAFullEquipTab(t *testing.T) {
 	})
 	t.Run("unequipping with nowhere to go is inventory_full", func(t *testing.T) {
 		h, wearing, _ := fullEquipTab(t)
-		if _, err := h.unequip(uuidv7.NewString(), "weapon", nil); !errors.Is(err, model.ErrInventoryFull) {
-			t.Fatalf("err = %v, want ErrInventoryFull", err)
+		if _, err := h.unequip(uuidv7.NewString(), "weapon", nil); !errors.Is(err, model.ErrEquipTabFull) {
+			t.Fatalf("err = %v, want ErrEquipTabFull", err)
 		}
 		if !h.held(t, wearing.ID).Worn() {
 			t.Fatal("the sword came off")

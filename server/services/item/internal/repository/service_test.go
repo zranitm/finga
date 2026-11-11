@@ -144,7 +144,7 @@ func TestAdd(t *testing.T) {
 		h.add(t, "fill-y", "slime_gel", 100)
 		items, events, outbox := h.count(t, `SELECT count(*) FROM items`), h.count(t, `SELECT count(*) FROM item_events`), h.count(t, `SELECT count(*) FROM outbox`)
 		_, err := h.svc.Add(ctx, h.actor, application.AddInput{Key: "full", TemplateID: "slime_gel", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop}})
-		if !errors.Is(err, model.ErrInventoryFull) {
+		if !errors.Is(err, model.ErrEtcTabFull) {
 			t.Fatalf("err = %v", err)
 		}
 		if h.count(t, `SELECT count(*) FROM items`) != items || h.count(t, `SELECT count(*) FROM item_events`) != events || h.count(t, `SELECT count(*) FROM outbox`) != outbox {

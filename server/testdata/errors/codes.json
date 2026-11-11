@@ -5,9 +5,14 @@
     "message": "account not found"
   },
   {
+    "code": "agi_too_low",
+    "status": 409,
+    "message": "the item requires more AGI than the character's own"
+  },
+  {
     "code": "already_in_party",
     "status": 409,
-    "message": "already in a party"
+    "message": "the player accepting an invite is in a party already"
   },
   {
     "code": "already_invited",
@@ -110,19 +115,34 @@
     "message": "that class is not available"
   },
   {
+    "code": "dex_too_low",
+    "status": 409,
+    "message": "the item requires more DEX than the character's own"
+  },
+  {
+    "code": "equip_tab_full",
+    "status": 409,
+    "message": "the Equip tab has no free slot"
+  },
+  {
+    "code": "etc_tab_full",
+    "status": 409,
+    "message": "the Etc tab has no free slot"
+  },
+  {
     "code": "idempotency_key_reused",
     "status": 409,
     "message": "that request was already made with other arguments"
   },
   {
+    "code": "int_too_low",
+    "status": 409,
+    "message": "the item requires more INT than the character's own"
+  },
+  {
     "code": "internal",
     "status": 500,
     "message": "something went wrong"
-  },
-  {
-    "code": "inventory_full",
-    "status": 409,
-    "message": "your inventory is full"
   },
   {
     "code": "invite_expired",
@@ -295,9 +315,14 @@
     "message": "that stack is full"
   },
   {
-    "code": "stats_too_low",
+    "code": "str_too_low",
     "status": 409,
-    "message": "your stats are too low for that item"
+    "message": "the item requires more STR than the character's own"
+  },
+  {
+    "code": "target_in_party",
+    "status": 409,
+    "message": "the character invited is in a party already"
   },
   {
     "code": "target_not_on_map",
@@ -330,9 +355,19 @@
     "message": "unknown item"
   },
   {
+    "code": "use_tab_full",
+    "status": 409,
+    "message": "the Use tab has no free slot"
+  },
+  {
     "code": "username_taken",
     "status": 409,
     "message": "that username is taken"
+  },
+  {
+    "code": "vit_too_low",
+    "status": 409,
+    "message": "the item requires more VIT than the character's own"
   },
   {
     "code": "wrong_class",

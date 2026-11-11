@@ -224,7 +224,7 @@ type Batch struct {
 }
 
 // dropRules are the refusals that are one drop's own; anything else fails the whole batch.
-var dropRules = []error{model.ErrUnknownItem, model.ErrBadQuantity, model.ErrBadRoll, model.ErrInventoryFull, model.ErrKeyReused}
+var dropRules = []error{model.ErrUnknownItem, model.ErrBadQuantity, model.ErrBadRoll, model.ErrEquipTabFull, model.ErrUseTabFull, model.ErrEtcTabFull, model.ErrKeyReused}
 
 // AddMany adds each drop as Add would, all for one owner in one transaction: a drop a rule refuses rolls back to its savepoint and stores no reply, and the others carry on.
 func (s *Service) AddMany(ctx context.Context, actor model.Actor, drops []AddInput) (Batch, error) {
@@ -363,7 +363,7 @@ func (s *Service) add(ctx context.Context, uow UnitOfWork, owner kernel.Characte
 	if left > 0 {
 		slot, ok := freeSlot(inv, tmpl.Tab)
 		if !ok {
-			return Result{}, model.ErrInventoryFull
+			return Result{}, model.TabFull(tmpl.Tab)
 		}
 		it := model.Item{ID: kernel.NewItemID(), TemplateID: tmpl.ID, Owner: owner, Tab: tmpl.Tab, Slot: slot, Quantity: left, Stats: stats}
 		if err := uow.Items().Insert(ctx, it); err != nil {
@@ -552,8 +552,16 @@ func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.Charac
 		return Result{}, model.ErrLevelTooLow
 	case progression.ClassUnmet:
 		return Result{}, model.ErrWrongClass
-	case progression.StatsUnmet:
-		return Result{}, model.ErrStatsTooLow
+	case progression.STRUnmet:
+		return Result{}, model.ErrSTRTooLow
+	case progression.DEXUnmet:
+		return Result{}, model.ErrDEXTooLow
+	case progression.INTUnmet:
+		return Result{}, model.ErrINTTooLow
+	case progression.AGIUnmet:
+		return Result{}, model.ErrAGITooLow
+	case progression.VITUnmet:
+		return Result{}, model.ErrVITTooLow
 	case progression.NothingUnmet:
 	}
 	now, cause := time.Now(), playerCause(in.Key)
@@ -618,7 +626,7 @@ func (s *Service) unequip(ctx context.Context, uow UnitOfWork, owner kernel.Char
 			return Result{}, model.ErrSlotTaken
 		}
 	} else if !ok {
-		return Result{}, model.ErrInventoryFull
+		return Result{}, model.ErrEquipTabFull
 	}
 	if err := uow.Items().SetSlot(ctx, off.ID, gamedata.Equip, to); err != nil {
 		return Result{}, err

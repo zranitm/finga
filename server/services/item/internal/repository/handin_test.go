@@ -156,7 +156,7 @@ func TestHandIn(t *testing.T) {
 		h.add(t, "g1", "slime_gel", 5)
 		before, inv := h.revision(t), h.inventory(t)
 		_, err := h.handIn("sticky_samples", 1, gel(5), application.Give{TemplateID: "red_potion", Quantity: 1})
-		if !errors.Is(err, model.ErrInventoryFull) {
+		if !errors.Is(err, model.ErrUseTabFull) {
 			t.Fatalf("err = %v", err)
 		}
 		if h.revision(t) != before || !reflect.DeepEqual(h.inventory(t), inv) {

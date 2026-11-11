@@ -37,7 +37,7 @@ func TestForGivesEachServiceErrorItsOwnFailure(t *testing.T) {
 		{grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND), model.CharacterNotFound},
 		{grpctest.Error(codes.ResourceExhausted, socialv1.Reason_REASON_CHAT_RATE_LIMITED), model.ChatRateLimited},
 		{grpctest.Error(codes.Unavailable, socialv1.Reason_REASON_PARTY_CHAT_UNAVAILABLE), model.PartyChatUnavailable},
-		{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), model.InventoryFull},
+		{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_ETC_TAB_FULL), model.EtcTabFull},
 		{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED), model.IdempotencyKeyReused},
 		{fmt.Errorf("pickup: %w", grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_SLOT_HOLDS_OTHER_ITEM)), model.SlotHoldsOtherItem},
 		{grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_BAD_ID), model.BadID},

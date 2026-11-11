@@ -58,7 +58,7 @@ func grantOutcome(o *itemv1.DropOutcome) (model.GrantOutcome, error) {
 		return model.GrantOutcome{Kind: model.GrantReplayed, Replayed: model.Inventory{Revision: o.GetRevision(), Slots: slots}}, err
 	case itemv1.Grant_GRANT_REFUSED:
 		switch o.GetReason() {
-		case itemv1.Reason_REASON_INVENTORY_FULL:
+		case itemv1.Reason_REASON_EQUIP_TAB_FULL, itemv1.Reason_REASON_USE_TAB_FULL, itemv1.Reason_REASON_ETC_TAB_FULL:
 			return model.GrantOutcome{Kind: model.GrantNoRoom}, nil
 		case itemv1.Reason_REASON_IDEMPOTENCY_KEY_REUSED:
 			return model.GrantOutcome{Kind: model.GrantReplayed}, nil

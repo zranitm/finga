@@ -40,7 +40,9 @@ func TestMeetsChecksLevelClassAndOwnStats(t *testing.T) {
 		{"above every requirement", sword, 25, kernel.Warrior, gamedata.Stats{STR: 90, DEX: 40, VIT: 9}, progression.NothingUnmet},
 		{"a level short", sword, 19, kernel.Warrior, strong, progression.LevelUnmet},
 		{"another class's weapon", sword, 20, kernel.Bowman, strong, progression.ClassUnmet},
-		{"one stat a point short", sword, 20, kernel.Warrior, gamedata.Stats{STR: 60, DEX: 14}, progression.StatsUnmet},
+		{"DEX a point short", sword, 20, kernel.Warrior, gamedata.Stats{STR: 60, DEX: 14}, progression.DEXUnmet},
+		{"STR a point short", sword, 20, kernel.Warrior, gamedata.Stats{STR: 59, DEX: 15}, progression.STRUnmet},
+		{"both short: STR is named first", sword, 20, kernel.Warrior, gamedata.Stats{}, progression.STRUnmet},
 		{"the level counts before the stats", sword, 1, kernel.Warrior, gamedata.Stats{}, progression.LevelUnmet},
 		{"armor with no class or stats needed", cap, 1, kernel.Bowman, gamedata.Stats{}, progression.NothingUnmet},
 	}

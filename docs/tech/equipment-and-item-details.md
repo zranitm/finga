@@ -101,7 +101,7 @@ The world computes the sheet, because only the world holds the live level, stats
   - Its slot kind must fit the equip slot, and the level and class must be met.
   - An empty equip slot just receives the item. A filled one swaps: the worn item takes the inventory slot the new one left, so a swap works with a full Equip tab. The new item moves in first, and the slot it left is never free in between, so a drop's grant racing the swap finds the tab still full.
   - Events: `equipped` for the new item and `unequipped` for the old.
-- **Unequip:** the slot must hold an item, and the target inventory slot must be free, otherwise `inventory_full` or `slot_taken`. Event: `unequipped`.
+- **Unequip:** the slot must hold an item, and the target inventory slot must be free, otherwise `equip_tab_full` or `slot_taken`. Event: `unequipped`.
 - **A worn item can't be moved or discarded:** `Move` and `Discard` answer the new `ErrItemWorn` instead of today's "not found", so the player is told to unequip first.
 - **The revision moves once per change**, through the existing `revised`, so inventory and equipment share one revision counter.
 - **Idempotency** works as for `Move`: `idempotencypg.Do` under the account's key, the stored reply returned on a retry, and a reused key with other arguments refused.

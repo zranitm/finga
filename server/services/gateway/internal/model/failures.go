@@ -35,7 +35,9 @@ var (
 	SlotTaken            = Public{"slot_taken", "that slot is taken"}
 	SlotHoldsOtherItem   = Public{"slot_holds_other_item", "that slot holds a different item"}
 	StackFull            = Public{"stack_full", "that stack is full"}
-	InventoryFull        = Public{"inventory_full", "your inventory is full"}
+	EquipTabFull         = Public{"equip_tab_full", "the Equip tab has no free slot"}
+	UseTabFull           = Public{"use_tab_full", "the Use tab has no free slot"}
+	EtcTabFull           = Public{"etc_tab_full", "the Etc tab has no free slot"}
 	IdempotencyKeyReused = Public{"idempotency_key_reused", "that request was already made with other arguments"}
 	BadQuantity          = Public{"bad_quantity", "quantity must be at least 1 and no more than the item holds"}
 	BadSlot              = Public{"bad_slot", "slot must be within the tab"}
@@ -43,7 +45,11 @@ var (
 	UnknownItem          = Public{"unknown_item", "unknown item"}
 	ItemWorn             = Public{"item_worn", "unequip it first"}
 	LevelTooLow          = Public{"level_too_low", "your level is too low for that item"}
-	StatsTooLow          = Public{"stats_too_low", "your stats are too low for that item"}
+	STRTooLow            = Public{"str_too_low", "the item requires more STR than the character's own"}
+	DEXTooLow            = Public{"dex_too_low", "the item requires more DEX than the character's own"}
+	INTTooLow            = Public{"int_too_low", "the item requires more INT than the character's own"}
+	AGITooLow            = Public{"agi_too_low", "the item requires more AGI than the character's own"}
+	VITTooLow            = Public{"vit_too_low", "the item requires more VIT than the character's own"}
 	WrongClass           = Public{"wrong_class", "your class can't use that item"}
 	WrongEquipSlot       = Public{"wrong_equip_slot", "that item doesn't go there"}
 	NotEquipment         = Public{"not_equipment", "only equipment can be worn"}
@@ -63,7 +69,8 @@ var (
 	QuestNotReady        = Public{"quest_not_ready", "that quest isn't finished yet"}
 	NotPartyLeader       = Public{"not_party_leader", "only the party leader can do that"}
 	PartyFull            = Public{"party_full", "the party is full"}
-	AlreadyInParty       = Public{"already_in_party", "already in a party"}
+	AlreadyInParty       = Public{"already_in_party", "the player accepting an invite is in a party already"}
+	TargetInParty        = Public{"target_in_party", "the character invited is in a party already"}
 	NoParty              = Public{"no_party", "not in a party"}
 	NotPartyMember       = Public{"not_party_member", "not a member of your party"}
 	TargetNotOnMap       = Public{"target_not_on_map", "that character is not on your map"}

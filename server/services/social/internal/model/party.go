@@ -58,6 +58,7 @@ var (
 	ErrNotLeader     = errors.New("party: not the leader")
 	ErrFull          = errors.New("party: full")
 	ErrInParty       = errors.New("party: already in a party")
+	ErrTargetInParty = errors.New("party: the invitee is already in a party")
 	ErrNoParty       = errors.New("party: not in a party")
 	ErrNotMember     = errors.New("party: not a member")
 	ErrNotHere       = errors.New("party: not online on the map")

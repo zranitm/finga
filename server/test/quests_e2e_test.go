@@ -164,7 +164,7 @@ func TestQuests(t *testing.T) {
 			s.give(t, quinn.id, "leather_cap", &itemv1.ItemStats{PhysicalDefense: 3})
 		}
 		before := s.inventoryTotals(t, quinn.id)
-		if r := quinn.command(t, "h-4", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != "inventory_full" {
+		if r := quinn.command(t, "h-4", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != "equip_tab_full" {
 			t.Fatalf("handing in with a full Equip tab: %+v", r)
 		}
 		if after := s.inventoryTotals(t, quinn.id); after["slime_gel"] != before["slime_gel"] || after["leather_cap"] != 24 {

@@ -142,8 +142,8 @@ func TestEquipment(t *testing.T) {
 			t.Fatalf("stats after the swap %+v; want more than the %v attack power the starter sword gave", sc, before)
 		}
 
-		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != "inventory_full" || r.GetMessage() == "" {
-			t.Fatalf("an unequip into the full tab answered %+v, want inventory_full and why", r)
+		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != "equip_tab_full" || r.GetMessage() == "" {
+			t.Fatalf("an unequip into the full tab answered %+v, want equip_tab_full and why", r)
 		}
 
 		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
@@ -317,8 +317,8 @@ func TestEquipment(t *testing.T) {
 		}
 		iron := s.give(t, id, "iron_sword", &itemv1.ItemStats{PhysicalAttack: 18}) // needs STR 20
 		l, _ := s.hello(t, token, id)
-		if r := l.command(t, "e-1", &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}); r.GetOk() || r.GetCode() != "stats_too_low" {
-			t.Fatalf("equipping with STR 7 answered %+v, want stats_too_low", r)
+		if r := l.command(t, "e-1", &clientv1.Equip{IdempotencyKey: key(), ItemId: iron}); r.GetOk() || r.GetCode() != "str_too_low" {
+			t.Fatalf("equipping with STR 7 answered %+v, want str_too_low", r)
 		}
 		l.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendPoints{ExpectedUnspent: 35, Points: &clientv1.Stats{Str: 13}}})
 		if r := l.gather("Response", "StatsChanged")["Response"]; !r.Data.(*clientv1.Response).GetOk() {

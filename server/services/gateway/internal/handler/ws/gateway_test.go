@@ -2497,7 +2497,7 @@ func TestQuestCommandsAndEvents(t *testing.T) {
 				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_TOO_MANY_QUESTS), &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "too_many_quests"},
 				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_QUEST_NOT_READY), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "quest_not_ready"},
 				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_ENOUGH_ITEMS), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "not_enough_items"},
-				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_INVENTORY_FULL), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "inventory_full"},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_USE_TAB_FULL), &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}, "use_tab_full"},
 			} {
 				time.Sleep(time.Second) // under the dialog limit of 5 a second
 				h.world.failQuests(tt.err)

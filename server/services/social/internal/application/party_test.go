@@ -207,13 +207,20 @@ func TestPartyLifecycle(t *testing.T) {
 			t.Fatalf("notified %+v", last)
 		}
 	})
-	t.Run("only the leader invites; a member of another party cannot be invited", func(t *testing.T) {
+	t.Run("only the leader invites; a member of another party cannot be invited, nor join another", func(t *testing.T) {
 		if _, err := f.svc.Invite(f.ctx, f.id("Robin"), f.id("Cass")); !errors.Is(err, model.ErrNotLeader) {
 			t.Fatalf("member invites: %v", err)
 		}
+		earlier, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Dinh"))
+		if err != nil {
+			t.Fatal(err)
+		}
 		f.invite(t, "Cass", "Dinh")
-		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Dinh")); !errors.Is(err, model.ErrInParty) {
+		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Dinh")); !errors.Is(err, model.ErrTargetInParty) {
 			t.Fatalf("inviting a member of another party: %v", err)
+		}
+		if err := f.svc.Respond(f.ctx, f.id("Dinh"), earlier.ID, true); !errors.Is(err, model.ErrInParty) {
+			t.Fatalf("accepting an earlier invite from another party: %v", err)
 		}
 		if _, err := f.svc.Invite(f.ctx, f.id("Ayla"), f.id("Ayla")); !errors.Is(err, model.ErrSelf) {
 			t.Fatalf("self invite: %v", err)

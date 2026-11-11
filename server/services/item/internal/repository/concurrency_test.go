@@ -77,7 +77,7 @@ func TestASwapAndAPickupRacingOnAFullEquipTab(t *testing.T) {
 				_, picked = h.svc.Add(ctx, h.actor, application.AddInput{Key: uuidv7.NewString(), TemplateID: "leather_cap", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: uuidv7.New()}, Stats: h.roll("leather_cap")})
 			})
 			wg.Wait()
-			if swapped != nil || !errors.Is(picked, model.ErrInventoryFull) {
+			if swapped != nil || !errors.Is(picked, model.ErrEquipTabFull) {
 				t.Fatalf("swap: %v; pickup: %v, want inventory_full", swapped, picked)
 			}
 			if off, on := h.held(t, wearing.ID), h.held(t, tab[7].ID); off.Worn() || off.Slot != 7 || on.EquipSlot != "weapon" {

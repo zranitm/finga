@@ -8,12 +8,16 @@ import (
 // Unmet names the first requirement of an item a character falls short of.
 type Unmet int
 
-// The requirements, in the order Meets checks them.
+// The requirements, in the order Meets checks them; the stats go STR, DEX, INT, AGI, VIT.
 const (
 	NothingUnmet Unmet = iota
 	LevelUnmet
 	ClassUnmet
-	StatsUnmet
+	STRUnmet
+	DEXUnmet
+	INTUnmet
+	AGIUnmet
+	VITUnmet
 )
 
 // WornItem is one worn item: its template and its roll.
@@ -41,8 +45,16 @@ func Meets(it gamedata.Item, level int, class kernel.Class, own gamedata.Stats) 
 		return LevelUnmet
 	case it.Class != "" && it.Class != class:
 		return ClassUnmet
-	case own.STR < need.STR || own.DEX < need.DEX || own.INT < need.INT || own.AGI < need.AGI || own.VIT < need.VIT:
-		return StatsUnmet
+	case own.STR < need.STR:
+		return STRUnmet
+	case own.DEX < need.DEX:
+		return DEXUnmet
+	case own.INT < need.INT:
+		return INTUnmet
+	case own.AGI < need.AGI:
+		return AGIUnmet
+	case own.VIT < need.VIT:
+		return VITUnmet
 	}
 	return NothingUnmet
 }

@@ -30,11 +30,14 @@ service ItemService {
 
 // Reason names a failure a caller can meet; retrying the same request cannot help.
 enum Reason {
+  // 4 was one INVENTORY_FULL for every tab, 23 one STATS_TOO_LOW for every stat; each is split by tab or stat below.
+  reserved 4, 23;
+  reserved "REASON_INVENTORY_FULL", "REASON_STATS_TOO_LOW";
+
   REASON_UNSPECIFIED = 0;
   REASON_ITEM_NOT_FOUND = 1;
   REASON_SLOT_TAKEN = 2;
   REASON_SLOT_HOLDS_OTHER_ITEM = 3;
-  REASON_INVENTORY_FULL = 4;
   REASON_IDEMPOTENCY_KEY_REUSED = 5;
   REASON_BAD_QUANTITY = 6;
   REASON_BAD_SLOT = 7;
@@ -60,10 +63,18 @@ enum Reason {
   REASON_NOTHING_WORN = 21;
   // An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes.
   REASON_BAD_BATCH_SIZE = 22;
-  // An equip whose item requires more of a primary stat than the character's own stats, without gear, have.
-  REASON_STATS_TOO_LOW = 23;
   // A hand-in asking for more of an item than the inventory's stacks hold; worn items never count.
   REASON_NOT_ENOUGH_ITEMS = 24;
+  // No free slot in the tab an added or unequipped item goes to: an add, a hand-in's reward, or an unequip.
+  REASON_EQUIP_TAB_FULL = 25;
+  REASON_USE_TAB_FULL = 26;
+  REASON_ETC_TAB_FULL = 27;
+  // An equip whose item requires more of this primary stat than the character's own stats, without gear, have; the first short in STR, DEX, INT, AGI, VIT order.
+  REASON_STR_TOO_LOW = 28;
+  REASON_DEX_TOO_LOW = 29;
+  REASON_INT_TOO_LOW = 30;
+  REASON_AGI_TOO_LOW = 31;
+  REASON_VIT_TOO_LOW = 32;
 }
 
 // Grant is what became of one drop of an AddMany.

@@ -154,12 +154,12 @@ describe('GameSocket', () => {
       const frame = ws.frames().at(-1);
       ws.push(
         'response',
-        { ok: false, code: 'inventory_full', message: 'full' },
+        { ok: false, code: 'etc_tab_full', message: 'full' },
         { req: frame?.req ?? '' },
       );
       const err = (await p.catch((e: unknown) => e)) as RequestError;
       expect(err).toBeInstanceOf(RequestError);
-      expect(err.code).toBe('inventory_full');
+      expect(err.code).toBe('etc_tab_full');
       expect(err.message).toBe('full');
     });
 

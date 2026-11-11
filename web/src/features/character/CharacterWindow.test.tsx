@@ -238,9 +238,9 @@ describe('CharacterWindow', () => {
   });
 
   it('a refusal shows the server’s reason, and nothing moves', async () => {
-    setup([new RequestError('inventory_full', 'your inventory is full')]);
+    setup([new RequestError('equip_tab_full', 'the Equip tab has no free slot')]);
     await userEvent.dblClick(slot('Weapon: Wooden Sword'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('your inventory is full');
+    expect(await screen.findByRole('alert')).toHaveTextContent('the Equip tab has no free slot');
     expect(slot('Weapon: Wooden Sword')).toHaveAttribute('aria-busy', 'false');
   });
 

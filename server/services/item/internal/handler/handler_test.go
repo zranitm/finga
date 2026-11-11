@@ -422,7 +422,7 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 		return &itemv1.AddManyDrop{IdempotencyKey: key, TemplateId: "slime_gel", Quantity: 2, Cause: &itemv1.Cause{Type: cause}}
 	}
 	f := &fakeItems{batch: application.Batch{
-		Outcomes: []application.Outcome{{}, {Replayed: true, Result: changed}, {Err: fmt.Errorf("add: %w", model.ErrInventoryFull)}},
+		Outcomes: []application.Outcome{{}, {Replayed: true, Result: changed}, {Err: fmt.Errorf("add: %w", model.ErrEtcTabFull)}},
 		Changed:  []model.Slot{{Tab: gamedata.Etc, Slot: 1}},
 		Revision: 13,
 	}}
@@ -441,7 +441,7 @@ func TestAddManyAnswersEachDrop(t *testing.T) {
 	}
 	out := res.GetOutcomes()
 	grants := []itemv1.Grant{itemv1.Grant_GRANT_GRANTED, itemv1.Grant_GRANT_REFUSED, itemv1.Grant_GRANT_ALREADY_GRANTED, itemv1.Grant_GRANT_REFUSED, itemv1.Grant_GRANT_REFUSED}
-	reasons := []itemv1.Reason{0, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY, 0, itemv1.Reason_REASON_BAD_CAUSE, itemv1.Reason_REASON_INVENTORY_FULL}
+	reasons := []itemv1.Reason{0, itemv1.Reason_REASON_BAD_IDEMPOTENCY_KEY, 0, itemv1.Reason_REASON_BAD_CAUSE, itemv1.Reason_REASON_ETC_TAB_FULL}
 	for i := range grants {
 		if out[i].GetGrant() != grants[i] || out[i].GetReason() != reasons[i] {
 			t.Fatalf("drop %d: %+v, want %v %v", i, out[i], grants[i], reasons[i])
