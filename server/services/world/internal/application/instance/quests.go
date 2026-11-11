@@ -46,7 +46,7 @@ type questMsg struct {
 // handedInMsg is a hand-in call's answer, for the tick to apply.
 type handedInMsg struct {
 	id         kernel.CharacterID
-	conn       string
+	caller     *player // the join that made the call, whose count of calls in flight it ends
 	quest      string
 	completion int // the TimesFinished it makes
 	result     model.Inventory
@@ -172,7 +172,7 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
 		result, err := i.callHandIn(ctx, call)
 		select {
-		case i.inbox <- handedInMsg{id: p.ID, conn: p.Connection, quest: q.ID, completion: completion, result: result, err: err, done: m.done}:
+		case i.inbox <- handedInMsg{id: p.ID, caller: p, quest: q.ID, completion: completion, result: result, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain
 		}
 	})
@@ -204,7 +204,7 @@ func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model
 // settleHandIn finishes the quest once the item service has taken and given, for the character on this map whatever its connection; a refusal changed nothing anywhere. A character gone from the map finishes it at its next join.
 func (i *Instance) settleHandIn(m handedInMsg) {
 	p, ok := i.players[m.id]
-	if ok && p.Connection == m.conn {
+	if ok && p == m.caller {
 		p.itemCalls--
 		delete(p.handingIn, m.quest)
 	}

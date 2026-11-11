@@ -118,7 +118,7 @@ type (
 	}
 	equippedMsg struct {
 		id     kernel.CharacterID
-		conn   string
+		caller *player // the join that made the call, whose count of calls in flight it ends
 		result model.Equipped
 		err    error
 		done   chan error

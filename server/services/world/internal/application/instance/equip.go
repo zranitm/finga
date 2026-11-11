@@ -70,7 +70,7 @@ func (i *Instance) startEquip(m equipMsg) {
 		result, err := call(callCtx)
 		cancel()
 		select {
-		case i.inbox <- equippedMsg{id: m.id, conn: m.conn, result: result, err: err, done: m.done}:
+		case i.inbox <- equippedMsg{id: m.id, caller: p, result: result, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain
 		}
 	})
@@ -84,7 +84,7 @@ func (i *Instance) startEquip(m equipMsg) {
 // settleEquip applies a result newer than what the player wears, then answers the caller.
 func (i *Instance) settleEquip(m equippedMsg) {
 	p, ok := i.players[m.id]
-	if ok && p.Connection == m.conn {
+	if ok && p == m.caller { // a join again, even through the same connection, starts its own count
 		p.itemCalls--
 	}
 	if ok && m.err == nil && m.result.Worn.Revision > p.Worn.Revision {
