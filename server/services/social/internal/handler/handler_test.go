@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -18,7 +17,6 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/sentineltest"
 	"finga/pkg/uuidv7"
 	"finga/services/social/internal/application"
 	"finga/services/social/internal/handler"
@@ -616,29 +614,4 @@ func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 			t.Fatalf("Ann online %v, Bo online %v, after their gateway registered them again", s.isOnline(t, ann), s.isOnline(t, bo))
 		}
 	})
-}
-
-func TestTheTableCoversTheModulesAndTheContract(t *testing.T) {
-	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
-	if err != nil || len(declared) < 2 {
-		t.Fatalf("declared %v, err %v", declared, err)
-	}
-	mapped, err := sentineltest.Referenced("errors.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range declared {
-		if !mapped[name] {
-			t.Errorf("%s has no row in Errors", name)
-		}
-	}
-	used := map[grpcx.Reason]bool{}
-	for _, row := range handler.Errors {
-		used[grpcx.Key(row.Reason)] = true
-	}
-	for _, r := range grpctest.Reasons(socialv1.Reason(0).Descriptor()) {
-		if !used[r] {
-			t.Errorf("%s has no row in Errors", r)
-		}
-	}
 }

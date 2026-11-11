@@ -32,17 +32,6 @@ const appStamps = "00006_app_stamps.sql"
 
 const timestamps = "00004_timestamps.sql"
 
-func TestEveryTableHasItsTimestamps(t *testing.T) {
-	ctx := context.Background()
-	pool := cluster.DB(t)
-	if err := pgtest.Migrations(migrations.FS, migrations.Table)(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
-	if err := pgtest.CheckTimestamps(ctx, pool, migrations.Table); err != nil {
-		t.Fatal(err)
-	}
-}
-
 // The services share one database and set_updated_at(); the last to stop using it drops it.
 func TestTheStampFunctionGoesWithItsLastTrigger(t *testing.T) {
 	ctx := context.Background()

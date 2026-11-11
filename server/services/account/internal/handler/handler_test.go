@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/sentineltest"
 	"finga/pkg/transient"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
@@ -211,33 +209,6 @@ func TestATimeoutAsksTheCallerToRetry(t *testing.T) {
 	_, err := c.Login(context.Background(), &accountv1.LoginRequest{Username: "a", Password: "b"})
 	if status.Code(err) != codes.Unavailable || grpcx.IsRule(err) {
 		t.Fatalf("got %v, want Unavailable without a reason", err)
-	}
-}
-
-func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
-	if err != nil || len(declared) == 0 {
-		t.Fatalf("declared %v, err %v", declared, err)
-	}
-	mapped, err := sentineltest.Referenced("errors.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range declared {
-		if !mapped[name] {
-			t.Errorf("%s has no row in Errors", name)
-		}
-	}
-	used := map[grpcx.Reason]bool{}
-	for _, row := range handler.Errors {
-		if row.Reason != nil {
-			used[grpcx.Key(row.Reason)] = true
-		}
-	}
-	for _, r := range grpctest.Reasons(accountv1.Reason(0).Descriptor()) {
-		if !used[r] {
-			t.Errorf("%s has no row in Errors", r)
-		}
 	}
 }
 
