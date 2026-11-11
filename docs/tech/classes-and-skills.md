@@ -171,7 +171,7 @@ skills:
 - **Everyone sees it:** a **`SkillUsed{caster, skill, stage, facing}`** event goes to the map for drawing. The damage numbers already exist.
 - **Passive skills and buffs feed the stats.** `DeriveStats` gains two more sources of bonuses: passives (from points and stage) and active buffs. They add like gear, and the limits stay the ceiling.
   - **Passives are built:** a passive with at least one point adds its stage's bonus.
-  - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share: the totals less the totals without the skills. The character window shows it beside the equipment's, in its own colour. Buffs will join the skills' share.
+  - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share: the totals less the totals without the skills. The character window shows both shares in one bracket after the total, without the unit: the equipment's in green, then the skills' in blue. Buffs will join the skills' share.
   - **Requirements ignore them:** item requirements read own stats, which leave out the skills' share as they leave out the gear's.
 - **The client's copy follows.** The character window's preview runs a TypeScript port of `DeriveStats` (`web/src/progression/stats.ts`), and `web/src/progression/skills.ts` ports the passives. The shared stat vectors in `server/testdata/stats/` carry each case's skill points, and both sides replay them; buffs will join them.
 - **The basic attack switches with the class,** at once on promotion.

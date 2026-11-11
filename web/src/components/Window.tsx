@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent, PointerEvent, ReactNode } from 'react';
 
 import { Button } from './Button';
@@ -20,6 +20,7 @@ export interface WindowProps {
 // A window ends this far above the bottom, clear of the idle chat's lines, and scrolls what doesn't fit.
 const BOTTOM_CLEAR_PX = 84;
 const MIN_HEIGHT_PX = 160;
+const EDGE_PX = 8;
 
 /** Takes focus on open, so Escape closes it; the game's keys still reach the game. */
 export function Window({
@@ -39,6 +40,15 @@ export function Window({
   useEffect(() => {
     root.current?.focus();
   }, []);
+
+  // Opened past the right edge of a narrow screen, it moves left until it fits.
+  useLayoutEffect(() => {
+    const width = root.current?.getBoundingClientRect().width ?? 0;
+    const over = initialX + width + EDGE_PX - window.innerWidth;
+    if (over > 0) {
+      setPos((p) => ({ ...p, x: Math.max(EDGE_PX, p.x - over) }));
+    }
+  }, [initialX]);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {

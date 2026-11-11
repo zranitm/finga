@@ -55,7 +55,7 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
       name="npc"
       title={npcById(npc)?.name ?? npc}
       onClose={onClose}
-      initialX={500}
+      initialX={610}
       initialY={120}
     >
       <div className="npc-dialog">

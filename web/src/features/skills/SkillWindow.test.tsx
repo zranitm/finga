@@ -120,6 +120,19 @@ describe('SkillWindow', () => {
     expect(bar()).toHaveTextContent('Skill points: 2');
   });
 
+  it('a skill with no points previews what its staged points make it', async () => {
+    setup();
+    skills(10, {});
+    for (let i = 0; i < 3; i++) await userEvent.click(plus('Strike'));
+    expect(row('Strike')).toHaveTextContent(
+      'Usable once it has a point → 1.65× physical attack · 5 MP · 2s cooldown',
+    );
+    for (let i = 0; i < 7; i++) await userEvent.click(plus('Strike'));
+    expect(row('Strike')).toHaveTextContent('Strike → Heavy Strike0 points +10');
+    expect(row('Strike')).toHaveTextContent('→ 2.7× physical attack · 6 MP · 2s cooldown');
+    expect(row('Strike')).toHaveTextContent('A wider, harder swing.');
+  });
+
   it('Apply sends the staged points with the unspent count it saw, and clears them once applied', async () => {
     const { calls } = setup([ok]);
     skills(5, {});

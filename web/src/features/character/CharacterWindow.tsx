@@ -53,13 +53,22 @@ function num(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-type Show = (n: number) => string;
-const percent: Show = (n) => `${num(n * 100)}%`;
-const perSecond: Show = (n) => `${num(n)}/s`;
+/** A stat with its unit, and bare, as a share beside it reads. */
+interface Show {
+  (n: number): string;
+  readonly bare: (n: number) => string;
+}
+const whole: Show = Object.assign((n: number) => num(n), { bare: num });
+const percent: Show = Object.assign((n: number) => `${num(n * 100)}%`, {
+  bare: (n: number) => num(n * 100),
+});
+const perSecond: Show = Object.assign((n: number) => `${num(n)}/s`, { bare: num });
 
 interface DerivedRow {
   readonly key: DerivedKey;
   readonly name: string;
+  /** A small line under the name, kept out of the row's width. */
+  readonly note?: string;
   readonly show: Show;
 }
 
@@ -68,9 +77,9 @@ const groups: readonly { readonly name: string; readonly rows: readonly DerivedR
   {
     name: 'Offense',
     rows: [
-      { key: 'physicalAttack', name: 'Physical attack', show: num },
-      { key: 'magicAttack', name: 'Magic attack', show: num },
-      { key: 'accuracy', name: 'Accuracy', show: num },
+      { key: 'physicalAttack', name: 'Physical attack', show: whole },
+      { key: 'magicAttack', name: 'Magic attack', show: whole },
+      { key: 'accuracy', name: 'Accuracy', show: whole },
       { key: 'critRate', name: 'Crit rate', show: percent },
       { key: 'critDamage', name: 'Crit damage', show: percent },
       { key: 'penetration', name: 'Penetration', show: percent },
@@ -79,17 +88,17 @@ const groups: readonly { readonly name: string; readonly rows: readonly DerivedR
   {
     name: 'Defense',
     rows: [
-      { key: 'maxHp', name: 'Max HP', show: num },
-      { key: 'physicalDefense', name: 'Physical defense', show: num },
-      { key: 'magicDefense', name: 'Magic defense', show: num },
-      { key: 'evasion', name: 'Evasion', show: num },
+      { key: 'maxHp', name: 'Max HP', show: whole },
+      { key: 'physicalDefense', name: 'Physical defense', show: whole },
+      { key: 'magicDefense', name: 'Magic defense', show: whole },
+      { key: 'evasion', name: 'Evasion', show: whole },
       { key: 'hpRegen', name: 'HP regen', show: perSecond },
     ],
   },
   {
     name: 'Resources',
     rows: [
-      { key: 'maxMp', name: 'Max MP', show: num },
+      { key: 'maxMp', name: 'Max MP', show: whole },
       { key: 'mpRegen', name: 'MP regen', show: perSecond },
     ],
   },
@@ -98,25 +107,34 @@ const groups: readonly { readonly name: string; readonly rows: readonly DerivedR
     rows: [
       { key: 'attackSpeed', name: 'Attack speed', show: percent },
       { key: 'cooldownSpeed', name: 'Cooldown speed', show: percent },
-      { key: 'moveSpeed', name: 'Move speed (combat maps)', show: percent },
+      { key: 'moveSpeed', name: 'Move speed', note: 'combat maps', show: percent },
     ],
   },
 ];
 
-/** The equipment's or the skills' part, shown only when it adds something. */
-function Share({
+/** What the equipment and the skills add, in one bracket without the unit; each only when it adds something. */
+function Shares({
   show,
-  by,
-  from,
+  worn,
+  skills,
 }: {
   readonly show: Show;
-  readonly by: number;
-  readonly from: 'equipment' | 'skills';
+  readonly worn: number;
+  readonly skills: number;
 }) {
-  return show(by) === show(0) ? null : (
-    <span className={from === 'skills' ? 'stat-skills' : 'stat-worn'} title={`From ${from}`}>
-      {' '}
-      (+{show(by)})
+  const parts = [
+    { from: 'equipment', by: show.bare(worn), className: 'stat-worn' },
+    { from: 'skills', by: show.bare(skills), className: 'stat-skills' },
+  ].filter((p) => p.by !== show.bare(0));
+  return parts.length === 0 ? null : (
+    <span className="stat-shares">
+      {' ('}
+      {parts.map((p, i) => (
+        <span key={p.from} className={p.className} title={`From ${p.from}`}>
+          {i > 0 && ' '}+{p.by}
+        </span>
+      ))}
+      )
     </span>
   );
 }
@@ -134,16 +152,26 @@ function DerivedTable({
     <table className="character-stats" aria-label={group.name}>
       <caption>{group.name}</caption>
       <tbody>
-        {group.rows.map(({ key, name, show }) => {
+        {group.rows.map(({ key, name, note, show }) => {
           const now = show(sheet?.derived?.[key] ?? 0);
           const then = preview ? show(preview.derived[key]) : now;
           return (
             <tr key={key}>
-              <th scope="row">{name}</th>
+              <th scope="row" aria-label={note ? `${name} (${note})` : undefined}>
+                {name}
+                {note && (
+                  <small className="stat-note" aria-hidden="true">
+                    {note}
+                  </small>
+                )}
+              </th>
               <td>
                 {now}
-                <Share show={show} by={sheet?.derivedWorn?.[key] ?? 0} from="equipment" />
-                <Share show={show} by={sheet?.derivedSkills?.[key] ?? 0} from="skills" />
+                <Shares
+                  show={show}
+                  worn={sheet?.derivedWorn?.[key] ?? 0}
+                  skills={sheet?.derivedSkills?.[key] ?? 0}
+                />
                 {then !== now && <span className="stat-preview"> → {then}</span>}
               </td>
             </tr>
@@ -169,8 +197,11 @@ function PrimaryTable({
             <th scope="row">{k.toUpperCase()}</th>
             <td>
               {sheet?.primary?.[k] ?? 0}
-              <Share show={num} by={sheet?.primaryWorn?.[k] ?? 0} from="equipment" />
-              <Share show={num} by={sheet?.primarySkills?.[k] ?? 0} from="skills" />
+              <Shares
+                show={whole}
+                worn={sheet?.primaryWorn?.[k] ?? 0}
+                skills={sheet?.primarySkills?.[k] ?? 0}
+              />
               {points.staged[k] > 0 && <span className="stat-preview"> +{points.staged[k]}</span>}
               {points.unspent > 0 && (
                 <button

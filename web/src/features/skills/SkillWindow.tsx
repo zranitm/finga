@@ -92,19 +92,15 @@ function SkillRow({
       </div>
       <p className="skill-text">{then.description}</p>
       <p className="skill-text">
-        {total === 0 ? (
-          <span className="muted">
-            {skill.kind === 'passive' ? 'Works' : 'Usable'} once it has a point:{' '}
-            {effectOf(skill, now, 1)}
-          </span>
+        {points > 0 ? (
+          effectOf(skill, now, points)
         ) : (
-          <>
-            {effectOf(skill, now, Math.max(points, 1))}
-            {staged > 0 && points > 0 && (
-              <span className="stat-preview"> → {effectOf(skill, then, total)}</span>
-            )}
-          </>
+          <span className="muted">
+            {skill.kind === 'passive' ? 'Works' : 'Usable'} once it has a point
+            {staged === 0 && `: ${effectOf(skill, now, 1)}`}
+          </span>
         )}
+        {staged > 0 && <span className="stat-preview"> → {effectOf(skill, then, total)}</span>}
       </p>
       <p className="skill-text muted">Each point: {perPointOf(skill, then)}</p>
       <p className="skill-text muted">
@@ -127,8 +123,8 @@ export function SkillWindow({ socket, onClose }: SkillWindowProps) {
       name="skills"
       title="Skills"
       onClose={onClose}
-      initialX={260}
-      initialY={100}
+      initialX={940}
+      initialY={120}
       footer={
         sp.notice ? (
           <p className="error" role="alert">

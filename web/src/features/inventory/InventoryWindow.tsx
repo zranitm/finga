@@ -127,7 +127,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
       name="inventory"
       title="Inventory"
       onClose={onClose}
-      initialX={500}
+      initialX={610}
       initialY={80}
       footer={
         (notice ?? selectedPending?.error) && (
