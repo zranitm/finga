@@ -171,6 +171,9 @@ From the code, the rules this design keeps:
 | --- | --- | --- |
 | The item service commits a `HandIn`, but its reply is lost (the 5-second timeout, a broken connection) | "Try again in a moment"; the client still shows the items, and handing it in again finishes it | Same key: the stored reply comes back, and nothing is taken or given twice |
 | World crashes after the item commit, before the quest is saved | After the rejoin the quest is still active; handing it in again finishes it | Same key (the count didn't move), so the item service answers its stored reply and gives nothing twice |
+| That crash also lost some kills since the last save | The quest may need a few kills again before it can be handed in | Progress is saved like EXP; nothing is duplicated |
+| The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
+| Item service down during a hand-in | "Try again in a moment"; nothing changed | The call failed as a whole, or committed and answers the same next time |
 | The world's stream breaks, or the world restarts | Nothing unusual: the quest log is put right | The rejoin sends `QuestLog`, and the changes after it follow |
 
 **Known issues, kept for now:**
@@ -179,9 +182,6 @@ From the code, the rules this design keeps:
 - The item service keeps a hand-in's key for 24 hours. A hand-in stuck longer than that takes the items, and gives the item rewards, a second time.
 - A rejoin resends only the quest log: inventory, EXP, and level changes sent while the stream was broken stay lost until the next change or login.
 - A durable hand-in, recorded before the item call and finished by the world on its own, with keys kept longer, and a full resync after a rejoin, would close these.
-| That crash also lost some kills since the last save | The quest may need a few kills again before it can be handed in | Progress is saved like EXP; nothing is duplicated |
-| The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
-| Item service down during a hand-in | "Try again in a moment"; nothing changed | The call failed as a whole, or committed and answers the same next time |
 
 ## 12. Testing
 
