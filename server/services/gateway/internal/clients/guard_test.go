@@ -8,9 +8,9 @@ import (
 	"google.golang.org/grpc/codes"
 
 	accountv1 "finga/api/gen/account/v1"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/uuidv7"
 	"finga/services/gateway/internal/clients"
 )
 
@@ -47,8 +47,8 @@ func (f *accounts) RevokeAll(_ context.Context, req *accountv1.RevokeAllRequest)
 }
 
 var (
-	guardAccount = uuidv7.New()
-	guardSession = uuidv7.New()
+	guardAccount = kernel.NewAccountID()
+	guardSession = kernel.NewSessionID()
 )
 
 func TestGuardOverTheAccountService(t *testing.T) {

@@ -9,11 +9,9 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/application/push"
 	"finga/services/gateway/internal/application/send"
@@ -288,19 +286,19 @@ func (g *guard) rotated() int {
 	return g.rotations
 }
 
-func (g *guard) Validate(_ context.Context, tok string) (auth.Principal, error) {
+func (g *guard) Validate(_ context.Context, tok string) (model.Principal, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.validate != nil {
-		return auth.Principal{}, g.validate
+		return model.Principal{}, g.validate
 	}
 	if tok != token {
-		return auth.Principal{}, unauthenticated
+		return model.Principal{}, unauthenticated
 	}
-	return auth.Principal{AccountID: uuid.UUID(account), SessionID: uuid.UUID(sessionID)}, nil
+	return model.Principal{AccountID: account, SessionID: sessionID}, nil
 }
 
-func (g *guard) Rotate(context.Context, uuid.UUID) (string, error) {
+func (g *guard) Rotate(context.Context, kernel.SessionID) (string, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.rotate != nil {
@@ -310,7 +308,7 @@ func (g *guard) Rotate(context.Context, uuid.UUID) (string, error) {
 	return "rotated", nil
 }
 
-func (g *guard) Check(ctx context.Context, _ uuid.UUID) error {
+func (g *guard) Check(ctx context.Context, _ kernel.SessionID) error {
 	g.mu.Lock()
 	err, hang := g.check, g.hang
 	g.mu.Unlock()
@@ -321,8 +319,8 @@ func (g *guard) Check(ctx context.Context, _ uuid.UUID) error {
 	return err
 }
 
-func (*guard) Revoke(context.Context, uuid.UUID) error    { return nil }
-func (*guard) RevokeAll(context.Context, uuid.UUID) error { return nil }
+func (*guard) Revoke(context.Context, kernel.SessionID) error    { return nil }
+func (*guard) RevokeAll(context.Context, kernel.AccountID) error { return nil }
 
 // world joins every character on the town, or fails with joinErr; a join delivers flood deliveries, Snapshot first.
 type world struct {
@@ -391,6 +389,7 @@ func (w *world) EnterPortal(context.Context, model.Presence) error              
 func (w *world) Say(context.Context, model.Presence, string, string) error        { return nil }
 func (w *world) Equip(context.Context, model.Presence, model.ItemEquip) error     { return nil }
 func (w *world) Unequip(context.Context, model.Presence, model.ItemUnequip) error { return nil }
+func (w *world) UseItem(context.Context, model.Presence, model.ItemUse) error     { return nil }
 func (w *world) SpendPoints(context.Context, model.Presence, model.PointsSpend) error {
 	return nil
 }

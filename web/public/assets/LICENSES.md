@@ -19,7 +19,10 @@ licence; it is given here.
   (`slimeGreen*`, `snail*`, `mouse*`, `fly*`), players (`alienBlue_*`,
   `alienGreen_*`), backgrounds (`colored_grass`, `colored_land`,
   `colored_shroom`, `blue_land`). All 128 px art drawn at scale 0.25 so one
-  tile is one 32 px grid cell.
+  tile is one 32 px grid cell. Until the pack's sand, snow and castle art is
+  imported, the desert, snow and keep maps draw the dirt and stone tiles and
+  the `colored_land` and `blue_land` backgrounds tinted, and the new mobs are
+  the four enemies above, tinted and, for elites, drawn 1.5 times as big.
 
 ## Kenney, Generic Items (`generic-items/`)
 
@@ -27,13 +30,14 @@ licence; it is given here.
 - Page: https://kenney.nl/assets/generic-items
 - File: `kenney_generic-items.zip`, "Generic Items #1", release of 2023-03-01
 - Licence: CC0 (same wording as above)
-- Used: `genericItem_white_105.png` as `flask.png`, tinted red and blue for
-  the two potions.
+- Used: `genericItem_white_105.png` as `flask.png`, tinted for the five
+  potions.
 
 ## Original placeholders (no files)
 
 Every item template with no match in the packs above is a 32 px shape drawn
 at runtime by `src/game/scenes/placeholders.ts`: equipment by its slot kind in
-its stars' colour, and the drop materials (`slime_gel`, `mushroom_cap`,
-`boar_tusk`, `bat_wing`) by hand in the Kenney palette. They are original to
-this project and released under the same CC0 terms.
+its stars' colour, and the drop materials (`slime_gel`, `bat_wing` and the
+rest of the `etc` tab) from a few shapes (gel, shell, wing, fang, feather and
+so on) in their mob's colours. They are original to this project and released
+under the same CC0 terms.

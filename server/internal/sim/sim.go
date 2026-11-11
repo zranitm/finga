@@ -22,7 +22,7 @@ type Params struct {
 // SpeedFactor is 1 plus a move speed, rounded to thousandths so Go and TypeScript multiply by the same number.
 func SpeedFactor(moveSpeed float64) float64 { return math.Round((1+moveSpeed)*1000) / 1000 }
 
-// Faster is p played f times as fast: walking, climbing, a jump's launch and the fall's clamp by f, and gravity by f², so a jump keeps its height and length and takes 1/f of the time; the drop-through stays a time.
+// Faster is p played f times as fast: walking, climbing, a jump's launch and the fall's clamp by f, and gravity by f², so a jump takes 1/f of the time; stepped at Dt, it peaks slightly lower as f rises (about 1.6 px at 1.3); the drop-through stays a time.
 func (p Params) Faster(f float64) Params {
 	if f == 1 {
 		return p

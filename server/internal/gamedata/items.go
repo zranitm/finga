@@ -60,6 +60,9 @@ type Item struct {
 	MaxStack    int // 1 for equipment, 100 for the rest
 }
 
+// Usable reports whether the item is used from the Use tab: a potion, restoring HP or MP.
+func (it Item) Usable() bool { return it.Tab == Use && (it.HealHP > 0 || it.HealMP > 0) }
+
 // Item finds an item template.
 func (d *Data) Item(id string) (Item, bool) { return find(d.p.Items, d.itemIdx, id) }
 

@@ -1,5 +1,6 @@
-// Package stamping_test checks that every query writing a row stamps it from the app's clock.
-package stamping_test
+// Every query writing a row stamps it from the app's clock.
+
+package rules_test
 
 import (
 	"errors"
@@ -400,7 +401,7 @@ func isString(t types.Type) bool {
 
 // The Go scan folds constants, so SQL split across concatenated literals and constants is read whole, and a part known only at run time is reported.
 func TestTheGoScanReadsSQLAsItIsBuilt(t *testing.T) {
-	found, err := goWrites(".", "./testdata")
+	found, err := goWrites(".", "./testdata/stamping")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -62,6 +62,9 @@ export type TextureKey = (typeof TEX)[keyof typeof TEX];
 export const ITEM_TINTS: Readonly<Record<string, number>> = {
   red_potion: 0xe04848,
   blue_potion: 0x4c8be0,
+  orange_potion: 0xf08a3a,
+  white_potion: 0xf4f4f4,
+  mana_elixir: 0x9a6ae0,
 };
 
 /** Every other template in the catalog gets a texture drawn at runtime under its id. */
@@ -80,10 +83,6 @@ export function itemTexture(template: string): string {
 }
 
 export const MAP_IDS = maps.map((m) => m.id);
-export type MapId = (typeof maps)[number]['id'];
-export function isMapId(id: string): id is MapId {
-  return (MAP_IDS as readonly string[]).includes(id);
-}
 export const mapKey = (id: string): string => `map:${id}`;
 
 export const ANIM = {
@@ -96,6 +95,27 @@ export const ANIM = {
   mouseMove: 'mouse:move',
   flyMove: 'fly:move',
 } as const;
+
+export interface Anim {
+  readonly key: string;
+  readonly frames: readonly string[];
+  readonly frameRate: number;
+}
+
+/** The looping animations, each over its frames' textures. */
+export const animations: readonly Anim[] = [
+  { key: ANIM.warriorWalk, frames: [TEX.warriorWalk1, TEX.warriorWalk2], frameRate: 8 },
+  { key: ANIM.warriorClimb, frames: [TEX.warriorClimb1, TEX.warriorClimb2], frameRate: 6 },
+  { key: ANIM.bowmanWalk, frames: [TEX.bowmanWalk1, TEX.bowmanWalk2], frameRate: 8 },
+  { key: ANIM.bowmanClimb, frames: [TEX.bowmanClimb1, TEX.bowmanClimb2], frameRate: 6 },
+  { key: ANIM.slimeMove, frames: [TEX.slimeStand, TEX.slimeMove], frameRate: 4 },
+  { key: ANIM.snailMove, frames: [TEX.snailStand, TEX.snailMove], frameRate: 3 },
+  { key: ANIM.mouseMove, frames: [TEX.mouseStand, TEX.mouseMove], frameRate: 8 },
+  { key: ANIM.flyMove, frames: [TEX.flyStand, TEX.flyMove], frameRate: 10 },
+];
+
+/** The grey copy of a texture or animation, which a tint colours fully. */
+export const greyKey = (key: string): string => `${key}:grey`;
 
 /** 128 px art scaled to the 32 px grid. */
 export const ART_SCALE = 0.25;

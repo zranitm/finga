@@ -13,6 +13,7 @@ import {
   groundStyle,
   mapTiles,
   platformTiles,
+  portalLabel,
   portalTiles,
   ropeTiles,
   solidTiles,
@@ -43,6 +44,26 @@ describe('world layout', () => {
     },
   );
 
+  it.each([
+    { map: 'shroom_grove', top: TEX.grassMid, tint: null, background: TEX.bgShroom },
+    { map: 'dune_road', top: TEX.dirtMid, tint: 0xf2d79a, background: TEX.bgLand },
+    { map: 'frost_trail', top: TEX.stoneMid, tint: 0xe6f2ff, background: TEX.bgCave },
+    { map: 'fallen_keep', top: TEX.stoneMid, tint: 0x8c7f9e, background: TEX.bgLand },
+  ])('$map stands in for its region art with a tint', ({ map, top, tint, background }) => {
+    expect(groundStyle(map)).toMatchObject({ top, tint, background });
+  });
+
+  it('a tinted ground tints its solids and platforms, not its ropes or portals', () => {
+    const sand = groundStyle('dune_road');
+    const rect = { x: 0, y: 0, w: 64, h: 64 };
+    for (const t of [...solidTiles([rect], sand), ...platformTiles([rect], sand)]) {
+      expect(t.tint).toBe(0xf2d79a);
+    }
+    for (const t of [...ropeTiles([rect]), ...portalTiles(town.portals)]) {
+      expect(t.tint).toBeNull();
+    }
+  });
+
   it('a map missing from the data is an error, not the forest', () => {
     expect(() => groundStyle('somewhere_new')).toThrow(/somewhere_new/);
   });
@@ -56,23 +77,42 @@ describe('world layout', () => {
   });
 
   it.each([
+    { target: 'dune_road', want: 'Dune Road · Lv 21\u201322' },
+    { target: 'crossroads', want: 'Crossroads' },
+  ])('a portal to $target is labelled $want', ({ target, want }) => {
+    expect(portalLabel(target)).toBe(want);
+  });
+
+  it('every portal leads to a map the client can label', () => {
+    for (const m of maps) {
+      const view = parseMap(
+        m.id,
+        JSON.parse(readFileSync(path.resolve(process.cwd(), `public/maps/${m.id}.tmj`), 'utf8')),
+      );
+      for (const p of view.portals) {
+        expect(portalLabel(p.target_map), `${m.id} ${p.name}`).not.toBe('');
+      }
+    }
+  });
+
+  it.each([
     {
       name: 'a one-row solid is all surface',
       rect: { x: 0, y: 608, w: 1280, h: 32 },
-      want: [{ texture: TEX.dirtMid, x: 0, y: 608, w: 1280, h: 32 }],
+      want: [{ texture: TEX.dirtMid, x: 0, y: 608, w: 1280, h: 32, tint: null }],
     },
     {
       name: 'a tall solid is a surface row and a fill below',
       rect: { x: 0, y: 0, w: 32, h: 608 },
       want: [
-        { texture: TEX.dirtMid, x: 0, y: 0, w: 32, h: 32 },
-        { texture: TEX.dirtCenter, x: 0, y: 32, w: 32, h: 576 },
+        { texture: TEX.dirtMid, x: 0, y: 0, w: 32, h: 32, tint: null },
+        { texture: TEX.dirtCenter, x: 0, y: 32, w: 32, h: 576, tint: null },
       ],
     },
     {
       name: 'a solid thinner than a row is drawn at its own height',
       rect: { x: 10, y: 10, w: 64, h: 8 },
-      want: [{ texture: TEX.dirtMid, x: 10, y: 10, w: 64, h: 8 }],
+      want: [{ texture: TEX.dirtMid, x: 10, y: 10, w: 64, h: 8, tint: null }],
     },
   ])('$name', ({ rect, want }) => {
     expect(solidTiles([rect], dirt)).toEqual(want);
@@ -80,21 +120,21 @@ describe('world layout', () => {
 
   it('a thin platform is drawn as a full half tile hanging from its top edge', () => {
     expect(platformTiles([{ x: 160, y: 480, w: 256, h: 8 }], dirt)).toEqual([
-      { texture: TEX.dirtHalf, x: 160, y: 480, w: 256, h: 32 },
+      { texture: TEX.dirtHalf, x: 160, y: 480, w: 256, h: 32, tint: null },
     ]);
   });
 
   it('a rope is a ladder one tile wide centred on it with a top piece', () => {
     expect(ropeTiles([{ x: 1052, y: 448, w: 8, h: 160 }])).toEqual([
-      { texture: TEX.ladderTop, x: 1040, y: 448, w: 32, h: 32 },
-      { texture: TEX.ladderMid, x: 1040, y: 480, w: 32, h: 128 },
+      { texture: TEX.ladderTop, x: 1040, y: 448, w: 32, h: 32, tint: null },
+      { texture: TEX.ladderMid, x: 1040, y: 480, w: 32, h: 128, tint: null },
     ]);
   });
 
   it('a portal is a door top and a middle filling the rest', () => {
     expect(portalTiles(town.portals)).toEqual([
-      { texture: TEX.doorClosedTop, x: 1200, y: 544, w: 32, h: 32 },
-      { texture: TEX.doorClosedMid, x: 1200, y: 576, w: 32, h: 32 },
+      { texture: TEX.doorClosedTop, x: 1200, y: 544, w: 32, h: 32, tint: null },
+      { texture: TEX.doorClosedMid, x: 1200, y: 576, w: 32, h: 32, tint: null },
     ]);
   });
 

@@ -25,6 +25,9 @@ var (
 	ErrQuestFinished    = errors.New("world: the one-time quest is already finished")
 	ErrTooManyQuests    = errors.New("world: the most active quests are already taken")
 	ErrQuestNotReady    = errors.New("world: the quest isn't active, or a kill, talk or level objective is left")
+	ErrHPFull           = errors.New("world: an HP potion at full HP restores nothing")
+	ErrMPFull           = errors.New("world: an MP potion at full MP restores nothing")
+	ErrNotUsable        = errors.New("world: the game data has no potion of that template")
 	ErrPointsChanged    = errors.New("world: the unspent points are not the count expected")
 	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
 	ErrNoFreeReset      = errors.New("world: the free reset is used")
@@ -333,6 +336,15 @@ type EquipCall struct {
 	Level     int
 	Class     kernel.Class
 	Stats     gamedata.Stats
+}
+
+// UseCall takes one of a usable item from its stack; Template is what the client saw there, and the item service refuses any other item.
+type UseCall struct {
+	Account   kernel.AccountID
+	Character kernel.CharacterID
+	Key       string
+	Item      kernel.ItemID
+	Template  string
 }
 
 // UnequipCall puts a worn item back in the Equip tab, in ToSlot or, nil, the first free slot.

@@ -128,7 +128,7 @@ func rollFrom(s *itemv1.ItemStats) *progression.ItemStats {
 	}
 }
 
-// Equipment adapts the item service to instance.Equipment, instance.HandIns, world.HandedIns and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
+// Equipment adapts the item service to instance.Equipment, instance.HandIns, instance.Potions, world.HandedIns and world.Wardrobe; a failure without a reason is transient.ErrUnavailable.
 type Equipment struct{ c itemv1.ItemServiceClient }
 
 // NewEquipment adapts the item client.
@@ -159,6 +159,19 @@ func (e Equipment) Unequip(ctx context.Context, c model.UnequipCall) (model.Equi
 		return model.Equipped{}, ruleOr(err)
 	}
 	return equipped(res.GetChanged(), res.GetEquipment(), res.GetWorn(), res.GetRevision())
+}
+
+// Use takes one of a usable item from its stack, refused when the item isn't the template named.
+func (e Equipment) Use(ctx context.Context, c model.UseCall) (model.Inventory, bool, error) {
+	res, err := e.c.Use(ctx, &itemv1.UseRequest{Actor: &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()}, IdempotencyKey: c.Key, ItemId: c.Item.String(), TemplateId: c.Template})
+	if err != nil {
+		return model.Inventory{}, false, ruleOr(err)
+	}
+	slots, err := changedSlots(res.GetChanged())
+	if err != nil {
+		return model.Inventory{}, false, err
+	}
+	return model.Inventory{Revision: res.GetRevision(), Slots: slots}, res.GetReplayed(), nil
 }
 
 // HandIn takes what a quest asks to collect and gives its item rewards, once per completion.

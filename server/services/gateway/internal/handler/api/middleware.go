@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/pkg/auth"
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
@@ -36,9 +35,9 @@ const (
 	headerReqID    = "X-Request-ID"
 )
 
-func principalFrom(c *gin.Context) auth.Principal {
+func principalFrom(c *gin.Context) model.Principal {
 	v, _ := c.Get(principalKey)
-	p, _ := v.(auth.Principal)
+	p, _ := v.(model.Principal)
 	return p
 }
 

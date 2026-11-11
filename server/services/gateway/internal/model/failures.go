@@ -65,6 +65,7 @@ var (
 	NotEquipment         = Public{220022, "NOT_EQUIPMENT", "only equipment can be worn"}
 	NothingWorn          = Public{220023, "NOTHING_WORN", "nothing is worn there"}
 	NotEnoughItems       = Public{220024, "NOT_ENOUGH_ITEMS", "you don't have everything it asks for"}
+	NotUsable            = Public{220025, "NOT_USABLE", "that item can't be used"}
 )
 
 // 33: the world and quests.
@@ -81,6 +82,8 @@ var (
 	QuestAlreadyFinished = Public{330010, "QUEST_ALREADY_FINISHED", "you've finished that quest"}
 	TooManyQuests        = Public{330011, "TOO_MANY_QUESTS", "you have the most active quests already"}
 	QuestNotReady        = Public{330012, "QUEST_NOT_READY", "that quest isn't finished yet"}
+	HPFull               = Public{330013, "HP_FULL", "your HP is already full"}
+	MPFull               = Public{330014, "MP_FULL", "your MP is already full"}
 )
 
 // 44: parties and chat.

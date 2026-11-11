@@ -24,7 +24,7 @@ export function speedFactor(moveSpeed: number): number {
   return Math.round((1 + moveSpeed) * 1000) / 1000;
 }
 
-/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump keeps its shape. */
+/** p played f times as fast, as the server's Params.Faster: speeds by f and gravity by f², so a jump takes 1/f of the time and, stepped, peaks slightly lower. */
 export function faster(p: Params, f: number): Params {
   if (f === 1) {
     return p;

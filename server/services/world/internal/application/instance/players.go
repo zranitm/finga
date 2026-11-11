@@ -49,7 +49,7 @@ type player struct {
 	deadUntil     uint64
 	changed       bool                         // HP, level or death changed this tick
 	private       []model.Event                // events for this player only
-	itemCalls     int                          // equips, unequips and hand-ins in flight, which keep the player on this map
+	itemCalls     int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
 	handingIn     map[string]bool              // quests whose hand-in is in flight
 	questChanges  map[string]model.QuestChange // this tick's, told at its end
 	toldHP        int                          // the HP and max HP the party last heard
@@ -73,7 +73,7 @@ func (i *Instance) add(j *joinMsg) {
 	p := &player{
 		Player: j.player,
 		sink:   j.sink,
-		state:  sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
+		state:  standing(j.player.X, j.player.Y),
 		joined: true,
 		slot:   i.nextSlot,
 		class:  class,
@@ -160,6 +160,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			moves := i.movement(p)
 			for range i.subSteps {
 				p.state = sim.Step(p.state, p.held, i.m.Geometry, moves)
+			}
+			if fellOut(p.state, i.m) {
+				i.rescue(p)
 			}
 		}
 		p.moved = p.state != before

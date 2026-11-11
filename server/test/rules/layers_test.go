@@ -1,5 +1,6 @@
-// Package layers_test holds the import rules through every dependency; depguard sees only direct imports.
-package layers_test
+// The import rules, checked through every dependency; depguard sees only direct imports.
+
+package rules_test
 
 import (
 	"maps"

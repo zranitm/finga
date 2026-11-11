@@ -2,27 +2,11 @@
 import Phaser from 'phaser';
 
 import { images, mapFile } from '../assets';
-import { ANIM, MAP_IDS, SCENES, TEX, mapKey } from '../keys';
+import { MAP_IDS, SCENES, animations, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 
+import { addGreyCopies, greyMobArt } from './grey-art';
 import { drawPlaceholders } from './placeholders';
-
-interface Anim {
-  readonly key: string;
-  readonly frames: readonly string[];
-  readonly frameRate: number;
-}
-
-export const animations: readonly Anim[] = [
-  { key: ANIM.warriorWalk, frames: [TEX.warriorWalk1, TEX.warriorWalk2], frameRate: 8 },
-  { key: ANIM.warriorClimb, frames: [TEX.warriorClimb1, TEX.warriorClimb2], frameRate: 6 },
-  { key: ANIM.bowmanWalk, frames: [TEX.bowmanWalk1, TEX.bowmanWalk2], frameRate: 8 },
-  { key: ANIM.bowmanClimb, frames: [TEX.bowmanClimb1, TEX.bowmanClimb2], frameRate: 6 },
-  { key: ANIM.slimeMove, frames: [TEX.slimeStand, TEX.slimeMove], frameRate: 4 },
-  { key: ANIM.snailMove, frames: [TEX.snailStand, TEX.snailMove], frameRate: 3 },
-  { key: ANIM.mouseMove, frames: [TEX.mouseStand, TEX.mouseMove], frameRate: 8 },
-  { key: ANIM.flyMove, frames: [TEX.flyStand, TEX.flyMove], frameRate: 10 },
-];
 
 export class Preloader extends Phaser.Scene {
   constructor() {
@@ -39,7 +23,9 @@ export class Preloader extends Phaser.Scene {
   }
 
   create(): void {
-    for (const a of animations) {
+    const grey = greyMobArt();
+    addGreyCopies(this, grey.textures);
+    for (const a of [...animations, ...grey.animations]) {
       if (!this.anims.exists(a.key)) {
         this.anims.create({
           key: a.key,

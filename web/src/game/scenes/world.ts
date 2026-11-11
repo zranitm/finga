@@ -4,13 +4,16 @@ import { movement } from '@/gamedata/movement';
 import { isTyping } from '@/input/typing';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
+import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
+import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
@@ -46,9 +49,10 @@ import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { PortalSystem, standsIn } from '../systems/portals';
+import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 
-import { bannerLines, groundStyle, mapTiles } from './world-layout';
+import { bannerLines, groundStyle, mapTiles, portalLabel } from './world-layout';
 
 /** What the game enters the world with, from Welcome. */
 export interface WorldEntry {
@@ -80,6 +84,9 @@ type DropWire = Data<'snapshot'>['drops'][number];
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
 const ARROW_RANGE = 420;
 const ARROW_MS = 300;
+
+/** Below the players, mobs, NPCs and drops at 0, so a label shows over a wall but never over someone. */
+const DEPTH = { background: -4, glow: -3, tiles: -2, label: -1 } as const;
 
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
@@ -118,6 +125,7 @@ export class World extends Phaser.Scene {
   private attackGate: AttackGate | null = null;
   /** The attack key is down: the gate lets a strike through at each cooldown. */
   private attackHeld = false;
+  private potionKeys: PotionKeys | null = null;
   private readonly flash = new InvulnFlash();
   private transitionState: TransitionState = initialTransition;
 
@@ -176,7 +184,10 @@ export class World extends Phaser.Scene {
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDisplaySize(cam.width, cam.height)
-      .setDepth(-2);
+      .setDepth(DEPTH.background);
+    if (style.backgroundTint !== null) {
+      this.background.setTint(style.backgroundTint);
+    }
     const onResize = (size: Phaser.Structs.Size) => {
       this.background?.setDisplaySize(size.width, size.height);
     };
@@ -184,7 +195,14 @@ export class World extends Phaser.Scene {
     this.offs.push(() => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
 
     for (const t of mapTiles(view)) {
-      this.add.tileSprite(t.x, t.y, t.w, t.h, t.texture).setOrigin(0, 0).setTileScale(ART_SCALE);
+      const tile = this.add
+        .tileSprite(t.x, t.y, t.w, t.h, t.texture)
+        .setOrigin(0, 0)
+        .setTileScale(ART_SCALE)
+        .setDepth(DEPTH.tiles);
+      if (t.tint !== null) {
+        tile.setTint(t.tint);
+      }
     }
 
     // Hidden until the server says where the player is.
@@ -223,8 +241,20 @@ export class World extends Phaser.Scene {
           0x7ac7ff,
           0.18,
         )
-        .setDepth(-1);
+        .setDepth(DEPTH.glow);
       this.tweens.add({ targets: glow, alpha: 0.5, duration: 900, yoyo: true, repeat: -1 });
+      const label = this.add
+        .text(0, p.area.y - 6, portalLabel(p.target_map), {
+          fontSize: '12px',
+          color: '#cfe8ff',
+          fontFamily: 'sans-serif',
+          stroke: '#0a0c16',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.label);
+      const half = label.width / 2;
+      label.setX(Math.min(Math.max(p.area.x + p.area.w / 2, half + 4), view.width - half - 4));
     }
     for (const npc of npcsOn(view.id)) {
       this.npcViews.set(npc.id, new NpcView(this, npc));
@@ -245,6 +275,13 @@ export class World extends Phaser.Scene {
       inventory.subscribe((now, before) => {
         if (now.slots !== before.slots) {
           this.showMarkers();
+        }
+      }),
+      // A potion drunk from a key or the inventory shows what it restored over the drinker only.
+      combatLog.subscribe((now, before) => {
+        const line = now.lines.at(-1);
+        if (line?.kind === 'drank' && line !== before.lines.at(-1)) {
+          this.showRestored(line.hp, line.mp);
         }
       }),
     );
@@ -282,6 +319,18 @@ export class World extends Phaser.Scene {
         this.predictor?.setParams(movementParams(view.kind, next?.derived?.moveSpeed ?? 0));
       }),
     );
+    this.potionKeys = new PotionKeys({
+      vitals: () => character.getState().character,
+      useTab: () => inventory.getState().slots.use,
+      use: (potion) =>
+        socket.request('useItem', {
+          idempotencyKey: idempotencyKey(),
+          itemId: potion.itemId,
+          template: potion.template,
+        }),
+      drank: (template, restored) => combatLog.getState().drank(template, restored),
+      notice: (text) => toasts.getState().push(text),
+    });
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
     this.offs.push(
@@ -332,6 +381,12 @@ export class World extends Phaser.Scene {
               return;
             case 'talk':
               this.talk();
+              return;
+            case 'hpPotion':
+              this.drink('hp');
+              return;
+            case 'mpPotion':
+              this.drink('mp');
               return;
             case 'chat':
               ui.getState().openChat();
@@ -661,6 +716,28 @@ export class World extends Phaser.Scene {
     });
   }
 
+  private drink(vital: Vital): void {
+    if (this.placed && !this.stalled && !this.transitionState.dead) {
+      this.potionKeys?.press(vital);
+    }
+  }
+
+  private showRestored(hp: number, mp: number): void {
+    const p = this.predictor;
+    if (!p) {
+      return;
+    }
+    const now = this.time.now;
+    let y = p.state.y - 90; // above the name tag
+    if (hp > 0) {
+      this.numbers.spawn(p.state.x, y, `+${hp}`, 'healHp', now);
+      y -= 18;
+    }
+    if (mp > 0) {
+      this.numbers.spawn(p.state.x, y, `+${mp}`, 'healMp', now);
+    }
+  }
+
   /** The NPC's dialog closes once the player dies, walks out of its reach, or leaves its map. */
   private closeDialogOutOfReach(): void {
     if (!ui.getState().windows.includes('npc')) {
@@ -683,6 +760,8 @@ export class World extends Phaser.Scene {
           fontSize: i === 0 ? '22px' : '15px',
           color: '#f4f4f8',
           fontFamily: 'sans-serif',
+          stroke: '#0a0c16', // reads on a pale sky as on a dark cave
+          strokeThickness: i === 0 ? 4 : 3,
         })
         .setOrigin(0.5, 0)
         .setScrollFactor(0)
@@ -850,6 +929,7 @@ export class World extends Phaser.Scene {
     this.predictor = null;
     this.sender = null;
     this.attackGate = null;
+    this.potionKeys = null;
     this.attackHeld = false;
     this.portals = null;
     this.view = null;

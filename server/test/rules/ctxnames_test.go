@@ -1,5 +1,6 @@
-// Package ctxnames_test checks that every context.Context is named as one: ctx, or a name holding Ctx, such as retryCtx.
-package ctxnames_test
+// Every context.Context is named as one: ctx, or a name holding Ctx, such as retryCtx.
+
+package rules_test
 
 import (
 	"errors"
@@ -74,7 +75,7 @@ func isContext(t types.Type) bool {
 
 // The check finds a context however it is declared, and only those whose names hold no ctx.
 func TestTheCheckFindsEveryMisnamedContext(t *testing.T) {
-	got, err := misnamed("testdata", "./...")
+	got, err := misnamed("testdata/ctxnames", "./...")
 	if err != nil {
 		t.Fatal(err)
 	}

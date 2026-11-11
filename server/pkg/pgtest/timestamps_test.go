@@ -6,7 +6,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"finga/pkg/dbx"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"finga/pkg/pgtest"
 )
 
@@ -71,14 +72,23 @@ func TestMigrationsBefore(t *testing.T) {
 		t.Fatal(err)
 	}
 	for table, want := range map[string]bool{"a": true, "b": false} {
-		if got, err := dbx.TableExists(ctx, pool, table); err != nil || got != want {
-			t.Fatalf("table %s exists = %v (%v), want %v", table, got, err, want)
+		if got := tableExists(t, pool, table); got != want {
+			t.Fatalf("table %s exists = %v, want %v", table, got, want)
 		}
 	}
 	if err := pgtest.Migrations(fsys, "goose_t_version")(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := dbx.TableExists(ctx, pool, "b"); err != nil || !got {
-		t.Fatalf("the rest did not apply: %v, %v", got, err)
+	if !tableExists(t, pool, "b") {
+		t.Fatal("the rest did not apply")
 	}
+}
+
+func tableExists(t *testing.T, pool *pgxpool.Pool, table string) bool {
+	t.Helper()
+	var ok bool
+	if err := pool.QueryRow(context.Background(), `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&ok); err != nil {
+		t.Fatal(err)
+	}
+	return ok
 }

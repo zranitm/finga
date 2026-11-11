@@ -19,6 +19,7 @@ var eventTypes = map[model.NoticeKind]string{
 	model.NoticeLooted:    "ItemLooted",
 	model.NoticeDiscarded: "ItemDiscarded",
 	model.NoticeHandedIn:  "ItemHandedIn",
+	model.NoticeUsed:      "ItemUsed",
 }
 
 // itemEvent is the payload other services read.

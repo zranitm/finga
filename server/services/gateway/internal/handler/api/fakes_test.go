@@ -2,17 +2,16 @@ package api_test
 
 import (
 	"context"
-	"errors"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 
 	accountv1 "finga/api/gen/account/v1"
 	characterv1 "finga/api/gen/character/v1"
-	"finga/pkg/auth"
+	"finga/internal/kernel"
 	"finga/pkg/grpcx/grpctest"
 	"finga/services/gateway/internal/clients/errmap"
+	"finga/services/gateway/internal/model"
 )
 
 // A nil fake function means the endpoint under test must not reach that method.
@@ -76,34 +75,28 @@ var errUnauthenticated = errmap.Wrap(grpctest.Error(codes.Unauthenticated, accou
 // fakeSessions knows one good token.
 type fakeSessions struct {
 	token           string
-	principal       auth.Principal
-	revoked         []uuid.UUID
-	revokedAccounts []uuid.UUID
-	validate        func(token string) (auth.Principal, error) // overrides the default when set
+	principal       model.Principal
+	revoked         []kernel.SessionID
+	revokedAccounts []kernel.AccountID
+	validate        func(token string) (model.Principal, error) // overrides the default when set
 }
 
-func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal, error) {
+func (f *fakeSessions) Validate(_ context.Context, token string) (model.Principal, error) {
 	if f.validate != nil {
 		return f.validate(token)
 	}
 	if token == f.token {
 		return f.principal, nil
 	}
-	return auth.Principal{}, errUnauthenticated
+	return model.Principal{}, errUnauthenticated
 }
 
-func (f *fakeSessions) Revoke(_ context.Context, id uuid.UUID) error {
+func (f *fakeSessions) Revoke(_ context.Context, id kernel.SessionID) error {
 	f.revoked = append(f.revoked, id)
 	return nil
 }
 
-func (f *fakeSessions) Rotate(context.Context, uuid.UUID) (string, error) {
-	return "", errors.New("not used by the REST handler")
-}
-
-func (f *fakeSessions) Check(context.Context, uuid.UUID) error { return nil }
-
-func (f *fakeSessions) RevokeAll(_ context.Context, accountID uuid.UUID) error {
+func (f *fakeSessions) RevokeAll(_ context.Context, accountID kernel.AccountID) error {
 	f.revokedAccounts = append(f.revokedAccounts, accountID)
 	return nil
 }

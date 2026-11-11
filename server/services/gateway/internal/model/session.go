@@ -32,6 +32,12 @@ type Actor struct {
 	Character kernel.CharacterID
 }
 
+// Principal is who a validated login session belongs to.
+type Principal struct {
+	AccountID kernel.AccountID
+	SessionID kernel.SessionID
+}
+
 // EndReason is why the gateway ends a player's session; the handler decides what the client sees.
 type EndReason string
 
@@ -82,6 +88,13 @@ type ItemEquip struct {
 	IdempotencyKey string
 	Item           kernel.ItemID
 	EquipSlot      string
+}
+
+// ItemUse drinks a Use-tab potion; Template is the one the client means, so a slot that changed under it is refused.
+type ItemUse struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	Template       string
 }
 
 // PointsSpend adds points to the stats, out of the unspent ones, if their count is still ExpectedUnspent.

@@ -3,8 +3,6 @@ package application
 import (
 	"context"
 
-	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/services/gateway/internal/model"
 )
 
@@ -12,14 +10,14 @@ import (
 type Lobby struct {
 	accounts   Accounts
 	characters Characters
-	sessions   auth.Guard
+	sessions   Sessions
 }
 
 // LobbyDeps are what the lobby is built over: the account and character services and the session guard.
 type LobbyDeps struct {
 	Accounts   Accounts
 	Characters Characters
-	Sessions   auth.Guard
+	Sessions   Sessions
 }
 
 // NewLobby builds the use cases over deps.
@@ -28,7 +26,7 @@ func NewLobby(deps LobbyDeps) *Lobby {
 }
 
 // Authenticate resolves a bearer token to its login session.
-func (l *Lobby) Authenticate(ctx context.Context, token string) (auth.Principal, error) {
+func (l *Lobby) Authenticate(ctx context.Context, token string) (model.Principal, error) {
 	return l.sessions.Validate(ctx, token)
 }
 
@@ -43,31 +41,31 @@ func (l *Lobby) Login(ctx context.Context, username, password string) (string, e
 }
 
 // Logout ends the caller's login session.
-func (l *Lobby) Logout(ctx context.Context, p auth.Principal) error {
+func (l *Lobby) Logout(ctx context.Context, p model.Principal) error {
 	return l.sessions.Revoke(ctx, p.SessionID)
 }
 
 // LogoutEverywhere ends every session of the caller's account, closing its connections.
-func (l *Lobby) LogoutEverywhere(ctx context.Context, p auth.Principal) error {
+func (l *Lobby) LogoutEverywhere(ctx context.Context, p model.Principal) error {
 	return l.sessions.RevokeAll(ctx, p.AccountID)
 }
 
 // Characters lists the caller's characters.
-func (l *Lobby) Characters(ctx context.Context, p auth.Principal) ([]model.Character, error) {
-	return l.characters.List(ctx, kernel.AccountID(p.AccountID))
+func (l *Lobby) Characters(ctx context.Context, p model.Principal) ([]model.Character, error) {
+	return l.characters.List(ctx, p.AccountID)
 }
 
 // CreateCharacter creates a character for the caller.
-func (l *Lobby) CreateCharacter(ctx context.Context, p auth.Principal, name, class string) (model.Character, error) {
-	return l.characters.Create(ctx, kernel.AccountID(p.AccountID), name, class)
+func (l *Lobby) CreateCharacter(ctx context.Context, p model.Principal, name, class string) (model.Character, error) {
+	return l.characters.Create(ctx, p.AccountID, name, class)
 }
 
 // Settings are the caller's account settings.
-func (l *Lobby) Settings(ctx context.Context, p auth.Principal) (model.Settings, error) {
-	return l.accounts.Settings(ctx, kernel.AccountID(p.AccountID))
+func (l *Lobby) Settings(ctx context.Context, p model.Principal) (model.Settings, error) {
+	return l.accounts.Settings(ctx, p.AccountID)
 }
 
 // UpdateSettings replaces the caller's account settings.
-func (l *Lobby) UpdateSettings(ctx context.Context, p auth.Principal, s model.Settings) error {
-	return l.accounts.UpdateSettings(ctx, kernel.AccountID(p.AccountID), s)
+func (l *Lobby) UpdateSettings(ctx context.Context, p model.Principal, s model.Settings) error {
+	return l.accounts.UpdateSettings(ctx, p.AccountID, s)
 }

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -35,7 +34,6 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
 	"finga/internal/protocol"
-	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/logger"
@@ -82,7 +80,7 @@ type harness struct {
 
 type deps struct {
 	ID                   string
-	Sessions             auth.Guard
+	Sessions             *fakeSessions
 	Watcher              clients.SessionWatcher
 	World                worldv1.WorldServiceClient
 	Items                itemv1.ItemServiceClient
@@ -122,9 +120,9 @@ func newHarnessOn(t *testing.T, fw *fakeWorld, opts ...func(*deps)) *harness {
 	obs := newFakeObserver()
 	d := deps{
 		ID: "gw-test",
-		Sessions: &fakeSessions{tokens: map[string]auth.Principal{
-			tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)},
-			tokenBob:   {AccountID: uuid.UUID(bob), SessionID: uuid.UUID(sessBob)},
+		Sessions: &fakeSessions{tokens: map[string]model.Principal{
+			tokenAlice: {AccountID: alice, SessionID: sessAlice},
+			tokenBob:   {AccountID: bob, SessionID: sessBob},
 		}},
 		World:                fw.client(t),
 		Items:                (&fakeItems{}).client(t),
@@ -935,6 +933,60 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 	})
 }
 
+func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		c.expect("Snapshot")
+		potion := kernel.NewItemID().String()
+
+		part(t, "UseItem goes to the world as the sender, with the template the client means", func() {
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.UseItem{IdempotencyKey: "k-1", ItemId: potion, Template: "red_potion"}})
+			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v", r)
+			}
+			uses := h.world.useCalls()
+			if len(uses) != 1 || uses[0].GetPresence().GetCharacterId() != aylaID.String() || uses[0].GetPresence().GetConnectionId() == "" ||
+				uses[0].GetIdempotencyKey() != "k-1" || uses[0].GetItemId() != potion || uses[0].GetTemplate() != "red_potion" {
+				t.Fatalf("uses %+v", uses)
+			}
+		})
+		part(t, "a refusal answers the world's reason, or the item service's", func() {
+			for _, tt := range []struct {
+				err  error
+				code model.Public
+			}{
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_HP_FULL), model.HPFull},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_MP_FULL), model.MPFull},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_USABLE), model.NotUsable},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_USABLE), model.NotUsable},
+				{grpctest.Error(codes.NotFound, itemv1.Reason_REASON_ITEM_NOT_FOUND), model.ItemNotFound},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_CHARACTER_DEAD), model.CharacterDead},
+			} {
+				h.world.failUses(tt.err)
+				c.send(wsconn.Message{ReqID: "r-" + tt.code.Name, Data: &clientv1.UseItem{IdempotencyKey: "k-" + tt.code.Name, ItemId: potion, Template: "red_potion"}})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.code.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.code.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.code.Name)
+				}
+				time.Sleep(time.Second) // under the potion limit of 5 a second
+			}
+			h.world.failUses(nil)
+		})
+		part(t, "a malformed item ID is BAD_ID without reaching the world", func() {
+			before := len(h.world.useCalls())
+			c.send(wsconn.Message{ReqID: "r-9", Data: &clientv1.UseItem{IdempotencyKey: "k-9", ItemId: "nope", Template: "red_potion"}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
+				t.Fatalf("response %+v", r)
+			}
+			if len(h.world.useCalls()) != before {
+				t.Fatal("the world was called")
+			}
+		})
+	})
+}
+
 func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logs := &lockedBuffer{}
@@ -1416,7 +1468,7 @@ func TestARegistrationRoundRunsInOneTrace(t *testing.T) {
 // A Hello that fails after its world join took the character from the older connection: as the login never happened, the older one is joined again.
 func TestAHelloFailingAfterItsJoinRejoinsTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sessions := &fakeSessions{tokens: map[string]auth.Principal{tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)}}}
+		sessions := &fakeSessions{tokens: map[string]model.Principal{tokenAlice: {AccountID: alice, SessionID: sessAlice}}}
 		h := newHarness(t, func(d *deps) { d.Sessions = sessions })
 		older := h.dial(t)
 		older.hello(tokenAlice, aylaID)
@@ -1862,7 +1914,7 @@ func TestSecondHelloOnTheSameSessionKicksTheFirst(t *testing.T) {
 
 func TestExpiredSessionIsKicked(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sessions := &fakeSessions{tokens: map[string]auth.Principal{tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)}}}
+		sessions := &fakeSessions{tokens: map[string]model.Principal{tokenAlice: {AccountID: alice, SessionID: sessAlice}}}
 		h := newHarness(t, func(d *deps) {
 			d.Sessions = sessions
 			d.SessionCheckInterval = 20 * time.Millisecond
@@ -1871,7 +1923,7 @@ func TestExpiredSessionIsKicked(t *testing.T) {
 		c.hello(tokenAlice, aylaID)
 		c.expect("Snapshot")
 		time.Sleep(60 * time.Millisecond) // a few checks pass while the session is fine
-		sessions.expire(uuid.UUID(sessAlice))
+		sessions.expire(sessAlice)
 		c.expectKick(clientv1.KickReason_KICK_REASON_SESSION_EXPIRED)
 	})
 }

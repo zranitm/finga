@@ -39,6 +39,7 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrNothingWorn, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOTHING_WORN},
 	{Err: model.ErrBadBatch, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_BATCH_SIZE},
 	{Err: model.ErrNotEnoughItems, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOT_ENOUGH_ITEMS},
+	{Err: model.ErrNotUsable, Code: codes.FailedPrecondition, Reason: itemv1.Reason_REASON_NOT_USABLE},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_BAD_ID},
 	{Err: kernel.ErrUnknownClass, Code: codes.InvalidArgument, Reason: itemv1.Reason_REASON_UNKNOWN_CLASS},
 }

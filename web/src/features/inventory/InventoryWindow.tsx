@@ -9,7 +9,11 @@ import { initials, itemName, starClass } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
+import { fullFor, healOf, restores } from '@/progression/potions';
+import { ERR, errorText } from '@/protocol/errors';
 import type { ItemView } from '@/protocol/messages';
+import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { SLOTS_PER_TAB, inventory, tabs } from '@/state/inventory';
 import type { Tab } from '@/state/inventory';
 
@@ -69,6 +73,25 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
     );
   };
 
+  /** Drinks a potion; one with nothing to restore is refused here as the world would refuse it. */
+  const drink = (item: ItemView) => {
+    const c = character.getState().character;
+    if (!c || !healOf(item.template) || pending.has(item.itemId)) {
+      return;
+    }
+    const full = fullFor(item.template, c);
+    if (full) {
+      setNotice(errorText(full === 'hp' ? ERR.HP_FULL : ERR.MP_FULL));
+      return;
+    }
+    const restored = restores(item.template, c);
+    run(item.itemId, (key) =>
+      socket
+        .request('useItem', { idempotencyKey: key, itemId: item.itemId, template: item.template })
+        .then(() => combatLog.getState().drank(item.template, restored)),
+    );
+  };
+
   /** Takes off what an equip slot holds, into slot when it is in the Equip tab, else the first free one. */
   const unequip = (equipSlot: string, slot: number | undefined) => {
     if (pending.has(equipSlot)) {
@@ -100,7 +123,20 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const selectedPending = selected ? pending.get(selected) : undefined;
 
   return (
-    <WorldWindow name="inventory" title="Inventory" onClose={onClose} initialX={500} initialY={80}>
+    <WorldWindow
+      name="inventory"
+      title="Inventory"
+      onClose={onClose}
+      initialX={500}
+      initialY={80}
+      footer={
+        (notice ?? selectedPending?.error) && (
+          <p className="error" role="alert">
+            {notice ?? selectedPending?.error}
+          </p>
+        )
+      }
+    >
       <div className="inventory">
         <div className="inventory-tabs" role="tablist">
           {tabs.map((t) => (
@@ -149,8 +185,10 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                 onDrop={(e) => onDrop(e, slot)}
                 onClick={() => setSelected(item ? item.itemId : null)}
                 onDoubleClick={() => {
-                  if (item) {
+                  if (item?.tab === 'equip') {
                     equip(item);
+                  } else if (item?.tab === 'use') {
+                    drink(item);
                   }
                 }}
               >
@@ -177,13 +215,23 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
                 Retry
               </Button>
             ) : (
-              <Button
-                variant="danger"
-                disabled={selectedPending !== undefined}
-                onClick={() => setConfirmDiscard(selectedItem)}
-              >
-                Discard
-              </Button>
+              <>
+                {healOf(selectedItem.template) && (
+                  <Button
+                    disabled={selectedPending !== undefined}
+                    onClick={() => drink(selectedItem)}
+                  >
+                    Use
+                  </Button>
+                )}
+                <Button
+                  variant="danger"
+                  disabled={selectedPending !== undefined}
+                  onClick={() => setConfirmDiscard(selectedItem)}
+                >
+                  Discard
+                </Button>
+              </>
             )}
           </div>
         )}
@@ -197,11 +245,6 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
               Keep
             </Button>
           </div>
-        )}
-        {(notice ?? selectedPending?.error) && (
-          <p className="error" role="alert">
-            {notice ?? selectedPending?.error}
-          </p>
         )}
       </div>
       <ItemDetails

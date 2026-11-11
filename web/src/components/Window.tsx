@@ -12,6 +12,8 @@ export interface WindowProps {
   readonly layer?: number;
   /** A press or focus inside asks to bring it to the top. */
   readonly onRaise?: () => void;
+  /** Below the scrolling body, so it stays in view however long the body: a refusal's notice. */
+  readonly footer?: ReactNode;
   readonly children: ReactNode;
 }
 
@@ -27,6 +29,7 @@ export function Window({
   initialY = 80,
   layer,
   onRaise,
+  footer,
   children,
 }: WindowProps) {
   const [pos, setPos] = useState({ x: initialX, y: initialY });
@@ -92,6 +95,7 @@ export function Window({
         </Button>
       </div>
       <div className="window-body">{children}</div>
+      {footer && <div className="window-footer">{footer}</div>}
     </div>
   );
 }
