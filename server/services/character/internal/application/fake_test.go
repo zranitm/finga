@@ -19,25 +19,29 @@ type fakeStore struct {
 	mu      sync.Mutex
 	chars   map[kernel.CharacterID]model.Character
 	quests  map[kernel.CharacterID]map[string]model.Quest
+	skills  map[kernel.CharacterID]map[string]int
 	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}}
+	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]int{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.txCount++
-	chars, quests := maps.Clone(s.chars), map[kernel.CharacterID]map[string]model.Quest{}
+	chars, quests, skills := maps.Clone(s.chars), map[kernel.CharacterID]map[string]model.Quest{}, map[kernel.CharacterID]map[string]int{}
 	for id, qs := range s.quests {
 		quests[id] = maps.Clone(qs)
 	}
+	for id, sk := range s.skills {
+		skills[id] = maps.Clone(sk)
+	}
 	order := slices.Clone(s.order)
 	if err := fn(fakeUOW{s}); err != nil {
-		s.chars, s.quests, s.order = chars, quests, order
+		s.chars, s.quests, s.skills, s.order = chars, quests, skills, order
 		return err
 	}
 	return nil
@@ -48,6 +52,16 @@ func (s *fakeStore) Quests(_ context.Context, id kernel.CharacterID) ([]model.Qu
 	defer s.mu.Unlock()
 	out := slices.Collect(maps.Values(s.quests[id]))
 	slices.SortFunc(out, func(a, b model.Quest) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
+}
+
+func (s *fakeStore) Skills(_ context.Context, id kernel.CharacterID) ([]model.SkillPoints, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []model.SkillPoints
+	for _, skill := range slices.Sorted(maps.Keys(s.skills[id])) {
+		out = append(out, model.SkillPoints{ID: skill, Points: s.skills[id][skill]})
+	}
 	return out, nil
 }
 
@@ -143,8 +157,14 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 		return model.ErrNotFound
 	}
 	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, time.Now()
-	c.Points, c.UnspentPoints, c.FreeResetUsed = cp.Points, cp.UnspentPoints, cp.FreeResetUsed
+	c.Points, c.UnspentPoints, c.FreeResetUsed, c.UnspentSkillPoints = cp.Points, cp.UnspentPoints, cp.FreeResetUsed, cp.UnspentSkillPoints
 	r.s.chars[cp.ID] = c
+	if r.s.skills[cp.ID] == nil {
+		r.s.skills[cp.ID] = map[string]int{}
+	}
+	for _, sk := range cp.Skills {
+		r.s.skills[cp.ID][sk.ID] = sk.Points
+	}
 	r.s.quests[cp.ID] = map[string]model.Quest{}
 	for _, q := range cp.Quests {
 		r.s.quests[cp.ID][q.ID] = q

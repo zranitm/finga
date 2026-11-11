@@ -32,6 +32,11 @@ var (
 	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
 	ErrNoFreeReset      = errors.New("world: the free reset is used")
 	ErrBadPoints        = errors.New("world: points must be at least one in all, and none negative")
+
+	ErrSkillPointsChanged   = errors.New("world: the unspent skill points are not the count expected")
+	ErrNotEnoughSkillPoints = errors.New("world: not that many unspent skill points")
+	ErrSkillNotLearnable    = errors.New("world: the character's class, and every class above it, doesn't teach that skill")
+	ErrBadSkillPoints       = errors.New("world: skill points must be at least one in all, and none negative")
 )
 
 // Worn is what a character wears as the item service last counted it: each worn item, at the inventory's Revision.
@@ -57,6 +62,7 @@ type Points struct {
 type Sheet struct {
 	progression.Sheet
 	Points              Points
+	Skills              Skills // a copy of the player's
 	AttackCooldownTicks uint64
 }
 
@@ -69,6 +75,7 @@ type Player struct {
 	Level   int
 	Exp     int64
 	Points  Points
+	Skills  Skills
 	HP      int
 	MP      int
 	X, Y    float64 // where to appear: feet centre
@@ -89,6 +96,7 @@ type Character struct {
 	Level   int
 	Exp     int64
 	Points  Points
+	Skills  Skills
 	HP      int
 	MP      int
 	MapID   string
@@ -279,6 +287,7 @@ type Checkpoint struct {
 	Level  int
 	Exp    int64
 	Points Points
+	Skills Skills // a copy of the player's
 	Quests Quests // the whole log, a copy of the player's
 }
 

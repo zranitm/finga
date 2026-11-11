@@ -232,6 +232,33 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint saves the skill points", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "strike", Points: 3}}}
+		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
+			t.Fatal(err)
+		}
+		got, err := svc.Skills(ctx, c.ID)
+		if err != nil || !reflect.DeepEqual(got, cp.Skills) || store.chars[c.ID].UnspentSkillPoints != 2 {
+			t.Fatalf("skills %+v (%v), unspent %d", got, err, store.chars[c.ID].UnspentSkillPoints)
+		}
+	})
+
+	t.Run("a checkpoint with a skill the table can't hold saves nothing", func(t *testing.T) {
+		for _, bad := range []model.Checkpoint{
+			{ID: c.ID, Skills: []model.SkillPoints{{Points: 1}}},
+			{ID: c.ID, Skills: []model.SkillPoints{{ID: "strike"}}},
+			{ID: c.ID, Skills: []model.SkillPoints{{ID: "strike", Points: 1}, {ID: "strike", Points: 2}}},
+			{ID: c.ID, UnspentSkillPoints: -1},
+		} {
+			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadSkill) {
+				t.Fatalf("%+v: %v", bad, err)
+			}
+		}
+		if store.chars[c.ID].MapID != "town" {
+			t.Fatal("a refused checkpoint moved the character")
+		}
+	})
+
 	t.Run("saving an unknown character is not_found", func(t *testing.T) {
 		err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID()})
 		if !errors.Is(err, model.ErrNotFound) {

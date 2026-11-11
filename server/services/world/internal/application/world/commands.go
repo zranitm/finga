@@ -64,6 +64,11 @@ func (w *World) SpendPoints(ctx context.Context, id kernel.CharacterID, conn str
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendPoints(ctx, id, conn, expected, points) })
 }
 
+// SpendSkillPoints invests skill points in the character's skills and returns once the new sheet applies.
+func (w *World) SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendSkillPoints(ctx, id, conn, expected, points) })
+}
+
 // ResetPoints returns every spent point to unspent with the free reset and returns once the new stats apply.
 func (w *World) ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.ResetPoints(ctx, id, conn, expected) })

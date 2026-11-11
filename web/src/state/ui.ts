@@ -1,7 +1,8 @@
 // Which windows are open and in what order, and whether the chat input is asked to take focus; what has the keyboard is read from the focus itself.
 import { defineStore } from './store';
 
-export type WindowName = 'inventory' | 'character' | 'party' | 'quests' | 'npc' | 'settings';
+export type WindowName =
+  'inventory' | 'character' | 'skills' | 'party' | 'quests' | 'npc' | 'settings';
 
 export interface UiState {
   /** The open windows, the top-most last. */

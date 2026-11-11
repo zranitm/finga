@@ -95,51 +95,62 @@ skills:
     cooldown: 2s
     power: {base: 1.5, per_point: 0.05}   # × the matching attack
     stages:                               # evolution, all data
-      - {at: 0, name: Strike}
-      - {at: 10, name: Heavy Strike, power: {base: 2.2}, shape: {width: 80}}
-      - {at: 25, name: Crushing Blow, power: {base: 3.0}, targets: 3}
+      - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}
+      - {at: 10, name: Heavy Strike, description: "A wider, harder swing.", power: {base: 2.2}, shape: {kind: melee, width: 80, height: 56}}
+      - {at: 25, name: Crushing Blow, description: "...", power: {base: 3.0}, targets: 3}
   - id: second_wind
     kind: passive
     effect: bonus
-    bonus: {hp_regen: {base: 0.5, per_point: 0.05}, mp_regen: {base: 0.5, per_point: 0.05}}
+    bonus: {hp_regen: {base: 5, per_point: 1}, mp_regen: {base: 5, per_point: 1}}   # tenths of a point a second
     stages:
-      - {at: 0, name: Second Wind}
-      - {at: 10, name: Deep Breath, bonus: {hp_regen: {base: 1.0}}}
+      - {at: 0, name: Second Wind, description: "..."}
+      - {at: 10, name: Deep Breath, description: "...", bonus: {hp_regen: {base: 10}, mp_regen: {base: 10}}}
 ```
 
 - **A stage overrides only the fields it names.** Everything else carries from the stage before. So an evolution can change anything, and the totals (`at`) are plain numbers to edit. The first stage is at 0, and the totals must rise.
-- **Power:** `power` multiplies the caster's attack of the skill's damage type: (base + per_point × points). Heals use magic attack. Buffs and bonuses name stats from the stat system's list of 21.
+  - Within `mp`, `power` and a bonus's stats, a stage may name only `base` or only `per_point`.
+  - A `shape` is replaced whole, so a stage that changes one names its kind and every size.
+- **Power:** `power` multiplies the caster's attack of the skill's damage type: (base + per_point × points). Heals use magic attack.
+- **Bonuses** name stats from the stat system's list of 21, in the units `items.yaml` uses: rates in tenths of a percent, regen in tenths of a point a second. With points, each stat's value is rounded to a whole number, as an item's roll is.
+- **Teaching:** each skill is taught by exactly one class, the one whose `skills` lists it. The loader sets the skill's class from that list.
 - **`skill_points_per_level: 5`** goes in `stats.yaml`, beside `points_per_level`.
 - **Validation** refuses:
-  - stages out of order;
-  - a stage overriding a field its kind doesn't have;
-  - a bonus or buff on an unknown stat;
-  - an active skill without a cost, cooldown, or shape.
+  - a kind and effect that don't go together: an active skill damages, heals or buffs, and a passive one gives a bonus;
+  - a first stage not at 0, totals that don't rise, or a stage without a name and a description;
+  - an active skill without a cooldown or an MP cost, or a passive one with either, or with a shape;
+  - power on anything but a damage or heal skill, or power that isn't positive or falls with points;
+  - targets below 1, or on a skill that doesn't hit;
+  - a damage type on anything but a damage skill, and a duration on anything but a buff;
+  - a buff or passive bonus without a bonus, a bonus on any other skill, a bonus on an unknown stat, and any bonus value below 0;
+  - a shape whose kind is not melee, ranged or area, or that has sizes its kind doesn't use;
+  - a skill taught by two classes, one no class teaches, and a class teaching a skill `skills.yaml` doesn't have.
 
 ## 4. Character state
 
 - **The character service:**
   - `class` defaults to `beginner`;
-  - `skill_points_unspent` is added;
-  - a new table `character_skills (character_id, skill_id, points)` holds the points invested;
+  - `unspent_skill_points` is added, never below 0;
+  - a new table `character_skills (character_id, skill_id, points)` holds the points invested, a row only for a skill with at least 1;
   - `skill_bar int[6]`, or a small table, holds the skill IDs on keys 1 to 6.
 - **Stored vs derived:** stages are never stored. A skill's stage is the last whose `at` is at or below its points, computed by whoever needs it.
 - **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today. The item service's `GrantStarter` loses `class` too: the starter items are always the root's.
-- **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and the changed skill rows, like stat points.
+- **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and every skill's points, like stat points. The checkpoint writes only the rows that changed, and refuses with `REASON_BAD_SKILL` a skill with no ID or listed twice, points below 1, or unspent skill points below 0.
 - **The skill bar** is saved over REST: `PUT /api/characters/{id}/skill-bar`. It's a UI arrangement, not game state, and the world doesn't need it.
 
 ## 5. Spending skill points
 
 - **Level-up:** each level adds `skill_points_per_level` to the unspent skill points, beside the stat points, and is saved at once as today.
 - **`SpendSkillPoints{expected_unspent, points: {skill: n}}`:** the same compare-and-set as stat points. On the tick:
-  1. **Refusals:**
+  1. **Refusals,** in this order:
+     - `BAD_SKILL_POINTS` for any negative number;
+     - `SKILL_NOT_LEARNABLE` for points in a skill outside the class and the classes above it, or one the data doesn't have;
+     - `BAD_SKILL_POINTS` when the points add up to 0;
      - `SKILL_POINTS_CHANGED` when the unspent count isn't the expected one;
-     - `NOT_ENOUGH_SKILL_POINTS` when the points add up to more than that;
-     - `SKILL_NOT_LEARNABLE` for a skill outside the class and the classes below it;
-     - a refusal for any negative number.
-  2. Otherwise the points are added.
-  3. For any skill whose stage changed, a **`SkillEvolved`** goes to the player (and the combat channel), and passive bonuses re-derive.
+     - `NOT_ENOUGH_SKILL_POINTS` when the points add up to more than that.
+  2. Otherwise the points are added, and the stats re-derive with the passives.
+  3. A **`StatsChanged`** carries the new sheet, which holds the unspent count and every skill's points. The Response answers once it applies.
   4. The change is saved at once.
+- **No message for skills of their own.** Skill points ride in the stat sheet, in `Welcome`, `LevelUp` and `StatsChanged`. Stages, MP costs and evolutions all follow from the points and the data, so the client works them out itself: it compares the points before and after a `StatsChanged` and announces an evolution in the combat channel. The server stays the judge of what a skill does when it's used.
 - **No cap, no resets,** as the product pages say. A later cap is a data field.
 
 ## 6. Using skills
@@ -158,8 +169,11 @@ skills:
   - Then MP is spent, and the cooldown starts.
 - **Cooldowns are per skill per player, in ticks:** *⌈cooldown × (1 − cooldown speed) ÷ tick⌉*, so the stat system's cooldown speed applies. They're shown to the client the way `attack_cooldown_ticks` is.
 - **Everyone sees it:** a **`SkillUsed{caster, skill, stage, facing}`** event goes to the map for drawing. The damage numbers already exist.
-- **Passive skills and buffs feed the stats.** `DeriveStats` gains two more sources of bonuses: passives (from points and stage) and active buffs. They add like gear, and the limits stay the ceiling. The sheet's share for equipment stays separate. The window shows buffs and passives as their own share (proposal).
-- **The client's copy follows.** The character window's preview runs a TypeScript port of `DeriveStats` (`web/src/progression/stats.ts`). It gains the same two sources, and the shared stat vectors in `server/testdata/stats/` gain cases with passives and buffs, which both sides replay.
+- **Passive skills and buffs feed the stats.** `DeriveStats` gains two more sources of bonuses: passives (from points and stage) and active buffs. They add like gear, and the limits stay the ceiling.
+  - **Passives are built:** a passive with at least one point adds its stage's bonus.
+  - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share: the totals less the totals without the skills. The character window shows both shares in one bracket after the total, without the unit: the equipment's in green, then the skills' in blue. Buffs will join the skills' share.
+  - **Requirements ignore them:** item requirements read own stats, which leave out the skills' share as they leave out the gear's.
+- **The client's copy follows.** The character window's preview runs a TypeScript port of `DeriveStats` (`web/src/progression/stats.ts`), and `web/src/progression/skills.ts` ports the passives. The shared stat vectors in `server/testdata/stats/` carry each case's skill points, and both sides replay them; buffs will join them.
 - **The basic attack switches with the class,** at once on promotion.
 
 ## 7. Promotion
@@ -185,11 +199,9 @@ skills:
 
 | Message | Direction | Change |
 | --- | --- | --- |
-| `Welcome`, `LevelUp` | server | `CharacterView` gains the unspent skill points and the skills: each with its points, stage, MP cost, and cooldown ticks |
+| `Welcome`, `LevelUp`, `StatsChanged` | server | `StatSheet` gains `skills` (the unspent skill points and each skill's points) and the skills' share, `primary_skills` and `derived_skills` |
 | `SpendSkillPoints` | client | New: `expected_unspent`, `points` per skill; Response |
 | `UseSkill` | client | New: `skill`, `seq` |
-| `SkillsChanged` | server | New: the skills after a spend, a promotion, or a stat change that moves costs or cooldowns |
-| `SkillEvolved` | server | New: skill, new stage |
 | `SkillUsed` | server | New, to the map: caster, skill, stage, facing |
 | `SkillRefused` | server | New: skill, reason |
 | `Promote` | client | New: `npc`, `class`; Response |
@@ -197,9 +209,10 @@ skills:
 | `PartyMember` | server | Gains `class` |
 
 - **New error codes**, each the next number in its area (33, the world):
-  - `SKILL_POINTS_CHANGED`;
   - `NOT_ENOUGH_SKILL_POINTS`;
+  - `SKILL_POINTS_CHANGED`;
   - `SKILL_NOT_LEARNABLE`;
+  - `BAD_SKILL_POINTS`: a negative number, or no points at all;
   - `PROMOTION_CONDITIONS_UNMET`: "You don't meet every condition yet.";
   - `NOT_YOUR_NEXT_CLASS`.
   - `SkillRefused` reasons: `no_mp`, `on_cooldown`, `not_in_town`, `dead`, `not_learned`.
@@ -221,13 +234,14 @@ skills:
 
 - **features/characters:** creation asks for a name only.
 - **features/skills, the skill window (K):**
-  - the class's and the lower classes' skills;
-  - each skill's points, what the next point adds, and its next stage at its total;
-  - **+**, Apply, and Undo, as for stats.
+  - the skills of the class and of every class above it, listed by class;
+  - each skill's points, what it does at its stage, what a point adds, and its next stage at its total;
+  - **+**, Apply, and Undo, as for stats, with a preview of the staged points and any evolution they reach.
   - Dragging an active skill to the skill bar saves the bar over REST.
 - **features/hud:**
   - the skill bar, with keys, cooldown sweeps, and greying when MP is short;
-  - the unspent skill-points badge.
+  - the unspent skill-points badge, which opens the skill window.
+- **The combat channel** says "Strike evolved into Heavy Strike!" when a `StatsChanged` moves a skill to a later stage.
 - **input:** six `skill1`–`skill6` actions in both presets (keys 1 to 6), and a `skills` action (K).
 - **game:**
   - a skill key sends `UseSkill`, gated by the skill's cooldown ticks and MP from the server;
@@ -239,7 +253,7 @@ skills:
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| `SpendSkillPoints` reply lost; retried | Nothing unusual | Compare-and-set: the retry is refused with `SKILL_POINTS_CHANGED`, and `SkillsChanged` already arrived |
+| `SpendSkillPoints` reply lost; retried | Nothing unusual | Compare-and-set: the retry is refused with `SKILL_POINTS_CHANGED`, and its `StatsChanged` already arrived |
 | World crash between a spend or promotion and its save | After the rejoin, the points are unspent or the character is a Beginner again | Same window as a level-up; doing it again is allowed, and nothing is gained twice |
 | An evolution total changes in the data | Characters' skills re-form at their next join | Stages are derived from points, never stored |
 | A class is added to the data | It appears in its trainer's dialog | Classes are IDs checked against data, not a list in code |
@@ -252,7 +266,7 @@ skills:
 - **Character service:** a Beginner by default; creation without a class; skills and skill points stored and loaded; the skill bar over REST.
 - **World:**
   - level-up skill points;
-  - `SpendSkillPoints`: once only; stale; too many; not learnable; evolution events;
+  - `SpendSkillPoints`: once only; stale; too many; not learnable; negative or none; passives in the sheet;
   - `UseSkill`:
     - each refusal reason;
     - damage by shape and targets, with the damage type and power;
@@ -277,7 +291,7 @@ After [NPCs and task quests](./npcs-and-quests.md) is merged, on its own branch 
    - weapons fitting a class and the classes below it;
    - validation and the client generator.
 2. **Character service:** Beginner by default, creation without a class, skill points and `character_skills`, the skill bar over REST, and `Load` and the checkpoint.
-3. **World, skill points:** level-up points, `SpendSkillPoints`, stages, and evolution events.
+3. **World, skill points:** level-up points, `SpendSkillPoints`, stages, and passives in the sheet.
 4. **World, using skills:** shapes, damage, heal, buff, passives and buffs in `DeriveStats` and its client copy, cooldowns, and `SkillUsed`.
 5. **World, promotion:** conditions in the trainer's dialog, `Promote`, and the class in views and in the party.
 6. **Gateway and protocol:** routes, messages, error codes, REST, and contracts.

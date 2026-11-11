@@ -373,6 +373,9 @@ export class World extends Phaser.Scene {
             case 'character':
               ui.getState().toggleWindow('character');
               return;
+            case 'skills':
+              ui.getState().toggleWindow('skills');
+              return;
             case 'party':
               ui.getState().toggleWindow('party');
               return;

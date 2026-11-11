@@ -37,8 +37,10 @@ export type Roll = Readonly<Partial<Record<PrimaryKey | DerivedKey, number>>>;
 export interface Sheet {
   readonly primary: Primary;
   readonly primaryWorn: Primary;
+  readonly primarySkills: Primary;
   readonly derived: Derived;
   readonly derivedWorn: Derived;
+  readonly derivedSkills: Derived;
 }
 
 interface Grows {
@@ -128,15 +130,39 @@ export function deriveStats(cls: string, level: number, own: Primary, worn: Roll
   };
 }
 
-/** The totals, and the equipment's share of each: the totals less those without it. */
-export function sheetOf(cls: string, level: number, own: Primary, worn: Roll): Sheet {
-  const withGear = deriveStats(cls, level, own, worn);
-  const without = deriveStats(cls, level, own, {});
-  const primaryWorn = addStats(noPoints, worn);
-  const derivedWorn = Object.fromEntries(
-    derivedStats.map(({ key }) => [key, withGear[key] - without[key]]),
-  ) as Record<DerivedKey, number>;
-  return { primary: addStats(own, worn), primaryWorn, derived: withGear, derivedWorn };
+/** The totals, and the equipment's and the skills' share of each: the totals less those without it. */
+export function sheetOf(
+  cls: string,
+  level: number,
+  own: Primary,
+  worn: Roll,
+  skills: Roll = {},
+): Sheet {
+  const all = plus(worn, skills);
+  const total = deriveStats(cls, level, own, all);
+  const less = (without: Derived) =>
+    Object.fromEntries(derivedStats.map(({ key }) => [key, total[key] - without[key]])) as Record<
+      DerivedKey,
+      number
+    >;
+  return {
+    primary: addStats(own, all),
+    primaryWorn: addStats(noPoints, worn),
+    primarySkills: addStats(noPoints, skills),
+    derived: total,
+    derivedWorn: less(deriveStats(cls, level, own, skills)),
+    derivedSkills: less(deriveStats(cls, level, own, worn)),
+  };
+}
+
+/** Two sums of gear or skills, added. */
+function plus(a: Roll, b: Roll): Roll {
+  const out: Partial<Record<keyof Roll, number>> = { ...a };
+  for (const [k, v] of Object.entries(b)) {
+    const key = k as keyof Roll;
+    out[key] = (out[key] ?? 0) + (v ?? 0);
+  }
+  return out;
 }
 
 const rollKeys: readonly (PrimaryKey | DerivedKey)[] = [

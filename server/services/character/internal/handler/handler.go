@@ -20,6 +20,7 @@ type Service interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
+	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
 	Own(c model.Character) gamedata.Stats
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
@@ -90,7 +91,15 @@ func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*chara
 	for _, q := range qs {
 		quests = append(quests, questView(q))
 	}
-	return &characterv1.LoadResponse{Character: s.view(c), Quests: quests}, nil
+	sks, err := s.svc.Skills(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	skills := make([]*characterv1.SkillPoints, 0, len(sks))
+	for _, sk := range sks {
+		skills = append(skills, &characterv1.SkillPoints{SkillId: sk.ID, Points: int32(sk.Points)}) //nolint:gosec // points are small
+	}
+	return &characterv1.LoadResponse{Character: s.view(c), Quests: quests, Skills: skills}, nil
 }
 
 // SaveCheckpoint saves position, HP, MP and the whole progression.
@@ -105,6 +114,10 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 	}
 	for _, q := range req.GetQuests() {
 		cp.Quests = append(cp.Quests, questOf(q))
+	}
+	cp.UnspentSkillPoints = int(req.GetUnspentSkillPoints())
+	for _, sk := range req.GetSkills() {
+		cp.Skills = append(cp.Skills, model.SkillPoints{ID: sk.GetSkillId(), Points: int(sk.GetPoints())})
 	}
 	if err := s.svc.SaveCheckpoint(ctx, cp); err != nil {
 		return nil, err
@@ -132,7 +145,8 @@ func (s *Server) view(c model.Character) *characterv1.Character {
 	return &characterv1.Character{
 		Id: c.ID.String(), AccountId: c.AccountID.String(), Name: c.Name, Class: c.Class.String(),
 		Level: int32(c.Level), Exp: c.Exp, Points: statsView(c.Points), UnspentPoints: int32(c.UnspentPoints), FreeResetUsed: c.FreeResetUsed, OwnStats: statsView(own),
-		Hp: int32(c.HP), MaxHp: int32(d.MaxHP), Mp: int32(c.MP), MaxMp: int32(d.MaxMP),
+		UnspentSkillPoints: int32(c.UnspentSkillPoints), //nolint:gosec // points are small
+		Hp:                 int32(c.HP), MaxHp: int32(d.MaxHP), Mp: int32(c.MP), MaxMp: int32(d.MaxMP),
 		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt),
 	}
 }

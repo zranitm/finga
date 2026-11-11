@@ -32,6 +32,7 @@ export function Hud() {
       />
       <ExpDelta />
       <PointsBadge />
+      <SkillPointsBadge />
       <WaitingNotice />
     </div>
   );
@@ -47,6 +48,16 @@ function PointsBadge() {
       onClick={() => ui.getState().openWindow('character')}
     >
       {unspent} stat {unspent === 1 ? 'point' : 'points'}
+    </button>
+  ) : null;
+}
+
+/** Unspent skill points, until spent; it opens the skill window to spend them. */
+function SkillPointsBadge() {
+  const unspent = character.use((s) => s.character?.sheet?.skills?.unspent ?? 0);
+  return unspent > 0 ? (
+    <button type="button" className="hud-points" onClick={() => ui.getState().openWindow('skills')}>
+      {unspent} skill {unspent === 1 ? 'point' : 'points'}
     </button>
   ) : null;
 }

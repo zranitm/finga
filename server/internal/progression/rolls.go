@@ -26,23 +26,23 @@ func (s ItemStats) Fits(r gamedata.Rolls) bool {
 	return true
 }
 
-type field struct {
-	in    gamedata.Range
+type field[T any] struct {
+	in    T
 	value *int
 }
 
-// fieldsOf pairs each stat's range with its value in s.
-func fieldsOf(r gamedata.Rolls, s *ItemStats) [21]field {
-	ranges := [21]gamedata.Range{
+// fieldsOf pairs each stat of r with its value in s.
+func fieldsOf[T any](r gamedata.StatSet[T], s *ItemStats) [21]field[T] {
+	ins := [21]T{
 		r.STR, r.DEX, r.INT, r.AGI, r.VIT,
 		r.PhysicalAttack, r.MagicAttack, r.PhysicalDefense, r.MagicDefense,
 		r.MaxHP, r.MaxMP, r.Accuracy, r.Evasion,
 		r.CritRate, r.CritDamage, r.Penetration, r.HPRegen, r.MPRegen,
 		r.AttackSpeed, r.CooldownSpeed, r.MoveSpeed,
 	}
-	var out [21]field
+	var out [21]field[T]
 	for k, v := range s.values() {
-		out[k] = field{ranges[k], v}
+		out[k] = field[T]{ins[k], v}
 	}
 	return out
 }

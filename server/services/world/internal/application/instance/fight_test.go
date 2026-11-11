@@ -452,15 +452,15 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		lu := lus[0].(model.LevelUp)
 		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×7+10×7 = 162, max MP 20+4+3×7 = 45.
 		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || lu.HP != 162 || lu.MaxHP != 162 || lu.MP != 45 || lu.MaxMP != 45 ||
-			lu.Sheet.Points != (model.Points{Unspent: 5}) {
-			t.Fatalf("level-up %+v", lu)
+			lu.Sheet.Points != (model.Points{Unspent: 5}) || lu.Sheet.Skills.Unspent != 5 {
+			t.Fatalf("level-up %+v; want 5 stat and 5 skill points unspent", lu)
 		}
 		v, _ := s.Own(p.ID)
 		if v.Level != 2 || v.HP != 162 || v.MaxHP != 162 {
 			t.Fatalf("view after level-up %+v", v)
 		}
 		// The level-up is checkpointed right away, with the whole progression.
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 162 || saved[0].Points != (model.Points{Unspent: 5}) {
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 162 || saved[0].Points != (model.Points{Unspent: 5}) || saved[0].Skills.Unspent != 5 {
 			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
 	})

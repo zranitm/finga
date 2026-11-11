@@ -42,9 +42,18 @@ func stats(st model.Stats) *clientv1.Stats {
 func statSheet(s model.StatSheet) *clientv1.StatSheet {
 	return &clientv1.StatSheet{
 		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
+		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: skillPoints(s.Skills),
 		Points:              &clientv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: s.Points.FreeResetLeft},
 		AttackCooldownTicks: uint32(s.AttackCooldownTicks),
 	}
+}
+
+func skillPoints(s model.SkillPoints) *clientv1.SkillPoints {
+	out := &clientv1.SkillPoints{Unspent: int32(s.Unspent), Invested: make(map[string]int32, len(s.Invested))}
+	for skill, n := range s.Invested {
+		out.Invested[skill] = int32(n)
+	}
+	return out
 }
 
 func derived(d model.DerivedStats) *clientv1.DerivedStats {

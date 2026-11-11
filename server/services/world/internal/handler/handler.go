@@ -34,6 +34,7 @@ type World interface {
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
+	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 	AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error
@@ -233,6 +234,22 @@ func (s *Server) SpendPoints(ctx context.Context, req *worldv1.SpendPointsReques
 		return nil, err
 	}
 	return &worldv1.SpendPointsResponse{}, nil
+}
+
+// SpendSkillPoints invests unspent skill points and answers once the new sheet applies.
+func (s *Server) SpendSkillPoints(ctx context.Context, req *worldv1.SpendSkillPointsRequest) (*worldv1.SpendSkillPointsResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	points := make(map[string]int, len(req.GetPoints()))
+	for skill, n := range req.GetPoints() {
+		points[skill] = int(n)
+	}
+	if err := s.world.SpendSkillPoints(ctx, id, conn, int(req.GetExpectedUnspent()), points); err != nil {
+		return nil, err
+	}
+	return &worldv1.SpendSkillPointsResponse{}, nil
 }
 
 // ResetPoints returns every spent point to unspent with the free reset and answers once the new stats apply.

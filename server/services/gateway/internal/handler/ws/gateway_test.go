@@ -2404,12 +2404,17 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 12}, Points: &worldv1.Points{Unspent: 5, Spent: &worldv1.Stats{}, FreeResetLeft: true}, AttackCooldownTicks: 12,
-			Derived: &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
+			Derived:       &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
+			DerivedSkills: &worldv1.DerivedStats{HpRegen: 0.6}, PrimarySkills: &worldv1.Stats{},
+			Skills: &worldv1.SkillPoints{Unspent: 4, Invested: map[string]int32{"second_wind": 1}},
 		}
 		h.world.mu.Unlock()
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		s := c.expect("Welcome").Data.(*clientv1.Welcome).GetCharacter().GetSheet()
+		if sk := s.GetSkills(); sk.GetUnspent() != 4 || sk.GetInvested()["second_wind"] != 1 || s.GetDerivedSkills().GetHpRegen() != 0.6 {
+			t.Fatalf("welcome sheet %+v; want the skill points and the skills' share", s)
+		}
 		if p := s.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || s.GetAttackCooldownTicks() != 12 ||
 			s.GetDerived().GetMagicAttack() != 8.5 || s.GetDerived().GetMagicDefense() != 10 || s.GetDerived().GetHpRegen() != 0.5 || s.GetDerived().GetMoveSpeed() != 0.007 {
 			t.Fatalf("welcome sheet %+v; want the points, the cooldown and the new derived stats", s)
@@ -2433,6 +2438,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				t.Fatalf("resets %+v", resets)
 			}
 		})
+		part(t, "SpendSkillPoints goes to the world as the sender, answering once it applied", func() {
+			time.Sleep(time.Second) // under the points limit of 2 a second
+			c.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 3, "spark": 1}}})
+			if r := c.expect("Response"); r.ReqID != "s-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to s-1", r)
+			}
+			invests := h.world.skillPointsCalls()
+			if len(invests) != 1 || invests[0].GetPresence().GetCharacterId() != aylaID.String() || invests[0].GetExpectedUnspent() != 4 ||
+				invests[0].GetPoints()["strike"] != 3 || invests[0].GetPoints()["spark"] != 1 {
+				t.Fatalf("skill point spends %+v", invests)
+			}
+		})
 		part(t, "a refusal answers the world's reason", func() {
 			for _, tt := range []struct {
 				reason worldv1.Reason
@@ -2444,6 +2461,10 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{worldv1.Reason_REASON_NOT_ENOUGH_POINTS, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, model.NotEnoughPoints},
 				{worldv1.Reason_REASON_BAD_POINTS, codes.InvalidArgument, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, model.BadPoints},
 				{worldv1.Reason_REASON_NO_FREE_RESET, codes.FailedPrecondition, &clientv1.ResetPoints{ExpectedUnspent: 5}, model.NoFreeReset},
+				{worldv1.Reason_REASON_SKILL_POINTS_CHANGED, codes.FailedPrecondition, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 1}}, model.SkillPointsChanged},
+				{worldv1.Reason_REASON_NOT_ENOUGH_SKILL_POINTS, codes.FailedPrecondition, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 9}}, model.NotEnoughSkillPoints},
+				{worldv1.Reason_REASON_SKILL_NOT_LEARNABLE, codes.FailedPrecondition, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"fireball": 1}}, model.SkillNotLearnable},
+				{worldv1.Reason_REASON_BAD_SKILL_POINTS, codes.InvalidArgument, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": -1}}, model.BadSkillPoints},
 			} {
 				time.Sleep(time.Second) // under the points limit of 2 a second
 				h.world.failPoints(grpctest.Error(tt.code, tt.reason))

@@ -19,23 +19,24 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorldService_Deliver_FullMethodName      = "/internal.world.v1.WorldService/Deliver"
-	WorldService_Join_FullMethodName         = "/internal.world.v1.WorldService/Join"
-	WorldService_Leave_FullMethodName        = "/internal.world.v1.WorldService/Leave"
-	WorldService_Input_FullMethodName        = "/internal.world.v1.WorldService/Input"
-	WorldService_Attack_FullMethodName       = "/internal.world.v1.WorldService/Attack"
-	WorldService_PickUp_FullMethodName       = "/internal.world.v1.WorldService/PickUp"
-	WorldService_EnterPortal_FullMethodName  = "/internal.world.v1.WorldService/EnterPortal"
-	WorldService_Say_FullMethodName          = "/internal.world.v1.WorldService/Say"
-	WorldService_Equip_FullMethodName        = "/internal.world.v1.WorldService/Equip"
-	WorldService_Unequip_FullMethodName      = "/internal.world.v1.WorldService/Unequip"
-	WorldService_SpendPoints_FullMethodName  = "/internal.world.v1.WorldService/SpendPoints"
-	WorldService_ResetPoints_FullMethodName  = "/internal.world.v1.WorldService/ResetPoints"
-	WorldService_Talk_FullMethodName         = "/internal.world.v1.WorldService/Talk"
-	WorldService_AcceptQuest_FullMethodName  = "/internal.world.v1.WorldService/AcceptQuest"
-	WorldService_AbandonQuest_FullMethodName = "/internal.world.v1.WorldService/AbandonQuest"
-	WorldService_HandInQuest_FullMethodName  = "/internal.world.v1.WorldService/HandInQuest"
-	WorldService_UseItem_FullMethodName      = "/internal.world.v1.WorldService/UseItem"
+	WorldService_Deliver_FullMethodName          = "/internal.world.v1.WorldService/Deliver"
+	WorldService_Join_FullMethodName             = "/internal.world.v1.WorldService/Join"
+	WorldService_Leave_FullMethodName            = "/internal.world.v1.WorldService/Leave"
+	WorldService_Input_FullMethodName            = "/internal.world.v1.WorldService/Input"
+	WorldService_Attack_FullMethodName           = "/internal.world.v1.WorldService/Attack"
+	WorldService_PickUp_FullMethodName           = "/internal.world.v1.WorldService/PickUp"
+	WorldService_EnterPortal_FullMethodName      = "/internal.world.v1.WorldService/EnterPortal"
+	WorldService_Say_FullMethodName              = "/internal.world.v1.WorldService/Say"
+	WorldService_Equip_FullMethodName            = "/internal.world.v1.WorldService/Equip"
+	WorldService_Unequip_FullMethodName          = "/internal.world.v1.WorldService/Unequip"
+	WorldService_SpendPoints_FullMethodName      = "/internal.world.v1.WorldService/SpendPoints"
+	WorldService_ResetPoints_FullMethodName      = "/internal.world.v1.WorldService/ResetPoints"
+	WorldService_SpendSkillPoints_FullMethodName = "/internal.world.v1.WorldService/SpendSkillPoints"
+	WorldService_Talk_FullMethodName             = "/internal.world.v1.WorldService/Talk"
+	WorldService_AcceptQuest_FullMethodName      = "/internal.world.v1.WorldService/AcceptQuest"
+	WorldService_AbandonQuest_FullMethodName     = "/internal.world.v1.WorldService/AbandonQuest"
+	WorldService_HandInQuest_FullMethodName      = "/internal.world.v1.WorldService/HandInQuest"
+	WorldService_UseItem_FullMethodName          = "/internal.world.v1.WorldService/UseItem"
 )
 
 // WorldServiceClient is the client API for WorldService service.
@@ -69,6 +70,8 @@ type WorldServiceClient interface {
 	SpendPoints(ctx context.Context, in *SpendPointsRequest, opts ...grpc.CallOption) (*SpendPointsResponse, error)
 	// ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
 	ResetPoints(ctx context.Context, in *ResetPointsRequest, opts ...grpc.CallOption) (*ResetPointsResponse, error)
+	// SpendSkillPoints invests unspent skill points in skills the character's class can learn; it answers once the new sheet applies, with StatsChanged on Deliver.
+	SpendSkillPoints(ctx context.Context, in *SpendSkillPointsRequest, opts ...grpc.CallOption) (*SpendSkillPointsResponse, error)
 	// Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
 	Talk(ctx context.Context, in *TalkRequest, opts ...grpc.CallOption) (*TalkResponse, error)
 	// AcceptQuest takes a quest the NPC within reach gives, once the character meets its conditions; it answers once the quest is in the log, with QuestChanged on Deliver, and saved.
@@ -219,6 +222,16 @@ func (c *worldServiceClient) ResetPoints(ctx context.Context, in *ResetPointsReq
 	return out, nil
 }
 
+func (c *worldServiceClient) SpendSkillPoints(ctx context.Context, in *SpendSkillPointsRequest, opts ...grpc.CallOption) (*SpendSkillPointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SpendSkillPointsResponse)
+	err := c.cc.Invoke(ctx, WorldService_SpendSkillPoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *worldServiceClient) Talk(ctx context.Context, in *TalkRequest, opts ...grpc.CallOption) (*TalkResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(TalkResponse)
@@ -300,6 +313,8 @@ type WorldServiceServer interface {
 	SpendPoints(context.Context, *SpendPointsRequest) (*SpendPointsResponse, error)
 	// ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
 	ResetPoints(context.Context, *ResetPointsRequest) (*ResetPointsResponse, error)
+	// SpendSkillPoints invests unspent skill points in skills the character's class can learn; it answers once the new sheet applies, with StatsChanged on Deliver.
+	SpendSkillPoints(context.Context, *SpendSkillPointsRequest) (*SpendSkillPointsResponse, error)
 	// Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
 	Talk(context.Context, *TalkRequest) (*TalkResponse, error)
 	// AcceptQuest takes a quest the NPC within reach gives, once the character meets its conditions; it answers once the quest is in the log, with QuestChanged on Deliver, and saved.
@@ -355,6 +370,9 @@ func (UnimplementedWorldServiceServer) SpendPoints(context.Context, *SpendPoints
 }
 func (UnimplementedWorldServiceServer) ResetPoints(context.Context, *ResetPointsRequest) (*ResetPointsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResetPoints not implemented")
+}
+func (UnimplementedWorldServiceServer) SpendSkillPoints(context.Context, *SpendSkillPointsRequest) (*SpendSkillPointsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SpendSkillPoints not implemented")
 }
 func (UnimplementedWorldServiceServer) Talk(context.Context, *TalkRequest) (*TalkResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Talk not implemented")
@@ -601,6 +619,24 @@ func _WorldService_ResetPoints_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_SpendSkillPoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SpendSkillPointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).SpendSkillPoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_SpendSkillPoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).SpendSkillPoints(ctx, req.(*SpendSkillPointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _WorldService_Talk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(TalkRequest)
 	if err := dec(in); err != nil {
@@ -741,6 +777,10 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetPoints",
 			Handler:    _WorldService_ResetPoints_Handler,
+		},
+		{
+			MethodName: "SpendSkillPoints",
+			Handler:    _WorldService_SpendSkillPoints_Handler,
 		},
 		{
 			MethodName: "Talk",

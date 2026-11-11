@@ -15,6 +15,7 @@ export type Action =
   | 'mpPotion'
   | 'inventory'
   | 'character'
+  | 'skills'
   | 'party'
   | 'quests'
   | 'chat'
@@ -32,6 +33,7 @@ export const actions: readonly Action[] = [
   'mpPotion',
   'inventory',
   'character',
+  'skills',
   'party',
   'quests',
   'chat',

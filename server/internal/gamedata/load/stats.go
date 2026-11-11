@@ -27,11 +27,12 @@ type primaryYAML struct {
 }
 
 type statsYAML struct {
-	PointsPerLevel int                             `yaml:"points_per_level"`
-	PerPoint       map[string]map[string]float64   `yaml:"per_point"`
-	Diminishing    map[string]curveYAML            `yaml:"diminishing"`
-	Limits         limitsYAML                      `yaml:"limits"`
-	Classes        map[string]map[string]growsYAML `yaml:"classes"`
+	PointsPerLevel      int                             `yaml:"points_per_level"`
+	SkillPointsPerLevel int                             `yaml:"skill_points_per_level"`
+	PerPoint            map[string]map[string]float64   `yaml:"per_point"`
+	Diminishing         map[string]curveYAML            `yaml:"diminishing"`
+	Limits              limitsYAML                      `yaml:"limits"`
+	Classes             map[string]map[string]growsYAML `yaml:"classes"`
 }
 
 type curveYAML struct {
@@ -131,9 +132,9 @@ func (l *loader) loadStats(dir string) error {
 	if err := readYAML(dir, statsFile, &file); err != nil {
 		return err
 	}
-	r := gamedata.StatRules{PointsPerLevel: file.PointsPerLevel, Classes: map[kernel.Class]gamedata.Flats[gamedata.Grows]{}}
-	if r.PointsPerLevel < 1 {
-		return fmt.Errorf("%s: points_per_level must be at least 1", statsFile)
+	r := gamedata.StatRules{PointsPerLevel: file.PointsPerLevel, SkillPointsPerLevel: file.SkillPointsPerLevel, Classes: map[kernel.Class]gamedata.Flats[gamedata.Grows]{}}
+	if r.PointsPerLevel < 1 || r.SkillPointsPerLevel < 1 {
+		return fmt.Errorf("%s: points_per_level and skill_points_per_level must each be at least 1", statsFile)
 	}
 	for _, stat := range slices.Sorted(maps.Keys(file.PerPoint)) {
 		per := primaryField(&r.PerPoint, stat)
