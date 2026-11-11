@@ -81,6 +81,7 @@ func samples() []wsconn.Message {
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
 		{Type: "AbandonQuest", ReqID: "r-14", Data: &clientv1.AbandonQuest{QuestId: "slime_cleanup"}},
 		{Type: "HandInQuest", ReqID: "r-15", Data: &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}},
+		{Type: "UseItem", ReqID: "r-16", Data: &clientv1.UseItem{IdempotencyKey: "k-5", ItemId: item1, Template: "red_potion"}},
 		{Type: "Ping", Data: &clientv1.Ping{ClientTime: 1761000000000}},
 
 		{Type: "Welcome", Data: &clientv1.Welcome{
