@@ -60,8 +60,12 @@ test-service:  ## build and test one service: make test-service SERVICE=<gateway
 # Go coverage counts every test in the module, end-to-end ones included, minus generated stringer output.
 cover: cover-go cover-web   ## coverage for both halves; each fails below its 80% floor
 
+# A test cover-go runs apart, under -race alone: the race detector slows coverage's atomic counters ~14x in its simulation loop, and it covers nothing other tests don't.
+RACE_ONLY_TEST := TestEveryPortalAndSpawnCanBeReached ./internal/gamedata/load/
+
 cover-go:
-	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out ./...
+	cd $(SERVER) && $(GO) test -race -coverpkg=./internal/...,./pkg/...,./services/...,./cmd/migrate/app/... -coverprofile=coverage.out -skip '^$(word 1,$(RACE_ONLY_TEST))$$' ./...
+	cd $(SERVER) && $(GO) test -race -run '^$(word 1,$(RACE_ONLY_TEST))$$' $(word 2,$(RACE_ONLY_TEST))
 	@cd $(SERVER) && grep -v '_string.go' coverage.out > coverage.tmp && mv coverage.tmp coverage.out
 	@cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1
 	@total=$$(cd $(SERVER) && $(GO) tool cover -func=coverage.out | tail -1 | awk '{print $$3}' | tr -d '%'); \
