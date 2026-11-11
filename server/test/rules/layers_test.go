@@ -26,9 +26,9 @@ var rules = []rule{
 		deny: []string{"finga/services", "finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 	{
-		name:   "a service's modules know no transport, contract or database; its handler, clients and repository do",
+		name:   "a service's modules know no transport, contract or database; its adapters do: handler, clients, repository, and metrics, whose Prometheus client brings net/http",
 		from:   regexp.MustCompile(`^finga/services/[^/]+/internal/`),
-		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|clients|repository|db)(/|$)`),
+		except: regexp.MustCompile(`^finga/services/[^/]+/internal/(handler|clients|repository|db|metrics)(/|$)`),
 		deny:   []string{"finga/api/gen", "google.golang.org/grpc", "net/http", "github.com/jackc/pgx", "finga/pkg/dbx"},
 	},
 }

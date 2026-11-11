@@ -17,8 +17,8 @@ import (
 	grpchealth "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
-	"finga/internal/telemetry"
 	"finga/pkg/dbx"
+	"finga/pkg/dbx/dbxprom"
 	"finga/pkg/grpcx"
 	"finga/pkg/observability"
 	"finga/pkg/panics"
@@ -135,8 +135,8 @@ func (h *Host) Task(name string, run func(ctx context.Context) error) {
 func (h *Host) OnDrain(drain func(ctx context.Context)) { h.drains = append(h.drains, drain) }
 
 // Database opens the pool cfg names, which Close closes, with the metrics its repository reports to.
-func (h *Host) Database(ctx context.Context, cfg dbx.Config) (*pgxpool.Pool, *telemetry.DBMetrics, error) {
-	metrics, err := telemetry.NewDBMetrics(h.opts.Registry)
+func (h *Host) Database(ctx context.Context, cfg dbx.Config) (*pgxpool.Pool, *dbxprom.Metrics, error) {
+	metrics, err := dbxprom.New(h.opts.Registry)
 	if err != nil {
 		return nil, nil, err
 	}

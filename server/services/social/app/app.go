@@ -10,8 +10,8 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	"finga/internal/gamedata/load"
 	"finga/internal/host"
-	"finga/internal/telemetry"
 	"finga/pkg/retention"
+	"finga/pkg/retention/retentionprom"
 	"finga/pkg/uuidv7"
 	"finga/services/social/config"
 	"finga/services/social/internal/application"
@@ -29,7 +29,7 @@ func Build(_ context.Context, cfg config.Config, log *slog.Logger, reg *promethe
 	if err != nil {
 		return nil, err
 	}
-	retentionMetrics, err := telemetry.NewRetentionMetrics(reg)
+	retentionMetrics, err := retentionprom.New(reg)
 	if err != nil {
 		h.Close()
 		return nil, err
