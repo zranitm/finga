@@ -27,8 +27,8 @@
       {"id": 1, "name": "ground", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 992, "width": 2560, "height": 32},
       {"id": 2, "name": "left_wall", "type": "", "rotation": 0, "visible": true, "x": 0, "y": 0, "width": 32, "height": 992},
       {"id": 3, "name": "right_wall", "type": "", "rotation": 0, "visible": true, "x": 2528, "y": 0, "width": 32, "height": 992},
-      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 1536, "y": 896, "width": 992, "height": 96},
-      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 2016, "y": 800, "width": 512, "height": 192}
+      {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 1536, "y": 904, "width": 992, "height": 88},
+      {"id": 5, "name": "block_2", "type": "", "rotation": 0, "visible": true, "x": 2016, "y": 816, "width": 512, "height": 176}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 6, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 192, "y": 768, "width": 256, "height": 8},
@@ -52,11 +52,11 @@
       {"id": 22, "name": "rope_t2_1", "type": "", "rotation": 0, "visible": true, "x": 472, "y": 640, "width": 8, "height": 352},
       {"id": 23, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1240, "y": 640, "width": 8, "height": 128},
       {"id": 24, "name": "rope_t2_2", "type": "", "rotation": 0, "visible": true, "x": 1504, "y": 640, "width": 8, "height": 352},
-      {"id": 25, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 640, "width": 8, "height": 256},
+      {"id": 25, "name": "rope_t2_3", "type": "", "rotation": 0, "visible": true, "x": 1880, "y": 640, "width": 8, "height": 264},
       {"id": 26, "name": "rope_t3_1", "type": "", "rotation": 0, "visible": true, "x": 152, "y": 512, "width": 8, "height": 480},
       {"id": 27, "name": "rope_t3_2", "type": "", "rotation": 0, "visible": true, "x": 856, "y": 512, "width": 8, "height": 256},
       {"id": 28, "name": "rope_t3_3", "type": "", "rotation": 0, "visible": true, "x": 1528, "y": 512, "width": 8, "height": 128},
-      {"id": 29, "name": "rope_t3_4", "type": "", "rotation": 0, "visible": true, "x": 2200, "y": 512, "width": 8, "height": 288},
+      {"id": 29, "name": "rope_t3_4", "type": "", "rotation": 0, "visible": true, "x": 2200, "y": 512, "width": 8, "height": 304},
       {"id": 30, "name": "rope_t4_1", "type": "", "rotation": 0, "visible": true, "x": 600, "y": 384, "width": 8, "height": 256},
       {"id": 31, "name": "rope_t4_2", "type": "", "rotation": 0, "visible": true, "x": 1240, "y": 384, "width": 8, "height": 256},
       {"id": 32, "name": "rope_t4_3", "type": "", "rotation": 0, "visible": true, "x": 1912, "y": 384, "width": 8, "height": 256}
@@ -66,7 +66,7 @@
         {"name": "target_map", "type": "string", "value": "dune_road"},
         {"name": "target_portal", "type": "string", "value": "to_cliffs"}
       ]},
-      {"id": 34, "name": "to_ruins", "type": "", "rotation": 0, "visible": true, "x": 2448, "y": 736, "width": 32, "height": 64, "properties": [
+      {"id": 34, "name": "to_ruins", "type": "", "rotation": 0, "visible": true, "x": 2448, "y": 752, "width": 32, "height": 64, "properties": [
         {"name": "target_map", "type": "string", "value": "sunken_ruins"},
         {"name": "target_portal", "type": "string", "value": "from_cliffs"}
       ]}
@@ -77,7 +77,7 @@
         {"name": "max", "type": "int", "value": 3},
         {"name": "respawn_seconds", "type": "int", "value": 9}
       ]},
-      {"id": 36, "name": "dust_vulture_2", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 816, "width": 440, "height": 80, "properties": [
+      {"id": 36, "name": "dust_vulture_2", "type": "", "rotation": 0, "visible": true, "x": 1560, "y": 824, "width": 440, "height": 80, "properties": [
         {"name": "mob", "type": "string", "value": "dust_vulture"},
         {"name": "max", "type": "int", "value": 2},
         {"name": "respawn_seconds", "type": "int", "value": 9}

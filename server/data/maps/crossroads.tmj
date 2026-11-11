@@ -28,7 +28,7 @@
       {"id": 4, "name": "block_1", "type": "", "rotation": 0, "visible": true, "x": 736, "y": 608, "width": 64, "height": 64}
     ]},
     {"id": 2, "name": "platforms", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
-      {"id": 5, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 224, "y": 576, "width": 224, "height": 8},
+      {"id": 5, "name": "t1_1", "type": "", "rotation": 0, "visible": true, "x": 224, "y": 584, "width": 224, "height": 8},
       {"id": 6, "name": "t2_1", "type": "", "rotation": 0, "visible": true, "x": 1024, "y": 448, "width": 224, "height": 8}
     ]},
     {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [

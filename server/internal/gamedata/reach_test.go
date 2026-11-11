@@ -28,6 +28,7 @@ type mapReach struct {
 	p      sim.Params
 	states map[place]sim.State
 	next   map[place]map[place]bool
+	starts []place // where players arrive
 }
 
 func keyOf(s sim.State) place {
@@ -136,7 +137,7 @@ func explore(t *testing.T, m *gamedata.Map, p sim.Params) *mapReach {
 		if !ok {
 			t.Fatalf("%s: a player arriving at %+v never lands", m.ID, at)
 		}
-		visit(s)
+		r.starts = append(r.starts, visit(s))
 	}
 	for len(queue) > 0 {
 		k := queue[0]
@@ -153,34 +154,95 @@ func standsIn(s sim.State, a sim.Rect) bool {
 	return s.X >= a.X && s.X <= a.X+a.W && s.Y >= a.Y && s.Y <= a.Y+a.H
 }
 
-// On every map, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area and stand on each platform.
+// speeds are the factors a map is played at: a town at the base speed, a hunting map from it up to the fastest move speed.
+func speeds(d *gamedata.Data, m *gamedata.Map) []float64 {
+	if m.Kind == gamedata.Town {
+		return []float64{1}
+	}
+	return []float64{1, sim.SpeedFactor(d.StatRules().Curves.MoveSpeed.Limit)}
+}
+
+// On every map, at each speed it is played at, wherever a player gets to they can still walk to each portal, and from where they arrive they can reach each spawn area.
+// Each platform and block top is a step up from below, so none is reached only by a detour over it. A faster character jumps a little lower, and the test's jump is stepMargin lower still.
 func TestEveryPortalAndSpawnCanBeReached(t *testing.T) {
 	d, err := gamedata.Load("../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, m := range d.Maps() {
-		t.Run(m.ID, func(t *testing.T) {
-			t.Parallel()
-			r := explore(t, m, d.Movement())
-			for _, pt := range m.Portals {
-				if cut := r.cutOff(pt.Area); len(cut) > 0 {
-					t.Errorf("portal %s at %+v: no way to it from %d places, e.g. feet at %s", pt.Name, pt.Area, len(cut), cut[0])
+		for _, f := range speeds(d, m) {
+			t.Run(fmt.Sprintf("%s at %g×", m.ID, f), func(t *testing.T) {
+				t.Parallel()
+				p := shortOf(d.Movement().Faster(f), stepMargin)
+				r := explore(t, m, p)
+				for _, pt := range m.Portals {
+					if cut := r.cutOff(pt.Area); len(cut) > 0 {
+						t.Errorf("portal %s at %+v: no way to it from %d places, e.g. feet at %s", pt.Name, pt.Area, len(cut), cut[0])
+					}
 				}
-			}
-			for k, sp := range m.Spawns {
-				if !r.reaches(func(s sim.State) bool { return standsIn(s, sp.Area) }) {
-					t.Errorf("spawn %d (%s) at %+v: no player can reach it", k, sp.Mob, sp.Area)
+				for k, sp := range m.Spawns {
+					if !r.reaches(func(s sim.State) bool { return standsIn(s, sp.Area) }) {
+						t.Errorf("spawn %d (%s) at %+v: no player can reach it", k, sp.Mob, sp.Area)
+					}
 				}
-			}
-			for i, pl := range m.Geometry.Platforms {
-				if !r.reaches(func(s sim.State) bool { return s.OnGround && s.Ground == i }) {
-					t.Errorf("platform %d at %+v: no player can stand on it", i, pl)
+				for i, pl := range m.Geometry.Platforms {
+					on := func(s sim.State) bool { return s.OnGround && s.Ground == i }
+					if !r.reaches(on) {
+						t.Errorf("platform %d at %+v: no player can stand on it", i, pl)
+					} else if !r.steppedOnto(on) {
+						t.Errorf("platform %d at %+v: reached only from above or beside it", i, pl)
+					}
 				}
-			}
-			t.Logf("%d resting places", len(r.states))
-		})
+				for i, so := range m.Geometry.Solids {
+					on := func(s sim.State) bool {
+						return s.OnGround && s.Ground == sim.NoPlatform && s.Y == so.Y && s.X+p.Width/2 > so.X && s.X-p.Width/2 < so.X+so.W
+					}
+					if r.reaches(on) && !r.arrivesOn(on) && !r.steppedOnto(on) {
+						t.Errorf("solid %d at %+v: its top is reached only from above or beside it", i, so)
+					}
+				}
+				t.Logf("%d resting places", len(r.states))
+			})
+		}
 	}
+}
+
+// stepMargin is how much lower than the real one the test's jump peaks, so a step it makes, a player makes with room to spare.
+const stepMargin = 4
+
+// shortOf is p with a jump that peaks about margin px lower.
+func shortOf(p sim.Params, margin float64) sim.Params {
+	peak := jumpPeak(p)
+	p.JumpVelocity *= math.Sqrt((peak - margin) / peak)
+	return p
+}
+
+// jumpPeak is how high a standing jump rises at p, stepped as the game steps it.
+func jumpPeak(p sim.Params) float64 {
+	g := sim.Geometry{Solids: []sim.Rect{{X: -1000, Y: 0, W: 2000, H: 32}}}
+	s := sim.State{Facing: 1, OnGround: true, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
+	peak := 0.0
+	for step := range maxAir {
+		s = sim.Step(s, sim.Input{Jump: step == 0}, g, p)
+		peak = max(peak, -s.Y)
+	}
+	return peak
+}
+
+// steppedOnto reports whether a move from lower down ends where goal holds: a jump or a climb up onto it.
+func (r *mapReach) steppedOnto(goal func(sim.State) bool) bool {
+	for from, tos := range r.next {
+		for to := range tos {
+			if goal(r.states[to]) && r.states[from].Y > r.states[to].Y {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *mapReach) arrivesOn(goal func(sim.State) bool) bool {
+	return slices.ContainsFunc(r.starts, func(k place) bool { return goal(r.states[k]) })
 }
 
 func (r *mapReach) reaches(goal func(sim.State) bool) bool {
