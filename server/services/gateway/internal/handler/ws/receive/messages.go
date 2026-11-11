@@ -102,6 +102,22 @@ func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, err
 	return nil, h.gw.ResetPoints(c.Ctx, c.Session.session, int(in.GetExpectedUnspent()))
 }
 
+func (h *Handler) talk(c *msgContext, in *clientv1.Talk) (any, error) {
+	return nil, h.gw.Talk(c.Ctx, c.Session.session, in.GetNpcId())
+}
+
+func (h *Handler) acceptQuest(c *msgContext, in *clientv1.AcceptQuest) (any, error) {
+	return nil, h.gw.AcceptQuest(c.Ctx, c.Session.session, model.QuestAsk{NPC: in.GetNpcId(), Quest: in.GetQuestId()})
+}
+
+func (h *Handler) abandonQuest(c *msgContext, in *clientv1.AbandonQuest) (any, error) {
+	return nil, h.gw.AbandonQuest(c.Ctx, c.Session.session, in.GetQuestId())
+}
+
+func (h *Handler) handInQuest(c *msgContext, in *clientv1.HandInQuest) (any, error) {
+	return nil, h.gw.HandInQuest(c.Ctx, c.Session.session, model.QuestAsk{NPC: in.GetNpcId(), Quest: in.GetQuestId()})
+}
+
 // changed is an inventory command's follow-up: the changed slots, if any.
 func changed(ic model.InventoryChanged, err error) (any, error) {
 	if err != nil || len(ic.Slots) == 0 {

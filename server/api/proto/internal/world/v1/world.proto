@@ -32,6 +32,14 @@ service WorldService {
   rpc SpendPoints(SpendPointsRequest) returns (SpendPointsResponse);
   // ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
   rpc ResetPoints(ResetPointsRequest) returns (ResetPointsResponse);
+  // Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
+  rpc Talk(TalkRequest) returns (TalkResponse);
+  // AcceptQuest takes a quest the NPC within reach gives, once the character meets its conditions; it answers once the quest is in the log, with QuestChanged on Deliver, and saved.
+  rpc AcceptQuest(AcceptQuestRequest) returns (AcceptQuestResponse);
+  // AbandonQuest drops an active quest and its progress, and saves; one not active is left as it is.
+  rpc AbandonQuest(AbandonQuestRequest) returns (AbandonQuestResponse);
+  // HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
+  rpc HandInQuest(HandInQuestRequest) returns (HandInQuestResponse);
 }
 
 enum Reason {
@@ -59,6 +67,18 @@ enum Reason {
   REASON_NO_FREE_RESET = 12;
   // A negative number of points, or none at all.
   REASON_BAD_POINTS = 13;
+  // The NPC isn't on the character's map, or is farther than the talk reach.
+  REASON_NPC_OUT_OF_REACH = 14;
+  // The NPC doesn't give, or take back, that quest.
+  REASON_QUEST_UNAVAILABLE = 15;
+  REASON_QUEST_CONDITIONS_UNMET = 16;
+  REASON_QUEST_ALREADY_ACTIVE = 17;
+  // A one-time quest the character has finished.
+  REASON_QUEST_ALREADY_FINISHED = 18;
+  // The character has the most active quests already.
+  REASON_TOO_MANY_QUESTS = 19;
+  // The quest isn't active, or a kill, talk or level objective is left.
+  REASON_QUEST_NOT_READY = 20;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -175,6 +195,8 @@ message DeliverResponse {
     Frame frame = 17;
     StatsChanged stats_changed = 18;
     Loot loot = 19;
+    NpcDialog npc_dialog = 20;
+    QuestChanged quest_changed = 21;
   }
 }
 
@@ -434,6 +456,8 @@ message JoinResponse {
   uint32 tick_rate_hz = 2;
   // Rises with each join, across restarts too, so the character's later login has the higher one; social orders logins by it.
   uint64 join_seq = 3;
+  // The quest log: active quests with their counts, and finished ones with how often.
+  repeated QuestState quests = 4;
 }
 
 message LeaveRequest {
@@ -517,3 +541,108 @@ message ResetPointsRequest {
 }
 
 message ResetPointsResponse {}
+
+message TalkRequest {
+  Presence presence = 1;
+  string npc_id = 2;
+}
+
+message TalkResponse {}
+
+// NpcDialog is what an NPC offers the character now, from its live state, so it agrees with what the world would allow.
+message NpcDialog {
+  string npc_id = 1;
+  // The quests it gives, in npcs.yaml's order.
+  repeated QuestOffer gives = 2;
+  // The character's active quests it takes back.
+  repeated QuestTurnIn takes = 3;
+}
+
+// QuestOfferState is where a quest an NPC gives stands for the character.
+enum QuestOfferState {
+  QUEST_OFFER_STATE_UNSPECIFIED = 0;
+  QUEST_OFFER_STATE_AVAILABLE = 1;
+  QUEST_OFFER_STATE_ACTIVE = 2;
+  // A one-time quest already finished.
+  QUEST_OFFER_STATE_FINISHED = 3;
+  // The character doesn't meet its conditions yet; unmet lists them.
+  QUEST_OFFER_STATE_CONDITIONS_UNMET = 4;
+}
+
+message QuestOffer {
+  string quest_id = 1;
+  QuestOfferState state = 2;
+  QuestConditions unmet = 3;
+}
+
+// QuestConditions are what a character lacks to accept a quest; an unset field is met.
+message QuestConditions {
+  // The least level, when the character's is lower.
+  int32 level = 1;
+  // The class it asks for, when the character is another.
+  string class = 2;
+  // The quests to finish first.
+  repeated string quests = 3;
+}
+
+// QuestTurnIn is an active quest an NPC takes back: ready once every kill, talk and level objective is done; the item service counts what it asks to collect.
+message QuestTurnIn {
+  string quest_id = 1;
+  bool ready = 2;
+}
+
+message AcceptQuestRequest {
+  Presence presence = 1;
+  string npc_id = 2;
+  string quest_id = 3;
+}
+
+message AcceptQuestResponse {}
+
+message AbandonQuestRequest {
+  Presence presence = 1;
+  string quest_id = 2;
+}
+
+message AbandonQuestResponse {}
+
+message HandInQuestRequest {
+  Presence presence = 1;
+  string npc_id = 2;
+  string quest_id = 3;
+}
+
+message HandInQuestResponse {}
+
+// QuestStatus is where a character stands with a quest of its log.
+enum QuestStatus {
+  // Not in the log: abandoned before it was ever finished.
+  QUEST_STATUS_UNSPECIFIED = 0;
+  QUEST_STATUS_ACTIVE = 1;
+  QUEST_STATUS_FINISHED = 2;
+}
+
+// QuestState is one quest of a character's log.
+message QuestState {
+  string quest_id = 1;
+  QuestStatus status = 2;
+  // One count per objective, in the quest's order; empty when finished. A collect objective's count is the inventory's, which the client reads itself.
+  repeated int32 progress = 3;
+  // Completions so far; a repeatable quest active again keeps its count.
+  int32 times_finished = 4;
+}
+
+// QuestChange is what happened to a quest, for the combat channel's line.
+enum QuestChange {
+  QUEST_CHANGE_UNSPECIFIED = 0;
+  QUEST_CHANGE_PROGRESSED = 1;
+  QUEST_CHANGE_ACCEPTED = 2;
+  QUEST_CHANGE_HANDED_IN = 3;
+  QUEST_CHANGE_ABANDONED = 4;
+}
+
+// QuestChanged is one quest of the player's log after a tick, which merges that tick's changes to it.
+message QuestChanged {
+  QuestChange change = 1;
+  QuestState quest = 2;
+}

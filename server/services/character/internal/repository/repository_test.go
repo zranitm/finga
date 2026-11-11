@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"reflect"
 	"testing"
 	"time"
 
@@ -58,7 +59,8 @@ func insert(t *testing.T, store *Postgres, c model.Character) model.Character {
 
 func TestRepository(t *testing.T) {
 	ctx := context.Background()
-	store := NewPostgres(cluster.DB(t), nil)
+	pool := cluster.DB(t)
+	store := NewPostgres(pool, nil)
 	alice, bob := kernel.NewAccountID(), kernel.NewAccountID()
 	ayla := sample(alice, "Ayla")
 	stored := insert(t, store, ayla)
@@ -129,6 +131,66 @@ func TestRepository(t *testing.T) {
 		}
 		if got.Level != 2 || got.Points != cp.Points || got.UnspentPoints != 0 || got.FreeResetUsed {
 			t.Fatalf("level %d, points %+v, unspent %d, reset used %v: a checkpoint saves the whole progression", got.Level, got.Points, got.UnspentPoints, got.FreeResetUsed)
+		}
+	})
+
+	t.Run("a checkpoint's quest log replaces the stored one, writing only the rows that changed", func(t *testing.T) {
+		save := func(t *testing.T, quests ...model.Quest) {
+			t.Helper()
+			cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", Level: 2, Quests: quests}
+			if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		quests := func(t *testing.T) []model.Quest {
+			t.Helper()
+			got, err := store.Quests(ctx, ayla.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return got
+		}
+		stamp := func(t *testing.T, quest string) time.Time {
+			t.Helper()
+			var at time.Time
+			if err := pool.QueryRow(ctx, `SELECT updated_at FROM character_quests WHERE character_id = $1 AND quest_id = $2`, ayla.ID, quest).Scan(&at); err != nil {
+				t.Fatal(err)
+			}
+			return at
+		}
+		if got := quests(t); len(got) != 0 {
+			t.Fatalf("a new character has quests %+v", got)
+		}
+		cleanup := model.Quest{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{3, 0}}
+		samples := model.Quest{ID: "sticky_samples", Status: model.QuestFinished, Progress: []int{}, TimesFinished: 1}
+		save(t, cleanup, samples)
+		if got := quests(t); !reflect.DeepEqual(got, []model.Quest{cleanup, samples}) {
+			t.Fatalf("quests %+v", got)
+		}
+		finished := stamp(t, "sticky_samples")
+		cleanup.Progress = []int{10, 1}
+		save(t, cleanup, samples)
+		if got := quests(t); !reflect.DeepEqual(got, []model.Quest{cleanup, samples}) {
+			t.Fatalf("quests %+v", got)
+		}
+		if !stamp(t, "sticky_samples").Equal(finished) {
+			t.Fatal("a row saved as it was is written again")
+		}
+		// A repeatable quest active again keeps its count; one left out, abandoned before it ever finished, goes.
+		samples = model.Quest{ID: "sticky_samples", Status: model.QuestActive, Progress: []int{2}, TimesFinished: 1}
+		save(t, samples)
+		if got := quests(t); !reflect.DeepEqual(got, []model.Quest{samples}) {
+			t.Fatalf("quests %+v", got)
+		}
+		save(t)
+		if got := quests(t); len(got) != 0 {
+			t.Fatalf("quests %+v after an empty log", got)
+		}
+		err := store.InTx(ctx, func(uow application.UnitOfWork) error {
+			return uow.Characters().SaveCheckpoint(ctx, model.Checkpoint{ID: ayla.ID, MapID: "forest", Level: 2, Quests: []model.Quest{{ID: "q", Status: model.QuestFinished, Progress: []int{}}}})
+		})
+		if err == nil {
+			t.Fatal("the table took a quest finished no times")
 		}
 	})
 

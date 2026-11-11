@@ -2,8 +2,8 @@
 
 ## Characters
 
-- Four classes at the start: **Warrior**, **Thief**, **Bowman**, **Magician**. A class is chosen at character creation and doesn't change.
-- A class decides how the character fights: its basic attack's shape and range, and whether that attack deals physical or magic damage (Combat).
+- Every character starts as a **Beginner** and is promoted later to a class: **Warrior**, **Thief**, **Bowman**, or **Magician**, with more to come (Classes and skills).
+- A class decides how the character fights: its basic attack's shape and range, whether that attack deals physical or magic damage (Combat), and which skills it can learn.
 - A class doesn't decide which stats are worth raising: every stat does the same thing for every class.
 - A character has a level, EXP, HP, MP, five primary stats, and the derived stats they give.
 
@@ -19,14 +19,7 @@ Five, which players raise by spending points:
 | **AGI** | Speed and dodging |
 | **VIT** | Toughness |
 
-Starting stats at level 1, the same for every class:
-
-| Class | STR | DEX | INT | AGI | VIT |
-| --- | --- | --- | --- | --- | --- |
-| Warrior | 7 | 7 | 7 | 7 | 7 |
-| Bowman | 7 | 7 | 7 | 7 | 7 |
-
-Thief and Magician start the same when they arrive. The class shows in how points are spent, not in where a character starts, so the later Beginner (who starts with 7 in each stat before choosing a class) needs no rebalancing.
+Every character starts with the Beginner's stats: STR 7, DEX 7, INT 7, AGI 7, VIT 7 (proposal, to tune). A promotion doesn't change them.
 
 ## Spending points
 
@@ -35,7 +28,7 @@ OD-16 is decided: players spend their own points (C6).
 - **Points:** each level-up gives 5 stat points, so 145 by the level cap. Points not spent are kept.
 - **No restrictions:** points can go into any primary stat, with no limit per stat and no class restriction. A Thief may put everything into INT.
 - **Staging:** points are staged in the character window and take effect only on Apply. Undo returns staged points. Applied points stay until a reset.
-- **Auto-assign** spends points by a recommended split per class. It's a button in the character window, and a Settings option to do it at every level-up, off by default. Recommended splits (proposal):
+- **Auto-assign** spends points by a recommended split per class. It's a button in the character window, and a Settings option to do it at every level-up, off by default. It works only once a character has a class: a Beginner spends their own points. Recommended splits (proposal):
 
   | Class | Split |
   | --- | --- |
@@ -45,7 +38,7 @@ OD-16 is decided: players spend their own points (C6).
   | Magician | INT 3, DEX 1, VIT 1 |
 
 - **Resets** (OD-17 decided): a reset returns every spent point. Each character has one free reset. Once currency exists (F1), further resets cost currency, more at higher levels.
-- **Skill points are separate** and belong to the skill system (C5).
+- **Skill points are separate** and belong to the skill system (Classes and skills, C5).
 
 ## Derived stats
 
@@ -95,7 +88,7 @@ What 100 points buy, with no equipment, on top of the class's base values:
 
 - EXP comes from defeating mobs. In a party, EXP is shared (see Social).
 - Reaching the EXP threshold raises the level by one. Extra EXP carries over to the next level.
-- Each level-up gives 5 stat points, raises the class's base values (max HP and MP grow per level), and fully restores HP and MP (proposal).
+- Each level-up gives 5 stat points and 5 skill points, raises the class's base values (max HP and MP grow per level), and fully restores HP and MP (proposal).
 - The EXP needed per level grows with each level. The exact curve is still to define; target (proposal): about 10 hours of play to reach the MVP level cap.
 - Level cap in the MVP: OD-13 (default 30).
 
@@ -106,4 +99,4 @@ What 100 points buy, with no equipment, on top of the class's base values:
 
 ## Later
 
-- Skills: see Combat (P1), with their own skill points.
+- Second promotions and more classes (Classes and skills).

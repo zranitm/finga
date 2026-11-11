@@ -1,0 +1,13 @@
+{
+  "tick": 81237,
+  "quest_changed": {
+    "change": "QUEST_CHANGE_PROGRESSED",
+    "quest": {
+      "quest_id": "slime_cleanup",
+      "status": "QUEST_STATUS_ACTIVE",
+      "progress": [
+        5
+      ]
+    }
+  }
+}

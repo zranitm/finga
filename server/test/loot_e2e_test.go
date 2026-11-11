@@ -45,6 +45,8 @@ type looter struct {
 	invites     []*clientv1.PartyInvited
 	chatLines   []*clientv1.ChatMessage
 	exp         []*clientv1.ExpGained
+	dialogs     []*clientv1.NpcDialog
+	quests      []*clientv1.QuestChanged
 }
 
 func newLooter(p *player, snap *clientv1.Snapshot) *looter {
@@ -106,6 +108,10 @@ func (l *looter) observe(m wsconn.Message) {
 		l.exp = append(l.exp, d)
 	case *clientv1.Loot:
 		l.loots = append(l.loots, d)
+	case *clientv1.NpcDialog:
+		l.dialogs = append(l.dialogs, d)
+	case *clientv1.QuestChanged:
+		l.quests = append(l.quests, d)
 	}
 }
 

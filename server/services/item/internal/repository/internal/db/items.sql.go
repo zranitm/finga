@@ -64,8 +64,8 @@ func (q *Queries) InsertItem(ctx context.Context, arg InsertItemParams) error {
 }
 
 const insertItemEvent = `-- name: InsertItemEvent :exec
-INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)
+INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, quest_id, occurred_at, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
 `
 
 type InsertItemEventParams struct {
@@ -76,6 +76,7 @@ type InsertItemEventParams struct {
 	ToOwner       *uuid.UUID
 	CauseType     string
 	CauseID       *uuid.UUID
+	QuestID       *string
 	OccurredAt    time.Time
 	Now           dbx.Stamp
 }
@@ -89,6 +90,7 @@ func (q *Queries) InsertItemEvent(ctx context.Context, arg InsertItemEventParams
 		arg.ToOwner,
 		arg.CauseType,
 		arg.CauseID,
+		arg.QuestID,
 		arg.OccurredAt,
 		arg.Now,
 	)

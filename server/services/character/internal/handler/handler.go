@@ -19,6 +19,7 @@ type Service interface {
 	Create(ctx context.Context, account kernel.AccountID, in application.CreateInput) (model.Character, error)
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
+	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 	Own(c model.Character) (gamedata.Stats, error)
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
@@ -65,7 +66,7 @@ func (s *Server) List(ctx context.Context, req *characterv1.ListRequest) (*chara
 	return &characterv1.ListResponse{Characters: out}, nil
 }
 
-// Load is one character of the account, with its maximum HP and MP.
+// Load is one character of the account, with its maximum HP and MP, and its quests.
 func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*characterv1.LoadResponse, error) {
 	id, err := kernel.ParseCharacterID(req.GetCharacterId())
 	if err != nil {
@@ -82,7 +83,15 @@ func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*chara
 	if _, err := s.svc.Derived(c); err != nil {
 		return nil, err
 	}
-	return &characterv1.LoadResponse{Character: s.view(c)}, nil
+	qs, err := s.svc.Quests(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	quests := make([]*characterv1.Quest, 0, len(qs))
+	for _, q := range qs {
+		quests = append(quests, questView(q))
+	}
+	return &characterv1.LoadResponse{Character: s.view(c), Quests: quests}, nil
 }
 
 // SaveCheckpoint saves position, HP, MP and the whole progression.
@@ -94,6 +103,9 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 	cp := model.Checkpoint{
 		ID: id, MapID: req.GetMapId(), X: req.GetX(), Y: req.GetY(), HP: int(req.GetHp()), MP: int(req.GetMp()),
 		Level: int(req.GetLevel()), Exp: req.GetExp(), Points: statsOf(req.GetPoints()), UnspentPoints: int(req.GetUnspentPoints()), FreeResetUsed: req.GetFreeResetUsed(),
+	}
+	for _, q := range req.GetQuests() {
+		cp.Quests = append(cp.Quests, questOf(q))
 	}
 	if err := s.svc.SaveCheckpoint(ctx, cp); err != nil {
 		return nil, err
@@ -124,6 +136,33 @@ func (s *Server) view(c model.Character) *characterv1.Character {
 		Hp: int32(c.HP), MaxHp: int32(d.MaxHP), Mp: int32(c.MP), MaxMp: int32(d.MaxMP),
 		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt),
 	}
+}
+
+var questStatuses = map[model.QuestStatus]characterv1.QuestStatus{
+	model.QuestActive:   characterv1.QuestStatus_QUEST_STATUS_ACTIVE,
+	model.QuestFinished: characterv1.QuestStatus_QUEST_STATUS_FINISHED,
+}
+
+func questView(q model.Quest) *characterv1.Quest {
+	progress := make([]int32, len(q.Progress))
+	for k, n := range q.Progress {
+		progress[k] = int32(n) //nolint:gosec // counts are small
+	}
+	return &characterv1.Quest{QuestId: q.ID, Status: questStatuses[q.Status], Progress: progress, TimesFinished: int32(q.TimesFinished)} //nolint:gosec // counts are small
+}
+
+// questOf leaves an unknown status empty, which the module refuses.
+func questOf(q *characterv1.Quest) model.Quest {
+	out := model.Quest{ID: q.GetQuestId(), TimesFinished: int(q.GetTimesFinished())}
+	for status, wire := range questStatuses {
+		if wire == q.GetStatus() {
+			out.Status = status
+		}
+	}
+	for _, n := range q.GetProgress() {
+		out.Progress = append(out.Progress, int(n))
+	}
+	return out
 }
 
 func statsView(s gamedata.Stats) *characterv1.Stats {

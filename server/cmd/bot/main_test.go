@@ -3,9 +3,13 @@ package main
 import (
 	"maps"
 	"math"
+	"slices"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
+
 	clientv1 "finga/api/gen/client/v1"
+	"finga/internal/gamedata"
 )
 
 func TestKillsAreTheBotsOwnKillingBlows(t *testing.T) {
@@ -72,5 +76,46 @@ func TestTheReportPrintsBucketBoundsAsTheyAre(t *testing.T) {
 	batches.count = 650
 	if got, want := drops(batches.quantile(1)), "> 32"; got != want {
 		t.Errorf("drops max %q, want %q", got, want)
+	}
+}
+
+func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
+	data, err := gamedata.Load("../../data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gels := func(n int32) map[string]*clientv1.ItemView {
+		return map[string]*clientv1.ItemView{"etc/0": {Template: "slime_gel", Quantity: n - 1}, "etc/3": {Template: "slime_gel", Quantity: 1}}
+	}
+	dialog := &clientv1.NpcDialog{
+		NpcId: "town_guide",
+		Gives: []*clientv1.QuestOffer{
+			{QuestId: "slime_cleanup", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+			{QuestId: "sticky_samples", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE},
+			{QuestId: "meet_the_trainers", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+			{QuestId: "ready_for_the_wilds", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET},
+		},
+		Takes: []*clientv1.QuestTurnIn{{QuestId: "sticky_samples", Ready: true}},
+	}
+	accept := &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "meet_the_trainers"}
+	handIn := &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}
+	for _, c := range []struct {
+		name  string
+		items map[string]*clientv1.ItemView
+		want  []proto.Message
+	}{
+		{"the five gels held, across two stacks", gels(5), []proto.Message{handIn, accept}},
+		{"a gel short", gels(4), []proto.Message{accept}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			b := &bot{data: data, items: c.items}
+			got := b.answer(dialog)
+			if !slices.EqualFunc(got, c.want, proto.Equal) {
+				t.Fatalf("answers %v, want %v", got, c.want)
+			}
+		})
+	}
+	if got := townNPCs(data, "town"); len(got) != 3 || got[0].ID != "warrior_trainer" || got[1].ID != "magician_trainer" || got[2].ID != "town_guide" {
+		t.Fatalf("a town visit talks to %v; want right to left from the portal", got)
 	}
 }

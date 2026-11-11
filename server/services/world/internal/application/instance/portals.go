@@ -8,9 +8,9 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// enterPortal reports whether the player left through a portal; an equip in flight settles here first.
+// enterPortal reports whether the player left through a portal; an item call in flight settles here first.
 func (i *Instance) enterPortal(p *player) bool {
-	if p.dead || p.equipping > 0 {
+	if p.dead || p.itemCalls > 0 {
 		return false
 	}
 	for _, portal := range i.m.Portals {
@@ -39,6 +39,7 @@ func standsIn(r sim.Rect, x, y float64) bool {
 
 // handOff checkpoints the player on the target map before detaching, so a crash still lands them there.
 func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
+	i.tellQuestsOf(p)
 	for _, e := range p.private { // this tick's, which the broadcast would have sent
 		p.sink.Send(e)
 	}

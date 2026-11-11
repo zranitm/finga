@@ -53,6 +53,7 @@ type ItemEvent struct {
 	OccurredAt    time.Time
 	CreatedAt     dbx.Stamp
 	UpdatedAt     dbx.Stamp
+	QuestID       *string
 }
 
 type ItemRoll struct {
@@ -92,6 +93,17 @@ type Outbox struct {
 	Payload     []byte
 	OccurredAt  time.Time
 	PublishedAt *time.Time
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
+}
+
+type QuestHandIn struct {
+	CharacterID uuid.UUID
+	QuestID     string
+	Completion  int32
+	ID          uuid.UUID
+	RequestHash []byte
+	Result      []byte
 	CreatedAt   dbx.Stamp
 	UpdatedAt   dbx.Stamp
 }

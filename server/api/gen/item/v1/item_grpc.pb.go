@@ -27,6 +27,8 @@ const (
 	ItemService_GrantStarter_FullMethodName = "/internal.item.v1.ItemService/GrantStarter"
 	ItemService_Equip_FullMethodName        = "/internal.item.v1.ItemService/Equip"
 	ItemService_Unequip_FullMethodName      = "/internal.item.v1.ItemService/Unequip"
+	ItemService_HandIn_FullMethodName       = "/internal.item.v1.ItemService/HandIn"
+	ItemService_HandedIn_FullMethodName     = "/internal.item.v1.ItemService/HandedIn"
 )
 
 // ItemServiceClient is the client API for ItemService service.
@@ -51,6 +53,10 @@ type ItemServiceClient interface {
 	Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error)
 	// Unequip puts a worn item back in the Equip tab.
 	Unequip(ctx context.Context, in *UnequipRequest, opts ...grpc.CallOption) (*UnequipResponse, error)
+	// HandIn takes the items a quest asks for and gives its rewards, in one transaction: all of it, or nothing when either side fails. Each completion of a quest is handed in once and kept for good: a repeat gets its stored reply.
+	HandIn(ctx context.Context, in *HandInRequest, opts ...grpc.CallOption) (*HandInResponse, error)
+	// HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
+	HandedIn(ctx context.Context, in *HandedInRequest, opts ...grpc.CallOption) (*HandedInResponse, error)
 }
 
 type itemServiceClient struct {
@@ -141,6 +147,26 @@ func (c *itemServiceClient) Unequip(ctx context.Context, in *UnequipRequest, opt
 	return out, nil
 }
 
+func (c *itemServiceClient) HandIn(ctx context.Context, in *HandInRequest, opts ...grpc.CallOption) (*HandInResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HandInResponse)
+	err := c.cc.Invoke(ctx, ItemService_HandIn_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemServiceClient) HandedIn(ctx context.Context, in *HandedInRequest, opts ...grpc.CallOption) (*HandedInResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HandedInResponse)
+	err := c.cc.Invoke(ctx, ItemService_HandedIn_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ItemServiceServer is the server API for ItemService service.
 // All implementations must embed UnimplementedItemServiceServer
 // for forward compatibility.
@@ -163,6 +189,10 @@ type ItemServiceServer interface {
 	Equip(context.Context, *EquipRequest) (*EquipResponse, error)
 	// Unequip puts a worn item back in the Equip tab.
 	Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error)
+	// HandIn takes the items a quest asks for and gives its rewards, in one transaction: all of it, or nothing when either side fails. Each completion of a quest is handed in once and kept for good: a repeat gets its stored reply.
+	HandIn(context.Context, *HandInRequest) (*HandInResponse, error)
+	// HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
+	HandedIn(context.Context, *HandedInRequest) (*HandedInResponse, error)
 	mustEmbedUnimplementedItemServiceServer()
 }
 
@@ -196,6 +226,12 @@ func (UnimplementedItemServiceServer) Equip(context.Context, *EquipRequest) (*Eq
 }
 func (UnimplementedItemServiceServer) Unequip(context.Context, *UnequipRequest) (*UnequipResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Unequip not implemented")
+}
+func (UnimplementedItemServiceServer) HandIn(context.Context, *HandInRequest) (*HandInResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method HandIn not implemented")
+}
+func (UnimplementedItemServiceServer) HandedIn(context.Context, *HandedInRequest) (*HandedInResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method HandedIn not implemented")
 }
 func (UnimplementedItemServiceServer) mustEmbedUnimplementedItemServiceServer() {}
 func (UnimplementedItemServiceServer) testEmbeddedByValue()                     {}
@@ -362,6 +398,42 @@ func _ItemService_Unequip_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ItemService_HandIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HandInRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).HandIn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_HandIn_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).HandIn(ctx, req.(*HandInRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemService_HandedIn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HandedInRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).HandedIn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_HandedIn_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).HandedIn(ctx, req.(*HandedInRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ItemService_ServiceDesc is the grpc.ServiceDesc for ItemService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -400,6 +472,14 @@ var ItemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Unequip",
 			Handler:    _ItemService_Unequip_Handler,
+		},
+		{
+			MethodName: "HandIn",
+			Handler:    _ItemService_HandIn_Handler,
+		},
+		{
+			MethodName: "HandedIn",
+			Handler:    _ItemService_HandedIn_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

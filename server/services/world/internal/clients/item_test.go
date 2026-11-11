@@ -31,6 +31,8 @@ type items struct {
 	grants   []*itemv1.GrantStarterRequest
 	equips   []*itemv1.EquipRequest
 	unequips []*itemv1.UnequipRequest
+	handIns  []*itemv1.HandInRequest
+	lookups  []*itemv1.HandedInRequest
 	changed  []*itemv1.Slot
 	worn     []*itemv1.EquipSlot // the equip slots an equip or unequip changed
 	held     []*itemv1.Item
@@ -72,6 +74,25 @@ func (f *items) Unequip(_ context.Context, req *itemv1.UnequipRequest) (*itemv1.
 	defer f.mu.Unlock()
 	f.unequips = append(f.unequips, req)
 	return &itemv1.UnequipResponse{Changed: f.changed, Equipment: f.worn, Worn: f.held, Revision: f.revision}, f.err
+}
+
+func (f *items) HandIn(_ context.Context, req *itemv1.HandInRequest) (*itemv1.HandInResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.handIns = append(f.handIns, req)
+	return &itemv1.HandInResponse{Changed: f.changed, Revision: f.revision}, f.err
+}
+
+// HandedIn finds the first completion asked handed in, with the changed slots.
+func (f *items) HandedIn(_ context.Context, req *itemv1.HandedInRequest) (*itemv1.HandedInResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lookups = append(f.lookups, req)
+	if len(req.GetCompletions()) == 0 {
+		return &itemv1.HandedInResponse{}, f.err
+	}
+	c := req.GetCompletions()[0]
+	return &itemv1.HandedInResponse{HandedIn: []*itemv1.HandedInQuest{{QuestId: c.GetQuestId(), Completion: c.GetCompletion(), Changed: f.changed, Revision: f.revision}}}, f.err
 }
 
 func itemClient(t *testing.T, f *items) itemv1.ItemServiceClient {
@@ -267,5 +288,63 @@ func TestEquipmentFailures(t *testing.T) {
 	}
 	if _, err := e.Worn(context.Background(), kernel.NewCharacterID()); !errors.Is(err, transient.ErrUnavailable) {
 		t.Fatalf("a read in an outage arrived as %v; want it transient", err)
+	}
+}
+
+func TestHandInSendsTheQuestsLinesAndReadsWhatChanged(t *testing.T) {
+	gel := kernel.NewItemID()
+	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 0}, {Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Quantity: 3}}}, revision: 9}
+	e := clients.NewEquipment(itemClient(t, f))
+	call := model.HandInCall{
+		Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Quest: "bounty", Completion: 2,
+		Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
+		Give: []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3}}, {Template: "red_potion", Quantity: 3}},
+	}
+	got, err := e.HandIn(context.Background(), call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &itemv1.HandInRequest{
+		Actor:   &itemv1.Actor{AccountId: call.Account.String(), CharacterId: call.Character.String()},
+		QuestId: "bounty", Completion: 2,
+		Take: []*itemv1.HandInTake{{TemplateId: "slime_gel", Quantity: 2}},
+		Give: []*itemv1.HandInGive{{TemplateId: "leather_cap", Quantity: 1, Stats: &itemv1.ItemStats{PhysicalDefense: 3}}, {TemplateId: "red_potion", Quantity: 3}},
+	}
+	if len(f.handIns) != 1 || !proto.Equal(f.handIns[0], want) {
+		t.Fatalf("sent %v, want %v", f.handIns, want)
+	}
+	if got.Revision != 9 || len(got.Slots) != 2 || got.Slots[0].Item != nil || got.Slots[1].Item.ID != gel || got.Slots[1].Item.Quantity != 3 {
+		t.Fatalf("got %+v", got)
+	}
+	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS))
+	_, err = clients.NewEquipment(itemClient(t, &items{err: refused})).HandIn(context.Background(), call)
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS) {
+		t.Fatalf("a refusal arrived as %v; want its reason kept", err)
+	}
+	_, err = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")})).HandIn(context.Background(), call)
+	if !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("an outage arrived as %v; want it transient", err)
+	}
+}
+
+func TestHandedInAsksEachCompletionAndReadsWhatChanged(t *testing.T) {
+	gel := kernel.NewItemID()
+	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Quantity: 3}}}, revision: 9}
+	e := clients.NewEquipment(itemClient(t, f))
+	id := kernel.NewCharacterID()
+	got, err := e.HandedIn(context.Background(), id, []model.Completion{{Quest: "bounty", Completion: 2}, {Quest: "errand", Completion: 1}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := &itemv1.HandedInRequest{CharacterId: id.String(), Completions: []*itemv1.QuestCompletion{{QuestId: "bounty", Completion: 2}, {QuestId: "errand", Completion: 1}}}
+	if len(f.lookups) != 1 || !proto.Equal(f.lookups[0], want) {
+		t.Fatalf("sent %v, want %v", f.lookups, want)
+	}
+	if len(got) != 1 || got[0].Quest != "bounty" || got[0].Completion != 2 || got[0].Items.Revision != 9 || len(got[0].Items.Slots) != 1 || got[0].Items.Slots[0].Item.ID != gel {
+		t.Fatalf("got %+v", got)
+	}
+	_, err = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")})).HandedIn(context.Background(), id, []model.Completion{{Quest: "bounty", Completion: 1}})
+	if !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("an outage arrived as %v; want it transient", err)
 	}
 }

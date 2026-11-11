@@ -10,9 +10,11 @@ export type Action =
   | 'down'
   | 'jump' // with down on a one-way platform: drop through
   | 'attack'
+  | 'talk' // to the nearest NPC within reach
   | 'inventory'
   | 'character'
   | 'party'
+  | 'quests'
   | 'chat'
   | 'close'; // the top-most window
 
@@ -23,9 +25,11 @@ export const actions: readonly Action[] = [
   'down',
   'jump',
   'attack',
+  'talk',
   'inventory',
   'character',
   'party',
+  'quests',
   'chat',
   'close',
 ];

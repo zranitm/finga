@@ -120,18 +120,64 @@ mobs:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.15, min: 1, max: 1}
 `,
+		"npcs.yaml": `
+talk_reach: 60
+npcs:
+  - id: guide
+    name: Guide
+    look: guide
+    gives: [first_hunt, gel_for_me]
+    takes: [first_hunt]
+  - id: hunter
+    name: Hunter
+    look: hunter
+    trainer: thief
+    gives: [warrior_drill]
+    takes: [gel_for_me, warrior_drill]
+`,
+		"quests.yaml": `
+quests:
+  - id: first_hunt
+    name: First Hunt
+    giver: guide
+    turn_in: guide
+    objectives:
+      - {kill: green_slime, count: 3}
+      - {level: 2}
+    rewards: {exp: 10, items: [{item: red_potion, quantity: 5}]}
+  - id: gel_for_me
+    name: Gel for Me
+    giver: guide
+    turn_in: hunter
+    level: 2
+    quests: [first_hunt]
+    objectives:
+      - {collect: slime_gel, count: 4}
+      - {talk: hunter}
+    rewards: {exp: 20, items: [{item: leather_cap, quantity: 1}]}
+    repeatable: true
+  - id: warrior_drill
+    name: Warrior Drill
+    giver: hunter
+    turn_in: hunter
+    class: warrior
+    objectives:
+      - {kill: green_slime, count: 1}
+`,
 		"maps/town.tmj": tiledMap("town", "", []object{
 			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
 			{layer: "platforms", name: "ledge", x: 96, y: 416, w: 192, h: 8},
 			{layer: "ropes", name: "rope", x: 284, y: 416, w: 8, h: 192},
 			{layer: "portals", name: "to_field", x: 1200, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"field"},{"name":"target_portal","type":"string","value":"from_town"}`},
 			{layer: "player_spawn", name: "start", x: 100, y: 576, w: 32, h: 32},
+			{layer: "npcs", name: "guide", x: 200, y: 608},
 		}),
 		"maps/field.tmj": tiledMap("hunting", "", []object{
 			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
 			{layer: "portals", name: "from_town", x: 40, y: 544, w: 32, h: 64, props: `{"name":"target_map","type":"string","value":"town"},{"name":"target_portal","type":"string","value":"to_field"}`},
 			{layer: "spawns", name: "slimes", x: 300, y: 500, w: 400, h: 108, props: `{"name":"mob","type":"string","value":"green_slime"},{"name":"max","type":"int","value":4},{"name":"respawn_seconds","type":"int","value":10}`},
 			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
+			{layer: "npcs", name: "hunter", x: 600, y: 608},
 		}),
 	}
 }
@@ -146,7 +192,7 @@ type object struct {
 func tiledMap(kind, dropLayer string, objects []object) string {
 	var b strings.Builder
 	b.WriteString(`{"type":"map","version":"1.10","tiledversion":"1.11.0","orientation":"orthogonal","renderorder":"right-down",`)
-	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":7,"nextobjectid":99,"tilesets":[],`)
+	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":8,"nextobjectid":99,"tilesets":[],`)
 	props := `{"name":"kind","type":"string","value":"` + kind + `"}`
 	if kind == "hunting" {
 		props += `,{"name":"town","type":"string","value":"town"}`
@@ -154,7 +200,7 @@ func tiledMap(kind, dropLayer string, objects []object) string {
 	b.WriteString(`"properties":[` + props + `],"layers":[`)
 	first := true
 	id := 1
-	for i, layer := range []string{"solids", "platforms", "ropes", "portals", "spawns", "player_spawn"} {
+	for i, layer := range []string{"solids", "platforms", "ropes", "portals", "spawns", "player_spawn", "npcs"} {
 		if layer == dropLayer {
 			continue
 		}
@@ -378,6 +424,52 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("%d maps", len(d.Maps()))
 		}
 	})
+	t.Run("NPCs, placed by their maps", func(t *testing.T) {
+		if d.TalkReach() != 60 {
+			t.Fatalf("talk reach %v", d.TalkReach())
+		}
+		guide, ok := d.NPC("guide")
+		if !ok || guide.Name != "Guide" || guide.Look != "guide" || guide.MapID != "town" || guide.At != (gamedata.Point{X: 200, Y: 608}) || guide.Trainer != "" {
+			t.Fatalf("guide = %+v", guide)
+		}
+		if !slices.Equal(guide.Gives, []string{"first_hunt", "gel_for_me"}) || !slices.Equal(guide.Takes, []string{"first_hunt"}) {
+			t.Fatalf("guide offers %v, takes %v", guide.Gives, guide.Takes)
+		}
+		hunter, _ := d.NPC("hunter")
+		if hunter.MapID != "field" || hunter.Trainer != kernel.Thief {
+			t.Fatalf("hunter = %+v: a trainer may teach a class the data doesn't offer yet", hunter)
+		}
+		if len(d.NPCs()) != 2 || d.NPCs()[0].ID != "guide" {
+			t.Fatalf("NPCs() = %+v", d.NPCs())
+		}
+		if _, ok := d.NPC("nobody"); ok {
+			t.Fatal("unknown NPC found")
+		}
+	})
+	t.Run("quests, with each objective in one shape", func(t *testing.T) {
+		first, ok := d.Quest("first_hunt")
+		want := []gamedata.Objective{{Kind: gamedata.Kill, Target: "green_slime", Count: 3}, {Kind: gamedata.Reach, Count: 2}}
+		if !ok || first.Name != "First Hunt" || first.Giver != "guide" || first.TurnIn != "guide" || !slices.Equal(first.Objectives, want) || first.Repeatable {
+			t.Fatalf("first_hunt = %+v", first)
+		}
+		if first.Rewards.Exp != 10 || !slices.Equal(first.Rewards.Items, []gamedata.Grant{{Item: "red_potion", Quantity: 5}}) {
+			t.Fatalf("first_hunt rewards %+v", first.Rewards)
+		}
+		gel, _ := d.Quest("gel_for_me")
+		want = []gamedata.Objective{{Kind: gamedata.Collect, Target: "slime_gel", Count: 4}, {Kind: gamedata.TalkTo, Target: "hunter", Count: 1}}
+		if gel.Level != 2 || !slices.Equal(gel.Requires, []string{"first_hunt"}) || !slices.Equal(gel.Objectives, want) || !gel.Repeatable || gel.TurnIn != "hunter" {
+			t.Fatalf("gel_for_me = %+v", gel)
+		}
+		if drill, _ := d.Quest("warrior_drill"); drill.Class != kernel.Warrior || drill.Rewards.Exp != 0 || drill.Rewards.Items != nil {
+			t.Fatalf("warrior_drill = %+v", drill)
+		}
+		if len(d.Quests()) != 3 || d.Quests()[2].ID != "warrior_drill" {
+			t.Fatalf("Quests() = %+v", d.Quests())
+		}
+		if _, ok := d.Quest("nope"); ok {
+			t.Fatal("unknown quest found")
+		}
+	})
 }
 
 func TestTiledConversion(t *testing.T) {
@@ -397,6 +489,7 @@ func TestTiledConversion(t *testing.T) {
 		{"the player spawn is the bottom centre of its object", town.PlayerSpawn, gamedata.Point{X: 116, Y: 608}},
 		{"a portal keeps its rectangle and typed targets", town.Portals[0], gamedata.Portal{Name: "to_field", Area: sim.Rect{X: 1200, Y: 544, W: 32, H: 64}, TargetMap: "field", TargetPortal: "from_town"}},
 		{"a portal's arrival point is its bottom centre", town.Portals[0].Arrival(), gamedata.Point{X: 1216, Y: 608}},
+		{"an NPC stands at its point object", len(town.NPCs) == 1 && town.NPCs[0] == gamedata.Placement{NPC: "guide", At: gamedata.Point{X: 200, Y: 608}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -495,6 +588,42 @@ func TestRejections(t *testing.T) {
 		{"a drop must fly before it is lost", "loot.yaml", `collect_delay: 1s`, `collect_delay: 60s`, []string{"loot.yaml", "drop_life"}},
 		{"a full inventory must be asked again before the drop is lost", "loot.yaml", `room_check_every: 2s`, `room_check_every: 90s`, []string{"loot.yaml", "drop_life"}},
 		{"a loot timing that isn't a duration", "loot.yaml", `drop_life: 60s`, `drop_life: a minute`, []string{"loot.yaml"}},
+		{"a map without an npcs layer", "maps/field.tmj", `"name":"npcs"`, `"name":"people"`, []string{"field.tmj", "npcs"}},
+		{"an NPC on a map but not in npcs.yaml", "maps/town.tmj", `"name":"guide"`, `"name":"stranger"`, []string{"town.tmj", "stranger", "npcs.yaml"}},
+		{"an NPC placed twice", "maps/field.tmj", `"name":"hunter"`, `"name":"guide"`, []string{"town.tmj", "guide", "field"}},
+		{"an NPC placed nowhere", "npcs.yaml", "npcs:\n", "npcs:\n  - {id: ghost, name: Ghost, look: ghost}\n", []string{"npcs.yaml", "ghost", "no map"}},
+		{"duplicate NPC IDs", "npcs.yaml", `id: hunter`, `id: guide`, []string{"npcs.yaml", "guide", "duplicate"}},
+		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},
+		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: thief`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
+		{"a talk reach of zero", "npcs.yaml", `talk_reach: 60`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
+		{"a quest its giver doesn't list under gives", "npcs.yaml", `gives: [first_hunt, gel_for_me]`, `gives: [first_hunt]`, []string{"quests.yaml", "gel_for_me", "guide", "gives"}},
+		{"a quest its turn-in NPC doesn't list under takes", "npcs.yaml", `takes: [gel_for_me, warrior_drill]`, `takes: [warrior_drill]`, []string{"quests.yaml", "gel_for_me", "hunter", "takes"}},
+		{"an NPC giving a quest another NPC gives", "npcs.yaml", `gives: [warrior_drill]`, `gives: [warrior_drill, first_hunt]`, []string{"npcs.yaml", "hunter", "first_hunt"}},
+		{"an NPC taking a quest handed in elsewhere", "npcs.yaml", `takes: [first_hunt]`, `takes: [first_hunt, warrior_drill]`, []string{"npcs.yaml", "guide", "warrior_drill"}},
+		{"an NPC giving a quest that doesn't exist", "npcs.yaml", `gives: [warrior_drill]`, `gives: [warrior_drill, dragon_hunt]`, []string{"npcs.yaml", "hunter", "dragon_hunt"}},
+		{"a quest given by an unknown NPC", "quests.yaml", `giver: hunter`, `giver: mayor`, []string{"quests.yaml", "warrior_drill", "mayor"}},
+		{"a quest handed in to an unknown NPC", "quests.yaml", `turn_in: hunter`, `turn_in: mayor`, []string{"quests.yaml", "gel_for_me", "mayor"}},
+		{"a kill of an unknown mob", "quests.yaml", `{kill: green_slime, count: 3}`, `{kill: dragon, count: 3}`, []string{"quests.yaml", "first_hunt", "dragon"}},
+		{"a collect of an unknown item", "quests.yaml", `{collect: slime_gel, count: 4}`, `{collect: dragon_scale, count: 4}`, []string{"quests.yaml", "gel_for_me", "dragon_scale"}},
+		{"a talk to an unknown NPC", "quests.yaml", `{talk: hunter}`, `{talk: mayor}`, []string{"quests.yaml", "gel_for_me", "mayor"}},
+		{"a reward of an unknown item", "quests.yaml", `{item: red_potion, quantity: 5}`, `{item: elixir, quantity: 5}`, []string{"quests.yaml", "first_hunt", "elixir"}},
+		{"a quest for an unknown class", "quests.yaml", `class: warrior`, `class: paladin`, []string{"quests.yaml", "warrior_drill", "paladin"}},
+		{"a quest requiring an unknown quest", "quests.yaml", `quests: [first_hunt]`, `quests: [lost_quest]`, []string{"quests.yaml", "gel_for_me", "lost_quest"}},
+		{"quests requiring each other", "quests.yaml", "    turn_in: guide\n    objectives:", "    turn_in: guide\n    quests: [gel_for_me]\n    objectives:", []string{"quests.yaml", "cycle", "first_hunt", "gel_for_me"}},
+		{"a quest requiring itself", "quests.yaml", `class: warrior`, "class: warrior\n    quests: [warrior_drill]", []string{"quests.yaml", "cycle", "warrior_drill"}},
+		{"a kill count below one", "quests.yaml", `{kill: green_slime, count: 3}`, `{kill: green_slime, count: 0}`, []string{"quests.yaml", "first_hunt", "count"}},
+		{"a collect without a count", "quests.yaml", `{collect: slime_gel, count: 4}`, `{collect: slime_gel}`, []string{"quests.yaml", "gel_for_me", "count"}},
+		{"a talk with a count", "quests.yaml", `{talk: hunter}`, `{talk: hunter, count: 2}`, []string{"quests.yaml", "gel_for_me", "count"}},
+		{"an objective of two kinds", "quests.yaml", `{kill: green_slime, count: 3}`, `{kill: green_slime, collect: slime_gel, count: 3}`, []string{"quests.yaml", "first_hunt", "exactly one"}},
+		{"an objective of no kind", "quests.yaml", `{kill: green_slime, count: 3}`, `{count: 3}`, []string{"quests.yaml", "first_hunt", "exactly one"}},
+		{"a level objective past the cap", "quests.yaml", `{level: 2}`, `{level: 5}`, []string{"quests.yaml", "first_hunt", "level"}},
+		{"a quest without objectives", "quests.yaml", "    objectives:\n      - {kill: green_slime, count: 1}\n", "", []string{"quests.yaml", "warrior_drill", "objective"}},
+		{"a quest level past the cap", "quests.yaml", "level: 2\n    quests:", "level: 5\n    quests:", []string{"quests.yaml", "gel_for_me", "level"}},
+		{"an equipment reward with a quantity above one", "quests.yaml", `{item: leather_cap, quantity: 1}`, `{item: leather_cap, quantity: 2}`, []string{"quests.yaml", "gel_for_me", "leather_cap", "quantity 1"}},
+		{"a reward above its stack size", "quests.yaml", `{item: red_potion, quantity: 5}`, `{item: red_potion, quantity: 101}`, []string{"quests.yaml", "first_hunt", "red_potion"}},
+		{"negative reward EXP", "quests.yaml", `exp: 10`, `exp: -10`, []string{"quests.yaml", "first_hunt", "exp"}},
+		{"duplicate quest IDs", "quests.yaml", `id: warrior_drill`, `id: first_hunt`, []string{"quests.yaml", "first_hunt", "duplicate"}},
+		{"an unknown key in a quest", "quests.yaml", `repeatable: true`, `repeat: true`, []string{"quests.yaml", "repeat"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -678,6 +807,19 @@ func TestRealDataLoads(t *testing.T) {
 		for _, id := range items {
 			if it, _ := d.Item(id); it.Tab == gamedata.Equip && !got[id] {
 				t.Errorf("%s: nobody can get it", id)
+			}
+		}
+	})
+	t.Run("every NPC stands on a floor or platform of its map", func(t *testing.T) {
+		if len(d.NPCs()) == 0 {
+			t.Fatal("no NPCs")
+		}
+		for _, n := range d.NPCs() {
+			m, _ := d.Map(n.MapID)
+			if !slices.ContainsFunc(slices.Concat(m.Geometry.Solids, m.Geometry.Platforms), func(r sim.Rect) bool {
+				return r.Y == n.At.Y && n.At.X >= r.X && n.At.X <= r.X+r.W
+			}) {
+				t.Errorf("%s floats at %+v on %s", n.ID, n.At, m.ID)
 			}
 		}
 	})

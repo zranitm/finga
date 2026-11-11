@@ -22,6 +22,7 @@
 - **Auto-assign:**
   - A button in the window spends the unspent points by the class's recommended split.
   - A Settings option, off by default, does the same at every level-up.
+  - Neither works for a Beginner, who has no class yet and spends their own points.
 - **Resets:**
   - A reset returns every spent point to unspent.
   - Each character has one free reset.

@@ -21,7 +21,7 @@ Every item type names its slot. A ring fits either ring slot.
 ## Requirements
 
 - A minimum level and minimum primary stats, for example 25 STR (OD-19: decided, stat requirements too).
-- Weapons also name a class, since the class decides the attack's shape. Armor and accessories use stat requirements instead of a class (proposal).
+- Weapons also name a class, since the class decides the attack's shape. Beginner weapons fit every class, so a newly promoted character can keep theirs (proposal). Armor and accessories use stat requirements instead of a class (proposal).
 - An item the character doesn't meet can be kept, traded, and compared, but not worn.
 
 ## Rarity: stars

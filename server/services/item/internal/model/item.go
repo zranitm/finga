@@ -36,6 +36,7 @@ var (
 	ErrNotEquipment   = errors.New("item: only equipment can be worn")
 	ErrNothingWorn    = errors.New("item: nothing is worn in that equip slot")
 	ErrBadBatch       = errors.New("item: a batch holds no drops, or more than one call takes")
+	ErrNotEnoughItems = errors.New("item: the inventory's stacks hold less than the hand-in asks for")
 )
 
 // SlotsPerTab is the inventory size of each tab.
@@ -76,12 +77,14 @@ const (
 	CauseDrop    CauseType = "drop"
 	CausePlayer  CauseType = "player"
 	CauseStarter CauseType = "starter"
+	CauseQuest   CauseType = "quest"
 )
 
-// Cause is the origin of a change: a drop, a player action, or character creation.
+// Cause is the origin of a change: a drop, a player action, character creation, or a quest handed in.
 type Cause struct {
-	Type CauseType
-	ID   uuid.UUID // optional: the drop or request
+	Type  CauseType
+	ID    uuid.UUID // optional: the drop or request; a hand-in's key
+	Quest string    // the quest handed in; set for CauseQuest alone
 }
 
 // EventKind is an item event's kind.
@@ -96,6 +99,7 @@ const (
 	EventDiscarded  EventKind = "discarded"
 	EventEquipped   EventKind = "equipped"
 	EventUnequipped EventKind = "unequipped"
+	EventHandedIn   EventKind = "handed_in"
 )
 
 // Event is one line of an item's history.

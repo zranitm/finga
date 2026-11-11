@@ -9,6 +9,7 @@ type Joined struct {
 	X, Y       float64
 	TickRateHz int    // the world's ticks per second
 	JoinSeq    uint64 // rises with each join, so the character's later login has the higher one
+	Quests     []QuestState
 }
 
 // WorldEvent is what the world's delivery stream brings.

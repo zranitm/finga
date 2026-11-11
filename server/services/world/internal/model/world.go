@@ -17,7 +17,14 @@ var (
 	ErrStopped = errors.New("world: instance is not running")
 	// ErrClassUnavailable means the game data lacks the class: a server fault, not a refusal.
 	ErrClassUnavailable = errors.New("world: class not available")
-	ErrCharacterDead    = errors.New("world: a dead character can't change what it wears")
+	ErrCharacterDead    = errors.New("world: a dead character can't do that")
+	ErrNpcOutOfReach    = errors.New("world: the NPC isn't on the map, or is out of reach")
+	ErrQuestUnavailable = errors.New("world: the NPC doesn't give, or take back, that quest")
+	ErrQuestUnmet       = errors.New("world: the character doesn't meet the quest's conditions")
+	ErrQuestActive      = errors.New("world: the quest is already active")
+	ErrQuestFinished    = errors.New("world: the one-time quest is already finished")
+	ErrTooManyQuests    = errors.New("world: the most active quests are already taken")
+	ErrQuestNotReady    = errors.New("world: the quest isn't active, or a kill, talk or level objective is left")
 	ErrPointsChanged    = errors.New("world: the unspent points are not the count expected")
 	ErrNotEnoughPoints  = errors.New("world: not that many unspent points")
 	ErrNoFreeReset      = errors.New("world: the free reset is used")
@@ -64,7 +71,10 @@ type Player struct {
 	X, Y    float64 // where to appear: feet centre
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
-	Worn       Worn // travels with the player between maps
+	Worn       Worn   // travels with the player between maps
+	Quests     Quests // travels with the player too
+	// HandedIn are completions the item service handed in while the world missed the reply; the map's join finishes them.
+	HandedIn []HandedIn
 }
 
 // Character is a character as last saved, loaded to join.
@@ -80,6 +90,7 @@ type Character struct {
 	MP      int
 	MapID   string
 	X, Y    float64
+	Quests  Quests
 }
 
 // View is the joined player's own character, with derived maximums.
@@ -99,6 +110,7 @@ type View struct {
 	Sheet Sheet
 	// JoinSeq rises with each join, across restarts too, so the character's later login has the higher one.
 	JoinSeq uint64
+	Quests  Quests // a copy of the log the player joined with
 }
 
 // PlayerView is a player as everyone on the map sees it.
@@ -264,6 +276,7 @@ type Checkpoint struct {
 	Level  int
 	Exp    int64
 	Points Points
+	Quests Quests // the whole log, a copy of the player's
 }
 
 // DropView is an item on the ground as everyone sees it, with the player it will fly to.

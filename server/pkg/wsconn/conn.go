@@ -253,13 +253,14 @@ func run[S any](c *conn, parentCtx context.Context, h Handler[S], opts Options) 
 	defer cancel()
 	var wg sync.WaitGroup
 
+	// dispatch reads until closed, so every frame reaches it, the last error too, even when a drop during the upgrade cancelled the request's context.
 	frames := make(chan frame)
 	wg.Go(func() {
 		for {
 			_, data, err := c.ws.Read(ctx)
 			select {
 			case frames <- frame{data: data, err: err}:
-			case <-ctx.Done():
+			case <-c.closed:
 				return
 			}
 			if err != nil {

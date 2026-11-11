@@ -249,26 +249,13 @@ func (s *Service) AddMany(ctx context.Context, actor model.Actor, drops []AddInp
 		if _, err := s.lockInventory(ctx, uow, actor.Character); err != nil {
 			return err
 		}
-		type place struct {
-			tab  gamedata.Tab
-			slot int
-		}
-		changed := map[place]int{} // a slot's index in b.Changed
 		for i, in := range drops {
 			out, err := s.addOne(ctx, uow, actor, in, &b.Revision)
 			if err != nil {
 				return err
 			}
 			b.Outcomes[i] = out.outcome
-			for _, sl := range out.granted {
-				k := place{sl.Tab, sl.Slot}
-				if at, seen := changed[k]; seen {
-					b.Changed[at] = sl
-					continue
-				}
-				changed[k] = len(b.Changed)
-				b.Changed = append(b.Changed, sl)
-			}
+			b.Changed = merged(b.Changed, out.granted...)
 		}
 		return nil
 	})
@@ -669,10 +656,15 @@ func equipSlotFor(slots []gamedata.EquipSlot, kind gamedata.SlotKind, asked stri
 	return first, nil
 }
 
-// playerCause is a change the request under key caused; the handler took the key only as a UUID.
+// playerCause is a change the request under key caused.
 func playerCause(key string) model.Cause {
+	return model.Cause{Type: model.CausePlayer, ID: keyID(key)}
+}
+
+// keyID is the UUID of an idempotency key; the handler took the key only as one.
+func keyID(key string) uuid.UUID {
 	id, _ := uuid.Parse(strings.TrimPrefix(key, "k-"))
-	return model.Cause{Type: model.CausePlayer, ID: id}
+	return id
 }
 
 // wornOf is every worn item of inv, by equip slot.

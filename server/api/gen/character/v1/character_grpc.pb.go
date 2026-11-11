@@ -36,9 +36,9 @@ type CharacterServiceClient interface {
 	Create(ctx context.Context, in *CreateRequest, opts ...grpc.CallOption) (*CreateResponse, error)
 	// List is an account's characters, oldest first.
 	List(ctx context.Context, in *ListRequest, opts ...grpc.CallOption) (*ListResponse, error)
-	// Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
+	// Load is one of the account's characters, with its quests; someone else's is REASON_CHARACTER_NOT_FOUND.
 	Load(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (*LoadResponse, error)
-	// SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
+	// SaveCheckpoint saves position, HP, MP, the whole progression and every quest; the world saves a level-up with it too.
 	SaveCheckpoint(ctx context.Context, in *SaveCheckpointRequest, opts ...grpc.CallOption) (*SaveCheckpointResponse, error)
 	// Deprecated: Do not use.
 	// SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
@@ -114,9 +114,9 @@ type CharacterServiceServer interface {
 	Create(context.Context, *CreateRequest) (*CreateResponse, error)
 	// List is an account's characters, oldest first.
 	List(context.Context, *ListRequest) (*ListResponse, error)
-	// Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
+	// Load is one of the account's characters, with its quests; someone else's is REASON_CHARACTER_NOT_FOUND.
 	Load(context.Context, *LoadRequest) (*LoadResponse, error)
-	// SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
+	// SaveCheckpoint saves position, HP, MP, the whole progression and every quest; the world saves a level-up with it too.
 	SaveCheckpoint(context.Context, *SaveCheckpointRequest) (*SaveCheckpointResponse, error)
 	// Deprecated: Do not use.
 	// SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.

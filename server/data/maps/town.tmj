@@ -10,8 +10,8 @@
   "height": 20,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 7,
-  "nextobjectid": 13,
+  "nextlayerid": 8,
+  "nextobjectid": 16,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "town"}
@@ -39,6 +39,11 @@
     {"id": 5, "name": "spawns", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": []},
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 9, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 400, "y": 576, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 13, "name": "town_guide", "type": "", "rotation": 0, "visible": true, "x": 496, "y": 608, "width": 0, "height": 0, "point": true},
+      {"id": 14, "name": "warrior_trainer", "type": "", "rotation": 0, "visible": true, "x": 1120, "y": 608, "width": 0, "height": 0, "point": true},
+      {"id": 15, "name": "magician_trainer", "type": "", "rotation": 0, "visible": true, "x": 780, "y": 608, "width": 0, "height": 0, "point": true}
     ]}
   ]
 }

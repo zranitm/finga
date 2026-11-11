@@ -126,8 +126,20 @@ func (s *Service) Load(ctx context.Context, id kernel.CharacterID, account kerne
 	return s.store.Load(ctx, id, account)
 }
 
-// SaveCheckpoint persists position, HP, MP and the whole progression.
+// Quests is a loaded character's quests; the world reads them at join, while it is the only writer.
+func (s *Service) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error) {
+	return s.store.Quests(ctx, id)
+}
+
+// SaveCheckpoint persists position, HP, MP, the whole progression and every quest, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
+	seen := make(map[string]bool, len(cp.Quests))
+	for _, q := range cp.Quests {
+		if !q.Valid() || seen[q.ID] {
+			return model.ErrBadQuest
+		}
+		seen[q.ID] = true
+	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)
 	})

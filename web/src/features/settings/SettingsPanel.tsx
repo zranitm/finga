@@ -12,8 +12,8 @@ export interface SettingsPanelProps {
 }
 
 const labels: Record<Preset, string> = {
-  classic: 'Classic: arrows, Space, X attack',
-  wasd: 'WASD: W A S D, Space, J attack',
+  classic: 'Classic: arrows, Space, X attack, Z talk',
+  wasd: 'WASD: W A S D, Space, J attack, E talk',
 };
 
 export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {

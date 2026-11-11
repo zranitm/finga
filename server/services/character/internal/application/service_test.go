@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"reflect"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -213,6 +214,43 @@ func TestSaves(t *testing.T) {
 		got := store.chars[c.ID]
 		if got.Level != 2 || got.Exp != 3 || got.Points != lu.Points || got.HP != 250 || got.MP != 32 {
 			t.Fatalf("after level-up: %+v", got)
+		}
+	})
+
+	t.Run("a checkpoint saves the whole quest log", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, MapID: "town", Level: 2, Quests: []model.Quest{
+			{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{4}},
+			{ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 1},
+		}}
+		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
+			t.Fatal(err)
+		}
+		cp.Quests = []model.Quest{{ID: "sticky_samples", Status: model.QuestActive, Progress: []int{0}, TimesFinished: 1}}
+		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
+			t.Fatal(err)
+		}
+		got, err := svc.Quests(ctx, c.ID)
+		if err != nil || !reflect.DeepEqual(got, cp.Quests) {
+			t.Fatalf("quests %+v, %v", got, err)
+		}
+	})
+
+	t.Run("a checkpoint with a quest the table can't hold saves nothing", func(t *testing.T) {
+		for _, bad := range []model.Checkpoint{
+			{ID: c.ID, Quests: []model.Quest{{Status: model.QuestActive}}},
+			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: "paused"}}},
+			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestActive, Progress: []int{-1}}}},
+			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestFinished}}},
+			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestFinished, Progress: []int{3}, TimesFinished: 1}}},
+			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestActive, TimesFinished: -1}}},
+			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestActive}, {ID: "q", Status: model.QuestActive}}},
+		} {
+			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadQuest) {
+				t.Fatalf("%+v: %v", bad, err)
+			}
+		}
+		if store.chars[c.ID].MapID != "town" {
+			t.Fatal("a refused checkpoint moved the character")
 		}
 	})
 

@@ -124,6 +124,20 @@
           }
         }
       }
+    ],
+    "quests": [
+      {
+        "quest_id": "slime_cleanup",
+        "status": "QUEST_STATUS_FINISHED",
+        "times_finished": 1
+      },
+      {
+        "quest_id": "sticky_samples",
+        "status": "QUEST_STATUS_ACTIVE",
+        "progress": [
+          0
+        ]
+      }
     ]
   }
 }

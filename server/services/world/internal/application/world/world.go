@@ -60,6 +60,7 @@ type Deps struct {
 	Characters   Characters
 	Starter      Starter
 	Wardrobe     Wardrobe
+	HandedIns    HandedIns
 	Panics       *panics.Recorder // a transfer's panic
 	Logger       *slog.Logger
 	SaveObserver SaveObserver

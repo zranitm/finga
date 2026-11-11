@@ -2,10 +2,12 @@ package clients_test
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
@@ -33,8 +35,19 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 	s := clients.NewSaver(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
 	id := kernel.NewCharacterID()
 	ctx := context.Background()
-	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}}); err != nil {
+	log := model.Quests{
+		"sticky_samples": {Status: model.QuestActive, Progress: []int{3}, TimesFinished: 1},
+		"slime_cleanup":  {Status: model.QuestFinished, TimesFinished: 1},
+	}
+	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}, Quests: log}); err != nil {
 		t.Fatal(err)
+	}
+	want := []*characterv1.Quest{
+		{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, Progress: []int32{}, TimesFinished: 1},
+		{QuestId: "sticky_samples", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{3}, TimesFinished: 1},
+	}
+	if got := f.checkpoints[0].GetQuests(); len(got) != 2 || !proto.Equal(got[0], want[0]) || !proto.Equal(got[1], want[1]) {
+		t.Fatalf("quests %v, want the whole log by ID", got)
 	}
 	if cp := f.checkpoints[0]; cp.GetCharacterId() != id.String() || cp.GetMapId() != "cave" || cp.GetX() != 1.5 || cp.GetY() != 2 || cp.GetHp() != 3 || cp.GetMp() != 4 ||
 		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetPoints().GetStrength() != 9 || cp.GetPoints().GetVitality() != 4 || cp.GetUnspentPoints() != 2 || !cp.GetFreeResetUsed() {
@@ -47,8 +60,9 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 
 type loads struct {
 	characterv1.UnimplementedCharacterServiceServer
-	char *characterv1.Character
-	req  *characterv1.LoadRequest
+	char   *characterv1.Character
+	quests []*characterv1.Quest
+	req    *characterv1.LoadRequest
 }
 
 func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characterv1.LoadResponse, error) {
@@ -56,13 +70,17 @@ func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characte
 	if f.char == nil {
 		return nil, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
-	return &characterv1.LoadResponse{Character: f.char}, nil
+	return &characterv1.LoadResponse{Character: f.char, Quests: f.quests}, nil
 }
 
 func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	id, account := kernel.NewCharacterID(), kernel.NewAccountID()
 	f := &loads{char: &characterv1.Character{Id: id.String(), Name: "Ayla", Class: "bowman", Level: 3, Exp: 40,
-		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600}}
+		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600},
+		quests: []*characterv1.Quest{
+			{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{7}},
+			{QuestId: "first_steps", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2},
+		}}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	characterv1.RegisterCharacterServiceServer(srv, f)
 	c := clients.NewCharacters(characterv1.NewCharacterServiceClient(grpctest.Conn(t, srv)))
@@ -71,9 +89,14 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Bowman, Level: 3, Exp: 40,
-		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600}
-	if got != want || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
+		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600,
+		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}}}
+	if !reflect.DeepEqual(got, want) || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
 		t.Fatalf("got %+v from %+v", got, f.req)
+	}
+	f.quests = []*characterv1.Quest{{QuestId: "q", Status: characterv1.QuestStatus(9)}}
+	if _, err := c.Load(context.Background(), id, account); err == nil {
+		t.Fatal("a quest status this build doesn't know joined")
 	}
 	f.char = nil
 	_, err = c.Load(context.Background(), id, account)

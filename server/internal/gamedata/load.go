@@ -37,8 +37,10 @@ func Load(dir string) (*Data, error) {
 		itemIdx:  map[string]int{},
 		mobIdx:   map[string]int{},
 		mapIdx:   map[string]int{},
+		npcIdx:   map[string]int{},
+		questIdx: map[string]int{},
 	}
-	steps := []func(string) error{d.loadMovement, d.loadLoot, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps}
+	steps := []func(string) error{d.loadMovement, d.loadLoot, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps, d.loadNPCs, d.loadQuests}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)

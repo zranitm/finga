@@ -89,7 +89,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 10,
+        "w": 7,
         "x": 4,
         "y": 1
       },
@@ -136,8 +136,8 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 10,
-        "x": 14,
+        "w": 7,
+        "x": 11,
         "y": 1
       },
       "fieldConfig": {
@@ -169,6 +169,62 @@
           },
           "expr": "sum by (type) (rate(finga_ws_messages_total{direction=\"out\"}[$__rate_interval]))",
           "legendFormat": "{{type}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "id": 24,
+      "title": "Welcome size by kind",
+      "description": "Encoded bytes of each Welcome: a login's, or a rejoin's after the world's stream broke. When it grows, its sections need skipping or compressing.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "mimir"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "histogram_quantile(0.5, sum by (le, kind) (rate(finga_ws_welcome_bytes_bucket[$__rate_interval])))",
+          "legendFormat": "{{kind}} p50"
+        },
+        {
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mimir"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le, kind) (rate(finga_ws_welcome_bytes_bucket[$__rate_interval])))",
+          "legendFormat": "{{kind}} p99"
         }
       ]
     },

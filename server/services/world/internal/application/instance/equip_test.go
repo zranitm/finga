@@ -47,9 +47,12 @@ func (f *fakeEquipment) Unequip(ctx context.Context, c model.UnequipCall) (model
 }
 
 func (f *fakeEquipment) wait(ctx context.Context) (model.Equipped, error) {
-	if f.gate != nil {
+	f.mu.Lock()
+	gate := f.gate
+	f.mu.Unlock()
+	if gate != nil {
 		select {
-		case <-f.gate:
+		case <-gate:
 		case <-ctx.Done():
 			return model.Equipped{}, ctx.Err()
 		}
@@ -339,6 +342,46 @@ func TestAnEquipInFlightHoldsThePlayerOnItsMap(t *testing.T) {
 				t.Fatalf("moved %+v; want the portal to carry the sword", tr.moved)
 			}
 		})
+	})
+}
+
+// The gateway joins a character again through the same connection after a broken stream; an answer to the earlier join's call must not end one of the new join's.
+func TestAnAnswerToAnEarlierJoinLeavesTheNewJoinsCallsCounted(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		first := make(chan struct{})
+		eq := &fakeEquipment{answer: sword(), gate: first}
+		tr := &transferRecorder{}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Equipment: eq, ItemCalls: runningPool(t), Transfer: tr})
+		defer stop()
+		at := data.Town().Portals[0].Arrival()
+		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
+		p.Connection = "c1"
+		join(t, inst, p)
+		earlier := equipAsync(inst, p.ID, "c1")
+		tick(1)
+		join(t, inst, p)
+		close(first)
+		tick(1)
+		if err := <-earlier; err != nil {
+			t.Fatal(err)
+		}
+		second := make(chan struct{})
+		eq.mu.Lock()
+		eq.gate = second
+		eq.mu.Unlock()
+		done := equipAsync(inst, p.ID, "c1")
+		tick(1)
+		_ = inst.EnterPortal(p.ID)
+		tick(1)
+		if moved(tr) != 0 {
+			t.Fatal("took a portal with an equip in flight")
+		}
+		close(second)
+		tick(1)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
 	})
 }
 

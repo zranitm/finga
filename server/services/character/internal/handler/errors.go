@@ -16,5 +16,6 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrBadName, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_CHARACTER_NAME},
 	{Err: model.ErrClassUnavailable, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_CLASS_UNAVAILABLE},
 	{Err: model.ErrSlotsFull, Code: codes.FailedPrecondition, Reason: characterv1.Reason_REASON_CHARACTER_SLOTS_FULL},
+	{Err: model.ErrBadQuest, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_QUEST},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: characterv1.Reason_REASON_BAD_ID},
 }

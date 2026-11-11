@@ -3,7 +3,6 @@ package send
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -39,14 +38,11 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		return fmt.Errorf("join: %w", err)
 	}
 	defer join.Release() // a failure or a panic before Finish gives the join up
-	c := join.Joined.Character
-	welcome := model.Welcome{Character: c, MapID: join.Joined.MapID, ServerTime: time.Now(), TickRateHz: join.Joined.TickRateHz}
-	inv, err := g.deps.Items.Inventory(ctx, charID)
+	welcome, err := g.sessions.Welcome(ctx, charID, join.Joined)
 	if err != nil {
-		g.deps.Logger.ErrorContext(ctx, "inventory failed", "character_id", charID, "err", err)
-		return fmt.Errorf("inventory: %w", err)
+		g.deps.Logger.ErrorContext(ctx, "welcome failed", "character_id", charID, "err", err)
+		return fmt.Errorf("welcome: %w", err)
 	}
-	welcome.Inventory, welcome.Equipment, welcome.InventoryRevision = inv.Items, inv.Equipment, inv.Revision // the party follows in a PartyState, once Online registers the player
 	// Last, so a Hello that fails before here leaves the client's token as it was.
 	welcome.Token, err = g.rotate(ctx, p.SessionID)
 	if err != nil {
@@ -57,9 +53,8 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		return fmt.Errorf("rotate: %w", err)
 	}
 
-	player := model.Player{ID: charID, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
 	// The newest connection wins.
-	for _, older := range join.Finish(player, welcome) {
+	for _, older := range join.Finish(model.PlayerOf(charID, welcome.Character), welcome) {
 		older.End(model.EndLoggedInElsewhere)
 	}
 	g.sessions.Register(s)

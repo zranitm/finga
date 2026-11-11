@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
@@ -37,6 +39,7 @@ type fakeCharacters struct {
 	created    application.CreateInput
 	account    kernel.AccountID
 	loaded     kernel.CharacterID
+	quests     []model.Quest
 	checkpoint model.Checkpoint
 	levelUp    model.LevelUp
 	derivedErr error
@@ -60,6 +63,12 @@ func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account 
 	f.calls++
 	f.loaded, f.account = id, account
 	return ayla, f.err
+}
+
+func (f *fakeCharacters) Quests(_ context.Context, id kernel.CharacterID) ([]model.Quest, error) {
+	f.calls++
+	f.loaded = id
+	return f.quests, f.err
 }
 
 func (f *fakeCharacters) Own(model.Character) (gamedata.Stats, error) {
@@ -120,19 +129,47 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantAyla(t, res.GetCharacters()[0], true)
 	})
-	t.Run("Load carries the owner and the maximums", func(t *testing.T) {
+	t.Run("Load carries the owner, the maximums and the quests", func(t *testing.T) {
+		f.quests = []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 2}}
+		defer func() { f.quests = nil }()
 		res, err := c.Load(ctx, &characterv1.LoadRequest{CharacterId: ayla.ID.String(), AccountId: owner.String()})
 		if err != nil || f.loaded != ayla.ID || f.account != owner {
 			t.Fatalf("loaded %v for %v, err %v", f.loaded, f.account, err)
 		}
 		wantAyla(t, res.GetCharacter(), true)
+		want := []*characterv1.Quest{
+			{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{7}},
+			{QuestId: "sticky_samples", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, Progress: []int32{}, TimesFinished: 2},
+		}
+		got := res.GetQuests()
+		if len(got) != len(want) {
+			t.Fatalf("quests %v", got)
+		}
+		for k := range want {
+			if !proto.Equal(got[k], want[k]) {
+				t.Fatalf("quest %d: %v, want %v", k, got[k], want[k])
+			}
+		}
 	})
 	t.Run("SaveCheckpoint", func(t *testing.T) {
 		points := &characterv1.Stats{Strength: 9, Dexterity: 1, Intelligence: 2, Agility: 3, Vitality: 4}
-		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true}); err != nil {
+		quests := []*characterv1.Quest{
+			{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{3, 0}, TimesFinished: 1},
+			{QuestId: "sticky_samples", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 1},
+			{QuestId: "odd", Status: characterv1.QuestStatus(9)},
+		}
+		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true,
+			Quests: quests}); err != nil {
 			t.Fatal(err)
 		}
-		if f.checkpoint != (model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true}) {
+		want := model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true,
+			Quests: []model.Quest{
+				{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{3, 0}, TimesFinished: 1},
+				{ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 1},
+				{ID: "odd"}, // an unknown status reaches the module empty, which refuses it
+			},
+		}
+		if !reflect.DeepEqual(f.checkpoint, want) {
 			t.Fatalf("checkpoint %+v", f.checkpoint)
 		}
 	})

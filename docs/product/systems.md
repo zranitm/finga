@@ -5,7 +5,9 @@ The rules of the game, one page per system. Features describe what a player can 
 Proposals are marked. Open questions point to Product decisions.
 
 - [Progression](./systems/progression.md)
+- [Classes and skills](./systems/classes-and-skills.md)
 - [Combat](./systems/combat.md)
+- [NPCs and quests](./systems/npcs-and-quests.md)
 - [Items](./systems/items.md)
 - [Economy](./systems/economy.md)
 - [Social](./systems/social.md)

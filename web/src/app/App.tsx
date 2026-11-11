@@ -12,8 +12,10 @@ import { Hud } from '@/features/hud/Hud';
 import { PartyPanel } from '@/features/hud/PartyPanel';
 import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
+import { NpcWindow } from '@/features/npc/NpcWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
+import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { loadSettings } from '@/features/shared/settings';
 import type { Character } from '@/net/rest';
@@ -26,7 +28,7 @@ import { ui } from '@/state/ui';
 import { PhaserGame } from './PhaserGame';
 import { createServices } from './services';
 import type { Services } from './services';
-import { leaveWorld, wireSocket } from './wiring';
+import { leaveCharacter, leaveWorld, wireSocket } from './wiring';
 
 export interface AppProps {
   /** Tests pass fakes. */
@@ -123,6 +125,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
       onLeave={() => {
         svc.game.leave();
         svc.socket.close();
+        leaveCharacter();
         setPlaying(null);
       }}
     />
@@ -141,6 +144,8 @@ function WorldOverlay({
   const inventoryOpen = ui.use((s) => s.windows.includes('inventory'));
   const characterOpen = ui.use((s) => s.windows.includes('character'));
   const partyOpen = ui.use((s) => s.windows.includes('party'));
+  const questsOpen = ui.use((s) => s.windows.includes('quests'));
+  const npcOpen = ui.use((s) => s.windows.includes('npc'));
   const me = characterStore.use((s) => s.character?.id ?? '');
   // The next entry starts with no window open, whichever way this one ends.
   useEffect(() => () => ui.getState().clear(), []);
@@ -168,6 +173,10 @@ function WorldOverlay({
         {characterOpen && (
           <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
         )}
+        {questsOpen && (
+          <QuestLog socket={socket} onClose={() => ui.getState().closeWindow('quests')} />
+        )}
+        {npcOpen && <NpcWindow socket={socket} onClose={() => ui.getState().closeWindow('npc')} />}
       </div>
     </>
   );

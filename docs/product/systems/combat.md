@@ -4,9 +4,9 @@
 
 - Real-time, side-on combat against mobs. No player-versus-player combat in the MVP.
 - Players attack in the direction they face. A hit lands if the target is within range.
-- Attack style and range depend on class: close melee, fast short-range strikes, long-range shots, or ranged magic (OD-15).
+- Attack style and range depend on class: a Beginner's short swing, close melee, fast short-range strikes, long-range shots, or ranged magic (Classes and skills).
 - **Every attack is physical or magic.**
-  - Basic attacks: the Warrior's, Thief's, and Bowman's are physical; the Magician's is magic.
+  - Basic attacks: the Beginner's, Warrior's, Thief's, and Bowman's are physical; the Magician's is magic.
   - Each skill names its own type.
   - Each mob type names the type of damage its touch deals.
 - **Hitting:** the attacker's accuracy against the target's evasion decides whether an attack lands. This holds for every attack, physical or magic, players and mobs alike, and the hit chance stays between 20% and 99%.
@@ -35,7 +35,10 @@
 - A character who dies respawns in the town linked to their map, with half HP (proposal).
 - Penalty: see Progression (OD-06).
 
+## Skills
+
+- Active skills cost MP and have cooldowns, and follow the same hit and damage rules as attacks (Classes and skills).
+
 ## Later
 
-- Skills that cost MP and have cooldowns (P1).
 - Bosses in party dungeons (P2).
