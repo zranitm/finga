@@ -12,7 +12,7 @@ import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { party } from '@/state/party';
-import { questPlayer, quests } from '@/state/quests';
+import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
@@ -52,6 +52,9 @@ export function wireSocket(socket: GameSocket): () => void {
       announceReady();
     }),
     socket.on('questChanged', (m) => {
+      if (outdates(quests.getState().dialog, m.d)) {
+        ui.getState().closeWindow('npc');
+      }
       quests.getState().applyQuestChanged(m.d);
       combatLog.getState().applyQuestChanged(m.d);
       announceReady();

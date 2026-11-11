@@ -121,6 +121,22 @@ describe('NpcWindow', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("a request with no answer says only that, not the socket's own words", async () => {
+    welcome(1, []);
+    quests.getState().applyNpcDialog(
+      create(NpcDialogSchema, {
+        npcId: 'town_guide',
+        gives: [{ questId: 'slime_cleanup', state: QuestOfferState.AVAILABLE }],
+      }),
+    );
+    const { socket } = fakeSocket([
+      new RequestError('timeout', 'acceptQuest: no response within 5000 ms'),
+    ]);
+    render(<NpcWindow socket={socket} onClose={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('No answer yet. Try again.');
+  });
+
   it('Hand in waits for every objective, the items held included, then sends the quest', async () => {
     welcome(2, [{ questId: 'sticky_samples', status: QuestStatus.ACTIVE, progress: [0] }]);
     quests.getState().applyNpcDialog(

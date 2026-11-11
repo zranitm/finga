@@ -95,7 +95,9 @@ func (i *Instance) add(j *joinMsg) {
 	}
 	i.tellParty(p, i.m.ID) // a join is a map change, and after a restart it corrects what social kept
 	for _, h := range p.HandedIn {
-		i.handedIn(p, h)
+		if i.handedIn(p, h) {
+			i.log.Info("a hand-in the world missed finished at the join", "character_id", p.ID, "quest_id", h.Quest, "completion", h.Completion)
+		}
 	}
 	p.HandedIn = nil
 	j.done <- nil

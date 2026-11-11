@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { Button } from '@/components/Button';
 import { itemName } from '@/features/shared/items';
+import { problemOf } from '@/features/shared/problem';
 import { QuestObjectives } from '@/features/shared/QuestObjectives';
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { WorldWindow } from '@/features/shared/WorldWindow';
@@ -36,7 +37,7 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
       await send();
       onClose();
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : 'The server refused.');
+      setProblem(problemOf(err));
     } finally {
       setBusy(false);
     }

@@ -17,12 +17,13 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// A hand-in's call to the item service is tried again after a timeout or an outage, for up to handInFor, as a completion is handed in once whatever the tries; a refusal is final.
+// A hand-in's call to the item service is tried again after a timeout or an outage, as a completion is handed in once whatever the tries; a refusal is final.
+// Every try fits in handInFor, inside the 5 s the gateway and the client give a command, so the outcome reaches the request.
 const (
-	handInTimeout    = 5 * time.Second // one try
-	handInFor        = 20 * time.Second
+	handInFor        = 3500 * time.Millisecond
+	handInTimeout    = 1500 * time.Millisecond // one try
 	handInRetryFirst = 200 * time.Millisecond
-	handInRetryMax   = 2 * time.Second
+	handInRetryMax   = time.Second
 )
 
 type questAction uint8
@@ -187,18 +188,29 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 	return nil
 }
 
-// callHandIn tries the hand-in until the item service answers or refuses, or handInFor passes.
+// callHandIn tries the hand-in until the item service answers or refuses, or handInFor passes; the log hears each try that failed and a hand-in given up.
 func (i *Instance) callHandIn(ctx context.Context, call model.HandInCall) (model.Inventory, error) {
+	ctx, cancel := context.WithTimeoutCause(ctx, handInFor, fmt.Errorf("%w: the item service didn't answer the hand-in in time", transient.ErrUnavailable))
+	defer cancel()
+	who := []any{"character_id", call.Character, "quest_id", call.Quest, "completion", call.Completion}
+	tries := 0
 	wait := &backoff.ExponentialBackOff{InitialInterval: handInRetryFirst, RandomizationFactor: backoff.DefaultRandomizationFactor, Multiplier: 2, MaxInterval: handInRetryMax}
-	return backoff.Retry(ctx, func() (model.Inventory, error) {
-		tryCtx, cancel := context.WithTimeout(ctx, handInTimeout)
-		defer cancel()
+	result, err := backoff.Retry(ctx, func() (model.Inventory, error) {
+		tries++
+		tryCtx, cancelTry := context.WithTimeout(ctx, handInTimeout)
+		defer cancelTry()
 		result, err := i.deps.HandIns.HandIn(tryCtx, call)
 		if err != nil && !errors.Is(err, transient.ErrUnavailable) {
 			return result, backoff.Permanent(err)
 		}
 		return result, err
-	}, backoff.WithBackOff(wait), backoff.WithMaxElapsedTime(handInFor))
+	}, backoff.WithBackOff(wait), backoff.WithMaxElapsedTime(0), backoff.WithNotify(func(err error, next time.Duration) {
+		i.log.WarnContext(ctx, "hand-in try failed; trying again", append(who, "try", tries, "next_in", next, "err", err)...)
+	}))
+	if errors.Is(err, transient.ErrUnavailable) {
+		i.log.ErrorContext(ctx, "hand-in given up; if the item service took it, the next join finishes the quest", append(who, "tries", tries, "err", err)...)
+	}
+	return result, err
 }
 
 // settleHandIn finishes the quest once the item service has taken and given, for the character on this map whatever its connection; a refusal changed nothing anywhere. A character gone from the map finishes it at its next join.
@@ -220,12 +232,14 @@ func (i *Instance) settleHandIn(m handedInMsg) {
 }
 
 // handedIn finishes a completion the item service handed in, unless the log has moved past it: a join's and a reply's for one completion finish it once.
-func (i *Instance) handedIn(p *player, h model.HandedIn) {
+func (i *Instance) handedIn(p *player, h model.HandedIn) bool {
 	entry, ok := p.Quests[h.Quest]
 	q, known := i.data.Quest(h.Quest)
-	if ok && known && entry.Status == model.QuestActive && entry.TimesFinished == h.Completion-1 {
-		i.finish(p, q, h.Completion, h.Items)
+	if !ok || !known || entry.Status != model.QuestActive || entry.TimesFinished != h.Completion-1 {
+		return false
 	}
+	i.finish(p, q, h.Completion, h.Items)
+	return true
 }
 
 // finish marks the quest finished for the completion-th time, awards its EXP, tells the player what the items did, and saves at once.

@@ -1,9 +1,11 @@
 package instance_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"sync"
@@ -70,7 +72,7 @@ func (f *fakeHandIns) HandIn(ctx context.Context, c model.HandInCall) (model.Inv
 		select {
 		case <-f.gate:
 		case <-ctx.Done():
-			return model.Inventory{}, ctx.Err()
+			return model.Inventory{}, fmt.Errorf("%w: %w", transient.ErrUnavailable, ctx.Err()) // as the client wraps a timeout
 		}
 	}
 	f.mu.Lock()
@@ -99,9 +101,16 @@ type questTown struct {
 
 func newQuestTown(t *testing.T, level int, log model.Quests, handIns instance.HandIns) *questTown {
 	t.Helper()
+	return questTownWith(t, level, log, worldtest.Options{HandIns: handIns})
+}
+
+// questTownWith is newQuestTown over o, which gets an hour between checkpoints and a running item-call pool.
+func questTownWith(t *testing.T, level int, log model.Quests, o worldtest.Options) *questTown {
+	t.Helper()
 	data := questData(t)
 	cps := &worldtest.Checkpoints{}
-	inst, stop := worldtest.Run(t, data, cps, worldtest.Options{CheckpointInterval: time.Hour, HandIns: handIns, ItemCalls: runningPool(t)})
+	o.CheckpointInterval, o.ItemCalls = time.Hour, runningPool(t)
+	inst, stop := worldtest.Run(t, data, cps, o)
 	t.Cleanup(stop)
 	p := worldtest.NewPlayer("Ayla", 450, 608)
 	p.Level, p.Connection, p.Quests = level, "c1", log
@@ -385,16 +394,36 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("an item service down past the tries leaves the quest as it was", func(t *testing.T) {
+	t.Run("an item service down past the tries leaves the quest as it was, and answers within the gateway's 5 s", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
+			var logs bytes.Buffer
 			f := &fakeHandIns{answer: answer, down: 1000}
-			q := newQuestTown(t, 1, ready(0), f)
-			if err := q.handIn("bounty"); !errors.Is(err, transient.ErrUnavailable) || len(f.called()) < 2 {
-				t.Fatalf("err = %v after %d calls", err, len(f.called()))
+			q := questTownWith(t, 1, ready(0), worldtest.Options{HandIns: f, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+			start := time.Now()
+			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty")
+			if took := time.Since(start); !errors.Is(err, transient.ErrUnavailable) || len(f.called()) < 2 || took > 4*time.Second {
+				t.Fatalf("err = %v after %d calls and %s", err, len(f.called()), took)
 			}
+			tick(1)
 			if len(changes(q.sink)) != 0 || len(q.cps.Drain()) != 0 {
 				t.Fatal("something changed")
 			}
+			if n := strings.Count(logs.String(), `"msg":"hand-in try failed; trying again"`); n == 0 || n > len(f.called()) || !strings.Contains(logs.String(), `"level":"ERROR","msg":"hand-in given up`) {
+				t.Fatalf("%d calls, logged:\n%s", len(f.called()), logs.String())
+			}
+		})
+	})
+	t.Run("a hung item service is given up within the gateway's 5 s too", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			f := &fakeHandIns{answer: answer, gate: make(chan struct{})}
+			q := newQuestTown(t, 1, ready(0), f)
+			start := time.Now()
+			err := q.inst.HandInQuest(context.Background(), q.p.ID, "c1", "town_guide", "bounty")
+			if took := time.Since(start); !errors.Is(err, transient.ErrUnavailable) || took < 3*time.Second || took > 4*time.Second {
+				t.Fatalf("err = %v after %s; want a try again past the first 1.5 s, given up by 4 s", err, took)
+			}
+			close(f.gate)
+			tick(1)
 		})
 	})
 	t.Run("an answer after the character joined again through another connection finishes the quest for it", func(t *testing.T) {
@@ -459,13 +488,17 @@ func TestHandingInAQuest(t *testing.T) {
 		} {
 			t.Run(c.name, func(t *testing.T) {
 				synctest.Test(t, func(t *testing.T) {
+					var logs bytes.Buffer
 					cps := &worldtest.Checkpoints{}
-					inst, stop := worldtest.Run(t, questData(t), cps, worldtest.Options{CheckpointInterval: time.Hour})
+					inst, stop := worldtest.Run(t, questData(t), cps, worldtest.Options{CheckpointInterval: time.Hour, Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
 					defer stop()
 					p := worldtest.NewPlayer("Ayla", 450, 608)
 					p.Connection, p.Quests, p.HandedIn = "c1", c.log, c.handedIn
 					s := join(t, inst, p)
 					got := changes(s)
+					if logged := strings.Contains(logs.String(), `"msg":"a hand-in the world missed finished at the join"`); logged != (c.finished > 0) {
+						t.Fatalf("logged %s", logs.String())
+					}
 					if c.finished == 0 {
 						if len(got) != 0 || len(eventsOf[model.InventoryChanged](s)) != 0 {
 							t.Fatalf("told %+v", got)

@@ -1,6 +1,6 @@
 // The quest log, from Welcome and QuestChanged, and the dialog of the NPC talked to last.
 import type { Log, LogEntry, Player } from '@/progression/quests';
-import { QuestStatus } from '@/protocol/messages';
+import { QuestChange, QuestStatus } from '@/protocol/messages';
 import type { Data, NpcDialog, QuestState } from '@/protocol/messages';
 
 import { character } from './character';
@@ -72,6 +72,15 @@ export const quests = defineStore<QuestsState>((set, get) => ({
     set({ log: {}, dialog: null });
   },
 }));
+
+/** Whether a change leaves the dialog out of date: a quest it lists was accepted, handed in or abandoned, maybe after its request gave up. */
+export function outdates(dialog: NpcDialog | null, d: Data<'questChanged'>): boolean {
+  const id = d.quest?.questId;
+  if (!dialog || !id || d.change === QuestChange.PROGRESSED) {
+    return false;
+  }
+  return dialog.gives.some((o) => o.questId === id) || dialog.takes.some((t) => t.questId === id);
+}
 
 /** The player as the quest rules read it, from the stores now. */
 export function questPlayer(): Player {

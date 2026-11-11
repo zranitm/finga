@@ -2,6 +2,7 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
+import { problemOf } from '@/features/shared/problem';
 import { QuestObjectives } from '@/features/shared/QuestObjectives';
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { WorldWindow } from '@/features/shared/WorldWindow';
@@ -33,7 +34,7 @@ export function QuestLog({ socket, onClose }: QuestLogProps) {
       await socket.request('abandonQuest', { questId: q.id });
       setConfirming(null);
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : 'The server refused.');
+      setProblem(problemOf(err));
     } finally {
       setBusy(false);
     }

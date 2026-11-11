@@ -102,7 +102,8 @@ From the code, the rules this design keeps:
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.
   3. **The item call:** a job goes to the item-call pool: `item.HandIn` with the collect objectives to take and the rewards to give.
      - It names the quest and the completion it makes, `times_finished + 1`. The item service hands each completion in once, so a retry, or a hand-in repeated after a crash, takes and gives nothing twice.
-     - A try that times out or finds the item service down is tried again, for up to 20 seconds. A refusal is final.
+     - A try that times out or finds the item service down is tried again. Every try fits in 3.5 seconds, inside the 5 seconds the gateway and the client give a command, so the outcome always reaches the request. A refusal is final.
+     - The log has a warning for each try that failed, an error for a hand-in given up, and an info line for each one a join finished.
   4. **The result comes back through the inbox:**
      - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`. This holds for the character on the map whatever its connection, so a reconnect meanwhile still gets it;
      - on `not_enough_items` or `inventory_full`: nothing changed anywhere, and the player is told;
@@ -166,7 +167,8 @@ From the code, the rules this design keeps:
   - Accept, Hand in, and Promote send their requests, and close the dialog on success.
   - Hand in is enabled once the quest is ready by the live log and inventory, items to bring included, so it doesn't wait for another Talk.
   - A quest under way that the NPC also takes back shows once, under Hand in.
-  - Walking out of reach closes it.
+  - Walking out of reach closes it, and so does a quest it lists being accepted, handed in, or abandoned, even after its request gave up.
+  - A request with no answer, timed out or cut off by a dropped connection, says "No answer yet. Try again."
 - **The quest log** (`features/quests`, Q): active quests with each objective's progress. Collect objectives are counted from the inventory store. Each quest has an Abandon button.
 - **The combat channel** gains lines for a quest taken, kill and talk progress, a quest ready to hand in (when its last kill, item, or level comes), a quest finished with the items it gave, and a quest abandoned.
 
@@ -174,11 +176,11 @@ From the code, the rules this design keeps:
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| The item service commits a `HandIn`, but its reply is lost (a timeout, a broken connection) | Usually nothing: the world tries again and the quest finishes. If the tries run out, "try again in a moment", and the next join finishes it | The completion is handed in once: a try again gets the stored reply, and nothing is taken or given twice |
+| The item service commits a `HandIn`, but its reply is lost (a timeout, a broken connection) | Usually nothing: the world tries again and the quest finishes. If the tries run out, "the server is busy; try again", and handing it in again, or the next join, finishes it | The completion is handed in once: a try again gets the stored reply, and nothing is taken or given twice |
 | World crashes after the item commit, before the quest is saved | After the rejoin the quest is finished, with its EXP and what the items did | The join asks the item service which completions it handed in, and finishes them |
 | That crash also lost some kills since the last save | The quest may need a few kills again before it can be handed in | Progress is saved like EXP; nothing is duplicated |
 | The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
-| Item service down during a hand-in | "Try again in a moment" once the tries run out; nothing changed | The call failed as a whole, or committed, and the next try or join finishes the quest |
+| Item service down during a hand-in | "The server is busy; try again" within 4 seconds; nothing changed | The call failed as a whole, or committed, and the next try or join finishes the quest |
 | The player reconnects while a hand-in is in flight | The quest finishes on the new connection | The answer finishes it for the character on the map, whatever its connection |
 | The world's stream breaks, or the world restarts | Nothing unusual: the quest log is put right | The rejoin sends `QuestLog`, and the changes after it follow |
 
@@ -207,7 +209,7 @@ From the code, the rules this design keeps:
   - kill progress for the killer and for the EXP sharers, and not for a dead member or one on another map;
   - talk objectives;
   - hand-in: not ready, success, `not_enough_items`, and a full inventory;
-  - a try the item service was down for, tried again as the same completion; a refusal, tried once;
+  - a try the item service was down for, tried again as the same completion; a refusal, tried once; an item service down or hung, given up within 4 seconds, with each try logged;
   - an answer after a reconnect on the map finishing the quest, and one after the character left changing nothing there;
   - a join finishing each completion the item service handed in, once;
   - repeatable quests handing in their next completion.

@@ -355,6 +355,40 @@ describe('wiring', () => {
       expect(ui.getState().windows).toEqual(['npc']);
     });
 
+    it('the dialog closes once a quest it lists is accepted, handed in or abandoned, not on progress', async () => {
+      const { ws } = await connectedSocket();
+      const talk = () =>
+        ws.push('npcDialog', {
+          npcId: 'town_guide',
+          gives: [{ questId: 'sticky_samples', state: QuestOfferState.AVAILABLE }],
+          takes: [{ questId: 'slime_cleanup' }],
+        });
+      talk();
+      ws.push('questChanged', {
+        change: QuestChange.PROGRESSED,
+        quest: { questId: 'slime_cleanup', status: QuestStatus.ACTIVE, progress: [5] },
+      });
+      ws.push('questChanged', {
+        change: QuestChange.ACCEPTED,
+        quest: { questId: 'meet_the_trainers', status: QuestStatus.ACTIVE, progress: [0, 0] },
+      });
+      expect(ui.getState().windows).toEqual(['npc']);
+      ws.push('questChanged', {
+        change: QuestChange.HANDED_IN,
+        quest: { questId: 'slime_cleanup', status: QuestStatus.FINISHED, timesFinished: 1 },
+      });
+      expect(ui.getState().windows).toEqual([]);
+      talk();
+      ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });
+      expect(ui.getState().windows).toEqual([]);
+      talk();
+      ws.push('questChanged', {
+        change: QuestChange.ABANDONED,
+        quest: samples(QuestStatus.UNSPECIFIED),
+      });
+      expect(ui.getState().windows).toEqual([]);
+    });
+
     it('QuestChanged updates the log and adds its line; an abandoned quest leaves the log', async () => {
       const { ws } = await connectedSocket();
       ws.push('questChanged', { change: QuestChange.ACCEPTED, quest: samples(QuestStatus.ACTIVE) });

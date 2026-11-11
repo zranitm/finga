@@ -66,6 +66,7 @@ type Instance struct {
 	epoch    uint64 // the party stream's subscription the players were last told to
 	tuning   Tuning
 	deps     Services
+	log      *slog.Logger
 	mover    Mover
 	inbox    chan message
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
@@ -151,7 +152,7 @@ func New(d Deps, t Tuning) *Instance {
 	params := d.Data.Movement()
 	roll := d.NewRoll()
 	i := &Instance{
-		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, mover: d.Mover, saves: d.Saves,
+		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, log: d.Logger, mover: d.Mover, saves: d.Saves,
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inputs:   inputTicksAt(t.TickInterval),
 		inbox:    make(chan message, inboxSize),

@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 import { Bar } from '@/components/Bar';
 import { Button } from '@/components/Button';
+import { problemOf } from '@/features/shared/problem';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { nearby } from '@/state/nearby';
@@ -28,7 +29,7 @@ export function PartyWindow({ socket, me, onClose }: PartyWindowProps) {
     try {
       await send();
     } catch (err) {
-      setProblem(err instanceof Error ? err.message : 'The server refused.');
+      setProblem(problemOf(err));
     } finally {
       setBusy(false);
     }
