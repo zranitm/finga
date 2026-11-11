@@ -13,7 +13,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
@@ -26,7 +25,6 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/tracing"
@@ -58,17 +56,16 @@ func dialFake(t *testing.T, register func(*grpc.Server)) *grpc.ClientConn {
 
 type fakeSessions struct {
 	mu        sync.Mutex
-	tokens    map[string]auth.Principal
+	tokens    map[string]model.Principal
 	rotations int
-	expired   map[uuid.UUID]bool
+	expired   map[kernel.SessionID]bool
 	rotateErr error // every Rotate fails with it
 }
 
-func (f *fakeSessions) Revoke(context.Context, uuid.UUID) error { return nil }
-func (f *fakeSessions) Validate(_ context.Context, token string) (auth.Principal, error) {
+func (f *fakeSessions) Validate(_ context.Context, token string) (model.Principal, error) {
 	p, ok := f.tokens[token]
 	if !ok {
-		return auth.Principal{}, &model.ServiceError{Public: model.Unauthenticated, Err: errors.New("bad token")} // as the account client says it
+		return model.Principal{}, &model.ServiceError{Public: model.Unauthenticated, Err: errors.New("bad token")} // as the account client says it
 	}
 	return p, nil
 }
@@ -813,7 +810,7 @@ func (f *fakeSocial) Chat(_ context.Context, req *socialv1.ChatRequest) (*social
 }
 
 // Rotate hands out a fresh token per call; Check consults the expired set.
-func (f *fakeSessions) Rotate(_ context.Context, sessionID uuid.UUID) (string, error) {
+func (f *fakeSessions) Rotate(_ context.Context, sessionID kernel.SessionID) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.rotations++
@@ -823,7 +820,7 @@ func (f *fakeSessions) Rotate(_ context.Context, sessionID uuid.UUID) (string, e
 	return "rotated-" + sessionID.String()[:8] + "-" + fmt.Sprint(f.rotations), nil
 }
 
-func (f *fakeSessions) Check(_ context.Context, sessionID uuid.UUID) error {
+func (f *fakeSessions) Check(_ context.Context, sessionID kernel.SessionID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.expired[sessionID] {
@@ -832,13 +829,11 @@ func (f *fakeSessions) Check(_ context.Context, sessionID uuid.UUID) error {
 	return nil
 }
 
-func (f *fakeSessions) RevokeAll(context.Context, uuid.UUID) error { return nil }
-
-func (f *fakeSessions) expire(sessionID uuid.UUID) {
+func (f *fakeSessions) expire(sessionID kernel.SessionID) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.expired == nil {
-		f.expired = map[uuid.UUID]bool{}
+		f.expired = map[kernel.SessionID]bool{}
 	}
 	f.expired[sessionID] = true
 }

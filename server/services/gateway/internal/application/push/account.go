@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 
 	"finga/services/gateway/internal/model"
@@ -57,7 +56,7 @@ func (g *Gateway) checkSessions(ctx context.Context) {
 		round.Go(func() error {
 			ctx, cancel := context.WithTimeout(ctx, checkTimeout)
 			defer cancel()
-			err := g.deps.Sessions.Check(ctx, uuid.UUID(s.LoginSession()))
+			err := g.deps.Sessions.Check(ctx, s.LoginSession())
 			switch {
 			case err == nil:
 			case model.PublicOf(err) == model.Unauthenticated:

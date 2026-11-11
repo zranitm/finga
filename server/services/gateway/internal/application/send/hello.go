@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
-
 	"finga/internal/kernel"
 	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/model"
@@ -29,7 +27,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 		return fmt.Errorf("validate: %w", err) // the account service is down: the client keeps its token and retries
 	}
 
-	join, err := g.sessions.Join(ctx, s, kernel.AccountID(p.AccountID), kernel.SessionID(p.SessionID), charID)
+	join, err := g.sessions.Join(ctx, s, p.AccountID, p.SessionID, charID)
 	if err != nil {
 		if model.PublicOf(err) == model.CharacterNotFound {
 			return fmt.Errorf("%w: %w", model.ErrHelloRejected, err)
@@ -64,7 +62,7 @@ func (g *Gateway) Hello(ctx context.Context, s *session.Session, token string, c
 }
 
 // rotate has its own budget: a join that retried may have spent the Hello's.
-func (g *Gateway) rotate(ctx context.Context, sessionID uuid.UUID) (string, error) {
+func (g *Gateway) rotate(ctx context.Context, sessionID kernel.SessionID) (string, error) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rotateTimeout)
 	defer cancel()
 	return g.deps.Sessions.Rotate(ctx, sessionID)

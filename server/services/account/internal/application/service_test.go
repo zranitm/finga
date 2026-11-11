@@ -12,13 +12,10 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/google/uuid"
-
-	"finga/pkg/auth"
-	"finga/pkg/auth/password"
-	"finga/pkg/uuidv7"
+	"finga/internal/kernel"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
+	"finga/services/account/internal/password"
 )
 
 var cheapHash = password.Params{Time: 1, Memory: 8 * 1024, Threads: 1, SaltLen: 16, KeyLen: 32}
@@ -29,8 +26,8 @@ const idleTTL = 7 * 24 * time.Hour
 // unheard is a notifier for the tests that do not look at ended sessions.
 type unheard struct{}
 
-func (unheard) SessionRevoked(context.Context, uuid.UUID, string) {}
-func (unheard) AccountRevoked(context.Context, uuid.UUID, string) {}
+func (unheard) SessionRevoked(context.Context, kernel.SessionID, string) {}
+func (unheard) AccountRevoked(context.Context, kernel.AccountID, string) {}
 
 func newService(t *testing.T, store application.Store) *application.Service {
 	t.Helper()
@@ -146,7 +143,7 @@ func TestVerify(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || id != uuid.UUID(acc.ID) {
+			if err != nil || id != acc.ID {
 				t.Fatalf("id = %s, err = %v", id, err)
 			}
 		})
@@ -217,7 +214,7 @@ func TestLoginIssuesATokenAndStoresOnlyItsHash(t *testing.T) {
 		}
 	}
 	p, err := svc.Validate(ctx, token)
-	if err != nil || p.AccountID != uuid.UUID(acc.ID) || p.SessionID == uuid.Nil {
+	if err != nil || p.AccountID != acc.ID || p.SessionID.IsZero() {
 		t.Fatalf("validate = %+v, %v", p, err)
 	}
 	t.Run("a second login revokes the first session", func(t *testing.T) {
@@ -367,12 +364,10 @@ func TestSettings(t *testing.T) {
 	}
 }
 
-func TestServiceImplementsPkgAuth(t *testing.T) {
-	var _ auth.Authenticator = (*application.Service)(nil)
-	var _ auth.Sessions = (*application.Service)(nil)
+func TestServiceSurfacesItsFailures(t *testing.T) {
 	t.Run("Issue for an unknown account fails", func(t *testing.T) {
 		svc := newService(t, newFakeStore())
-		if _, err := svc.Issue(context.Background(), uuidv7.New()); !errors.Is(err, model.ErrNotFound) {
+		if _, err := svc.Issue(context.Background(), kernel.NewAccountID()); !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("err = %v", err)
 		}
 	})
