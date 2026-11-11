@@ -623,6 +623,7 @@ func TestRejections(t *testing.T) {
 		{"duplicate NPC IDs", "npcs.yaml", `id: hunter`, `id: guide`, []string{"npcs.yaml", "guide", "duplicate"}},
 		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},
 		{"an NPC with an empty line", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [\"\"]\n", []string{"npcs.yaml", "hunter", "line"}},
+		{"an NPC saying a line twice", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [Hi., Hi.]\n", []string{"npcs.yaml", "hunter", "twice"}},
 		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: thief`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
 		{"a talk reach of zero", "npcs.yaml", `talk_reach: 60`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
 		{"a quest its giver doesn't list under gives", "npcs.yaml", `gives: [first_hunt, gel_for_me]`, `gives: [first_hunt]`, []string{"quests.yaml", "gel_for_me", "guide", "gives"}},
