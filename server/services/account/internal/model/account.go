@@ -64,6 +64,12 @@ type Credentials struct {
 	PasswordHash string
 }
 
+// Principal is who a validated session belongs to.
+type Principal struct {
+	AccountID kernel.AccountID
+	SessionID kernel.SessionID
+}
+
 // Session is a login session. The token itself is never stored.
 type Session struct {
 	ID        kernel.SessionID

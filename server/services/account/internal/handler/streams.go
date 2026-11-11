@@ -3,9 +3,8 @@ package handler
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	accountv1 "finga/api/gen/account/v1"
+	"finga/internal/kernel"
 	"finga/pkg/hub"
 	"finga/services/account/internal/application"
 )
@@ -27,14 +26,14 @@ func NewStreams(bootID string) *Streams {
 }
 
 // SessionRevoked is broadcast to every gateway.
-func (s *Streams) SessionRevoked(_ context.Context, id uuid.UUID, reason string) {
+func (s *Streams) SessionRevoked(_ context.Context, id kernel.SessionID, reason string) {
 	s.watchers.Broadcast(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_SessionRevoked{
 		SessionRevoked: &accountv1.SessionRevoked{SessionId: id.String(), Reason: revokeReason(reason)},
 	}})
 }
 
 // AccountRevoked is broadcast to every gateway.
-func (s *Streams) AccountRevoked(_ context.Context, id uuid.UUID, reason string) {
+func (s *Streams) AccountRevoked(_ context.Context, id kernel.AccountID, reason string) {
 	s.watchers.Broadcast(&accountv1.WatchSessionsResponse{Event: &accountv1.WatchSessionsResponse_AccountRevoked{
 		AccountRevoked: &accountv1.AccountRevoked{AccountId: id.String(), Reason: revokeReason(reason)},
 	}})

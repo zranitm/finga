@@ -35,12 +35,13 @@ describe('combatLog', () => {
     vi.useRealTimers();
   });
 
-  it('EXP, a level-up and loot each add a line, oldest first', () => {
+  it('EXP, a level-up, loot and a potion each add a line, oldest first', () => {
     const s = combatLog.getState();
     s.applyExpGained(exp(12n));
     s.applyExpGained(exp(-30n));
     s.applyLevelUp(create(LevelUpSchema, { character: create(CharacterViewSchema, { level: 5 }) }));
     s.applyLoot(loot(LootKind.COLLECTED, 7));
+    s.drank('red_potion', { hp: 50, mp: 0 });
     expect(combatLog.getState().lines).toMatchObject([
       { kind: 'exp', amount: 12 },
       { kind: 'exp', amount: -30 },
@@ -53,9 +54,10 @@ describe('combatLog', () => {
         template: 'slime_gel',
         quantity: 2,
       },
+      { kind: 'drank', template: 'red_potion', hp: 50, mp: 0 },
     ]);
     const ids = combatLog.getState().lines.map((l) => l.id);
-    expect(new Set(ids).size).toBe(4);
+    expect(new Set(ids).size).toBe(5);
   });
 
   it.each([

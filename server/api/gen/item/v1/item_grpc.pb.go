@@ -29,6 +29,7 @@ const (
 	ItemService_Unequip_FullMethodName      = "/internal.item.v1.ItemService/Unequip"
 	ItemService_HandIn_FullMethodName       = "/internal.item.v1.ItemService/HandIn"
 	ItemService_HandedIn_FullMethodName     = "/internal.item.v1.ItemService/HandedIn"
+	ItemService_Use_FullMethodName          = "/internal.item.v1.ItemService/Use"
 )
 
 // ItemServiceClient is the client API for ItemService service.
@@ -57,6 +58,8 @@ type ItemServiceClient interface {
 	HandIn(ctx context.Context, in *HandInRequest, opts ...grpc.CallOption) (*HandInResponse, error)
 	// HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
 	HandedIn(ctx context.Context, in *HandedInRequest, opts ...grpc.CallOption) (*HandedInResponse, error)
+	// Use takes one of a usable item, such as a potion, from its stack; the world applies what it does.
+	Use(ctx context.Context, in *UseRequest, opts ...grpc.CallOption) (*UseResponse, error)
 }
 
 type itemServiceClient struct {
@@ -167,6 +170,16 @@ func (c *itemServiceClient) HandedIn(ctx context.Context, in *HandedInRequest, o
 	return out, nil
 }
 
+func (c *itemServiceClient) Use(ctx context.Context, in *UseRequest, opts ...grpc.CallOption) (*UseResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UseResponse)
+	err := c.cc.Invoke(ctx, ItemService_Use_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ItemServiceServer is the server API for ItemService service.
 // All implementations must embed UnimplementedItemServiceServer
 // for forward compatibility.
@@ -193,6 +206,8 @@ type ItemServiceServer interface {
 	HandIn(context.Context, *HandInRequest) (*HandInResponse, error)
 	// HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
 	HandedIn(context.Context, *HandedInRequest) (*HandedInResponse, error)
+	// Use takes one of a usable item, such as a potion, from its stack; the world applies what it does.
+	Use(context.Context, *UseRequest) (*UseResponse, error)
 	mustEmbedUnimplementedItemServiceServer()
 }
 
@@ -232,6 +247,9 @@ func (UnimplementedItemServiceServer) HandIn(context.Context, *HandInRequest) (*
 }
 func (UnimplementedItemServiceServer) HandedIn(context.Context, *HandedInRequest) (*HandedInResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HandedIn not implemented")
+}
+func (UnimplementedItemServiceServer) Use(context.Context, *UseRequest) (*UseResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Use not implemented")
 }
 func (UnimplementedItemServiceServer) mustEmbedUnimplementedItemServiceServer() {}
 func (UnimplementedItemServiceServer) testEmbeddedByValue()                     {}
@@ -434,6 +452,24 @@ func _ItemService_HandedIn_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ItemService_Use_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UseRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemServiceServer).Use(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemService_Use_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemServiceServer).Use(ctx, req.(*UseRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ItemService_ServiceDesc is the grpc.ServiceDesc for ItemService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -480,6 +516,10 @@ var ItemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HandedIn",
 			Handler:    _ItemService_HandedIn_Handler,
+		},
+		{
+			MethodName: "Use",
+			Handler:    _ItemService_Use_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

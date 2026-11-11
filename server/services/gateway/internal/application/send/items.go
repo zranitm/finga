@@ -22,6 +22,11 @@ func (g *Gateway) Unequip(ctx context.Context, s *session.Session, in model.Item
 	return g.deps.World.Unequip(ctx, s.Presence(), in)
 }
 
+// UseItem drinks a potion through the world, which checks there is something to restore; the changes follow on its stream.
+func (g *Gateway) UseItem(ctx context.Context, s *session.Session, in model.ItemUse) error {
+	return g.deps.World.UseItem(ctx, s.Presence(), in)
+}
+
 // DiscardItem destroys some or all of a stack and returns the slots it changed.
 func (g *Gateway) DiscardItem(ctx context.Context, s *session.Session, in model.ItemDiscard) (model.InventoryChanged, error) {
 	return g.deps.Items.Discard(ctx, s.Actor(), in)

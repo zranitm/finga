@@ -123,6 +123,11 @@ func (w wears) HandIn(context.Context, model.HandInCall) (model.Inventory, error
 	return model.Inventory{Revision: 4, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}}}, w.err
 }
 
+// Use takes a red potion from the Use tab's slot 0, leaving 2, at revision 6; err refuses it.
+func (w wears) Use(context.Context, model.UseCall) (model.Inventory, bool, error) {
+	return model.Inventory{Revision: 6, Slots: []model.Slot{{Tab: gamedata.Use, Slot: 0, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "red_potion", Quantity: 2}}}}, false, w.err
+}
+
 // HandedIn finds none handed in.
 func (wears) HandedIn(context.Context, kernel.CharacterID, []model.Completion) ([]model.HandedIn, error) {
 	return nil, nil
@@ -139,7 +144,7 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, Potions: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -536,6 +541,60 @@ func TestAnEquipRefusalKeepsTheItemServicesReason(t *testing.T) {
 	}
 	if _, err := s.c.Equip(s.ctx, &worldv1.EquipRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, IdempotencyKey: "k-1", ItemId: "nope"}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("a malformed item ID: %v", err)
+	}
+}
+
+// A potion answers once its HP applies; refusals keep their reasons, the world's and the item service's.
+func TestUseItemAnswersOnceTheHPApplies(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	ayla := s.character("Ayla")
+	ayla.HP, ayla.MP = 50, 1_000_000 // a join holds MP to the maximum
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	use := func(template, item string) error {
+		_, err := s.c.UseItem(s.ctx, &worldv1.UseItemRequest{Presence: presence, IdempotencyKey: "k-1", ItemId: item, Template: template})
+		return err
+	}
+	if err := use("red_potion", kernel.NewItemID().String()); err != nil {
+		t.Fatal(err)
+	}
+	inv := until(t, stream, "the use's InventoryChanged", func(m *worldv1.DeliverResponse) bool { return m.GetInventoryChanged() != nil }).GetInventoryChanged()
+	if inv.GetRevision() != 6 || len(inv.GetSlots()) != 1 || inv.GetSlots()[0].GetItem().GetQuantity() != 2 {
+		t.Fatalf("inventory change %+v", inv)
+	}
+	if stats := until(t, stream, "StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged(); stats.GetHp() != 100 {
+		t.Fatalf("stats change %+v, want HP 50 + 50", stats)
+	}
+	for _, c := range []struct {
+		name, template string
+		reason         worldv1.Reason
+	}{
+		{"an MP potion at full MP", "blue_potion", worldv1.Reason_REASON_MP_FULL},
+		{"a material", "slime_gel", worldv1.Reason_REASON_NOT_USABLE},
+	} {
+		err := use(c.template, kernel.NewItemID().String())
+		if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(c.reason) || status.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.reason)
+		}
+	}
+	if err := use("red_potion", "nope"); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed item ID: %v", err)
+	}
+}
+
+func TestAUseRefusalKeepsTheItemServicesReason(t *testing.T) {
+	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_NOT_USABLE))
+	s := newStackWearing(t, wears{err: refused})
+	s.gateway(t, "gw-1")
+	ayla := s.character("Ayla")
+	ayla.HP = 50
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	_, err := s.c.UseItem(s.ctx, &worldv1.UseItemRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, IdempotencyKey: "k-1", ItemId: kernel.NewItemID().String(), Template: "red_potion"})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(itemv1.Reason_REASON_NOT_USABLE) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v, want the item service's not_usable", err)
 	}
 }
 

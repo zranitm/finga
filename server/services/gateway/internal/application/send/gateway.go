@@ -6,10 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
-
 	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/model"
 )
@@ -18,11 +15,11 @@ import (
 
 // Sessions checks a Hello's token and rotates it.
 type Sessions interface {
-	Validate(ctx context.Context, token string) (auth.Principal, error)
-	Rotate(ctx context.Context, sessionID uuid.UUID) (string, error)
+	Validate(ctx context.Context, token string) (model.Principal, error)
+	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 }
 
-// World is the world service's commands; each is fire and forget, but Equip, Unequip, SpendPoints and ResetPoints, which answer once the new stats apply, and the quest commands, which answer once applied.
+// World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints and ResetPoints, which answer once the new stats apply, and the quest commands, which answer once applied.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
 	Attack(ctx context.Context, p model.Presence) error
@@ -30,6 +27,7 @@ type World interface {
 	Say(ctx context.Context, p model.Presence, name, text string) error
 	Equip(ctx context.Context, p model.Presence, in model.ItemEquip) error
 	Unequip(ctx context.Context, p model.Presence, in model.ItemUnequip) error
+	UseItem(ctx context.Context, p model.Presence, in model.ItemUse) error
 	SpendPoints(ctx context.Context, p model.Presence, in model.PointsSpend) error
 	ResetPoints(ctx context.Context, p model.Presence, expectedUnspent int) error
 	Talk(ctx context.Context, p model.Presence, npc string) error

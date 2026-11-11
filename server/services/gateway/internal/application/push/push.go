@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
+	"finga/internal/kernel"
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/application/session"
 	"finga/services/gateway/internal/model"
@@ -34,7 +34,7 @@ type Account interface {
 
 // Sessions checks that a login session still holds; the minute check asks it.
 type Sessions interface {
-	Check(ctx context.Context, sessionID uuid.UUID) error
+	Check(ctx context.Context, sessionID kernel.SessionID) error
 }
 
 // Deps are the services and settings the push flow is built from.

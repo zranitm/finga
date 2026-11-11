@@ -64,6 +64,7 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(itemv1.Reason_REASON_NOT_EQUIPMENT):          model.NotEquipment,
 	grpcx.Key(itemv1.Reason_REASON_NOTHING_WORN):           model.NothingWorn,
 	grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS):       model.NotEnoughItems,
+	grpcx.Key(itemv1.Reason_REASON_NOT_USABLE):             model.NotUsable,
 
 	grpcx.Key(socialv1.Reason_REASON_NOT_PARTY_LEADER):       model.NotPartyLeader,
 	grpcx.Key(socialv1.Reason_REASON_PARTY_FULL):             model.PartyFull,
@@ -96,6 +97,9 @@ var reasons = map[grpcx.Reason]model.Public{
 	grpcx.Key(worldv1.Reason_REASON_QUEST_ALREADY_FINISHED): model.QuestAlreadyFinished,
 	grpcx.Key(worldv1.Reason_REASON_TOO_MANY_QUESTS):        model.TooManyQuests,
 	grpcx.Key(worldv1.Reason_REASON_QUEST_NOT_READY):        model.QuestNotReady,
+	grpcx.Key(worldv1.Reason_REASON_HP_FULL):                model.HPFull,
+	grpcx.Key(worldv1.Reason_REASON_MP_FULL):                model.MPFull,
+	grpcx.Key(worldv1.Reason_REASON_NOT_USABLE):             model.NotUsable,
 }
 
 // For is the Public form of a failed call: its reason's row, else Unavailable for a service down or busy, else Internal; the zero value for nil.

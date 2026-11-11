@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"finga/pkg/auth/password"
+	"finga/services/account/internal/password"
 )
 
 // cheap keeps the tests fast; production uses password.Default.

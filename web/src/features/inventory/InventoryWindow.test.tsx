@@ -17,6 +17,7 @@ import {
 } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { inventory } from '@/state/inventory';
 import { dataTransfer } from '@/testing/data-transfer';
 import { refusal } from '@/testing/refusal';
@@ -130,13 +131,66 @@ describe('InventoryWindow', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('a double-click on an Equip-tab item equips it, the server picking the slot; a Use item sends nothing', async () => {
+  it('a double-click on an Equip-tab item equips it, the server picking the slot', async () => {
     const { calls } = setup([ok]);
     await userEvent.dblClick(cell('Leather Cap x1'));
     expect(withoutKeys(calls)).toEqual([{ t: 'equip', d: { itemId: 'i-cap' } }]);
-    await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
-    await userEvent.dblClick(cell('Red Potion x5'));
-    expect(calls).toHaveLength(1);
+  });
+
+  describe('potions', () => {
+    const hurt = (hp: number, mp = 100) =>
+      character
+        .getState()
+        .applyWelcome(
+          create(WelcomeSchema, { character: { id: 'c-1', hp, maxHp: 200, mp, maxMp: 100 } }),
+        );
+    const useTab = () => userEvent.click(screen.getByRole('tab', { name: 'Use' }));
+
+    it('a double-click drinks one, and the Combat tab says what it restored once the world applied it', async () => {
+      hurt(170);
+      const { calls } = setup([ok]);
+      await useTab();
+      await userEvent.dblClick(cell('Red Potion x5'));
+      expect(withoutKeys(calls)).toEqual([
+        { t: 'useItem', d: { itemId: 'i-potion', template: 'red_potion' } },
+      ]);
+      await waitFor(() =>
+        expect(combatLog.getState().lines).toMatchObject([
+          { kind: 'drank', template: 'red_potion', hp: 30, mp: 0 },
+        ]),
+      );
+    });
+
+    it('a selected potion has a Use button; equipment has none', async () => {
+      hurt(20);
+      const { calls } = setup([ok]);
+      await userEvent.click(cell('Wooden Sword x1'));
+      expect(screen.queryByRole('button', { name: 'Use' })).not.toBeInTheDocument();
+      await useTab();
+      await userEvent.click(cell('Red Potion x5'));
+      await userEvent.click(screen.getByRole('button', { name: 'Use' }));
+      expect(withoutKeys(calls)).toEqual([
+        { t: 'useItem', d: { itemId: 'i-potion', template: 'red_potion' } },
+      ]);
+    });
+
+    it('at full HP one is refused here, and nothing is sent', async () => {
+      hurt(200);
+      const { calls } = setup();
+      await useTab();
+      await userEvent.dblClick(cell('Red Potion x5'));
+      expect(screen.getByRole('alert')).toHaveTextContent('Your HP is already full.');
+      expect(calls).toHaveLength(0);
+    });
+
+    it('one the world refuses shows why, and the Combat tab says nothing', async () => {
+      hurt(20);
+      setup([refusal(ERR.CHARACTER_DEAD)]);
+      await useTab();
+      await userEvent.dblClick(cell('Red Potion x5'));
+      expect(await screen.findByRole('alert')).toHaveTextContent('You can’t do that while dead.');
+      expect(combatLog.getState().lines).toEqual([]);
+    });
   });
 
   it('an equip the server refuses shows why', async () => {

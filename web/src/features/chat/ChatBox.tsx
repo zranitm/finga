@@ -235,9 +235,19 @@ function CombatText({ line, me }: { readonly line: CombatLine; readonly me: stri
       }
       return null;
     }
+    case 'drank':
+      return (
+        <>
+          Drank {article(itemName(line.template))} <Item template={line.template} quantity={1} />.
+        </>
+      );
     case 'quest':
       return <QuestText change={line.change} quest={line.quest} progress={line.progress} />;
   }
+}
+
+function article(name: string): string {
+  return /^[AEIOU]/i.test(name) ? 'an' : 'a';
 }
 
 function QuestText({

@@ -4,13 +4,16 @@ import { movement } from '@/gamedata/movement';
 import { isTyping } from '@/input/typing';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
+import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
+import type { Vital } from '@/progression/potions';
 import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
@@ -46,6 +49,7 @@ import { bindKeyboard } from '../systems/keyboard';
 import { initialTransition, transition } from '../systems/map-transition';
 import type { TransitionAction, TransitionMsg, TransitionState } from '../systems/map-transition';
 import { PortalSystem, standsIn } from '../systems/portals';
+import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 
 import { bannerLines, groundStyle, mapTiles, portalLabel } from './world-layout';
@@ -121,6 +125,7 @@ export class World extends Phaser.Scene {
   private attackGate: AttackGate | null = null;
   /** The attack key is down: the gate lets a strike through at each cooldown. */
   private attackHeld = false;
+  private potionKeys: PotionKeys | null = null;
   private readonly flash = new InvulnFlash();
   private transitionState: TransitionState = initialTransition;
 
@@ -272,6 +277,13 @@ export class World extends Phaser.Scene {
           this.showMarkers();
         }
       }),
+      // A potion drunk from a key or the inventory shows what it restored over the drinker only.
+      combatLog.subscribe((now, before) => {
+        const line = now.lines.at(-1);
+        if (line?.kind === 'drank' && line !== before.lines.at(-1)) {
+          this.showRestored(line.hp, line.mp);
+        }
+      }),
     );
     this.banner(bannerLines(view.id));
 
@@ -307,6 +319,18 @@ export class World extends Phaser.Scene {
         this.predictor?.setParams(movementParams(view.kind, next?.derived?.moveSpeed ?? 0));
       }),
     );
+    this.potionKeys = new PotionKeys({
+      vitals: () => character.getState().character,
+      useTab: () => inventory.getState().slots.use,
+      use: (potion) =>
+        socket.request('useItem', {
+          idempotencyKey: idempotencyKey(),
+          itemId: potion.itemId,
+          template: potion.template,
+        }),
+      drank: (template, restored) => combatLog.getState().drank(template, restored),
+      notice: (text) => toasts.getState().push(text),
+    });
     const sender = new InputSender({ send: (input, tick) => socket.sendInput(input, tick) });
     this.sender = sender;
     this.offs.push(
@@ -357,6 +381,12 @@ export class World extends Phaser.Scene {
               return;
             case 'talk':
               this.talk();
+              return;
+            case 'hpPotion':
+              this.drink('hp');
+              return;
+            case 'mpPotion':
+              this.drink('mp');
               return;
             case 'chat':
               ui.getState().openChat();
@@ -686,6 +716,28 @@ export class World extends Phaser.Scene {
     });
   }
 
+  private drink(vital: Vital): void {
+    if (this.placed && !this.stalled && !this.transitionState.dead) {
+      this.potionKeys?.press(vital);
+    }
+  }
+
+  private showRestored(hp: number, mp: number): void {
+    const p = this.predictor;
+    if (!p) {
+      return;
+    }
+    const now = this.time.now;
+    let y = p.state.y - 72;
+    if (hp > 0) {
+      this.numbers.spawn(p.state.x, y, `+${hp}`, 'healHp', now);
+      y -= 18;
+    }
+    if (mp > 0) {
+      this.numbers.spawn(p.state.x, y, `+${mp}`, 'healMp', now);
+    }
+  }
+
   /** The NPC's dialog closes once the player dies, walks out of its reach, or leaves its map. */
   private closeDialogOutOfReach(): void {
     if (!ui.getState().windows.includes('npc')) {
@@ -875,6 +927,7 @@ export class World extends Phaser.Scene {
     this.predictor = null;
     this.sender = null;
     this.attackGate = null;
+    this.potionKeys = null;
     this.attackHeld = false;
     this.portals = null;
     this.view = null;

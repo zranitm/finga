@@ -61,6 +61,7 @@ type RequestType =
   | 'inventoryDiscard'
   | 'equip'
   | 'unequip'
+  | 'useItem'
   | 'partyInvite'
   | 'partyRespond'
   | 'partyLeave'
