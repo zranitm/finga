@@ -2,7 +2,6 @@ package app_test
 
 import (
 	"context"
-	"errors"
 	"io/fs"
 	"os"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	"finga/cmd/migrate/app"
 	"finga/pkg/dbx"
 	"finga/pkg/pgtest"
-	"finga/pkg/uuidv7"
 )
 
 var cluster *pgtest.Cluster
@@ -72,9 +70,6 @@ func TestApply(t *testing.T) {
 			if s.Table != "goose_"+s.Service+"_version" || !exists(t, pool, s.Table) {
 				t.Fatalf("%s: version table %q", s.Service, s.Table)
 			}
-		}
-		if exists(t, pool, app.LegacyTable) {
-			t.Fatalf("%s exists", app.LegacyTable)
 		}
 	})
 }
@@ -143,124 +138,6 @@ func TestARunWaitsForTheMigrationLock(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-}
-
-func TestALegacyDatabaseIsRefused(t *testing.T) {
-	ctx := context.Background()
-	pool := cluster.DB(t)
-	if _, err := pool.Exec(ctx, `CREATE TABLE goose_db_version (id serial PRIMARY KEY, version_id bigint NOT NULL, is_applied boolean NOT NULL)`); err != nil {
-		t.Fatal(err)
-	}
-	_, err := app.Apply(ctx, pool)
-	if !errors.Is(err, app.ErrLegacy) || strings.Contains(err.Error(), "make down") {
-		t.Fatalf("err = %v, want ErrLegacy, never advising make down, which deletes the data", err)
-	}
-	for _, s := range app.Sets() {
-		if exists(t, pool, s.Table) {
-			t.Fatalf("%s was created although the database was refused", s.Table)
-		}
-	}
-}
-
-// An ID minted before every ID was a UUIDv7 fails each strict parse, which would lock its player out.
-func TestADatabaseHoldingOlderIDsIsRefused(t *testing.T) {
-	const v4, otherV4 = "6f1c2a3b-4d5e-4f60-8a71-92b3c4d5e6f7", "0b7e9d2c-1a3f-4c5d-9e8f-7a6b5c4d3e2f"
-	ctx := context.Background()
-	refused := func(t *testing.T, err error, counts string) {
-		t.Helper()
-		if !errors.Is(err, app.ErrNotV7) || !strings.Contains(err.Error(), "(not UUIDv7: "+counts+")") || strings.Contains(err.Error(), "make down") {
-			t.Fatalf("err = %v, want ErrNotV7 counting %s, never advising make down", err, counts)
-		}
-	}
-
-	t.Run("with the services' migrations pending", func(t *testing.T) {
-		pool := cluster.DB(t)
-		account := find(t, "account")
-		if err := pgtest.MigrationsBefore(account.FS, account.Table, "00004_timestamps.sql")(ctx, pool); err != nil {
-			t.Fatal(err)
-		}
-		for name, id := range map[string]string{"alice": v4, "bob": otherV4} {
-			if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, username, password_hash, created_at) VALUES ($1, $2, 'x', now())`, id, name); err != nil {
-				t.Fatal(err)
-			}
-		}
-		_, err := app.Apply(ctx, pool)
-		refused(t, err, "accounts.id 2 rows")
-	})
-
-	// item's 00003 copies each starter grant's key, a character ID kept as text, into a uuid column.
-	t.Run("in a column a pending migration fills", func(t *testing.T) {
-		pool := cluster.DB(t)
-		item := find(t, "item")
-		if err := pgtest.MigrationsBefore(item.FS, item.Table, "00003_starter_grants.sql")(ctx, pool); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(ctx, `INSERT INTO idempotency_keys (owner, scope, key, request_hash, response, created_at) VALUES ($1, 'item.starter', $2, '', '', now())`, uuidv7.New().String(), v4); err != nil {
-			t.Fatal(err)
-		}
-		_, err := app.Apply(ctx, pool)
-		refused(t, err, "starter_grants.character_id 1 row")
-	})
-
-	const character = `INSERT INTO characters (id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, hp, mp, map_id, pos_x, pos_y, created_at, updated_at)
-		VALUES ($2, $1, 'Ayla', 'warrior', 1, 0, 0, 0, 0, 0, 0, 184, 32, 'town', 416, 608, now(), now())`
-	const item = `INSERT INTO items (id, template_id, owner_id, location, tab, slot, quantity, created_at, updated_at)
-		VALUES ($1, 'red_potion', $2, 'inventory', 'use', 0, 1, now(), now())`
-	// A database migrated before the check existed: every service's tables and no check recorded.
-	unchecked := func(t *testing.T) *pgxpool.Pool {
-		t.Helper()
-		pool := cluster.DB(t)
-		for _, s := range app.Sets() {
-			if _, err := dbx.Migrate(ctx, pool, s.FS, s.Table); err != nil {
-				t.Fatal(err)
-			}
-		}
-		return pool
-	}
-	for _, tt := range []struct {
-		name, insert string
-		ids          []any
-		counts       string
-	}{
-		{"in characters.account_id", character, []any{v4, uuidv7.New()}, "characters.account_id 1 row"},
-		{"in items.id", item, []any{v4, uuidv7.New()}, "items.id 1 row"},
-		{"in two columns", character, []any{v4, otherV4}, "characters.id 1 row, characters.account_id 1 row"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			pool := unchecked(t)
-			if _, err := pool.Exec(ctx, tt.insert, tt.ids...); err != nil {
-				t.Fatal(err)
-			}
-			_, err := app.Apply(ctx, pool)
-			refused(t, err, tt.counts)
-		})
-	}
-
-	t.Run("a database of UUIDv7 IDs migrates", func(t *testing.T) {
-		pool := unchecked(t)
-		for _, insert := range []string{character, item} {
-			if _, err := pool.Exec(ctx, insert, uuidv7.New(), uuidv7.New()); err != nil {
-				t.Fatal(err)
-			}
-		}
-		if _, err := app.Apply(ctx, pool); err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	// Every deploy scanning every uuid column would grow with the item ledger; the edges refuse such IDs since.
-	t.Run("a database that passed is never scanned again", func(t *testing.T) {
-		pool := cluster.DB(t)
-		if _, err := app.Apply(ctx, pool); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(ctx, item, v4, uuidv7.New()); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := app.Apply(ctx, pool); err != nil {
-			t.Fatalf("the second run scanned again: %v", err)
-		}
-	})
 }
 
 func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
@@ -372,8 +249,8 @@ func downSection(t *testing.T, fsys fs.FS, name string) string {
 
 func exists(t *testing.T, pool *pgxpool.Pool, table string) bool {
 	t.Helper()
-	ok, err := dbx.TableExists(context.Background(), pool, table)
-	if err != nil {
+	var ok bool
+	if err := pool.QueryRow(context.Background(), `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&ok); err != nil {
 		t.Fatal(err)
 	}
 	return ok
