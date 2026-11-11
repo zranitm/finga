@@ -29,5 +29,5 @@ type Sessions interface {
 // Characters is the character service, for the REST API.
 type Characters interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
-	Create(ctx context.Context, account kernel.AccountID, name, class string) (model.Character, error)
+	Create(ctx context.Context, account kernel.AccountID, name string) (model.Character, error)
 }

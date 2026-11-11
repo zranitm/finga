@@ -86,10 +86,7 @@ func (l *loader) loadItems(dir string) error {
 				return fmt.Errorf("%s: item %s: only a weapon keeps a class", itemsFile, it.ID)
 			}
 			if raw.Class != "" {
-				class, err := kernel.ParseClass(raw.Class)
-				if err != nil {
-					return fmt.Errorf("%s: item %s: unknown class %q", itemsFile, it.ID, raw.Class)
-				}
+				class := kernel.Class(raw.Class)
 				if !l.classes.has(class) {
 					return fmt.Errorf("%s: item %s: class %s is not in %s", itemsFile, it.ID, class, classesFile)
 				}

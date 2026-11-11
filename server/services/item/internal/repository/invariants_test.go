@@ -319,7 +319,7 @@ func TestInventoryProperties(t *testing.T) {
 				src := rapid.SampledFrom(read.Items).Draw(rt, "item")
 				_, err := svc.Equip(ctx, actor, application.EquipInput{
 					Key: key, ItemID: src.ID, EquipSlot: rapid.SampledFrom(append([]string{""}, equipSlots...)).Draw(rt, "equip slot"),
-					Level: rapid.IntRange(1, 30).Draw(rt, "level"), Class: rapid.SampledFrom([]kernel.Class{kernel.Warrior, kernel.Bowman}).Draw(rt, "class"),
+					Level: rapid.IntRange(1, 30).Draw(rt, "level"), Class: rapid.SampledFrom([]kernel.Class{kernel.Class("warrior"), kernel.Class("bowman")}).Draw(rt, "class"),
 				})
 				if err != nil && !isRule(err) {
 					rt.Fatalf("equip: %v", err)

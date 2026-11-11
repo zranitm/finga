@@ -14,7 +14,7 @@ type Characters interface {
 
 // Starter grants starter items once; the world calls it on every join as a safety net.
 type Starter interface {
-	GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error
+	GrantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) error
 }
 
 // Wardrobe reads what a character wears; a join can't derive its stats without it, so it fails while the read does.

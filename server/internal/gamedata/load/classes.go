@@ -17,6 +17,8 @@ type classesYAML struct {
 type classYAML struct {
 	ID           string      `yaml:"id"`
 	Name         string      `yaml:"name"`
+	Parent       string      `yaml:"parent"`
+	Look         lookYAML    `yaml:"look"`
 	Attack       attackYAML  `yaml:"attack"`
 	BaseStats    primaryYAML `yaml:"base_stats"`
 	AutoAssign   primaryYAML `yaml:"auto_assign"`
@@ -53,13 +55,29 @@ func (l *loader) loadClasses(dir string) error {
 	if len(file.Classes) == 0 {
 		return fmt.Errorf("%s: no classes", classesFile)
 	}
-	for _, c := range file.Classes {
-		id, err := kernel.ParseClass(c.ID)
-		if err != nil {
-			return fmt.Errorf("%s: class %q: not a class", classesFile, c.ID)
+	for i, c := range file.Classes {
+		id := kernel.Class(c.ID)
+		if c.ID == "" || c.Name == "" {
+			return fmt.Errorf("%s: class %d: needs an id and a name", classesFile, i+1)
 		}
 		if l.classes.has(id) {
 			return fmt.Errorf("%s: duplicate class %s", classesFile, id)
+		}
+		line, err := l.lineOf(i, id, kernel.Class(c.Parent))
+		if err != nil {
+			return err
+		}
+		root := len(line) == 1
+		switch {
+		case root != (c.BaseStats != primaryYAML{}):
+			return fmt.Errorf("%s: class %s: the root, and only the root, has base_stats: every character starts with them", classesFile, id)
+		case !root && len(c.StarterItems) > 0:
+			return fmt.Errorf("%s: class %s: only the root has starter_items: every character starts with them", classesFile, id)
+		case root == (c.AutoAssign != primaryYAML{}):
+			return fmt.Errorf("%s: class %s: every class but the root has an auto_assign split; the root's players spend their own", classesFile, id)
+		}
+		if c.Look.Sprite == "" || c.Look.Tint != nil && (*c.Look.Tint < 0 || *c.Look.Tint > 0xffffff) || c.Look.Scale != nil {
+			return fmt.Errorf("%s: class %s: look needs a sprite, a tint is an RGB color, and a class has no scale", classesFile, id)
 		}
 		kind := gamedata.AttackKind(c.Attack.Kind)
 		switch kind {
@@ -85,7 +103,7 @@ func (l *loader) loadClasses(dir string) error {
 			return fmt.Errorf("%s: class %s: auto_assign must not be negative", classesFile, id)
 		}
 		l.classes.add(id, gamedata.Class{
-			ID: id, Name: c.Name,
+			ID: id, Name: c.Name, Parent: kernel.Class(c.Parent), Line: line,
 			Attack:       gamedata.Attack{Kind: kind, Damage: damage, Width: c.Attack.Width, Height: c.Attack.Height, Range: c.Attack.Range, Cooldown: c.Attack.Cooldown},
 			BaseStats:    gamedata.Stats(c.BaseStats),
 			AutoAssign:   gamedata.Stats(c.AutoAssign),
@@ -93,4 +111,22 @@ func (l *loader) loadClasses(dir string) error {
 		})
 	}
 	return nil
+}
+
+// lineOf is the class at index i and each class above it: the first class is the root, and any other's parent comes earlier in the file, so the tree has no cycle.
+func (l *loader) lineOf(i int, id, parent kernel.Class) ([]kernel.Class, error) {
+	switch {
+	case i == 0 && parent != "":
+		return nil, fmt.Errorf("%s: class %s: the first class is the root, which every character starts as, and has no parent", classesFile, id)
+	case i > 0 && parent == "":
+		return nil, fmt.Errorf("%s: class %s: only the first class is the root; name a parent", classesFile, id)
+	case i > 0 && !l.classes.has(parent):
+		return nil, fmt.Errorf("%s: class %s: parent %s is not a class above it in the file", classesFile, id, parent)
+	}
+	line := []kernel.Class{id}
+	if i > 0 {
+		up, _ := l.classes.get(parent)
+		line = append(line, up.Line...)
+	}
+	return line, nil
 }

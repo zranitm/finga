@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 
 func sample(account kernel.AccountID, name string) model.Character {
 	return model.Character{
-		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Warrior, Level: 1, Exp: 0,
+		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Class("warrior"), Level: 1, Exp: 0,
 		Points: gamedata.Stats{STR: 1, AGI: 2}, UnspentPoints: 3, FreeResetUsed: true, HP: 184, MP: 32,
 		MapID: "town", X: 416, Y: 608,
 	}
@@ -103,14 +103,14 @@ func TestRepository(t *testing.T) {
 
 	t.Run("list by account, oldest first", func(t *testing.T) {
 		robin := sample(alice, "Robin")
-		robin.Class = kernel.Bowman
+		robin.Class = kernel.Class("bowman")
 		insert(t, store, robin)
 		insert(t, store, sample(bob, "Bruno"))
 		list, err := store.List(ctx, alice)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(list) != 2 || list[0].Name != "Ayla" || list[1].Name != "Robin" || list[1].Class != kernel.Bowman {
+		if len(list) != 2 || list[0].Name != "Ayla" || list[1].Name != "Robin" || list[1].Class != kernel.Class("bowman") {
 			t.Fatalf("list = %+v", list)
 		}
 		none, err := store.List(ctx, kernel.NewAccountID())

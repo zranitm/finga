@@ -1,0 +1,66 @@
+{
+  "name": "magician-level-15-auto-assigned",
+  "notes": "A magician at level 15 whose 70 points went by its split, INT 3, DEX 1 and VIT 1 a level.",
+  "class": "magician",
+  "level": 15,
+  "points": {
+    "str": 0,
+    "dex": 14,
+    "int": 42,
+    "agi": 0,
+    "vit": 14
+  },
+  "worn": {},
+  "expected": {
+    "primary": {
+      "str": 7,
+      "dex": 21,
+      "int": 49,
+      "agi": 7,
+      "vit": 21
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 348,
+      "max_mp": 327,
+      "physical_attack": 21,
+      "magic_attack": 84,
+      "physical_defense": 23,
+      "magic_defense": 43,
+      "accuracy": 33,
+      "evasion": 13,
+      "crit_rate": 0.10226244343891402,
+      "crit_damage": 0.605,
+      "penetration": 0,
+      "hp_regen": 1.05,
+      "mp_regen": 2.45,
+      "attack_speed": 0.022292993630573247,
+      "cooldown_speed": 0.07871485943775101,
+      "move_speed": 0.010144927536231885
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

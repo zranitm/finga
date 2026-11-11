@@ -100,7 +100,7 @@ func TestTheServiceGrantsStarterItemsOverGRPC(t *testing.T) {
 	defer conn.Close()
 	c := itemv1.NewItemServiceClient(conn)
 	actor := &itemv1.Actor{AccountId: kernel.NewAccountID().String(), CharacterId: kernel.NewCharacterID().String()}
-	if _, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "warrior"}); err != nil {
+	if _, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor}); err != nil {
 		t.Fatal(err)
 	}
 	inv, err := c.Inventory(ctx, &itemv1.InventoryRequest{CharacterId: actor.GetCharacterId()})

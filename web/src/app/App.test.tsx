@@ -78,7 +78,7 @@ describe('App', () => {
     await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
     await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
-    expect(await screen.findByText('Ayla, level 1 warrior')).toBeInTheDocument();
+    expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(await screen.findByRole('button', { name: 'Back to characters' })).toBeInTheDocument();

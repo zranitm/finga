@@ -181,7 +181,7 @@ func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
 			{Quest: "a", State: model.OfferAvailable},
 			{Quest: "b", State: model.OfferActive},
 			{Quest: "c", State: model.OfferFinished},
-			{Quest: "d", State: model.OfferUnmet, Unmet: model.Unmet{Level: 5, Class: kernel.Bowman, Quests: []string{"a"}}},
+			{Quest: "d", State: model.OfferUnmet, Unmet: model.Unmet{Level: 5, Class: kernel.Class("bowman"), Quests: []string{"a"}}},
 		},
 		Takes: []model.QuestTurnIn{{Quest: "b", Ready: true}},
 	}) {

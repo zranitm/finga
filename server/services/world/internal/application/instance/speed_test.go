@@ -40,7 +40,7 @@ func TestAttackSpeedShortensTheCooldown(t *testing.T) {
 // The sheet carries the cooldown the world counts, so the client's attack gate counts the same ticks.
 func TestTheSheetCarriesTheAttackCooldown(t *testing.T) {
 	data := worldtest.LoadData(t)
-	warrior, _ := data.Class(kernel.Warrior)
+	warrior, _ := data.Class(kernel.Class("warrior"))
 	plain := instance.StatsOf(data, warrior, 1, model.Points{}, model.Worn{}, worldtest.TickInterval)
 	fast := instance.StatsOf(data, warrior, 1, model.Points{}, model.Worn{Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{AttackSpeed: 500}}}}, worldtest.TickInterval)
 	if plain.Sheet.AttackCooldownTicks != 12 || fast.Sheet.AttackCooldownTicks != 8 {

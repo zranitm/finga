@@ -68,15 +68,26 @@ const items = must(itemsFile.items, isArray, 'items.yaml items').map((raw) => {
   };
 });
 
-// classes.yaml: cooldowns become milliseconds.
+// classes.yaml: the tree, root first; cooldowns become milliseconds, and what a class leaves out is null. Starter items stay on the server.
 const classesFile = must(load('classes.yaml'), isRecord, 'classes.yaml');
 const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((raw) => {
   const c = must(raw, isRecord, 'a class');
-  const attack = must(c.attack, isRecord, `${String(c.id)} attack`);
-  const { cooldown, ...shape } = attack;
+  const id = must(c.id, isString, 'a class id');
+  const { cooldown, ...shape } = must(c.attack, isRecord, `${id} attack`);
+  const look = must(c.look, isRecord, `${id} look`);
   return {
-    ...c,
-    attack: { ...shape, cooldown_ms: durationMs(cooldown, `${String(c.id)} cooldown`) },
+    id,
+    name: must(c.name, isString, `${id} name`),
+    parent: c.parent === undefined ? null : must(c.parent, isString, `${id} parent`),
+    look: {
+      sprite: must(look.sprite, isString, `${id} look.sprite`),
+      tint: look.tint === undefined ? null : must(look.tint, isNumber, `${id} look.tint`),
+    },
+    attack: { ...shape, cooldown_ms: durationMs(cooldown, `${id} cooldown`) },
+    base_stats:
+      c.base_stats === undefined ? null : must(c.base_stats, isRecord, `${id} base_stats`),
+    auto_assign:
+      c.auto_assign === undefined ? null : must(c.auto_assign, isRecord, `${id} auto_assign`),
   };
 });
 

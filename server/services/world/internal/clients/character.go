@@ -97,17 +97,13 @@ func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 		return model.Character{}, err
 	}
 	ch := res.GetCharacter()
-	class, err := kernel.ParseClass(ch.GetClass())
-	if err != nil {
-		return model.Character{}, err
-	}
 	log, err := logOf(res.GetQuests())
 	if err != nil {
 		return model.Character{}, err
 	}
 	pts := ch.GetPoints()
 	return model.Character{
-		ID: id, Account: account, Name: ch.GetName(), Class: class, Level: int(ch.GetLevel()), Exp: ch.GetExp(),
+		ID: id, Account: account, Name: ch.GetName(), Class: kernel.Class(ch.GetClass()), Level: int(ch.GetLevel()), Exp: ch.GetExp(),
 		Points: model.Points{
 			Spent:   gamedata.Stats{STR: int(pts.GetStrength()), DEX: int(pts.GetDexterity()), INT: int(pts.GetIntelligence()), AGI: int(pts.GetAgility()), VIT: int(pts.GetVitality())},
 			Unspent: int(ch.GetUnspentPoints()), FreeResetUsed: ch.GetFreeResetUsed(),

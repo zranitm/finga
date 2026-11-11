@@ -55,9 +55,9 @@ func (l *Lobby) Characters(ctx context.Context, p model.Principal) ([]model.Char
 	return l.characters.List(ctx, p.AccountID)
 }
 
-// CreateCharacter creates a character for the caller.
-func (l *Lobby) CreateCharacter(ctx context.Context, p model.Principal, name, class string) (model.Character, error) {
-	return l.characters.Create(ctx, p.AccountID, name, class)
+// CreateCharacter creates a character for the caller, a Beginner.
+func (l *Lobby) CreateCharacter(ctx context.Context, p model.Principal, name string) (model.Character, error) {
+	return l.characters.Create(ctx, p.AccountID, name)
 }
 
 // Settings are the caller's account settings.

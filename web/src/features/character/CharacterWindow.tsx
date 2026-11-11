@@ -9,9 +9,9 @@ import { ItemDetails, useItemHover } from '@/features/shared/ItemHover';
 import { initials, itemName, starClass, templateOf } from '@/features/shared/items';
 import { useItemRequests } from '@/features/shared/useItemRequests';
 import { WorldWindow } from '@/features/shared/WorldWindow';
-import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
 import type { GameSocket } from '@/net/socket';
+import { className } from '@/progression/classes';
 import {
   activeRoll,
   addStats,
@@ -192,7 +192,7 @@ function PointsBar({ points, onReset }: { readonly points: Points; readonly onRe
           </Button>
         </>
       )}
-      {points.unspent > 0 && !staged && (
+      {points.unspent > 0 && !staged && points.canAutoAssign && (
         <Button variant="quiet" disabled={points.busy} onClick={points.autoAssign}>
           Auto-assign
         </Button>
@@ -382,7 +382,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
           <header className="character-header">
             <span className="character-name">{c.name}</span>
             <span>
-              {classes.find((k) => k.id === c.class)?.name ?? c.class} · Lv {c.level}
+              {className(c.class)} · Lv {c.level}
             </span>
           </header>
           <Vitals c={c} expToNext={expToNext} />

@@ -16,7 +16,7 @@ service ItemService {
   rpc Move(MoveRequest) returns (MoveResponse);
   // Discard destroys an item or part of a stack.
   rpc Discard(DiscardRequest) returns (DiscardResponse);
-  // GrantStarter gives a new character its starter items once, keyed by the character ID.
+  // GrantStarter gives a new character the start class's starter items once, keyed by the character ID.
   rpc GrantStarter(GrantStarterRequest) returns (GrantStarterResponse);
   // Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
   rpc Equip(EquipRequest) returns (EquipResponse);
@@ -267,7 +267,9 @@ message DiscardResponse {
 
 message GrantStarterRequest {
   Actor actor = 1;
-  string class = 2;
+  // Every character starts as the same class, so the items are that class's.
+  reserved 2;
+  reserved "class";
 }
 
 message GrantStarterResponse {

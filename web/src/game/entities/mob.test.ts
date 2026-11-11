@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { mobs } from '@/gamedata/mobs';
 
 import { ANIM, TEX, greyKey } from '../keys';
-import { greyMobArt } from '../scenes/grey-art';
+import { greyArt } from '../scenes/grey-art';
 
 import { mobArt } from './mob';
 
@@ -30,7 +30,7 @@ describe('mob art', () => {
   );
 
   it('every mob in the data gets textures and an animation the preloader makes, and its elite mark', () => {
-    const grey = greyMobArt();
+    const grey = greyArt();
     const textures = new Set<string>([...Object.values(TEX), ...grey.textures.map(greyKey)]);
     const anims = new Set<string>([...Object.values(ANIM), ...grey.animations.map((a) => a.key)]);
     for (const m of [...mobs.map((x) => x.id), 'from_a_newer_server']) {

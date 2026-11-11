@@ -23,7 +23,7 @@ func TestSmoke(t *testing.T) {
 	name := "smoke" + time.Now().Format("150405")
 	s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": name, "password": "correct horse"}), http.StatusCreated)
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": name, "password": "correct horse"}).body["token"].(string)
-	created := s.call("POST", "/api/characters", token, map[string]string{"name": "S" + name[len(name)-6:], "class": "warrior"})
+	created := s.call("POST", "/api/characters", token, map[string]string{"name": "S" + name[len(name)-6:]})
 	s.mustStatus(created, http.StatusCreated)
 	id := created.body["id"].(string)
 	p := s.connect(t, id)

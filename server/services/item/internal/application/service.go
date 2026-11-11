@@ -606,7 +606,11 @@ func (s *Service) equip(ctx context.Context, uow UnitOfWork, owner kernel.Charac
 	if err != nil {
 		return Result{}, err
 	}
-	switch progression.Meets(tmpl, in.Level, in.Class, in.Stats) {
+	class, ok := s.content.Class(in.Class)
+	if !ok {
+		return Result{}, kernel.ErrUnknownClass
+	}
+	switch progression.Meets(tmpl, in.Level, class, in.Stats) {
 	case progression.LevelUnmet:
 		return Result{}, model.ErrLevelTooLow
 	case progression.ClassUnmet:
@@ -746,12 +750,9 @@ func wornOf(inv []model.Item) []model.Item {
 	return out
 }
 
-// GrantStarter gives a new character its starter items once, recorded in starter_grants; later calls change nothing. Equipment is worn, unless its slot is taken.
-func (s *Service) GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (Result, error) {
-	c, ok := s.content.Class(class)
-	if !ok {
-		return Result{}, kernel.ErrUnknownClass
-	}
+// GrantStarter gives a new character the start class's starter items once, recorded in starter_grants; later calls change nothing. Equipment is worn, unless its slot is taken.
+func (s *Service) GrantStarter(ctx context.Context, actor model.Actor) (Result, error) {
+	c := s.content.StartClass()
 	tmpls := make([]gamedata.Item, 0, len(c.StarterItems))
 	for _, g := range c.StarterItems {
 		tmpl, ok := s.content.Item(g.Item)

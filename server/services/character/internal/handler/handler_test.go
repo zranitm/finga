@@ -29,7 +29,7 @@ import (
 var (
 	owner = kernel.NewAccountID()
 	ayla  = model.Character{
-		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Warrior, Level: 3, Exp: 40,
+		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Exp: 40,
 		Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true, HP: 150, MP: 20,
 		MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC),
 	}
@@ -71,8 +71,8 @@ func (f *fakeCharacters) Quests(_ context.Context, id kernel.CharacterID) ([]mod
 	return f.quests, f.err
 }
 
-func (f *fakeCharacters) Own(model.Character) (gamedata.Stats, error) {
-	return gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 13}, f.derivedErr
+func (f *fakeCharacters) Own(model.Character) gamedata.Stats {
+	return gamedata.Stats{STR: 18, DEX: 5, INT: 4, AGI: 5, VIT: 13}
 }
 
 func (f *fakeCharacters) Derived(model.Character) (progression.Derived, error) {
@@ -116,8 +116,8 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 	f := &fakeCharacters{}
 	c := client(t, f)
 	t.Run("Create", func(t *testing.T) {
-		res, err := c.Create(ctx, &characterv1.CreateRequest{AccountId: owner.String(), Name: "Ayla", Class: "warrior"})
-		if err != nil || f.account != owner || f.created != (application.CreateInput{Name: "Ayla", Class: kernel.Warrior}) {
+		res, err := c.Create(ctx, &characterv1.CreateRequest{AccountId: owner.String(), Name: "Ayla"})
+		if err != nil || f.account != owner || f.created != (application.CreateInput{Name: "Ayla"}) {
 			t.Fatalf("input %+v %v, err %v", f.created, f.account, err)
 		}
 		wantAyla(t, res.GetCharacter(), true)
@@ -199,7 +199,7 @@ func TestAMalformedIDNeverReachesTheModule(t *testing.T) {
 	c := client(t, f)
 	calls := []func() error{
 		func() error {
-			_, err := c.Create(ctx, &characterv1.CreateRequest{AccountId: "x", Name: "A", Class: "warrior"})
+			_, err := c.Create(ctx, &characterv1.CreateRequest{AccountId: "x", Name: "A"})
 			return err
 		},
 		func() error { _, err := c.List(ctx, &characterv1.ListRequest{}); return err },

@@ -69,6 +69,8 @@ mobs:
       - {item: leather_vest, chance: 0.06, min: 1, max: 1}
       - {item: iron_sword, chance: 0.03, min: 1, max: 1}
       - {item: hunting_bow, chance: 0.03, min: 1, max: 1}
+      - {item: iron_dagger, chance: 0.03, min: 1, max: 1}
+      - {item: willow_wand, chance: 0.03, min: 1, max: 1}
       - {item: copper_earrings, chance: 0.03, min: 1, max: 1}
       - {item: iron_helm, chance: 0.03, min: 1, max: 1}
       - {item: travelers_boots, chance: 0.03, min: 1, max: 1}
@@ -97,6 +99,8 @@ mobs:
       - {item: silver_pendant, chance: 0.02, min: 1, max: 1}
       - {item: steel_sword, chance: 0.015, min: 1, max: 1}
       - {item: longbow, chance: 0.015, min: 1, max: 1}
+      - {item: stiletto, chance: 0.015, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.015, min: 1, max: 1}
       - {item: silver_earrings, chance: 0.015, min: 1, max: 1}
       - {item: silver_ring, chance: 0.01, min: 1, max: 1}
       - {item: knight_helm, chance: 0.004, min: 1, max: 1}
@@ -105,6 +109,8 @@ mobs:
       - {item: plate_boots, chance: 0.004, min: 1, max: 1}
       - {item: knight_sword, chance: 0.003, min: 1, max: 1}
       - {item: composite_bow, chance: 0.003, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.003, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.003, min: 1, max: 1}
       - {item: plate_armor, chance: 0.003, min: 1, max: 1}
       - {item: moonstone_ring, chance: 0.002, min: 1, max: 1}
   - id: spore_slime
@@ -129,6 +135,8 @@ mobs:
       - {item: blue_potion, chance: 0.15, min: 1, max: 1}
       - {item: steel_sword, chance: 0.03, min: 1, max: 1}
       - {item: longbow, chance: 0.03, min: 1, max: 1}
+      - {item: stiletto, chance: 0.03, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.03, min: 1, max: 1}
       - {item: iron_helm, chance: 0.025, min: 1, max: 1}
       - {item: chain_leggings, chance: 0.025, min: 1, max: 1}
       - {item: travelers_boots, chance: 0.025, min: 1, max: 1}
@@ -157,6 +165,8 @@ mobs:
       - {item: blue_potion, chance: 0.3, min: 1, max: 1}
       - {item: steel_sword, chance: 0.06, min: 1, max: 1}
       - {item: longbow, chance: 0.06, min: 1, max: 1}
+      - {item: stiletto, chance: 0.06, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.06, min: 1, max: 1}
       - {item: iron_helm, chance: 0.05, min: 1, max: 1}
       - {item: chain_leggings, chance: 0.05, min: 1, max: 1}
       - {item: travelers_boots, chance: 0.05, min: 1, max: 1}
@@ -188,6 +198,8 @@ mobs:
       - {item: silver_earrings, chance: 0.02, min: 1, max: 1}
       - {item: steel_sword, chance: 0.02, min: 1, max: 1}
       - {item: longbow, chance: 0.02, min: 1, max: 1}
+      - {item: stiletto, chance: 0.02, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.02, min: 1, max: 1}
       - {item: plate_boots, chance: 0.002, min: 1, max: 1}
       - {item: plate_gauntlets, chance: 0.002, min: 1, max: 1}
   - id: toadstool_rat
@@ -217,6 +229,8 @@ mobs:
       - {item: silver_earrings, chance: 0.04, min: 1, max: 1}
       - {item: steel_sword, chance: 0.04, min: 1, max: 1}
       - {item: longbow, chance: 0.04, min: 1, max: 1}
+      - {item: stiletto, chance: 0.04, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.04, min: 1, max: 1}
       - {item: plate_boots, chance: 0.004, min: 1, max: 1}
       - {item: plate_gauntlets, chance: 0.004, min: 1, max: 1}
   - id: glow_slime
@@ -246,6 +260,8 @@ mobs:
       - {item: silver_pendant, chance: 0.025, min: 1, max: 1}
       - {item: knight_sword, chance: 0.002, min: 1, max: 1}
       - {item: composite_bow, chance: 0.002, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.002, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.002, min: 1, max: 1}
       - {item: plate_armor, chance: 0.002, min: 1, max: 1}
   - id: elder_snail
     name: Elder Snail
@@ -275,6 +291,8 @@ mobs:
       - {item: silver_pendant, chance: 0.05, min: 1, max: 1}
       - {item: knight_sword, chance: 0.004, min: 1, max: 1}
       - {item: composite_bow, chance: 0.004, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.004, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.004, min: 1, max: 1}
       - {item: plate_armor, chance: 0.004, min: 1, max: 1}
   - id: sand_mouse
     name: Sand Mouse
@@ -300,6 +318,8 @@ mobs:
       - {item: plate_greaves, chance: 0.03, min: 1, max: 1}
       - {item: knight_sword, chance: 0.025, min: 1, max: 1}
       - {item: composite_bow, chance: 0.025, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.025, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.025, min: 1, max: 1}
       - {item: gold_pendant, chance: 0.002, min: 1, max: 1}
   - id: shellback_scarab
     name: Shellback Scarab
@@ -326,6 +346,8 @@ mobs:
       - {item: plate_greaves, chance: 0.06, min: 1, max: 1}
       - {item: knight_sword, chance: 0.05, min: 1, max: 1}
       - {item: composite_bow, chance: 0.05, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.05, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.05, min: 1, max: 1}
       - {item: gold_pendant, chance: 0.004, min: 1, max: 1}
   - id: dust_vulture
     name: Dust Vulture
@@ -400,6 +422,8 @@ mobs:
       - {item: mana_elixir, chance: 0.1, min: 1, max: 1}
       - {item: knight_sword, chance: 0.02, min: 1, max: 1}
       - {item: composite_bow, chance: 0.02, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.02, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.02, min: 1, max: 1}
       - {item: plate_armor, chance: 0.02, min: 1, max: 1}
       - {item: plate_greaves, chance: 0.025, min: 1, max: 1}
       - {item: plate_gauntlets, chance: 0.02, min: 1, max: 1}
@@ -428,6 +452,8 @@ mobs:
       - {item: mana_elixir, chance: 0.2, min: 1, max: 1}
       - {item: knight_sword, chance: 0.04, min: 1, max: 1}
       - {item: composite_bow, chance: 0.04, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.04, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.04, min: 1, max: 1}
       - {item: plate_armor, chance: 0.04, min: 1, max: 1}
       - {item: plate_greaves, chance: 0.05, min: 1, max: 1}
       - {item: plate_gauntlets, chance: 0.04, min: 1, max: 1}
@@ -558,6 +584,8 @@ mobs:
       - {item: gold_earrings, chance: 0.02, min: 1, max: 1}
       - {item: runeblade, chance: 0.002, min: 1, max: 1}
       - {item: windpiercer, chance: 0.002, min: 1, max: 1}
+      - {item: nightfang, chance: 0.002, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.002, min: 1, max: 1}
       - {item: mythril_plate, chance: 0.002, min: 1, max: 1}
       - {item: starlight_earrings, chance: 0.002, min: 1, max: 1}
       - {item: starlight_ring, chance: 0.002, min: 1, max: 1}
@@ -587,6 +615,8 @@ mobs:
       - {item: gold_earrings, chance: 0.04, min: 1, max: 1}
       - {item: runeblade, chance: 0.004, min: 1, max: 1}
       - {item: windpiercer, chance: 0.004, min: 1, max: 1}
+      - {item: nightfang, chance: 0.004, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.004, min: 1, max: 1}
       - {item: mythril_plate, chance: 0.004, min: 1, max: 1}
       - {item: starlight_earrings, chance: 0.004, min: 1, max: 1}
       - {item: starlight_ring, chance: 0.004, min: 1, max: 1}
@@ -612,6 +642,8 @@ mobs:
       - {item: mana_elixir, chance: 0.2, min: 1, max: 1}
       - {item: runeblade, chance: 0.012, min: 1, max: 1}
       - {item: windpiercer, chance: 0.012, min: 1, max: 1}
+      - {item: nightfang, chance: 0.012, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.012, min: 1, max: 1}
       - {item: mythril_helm, chance: 0.015, min: 1, max: 1}
       - {item: mythril_plate, chance: 0.01, min: 1, max: 1}
       - {item: mythril_greaves, chance: 0.015, min: 1, max: 1}
@@ -646,6 +678,8 @@ mobs:
       - {item: mana_elixir, chance: 0.4, min: 1, max: 1}
       - {item: runeblade, chance: 0.024, min: 1, max: 1}
       - {item: windpiercer, chance: 0.024, min: 1, max: 1}
+      - {item: nightfang, chance: 0.024, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.024, min: 1, max: 1}
       - {item: mythril_helm, chance: 0.03, min: 1, max: 1}
       - {item: mythril_plate, chance: 0.02, min: 1, max: 1}
       - {item: mythril_greaves, chance: 0.03, min: 1, max: 1}

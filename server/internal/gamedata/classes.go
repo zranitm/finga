@@ -1,6 +1,7 @@
 package gamedata
 
 import (
+	"slices"
 	"time"
 
 	"finga/internal/kernel"
@@ -31,18 +32,29 @@ type Grant struct {
 	Quantity int
 }
 
-// Class is a playable class.
+// Class is a class in the tree every character climbs from its root, the class they start as.
 type Class struct {
-	ID           kernel.Class
-	Name         string
-	Attack       Attack
+	ID     kernel.Class
+	Name   string
+	Parent kernel.Class   // "" for the root
+	Line   []kernel.Class // the class, then each class above it up to the root
+	Attack Attack
+	// The root alone has these: every character starts with them, and a promotion keeps them.
 	BaseStats    Stats // primary stats at level 1
-	AutoAssign   Stats // how Auto-assign spends a level's points
 	StarterItems []Grant
+	AutoAssign   Stats // how Auto-assign spends a level's points; none on the root, whose players spend their own
 }
 
-// Classes lists the playable classes in file order.
+// Fits reports whether a weapon for class item fits a character of c: one of c's class or a class above it, or one for no class.
+func (c Class) Fits(item kernel.Class) bool {
+	return item == "" || slices.Contains(c.Line, item)
+}
+
+// Classes lists the classes in file order, the root first.
 func (d *Data) Classes() []Class { return d.p.Classes }
 
-// Class finds a playable class.
+// Class finds a class.
 func (d *Data) Class(id kernel.Class) (Class, bool) { return find(d.p.Classes, d.classIdx, id) }
+
+// StartClass is the root of the tree, the class every new character starts as.
+func (d *Data) StartClass() Class { return d.p.Classes[0] }

@@ -25,7 +25,7 @@ type UnitOfWork interface {
 
 // StarterItems grants starter items after the character commits; grants are idempotent.
 type StarterItems interface {
-	GrantStarter(ctx context.Context, account kernel.AccountID, character kernel.CharacterID, class kernel.Class) error
+	GrantStarter(ctx context.Context, account kernel.AccountID, character kernel.CharacterID) error
 	Retryable(err error) bool
 }
 
@@ -42,6 +42,8 @@ type Repository interface {
 
 // Content is what the use cases need from game data.
 type Content interface {
+	// StartClass is the class every new character starts as: the root of the tree.
+	StartClass() gamedata.Class
 	Class(id kernel.Class) (gamedata.Class, bool)
 	StatRules() gamedata.StatRules
 	StartTown() *gamedata.Map

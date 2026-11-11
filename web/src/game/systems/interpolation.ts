@@ -1,4 +1,6 @@
 // Remote players are drawn behind the newest server state, blended between buffered states.
+import { classes } from '@/gamedata/classes';
+
 import { wireState } from './prediction';
 import type { ServerState, WireState } from './prediction';
 
@@ -175,7 +177,7 @@ export class RemotePlayers {
   }
 
   classOf(id: string): string {
-    return this.info.get(id)?.cls ?? 'warrior';
+    return this.info.get(id)?.cls ?? classes[0].id;
   }
 
   get size(): number {

@@ -44,7 +44,6 @@ type fakeItems struct {
 	handIn    application.HandInInput
 	asked     []application.Completion
 	handedIn  []application.HandIn
-	class     kernel.Class
 	inventory model.Inventory
 	result    application.Result
 	replayed  bool // Use answers it
@@ -134,11 +133,11 @@ func (f *fakeItems) HandedIn(_ context.Context, owner kernel.CharacterID, asked 
 	return f.handedIn, f.err
 }
 
-func (f *fakeItems) GrantStarter(_ context.Context, actor model.Actor, class kernel.Class) (application.Result, error) {
+func (f *fakeItems) GrantStarter(_ context.Context, actor model.Actor) (application.Result, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
-	f.actor, f.class = actor, class
+	f.actor = actor
 	return f.result, f.err
 }
 
@@ -274,7 +273,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.equip != (application.EquipInput{Key: key1, ItemID: sword.ID, EquipSlot: "weapon", Level: 9, Class: kernel.Warrior, Stats: gamedata.Stats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5}}) {
+		if f.equip != (application.EquipInput{Key: key1, ItemID: sword.ID, EquipSlot: "weapon", Level: 9, Class: kernel.Class("warrior"), Stats: gamedata.Stats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5}}) {
 			t.Fatalf("equip %+v", f.equip)
 		}
 		eq, worn := res.GetEquipment(), res.GetWorn()
@@ -338,12 +337,12 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		wantChanged(t, got[0])
 	})
 	t.Run("GrantStarter", func(t *testing.T) {
-		res, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "bowman"})
+		res, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.class != kernel.Bowman || f.actor.Character != character {
-			t.Fatalf("class %v actor %+v", f.class, f.actor)
+		if f.actor.Character != character {
+			t.Fatalf("actor %+v", f.actor)
 		}
 		wantChanged(t, res)
 	})
@@ -399,18 +398,10 @@ func TestMalformedRequestsNeverReachTheModule(t *testing.T) {
 			_, err := c.Add(ctx, &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{}})
 			return err
 		}, itemv1.Reason_REASON_BAD_CAUSE},
-		{"a class", func() error {
-			_, err := c.GrantStarter(ctx, &itemv1.GrantStarterRequest{Actor: actor, Class: "paladin"})
-			return err
-		}, itemv1.Reason_REASON_UNKNOWN_CLASS},
 		{"an item to equip", func() error {
 			_, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: "bad", Level: 1, Class: "warrior"})
 			return err
 		}, itemv1.Reason_REASON_BAD_ID},
-		{"the class an equip is checked against", func() error {
-			_, err := c.Equip(ctx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: key1, ItemId: potion.ID.String(), Level: 1, Class: "paladin"})
-			return err
-		}, itemv1.Reason_REASON_UNKNOWN_CLASS},
 		{"a hand-in's actor", func() error {
 			_, err := c.HandIn(ctx, &itemv1.HandInRequest{Actor: bad, QuestId: "slime_cleanup", Completion: 1})
 			return err

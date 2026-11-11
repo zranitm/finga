@@ -1,6 +1,6 @@
 // What one copy of an item is; the caller decides what to compare it with and what the character misses.
-import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
+import { className } from '@/progression/classes';
 import { primaryKeys } from '@/progression/stats';
 import type { PrimaryKey } from '@/progression/stats';
 import type { ItemView } from '@/protocol/messages';
@@ -70,7 +70,7 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
   const rows = itemStats.filter(
     (info) => t.stats?.[info.data] !== undefined || changes?.[info.key] !== undefined,
   );
-  const className = classes.find((c) => c.id === t.class)?.name ?? t.class;
+  const forClass = t.class === undefined ? undefined : className(t.class);
   const required = primaryKeys.filter((k) => (t.requires?.[k] ?? 0) > 0);
   return (
     <div className="item-card" role="group" aria-label={heading ? `${heading}: ${t.name}` : t.name}>
@@ -79,13 +79,13 @@ export function ItemCard({ template: t, view, unmet, changes, heading }: ItemCar
       <div className="item-card-type">
         <span aria-label={`${t.stars} stars`}>{'★'.repeat(t.stars)}</span> {typeName(t)}
       </div>
-      {(t.min_level !== undefined || className !== undefined || required.length > 0) && (
+      {(t.min_level !== undefined || forClass !== undefined || required.length > 0) && (
         <ul className="item-card-requirements" aria-label="Requirements">
           {t.min_level !== undefined && (
             <li className={unmet?.level ? 'unmet' : undefined}>Level {t.min_level}</li>
           )}
-          {className !== undefined && (
-            <li className={unmet?.class ? 'unmet' : undefined}>{className}</li>
+          {forClass !== undefined && (
+            <li className={unmet?.class ? 'unmet' : undefined}>{forClass}</li>
           )}
           {required.map((k) => (
             <li key={k} className={unmet?.stats.includes(k) ? 'unmet' : undefined}>

@@ -66,7 +66,8 @@ export interface RestClient {
   /** Ends every session of the account; a failure other than 401 keeps the token, as the others may still be open. */
   logoutEverywhere(): Promise<void>;
   listCharacters(): Promise<Character[]>;
-  createCharacter(name: string, cls: string): Promise<Character>;
+  /** Every new character is a Beginner; a class comes later, at a trainer. */
+  createCharacter(name: string): Promise<Character>;
   getSettings(): Promise<Settings>;
   putSettings(settings: Settings): Promise<Settings>;
 }
@@ -149,8 +150,7 @@ export function createRestClient(opts: RestOptions = {}): RestClient {
     },
     listCharacters: async () =>
       (await call<{ characters: Character[] }>('GET', '/api/characters')).characters,
-    createCharacter: (name, cls) =>
-      call<Character>('POST', '/api/characters', { name, class: cls }),
+    createCharacter: (name) => call<Character>('POST', '/api/characters', { name }),
     getSettings: () => call<Settings>('GET', '/api/settings'),
     putSettings: (settings) => call<Settings>('PUT', '/api/settings', settings),
   };

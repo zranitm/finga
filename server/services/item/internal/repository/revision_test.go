@@ -57,11 +57,11 @@ func TestEachChangeTakesTheInventorysNextRevision(t *testing.T) {
 		}
 	})
 	t.Run("a starter kit takes one revision for all its slots, and a second grant none", func(t *testing.T) {
-		kit, err := h.svc.GrantStarter(ctx, h.actor, kernel.Warrior)
+		kit, err := h.svc.GrantStarter(ctx, h.actor)
 		if err != nil || len(kit.Changed) != 1 || len(kit.Equipment) != 1 || kit.Revision != 4 {
 			t.Fatalf("starter kit %+v (%v), want its slots at revision 4", kit, err)
 		}
-		again, err := h.svc.GrantStarter(ctx, h.actor, kernel.Warrior)
+		again, err := h.svc.GrantStarter(ctx, h.actor)
 		if err != nil || again.Revision != 0 || h.revision(t) != 4 {
 			t.Fatalf("second grant %+v (%v), inventory at %d; want no revision, still 4", again, err, h.revision(t))
 		}

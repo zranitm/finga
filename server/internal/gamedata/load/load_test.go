@@ -55,16 +55,23 @@ line_max: 120
 `,
 		"classes.yaml": `
 classes:
+  - id: beginner
+    name: Beginner
+    look: {sprite: alien_blue, tint: 0xd8c8a8}
+    attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 700ms}
+    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
+    starter_items: [{item: wooden_sword, quantity: 1}]
   - id: warrior
     name: Warrior
+    parent: beginner
+    look: {sprite: alien_blue}
     attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
-    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     auto_assign: {str: 3, vit: 2}
-    starter_items: [{item: wooden_sword, quantity: 1}]
   - id: bowman
     name: Bowman
+    parent: beginner
+    look: {sprite: alien_green}
     attack: {kind: ranged, damage: magic, range: 420, cooldown: 800ms}
-    base_stats: {str: 5, dex: 12, int: 4, agi: 10, vit: 5}
     auto_assign: {dex: 3, agi: 2}
 `,
 		"stats.yaml": `
@@ -82,6 +89,7 @@ diminishing:
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
 classes:
+  beginner: {max_hp: {base: 55, per_level: 15}, accuracy: {base: 12}}
   warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10}, crit_damage: {base: 0.5}}
   bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}
 `,
@@ -137,7 +145,7 @@ npcs:
   - id: hunter
     name: Hunter
     look: hunter
-    trainer: thief
+    trainer: bowman
     gives: [warrior_drill]
     takes: [gel_for_me, warrior_drill]
 `,
@@ -288,25 +296,46 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
 		}
 	})
-	t.Run("classes, with their attacks and auto-assign splits", func(t *testing.T) {
-		for _, class := range []kernel.Class{kernel.Warrior, kernel.Bowman} {
-			if c, ok := d.Class(class); !ok || c.ID != class {
-				t.Fatalf("class %s missing", class)
-			}
+	t.Run("the class tree, with its attacks and auto-assign splits", func(t *testing.T) {
+		root := d.StartClass()
+		if root.ID != "beginner" || root.Parent != "" || !slices.Equal(root.Line, []kernel.Class{"beginner"}) {
+			t.Fatalf("root = %+v, want the beginner", root)
 		}
-		if _, ok := d.Class(kernel.Thief); ok {
+		if root.BaseStats.STR != 12 || len(root.StarterItems) != 1 || root.AutoAssign != (gamedata.Stats{}) {
+			t.Fatalf("root stats %+v, starters %+v, split %+v", root.BaseStats, root.StarterItems, root.AutoAssign)
+		}
+		if _, ok := d.Class("thief"); ok {
 			t.Fatal("thief is not in the fixture but was found")
 		}
-		w, _ := d.Class(kernel.Warrior)
+		w, ok := d.Class("warrior")
+		if !ok || w.Parent != "beginner" || !slices.Equal(w.Line, []kernel.Class{"warrior", "beginner"}) {
+			t.Fatalf("warrior = %+v, want a child of the beginner", w)
+		}
 		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Cooldown: 600 * time.Millisecond}) {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
-		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats.STR != 12 {
+		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats != (gamedata.Stats{}) {
 			t.Fatalf("warrior stats = %+v / %+v", w.BaseStats, w.AutoAssign)
 		}
-		b, _ := d.Class(kernel.Bowman)
+		b, _ := d.Class("bowman")
 		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic {
 			t.Fatalf("bowman attack = %+v", b.Attack)
+		}
+	})
+	t.Run("a class fits its own items, its ancestors' and classless ones", func(t *testing.T) {
+		w, _ := d.Class("warrior")
+		root := d.StartClass()
+		for _, tt := range []struct {
+			c    gamedata.Class
+			item kernel.Class
+			want bool
+		}{
+			{w, "", true}, {w, "warrior", true}, {w, "beginner", true}, {w, "bowman", false},
+			{root, "", true}, {root, "beginner", true}, {root, "warrior", false},
+		} {
+			if got := tt.c.Fits(tt.item); got != tt.want {
+				t.Errorf("%s fits a %q item = %v, want %v", tt.c.ID, tt.item, got, tt.want)
+			}
 		}
 	})
 	t.Run("the stat rules", func(t *testing.T) {
@@ -332,11 +361,11 @@ func TestValidDataLoads(t *testing.T) {
 		if r.Penetration != 0.5 || r.MinHit != 0.2 || r.MaxHit != 0.99 {
 			t.Fatalf("limits: penetration %v, hit %v to %v", r.Penetration, r.MinHit, r.MaxHit)
 		}
-		w := r.Classes[kernel.Warrior]
+		w := r.Classes[kernel.Class("warrior")]
 		if w.MaxHP != (gamedata.Grows{Base: 60, PerLevel: 18}) || w.CritDamage.Base != 0.5 || w.MaxHP.At(3) != 96 {
 			t.Fatalf("warrior bases %+v", w)
 		}
-		if b := r.Classes[kernel.Bowman]; b.Accuracy.Base != 15 || b.MaxMP != (gamedata.Grows{}) {
+		if b := r.Classes[kernel.Class("bowman")]; b.Accuracy.Base != 15 || b.MaxMP != (gamedata.Grows{}) {
 			t.Fatalf("bowman bases %+v: a stat left out has no base", b)
 		}
 	})
@@ -364,7 +393,7 @@ func TestValidDataLoads(t *testing.T) {
 	})
 	t.Run("items and mobs", func(t *testing.T) {
 		it, ok := d.Item("wooden_sword")
-		if !ok || it.Tab != gamedata.Equip || it.Slot != "weapon" || it.Class != kernel.Warrior || it.MaxStack != 1 || it.Stars != 1 || it.Description != "A practice blade." {
+		if !ok || it.Tab != gamedata.Equip || it.Slot != "weapon" || it.Class != kernel.Class("warrior") || it.MaxStack != 1 || it.Stars != 1 || it.Description != "A practice blade." {
 			t.Fatalf("wooden_sword = %+v", it)
 		}
 		if want := (gamedata.Rolls{PhysicalAttack: gamedata.Range{Min: 10, Max: 12}, STR: gamedata.Range{Max: 2}}); it.Rolls != want || it.Requires != (gamedata.Stats{}) {
@@ -454,8 +483,8 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("guide offers %v, takes %v", guide.Gives, guide.Takes)
 		}
 		hunter, _ := d.NPC("hunter")
-		if hunter.MapID != "field" || hunter.Trainer != kernel.Thief {
-			t.Fatalf("hunter = %+v: a trainer may teach a class the data doesn't offer yet", hunter)
+		if hunter.MapID != "field" || hunter.Trainer != "bowman" {
+			t.Fatalf("hunter = %+v, want the bowman's trainer", hunter)
 		}
 		if len(d.NPCs()) != 2 || d.NPCs()[0].ID != "guide" {
 			t.Fatalf("NPCs() = %+v", d.NPCs())
@@ -478,7 +507,7 @@ func TestValidDataLoads(t *testing.T) {
 		if gel.Level != 2 || !slices.Equal(gel.Requires, []string{"first_hunt"}) || !slices.Equal(gel.Objectives, want) || !gel.Repeatable || gel.TurnIn != "hunter" {
 			t.Fatalf("gel_for_me = %+v", gel)
 		}
-		if drill, _ := d.Quest("warrior_drill"); drill.Class != kernel.Warrior || drill.Rewards.Exp != 0 || drill.Rewards.Items != nil {
+		if drill, _ := d.Quest("warrior_drill"); drill.Class != kernel.Class("warrior") || drill.Rewards.Exp != 0 || drill.Rewards.Items != nil {
 			t.Fatalf("warrior_drill = %+v", drill)
 		}
 		if len(d.Quests()) != 3 || d.Quests()[2].ID != "warrior_drill" {
@@ -580,13 +609,24 @@ func TestRejections(t *testing.T) {
 		{"class bases for a class that doesn't exist", "stats.yaml", "  bowman:", "  thief: {max_hp: {base: 1}}\n  bowman:", []string{"stats.yaml", "thief"}},
 		{"a class base for a rate", "stats.yaml", `accuracy: {base: 15}`, `accuracy: {base: 15}, crit_rate: {base: 0.1}`, []string{"stats.yaml", "bowman", "crit_rate"}},
 		{"a class without bases", "stats.yaml", "  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}\n", "", []string{"stats.yaml", "bowman"}},
-		{"a class with an unknown attack kind", "classes.yaml", `kind: melee`, `kind: magic`, []string{"classes.yaml", "warrior", "magic"}},
-		{"an attack with an unknown damage type", "classes.yaml", `damage: physical`, `damage: fire`, []string{"classes.yaml", "warrior", "fire"}},
+		{"a class with an unknown attack kind", "classes.yaml", `kind: melee`, `kind: magic`, []string{"classes.yaml", "beginner", "magic"}},
+		{"an attack with an unknown damage type", "classes.yaml", `damage: physical`, `damage: fire`, []string{"classes.yaml", "beginner", "fire"}},
 		{"an auto-assign split that doesn't add up to the points a level gives", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 3, vit: 3}`, []string{"classes.yaml", "warrior", "auto_assign", "5"}},
 		{"an auto-assign split with a negative stat", "classes.yaml", `auto_assign: {str: 3, vit: 2}`, `auto_assign: {str: 6, vit: -1}`, []string{"classes.yaml", "warrior", "auto_assign"}},
-		{"a class id that isn't a class", "classes.yaml", `id: bowman`, `id: archer`, []string{"classes.yaml", "archer"}},
-		{"a starter item that doesn't exist", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: excalibur, quantity: 1}]`, []string{"classes.yaml", "warrior", "excalibur"}},
-		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "warrior", "wooden_sword"}},
+		{"a class renamed away from its bases", "classes.yaml", `id: bowman`, `id: archer`, []string{"stats.yaml", "bowman", "classes.yaml"}},
+		{"a first class with a parent, so no root", "classes.yaml", "    name: Beginner\n", "    name: Beginner\n    parent: warrior\n", []string{"classes.yaml", "beginner", "root"}},
+		{"a second root", "classes.yaml", "    parent: beginner\n    look: {sprite: alien_green}", "    look: {sprite: alien_green}", []string{"classes.yaml", "bowman", "root"}},
+		{"a parent that isn't above it in the file", "classes.yaml", "    name: Warrior\n    parent: beginner\n", "    name: Warrior\n    parent: bowman\n", []string{"classes.yaml", "warrior", "bowman"}},
+		{"a parent that doesn't exist", "classes.yaml", "    name: Warrior\n    parent: beginner\n", "    name: Warrior\n    parent: paladin\n", []string{"classes.yaml", "warrior", "paladin"}},
+		{"starting stats on a class a character is promoted to", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    base_stats: {str: 9}\n", []string{"classes.yaml", "warrior", "base_stats"}},
+		{"starter items on a class a character is promoted to", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    starter_items: [{item: red_potion, quantity: 1}]\n", []string{"classes.yaml", "warrior", "starter_items"}},
+		{"no starting stats on the root", "classes.yaml", "    base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}\n", "", []string{"classes.yaml", "beginner", "base_stats"}},
+		{"an auto-assign split on the root", "classes.yaml", "    base_stats: {str: 12", "    auto_assign: {str: 5}\n    base_stats: {str: 12", []string{"classes.yaml", "beginner", "auto_assign"}},
+		{"a class a character is promoted to, with no split", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "", []string{"classes.yaml", "warrior", "auto_assign"}},
+		{"a class without a look", "classes.yaml", "    look: {sprite: alien_blue}\n", "", []string{"classes.yaml", "warrior", "look"}},
+		{"a class tinted past RGB", "classes.yaml", "look: {sprite: alien_blue}", "look: {sprite: alien_blue, tint: 0x1000000}", []string{"classes.yaml", "warrior", "tint"}},
+		{"a starter item that doesn't exist", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: excalibur, quantity: 1}]`, []string{"classes.yaml", "beginner", "excalibur"}},
+		{"a starter stack above the stack size", "classes.yaml", `starter_items: [{item: wooden_sword, quantity: 1}]`, `starter_items: [{item: wooden_sword, quantity: 2}]`, []string{"classes.yaml", "beginner", "wooden_sword"}},
 		{"an item with an unknown tab", "items.yaml", `tab: etc`, `tab: misc`, []string{"items.yaml", "slime_gel", "misc"}},
 		{"equipment without a slot", "items.yaml", `slot: weapon, `, ``, []string{"items.yaml", "wooden_sword", "slot"}},
 		{"equipment naming a slot kind no equip slot has", "items.yaml", `slot: weapon, `, `slot: cape, `, []string{"items.yaml", "wooden_sword", "cape"}},
@@ -625,7 +665,8 @@ func TestRejections(t *testing.T) {
 		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},
 		{"an NPC with an empty line", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [\"\"]\n", []string{"npcs.yaml", "hunter", "line"}},
 		{"an NPC saying a line twice", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [Hi., Hi.]\n", []string{"npcs.yaml", "hunter", "twice"}},
-		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: thief`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
+		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: bowman`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
+		{"a trainer of the root, which nobody is promoted to", "npcs.yaml", `trainer: bowman`, `trainer: beginner`, []string{"npcs.yaml", "hunter", "beginner"}},
 		{"a talk reach of zero", "npcs.yaml", `talk_reach: 60`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
 		{"a quest its giver doesn't list under gives", "npcs.yaml", `gives: [first_hunt, gel_for_me]`, `gives: [first_hunt]`, []string{"quests.yaml", "gel_for_me", "guide", "gives"}},
 		{"a quest its turn-in NPC doesn't list under takes", "npcs.yaml", `takes: [gel_for_me, warrior_drill]`, `takes: [warrior_drill]`, []string{"quests.yaml", "gel_for_me", "hunter", "takes"}},
@@ -837,7 +878,6 @@ func TestRealDataLoads(t *testing.T) {
 		name string
 		ok   bool
 	}{
-		{"two Stage 1 classes", len(d.Classes()) == 2},
 		{"level cap 30", d.LevelCap() == 30},
 		{"new characters start in a town", d.StartTown() != nil && d.StartTown().Kind == gamedata.Town},
 		{"every listed item loaded", len(items) > 0 && allLoaded(d, items)},
@@ -851,6 +891,18 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		})
 	}
+	t.Run("every character starts a Beginner, promoted to one of four classes", func(t *testing.T) {
+		var children []kernel.Class
+		for _, c := range d.Classes()[1:] {
+			if c.Parent != d.StartClass().ID {
+				t.Errorf("%s: parent %q, want the beginner", c.ID, c.Parent)
+			}
+			children = append(children, c.ID)
+		}
+		if d.StartClass().ID != "beginner" || !slices.Equal(children, []kernel.Class{"warrior", "thief", "bowman", "magician"}) {
+			t.Fatalf("root %s, children %v", d.StartClass().ID, children)
+		}
+	})
 	t.Run("the EXP curve is round(20 × level^1.7)", func(t *testing.T) {
 		for level := 1; level < d.LevelCap(); level++ {
 			want := int64(math.Round(20 * math.Pow(float64(level), 1.7)))
@@ -876,14 +928,15 @@ func TestRealDataLoads(t *testing.T) {
 					t.Errorf("levels %d to %d: nothing for the %s slot", band[0], band[1], s.ID)
 				}
 			}
-			for _, c := range d.Classes() {
+			for _, c := range d.Classes()[1:] {
 				if !in(band[0], band[1], func(it gamedata.Item) bool { return it.Slot == "weapon" && it.Class == c.ID }) {
 					t.Errorf("levels %d to %d: no weapon for the %s", band[0], band[1], c.ID)
 				}
 			}
 		}
 	})
-	t.Run("every piece of equipment drops from a mob, or is a starter", func(t *testing.T) {
+	// A class's level 1 weapon is its trainer's gift at promotion.
+	t.Run("every piece of equipment drops from a mob, or is a starter or a class's first weapon", func(t *testing.T) {
 		got := map[string]bool{}
 		for _, m := range d.Mobs() {
 			for _, dr := range m.Drops {
@@ -896,7 +949,9 @@ func TestRealDataLoads(t *testing.T) {
 			}
 		}
 		for _, id := range items {
-			if it, _ := d.Item(id); it.Tab == gamedata.Equip && !got[id] {
+			it, _ := d.Item(id)
+			first := it.Slot == "weapon" && it.Class != "" && it.MinLevel == 1
+			if it.Tab == gamedata.Equip && !got[id] && !first {
 				t.Errorf("%s: nobody can get it", id)
 			}
 		}

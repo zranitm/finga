@@ -78,7 +78,7 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
     post:
       summary: Create a character
-      description: Name 3 to 12 characters (letters and digits, starting with a letter), unique ignoring case; class one of the stage's playable classes. At most 3 characters per account in Stage 1.
+      description: Name 3 to 12 characters (letters and digits, starting with a letter), unique ignoring case. Every new character is a Beginner, and picks a class later at a trainer. At most 3 characters per account in Stage 1.
       security: [{ bearer: [] }]
       requestBody:
         required: true
@@ -160,10 +160,9 @@ components:
         token: { type: string }
     CreateCharacterRequest:
       type: object
-      required: [name, class]
+      required: [name]
       properties:
         name: { type: string }
-        class: { type: string, enum: [warrior, bowman] }
     Stats:
       type: object
       required: [str, dex, int, agi, vit]
@@ -179,7 +178,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         name: { type: string }
-        class: { type: string }
+        class: { type: string, description: "A class in the game data's tree; beginner until a promotion" }
         level: { type: integer }
         exp: { type: integer, description: EXP within the current level }
         stats: { $ref: "#/components/schemas/Stats" }

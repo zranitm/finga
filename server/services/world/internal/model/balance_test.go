@@ -27,12 +27,12 @@ const (
 type region struct {
 	name       string
 	from       int        // a map is in the last region whose from is at most its min_level
-	hits       [2]float64 // a normal mob's landed hits to kill, either class
-	survives   [2]int     // the bowman's touches lived through; 0 as the top is no top
-	playerHits float64    // the least share of either class's attacks that land, when below the class's own floor
+	hits       [2]float64 // a normal mob's landed hits to kill at the reference pace; a faster class needs more, a slower one fewer
+	survives   [2]int     // a ranged class's touches lived through, the least of them a melee class's; 0 as the top is no top
+	playerHits float64    // the least share of every class's attacks that land, when below the class's own floor
 }
 
-// Forest and cave are only logged: classes and skills retune them.
+// Forest and cave are only logged: they are the Beginner's, and skills retune them.
 var regions = []region{
 	{name: "A", from: 15, hits: [2]float64{2.5, 3.5}, survives: [2]int{10, 12}},
 	{name: "B", from: 21, hits: [2]float64{3.5, 4.5}, survives: [2]int{8, 10}},
@@ -40,11 +40,24 @@ var regions = []region{
 	{name: "D", from: 31, hits: [2]float64{6, 8}, survives: [2]int{4, 0}, playerHits: 0.70},
 }
 
+// fighter is what a class a Beginner is promoted to must manage against a mob of its level.
+type fighter struct {
+	hitFloor float64    // the least share of its attacks that land
+	touched  [2]float64 // the share of a mob's touches that land on it
+}
+
+var fighters = map[kernel.Class]fighter{
+	"warrior":  {hitFloor: 0.75, touched: [2]float64{0.85, 1}},    // its accuracy barely grows, so a mob's evasion must stay near it
+	"thief":    {hitFloor: 0.80, touched: [2]float64{0.45, 0.65}}, // dodges more than the bowman, and stands in reach
+	"bowman":   {hitFloor: 0.80, touched: [2]float64{0.65, 0.85}},
+	"magician": {hitFloor: 0.75, touched: [2]float64{0.85, 1}},
+}
+
 const (
-	warriorHitFloor = 0.75 // the warrior's accuracy barely grows, so a mob's evasion must stay near it
-	bowmanHitFloor  = 0.80
-	killsPerLevel   = 30 // a normal mob's EXP is about a thirtieth of its level's
-	bandStars       = 5  // ★6 and ★7 are rare finds, not what a character can expect to wear
+	refPace        = 0.75 // seconds a landed hit takes the warrior, 600 ms at 80% landing, which the hits bands are set at
+	promotionLevel = 10   // below it a character is a Beginner
+	killsPerLevel  = 30   // a normal mob's EXP is about a thirtieth of its level's
+	bandStars      = 5    // ★6 and ★7 are rare finds, not what a character can expect to wear
 )
 
 func regionOf(m *gamedata.Map) (region, bool) {
@@ -67,18 +80,18 @@ type fight struct {
 	secondsPerKill  float64 // attacking, misses included, at the character's attack pace
 }
 
-// character is a class at level, its points spent by its class's split and wearing, in every slot, the newest band gear it can use at its middle roll.
-func character(d *gamedata.Data, items []gamedata.Item, c gamedata.Class, level int) progression.Derived {
-	own := c.BaseStats
+// character is a class at level, every level's points spent by split and wearing, in every slot, the newest band gear it can use at its middle roll.
+func character(d *gamedata.Data, items []gamedata.Item, c gamedata.Class, split gamedata.Stats, level int) progression.Derived {
+	own := d.StartClass().BaseStats
 	for range level - 1 {
-		own = progression.AddStats(own, c.AutoAssign)
+		own = progression.AddStats(own, split)
 	}
 	var worn []progression.WornItem
 	for _, s := range d.EquipSlots() {
 		var best *gamedata.Item
 		for k := range items {
 			it := &items[k]
-			if it.Tab != gamedata.Equip || it.Slot != s.Kind || it.Stars > bandStars || progression.Meets(*it, level, c.ID, own) != progression.NothingUnmet {
+			if it.Tab != gamedata.Equip || it.Slot != s.Kind || it.Stars > bandStars || progression.Meets(*it, level, c, own) != progression.NothingUnmet {
 				continue
 			}
 			if best == nil || it.MinLevel > best.MinLevel {
@@ -90,7 +103,7 @@ func character(d *gamedata.Data, items []gamedata.Item, c gamedata.Class, level 
 			worn = append(worn, progression.WornItem{Item: *best, Stats: mid})
 		}
 	}
-	return progression.DeriveStats(d.StatRules(), c.ID, level, own, progression.Active(worn, level, c.ID, own))
+	return progression.DeriveStats(d.StatRules(), c.ID, level, own, progression.Active(worn, level, c, own))
 }
 
 // fightOf resolves many attacks each way with the world's own combat, from a fixed seed.
@@ -164,7 +177,30 @@ func mapMobs(d *gamedata.Data, m *gamedata.Map) (normal, elite []gamedata.Mob) {
 	return normal, elite
 }
 
-// Every hunting map's mobs against an on-level warrior and bowman, held to their region's targets from A on; the table is logged for tuning.
+// player is who meets a mob: a class a Beginner is promoted to, or a Beginner spending its points by the split of the class it means to become.
+type player struct {
+	class gamedata.Class
+	split gamedata.Stats
+	name  string
+}
+
+// players are who meets a mob of level: Beginners below the promotion level, the classes they are promoted to from it.
+func players(d *gamedata.Data, level int) []player {
+	var out []player
+	for _, c := range d.Classes() {
+		if c.Parent != d.StartClass().ID {
+			continue
+		}
+		if level < promotionLevel {
+			out = append(out, player{class: d.StartClass(), split: c.AutoAssign, name: "beg>" + string(c.ID)[:3]})
+		} else {
+			out = append(out, player{class: c, split: c.AutoAssign, name: string(c.ID)})
+		}
+	}
+	return out
+}
+
+// Every hunting map's mobs against each on-level class, held to their region's targets from A on; the table is logged for tuning.
 func TestBalance(t *testing.T) {
 	d, err := load.Dir(realData)
 	if err != nil {
@@ -178,9 +214,10 @@ func TestBalance(t *testing.T) {
 		rg, asserted := regionOf(m)
 		normals, elites := mapMobs(d, m)
 		for _, mob := range append(normals, elites...) {
-			for _, c := range d.Classes() {
-				level := min(mob.Level, d.LevelCap())
-				me := character(d, items, c, level)
+			level := min(mob.Level, d.LevelCap())
+			for _, p := range players(d, level) {
+				c := p.class
+				me := character(d, items, c, p.split, level)
 				f := fightOf(d, me, c, mob)
 				kills := math.NaN() // at the cap there is no next level
 				if exp, ok := d.ExpToNext(level); ok {
@@ -190,15 +227,15 @@ func TestBalance(t *testing.T) {
 				if !math.IsNaN(kills) {
 					pace = fmt.Sprintf("kills/level %4.0f  attacking/level %5.0fs", kills, kills*f.secondsPerKill)
 				}
-				t.Logf("%-17s %-16s L%-2d %-7s hits %4.1f  hit %3.0f%%  survives %3d  touched %3.0f%%  %s",
-					m.ID, mob.ID, mob.Level, c.ID, f.hitsToKill, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, pace)
+				t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  %s",
+					m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, pace)
 				if !asserted {
 					continue
 				}
 				check(t, m, rg, mob, c, f, kills)
 				if mob.Elite && len(normals) > 0 {
 					normal := normals[0]
-					n := fightOf(d, character(d, items, c, min(normal.Level, d.LevelCap())), c, normal)
+					n := fightOf(d, character(d, items, c, p.split, min(normal.Level, d.LevelCap())), c, normal)
 					checkElite(t, m, mob, normal, c, f, n)
 				}
 			}
@@ -209,37 +246,34 @@ func TestBalance(t *testing.T) {
 func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedata.Class, f fight, kills float64) {
 	t.Helper()
 	where := m.ID + " " + mob.ID + " vs " + string(c.ID)
-	if !mob.Elite && (f.hitsToKill < rg.hits[0] || f.hitsToKill > rg.hits[1]) {
-		t.Errorf("%s: %.1f hits to kill, want %.1f to %.1f in region %s", where, f.hitsToKill, rg.hits[0], rg.hits[1], rg.name)
+	// Every class kills about as fast: the time a kill takes, misses and pace included, in hits at the reference pace.
+	if paced := f.secondsPerKill / refPace; !mob.Elite && (paced < rg.hits[0] || paced > rg.hits[1]) {
+		t.Errorf("%s: %.1f hits to kill at the reference pace (%.1f landed), want %.1f to %.1f in region %s", where, paced, f.hitsToKill, rg.hits[0], rg.hits[1], rg.name)
 	}
 	if !mob.Elite && !math.IsNaN(kills) && math.Abs(kills-killsPerLevel) > 5 {
 		t.Errorf("%s: %.0f kills a level, want about %d", where, kills, killsPerLevel)
 	}
-	floor := warriorHitFloor
-	if c.ID == kernel.Bowman {
-		floor = bowmanHitFloor
+	want, ok := fighters[c.ID]
+	if !ok {
+		t.Fatalf("%s: no targets for the class", where)
 	}
+	floor := want.hitFloor
 	if rg.playerHits > 0 {
 		floor = min(floor, rg.playerHits)
 	}
 	if f.hitRate < floor {
 		t.Errorf("%s: %.0f%% of attacks land, want at least %.0f%%", where, 100*f.hitRate, 100*floor)
 	}
-	switch c.ID {
-	case kernel.Bowman:
-		if f.touchesSurvived < rg.survives[0] || rg.survives[1] > 0 && f.touchesSurvived > rg.survives[1] {
-			t.Errorf("%s: survives %d touches, want %d to %d in region %s", where, f.touchesSurvived, rg.survives[0], rg.survives[1], rg.name)
-		}
-		if f.touchRate < 0.65 || f.touchRate > 0.85 {
-			t.Errorf("%s: %.0f%% of touches land, want 65%% to 85%%", where, 100*f.touchRate)
-		}
-	case kernel.Warrior:
-		if f.touchesSurvived < rg.survives[0] {
-			t.Errorf("%s: survives %d touches, want at least the bowman's %d", where, f.touchesSurvived, rg.survives[0])
-		}
-		if f.touchRate < 0.85 {
-			t.Errorf("%s: %.0f%% of touches land, want at least 85%%", where, 100*f.touchRate)
-		}
+	if f.touchRate < want.touched[0] || f.touchRate > want.touched[1] {
+		t.Errorf("%s: %.0f%% of touches land, want %.0f%% to %.0f%%", where, 100*f.touchRate, 100*want.touched[0], 100*want.touched[1])
+	}
+	// A melee class stands in reach, so it may outlast the band's top; a ranged one keeps its distance. Against magic, classes differ by design, the Magician most of all.
+	top := rg.survives[1]
+	if c.Attack.Kind == gamedata.Melee || mob.Damage == gamedata.Magic {
+		top = 0
+	}
+	if f.touchesSurvived < rg.survives[0] || top > 0 && f.touchesSurvived > top {
+		t.Errorf("%s: survives %d touches, want %d to %d in region %s", where, f.touchesSurvived, rg.survives[0], top, rg.name)
 	}
 }
 

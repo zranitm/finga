@@ -15,11 +15,10 @@ type Starter struct{ c itemv1.ItemServiceClient }
 // NewStarter adapts the item client.
 func NewStarter(c itemv1.ItemServiceClient) Starter { return Starter{c: c} }
 
-// GrantStarter asks for the class's starter items, keyed by the character.
-func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, character kernel.CharacterID, class kernel.Class) error {
+// GrantStarter asks for the starter items, keyed by the character.
+func (s Starter) GrantStarter(ctx context.Context, account kernel.AccountID, character kernel.CharacterID) error {
 	_, err := s.c.GrantStarter(ctx, &itemv1.GrantStarterRequest{
 		Actor: &itemv1.Actor{AccountId: account.String(), CharacterId: character.String()},
-		Class: class.String(),
 	})
 	return err
 }

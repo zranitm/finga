@@ -10,8 +10,8 @@ import {
   addStats,
   autoAssign,
   derivedStats,
+  hasSplit,
   meets,
-  primaryKeys,
   sheetOf,
   statsShort,
   total,
@@ -41,7 +41,7 @@ const vectors = readdirSync(vectorsDir)
 const byData = Object.fromEntries(derivedStats.map((s) => [s.data, s.key]));
 const roll = (worn: Vector['worn']): Roll =>
   Object.fromEntries(Object.entries(worn).map(([k, v]) => [byData[k] ?? k, v]));
-const base = (cls: string): Primary => classes.find((c) => c.id === cls)!.base_stats;
+const base: Primary = classes[0].base_stats; // every character starts with the Beginner's
 
 describe('the stat vectors', () => {
   it('are all here', () => {
@@ -51,7 +51,7 @@ describe('the stat vectors', () => {
   });
 
   it.each(vectors.map((v) => [v.name, v] as const))('%s matches the server', (_, v) => {
-    const got = sheetOf(v.class, v.level, addStats(base(v.class), v.points), roll(v.worn));
+    const got = sheetOf(v.class, v.level, addStats(base, v.points), roll(v.worn));
     expect(got.primary).toEqual(v.expected.primary);
     expect(got.primaryWorn).toEqual(v.expected.primary_worn);
     for (const { key, data } of derivedStats) {
@@ -109,10 +109,12 @@ describe('autoAssign', () => {
     expect(total(got)).toBe(n);
   });
 
-  it('every class has a split of one level', () => {
-    for (const c of classes) {
+  it('every class a Beginner is promoted to has a split of one level; the Beginner has none', () => {
+    for (const c of classes.slice(1)) {
+      expect(hasSplit(c.id), c.id).toBe(true);
       expect(total(autoAssign(c.id, 5)), c.id).toBe(5);
-      expect(primaryKeys.some((k) => autoAssign(c.id, 5)[k] > 0)).toBe(true);
     }
+    expect(hasSplit('beginner')).toBe(false);
+    expect(total(autoAssign('beginner', 5))).toBe(0);
   });
 });

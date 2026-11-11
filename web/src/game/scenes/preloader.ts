@@ -5,7 +5,7 @@ import { images, mapFile } from '../assets';
 import { MAP_IDS, SCENES, animations, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 
-import { addGreyCopies, greyMobArt } from './grey-art';
+import { addGreyCopies, greyArt } from './grey-art';
 import { drawPlaceholders } from './placeholders';
 
 export class Preloader extends Phaser.Scene {
@@ -23,7 +23,7 @@ export class Preloader extends Phaser.Scene {
   }
 
   create(): void {
-    const grey = greyMobArt();
+    const grey = greyArt();
     addGreyCopies(this, grey.textures);
     for (const a of [...animations, ...grey.animations]) {
       if (!this.anims.exists(a.key)) {
