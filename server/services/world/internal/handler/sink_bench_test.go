@@ -18,7 +18,7 @@ func busyFrame(n int) *model.Frame {
 	f := &model.Frame{Tick: 9}
 	for i := range n {
 		f.Players = append(f.Players, model.PlayerView{
-			ID: kernel.NewCharacterID(), Name: fmt.Sprintf("Player%03d", i), Class: kernel.Warrior, Level: 12, HP: 180, MaxHP: 204,
+			ID: kernel.NewCharacterID(), Name: fmt.Sprintf("Player%03d", i), Class: kernel.Class("warrior"), Level: 12, HP: 180, MaxHP: 204,
 			State: sim.State{X: 100 + float64(i), Y: 608, VX: 200, OnGround: true, Facing: 1},
 		})
 	}

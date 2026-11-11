@@ -42,7 +42,7 @@ func TestConcurrentAddsFindTheirOwnSlots(t *testing.T) {
 				})
 			}
 			if tt.starter {
-				wg.Go(func() { starter, errs[n] = h.svc.GrantStarter(ctx, h.actor, "warrior") })
+				wg.Go(func() { starter, errs[n] = h.svc.GrantStarter(ctx, h.actor) })
 			}
 			wg.Wait()
 			for i, err := range errs {

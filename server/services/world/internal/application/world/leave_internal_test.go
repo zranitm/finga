@@ -40,7 +40,7 @@ func (nothing) SaveCheckpoint(context.Context, model.Checkpoint) error { return 
 func (nothing) Load(context.Context, kernel.CharacterID, kernel.AccountID) (model.Character, error) {
 	return model.Character{}, errNever
 }
-func (nothing) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+func (nothing) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {
 	return errNever
 }
 func (nothing) SaveDropped(string) {}

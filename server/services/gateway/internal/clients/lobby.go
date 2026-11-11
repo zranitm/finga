@@ -92,8 +92,8 @@ func (c Characters) List(ctx context.Context, account kernel.AccountID) ([]model
 }
 
 // Create creates a character.
-func (c Characters) Create(ctx context.Context, account kernel.AccountID, name, class string) (model.Character, error) {
-	res, err := c.c.Create(ctx, &characterv1.CreateRequest{AccountId: account.String(), Name: name, Class: class})
+func (c Characters) Create(ctx context.Context, account kernel.AccountID, name string) (model.Character, error) {
+	res, err := c.c.Create(ctx, &characterv1.CreateRequest{AccountId: account.String(), Name: name})
 	if err != nil {
 		return model.Character{}, errmap.Wrap(err)
 	}

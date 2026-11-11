@@ -8,6 +8,7 @@ import { QuestObjectives } from '@/features/shared/QuestObjectives';
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
+import { className } from '@/progression/classes';
 import { isReady, npcById, questById, questName } from '@/progression/quests';
 import type { Quest } from '@/progression/quests';
 import { QuestOfferState } from '@/protocol/messages';
@@ -174,7 +175,7 @@ export function unmetText(u: QuestConditions | undefined): string {
     parts.push(`Needs level ${u.level}`);
   }
   if (u?.class) {
-    parts.push(`${u.class.charAt(0).toUpperCase()}${u.class.slice(1)} only`);
+    parts.push(`${className(u.class)} only`);
   }
   if (u && u.quests.length > 0) {
     parts.push(`Finish ${u.quests.map(questName).join(', ')} first`);

@@ -53,7 +53,7 @@ async function play(ticks: number, gapAt = -1, gapTicks = 0): Promise<Run> {
   const rest = createRestClient({ origin });
   await rest.register(`live${stamp}`, 'correct horse battery');
   await rest.login(`live${stamp}`, 'correct horse battery');
-  const c = await rest.createCharacter(`P${stamp}`, 'warrior');
+  const c = await rest.createCharacter(`P${stamp}`);
 
   const socket = new GameSocket({ url: origin.replace(/^http/, 'ws') + '/ws', delayMs });
   const predictor = new Predictor(town.geometry, TIMING);

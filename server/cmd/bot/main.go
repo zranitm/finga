@@ -26,7 +26,6 @@ import (
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/gamedata"
 	"finga/internal/gamedata/load"
-	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
@@ -55,6 +54,13 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 	stamp := start.Format("150405")
 	ctx, cancel := context.WithTimeout(context.Background(), duration)
 	defer cancel()
+	// Every bot starts a Beginner and spends by the split of a class a Beginner is promoted to, a different one per bot.
+	var future []gamedata.Class
+	for _, c := range data.Classes() {
+		if c.Parent == data.StartClass().ID {
+			future = append(future, c)
+		}
+	}
 	bots := make([]*bot, 0, n)
 	var wg sync.WaitGroup
 	for k := range n {
@@ -62,9 +68,8 @@ func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duratio
 		if len(short) > 3 {
 			short = short[:3]
 		}
-		class, _ := data.Class([]kernel.Class{kernel.Warrior, kernel.Bowman}[k%2])
 		b := newBot(url, fmt.Sprintf("%s%s%d", prefix, stamp, k), strings.ToUpper(short[:1])+short[1:]+stamp+strconv.Itoa(k), k)
-		b.class, b.split, b.perLevel, b.data = class.ID, class.AutoAssign, data.StatRules().PointsPerLevel, data
+		b.split, b.perLevel, b.data = future[k%len(future)].AutoAssign, data.StatRules().PointsPerLevel, data
 		bots = append(bots, b)
 		wg.Go(func() { b.play(ctx, bots) })
 	}
@@ -106,7 +111,6 @@ type bot struct {
 	name     string
 	charName string // 3 to 12 letters and digits
 	index    int
-	class    kernel.Class
 	split    gamedata.Stats // how a level's points are spent
 	perLevel int
 	data     *gamedata.Data
@@ -233,7 +237,7 @@ func (b *bot) signUp(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	created, err := b.rest(ctx, "POST", "/api/characters", token, map[string]string{"name": b.charName, "class": b.class.String()})
+	created, err := b.rest(ctx, "POST", "/api/characters", token, map[string]string{"name": b.charName})
 	if err != nil {
 		return "", err
 	}
@@ -349,7 +353,7 @@ func (b *bot) command(d proto.Message) {
 	_ = b.send(wsconn.Message{Seq: b.seq, Data: d})
 }
 
-// spend puts a level-up's points into the class's split, as a player with the client's auto-assign setting does.
+// spend puts a level-up's points into its future class's split, as a player planning that class does.
 func (b *bot) spend(c *clientv1.CharacterView) {
 	unspent := c.GetSheet().GetPoints().GetUnspent()
 	if c.GetId() != b.id || b.perLevel == 0 || unspent < int32(b.perLevel) {

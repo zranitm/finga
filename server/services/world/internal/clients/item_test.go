@@ -211,14 +211,14 @@ func TestLootRetriesOnlyWhatMayPass(t *testing.T) {
 	}
 }
 
-func TestStarterAsksForTheClassOnJoin(t *testing.T) {
+func TestStarterAsksForTheCharacterOnJoin(t *testing.T) {
 	f := &items{}
 	s := clients.NewStarter(itemClient(t, f))
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
-	if err := s.GrantStarter(context.Background(), account, id, kernel.Warrior); err != nil {
+	if err := s.GrantStarter(context.Background(), account, id); err != nil {
 		t.Fatal(err)
 	}
-	if g := f.grants[0]; g.GetClass() != "warrior" || g.GetActor().GetCharacterId() != id.String() || g.GetActor().GetAccountId() != account.String() {
+	if g := f.grants[0]; g.GetActor().GetCharacterId() != id.String() || g.GetActor().GetAccountId() != account.String() {
 		t.Fatalf("grant %+v", g)
 	}
 }
@@ -232,7 +232,7 @@ func TestEquipmentWearsWithTheLiveLevelAndClass(t *testing.T) {
 		held: []*itemv1.Item{wornSword, wornHat}, revision: 21,
 	}
 	e := clients.NewEquipment(itemClient(t, f))
-	call := model.EquipCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: "k-1", Item: sword, Level: 9, Class: kernel.Warrior, Stats: gamedata.Stats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5}}
+	call := model.EquipCall{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: "k-1", Item: sword, Level: 9, Class: kernel.Class("warrior"), Stats: gamedata.Stats{STR: 1, DEX: 2, INT: 3, AGI: 4, VIT: 5}}
 	got, err := e.Equip(context.Background(), call)
 	if err != nil {
 		t.Fatal(err)
@@ -270,7 +270,7 @@ func TestAWornRollIsReadWhole(t *testing.T) {
 	sword := kernel.NewItemID()
 	worn := &itemv1.Item{Id: sword.String(), TemplateId: "iron_sword", Quantity: 1, EquipSlot: "weapon", Stats: &itemv1.ItemStats{Str: 1, Dex: 2, Int: 3, Agi: 4, Vit: 5, PhysicalAttack: 6, MagicAttack: 7, PhysicalDefense: 8, MagicDefense: 9, MaxHp: 10, MaxMp: 11, Accuracy: 12, Evasion: 13, CritRate: 14, CritDamage: 15, Penetration: 16, HpRegen: 17, MpRegen: 18, AttackSpeed: 19, CooldownSpeed: 20, MoveSpeed: 21}}
 	f := &items{worn: []*itemv1.EquipSlot{{EquipSlot: "weapon", Item: worn}}, held: []*itemv1.Item{worn}, revision: 2}
-	got, err := clients.NewEquipment(itemClient(t, f)).Equip(context.Background(), model.EquipCall{Key: "k-1", Item: sword, Class: kernel.Warrior})
+	got, err := clients.NewEquipment(itemClient(t, f)).Equip(context.Background(), model.EquipCall{Key: "k-1", Item: sword, Class: kernel.Class("warrior")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,12 +283,12 @@ func TestAWornRollIsReadWhole(t *testing.T) {
 func TestEquipmentFailures(t *testing.T) {
 	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW))
 	e := clients.NewEquipment(itemClient(t, &items{err: refused}))
-	_, err := e.Equip(context.Background(), model.EquipCall{Key: "k-1", Item: kernel.NewItemID(), Class: kernel.Warrior})
+	_, err := e.Equip(context.Background(), model.EquipCall{Key: "k-1", Item: kernel.NewItemID(), Class: kernel.Class("warrior")})
 	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW) {
 		t.Fatalf("a refusal arrived as %v; want its reason kept", err)
 	}
 	e = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")}))
-	if _, err := e.Equip(context.Background(), model.EquipCall{Key: "k-1", Item: kernel.NewItemID(), Class: kernel.Warrior}); !errors.Is(err, transient.ErrUnavailable) {
+	if _, err := e.Equip(context.Background(), model.EquipCall{Key: "k-1", Item: kernel.NewItemID(), Class: kernel.Class("warrior")}); !errors.Is(err, transient.ErrUnavailable) {
 		t.Fatalf("an outage arrived as %v; want it transient", err)
 	}
 	if _, err := e.Worn(context.Background(), kernel.NewCharacterID()); !errors.Is(err, transient.ErrUnavailable) {

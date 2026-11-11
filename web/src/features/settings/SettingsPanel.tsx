@@ -60,7 +60,7 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
             void save();
           }}
         />
-        Auto-assign at every level-up, by the class’s split
+        Auto-assign at every level-up, by the class’s split (a Beginner spends its own)
       </label>
       {problem && (
         <p className="error" role="alert">

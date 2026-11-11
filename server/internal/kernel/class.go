@@ -2,34 +2,11 @@ package kernel
 
 import "errors"
 
-// Class is a character class; game data decides which ones a player can pick.
+// Class is a character class's ID, as stored in characters.class; game data decides which IDs are classes.
 type Class string
 
-// The four classes, as stored in characters.class.
-const (
-	Warrior  Class = "warrior"
-	Bowman   Class = "bowman"
-	Thief    Class = "thief"
-	Magician Class = "magician"
-)
-
-// ErrUnknownClass is a class name that is not one of the four.
+// ErrUnknownClass is a class ID that game data doesn't have.
 var ErrUnknownClass = errors.New("kernel: unknown class")
-
-// Classes lists every class, in display order.
-func Classes() []Class {
-	return []Class{Warrior, Bowman, Thief, Magician}
-}
-
-// ParseClass parses the stored form; an unknown value is ErrUnknownClass.
-func ParseClass(s string) (Class, error) {
-	for _, c := range Classes() {
-		if string(c) == s {
-			return c, nil
-		}
-	}
-	return "", ErrUnknownClass
-}
 
 // String is the stored form.
 func (c Class) String() string { return string(c) }

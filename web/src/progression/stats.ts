@@ -2,6 +2,8 @@
 import { classes } from '@/gamedata/classes';
 import { stats } from '@/gamedata/stats';
 
+import { fits } from './classes';
+
 export const primaryKeys = ['str', 'dex', 'int', 'agi', 'vit'] as const;
 export type PrimaryKey = (typeof primaryKeys)[number];
 export type Primary = Readonly<Record<PrimaryKey, number>>;
@@ -154,13 +156,9 @@ export function statsShort(r: Requirements, own: Primary): PrimaryKey[] {
   return primaryKeys.filter((k) => own[k] < (r.requires?.[k] ?? 0));
 }
 
-/** Whether a character meets every requirement: the level, the class for a weapon, and each stat minimum against its own stats. */
+/** Whether a character meets every requirement: the level, the class for a weapon (its own or one above it), and each stat minimum against its own stats. */
 export function meets(r: Requirements, level: number, cls: string, own: Primary): boolean {
-  return (
-    level >= (r.min_level ?? 0) &&
-    (r.class === undefined || r.class === cls) &&
-    statsShort(r, own).length === 0
-  );
+  return level >= (r.min_level ?? 0) && fits(r.class, cls) && statsShort(r, own).length === 0;
 }
 
 /** The rolls of the worn items whose requirements are met summed; an item below its requirement stays worn and adds nothing. */
@@ -180,6 +178,12 @@ export function activeRoll(
     }
   }
   return sum;
+}
+
+/** Whether the class has a recommended split; the Beginner has none, so it spends its own points. */
+export function hasSplit(cls: string): boolean {
+  const split: Partial<Primary> = classes.find((c) => c.id === cls)?.auto_assign ?? {};
+  return primaryKeys.some((k) => (split[k] ?? 0) > 0);
 }
 
 /** n points by the class's recommended split: whole splits first, then the rest stat by stat. */

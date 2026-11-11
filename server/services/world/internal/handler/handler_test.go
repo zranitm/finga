@@ -68,7 +68,7 @@ type idle struct{}
 func (idle) Party(kernel.CharacterID) model.Party             { return model.Party{} }
 func (idle) Epoch() uint64                                    { return 0 }
 func (idle) Update(kernel.CharacterID, string, int, int, int) {}
-func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+func (idle) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {
 	return nil
 }
 func (idle) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
@@ -163,7 +163,7 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 func (s *stack) character(name string) model.Character {
 	town := s.data.StartTown()
 	ch := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Warrior, Level: 1,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Class("warrior"), Level: 1,
 		HP: 184, MP: 28,
 		MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
@@ -478,7 +478,7 @@ func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 	stream := s.gateway(t, "gw-1")
 	town := s.data.StartTown()
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 3, Points: model.Points{Unspent: 10},
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Points: model.Points{Unspent: 10},
 		HP: 220, MP: 40, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
 	}
 	s.chars.add(ayla)
@@ -604,7 +604,7 @@ func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway(t, "gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -637,7 +637,7 @@ func TestQuestsOverTheWorld(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway(t, "gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
 	}
 	s.chars.add(ayla)
@@ -686,7 +686,7 @@ func TestARefusedHandInKeepsTheItemServicesReason(t *testing.T) {
 	s := newStackWearing(t, wears{err: grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS))})
 	s.gateway(t, "gw-1")
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
 		Quests: model.Quests{"sticky_samples": {Status: model.QuestActive, Progress: []int{0}}},
 	}
 	s.chars.add(ayla)

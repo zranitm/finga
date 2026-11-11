@@ -88,7 +88,7 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Bowman, Level: 3, Exp: 40,
+	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Class("bowman"), Level: 3, Exp: 40,
 		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600,
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}}}
 	if !reflect.DeepEqual(got, want) || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {

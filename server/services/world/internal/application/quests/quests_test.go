@@ -12,7 +12,7 @@ import (
 )
 
 func TestOffer(t *testing.T) {
-	trial := gamedata.Quest{ID: "trial", Level: 10, Class: kernel.Warrior, Requires: []string{"basics", "drill"}}
+	trial := gamedata.Quest{ID: "trial", Level: 10, Class: kernel.Class("warrior"), Requires: []string{"basics", "drill"}}
 	daily := gamedata.Quest{ID: "daily", Repeatable: true}
 	once := gamedata.Quest{ID: "once"}
 	finished := model.Quest{Status: model.QuestFinished, TimesFinished: 1}
@@ -22,11 +22,11 @@ func TestOffer(t *testing.T) {
 		c    quests.Character
 		want model.QuestOffer
 	}{
-		{"every condition met", trial, quests.Character{Level: 10, Class: kernel.Warrior, Log: model.Quests{"basics": finished, "drill": finished}}, model.QuestOffer{Quest: "trial", State: model.OfferAvailable}},
-		{"each unmet condition listed", trial, quests.Character{Level: 9, Class: kernel.Bowman, Log: model.Quests{"drill": finished}},
-			model.QuestOffer{Quest: "trial", State: model.OfferUnmet, Unmet: model.Unmet{Level: 10, Class: kernel.Warrior, Quests: []string{"basics"}}}},
+		{"every condition met", trial, quests.Character{Level: 10, Class: kernel.Class("warrior"), Log: model.Quests{"basics": finished, "drill": finished}}, model.QuestOffer{Quest: "trial", State: model.OfferAvailable}},
+		{"each unmet condition listed", trial, quests.Character{Level: 9, Class: kernel.Class("bowman"), Log: model.Quests{"drill": finished}},
+			model.QuestOffer{Quest: "trial", State: model.OfferUnmet, Unmet: model.Unmet{Level: 10, Class: kernel.Class("warrior"), Quests: []string{"basics"}}}},
 		{"a required quest active again after a completion still counts", trial,
-			quests.Character{Level: 12, Class: kernel.Warrior, Log: model.Quests{"basics": {Status: model.QuestActive, Progress: []int{0}, TimesFinished: 1}, "drill": finished}},
+			quests.Character{Level: 12, Class: kernel.Class("warrior"), Log: model.Quests{"basics": {Status: model.QuestActive, Progress: []int{0}, TimesFinished: 1}, "drill": finished}},
 			model.QuestOffer{Quest: "trial", State: model.OfferAvailable}},
 		{"active", once, quests.Character{Log: model.Quests{"once": {Status: model.QuestActive}}}, model.QuestOffer{Quest: "once", State: model.OfferActive}},
 		{"a one-time quest finished", once, quests.Character{Log: model.Quests{"once": finished}}, model.QuestOffer{Quest: "once", State: model.OfferFinished}},
@@ -95,7 +95,7 @@ func TestDialogTakesBackOnlyActiveQuests(t *testing.T) {
 	data := worldtest.LoadData(t)
 	guide, _ := data.NPC("town_guide")
 	log := model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}, "sticky_samples": {Status: model.QuestActive, Progress: []int{0}}}
-	got := quests.Dialog(data, guide, quests.Character{Level: 2, Class: kernel.Warrior, Log: log})
+	got := quests.Dialog(data, guide, quests.Character{Level: 2, Class: kernel.Class("warrior"), Log: log})
 	want := model.NpcDialog{NPC: "town_guide",
 		Gives: []model.QuestOffer{
 			{Quest: "slime_cleanup", State: model.OfferFinished}, {Quest: "sticky_samples", State: model.OfferActive},

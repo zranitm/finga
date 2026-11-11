@@ -1633,7 +1633,6 @@ func (x *DiscardResponse) GetRevision() uint64 {
 type GrantStarterRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Actor         *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
-	Class         string                 `protobuf:"bytes,2,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1673,13 +1672,6 @@ func (x *GrantStarterRequest) GetActor() *Actor {
 		return x.Actor
 	}
 	return nil
-}
-
-func (x *GrantStarterRequest) GetClass() string {
-	if x != nil {
-		return x.Class
-	}
-	return ""
 }
 
 type GrantStarterResponse struct {
@@ -2752,10 +2744,9 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\bquantity\x18\x04 \x01(\x05R\bquantity\"_\n" +
 	"\x0fDiscardResponse\x120\n" +
 	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x04R\brevision\"Z\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\"Q\n" +
 	"\x13GrantStarterRequest\x12-\n" +
-	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12\x14\n" +
-	"\x05class\x18\x02 \x01(\tR\x05class\"d\n" +
+	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actorJ\x04\b\x02\x10\x03R\x05class\"d\n" +
 	"\x14GrantStarterResponse\x120\n" +
 	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\x04R\brevision\"\x80\x02\n" +

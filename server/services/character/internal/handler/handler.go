@@ -20,7 +20,7 @@ type Service interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
-	Own(c model.Character) (gamedata.Stats, error)
+	Own(c model.Character) gamedata.Stats
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
@@ -41,8 +41,7 @@ func (s *Server) Create(ctx context.Context, req *characterv1.CreateRequest) (*c
 	if err != nil {
 		return nil, err
 	}
-	// The class passes unchecked; the module answers class_unavailable.
-	c, err := s.svc.Create(ctx, account, application.CreateInput{Name: req.GetName(), Class: kernel.Class(req.GetClass())})
+	c, err := s.svc.Create(ctx, account, application.CreateInput{Name: req.GetName()})
 	if err != nil {
 		return nil, err
 	}
@@ -126,9 +125,9 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 	return &characterv1.SaveLevelUpResponse{}, nil
 }
 
-// view leaves the own stats and maximums 0 when the class is unknown (Load refuses that case).
+// view leaves the maximums 0 when the class is unknown (Load refuses that case).
 func (s *Server) view(c model.Character) *characterv1.Character {
-	own, _ := s.svc.Own(c)
+	own := s.svc.Own(c)
 	d, _ := s.svc.Derived(c)
 	return &characterv1.Character{
 		Id: c.ID.String(), AccountId: c.AccountID.String(), Name: c.Name, Class: c.Class.String(),

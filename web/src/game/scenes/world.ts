@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 
+import { classes } from '@/gamedata/classes';
 import { movement } from '@/gamedata/movement';
 import { isTyping } from '@/input/typing';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
@@ -82,8 +83,7 @@ type MobWire = Data<'snapshot'>['mobs'][number];
 type DropWire = Data<'snapshot'>['drops'][number];
 
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
-const ARROW_RANGE = 420;
-const ARROW_MS = 300;
+const SHOT_PX_PER_MS = 1.4; // a ranged attack's arrow or spell crosses 420 px in 300 ms
 
 /** Below the players, mobs, NPCs and drops at 0, so a label shows over a wall but never over someone. */
 const DEPTH = { background: -4, glow: -3, tiles: -2, label: -1 } as const;
@@ -91,7 +91,7 @@ const DEPTH = { background: -4, glow: -3, tiles: -2, label: -1 } as const;
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
     characterId: '',
-    cls: 'warrior',
+    cls: classes[0].id,
     name: '',
     visit: 0,
   };
@@ -782,18 +782,24 @@ export class World extends Phaser.Scene {
       return;
     }
     this.player?.attack(now);
-    if (this.entry.cls === 'bowman' && this.predictor) {
-      this.arrow(this.predictor.state.x, this.predictor.state.y - 28, this.predictor.state.facing);
+    const attack = classes.find((c) => c.id === this.entry.cls)?.attack;
+    if (attack?.kind === 'ranged' && this.predictor) {
+      const { x, y, facing } = this.predictor.state;
+      this.shot(x, y - 28, facing, attack.range, attack.damage === 'magic');
     }
   }
 
-  private arrow(x: number, y: number, facing: 1 | -1): void {
-    const streak = this.add.rectangle(x, y, 16, 3, 0xf0ead6).setDepth(5);
+  /** A ranged attack's flight, drawn on the client alone: an arrow, or a spell's orb. */
+  private shot(x: number, y: number, facing: 1 | -1, range: number, magic: boolean): void {
+    const shape = magic
+      ? this.add.circle(x, y, 5, 0xb070f0)
+      : this.add.rectangle(x, y, 16, 3, 0xf0ead6);
+    shape.setDepth(5);
     this.tweens.add({
-      targets: streak,
-      x: x + facing * ARROW_RANGE,
-      duration: ARROW_MS,
-      onComplete: () => streak.destroy(),
+      targets: shape,
+      x: x + facing * range,
+      duration: range / SHOT_PX_PER_MS,
+      onComplete: () => shape.destroy(),
     });
   }
 

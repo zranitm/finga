@@ -75,6 +75,7 @@ type HandIns interface {
 type Content interface {
 	Item(id string) (gamedata.Item, bool)
 	Class(id kernel.Class) (gamedata.Class, bool)
+	StartClass() gamedata.Class
 	EquipSlots() []gamedata.EquipSlot
 	EquipSlot(id string) (gamedata.EquipSlot, bool)
 }

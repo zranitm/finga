@@ -12,8 +12,14 @@ diminishing:               # base + (limit − base) × points ÷ (points + k)
   cooldown_speed: {stat: int, limit: 0.40, k: 200}
   move_speed:     {stat: agi, limit: 0.30, k: 200}
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
-classes:                   # base values per class; per_level grows them
-  warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10},
+classes:                   # base values per class; per_level grows them; the Beginner's sit in the middle of the four classes'
+  beginner: {max_hp: {base: 51, per_level: 13}, max_mp: {base: 27, per_level: 6}, accuracy: {base: 12},
+            evasion: {base: 8}, physical_defense: {base: 4}, magic_defense: {base: 4}, crit_damage: {base: 0.5}}
+  warrior:  {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10},
             evasion: {base: 5}, physical_defense: {base: 5}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
-  bowman:  {max_hp: {base: 50, per_level: 12}, max_mp: {base: 25, per_level: 5}, accuracy: {base: 15},
+  bowman:   {max_hp: {base: 50, per_level: 12}, max_mp: {base: 25, per_level: 5}, accuracy: {base: 15},
             evasion: {base: 8}, physical_defense: {base: 3}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
+  thief:    {max_hp: {base: 55, per_level: 15}, max_mp: {base: 22, per_level: 4}, accuracy: {base: 13},
+            evasion: {base: 15}, physical_defense: {base: 4}, magic_defense: {base: 3}, crit_damage: {base: 0.5}}
+  magician: {max_hp: {base: 40, per_level: 6}, max_mp: {base: 40, per_level: 10}, accuracy: {base: 12},
+            evasion: {base: 6}, physical_defense: {base: 2}, magic_defense: {base: 8}, crit_damage: {base: 0.5}}

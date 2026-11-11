@@ -159,10 +159,10 @@ func (h *api) listCharacters(c *gin.Context) {
 
 func (h *api) createCharacter(c *gin.Context) {
 	var req CreateCharacterRequest
-	if decode(c, &req) != nil || missing(c, req.Name, req.Class) {
+	if decode(c, &req) != nil || missing(c, req.Name) {
 		return
 	}
-	ch, err := h.lobby.CreateCharacter(c.Request.Context(), principalFrom(c), req.Name, req.Class)
+	ch, err := h.lobby.CreateCharacter(c.Request.Context(), principalFrom(c), req.Name)
 	if err != nil {
 		writeError(c, err)
 		return

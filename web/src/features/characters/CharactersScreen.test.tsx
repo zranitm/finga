@@ -59,7 +59,7 @@ describe('CharactersScreen', () => {
 
   it('lists the characters and plays one', async () => {
     const { onPlay } = setup(() => list([sampleCharacter]));
-    expect(await screen.findByText('Ayla, level 1 warrior')).toBeInTheDocument();
+    expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Play' }));
     expect(onPlay).toHaveBeenCalledWith(sampleCharacter);
   });
@@ -78,15 +78,15 @@ describe('CharactersScreen', () => {
     expect(ff.of('POST', '/api/characters')).toHaveLength(0);
   });
 
-  it('creates a character with the chosen class and shows a 409 in the client’s words', async () => {
+  it('creates a Beginner from a name alone, and shows a 409 in the client’s words', async () => {
     const { ff } = setup(({ method, path, body }) => {
       if (method === 'POST' && path === '/api/characters') {
-        const b = body as { name: string; class: string };
+        const b = body as { name: string };
         return b.name === 'Ayla'
           ? { status: 409, body: { code: ERR.NAME_TAKEN, message: 'that name is taken' } }
           : {
               status: 201,
-              body: { ...sampleCharacter, id: 'c-robin', name: b.name, class: b.class },
+              body: { ...sampleCharacter, id: 'c-robin', name: b.name, class: 'beginner' },
             };
       }
       return list([]);
@@ -97,13 +97,10 @@ describe('CharactersScreen', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('That name is taken.');
     await userEvent.clear(screen.getByLabelText('Name'));
     await userEvent.type(screen.getByLabelText('Name'), 'Robin');
-    await userEvent.click(screen.getByLabelText('Bowman'));
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
-    expect(await screen.findByText('Robin, level 1 bowman')).toBeInTheDocument();
-    expect(ff.of('POST', '/api/characters').at(-1)?.body).toEqual({
-      name: 'Robin',
-      class: 'bowman',
-    });
+    expect(await screen.findByText('Robin, level 1 Beginner')).toBeInTheDocument();
+    expect(ff.of('POST', '/api/characters').at(-1)?.body).toEqual({ name: 'Robin' });
   });
 
   it('the cap message appears when the third character exists, and the fourth attempt is refused', async () => {
@@ -126,7 +123,7 @@ describe('CharactersScreen', () => {
           }
         : list([sampleCharacter]),
     );
-    await screen.findByText('Ayla, level 1 warrior');
+    await screen.findByText('Ayla, level 1 Warrior');
     await userEvent.type(screen.getByLabelText('Name'), 'Robin');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -187,7 +184,7 @@ describe('CharactersScreen', () => {
     async ({ button }) => {
       const { rest, answer } = deletesHeld([sampleCharacter]);
       const { onPlay, onLoggedOut } = setup(() => list([]), { rest });
-      await screen.findByText('Ayla, level 1 warrior');
+      await screen.findByText('Ayla, level 1 Warrior');
       await userEvent.click(screen.getByRole('button', { name: button }));
       const play = screen.getByRole('button', { name: 'Play' });
       expect(play).toBeDisabled();
@@ -234,7 +231,7 @@ describe('CharactersScreen', () => {
     );
     up = true;
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('Ayla, level 1 warrior')).toBeInTheDocument();
+    expect(await screen.findByText('Ayla, level 1 Warrior')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(ff.of('GET', '/api/characters')).toHaveLength(2);
   });

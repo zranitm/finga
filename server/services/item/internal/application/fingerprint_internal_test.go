@@ -34,7 +34,7 @@ func TestFingerprintsAreStable(t *testing.T) {
 		{"add with a roll", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, CritRate: 5}}.fingerprint(c), "4128b5fcde871e6966fb6b79c9fd1273e72ff8ca44afccac30f10c4d56def56c"},
 		{"add with a later stat", AddInput{Key: "k-1", TemplateID: "iron_sword", Quantity: 1, Cause: model.Cause{Type: model.CauseDrop, ID: drop}, Stats: &progression.ItemStats{PhysicalAttack: 17, MagicAttack: 4, MoveSpeed: 20}}.fingerprint(c), "bec61a08e7bdac6477a3c0fb1b3e2091efd41ffa0ed2c76a47b02e4d400439f3"},
 		{"move", MoveInput{Key: "k-1", ItemID: item, Tab: gamedata.Use, Slot: 7}.fingerprint(c), "75b5e3b6161dbf0fe70935cb9e77fbb717c119ff92df45c1c9d951780f49e026"},
-		{"equip", EquipInput{Key: "k-1", ItemID: item, EquipSlot: "ring_2", Level: 9, Class: kernel.Warrior}.fingerprint(c), "4d802f08e9649e4e7d82a0577e6e6b94655d4a9ab4f4dbd0ce2474cab43d8023"},
+		{"equip", EquipInput{Key: "k-1", ItemID: item, EquipSlot: "ring_2", Level: 9, Class: kernel.Class("warrior")}.fingerprint(c), "4d802f08e9649e4e7d82a0577e6e6b94655d4a9ab4f4dbd0ce2474cab43d8023"},
 		{"unequip", UnequipInput{Key: "k-1", EquipSlot: "ring_2"}.fingerprint(c), "073208012179538dcf3df878102415c402d45d6bb8c5bb35a7a4072838584c51"},
 		{"unequip to a slot", UnequipInput{Key: "k-1", EquipSlot: "ring_2", ToSlot: &slot}.fingerprint(c), "14261d0402ea762f54c4b35d003f976f5c4358e134d16bacb86463a987a78394"},
 		{"discard", DiscardInput{Key: "k-1", ItemID: item, Quantity: 2}.fingerprint(c), "693b3c5bd5cd91ea7cd9157dead199a007206e0f3090fafb9ad8b11cfdaba75e"},
@@ -88,9 +88,9 @@ func TestAnAddsRollIsPartOfItsFingerprint(t *testing.T) {
 // An equip is the item and the slot: a retry after a level-up, a spend, or as another class, is the same request.
 func TestAnEquipsFingerprintLeavesOutTheLevelClassAndStats(t *testing.T) {
 	c, item := kernel.NewCharacterID(), kernel.NewItemID()
-	in := EquipInput{Key: "k-1", ItemID: item, Level: 3, Class: kernel.Warrior, Stats: gamedata.Stats{STR: 12}}
+	in := EquipInput{Key: "k-1", ItemID: item, Level: 3, Class: kernel.Class("warrior"), Stats: gamedata.Stats{STR: 12}}
 	later := in
-	later.Level, later.Class, later.Stats = 4, kernel.Bowman, gamedata.Stats{STR: 13, DEX: 5}
+	later.Level, later.Class, later.Stats = 4, kernel.Class("bowman"), gamedata.Stats{STR: 13, DEX: 5}
 	elsewhere := in
 	elsewhere.EquipSlot = "ring_2"
 	if hex.EncodeToString(in.fingerprint(c)) != hex.EncodeToString(later.fingerprint(c)) || hex.EncodeToString(in.fingerprint(c)) == hex.EncodeToString(elsewhere.fingerprint(c)) {

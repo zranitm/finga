@@ -3,6 +3,7 @@ import { itemStats } from '@/components/item-stats';
 import type { StatKey } from '@/components/item-stats';
 import type { ItemTemplate, Unmet } from '@/components/ItemCard';
 import { equipSlots } from '@/gamedata/equip-slots';
+import { fits } from '@/progression/classes';
 import { statsShort } from '@/progression/stats';
 import type { CharacterView, ItemStats } from '@/protocol/messages';
 import type { EquipSlotId, Equipment } from '@/state/inventory';
@@ -35,7 +36,7 @@ export function unmet(t: ItemTemplate, c: CharacterView | null): Unmet {
   }
   return {
     level: c.level < (t.min_level ?? 0),
-    class: t.class !== undefined && t.class !== c.class,
+    class: !fits(t.class, c.class),
     stats: c.stats ? statsShort(t, c.stats) : [],
   };
 }

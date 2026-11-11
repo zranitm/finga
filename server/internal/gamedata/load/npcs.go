@@ -49,13 +49,13 @@ func (l *loader) loadNPCs(dir string) error {
 			return fmt.Errorf("%s: npc %q: a line is said twice", npcsFile, n.ID)
 		}
 		npc := gamedata.NPC{ID: n.ID, Name: n.Name, Look: n.Look, Gives: n.Gives, Takes: n.Takes}
-		// A trainer may teach a class the data doesn't offer yet; it gives its trial until promotions arrive.
+		// A trainer teaches a class a character is promoted to, so never the root.
 		if n.Trainer != "" {
-			c, err := kernel.ParseClass(n.Trainer)
-			if err != nil {
-				return fmt.Errorf("%s: npc %s: unknown trainer class %q", npcsFile, n.ID, n.Trainer)
+			c, ok := l.classes.get(kernel.Class(n.Trainer))
+			if !ok || c.Parent == "" {
+				return fmt.Errorf("%s: npc %s: trainer %q is not a class a character is promoted to", npcsFile, n.ID, n.Trainer)
 			}
-			npc.Trainer = c
+			npc.Trainer = c.ID
 		}
 		l.npcs.add(n.ID, npc)
 	}

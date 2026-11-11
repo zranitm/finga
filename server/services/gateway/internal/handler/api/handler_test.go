@@ -340,11 +340,11 @@ func TestCharacters(t *testing.T) {
 			got = in
 			return &characterv1.CreateResponse{Character: sampleChar}, nil
 		}
-		rec := h.do("POST", "/api/characters", `{"name":"Ayla","class":"warrior"}`, authed())
+		rec := h.do("POST", "/api/characters", `{"name":"Ayla"}`, authed())
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if got.GetName() != "Ayla" || got.GetClass() != "warrior" || got.GetAccountId() != accountID.String() {
+		if got.GetName() != "Ayla" || got.GetAccountId() != accountID.String() {
 			t.Fatalf("service got %+v", got)
 		}
 	})
@@ -354,8 +354,8 @@ func TestCharacters(t *testing.T) {
 			body string
 			code model.Public
 		}{
-			{"missing class", `{"name":"Ayla"}`, model.MissingField},
-			{"missing name", `{"class":"warrior"}`, model.MissingField},
+			{"missing name", `{}`, model.MissingField},
+			{"a class, which a new character can't choose", `{"name":"Ayla","class":"warrior"}`, model.MalformedBody},
 			{"not JSON", `nope`, model.MalformedBody},
 		}
 		for _, tt := range tests {
@@ -365,13 +365,6 @@ func TestCharacters(t *testing.T) {
 			})
 		}
 	})
-	t.Run("create passes an unknown class to the service, which owns that rule", func(t *testing.T) {
-		h := newHarness()
-		h.characters.create = func(context.Context, *characterv1.CreateRequest) (*characterv1.CreateResponse, error) {
-			return nil, grpctest.Error(codes.InvalidArgument, characterv1.Reason_REASON_CLASS_UNAVAILABLE)
-		}
-		assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla","class":"paladin"}`, authed()), http.StatusBadRequest, model.ClassUnavailable)
-	})
 	t.Run("service errors", func(t *testing.T) {
 		for _, tt := range errorRows {
 			t.Run(tt.name, func(t *testing.T) {
@@ -380,7 +373,7 @@ func TestCharacters(t *testing.T) {
 					return nil, tt.err
 				}
 				h.characters.list = func(context.Context, *characterv1.ListRequest) (*characterv1.ListResponse, error) { return nil, tt.err }
-				assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla","class":"warrior"}`, authed()), tt.status, tt.code)
+				assertError(t, h.do("POST", "/api/characters", `{"name":"Ayla"}`, authed()), tt.status, tt.code)
 				assertError(t, h.do("GET", "/api/characters", "", authed()), tt.status, tt.code)
 			})
 		}

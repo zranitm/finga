@@ -10,62 +10,6 @@ import (
 	"finga/internal/kernel"
 )
 
-func TestParseClass(t *testing.T) {
-	tests := []struct {
-		name    string
-		in      string
-		want    kernel.Class
-		wantErr bool
-	}{
-		{"warrior", "warrior", kernel.Warrior, false},
-		{"bowman", "bowman", kernel.Bowman, false},
-		{"thief", "thief", kernel.Thief, false},
-		{"magician", "magician", kernel.Magician, false},
-		{"case matters", "Warrior", "", true},
-		{"unknown", "paladin", "", true},
-		{"empty", "", "", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := kernel.ParseClass(tt.in)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
-			}
-			if err != nil {
-				if !errors.Is(err, kernel.ErrUnknownClass) {
-					t.Fatalf("err = %v, want ErrUnknownClass", err)
-				}
-				return
-			}
-			if got != tt.want {
-				t.Fatalf("got %q, want %q", got, tt.want)
-			}
-			if got.String() != tt.in {
-				t.Fatalf("String() = %q, want %q", got.String(), tt.in)
-			}
-		})
-	}
-}
-
-func TestClassesRoundTrip(t *testing.T) {
-	seen := map[kernel.Class]bool{}
-	for _, c := range kernel.Classes() {
-		t.Run(c.String(), func(t *testing.T) {
-			if seen[c] {
-				t.Fatal("listed twice")
-			}
-			seen[c] = true
-			got, err := kernel.ParseClass(c.String())
-			if err != nil || got != c {
-				t.Fatalf("ParseClass(%q) = %q, %v", c, got, err)
-			}
-		})
-	}
-	if len(seen) != 4 {
-		t.Fatalf("Classes() lists %d classes, want 4", len(seen))
-	}
-}
-
 func TestNewIDs(t *testing.T) {
 	a, b := kernel.NewAccountID(), kernel.NewAccountID()
 	if a == b {

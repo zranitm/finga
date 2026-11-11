@@ -1,6 +1,8 @@
 import type Phaser from 'phaser';
 
-import { ANIM, ART_SCALE, TEX } from '../keys';
+import { classes } from '@/gamedata/classes';
+
+import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { TextureKey } from '../keys';
 
 import { NAME_TAG_ABOVE } from './name-tag';
@@ -13,7 +15,7 @@ export interface PlayerState extends PoseState {
   readonly facing: 1 | -1;
 }
 
-export interface ClassArt {
+interface Sprite {
   readonly stand: TextureKey;
   readonly jump: TextureKey;
   readonly climb: TextureKey;
@@ -22,29 +24,64 @@ export interface ClassArt {
   readonly climbAnim: string;
 }
 
-const warrior: ClassArt = {
-  stand: TEX.warriorStand,
-  jump: TEX.warriorJump,
-  climb: TEX.warriorClimb1,
-  hit: TEX.warriorHit,
-  walk: ANIM.warriorWalk,
-  climbAnim: ANIM.warriorClimb,
-};
+export interface ClassArt {
+  readonly stand: string;
+  readonly jump: string;
+  readonly climb: string;
+  readonly hit: string;
+  readonly walk: string;
+  readonly climbAnim: string;
+  readonly tint: number | null;
+}
 
-const art: Readonly<Record<string, ClassArt>> = {
-  warrior,
-  bowman: {
-    stand: TEX.bowmanStand,
-    jump: TEX.bowmanJump,
-    climb: TEX.bowmanClimb1,
-    hit: TEX.bowmanHit,
-    walk: ANIM.bowmanWalk,
-    climbAnim: ANIM.bowmanClimb,
+type SpriteName = (typeof classes)[number]['look']['sprite'];
+
+const sprites = {
+  alien_blue: {
+    stand: TEX.alienBlueStand,
+    jump: TEX.alienBlueJump,
+    climb: TEX.alienBlueClimb1,
+    hit: TEX.alienBlueHit,
+    walk: ANIM.alienBlueWalk,
+    climbAnim: ANIM.alienBlueClimb,
+  },
+  alien_green: {
+    stand: TEX.alienGreenStand,
+    jump: TEX.alienGreenJump,
+    climb: TEX.alienGreenClimb1,
+    hit: TEX.alienGreenHit,
+    walk: ANIM.alienGreenWalk,
+    climbAnim: ANIM.alienGreenClimb,
   },
 };
 
+// A sprite a class names but this table lacks fails the type check.
+const _sprites: Record<SpriteName, Sprite> = sprites;
+void _sprites;
+
+/** Every sprite players draw from; the preloader makes each a grey copy for the tinted classes. */
+export const playerSprites: readonly Sprite[] = Object.values(sprites);
+
+const grey = (s: Sprite): Omit<ClassArt, 'tint'> => ({
+  stand: greyKey(s.stand),
+  jump: greyKey(s.jump),
+  climb: greyKey(s.climb),
+  hit: greyKey(s.hit),
+  walk: greyKey(s.walk),
+  climbAnim: greyKey(s.climbAnim),
+});
+
+// A class from a newer server: magenta so it cannot pass for a real one.
+const UNKNOWN_CLASS: ClassArt = { ...grey(sprites.alien_blue), tint: 0xff00ff };
+
+/** A class draws its look: a tinted one from the grey copy of its sprite, so the tint is its colour. */
 export function classArt(cls: string): ClassArt {
-  return art[cls] ?? warrior;
+  const c = classes.find((k) => k.id === cls);
+  if (!c) {
+    return UNKNOWN_CLASS;
+  }
+  const { sprite, tint } = c.look;
+  return { ...(tint === null ? sprites[sprite] : grey(sprites[sprite])), tint };
 }
 
 const SWING_MS = 150;
@@ -59,6 +96,9 @@ export class PlayerView {
   constructor(scene: Phaser.Scene, cls: string, name?: string) {
     this.art = classArt(cls);
     this.sprite = scene.add.sprite(0, 0, this.art.stand).setOrigin(0.5, 1).setScale(ART_SCALE);
+    if (this.art.tint !== null) {
+      this.sprite.setTint(this.art.tint);
+    }
     this.label =
       name === undefined
         ? null

@@ -92,13 +92,12 @@ type fakeStarter struct {
 type grant struct {
 	account   kernel.AccountID
 	character kernel.CharacterID
-	class     kernel.Class
 }
 
-func (f *fakeStarter) GrantStarter(_ context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) error {
+func (f *fakeStarter) GrantStarter(_ context.Context, account kernel.AccountID, id kernel.CharacterID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.calls = append(f.calls, grant{account, id, class})
+	f.calls = append(f.calls, grant{account, id})
 	if f.store != nil {
 		f.store.mu.Lock()
 		_, committed := f.store.chars[id]
