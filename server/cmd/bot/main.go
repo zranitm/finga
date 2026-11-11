@@ -586,7 +586,7 @@ func (b *bot) loop(ctx context.Context, all []*bot) {
 	}
 }
 
-// visitNPCs walks to each NPC on the map in turn and talks to it, a second for its dialog to answer; false once every one has been visited.
+// visitNPCs walks to each NPC on the map in turn and talks to it from its ground, never mid-jump, then stands a second for the dialog and its answers; false once every one has been visited.
 func (b *bot) visitNPCs(jump bool) bool {
 	npcs := townNPCs(b.data, b.mapID)
 	if b.stop >= len(npcs) {
@@ -598,7 +598,7 @@ func (b *bot) visitNPCs(jump bool) bool {
 		}
 		return true
 	}
-	if n := npcs[b.stop]; b.walkTo(n.At.X, jump) {
+	if n := npcs[b.stop]; b.walkTo(n.At.X, jump) && math.Abs(b.y-n.At.Y) < 1 {
 		b.command(&clientv1.Talk{NpcId: n.ID})
 		b.talked = time.Now()
 	}
