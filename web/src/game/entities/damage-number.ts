@@ -2,13 +2,22 @@ import type Phaser from 'phaser';
 
 import type { DrawnNumber, NumberKind } from '../systems/combat-view';
 
+// Outlined, so it reads on grass and sky.
+const healed: Phaser.Types.GameObjects.Text.TextStyle = {
+  fontSize: '14px',
+  fontFamily: 'sans-serif',
+  fontStyle: 'bold',
+  stroke: '#0a0c16',
+  strokeThickness: 3,
+};
+
 const styles: Readonly<Record<NumberKind, Phaser.Types.GameObjects.Text.TextStyle>> = {
   hit: { fontSize: '14px', color: '#f4f4f8', fontFamily: 'sans-serif', fontStyle: 'bold' },
   crit: { fontSize: '18px', color: '#ffd166', fontFamily: 'sans-serif', fontStyle: 'bold' },
   miss: { fontSize: '13px', color: '#9a9ab0', fontFamily: 'sans-serif' },
   taken: { fontSize: '14px', color: '#e04848', fontFamily: 'sans-serif', fontStyle: 'bold' },
-  healHp: { fontSize: '14px', color: '#6fdc6f', fontFamily: 'sans-serif', fontStyle: 'bold' },
-  healMp: { fontSize: '14px', color: '#6f9cf0', fontFamily: 'sans-serif', fontStyle: 'bold' },
+  healHp: { ...healed, color: '#6fdc6f' },
+  healMp: { ...healed, color: '#6f9cf0' },
 };
 
 export class DamageNumberLayer {

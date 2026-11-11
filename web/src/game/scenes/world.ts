@@ -703,7 +703,7 @@ export class World extends Phaser.Scene {
       return;
     }
     const now = this.time.now;
-    let y = p.state.y - 72;
+    let y = p.state.y - 90; // above the name tag
     if (hp > 0) {
       this.numbers.spawn(p.state.x, y, `+${hp}`, 'healHp', now);
       y -= 18;
