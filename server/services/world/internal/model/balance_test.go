@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"os"
@@ -42,6 +43,7 @@ const (
 	warriorHitFloor = 0.75 // the warrior's accuracy barely grows, so a mob's evasion must stay near it
 	bowmanHitFloor  = 0.80
 	killsPerLevel   = 30 // a normal mob's EXP is about a thirtieth of its level's
+	bandStars       = 5  // ★6 and ★7 are rare finds, not what a character can expect to wear
 )
 
 func regionOf(m *gamedata.Map) (region, bool) {
@@ -64,7 +66,7 @@ type fight struct {
 	secondsPerKill  float64 // attacking, misses included, at the character's attack pace
 }
 
-// character is a class at level, its points spent by its class's split and wearing, in every slot, the newest gear it can use at its middle roll.
+// character is a class at level, its points spent by its class's split and wearing, in every slot, the newest band gear it can use at its middle roll.
 func character(d *gamedata.Data, items []gamedata.Item, c gamedata.Class, level int) progression.Derived {
 	own := c.BaseStats
 	for range level - 1 {
@@ -75,7 +77,7 @@ func character(d *gamedata.Data, items []gamedata.Item, c gamedata.Class, level 
 		var best *gamedata.Item
 		for k := range items {
 			it := &items[k]
-			if it.Tab != gamedata.Equip || it.Slot != s.Kind || progression.Meets(*it, level, c.ID, own) != progression.NothingUnmet {
+			if it.Tab != gamedata.Equip || it.Slot != s.Kind || it.Stars > bandStars || progression.Meets(*it, level, c.ID, own) != progression.NothingUnmet {
 				continue
 			}
 			if best == nil || it.MinLevel > best.MinLevel {
@@ -179,10 +181,16 @@ func TestBalance(t *testing.T) {
 				level := min(mob.Level, d.LevelCap())
 				me := character(d, items, c, level)
 				f := fightOf(d, me, c, mob)
-				exp, _ := d.ExpToNext(level)
-				kills := float64(exp) / float64(max(mob.Exp, 1))
-				t.Logf("%-7s %-18s L%-2d %-7s hits %4.1f  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/level %4.0f  attacking/level %5.0fs",
-					m.ID, mob.ID, mob.Level, c.ID, f.hitsToKill, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, kills, kills*f.secondsPerKill)
+				kills := math.NaN() // at the cap there is no next level
+				if exp, ok := d.ExpToNext(level); ok {
+					kills = float64(exp) / float64(max(mob.Exp, 1))
+				}
+				pace := "at the cap"
+				if !math.IsNaN(kills) {
+					pace = fmt.Sprintf("kills/level %4.0f  attacking/level %5.0fs", kills, kills*f.secondsPerKill)
+				}
+				t.Logf("%-17s %-16s L%-2d %-7s hits %4.1f  hit %3.0f%%  survives %3d  touched %3.0f%%  %s",
+					m.ID, mob.ID, mob.Level, c.ID, f.hitsToKill, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, pace)
 				if !asserted {
 					continue
 				}
@@ -203,7 +211,7 @@ func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedat
 	if !mob.Elite && (f.hitsToKill < rg.hits[0] || f.hitsToKill > rg.hits[1]) {
 		t.Errorf("%s: %.1f hits to kill, want %.1f to %.1f in region %s", where, f.hitsToKill, rg.hits[0], rg.hits[1], rg.name)
 	}
-	if !mob.Elite && math.Abs(kills-killsPerLevel) > 5 {
+	if !mob.Elite && !math.IsNaN(kills) && math.Abs(kills-killsPerLevel) > 5 {
 		t.Errorf("%s: %.0f kills a level, want about %d", where, kills, killsPerLevel)
 	}
 	floor := warriorHitFloor
