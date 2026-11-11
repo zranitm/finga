@@ -3,6 +3,8 @@ import { useState } from 'react';
 
 import { idempotencyKey } from '@/lib/id';
 import { RequestError } from '@/net/socket';
+import { ui } from '@/state/ui';
+import type { WindowName } from '@/state/ui';
 
 export interface PendingRequest {
   readonly key: string;
@@ -14,7 +16,7 @@ export interface PendingRequest {
 export interface ItemRequests {
   /** By what each request acts on: an item ID, or an equip slot. */
   readonly pending: ReadonlyMap<string, PendingRequest>;
-  /** Why the last request was refused, until the next one. */
+  /** Why this window's last request was refused, until a request anywhere replaces it. */
   readonly notice: string | null;
   readonly setNotice: (notice: string | null) => void;
   /** Sends request with a new idempotency key; InventoryChanged, not the Response, moves the items. */
@@ -22,9 +24,10 @@ export interface ItemRequests {
   readonly retry: (target: string) => void;
 }
 
-export function useItemRequests(): ItemRequests {
+export function useItemRequests(from: WindowName): ItemRequests {
   const [pending, setPending] = useState<ReadonlyMap<string, PendingRequest>>(new Map());
-  const [notice, setNotice] = useState<string | null>(null);
+  const notice = ui.use((s) => (s.itemNotice?.from === from ? s.itemNotice.text : null));
+  const setNotice = (text: string | null) => ui.getState().setItemNotice(from, text);
 
   const setPendingFor = (target: string, p: PendingRequest | null) => {
     setPending((prev) => {

@@ -279,7 +279,7 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
   const c = character.use((s) => s.character);
   const expToNext = character.use((s) => s.expToNext);
   const equipment = inventory.use((s) => s.equipment);
-  const { pending, notice, run, retry } = useItemRequests();
+  const { pending, notice, run, retry } = useItemRequests('character');
   const hover = useItemHover<EquipSlotId>();
   const points = usePoints(socket);
   const [confirmingReset, setConfirmingReset] = useState(false);
