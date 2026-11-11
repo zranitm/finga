@@ -15,7 +15,7 @@ describe('class art', () => {
       cls: 'beginner',
       stand: greyKey(TEX.alienBlueStand),
       walk: greyKey(ANIM.alienBlueWalk),
-      tint: 0xd8c8a8,
+      tint: 0xff6640,
     },
     {
       cls: 'thief',
