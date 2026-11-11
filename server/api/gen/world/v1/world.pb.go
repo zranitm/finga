@@ -3330,7 +3330,7 @@ type PickupFailed struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The proto package of the service whose Reason this is.
 	ErrorDomain string `protobuf:"bytes,1,opt,name=error_domain,json=errorDomain,proto3" json:"error_domain,omitempty"`
-	// The Reason's value name, such as REASON_INVENTORY_FULL; empty when unexpected.
+	// The Reason's value name, such as REASON_EQUIP_TAB_FULL; empty when unexpected.
 	ErrorReason   string `protobuf:"bytes,2,opt,name=error_reason,json=errorReason,proto3" json:"error_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

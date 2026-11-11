@@ -4,7 +4,7 @@ import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { readyQuests } from '@/progression/quests';
 import { autoAssign } from '@/progression/stats';
-import { ERR, errorText } from '@/protocol/errors';
+import { ERR, errorText, refusalCode } from '@/protocol/errors';
 import { LootKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -93,7 +93,7 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.onStatus(applyStatus),
     socket.onUnmatchedResponse((d) => {
       if (!d.ok) {
-        toasts.getState().push(errorText(d.code));
+        toasts.getState().push(errorText(refusalCode(d.code)));
       }
     }),
   ];

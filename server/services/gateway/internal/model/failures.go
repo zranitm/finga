@@ -99,6 +99,6 @@ var (
 	ChatTooLong          = Public{440012, "CHAT_TOO_LONG", "that chat line is too long"}
 	BadChatChannel       = Public{440013, "BAD_CHAT_CHANNEL", "unknown chat channel"}
 	ChatNoParty          = Public{440014, "CHAT_NO_PARTY", "you have no party"}
-	ChatRateLimited      = Public{440015, "CHAT_RATE_LIMITED", "slow down"}
+	ChatRateLimited      = Public{440015, "CHAT_RATE_LIMITED", "too many chat lines; slow down"}
 	PartyChatUnavailable = Public{440016, "PARTY_CHAT_UNAVAILABLE", "party chat is not available"}
 )

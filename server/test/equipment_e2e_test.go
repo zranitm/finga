@@ -143,7 +143,7 @@ func TestEquipment(t *testing.T) {
 		}
 
 		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != code("EQUIP_TAB_FULL") {
-			t.Fatalf("an unequip into the full tab answered %+v, want EQUIP_TAB_FULL and why", r)
+			t.Fatalf("an unequip into the full tab answered %+v, want EQUIP_TAB_FULL", r)
 		}
 
 		// A slime drops a cap; the full tab has no slot for it, so it waits on the ground.
@@ -258,7 +258,7 @@ func TestEquipment(t *testing.T) {
 		l.dieAmongSlimes(t)
 		// Respawn waits three seconds; the unequip arrives well within them.
 		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != code("CHARACTER_DEAD") {
-			t.Fatalf("an unequip while dead answered %+v, want CHARACTER_DEAD and why", r)
+			t.Fatalf("an unequip while dead answered %+v, want CHARACTER_DEAD", r)
 		}
 		if r := l.expect("Respawned").Data.(*clientv1.Respawned); r.GetHp() != w.GetCharacter().GetMaxHp()/2 {
 			t.Fatalf("respawned with %d HP, want half the %d maximum with equipment", r.GetHp(), w.GetCharacter().GetMaxHp())

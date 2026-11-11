@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { ERR, errorText, isErrorCode } from './errors';
+import { ERR, errorText, isErrorCode, refusalCode } from './errors';
 
 // npm runs the scripts from web/, so the server's catalog is in ../server.
 const file = path.resolve(process.cwd(), '..', 'server', 'testdata', 'errors', 'codes.json');
@@ -25,5 +25,10 @@ describe('error codes', () => {
   it('a code this client doesn’t know shows its number, so it reaches support', () => {
     expect(isErrorCode(220999)).toBe(false);
     expect(errorText(220999)).toBe('Something went wrong (error 220999).');
+  });
+
+  it('a refusal with no code is the server’s mistake, so it reads as internal', () => {
+    expect(refusalCode(0)).toBe(ERR.INTERNAL);
+    expect(refusalCode(ERR.SLOT_TAKEN)).toBe(ERR.SLOT_TAKEN);
   });
 });

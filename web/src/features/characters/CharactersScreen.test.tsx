@@ -130,7 +130,7 @@ describe('CharactersScreen', () => {
     await userEvent.type(screen.getByLabelText('Name'), 'Robin');
     await userEvent.click(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This account has as many characters as it can.',
+      'This account already has the most characters allowed.',
     );
   });
 

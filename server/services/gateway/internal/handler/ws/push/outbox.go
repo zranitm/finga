@@ -114,7 +114,7 @@ func (o *Outbox) Close(code int, reason string) {
 	}
 }
 
-// ErrorResponse is a failure as the client reads it, for a command or a push.
+// ErrorResponse is a command's refusal as the client reads it.
 func ErrorResponse(p model.Public) *clientv1.Response {
 	return &clientv1.Response{Ok: false, Code: int32(p.Code)}
 }

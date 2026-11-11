@@ -33,7 +33,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.NAME_TAKEN]: 'That name is taken.',
   [ERR.BAD_CHARACTER_NAME]: 'A name is 3 to 12 letters and digits, starting with a letter.',
   [ERR.CLASS_UNAVAILABLE]: 'That class isn’t available yet.',
-  [ERR.CHARACTER_SLOTS_FULL]: 'This account has as many characters as it can.',
+  [ERR.CHARACTER_SLOTS_FULL]: 'This account already has the most characters allowed.',
   [ERR.UNKNOWN_CLASS]: 'That class doesn’t exist.',
 
   [ERR.ITEM_NOT_FOUND]: 'That item isn’t there any more.',
@@ -95,6 +95,11 @@ const texts: Record<ErrorCode, string> = {
 /** A code this client knows; a newer server may send one it doesn't. */
 export function isErrorCode(code: number): code is ErrorCode {
   return Object.hasOwn(texts, code);
+}
+
+/** A refusal's code as the client keeps it: 0, which no failure has, is the server's mistake. */
+export function refusalCode(code: number): number {
+  return code === 0 ? ERR.INTERNAL : code;
 }
 
 /** What the client says for a code; one it doesn't know shows its number, so the number reaches support. */

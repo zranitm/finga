@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	itemv1 "finga/api/gen/item/v1"
 	"finga/internal/gamedata"
@@ -180,8 +181,23 @@ func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Invent
 	return model.Inventory{Revision: res.GetRevision(), Slots: slots}, nil
 }
 
-// HandedIn is which of the completions asked the item service handed in, each with the slots it changed.
+// handedInMax is the most completions one HandedIn may ask about: the item service's MaxHandedIn.
+const handedInMax = 32
+
+// HandedIn is which of the completions asked the item service handed in, each with the slots it changed, asked in batches of its limit.
 func (e Equipment) HandedIn(ctx context.Context, id kernel.CharacterID, asked []model.Completion) ([]model.HandedIn, error) {
+	var out []model.HandedIn
+	for part := range slices.Chunk(asked, handedInMax) {
+		got, err := e.handedIn(ctx, id, part)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, got...)
+	}
+	return out, nil
+}
+
+func (e Equipment) handedIn(ctx context.Context, id kernel.CharacterID, asked []model.Completion) ([]model.HandedIn, error) {
 	req := &itemv1.HandedInRequest{CharacterId: id.String()}
 	for _, c := range asked {
 		req.Completions = append(req.Completions, &itemv1.QuestCompletion{QuestId: c.Quest, Completion: int32(c.Completion)}) //nolint:gosec // completions are small

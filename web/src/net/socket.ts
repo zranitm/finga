@@ -6,7 +6,7 @@ import type { BackoffOptions } from '@/lib/backoff';
 import { requestId } from '@/lib/id';
 import { binaryCodec, ProtocolError } from '@/protocol/codec';
 import type { Codec, ServerFrame } from '@/protocol/codec';
-import { errorText } from '@/protocol/errors';
+import { errorText, refusalCode } from '@/protocol/errors';
 import { ClientMessageSchema, KickReason } from '@/protocol/messages';
 import type {
   ClientBodyInit,
@@ -466,7 +466,8 @@ export class GameSocket {
           if (r.ok) {
             p.resolve(r);
           } else {
-            p.reject(new RequestError(r.code, errorText(r.code)));
+            const code = refusalCode(r.code);
+            p.reject(new RequestError(code, errorText(code)));
           }
         } else {
           for (const h of this.unmatchedHandlers) {

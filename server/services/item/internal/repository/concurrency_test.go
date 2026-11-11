@@ -78,7 +78,7 @@ func TestASwapAndAPickupRacingOnAFullEquipTab(t *testing.T) {
 			})
 			wg.Wait()
 			if swapped != nil || !errors.Is(picked, model.ErrEquipTabFull) {
-				t.Fatalf("swap: %v; pickup: %v, want inventory_full", swapped, picked)
+				t.Fatalf("swap: %v; pickup: %v, want the Equip tab full", swapped, picked)
 			}
 			if off, on := h.held(t, wearing.ID), h.held(t, tab[7].ID); off.Worn() || off.Slot != 7 || on.EquipSlot != "weapon" {
 				t.Fatalf("swapped out %+v, in %+v", off, on)

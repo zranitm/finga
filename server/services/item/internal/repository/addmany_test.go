@@ -116,7 +116,7 @@ func TestAddMany(t *testing.T) {
 		before := h.revision(t)
 		b := h.addMany(t, h.drop("d1", "slime_gel", 3), h.drop("d2", "red_potion", 1))
 		if !errors.Is(b.Outcomes[0].Err, model.ErrEtcTabFull) {
-			t.Fatalf("the gel %+v, want inventory full", b.Outcomes[0])
+			t.Fatalf("the gel %+v, want its tab full", b.Outcomes[0])
 		}
 		granted(t, b, 1)
 		if n := h.quantity(t, "slime_gel"); n != 99 {

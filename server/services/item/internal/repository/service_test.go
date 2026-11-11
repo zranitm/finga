@@ -136,7 +136,7 @@ func TestAdd(t *testing.T) {
 			t.Fatalf("%d sword rows, want 2", swords)
 		}
 	})
-	t.Run("a full inventory gives inventory_full and writes nothing", func(t *testing.T) {
+	t.Run("a full Etc tab refuses the gel and writes nothing", func(t *testing.T) {
 		for i := range model.SlotsPerTab - 2 { // the etc tab fills with 22 more gels
 			h.add(t, "fill-"+string(rune('a'+i)), "slime_gel", 100)
 		}

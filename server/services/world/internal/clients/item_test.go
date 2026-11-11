@@ -3,6 +3,7 @@ package clients_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -348,6 +349,29 @@ func TestHandedInAsksEachCompletionAndReadsWhatChanged(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 	_, err = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")})).HandedIn(context.Background(), id, []model.Completion{{Quest: "bounty", Completion: 1}})
+	if !errors.Is(err, transient.ErrUnavailable) {
+		t.Fatalf("an outage arrived as %v; want it transient", err)
+	}
+}
+
+// The item service takes 32 completions a call; the game data's active-quest cap may be higher.
+func TestHandedInAsksInBatchesOfTheItemServicesLimit(t *testing.T) {
+	f := &items{}
+	asked := make([]model.Completion, 33)
+	for k := range asked {
+		asked[k] = model.Completion{Quest: fmt.Sprintf("q%02d", k), Completion: 1}
+	}
+	got, err := clients.NewEquipment(itemClient(t, f)).HandedIn(context.Background(), kernel.NewCharacterID(), asked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.lookups) != 2 || len(f.lookups[0].GetCompletions()) != 32 || len(f.lookups[1].GetCompletions()) != 1 {
+		t.Fatalf("asked %d times; want 32 completions, then 1", len(f.lookups))
+	}
+	if len(got) != 2 || got[0].Quest != "q00" || got[1].Quest != "q32" {
+		t.Fatalf("got %+v; want each batch's answer, in order", got)
+	}
+	_, err = clients.NewEquipment(itemClient(t, &items{err: status.Error(codes.Unavailable, "down")})).HandedIn(context.Background(), kernel.NewCharacterID(), asked)
 	if !errors.Is(err, transient.ErrUnavailable) {
 		t.Fatalf("an outage arrived as %v; want it transient", err)
 	}

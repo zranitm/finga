@@ -169,6 +169,18 @@ describe('GameSocket', () => {
       expect([err.code, err.message]).toEqual([220999, 'Something went wrong (error 220999).']);
     });
 
+    it('a refusal with no code is internal', async () => {
+      const socket = newSocket();
+      const ws = await connected(socket);
+      const p = socket.request('partyLeave', {});
+      ws.push('response', { ok: false, code: 0 }, { req: ws.frames().at(-1)?.req ?? '' });
+      const err = (await p.catch((e: unknown) => e)) as RequestError;
+      expect([err.code, err.message]).toEqual([
+        ERR.INTERNAL,
+        'Something went wrong on the server. Try again.',
+      ]);
+    });
+
     it('times out when no Response comes', async () => {
       const socket = newSocket({ requestTimeoutMs: 2000 });
       await connected(socket);

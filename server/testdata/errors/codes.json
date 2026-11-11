@@ -453,7 +453,7 @@
     "code": 440015,
     "name": "CHAT_RATE_LIMITED",
     "status": 429,
-    "message": "slow down"
+    "message": "too many chat lines; slow down"
   },
   {
     "code": 440016,

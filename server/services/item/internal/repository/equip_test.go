@@ -293,7 +293,7 @@ func TestAFullEquipTab(t *testing.T) {
 		}
 		checkInvariants(t, h.pool, h.data)
 	})
-	t.Run("unequipping with nowhere to go is inventory_full", func(t *testing.T) {
+	t.Run("unequipping with nowhere to go is a full Equip tab", func(t *testing.T) {
 		h, wearing, _ := fullEquipTab(t)
 		if _, err := h.unequip(uuidv7.NewString(), "weapon", nil); !errors.Is(err, model.ErrEquipTabFull) {
 			t.Fatalf("err = %v, want ErrEquipTabFull", err)
