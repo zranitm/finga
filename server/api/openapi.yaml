@@ -197,6 +197,7 @@ components:
       properties:
         control_preset: { type: string, enum: [classic, wasd] }
         auto_assign_points: { type: boolean, default: false, description: "The client spends each level's points by the class's split; left out of a PUT, false" }
+        chat_pinned: { type: boolean, default: false, description: "The chat stays open while the player isn't typing; left out of a PUT, false" }
     Error:
       type: object
       required: [code, message]

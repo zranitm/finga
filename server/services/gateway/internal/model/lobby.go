@@ -17,6 +17,7 @@ type Account struct {
 type Settings struct {
 	ControlPreset    string
 	AutoAssignPoints bool
+	ChatPinned       bool
 }
 
 // Stats are a character's five primary stats.

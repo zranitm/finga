@@ -65,16 +65,18 @@ type CharactersResponse struct {
 	Characters []CharacterResponse `json:"characters"`
 }
 
-// SettingsRequest is PUT /api/settings; auto_assign_points left out is false.
+// SettingsRequest is PUT /api/settings; a flag left out is false.
 type SettingsRequest struct {
 	ControlPreset    string `json:"control_preset"`
 	AutoAssignPoints bool   `json:"auto_assign_points"`
+	ChatPinned       bool   `json:"chat_pinned"`
 }
 
 // SettingsResponse is the account's settings.
 type SettingsResponse struct {
 	ControlPreset    string `json:"control_preset"`
 	AutoAssignPoints bool   `json:"auto_assign_points"`
+	ChatPinned       bool   `json:"chat_pinned"`
 }
 
 // ErrorResponse is every error body: a stable code and a message safe to show the player.
@@ -105,5 +107,5 @@ func toCharacters(cs []model.Character) CharactersResponse {
 }
 
 func toSettings(s model.Settings) SettingsResponse {
-	return SettingsResponse{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints}
+	return SettingsResponse{ControlPreset: s.ControlPreset, AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
 }
