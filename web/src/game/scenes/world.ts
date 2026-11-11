@@ -52,7 +52,7 @@ import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 
-import { bannerLines, groundStyle, mapTiles, portalLabel } from './world-layout';
+import { bannerLines, groundStyle, mapTiles, portalLabel, portalLabelY } from './world-layout';
 
 /** What the game enters the world with, from Welcome. */
 export interface WorldEntry {
@@ -244,7 +244,7 @@ export class World extends Phaser.Scene {
         .setDepth(DEPTH.glow);
       this.tweens.add({ targets: glow, alpha: 0.5, duration: 900, yoyo: true, repeat: -1 });
       const label = this.add
-        .text(0, p.area.y - 6, portalLabel(p.target_map), {
+        .text(0, portalLabelY(p.area), portalLabel(p.target_map), {
           fontSize: '12px',
           color: '#cfe8ff',
           fontFamily: 'sans-serif',

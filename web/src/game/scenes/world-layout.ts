@@ -2,6 +2,7 @@ import { maps } from '@/gamedata/maps';
 import type { MapView } from '@/sim/map';
 import type { Rect } from '@/sim/step';
 
+import { NAME_TAG_TOP } from '../entities/player';
 import { TEX, TILE } from '../keys';
 import type { TextureKey } from '../keys';
 
@@ -76,6 +77,13 @@ export function bannerLines(mapId: string): string[] {
 /** The label over a portal: where it leads, as that map's banner says it, on one line. */
 export function portalLabel(targetMap: string): string {
   return bannerLines(targetMap).join(' · ');
+}
+
+const PORTAL_LABEL_GAP = 6;
+
+/** The bottom of a portal's label: above the door, and above the name tag of a player standing in it. */
+export function portalLabelY(area: Rect): number {
+  return Math.min(area.y, area.y + area.h - NAME_TAG_TOP) - PORTAL_LABEL_GAP;
 }
 
 export interface Tile {
