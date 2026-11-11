@@ -24,6 +24,31 @@ describe('potions', () => {
     expect(pickPotion('hp', 10, [])).toBeUndefined();
   });
 
+  it.each([
+    { vital: 'hp' as const, need: 40, want: 'red_potion' },
+    { vital: 'hp' as const, need: 50, want: 'red_potion' },
+    { vital: 'hp' as const, need: 51, want: 'orange_potion' },
+    { vital: 'hp' as const, need: 200, want: 'white_potion' },
+    { vital: 'hp' as const, need: 900, want: 'white_potion' },
+    { vital: 'mp' as const, need: 20, want: 'blue_potion' },
+    { vital: 'mp' as const, need: 60, want: 'mana_elixir' },
+    { vital: 'mp' as const, need: 400, want: 'mana_elixir' },
+  ])(
+    'with $need $vital missing, picks the $want: the smallest that fills it, else the largest',
+    ({ vital, need, want }) => {
+      const tab = ['white_potion', 'mana_elixir', 'red_potion', 'blue_potion', 'orange_potion'].map(
+        item,
+      );
+      expect(pickPotion(vital, need, tab)?.template).toBe(want);
+    },
+  );
+
+  it('with no potion that fills it, the largest carried', () => {
+    expect(pickPotion('hp', 200, [item('red_potion', 0), item('orange_potion', 1)])?.template).toBe(
+      'orange_potion',
+    );
+  });
+
   it('restores no more than is missing', () => {
     expect(restores('red_potion', vitals(20, 100))).toEqual({ hp: 50, mp: 0 });
     expect(restores('red_potion', vitals(180, 0))).toEqual({ hp: 20, mp: 0 });
