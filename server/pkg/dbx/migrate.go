@@ -49,10 +49,3 @@ func Migrate(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS, table string) 
 	}
 	return len(results), nil
 }
-
-// TableExists reports whether name is a table on the search path.
-func TableExists(ctx context.Context, db DBTX, name string) (bool, error) {
-	var found bool
-	err := db.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL`, name).Scan(&found)
-	return found, err
-}

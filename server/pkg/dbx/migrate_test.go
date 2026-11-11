@@ -62,24 +62,10 @@ func TestMigrate(t *testing.T) {
 	})
 }
 
-func TestTableExists(t *testing.T) {
-	ctx := context.Background()
-	pool := cluster.DB(t)
-	if _, err := pool.Exec(ctx, `CREATE TABLE here (id int)`); err != nil {
-		t.Fatal(err)
-	}
-	for name, want := range map[string]bool{"here": true, "nowhere": false} {
-		got, err := dbx.TableExists(ctx, pool, name)
-		if err != nil || got != want {
-			t.Fatalf("%s: %v, err %v; want %v", name, got, err, want)
-		}
-	}
-}
-
 func exists(t *testing.T, pool *pgxpool.Pool, table string) bool {
 	t.Helper()
-	ok, err := dbx.TableExists(context.Background(), pool, table)
-	if err != nil {
+	var ok bool
+	if err := pool.QueryRow(context.Background(), `SELECT to_regclass($1) IS NOT NULL`, table).Scan(&ok); err != nil {
 		t.Fatal(err)
 	}
 	return ok
