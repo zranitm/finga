@@ -97,6 +97,15 @@ export function isErrorCode(code: number): code is ErrorCode {
   return Object.hasOwn(texts, code);
 }
 
+/** The client's words for a request with no refusal to read; the technical detail goes to the console. */
+export const noAnswerText = {
+  // Either may still have landed, so it says only that.
+  timeout: 'No answer yet. Try again.',
+  disconnected: 'No answer yet. Try again.',
+  network: 'Can’t reach the server. Check your connection and try again.',
+  malformed: 'The server isn’t answering right now. Try again in a moment.',
+} as const;
+
 /** A refusal's code as the client keeps it: 0, which no failure has, is the server's mistake. */
 export function refusalCode(code: number): number {
   return code === 0 ? ERR.INTERNAL : code;

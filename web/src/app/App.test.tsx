@@ -139,6 +139,24 @@ describe('App', () => {
     expect(screen.getByText(/logged in somewhere else/i)).toBeInTheDocument();
   });
 
+  it('a connection that closes before Welcome says the world could not be entered, in the client’s words', async () => {
+    const { services: svc } = services(({ path }) => {
+      if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };
+      return { status: 200, body: { characters: [sampleCharacter] } };
+    });
+    render(<App services={svc} />);
+    await userEvent.type(screen.getByLabelText('Username'), 'alice');
+    await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
+    await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Play' }));
+    const ws = FakeWebSocket.latest();
+    ws.open();
+    ws.closeFromServer(1006);
+    const dialog = await screen.findByRole('dialog', { name: 'Could not enter the world' });
+    expect(dialog).toHaveTextContent('Try again in a moment.');
+    expect(dialog).not.toHaveTextContent(/Welcome|1006/);
+  });
+
   it('opens settings from the characters screen', async () => {
     const { services: svc } = services(({ path }) => {
       if (path === '/api/sessions') return { status: 201, body: { token: 'tok-1' } };

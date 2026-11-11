@@ -80,6 +80,34 @@ describe('LoginScreen', () => {
     );
   });
 
+  it.each([
+    {
+      name: 'no server reached',
+      reply: () => new TypeError('Failed to fetch'),
+      text: 'Can’t reach the server. Check your connection and try again.',
+    },
+    {
+      name: 'a proxy page while the gateway restarts',
+      reply: () => ({ status: 502 }),
+      text: 'The server isn’t answering right now. Try again in a moment.',
+    },
+  ])(
+    '$name shows the client’s words, not the browser’s or the proxy’s',
+    async ({ reply, text }) => {
+      const ff = fakeFetch(reply);
+      render(
+        <LoginScreen
+          rest={createRestClient({ origin: '', fetch: ff.fetch })}
+          onLoggedIn={vi.fn()}
+        />,
+      );
+      await userEvent.type(screen.getByLabelText('Username'), 'alice');
+      await userEvent.type(screen.getByLabelText('Password'), 'correct horse');
+      await userEvent.click(screen.getByRole('button', { name: 'Log in' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(text);
+    },
+  );
+
   it('a successful login keeps the token and moves on', async () => {
     const ff = fakeFetch(() => ({ status: 201, body: { token: 'tok-1' } }));
     const onLoggedIn = vi.fn();

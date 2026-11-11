@@ -193,14 +193,14 @@ describe('rest client', () => {
       status: 500,
       body: { code: 'teapot', message: 'short and stout' },
       code: 'malformed',
-      message: /HTTP 500/,
+      message: 'The server isn’t answering right now. Try again in a moment.',
     },
     {
       name: 'an error without a code is malformed',
       status: 502,
       body: {},
       code: 'malformed',
-      message: /HTTP 502/,
+      message: 'The server isn’t answering right now. Try again in a moment.',
     },
   ])('$name', async ({ status, body, code, message }) => {
     const { fetch } = fakeFetch(() => ({ status, body }));
@@ -213,13 +213,30 @@ describe('rest client', () => {
     expect(re.message).toMatch(message);
   });
 
-  it('a network failure is a RestError with the network code and no status', async () => {
+  it('a network failure is a RestError with the network code and no status, its cause in the console', async () => {
     const { fetch } = fakeFetch(() => new Error('connection refused'));
     const client = createRestClient({ origin: '', fetch });
     const err = (await client.getSettings().catch((e: unknown) => e)) as RestError;
     expect(err.code).toBe('network');
     expect(err.status).toBe(0);
-    expect(err.message).toBe('connection refused');
+    expect(err.message).toBe('Can’t reach the server. Check your connection and try again.');
+    expect(console.info).toHaveBeenLastCalledWith(
+      'finga: GET /api/settings reached no server: connection refused',
+    );
+  });
+
+  it('a body that is not JSON, as a proxy’s page while the gateway restarts, is malformed', async () => {
+    const { fetch } = fakeFetch(() => ({ status: 502 }));
+    const client = createRestClient({ origin: '', fetch });
+    const err = (await client.getSettings().catch((e: unknown) => e)) as RestError;
+    expect([err.status, err.code, err.message]).toEqual([
+      502,
+      'malformed',
+      'The server isn’t answering right now. Try again in a moment.',
+    ]);
+    expect(console.info).toHaveBeenLastCalledWith(
+      'finga: GET /api/settings answered 502 with a body that is not JSON',
+    );
   });
 
   it.each([

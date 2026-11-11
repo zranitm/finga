@@ -94,7 +94,10 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
                 });
               },
               (err: unknown) => {
-                setJoinProblem(err instanceof Error ? err.message : 'Could not enter the world.');
+                console.info(
+                  `finga: joining failed: ${err instanceof Error ? err.message : String(err)}`,
+                );
+                setJoinProblem('Try again in a moment.'); // the modal's title says what failed
                 setPlaying(null);
               },
             );
