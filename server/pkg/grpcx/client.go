@@ -1,6 +1,7 @@
 package grpcx
 
 import (
+	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -16,10 +17,14 @@ const (
 )
 
 // Dial makes a plain-text (internal network) client connection.
+// A bare host:port is looked up at each connect: gRPC's DNS resolver would keep a lookup that failed while a restarting container had no record, and calls would fail for up to 30 s after it was back.
 func Dial(addr string, extra ...grpc.DialOption) (*grpc.ClientConn, error) {
 	opts := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{Time: keepaliveTime, Timeout: keepaliveTimeout, PermitWithoutStream: true}),
 	}, extra...)
+	if !strings.Contains(addr, "://") {
+		addr = "passthrough:///" + addr
+	}
 	return grpc.NewClient(addr, opts...)
 }
