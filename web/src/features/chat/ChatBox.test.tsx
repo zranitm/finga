@@ -254,7 +254,7 @@ describe('ChatBox', () => {
     });
   });
 
-  it('the log is anchored to its bottom, so a wrapped line pushes out the oldest, never the newest', () => {
+  it('the log draws the newest line at the bottom and moves any line that does not fit whole out of view', () => {
     const style = document.createElement('style');
     style.textContent = readFileSync(path.resolve(process.cwd(), 'src/styles/global.css'), 'utf8');
     document.head.append(style);
@@ -267,15 +267,17 @@ describe('ChatBox', () => {
         chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'newest'), 2);
       });
       const list = screen.getByRole('list');
+      // jsdom lays nothing out, so this checks the rules the browser draws by.
       expect(getComputedStyle(list)).toMatchObject({
         display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'flex-end',
+        flexDirection: 'column-reverse',
+        flexWrap: 'wrap',
         overflow: 'hidden',
       });
       const items = screen.getAllByRole('listitem');
-      expect(items.at(-1)).toHaveTextContent('newest');
-      expect(items.map((li) => getComputedStyle(li).flexShrink)).toEqual(['0', '0']);
+      expect(items.at(-1)).toHaveTextContent('newest'); // the markup stays oldest first, for screen readers
+      expect(items.map((li) => li.style.order)).toEqual(['0', '-1']);
+      expect(items.map((li) => getComputedStyle(li).width)).toEqual(['100%', '100%']);
     } finally {
       style.remove();
     }

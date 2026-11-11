@@ -131,9 +131,7 @@ export function CharactersScreen({
             <p className="error" role="alert">
               {loadProblem}
             </p>
-            <Button variant="quiet" onClick={reload}>
-              Try again
-            </Button>
+            <Button onClick={reload}>Try again</Button>
           </div>
         )}
         <ul className="characters" aria-label="Characters">

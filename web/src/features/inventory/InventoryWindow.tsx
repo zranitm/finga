@@ -100,7 +100,20 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const selectedPending = selected ? pending.get(selected) : undefined;
 
   return (
-    <WorldWindow name="inventory" title="Inventory" onClose={onClose} initialX={500} initialY={80}>
+    <WorldWindow
+      name="inventory"
+      title="Inventory"
+      onClose={onClose}
+      initialX={500}
+      initialY={80}
+      footer={
+        (notice ?? selectedPending?.error) && (
+          <p className="error" role="alert">
+            {notice ?? selectedPending?.error}
+          </p>
+        )
+      }
+    >
       <div className="inventory">
         <div className="inventory-tabs" role="tablist">
           {tabs.map((t) => (
@@ -197,11 +210,6 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
               Keep
             </Button>
           </div>
-        )}
-        {(notice ?? selectedPending?.error) && (
-          <p className="error" role="alert">
-            {notice ?? selectedPending?.error}
-          </p>
         )}
       </div>
       <ItemDetails
