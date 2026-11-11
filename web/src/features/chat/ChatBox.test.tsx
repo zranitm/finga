@@ -136,6 +136,19 @@ describe('ChatBox', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('counts an emoji as one character, as the server does, so a full line of them sends', async () => {
+    const { send, input } = setup();
+    input().focus();
+    await userEvent.paste('🙂'.repeat(MAX_CHAT_CHARS));
+    expect(screen.getByLabelText('Characters')).toHaveTextContent('120/120');
+    expect(screen.getByLabelText('Characters')).not.toHaveClass('chat-over');
+    await userEvent.keyboard('{Enter}');
+    expect(send).toHaveBeenCalledWith('chatSend', {
+      channel: ChatChannel.MAP,
+      text: '🙂'.repeat(MAX_CHAT_CHARS),
+    });
+  });
+
   it('the Enter key (through the ui store) opens it with the input focused, which then has the keyboard; Escape closes it', async () => {
     const { input } = setup({ open: false });
     expect(isOpen()).toBe(false);
@@ -329,11 +342,13 @@ describe('ChatBox', () => {
       expect(send).toHaveBeenCalledWith('chatSend', { channel: want, text });
     });
 
-    it('the Party tab says where a line goes', async () => {
+    it('each tab says where a line goes', async () => {
       const { input } = setup();
       expect(input()).toHaveAttribute('placeholder', 'Enter to chat; /p for the party');
       await userEvent.click(tab('Party'));
       expect(input()).toHaveAttribute('placeholder', 'Enter to chat with the party');
+      await userEvent.click(tab('Combat'));
+      expect(input()).toHaveAttribute('placeholder', 'Enter to chat on the map; /p for the party');
     });
 
     it('switching tabs while typing keeps the draft and the focus', async () => {
