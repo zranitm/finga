@@ -37,6 +37,12 @@ var (
 	ErrNotEnoughSkillPoints = errors.New("world: not that many unspent skill points")
 	ErrSkillNotLearnable    = errors.New("world: the character's class, and every class above it, doesn't teach that skill")
 	ErrBadSkillPoints       = errors.New("world: skill points must be at least one in all, and none negative")
+
+	ErrSkillNotLearned  = errors.New("world: the character has no points in that skill, or its class can't learn it")
+	ErrSkillPassive     = errors.New("world: a passive skill is always on and can't be used")
+	ErrNotInTown        = errors.New("world: a damaging skill can't be used in a town")
+	ErrSkillCoolingDown = errors.New("world: the skill is still cooling down")
+	ErrNotEnoughMP      = errors.New("world: not enough MP for the skill")
 )
 
 // Worn is what a character wears as the item service last counted it: each worn item, at the inventory's Revision.
@@ -276,6 +282,17 @@ func (Respawned) event() {}
 func (ExpGained) event() {}
 
 func (LevelUp) event() {}
+
+// SkillUsed says a character used a skill at a stage, facing a side, to everyone on the map, for drawing; its damage goes out as Damage.
+type SkillUsed struct {
+	Tick   uint64
+	Caster kernel.CharacterID
+	Skill  string
+	Stage  int
+	Facing int
+}
+
+func (SkillUsed) event() {}
 
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {

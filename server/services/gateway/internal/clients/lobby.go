@@ -66,6 +66,7 @@ func (a Accounts) UpdateSettings(ctx context.Context, account kernel.AccountID, 
 type CharacterService interface {
 	Create(ctx context.Context, in *characterv1.CreateRequest, opts ...grpc.CallOption) (*characterv1.CreateResponse, error)
 	List(ctx context.Context, in *characterv1.ListRequest, opts ...grpc.CallOption) (*characterv1.ListResponse, error)
+	SetSkillBar(ctx context.Context, in *characterv1.SetSkillBarRequest, opts ...grpc.CallOption) (*characterv1.SetSkillBarResponse, error)
 }
 
 // Characters is the application's Characters over the character service.
@@ -100,6 +101,12 @@ func (c Characters) Create(ctx context.Context, account kernel.AccountID, name s
 	return character(res.GetCharacter())
 }
 
+// SetSkillBar stores which skill sits on each key of one of the account's characters.
+func (c Characters) SetSkillBar(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, bar []string) error {
+	_, err := c.c.SetSkillBar(ctx, &characterv1.SetSkillBarRequest{CharacterId: id.String(), AccountId: account.String(), Slots: bar})
+	return errmap.Wrap(err)
+}
+
 func character(c *characterv1.Character) (model.Character, error) {
 	id, err := kernel.ParseCharacterID(c.GetId())
 	if err != nil {
@@ -109,6 +116,6 @@ func character(c *characterv1.Character) (model.Character, error) {
 	return model.Character{
 		ID: id, Name: c.GetName(), Class: c.GetClass(), Level: int(c.GetLevel()), Exp: c.GetExp(),
 		Stats: model.Stats{STR: int(s.GetStrength()), DEX: int(s.GetDexterity()), INT: int(s.GetIntelligence()), AGI: int(s.GetAgility()), VIT: int(s.GetVitality())},
-		HP:    int(c.GetHp()), MP: int(c.GetMp()), MapID: c.GetMapId(),
+		HP:    int(c.GetHp()), MP: int(c.GetMp()), MapID: c.GetMapId(), SkillBar: c.GetSkillBar(),
 	}, nil
 }

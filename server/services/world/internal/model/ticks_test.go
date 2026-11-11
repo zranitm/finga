@@ -55,3 +55,24 @@ func TestAttackCooldownTicks(t *testing.T) {
 		}
 	}
 }
+
+// Cooldown speed cuts a skill's cooldown before it is counted in whole ticks, rounded up.
+func TestSkillCooldownTicks(t *testing.T) {
+	tick := 50 * time.Millisecond
+	tests := []struct {
+		cooldown time.Duration
+		speed    float64
+		want     uint64
+	}{
+		{2 * time.Second, 0, 40},
+		{2 * time.Second, 0.25, 30},        // exactly 1.5 s
+		{2 * time.Second, 0.2, 32},         // exactly 1.6 s
+		{2 * time.Second, 0.21, 32},        // 1.58 s
+		{2500 * time.Millisecond, 0.4, 30}, // the limit: exactly 1.5 s
+	}
+	for _, tt := range tests {
+		if got := model.SkillCooldownTicks(tt.cooldown, tt.speed, tick); got != tt.want {
+			t.Errorf("%v at speed %v: %d ticks, want %d", tt.cooldown, tt.speed, got, tt.want)
+		}
+	}
+}

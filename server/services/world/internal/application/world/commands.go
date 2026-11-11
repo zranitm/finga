@@ -69,6 +69,11 @@ func (w *World) SpendSkillPoints(ctx context.Context, id kernel.CharacterID, con
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendSkillPoints(ctx, id, conn, expected, points) })
 }
 
+// UseSkill uses one of the character's active skills and returns once the tick resolves it.
+func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill) })
+}
+
 // ResetPoints returns every spent point to unspent with the free reset and returns once the new stats apply.
 func (w *World) ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.ResetPoints(ctx, id, conn, expected) })

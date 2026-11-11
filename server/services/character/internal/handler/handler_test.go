@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -29,7 +30,7 @@ var (
 	ayla  = model.Character{
 		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Exp: 40,
 		Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true, HP: 150, MP: 20, UnspentSkillPoints: 4,
-		MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC),
+		MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC), SkillBar: []string{"strike", "", "", "spark", "", ""},
 	}
 )
 
@@ -40,6 +41,7 @@ type fakeCharacters struct {
 	quests     []model.Quest
 	skills     []model.SkillPoints
 	checkpoint model.Checkpoint
+	skillBar   []string
 	levelUp    model.LevelUp
 	derivedErr error
 	err        error
@@ -96,6 +98,12 @@ func (f *fakeCharacters) SaveLevelUp(_ context.Context, lu model.LevelUp) error 
 	return f.err
 }
 
+func (f *fakeCharacters) SetSkillBar(_ context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
+	f.calls++
+	f.loaded, f.account, f.skillBar = id, account, bar
+	return f.err
+}
+
 func client(t *testing.T, f *fakeCharacters) characterv1.CharacterServiceClient {
 	t.Helper()
 	srv := grpcx.NewServer(grpcx.ServerOptions{Errors: handler.Errors, Logger: slog.New(slog.DiscardHandler)})
@@ -108,7 +116,7 @@ func wantAyla(t *testing.T, c *characterv1.Character, withMax bool) {
 	pts, own := c.GetPoints(), c.GetOwnStats()
 	if c.GetId() != ayla.ID.String() || c.GetAccountId() != owner.String() || c.GetName() != "Ayla" || c.GetClass() != "warrior" || c.GetLevel() != 3 || c.GetExp() != 40 ||
 		pts.GetStrength() != 6 || pts.GetVitality() != 3 || c.GetUnspentPoints() != 1 || !c.GetFreeResetUsed() || c.GetHp() != 150 || c.GetMp() != 20 ||
-		c.GetMapId() != "forest" || c.GetX() != 412.5 || c.GetY() != 608 || !c.GetUpdatedAt().AsTime().Equal(ayla.UpdatedAt) {
+		c.GetMapId() != "forest" || c.GetX() != 412.5 || c.GetY() != 608 || !c.GetUpdatedAt().AsTime().Equal(ayla.UpdatedAt) || !slices.Equal(c.GetSkillBar(), ayla.SkillBar) {
 		t.Fatalf("character %+v", c)
 	}
 	if withMax && (c.GetMaxHp() != 250 || c.GetMaxMp() != 30 || own.GetStrength() != 18 || own.GetVitality() != 13) {
@@ -184,6 +192,15 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			t.Fatalf("checkpoint %+v", f.checkpoint)
 		}
 	})
+	t.Run("SetSkillBar", func(t *testing.T) {
+		slots := []string{"", "throw", "", "", "", "strike"}
+		if _, err := c.SetSkillBar(ctx, &characterv1.SetSkillBarRequest{CharacterId: ayla.ID.String(), AccountId: owner.String(), Slots: slots}); err != nil {
+			t.Fatal(err)
+		}
+		if f.loaded != ayla.ID || f.account != owner || !slices.Equal(f.skillBar, slots) {
+			t.Fatalf("set %v's bar to %q for %v", f.loaded, f.skillBar, f.account)
+		}
+	})
 	t.Run("SaveLevelUp", func(t *testing.T) {
 		points := &characterv1.Stats{Strength: 9, Vitality: 6}
 		if _, err := c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{CharacterId: ayla.ID.String(), Level: 4, Exp: 3, Points: points, Hp: 280, Mp: 31}); err != nil {
@@ -224,6 +241,10 @@ func TestAMalformedIDNeverReachesTheModule(t *testing.T) {
 		},
 		func() error {
 			_, err := c.SaveLevelUp(ctx, &characterv1.SaveLevelUpRequest{CharacterId: ""})
+			return err
+		},
+		func() error {
+			_, err := c.SetSkillBar(ctx, &characterv1.SetSkillBarRequest{CharacterId: ayla.ID.String(), AccountId: "x"})
 			return err
 		},
 	}

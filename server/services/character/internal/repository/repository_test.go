@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func sample(account kernel.AccountID, name string) model.Character {
 	return model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: name, Class: kernel.Class("warrior"), Level: 1, Exp: 0,
 		Points: gamedata.Stats{STR: 1, AGI: 2}, UnspentPoints: 3, FreeResetUsed: true, HP: 184, MP: 32,
-		MapID: "town", X: 416, Y: 608,
+		MapID: "town", X: 416, Y: 608, SkillBar: []string{"", "", "", "", "", ""},
 	}
 }
 
@@ -89,8 +90,30 @@ func TestRepository(t *testing.T) {
 			t.Fatalf("updated_at %v, want the insert's %v", got.UpdatedAt, stored.UpdatedAt)
 		}
 		got.UpdatedAt = time.Time{}
-		if got != ayla {
+		if !reflect.DeepEqual(got, ayla) {
 			t.Fatalf("got %+v\nwant %+v", got, ayla)
+		}
+	})
+
+	t.Run("the skill bar is set only for its owner", func(t *testing.T) {
+		bar := []string{"strike", "", "", "", "", "spark"}
+		set := func(account kernel.AccountID, bar []string) error {
+			return store.InTx(ctx, func(uow application.UnitOfWork) error {
+				return uow.Characters().SetSkillBar(ctx, ayla.ID, account, bar)
+			})
+		}
+		if err := set(bob, bar); !errors.Is(err, model.ErrNotFound) {
+			t.Fatalf("someone else's: %v, want ErrNotFound", err)
+		}
+		if err := set(alice, bar); err != nil {
+			t.Fatal(err)
+		}
+		got := load(t)
+		if !slices.Equal(got.SkillBar, bar) || !got.UpdatedAt.After(stored.UpdatedAt) {
+			t.Fatalf("skill bar %q at %v, want %q stamped after %v", got.SkillBar, got.UpdatedAt, bar, stored.UpdatedAt)
+		}
+		if err := set(alice, ayla.SkillBar); err != nil {
+			t.Fatal(err)
 		}
 	})
 

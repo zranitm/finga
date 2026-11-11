@@ -44,6 +44,8 @@ service WorldService {
   rpc HandInQuest(HandInQuestRequest) returns (HandInQuestResponse);
   // UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
   rpc UseItem(UseItemRequest) returns (UseItemResponse);
+  // UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
+  rpc UseSkill(UseSkillRequest) returns (UseSkillResponse);
 }
 
 enum Reason {
@@ -94,6 +96,14 @@ enum Reason {
   REASON_SKILL_NOT_LEARNABLE = 26;
   // Skill points below one in all, or any negative.
   REASON_BAD_SKILL_POINTS = 27;
+  // No points in the skill, a skill the game data doesn't have, or one the character's class can't learn.
+  REASON_SKILL_NOT_LEARNED = 28;
+  // A passive skill is always on and can't be used.
+  REASON_SKILL_PASSIVE = 29;
+  // A damaging skill in a town.
+  REASON_NOT_IN_TOWN = 30;
+  REASON_SKILL_COOLING_DOWN = 31;
+  REASON_NOT_ENOUGH_MP = 32;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -223,6 +233,7 @@ message DeliverResponse {
     Loot loot = 19;
     NpcDialog npc_dialog = 20;
     QuestChanged quest_changed = 21;
+    SkillUsed skill_used = 22;
   }
 }
 
@@ -336,6 +347,14 @@ message Damage {
   int32 amount = 3;
   bool crit = 4;
   bool miss = 5;
+}
+
+// SkillUsed says a character used a skill at a stage, an index into its stages in game data, facing 1 right or -1 left.
+message SkillUsed {
+  string caster = 1;
+  string skill = 2;
+  int32 stage = 3;
+  int32 facing = 4;
 }
 
 message Died {
@@ -569,6 +588,14 @@ message SpendSkillPointsRequest {
 }
 
 message SpendSkillPointsResponse {}
+
+message UseSkillRequest {
+  Presence presence = 1;
+  // The skill ID.
+  string skill = 2;
+}
+
+message UseSkillResponse {}
 
 message ResetPointsRequest {
   Presence presence = 1;

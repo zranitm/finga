@@ -57,6 +57,8 @@ type player struct {
 	toldMaxHP     int
 	hpCarry       int // regen's fractions, in thousandths of a point
 	mpCarry       int
+	skillReady    map[string]uint64 // the tick each skill's cooldown ends
+	buffs         map[string]buff   // by skill
 }
 
 func (i *Instance) add(j *joinMsg) {

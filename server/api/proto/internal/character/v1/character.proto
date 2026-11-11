@@ -20,6 +20,8 @@ service CharacterService {
   rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse) {
     option deprecated = true;
   }
+  // SetSkillBar stores which skill sits on each of keys 1 to 6, for one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND. The world never reads it.
+  rpc SetSkillBar(SetSkillBarRequest) returns (SetSkillBarResponse);
 }
 
 enum Reason {
@@ -36,6 +38,8 @@ enum Reason {
   // A checkpoint's quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion.
   REASON_BAD_QUEST = 8;
   REASON_BAD_SKILL = 9;
+  // A skill bar without six keys, or with a key holding a skill that isn't an active one in the game data.
+  REASON_BAD_SKILL_BAR = 10;
 }
 
 // QuestStatus is where a character stands with a quest.
@@ -94,6 +98,8 @@ message Character {
   Stats own_stats = 18;
   // Skill points not yet invested in a skill.
   int32 unspent_skill_points = 19;
+  // The skill on each of keys 1 to 6, empty for none.
+  repeated string skill_bar = 20;
 }
 
 // SkillPoints are the points invested in one skill; a skill with none isn't listed.
@@ -169,3 +175,13 @@ message SaveLevelUpRequest {
 }
 
 message SaveLevelUpResponse {}
+
+message SetSkillBarRequest {
+  string character_id = 1;
+  // The owner the caller claims; the character must belong to it.
+  string account_id = 2;
+  // Six skill IDs, one per key from 1 to 6, empty for none.
+  repeated string slots = 3;
+}
+
+message SetSkillBarResponse {}

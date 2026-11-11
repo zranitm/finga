@@ -26,6 +26,11 @@ type Attack struct {
 	Cooldown time.Duration
 }
 
+// Shape is where the attack finds its one target, as a skill's shape does.
+func (a Attack) Shape() Shape {
+	return Shape{Kind: ShapeKind(a.Kind), Width: a.Width, Height: a.Height, Range: a.Range}
+}
+
 // Grant is a starter item: a template and a quantity.
 type Grant struct {
 	Item     string

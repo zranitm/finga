@@ -25,6 +25,7 @@ type Service interface {
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
+	SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error
 }
 
 // Server serves CharacterService over the module.
@@ -138,6 +139,22 @@ func (s *Server) SaveLevelUp(ctx context.Context, req *characterv1.SaveLevelUpRe
 	return &characterv1.SaveLevelUpResponse{}, nil
 }
 
+// SetSkillBar stores which skill sits on each key, for one of the account's characters.
+func (s *Server) SetSkillBar(ctx context.Context, req *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error) {
+	id, err := kernel.ParseCharacterID(req.GetCharacterId())
+	if err != nil {
+		return nil, err
+	}
+	account, err := kernel.ParseAccountID(req.GetAccountId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.svc.SetSkillBar(ctx, id, account, req.GetSlots()); err != nil {
+		return nil, err
+	}
+	return &characterv1.SetSkillBarResponse{}, nil
+}
+
 // view leaves the maximums 0 when the class is unknown (Load refuses that case).
 func (s *Server) view(c model.Character) *characterv1.Character {
 	own := s.svc.Own(c)
@@ -147,7 +164,7 @@ func (s *Server) view(c model.Character) *characterv1.Character {
 		Level: int32(c.Level), Exp: c.Exp, Points: statsView(c.Points), UnspentPoints: int32(c.UnspentPoints), FreeResetUsed: c.FreeResetUsed, OwnStats: statsView(own),
 		UnspentSkillPoints: int32(c.UnspentSkillPoints), //nolint:gosec // points are small
 		Hp:                 int32(c.HP), MaxHp: int32(d.MaxHP), Mp: int32(c.MP), MaxMp: int32(d.MaxMP),
-		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt),
+		MapId: c.MapID, X: c.X, Y: c.Y, UpdatedAt: timestamppb.New(c.UpdatedAt), SkillBar: c.SkillBar,
 	}
 }
 

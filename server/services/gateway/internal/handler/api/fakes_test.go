@@ -54,6 +54,14 @@ func (f *fakeAccounts) UpdateSettings(ctx context.Context, in *accountv1.UpdateS
 type fakeCharacters struct {
 	create func(ctx context.Context, in *characterv1.CreateRequest) (*characterv1.CreateResponse, error)
 	list   func(ctx context.Context, in *characterv1.ListRequest) (*characterv1.ListResponse, error)
+	setBar func(ctx context.Context, in *characterv1.SetSkillBarRequest) (*characterv1.SetSkillBarResponse, error)
+}
+
+func (f *fakeCharacters) SetSkillBar(ctx context.Context, in *characterv1.SetSkillBarRequest, _ ...grpc.CallOption) (*characterv1.SetSkillBarResponse, error) {
+	if f.setBar == nil {
+		panic("unexpected SetSkillBar")
+	}
+	return f.setBar(ctx, in)
 }
 
 func (f *fakeCharacters) Create(ctx context.Context, in *characterv1.CreateRequest, _ ...grpc.CallOption) (*characterv1.CreateResponse, error) {

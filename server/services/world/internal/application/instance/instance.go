@@ -84,6 +84,7 @@ type Instance struct {
 
 	dropped []kernel.CharacterID // removed during the last broadcast, reported next tick
 	events  []model.Event        // map-wide events of the current tick
+	casts   []skillMsg           // this tick's skill uses, resolved after movement
 }
 
 // message is what the tick drains from the inbox.
@@ -289,7 +290,9 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	removed := slices.Concat(i.dropped, i.drain())
 	changed := i.simulate()
 	i.arena.Step(n)
+	i.expireBuffs()
 	i.resolveAttacks()
+	i.castSkills()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
 	if n%i.ticksFor(time.Second) == 0 {
@@ -354,6 +357,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settlePoints(m)
 		case skillPointsMsg:
 			i.settleSkillPoints(m)
+		case skillMsg:
+			i.casts = append(i.casts, m)
 		case talkMsg:
 			i.talk(m)
 		case questMsg:

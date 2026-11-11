@@ -76,15 +76,19 @@ func (i *Instance) resolveAttacks() {
 			continue
 		}
 		p.cooldownUntil = i.tick + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
-		blow, reached := i.arena.Strike(mobs.Strike{
-			By: p.ID, Attack: p.class.Attack, Power: model.PlayerAttacker(p.derived, p.class.Attack.Damage),
-			X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
-		})
-		if !reached {
-			continue
-		}
-		i.events = append(i.events, blow.Damage)
-		if k := blow.Killed; k != nil {
+		i.strike(p, p.class.Attack.Shape(), 1, model.PlayerAttacker(p.derived, p.class.Attack.Damage))
+	}
+}
+
+// strike hits up to most mobs the shape reaches from the player, tells the map the damage, and drops, shares EXP and counts each kill.
+func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) {
+	blows := i.arena.Strike(mobs.Strike{
+		By: p.ID, Shape: shape, Most: most, Power: power,
+		X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
+	})
+	for _, b := range blows {
+		i.events = append(i.events, b.Damage)
+		if k := b.Killed; k != nil {
 			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y))
 			i.shareExp(p, k.Mob.Exp)
 			i.countKill(p, k.Mob.ID)
@@ -170,6 +174,10 @@ func (i *Instance) kill(p *player) {
 	p.deadUntil = i.tick + i.ticksFor(respawnDelay)
 	p.held = sim.Input{}
 	p.pending = p.pending[:0]
+	if len(p.buffs) > 0 { // buffs end at death
+		clear(p.buffs)
+		i.restat(p)
+	}
 	progress := progression.DeathPenalty(i.data, progression.Progress{Level: p.Level, Exp: p.Exp}, i.m.Kind == gamedata.Town)
 	if progress.Exp != p.Exp {
 		p.private = append(p.private, model.ExpGained{Tick: i.tick, Amount: progress.Exp - p.Exp, Exp: progress.Exp})

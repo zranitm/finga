@@ -37,6 +37,7 @@ const (
 	WorldService_AbandonQuest_FullMethodName     = "/internal.world.v1.WorldService/AbandonQuest"
 	WorldService_HandInQuest_FullMethodName      = "/internal.world.v1.WorldService/HandInQuest"
 	WorldService_UseItem_FullMethodName          = "/internal.world.v1.WorldService/UseItem"
+	WorldService_UseSkill_FullMethodName         = "/internal.world.v1.WorldService/UseSkill"
 )
 
 // WorldServiceClient is the client API for WorldService service.
@@ -82,6 +83,8 @@ type WorldServiceClient interface {
 	HandInQuest(ctx context.Context, in *HandInQuestRequest, opts ...grpc.CallOption) (*HandInQuestResponse, error)
 	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
 	UseItem(ctx context.Context, in *UseItemRequest, opts ...grpc.CallOption) (*UseItemResponse, error)
+	// UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
+	UseSkill(ctx context.Context, in *UseSkillRequest, opts ...grpc.CallOption) (*UseSkillResponse, error)
 }
 
 type worldServiceClient struct {
@@ -282,6 +285,16 @@ func (c *worldServiceClient) UseItem(ctx context.Context, in *UseItemRequest, op
 	return out, nil
 }
 
+func (c *worldServiceClient) UseSkill(ctx context.Context, in *UseSkillRequest, opts ...grpc.CallOption) (*UseSkillResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UseSkillResponse)
+	err := c.cc.Invoke(ctx, WorldService_UseSkill_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServiceServer is the server API for WorldService service.
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
@@ -325,6 +338,8 @@ type WorldServiceServer interface {
 	HandInQuest(context.Context, *HandInQuestRequest) (*HandInQuestResponse, error)
 	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
 	UseItem(context.Context, *UseItemRequest) (*UseItemResponse, error)
+	// UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
+	UseSkill(context.Context, *UseSkillRequest) (*UseSkillResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }
 
@@ -388,6 +403,9 @@ func (UnimplementedWorldServiceServer) HandInQuest(context.Context, *HandInQuest
 }
 func (UnimplementedWorldServiceServer) UseItem(context.Context, *UseItemRequest) (*UseItemResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UseItem not implemented")
+}
+func (UnimplementedWorldServiceServer) UseSkill(context.Context, *UseSkillRequest) (*UseSkillResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UseSkill not implemented")
 }
 func (UnimplementedWorldServiceServer) mustEmbedUnimplementedWorldServiceServer() {}
 func (UnimplementedWorldServiceServer) testEmbeddedByValue()                      {}
@@ -727,6 +745,24 @@ func _WorldService_UseItem_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_UseSkill_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UseSkillRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).UseSkill(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_UseSkill_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).UseSkill(ctx, req.(*UseSkillRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldService_ServiceDesc is the grpc.ServiceDesc for WorldService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -801,6 +837,10 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UseItem",
 			Handler:    _WorldService_UseItem_Handler,
+		},
+		{
+			MethodName: "UseSkill",
+			Handler:    _WorldService_UseSkill_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

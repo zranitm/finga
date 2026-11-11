@@ -150,6 +150,12 @@
     "message": "unknown class"
   },
   {
+    "code": 120007,
+    "name": "BAD_SKILL_BAR",
+    "status": 400,
+    "message": "a skill bar has six keys, each empty or an active skill"
+  },
+  {
     "code": 220001,
     "name": "ITEM_NOT_FOUND",
     "status": 404,
@@ -406,6 +412,36 @@
     "name": "BAD_SKILL_POINTS",
     "status": 400,
     "message": "invest at least one skill point, and none below zero"
+  },
+  {
+    "code": 330019,
+    "name": "SKILL_NOT_LEARNED",
+    "status": 409,
+    "message": "put a point in that skill first"
+  },
+  {
+    "code": 330020,
+    "name": "SKILL_PASSIVE",
+    "status": 400,
+    "message": "a passive skill is always on"
+  },
+  {
+    "code": 330021,
+    "name": "NOT_IN_TOWN",
+    "status": 409,
+    "message": "you can't use that in town"
+  },
+  {
+    "code": 330022,
+    "name": "SKILL_COOLING_DOWN",
+    "status": 409,
+    "message": "that skill isn't ready yet"
+  },
+  {
+    "code": 330023,
+    "name": "NOT_ENOUGH_MP",
+    "status": 409,
+    "message": "not enough MP"
   },
   {
     "code": 440001,

@@ -35,6 +35,7 @@ type World interface {
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
 	SpendSkillPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points map[string]int) error
+	UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill string) error
 	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
 	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 	AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error
@@ -250,6 +251,18 @@ func (s *Server) SpendSkillPoints(ctx context.Context, req *worldv1.SpendSkillPo
 		return nil, err
 	}
 	return &worldv1.SpendSkillPointsResponse{}, nil
+}
+
+// UseSkill uses an active skill and answers once the tick resolves it.
+func (s *Server) UseSkill(ctx context.Context, req *worldv1.UseSkillRequest) (*worldv1.UseSkillResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.UseSkill(ctx, id, conn, req.GetSkill()); err != nil {
+		return nil, err
+	}
+	return &worldv1.UseSkillResponse{}, nil
 }
 
 // ResetPoints returns every spent point to unspent with the free reset and answers once the new stats apply.

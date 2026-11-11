@@ -699,6 +699,10 @@ func TestCombatEventsReachTheClient(t *testing.T) {
 		if d := c.expect("Damage").Data.(*clientv1.Damage); d.Source != "m:7" || !d.Miss {
 			t.Fatalf("damage %+v", d)
 		}
+		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_SkillUsed{SkillUsed: &worldv1.SkillUsed{Caster: aylaID.String(), Skill: "strike", Stage: 1, Facing: -1}}})
+		if u := c.expect("SkillUsed").Data.(*clientv1.SkillUsed); u.GetCaster() != aylaID.String() || u.GetSkill() != "strike" || u.GetStage() != 1 || u.GetFacing() != -1 {
+			t.Fatalf("skill used %+v", u)
+		}
 		h.world.push(aylaID, &worldv1.DeliverResponse{Tick: 7, Event: &worldv1.DeliverResponse_Died{Died: &worldv1.Died{CharacterId: aylaID.String(), X: 1, Y: 2}}})
 		if d := c.expect("Died").Data.(*clientv1.Died); d.GetCharacterId() != aylaID.String() || d.X != 1 {
 			t.Fatalf("died %+v", d)
@@ -2474,6 +2478,33 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				}
 			}
 			h.world.failPoints(nil)
+		})
+		part(t, "UseSkill goes to the world as the sender, answering once the tick resolved it, or with its refusal", func() {
+			c.send(wsconn.Message{ReqID: "u-1", Data: &clientv1.UseSkill{Skill: "strike"}})
+			if r := c.expect("Response"); r.ReqID != "u-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to u-1", r)
+			}
+			if casts := h.world.castCalls(); len(casts) != 1 || casts[0].GetPresence().GetCharacterId() != aylaID.String() || casts[0].GetSkill() != "strike" {
+				t.Fatalf("skill uses %+v", casts)
+			}
+			for _, tt := range []struct {
+				reason worldv1.Reason
+				want   model.Public
+			}{
+				{worldv1.Reason_REASON_SKILL_NOT_LEARNED, model.SkillNotLearned},
+				{worldv1.Reason_REASON_SKILL_PASSIVE, model.SkillPassive},
+				{worldv1.Reason_REASON_NOT_IN_TOWN, model.NotInTown},
+				{worldv1.Reason_REASON_SKILL_COOLING_DOWN, model.SkillCoolingDown},
+				{worldv1.Reason_REASON_NOT_ENOUGH_MP, model.NotEnoughMP},
+			} {
+				time.Sleep(time.Second) // under the skill limit of 5 a second
+				h.world.failCasts(grpctest.Error(codes.FailedPrecondition, tt.reason))
+				c.send(wsconn.Message{ReqID: "r-" + tt.want.Name, Data: &clientv1.UseSkill{Skill: "strike"}})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.want.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.want.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.want.Name)
+				}
+			}
+			h.world.failCasts(nil)
 		})
 	})
 }

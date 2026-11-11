@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/otel/trace"
 
+	"finga/internal/kernel"
 	"finga/pkg/panics"
 	"finga/services/gateway/internal/application"
 	"finga/services/gateway/internal/model"
@@ -57,6 +58,7 @@ func Mount(d Dependencies) func(e *gin.Engine) {
 		authed.DELETE("/sessions", h.logoutEverywhere)
 		authed.GET("/characters", h.listCharacters)
 		authed.POST("/characters", h.createCharacter)
+		authed.PUT("/characters/:id/skill-bar", h.setSkillBar)
 		authed.GET("/settings", h.settings)
 		authed.PUT("/settings", h.updateSettings)
 
@@ -168,6 +170,23 @@ func (h *api) createCharacter(c *gin.Context) {
 		return
 	}
 	writeJSON(c, http.StatusCreated, toCharacter(ch))
+}
+
+func (h *api) setSkillBar(c *gin.Context) {
+	id, err := kernel.ParseCharacterID(c.Param("id"))
+	if err != nil {
+		writeError(c, err)
+		return
+	}
+	var req SkillBarRequest
+	if decode(c, &req) != nil {
+		return
+	}
+	if err := h.lobby.SetSkillBar(c.Request.Context(), principalFrom(c), id, req.Slots); err != nil {
+		writeError(c, err)
+		return
+	}
+	writeJSON(c, http.StatusOK, SkillBarResponse(req))
 }
 
 func (h *api) settings(c *gin.Context) {

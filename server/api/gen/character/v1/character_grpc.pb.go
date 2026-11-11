@@ -24,6 +24,7 @@ const (
 	CharacterService_Load_FullMethodName           = "/internal.character.v1.CharacterService/Load"
 	CharacterService_SaveCheckpoint_FullMethodName = "/internal.character.v1.CharacterService/SaveCheckpoint"
 	CharacterService_SaveLevelUp_FullMethodName    = "/internal.character.v1.CharacterService/SaveLevelUp"
+	CharacterService_SetSkillBar_FullMethodName    = "/internal.character.v1.CharacterService/SetSkillBar"
 )
 
 // CharacterServiceClient is the client API for CharacterService service.
@@ -43,6 +44,8 @@ type CharacterServiceClient interface {
 	// Deprecated: Do not use.
 	// SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
 	SaveLevelUp(ctx context.Context, in *SaveLevelUpRequest, opts ...grpc.CallOption) (*SaveLevelUpResponse, error)
+	// SetSkillBar stores which skill sits on each of keys 1 to 6, for one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND. The world never reads it.
+	SetSkillBar(ctx context.Context, in *SetSkillBarRequest, opts ...grpc.CallOption) (*SetSkillBarResponse, error)
 }
 
 type characterServiceClient struct {
@@ -104,6 +107,16 @@ func (c *characterServiceClient) SaveLevelUp(ctx context.Context, in *SaveLevelU
 	return out, nil
 }
 
+func (c *characterServiceClient) SetSkillBar(ctx context.Context, in *SetSkillBarRequest, opts ...grpc.CallOption) (*SetSkillBarResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetSkillBarResponse)
+	err := c.cc.Invoke(ctx, CharacterService_SetSkillBar_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CharacterServiceServer is the server API for CharacterService service.
 // All implementations must embed UnimplementedCharacterServiceServer
 // for forward compatibility.
@@ -121,6 +134,8 @@ type CharacterServiceServer interface {
 	// Deprecated: Do not use.
 	// SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
 	SaveLevelUp(context.Context, *SaveLevelUpRequest) (*SaveLevelUpResponse, error)
+	// SetSkillBar stores which skill sits on each of keys 1 to 6, for one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND. The world never reads it.
+	SetSkillBar(context.Context, *SetSkillBarRequest) (*SetSkillBarResponse, error)
 	mustEmbedUnimplementedCharacterServiceServer()
 }
 
@@ -145,6 +160,9 @@ func (UnimplementedCharacterServiceServer) SaveCheckpoint(context.Context, *Save
 }
 func (UnimplementedCharacterServiceServer) SaveLevelUp(context.Context, *SaveLevelUpRequest) (*SaveLevelUpResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveLevelUp not implemented")
+}
+func (UnimplementedCharacterServiceServer) SetSkillBar(context.Context, *SetSkillBarRequest) (*SetSkillBarResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetSkillBar not implemented")
 }
 func (UnimplementedCharacterServiceServer) mustEmbedUnimplementedCharacterServiceServer() {}
 func (UnimplementedCharacterServiceServer) testEmbeddedByValue()                          {}
@@ -257,6 +275,24 @@ func _CharacterService_SaveLevelUp_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CharacterService_SetSkillBar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetSkillBarRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterServiceServer).SetSkillBar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterService_SetSkillBar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterServiceServer).SetSkillBar(ctx, req.(*SetSkillBarRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CharacterService_ServiceDesc is the grpc.ServiceDesc for CharacterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -283,6 +319,10 @@ var CharacterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SaveLevelUp",
 			Handler:    _CharacterService_SaveLevelUp_Handler,
+		},
+		{
+			MethodName: "SetSkillBar",
+			Handler:    _CharacterService_SetSkillBar_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

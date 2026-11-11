@@ -140,17 +140,18 @@ func (a *Arena) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, max
 	return area.Area.X + half, area.Area.X + area.Area.W - half
 }
 
-// Strike is a player's basic attack, from where they stand the way they face.
+// Strike is a player's hit, a basic attack or a skill, from where they stand the way they face.
 type Strike struct {
 	By     kernel.CharacterID
-	Attack gamedata.Attack
+	Shape  gamedata.Shape
+	Most   int // the most mobs it hits
 	Power  model.Attacker
 	X, Y   float64 // the attacker's feet centre
 	Facing int
-	Height float64 // the attacker's; a shot flies at half of it
+	Height float64 // the attacker's; a shot flies at half of it, an area spreads from it
 }
 
-// Blow is what a strike that reached a mob did: its damage, and the mob if it died.
+// Blow is what a strike did to one mob it reached: its damage, and the mob if it died.
 type Blow struct {
 	Damage model.Damage
 	Killed *Kill
@@ -162,37 +163,32 @@ type Kill struct {
 	X, Y float64
 }
 
-// Strike resolves an attack against the mob it reaches, if any; a killed mob leaves the map and waits to respawn.
-func (a *Arena) Strike(s Strike) (Blow, bool) {
+// Strike resolves a hit against each mob its shape reaches, nearest first; a killed mob leaves the map and waits to respawn.
+func (a *Arena) Strike(s Strike) []Blow {
 	targets := make([]model.Target, 0, len(a.mobs))
 	for _, mb := range a.mobs {
 		targets = append(targets, model.Target{Box: mb.box()})
 	}
-	var idx int
-	var reached bool
-	switch s.Attack.Kind {
-	case gamedata.Melee:
-		box := model.MeleeBox(s.X, s.Y, s.Facing, s.Attack.Width, s.Attack.Height)
-		idx, reached = model.NearestInBox(s.X, s.Y, box, targets)
-	case gamedata.Ranged:
-		idx, reached = model.FirstInLine(s.X, s.Y-s.Height/2, s.Facing, s.Attack.Range, targets)
+	reached := model.Reached(s.X, s.Y, s.Facing, s.Height, s.Shape, targets, s.Most)
+	hit := make([]*mob, 0, len(reached))
+	for _, idx := range reached {
+		hit = append(hit, a.mobs[idx]) // before a kill removes any of them
 	}
-	if !reached {
-		return Blow{}, false
+	blows := make([]Blow, 0, len(hit))
+	for _, mb := range hit {
+		h := model.Resolve(s.Power, model.MobDefender(mb.def), a.hit, a.roll)
+		b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
+		if !h.Miss {
+			mb.hp -= h.Damage
+			mb.changed = true
+			if mb.hp <= 0 {
+				a.remove(mb)
+				b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y}
+			}
+		}
+		blows = append(blows, b)
 	}
-	mb := a.mobs[idx]
-	h := model.Resolve(s.Power, model.MobDefender(mb.def), a.hit, a.roll)
-	b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
-	if h.Miss {
-		return b, true
-	}
-	mb.hp -= h.Damage
-	mb.changed = true
-	if mb.hp <= 0 {
-		a.remove(mb)
-		b.Killed = &Kill{Mob: mb.def, X: mb.x, Y: mb.y}
-	}
-	return b, true
+	return blows
 }
 
 func (a *Arena) remove(mb *mob) {

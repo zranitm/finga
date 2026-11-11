@@ -37,7 +37,19 @@ func newArena(t *testing.T, roll float64) *mobs.Arena {
 var strong = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1000, Accuracy: 100}
 
 func meleeAt(x float64, facing int) mobs.Strike {
-	return mobs.Strike{By: kernel.NewCharacterID(), Attack: gamedata.Attack{Kind: gamedata.Melee, Width: 60, Height: 60}, Power: strong, X: x, Y: floor, Facing: facing, Height: 60}
+	return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.MeleeShape, Width: 60, Height: 60}, Most: 1, Power: strong, X: x, Y: floor, Facing: facing, Height: 60}
+}
+
+// one is the only blow of a strike, if it reached anything.
+func one(t *testing.T, blows []mobs.Blow) (mobs.Blow, bool) {
+	t.Helper()
+	if len(blows) > 1 {
+		t.Fatalf("%d blows; want one at most", len(blows))
+	}
+	if len(blows) == 0 {
+		return mobs.Blow{}, false
+	}
+	return blows[0], true
 }
 
 func TestTheArenaIsFullBeforeItsFirstTick(t *testing.T) {
@@ -92,7 +104,7 @@ func TestAKilledMobComesBackAfterItsAreasRespawn(t *testing.T) {
 	a.Step(1)
 	_, _ = a.Changes()
 	stood := a.Views()[0]
-	blow, reached := a.Strike(meleeAt(stood.X-20, 1))
+	blow, reached := one(t, a.Strike(meleeAt(stood.X-20, 1)))
 	if !reached || blow.Killed == nil || blow.Killed.Mob.ID != "green_slime" || blow.Killed.X != stood.X || blow.Killed.Y != floor {
 		t.Fatalf("blow %+v reached %v; want the slime killed where it stood", blow, reached)
 	}
@@ -115,7 +127,7 @@ func TestAKilledMobComesBackAfterItsAreasRespawn(t *testing.T) {
 
 func TestAStrikeReachesOnlyWhatItsAttackCovers(t *testing.T) {
 	ranged := func(x float64, rng float64) mobs.Strike {
-		return mobs.Strike{By: kernel.NewCharacterID(), Attack: gamedata.Attack{Kind: gamedata.Ranged, Range: rng}, Power: strong, X: x, Y: floor, Facing: 1, Height: 40}
+		return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.RangedShape, Range: rng}, Most: 1, Power: strong, X: x, Y: floor, Facing: 1, Height: 40}
 	}
 	tests := []struct {
 		name    string
@@ -130,7 +142,7 @@ func TestAStrikeReachesOnlyWhatItsAttackCovers(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			blow, reached := newArena(t, 0.5).Strike(tt.strike)
+			blow, reached := one(t, newArena(t, 0.5).Strike(tt.strike))
 			if reached != tt.reached {
 				t.Fatalf("reached %v, want %v", reached, tt.reached)
 			}
@@ -144,7 +156,7 @@ func TestAStrikeReachesOnlyWhatItsAttackCovers(t *testing.T) {
 // A strike that misses still reaches its slime, which keeps its HP.
 func TestAMissHurtsNothing(t *testing.T) {
 	a := newArena(t, 0.995) // past the best hit chance
-	blow, reached := a.Strike(meleeAt(a.Views()[0].X-20, 1))
+	blow, reached := one(t, a.Strike(meleeAt(a.Views()[0].X-20, 1)))
 	if !reached || !blow.Damage.Miss || blow.Damage.Amount != 0 || blow.Killed != nil {
 		t.Fatalf("blow %+v reached %v; want a miss", blow, reached)
 	}
@@ -205,10 +217,30 @@ func TestAMagicStrikeMeetsAMobsMagicDefense(t *testing.T) {
 	a := newArena(t, 0.5)
 	s := meleeAt(spawnX-20, 1)
 	s.Power = model.Attacker{Damage: gamedata.Magic, MagicAttack: 30.3, PhysicalAttack: 1000, Accuracy: 100}
-	blow, reached := a.Strike(s)
+	blow, reached := one(t, a.Strike(s))
 	// 30.3·100/101 = 30
 	if !reached || blow.Damage.Amount != 30 || blow.Killed != nil {
 		t.Fatalf("blow %+v reached %v; want 30 against magic defense 1", blow, reached)
+	}
+}
+
+// A strike for several hits each mob its shape reaches, nearest first, up to its most; an area reaches around the attacker.
+func TestAStrikeHitsUpToItsMostNearestFirst(t *testing.T) {
+	area := func(most int) mobs.Strike {
+		return mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.AreaShape, Radius: 80}, Most: most, Power: strong, X: spawnX, Y: floor, Facing: 1, Height: 40}
+	}
+	if blows := newArena(t, 0.5).Strike(area(3)); len(blows) != 2 || blows[0].Killed == nil || blows[1].Killed == nil {
+		t.Fatalf("blows %+v; want both slimes, killed", blows)
+	}
+	a := newArena(t, 0.5)
+	blows := a.Strike(area(1))
+	if len(blows) != 1 || len(a.Views()) != 1 {
+		t.Fatalf("blows %+v, %d left; want one slime hit and one left", blows, len(a.Views()))
+	}
+	far := area(3)
+	far.X = spawnX + 400
+	if blows := newArena(t, 0.5).Strike(far); len(blows) != 0 {
+		t.Fatalf("blows %+v; want none beyond the radius", blows)
 	}
 }
 

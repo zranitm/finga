@@ -17,6 +17,8 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.MapChange{MapId: p.MapID, X: p.X, Y: p.Y}
 	case model.Damage:
 		return &clientv1.Damage{Source: entityRef(p.Source), Target: entityRef(p.Target), Amount: int32(p.Amount), Crit: p.Crit, Miss: p.Miss}
+	case model.SkillUsed:
+		return &clientv1.SkillUsed{Caster: p.Caster, Skill: p.Skill, Stage: int32(p.Stage), Facing: int32(p.Facing)}
 	case model.Died:
 		return &clientv1.Died{CharacterId: p.CharacterID, X: p.X, Y: p.Y}
 	case model.Respawned:

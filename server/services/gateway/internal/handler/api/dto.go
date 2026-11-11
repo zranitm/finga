@@ -57,6 +57,18 @@ type CharacterResponse struct {
 	HP    int           `json:"hp"`
 	MP    int           `json:"mp"`
 	MapID string        `json:"map_id"`
+	// SkillBar is the skill on each of keys 1 to 6, "" for none.
+	SkillBar []string `json:"skill_bar"`
+}
+
+// SkillBarRequest is PUT /api/characters/{id}/skill-bar.
+type SkillBarRequest struct {
+	Slots []string `json:"slots"`
+}
+
+// SkillBarResponse is the skill bar as saved.
+type SkillBarResponse struct {
+	Slots []string `json:"slots"`
 }
 
 // CharactersResponse is GET /api/characters.
@@ -93,7 +105,7 @@ func toCharacter(c model.Character) CharacterResponse {
 	return CharacterResponse{
 		ID: c.ID.String(), Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp,
 		Stats: StatsResponse{STR: s.STR, DEX: s.DEX, INT: s.INT, AGI: s.AGI, VIT: s.VIT},
-		HP:    c.HP, MP: c.MP, MapID: c.MapID,
+		HP:    c.HP, MP: c.MP, MapID: c.MapID, SkillBar: c.SkillBar,
 	}
 }
 

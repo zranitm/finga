@@ -172,6 +172,16 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	return nil
 }
 
+func (r fakeRepo) SetSkillBar(_ context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error {
+	c, ok := r.s.chars[id]
+	if !ok || c.AccountID != account {
+		return model.ErrNotFound
+	}
+	c.SkillBar = slices.Clone(bar)
+	r.s.chars[id] = c
+	return nil
+}
+
 func (r fakeRepo) SaveLevelUp(_ context.Context, lu model.LevelUp) error {
 	c, ok := r.s.chars[lu.ID]
 	if !ok {

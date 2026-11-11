@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	"finga/internal/kernel"
 	"finga/services/gateway/internal/model"
 )
 
@@ -58,6 +59,11 @@ func (l *Lobby) Characters(ctx context.Context, p model.Principal) ([]model.Char
 // CreateCharacter creates a character for the caller, a Beginner.
 func (l *Lobby) CreateCharacter(ctx context.Context, p model.Principal, name string) (model.Character, error) {
 	return l.characters.Create(ctx, p.AccountID, name)
+}
+
+// SetSkillBar stores which skill sits on each key of one of the caller's characters.
+func (l *Lobby) SetSkillBar(ctx context.Context, p model.Principal, id kernel.CharacterID, bar []string) error {
+	return l.characters.SetSkillBar(ctx, p.AccountID, id, bar)
 }
 
 // Settings are the caller's account settings.

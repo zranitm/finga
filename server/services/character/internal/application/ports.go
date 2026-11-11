@@ -40,6 +40,8 @@ type Repository interface {
 	// SaveCheckpoint writes the character's row and its quests as listed, and deletes any other quest of it.
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
+	// SetSkillBar stores the account's character's skill bar; another account's character is ErrNotFound.
+	SetSkillBar(ctx context.Context, id kernel.CharacterID, account kernel.AccountID, bar []string) error
 }
 
 // Content is what the use cases need from game data.
@@ -49,4 +51,5 @@ type Content interface {
 	Class(id kernel.Class) (gamedata.Class, bool)
 	StatRules() gamedata.StatRules
 	StartTown() *gamedata.Map
+	Skill(id string) (gamedata.Skill, bool)
 }

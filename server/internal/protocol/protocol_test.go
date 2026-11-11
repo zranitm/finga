@@ -133,9 +133,9 @@ func TestEverySampleSurvivesTheBinaryFormat(t *testing.T) {
 func TestCatalogueCoversPage4(t *testing.T) {
 	want := map[string][]string{
 		"client": {"AbandonQuest", "AcceptQuest", "Attack", "ChatSend", "EnterPortal", "Equip", "HandInQuest", "Hello", "Input", "InventoryDiscard", "InventoryMove",
-			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping", "ResetPoints", "SpendPoints", "SpendSkillPoints", "Talk", "Unequip", "UseItem"},
+			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping", "ResetPoints", "SpendPoints", "SpendSkillPoints", "Talk", "Unequip", "UseItem", "UseSkill"},
 		"server": {"ChatMessage", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
-			"LevelUp", "Loot", "MapChange", "NpcDialog", "PartyInvited", "PartyState", "Pong", "QuestChanged", "Respawned", "Response", "Snapshot", "StatsChanged", "Welcome"},
+			"LevelUp", "Loot", "MapChange", "NpcDialog", "PartyInvited", "PartyState", "Pong", "QuestChanged", "Respawned", "Response", "SkillUsed", "Snapshot", "StatsChanged", "Welcome"},
 	}
 	if got := clientMessages; !slices.Equal(got, want["client"]) {
 		t.Errorf("client messages %v", got)
