@@ -42,6 +42,7 @@ type Services struct {
 	Batches   loot.Observer
 	Equipment Equipment
 	HandIns   HandIns
+	Potions   Potions
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each grant call's trace
 }
@@ -124,6 +125,21 @@ type (
 		err    error
 		done   chan error
 	}
+	// useMsg asks to drink a potion; done hears the outcome once it applies.
+	useMsg struct {
+		id   kernel.CharacterID
+		conn string
+		call model.UseCall
+		done chan error
+	}
+	usedMsg struct {
+		id     kernel.CharacterID
+		caller *player // the join that made the call, whose count of calls in flight it ends
+		call   model.UseCall
+		result model.Inventory
+		err    error
+		done   chan error
+	}
 	chatMsg struct {
 		from kernel.CharacterID
 		name string
@@ -140,6 +156,8 @@ func (portalMsg) message()   {}
 func (equipMsg) message()    {}
 func (equippedMsg) message() {}
 func (chatMsg) message()     {}
+func (useMsg) message()      {}
+func (usedMsg) message()     {}
 
 // Errors a join can end with besides the model's.
 var (
@@ -339,6 +357,10 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.quest(m)
 		case handedInMsg:
 			i.settleHandIn(m)
+		case useMsg:
+			i.startUse(m)
+		case usedMsg:
+			i.settleUse(m)
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})

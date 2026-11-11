@@ -294,6 +294,12 @@
     "message": "you don't have everything it asks for"
   },
   {
+    "code": 220025,
+    "name": "NOT_USABLE",
+    "status": 400,
+    "message": "that item can't be used"
+  },
+  {
     "code": 330001,
     "name": "CHARACTER_DEAD",
     "status": 409,
@@ -364,6 +370,18 @@
     "name": "QUEST_NOT_READY",
     "status": 409,
     "message": "that quest isn't finished yet"
+  },
+  {
+    "code": 330013,
+    "name": "HP_FULL",
+    "status": 409,
+    "message": "your HP is already full"
+  },
+  {
+    "code": 330014,
+    "name": "MP_FULL",
+    "status": 409,
+    "message": "your MP is already full"
   },
   {
     "code": 440001,

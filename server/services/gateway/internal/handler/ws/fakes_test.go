@@ -94,6 +94,8 @@ type fakeWorld struct {
 	equips     []*worldv1.EquipRequest
 	unequips   []*worldv1.UnequipRequest
 	equipErr   error // Equip and Unequip fail with it
+	uses       []*worldv1.UseItemRequest
+	useErr     error // UseItem fails with it
 	spends     []*worldv1.SpendPointsRequest
 	resets     []*worldv1.ResetPointsRequest
 	pointsErr  error                 // SpendPoints and ResetPoints fail with it
@@ -381,6 +383,13 @@ func (f *fakeWorld) Unequip(_ context.Context, req *worldv1.UnequipRequest) (*wo
 	return &worldv1.UnequipResponse{}, f.equipErr
 }
 
+func (f *fakeWorld) UseItem(_ context.Context, req *worldv1.UseItemRequest) (*worldv1.UseItemResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.uses = append(f.uses, req)
+	return &worldv1.UseItemResponse{}, f.useErr
+}
+
 func (f *fakeWorld) SpendPoints(_ context.Context, req *worldv1.SpendPointsRequest) (*worldv1.SpendPointsResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -446,6 +455,18 @@ func (f *fakeWorld) failEquips(err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.equipErr = err
+}
+
+func (f *fakeWorld) failUses(err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.useErr = err
+}
+
+func (f *fakeWorld) useCalls() []*worldv1.UseItemRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.UseItemRequest(nil), f.uses...)
 }
 
 func (f *fakeWorld) equipCalls() ([]*worldv1.EquipRequest, []*worldv1.UnequipRequest) {

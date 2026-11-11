@@ -231,6 +231,7 @@ type Options struct {
 	BatchMax           int // drops per grant call
 	Equipment          instance.Equipment
 	HandIns            instance.HandIns
+	Potions            instance.Potions
 	ItemCalls          *itemcalls.Pool
 	Parties            instance.Parties
 	Characters         world.Characters
@@ -269,6 +270,9 @@ func (o Options) Fill() Options {
 	if o.HandIns == nil {
 		o.HandIns = nobody{}
 	}
+	if o.Potions == nil {
+		o.Potions = nobody{}
+	}
 	if o.ItemCalls == nil {
 		o.ItemCalls = itemcalls.NewPool(itemcalls.Deps{Observer: nobody{}, Panics: DiscardPanics()}, itemcalls.Options{Workers: 1})
 	}
@@ -301,7 +305,7 @@ func (o Options) Fill() Options {
 
 // Services are the filled options every map takes.
 func (o Options) Services() instance.Services {
-	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
+	return instance.Services{NewRoll: o.NewRoll, Observer: o.Observer, Items: o.Items, Batches: o.Batches, Equipment: o.Equipment, HandIns: o.HandIns, Potions: o.Potions, ItemCalls: o.ItemCalls, Parties: o.Parties, Traces: o.Traces}
 }
 
 // Checkpoints records what a map puts for saving.
@@ -431,6 +435,11 @@ func (nobody) Equip(context.Context, model.EquipCall) (model.Equipped, error) {
 // Unequip refuses.
 func (nobody) Unequip(context.Context, model.UnequipCall) (model.Equipped, error) {
 	return model.Equipped{}, errNobody
+}
+
+// Use refuses.
+func (nobody) Use(context.Context, model.UseCall) (model.Inventory, error) {
+	return model.Inventory{}, errNobody
 }
 
 // Worn wears nothing, so a join goes on.

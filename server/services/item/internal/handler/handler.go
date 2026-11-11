@@ -24,6 +24,7 @@ type Service interface {
 	AddMany(ctx context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error)
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
+	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, error)
 	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
 	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
 	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
@@ -180,6 +181,27 @@ func (s *Server) Discard(ctx context.Context, req *itemv1.DiscardRequest) (*item
 		return nil, err
 	}
 	return &itemv1.DiscardResponse{Changed: slots(res), Revision: res.Revision}, nil
+}
+
+// Use takes one of a usable item from its stack.
+func (s *Server) Use(ctx context.Context, req *itemv1.UseRequest) (*itemv1.UseResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	id, err := kernel.ParseItemID(req.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	key, err := keyOf(req.GetIdempotencyKey())
+	if err != nil {
+		return nil, err
+	}
+	res, err := s.svc.Use(ctx, actor, application.UseInput{Key: key, ItemID: id, Template: req.GetTemplateId()})
+	if err != nil {
+		return nil, err
+	}
+	return &itemv1.UseResponse{Changed: slots(res), Revision: res.Revision}, nil
 }
 
 // GrantStarter gives a new character its starter items, once.

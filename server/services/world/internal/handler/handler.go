@@ -30,6 +30,7 @@ type World interface {
 	EnterPortal(id kernel.CharacterID, conn string) error
 	Say(id kernel.CharacterID, conn, name, text string) error
 	Equip(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, equipSlot string) error
+	UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
@@ -185,6 +186,22 @@ func (s *Server) Equip(ctx context.Context, req *worldv1.EquipRequest) (*worldv1
 		return nil, err
 	}
 	return &worldv1.EquipResponse{}, nil
+}
+
+// UseItem drinks a potion and answers once its HP or MP applies.
+func (s *Server) UseItem(ctx context.Context, req *worldv1.UseItemRequest) (*worldv1.UseItemResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	item, err := kernel.ParseItemID(req.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.UseItem(ctx, id, conn, req.GetIdempotencyKey(), item, req.GetTemplate()); err != nil {
+		return nil, err
+	}
+	return &worldv1.UseItemResponse{}, nil
 }
 
 // Unequip puts a worn item back in the Equip tab and answers once the stats apply.

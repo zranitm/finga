@@ -54,6 +54,11 @@ func (w *World) Unequip(ctx context.Context, id kernel.CharacterID, conn, key, e
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.Unequip(ctx, id, conn, key, equipSlot, toSlot) })
 }
 
+// UseItem drinks a potion and returns once its HP or MP applies.
+func (w *World) UseItem(ctx context.Context, id kernel.CharacterID, conn, key string, item kernel.ItemID, template string) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseItem(ctx, id, conn, key, item, template) })
+}
+
 // SpendPoints adds points to the character's stats and returns once the new stats apply.
 func (w *World) SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.SpendPoints(ctx, id, conn, expected, points) })

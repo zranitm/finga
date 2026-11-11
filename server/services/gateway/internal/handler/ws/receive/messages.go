@@ -91,6 +91,15 @@ func (h *Handler) unequip(c *msgContext, in *clientv1.Unequip) (any, error) {
 	return nil, h.gw.Unequip(c.Ctx, c.Session.session, out)
 }
 
+// useItem answers once the world applied the potion; the changed slot and stats follow on the world's stream.
+func (h *Handler) useItem(c *msgContext, in *clientv1.UseItem) (any, error) {
+	id, err := kernel.ParseItemID(in.GetItemId())
+	if err != nil {
+		return nil, err
+	}
+	return nil, h.gw.UseItem(c.Ctx, c.Session.session, model.ItemUse{IdempotencyKey: in.GetIdempotencyKey(), Item: id, Template: in.GetTemplate()})
+}
+
 // spendPoints answers once the world applied the points; StatsChanged comes first, on the world's stream.
 func (h *Handler) spendPoints(c *msgContext, in *clientv1.SpendPoints) (any, error) {
 	p := in.GetPoints()

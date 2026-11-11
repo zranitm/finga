@@ -80,6 +80,12 @@ func (w World) Unequip(ctx context.Context, p model.Presence, in model.ItemUnequ
 	return errmap.Wrap(err)
 }
 
+// UseItem drinks a potion; it answers once the world applied what it restores.
+func (w World) UseItem(ctx context.Context, p model.Presence, in model.ItemUse) error {
+	_, err := w.c.UseItem(ctx, &worldv1.UseItemRequest{Presence: presence(p), IdempotencyKey: in.IdempotencyKey, ItemId: in.Item.String(), Template: in.Template})
+	return errmap.Wrap(err)
+}
+
 // SpendPoints adds points to the stats; it answers once the world applied them.
 func (w World) SpendPoints(ctx context.Context, p model.Presence, in model.PointsSpend) error {
 	pts := &worldv1.Stats{Strength: int32(in.Points.STR), Dexterity: int32(in.Points.DEX), Intelligence: int32(in.Points.INT), Agility: int32(in.Points.AGI), Vitality: int32(in.Points.VIT)} //nolint:gosec // they came in as int32

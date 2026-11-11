@@ -43,6 +43,13 @@ type DiscardInput struct {
 	Quantity int
 }
 
+// UseInput takes one of a usable item from its stack; Template is what the caller believes it is.
+type UseInput struct {
+	Key      string
+	ItemID   kernel.ItemID
+	Template string
+}
+
 // EquipInput wears an inventory item.
 type EquipInput struct {
 	Key       string
@@ -92,6 +99,10 @@ func (in DiscardInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.discard/1", c.String(), in.ItemID.String(), strconv.Itoa(in.Quantity))
 }
 
+func (in UseInput) fingerprint(c kernel.CharacterID) []byte {
+	return idempotency.Fingerprint("item.use/1", c.String(), in.ItemID.String(), in.Template)
+}
+
 // The level, class and own stats stay out: a retry after a level-up or a spend is the same request.
 func (in EquipInput) fingerprint(c kernel.CharacterID) []byte {
 	return idempotency.Fingerprint("item.equip/1", c.String(), in.ItemID.String(), in.EquipSlot)
@@ -109,6 +120,7 @@ const (
 	scopeAdd     = "item.add"
 	scopeMove    = "item.move"
 	scopeDiscard = "item.discard"
+	scopeUse     = "item.use"
 	scopeEquip   = "item.equip"
 	scopeUnequip = "item.unequip"
 )
@@ -493,6 +505,51 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 		return Result{}, err
 	}
 	it.Quantity -= in.Quantity
+	if it.Quantity == 0 {
+		if err := uow.Items().Destroy(ctx, it.ID); err != nil {
+			return Result{}, err
+		}
+		return Result{Changed: []model.Slot{{Tab: it.Tab, Slot: it.Slot}}}, nil
+	}
+	if err := uow.Items().SetQuantity(ctx, it.ID, it.Quantity); err != nil {
+		return Result{}, err
+	}
+	return Result{Changed: []model.Slot{slotOf(it)}}, nil
+}
+
+// Use takes one of a usable item from its stack, once per key; what it does, such as the HP a potion restores, the caller applies.
+func (s *Service) Use(ctx context.Context, actor model.Actor, in UseInput) (Result, error) {
+	if t, ok := s.content.Item(in.Template); !ok || !t.Usable() {
+		return Result{}, model.ErrNotUsable
+	}
+	var res Result
+	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+		var err error
+		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeUse, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
+			res, err := s.use(ctx, uow, actor.Character, in)
+			return revised(ctx, uow, actor.Character, res, err)
+		})
+		return err
+	})
+	return res, err
+}
+
+func (s *Service) use(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UseInput) (Result, error) {
+	it, err := uow.Items().LockOwned(ctx, in.ItemID, owner)
+	if err != nil {
+		return Result{}, err // someone else's item is ErrNotFound too
+	}
+	if it.TemplateID != in.Template {
+		return Result{}, model.ErrNotUsable
+	}
+	now := time.Now()
+	if err := uow.Events().Append(ctx, model.Event{ItemID: it.ID, Kind: model.EventUsed, QuantityDelta: -1, FromOwner: &owner, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
+		return Result{}, err
+	}
+	if err := uow.Notices().Send(ctx, model.Notice{Kind: model.NoticeUsed, Item: it, Quantity: -1, Cause: model.Cause{Type: model.CausePlayer}, OccurredAt: now}); err != nil {
+		return Result{}, err
+	}
+	it.Quantity--
 	if it.Quantity == 0 {
 		if err := uow.Items().Destroy(ctx, it.ID); err != nil {
 			return Result{}, err

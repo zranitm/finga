@@ -38,6 +38,7 @@ type fakeItems struct {
 	batch     application.Batch
 	move      application.MoveInput
 	discard   application.DiscardInput
+	use       application.UseInput
 	equip     application.EquipInput
 	unequip   application.UnequipInput
 	handIn    application.HandInInput
@@ -89,6 +90,14 @@ func (f *fakeItems) Discard(_ context.Context, actor model.Actor, in application
 	defer f.mu.Unlock()
 	f.record()
 	f.actor, f.discard = actor, in
+	return f.result, f.err
+}
+
+func (f *fakeItems) Use(_ context.Context, actor model.Actor, in application.UseInput) (application.Result, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.record()
+	f.actor, f.use = actor, in
 	return f.result, f.err
 }
 
@@ -240,6 +249,16 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		if f.discard != (application.DiscardInput{Key: key2, ItemID: potion.ID, Quantity: 2}) {
 			t.Fatalf("discard %+v", f.discard)
+		}
+		wantChanged(t, res)
+	})
+	t.Run("Use", func(t *testing.T) {
+		res, err := c.Use(ctx, &itemv1.UseRequest{Actor: actor, IdempotencyKey: key2, ItemId: potion.ID.String(), TemplateId: "red_potion"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if f.use != (application.UseInput{Key: key2, ItemID: potion.ID, Template: "red_potion"}) {
+			t.Fatalf("use %+v", f.use)
 		}
 		wantChanged(t, res)
 	})

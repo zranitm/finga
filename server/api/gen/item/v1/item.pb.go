@@ -66,6 +66,8 @@ const (
 	Reason_REASON_INT_TOO_LOW Reason = 30
 	Reason_REASON_AGI_TOO_LOW Reason = 31
 	Reason_REASON_VIT_TOO_LOW Reason = 32
+	// A use of an item that isn't the template the caller named, or of a template that can't be used.
+	Reason_REASON_NOT_USABLE Reason = 33
 )
 
 // Enum value maps for Reason.
@@ -102,6 +104,7 @@ var (
 		30: "REASON_INT_TOO_LOW",
 		31: "REASON_AGI_TOO_LOW",
 		32: "REASON_VIT_TOO_LOW",
+		33: "REASON_NOT_USABLE",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":            0,
@@ -135,6 +138,7 @@ var (
 		"REASON_INT_TOO_LOW":            30,
 		"REASON_AGI_TOO_LOW":            31,
 		"REASON_VIT_TOO_LOW":            32,
+		"REASON_NOT_USABLE":             33,
 	}
 )
 
@@ -2503,6 +2507,129 @@ func (x *HandedInQuest) GetRevision() uint64 {
 	return 0
 }
 
+type UseRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Actor *Actor                 `protobuf:"bytes,1,opt,name=actor,proto3" json:"actor,omitempty"`
+	// A UUID, optionally prefixed k- (the client's request ID); scoped by account.
+	IdempotencyKey string `protobuf:"bytes,2,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	ItemId         string `protobuf:"bytes,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	// What the caller believes the item is, which decided what it restores; any other item is refused.
+	TemplateId    string `protobuf:"bytes,4,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UseRequest) Reset() {
+	*x = UseRequest{}
+	mi := &file_internal_item_v1_item_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UseRequest) ProtoMessage() {}
+
+func (x *UseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_item_v1_item_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UseRequest.ProtoReflect.Descriptor instead.
+func (*UseRequest) Descriptor() ([]byte, []int) {
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *UseRequest) GetActor() *Actor {
+	if x != nil {
+		return x.Actor
+	}
+	return nil
+}
+
+func (x *UseRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *UseRequest) GetItemId() string {
+	if x != nil {
+		return x.ItemId
+	}
+	return ""
+}
+
+func (x *UseRequest) GetTemplateId() string {
+	if x != nil {
+		return x.TemplateId
+	}
+	return ""
+}
+
+type UseResponse struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
+	// The inventory's revision after this change.
+	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UseResponse) Reset() {
+	*x = UseResponse{}
+	mi := &file_internal_item_v1_item_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UseResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UseResponse) ProtoMessage() {}
+
+func (x *UseResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_item_v1_item_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UseResponse.ProtoReflect.Descriptor instead.
+func (*UseResponse) Descriptor() ([]byte, []int) {
+	return file_internal_item_v1_item_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *UseResponse) GetChanged() []*Slot {
+	if x != nil {
+		return x.Changed
+	}
+	return nil
+}
+
+func (x *UseResponse) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
 var File_internal_item_v1_item_proto protoreflect.FileDescriptor
 
 const file_internal_item_v1_item_proto_rawDesc = "" +
@@ -2688,7 +2815,17 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"completion\x18\x02 \x01(\x05R\n" +
 	"completion\x120\n" +
 	"\achanged\x18\x03 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
-	"\brevision\x18\x04 \x01(\x04R\brevision*\xd1\x06\n" +
+	"\brevision\x18\x04 \x01(\x04R\brevision\"\x9e\x01\n" +
+	"\n" +
+	"UseRequest\x12-\n" +
+	"\x05actor\x18\x01 \x01(\v2\x17.internal.item.v1.ActorR\x05actor\x12'\n" +
+	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
+	"\aitem_id\x18\x03 \x01(\tR\x06itemId\x12\x1f\n" +
+	"\vtemplate_id\x18\x04 \x01(\tR\n" +
+	"templateId\"[\n" +
+	"\vUseResponse\x120\n" +
+	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision*\xe8\x06\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -2721,7 +2858,8 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x12REASON_DEX_TOO_LOW\x10\x1d\x12\x16\n" +
 	"\x12REASON_INT_TOO_LOW\x10\x1e\x12\x16\n" +
 	"\x12REASON_AGI_TOO_LOW\x10\x1f\x12\x16\n" +
-	"\x12REASON_VIT_TOO_LOW\x10 \"\x04\b\x04\x10\x04\"\x04\b\x17\x10\x17*\x15REASON_INVENTORY_FULL*\x14REASON_STATS_TOO_LOW*_\n" +
+	"\x12REASON_VIT_TOO_LOW\x10 \x12\x15\n" +
+	"\x11REASON_NOT_USABLE\x10!\"\x04\b\x04\x10\x04\"\x04\b\x17\x10\x17*\x15REASON_INVENTORY_FULL*\x14REASON_STATS_TOO_LOW*_\n" +
 	"\x05Grant\x12\x15\n" +
 	"\x11GRANT_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rGRANT_GRANTED\x10\x01\x12\x19\n" +
@@ -2731,7 +2869,7 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x16CAUSE_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fCAUSE_TYPE_DROP\x10\x01\x12\x15\n" +
 	"\x11CAUSE_TYPE_PLAYER\x10\x02\x12\x16\n" +
-	"\x12CAUSE_TYPE_STARTER\x10\x032\xa7\x06\n" +
+	"\x12CAUSE_TYPE_STARTER\x10\x032\xeb\x06\n" +
 	"\vItemService\x12T\n" +
 	"\tInventory\x12\".internal.item.v1.InventoryRequest\x1a#.internal.item.v1.InventoryResponse\x12B\n" +
 	"\x03Add\x12\x1c.internal.item.v1.AddRequest\x1a\x1d.internal.item.v1.AddResponse\x12N\n" +
@@ -2742,7 +2880,8 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x05Equip\x12\x1e.internal.item.v1.EquipRequest\x1a\x1f.internal.item.v1.EquipResponse\x12N\n" +
 	"\aUnequip\x12 .internal.item.v1.UnequipRequest\x1a!.internal.item.v1.UnequipResponse\x12K\n" +
 	"\x06HandIn\x12\x1f.internal.item.v1.HandInRequest\x1a .internal.item.v1.HandInResponse\x12Q\n" +
-	"\bHandedIn\x12!.internal.item.v1.HandedInRequest\x1a\".internal.item.v1.HandedInResponseB\x1eZ\x1cfinga/api/gen/item/v1;itemv1b\x06proto3"
+	"\bHandedIn\x12!.internal.item.v1.HandedInRequest\x1a\".internal.item.v1.HandedInResponse\x12B\n" +
+	"\x03Use\x12\x1c.internal.item.v1.UseRequest\x1a\x1d.internal.item.v1.UseResponseB\x1eZ\x1cfinga/api/gen/item/v1;itemv1b\x06proto3"
 
 var (
 	file_internal_item_v1_item_proto_rawDescOnce sync.Once
@@ -2757,7 +2896,7 @@ func file_internal_item_v1_item_proto_rawDescGZIP() []byte {
 }
 
 var file_internal_item_v1_item_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_internal_item_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_internal_item_v1_item_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_internal_item_v1_item_proto_goTypes = []any{
 	(Reason)(0),                  // 0: internal.item.v1.Reason
 	(Grant)(0),                   // 1: internal.item.v1.Grant
@@ -2795,6 +2934,8 @@ var file_internal_item_v1_item_proto_goTypes = []any{
 	(*QuestCompletion)(nil),      // 33: internal.item.v1.QuestCompletion
 	(*HandedInResponse)(nil),     // 34: internal.item.v1.HandedInResponse
 	(*HandedInQuest)(nil),        // 35: internal.item.v1.HandedInQuest
+	(*UseRequest)(nil),           // 36: internal.item.v1.UseRequest
+	(*UseResponse)(nil),          // 37: internal.item.v1.UseResponse
 }
 var file_internal_item_v1_item_proto_depIdxs = []int32{
 	2,  // 0: internal.item.v1.Cause.type:type_name -> internal.item.v1.CauseType
@@ -2838,31 +2979,35 @@ var file_internal_item_v1_item_proto_depIdxs = []int32{
 	33, // 38: internal.item.v1.HandedInRequest.completions:type_name -> internal.item.v1.QuestCompletion
 	35, // 39: internal.item.v1.HandedInResponse.handed_in:type_name -> internal.item.v1.HandedInQuest
 	8,  // 40: internal.item.v1.HandedInQuest.changed:type_name -> internal.item.v1.Slot
-	10, // 41: internal.item.v1.ItemService.Inventory:input_type -> internal.item.v1.InventoryRequest
-	12, // 42: internal.item.v1.ItemService.Add:input_type -> internal.item.v1.AddRequest
-	14, // 43: internal.item.v1.ItemService.AddMany:input_type -> internal.item.v1.AddManyRequest
-	18, // 44: internal.item.v1.ItemService.Move:input_type -> internal.item.v1.MoveRequest
-	20, // 45: internal.item.v1.ItemService.Discard:input_type -> internal.item.v1.DiscardRequest
-	22, // 46: internal.item.v1.ItemService.GrantStarter:input_type -> internal.item.v1.GrantStarterRequest
-	24, // 47: internal.item.v1.ItemService.Equip:input_type -> internal.item.v1.EquipRequest
-	26, // 48: internal.item.v1.ItemService.Unequip:input_type -> internal.item.v1.UnequipRequest
-	28, // 49: internal.item.v1.ItemService.HandIn:input_type -> internal.item.v1.HandInRequest
-	32, // 50: internal.item.v1.ItemService.HandedIn:input_type -> internal.item.v1.HandedInRequest
-	11, // 51: internal.item.v1.ItemService.Inventory:output_type -> internal.item.v1.InventoryResponse
-	13, // 52: internal.item.v1.ItemService.Add:output_type -> internal.item.v1.AddResponse
-	16, // 53: internal.item.v1.ItemService.AddMany:output_type -> internal.item.v1.AddManyResponse
-	19, // 54: internal.item.v1.ItemService.Move:output_type -> internal.item.v1.MoveResponse
-	21, // 55: internal.item.v1.ItemService.Discard:output_type -> internal.item.v1.DiscardResponse
-	23, // 56: internal.item.v1.ItemService.GrantStarter:output_type -> internal.item.v1.GrantStarterResponse
-	25, // 57: internal.item.v1.ItemService.Equip:output_type -> internal.item.v1.EquipResponse
-	27, // 58: internal.item.v1.ItemService.Unequip:output_type -> internal.item.v1.UnequipResponse
-	31, // 59: internal.item.v1.ItemService.HandIn:output_type -> internal.item.v1.HandInResponse
-	34, // 60: internal.item.v1.ItemService.HandedIn:output_type -> internal.item.v1.HandedInResponse
-	51, // [51:61] is the sub-list for method output_type
-	41, // [41:51] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	3,  // 41: internal.item.v1.UseRequest.actor:type_name -> internal.item.v1.Actor
+	8,  // 42: internal.item.v1.UseResponse.changed:type_name -> internal.item.v1.Slot
+	10, // 43: internal.item.v1.ItemService.Inventory:input_type -> internal.item.v1.InventoryRequest
+	12, // 44: internal.item.v1.ItemService.Add:input_type -> internal.item.v1.AddRequest
+	14, // 45: internal.item.v1.ItemService.AddMany:input_type -> internal.item.v1.AddManyRequest
+	18, // 46: internal.item.v1.ItemService.Move:input_type -> internal.item.v1.MoveRequest
+	20, // 47: internal.item.v1.ItemService.Discard:input_type -> internal.item.v1.DiscardRequest
+	22, // 48: internal.item.v1.ItemService.GrantStarter:input_type -> internal.item.v1.GrantStarterRequest
+	24, // 49: internal.item.v1.ItemService.Equip:input_type -> internal.item.v1.EquipRequest
+	26, // 50: internal.item.v1.ItemService.Unequip:input_type -> internal.item.v1.UnequipRequest
+	28, // 51: internal.item.v1.ItemService.HandIn:input_type -> internal.item.v1.HandInRequest
+	32, // 52: internal.item.v1.ItemService.HandedIn:input_type -> internal.item.v1.HandedInRequest
+	36, // 53: internal.item.v1.ItemService.Use:input_type -> internal.item.v1.UseRequest
+	11, // 54: internal.item.v1.ItemService.Inventory:output_type -> internal.item.v1.InventoryResponse
+	13, // 55: internal.item.v1.ItemService.Add:output_type -> internal.item.v1.AddResponse
+	16, // 56: internal.item.v1.ItemService.AddMany:output_type -> internal.item.v1.AddManyResponse
+	19, // 57: internal.item.v1.ItemService.Move:output_type -> internal.item.v1.MoveResponse
+	21, // 58: internal.item.v1.ItemService.Discard:output_type -> internal.item.v1.DiscardResponse
+	23, // 59: internal.item.v1.ItemService.GrantStarter:output_type -> internal.item.v1.GrantStarterResponse
+	25, // 60: internal.item.v1.ItemService.Equip:output_type -> internal.item.v1.EquipResponse
+	27, // 61: internal.item.v1.ItemService.Unequip:output_type -> internal.item.v1.UnequipResponse
+	31, // 62: internal.item.v1.ItemService.HandIn:output_type -> internal.item.v1.HandInResponse
+	34, // 63: internal.item.v1.ItemService.HandedIn:output_type -> internal.item.v1.HandedInResponse
+	37, // 64: internal.item.v1.ItemService.Use:output_type -> internal.item.v1.UseResponse
+	54, // [54:65] is the sub-list for method output_type
+	43, // [43:54] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_internal_item_v1_item_proto_init() }
@@ -2877,7 +3022,7 @@ func file_internal_item_v1_item_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_item_v1_item_proto_rawDesc), len(file_internal_item_v1_item_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   33,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

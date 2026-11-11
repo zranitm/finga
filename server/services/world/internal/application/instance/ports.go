@@ -43,6 +43,11 @@ type HandIns interface {
 	HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error)
 }
 
+// Potions is the item service's use of an item, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+type Potions interface {
+	Use(ctx context.Context, c model.UseCall) (model.Inventory, error)
+}
+
 // TickObserver sees each tick's duration against its budget.
 type TickObserver interface {
 	ObserveTick(mapID string, took, budget time.Duration)

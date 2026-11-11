@@ -43,6 +43,7 @@ var (
 	ErrNothingWorn    = errors.New("item: nothing is worn in that equip slot")
 	ErrBadBatch       = errors.New("item: a batch holds no drops, or more than one call takes")
 	ErrNotEnoughItems = errors.New("item: the inventory's stacks hold less than the hand-in asks for")
+	ErrNotUsable      = errors.New("item: the item isn't the template named, or can't be used")
 )
 
 // TabFull is the error for tab having no free slot.
@@ -118,6 +119,7 @@ const (
 	EventEquipped   EventKind = "equipped"
 	EventUnequipped EventKind = "unequipped"
 	EventHandedIn   EventKind = "handed_in"
+	EventUsed       EventKind = "used"
 )
 
 // Event is one line of an item's history.
