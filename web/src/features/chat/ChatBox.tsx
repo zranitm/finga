@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
 import { saveSettings } from '@/features/shared/settings';
+import { limits } from '@/gamedata/limits';
 import type { RestClient } from '@/net/rest';
 import type { GameSocket } from '@/net/socket';
 import { npcById, objectiveLabel, questById, questName } from '@/progression/quests';
@@ -16,7 +17,7 @@ import { settings } from '@/state/settings';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
-export const MAX_CHAT_CHARS = 120;
+export const MAX_CHAT_CHARS = limits.chat_line_max;
 // Idle, the last lines sit below a standing character's feet; open, the log shows more.
 const IDLE_LINES = 3;
 const SHOWN_LINES = 8;

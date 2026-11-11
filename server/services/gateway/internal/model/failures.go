@@ -65,7 +65,7 @@ var (
 	QuestConditionsUnmet = Public{"quest_conditions_unmet", "you don't meet that quest's conditions yet"}
 	QuestAlreadyActive   = Public{"quest_already_active", "you have that quest already"}
 	QuestAlreadyFinished = Public{"quest_already_finished", "you've finished that quest"}
-	TooManyQuests        = Public{"too_many_quests", "you have 20 quests already"}
+	TooManyQuests        = Public{"too_many_quests", "you have the most active quests already"}
 	QuestNotReady        = Public{"quest_not_ready", "that quest isn't finished yet"}
 	NotPartyLeader       = Public{"not_party_leader", "only the party leader can do that"}
 	PartyFull            = Public{"party_full", "the party is full"}
@@ -78,7 +78,7 @@ var (
 	InviteExpired        = Public{"invite_expired", "the invite has expired"}
 	InviteSelf           = Public{"invite_self", "you cannot invite yourself"}
 	ChatEmpty            = Public{"chat_empty", "nothing to say"}
-	ChatTooLong          = Public{"chat_too_long", "a chat line is at most 120 characters"}
+	ChatTooLong          = Public{"chat_too_long", "that chat line is too long"}
 	BadChatChannel       = Public{"bad_chat_channel", "unknown chat channel"}
 	ChatNoParty          = Public{"chat_no_party", "you have no party"}
 	ChatRateLimited      = Public{"chat_rate_limited", "slow down"}

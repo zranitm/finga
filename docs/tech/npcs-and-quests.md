@@ -141,7 +141,7 @@ From the code, the rules this design keeps:
   - `quest_conditions_unmet`: "you don't meet that quest's conditions yet";
   - `quest_already_active`;
   - `quest_already_finished`;
-  - `too_many_quests`: "you have 20 quests already";
+  - `too_many_quests`: "you have the most active quests already" (`max_active` in `quests.yaml`);
   - `quest_not_ready`: "that quest isn't finished yet";
   - `not_enough_items`: "you don't have everything it asks for".
 - **Gateway routes:** `Talk`, `AcceptQuest`, `AbandonQuest`, and `HandInQuest` go to the world under a new dialog limit (5 a second), with `respond`.

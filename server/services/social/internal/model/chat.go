@@ -18,9 +18,8 @@ const (
 	ChannelParty Channel = "party"
 )
 
-// Limits.
+// The rate a sender's lines may come at; the length a line may have is game data (chat.yaml).
 const (
-	LineMaxLen        = 120 // characters, after cleaning
 	LineRatePerSecond = 1.0
 	LineBurst         = 3
 )

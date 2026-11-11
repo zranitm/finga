@@ -112,7 +112,7 @@ message PickUp {}
 // EnterPortal uses the portal the character stands in.
 message EnterPortal {}
 
-// ChatSend is a chat line, up to 120 characters.
+// ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 message ChatSend {
   ChatChannel channel = 1;
   string text = 2;

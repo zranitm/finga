@@ -16,6 +16,7 @@ type Config struct {
 	ShutdownGrace time.Duration    `mapstructure:"shutdown_grace" validate:"gt=0"`
 	Log           logger.Config    `mapstructure:"log"`
 	Tracing       tracing.Config   `mapstructure:"tracing"`
+	DataDir       string           `mapstructure:"data_dir" validate:"required"`
 	Members       Members          `mapstructure:"members"`
 }
 

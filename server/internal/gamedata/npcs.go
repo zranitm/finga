@@ -77,7 +77,8 @@ type npcYAML struct {
 }
 
 type questsYAML struct {
-	Quests []questYAML `yaml:"quests"`
+	MaxActive int         `yaml:"max_active"`
+	Quests    []questYAML `yaml:"quests"`
 }
 
 type questYAML struct {
@@ -160,6 +161,10 @@ func (d *Data) loadQuests(dir string) error {
 	if err := readYAML(dir, questsFile, &f); err != nil {
 		return err
 	}
+	if f.MaxActive <= 0 {
+		return fmt.Errorf("%s: max_active must be positive", questsFile)
+	}
+	d.maxActive = f.MaxActive
 	for _, y := range f.Quests {
 		q, err := d.quest(y)
 		if err != nil {
@@ -359,6 +364,9 @@ func (d *Data) NPC(id string) (NPC, bool) {
 
 // Quests lists every quest in file order.
 func (d *Data) Quests() []Quest { return d.quests }
+
+// MaxActiveQuests is the most quests a character has active at once.
+func (d *Data) MaxActiveQuests() int { return d.maxActive }
 
 // Quest finds a quest.
 func (d *Data) Quest(id string) (Quest, bool) {

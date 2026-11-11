@@ -20,7 +20,7 @@
   - Items the quest collects are taken, and the rewards arrive at once.
   - An item reward that doesn't fit refuses the hand-in, with nothing taken.
 - **Repeating:** a one-time quest can't be taken again once finished; a repeatable one can.
-- **Limit:** at most 20 quests are active at once.
+- **Limit:** at most 20 quests are active at once (`max_active` in `server/data/quests.yaml`).
 - **Finished quests are kept,** since promotions and later quests can require them.
 
 ## Not in this feature

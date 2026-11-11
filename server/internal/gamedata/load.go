@@ -23,6 +23,7 @@ const (
 	expCurveFile = "exp_curve.yaml"
 	itemsFile    = "items.yaml"
 	mobsFile     = "mobs.yaml"
+	chatFile     = "chat.yaml"
 	mapsDir      = "maps"
 	mapExt       = ".tmj"
 
@@ -40,7 +41,7 @@ func Load(dir string) (*Data, error) {
 		npcIdx:   map[string]int{},
 		questIdx: map[string]int{},
 	}
-	steps := []func(string) error{d.loadMovement, d.loadLoot, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps, d.loadNPCs, d.loadQuests}
+	steps := []func(string) error{d.loadMovement, d.loadLoot, d.loadClasses, d.loadStats, d.loadExpCurve, d.loadItems, d.validateStarters, d.loadMobs, d.loadMaps, d.loadNPCs, d.loadQuests, d.loadChat}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
@@ -104,6 +105,22 @@ type lootYAML struct {
 	CollectDelay   time.Duration `yaml:"collect_delay"`
 	DropLife       time.Duration `yaml:"drop_life"`
 	RoomCheckEvery time.Duration `yaml:"room_check_every"`
+}
+
+type chatYAML struct {
+	LineMax int `yaml:"line_max"`
+}
+
+func (d *Data) loadChat(dir string) error {
+	var c chatYAML
+	if err := readYAML(dir, chatFile, &c); err != nil {
+		return err
+	}
+	if c.LineMax <= 0 {
+		return fmt.Errorf("%s: line_max must be positive", chatFile)
+	}
+	d.chatLineMax = c.LineMax
+	return nil
 }
 
 func (d *Data) loadLoot(dir string) error {

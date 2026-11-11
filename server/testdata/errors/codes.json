@@ -107,7 +107,7 @@
   {
     "code": "chat_too_long",
     "status": 400,
-    "message": "a chat line is at most 120 characters"
+    "message": "that chat line is too long"
   },
   {
     "code": "class_unavailable",
@@ -332,7 +332,7 @@
   {
     "code": "too_many_quests",
     "status": 409,
-    "message": "you have 20 quests already"
+    "message": "you have the most active quests already"
   },
   {
     "code": "unauthenticated",

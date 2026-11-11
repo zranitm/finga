@@ -48,6 +48,9 @@ collect_delay: 1s
 drop_life: 60s
 room_check_every: 2s
 `,
+		"chat.yaml": `
+line_max: 120
+`,
 		"classes.yaml": `
 classes:
   - id: warrior
@@ -136,6 +139,7 @@ npcs:
     takes: [gel_for_me, warrior_drill]
 `,
 		"quests.yaml": `
+max_active: 20
 quests:
   - id: first_hunt
     name: First Hunt
@@ -273,6 +277,11 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 {
+			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
+		}
+	})
 	t.Run("classes, with their attacks and auto-assign splits", func(t *testing.T) {
 		for _, class := range []kernel.Class{kernel.Warrior, kernel.Bowman} {
 			if c, ok := d.Class(class); !ok || c.ID != class {
@@ -584,6 +593,8 @@ func TestRejections(t *testing.T) {
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
 		{"movement constants must be positive", "movement.yaml", `gravity: 1900`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
+		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
+		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
 		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},
 		{"a drop must fly before it is lost", "loot.yaml", `collect_delay: 1s`, `collect_delay: 60s`, []string{"loot.yaml", "drop_life"}},
 		{"a full inventory must be asked again before the drop is lost", "loot.yaml", `room_check_every: 2s`, `room_check_every: 90s`, []string{"loot.yaml", "drop_life"}},

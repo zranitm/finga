@@ -1435,7 +1435,7 @@ func (*EnterPortal) Descriptor() ([]byte, []int) {
 	return file_client_v1_client_proto_rawDescGZIP(), []int{6}
 }
 
-// ChatSend is a chat line, up to 120 characters.
+// ChatSend is a chat line, up to chat.yaml's line_max characters after cleaning.
 type ChatSend struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Channel       ChatChannel            `protobuf:"varint,1,opt,name=channel,proto3,enum=client.v1.ChatChannel" json:"channel,omitempty"`

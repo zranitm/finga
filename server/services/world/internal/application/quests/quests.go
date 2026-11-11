@@ -10,9 +10,6 @@ import (
 	"finga/services/world/internal/model"
 )
 
-// MaxActive is the most quests a character has active at once.
-const MaxActive = 20
-
 // Character is what the rules read of a character: its level, class and quest log.
 type Character struct {
 	Level int

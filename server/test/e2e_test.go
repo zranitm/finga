@@ -97,7 +97,7 @@ func newStackOver(t *testing.T, data string) *stack {
 			Dependencies: characterconfig.Dependencies{Item: item.addr}}
 	}, characterapp.Build)
 	social := runService(t, func(at listen) socialconfig.Config {
-		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
+		return socialconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data, Members: socialconfig.Members{Keep: time.Hour, PruneEvery: time.Hour, PruneBatch: 1000}}
 	}, socialapp.Build)
 	world := runService(t, func(at listen) worldconfig.Config {
 		return worldconfig.Config{GRPC: at.grpc(), Ops: at.ops(), ShutdownGrace: grace, DataDir: data,

@@ -22,7 +22,7 @@ func TestTheDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := config.Config{GRPC: host.GRPCSection{Listen: ":9005"}, Ops: host.OpsSection{Addr: ":9105"}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, Members: config.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}}
+	want := config.Config{GRPC: host.GRPCSection{Listen: ":9005"}, Ops: host.OpsSection{Addr: ":9105"}, ShutdownGrace: 10 * time.Second, Log: logger.Config{Level: "info", Format: "json", Sampling: logger.Sampling{Initial: 100, Thereafter: 100}}, DataDir: "data", Members: config.Members{Keep: time.Hour, PruneEvery: 5 * time.Minute, PruneBatch: 1000, PruneGap: 100 * time.Millisecond}}
 	if !reflect.DeepEqual(*cfg, want) {
 		t.Fatalf("got  %+v\nwant %+v", *cfg, want)
 	}
