@@ -48,7 +48,7 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { PortalSystem, standsIn } from '../systems/portals';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 
-import { bannerLines, groundStyle, mapTiles } from './world-layout';
+import { bannerLines, groundStyle, mapTiles, portalLabel } from './world-layout';
 
 /** What the game enters the world with, from Welcome. */
 export interface WorldEntry {
@@ -234,6 +234,18 @@ export class World extends Phaser.Scene {
         )
         .setDepth(-1);
       this.tweens.add({ targets: glow, alpha: 0.5, duration: 900, yoyo: true, repeat: -1 });
+      const label = this.add
+        .text(0, p.area.y - 6, portalLabel(p.target_map), {
+          fontSize: '12px',
+          color: '#cfe8ff',
+          fontFamily: 'sans-serif',
+          stroke: '#0a0c16',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(-1);
+      const half = label.width / 2;
+      label.setX(Math.min(Math.max(p.area.x + p.area.w / 2, half + 4), view.width - half - 4));
     }
     for (const npc of npcsOn(view.id)) {
       this.npcViews.set(npc.id, new NpcView(this, npc));

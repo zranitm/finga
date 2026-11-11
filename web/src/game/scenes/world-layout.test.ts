@@ -13,6 +13,7 @@ import {
   groundStyle,
   mapTiles,
   platformTiles,
+  portalLabel,
   portalTiles,
   ropeTiles,
   solidTiles,
@@ -73,6 +74,25 @@ describe('world layout', () => {
     { map: 'cave', want: ['Cave', 'Lv 10\u201314'] },
   ])('$map banner reads $want', ({ map, want }) => {
     expect(bannerLines(map)).toEqual(want);
+  });
+
+  it.each([
+    { target: 'dune_road', want: 'Dune Road · Lv 21\u201322' },
+    { target: 'crossroads', want: 'Crossroads' },
+  ])('a portal to $target is labelled $want', ({ target, want }) => {
+    expect(portalLabel(target)).toBe(want);
+  });
+
+  it('every portal leads to a map the client can label', () => {
+    for (const m of maps) {
+      const view = parseMap(
+        m.id,
+        JSON.parse(readFileSync(path.resolve(process.cwd(), `public/maps/${m.id}.tmj`), 'utf8')),
+      );
+      for (const p of view.portals) {
+        expect(portalLabel(p.target_map), `${m.id} ${p.name}`).not.toBe('');
+      }
+    }
   });
 
   it.each([

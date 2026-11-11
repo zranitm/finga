@@ -73,6 +73,11 @@ export function bannerLines(mapId: string): string[] {
   return map.kind === 'hunting' ? [map.name, `Lv ${map.min_level}–${map.max_level}`] : [map.name];
 }
 
+/** The label over a portal: where it leads, as that map's banner says it, on one line. */
+export function portalLabel(targetMap: string): string {
+  return bannerLines(targetMap).join(' · ');
+}
+
 export interface Tile {
   readonly texture: TextureKey;
   readonly x: number;
