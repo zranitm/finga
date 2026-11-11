@@ -16,7 +16,7 @@ function Overlay() {
   const characterOpen = ui.use((s) => s.windows.includes('character'));
   return (
     <>
-      <ChatBox socket={{ send: vi.fn(() => true) } as never} />
+      <ChatBox socket={{ send: vi.fn(() => true) } as never} rest={{ putSettings: vi.fn() }} />
       {open && (
         <InventoryWindow
           socket={{ request: vi.fn() } as never}

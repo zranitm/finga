@@ -15,8 +15,8 @@ export interface WindowProps {
   readonly children: ReactNode;
 }
 
-// A window ends this far above the bottom, clear of the bottom-left Back to characters button, and scrolls what doesn't fit.
-const BOTTOM_CLEAR_PX = 64;
+// A window ends this far above the bottom, clear of the idle chat's lines, and scrolls what doesn't fit.
+const BOTTOM_CLEAR_PX = 84;
 const MIN_HEIGHT_PX = 160;
 
 /** Takes focus on open, so Escape closes it; the game's keys still reach the game. */

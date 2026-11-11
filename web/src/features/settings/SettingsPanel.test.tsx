@@ -32,6 +32,7 @@ describe('SettingsPanel', () => {
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
       control_preset: 'wasd',
       auto_assign_points: false,
+      chat_pinned: false,
     });
     expect(screen.getByLabelText(/WASD/)).toBeChecked();
   });
@@ -65,16 +66,34 @@ describe('SettingsPanel', () => {
     expect(ff.of('PUT', '/api/settings')[0]?.body).toEqual({
       control_preset: 'wasd',
       auto_assign_points: false,
+      chat_pinned: false,
     });
   });
 
-  it('an account that never set auto-assign has it off', async () => {
+  it('an account that never set auto-assign or the chat pin has both off', async () => {
     settings.getState().setAutoAssignPoints(true);
+    settings.getState().setChatPinned(true);
     const ff = fakeFetch(() => ({ status: 200, body: { control_preset: 'classic' } }));
     render(
       <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
     );
     await waitFor(() => expect(settings.getState().autoAssignPoints).toBe(false));
+    expect(settings.getState().chatPinned).toBe(false);
+  });
+
+  it('the account’s chat pin arrives with its settings, and a change here keeps it', async () => {
+    const ff = fakeFetch(({ method }) =>
+      method === 'PUT'
+        ? { status: 200, body: { control_preset: 'wasd', chat_pinned: true } }
+        : { status: 200, body: { control_preset: 'classic', chat_pinned: true } },
+    );
+    render(
+      <SettingsPanel rest={createRestClient({ origin: '', fetch: ff.fetch })} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(settings.getState().chatPinned).toBe(true));
+    await userEvent.click(screen.getByLabelText(/WASD/));
+    await waitFor(() => expect(ff.of('PUT', '/api/settings')).toHaveLength(1));
+    expect(ff.of('PUT', '/api/settings')[0]?.body).toMatchObject({ chat_pinned: true });
   });
 
   it('a failed save shows the message and keeps the local choice, and Done closes', async () => {

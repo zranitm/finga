@@ -14,7 +14,8 @@ import { Toasts } from '@/features/hud/Toasts';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { InviteToasts } from '@/features/party/InviteToast';
 import { PartyWindow } from '@/features/party/PartyWindow';
-import { loadSettings, SettingsPanel } from '@/features/settings/SettingsPanel';
+import { SettingsPanel } from '@/features/settings/SettingsPanel';
+import { loadSettings } from '@/features/shared/settings';
 import type { Character } from '@/net/rest';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
@@ -118,6 +119,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
   return (
     <WorldOverlay
       socket={svc.socket}
+      rest={svc.rest}
       onLeave={() => {
         svc.game.leave();
         svc.socket.close();
@@ -129,9 +131,11 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
 
 function WorldOverlay({
   socket,
+  rest,
   onLeave,
 }: {
   readonly socket: Services['socket'];
+  readonly rest: Services['rest'];
   readonly onLeave: () => void;
 }) {
   const inventoryOpen = ui.use((s) => s.windows.includes('inventory'));
@@ -146,9 +150,14 @@ function WorldOverlay({
       <ConnectionNotice />
       <DeathOverlay />
       <Toasts />
-      <PartyPanel />
+      <div className="world-corner">
+        <button type="button" className="btn btn-quiet" onClick={onLeave}>
+          Back to characters
+        </button>
+        <PartyPanel />
+      </div>
       <InviteToasts socket={socket} />
-      <ChatBox socket={socket} />
+      <ChatBox socket={socket} rest={rest} />
       <div className="windows">
         {partyOpen && (
           <PartyWindow socket={socket} me={me} onClose={() => ui.getState().closeWindow('party')} />
@@ -159,11 +168,6 @@ function WorldOverlay({
         {characterOpen && (
           <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
         )}
-      </div>
-      <div className="world-overlay" aria-label="World">
-        <button type="button" className="btn btn-quiet" onClick={onLeave}>
-          Back to characters
-        </button>
       </div>
     </>
   );

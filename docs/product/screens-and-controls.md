@@ -8,7 +8,7 @@ The screens players see and the keys they use. This is the input for the design 
 | --- | --- | --- |
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name and one of the four classes | P0 |
-| **Game view and HUD** | Play: the map, plus HP, MP, and EXP bars, level, chat box with General, Party, and Combat tabs, and party panel; currency from P1 | P0 |
+| **Game view and HUD** | Play: the map; HP, MP, and EXP bars and level at the top left; Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); currency from P1 | P0 |
 | **Inventory** | See items by tab; discard them | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
@@ -19,6 +19,15 @@ The screens players see and the keys they use. This is the input for the design 
 | **Item details** | Hover an item to see its stars, stats, and requirements, compared with what's worn | P1 |
 | **NPC shop** | Buy and sell at fixed prices | P1 |
 | **Skill bar** | Assign skills to keys | P1 |
+
+## Chat
+
+The chat stays out of the way of play until the player uses it.
+
+- **Idle:** only the last three lines of the chosen tab show, low in the bottom-left corner, below where a character stands. There are no tabs and no input.
+- **Open:** Enter, or a click on the idle lines, opens it with the General, Party, and Combat tabs, the last eight lines, and the input. Esc or sending a line closes it again.
+- **Pin:** the Pin button keeps it open while the player isn't typing. The choice is saved with the account's settings.
+- **Newest line:** it always shows. A long line that wraps pushes the oldest line out of view.
 
 ## Controls
 
@@ -35,7 +44,7 @@ Keyboard only (OD-20). Attacks go the way the character faces; the mouse is used
 | Inventory | I | I |
 | Party | P | P |
 | Character window | C | C |
-| Chat | Enter | Enter |
+| Open the chat; close it while typing | Enter; Esc | Enter; Esc |
 | Close the top window | Esc | Esc |
 | Skills (P1) | 1 to 6 | 1 to 6 |
 
