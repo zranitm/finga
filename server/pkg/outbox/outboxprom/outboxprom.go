@@ -19,7 +19,7 @@ type Metrics struct {
 // New registers the outbox gauge on reg; registering twice on one registry fails.
 func New(reg prometheus.Registerer) (*Metrics, error) {
 	m := &Metrics{unpublished: prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: observability.Namespace, Name: "outbox_unpublished", Help: "Outbox rows not yet published. Grows in Stage 1; relay lag in Stage 2.",
+		Namespace: observability.Namespace, Name: "outbox_unpublished", Help: "Outbox rows not yet published: in Stage 1, with no relay, the unpublished TTL caps it; in Stage 2, the relay's lag.",
 	})}
 	return m, observability.Register(reg, m.unpublished)
 }

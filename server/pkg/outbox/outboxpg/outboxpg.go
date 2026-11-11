@@ -4,6 +4,7 @@ package outboxpg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"finga/pkg/dbx"
 	"finga/pkg/outbox"
@@ -27,7 +28,31 @@ func Unpublished(ctx context.Context, db dbx.DBTX) (int64, error) {
 	return n, err
 }
 
-const insertSQL = `INSERT INTO outbox (event_id, topic, key, type, content_type, payload, occurred_at, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`
+// PrunePublished deletes at most limit rows a relay published before before, oldest first, skipping those another transaction holds; the relay stamps published_at from the app's clock.
+func PrunePublished(ctx context.Context, db dbx.DBTX, before time.Time, limit int) (int64, error) {
+	return prune(ctx, db, prunePublishedSQL, "published", before, limit)
+}
+
+// PruneUnpublished deletes at most limit rows written before before that no relay published, oldest first: for Stage 1 only, which has no relay, as with one it deletes events not yet sent.
+func PruneUnpublished(ctx context.Context, db dbx.DBTX, before time.Time, limit int) (int64, error) {
+	return prune(ctx, db, pruneUnpublishedSQL, "unpublished", before, limit)
+}
+
+func prune(ctx context.Context, db dbx.DBTX, sql, rows string, before time.Time, limit int) (int64, error) {
+	tag, err := db.Exec(ctx, sql, before, limit)
+	if err != nil {
+		return 0, fmt.Errorf("outbox: prune %s: %w", rows, err)
+	}
+	return tag.RowsAffected(), nil
+}
+
+const (
+	insertSQL         = `INSERT INTO outbox (event_id, topic, key, type, content_type, payload, occurred_at, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`
+	prunePublishedSQL = `DELETE FROM outbox WHERE id IN (
+		SELECT id FROM outbox WHERE published_at < $1 ORDER BY published_at LIMIT $2 FOR UPDATE SKIP LOCKED)`
+	pruneUnpublishedSQL = `DELETE FROM outbox WHERE id IN (
+		SELECT id FROM outbox WHERE published_at IS NULL AND created_at < $1 ORDER BY created_at LIMIT $2 FOR UPDATE SKIP LOCKED)`
+)
 
 // Add implements outbox.Writer.
 func (w *writer) Add(ctx context.Context, events ...outbox.Event) error {
