@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"cmp"
+	"context"
 	"slices"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
+	"finga/pkg/uuidv7"
 )
 
 // quickCleanup has the guide's first quest ask for two slimes and one gel, and the second for one gel.
@@ -184,6 +186,45 @@ func TestQuests(t *testing.T) {
 		slices.SortFunc(got, func(a, b *clientv1.QuestState) int { return cmp.Compare(a.GetQuestId(), b.GetQuestId()) })
 		if !slices.EqualFunc(got, want, func(a, b *clientv1.QuestState) bool { return proto.Equal(a, b) }) {
 			t.Fatalf("welcome quests %v, want %v", got, want)
+		}
+		s.checkInvariants(t)
+	})
+
+	t.Run("H1/a-hand-in-the-world-missed-finishes-at-the-next-login", func(t *testing.T) {
+		ctx := context.Background()
+		var cap string
+		if err := s.db.QueryRow(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'leather_cap' AND location = 'inventory' LIMIT 1`, quinn.id).Scan(&cap); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.items.Discard(ctx, &itemv1.DiscardRequest{Actor: s.actor(t, quinn.id), IdempotencyKey: uuidv7.NewString(), ItemId: cap, Quantity: 1}); err != nil {
+			t.Fatal(err)
+		}
+		before := s.inventoryTotals(t, quinn.id)
+		// The item service hands the second quest in, as for a world that never got the reply.
+		missed := &itemv1.HandInRequest{Actor: s.actor(t, quinn.id), QuestId: "sticky_samples", Completion: 1,
+			Take: []*itemv1.HandInTake{{TemplateId: "slime_gel", Quantity: 1}},
+			Give: []*itemv1.HandInGive{{TemplateId: "leather_cap", Quantity: 1, Stats: &itemv1.ItemStats{PhysicalDefense: 3}}}}
+		if _, err := s.items.HandIn(ctx, missed); err != nil {
+			t.Fatal(err)
+		}
+		p, _ := s.welcome(t, "quinn", quinn.id)
+		back := newLooter(p, &clientv1.Snapshot{})
+		back.questChanged(t, "sticky_samples", 5*time.Second, func(q *clientv1.QuestChanged) bool {
+			return q.GetChange() == clientv1.QuestChange_QUEST_CHANGE_HANDED_IN && q.GetQuest().GetStatus() == clientv1.QuestStatus_QUEST_STATUS_FINISHED && q.GetQuest().GetTimesFinished() == 1
+		})
+		take(t, back, "ExpGained", &back.exp, 5*time.Second, func(e *clientv1.ExpGained) bool { return e.GetAmount() == 40 })
+		if r := back.command(t, "h-5", &clientv1.HandInQuest{NpcId: "town_guide", QuestId: "sticky_samples"}); r.GetOk() || r.GetCode() != "quest_not_ready" {
+			t.Fatalf("handing in again: %+v", r)
+		}
+		after := s.inventoryTotals(t, quinn.id)
+		if after["slime_gel"] != before["slime_gel"]-1 || after["leather_cap"] != before["leather_cap"]+1 {
+			t.Fatalf("held %v before the hand-in and %v after; want one gel taken and one cap given, once", before, after)
+		}
+		_, w := s.welcome(t, "quinn", quinn.id)
+		if !slices.ContainsFunc(w.GetQuests(), func(q *clientv1.QuestState) bool {
+			return q.GetQuestId() == "sticky_samples" && q.GetStatus() == clientv1.QuestStatus_QUEST_STATUS_FINISHED && q.GetTimesFinished() == 1
+		}) {
+			t.Fatalf("welcome quests %v; want the second finished once", w.GetQuests())
 		}
 		s.checkInvariants(t)
 	})

@@ -211,7 +211,7 @@ From the code, the rules this design keeps:
   - an answer after a reconnect on the map finishing the quest, and one after the character left changing nothing there;
   - a join finishing each completion the item service handed in, once;
   - repeatable quests handing in their next completion.
-- **End to end:** accept a quest, kill, collect, hand in, see items taken and given; a party kill counting for both members; a hand-in refused for a full inventory.
+- **End to end:** accept a quest, kill, collect, hand in, see items taken and given; a party kill counting for both members; a hand-in refused for a full inventory; a hand-in the world missed, finished once at the next login.
 - **Client:** Vitest for markers and collect progress; Testing Library for the dialog and the quest log.
 
 ## 13. Build order
