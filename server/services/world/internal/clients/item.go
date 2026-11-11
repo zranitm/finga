@@ -162,16 +162,16 @@ func (e Equipment) Unequip(ctx context.Context, c model.UnequipCall) (model.Equi
 }
 
 // Use takes one of a usable item from its stack, refused when the item isn't the template named.
-func (e Equipment) Use(ctx context.Context, c model.UseCall) (model.Inventory, error) {
+func (e Equipment) Use(ctx context.Context, c model.UseCall) (model.Inventory, bool, error) {
 	res, err := e.c.Use(ctx, &itemv1.UseRequest{Actor: &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()}, IdempotencyKey: c.Key, ItemId: c.Item.String(), TemplateId: c.Template})
 	if err != nil {
-		return model.Inventory{}, ruleOr(err)
+		return model.Inventory{}, false, ruleOr(err)
 	}
 	slots, err := changedSlots(res.GetChanged())
 	if err != nil {
-		return model.Inventory{}, err
+		return model.Inventory{}, false, err
 	}
-	return model.Inventory{Revision: res.GetRevision(), Slots: slots}, nil
+	return model.Inventory{Revision: res.GetRevision(), Slots: slots}, res.GetReplayed(), nil
 }
 
 // HandIn takes what a quest asks to collect and gives its item rewards, once per completion.

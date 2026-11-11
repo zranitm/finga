@@ -44,8 +44,9 @@ type HandIns interface {
 }
 
 // Potions is the item service's use of an item, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+// replayed is true when an earlier call under the key took the item.
 type Potions interface {
-	Use(ctx context.Context, c model.UseCall) (model.Inventory, error)
+	Use(ctx context.Context, c model.UseCall) (inv model.Inventory, replayed bool, err error)
 }
 
 // TickObserver sees each tick's duration against its budget.

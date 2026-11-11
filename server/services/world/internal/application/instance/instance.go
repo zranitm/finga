@@ -133,12 +133,13 @@ type (
 		done chan error
 	}
 	usedMsg struct {
-		id     kernel.CharacterID
-		caller *player // the join that made the call, whose count of calls in flight it ends
-		call   model.UseCall
-		result model.Inventory
-		err    error
-		done   chan error
+		id       kernel.CharacterID
+		caller   *player // the join that made the call, whose count of calls in flight it ends
+		call     model.UseCall
+		result   model.Inventory
+		replayed bool
+		err      error
+		done     chan error
 	}
 	chatMsg struct {
 		from kernel.CharacterID

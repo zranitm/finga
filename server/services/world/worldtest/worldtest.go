@@ -438,8 +438,8 @@ func (nobody) Unequip(context.Context, model.UnequipCall) (model.Equipped, error
 }
 
 // Use refuses.
-func (nobody) Use(context.Context, model.UseCall) (model.Inventory, error) {
-	return model.Inventory{}, errNobody
+func (nobody) Use(context.Context, model.UseCall) (model.Inventory, bool, error) {
+	return model.Inventory{}, false, errNobody
 }
 
 // Worn wears nothing, so a join goes on.

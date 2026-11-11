@@ -34,10 +34,10 @@ func (i *Instance) startUse(m useMsg) {
 	c.Account, c.Character = p.Account, p.ID
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
 		callCtx, cancel := context.WithTimeout(ctx, useTimeout)
-		result, err := i.deps.Potions.Use(callCtx, c)
+		result, replayed, err := i.deps.Potions.Use(callCtx, c)
 		cancel()
 		select {
-		case i.inbox <- usedMsg{id: m.id, caller: p, call: c, result: result, err: err, done: m.done}:
+		case i.inbox <- usedMsg{id: m.id, caller: p, call: c, result: result, replayed: replayed, err: err, done: m.done}:
 		case <-ctx.Done(): // the map stopped first; its inbox may never drain
 		}
 	})
@@ -65,7 +65,7 @@ func (i *Instance) canUse(p *player, template string) error {
 	}
 }
 
-// settleUse tells the player what the item service took, then restores what the potion does.
+// settleUse tells the player what the item service took, then restores what the potion does, unless an earlier call under the key already did.
 func (i *Instance) settleUse(m usedMsg) {
 	p, ok := i.players[m.id]
 	if ok && p == m.caller { // a join again, even through the same connection, starts its own count
@@ -78,6 +78,10 @@ func (i *Instance) settleUse(m usedMsg) {
 		m.done <- fmt.Errorf("%w: the character left the map before the potion applied", transient.ErrUnavailable)
 	default:
 		p.private = append(p.private, model.InventoryChanged{Tick: i.tick, Revision: m.result.Revision, Slots: m.result.Slots})
+		if m.replayed { // a retry of a use already applied; healing again would heal for free
+			m.done <- nil
+			return
+		}
 		// A player who died while the call was out keeps nothing: the potion was spent when the item service took it, and the dead are not healed. Rare, and simpler than giving it back.
 		if p.dead {
 			m.done <- model.ErrCharacterDead

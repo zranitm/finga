@@ -385,4 +385,6 @@ message UseResponse {
   repeated Slot changed = 1;
   // The inventory's revision after this change.
   uint64 revision = 2;
+  // An earlier call under the key took the item, and this is its reply: nothing was taken now.
+  bool replayed = 3;
 }

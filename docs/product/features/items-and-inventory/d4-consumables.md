@@ -18,7 +18,7 @@
 - No cooldown: a key drinks again once the last potion it drank has applied.
 - The bars move, the amount restored rises over the drinker (green for HP, blue for MP), and the Combat tab says "Drank a Red Potion."
 - A character who dies while the potion is being used loses it and is not healed.
-- A potion is never used twice for one press, even if the game disconnects and the request is sent again (D5).
+- One press uses one potion and heals once, even if the game disconnects and the request is sent again (D5).
 
 ## Not in this feature
 

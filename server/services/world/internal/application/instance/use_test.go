@@ -18,16 +18,17 @@ import (
 
 var errNotThere = errors.New("not in the inventory")
 
-// fakePotions answers every use with answer or err, each call waiting for gate when it is set.
+// fakePotions answers every use with answer, replayed or err, each call waiting for gate when it is set.
 type fakePotions struct {
-	mu     sync.Mutex
-	uses   []model.UseCall
-	answer model.Inventory
-	err    error
-	gate   chan struct{}
+	mu       sync.Mutex
+	uses     []model.UseCall
+	answer   model.Inventory
+	replayed bool
+	err      error
+	gate     chan struct{}
 }
 
-func (f *fakePotions) Use(ctx context.Context, c model.UseCall) (model.Inventory, error) {
+func (f *fakePotions) Use(ctx context.Context, c model.UseCall) (model.Inventory, bool, error) {
 	f.mu.Lock()
 	f.uses = append(f.uses, c)
 	gate := f.gate
@@ -36,12 +37,12 @@ func (f *fakePotions) Use(ctx context.Context, c model.UseCall) (model.Inventory
 		select {
 		case <-gate:
 		case <-ctx.Done():
-			return model.Inventory{}, ctx.Err()
+			return model.Inventory{}, false, ctx.Err()
 		}
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.answer, f.err
+	return f.answer, f.replayed, f.err
 }
 
 func (f *fakePotions) calls() int {
@@ -189,6 +190,30 @@ func TestARefusedUseRestoresNothing(t *testing.T) {
 		}
 		if v, _ := s.Own(p.ID); v.HP != 10 || len(eventsOf[model.StatsChanged](s))+len(eventsOf[model.InventoryChanged](s)) != 0 {
 			t.Fatalf("HP %d and events after a refusal", v.HP)
+		}
+	})
+}
+
+// A retry under a key the item service already took a potion for heals nothing again, so repeating one key gives no free heals.
+func TestAReplayedUseRestoresNothingAgain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		potions := &fakePotions{answer: redPotionsLeft(4), replayed: true}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
+		defer stop()
+		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p.HP, p.Connection = 10, "c1"
+		s := join(t, inst, p)
+		done := useAsync(inst, p.ID, "red_potion")
+		tick(2)
+		if err := <-done; err != nil {
+			t.Fatalf("err = %v, want the replay answered", err)
+		}
+		if v, _ := s.Own(p.ID); v.HP != 10 || len(eventsOf[model.StatsChanged](s)) != 0 {
+			t.Fatalf("HP %d after a replay, want 10", v.HP)
+		}
+		if inv := eventsOf[model.InventoryChanged](s); len(inv) != 1 || inv[0].Revision != 7 {
+			t.Fatalf("inventory changes %+v, want the stored reply told", inv)
 		}
 	})
 }

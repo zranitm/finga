@@ -2581,7 +2581,9 @@ type UseResponse struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Changed []*Slot                `protobuf:"bytes,1,rep,name=changed,proto3" json:"changed,omitempty"`
 	// The inventory's revision after this change.
-	Revision      uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Revision uint64 `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	// An earlier call under the key took the item, and this is its reply: nothing was taken now.
+	Replayed      bool `protobuf:"varint,3,opt,name=replayed,proto3" json:"replayed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2628,6 +2630,13 @@ func (x *UseResponse) GetRevision() uint64 {
 		return x.Revision
 	}
 	return 0
+}
+
+func (x *UseResponse) GetReplayed() bool {
+	if x != nil {
+		return x.Replayed
+	}
+	return false
 }
 
 var File_internal_item_v1_item_proto protoreflect.FileDescriptor
@@ -2822,10 +2831,11 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x0fidempotency_key\x18\x02 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\aitem_id\x18\x03 \x01(\tR\x06itemId\x12\x1f\n" +
 	"\vtemplate_id\x18\x04 \x01(\tR\n" +
-	"templateId\"[\n" +
+	"templateId\"w\n" +
 	"\vUseResponse\x120\n" +
 	"\achanged\x18\x01 \x03(\v2\x16.internal.item.v1.SlotR\achanged\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\x04R\brevision*\xe8\x06\n" +
+	"\brevision\x18\x02 \x01(\x04R\brevision\x12\x1a\n" +
+	"\breplayed\x18\x03 \x01(\bR\breplayed*\xe8\x06\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15REASON_ITEM_NOT_FOUND\x10\x01\x12\x15\n" +

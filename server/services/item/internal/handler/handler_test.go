@@ -47,6 +47,7 @@ type fakeItems struct {
 	class     kernel.Class
 	inventory model.Inventory
 	result    application.Result
+	replayed  bool // Use answers it
 	err       error
 	calls     int
 }
@@ -93,12 +94,12 @@ func (f *fakeItems) Discard(_ context.Context, actor model.Actor, in application
 	return f.result, f.err
 }
 
-func (f *fakeItems) Use(_ context.Context, actor model.Actor, in application.UseInput) (application.Result, error) {
+func (f *fakeItems) Use(_ context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.record()
 	f.actor, f.use = actor, in
-	return f.result, f.err
+	return f.result, f.replayed, f.err
 }
 
 func (f *fakeItems) Equip(_ context.Context, actor model.Actor, in application.EquipInput) (application.Result, error) {
@@ -252,13 +253,15 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantChanged(t, res)
 	})
-	t.Run("Use", func(t *testing.T) {
+	t.Run("Use, saying when an earlier call took it", func(t *testing.T) {
+		f.replayed = true
+		defer func() { f.replayed = false }()
 		res, err := c.Use(ctx, &itemv1.UseRequest{Actor: actor, IdempotencyKey: key2, ItemId: potion.ID.String(), TemplateId: "red_potion"})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.use != (application.UseInput{Key: key2, ItemID: potion.ID, Template: "red_potion"}) {
-			t.Fatalf("use %+v", f.use)
+		if f.use != (application.UseInput{Key: key2, ItemID: potion.ID, Template: "red_potion"}) || !res.GetReplayed() {
+			t.Fatalf("use %+v, replayed %v", f.use, res.GetReplayed())
 		}
 		wantChanged(t, res)
 	})

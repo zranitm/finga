@@ -124,8 +124,8 @@ func (w wears) HandIn(context.Context, model.HandInCall) (model.Inventory, error
 }
 
 // Use takes a red potion from the Use tab's slot 0, leaving 2, at revision 6; err refuses it.
-func (w wears) Use(context.Context, model.UseCall) (model.Inventory, error) {
-	return model.Inventory{Revision: 6, Slots: []model.Slot{{Tab: gamedata.Use, Slot: 0, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "red_potion", Quantity: 2}}}}, w.err
+func (w wears) Use(context.Context, model.UseCall) (model.Inventory, bool, error) {
+	return model.Inventory{Revision: 6, Slots: []model.Slot{{Tab: gamedata.Use, Slot: 0, Item: &model.SlotItem{ID: kernel.NewItemID(), Template: "red_potion", Quantity: 2}}}}, false, w.err
 }
 
 // HandedIn finds none handed in.

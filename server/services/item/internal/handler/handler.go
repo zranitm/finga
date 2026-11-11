@@ -24,7 +24,7 @@ type Service interface {
 	AddMany(ctx context.Context, actor model.Actor, drops []application.AddInput) (application.Batch, error)
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
-	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, error)
+	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error)
 	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
 	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
 	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
@@ -197,11 +197,11 @@ func (s *Server) Use(ctx context.Context, req *itemv1.UseRequest) (*itemv1.UseRe
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.svc.Use(ctx, actor, application.UseInput{Key: key, ItemID: id, Template: req.GetTemplateId()})
+	res, replayed, err := s.svc.Use(ctx, actor, application.UseInput{Key: key, ItemID: id, Template: req.GetTemplateId()})
 	if err != nil {
 		return nil, err
 	}
-	return &itemv1.UseResponse{Changed: slots(res), Revision: res.Revision}, nil
+	return &itemv1.UseResponse{Changed: slots(res), Revision: res.Revision, Replayed: replayed}, nil
 }
 
 // GrantStarter gives a new character its starter items, once.

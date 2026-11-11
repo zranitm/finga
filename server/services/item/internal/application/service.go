@@ -518,20 +518,22 @@ func (s *Service) discard(ctx context.Context, uow UnitOfWork, owner kernel.Char
 }
 
 // Use takes one of a usable item from its stack, once per key; what it does, such as the HP a potion restores, the caller applies.
-func (s *Service) Use(ctx context.Context, actor model.Actor, in UseInput) (Result, error) {
+// replayed is true when an earlier call under the key took it, so the caller applies nothing again.
+func (s *Service) Use(ctx context.Context, actor model.Actor, in UseInput) (res Result, replayed bool, err error) {
 	if t, ok := s.content.Item(in.Template); !ok || !t.Usable() {
-		return Result{}, model.ErrNotUsable
+		return Result{}, false, model.ErrNotUsable
 	}
-	var res Result
-	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
+	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
+		replayed = true
 		var err error
 		res, err = uow.Idempotency().Run(ctx, actor.Account, scopeUse, in.Key, in.fingerprint(actor.Character), func() (Result, error) {
+			replayed = false
 			res, err := s.use(ctx, uow, actor.Character, in)
 			return revised(ctx, uow, actor.Character, res, err)
 		})
 		return err
 	})
-	return res, err
+	return res, replayed, err
 }
 
 func (s *Service) use(ctx context.Context, uow UnitOfWork, owner kernel.CharacterID, in UseInput) (Result, error) {
