@@ -163,7 +163,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
   );
 }
 
-// The newest line is last and the list is anchored to its bottom, so a wrapped line pushes the oldest out of view.
+// The newest line is last in the markup and drawn at the bottom; the CSS hides any line that doesn't fit whole.
 function Lines({ tab, count }: { readonly tab: ChatTab; readonly count: number }) {
   return (
     <div className="chat-log">
@@ -181,10 +181,11 @@ function ChatLines({ partyOnly, count }: { readonly partyOnly: boolean; readonly
   const shown = partyOnly ? lines.filter((l) => l.channel === ChatChannel.PARTY) : lines;
   return (
     <ul className="chat-lines" aria-live="polite">
-      {shown.slice(-count).map((l) => (
+      {shown.slice(-count).map((l, i) => (
         <li
           key={`${l.at}-${l.sender}-${l.text}`}
           className={`chat-line chat-${l.channel === ChatChannel.PARTY ? 'party' : 'map'}`}
+          style={{ order: -i }}
         >
           <span className="chat-tag">[{l.channel === ChatChannel.PARTY ? 'Party' : 'Map'}]</span>{' '}
           <strong>{l.senderName}:</strong> {l.text}
@@ -199,8 +200,8 @@ function CombatLines({ count }: { readonly count: number }) {
   const me = character.use((s) => s.character?.id);
   return (
     <ul className="chat-lines" aria-live="polite">
-      {lines.slice(-count).map((l) => (
-        <li key={l.id} className="chat-line chat-combat">
+      {lines.slice(-count).map((l, i) => (
+        <li key={l.id} className="chat-line chat-combat" style={{ order: -i }}>
           <CombatText line={l} me={me} />
         </li>
       ))}

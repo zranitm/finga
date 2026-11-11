@@ -349,8 +349,34 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
   const retryable = [...pending.entries()].find(([, p]) => p.retryable);
   const sheet = c?.sheet;
   const preview = c ? previewSheet(c, equipment, points.staged) : null;
+  const problem = notice ?? points.notice;
+  const footer =
+    retryable || problem ? (
+      <>
+        {retryable && (
+          <div className="inventory-detail">
+            <span>{retryable[1].error}</span>
+            <Button variant="quiet" onClick={() => retry(retryable[0])}>
+              Retry
+            </Button>
+          </div>
+        )}
+        {problem && (
+          <p className="error" role="alert">
+            {problem}
+          </p>
+        )}
+      </>
+    ) : null;
   return (
-    <WorldWindow name="character" title="Character" onClose={onClose} initialX={24} initialY={80}>
+    <WorldWindow
+      name="character"
+      title="Character"
+      onClose={onClose}
+      initialX={24}
+      initialY={80}
+      footer={footer}
+    >
       {c && (
         <div className="character">
           <header className="character-header">
@@ -374,19 +400,6 @@ export function CharacterWindow({ socket, onClose }: CharacterWindowProps) {
               ))}
             </div>
           </div>
-          {retryable && (
-            <div className="inventory-detail">
-              <span>{retryable[1].error}</span>
-              <Button variant="quiet" onClick={() => retry(retryable[0])}>
-                Retry
-              </Button>
-            </div>
-          )}
-          {(notice ?? points.notice) && (
-            <p className="error" role="alert">
-              {notice ?? points.notice}
-            </p>
-          )}
           {confirmingReset && (
             <ConfirmReset
               spent={points.spent}

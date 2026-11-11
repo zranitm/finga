@@ -78,6 +78,21 @@ describe('Window', () => {
     expect(max).toMatch(/100vh/);
     expect(max).toMatch(/-\s?164px/);
   });
+
+  it('keeps its footer out of the scrolling body, so a notice stays in view', () => {
+    render(
+      <Window
+        title="Character"
+        onClose={vi.fn()}
+        footer={<p role="alert">Your Equip tab is full.</p>}
+      >
+        <p>stats</p>
+      </Window>,
+    );
+    const notice = screen.getByRole('alert');
+    expect(notice.closest('.window-footer')).not.toBeNull();
+    expect(notice.closest('.window-body')).toBeNull();
+  });
 });
 
 describe('Modal', () => {

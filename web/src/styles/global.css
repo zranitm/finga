@@ -113,6 +113,10 @@ body {
   padding: 12px;
   overflow-y: auto;
 }
+.window-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--panel-border);
+}
 
 .bar {
   position: relative;
@@ -217,10 +221,27 @@ body {
   gap: 8px;
   align-items: center;
 }
+.load-problem .btn {
+  flex: none;
+  white-space: nowrap;
+}
 .row h1 {
   flex: 1;
   font-size: 20px;
   margin: 0;
+}
+/* The character list's buttons stay on one line beside its title, or drop below it together. */
+.characters-header {
+  flex-wrap: wrap;
+}
+.row-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}
+.row-actions .btn {
+  white-space: nowrap;
 }
 .error {
   margin: 0;
@@ -645,7 +666,7 @@ body {
   background: color-mix(in srgb, var(--panel) 70%, transparent);
   border-radius: var(--radius);
 }
-/* Anchored to the bottom, so a wrapped line pushes the oldest line out of view, never the newest. */
+/* Laid out newest first from the bottom (each line's order); a line that doesn't fit whole wraps into a column out of view, and every older one with it, so no line shows cut. */
 .chat-lines {
   list-style: none;
   margin: 0;
@@ -653,11 +674,13 @@ body {
   max-height: calc(8 * 1.4em);
   overflow: hidden;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
+  flex-direction: column-reverse;
+  flex-wrap: wrap;
+  align-content: flex-start;
 }
 .chat-line {
-  flex-shrink: 0;
+  flex: none;
+  width: 100%;
   line-height: 1.4;
   overflow-wrap: anywhere;
 }
@@ -670,6 +693,13 @@ body {
 }
 .chat-idle .chat-lines {
   max-height: calc(3 * 1.4em);
+}
+/* A message taller than the idle box shows its first rows, tag included; opening the chat shows it whole. */
+.chat-idle .chat-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 .chat-idle .chat-lines:empty::before {
   content: 'Enter to chat';
