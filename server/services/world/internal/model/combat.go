@@ -6,6 +6,7 @@ import (
 	"math"
 
 	"finga/internal/gamedata"
+	"finga/internal/progression"
 	"finga/internal/sim"
 )
 
@@ -30,6 +31,35 @@ type Defender struct {
 	PhysicalDefense float64
 	MagicDefense    float64
 	Evasion         float64
+}
+
+// PlayerAttacker is a player's basic attack, of their class's damage type.
+func PlayerAttacker(d progression.Derived, damage gamedata.DamageType) Attacker {
+	return Attacker{
+		Damage: damage, PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack,
+		Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
+	}
+}
+
+// PlayerDefender is a player's side of a mob's touch.
+func PlayerDefender(d progression.Derived) Defender {
+	return Defender{PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense, Evasion: d.Evasion}
+}
+
+// MobAttacker is a mob's contact attack, its one attack number of its damage type.
+func MobAttacker(m gamedata.Mob) Attacker {
+	a := Attacker{Damage: m.Damage, Accuracy: float64(m.Accuracy)}
+	if m.Damage == gamedata.Magic {
+		a.MagicAttack = float64(m.Attack)
+	} else {
+		a.PhysicalAttack = float64(m.Attack)
+	}
+	return a
+}
+
+// MobDefender is a mob's side of a player's attack.
+func MobDefender(m gamedata.Mob) Defender {
+	return Defender{PhysicalDefense: float64(m.PhysicalDefense), MagicDefense: float64(m.MagicDefense), Evasion: float64(m.Evasion)}
 }
 
 // HitChance is what the chance to hit is held between, from stats.yaml.

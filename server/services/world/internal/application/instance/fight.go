@@ -76,7 +76,7 @@ func (i *Instance) resolveAttacks() {
 		}
 		p.cooldownUntil = i.tick + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
 		blow, reached := i.arena.Strike(mobs.Strike{
-			By: p.ID, Attack: p.class.Attack, Power: attackerOf(p.derived, p.class.Attack.Damage),
+			By: p.ID, Attack: p.class.Attack, Power: model.PlayerAttacker(p.derived, p.class.Attack.Damage),
 			X: p.state.X, Y: p.state.Y, Facing: p.state.Facing, Height: i.params.Height,
 		})
 		if !reached {
@@ -101,7 +101,7 @@ func (i *Instance) contactDamage() {
 		if p.dead || p.invulnUntil > i.tick {
 			continue
 		}
-		dealt, mobX, touched := i.arena.Touch(p.ID, i.playerBox(p), defenderOf(p.derived))
+		dealt, mobX, touched := i.arena.Touch(p.ID, i.playerBox(p), model.PlayerDefender(p.derived))
 		if !touched {
 			continue
 		}
@@ -171,16 +171,4 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		left = append(left, id)
 	}
 	return left
-}
-
-// attackerOf is a player's basic attack, of their class's damage type.
-func attackerOf(d progression.Derived, damage gamedata.DamageType) model.Attacker {
-	return model.Attacker{
-		Damage: damage, PhysicalAttack: d.PhysicalAttack, MagicAttack: d.MagicAttack,
-		Accuracy: d.Accuracy, CritRate: d.CritRate, CritDamage: d.CritDamage, Penetration: d.Penetration,
-	}
-}
-
-func defenderOf(d progression.Derived) model.Defender {
-	return model.Defender{PhysicalDefense: d.PhysicalDefense, MagicDefense: d.MagicDefense, Evasion: d.Evasion}
 }
