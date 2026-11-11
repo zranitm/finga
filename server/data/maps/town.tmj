@@ -14,7 +14,11 @@
   "nextobjectid": 16,
   "tilesets": [],
   "properties": [
-    {"name": "kind", "type": "string", "value": "town"}
+    {"name": "kind", "type": "string", "value": "town"},
+    {"name": "start", "type": "bool", "value": true},
+    {"name": "name", "type": "string", "value": "Town"},
+    {"name": "ground", "type": "string", "value": "dirt"},
+    {"name": "background", "type": "string", "value": "land"}
   ],
   "layers": [
     {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [

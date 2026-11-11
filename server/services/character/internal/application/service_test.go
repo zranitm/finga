@@ -45,7 +45,7 @@ func TestCreate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		town := data.Town()
+		town := data.StartTown()
 		warrior, _ := data.Class(kernel.Warrior)
 		checks := []struct {
 			name string

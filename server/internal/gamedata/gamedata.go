@@ -198,6 +198,7 @@ type Mob struct {
 	ID              string
 	Name            string
 	Level           int
+	Elite           bool // a map's bigger, rarer mob, with more HP, EXP and drops than its normal one
 	HP              int
 	Attack          int
 	Damage          DamageType // what its contact attack deals
@@ -242,8 +243,12 @@ type Spawn struct {
 // Map is one Tiled map, converted.
 type Map struct {
 	ID          string
+	Name        string // what players see, as the banner on entering
 	Kind        MapKind
-	Town        string  // the town its players respawn in; a town names itself
+	Start       bool   // new characters start here; exactly one town has it
+	Town        string // the town its players respawn in; a town names itself
+	MinLevel    int    // a hunting map's mobs are of these levels; 0 for a town
+	MaxLevel    int
 	Width       float64 // pixels
 	Height      float64
 	Geometry    sim.Geometry
@@ -280,6 +285,7 @@ type Data struct {
 	mobIdx      map[string]int
 	maps        []*Map
 	mapIdx      map[string]int
+	start       *Map
 	levelCap    int
 	expToNext   []int64 // index level-1, for levels 1..cap-1
 	npcs        []NPC
@@ -360,15 +366,8 @@ func (d *Data) Map(id string) (*Map, bool) {
 	return d.maps[i], true
 }
 
-// Town is the town map, where characters start and respawn.
-func (d *Data) Town() *Map {
-	for _, m := range d.maps {
-		if m.Kind == Town {
-			return m
-		}
-	}
-	return nil
-}
+// StartTown is the town new characters start in, the one map with the property start.
+func (d *Data) StartTown() *Map { return d.start }
 
 // LevelCap is the highest level.
 func (d *Data) LevelCap() int { return d.levelCap }

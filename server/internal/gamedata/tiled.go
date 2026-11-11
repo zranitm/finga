@@ -20,7 +20,11 @@ const (
 	layerNPCs        = "npcs"
 
 	propKind         = "kind"
+	propName         = "name"
+	propStart        = "start"
 	propTown         = "town"
+	propMinLevel     = "min_level"
+	propMaxLevel     = "max_level"
 	propTargetMap    = "target_map"
 	propTargetPortal = "target_portal"
 	propMob          = "mob"
@@ -49,11 +53,23 @@ func (d *Data) loadMap(path string) (*Map, error) {
 	if m.Kind != Town && m.Kind != Hunting {
 		return nil, fmt.Errorf("%s: unknown %s %q", file, propKind, kind)
 	}
+	if m.Name, ok = tm.Properties.String(propName); !ok || m.Name == "" {
+		return nil, fmt.Errorf("%s: missing map property %q, the name players see", file, propName)
+	}
+	m.Start, _ = tm.Properties.Bool(propStart)
 	// A hunting map names its respawn town; loadMaps checks it exists.
 	if m.Kind == Town {
 		m.Town = m.ID
 	} else if m.Town, ok = tm.Properties.String(propTown); !ok {
 		return nil, fmt.Errorf("%s: missing map property %q", file, propTown)
+	}
+	if m.Kind == Hunting {
+		lo, okLo := tm.Properties.Int(propMinLevel)
+		hi, okHi := tm.Properties.Int(propMaxLevel)
+		if !okLo || !okHi || lo < 1 || hi < lo {
+			return nil, fmt.Errorf("%s: a hunting map needs map properties %q and %q, its mobs' levels, with 1 <= %s <= %s", file, propMinLevel, propMaxLevel, propMinLevel, propMaxLevel)
+		}
+		m.MinLevel, m.MaxLevel = lo, hi
 	}
 
 	layers := tm.ObjectGroups()
@@ -93,8 +109,12 @@ func (d *Data) loadMap(path string) (*Map, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s: layer %q: object %q: missing property %q", file, layerSpawns, o.Name, propMob)
 		}
-		if _, ok := d.Mob(mob); !ok {
+		mt, ok := d.Mob(mob)
+		if !ok {
 			return nil, fmt.Errorf("%s: layer %q: object %q: unknown mob %q", file, layerSpawns, o.Name, mob)
+		}
+		if mt.Level < m.MinLevel || mt.Level > m.MaxLevel {
+			return nil, fmt.Errorf("%s: layer %q: object %q: %s is level %d, outside the map's levels %d to %d", file, layerSpawns, o.Name, mob, mt.Level, m.MinLevel, m.MaxLevel)
 		}
 		maxMobs, ok := o.Properties.Int(propMax)
 		if !ok || maxMobs < 1 {
@@ -105,6 +125,10 @@ func (d *Data) loadMap(path string) (*Map, error) {
 			return nil, fmt.Errorf("%s: layer %q: object %q: property %q must be a non-negative integer", file, layerSpawns, o.Name, propRespawn)
 		}
 		m.Spawns = append(m.Spawns, Spawn{Mob: mob, Max: maxMobs, Respawn: time.Duration(respawn) * time.Second, Area: rect(o)})
+	}
+
+	if elite, normal := spawnsElite(d, m.Spawns); elite != "" && !normal {
+		return nil, fmt.Errorf("%s: layer %q: elite %s needs a normal mob on its map to stand out from", file, layerSpawns, elite)
 	}
 
 	spawns := layers[layerPlayerSpawn].Objects
@@ -118,6 +142,18 @@ func (d *Data) loadMap(path string) (*Map, error) {
 		m.NPCs = append(m.NPCs, Placement{NPC: o.Name, At: feet(o)})
 	}
 	return m, nil
+}
+
+// spawnsElite is an elite the spawns keep, if any, and whether they keep a normal mob too.
+func spawnsElite(d *Data, spawns []Spawn) (elite string, normal bool) {
+	for _, s := range spawns {
+		if mob, _ := d.Mob(s.Mob); mob.Elite {
+			elite = mob.ID
+		} else {
+			normal = true
+		}
+	}
+	return elite, normal
 }
 
 // feet is where an object stands: its bottom centre, which for a point object is the point.

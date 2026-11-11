@@ -155,7 +155,7 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 }
 
 func (s *stack) character(name string) model.Character {
-	town := s.data.Town()
+	town := s.data.StartTown()
 	ch := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: name, Class: kernel.Warrior, Level: 1,
 		HP: 184, MP: 28,
@@ -470,7 +470,7 @@ func TestEquipAnswersOnceTheStatsApply(t *testing.T) {
 func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 	s := newStack(t)
 	stream := s.gateway(t, "gw-1")
-	town := s.data.Town()
+	town := s.data.StartTown()
 	ayla := model.Character{
 		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 3, Points: model.Points{Unspent: 10},
 		HP: 220, MP: 40, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,

@@ -1,7 +1,6 @@
 package gamedata
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -386,6 +385,7 @@ type mobYAML struct {
 	ID              string     `yaml:"id"`
 	Name            string     `yaml:"name"`
 	Level           int        `yaml:"level"`
+	Elite           bool       `yaml:"elite"`
 	HP              int        `yaml:"hp"`
 	Attack          int        `yaml:"attack"`
 	Damage          string     `yaml:"damage"`
@@ -398,7 +398,14 @@ type mobYAML struct {
 	Width           float64    `yaml:"width"`
 	Height          float64    `yaml:"height"`
 	Behavior        string     `yaml:"behavior"`
+	Look            lookYAML   `yaml:"look"`
 	Drops           []dropYAML `yaml:"drops"`
+}
+
+// lookYAML is the client's art for a mob: a sprite it draws, tinted; the server only checks it is there.
+type lookYAML struct {
+	Sprite string `yaml:"sprite"`
+	Tint   *int   `yaml:"tint"`
 }
 
 type dropYAML struct {
@@ -423,6 +430,9 @@ func (d *Data) loadMobs(dir string) error {
 		if raw.Level < 1 || raw.HP < 1 || raw.Width <= 0 || raw.Height <= 0 || raw.Speed < 0 || raw.Exp < 0 {
 			return fmt.Errorf("%s: mob %s: level and hp must be at least 1, width and height positive, speed and exp not negative", mobsFile, raw.ID)
 		}
+		if raw.Look.Sprite == "" || raw.Look.Tint != nil && (*raw.Look.Tint < 0 || *raw.Look.Tint > 0xffffff) {
+			return fmt.Errorf("%s: mob %s: look needs a sprite, and a tint is an RGB color", mobsFile, raw.ID)
+		}
 		if raw.Behavior != "patrol" {
 			return fmt.Errorf("%s: mob %s: unknown behavior %q (Stage 1 has patrol)", mobsFile, raw.ID, raw.Behavior)
 		}
@@ -434,7 +444,7 @@ func (d *Data) loadMobs(dir string) error {
 			return fmt.Errorf("%s: mob %s: attack, defenses, accuracy and evasion must not be negative", mobsFile, raw.ID)
 		}
 		mob := Mob{
-			ID: raw.ID, Name: raw.Name, Level: raw.Level, HP: raw.HP, Attack: raw.Attack, Damage: damage,
+			ID: raw.ID, Name: raw.Name, Level: raw.Level, Elite: raw.Elite, HP: raw.HP, Attack: raw.Attack, Damage: damage,
 			PhysicalDefense: raw.PhysicalDefense, MagicDefense: raw.MagicDefense,
 			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, Width: raw.Width, Height: raw.Height,
 			Behavior: raw.Behavior,
@@ -499,8 +509,20 @@ func (d *Data) loadMaps(dir string) error {
 			return fmt.Errorf("%s%s: map property %q names %q, which is not a town", m.ID, mapExt, propTown, m.Town)
 		}
 	}
-	if d.Town() == nil {
-		return errors.New("maps: no map has kind town")
+	for _, m := range d.maps {
+		if !m.Start {
+			continue
+		}
+		if d.start != nil {
+			return fmt.Errorf("maps: %s and %s both have the property %q; new characters start in one town", d.start.ID+mapExt, m.ID+mapExt, propStart)
+		}
+		if m.Kind != Town {
+			return fmt.Errorf("%s%s: the map property %q is for a town, where new characters start", m.ID, mapExt, propStart)
+		}
+		d.start = m
+	}
+	if d.start == nil {
+		return fmt.Errorf("maps: no town has the property %q, where new characters start", propStart)
 	}
 	return nil
 }

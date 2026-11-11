@@ -180,7 +180,7 @@ func LoadDataWith(t *testing.T, edits map[string]func(string) string) *gamedata.
 // TownSpawn is where players appear in the town.
 func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 	t.Helper()
-	town := data.Town()
+	town := data.StartTown()
 	return town.PlayerSpawn.X, town.PlayerSpawn.Y
 }
 
@@ -347,7 +347,7 @@ func NewWorld(data *gamedata.Data, saver world.Saver, o Options) *world.World {
 // Run starts a town map in the synctest bubble; stop waits for Run so nothing outlives it.
 func Run(t *testing.T, data *gamedata.Data, cps *Checkpoints, o Options) (*instance.Instance, func()) {
 	t.Helper()
-	return RunMap(t, data, data.Town(), cps, o)
+	return RunMap(t, data, data.StartTown(), cps, o)
 }
 
 // RunMap starts m's map in the synctest bubble, as Run does the town's.

@@ -76,6 +76,17 @@ func (ps Properties) Int(name string) (int, bool) {
 	return 0, false
 }
 
+// Bool is the named property when it is a boolean.
+func (ps Properties) Bool(name string) (bool, bool) {
+	for _, p := range ps {
+		if p.Name == name {
+			b, ok := p.Value.(bool)
+			return b, ok
+		}
+	}
+	return false, false
+}
+
 var errNotMap = errors.New("not a Tiled map with a tile size")
 
 // Parse reads one map.

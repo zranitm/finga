@@ -8,6 +8,7 @@ import { classes } from '@/gamedata/classes';
 import { equipSlots } from '@/gamedata/equip-slots';
 import { expCurve } from '@/gamedata/exp-curve';
 import { items } from '@/gamedata/items';
+import { maps } from '@/gamedata/maps';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { npcs } from '@/gamedata/npcs';
@@ -73,8 +74,31 @@ describe('generated gamedata', () => {
     expect(stats.per_point.str.physical_attack).toBe(1.5);
   });
 
-  it('mobs equal mobs.yaml', () => {
-    expect(mobs).toEqual(yaml('mobs.yaml').mobs);
+  it('mobs equal mobs.yaml, a mob not marked elite as normal and an untinted one as null', () => {
+    const raw = yaml('mobs.yaml').mobs as { elite?: boolean; look: { tint?: number } }[];
+    expect(mobs).toEqual(
+      raw.map((m) => ({
+        ...m,
+        elite: m.elite ?? false,
+        look: { ...m.look, tint: m.look.tint ?? null },
+      })),
+    );
+  });
+
+  it('maps carry their Tiled properties, a hunting map its town and level range', () => {
+    expect(maps.find((m) => m.id === 'town')).toMatchObject({
+      kind: 'town',
+      town: 'town',
+      start: true,
+      min_level: null,
+    });
+    expect(maps.find((m) => m.id === 'cave')).toMatchObject({
+      kind: 'hunting',
+      town: 'town',
+      start: false,
+      min_level: 10,
+      max_level: 14,
+    });
   });
 
   it('NPCs equal npcs.yaml, each at the point its map places it', () => {

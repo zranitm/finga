@@ -395,7 +395,7 @@ func TestDeathAndRespawn(t *testing.T) {
 				t.Fatalf("respawned events %+v", resp)
 			}
 			r := resp[0].(model.Respawned)
-			town := data.Town()
+			town := data.StartTown()
 			if r.MapID != town.ID || r.X != town.PlayerSpawn.X || r.Y != town.PlayerSpawn.Y || r.HP != 72 {
 				t.Fatalf("respawned %+v", r)
 			}
@@ -413,7 +413,7 @@ func TestDeathAndRespawn(t *testing.T) {
 			saved := cps.Drain()
 			found := false
 			for _, cp := range saved {
-				if cp.ID == p.ID && cp.Exp == 9 && cp.MapID == data.Town().ID && cp.X == data.Town().PlayerSpawn.X {
+				if cp.ID == p.ID && cp.Exp == 9 && cp.MapID == data.StartTown().ID && cp.X == data.StartTown().PlayerSpawn.X {
 					found = true
 				}
 			}
@@ -615,7 +615,7 @@ func TestADeadPlayerIsCheckpointedAsRespawned(t *testing.T) {
 		_ = inst.Leave(p.ID, "", nil)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
-		town := data.Town()
+		town := data.StartTown()
 		saved := cps.Drain()
 		if len(saved) != 1 || saved[0].MapID != town.ID || saved[0].X != town.PlayerSpawn.X || saved[0].Y != town.PlayerSpawn.Y || saved[0].HP != 72 || saved[0].Exp != 9 {
 			t.Fatalf("checkpoint of a dead player %+v, want town's spawn with 72 HP and EXP 9", saved)

@@ -72,7 +72,7 @@ func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 		defer func() { cancel(); <-done }()
 
 		id := kernel.NewCharacterID()
-		w.presences.place(id, presence{inst: w.instances[data.Town().ID], conn: "c-1"})
+		w.presences.place(id, presence{inst: w.instances[data.StartTown().ID], conn: "c-1"})
 		hurriedCtx, stop := context.WithTimeout(context.Background(), time.Millisecond) // gives up before the next tick
 		defer stop()
 		if err := w.Leave(hurriedCtx, id, "c-1"); !errors.Is(err, context.DeadlineExceeded) {

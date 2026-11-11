@@ -66,7 +66,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	if !ok {
 		return model.Character{}, model.ErrClassUnavailable
 	}
-	town := s.content.Town()
+	town := s.content.StartTown()
 	derived := progression.DeriveStats(s.content.StatRules(), class.ID, 1, class.BaseStats, progression.ItemStats{})
 	c := model.Character{
 		ID: kernel.NewCharacterID(), AccountID: account, Name: in.Name, Class: class.ID,

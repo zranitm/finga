@@ -44,5 +44,5 @@ type Repository interface {
 type Content interface {
 	Class(id kernel.Class) (gamedata.Class, bool)
 	StatRules() gamedata.StatRules
-	Town() *gamedata.Map
+	StartTown() *gamedata.Map
 }

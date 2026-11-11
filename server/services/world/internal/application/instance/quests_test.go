@@ -601,7 +601,7 @@ func TestAQuestChangeInThePortalsTickReachesThePlayer(t *testing.T) {
 		tr := &transferRecorder{}
 		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{CheckpointInterval: time.Hour, ItemCalls: runningPool(t), Transfer: tr})
 		defer stop()
-		at := data.Town().Portals[0].Arrival()
+		at := data.StartTown().Portals[0].Arrival()
 		p := worldtest.NewPlayer("Ayla", at.X, at.Y)
 		p.Connection, p.Quests = "c1", model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{3}}}
 		s := join(t, inst, p)

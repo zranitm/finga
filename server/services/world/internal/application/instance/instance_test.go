@@ -42,7 +42,7 @@ func TestATicksFrameGoesOnceToEachStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
 		x, y := worldtest.TownSpawn(t, data)
-		inst, stop := worldtest.RunMap(t, data, data.Town(), nil, worldtest.Options{})
+		inst, stop := worldtest.RunMap(t, data, data.StartTown(), nil, worldtest.Options{})
 		defer stop()
 		gateway := &frames{}
 		ayla, robin, bruno := worldtest.NewPlayer("Ayla", x, y), worldtest.NewPlayer("Robin", x, y), worldtest.NewPlayer("Bruno", x, y)
@@ -408,7 +408,7 @@ func TestInputGapHoldsThePlayer(t *testing.T) {
 		synctest.Wait()
 		start, _ := s.Own(p.ID)
 		state := start.State
-		geom := data.Town().Geometry
+		geom := data.StartTown().Geometry
 		params := data.Movement()
 		tick := func(in *sim.Input, seq uint32) model.PlayerView {
 			if in != nil {
@@ -499,7 +499,7 @@ func TestServerStateMatchesSimStepExactly(t *testing.T) {
 			{}, {}, {Left: true}, {Left: true, Jump: true}, {Left: true}, {Left: true}, {},
 			{Right: true}, {Right: true}, {Right: true}, {}, {}, {}, {}, {},
 		}
-		geom := data.Town().Geometry
+		geom := data.StartTown().Geometry
 		params := data.Movement()
 		for n, in := range inputs {
 			_ = inst.Input(p.ID, uint32(n+1), in)
@@ -708,7 +708,7 @@ func TestReplayMatchesSim(t *testing.T) {
 		snap := s.All()[0].(model.Snapshot)
 		state := snap.Players[0].State
 		for range 3 { // the join tick itself ran 3 sub-steps with no input
-			state = sim.Step(state, sim.Input{}, data.Town().Geometry, data.Movement())
+			state = sim.Step(state, sim.Input{}, data.StartTown().Geometry, data.Movement())
 		}
 		recorded := []sim.Input{
 			{Right: true}, {Right: true}, {Right: true, Jump: true}, {Right: true}, {Right: true}, {}, {}, {Left: true}, {Left: true, Jump: true}, {Left: true},
@@ -719,7 +719,7 @@ func TestReplayMatchesSim(t *testing.T) {
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
 			for range 3 {
-				state = sim.Step(state, in, data.Town().Geometry, data.Movement())
+				state = sim.Step(state, in, data.StartTown().Geometry, data.Movement())
 			}
 			got, ok := s.Own(p.ID)
 			if !ok {
