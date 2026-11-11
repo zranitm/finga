@@ -99,5 +99,5 @@ func (i *Instance) restore(p *player, template string) {
 	p.HP = min(p.HP+t.HealHP, p.derived.MaxHP)
 	p.MP = min(p.MP+t.HealMP, p.derived.MaxMP)
 	p.changed = true
-	p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: i.sheet(p), HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 }

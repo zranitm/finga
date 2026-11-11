@@ -17,7 +17,7 @@ export interface CharacterState {
   readonly lastExpChange: { readonly amount: number; readonly seq: number } | null;
   applyWelcome(d: Data<'welcome'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
-  /** The stats, gear or points changed: a new sheet, the own stats under it, maxima, and the HP and MP the server clamped to them. */
+  /** HP or MP moved, with the maxima; when gear or points changed the sheet too, the new sheet and the own stats under it. Without a sheet, the last one stays. */
   applyStatsChanged(d: Data<'statsChanged'>): void;
   /** amount is negative on the death penalty. */
   applyExpGained(d: Data<'expGained'>): void;
@@ -64,7 +64,7 @@ export const character = defineStore<CharacterState>((set, get) => ({
       set({
         character: {
           ...c,
-          sheet: d.sheet,
+          sheet: d.sheet ?? c.sheet,
           stats: d.sheet ? ownStats(d.sheet) : c.stats,
           hp: d.hp,
           maxHp: d.maxHp,

@@ -39,7 +39,7 @@ func (i *Instance) regen() {
 			p.changed = true
 		}
 		if regained(&p.MP, &p.mpCarry, p.derived.MPRegen, p.derived.MaxMP) {
-			p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: i.sheet(p), HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+			p.private = append(p.private, model.StatsChanged{Tick: i.tick, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 		}
 	}
 }
