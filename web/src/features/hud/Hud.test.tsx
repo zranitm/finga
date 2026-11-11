@@ -175,4 +175,16 @@ describe('ConnectionNotice', () => {
     act(() => connection.getState().setConnection('connected'));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
+
+  it('a stalled world on an open socket says it waits for the server; a reconnect says so instead', () => {
+    act(() => connection.getState().setConnection('connected'));
+    render(<ConnectionNotice />);
+    act(() => connection.getState().setWorldStalled(true));
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for the server…');
+    act(() => connection.getState().setConnection('reconnecting', { attempt: 1 }));
+    expect(screen.getByRole('status')).toHaveTextContent('Reconnecting…');
+    act(() => connection.getState().setConnection('connected'));
+    act(() => connection.getState().setWorldStalled(false));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
 });

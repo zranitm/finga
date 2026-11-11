@@ -11,6 +11,7 @@ import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
+import { connection } from '@/state/connection';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
 import { questPlayer, quests } from '@/state/quests';
@@ -38,6 +39,7 @@ import {
 } from '../systems/combat-view';
 import { DropTracker, departure } from '../systems/drops';
 import type { DropChanges, Point } from '../systems/drops';
+import { FeedWatch } from '../systems/feed-watch';
 import { InputSender } from '../systems/input-sender';
 import { RemotePlayers, RenderClock } from '../systems/interpolation';
 import { bindKeyboard } from '../systems/keyboard';
@@ -69,6 +71,7 @@ export interface WorldData extends Player {
 
 const FADE_MS = 250;
 const BANNER_MS = 1800;
+const STALL_MS = 2000; // 40 ticks without a frame: the world has stalled, though the socket is open
 
 function mapTitle(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
@@ -103,6 +106,9 @@ export class World extends Phaser.Scene {
   private sender: InputSender | null = null;
   private clock = new FixedStep(this.timing);
   private placed = false; // set by the first Snapshot that names the local player
+  /** No frame for STALL_MS: no prediction, input or actions until frames come back, so nothing snaps back. */
+  private feed = new FeedWatch(STALL_MS);
+  private stalled = false;
 
   private remotes: RemotePlayers | null = null;
   private readonly remoteViews = new Map<string, PlayerView>();
@@ -162,6 +168,7 @@ export class World extends Phaser.Scene {
     this.clock = new FixedStep(this.timing);
     this.renderClock = new RenderClock(this.timing.tickMs);
     this.mobs = new MobTracker(this.timing.tickMs);
+    this.feed = new FeedWatch(STALL_MS);
     const view = parseMap(this.mapId, this.cache.json.get(mapKey(this.mapId)));
     this.view = view;
     const style = groundStyle(view.id);
@@ -357,6 +364,7 @@ export class World extends Phaser.Scene {
   }
 
   private onWorld(m: Held): void {
+    this.feed.heard();
     switch (m.t) {
       case 'snapshot':
         this.onSnapshot(m.d.players, m.d.mobs, m.d.drops, this.tickOf(m.tick));
@@ -401,7 +409,11 @@ export class World extends Phaser.Scene {
     const predictor = this.predictor;
     const sender = this.sender;
     const socket = this.socket;
-    if (!predictor || !sender || !socket || !this.placed) {
+    if (!predictor || !sender || !socket) {
+      return;
+    }
+    this.setStalled(this.feed.stalled(time));
+    if (!this.placed) {
       return;
     }
     const dead = this.transitionState.dead;
@@ -409,8 +421,8 @@ export class World extends Phaser.Scene {
       this.attack();
     }
     for (const step of this.clock.advance(deltaMs)) {
-      if (dead) {
-        continue; // the server holds a dead player
+      if (dead || this.stalled) {
+        continue; // the server holds a dead player; a stalled world would take no input, so none is predicted
       }
       if (step.tickStart) {
         const input = sender.tickStart();
@@ -571,8 +583,16 @@ export class World extends Phaser.Scene {
     }
   }
 
+  private setStalled(stalled: boolean): void {
+    if (stalled !== this.stalled) {
+      this.stalled = stalled;
+      connection.getState().setWorldStalled(stalled);
+    }
+  }
+
   /** After a reconnect or a rejoin the server made: the character is as the server has it, alive and on its map. The same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
   private onWelcome(mapId: string, tickRateHz: number): void {
+    this.feed.heard();
     if (mapId !== this.mapId || tickRateHz !== this.tickRateHz) {
       this.restartOn(mapId, tickRateHz, false);
       return;
@@ -610,7 +630,13 @@ export class World extends Phaser.Scene {
   private inPortal(): boolean {
     const p = this.predictor;
     const v = this.view;
-    return !!p && !!v && this.placed && standsIn(p.state.x, p.state.y, v.portals) !== undefined;
+    return (
+      !!p &&
+      !!v &&
+      this.placed &&
+      !this.stalled &&
+      standsIn(p.state.x, p.state.y, v.portals) !== undefined
+    );
   }
 
   private showMarkers(): void {
@@ -625,7 +651,7 @@ export class World extends Phaser.Scene {
   private talk(): void {
     const p = this.predictor;
     const socket = this.socket;
-    if (!p || !socket || !this.placed || this.transitionState.dead) {
+    if (!p || !socket || !this.placed || this.stalled || this.transitionState.dead) {
       return;
     }
     const npc = nearestInReach(this.mapId, p.state.x, p.state.y);
@@ -678,7 +704,12 @@ export class World extends Phaser.Scene {
     if (this.view?.kind === 'town') {
       return; // the server runs no combat on town maps
     }
-    if (this.transitionState.dead || !this.placed || !this.attackGate?.tryAttack(now)) {
+    if (
+      this.transitionState.dead ||
+      !this.placed ||
+      this.stalled ||
+      !this.attackGate?.tryAttack(now)
+    ) {
       return;
     }
     this.player?.attack(now);
@@ -825,6 +856,7 @@ export class World extends Phaser.Scene {
     this.portals = null;
     this.view = null;
     this.placed = false;
+    this.setStalled(false);
     this.transitionState = initialTransition;
   }
 }
