@@ -1,6 +1,5 @@
 # C1. Mobs
 
-- **Decisions:** OD-12
 - **Feature:** C1. Mobs
 - **Group:** C. Combat and progression
 - **Priority:** P0

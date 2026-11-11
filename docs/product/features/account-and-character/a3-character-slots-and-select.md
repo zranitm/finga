@@ -1,6 +1,5 @@
 # A3. Character slots and select
 
-- **Decisions:** OD-09
 - **Feature:** A3. Character slots and select
 - **Group:** A. Account and character
 - **Priority:** P1

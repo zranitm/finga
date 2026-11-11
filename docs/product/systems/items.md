@@ -20,13 +20,13 @@ Every item type names its slot. A ring fits either ring slot.
 
 ## Requirements
 
-- A minimum level and minimum primary stats, for example 25 STR (OD-19: decided, stat requirements too).
+- A minimum level and minimum primary stats, for example 25 STR.
 - Weapons also name a class, since the class decides the attack's shape. Beginner weapons fit every class, so a newly promoted character can keep theirs (proposal). Armor and accessories use stat requirements instead of a class (proposal).
 - An item the character doesn't meet can be kept, traded, and compared, but not worn.
 
 ## Rarity: stars
 
-- Every item has stars, from 1★ to 7★ (OD-14: decided, rarity tiers by stars).
+- Every item has stars, from 1★ to 7★, as rarity tiers.
 - Stars belong to the item type: every Iron Sword has the same stars. Only the stats roll (below).
 - More stars means rarer and stronger: higher stat ranges and lower drop chances.
 - Each star count has its own colour, used for the item's name and the frame of its icon wherever it shows (proposal: 1★ grey, 2★ green, 3★ blue, 4★ purple, 5★ orange, 6★ red, 7★ gold).
@@ -44,7 +44,7 @@ Every item type names its slot. A ring fits either ring slot.
 
 - Each mob type has a drop list: which items and currency it can drop, and the chance of each.
 - Drops land on the ground and are collected automatically; there is no pickup key. After a short delay (1 second to start, tunable in game data) a drop flies to its owner and goes into their inventory, wherever they are on the map.
-- Every drop belongs to one player from the moment it falls (OD-05: decided, replacing the old default of "the killer or their party first, then anyone"):
+- Every drop belongs to one player from the moment it falls:
   - hunting alone, the killer;
   - in a party, the members on the map take turns (Social → Party).
 - Nobody can take a drop that isn't theirs. A drop that can't be collected vanishes after 60 seconds.

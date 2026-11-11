@@ -1,6 +1,5 @@
 # A1. Sign up and log in
 
-- **Decisions:** OD-08
 - **Feature:** A1. Sign up and log in
 - **Group:** A. Account and character
 - **Priority:** P0

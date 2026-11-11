@@ -1,6 +1,6 @@
 # Gacha
 
-> ⏸️ **Undefined.** Depends on OD-01: is gacha a game mechanic? (It came from the old project name, Infinite Gacha.)
+> ⏸️ **Undefined.** Depends on an open question: is gacha a game mechanic? (It came from the old project name, Infinite Gacha.)
 
 ## Questions to answer if gacha becomes a mechanic
 

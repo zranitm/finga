@@ -60,7 +60,7 @@ New types in `internal/progression`, the shared kernel both services already imp
 - **`DeriveStats(formulas, base, level, worn)`** takes the worn sum instead of today's `Equipment`, in this order:
   1. Primary stats are the character's own plus the worn primary stats, so equipment STR feeds attack power through the class's coefficients.
   2. Each derived stat is its formula over those primary stats and the level, plus the worn flat bonus (attack to attack power, defense, accuracy, evasion, the two rates, max HP and max MP).
-  3. Caps apply last (crit rate 60%, penetration 50%; OD-18).
+  3. Caps apply last (crit rate 60%, penetration 50%).
 - **`Sheet`** is what the character window shows: the primary and derived totals, and the equipment's share of each. The share is the totals with the worn items minus the totals without them, so a capped rate shows what the equipment really adds.
 - **Rolls:** `Rolled(ranges, pick)` builds a roll by picking each stat from its range, every stat in one order; the world picks uniformly with the map's random source. `Lowest` is the bottom of every range, and `ItemStats.Fits` checks a roll against a template's ranges, a stat the item doesn't give only at 0.
 - `Equipment.Penetration` goes: no item gives penetration (Systems → Items lists what can roll).
@@ -249,7 +249,7 @@ By layer (`web/eslint.config.js`):
 | World crashes after the commit, before applying | A short freeze; the rejoin reloads worn items, so stats are right | The item service is the record; the world's sum is a copy |
 | Gateway restarts mid-equip | Reconnect; the Welcome shows what is worn | Same as above |
 | Item service crashes mid-swap | Nothing changed, or all of it | One transaction; checks 9 to 12 after the crash test |
-| Two clients of one account | Can't happen: one session per account (OD-08) | — |
+| Two clients of one account | Can't happen: one session per account | — |
 
 ## 10. Testing
 

@@ -2,7 +2,7 @@
 
 The rules of the game, one page per system. Features describe what a player can do; these pages define how it works, with the numbers. If a rule is needed by several features, it lives here and the features point to it.
 
-Proposals are marked. Open questions point to Product decisions.
+Proposals and open questions are marked.
 
 - [Progression](./systems/progression.md)
 - [Classes and skills](./systems/classes-and-skills.md)

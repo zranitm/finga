@@ -1,6 +1,5 @@
 # D1. Drops and loot
 
-- **Decisions:** OD-05
 - **Feature:** D1. Drops and loot
 - **Group:** D. Items and inventory
 - **Priority:** P0

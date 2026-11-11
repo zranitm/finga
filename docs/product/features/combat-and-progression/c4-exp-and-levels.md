@@ -1,6 +1,5 @@
 # C4. EXP and levels
 
-- **Decisions:** OD-13
 - **Feature:** C4. EXP and levels
 - **Group:** C. Combat and progression
 - **Priority:** P0

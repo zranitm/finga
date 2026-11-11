@@ -1,6 +1,5 @@
 # C6. Stat allocation
 
-- **Decisions:** OD-16, OD-17, OD-18
 - **Feature:** C6. Stat allocation
 - **Group:** C. Combat and progression
 - **Priority:** P1

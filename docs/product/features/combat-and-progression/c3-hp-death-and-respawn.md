@@ -1,6 +1,5 @@
 # C3. HP, death, and respawn
 
-- **Decisions:** OD-06
 - **Feature:** C3. HP, death, and respawn
 - **Group:** C. Combat and progression
 - **Priority:** P0

@@ -1,6 +1,5 @@
 # E3. Party (up to 4)
 
-- **Decisions:** OD-04, OD-05
 - **Feature:** E3. Party (up to 4)
 - **Group:** E. Social
 - **Priority:** P0

@@ -1,6 +1,5 @@
 # F3. Marketplace
 
-- **Decisions:** OD-07, OD-10
 - **Feature:** F3. Marketplace
 - **Group:** F. Economy
 - **Priority:** P1

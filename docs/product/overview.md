@@ -1,6 +1,6 @@
 # Overview
 
-> 👋 **Start here.** The product docs describe what players experience and the rules of the game. How it gets built belongs to the technical design, later. Everything here is a draft; proposals are marked, and open questions live in Product decisions.
+> 👋 **Start here.** The product docs describe what players experience and the rules of the game. How it gets built belongs to the technical design, later. Everything here is a draft; proposals and open questions are marked.
 
 ## Pitch
 
@@ -43,7 +43,7 @@ A browser-based 2D side-scrolling MMORPG-lite, inspired by MapleStory. Start as 
 
 ## MVP scope
 
-The first public version includes: accounts and characters, who start as Beginners and are promoted to one of four classes, a small connected world (one town and a few hunting maps), movement, mobs and combat, EXP and levels, drops and inventory, map chat, and parties of up to 4. Currency and the marketplace come right after the MVP (P1). The exact content size is OD-12. The full list is the Features database filtered to P0. Delivery happens in two stages, described in Roadmap under Tech.
+The first public version includes: accounts and characters, who start as Beginners and are promoted to one of four classes, a small connected world (one town and a few hunting maps), movement, mobs and combat, EXP and levels, drops and inventory, map chat, and parties of up to 4. Currency and the marketplace come right after the MVP (P1). The exact content size is in World → MVP world. The full list is the Features database filtered to P0. Delivery happens in two stages, described in Roadmap under Tech.
 
 ## Doc map
 
@@ -53,4 +53,3 @@ The first public version includes: accounts and characters, who start as Beginne
    - [Progression](./systems/progression.md) · [Classes and skills](./systems/classes-and-skills.md) · [Combat](./systems/combat.md) · [NPCs and quests](./systems/npcs-and-quests.md) · [Items](./systems/items.md) · [Economy](./systems/economy.md) · [Social](./systems/social.md) · [Gacha](./systems/gacha.md)
 4. [Features](./features/README.md): what players can do, with acceptance criteria and priority.
 5. [Screens and controls](./screens-and-controls.md): the screen list and key bindings, input for the design phase.
-6. [Product decisions](./decisions/README.md): open questions, defaults, and outcomes.
