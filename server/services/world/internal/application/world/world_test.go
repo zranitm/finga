@@ -397,7 +397,7 @@ func TestSaverErrorsAreLoggedNotFatal(t *testing.T) {
 
 func TestJoinWhenTheInboxIsFull(t *testing.T) {
 	data := worldtest.LoadData(t)
-	inst := worldtest.NewInstance(data.Town(), data, nil, worldtest.Options{})
+	inst := worldtest.NewInstance(data.StartTown(), data, nil, worldtest.Options{})
 	// Not running: 4096 posts fill the inbox, the next is refused.
 	for seq := range uint32(4096) {
 		if err := inst.Input(kernel.NewCharacterID(), seq, sim0()); err != nil {
@@ -414,7 +414,7 @@ func TestJoinWhenTheInboxIsFull(t *testing.T) {
 		t.Fatal("leave accepted with a full inbox")
 	}
 	t.Run("a join on a stopped instance gives up when the caller's context ends", func(t *testing.T) {
-		inst := worldtest.NewInstance(data.Town(), data, nil, worldtest.Options{})
+		inst := worldtest.NewInstance(data.StartTown(), data, nil, worldtest.Options{})
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancel()
 		if err := inst.Join(ctx, worldtest.NewPlayer("Ayla", 0, 0), &worldtest.Sink{}); !errors.Is(err, context.DeadlineExceeded) {

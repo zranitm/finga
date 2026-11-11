@@ -82,7 +82,18 @@ const classes = must(classesFile.classes, isArray, 'classes.yaml classes').map((
 
 // mobs.yaml
 const mobsFile = must(load('mobs.yaml'), isRecord, 'mobs.yaml');
-const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs');
+const mobs = must(mobsFile.mobs, isArray, 'mobs.yaml mobs').map((raw) => {
+  const m = must(raw, isRecord, 'a mob');
+  const look = must(m.look, isRecord, `${String(m.id)} look`);
+  return {
+    ...m,
+    elite: m.elite === true,
+    look: {
+      sprite: must(look.sprite, isString, `${String(m.id)} look.sprite`),
+      tint: look.tint === undefined ? null : must(look.tint, isNumber, `${String(m.id)} look.tint`),
+    },
+  };
+});
 
 // stats.yaml: what each point gives, the curves, the limits and each class's bases, for the character window's preview.
 const stats = must(load('stats.yaml'), isRecord, 'stats.yaml');
@@ -99,15 +110,40 @@ const loot = Object.fromEntries(
 // npcs.yaml, each NPC with the map and point its npcs layer places it at: the bottom centre, which for a point object is the point.
 const npcsFile = must(load('npcs.yaml'), isRecord, 'npcs.yaml');
 const placed = new Map<string, { map: string; x: number; y: number }>();
-for (const file of readdirSync(join(dataDir, 'maps')).filter((f) => f.endsWith('.tmj'))) {
+const maps = [];
+for (const file of readdirSync(join(dataDir, 'maps'))
+  .filter((f) => f.endsWith('.tmj'))
+  .sort()) {
+  const id = file.replace('.tmj', '');
   const tmj = must(load(join('maps', file)), isRecord, file);
+  const props: Record<string, unknown> = {};
+  for (const raw of must(tmj.properties, isArray, `${file} properties`)) {
+    const p = must(raw, isRecord, `a ${file} property`);
+    props[String(p.name)] = p.value;
+  }
+  const kind = props.kind;
+  if (kind !== 'town' && kind !== 'hunting') {
+    throw new Error(`gamedata: ${file} kind must be town or hunting`);
+  }
+  const hunting = kind === 'hunting';
+  maps.push({
+    id,
+    name: must(props.name, isString, `${file} name`),
+    kind,
+    town: hunting ? must(props.town, isString, `${file} town`) : id,
+    start: props.start === true,
+    ground: must(props.ground, isString, `${file} ground`),
+    background: must(props.background, isString, `${file} background`),
+    min_level: hunting ? must(props.min_level, isNumber, `${file} min_level`) : null,
+    max_level: hunting ? must(props.max_level, isNumber, `${file} max_level`) : null,
+  });
   for (const raw of must(tmj.layers, isArray, `${file} layers`)) {
     const layer = must(raw, isRecord, `a ${file} layer`);
     if (layer.name !== 'npcs') continue;
     for (const o of must(layer.objects, isArray, `${file} npcs`)) {
       const { name, x, y, width, height } = must(o, isRecord, `a ${file} npc`);
       placed.set(String(name), {
-        map: file.replace('.tmj', ''),
+        map: id,
         x: Number(x) + Number(width ?? 0) / 2,
         y: Number(y) + Number(height ?? 0),
       });
@@ -177,6 +213,7 @@ const files: Record<string, unknown> = {
   'equip-slots.ts': equipSlots,
   'classes.ts': classes,
   'mobs.ts': mobs,
+  'maps.ts': maps,
   'loot.ts': loot,
   'stats.ts': stats,
   'npcs.ts': npcs,

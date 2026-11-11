@@ -1,6 +1,7 @@
 # Mob types, with stats, the damage type of their contact attack, patrol behavior and drop tables whose entries roll independently: four mobs for the forest (levels 1 to 10) and the cave (10 to 20).
 # HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs about as many hits to kill it, and survives about as many of its touches, as before the stat system; a bat's magic touch meets the low magic defense most builds have, so it hits for less.
 # The cave drops the gear of levels 20 to 29 rarely, until a map has mobs that high.
+# look is the client's art: a sprite from its table and an optional tint. elite: true marks a map's bigger mob, with 2 to 3 times its normal mob's hits and EXP and about twice its drops; a map with an elite has a normal mob too.
 mobs:
   - id: green_slime
     name: Green Slime
@@ -17,6 +18,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    look: {sprite: slime}
     drops:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.15, min: 1, max: 1}
@@ -35,6 +37,7 @@ mobs:
     width: 36
     height: 40
     behavior: patrol
+    look: {sprite: snail, tint: 0xe08a3c}
     drops:
       - {item: mushroom_cap, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.2, min: 1, max: 1}
@@ -59,6 +62,7 @@ mobs:
     width: 56
     height: 40
     behavior: patrol
+    look: {sprite: mouse, tint: 0x8a5a3c}
     drops:
       - {item: boar_tusk, chance: 0.5, min: 1, max: 1}
       - {item: red_potion, chance: 0.25, min: 1, max: 2}
@@ -84,6 +88,7 @@ mobs:
     width: 40
     height: 32
     behavior: patrol
+    look: {sprite: fly, tint: 0x9a9ab0}
     drops:
       - {item: bat_wing, chance: 0.55, min: 1, max: 2}
       - {item: blue_potion, chance: 0.25, min: 1, max: 1}

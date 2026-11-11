@@ -129,3 +129,20 @@ func TestProperties(t *testing.T) {
 		})
 	}
 }
+
+func TestBoolProperties(t *testing.T) {
+	props := tiled.Properties{{Name: "start", Type: "bool", Value: true}, {Name: "kind", Type: "string", Value: "true"}}
+	tests := []struct {
+		key      string
+		want, ok bool
+	}{
+		{"start", true, true},
+		{"kind", false, false}, // a string that reads true is not a boolean
+		{"missing", false, false},
+	}
+	for _, tt := range tests {
+		if got, ok := props.Bool(tt.key); got != tt.want || ok != tt.ok {
+			t.Errorf("Bool(%q) = %v, %v; want %v, %v", tt.key, got, ok, tt.want, tt.ok)
+		}
+	}
+}

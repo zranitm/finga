@@ -15,7 +15,12 @@
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
-    {"name": "town", "type": "string", "value": "town"}
+    {"name": "town", "type": "string", "value": "town"},
+    {"name": "name", "type": "string", "value": "Cave"},
+    {"name": "ground", "type": "string", "value": "stone"},
+    {"name": "background", "type": "string", "value": "cave"},
+    {"name": "min_level", "type": "int", "value": 10},
+    {"name": "max_level", "type": "int", "value": 14}
   ],
   "layers": [
     {"id": 1, "name": "solids", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [

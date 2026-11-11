@@ -48,7 +48,7 @@ import type { TransitionAction, TransitionMsg, TransitionState } from '../system
 import { PortalSystem, standsIn } from '../systems/portals';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 
-import { groundStyle, mapTiles } from './world-layout';
+import { bannerLines, groundStyle, mapTiles } from './world-layout';
 
 /** What the game enters the world with, from Welcome. */
 export interface WorldEntry {
@@ -72,10 +72,6 @@ export interface WorldData extends Player {
 const FADE_MS = 250;
 const BANNER_MS = 1800;
 const STALL_MS = 2000; // 40 ticks without a frame: the world has stalled, though the socket is open
-
-function mapTitle(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1).replace(/_/g, ' ');
-}
 
 type Wire = Data<'snapshot'>['players'][number];
 type MobWire = Data<'snapshot'>['mobs'][number];
@@ -252,7 +248,7 @@ export class World extends Phaser.Scene {
         }
       }),
     );
-    this.banner(mapTitle(view.id));
+    this.banner(bannerLines(view.id));
 
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
     this.socket = socket;
@@ -679,23 +675,25 @@ export class World extends Phaser.Scene {
     }
   }
 
-  private banner(text: string): void {
+  private banner(lines: readonly string[]): void {
     const cam = this.cameras.main;
-    const t = this.add
-      .text(cam.width / 2, 28, text, {
-        fontSize: '22px',
-        color: '#f4f4f8',
-        fontFamily: 'sans-serif',
-      })
-      .setOrigin(0.5, 0)
-      .setScrollFactor(0)
-      .setDepth(20);
+    const texts = lines.map((line, i) =>
+      this.add
+        .text(cam.width / 2, 28 + i * 30, line, {
+          fontSize: i === 0 ? '22px' : '15px',
+          color: '#f4f4f8',
+          fontFamily: 'sans-serif',
+        })
+        .setOrigin(0.5, 0)
+        .setScrollFactor(0)
+        .setDepth(20),
+    );
     this.tweens.add({
-      targets: t,
+      targets: texts,
       alpha: 0,
       delay: BANNER_MS,
       duration: FADE_MS * 2,
-      onComplete: () => t.destroy(),
+      onComplete: () => texts.forEach((t) => t.destroy()),
     });
   }
 

@@ -3,11 +3,13 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { maps } from '@/gamedata/maps';
 import { parseMap } from '@/sim/map';
 
 import { TEX } from '../keys';
 
 import {
+  bannerLines,
   groundStyle,
   mapTiles,
   platformTiles,
@@ -27,9 +29,30 @@ describe('world layout', () => {
     { map: 'town', top: TEX.dirtMid, background: TEX.bgLand },
     { map: 'forest', top: TEX.grassMid, background: TEX.bgGrass },
     { map: 'cave', top: TEX.stoneMid, background: TEX.bgCave },
-    { map: 'somewhere_new', top: TEX.grassMid, background: TEX.bgGrass },
   ])('$map looks like $top', ({ map, top, background }) => {
     expect(groundStyle(map)).toMatchObject({ top, background });
+  });
+
+  it.each(maps.map((m) => ({ id: m.id })))(
+    'map $id has a ground and a background style',
+    ({ id }) => {
+      const s = groundStyle(id);
+      for (const key of [s.top, s.fill, s.platform, s.background]) {
+        expect(Object.values(TEX)).toContain(key);
+      }
+    },
+  );
+
+  it('a map missing from the data is an error, not the forest', () => {
+    expect(() => groundStyle('somewhere_new')).toThrow(/somewhere_new/);
+  });
+
+  it.each([
+    { map: 'town', want: ['Town'] },
+    { map: 'forest', want: ['Forest', 'Lv 1\u20134'] },
+    { map: 'cave', want: ['Cave', 'Lv 10\u201314'] },
+  ])('$map banner reads $want', ({ map, want }) => {
+    expect(bannerLines(map)).toEqual(want);
   });
 
   it.each([

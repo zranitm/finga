@@ -1,6 +1,7 @@
 package gamedata_test
 
 import (
+	"cmp"
 	"math"
 	"os"
 	"path/filepath"
@@ -119,6 +120,7 @@ mobs:
     width: 32
     height: 28
     behavior: patrol
+    look: {sprite: slime}
     drops:
       - {item: slime_gel, chance: 0.6, min: 1, max: 2}
       - {item: red_potion, chance: 0.15, min: 1, max: 1}
@@ -197,9 +199,12 @@ func tiledMap(kind, dropLayer string, objects []object) string {
 	var b strings.Builder
 	b.WriteString(`{"type":"map","version":"1.10","tiledversion":"1.11.0","orientation":"orthogonal","renderorder":"right-down",`)
 	b.WriteString(`"width":40,"height":20,"tilewidth":32,"tileheight":32,"infinite":false,"nextlayerid":8,"nextobjectid":99,"tilesets":[],`)
-	props := `{"name":"kind","type":"string","value":"` + kind + `"}`
+	props := `{"name":"kind","type":"string","value":"` + kind + `"},{"name":"name","type":"string","value":"Somewhere"}`
+	if kind == "town" {
+		props += `,{"name":"start","type":"bool","value":true}`
+	}
 	if kind == "hunting" {
-		props += `,{"name":"town","type":"string","value":"town"}`
+		props += `,{"name":"town","type":"string","value":"town"},{"name":"min_level","type":"int","value":1},{"name":"max_level","type":"int","value":5}`
 	}
 	b.WriteString(`"properties":[` + props + `],"layers":[`)
 	first := true
@@ -411,10 +416,13 @@ func TestValidDataLoads(t *testing.T) {
 		if !ok || town.Kind != gamedata.Town || town.ID != "town" {
 			t.Fatalf("town = %+v", town)
 		}
-		if d.Town().ID != "town" {
-			t.Fatalf("Town() = %s", d.Town().ID)
+		if d.StartTown().ID != "town" {
+			t.Fatalf("StartTown() = %s", d.StartTown().ID)
 		}
 		hunting, _ := d.Map("field")
+		if !town.Start || hunting.Start || town.Name != "Somewhere" || hunting.MinLevel != 1 || hunting.MaxLevel != 5 || town.MinLevel != 0 {
+			t.Fatalf("town %+v, hunting %+v: start, name and levels", town, hunting)
+		}
 		if town.Town != "town" || hunting.Town != "town" {
 			t.Fatalf("linked towns: town %q, hunting %q", town.Town, hunting.Town)
 		}
@@ -532,7 +540,7 @@ func TestRejections(t *testing.T) {
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
-		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol}", []string{"mobs.yaml", "green_slime", "duplicate"}},
+		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol, look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
 		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
 		{"a mob with a negative defense", "mobs.yaml", `magic_defense: 1`, `magic_defense: -1`, []string{"mobs.yaml", "green_slime", "negative"}},
 		{"duplicate class IDs", "classes.yaml", `id: bowman`, `id: warrior`, []string{"classes.yaml", "warrior", "duplicate"}},
@@ -543,6 +551,14 @@ func TestRejections(t *testing.T) {
 		{"a hunting map whose town is not a town", "maps/field.tmj", `"name":"town","type":"string","value":"town"`, `"name":"town","type":"string","value":"field"`, []string{"field.tmj", "town", "field"}},
 		{"a town with a mob spawn", "maps/town.tmj", `"name":"spawns","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[]`, `"name":"spawns","type":"objectgroup","visible":true,"opacity":1,"x":0,"y":0,"draworder":"topdown","objects":[{"id":50,"name":"s","type":"","rotation":0,"visible":true,"x":1,"y":1,"width":1,"height":1,"properties":[{"name":"mob","type":"string","value":"green_slime"},{"name":"max","type":"int","value":1},{"name":"respawn_seconds","type":"int","value":1}]}]`, []string{"town.tmj", "town", "spawn"}},
 		{"no town at all", "maps/town.tmj", `"value":"town"`, `"value":"hunting"`, []string{"town"}},
+		{"a map without a name", "maps/field.tmj", `"name":"name"`, `"name":"title"`, []string{"field.tmj", "name"}},
+		{"no start town", "maps/town.tmj", `"name":"start","type":"bool","value":true`, `"name":"start","type":"bool","value":false`, []string{"town", "start"}},
+		{"a hunting map as the start", "maps/field.tmj", `{"name":"kind","type":"string","value":"hunting"}`, `{"name":"kind","type":"string","value":"hunting"},{"name":"start","type":"bool","value":true}`, []string{"field.tmj", "start", "town"}},
+		{"a hunting map without its levels", "maps/field.tmj", `"name":"min_level"`, `"name":"low_level"`, []string{"field.tmj", "min_level", "max_level"}},
+		{"a hunting map whose levels run backwards", "maps/field.tmj", `{"name":"max_level","type":"int","value":5}`, `{"name":"max_level","type":"int","value":0}`, []string{"field.tmj", "min_level", "max_level"}},
+		{"a spawn whose mob is outside the map's levels", "maps/field.tmj", `{"name":"min_level","type":"int","value":1}`, `{"name":"min_level","type":"int","value":2}`, []string{"field.tmj", "slimes", "green_slime", "level 1", "2 to 5"}},
+		{"a mob without a look", "mobs.yaml", "    look: {sprite: slime}\n", "", []string{"mobs.yaml", "green_slime", "look"}},
+		{"a mob tinted past RGB", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must cover every level below the cap", "exp_curve.yaml", "  - {level: 3, exp: 129}\n", "", []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must not go past the cap", "exp_curve.yaml", `level_cap: 4`, `level_cap: 3`, []string{"exp_curve.yaml", "level 3"}},
@@ -682,6 +698,17 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+	t.Run("two start towns", func(t *testing.T) {
+		files := fixture()
+		files["maps/village.tmj"] = tiledMap("town", "", []object{
+			{layer: "solids", name: "floor", x: 0, y: 608, w: 1280, h: 32},
+			{layer: "player_spawn", name: "start", x: 80, y: 576, w: 32, h: 32},
+		})
+		_, err := gamedata.Load(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "town.tmj") || !strings.Contains(err.Error(), "village.tmj") || !strings.Contains(err.Error(), "start") {
+			t.Fatalf("err = %v", err)
+		}
+	})
 	t.Run("a map file that isn't JSON", func(t *testing.T) {
 		files := fixture()
 		files["maps/field.tmj"] = "{not json"
@@ -709,6 +736,35 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 	})
 }
 
+func TestEliteMobs(t *testing.T) {
+	king := "\n  - {id: king_slime, name: King Slime, level: 2, elite: true, hp: 90, attack: 8, damage: physical, physical_defense: 2, magic_defense: 1, accuracy: 8, evasion: 2, exp: 12, speed: 30, width: 48, height: 40, behavior: patrol, look: {sprite: slime}}\n"
+	kingSpawn := `,{"id":60,"name":"king","type":"","rotation":0,"visible":true,"x":300,"y":500,"width":400,"height":108,"properties":[{"name":"mob","type":"string","value":"king_slime"},{"name":"max","type":"int","value":1},{"name":"respawn_seconds","type":"int","value":30}]}`
+	slimes := `{"name":"respawn_seconds","type":"int","value":10}]}`
+	t.Run("an elite beside its map's normal mob loads, marked elite", func(t *testing.T) {
+		files := fixture()
+		files["mobs.yaml"] = strings.TrimRight(files["mobs.yaml"], "\n") + king
+		files["maps/field.tmj"] = strings.Replace(files["maps/field.tmj"], slimes, slimes+kingSpawn, 1)
+		d, err := gamedata.Load(write(t, files))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if k, _ := d.Mob("king_slime"); !k.Elite {
+			t.Fatalf("king_slime = %+v, want elite", k)
+		}
+		if s, _ := d.Mob("green_slime"); s.Elite {
+			t.Fatal("green_slime is elite")
+		}
+	})
+	t.Run("an elite alone on its map", func(t *testing.T) {
+		files := fixture()
+		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "    level: 1\n", "    level: 1\n    elite: true\n", 1)
+		_, err := gamedata.Load(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "field.tmj") || !strings.Contains(err.Error(), "green_slime") || !strings.Contains(err.Error(), "normal") {
+			t.Fatalf("err = %v", err)
+		}
+	})
+}
+
 // realItems are the item IDs data/items.yaml lists.
 func realItems(t *testing.T) []string {
 	t.Helper()
@@ -729,6 +785,27 @@ func realItems(t *testing.T) []string {
 		ids[i] = it.ID
 	}
 	return ids
+}
+
+// reaches reports whether the portals lead from map from to map to, through any maps between.
+func reaches(d *gamedata.Data, from, to string) bool {
+	seen := map[string]bool{from: true}
+	next := []string{from}
+	for len(next) > 0 {
+		id := next[0]
+		next = next[1:]
+		if id == to {
+			return true
+		}
+		m, _ := d.Map(id)
+		for _, p := range m.Portals {
+			if !seen[p.TargetMap] {
+				seen[p.TargetMap] = true
+				next = append(next, p.TargetMap)
+			}
+		}
+	}
+	return false
 }
 
 func allLoaded(d *gamedata.Data, ids []string) bool {
@@ -758,8 +835,7 @@ func TestRealDataLoads(t *testing.T) {
 	}{
 		{"two Stage 1 classes", len(d.Classes()) == 2},
 		{"level cap 30", d.LevelCap() == 30},
-		{"three maps: one town and two hunting maps", len(d.Maps()) == 3 && d.Town() != nil},
-		{"three to four mobs", len(d.Mobs()) >= 3 && len(d.Mobs()) <= 4},
+		{"new characters start in a town", d.StartTown() != nil && d.StartTown().Kind == gamedata.Town},
 		{"every listed item loaded", len(items) > 0 && allLoaded(d, items)},
 		{"the expected movement constants", d.Movement() == wantMovement},
 		{"cave bats deal magic damage, the forest's mobs physical", mobDamage(d, "cave_bat") == gamedata.Magic && mobDamage(d, "green_slime") == gamedata.Physical},
@@ -790,7 +866,7 @@ func TestRealDataLoads(t *testing.T) {
 			}
 			return false
 		}
-		for _, band := range [][2]int{{1, 9}, {10, 19}, {20, 29}} {
+		for _, band := range [][2]int{{1, 9}, {10, 19}, {20, d.LevelCap()}} {
 			for _, s := range d.EquipSlots() {
 				if s.Kind != "weapon" && !in(band[0], band[1], func(it gamedata.Item) bool { return it.Slot == s.Kind }) {
 					t.Errorf("levels %d to %d: nothing for the %s slot", band[0], band[1], s.ID)
@@ -831,6 +907,32 @@ func TestRealDataLoads(t *testing.T) {
 				return r.Y == n.At.Y && n.At.X >= r.X && n.At.X <= r.X+r.W
 			}) {
 				t.Errorf("%s floats at %+v on %s", n.ID, n.At, m.ID)
+			}
+		}
+	})
+	t.Run("every map can be walked to from the start town, and every hunting map back to its town", func(t *testing.T) {
+		for _, m := range d.Maps() {
+			if !reaches(d, d.StartTown().ID, m.ID) {
+				t.Errorf("%s: no portals lead there from %s", m.ID, d.StartTown().ID)
+			}
+			if !reaches(d, m.ID, m.Town) {
+				t.Errorf("%s: no portals lead back to its town %s", m.ID, m.Town)
+			}
+		}
+	})
+	t.Run("a mob's EXP never drops as its level rises, normal mobs and elites each among their own", func(t *testing.T) {
+		for _, elite := range []bool{false, true} {
+			var mobs []gamedata.Mob
+			for _, m := range d.Mobs() {
+				if m.Elite == elite {
+					mobs = append(mobs, m)
+				}
+			}
+			slices.SortFunc(mobs, func(a, b gamedata.Mob) int { return cmp.Compare(a.Level, b.Level) })
+			for k := 1; k < len(mobs); k++ {
+				if lo, hi := mobs[k-1], mobs[k]; lo.Level < hi.Level && lo.Exp > hi.Exp {
+					t.Errorf("%s (level %d) gives %d EXP, more than %s (level %d) at %d", lo.ID, lo.Level, lo.Exp, hi.ID, hi.Level, hi.Exp)
+				}
 			}
 		}
 	})

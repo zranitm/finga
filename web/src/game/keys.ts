@@ -1,4 +1,5 @@
 import { items } from '@/gamedata/items';
+import { maps } from '@/gamedata/maps';
 
 export const SCENES = {
   Boot: 'Boot',
@@ -78,8 +79,8 @@ export function itemTexture(template: string): string {
   return DRAWN_ITEMS.includes(template) ? template : UNKNOWN_ITEM;
 }
 
-export const MAP_IDS = ['town', 'forest', 'cave'] as const;
-export type MapId = (typeof MAP_IDS)[number];
+export const MAP_IDS = maps.map((m) => m.id);
+export type MapId = (typeof maps)[number]['id'];
 export function isMapId(id: string): id is MapId {
   return (MAP_IDS as readonly string[]).includes(id);
 }
