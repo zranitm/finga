@@ -152,7 +152,7 @@ export class GameSocket {
     this.helloTimeoutMs = opts.helloTimeoutMs ?? 4000;
     this.pingIntervalMs = opts.pingIntervalMs ?? 15_000;
     this.pongTimeoutMs = opts.pongTimeoutMs ?? 5000;
-    this.backoffOptions = opts.backoff ?? { baseMs: 500, capMs: 10_000 };
+    this.backoffOptions = opts.backoff ?? { baseMs: 500, capMs: 4_000 }; // a restarted gateway is back within a few seconds
     this.delayMs = opts.delayMs ?? 0;
   }
 
