@@ -16,7 +16,8 @@ How Finga runs, apart from the code that runs.
   (`finga-obs`, through `obs/standalone.yml`), so Docker Desktop shows it as
   one group that stops and starts with one button. `make up OBS=1` runs it
   after the game; plain `make up` stops it. Alloy joins the game's network
-  (`finga_default`), so the game must be up before the stack starts. In
+  (`finga_default`) and reads only the game project's logs, so the game must
+  be up before the stack starts. In
   production it stays in the game's project under the `obs` profile
   (`deploy/obs.prod.yml`), so a deploy that stops the game leaves it
   collecting the last logs. Grafana, at
@@ -33,3 +34,17 @@ How Finga runs, apart from the code that runs.
   a Compose app, ECR repositories, a private bucket, a GitHub OIDC role, a
   Cloudflare-proxied origin, Cloudflare Access) and `envs/prod`, which wires
   them for Finga.
+
+A second stack beside `finga`, say for a branch, takes its own project name
+and host ports. Everything Compose creates for it, the network and volumes
+too, is named after its project, so it never reaches the first:
+
+```sh
+COMPOSE_PROJECT_NAME=trial FINGA_WEB_PORT=4174 FINGA_PORT=8081 \
+  FINGA_GATEWAY_OPS_PORT=9110 FINGA_ITEM_OPS_PORT=9113 \
+  FINGA_WORLD_OPS_PORT=9114 FINGA_POSTGRES_PORT=5433 make up
+```
+
+With `OBS=1` and `FINGA_GRAFANA_PORT=3001`, its observability stack is
+`trial-obs`, on `trial_default`, reading only `trial`'s logs. `make down` with
+the same `COMPOSE_PROJECT_NAME` removes that stack alone.
