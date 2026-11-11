@@ -39,7 +39,8 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 		"sticky_samples": {Status: model.QuestActive, Progress: []int{3}, TimesFinished: 1},
 		"slime_cleanup":  {Status: model.QuestFinished, TimesFinished: 1},
 	}
-	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}, Quests: log}); err != nil {
+	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}, Quests: log,
+		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3}}); err != nil {
 		t.Fatal(err)
 	}
 	want := []*characterv1.Quest{
@@ -53,6 +54,10 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 		cp.GetLevel() != 4 || cp.GetExp() != 5 || cp.GetPoints().GetStrength() != 9 || cp.GetPoints().GetVitality() != 4 || cp.GetUnspentPoints() != 2 || !cp.GetFreeResetUsed() {
 		t.Fatalf("checkpoint %+v", cp)
 	}
+	if got := f.checkpoints[0].GetSkills(); f.checkpoints[0].GetUnspentSkillPoints() != 3 || len(got) != 2 ||
+		!proto.Equal(got[0], &characterv1.SkillPoints{SkillId: "second_wind", Points: 2}) || !proto.Equal(got[1], &characterv1.SkillPoints{SkillId: "throw", Points: 7}) {
+		t.Fatalf("skills %v, unspent %d; want every skill by ID", got, f.checkpoints[0].GetUnspentSkillPoints())
+	}
 	if s.Retryable(grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)) || !s.Retryable(status.Error(codes.Unavailable, "down")) {
 		t.Fatal("only a failure without a reason is retried")
 	}
@@ -62,6 +67,7 @@ type loads struct {
 	characterv1.UnimplementedCharacterServiceServer
 	char   *characterv1.Character
 	quests []*characterv1.Quest
+	skills []*characterv1.SkillPoints
 	req    *characterv1.LoadRequest
 }
 
@@ -70,13 +76,14 @@ func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characte
 	if f.char == nil {
 		return nil, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
-	return &characterv1.LoadResponse{Character: f.char, Quests: f.quests}, nil
+	return &characterv1.LoadResponse{Character: f.char, Quests: f.quests, Skills: f.skills}, nil
 }
 
 func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	id, account := kernel.NewCharacterID(), kernel.NewAccountID()
 	f := &loads{char: &characterv1.Character{Id: id.String(), Name: "Ayla", Class: "bowman", Level: 3, Exp: 40,
-		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600},
+		Points: &characterv1.Stats{Dexterity: 6, Agility: 4}, UnspentPoints: 0, FreeResetUsed: true, Hp: 90, Mp: 30, MapId: "cave", X: 12.5, Y: 600, UnspentSkillPoints: 3},
+		skills: []*characterv1.SkillPoints{{SkillId: "throw", Points: 7}, {SkillId: "second_wind", Points: 2}},
 		quests: []*characterv1.Quest{
 			{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{7}},
 			{QuestId: "first_steps", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2},
@@ -90,6 +97,7 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	}
 	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Class("bowman"), Level: 3, Exp: 40,
 		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600,
+		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3},
 		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}}}
 	if !reflect.DeepEqual(got, want) || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
 		t.Fatalf("got %+v from %+v", got, f.req)

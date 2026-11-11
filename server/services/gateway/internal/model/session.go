@@ -97,6 +97,12 @@ type ItemUse struct {
 	Template       string
 }
 
+// SkillPointsSpend invests skill points, by skill ID, out of the unspent ones, if their count is still ExpectedUnspent.
+type SkillPointsSpend struct {
+	ExpectedUnspent int
+	Points          map[string]int
+}
+
 // PointsSpend adds points to the stats, out of the unspent ones, if their count is still ExpectedUnspent.
 type PointsSpend struct {
 	ExpectedUnspent int

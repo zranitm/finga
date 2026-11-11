@@ -43,10 +43,17 @@ type CharacterView struct {
 
 // StatSheet is the character's stats with what it wears, and the equipment's share of each.
 type StatSheet struct {
-	Primary, PrimaryWorn Stats
-	Derived, DerivedWorn DerivedStats
-	Points               Points
-	AttackCooldownTicks  int
+	Primary, PrimaryWorn, PrimarySkills Stats
+	Derived, DerivedWorn, DerivedSkills DerivedStats
+	Points                              Points
+	Skills                              SkillPoints
+	AttackCooldownTicks                 int
+}
+
+// SkillPoints are the skill points: unspent, and invested in each skill by ID.
+type SkillPoints struct {
+	Unspent  int
+	Invested map[string]int
 }
 
 // Points are the stat points: unspent, spent in each stat, and whether the free reset is left.

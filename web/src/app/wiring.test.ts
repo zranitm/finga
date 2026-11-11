@@ -272,6 +272,21 @@ describe('wiring', () => {
     expect(combatLog.getState().waiting).toMatchObject([{ key: 'meadow/7' }]);
   });
 
+  it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {
+    const { ws } = await connectedSocket();
+    const vitals = { hp: 204, maxHp: 204, mp: 28, maxMp: 28 };
+    const invested = (points: Record<string, number>) => ({
+      ...vitals,
+      sheet: { skills: { unspent: 0, invested: points } },
+    });
+    ws.push('statsChanged', invested({ strike: 9 })); // the Welcome here has no sheet: nothing to compare
+    ws.push('statsChanged', invested({ strike: 10, throw: 3 }));
+    ws.push('statsChanged', vitals); // regen: no sheet
+    expect(combatLog.getState().lines).toMatchObject([
+      { kind: 'evolved', from: 'Strike', to: 'Heavy Strike' },
+    ]);
+  });
+
   it.each([
     {
       name: 'a 4★ item this player collected',

@@ -1,5 +1,6 @@
 # The class tree. The first class is its root: every character starts as one, with its base_stats and starter_items, and a promotion moves them to a class whose parent is theirs.
 # look is the client's art: a player sprite and a tint over its grey copy. attack is the basic attack's shape and damage type.
+# skills are the ones it teaches (skills.yaml); a character learns those of its class and every class above it.
 # auto_assign is the split the Auto-assign button and setting spend a level's points by; the root has none, so a Beginner spends their own.
 classes:
   - id: beginner
@@ -10,6 +11,7 @@ classes:
     starter_items:
       - {item: wooden_club, quantity: 1}
       - {item: red_potion, quantity: 5}
+    skills: [strike, throw, spark, second_wind]
   - id: warrior
     name: Warrior
     parent: beginner

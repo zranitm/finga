@@ -43,7 +43,18 @@
         },
         "free_reset_left": true
       },
-      "attack_cooldown_ticks": 12
+      "attack_cooldown_ticks": 12,
+      "primary_skills": {},
+      "derived_skills": {
+        "hp_regen": 0.8,
+        "mp_regen": 0.8
+      },
+      "skills": {
+        "unspent": 2,
+        "invested": {
+          "second_wind": 3
+        }
+      }
     },
     "hp": 250,
     "max_hp": 280,

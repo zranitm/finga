@@ -23,6 +23,7 @@ type classYAML struct {
 	BaseStats    primaryYAML `yaml:"base_stats"`
 	AutoAssign   primaryYAML `yaml:"auto_assign"`
 	StarterItems []grantYAML `yaml:"starter_items"`
+	Skills       []string    `yaml:"skills"`
 }
 
 type attackYAML struct {
@@ -108,6 +109,7 @@ func (l *loader) loadClasses(dir string) error {
 			BaseStats:    gamedata.Stats(c.BaseStats),
 			AutoAssign:   gamedata.Stats(c.AutoAssign),
 			StarterItems: grants(c.StarterItems),
+			Skills:       c.Skills,
 		})
 	}
 	return nil

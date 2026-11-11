@@ -118,6 +118,9 @@ var (
 		},
 		Points:              model.Points{Unspent: 2, Spent: model.Stats{DEX: 1, AGI: 2}, FreeResetLeft: true},
 		AttackCooldownTicks: 16,
+		PrimarySkills:       model.Stats{VIT: 1},
+		DerivedSkills:       model.DerivedStats{HPRegen: 0.6, MPRegen: 0.6, MaxHP: 10},
+		Skills:              model.SkillPoints{Unspent: 3, Invested: map[string]int{"second_wind": 1, "strike": 4}},
 	}
 	wireSheet = &clientv1.StatSheet{
 		Primary: &clientv1.Stats{Str: 5, Dex: 13, Int: 4, Agi: 10, Vit: 5}, PrimaryWorn: &clientv1.Stats{Dex: 1},
@@ -131,6 +134,9 @@ var (
 		},
 		Points:              &clientv1.Points{Unspent: 2, Spent: &clientv1.Stats{Dex: 1, Agi: 2}, FreeResetLeft: true},
 		AttackCooldownTicks: 16,
+		PrimarySkills:       &clientv1.Stats{Vit: 1},
+		DerivedSkills:       &clientv1.DerivedStats{HpRegen: 0.6, MpRegen: 0.6, MaxHp: 10},
+		Skills:              &clientv1.SkillPoints{Unspent: 3, Invested: map[string]int32{"second_wind": 1, "strike": 4}},
 	}
 	// A bow with every stat rolled, as no real one is.
 	bow = model.ItemView{ID: "i-2", Template: "short_bow", Quantity: 1, Stats: &model.ItemStats{

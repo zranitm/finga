@@ -48,6 +48,13 @@
       "agi": 4,
       "vit": 5
     },
+    "primary_skills": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
     "derived": {
       "max_hp": 416,
       "max_mp": 70,
@@ -83,6 +90,24 @@
       "attack_speed": 0.04186849705265658,
       "cooldown_speed": 0.02185804533630621,
       "move_speed": 0.045494882890308404
+    },
+    "derived_skills": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
     }
   }
 }

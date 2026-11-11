@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"log/slog"
+	"math"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -527,6 +528,50 @@ func TestSpendAndResetPointsAnswerOnceTheStatsApply(t *testing.T) {
 	}
 	if _, err := s.c.ResetPoints(s.ctx, &worldv1.ResetPointsRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String()}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("no connection: %v", err)
+	}
+}
+
+func TestSpendSkillPointsAnswersOnceTheSheetApplies(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	town := s.data.StartTown()
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3, Skills: model.Skills{Unspent: 10},
+		HP: 120, MP: 40, MapID: town.ID, X: town.PlayerSpawn.X, Y: town.PlayerSpawn.Y,
+	}
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	spend := func(expected int32, add map[string]int32) error {
+		_, err := s.c.SpendSkillPoints(s.ctx, &worldv1.SpendSkillPointsRequest{Presence: presence, ExpectedUnspent: expected, Points: add})
+		return err
+	}
+	if err := spend(10, map[string]int32{"second_wind": 4, "spark": 1}); err != nil {
+		t.Fatal(err)
+	}
+	stats := until(t, stream, "the spend's StatsChanged", func(m *worldv1.DeliverResponse) bool { return m.GetStatsChanged() != nil }).GetStatsChanged()
+	if sk := stats.GetSheet().GetSkills(); sk.GetUnspent() != 5 || sk.GetInvested()["second_wind"] != 4 || sk.GetInvested()["spark"] != 1 || math.Abs(stats.GetSheet().GetDerivedSkills().GetHpRegen()-0.9) > 1e-9 {
+		t.Fatalf("stats change %+v; want 5 left, the points invested, and Second Wind's 0.9 HP a second", stats)
+	}
+	for _, c := range []struct {
+		name     string
+		expected int32
+		add      map[string]int32
+		code     codes.Code
+		reason   worldv1.Reason
+	}{
+		{"a retried Apply", 10, map[string]int32{"second_wind": 4}, codes.FailedPrecondition, worldv1.Reason_REASON_SKILL_POINTS_CHANGED},
+		{"more than unspent", 5, map[string]int32{"strike": 6}, codes.FailedPrecondition, worldv1.Reason_REASON_NOT_ENOUGH_SKILL_POINTS},
+		{"a skill no class teaches", 5, map[string]int32{"fireball": 1}, codes.FailedPrecondition, worldv1.Reason_REASON_SKILL_NOT_LEARNABLE},
+		{"a negative count", 5, map[string]int32{"strike": -1}, codes.InvalidArgument, worldv1.Reason_REASON_BAD_SKILL_POINTS},
+	} {
+		err := spend(c.expected, c.add)
+		if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(c.reason) || status.Code(err) != c.code {
+			t.Fatalf("%s: %v, want %v %v", c.name, err, c.code, c.reason)
+		}
+	}
+	if _, err := s.c.SpendSkillPoints(s.ctx, &worldv1.SpendSkillPointsRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
 	}
 }
 

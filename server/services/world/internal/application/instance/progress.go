@@ -52,7 +52,7 @@ func (i *Instance) shareExp(killer *player, base int64) {
 	}
 }
 
-// award gives a player EXP; each level gained gives its points to spend, and a level-up restores HP and MP, tells the party, and is saved at once.
+// award gives a player EXP; each level gained gives its stat and skill points to spend, and a level-up restores HP and MP, tells the party, and is saved at once.
 func (i *Instance) award(p *player, amount int64) {
 	if amount <= 0 {
 		return
@@ -64,6 +64,7 @@ func (i *Instance) award(p *player, amount int64) {
 		return
 	}
 	p.Points.Unspent += a.LevelsGained * i.data.StatRules().PointsPerLevel
+	p.Skills.Unspent += a.LevelsGained * i.data.StatRules().SkillPointsPerLevel
 	s := i.stats(p)
 	p.derived = s.Derived
 	p.HP, p.MP = p.derived.MaxHP, p.derived.MaxMP

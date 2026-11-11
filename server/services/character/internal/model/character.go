@@ -17,6 +17,7 @@ var (
 	ErrBadName          = errors.New("character: bad name")
 	ErrClassUnavailable = errors.New("character: class not available")
 	ErrSlotsFull        = errors.New("character: account has no free character slot")
+	ErrBadSkill         = errors.New("character: a skill with no ID or one listed twice, unspent skill points below 0, or points below 1")
 	ErrBadQuest         = errors.New("character: a quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion")
 )
 
@@ -36,6 +37,14 @@ type Character struct {
 	MapID         string
 	X, Y          float64 // feet centre, map pixels
 	UpdatedAt     time.Time
+
+	UnspentSkillPoints int
+}
+
+// SkillPoints are the points invested in one skill.
+type SkillPoints struct {
+	ID     string
+	Points int
 }
 
 // QuestStatus is where a character stands with a quest.
@@ -82,6 +91,9 @@ type Checkpoint struct {
 	UnspentPoints int
 	FreeResetUsed bool
 	Quests        []Quest // every quest the character has; a stored one not listed goes
+
+	UnspentSkillPoints int
+	Skills             []SkillPoints // every skill with points; a stored one not listed keeps its own
 }
 
 // LevelUp is saved right away when a character gains a level.

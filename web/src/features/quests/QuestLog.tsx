@@ -41,7 +41,7 @@ export function QuestLog({ socket, onClose }: QuestLogProps) {
   };
 
   return (
-    <WorldWindow name="quests" title="Quests" onClose={onClose} initialX={836} initialY={120}>
+    <WorldWindow name="quests" title="Quests" onClose={onClose} initialX={940} initialY={120}>
       <div className="quest-log">
         {active.length === 0 ? (
           <p className="muted">No quests under way. Talk to the people in town.</p>

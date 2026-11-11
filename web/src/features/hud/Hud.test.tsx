@@ -65,6 +65,31 @@ describe('Hud', () => {
     expect(screen.queryByRole('button', { name: /stat point/ })).toBeNull();
   });
 
+  it('a badge counts the unspent skill points and opens the skill window', async () => {
+    character.getState().applyWelcome(welcome);
+    render(<Hud />);
+    const skills = (unspent: number) =>
+      act(() =>
+        character.getState().applyStatsChanged(
+          create(StatsChangedSchema, {
+            sheet: { skills: { unspent } },
+            hp: 150,
+            maxHp: 204,
+            mp: 20,
+            maxMp: 28,
+          }),
+        ),
+      );
+    skills(1);
+    expect(screen.getByRole('button', { name: '1 skill point' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /stat point/ })).toBeNull();
+    skills(5);
+    await userEvent.click(screen.getByRole('button', { name: '5 skill points' }));
+    expect(ui.getState().windows).toContain('skills');
+    skills(0);
+    expect(screen.queryByRole('button', { name: /skill point/ })).toBeNull();
+  });
+
   it('shows nothing before a character arrives', () => {
     render(<Hud />);
     expect(screen.queryByLabelText('Status')).not.toBeInTheDocument();

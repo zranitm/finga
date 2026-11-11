@@ -18,6 +18,15 @@ type Stats struct {
 // Total is the sum of the five stats.
 func (s Stats) Total() int { return s.STR + s.DEX + s.INT + s.AGI + s.VIT }
 
+// StatSet holds one value for each stat equipment and skills can give, the five primary and the sixteen derived; fields, not a map, so every sum runs in one order.
+type StatSet[T any] struct {
+	STR, DEX, INT, AGI, VIT                                    T
+	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense T
+	MaxHP, MaxMP, Accuracy, Evasion                            T
+	CritRate, CritDamage, Penetration, HPRegen, MPRegen        T
+	AttackSpeed, CooldownSpeed, MoveSpeed                      T
+}
+
 // Primary names one of the five primary stats.
 type Primary int
 
@@ -86,12 +95,13 @@ func (h HitCurve) Chance(accuracy, evasion float64) float64 {
 
 // StatRules are data/stats.yaml: what each point gives, every class alike, each class's bases, and the limits.
 type StatRules struct {
-	PointsPerLevel int
-	PerPoint       PerPrimary[Flats[float64]]
-	Curves         Rates[Curve]
-	Penetration    float64 // its limit; only gear gives it
-	Hit            HitCurve
-	Classes        map[kernel.Class]Flats[Grows]
+	PointsPerLevel      int
+	SkillPointsPerLevel int // given each level, beside the stat points
+	PerPoint            PerPrimary[Flats[float64]]
+	Curves              Rates[Curve]
+	Penetration         float64 // its limit; only gear gives it
+	Hit                 HitCurve
+	Classes             map[kernel.Class]Flats[Grows]
 }
 
 // StatRules are what each point gives, each class's bases, and the limits.

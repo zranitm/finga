@@ -16,6 +16,8 @@ type Store interface {
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
 	// Quests is the character's quests, active and finished.
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
+	// Skills is the character's skills with points.
+	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.

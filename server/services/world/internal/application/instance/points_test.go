@@ -133,11 +133,11 @@ func TestStatsOfCountsOnlyTheWornItemsWhoseRequirementsAreMet(t *testing.T) {
 		{Template: "leather_cap", Stats: progression.ItemStats{STR: 5, MaxHP: 30}},
 		{Template: "no_such_item", Stats: progression.ItemStats{MaxHP: 1000}},
 	}}
-	short := instance.StatsOf(content, warrior, 3, model.Points{Spent: gamedata.Stats{STR: 2}}, worn, worldtest.TickInterval)
+	short := instance.StatsOf(content, warrior, 3, model.Points{Spent: gamedata.Stats{STR: 2}}, model.Skills{}, worn, worldtest.TickInterval)
 	if w := short.Sheet.DerivedWorn; w.PhysicalAttack != 5*1.5 || short.Own.STR != 9 || short.Sheet.PrimaryWorn.STR != 5 {
 		t.Fatalf("own STR 9 and the cap's 5: worn share %+v, own %+v; want the sword left out", w, short.Own)
 	}
-	met := instance.StatsOf(content, warrior, 3, model.Points{Spent: gamedata.Stats{STR: 3}}, worn, worldtest.TickInterval)
+	met := instance.StatsOf(content, warrior, 3, model.Points{Spent: gamedata.Stats{STR: 3}}, model.Skills{}, worn, worldtest.TickInterval)
 	if w := met.Sheet.DerivedWorn; w.PhysicalAttack != 10+5*1.5 || met.Derived.MaxHP != short.Derived.MaxHP+2 {
 		t.Fatalf("own STR 10: worn share %+v; want the sword counted", w)
 	}

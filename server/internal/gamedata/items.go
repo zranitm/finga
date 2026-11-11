@@ -34,14 +34,8 @@ type Range struct {
 	Min, Max int
 }
 
-// Rolls are the range of each stat an equipment item gives, the five primary and the sixteen derived; fields, not a map, so every sum runs in one order.
-type Rolls struct {
-	STR, DEX, INT, AGI, VIT                                    Range
-	PhysicalAttack, MagicAttack, PhysicalDefense, MagicDefense Range
-	MaxHP, MaxMP, Accuracy, Evasion                            Range
-	CritRate, CritDamage, Penetration, HPRegen, MPRegen        Range
-	AttackSpeed, CooldownSpeed, MoveSpeed                      Range
-}
+// Rolls are the range of each stat an equipment item gives.
+type Rolls = StatSet[Range]
 
 // Item is an item template.
 type Item struct {

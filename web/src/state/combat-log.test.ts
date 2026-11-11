@@ -79,6 +79,17 @@ describe('combatLog', () => {
     expect(combatLog.getState().lines).toEqual([]);
   });
 
+  it('a skill whose points put it in a later stage evolves, in a line naming both forms', () => {
+    const s = combatLog.getState();
+    s.applySkillPoints({ strike: 8, throw: 30 }, { strike: 9, throw: 31 });
+    expect(combatLog.getState().lines).toEqual([]);
+    s.applySkillPoints({ strike: 9 }, { strike: 12, spark: 25, second_wind: 1, gone: 99 });
+    expect(combatLog.getState().lines).toMatchObject([
+      { kind: 'evolved', from: 'Strike', to: 'Heavy Strike' },
+      { kind: 'evolved', from: 'Spark', to: 'Arc' },
+    ]);
+  });
+
   it(`keeps the last ${MAX_COMBAT_LINES} lines`, () => {
     for (let i = 1; i <= MAX_COMBAT_LINES + 5; i++) {
       combatLog.getState().applyExpGained(exp(BigInt(i)));

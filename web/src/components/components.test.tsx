@@ -66,6 +66,23 @@ describe('Window', () => {
     expect(dialog).toHaveStyle({ left: '140px', top: '80px' });
   });
 
+  it('opened past the right edge of the screen, moves left until it fits', () => {
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ width: 300 } as DOMRect);
+    try {
+      render(
+        <Window title="Party" onClose={vi.fn()} initialX={940} initialY={80}>
+          <p>members</p>
+        </Window>,
+      );
+      // jsdom's screen is 1024 wide: 1024 − 300 − 8 at the edge.
+      expect(screen.getByRole('dialog', { name: 'Party' })).toHaveStyle({ left: '716px' });
+    } finally {
+      rect.mockRestore();
+    }
+  });
+
   it('is never taller than the viewport below it, less the idle chat, and its body scrolls the rest', () => {
     render(
       <Window title="Character" onClose={vi.fn()} initialX={24} initialY={80}>

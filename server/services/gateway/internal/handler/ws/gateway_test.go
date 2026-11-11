@@ -236,6 +236,22 @@ func (c *client) expect(msgType string) wsconn.Message {
 	}
 }
 
+// expectEach reads until one of each type has come, in whatever order, skipping the rest: a join's Snapshot comes on the world's stream and its PartyState on social's, in no set order.
+func (c *client) expectEach(types ...string) map[string]wsconn.Message {
+	c.t.Helper()
+	got := map[string]wsconn.Message{}
+	for len(got) < len(types) {
+		m, status := c.read()
+		if status != -1 {
+			c.t.Fatalf("closed with %d while waiting for %v", status, types)
+		}
+		if _, seen := got[m.Type]; !seen && slices.Contains(types, m.Type) {
+			got[m.Type] = m
+		}
+	}
+	return got
+}
+
 func (c *client) hello(token string, charID kernel.CharacterID) {
 	c.t.Helper()
 	c.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: charID.String()}})
@@ -1321,14 +1337,15 @@ func TestEnterPortalIsRoutedAsTheSender(t *testing.T) {
 }
 
 // social builds the gateway with a fake social service and waits for its first subscription.
-func social(t *testing.T, fs *fakeSocial) *harness {
+func social(t *testing.T, fs *fakeSocial, opts ...func(*deps)) *harness {
 	t.Helper()
-	h := newHarness(t, func(d *deps) { d.Social = fs.client(t) })
+	h := newHarness(t, append(opts, func(d *deps) { d.Social = fs.client(t) })...)
 	select {
 	case <-fs.subscribed:
 	case <-time.After(5 * time.Second):
 		t.Fatal("the gateway never subscribed to the social service")
 	}
+	synctest.Wait() // the subscription's registration round has run with no one on, so a login after it registers once
 	return h
 }
 
@@ -1729,8 +1746,7 @@ func TestALoginsFailedRegistrationIsRetried(t *testing.T) {
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)
 		ayla.expect("Welcome")
-		ayla.expect("Snapshot")
-		if p := ayla.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() {
+		if p := ayla.expectEach("Snapshot", "PartyState")["PartyState"].Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() {
 			t.Fatalf("party %+v; want hers, once a retry registered her", p)
 		}
 		if n := len(fs.onlineCalls()); n != 3 {
@@ -1751,16 +1767,14 @@ func TestPartyCommandsAndState(t *testing.T) {
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)
 		ayla.expect("Welcome")
-		ayla.expect("Snapshot")
 		// The party follows Welcome, from the registration, in order with the party's later changes.
-		if p := ayla.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bruno" || p.GetMembers()[1].GetMapId() != "forest" || p.GetMembers()[1].GetOnline() {
+		if p := ayla.expectEach("Snapshot", "PartyState")["PartyState"].Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bruno" || p.GetMembers()[1].GetMapId() != "forest" || p.GetMembers()[1].GetOnline() {
 			t.Fatalf("ayla's party after Welcome %+v", p)
 		}
 		bruno := h.dial(t)
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Welcome")
-		bruno.expect("Snapshot")
-		if p := bruno.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p != nil {
+		if p := bruno.expectEach("Snapshot", "PartyState")["PartyState"].Data.(*clientv1.PartyState).GetParty(); p != nil {
 			t.Fatalf("bruno has a party: %+v", p)
 		}
 		// Registrations land in either order, slightly after their Snapshots: wait for both, find Ayla's by ID.
@@ -2069,11 +2083,10 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		items := &fakeItems{inventory: []*itemv1.Item{{Id: "i-1", TemplateId: "red_potion", Tab: "use", Quantity: 3}}, revision: 7}
 		soc := newFakeSocial()
 		soc.of = map[string]*socialv1.Party{aylaID.String(): {LeaderId: aylaID.String(), Members: []*socialv1.Member{{Id: aylaID.String(), Name: "Ayla", Online: true}}}}
-		h := newHarness(t, func(d *deps) { d.Items, d.Social = items.client(t), soc.client(t) })
+		h := social(t, soc, func(d *deps) { d.Items = items.client(t) })
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)
-		ayla.expect("Snapshot")
-		ayla.expect("PartyState") // the login's
+		ayla.expectEach("Snapshot", "PartyState") // the login's
 		bruno := h.dial(t)
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Snapshot")
@@ -2093,7 +2106,7 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 
 		// Each gets the whole screen again, as the services have it, with no token: pushes in the break may be lost.
 		wantQuests := []*clientv1.QuestState{{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}
-		rejoined := func(c *client, mapID string, after uint64) {
+		rejoined := func(c *client, mapID string, after uint64, also ...string) map[string]wsconn.Message {
 			t.Helper()
 			m, status := c.read()
 			w, ok := m.Data.(*clientv1.Welcome)
@@ -2101,13 +2114,15 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 				!slices.EqualFunc(w.GetQuests(), wantQuests, func(a, b *clientv1.QuestState) bool { return proto.Equal(a, b) }) {
 				t.Fatalf("got %+v (status %d) first, want a Welcome on %s with no token, the inventory and the quests the rejoin found", m, status, mapID)
 			}
-			if snap := c.expect("Snapshot"); snap.Tick <= after {
+			got := c.expectEach(append([]string{"Snapshot"}, also...)...)
+			if snap := got["Snapshot"]; snap.Tick <= after {
 				t.Fatalf("snapshot tick %d after %d: the ticks went back on the connection", snap.Tick, after)
 			}
+			return got
 		}
-		rejoined(ayla, "town", 500)
+		aylas := rejoined(ayla, "town", 500, "PartyState")
 		rejoined(bruno, "forest", 0) // its Welcome moves it: no MapChange
-		if p := ayla.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() {
+		if p := aylas["PartyState"].Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() {
 			t.Fatalf("party %v; the Welcome emptied it, and Online sends it again", p)
 		}
 		if got := h.obs.welcomed(); !slices.Equal(got, []string{"login", "login", "rejoin", "rejoin"}) {
@@ -2389,12 +2404,17 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.chars[aylaID].view.Sheet = &worldv1.StatSheet{
 			Primary: &worldv1.Stats{Strength: 12}, Points: &worldv1.Points{Unspent: 5, Spent: &worldv1.Stats{}, FreeResetLeft: true}, AttackCooldownTicks: 12,
-			Derived: &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
+			Derived:       &worldv1.DerivedStats{PhysicalAttack: 20.5, MagicAttack: 8.5, MagicDefense: 10, HpRegen: 0.5, AttackSpeed: 0.016, MoveSpeed: 0.007},
+			DerivedSkills: &worldv1.DerivedStats{HpRegen: 0.6}, PrimarySkills: &worldv1.Stats{},
+			Skills: &worldv1.SkillPoints{Unspent: 4, Invested: map[string]int32{"second_wind": 1}},
 		}
 		h.world.mu.Unlock()
 		c := h.dial(t)
 		c.hello(tokenAlice, aylaID)
 		s := c.expect("Welcome").Data.(*clientv1.Welcome).GetCharacter().GetSheet()
+		if sk := s.GetSkills(); sk.GetUnspent() != 4 || sk.GetInvested()["second_wind"] != 1 || s.GetDerivedSkills().GetHpRegen() != 0.6 {
+			t.Fatalf("welcome sheet %+v; want the skill points and the skills' share", s)
+		}
 		if p := s.GetPoints(); p.GetUnspent() != 5 || !p.GetFreeResetLeft() || s.GetAttackCooldownTicks() != 12 ||
 			s.GetDerived().GetMagicAttack() != 8.5 || s.GetDerived().GetMagicDefense() != 10 || s.GetDerived().GetHpRegen() != 0.5 || s.GetDerived().GetMoveSpeed() != 0.007 {
 			t.Fatalf("welcome sheet %+v; want the points, the cooldown and the new derived stats", s)
@@ -2418,6 +2438,18 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				t.Fatalf("resets %+v", resets)
 			}
 		})
+		part(t, "SpendSkillPoints goes to the world as the sender, answering once it applied", func() {
+			time.Sleep(time.Second) // under the points limit of 2 a second
+			c.send(wsconn.Message{ReqID: "s-1", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 3, "spark": 1}}})
+			if r := c.expect("Response"); r.ReqID != "s-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v, want ok to s-1", r)
+			}
+			invests := h.world.skillPointsCalls()
+			if len(invests) != 1 || invests[0].GetPresence().GetCharacterId() != aylaID.String() || invests[0].GetExpectedUnspent() != 4 ||
+				invests[0].GetPoints()["strike"] != 3 || invests[0].GetPoints()["spark"] != 1 {
+				t.Fatalf("skill point spends %+v", invests)
+			}
+		})
 		part(t, "a refusal answers the world's reason", func() {
 			for _, tt := range []struct {
 				reason worldv1.Reason
@@ -2429,6 +2461,10 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 				{worldv1.Reason_REASON_NOT_ENOUGH_POINTS, codes.FailedPrecondition, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 9}}, model.NotEnoughPoints},
 				{worldv1.Reason_REASON_BAD_POINTS, codes.InvalidArgument, &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: -1}}, model.BadPoints},
 				{worldv1.Reason_REASON_NO_FREE_RESET, codes.FailedPrecondition, &clientv1.ResetPoints{ExpectedUnspent: 5}, model.NoFreeReset},
+				{worldv1.Reason_REASON_SKILL_POINTS_CHANGED, codes.FailedPrecondition, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 1}}, model.SkillPointsChanged},
+				{worldv1.Reason_REASON_NOT_ENOUGH_SKILL_POINTS, codes.FailedPrecondition, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": 9}}, model.NotEnoughSkillPoints},
+				{worldv1.Reason_REASON_SKILL_NOT_LEARNABLE, codes.FailedPrecondition, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"fireball": 1}}, model.SkillNotLearnable},
+				{worldv1.Reason_REASON_BAD_SKILL_POINTS, codes.InvalidArgument, &clientv1.SpendSkillPoints{ExpectedUnspent: 4, Points: map[string]int32{"strike": -1}}, model.BadSkillPoints},
 			} {
 				time.Sleep(time.Second) // under the points limit of 2 a second
 				h.world.failPoints(grpctest.Error(tt.code, tt.reason))

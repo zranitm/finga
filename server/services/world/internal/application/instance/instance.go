@@ -352,6 +352,8 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settleEquip(m)
 		case pointsMsg:
 			i.settlePoints(m)
+		case skillPointsMsg:
+			i.settleSkillPoints(m)
 		case talkMsg:
 			i.talk(m)
 		case questMsg:

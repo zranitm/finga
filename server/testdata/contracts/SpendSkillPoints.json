@@ -1,0 +1,10 @@
+{
+  "req": "r-17",
+  "spend_skill_points": {
+    "expected_unspent": 5,
+    "points": {
+      "second_wind": 2,
+      "strike": 3
+    }
+  }
+}

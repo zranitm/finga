@@ -1,5 +1,6 @@
-// The Combat tab's lines: this player's EXP, level-ups, loot, quests and potions, kept until they leave the world.
+// The Combat tab's lines: this player's EXP, level-ups, loot, quests, potions and skill evolutions, kept until they leave the world.
 import { loot } from '@/gamedata/loot';
+import { skillById, stageAt } from '@/progression/skills';
 import { LootKind, QuestChange } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 
@@ -25,6 +26,7 @@ export type CombatEvent =
       readonly hp: number;
       readonly mp: number;
     }
+  | { readonly kind: 'evolved'; readonly from: string; readonly to: string }
   | {
       readonly kind: 'quest';
       readonly change: QuestLineKind;
@@ -61,6 +63,11 @@ export interface CombatLogState {
   applyQuestChanged(d: Data<'questChanged'>): void;
   /** The world applied a potion this player drank. */
   drank(template: string, restored: { readonly hp: number; readonly mp: number }): void;
+  /** A line for each skill whose points before and after put it in a later stage. */
+  applySkillPoints(
+    before: Readonly<Record<string, number>>,
+    after: Readonly<Record<string, number>>,
+  ): void;
   /** A quest became ready to hand in: its last kill, item or level came. */
   questReady(quest: string): void;
   clear(): void;
@@ -118,6 +125,16 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
     },
     drank: (template, { hp, mp }) => {
       add({ kind: 'drank', template, hp, mp });
+    },
+    applySkillPoints: (before, after) => {
+      for (const [id, points] of Object.entries(after)) {
+        const skill = skillById(id);
+        const from = skill?.stages[stageAt(skill, before[id] ?? 0)];
+        const to = skill?.stages[stageAt(skill, points)];
+        if (from && to && to.at > from.at) {
+          add({ kind: 'evolved', from: from.name, to: to.name });
+        }
+      }
     },
     questReady: (quest) => {
       add({ kind: 'quest', change: 'ready', quest, progress: [] });

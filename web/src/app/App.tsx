@@ -18,6 +18,7 @@ import { PartyWindow } from '@/features/party/PartyWindow';
 import { QuestLog } from '@/features/quests/QuestLog';
 import { SettingsPanel } from '@/features/settings/SettingsPanel';
 import { loadSettings } from '@/features/shared/settings';
+import { SkillWindow } from '@/features/skills/SkillWindow';
 import type { Character } from '@/net/rest';
 import { character as characterStore } from '@/state/character';
 import { connection } from '@/state/connection';
@@ -146,6 +147,7 @@ function WorldOverlay({
 }) {
   const inventoryOpen = ui.use((s) => s.windows.includes('inventory'));
   const characterOpen = ui.use((s) => s.windows.includes('character'));
+  const skillsOpen = ui.use((s) => s.windows.includes('skills'));
   const partyOpen = ui.use((s) => s.windows.includes('party'));
   const questsOpen = ui.use((s) => s.windows.includes('quests'));
   const npcOpen = ui.use((s) => s.windows.includes('npc'));
@@ -175,6 +177,9 @@ function WorldOverlay({
         )}
         {characterOpen && (
           <CharacterWindow socket={socket} onClose={() => ui.getState().closeWindow('character')} />
+        )}
+        {skillsOpen && (
+          <SkillWindow socket={socket} onClose={() => ui.getState().closeWindow('skills')} />
         )}
         {questsOpen && (
           <QuestLog socket={socket} onClose={() => ui.getState().closeWindow('quests')} />

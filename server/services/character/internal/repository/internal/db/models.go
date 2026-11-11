@@ -10,26 +10,27 @@ import (
 )
 
 type Character struct {
-	ID            uuid.UUID
-	AccountID     uuid.UUID
-	Name          string
-	Class         string
-	Level         int32
-	Exp           int64
-	StrPoints     int32
-	DexPoints     int32
-	IntPoints     int32
-	AgiPoints     int32
-	VitPoints     int32
-	UnspentPoints int32
-	Hp            int32
-	Mp            int32
-	MapID         string
-	PosX          float32
-	PosY          float32
-	UpdatedAt     dbx.Stamp
-	CreatedAt     dbx.Stamp
-	FreeResetUsed bool
+	ID                 uuid.UUID
+	AccountID          uuid.UUID
+	Name               string
+	Class              string
+	Level              int32
+	Exp                int64
+	StrPoints          int32
+	DexPoints          int32
+	IntPoints          int32
+	AgiPoints          int32
+	VitPoints          int32
+	UnspentPoints      int32
+	Hp                 int32
+	Mp                 int32
+	MapID              string
+	PosX               float32
+	PosY               float32
+	UpdatedAt          dbx.Stamp
+	CreatedAt          dbx.Stamp
+	FreeResetUsed      bool
+	UnspentSkillPoints int32
 }
 
 type CharacterQuest struct {
@@ -40,4 +41,12 @@ type CharacterQuest struct {
 	TimesFinished int32
 	CreatedAt     dbx.Stamp
 	UpdatedAt     dbx.Stamp
+}
+
+type CharacterSkill struct {
+	CharacterID uuid.UUID
+	SkillID     string
+	Points      int32
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
 }

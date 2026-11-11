@@ -84,6 +84,10 @@ var (
 	QuestNotReady        = Public{330012, "QUEST_NOT_READY", "that quest isn't finished yet"}
 	HPFull               = Public{330013, "HP_FULL", "your HP is already full"}
 	MPFull               = Public{330014, "MP_FULL", "your MP is already full"}
+	NotEnoughSkillPoints = Public{330015, "NOT_ENOUGH_SKILL_POINTS", "you don't have that many skill points"}
+	SkillPointsChanged   = Public{330016, "SKILL_POINTS_CHANGED", "your skill points changed; try again"}
+	SkillNotLearnable    = Public{330017, "SKILL_NOT_LEARNABLE", "your class can't learn that skill"}
+	BadSkillPoints       = Public{330018, "BAD_SKILL_POINTS", "invest at least one skill point, and none below zero"}
 )
 
 // 44: parties and chat.

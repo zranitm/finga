@@ -95,6 +95,7 @@ type fakeWorld struct {
 	useErr     error // UseItem fails with it
 	spends     []*worldv1.SpendPointsRequest
 	resets     []*worldv1.ResetPointsRequest
+	invests    []*worldv1.SpendSkillPointsRequest
 	pointsErr  error                 // SpendPoints and ResetPoints fail with it
 	quests     []*worldv1.QuestState // the log Join reports
 	questCalls []proto.Message       // Talk, AcceptQuest, AbandonQuest and HandInQuest requests
@@ -399,6 +400,19 @@ func (f *fakeWorld) ResetPoints(_ context.Context, req *worldv1.ResetPointsReque
 	defer f.mu.Unlock()
 	f.resets = append(f.resets, req)
 	return &worldv1.ResetPointsResponse{}, f.pointsErr
+}
+
+func (f *fakeWorld) SpendSkillPoints(_ context.Context, req *worldv1.SpendSkillPointsRequest) (*worldv1.SpendSkillPointsResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.invests = append(f.invests, req)
+	return &worldv1.SpendSkillPointsResponse{}, f.pointsErr
+}
+
+func (f *fakeWorld) skillPointsCalls() []*worldv1.SpendSkillPointsRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]*worldv1.SpendSkillPointsRequest(nil), f.invests...)
 }
 
 func (f *fakeWorld) Talk(_ context.Context, req *worldv1.TalkRequest) (*worldv1.TalkResponse, error) {

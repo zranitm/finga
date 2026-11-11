@@ -194,6 +194,59 @@ func TestRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint's skills are saved and kept, writing only the rows that changed", func(t *testing.T) {
+		save := func(t *testing.T, unspent int, skills ...model.SkillPoints) {
+			t.Helper()
+			cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", Level: 3, UnspentSkillPoints: unspent, Skills: skills}
+			if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		skills := func(t *testing.T) []model.SkillPoints {
+			t.Helper()
+			got, err := store.Skills(ctx, ayla.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return got
+		}
+		stamp := func(t *testing.T, skill string) time.Time {
+			t.Helper()
+			var at time.Time
+			if err := pool.QueryRow(ctx, `SELECT updated_at FROM character_skills WHERE character_id = $1 AND skill_id = $2`, ayla.ID, skill).Scan(&at); err != nil {
+				t.Fatal(err)
+			}
+			return at
+		}
+		if got := skills(t); len(got) != 0 {
+			t.Fatalf("a new character has skills %+v", got)
+		}
+		save(t, 3, model.SkillPoints{ID: "strike", Points: 4}, model.SkillPoints{ID: "second_wind", Points: 3})
+		if got := skills(t); !reflect.DeepEqual(got, []model.SkillPoints{{ID: "second_wind", Points: 3}, {ID: "strike", Points: 4}}) {
+			t.Fatalf("skills %+v", got)
+		}
+		if c := load(t); c.UnspentSkillPoints != 3 {
+			t.Fatalf("unspent skill points %d, want 3", c.UnspentSkillPoints)
+		}
+		wind := stamp(t, "second_wind")
+		save(t, 0, model.SkillPoints{ID: "strike", Points: 7}, model.SkillPoints{ID: "second_wind", Points: 3})
+		if !stamp(t, "second_wind").Equal(wind) {
+			t.Fatal("a row saved as it was is written again")
+		}
+		save(t, 0, model.SkillPoints{ID: "throw", Points: 1})
+		if got := skills(t); !reflect.DeepEqual(got, []model.SkillPoints{{ID: "second_wind", Points: 3}, {ID: "strike", Points: 7}, {ID: "throw", Points: 1}}) {
+			t.Fatalf("skills %+v; points are never taken back, so the ones left out stay", got)
+		}
+		for _, bad := range []model.Checkpoint{
+			{ID: ayla.ID, MapID: "forest", Level: 3, Skills: []model.SkillPoints{{ID: "throw", Points: 0}}},
+			{ID: ayla.ID, MapID: "forest", Level: 3, UnspentSkillPoints: -1},
+		} {
+			if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, bad) }); err == nil {
+				t.Fatalf("the table took %+v", bad)
+			}
+		}
+	})
+
 	t.Run("a level-up saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
 		lu := model.LevelUp{ID: ayla.ID, Level: 2, Exp: 3, Points: gamedata.Stats{STR: 6, VIT: 4}, HP: 250, MP: 32}

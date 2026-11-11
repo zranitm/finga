@@ -155,7 +155,7 @@ func loadRolls(stats map[string][]int) (gamedata.Rolls, error) {
 		return r, errors.New("equipment needs stats")
 	}
 	for _, name := range slices.Sorted(maps.Keys(stats)) {
-		field := rollField(&r, name)
+		field := setField(&r, name)
 		if field == nil {
 			return r, fmt.Errorf("unknown stat %s", name)
 		}
@@ -168,23 +168,23 @@ func loadRolls(stats map[string][]int) (gamedata.Rolls, error) {
 	return r, nil
 }
 
-// rollField is the range an item's stat rolls in: any of the five primary and the sixteen derived.
-func rollField(r *gamedata.Rolls, name string) *gamedata.Range {
+// setField is one stat of a StatSet, by the name the data files give it: any of the five primary and the sixteen derived.
+func setField[T any](r *gamedata.StatSet[T], name string) *T {
 	if name == "penetration" {
 		return &r.Penetration
 	}
-	primary := gamedata.PerPrimary[*gamedata.Range]{STR: &r.STR, DEX: &r.DEX, INT: &r.INT, AGI: &r.AGI, VIT: &r.VIT}
+	primary := gamedata.PerPrimary[*T]{STR: &r.STR, DEX: &r.DEX, INT: &r.INT, AGI: &r.AGI, VIT: &r.VIT}
 	if p := primaryField(&primary, name); p != nil {
 		return *p
 	}
-	flat := gamedata.Flats[*gamedata.Range]{
+	flat := gamedata.Flats[*T]{
 		PhysicalAttack: &r.PhysicalAttack, MagicAttack: &r.MagicAttack, PhysicalDefense: &r.PhysicalDefense, MagicDefense: &r.MagicDefense,
 		MaxHP: &r.MaxHP, MaxMP: &r.MaxMP, Accuracy: &r.Accuracy, Evasion: &r.Evasion, CritDamage: &r.CritDamage, HPRegen: &r.HPRegen, MPRegen: &r.MPRegen,
 	}
 	if f := flatField(&flat, name); f != nil {
 		return *f
 	}
-	rates := gamedata.Rates[*gamedata.Range]{CritRate: &r.CritRate, AttackSpeed: &r.AttackSpeed, CooldownSpeed: &r.CooldownSpeed, MoveSpeed: &r.MoveSpeed}
+	rates := gamedata.Rates[*T]{CritRate: &r.CritRate, AttackSpeed: &r.AttackSpeed, CooldownSpeed: &r.CooldownSpeed, MoveSpeed: &r.MoveSpeed}
 	if f := rateField(&rates, name); f != nil {
 		return *f
 	}

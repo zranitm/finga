@@ -53,6 +53,28 @@ room_check_every: 2s
 		"chat.yaml": `
 line_max: 120
 `,
+		"skills.yaml": `
+skills:
+  - id: strike
+    kind: active
+    effect: damage
+    damage: physical
+    shape: {kind: melee, width: 64, height: 56}
+    mp: {base: 4, per_point: 0.2}
+    cooldown: 2s
+    power: {base: 1.5, per_point: 0.05}
+    stages:
+      - {at: 0, name: Strike, description: "A strong swing."}
+      - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}}
+      - {at: 25, name: Crushing Blow, description: "Up to three foes.", targets: 3}
+  - id: second_wind
+    kind: passive
+    effect: bonus
+    bonus: {hp_regen: {base: 5, per_point: 1}}
+    stages:
+      - {at: 0, name: Second Wind, description: "Faster regen."}
+      - {at: 10, name: Deep Breath, description: "Faster still.", bonus: {hp_regen: {base: 10}, mp_regen: {base: 10}}}
+`,
 		"classes.yaml": `
 classes:
   - id: beginner
@@ -61,6 +83,7 @@ classes:
     attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 700ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     starter_items: [{item: wooden_sword, quantity: 1}]
+    skills: [strike, second_wind]
   - id: warrior
     name: Warrior
     parent: beginner
@@ -76,6 +99,7 @@ classes:
 `,
 		"stats.yaml": `
 points_per_level: 5
+skill_points_per_level: 5
 per_point:
   str: {physical_attack: 1.5, max_hp: 2}
   dex: {physical_attack: 0.5, magic_attack: 0.5, accuracy: 1, crit_damage: 0.005}
@@ -321,6 +345,36 @@ func TestValidDataLoads(t *testing.T) {
 		b, _ := d.Class("bowman")
 		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic {
 			t.Fatalf("bowman attack = %+v", b.Attack)
+		}
+	})
+	t.Run("skills, each stage resolved from the ones before it", func(t *testing.T) {
+		strike, ok := d.Skill("strike")
+		if !ok || strike.Class != "beginner" || strike.Kind != gamedata.Active || strike.Effect != gamedata.DamageEffect || len(strike.Stages) != 3 {
+			t.Fatalf("strike = %+v", strike)
+		}
+		heavy, crushing := strike.Stages[1], strike.Stages[2]
+		if heavy.Name != "Heavy Strike" || heavy.Power != (gamedata.Scaled{Base: 2.2, PerPoint: 0.05}) || heavy.Shape != strike.Stages[0].Shape || heavy.MP != strike.Stages[0].MP || heavy.Cooldown != 2*time.Second || heavy.Targets != 1 || heavy.Damage != gamedata.Physical {
+			t.Fatalf("Heavy Strike = %+v: want its power's base changed and everything else carried", heavy)
+		}
+		if crushing.Targets != 3 || crushing.Power != heavy.Power {
+			t.Fatalf("Crushing Blow = %+v: want three targets and Heavy Strike's power", crushing)
+		}
+		for points, want := range map[int]int{0: 0, 9: 0, 10: 1, 24: 1, 25: 2, 400: 2} {
+			if got := strike.StageAt(points); got != want {
+				t.Errorf("at %d points, stage %d; want %d", points, got, want)
+			}
+		}
+		wind, _ := d.Skill("second_wind")
+		deep := wind.Stages[1]
+		if wind.Kind != gamedata.Passive || wind.Stages[0].Bonus.HPRegen != (gamedata.Scaled{Base: 5, PerPoint: 1}) ||
+			deep.Bonus.HPRegen != (gamedata.Scaled{Base: 10, PerPoint: 1}) || deep.Bonus.MPRegen != (gamedata.Scaled{Base: 10}) {
+			t.Fatalf("second wind = %+v", wind)
+		}
+		if got := (gamedata.Scaled{Base: 1.5, PerPoint: 0.05}).At(10); got != 2 {
+			t.Fatalf("1.5 + 0.05 a point at 10 points = %v", got)
+		}
+		if r := d.StatRules(); r.SkillPointsPerLevel != 5 {
+			t.Fatalf("skill points per level %d", r.SkillPointsPerLevel)
 		}
 	})
 	t.Run("a class fits its own items, its ancestors' and classless ones", func(t *testing.T) {
@@ -670,6 +724,24 @@ func TestRejections(t *testing.T) {
 		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},
 		{"an NPC with an empty line", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [\"\"]\n", []string{"npcs.yaml", "hunter", "line"}},
 		{"an NPC saying a line twice", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [Hi., Hi.]\n", []string{"npcs.yaml", "hunter", "twice"}},
+		{"skill points per level below one", "stats.yaml", `skill_points_per_level: 5`, `skill_points_per_level: 0`, []string{"stats.yaml", "skill_points_per_level"}},
+		{"a class teaching a skill skills.yaml doesn't have", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike, second_wind, fireball]`, []string{"classes.yaml", "fireball"}},
+		{"a skill no class teaches", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike]`, []string{"skills.yaml", "second_wind", "teaches"}},
+		{"a skill two classes teach", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    skills: [strike]\n", []string{"classes.yaml", "strike", "beginner", "warrior"}},
+		{"a passive skill with a cooldown", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    cooldown: 2s\n", []string{"skills.yaml", "second_wind", "cooldown"}},
+		{"an active skill with a passive effect", "skills.yaml", "    effect: damage\n", "    effect: bonus\n", []string{"skills.yaml", "strike", "effect"}},
+		{"an active skill without a cost", "skills.yaml", "    mp: {base: 4, per_point: 0.2}\n", "", []string{"skills.yaml", "strike", "mp"}},
+		{"a damage skill without power", "skills.yaml", "    power: {base: 1.5, per_point: 0.05}\n", "", []string{"skills.yaml", "strike", "power"}},
+		{"a damage skill without a damage type", "skills.yaml", "    damage: physical\n    shape", "    shape", []string{"skills.yaml", "strike", "damage type"}},
+		{"a melee shape with a range", "skills.yaml", "shape: {kind: melee, width: 64, height: 56}", "shape: {kind: melee, width: 64, height: 56, range: 300}", []string{"skills.yaml", "strike", "melee"}},
+		{"a shape of an unknown kind", "skills.yaml", "shape: {kind: melee, width: 64, height: 56}", "shape: {kind: cone, width: 64, height: 56}", []string{"skills.yaml", "strike", "cone"}},
+		{"stages whose totals don't rise", "skills.yaml", "{at: 25, name: Crushing Blow", "{at: 10, name: Crushing Blow", []string{"skills.yaml", "strike", "Crushing Blow", "rise"}},
+		{"a first stage above 0 points", "skills.yaml", "{at: 0, name: Strike,", "{at: 1, name: Strike,", []string{"skills.yaml", "strike", "0 points"}},
+		{"a stage without a description", "skills.yaml", `description: "A harder swing."`, `description: ""`, []string{"skills.yaml", "strike", "description"}},
+		{"a stage giving targets to a passive", "skills.yaml", `{at: 10, name: Deep Breath, description: "Faster still.",`, `{at: 10, name: Deep Breath, description: "Faster still.", targets: 2,`, []string{"skills.yaml", "second_wind", "Deep Breath", "targets"}},
+		{"a bonus to an unknown stat", "skills.yaml", "bonus: {hp_regen: {base: 5, per_point: 1}}", "bonus: {luck: {base: 5}}", []string{"skills.yaml", "second_wind", "luck"}},
+		{"a bonus that takes away", "skills.yaml", "bonus: {hp_regen: {base: 5, per_point: 1}}", "bonus: {hp_regen: {base: -5}}", []string{"skills.yaml", "second_wind", "takes away"}},
+		{"a passive without a bonus", "skills.yaml", "    bonus: {hp_regen: {base: 5, per_point: 1}}\n", "", []string{"skills.yaml", "second_wind", "bonus"}},
 		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: bowman`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
 		{"a trainer of the root, which nobody is promoted to", "npcs.yaml", `trainer: bowman`, `trainer: beginner`, []string{"npcs.yaml", "hunter", "beginner"}},
 		{"a talk reach of zero", "npcs.yaml", `talk_reach: 60`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
@@ -906,6 +978,25 @@ func TestRealDataLoads(t *testing.T) {
 		}
 		if d.StartClass().ID != "beginner" || !slices.Equal(children, []kernel.Class{"warrior", "thief", "bowman", "magician"}) {
 			t.Fatalf("root %s, children %v", d.StartClass().ID, children)
+		}
+	})
+	t.Run("the Beginner teaches Strike, Throw, Spark and Second Wind, each evolving at 10 points, the actives again at 25", func(t *testing.T) {
+		if got := d.StartClass().Skills; !slices.Equal(got, []string{"strike", "throw", "spark", "second_wind"}) {
+			t.Fatalf("beginner skills %v", got)
+		}
+		for _, id := range d.StartClass().Skills {
+			s, _ := d.Skill(id)
+			want := []int{0, 10, 25}
+			if s.Kind == gamedata.Passive {
+				want = want[:2]
+			}
+			var got []int
+			for _, st := range s.Stages {
+				got = append(got, st.At)
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("%s evolves at %v, want %v", id, got, want)
+			}
 		}
 	})
 	t.Run("the EXP curve is round(20 × level^1.7)", func(t *testing.T) {

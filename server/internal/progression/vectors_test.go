@@ -20,7 +20,7 @@ var update = flag.Bool("update", false, "rewrite the expected sheets in testdata
 
 const vectorsDir = "../../testdata/stats"
 
-// vector is one file: a character's class, level, points spent and gear, with the sheet they make under data/.
+// vector is one file: a character's class, level, points spent, gear and skill points, with the sheet they make under data/.
 type vector struct {
 	Name     string                `json:"name"`
 	Notes    string                `json:"notes,omitempty"`
@@ -28,6 +28,7 @@ type vector struct {
 	Level    int                   `json:"level"`
 	Points   gamedata.Stats        `json:"points"`
 	Worn     progression.ItemStats `json:"worn"`
+	Skills   map[string]int        `json:"skills,omitempty"` // points per skill
 	Expected progression.Sheet     `json:"expected"`
 }
 
@@ -35,7 +36,7 @@ type vector struct {
 var requiredStatVectors = []string{
 	"warrior-level-1", "warrior-level-10-auto-assigned", "bowman-level-1", "bowman-level-20-spread",
 	"warrior-every-stat-worn", "bowman-rates-at-their-limits", "magic-build",
-	"beginner-level-1", "thief-level-15-auto-assigned", "magician-level-15-auto-assigned",
+	"beginner-level-1", "thief-level-15-auto-assigned", "magician-level-15-auto-assigned", "beginner-second-wind-evolved",
 }
 
 func TestStatVectors(t *testing.T) {
@@ -56,17 +57,26 @@ func TestStatVectors(t *testing.T) {
 			if _, ok := data.Class(v.Class); !ok {
 				t.Fatalf("class %q", v.Class)
 			}
-			got := progression.SheetOf(data.StatRules(), v.Class, v.Level, progression.AddStats(data.StartClass().BaseStats, v.Points), v.Worn)
+			var learned []progression.Learned
+			for id, points := range v.Skills {
+				s, ok := data.Skill(id)
+				if !ok {
+					t.Fatalf("skill %q", id)
+				}
+				learned = append(learned, progression.Learned{Skill: s, Points: points})
+			}
+			got := progression.SheetOf(data.StatRules(), v.Class, v.Level, progression.AddStats(data.StartClass().BaseStats, v.Points), v.Worn, progression.Passives(learned))
 			if *update {
 				v.Expected = got
 				saveVector(t, file, v)
 				return
 			}
-			if got.Primary != v.Expected.Primary || got.PrimaryWorn != v.Expected.PrimaryWorn {
-				t.Fatalf("primary %+v and worn %+v, want %+v and %+v", got.Primary, got.PrimaryWorn, v.Expected.Primary, v.Expected.PrimaryWorn)
+			if got.Primary != v.Expected.Primary || got.PrimaryWorn != v.Expected.PrimaryWorn || got.PrimarySkills != v.Expected.PrimarySkills {
+				t.Fatalf("primary %+v, worn %+v and skills %+v, want %+v, %+v and %+v", got.Primary, got.PrimaryWorn, got.PrimarySkills, v.Expected.Primary, v.Expected.PrimaryWorn, v.Expected.PrimarySkills)
 			}
 			assertDerived(t, got.Derived, v.Expected.Derived)
 			assertDerived(t, got.DerivedWorn, v.Expected.DerivedWorn)
+			assertDerived(t, got.DerivedSkills, v.Expected.DerivedSkills)
 		})
 	}
 	for _, name := range requiredStatVectors {
