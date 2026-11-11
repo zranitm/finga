@@ -10,7 +10,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/pkg/panics"
 	"finga/services/world/internal/application/itemcalls"
@@ -57,7 +57,7 @@ func (alone) Epoch() uint64                                    { return 0 }
 // A Leave whose caller stopped waiting still lands, and the registry forgets the presence, so it holds only players on a map.
 func TestALeaveItsCallerGaveUpOnStillClearsTheRegistry(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data, err := gamedata.Load("../../../../../data")
+		data, err := load.Dir("../../../../../data")
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -12,6 +12,7 @@ import (
 	"pgregory.net/rapid"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/pkg/uuidv7"
@@ -219,7 +220,7 @@ func TestARollOutsideTodaysRangesStillHolds(t *testing.T) {
 }
 
 func TestInventoryProperties(t *testing.T) {
-	data, err := gamedata.Load("../../../../data")
+	data, err := load.Dir("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

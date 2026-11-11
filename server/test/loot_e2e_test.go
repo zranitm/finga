@@ -18,7 +18,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/protocol"
 	"finga/pkg/uuidv7"
 	"finga/pkg/wsconn"
@@ -397,7 +397,7 @@ func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 
 func (s *stack) checkInvariants(t *testing.T) {
 	t.Helper()
-	data, err := gamedata.Load(s.data)
+	data, err := load.Dir(s.data)
 	if err != nil {
 		t.Fatal(err)
 	}

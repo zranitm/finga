@@ -25,6 +25,7 @@ import (
 
 	clientv1 "finga/api/gen/client/v1"
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/protocol"
 	"finga/pkg/wsconn"
@@ -46,7 +47,7 @@ func main() {
 }
 
 func run(url, metrics, itemMetrics, dataDir string, n int, duration time.Duration, prefix string) error {
-	data, err := gamedata.Load(dataDir)
+	data, err := load.Dir(dataDir)
 	if err != nil {
 		return err
 	}

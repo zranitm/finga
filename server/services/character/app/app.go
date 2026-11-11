@@ -9,7 +9,7 @@ import (
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/host"
 	"finga/services/character/config"
 	"finga/services/character/internal/application"
@@ -20,7 +20,7 @@ import (
 
 // Build wires the character service from cfg.
 func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *prometheus.Registry) (*host.Host, error) {
-	data, err := gamedata.Load(cfg.DataDir)
+	data, err := load.Dir(cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}

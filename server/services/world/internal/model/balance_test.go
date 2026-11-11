@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/internal/progression"
 	"finga/services/world/internal/model"
@@ -163,7 +164,7 @@ func mapMobs(d *gamedata.Data, m *gamedata.Map) (normal, elite []gamedata.Mob) {
 
 // Every hunting map's mobs against an on-level warrior and bowman, held to their region's targets from A on; the table is logged for tuning.
 func TestBalance(t *testing.T) {
-	d, err := gamedata.Load(realData)
+	d, err := load.Dir(realData)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/kernel"
 	"finga/services/character/internal/application"
 	"finga/services/character/internal/model"
@@ -17,7 +17,7 @@ import (
 // Concurrent creates for one account count one by one, so the cap holds under a race.
 func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 	ctx := context.Background()
-	data, err := gamedata.Load("../../../../data")
+	data, err := load.Dir("../../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}

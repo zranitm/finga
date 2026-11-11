@@ -1,9 +1,10 @@
-package gamedata_test
+package load_test
 
 import (
 	"testing"
 
 	"finga/internal/gamedata"
+	"finga/internal/gamedata/load"
 	"finga/internal/sim"
 )
 
@@ -44,7 +45,7 @@ func platformNamed(t *testing.T, m *gamedata.Map, x, y float64) int {
 
 // The bats fly over the pillar, past the cave's only way in: from the entrance a player walks over the stalagmite, climbs the floor rope to the shelf and the shelf rope above it, and drops onto the pillar.
 func TestTheCaveBatsCanBeReachedFromItsEntrance(t *testing.T) {
-	data, err := gamedata.Load("../../data")
+	data, err := load.Dir("../../../data")
 	if err != nil {
 		t.Fatal(err)
 	}
