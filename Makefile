@@ -3,6 +3,8 @@ GO        ?= go
 SERVER    ?= server
 COVER_MIN ?= 80
 COMPOSE   ?= docker compose -f infra/docker-compose.yml
+# The observability stack as its own Compose project, finga-obs; its host port comes from infra/.env too.
+OBS_COMPOSE ?= docker compose -f infra/obs/compose.yml -f infra/obs/standalone.yml $(if $(wildcard infra/.env),--env-file infra/.env)
 SMOKE_URL ?= http://localhost:8080
 EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9104
@@ -14,17 +16,19 @@ VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/nul
 .PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
 
 # OBS=1 also runs the observability stack and sends it the services' traces: Grafana at http://localhost:3000.
-OBSERVED = $(if $(OBS),COMPOSE_PROFILES=obs FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
+OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
 
 up:            ## everything in Docker: Postgres, the migrations, the six services, and the client on :4173 (nginx, /api and /ws to the gateway); OBS=1 adds Grafana, Mimir, Loki and Tempo
-	VERSION=$(VERSION) $(OBSERVED) $(COMPOSE) build
+	VERSION=$(VERSION) $(COMPOSE) build
 	$(COMPOSE) stop # the game alone first, so a running obs stack still collects its last logs and spans
-	$(if $(OBS),,COMPOSE_PROFILES=obs $(COMPOSE) stop)
-	$(OBSERVED) $(COMPOSE) up -d
+	$(if $(OBS),,$(OBS_COMPOSE) stop)
+	$(OBSERVED) $(COMPOSE) up -d --remove-orphans # orphans: obs containers from when the stack was in this project
+	$(if $(OBS),$(OBS_COMPOSE) up -d # after the game: Alloy joins its network)
 	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); the gateway: http://localhost:$$($(COMPOSE) port gateway 8080 | sed 's|.*:||')"
 
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
-	COMPOSE_PROFILES=obs $(COMPOSE) down -v --remove-orphans
+	$(OBS_COMPOSE) down -v --remove-orphans # first: Alloy holds a place on the game's network
+	$(COMPOSE) down -v --remove-orphans
 
 # run exports server/.env as Compose's env_file does; the services stop with the gateway on Ctrl-C.
 SERVICES ?= account character item social world

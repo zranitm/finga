@@ -1,7 +1,8 @@
-# The observability stack, under the obs profile (make up OBS=1): Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
+# The observability stack: Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
+# make up OBS=1 runs it as its own Compose project with standalone.yml; production runs it in the game's project (../deploy/obs.prod.yml).
+
 services:
   alloy:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/alloy:v1.21.0
     command: [run, /etc/alloy/config.alloy, --storage.path=/var/lib/alloy/data]
@@ -12,7 +13,6 @@ services:
     depends_on: [mimir, loki, tempo]
 
   mimir:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/mimir:3.2.2
     command: [-config.file=/etc/mimir.yaml]
@@ -21,7 +21,6 @@ services:
       - mimir-data:/data
 
   loki:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/loki:3.7.9
     command: [-config.file=/etc/loki.yaml]
@@ -30,7 +29,6 @@ services:
       - loki-data:/loki
 
   tempo:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/tempo:3.1.1
     command: [-target=all, -config.file=/etc/tempo.yaml]
@@ -40,7 +38,6 @@ services:
       - tempo-data:/var/tempo
 
   grafana:
-    profiles: [obs]
     restart: unless-stopped
     image: grafana/grafana:13.2.4
     ports:

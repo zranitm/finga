@@ -1,0 +1,11 @@
+# make up OBS=1: the observability stack as its own Compose project, so Docker Desktop starts and stops it as one group.
+name: finga-obs
+
+services:
+  alloy:
+    networks: [default, game]   # game: it scrapes the services, and they send it their traces
+
+networks:
+  game:
+    name: finga_default   # the game's network, named in ../docker-compose.yml; make up starts the game first
+    external: true
