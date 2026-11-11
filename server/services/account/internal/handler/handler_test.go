@@ -9,19 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/sentineltest"
 	"finga/pkg/transient"
-	"finga/pkg/uuidv7"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
 	"finga/services/account/internal/model"
@@ -33,8 +30,8 @@ type fakeAccounts struct {
 	register  application.RegisterInput
 	login     application.LoginInput
 	token     string
-	session   uuid.UUID
-	accountID uuid.UUID
+	session   kernel.SessionID
+	accountID kernel.AccountID
 	updated   model.Settings
 	settingOf kernel.AccountID
 	err       error
@@ -42,8 +39,8 @@ type fakeAccounts struct {
 }
 
 var (
-	accountID = uuidv7.New()
-	sessionID = uuidv7.New()
+	accountID = kernel.NewAccountID()
+	sessionID = kernel.NewSessionID()
 	created   = time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
 )
 
@@ -51,7 +48,7 @@ func (f *fakeAccounts) call() error { f.mu.Lock(); defer f.mu.Unlock(); f.calls+
 
 func (f *fakeAccounts) Register(_ context.Context, in application.RegisterInput) (model.Account, error) {
 	f.register = in
-	return model.Account{ID: kernel.AccountID(accountID), Username: in.Username, Settings: model.DefaultSettings(), CreatedAt: created}, f.call()
+	return model.Account{ID: accountID, Username: in.Username, Settings: model.DefaultSettings(), CreatedAt: created}, f.call()
 }
 
 func (f *fakeAccounts) Login(_ context.Context, in application.LoginInput) (string, error) {
@@ -59,21 +56,27 @@ func (f *fakeAccounts) Login(_ context.Context, in application.LoginInput) (stri
 	return "tok-1", f.call()
 }
 
-func (f *fakeAccounts) Validate(_ context.Context, token string) (auth.Principal, error) {
+func (f *fakeAccounts) Validate(_ context.Context, token string) (model.Principal, error) {
 	f.token = token
-	return auth.Principal{AccountID: accountID, SessionID: sessionID}, f.call()
+	return model.Principal{AccountID: accountID, SessionID: sessionID}, f.call()
 }
 
-func (f *fakeAccounts) Rotate(_ context.Context, id uuid.UUID) (string, error) {
+func (f *fakeAccounts) Rotate(_ context.Context, id kernel.SessionID) (string, error) {
 	f.session = id
 	return "tok-2", f.call()
 }
 
-func (f *fakeAccounts) Check(_ context.Context, id uuid.UUID) error { f.session = id; return f.call() }
+func (f *fakeAccounts) Check(_ context.Context, id kernel.SessionID) error {
+	f.session = id
+	return f.call()
+}
 
-func (f *fakeAccounts) Revoke(_ context.Context, id uuid.UUID) error { f.session = id; return f.call() }
+func (f *fakeAccounts) Revoke(_ context.Context, id kernel.SessionID) error {
+	f.session = id
+	return f.call()
+}
 
-func (f *fakeAccounts) RevokeAll(_ context.Context, id uuid.UUID) error {
+func (f *fakeAccounts) RevokeAll(_ context.Context, id kernel.AccountID) error {
 	f.accountID = id
 	return f.call()
 }
@@ -147,7 +150,7 @@ func TestEachCallMapsItsFields(t *testing.T) {
 	})
 	t.Run("GetSettings", func(t *testing.T) {
 		res, err := c.GetSettings(ctx, &accountv1.GetSettingsRequest{AccountId: accountID.String()})
-		if err != nil || res.GetSettings().GetControlPreset() != "wasd" || !res.GetSettings().GetAutoAssignPoints() || !res.GetSettings().GetChatPinned() || f.settingOf != kernel.AccountID(accountID) {
+		if err != nil || res.GetSettings().GetControlPreset() != "wasd" || !res.GetSettings().GetAutoAssignPoints() || !res.GetSettings().GetChatPinned() || f.settingOf != accountID {
 			t.Fatalf("res %+v err %v", res, err)
 		}
 	})
@@ -155,7 +158,7 @@ func TestEachCallMapsItsFields(t *testing.T) {
 		if _, err := c.UpdateSettings(ctx, &accountv1.UpdateSettingsRequest{AccountId: accountID.String(), Settings: &accountv1.Settings{ControlPreset: "wasd", AutoAssignPoints: true, ChatPinned: true}}); err != nil {
 			t.Fatal(err)
 		}
-		if f.updated != (model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true, ChatPinned: true}) || f.settingOf != kernel.AccountID(accountID) {
+		if f.updated != (model.Settings{ControlPreset: model.PresetWASD, AutoAssignPoints: true, ChatPinned: true}) || f.settingOf != accountID {
 			t.Fatalf("updated %+v for %v", f.updated, f.settingOf)
 		}
 	})
