@@ -5,6 +5,8 @@ import type { Marker, Npc } from '@/progression/quests';
 import { ART_SCALE, TEX } from '../keys';
 import type { TextureKey } from '../keys';
 
+import { NAME_TAG_ABOVE } from './name-tag';
+
 interface NpcArt {
   readonly texture: TextureKey;
   readonly tint: number;
@@ -24,7 +26,6 @@ export function npcArt(look: string): NpcArt {
   return looks[look] ?? fallback;
 }
 
-const LABEL_ABOVE = 70;
 const MARKER_ABOVE = 88;
 
 /** What each marker shows: a quest to hand in, one to take, one under way. */
@@ -48,7 +49,7 @@ export class NpcView {
       .setScale(ART_SCALE)
       .setTint(art.tint);
     this.label = scene.add
-      .text(npc.x, npc.y - LABEL_ABOVE, npc.name, {
+      .text(npc.x, npc.y - NAME_TAG_ABOVE, npc.name, {
         fontSize: '12px',
         color: '#ffe8a8',
         fontFamily: 'sans-serif',

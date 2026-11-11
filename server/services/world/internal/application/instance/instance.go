@@ -54,7 +54,7 @@ type Deps struct {
 	Data   *gamedata.Data
 	Saves  Checkpoints
 	Mover  Mover
-	Logger *slog.Logger // what the map's work off the tick, such as a grant call, can only tell the log
+	Logger *slog.Logger // the map's log: for the tick, such as a rescued fall, and for work off it with no one else to tell, such as a grant call
 }
 
 // Instance is one map's actor; only its tick goroutine touches its state.

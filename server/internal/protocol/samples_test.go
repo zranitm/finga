@@ -96,7 +96,6 @@ func samples() []wsconn.Message {
 		}},
 		{Type: "Snapshot", Tick: 81234, Data: &clientv1.Snapshot{Players: []*clientv1.PlayerView{player()}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}}},
 		{Type: "Delta", Tick: 81235, Data: &clientv1.Delta{AckSeq: 117, Players: []*clientv1.PlayerView{player(), hurt}, Mobs: []*clientv1.MobView{mob()}, Drops: []*clientv1.DropView{drop()}, RemovedPlayers: []string{charC}, RemovedMobs: []uint32{6}, RemovedDrops: []uint32{11}, CollectedDrops: []uint32{10}}},
-		{Type: "Correction", Tick: 81235, Data: &clientv1.Correction{Seq: 117, X: 416, Y: 608, OnGround: true}},
 		{Type: "Damage", Tick: 81235, Data: &clientv1.Damage{Source: "p:" + charA, Target: "m:7", Amount: 23, Crit: true}},
 		{Type: "Died", Tick: 81236, Data: &clientv1.Died{CharacterId: charA, X: 500, Y: 608}},
 		{Type: "Respawned", Tick: 81296, Data: &clientv1.Respawned{CharacterId: charA, MapId: "town", X: 416, Y: 608, Hp: 125}},

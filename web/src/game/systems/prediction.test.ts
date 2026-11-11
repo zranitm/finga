@@ -181,17 +181,6 @@ describe('Predictor', () => {
     expect(pred.history.size).toBe(0);
   });
 
-  it('a Correction resets to its state and replays the inputs after its seq', () => {
-    const pred = new Predictor(g, TIMING);
-    pred.reset(wire(start));
-    const states = run(pred, script);
-    const server = { ...wire(states[7]!), x: states[7]!.x + 30 };
-    pred.correct(server, 8);
-    const fresh = simulate(fromWire(server, g), script.slice(8));
-    expect(pred.state).toEqual(fresh[fresh.length - 1]);
-    expect([...pred.history].map((e) => e.seq)[0]).toBe(9);
-  });
-
   it('server states computed by running sim/step 3 times per tick over the sent inputs never trigger a reset', () => {
     const pred = new Predictor(g, TIMING);
     pred.reset(wire(start));

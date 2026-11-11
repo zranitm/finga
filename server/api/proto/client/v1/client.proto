@@ -41,6 +41,10 @@ message ClientMessage {
 
 // ServerMessage is one frame to the browser.
 message ServerMessage {
+  // 5 was Correction, which the server never sent: a Delta's state and ack_seq correct the client.
+  reserved 5;
+  reserved "correction";
+
   // The req of the command a Response answers.
   string req = 1;
   // The map instance's tick for world events; 32 bits last 6.8 years at 20 Hz.
@@ -48,7 +52,6 @@ message ServerMessage {
   oneof body {
     Delta delta = 3;
     Damage damage = 4;
-    Correction correction = 5;
     Pong pong = 6;
     Response response = 7;
     InventoryChanged inventory_changed = 8;
@@ -426,17 +429,6 @@ message Delta {
   repeated uint32 removed_drops = 7;
   // Drops that left the ground for their owners' inventories: each flies to its owner.
   repeated uint32 collected_drops = 8;
-}
-
-// Correction tells the client its prediction diverged at seq.
-message Correction {
-  uint32 seq = 1;
-  double x = 2;
-  double y = 3;
-  double vx = 4;
-  double vy = 5;
-  bool on_ground = 6;
-  bool climbing = 7;
 }
 
 // Damage is one resolved hit; source and target are "p:<character id>" or "m:<mob id>".

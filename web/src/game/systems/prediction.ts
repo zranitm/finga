@@ -27,7 +27,7 @@ export interface WireState {
   readonly facing: 1 | -1;
 }
 
-/** A body as the server sends it: a PlayerView, or a Correction with the current facing. */
+/** A body as the server sends it, in a PlayerView. */
 export interface ServerState {
   readonly x: number;
   readonly y: number;
@@ -160,12 +160,6 @@ export class Predictor {
     }
     this.history.retain((e) => e.seq > ackSeq);
     return result;
-  }
-
-  /** Applies unconditionally. */
-  correct(server: WireState, seq: number): void {
-    this.replayFrom(server, seq);
-    this.history.retain((e) => e.seq > seq);
   }
 
   private replayFrom(server: WireState, seq: number): void {
