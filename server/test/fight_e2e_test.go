@@ -60,23 +60,21 @@ func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapsho
 	return p, snap
 }
 
-// dieAmongSlimes walks into the forest's slimes until the player dies, flipping every 1.5 s to stay in their field (x 216..784); it reads no further than Died.
+// dieAmongSlimes walks at the nearest live slime on the player's own level until the player dies, turning only once it is behind; it reads no further than Died.
 func (p *player) dieAmongSlimes(t *testing.T) {
 	t.Helper()
 	right := true
 	seq := uint32(1)
-	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}})
-	flip := time.Now().Add(1500 * time.Millisecond)
+	p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: true}}) // towards the forest's slime field, x 200..800, until a slime shows in a Delta
 	var hits, misses int
 	var me *clientv1.PlayerView
 	mobs := map[uint32]*clientv1.MobView{}
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
-		if time.Now().After(flip) {
-			right = !right
+		if want, ok := towardSlime(me, mobs); ok && want != right {
+			right = want
 			seq++
 			p.send(wsconn.Message{Seq: seq, Data: &clientv1.Input{Right: right, Left: !right}})
-			flip = time.Now().Add(1500 * time.Millisecond)
 		}
 		m, ok := p.read(100 * time.Millisecond)
 		if !ok {
@@ -107,9 +105,29 @@ func (p *player) dieAmongSlimes(t *testing.T) {
 			for _, mv := range d.Mobs {
 				mobs[mv.GetId()] = mv
 			}
+			for _, id := range d.GetRemovedMobs() {
+				delete(mobs, id)
+			}
 		}
 	}
 	t.Fatalf("never died walking into the slimes: %d hits, %d misses, me %+v, mobs %+v", hits, misses, me, mobs)
+}
+
+// towardSlime is which way the nearest live green slime on the player's level is: the branch slimes overhead can't be walked into. It is false with none seen yet, or with one underfoot, so the player walks on through it.
+func towardSlime(me *clientv1.PlayerView, mobs map[uint32]*clientv1.MobView) (right, ok bool) {
+	if me == nil {
+		return false, false
+	}
+	nearest := math.Inf(1)
+	for _, m := range mobs {
+		if dx := m.GetX() - me.GetX(); m.GetType() == "green_slime" && m.GetHp() > 0 && math.Abs(m.GetY()-me.GetY()) < 32 && math.Abs(dx) < math.Abs(nearest) {
+			nearest = dx
+		}
+	}
+	if math.IsInf(nearest, 1) || math.Abs(nearest) < 8 {
+		return false, false
+	}
+	return nearest > 0, true
 }
 
 // attackUntil sends Attack every 850 ms until pred sees a message or d passes.
