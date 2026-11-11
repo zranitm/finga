@@ -24,6 +24,16 @@ func MetricsHandler(reg *prometheus.Registry) http.Handler {
 	return promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})
 }
 
+// Register registers each of cs on reg, stopping at the first that fails, as a second registration on one registry does.
+func Register(reg prometheus.Registerer, cs ...prometheus.Collector) error {
+	for _, c := range cs {
+		if err := reg.Register(c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Namespace prefixes the game's own metrics; the libraries' (grpc_, go_, process_) keep their standard names.
 const Namespace = "finga"
 

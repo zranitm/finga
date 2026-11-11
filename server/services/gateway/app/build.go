@@ -14,7 +14,6 @@ import (
 	socialv1 "finga/api/gen/social/v1"
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/host"
-	"finga/internal/telemetry"
 	"finga/pkg/uuidv7"
 	"finga/services/gateway/config"
 	"finga/services/gateway/internal/application"
@@ -26,6 +25,7 @@ import (
 	"finga/services/gateway/internal/handler/api"
 	"finga/services/gateway/internal/handler/ws"
 	"finga/services/gateway/internal/handler/ws/receive"
+	"finga/services/gateway/internal/metrics"
 )
 
 // The players' listener's name, as the logs show it.
@@ -37,7 +37,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	metrics, err := telemetry.NewGatewayMetrics(reg)
+	meters, err := metrics.New(reg)
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
@@ -58,7 +58,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	world := clients.NewWorld(worldv1.NewWorldServiceClient(conns.world), log, rec)
 	social := clients.NewSocial(socialv1.NewSocialServiceClient(conns.social), log, rec)
 	items := clients.NewItems(itemv1.NewItemServiceClient(conns.item))
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: metrics}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Items: items, Logger: log, Panics: rec, Traces: h.Traces, Observer: meters}, session.Options{Gateway: uuidv7.NewString(), JoinTimeout: cfg.Sessions.JoinTimeout})
 	sendFlow := send.New(send.Deps{
 		Sessions: guard,
 		Registry: sessions,
@@ -66,7 +66,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Items:    items,
 		Social:   social,
 		Logger:   log,
-		Observer: metrics,
+		Observer: meters,
 	}, send.Options{JoinTimeout: cfg.Sessions.JoinTimeout})
 	pushFlow := push.New(push.Deps{
 		Sessions: guard,
@@ -81,7 +81,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		API: api.Mount(api.Dependencies{Lobby: lobby, Logger: log, CORSOrigins: cfg.HTTP.CORSOrigins, Panics: rec, Traces: h.Traces}),
 		Gateway: ws.New(sendFlow, ws.Options{
 			Origins: cfg.HTTP.CORSOrigins, HelloTimeout: cfg.WS.HelloTimeout, CommandQueue: cfg.WS.CommandQueue,
-			Observer: metrics, Logger: log, Panics: rec, Traces: h.Traces,
+			Observer: meters, Logger: log, Panics: rec, Traces: h.Traces,
 		}),
 	}))
 	h.Task("streams", pushFlow.Run)

@@ -16,7 +16,6 @@ import (
 	worldv1 "finga/api/gen/world/v1"
 	"finga/internal/gamedata/load"
 	"finga/internal/host"
-	"finga/internal/telemetry"
 	"finga/pkg/uuidv7"
 	"finga/services/world/config"
 	"finga/services/world/internal/application/itemcalls"
@@ -25,6 +24,7 @@ import (
 	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/clients"
 	"finga/services/world/internal/handler"
+	"finga/services/world/internal/metrics"
 	"finga/services/world/internal/model"
 )
 
@@ -51,7 +51,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		return nil, err
 	}
 	rec := h.Panics
-	metrics, err := telemetry.NewWorldMetrics(reg, world.DropReasons())
+	meters, err := metrics.New(reg, world.DropReasons())
 	if err != nil {
 		return nil, fmt.Errorf("metrics: %w", err)
 	}
@@ -79,15 +79,15 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	maps := world.New(world.Deps{
 		Data:         data,
 		NewRoll:      newRoll,
-		Observer:     metrics,
+		Observer:     meters,
 		Items:        clients.NewLoot(items),
-		Batches:      metrics,
+		Batches:      meters,
 		Equipment:    equipment,
 		HandIns:      equipment,
 		Potions:      equipment,
 		HandedIns:    equipment,
 		Wardrobe:     equipment,
-		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: metrics, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
+		ItemCalls:    itemcalls.NewPool(itemcalls.Deps{Observer: meters, Panics: rec}, itemcalls.Options{Workers: cfg.ItemCalls.Workers}),
 		Parties:      parties,
 		Traces:       h.Traces,
 		Saver:        clients.NewSaver(characters),
@@ -95,7 +95,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 		Starter:      clients.NewStarter(items),
 		Panics:       rec,
 		Logger:       log,
-		SaveObserver: metrics,
+		SaveObserver: meters,
 	}, world.Tuning{TickInterval: cfg.TickInterval(), CheckpointInterval: cfg.CheckpointInterval, FlushTimeout: cfg.FlushTimeout, BatchMax: cfg.ItemCalls.BatchMax})
 	h.Task("parties", parties.Run)
 	h.Task("world", maps.Run)

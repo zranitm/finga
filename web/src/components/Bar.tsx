@@ -7,6 +7,7 @@ export interface BarProps {
   readonly text?: string;
 }
 
+/** A label too long for the bar, such as a party member's name, ends in an ellipsis; the numbers always show. */
 export function Bar({ label, value, max, kind, text }: BarProps) {
   const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
   return (
@@ -20,7 +21,10 @@ export function Bar({ label, value, max, kind, text }: BarProps) {
     >
       <div className="bar-fill" style={{ width: `${(ratio * 100).toFixed(1)}%` }} />
       <span className="bar-text">
-        {label} {text ?? `${value} / ${max}`}
+        <span className="bar-label" title={label}>
+          {label}
+        </span>{' '}
+        <span className="bar-value">{text ?? `${value} / ${max}`}</span>
       </span>
     </div>
   );

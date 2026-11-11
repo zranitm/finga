@@ -55,6 +55,8 @@ linters:
               desc: test support; only tests import it
             - pkg: finga/pkg/sentineltest
               desc: test support; only tests import it
+            - pkg: finga/pkg/observability/promtest
+              desc: test support; only tests import it
             - pkg: finga/services/item/itemtest
               desc: test support; only tests import it
             - pkg: finga/services/world/worldtest
@@ -73,8 +75,8 @@ linters:
               desc: the shared kernel is code both sides run, never a contract type
             - pkg: finga/internal/protocol
               desc: the shared kernel is below protocol
-            - pkg: finga/internal/telemetry
-              desc: the shared kernel is below telemetry
+            - pkg: github.com/prometheus/client_golang
+              desc: the shared kernel records no metrics; the services and the libraries' observers do
             - pkg: finga/internal/host
               desc: the shared kernel takes plain values, never configuration or the host
             - pkg: google.golang.org/grpc
@@ -89,7 +91,7 @@ linters:
               desc: the shared kernel knows no database
         # A service's inner layers are business logic; only its handler and clients speak the contracts.
         modules:
-          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**"]
+          files: ["**/services/*/internal/**", "!**/services/*/internal/handler/**", "!**/services/*/internal/clients/**", "!**/services/*/internal/metrics/**"]
           deny:
             - pkg: google.golang.org/grpc
               desc: a module knows no transport; its handler and clients do
@@ -97,8 +99,10 @@ linters:
               desc: a module knows no transport; its handler and clients do
             - pkg: net/http
               desc: a module knows no transport; its handler speaks HTTP and gives each failure its status
-            - pkg: finga/internal/telemetry
-              desc: a module declares observer interfaces; telemetry implements them
+            - pkg: finga/services/gateway/internal/metrics
+              desc: a module declares observer interfaces; its service's metrics implement them
+            - pkg: finga/services/world/internal/metrics
+              desc: a module declares observer interfaces; its service's metrics implement them
             - pkg: finga/services/account/config
               desc: a module takes option structs; the composition root fills them from configuration
             - pkg: finga/services/character/config
@@ -438,7 +442,7 @@ linters:
             - pkg: finga/services/world
               desc: a service reaches another only through its generated client
         support:
-          files: ["**/internal/telemetry/**", "**/internal/protocol/**", "**/internal/host/**"]
+          files: ["**/internal/protocol/**", "**/internal/host/**"]
           deny:
             - pkg: finga/services
               desc: support packages never import a service

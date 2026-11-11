@@ -9,8 +9,8 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
-	"finga/internal/telemetry"
 	"finga/pkg/retention"
+	"finga/pkg/retention/retentionprom"
 	"finga/pkg/uuidv7"
 	"finga/services/account/config"
 	"finga/services/account/internal/application"
@@ -25,7 +25,7 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	if err != nil {
 		return nil, err
 	}
-	retentionMetrics, err := telemetry.NewRetentionMetrics(reg)
+	retentionMetrics, err := retentionprom.New(reg)
 	if err != nil {
 		return nil, err
 	}
