@@ -24,7 +24,7 @@ discovery.docker "finga" {
   host = "unix:///var/run/docker.sock"
   filter {
     name   = "label"
-    values = ["com.docker.compose.project=finga"]
+    values = [string.format("com.docker.compose.project=%s", coalesce(sys.env("FINGA_GAME_PROJECT"), "finga"))] // the game's: finga, or a second local stack's
   }
 }
 

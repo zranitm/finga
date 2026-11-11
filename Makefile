@@ -2,9 +2,11 @@
 GO        ?= go
 SERVER    ?= server
 COVER_MIN ?= 80
-COMPOSE   ?= docker compose -f infra/docker-compose.yml
-# The observability stack as its own Compose project, finga-obs; its host port comes from infra/.env too.
-OBS_COMPOSE ?= docker compose -f infra/obs/compose.yml -f infra/obs/standalone.yml $(if $(wildcard infra/.env),--env-file infra/.env)
+# The game's Compose project: finga, or COMPOSE_PROJECT_NAME for a second stack beside it (infra/README.md).
+GAME_PROJECT ?= $(or $(COMPOSE_PROJECT_NAME),finga)
+COMPOSE   ?= docker compose -p $(GAME_PROJECT) -f infra/docker-compose.yml
+# The observability stack as its own Compose project, <game>-obs, on the game's network; its host port comes from infra/.env too.
+OBS_COMPOSE ?= FINGA_GAME_PROJECT=$(GAME_PROJECT) docker compose -p $(GAME_PROJECT)-obs -f infra/obs/compose.yml -f infra/obs/standalone.yml $(if $(wildcard infra/.env),--env-file infra/.env)
 SMOKE_URL ?= http://localhost:8080
 EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9104
@@ -13,7 +15,7 @@ NPM       ?= npm --prefix web
 # The build's version, which logs and spans carry: the nearest tag and the commits since, or the commit alone.
 VERSION   ?= $(shell git describe --tags --always --dirty --abbrev=12 2>/dev/null || echo dev)
 
-.PHONY: up down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
+.PHONY: up config down run test test-go test-web test-service cover cover-go cover-web lint lint-go lint-web breaking gen smoke edge bots
 
 # OBS=1 also runs the observability stack and sends it the services' traces: Grafana at http://localhost:3000.
 OBSERVED = $(if $(OBS),FINGA_TRACING_OTLP_ENDPOINT=alloy:4317)
@@ -25,6 +27,10 @@ up:            ## everything in Docker: Postgres, the migrations, the six servic
 	$(OBSERVED) $(COMPOSE) up -d --remove-orphans # orphans: obs containers from when the stack was in this project
 	$(if $(OBS),$(OBS_COMPOSE) up -d # after the game: Alloy joins its network)
 	@echo "the game: http://localhost:$$($(COMPOSE) port web 80 | sed 's|.*:||') (or this machine's LAN address); the gateway: http://localhost:$$($(COMPOSE) port gateway 8080 | sed 's|.*:||')"
+
+config:        ## print the Compose configuration make up runs (FORMAT=json for JSON); OBS=1 adds the obs stack's
+	$(COMPOSE) config --format $(or $(FORMAT),yaml)
+	$(if $(OBS),$(OBS_COMPOSE) config --format $(or $(FORMAT),yaml))
 
 down:          ## stop everything and drop the database volume (and containers of services the Compose file no longer has)
 	$(OBS_COMPOSE) down -v --remove-orphans # first: Alloy holds a place on the game's network

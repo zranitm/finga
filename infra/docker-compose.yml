@@ -208,9 +208,5 @@ services:
       gateway:
         condition: service_healthy
 
-networks:
-  default:
-    name: finga_default   # named, as the finga-obs project's Alloy joins it
-
 volumes:
   pgdata:
