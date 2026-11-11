@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"maps"
 	"math"
 	"runtime"
 	"strings"
@@ -20,11 +21,40 @@ func TestAWorldRestartKeepsSocketsAndRejoins(t *testing.T) {
 		p, snap := s.join(t, token, id)
 		ls = append(ls, newLooter(p, snap))
 	}
+	s.give(t, ls[0].id, "red_potion", nil) // the item service's alone: no push reaches the client
 	s.world.restart()
 	for _, l := range ls {
-		if !l.pump(10*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
+		var w *clientv1.Welcome
+		if !l.pump(10*time.Second, func(m wsconn.Message) bool {
+			if v, ok := m.Data.(*clientv1.Welcome); ok {
+				w = v
+			}
+			return m.Type == "Snapshot"
+		}) {
 			t.Fatalf("%s got no Snapshot after the restart (closed: %v)", l.id, l.closed(0))
 		}
+		// The rejoin's Welcome, with no token, shows what the services hold, the potion no push told of included.
+		if w == nil || w.GetToken() != "" {
+			t.Fatalf("%s got %v ahead of its Snapshot, want a Welcome with no token", l.id, w)
+		}
+		held := map[string]int{}
+		for _, it := range w.GetInventory() {
+			held[it.GetTemplate()] += int(it.GetQuantity())
+		}
+		if want := s.inventoryTotals(t, l.id); !maps.Equal(held, want) {
+			t.Fatalf("%s is welcomed back with %v, the database holds %v", l.id, held, want)
+		}
+		var level int
+		var exp int64
+		if err := s.db.QueryRow(context.Background(), `SELECT level, exp FROM characters WHERE id = $1`, l.id).Scan(&level, &exp); err != nil {
+			t.Fatal(err)
+		}
+		if c := w.GetCharacter(); int(c.GetLevel()) != level || c.GetExp() != exp {
+			t.Fatalf("%s is welcomed back at level %d with %d EXP, the database holds %d and %d", l.id, c.GetLevel(), c.GetExp(), level, exp)
+		}
+	}
+	if held := s.inventoryTotals(t, ls[0].id); held["red_potion"] == 0 {
+		t.Fatalf("%s holds %v; want the potion given", ls[0].id, held)
 	}
 	gus := ls[0]
 	if err := gus.trySend(wsconn.Message{Data: &clientv1.Ping{ClientTime: 1}}); err != nil {

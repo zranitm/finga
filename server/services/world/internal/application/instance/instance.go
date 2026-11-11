@@ -41,6 +41,7 @@ type Services struct {
 	Items     loot.Items
 	Batches   loot.Observer
 	Equipment Equipment
+	HandIns   HandIns
 	ItemCalls *itemcalls.Pool
 	Traces    trace.TracerProvider // starts each grant call's trace
 }
@@ -65,12 +66,14 @@ type Instance struct {
 	epoch    uint64 // the party stream's subscription the players were last told to
 	tuning   Tuning
 	deps     Services
+	log      *slog.Logger
 	mover    Mover
 	inbox    chan message
 	stopped  chan struct{} // closed once Run has returned: nothing drains the inbox
 	saves    Checkpoints
 	arena    *mobs.Arena
 	ground   *loot.Ground
+	roll     model.Roll // the map's random source, which equipment rewards roll from as drops do
 
 	tick     uint64
 	players  map[kernel.CharacterID]*player
@@ -116,7 +119,7 @@ type (
 	}
 	equippedMsg struct {
 		id     kernel.CharacterID
-		conn   string
+		caller *player // the join that made the call, whose count of calls in flight it ends
 		result model.Equipped
 		err    error
 		done   chan error
@@ -149,7 +152,7 @@ func New(d Deps, t Tuning) *Instance {
 	params := d.Data.Movement()
 	roll := d.NewRoll()
 	i := &Instance{
-		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, mover: d.Mover, saves: d.Saves,
+		m: d.Map, data: d.Data, params: params, tuning: t, deps: d.Services, log: d.Logger, mover: d.Mover, saves: d.Saves,
 		subSteps: max(1, int(math.Round(t.TickInterval.Seconds()/params.Dt))),
 		inputs:   inputTicksAt(t.TickInterval),
 		inbox:    make(chan message, inboxSize),
@@ -157,6 +160,7 @@ func New(d Deps, t Tuning) *Instance {
 		arena:    mobs.NewArena(mobs.Deps{Map: d.Map, Data: d.Data, Roll: roll}, mobs.Tuning{TickInterval: t.TickInterval}),
 		players:  map[kernel.CharacterID]*player{},
 		ticksPer: max(uint64(t.CheckpointInterval/t.TickInterval), 1),
+		roll:     roll,
 	}
 	i.ground = loot.NewGround(loot.Deps{
 		MapID: d.Map.ID, Items: d.Items, ItemCalls: d.ItemCalls, Observer: d.Batches, Traces: d.Traces, Roll: roll, Data: d.Data, Logger: d.Logger, Settle: i.settled,
@@ -276,6 +280,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 		i.settle(s)
 	}
 	i.tellHP()
+	i.tellQuests()
 	for _, id := range i.order {
 		if p := i.players[id]; p.slot == n%i.ticksPer {
 			i.checkpoint(p)
@@ -328,6 +333,12 @@ func (i *Instance) drain() []kernel.CharacterID {
 			i.settleEquip(m)
 		case pointsMsg:
 			i.settlePoints(m)
+		case talkMsg:
+			i.talk(m)
+		case questMsg:
+			i.quest(m)
+		case handedInMsg:
+			i.settleHandIn(m)
 		case chatMsg:
 			if _, ok := i.players[m.from]; ok {
 				i.events = append(i.events, model.Chat{Tick: i.tick, Sender: m.from, SenderName: m.name, Text: m.text})

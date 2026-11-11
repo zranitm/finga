@@ -40,6 +40,7 @@ func (f *fakeCharacters) Load(_ context.Context, id kernel.CharacterID, account 
 	if !ok || c.Account != account {
 		return model.Character{}, errNotYours
 	}
+	c.Quests = c.Quests.Clone() // a fresh copy, as a load over the wire is
 	return c, nil
 }
 

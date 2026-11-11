@@ -17,6 +17,7 @@ const (
 	layerPortals     = "portals"
 	layerSpawns      = "spawns"
 	layerPlayerSpawn = "player_spawn"
+	layerNPCs        = "npcs"
 
 	propKind         = "kind"
 	propTown         = "town"
@@ -27,7 +28,7 @@ const (
 	propRespawn      = "respawn_seconds"
 )
 
-var requiredLayers = []string{layerSolids, layerPlatforms, layerRopes, layerPortals, layerSpawns, layerPlayerSpawn}
+var requiredLayers = []string{layerSolids, layerPlatforms, layerRopes, layerPortals, layerSpawns, layerPlayerSpawn, layerNPCs}
 
 func (d *Data) loadMap(path string) (*Map, error) {
 	file := filepath.Base(path)
@@ -110,8 +111,18 @@ func (d *Data) loadMap(path string) (*Map, error) {
 	if len(spawns) != 1 {
 		return nil, fmt.Errorf("%s: layer %q needs exactly one object, has %d", file, layerPlayerSpawn, len(spawns))
 	}
-	m.PlayerSpawn = Point{X: spawns[0].X + spawns[0].Width/2, Y: spawns[0].Y + spawns[0].Height}
+	m.PlayerSpawn = feet(spawns[0])
+
+	// loadNPCs matches each object to npcs.yaml by its name.
+	for _, o := range layers[layerNPCs].Objects {
+		m.NPCs = append(m.NPCs, Placement{NPC: o.Name, At: feet(o)})
+	}
 	return m, nil
+}
+
+// feet is where an object stands: its bottom centre, which for a point object is the point.
+func feet(o tiled.Object) Point {
+	return Point{X: o.X + o.Width/2, Y: o.Y + o.Height}
 }
 
 func rects(l tiled.Layer) []sim.Rect {

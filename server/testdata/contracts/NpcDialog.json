@@ -1,0 +1,26 @@
+{
+  "npc_dialog": {
+    "npc_id": "town_guide",
+    "gives": [
+      {
+        "quest_id": "slime_cleanup",
+        "state": "QUEST_OFFER_STATE_ACTIVE"
+      },
+      {
+        "quest_id": "sticky_samples",
+        "state": "QUEST_OFFER_STATE_CONDITIONS_UNMET",
+        "unmet": {
+          "level": 2,
+          "quests": [
+            "slime_cleanup"
+          ]
+        }
+      }
+    ],
+    "takes": [
+      {
+        "quest_id": "slime_cleanup"
+      }
+    ]
+  }
+}

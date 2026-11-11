@@ -12,9 +12,9 @@ service CharacterService {
   rpc Create(CreateRequest) returns (CreateResponse);
   // List is an account's characters, oldest first.
   rpc List(ListRequest) returns (ListResponse);
-  // Load is one of the account's characters; someone else's is REASON_CHARACTER_NOT_FOUND.
+  // Load is one of the account's characters, with its quests; someone else's is REASON_CHARACTER_NOT_FOUND.
   rpc Load(LoadRequest) returns (LoadResponse);
-  // SaveCheckpoint saves position, HP, MP and the whole progression; the world saves a level-up with it too.
+  // SaveCheckpoint saves position, HP, MP, the whole progression and every quest; the world saves a level-up with it too.
   rpc SaveCheckpoint(SaveCheckpointRequest) returns (SaveCheckpointResponse);
   // SaveLevelUp saves a level-up. The world no longer calls it; buf's FILE rules keep a published RPC.
   rpc SaveLevelUp(SaveLevelUpRequest) returns (SaveLevelUpResponse) {
@@ -32,6 +32,27 @@ enum Reason {
   REASON_BAD_ID = 6;
   // Never sent: an unknown class answers REASON_CLASS_UNAVAILABLE; buf's FILE rules keep a published value.
   REASON_UNKNOWN_CLASS = 7 [deprecated = true];
+  // A checkpoint's quest with no ID or one listed twice, an unknown status, a negative count, or finished without a completion.
+  REASON_BAD_QUEST = 8;
+}
+
+// QuestStatus is where a character stands with a quest.
+enum QuestStatus {
+  QUEST_STATUS_UNSPECIFIED = 0;
+  // Accepted and not handed in yet.
+  QUEST_STATUS_ACTIVE = 1;
+  // Handed in, and not active again.
+  QUEST_STATUS_FINISHED = 2;
+}
+
+// Quest is a character's state of one quest.
+message Quest {
+  string quest_id = 1;
+  QuestStatus status = 2;
+  // One count per objective, in the quest's order; empty when finished.
+  repeated int32 progress = 3;
+  // Completions so far; a repeatable quest active again keeps its count.
+  int32 times_finished = 4;
 }
 
 // Stats are a number per primary stat: the points spent in each, or the own stats.
@@ -97,6 +118,8 @@ message LoadRequest {
 
 message LoadResponse {
   Character character = 1;
+  // Its active and finished quests.
+  repeated Quest quests = 2;
 }
 
 message SaveCheckpointRequest {
@@ -113,6 +136,8 @@ message SaveCheckpointRequest {
   Stats points = 9;
   int32 unspent_points = 10;
   bool free_reset_used = 11;
+  // Every quest the character has, active and finished, so any checkpoint repairs one that was lost: a stored quest not listed goes, as one abandoned before it was ever finished does.
+  repeated Quest quests = 12;
 }
 
 message SaveCheckpointResponse {}

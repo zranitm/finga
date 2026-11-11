@@ -19,18 +19,22 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorldService_Deliver_FullMethodName     = "/internal.world.v1.WorldService/Deliver"
-	WorldService_Join_FullMethodName        = "/internal.world.v1.WorldService/Join"
-	WorldService_Leave_FullMethodName       = "/internal.world.v1.WorldService/Leave"
-	WorldService_Input_FullMethodName       = "/internal.world.v1.WorldService/Input"
-	WorldService_Attack_FullMethodName      = "/internal.world.v1.WorldService/Attack"
-	WorldService_PickUp_FullMethodName      = "/internal.world.v1.WorldService/PickUp"
-	WorldService_EnterPortal_FullMethodName = "/internal.world.v1.WorldService/EnterPortal"
-	WorldService_Say_FullMethodName         = "/internal.world.v1.WorldService/Say"
-	WorldService_Equip_FullMethodName       = "/internal.world.v1.WorldService/Equip"
-	WorldService_Unequip_FullMethodName     = "/internal.world.v1.WorldService/Unequip"
-	WorldService_SpendPoints_FullMethodName = "/internal.world.v1.WorldService/SpendPoints"
-	WorldService_ResetPoints_FullMethodName = "/internal.world.v1.WorldService/ResetPoints"
+	WorldService_Deliver_FullMethodName      = "/internal.world.v1.WorldService/Deliver"
+	WorldService_Join_FullMethodName         = "/internal.world.v1.WorldService/Join"
+	WorldService_Leave_FullMethodName        = "/internal.world.v1.WorldService/Leave"
+	WorldService_Input_FullMethodName        = "/internal.world.v1.WorldService/Input"
+	WorldService_Attack_FullMethodName       = "/internal.world.v1.WorldService/Attack"
+	WorldService_PickUp_FullMethodName       = "/internal.world.v1.WorldService/PickUp"
+	WorldService_EnterPortal_FullMethodName  = "/internal.world.v1.WorldService/EnterPortal"
+	WorldService_Say_FullMethodName          = "/internal.world.v1.WorldService/Say"
+	WorldService_Equip_FullMethodName        = "/internal.world.v1.WorldService/Equip"
+	WorldService_Unequip_FullMethodName      = "/internal.world.v1.WorldService/Unequip"
+	WorldService_SpendPoints_FullMethodName  = "/internal.world.v1.WorldService/SpendPoints"
+	WorldService_ResetPoints_FullMethodName  = "/internal.world.v1.WorldService/ResetPoints"
+	WorldService_Talk_FullMethodName         = "/internal.world.v1.WorldService/Talk"
+	WorldService_AcceptQuest_FullMethodName  = "/internal.world.v1.WorldService/AcceptQuest"
+	WorldService_AbandonQuest_FullMethodName = "/internal.world.v1.WorldService/AbandonQuest"
+	WorldService_HandInQuest_FullMethodName  = "/internal.world.v1.WorldService/HandInQuest"
 )
 
 // WorldServiceClient is the client API for WorldService service.
@@ -64,6 +68,14 @@ type WorldServiceClient interface {
 	SpendPoints(ctx context.Context, in *SpendPointsRequest, opts ...grpc.CallOption) (*SpendPointsResponse, error)
 	// ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
 	ResetPoints(ctx context.Context, in *ResetPointsRequest, opts ...grpc.CallOption) (*ResetPointsResponse, error)
+	// Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
+	Talk(ctx context.Context, in *TalkRequest, opts ...grpc.CallOption) (*TalkResponse, error)
+	// AcceptQuest takes a quest the NPC within reach gives, once the character meets its conditions; it answers once the quest is in the log, with QuestChanged on Deliver, and saved.
+	AcceptQuest(ctx context.Context, in *AcceptQuestRequest, opts ...grpc.CallOption) (*AcceptQuestResponse, error)
+	// AbandonQuest drops an active quest and its progress, and saves; one not active is left as it is.
+	AbandonQuest(ctx context.Context, in *AbandonQuestRequest, opts ...grpc.CallOption) (*AbandonQuestResponse, error)
+	// HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
+	HandInQuest(ctx context.Context, in *HandInQuestRequest, opts ...grpc.CallOption) (*HandInQuestResponse, error)
 }
 
 type worldServiceClient struct {
@@ -204,6 +216,46 @@ func (c *worldServiceClient) ResetPoints(ctx context.Context, in *ResetPointsReq
 	return out, nil
 }
 
+func (c *worldServiceClient) Talk(ctx context.Context, in *TalkRequest, opts ...grpc.CallOption) (*TalkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TalkResponse)
+	err := c.cc.Invoke(ctx, WorldService_Talk_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServiceClient) AcceptQuest(ctx context.Context, in *AcceptQuestRequest, opts ...grpc.CallOption) (*AcceptQuestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AcceptQuestResponse)
+	err := c.cc.Invoke(ctx, WorldService_AcceptQuest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServiceClient) AbandonQuest(ctx context.Context, in *AbandonQuestRequest, opts ...grpc.CallOption) (*AbandonQuestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AbandonQuestResponse)
+	err := c.cc.Invoke(ctx, WorldService_AbandonQuest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *worldServiceClient) HandInQuest(ctx context.Context, in *HandInQuestRequest, opts ...grpc.CallOption) (*HandInQuestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HandInQuestResponse)
+	err := c.cc.Invoke(ctx, WorldService_HandInQuest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServiceServer is the server API for WorldService service.
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
@@ -235,6 +287,14 @@ type WorldServiceServer interface {
 	SpendPoints(context.Context, *SpendPointsRequest) (*SpendPointsResponse, error)
 	// ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
 	ResetPoints(context.Context, *ResetPointsRequest) (*ResetPointsResponse, error)
+	// Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
+	Talk(context.Context, *TalkRequest) (*TalkResponse, error)
+	// AcceptQuest takes a quest the NPC within reach gives, once the character meets its conditions; it answers once the quest is in the log, with QuestChanged on Deliver, and saved.
+	AcceptQuest(context.Context, *AcceptQuestRequest) (*AcceptQuestResponse, error)
+	// AbandonQuest drops an active quest and its progress, and saves; one not active is left as it is.
+	AbandonQuest(context.Context, *AbandonQuestRequest) (*AbandonQuestResponse, error)
+	// HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
+	HandInQuest(context.Context, *HandInQuestRequest) (*HandInQuestResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }
 
@@ -280,6 +340,18 @@ func (UnimplementedWorldServiceServer) SpendPoints(context.Context, *SpendPoints
 }
 func (UnimplementedWorldServiceServer) ResetPoints(context.Context, *ResetPointsRequest) (*ResetPointsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResetPoints not implemented")
+}
+func (UnimplementedWorldServiceServer) Talk(context.Context, *TalkRequest) (*TalkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Talk not implemented")
+}
+func (UnimplementedWorldServiceServer) AcceptQuest(context.Context, *AcceptQuestRequest) (*AcceptQuestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AcceptQuest not implemented")
+}
+func (UnimplementedWorldServiceServer) AbandonQuest(context.Context, *AbandonQuestRequest) (*AbandonQuestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AbandonQuest not implemented")
+}
+func (UnimplementedWorldServiceServer) HandInQuest(context.Context, *HandInQuestRequest) (*HandInQuestResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method HandInQuest not implemented")
 }
 func (UnimplementedWorldServiceServer) mustEmbedUnimplementedWorldServiceServer() {}
 func (UnimplementedWorldServiceServer) testEmbeddedByValue()                      {}
@@ -511,6 +583,78 @@ func _WorldService_ResetPoints_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_Talk_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TalkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).Talk(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_Talk_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).Talk(ctx, req.(*TalkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldService_AcceptQuest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AcceptQuestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).AcceptQuest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_AcceptQuest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).AcceptQuest(ctx, req.(*AcceptQuestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldService_AbandonQuest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AbandonQuestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).AbandonQuest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_AbandonQuest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).AbandonQuest(ctx, req.(*AbandonQuestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WorldService_HandInQuest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HandInQuestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).HandInQuest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_HandInQuest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).HandInQuest(ctx, req.(*HandInQuestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldService_ServiceDesc is the grpc.ServiceDesc for WorldService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -561,6 +705,22 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetPoints",
 			Handler:    _WorldService_ResetPoints_Handler,
+		},
+		{
+			MethodName: "Talk",
+			Handler:    _WorldService_Talk_Handler,
+		},
+		{
+			MethodName: "AcceptQuest",
+			Handler:    _WorldService_AcceptQuest_Handler,
+		},
+		{
+			MethodName: "AbandonQuest",
+			Handler:    _WorldService_AbandonQuest_Handler,
+		},
+		{
+			MethodName: "HandInQuest",
+			Handler:    _WorldService_HandInQuest_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

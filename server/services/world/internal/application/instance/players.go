@@ -47,10 +47,12 @@ type player struct {
 	invulnUntil   uint64
 	dead          bool
 	deadUntil     uint64
-	changed       bool          // HP, level or death changed this tick
-	private       []model.Event // events for this player only
-	equipping     int           // equips and unequips in flight, which keep the player on this map
-	toldHP        int           // the HP and max HP the party last heard
+	changed       bool                         // HP, level or death changed this tick
+	private       []model.Event                // events for this player only
+	itemCalls     int                          // equips, unequips and hand-ins in flight, which keep the player on this map
+	handingIn     map[string]bool              // quests whose hand-in is in flight
+	questChanges  map[string]model.QuestChange // this tick's, told at its end
+	toldHP        int                          // the HP and max HP the party last heard
 	toldMaxHP     int
 	hpCarry       int // regen's fractions, in thousandths of a point
 	mpCarry       int
@@ -64,6 +66,9 @@ func (i *Instance) add(j *joinMsg) {
 	if !ok {
 		j.done <- model.ErrClassUnavailable
 		return
+	}
+	if j.player.Quests == nil {
+		j.player.Quests = model.Quests{}
 	}
 	p := &player{
 		Player: j.player,
@@ -89,6 +94,12 @@ func (i *Instance) add(j *joinMsg) {
 		return
 	}
 	i.tellParty(p, i.m.ID) // a join is a map change, and after a restart it corrects what social kept
+	for _, h := range p.HandedIn {
+		if i.handedIn(p, h) {
+			i.log.Info("a hand-in the world missed finished at the join", "character_id", p.ID, "quest_id", h.Quest, "completion", h.Completion)
+		}
+	}
+	p.HandedIn = nil
 	j.done <- nil
 }
 
@@ -171,7 +182,7 @@ func (i *Instance) playerBox(p *player) model.Rect {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points}
+	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points, Quests: p.Quests.Clone()}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
 		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, RespawnHP(p.derived.MaxHP)

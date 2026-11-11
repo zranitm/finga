@@ -159,3 +159,58 @@ func TestLootCarriesWhatBecameOfTheDrop(t *testing.T) {
 		}
 	}
 }
+
+func TestNpcDialogCarriesEachOfferAndTurnIn(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	if !s.Send(model.NpcDialog{Tick: 4, NPC: "guide",
+		Gives: []model.QuestOffer{
+			{Quest: "a", State: model.OfferAvailable},
+			{Quest: "b", State: model.OfferActive},
+			{Quest: "c", State: model.OfferFinished},
+			{Quest: "d", State: model.OfferUnmet, Unmet: model.Unmet{Level: 5, Class: kernel.Bowman, Quests: []string{"a"}}},
+		},
+		Takes: []model.QuestTurnIn{{Quest: "b", Ready: true}},
+	}) {
+		t.Fatal("the stream refused the dialog")
+	}
+	want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 4, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: &worldv1.NpcDialog{
+		NpcId: "guide",
+		Gives: []*worldv1.QuestOffer{
+			{QuestId: "a", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+			{QuestId: "b", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE},
+			{QuestId: "c", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+			{QuestId: "d", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &worldv1.QuestConditions{Level: 5, Class: "bowman", Quests: []string{"a"}}},
+		},
+		Takes: []*worldv1.QuestTurnIn{{QuestId: "b", Ready: true}},
+	}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
+	for _, c := range []struct {
+		in   model.QuestChanged
+		want *worldv1.QuestChanged
+	}{
+		{model.QuestChanged{Tick: 3, ID: "a", Change: model.QuestProgressed, Quest: model.Quest{Status: model.QuestActive, Progress: []int{4, 0}, TimesFinished: 1}},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED, Quest: &worldv1.QuestState{QuestId: "a", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4, 0}, TimesFinished: 1}}},
+		{model.QuestChanged{Tick: 3, ID: "b", Change: model.QuestHandedIn, Quest: model.Quest{Status: model.QuestFinished, TimesFinished: 2}},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_HANDED_IN, Quest: &worldv1.QuestState{QuestId: "b", Status: worldv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}}},
+		{model.QuestChanged{Tick: 3, ID: "c", Change: model.QuestAbandoned},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &worldv1.QuestState{QuestId: "c"}}},
+		{model.QuestChanged{Tick: 3, ID: "d", Change: model.QuestAccepted, Quest: model.Quest{Status: model.QuestActive, Progress: []int{0}}},
+			&worldv1.QuestChanged{Change: worldv1.QuestChange_QUEST_CHANGE_ACCEPTED, Quest: &worldv1.QuestState{QuestId: "d", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{0}}}},
+	} {
+		sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+		s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+		if !s.Send(c.in) {
+			t.Fatal("the stream refused the change")
+		}
+		want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: c.want}}
+		if got := <-sub.C(); !proto.Equal(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}

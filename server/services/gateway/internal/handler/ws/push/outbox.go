@@ -16,6 +16,8 @@ import (
 // Observer counts the messages sent.
 type Observer interface {
 	MessageOut(msgType string)
+	// WelcomeSent hears each Welcome's encoded size, kind login or rejoin.
+	WelcomeSent(kind string, bytes int)
 }
 
 // Outbox is one connection's writing side: the session.Outbox the gateway reaches the player through.
@@ -38,12 +40,18 @@ func NewOutbox(ws wsconn.Conn, obs Observer, frames *Frames) *Outbox {
 // ID names the connection.
 func (o *Outbox) ID() string { return o.ws.ID() }
 
-// Welcome answers a Hello that joined.
+// Welcome answers a Hello that joined, or follows a rejoin, which has no token.
 func (o *Outbox) Welcome(w model.Welcome) {
-	o.send(wsconn.Message{Data: &clientv1.Welcome{
+	msg := &clientv1.Welcome{
 		Token: w.Token, Character: characterView(w.Character), Inventory: itemViews(w.Inventory), Equipment: equipment(w.Equipment), InventoryRevision: w.InventoryRevision, MapId: w.MapID,
-		ServerTime: w.ServerTime.UnixMilli(), TickRateHz: uint32(w.TickRateHz),
-	}})
+		ServerTime: w.ServerTime.UnixMilli(), TickRateHz: uint32(w.TickRateHz), Quests: questStates(w.Quests),
+	}
+	kind := "login"
+	if w.Token == "" {
+		kind = "rejoin"
+	}
+	o.obs.WelcomeSent(kind, proto.Size(msg))
+	o.send(wsconn.Message{Data: msg})
 }
 
 // Deliver sends a push as its message.

@@ -1,6 +1,6 @@
-// The Combat tab's lines: this player's EXP, level-ups and loot, kept until they leave the world.
+// The Combat tab's lines: this player's EXP, level-ups, loot and quests, kept until they leave the world.
 import { loot } from '@/gamedata/loot';
-import { LootKind } from '@/protocol/messages';
+import { LootKind, QuestChange } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 
 import { defineStore } from './store';
@@ -17,7 +17,23 @@ export type CombatEvent =
       readonly ownerName: string;
       readonly template: string;
       readonly quantity: number;
+    }
+  | {
+      readonly kind: 'quest';
+      readonly change: QuestLineKind;
+      readonly quest: string;
+      /** The log's counts after the change, for a progress line. */
+      readonly progress: readonly number[];
     };
+
+export type QuestLineKind = 'accepted' | 'progressed' | 'ready' | 'finished' | 'abandoned';
+
+const questLines: Partial<Record<QuestChange, QuestLineKind>> = {
+  [QuestChange.ACCEPTED]: 'accepted',
+  [QuestChange.PROGRESSED]: 'progressed',
+  [QuestChange.HANDED_IN]: 'finished',
+  [QuestChange.ABANDONED]: 'abandoned',
+};
 
 export type CombatLine = CombatEvent & { readonly id: number };
 
@@ -35,6 +51,9 @@ export interface CombatLogState {
   applyExpGained(d: Data<'expGained'>): void;
   applyLevelUp(d: Data<'levelUp'>): void;
   applyLoot(d: Data<'loot'>): void;
+  applyQuestChanged(d: Data<'questChanged'>): void;
+  /** A quest became ready to hand in: its last kill, item or level came. */
+  questReady(quest: string): void;
   clear(): void;
 }
 
@@ -81,6 +100,15 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
       } else if (others.length !== waiting.length) {
         set({ waiting: others });
       }
+    },
+    applyQuestChanged: (d) => {
+      const change = questLines[d.change];
+      if (change && d.quest) {
+        add({ kind: 'quest', change, quest: d.quest.questId, progress: d.quest.progress });
+      }
+    },
+    questReady: (quest) => {
+      add({ kind: 'quest', change: 'ready', quest, progress: [] });
     },
     clear: () => {
       set({ lines: [], waiting: [] });

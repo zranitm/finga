@@ -10,6 +10,8 @@ import { expCurve } from '@/gamedata/exp-curve';
 import { items } from '@/gamedata/items';
 import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
+import { npcs } from '@/gamedata/npcs';
+import { quests } from '@/gamedata/quests';
 import { stats } from '@/gamedata/stats';
 
 const dataDir = path.resolve(process.cwd(), '..', 'server', 'data');
@@ -73,5 +75,29 @@ describe('generated gamedata', () => {
 
   it('mobs equal mobs.yaml', () => {
     expect(mobs).toEqual(yaml('mobs.yaml').mobs);
+  });
+
+  it('NPCs equal npcs.yaml, each at the point its map places it', () => {
+    const raw = yaml('npcs.yaml');
+    expect(npcs.talk_reach).toBe(raw.talk_reach);
+    expect(npcs.npcs.map((n) => n.id)).toEqual(
+      (raw.npcs as Record<string, unknown>[]).map((n) => n.id),
+    );
+    const town = JSON.parse(readFileSync(path.join(dataDir, 'maps', 'town.tmj'), 'utf8')) as {
+      layers: { name: string; objects: { name: string; x: number; y: number }[] }[];
+    };
+    const placed = town.layers.find((l) => l.name === 'npcs')!.objects[0]!;
+    const npc = npcs.npcs.find((n) => n.id === placed.name);
+    expect(npc).toMatchObject({ map: 'town', x: placed.x, y: placed.y, trainer: null });
+  });
+
+  it('quests equal quests.yaml, each objective as kind, target and count', () => {
+    const raw = yaml('quests.yaml').quests as Record<string, unknown>[];
+    expect(quests.map((q) => q.id)).toEqual(raw.map((q) => q.id));
+    const first = quests[0];
+    expect(first.objectives[0]).toEqual({ kind: 'kill', target: 'green_slime', count: 10 });
+    expect(first).toMatchObject({ quests: [], class: null, repeatable: false });
+    expect(quests[1].objectives[0]).toEqual({ kind: 'collect', target: 'slime_gel', count: 5 });
+    expect(quests[1].quests).toEqual(['slime_cleanup']);
   });
 });

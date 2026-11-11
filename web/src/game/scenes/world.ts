@@ -4,18 +4,24 @@ import { movement } from '@/gamedata/movement';
 import { isTyping } from '@/input/typing';
 import { FixedStep, tickTiming } from '@/lib/fixed-step';
 import type { TickTiming } from '@/lib/fixed-step';
+import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
+import { inReach, markerFor, nearestInReach, npcById, npcsOn } from '@/progression/quests';
 import type { Data } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
+import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
+import { questPlayer, quests } from '@/state/quests';
 import { settings } from '@/state/settings';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
+import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
 import { ART_SCALE, SCENES, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
@@ -118,6 +124,7 @@ export class World extends Phaser.Scene {
 
   private view: MapView | null = null;
   private portals: PortalSystem | null = null;
+  private readonly npcViews = new Map<string, NpcView>();
 
   constructor() {
     super(SCENES.World);
@@ -216,6 +223,28 @@ export class World extends Phaser.Scene {
         .setDepth(-1);
       this.tweens.add({ targets: glow, alpha: 0.5, duration: 900, yoyo: true, repeat: -1 });
     }
+    for (const npc of npcsOn(view.id)) {
+      this.npcViews.set(npc.id, new NpcView(this, npc));
+    }
+    this.showMarkers();
+    // A marker follows the log, the level and, for items to bring, the inventory.
+    this.offs.push(
+      quests.subscribe((now, before) => {
+        if (now.log !== before.log) {
+          this.showMarkers();
+        }
+      }),
+      character.subscribe((now, before) => {
+        if (now.character?.level !== before.character?.level) {
+          this.showMarkers();
+        }
+      }),
+      inventory.subscribe((now, before) => {
+        if (now.slots !== before.slots) {
+          this.showMarkers();
+        }
+      }),
+    );
     this.banner(mapTitle(view.id));
 
     const socket = this.registry.get(REGISTRY.socket) as GameSocket;
@@ -294,6 +323,12 @@ export class World extends Phaser.Scene {
               return;
             case 'party':
               ui.getState().toggleWindow('party');
+              return;
+            case 'quests':
+              ui.getState().toggleWindow('quests');
+              return;
+            case 'talk':
+              this.talk();
               return;
             case 'chat':
               ui.getState().openChat();
@@ -387,6 +422,7 @@ export class World extends Phaser.Scene {
       this.player.apply(predictor.state, time);
       this.player.setAlpha(this.flash.alpha(time));
     }
+    this.closeDialogOutOfReach();
     this.drawRemotes(time);
     this.drawMobs(time);
     this.numberLayer?.sync(this.numbers.update(time));
@@ -535,12 +571,15 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** After a reconnect: the same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
+  /** After a reconnect or a rejoin the server made: the character is as the server has it, alive and on its map. The same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
   private onWelcome(mapId: string, tickRateHz: number): void {
     if (mapId !== this.mapId || tickRateHz !== this.tickRateHz) {
       this.restartOn(mapId, tickRateHz, false);
       return;
     }
+    this.transitionState = initialTransition;
+    this.player?.setDead(false);
+    this.attackGate?.reset();
     this.placed = false;
     this.player?.setVisible(false);
     this.clearOthers();
@@ -572,6 +611,46 @@ export class World extends Phaser.Scene {
     const p = this.predictor;
     const v = this.view;
     return !!p && !!v && this.placed && standsIn(p.state.x, p.state.y, v.portals) !== undefined;
+  }
+
+  private showMarkers(): void {
+    const p = questPlayer();
+    for (const [id, v] of this.npcViews) {
+      const npc = npcById(id);
+      v.setMarker(npc ? markerFor(npc, p) : null);
+    }
+  }
+
+  /** Talks to the nearest NPC within reach; with none, the key does nothing. */
+  private talk(): void {
+    const p = this.predictor;
+    const socket = this.socket;
+    if (!p || !socket || !this.placed || this.transitionState.dead) {
+      return;
+    }
+    const npc = nearestInReach(this.mapId, p.state.x, p.state.y);
+    if (!npc) {
+      return;
+    }
+    socket.request('talk', { npcId: npc.id }).catch((err: unknown) => {
+      if (err instanceof RequestError && err.code !== 'disconnected' && err.code !== 'timeout') {
+        toasts.getState().push(err.message);
+      }
+    });
+  }
+
+  /** The NPC's dialog closes once the player dies, walks out of its reach, or leaves its map. */
+  private closeDialogOutOfReach(): void {
+    if (!ui.getState().windows.includes('npc')) {
+      return;
+    }
+    const dialog = quests.getState().dialog;
+    const npc = dialog ? npcById(dialog.npcId) : undefined;
+    const p = this.predictor;
+    const gone = !npc || !p || npc.map !== this.mapId || !inReach(npc, p.state.x, p.state.y);
+    if (gone || this.transitionState.dead) {
+      ui.getState().closeWindow('npc');
+    }
   }
 
   private banner(text: string): void {
@@ -658,6 +737,7 @@ export class World extends Phaser.Scene {
         this.flash.set(false, this.time.now);
         this.attackGate?.reset();
         character.getState().setDead(true);
+        ui.getState().closeWindow('npc');
         return;
       case 'respawn-here':
         this.player?.setDead(false);
@@ -728,6 +808,10 @@ export class World extends Phaser.Scene {
     this.arriving?.take(); // stopped before it was built, or during the fade
     this.arriving = null;
     this.clearOthers();
+    for (const v of this.npcViews.values()) {
+      v.destroy();
+    }
+    this.npcViews.clear();
     this.numberLayer?.destroy();
     this.numberLayer = null;
     this.remotes = null;

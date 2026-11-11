@@ -11,7 +11,7 @@ import (
 	"finga/services/item/internal/model"
 )
 
-// reply is a Result as idempotency_keys stores it; its JSON names are stored, so never rename or remove one, only add.
+// reply is a Result as idempotency_keys and quest_hand_ins store it; its JSON names are stored, so never rename or remove one, only add.
 type reply struct {
 	Changed   []replySlot     `json:"changed"`
 	Revision  uint64          `json:"revision,omitempty"`

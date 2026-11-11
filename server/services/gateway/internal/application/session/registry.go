@@ -50,6 +50,7 @@ type Observer interface {
 type Deps struct {
 	World    World
 	Social   Social
+	Items    Items
 	Logger   *slog.Logger
 	Panics   *panics.Recorder     // a rejoin's panic
 	Traces   trace.TracerProvider // each background job's trace, never kept: it joins the job's log lines and calls

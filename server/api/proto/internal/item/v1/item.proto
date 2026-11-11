@@ -22,6 +22,10 @@ service ItemService {
   rpc Equip(EquipRequest) returns (EquipResponse);
   // Unequip puts a worn item back in the Equip tab.
   rpc Unequip(UnequipRequest) returns (UnequipResponse);
+  // HandIn takes the items a quest asks for and gives its rewards, in one transaction: all of it, or nothing when either side fails. Each completion of a quest is handed in once and kept for good: a repeat gets its stored reply.
+  rpc HandIn(HandInRequest) returns (HandInResponse);
+  // HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
+  rpc HandedIn(HandedInRequest) returns (HandedInResponse);
 }
 
 // Reason names a failure a caller can meet; retrying the same request cannot help.
@@ -42,7 +46,7 @@ enum Reason {
   REASON_STACK_FULL = 12;
   // An idempotency key that is not a UUID, with or without the client's k- prefix.
   REASON_BAD_IDEMPOTENCY_KEY = 13;
-  // A cause with no type, or one this service does not know.
+  // A cause with no type, or one this service does not know; a hand-in with no quest or a completion below 1.
   REASON_BAD_CAUSE = 14;
   // Equipment added without a roll or with a stat outside its template's range, or anything else added with a roll.
   REASON_BAD_ROLL = 15;
@@ -54,10 +58,12 @@ enum Reason {
   REASON_WRONG_EQUIP_SLOT = 19;
   REASON_NOT_EQUIPMENT = 20;
   REASON_NOTHING_WORN = 21;
-  // An AddMany with no drops, or with more than it takes.
+  // An AddMany with no drops, or with more than it takes; a HandIn with more lines than it takes.
   REASON_BAD_BATCH_SIZE = 22;
   // An equip whose item requires more of a primary stat than the character's own stats, without gear, have.
   REASON_STATS_TOO_LOW = 23;
+  // A hand-in asking for more of an item than the inventory's stacks hold; worn items never count.
+  REASON_NOT_ENOUGH_ITEMS = 24;
 }
 
 // Grant is what became of one drop of an AddMany.
@@ -293,5 +299,60 @@ message UnequipResponse {
   repeated EquipSlot equipment = 2;
   repeated Item worn = 3;
   // The inventory's revision after this change, which equipment shares.
+  uint64 revision = 4;
+}
+
+message HandInRequest {
+  Actor actor = 1;
+  // The quest handed in, which the history of every item taken or given names.
+  string quest_id = 2;
+  // The completion this hand-in makes, 1 the first time; a repeat of one handed in gets its stored reply, whatever its lines.
+  int32 completion = 3;
+  // What the quest's collect objectives ask for, taken from the smallest stacks first.
+  repeated HandInTake take = 4;
+  // The quest's item rewards, each placed as Add would place it.
+  repeated HandInGive give = 5;
+}
+
+message HandInTake {
+  string template_id = 1;
+  int32 quantity = 2;
+}
+
+message HandInGive {
+  string template_id = 1;
+  int32 quantity = 2;
+  // Equipment's roll, one per line; refused on anything else. A repeat may roll again and still gets the stored reply.
+  ItemStats stats = 3;
+}
+
+message HandInResponse {
+  // The slots the hand-in emptied, shrank or filled, each as it stands after it.
+  repeated Slot changed = 1;
+  // The inventory's revision after this change, kept by a replay.
+  uint64 revision = 2;
+}
+
+message HandedInRequest {
+  string character_id = 1;
+  // The completions asked about; at most 32.
+  repeated QuestCompletion completions = 2;
+}
+
+message QuestCompletion {
+  string quest_id = 1;
+  int32 completion = 2;
+}
+
+message HandedInResponse {
+  // The completions asked about that were handed in; one not handed in is left out.
+  repeated HandedInQuest handed_in = 1;
+}
+
+message HandedInQuest {
+  string quest_id = 1;
+  int32 completion = 2;
+  // The slots the hand-in changed and the revision after it, as HandIn answered.
+  repeated Slot changed = 3;
   uint64 revision = 4;
 }

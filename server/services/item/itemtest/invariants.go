@@ -40,7 +40,7 @@ func quantityMatchesEvents(ctx context.Context, pool *pgxpool.Pool) ([]string, e
 	return out, rows.Err()
 }
 
-// templateTotals is check 6: per template, held equals drops and starters less discards; a join would multiply sums.
+// templateTotals is check 6: per template, held equals drops, starters and quest rewards, less discards and hand-ins; a join would multiply sums.
 func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT held.template_id, held.quantity, coalesce(ev.delta, 0)
@@ -48,7 +48,7 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		LEFT JOIN (
 			SELECT i.template_id, sum(e.quantity_delta) AS delta
 			FROM item_events e JOIN items i ON i.id = e.item_id
-			WHERE (e.kind IN ('created', 'stacked') AND e.cause_type IN ('drop', 'starter')) OR e.kind = 'discarded'
+			WHERE (e.kind IN ('created', 'stacked') AND e.cause_type IN ('drop', 'starter', 'quest')) OR e.kind IN ('discarded', 'handed_in')
 			GROUP BY i.template_id
 		) ev USING (template_id)
 		WHERE held.quantity <> coalesce(ev.delta, 0)`)
@@ -63,7 +63,7 @@ func templateTotals(ctx context.Context, pool *pgxpool.Pool) ([]string, error) {
 		if err := rows.Scan(&template, &quantity, &delta); err != nil {
 			return nil, err
 		}
-		out = append(out, fmt.Sprintf("template %s: holds %d, drops and starters less discards come to %d", template, quantity, delta))
+		out = append(out, fmt.Sprintf("template %s: holds %d, drops, starters and quest rewards less discards and hand-ins come to %d", template, quantity, delta))
 	}
 	return out, rows.Err()
 }

@@ -683,6 +683,10 @@ body {
   color: var(--star, var(--text));
   font-weight: 600;
 }
+.chat-quest {
+  color: var(--accent);
+  font-weight: 600;
+}
 .chat-input-row {
   display: flex;
   gap: 6px;
@@ -738,6 +742,64 @@ body {
 }
 .muted {
   color: var(--muted);
+}
+
+/* The NPC dialog and the quest log. */
+.npc-dialog,
+.quest-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 300px;
+}
+.npc-dialog h3 {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+.npc-quests {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.npc-quest-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.npc-quest-unmet {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  opacity: 0.6;
+}
+.npc-rewards {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.quest-objectives {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+.quest-done {
+  color: var(--muted);
+}
+.quest-ready {
+  color: var(--accent);
+  font-weight: 600;
+}
+.quest-log .row {
+  flex-wrap: wrap;
+  font-size: 12px;
 }
 .party-panel {
   position: fixed;

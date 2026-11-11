@@ -165,6 +165,59 @@ var lootKinds = map[model.LootKind]clientv1.LootKind{
 	model.LootLost:      clientv1.LootKind_LOOT_KIND_LOST,
 }
 
+func npcDialog(d model.NpcDialog) *clientv1.NpcDialog {
+	out := &clientv1.NpcDialog{NpcId: d.NPC}
+	for _, o := range d.Gives {
+		offer := &clientv1.QuestOffer{QuestId: o.Quest, State: offerStates[o.State]}
+		if u := o.Unmet; u.Level != 0 || u.Class != "" || len(u.Quests) > 0 {
+			offer.Unmet = &clientv1.QuestConditions{Level: int32(u.Level), Class: u.Class, Quests: u.Quests} //nolint:gosec // a level is small
+		}
+		out.Gives = append(out.Gives, offer)
+	}
+	for _, t := range d.Takes {
+		out.Takes = append(out.Takes, &clientv1.QuestTurnIn{QuestId: t.Quest, Ready: t.Ready})
+	}
+	return out
+}
+
+func questStates(qs []model.QuestState) []*clientv1.QuestState {
+	if len(qs) == 0 {
+		return nil
+	}
+	out := make([]*clientv1.QuestState, 0, len(qs))
+	for _, q := range qs {
+		out = append(out, questState(q))
+	}
+	return out
+}
+
+func questState(q model.QuestState) *clientv1.QuestState {
+	var progress []int32
+	for _, n := range q.Progress {
+		progress = append(progress, int32(n)) //nolint:gosec // a count is at most an objective's
+	}
+	return &clientv1.QuestState{QuestId: q.Quest, Status: questStatuses[q.Status], Progress: progress, TimesFinished: int32(q.TimesFinished)} //nolint:gosec // it came in as int32
+}
+
+var offerStates = map[model.QuestOfferState]clientv1.QuestOfferState{
+	model.OfferAvailable: clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE,
+	model.OfferActive:    clientv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE,
+	model.OfferFinished:  clientv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED,
+	model.OfferUnmet:     clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET,
+}
+
+var questStatuses = map[model.QuestStatus]clientv1.QuestStatus{
+	model.QuestActive:   clientv1.QuestStatus_QUEST_STATUS_ACTIVE,
+	model.QuestFinished: clientv1.QuestStatus_QUEST_STATUS_FINISHED,
+}
+
+var questChanges = map[model.QuestChange]clientv1.QuestChange{
+	model.QuestProgressed: clientv1.QuestChange_QUEST_CHANGE_PROGRESSED,
+	model.QuestAccepted:   clientv1.QuestChange_QUEST_CHANGE_ACCEPTED,
+	model.QuestHandedIn:   clientv1.QuestChange_QUEST_CHANGE_HANDED_IN,
+	model.QuestAbandoned:  clientv1.QuestChange_QUEST_CHANGE_ABANDONED,
+}
+
 // entityRef is how the client names a player or a mob: p:<character id> or m:<mob id>.
 func entityRef(e model.Entity) string {
 	if e.Character != "" {

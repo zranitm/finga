@@ -27,6 +27,8 @@ type Service interface {
 	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
 	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
 	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
+	HandIn(ctx context.Context, actor model.Actor, in application.HandInInput) (application.Result, error)
+	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error)
 }
 
 // Server serves ItemService over the module.
@@ -242,6 +244,47 @@ func (s *Server) Unequip(ctx context.Context, req *itemv1.UnequipRequest) (*item
 		return nil, err
 	}
 	return &itemv1.UnequipResponse{Changed: slots(res), Equipment: equipment(res), Worn: items(res.Worn), Revision: res.Revision}, nil
+}
+
+// HandIn takes the items a quest asks for and gives its rewards.
+func (s *Server) HandIn(ctx context.Context, req *itemv1.HandInRequest) (*itemv1.HandInResponse, error) {
+	actor, err := actorOf(req.GetActor())
+	if err != nil {
+		return nil, err
+	}
+	in := application.HandInInput{Quest: req.GetQuestId(), Completion: int(req.GetCompletion())}
+	for _, t := range req.GetTake() {
+		in.Take = append(in.Take, model.Grant{Item: t.GetTemplateId(), Quantity: int(t.GetQuantity())})
+	}
+	for _, g := range req.GetGive() {
+		in.Give = append(in.Give, application.Give{TemplateID: g.GetTemplateId(), Quantity: int(g.GetQuantity()), Stats: statsOf(g.GetStats())})
+	}
+	res, err := s.svc.HandIn(ctx, actor, in)
+	if err != nil {
+		return nil, err
+	}
+	return &itemv1.HandInResponse{Changed: slots(res), Revision: res.Revision}, nil
+}
+
+// HandedIn is which of the completions asked about the character handed in.
+func (s *Server) HandedIn(ctx context.Context, req *itemv1.HandedInRequest) (*itemv1.HandedInResponse, error) {
+	owner, err := kernel.ParseCharacterID(req.GetCharacterId())
+	if err != nil {
+		return nil, err
+	}
+	asked := make([]application.Completion, 0, len(req.GetCompletions()))
+	for _, c := range req.GetCompletions() {
+		asked = append(asked, application.Completion{Quest: c.GetQuestId(), Completion: int(c.GetCompletion())})
+	}
+	found, err := s.svc.HandedIn(ctx, owner, asked)
+	if err != nil {
+		return nil, err
+	}
+	out := &itemv1.HandedInResponse{HandedIn: make([]*itemv1.HandedInQuest, 0, len(found))}
+	for _, h := range found {
+		out.HandedIn = append(out.HandedIn, &itemv1.HandedInQuest{QuestId: h.Quest, Completion: int32(h.Completion), Changed: slots(h.Result), Revision: h.Result.Revision}) //nolint:gosec // completions are small
+	}
+	return out, nil
 }
 
 func actorOf(a *itemv1.Actor) (model.Actor, error) {

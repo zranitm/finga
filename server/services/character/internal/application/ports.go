@@ -14,6 +14,8 @@ type Store interface {
 	List(ctx context.Context, account kernel.AccountID) ([]model.Character, error)
 	// Load returns ErrNotFound for another account's character, so ownership and existence look alike.
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
+	// Quests is the character's quests, active and finished.
+	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.
@@ -33,6 +35,7 @@ type Repository interface {
 	CountLocked(ctx context.Context, account kernel.AccountID) (int, error)
 	// Insert returns the character as stored, with its updated_at.
 	Insert(ctx context.Context, c model.Character) (model.Character, error)
+	// SaveCheckpoint writes the character's row and its quests as listed, and deletes any other quest of it.
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 	SaveLevelUp(ctx context.Context, lu model.LevelUp) error
 }

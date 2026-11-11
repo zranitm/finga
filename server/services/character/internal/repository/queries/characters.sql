@@ -39,3 +39,19 @@ SET level = sqlc.arg(level), exp = sqlc.arg(exp),
     agi_points = sqlc.arg(agi_points), vit_points = sqlc.arg(vit_points),
     hp = sqlc.arg(hp), mp = sqlc.arg(mp), updated_at = sqlc.arg(now)
 WHERE id = sqlc.arg(id);
+
+-- name: ListQuests :many
+SELECT quest_id, status, progress, times_finished FROM character_quests WHERE character_id = $1 ORDER BY quest_id;
+
+-- name: SaveQuests :exec
+-- Each quest's progress comes as its counts joined by commas, as arrays of arrays can't be ragged; a row already as given is left alone.
+INSERT INTO character_quests (character_id, quest_id, status, progress, times_finished, created_at, updated_at)
+SELECT sqlc.arg(character_id), (sqlc.arg(quest_ids)::text[])[k], (sqlc.arg(statuses)::text[])[k],
+       string_to_array((sqlc.arg(progress)::text[])[k], ',')::int[], (sqlc.arg(times_finished)::int[])[k], sqlc.arg(now), sqlc.arg(now)
+FROM generate_subscripts(sqlc.arg(quest_ids)::text[], 1) AS k
+ON CONFLICT (character_id, quest_id) DO UPDATE
+SET status = EXCLUDED.status, progress = EXCLUDED.progress, times_finished = EXCLUDED.times_finished, updated_at = EXCLUDED.updated_at
+WHERE (character_quests.status, character_quests.progress, character_quests.times_finished) IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.progress, EXCLUDED.times_finished);
+
+-- name: DropOtherQuests :exec
+DELETE FROM character_quests WHERE character_id = sqlc.arg(character_id) AND quest_id <> ALL(sqlc.arg(quest_ids)::text[]);

@@ -23,6 +23,20 @@ func (q *Queries) CountCharactersByAccount(ctx context.Context, accountID uuid.U
 	return count, err
 }
 
+const dropOtherQuests = `-- name: DropOtherQuests :exec
+DELETE FROM character_quests WHERE character_id = $1 AND quest_id <> ALL($2::text[])
+`
+
+type DropOtherQuestsParams struct {
+	CharacterID uuid.UUID
+	QuestIds    []string
+}
+
+func (q *Queries) DropOtherQuests(ctx context.Context, arg DropOtherQuestsParams) error {
+	_, err := q.db.Exec(ctx, dropOtherQuests, arg.CharacterID, arg.QuestIds)
+	return err
+}
+
 const getOwnedCharacter = `-- name: GetOwnedCharacter :one
 SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used FROM characters WHERE id = $1 AND account_id = $2
 `
@@ -188,6 +202,42 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 	return items, nil
 }
 
+const listQuests = `-- name: ListQuests :many
+SELECT quest_id, status, progress, times_finished FROM character_quests WHERE character_id = $1 ORDER BY quest_id
+`
+
+type ListQuestsRow struct {
+	QuestID       string
+	Status        string
+	Progress      []int32
+	TimesFinished int32
+}
+
+func (q *Queries) ListQuests(ctx context.Context, characterID uuid.UUID) ([]ListQuestsRow, error) {
+	rows, err := q.db.Query(ctx, listQuests, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListQuestsRow
+	for rows.Next() {
+		var i ListQuestsRow
+		if err := rows.Scan(
+			&i.QuestID,
+			&i.Status,
+			&i.Progress,
+			&i.TimesFinished,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAccountCharacters = `-- name: LockAccountCharacters :exec
 SELECT pg_advisory_xact_lock(hashtextextended('character.account:' || $1::text, 0))
 `
@@ -293,4 +343,36 @@ func (q *Queries) SaveLevelUp(ctx context.Context, arg SaveLevelUpParams) (int64
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const saveQuests = `-- name: SaveQuests :exec
+INSERT INTO character_quests (character_id, quest_id, status, progress, times_finished, created_at, updated_at)
+SELECT $1, ($2::text[])[k], ($3::text[])[k],
+       string_to_array(($4::text[])[k], ',')::int[], ($5::int[])[k], $6, $6
+FROM generate_subscripts($2::text[], 1) AS k
+ON CONFLICT (character_id, quest_id) DO UPDATE
+SET status = EXCLUDED.status, progress = EXCLUDED.progress, times_finished = EXCLUDED.times_finished, updated_at = EXCLUDED.updated_at
+WHERE (character_quests.status, character_quests.progress, character_quests.times_finished) IS DISTINCT FROM (EXCLUDED.status, EXCLUDED.progress, EXCLUDED.times_finished)
+`
+
+type SaveQuestsParams struct {
+	CharacterID   uuid.UUID
+	QuestIds      []string
+	Statuses      []string
+	Progress      []string
+	TimesFinished []int32
+	Now           dbx.Stamp
+}
+
+// Each quest's progress comes as its counts joined by commas, as arrays of arrays can't be ragged; a row already as given is left alone.
+func (q *Queries) SaveQuests(ctx context.Context, arg SaveQuestsParams) error {
+	_, err := q.db.Exec(ctx, saveQuests,
+		arg.CharacterID,
+		arg.QuestIds,
+		arg.Statuses,
+		arg.Progress,
+		arg.TimesFinished,
+		arg.Now,
+	)
+	return err
 }

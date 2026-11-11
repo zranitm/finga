@@ -49,8 +49,8 @@ UPDATE items SET location = 'equipped', equip_slot = sqlc.arg(equip_slot), tab =
 UPDATE items SET location = 'destroyed', quantity = 0, tab = NULL, slot = NULL, updated_at = sqlc.arg(now) WHERE id = sqlc.arg(id);
 
 -- name: InsertItemEvent :exec
-INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, occurred_at, created_at, updated_at)
-VALUES (sqlc.arg(item_id), sqlc.arg(kind), sqlc.arg(quantity_delta), sqlc.arg(from_owner), sqlc.arg(to_owner), sqlc.arg(cause_type), sqlc.arg(cause_id), sqlc.arg(occurred_at), sqlc.arg(now), sqlc.arg(now));
+INSERT INTO item_events (item_id, kind, quantity_delta, from_owner, to_owner, cause_type, cause_id, quest_id, occurred_at, created_at, updated_at)
+VALUES (sqlc.arg(item_id), sqlc.arg(kind), sqlc.arg(quantity_delta), sqlc.arg(from_owner), sqlc.arg(to_owner), sqlc.arg(cause_type), sqlc.arg(cause_id), sqlc.narg(quest_id), sqlc.arg(occurred_at), sqlc.arg(now), sqlc.arg(now));
 
 -- name: RecordStarterGrant :execrows
 -- Zero rows: the character already has its kit.

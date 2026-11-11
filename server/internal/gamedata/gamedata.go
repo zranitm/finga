@@ -250,6 +250,13 @@ type Map struct {
 	Portals     []Portal
 	Spawns      []Spawn
 	PlayerSpawn Point // where players appear; in towns, the respawn point
+	NPCs        []Placement
+}
+
+// Placement is an NPC standing on a map, from its npcs layer.
+type Placement struct {
+	NPC string
+	At  Point
 }
 
 // Loot is how drops behave on the ground.
@@ -275,6 +282,11 @@ type Data struct {
 	mapIdx    map[string]int
 	levelCap  int
 	expToNext []int64 // index level-1, for levels 1..cap-1
+	npcs      []NPC
+	npcIdx    map[string]int
+	talkReach float64
+	quests    []Quest
+	questIdx  map[string]int
 }
 
 // Movement is the simulation's constants.

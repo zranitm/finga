@@ -4,6 +4,8 @@ package handler
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,6 +33,10 @@ type World interface {
 	Unequip(ctx context.Context, id kernel.CharacterID, conn, key, equipSlot string, toSlot *int) error
 	SpendPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int, points gamedata.Stats) error
 	ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error
+	Talk(ctx context.Context, id kernel.CharacterID, conn, npc string) error
+	AcceptQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
+	AbandonQuest(ctx context.Context, id kernel.CharacterID, conn, quest string) error
+	HandInQuest(ctx context.Context, id kernel.CharacterID, conn, npc, quest string) error
 }
 
 // queue bounds a gateway's stream: about two seconds of deltas for a few hundred players.
@@ -91,7 +97,11 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	if err != nil {
 		return nil, err
 	}
-	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate, JoinSeq: v.JoinSeq}, nil
+	log := make([]*worldv1.QuestState, 0, len(v.Quests))
+	for _, id := range slices.Sorted(maps.Keys(v.Quests)) {
+		log = append(log, questState(id, v.Quests[id]))
+	}
+	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate, JoinSeq: v.JoinSeq, Quests: log}, nil
 }
 
 // Leave removes the player if it joined through the presence's connection, once its map has.
@@ -218,6 +228,54 @@ func (s *Server) ResetPoints(ctx context.Context, req *worldv1.ResetPointsReques
 		return nil, err
 	}
 	return &worldv1.ResetPointsResponse{}, nil
+}
+
+// Talk sends the character the dialog of an NPC within reach, and answers once it is queued.
+func (s *Server) Talk(ctx context.Context, req *worldv1.TalkRequest) (*worldv1.TalkResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.Talk(ctx, id, conn, req.GetNpcId()); err != nil {
+		return nil, err
+	}
+	return &worldv1.TalkResponse{}, nil
+}
+
+// AcceptQuest takes a quest the NPC within reach gives, and answers once it is in the log.
+func (s *Server) AcceptQuest(ctx context.Context, req *worldv1.AcceptQuestRequest) (*worldv1.AcceptQuestResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.AcceptQuest(ctx, id, conn, req.GetNpcId(), req.GetQuestId()); err != nil {
+		return nil, err
+	}
+	return &worldv1.AcceptQuestResponse{}, nil
+}
+
+// AbandonQuest drops an active quest and its progress.
+func (s *Server) AbandonQuest(ctx context.Context, req *worldv1.AbandonQuestRequest) (*worldv1.AbandonQuestResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.AbandonQuest(ctx, id, conn, req.GetQuestId()); err != nil {
+		return nil, err
+	}
+	return &worldv1.AbandonQuestResponse{}, nil
+}
+
+// HandInQuest hands a ready quest in, and answers once the item service's answer applies.
+func (s *Server) HandInQuest(ctx context.Context, req *worldv1.HandInQuestRequest) (*worldv1.HandInQuestResponse, error) {
+	id, conn, err := presence(req.GetPresence())
+	if err != nil {
+		return nil, err
+	}
+	if err := s.world.HandInQuest(ctx, id, conn, req.GetNpcId(), req.GetQuestId()); err != nil {
+		return nil, err
+	}
+	return &worldv1.HandInQuestResponse{}, nil
 }
 
 // presence is the character a command is for and the connection it comes from.

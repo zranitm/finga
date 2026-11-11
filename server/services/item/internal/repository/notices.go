@@ -18,6 +18,7 @@ var eventTypes = map[model.NoticeKind]string{
 	model.NoticeGranted:   "ItemGranted",
 	model.NoticeLooted:    "ItemLooted",
 	model.NoticeDiscarded: "ItemDiscarded",
+	model.NoticeHandedIn:  "ItemHandedIn",
 }
 
 // itemEvent is the payload other services read.
@@ -30,6 +31,7 @@ type itemEvent struct {
 	Slot       int                `json:"slot"`
 	Cause      string             `json:"cause"`
 	CauseID    string             `json:"cause_id,omitempty"`
+	QuestID    string             `json:"quest_id,omitempty"`
 }
 
 // notices writes each notice to the outbox as an item topic event.
@@ -41,7 +43,7 @@ func (n notices) Send(ctx context.Context, x model.Notice) error {
 	if !ok {
 		return fmt.Errorf("item: notice kind %q has no event type", x.Kind)
 	}
-	ev := itemEvent{ItemID: x.Item.ID, TemplateID: x.Item.TemplateID, Owner: x.Item.Owner, Quantity: x.Quantity, Tab: string(x.Item.Tab), Slot: x.Item.Slot, Cause: string(x.Cause.Type)}
+	ev := itemEvent{ItemID: x.Item.ID, TemplateID: x.Item.TemplateID, Owner: x.Item.Owner, Quantity: x.Quantity, Tab: string(x.Item.Tab), Slot: x.Item.Slot, Cause: string(x.Cause.Type), QuestID: x.Cause.Quest}
 	if x.Cause.ID != uuid.Nil {
 		ev.CauseID = x.Cause.ID.String()
 	}

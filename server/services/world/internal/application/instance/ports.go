@@ -38,6 +38,11 @@ type Equipment interface {
 	Unequip(ctx context.Context, c model.UnequipCall) (model.Equipped, error)
 }
 
+// HandIns is the item service's hand-in, called from the item-call pool, never inside a tick; a failure that is no rule is transient.ErrUnavailable.
+type HandIns interface {
+	HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error)
+}
+
 // TickObserver sees each tick's duration against its budget.
 type TickObserver interface {
 	ObserveTick(mapID string, took, budget time.Duration)

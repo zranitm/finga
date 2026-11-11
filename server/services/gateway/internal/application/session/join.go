@@ -198,13 +198,19 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		s.outbox.End(model.EndTickRateChanged)
 		return
 	}
-	s.joinSeq.Store(joined.JoinSeq)
-	var first func()
-	if joined.MapID != before {
-		moved := model.Delivery{Push: model.MapChange{MapID: joined.MapID, X: joined.X, Y: joined.Y}}
-		first = func() { s.outbox.Deliver(moved) }
+	// The whole screen again, as a login gets it but with no token, ahead of the stream: pushes sent while it was broken may be lost, and a world that restarted may have lost what it never saved.
+	welcome, err := r.Welcome(ctx, who.character.ID, joined)
+	if err != nil {
+		s.out.abort()
+		r.deps.Logger.ErrorContext(ctx, "rejoin failed", "character_id", s.Character(), "err", err)
+		s.outbox.End(model.EndRejoinFailed) // the client logs in again, for a whole Welcome
+		return
 	}
-	s.out.release(joined.MapID, first)
+	r.mu.Lock()
+	s.id.Store(&identity{account: who.account, sessionID: who.sessionID, character: model.PlayerOf(who.character.ID, welcome.Character)})
+	r.mu.Unlock()
+	s.joinSeq.Store(joined.JoinSeq)
+	s.out.release(joined.MapID, func() { s.outbox.Welcome(welcome) })
 	r.mu.Lock()
 	closed := s.closed
 	r.mu.Unlock()
@@ -212,7 +218,8 @@ func (r *Registry) rejoin(ctx context.Context, s *Session) {
 		r.leave(ctx, s.Presence())
 		return
 	}
-	r.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.Character(), "map_id", joined.MapID)
+	r.Register(s) // the Welcome emptied the client's party; Online sends it again, as after a login
+	r.deps.Logger.InfoContext(ctx, "ws rejoined", "conn", s.connID, "character_id", s.Character(), "map_id", joined.MapID, "moved", joined.MapID != before)
 }
 
 // join retries while the world cannot take the join yet, until ctx ends; a join is safe to repeat.

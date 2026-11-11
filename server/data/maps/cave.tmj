@@ -10,8 +10,8 @@
   "height": 20,
   "tilewidth": 32,
   "tileheight": 32,
-  "nextlayerid": 7,
-  "nextobjectid": 21,
+  "nextlayerid": 8,
+  "nextobjectid": 22,
   "tilesets": [],
   "properties": [
     {"name": "kind", "type": "string", "value": "hunting"},
@@ -63,6 +63,9 @@
     ]},
     {"id": 6, "name": "player_spawn", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
       {"id": 18, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 576, "width": 32, "height": 32}
+    ]},
+    {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
+      {"id": 21, "name": "thief_trainer", "type": "", "rotation": 0, "visible": true, "x": 830, "y": 608, "width": 0, "height": 0, "point": true}
     ]}
   ]
 }

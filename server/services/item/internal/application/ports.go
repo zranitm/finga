@@ -13,6 +13,8 @@ import (
 type Store interface {
 	InTx(ctx context.Context, fn func(uow UnitOfWork) error) error
 	Inventory(ctx context.Context, owner kernel.CharacterID) (model.Inventory, error)
+	// HandedIn finds the owner's hand-ins of the completions asked, leaving out those it has none of.
+	HandedIn(ctx context.Context, owner kernel.CharacterID, asked []Completion) ([]HandIn, error)
 }
 
 // UnitOfWork is everything bound to one transaction.
@@ -21,6 +23,7 @@ type UnitOfWork interface {
 	Events() EventRepository
 	Notices() Notices
 	Idempotency() Idempotency
+	HandIns() HandIns
 	// Savepoint runs fn; when fn fails, everything it wrote is undone and the transaction carries on.
 	Savepoint(ctx context.Context, fn func() error) error
 }
@@ -59,6 +62,13 @@ type Idempotency interface {
 	Run(ctx context.Context, owner kernel.AccountID, scope, key string, fingerprint []byte, fn func() (Result, error)) (Result, error)
 	// Lock takes the lock Run takes for key, until the transaction ends.
 	Lock(ctx context.Context, owner kernel.AccountID, scope, key string) error
+}
+
+// HandIns keeps each completion of a quest handed in, for good.
+type HandIns interface {
+	// Claim takes the owner's inventory lock, so a second hand-in of a completion waits for the first to commit, then finds the completion's record if there is one.
+	Claim(ctx context.Context, owner kernel.CharacterID, c Completion) (HandIn, bool, error)
+	Record(ctx context.Context, owner kernel.CharacterID, h HandIn) error
 }
 
 // Content is what the use cases need from game data.

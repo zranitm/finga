@@ -18,25 +18,37 @@ import (
 type fakeStore struct {
 	mu      sync.Mutex
 	chars   map[kernel.CharacterID]model.Character
+	quests  map[kernel.CharacterID]map[string]model.Quest
 	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}}
+	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.txCount++
-	chars := maps.Clone(s.chars)
+	chars, quests := maps.Clone(s.chars), map[kernel.CharacterID]map[string]model.Quest{}
+	for id, qs := range s.quests {
+		quests[id] = maps.Clone(qs)
+	}
 	order := slices.Clone(s.order)
 	if err := fn(fakeUOW{s}); err != nil {
-		s.chars, s.order = chars, order
+		s.chars, s.quests, s.order = chars, quests, order
 		return err
 	}
 	return nil
+}
+
+func (s *fakeStore) Quests(_ context.Context, id kernel.CharacterID) ([]model.Quest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := slices.Collect(maps.Values(s.quests[id]))
+	slices.SortFunc(out, func(a, b model.Quest) int { return strings.Compare(a.ID, b.ID) })
+	return out, nil
 }
 
 func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]model.Character, error) {
@@ -134,6 +146,10 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.UpdatedAt = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, time.Now()
 	c.Points, c.UnspentPoints, c.FreeResetUsed = cp.Points, cp.UnspentPoints, cp.FreeResetUsed
 	r.s.chars[cp.ID] = c
+	r.s.quests[cp.ID] = map[string]model.Quest{}
+	for _, q := range cp.Quests {
+		r.s.quests[cp.ID][q.ID] = q
+	}
 	return nil
 }
 

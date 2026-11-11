@@ -39,6 +39,10 @@ func (o *Outbox) body(p model.Push) any {
 		return &clientv1.PartyState{Party: partyView(p.Party)}
 	case model.PartyInvited:
 		return &clientv1.PartyInvited{InviteId: p.InviteID, From: p.From, FromName: p.FromName}
+	case model.NpcDialog:
+		return npcDialog(p)
+	case model.QuestChanged:
+		return &clientv1.QuestChanged{Change: questChanges[p.Change], Quest: questState(p.Quest)}
 	}
 	return nil
 }

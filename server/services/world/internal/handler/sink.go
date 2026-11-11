@@ -67,8 +67,55 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		}}}
 	case model.Detached:
 		return &worldv1.DeliverResponse{Event: &worldv1.DeliverResponse_Detached{Detached: &worldv1.Detached{}}}
+	case model.NpcDialog:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_NpcDialog{NpcDialog: npcDialog(ev)}}
+	case model.QuestChanged:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{Change: questChanges[ev.Change], Quest: questState(ev.ID, ev.Quest)}}}
 	}
 	return nil
+}
+
+var questChanges = map[model.QuestChange]worldv1.QuestChange{
+	model.QuestProgressed: worldv1.QuestChange_QUEST_CHANGE_PROGRESSED,
+	model.QuestAccepted:   worldv1.QuestChange_QUEST_CHANGE_ACCEPTED,
+	model.QuestHandedIn:   worldv1.QuestChange_QUEST_CHANGE_HANDED_IN,
+	model.QuestAbandoned:  worldv1.QuestChange_QUEST_CHANGE_ABANDONED,
+}
+
+var questStatuses = map[model.QuestStatus]worldv1.QuestStatus{
+	model.QuestActive:   worldv1.QuestStatus_QUEST_STATUS_ACTIVE,
+	model.QuestFinished: worldv1.QuestStatus_QUEST_STATUS_FINISHED,
+}
+
+// questState is one quest of a log; a zero quest, one that left the log, has no status.
+func questState(id string, q model.Quest) *worldv1.QuestState {
+	progress := make([]int32, len(q.Progress))
+	for k, n := range q.Progress {
+		progress[k] = int32(n) //nolint:gosec // counts are small
+	}
+	return &worldv1.QuestState{QuestId: id, Status: questStatuses[q.Status], Progress: progress, TimesFinished: int32(q.TimesFinished)} //nolint:gosec // counts are small
+}
+
+var offerStates = map[model.OfferState]worldv1.QuestOfferState{
+	model.OfferAvailable: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE,
+	model.OfferActive:    worldv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE,
+	model.OfferFinished:  worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED,
+	model.OfferUnmet:     worldv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET,
+}
+
+func npcDialog(d model.NpcDialog) *worldv1.NpcDialog {
+	out := &worldv1.NpcDialog{NpcId: d.NPC}
+	for _, o := range d.Gives {
+		offer := &worldv1.QuestOffer{QuestId: o.Quest, State: offerStates[o.State]}
+		if o.State == model.OfferUnmet {
+			offer.Unmet = &worldv1.QuestConditions{Level: int32(o.Unmet.Level), Class: o.Unmet.Class.String(), Quests: o.Unmet.Quests} //nolint:gosec // levels are small
+		}
+		out.Gives = append(out.Gives, offer)
+	}
+	for _, t := range d.Takes {
+		out.Takes = append(out.Takes, &worldv1.QuestTurnIn{QuestId: t.Quest, Ready: t.Ready})
+	}
+	return out
 }
 
 func lootKind(k model.LootKind) worldv1.LootKind {

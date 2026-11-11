@@ -68,7 +68,11 @@ type RequestType =
   | 'partyKick'
   | 'partyPromote'
   | 'spendPoints'
-  | 'resetPoints';
+  | 'resetPoints'
+  | 'talk'
+  | 'acceptQuest'
+  | 'abandonQuest'
+  | 'handInQuest';
 type ActionType = 'attack' | 'enterPortal';
 
 /** A server message as handlers see it: the body's case and value, with the envelope's req and tick. */

@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
-import { WelcomeSchema } from '@/protocol/messages';
+import { NpcDialogSchema, WelcomeSchema } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
+import { quests } from '@/state/quests';
+import { ui } from '@/state/ui';
 import { SceneRunner } from '@/testing/fake-phaser';
 import type { FakeScene } from '@/testing/fake-phaser';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
@@ -161,6 +163,21 @@ describe('World', () => {
     },
   );
 
+  it("a rejoin's Welcome on the same map brings a dead player back: its Snapshot places them and input flows", async () => {
+    const { frames, inputs, leave } = await playing('forest');
+    const ws = FakeWebSocket.latest();
+    ws.push('died', { characterId: ME, x: 480, y: 608 });
+    frames(2);
+    const dead = inputs();
+    frames(3);
+    expect(inputs()).toBe(dead); // the server holds a dead player
+    ws.push('welcome', { token: '', mapId: 'forest', tickRateHz: RATE }); // the world restarted, and saved them alive
+    ws.push('snapshot', snapshotOn('forest'), { tick: 900 });
+    frames(3);
+    expect(inputs()).toBeGreaterThan(dead);
+    leave();
+  });
+
   it('a Snapshot that lands while the assets still load places the player once they are in', async () => {
     const { socket } = await connected('forest');
     const { built, frames, inputs, assetsLoaded } = entered(socket, 'forest', false);
@@ -208,6 +225,83 @@ describe('World', () => {
     ws.push('delta', { players: [{ ...me, hp: 45, invulnerable: true }] }, { tick: 2 });
     ws.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 2 });
     expect(character.getState().character?.hp).toBe(45);
+  });
+
+  describe('NPCs', () => {
+    const press = (code: string) => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code, cancelable: true }));
+      window.dispatchEvent(new KeyboardEvent('keyup', { code, cancelable: true }));
+    };
+    /** The player stands at x on the town's ground, as the server's Snapshot says. */
+    const standAt = (x: number, tick: number) => {
+      const me = snapshotOn('town').players![0]!;
+      FakeWebSocket.latest().push('snapshot', { players: [{ ...me, x }] }, { tick });
+    };
+    const talks = () =>
+      FakeWebSocket.latest()
+        .frames()
+        .filter((f) => f.t === 'talk');
+    // Each scene binds the window's keys until it stops.
+    let leave: (() => void) | undefined;
+    const inTown = async () => {
+      const world = await playing('town');
+      leave = world.leave;
+      return world;
+    };
+    afterEach(() => {
+      leave?.();
+      leave = undefined;
+    });
+
+    it('the Talk key talks to the guide within reach, and does nothing farther off', async () => {
+      const { frames } = await inTown();
+      standAt(566, 5); // 70 px from the guide at x 496
+      frames(1);
+      press('KeyZ');
+      expect(talks()).toEqual([]);
+      standAt(480, 6);
+      frames(1);
+      press('KeyZ');
+      expect(talks()).toMatchObject([{ d: { npcId: 'town_guide' } }]);
+    });
+
+    it('the dialog closes once the player walks out of reach', async () => {
+      const { frames } = await inTown();
+      standAt(480, 5);
+      frames(1);
+      quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
+      ui.getState().openWindow('npc');
+      frames(2);
+      expect(ui.getState().windows).toEqual(['npc']);
+      standAt(600, 6);
+      frames(2);
+      expect(ui.getState().windows).toEqual([]);
+    });
+
+    it('the dialog closes when the player dies, and Talk does nothing while dead', async () => {
+      const { frames } = await inTown();
+      standAt(480, 5);
+      frames(1);
+      quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
+      ui.getState().openWindow('npc');
+      FakeWebSocket.latest().push('died', { characterId: ME, x: 480, y: 608 });
+      expect(ui.getState().windows).toEqual([]);
+      press('KeyZ');
+      expect(talks()).toEqual([]);
+      // A dialog answering a Talk from the tick the player died in arrives after the death.
+      quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
+      ui.getState().openWindow('npc');
+      frames(1);
+      expect(ui.getState().windows).toEqual([]);
+    });
+
+    it('Q opens and closes the quest log', async () => {
+      await inTown();
+      press('KeyQ');
+      expect(ui.getState().windows).toEqual(['quests']);
+      press('KeyQ');
+      expect(ui.getState().windows).toEqual([]);
+    });
   });
 
   it('a second map change during the fade lands on the second map', async () => {

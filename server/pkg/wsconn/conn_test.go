@@ -383,6 +383,26 @@ func TestADropWithNoCloseFrameIsNeitherSidesClose(t *testing.T) {
 	}
 }
 
+// A drop during the upgrade cancels the request's context before the connection runs: its read error still reaches OnClose, at once.
+func TestADropDuringTheUpgradeStillReachesOnClose(t *testing.T) {
+	checkLeaks(t)
+	rec := newRecorder()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		cancel()
+		wsconn.Serve(w, r.WithContext(ctx), rec, wsconn.Options{Subprotocols: textOnly})
+	}))
+	t.Cleanup(ts.Close)
+	c := dial(t, &server{ts: ts, rec: rec}, "")
+	defer c.CloseNow() //nolint:errcheck // test teardown
+	err := rec.waitClosed(t)
+	var ce *wsconn.CloseError
+	var pc *wsconn.PeerClose
+	if err == nil || errors.As(err, &ce) || errors.As(err, &pc) {
+		t.Fatalf("OnClose got %v, want the read error of a drop", err)
+	}
+}
+
 func TestServerSideClose(t *testing.T) {
 	checkLeaks(t)
 	rec := newRecorder()

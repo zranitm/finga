@@ -3,6 +3,8 @@ package repository
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -56,6 +58,23 @@ func (p *Postgres) Load(ctx context.Context, id kernel.CharacterID, account kern
 		return model.Character{}, failures.Classify(err)
 	}
 	return toCharacter(row), nil
+}
+
+// Quests is the character's quests, by ID.
+func (p *Postgres) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error) {
+	rows, err := p.q.ListQuests(ctx, uuid.UUID(id))
+	if err != nil {
+		return nil, failures.Classify(err)
+	}
+	out := make([]model.Quest, 0, len(rows))
+	for _, q := range rows {
+		progress := make([]int, len(q.Progress))
+		for k, n := range q.Progress {
+			progress[k] = int(n)
+		}
+		out = append(out, model.Quest{ID: q.QuestID, Status: model.QuestStatus(q.Status), Progress: progress, TimesFinished: int(q.TimesFinished)})
+	}
+	return out, nil
 }
 
 func toCharacter(r db.Character) model.Character {
@@ -116,7 +135,24 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 		AgiPoints: int32(cp.Points.AGI), VitPoints: int32(cp.Points.VIT), UnspentPoints: int32(cp.UnspentPoints), FreeResetUsed: cp.FreeResetUsed, //nolint:gosec // points are small
 		Now: r.now,
 	})
-	return dbx.RowsOrNotFound(n, err)
+	if err := dbx.RowsOrNotFound(n, err); err != nil {
+		return err
+	}
+	q := db.SaveQuestsParams{CharacterID: uuid.UUID(cp.ID), QuestIds: []string{}, Now: r.now}
+	for _, quest := range cp.Quests {
+		counts := make([]string, len(quest.Progress))
+		for k, n := range quest.Progress {
+			counts[k] = strconv.Itoa(n)
+		}
+		q.QuestIds = append(q.QuestIds, quest.ID)
+		q.Statuses = append(q.Statuses, string(quest.Status))
+		q.Progress = append(q.Progress, strings.Join(counts, ","))
+		q.TimesFinished = append(q.TimesFinished, int32(quest.TimesFinished)) //nolint:gosec // counts are small
+	}
+	if err := r.q.SaveQuests(ctx, q); err != nil {
+		return err
+	}
+	return r.q.DropOtherQuests(ctx, db.DropOtherQuestsParams{CharacterID: uuid.UUID(cp.ID), QuestIds: q.QuestIds})
 }
 
 // SaveLevelUp updates level, EXP, points, HP and MP; no row is pgx.ErrNoRows.

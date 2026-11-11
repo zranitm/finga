@@ -2,6 +2,7 @@ package push_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -196,6 +197,25 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.PartyState{Party: party}, &clientv1.PartyState{Party: wireParty}},
 		{model.PartyState{}, &clientv1.PartyState{}},
 		{model.PartyInvited{InviteID: "inv-2", From: "p-1", FromName: "Robin"}, &clientv1.PartyInvited{InviteId: "inv-2", From: "p-1", FromName: "Robin"}},
+		{
+			model.NpcDialog{NPC: "town_guide", Gives: []model.QuestOffer{
+				{Quest: "a", State: model.OfferAvailable}, {Quest: "b", State: model.OfferActive}, {Quest: "c", State: model.OfferFinished},
+				{Quest: "d", State: model.OfferUnmet, Unmet: model.QuestConditions{Level: 5, Class: "thief", Quests: []string{"a"}}},
+			}, Takes: []model.QuestTurnIn{{Quest: "b", Ready: true}, {Quest: "e"}}},
+			&clientv1.NpcDialog{NpcId: "town_guide", Gives: []*clientv1.QuestOffer{
+				{QuestId: "a", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE}, {QuestId: "b", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_ACTIVE},
+				{QuestId: "c", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+				{QuestId: "d", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 5, Class: "thief", Quests: []string{"a"}}},
+			}, Takes: []*clientv1.QuestTurnIn{{QuestId: "b", Ready: true}, {QuestId: "e"}}},
+		},
+		{
+			model.QuestChanged{Change: model.QuestProgressed, Quest: model.QuestState{Quest: "a", Status: model.QuestActive, Progress: []int{2, 0}, TimesFinished: 3}},
+			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_PROGRESSED, Quest: &clientv1.QuestState{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{2, 0}, TimesFinished: 3}},
+		},
+		{
+			model.QuestChanged{Change: model.QuestAbandoned, Quest: model.QuestState{Quest: "a"}},
+			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "a"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {
@@ -241,7 +261,7 @@ func TestAFramesPlayersShareOneEncoding(t *testing.T) {
 	}
 }
 
-func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
+func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionAndItsQuests(t *testing.T) {
 	s := &socket{}
 	at := time.UnixMilli(1_700_000_000_000)
 	push.NewOutbox(s, s, push.NewFrames()).Welcome(model.Welcome{
@@ -252,6 +272,7 @@ func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
 		InventoryRevision: 8,
 		MapID:             "town",
 		ServerTime:        at,
+		Quests:            []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}},
 	})
 	want := &clientv1.Welcome{
 		Token:             "t-2",
@@ -261,27 +282,50 @@ func TestWelcomeCarriesTheCharacterAndItsItemsAtTheirRevision(t *testing.T) {
 		InventoryRevision: 8,
 		MapId:             "town",
 		ServerTime:        at.UnixMilli(),
+		Quests:            []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}},
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if len(s.sent) != 1 || s.sent[0].Type != "Welcome" || !proto.Equal(s.sent[0].Data.(proto.Message), want) {
 		t.Fatalf("sent %+v, want %v", s.sent, want)
 	}
+	if !slices.Equal(s.welcomes, []string{fmt.Sprintf("login %d", proto.Size(want))}) {
+		t.Fatalf("welcomes measured %v", s.welcomes)
+	}
+}
+
+func TestAWelcomeWithNoTokenIsMeasuredAsARejoins(t *testing.T) {
+	s := &socket{}
+	o := push.NewOutbox(s, s, push.NewFrames())
+	o.Welcome(model.Welcome{Token: "t-1", MapID: "town"})
+	o.Welcome(model.Welcome{MapID: "town"})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.welcomes) != 2 || !strings.HasPrefix(s.welcomes[0], "login ") || !strings.HasPrefix(s.welcomes[1], "rejoin ") {
+		t.Fatalf("welcomes measured %v", s.welcomes)
+	}
 }
 
 // socket records what a connection sends, how it first closes, and the types the outbox counted.
 type socket struct {
-	mu      sync.Mutex
-	sent    []wsconn.Message
-	counted []string
-	code    int
-	why     string
+	mu       sync.Mutex
+	sent     []wsconn.Message
+	counted  []string
+	welcomes []string // "<kind> <bytes>", one a Welcome
+	code     int
+	why      string
 }
 
 func (s *socket) MessageOut(msgType string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.counted = append(s.counted, msgType)
+}
+
+func (s *socket) WelcomeSent(kind string, bytes int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.welcomes = append(s.welcomes, fmt.Sprintf("%s %d", kind, bytes))
 }
 
 func (s *socket) ID() string { return "c-1" }

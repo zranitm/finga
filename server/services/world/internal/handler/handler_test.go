@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	characterv1 "finga/api/gen/character/v1"
 	itemv1 "finga/api/gen/item/v1"
@@ -117,6 +118,16 @@ func (w wears) Unequip(context.Context, model.UnequipCall) (model.Equipped, erro
 
 func (wears) Worn(context.Context, kernel.CharacterID) (model.Worn, error) { return model.Worn{}, nil }
 
+// HandIn takes the gel and gives nothing back, at revision 4; err refuses it.
+func (w wears) HandIn(context.Context, model.HandInCall) (model.Inventory, error) {
+	return model.Inventory{Revision: 4, Slots: []model.Slot{{Tab: gamedata.Etc, Slot: 0}}}, w.err
+}
+
+// HandedIn finds none handed in.
+func (wears) HandedIn(context.Context, kernel.CharacterID, []model.Completion) ([]model.HandedIn, error) {
+	return nil, nil
+}
+
 func newStack(t *testing.T) *stack { return newStackWearing(t, wears{}) }
 
 func newStackWearing(t *testing.T, eq wears) *stack {
@@ -128,7 +139,7 @@ func newStackWearing(t *testing.T, eq wears) *stack {
 	chars := &characters{chars: map[kernel.CharacterID]model.Character{}}
 	rec := panics.NewRecorder(slog.New(slog.DiscardHandler), nil)
 	w := world.New(world.Deps{
-		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
+		Data: data, NewRoll: func() model.Roll { return idle{} }, Observer: idle{}, Items: idle{}, Batches: idle{}, Equipment: eq, HandIns: eq, HandedIns: eq, Wardrobe: eq, ItemCalls: itemcalls.NewPool(itemcalls.Deps{Observer: idle{}, Panics: rec}, itemcalls.Options{Workers: 1}), Parties: idle{}, Traces: noop.NewTracerProvider(),
 		Saver: saver{}, Characters: chars, Starter: idle{}, Panics: rec, Logger: slog.New(slog.DiscardHandler), SaveObserver: idle{},
 	}, world.Tuning{TickInterval: tick, CheckpointInterval: time.Minute, FlushTimeout: time.Second, BatchMax: 32})
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -525,5 +536,103 @@ func TestAnEquipRefusalKeepsTheItemServicesReason(t *testing.T) {
 	}
 	if _, err := s.c.Equip(s.ctx, &worldv1.EquipRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, IdempotencyKey: "k-1", ItemId: "nope"}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("a malformed item ID: %v", err)
+	}
+}
+
+// Talk answers once the dialog is on the stream, computed from the quest log the join loaded.
+func TestTalkSendsTheDialogComputedFromTheLoadedLog(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
+	}
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	if _, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: presence, NpcId: "town_guide"}); err != nil {
+		t.Fatal(err)
+	}
+	got := until(t, stream, "the dialog", func(m *worldv1.DeliverResponse) bool { return m.GetNpcDialog() != nil }).GetNpcDialog()
+	want := &worldv1.NpcDialog{NpcId: "town_guide", Gives: []*worldv1.QuestOffer{
+		{QuestId: "slime_cleanup", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
+		{QuestId: "sticky_samples", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+		{QuestId: "meet_the_trainers", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+		{QuestId: "ready_for_the_wilds", State: worldv1.QuestOfferState_QUEST_OFFER_STATE_AVAILABLE},
+	}}
+	if !proto.Equal(got, want) {
+		t.Fatalf("dialog %v, want %v", got, want)
+	}
+	_, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: presence, NpcId: "nobody"})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(worldv1.Reason_REASON_NPC_OUT_OF_REACH) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("an NPC not on the map: %v", err)
+	}
+	if _, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
+	}
+}
+
+// The join answers with the quest log; the quest RPCs answer once applied, each change on the stream, and keep the item service's reason for a refused hand-in.
+func TestQuestsOverTheWorld(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		Quests: model.Quests{"slime_cleanup": {Status: model.QuestFinished, TimesFinished: 1}},
+	}
+	s.chars.add(ayla)
+	res, err := s.c.Join(s.ctx, &worldv1.JoinRequest{GatewayId: "gw-1", ConnectionId: "c1", AccountId: s.account.String(), CharacterId: ayla.ID.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if log := res.GetQuests(); len(log) != 1 || !proto.Equal(log[0], &worldv1.QuestState{QuestId: "slime_cleanup", Status: worldv1.QuestStatus_QUEST_STATUS_FINISHED, Progress: []int32{}, TimesFinished: 1}) {
+		t.Fatalf("joined with the log %v", log)
+	}
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	changed := func(what string) *worldv1.QuestChanged {
+		return until(t, stream, what, func(m *worldv1.DeliverResponse) bool { return m.GetQuestChanged() != nil }).GetQuestChanged()
+	}
+	if _, err := s.c.AcceptQuest(s.ctx, &worldv1.AcceptQuestRequest{Presence: presence, NpcId: "town_guide", QuestId: "sticky_samples"}); err != nil {
+		t.Fatal(err)
+	}
+	if c := changed("the accept"); c.GetChange() != worldv1.QuestChange_QUEST_CHANGE_ACCEPTED || c.GetQuest().GetQuestId() != "sticky_samples" {
+		t.Fatalf("change %v", c)
+	}
+	_, err = s.c.AcceptQuest(s.ctx, &worldv1.AcceptQuestRequest{Presence: presence, NpcId: "town_guide", QuestId: "sticky_samples"})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(worldv1.Reason_REASON_QUEST_ALREADY_ACTIVE) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("a second accept: %v", err)
+	}
+	if _, err := s.c.HandInQuest(s.ctx, &worldv1.HandInQuestRequest{Presence: presence, NpcId: "town_guide", QuestId: "sticky_samples"}); err != nil {
+		t.Fatal(err)
+	}
+	if c := changed("the hand-in"); c.GetChange() != worldv1.QuestChange_QUEST_CHANGE_HANDED_IN || c.GetQuest().GetStatus() != worldv1.QuestStatus_QUEST_STATUS_FINISHED {
+		t.Fatalf("change %v", c)
+	}
+	if _, err := s.c.AbandonQuest(s.ctx, &worldv1.AbandonQuestRequest{Presence: presence, QuestId: "sticky_samples"}); err != nil {
+		t.Fatalf("abandoning a quest not active: %v", err)
+	}
+	if _, err := s.c.AcceptQuest(s.ctx, &worldv1.AcceptQuestRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
+	}
+	if _, err := s.c.AbandonQuest(s.ctx, &worldv1.AbandonQuestRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String()}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("no connection: %v", err)
+	}
+	if _, err := s.c.HandInQuest(s.ctx, &worldv1.HandInQuestRequest{Presence: &worldv1.Presence{CharacterId: "nope", ConnectionId: "c1"}}); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("a malformed character ID: %v", err)
+	}
+}
+
+func TestARefusedHandInKeepsTheItemServicesReason(t *testing.T) {
+	s := newStackWearing(t, wears{err: grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS))})
+	s.gateway(t, "gw-1")
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Warrior, Level: 2, HP: 100, MP: 40, MapID: "town", X: 450, Y: 608,
+		Quests: model.Quests{"sticky_samples": {Status: model.QuestActive, Progress: []int{0}}},
+	}
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	_, err := s.c.HandInQuest(s.ctx, &worldv1.HandInQuestRequest{Presence: &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}, NpcId: "town_guide", QuestId: "sticky_samples"})
+	if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(itemv1.Reason_REASON_NOT_ENOUGH_ITEMS) || status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("got %v", err)
 	}
 }
