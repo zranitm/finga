@@ -8,8 +8,8 @@ import (
 	"finga/internal/host"
 	"finga/pkg/dbx"
 	"finga/pkg/idempotency"
-	"finga/pkg/logger"
-	"finga/pkg/tracing"
+	"finga/pkg/observability/logger"
+	"finga/pkg/observability/tracing"
 )
 
 // Config is services/item/config/config.yaml.

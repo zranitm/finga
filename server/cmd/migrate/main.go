@@ -14,7 +14,7 @@ import (
 	"finga/internal/host"
 	"finga/pkg/configload"
 	"finga/pkg/dbx"
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 )
 
 const connTimeout = 30 * time.Second

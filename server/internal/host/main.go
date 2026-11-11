@@ -15,8 +15,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/pkg/configload"
-	"finga/pkg/logger"
-	"finga/pkg/observability"
+	"finga/pkg/observability/logger"
+	"finga/pkg/observability/metrics"
 )
 
 const (
@@ -100,7 +100,7 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string,
 	}
 	buildCtx, cancel := context.WithTimeout(ctx, buildTimeout)
 	defer cancel()
-	p, err := build(buildCtx, *cfg, log, observability.NewRegistry())
+	p, err := build(buildCtx, *cfg, log, metrics.NewRegistry())
 	if err != nil {
 		log.ErrorContext(ctx, "startup failed", "service", name, "err", err)
 		return 1

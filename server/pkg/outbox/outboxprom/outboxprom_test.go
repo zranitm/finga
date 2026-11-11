@@ -10,7 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/pkg/observability/promtest"
+	"finga/pkg/observability/metrics/promtest"
 	"finga/pkg/outbox/outboxprom"
 )
 

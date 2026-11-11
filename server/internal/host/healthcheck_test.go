@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"finga/internal/host"
-	"finga/pkg/logger"
-	"finga/pkg/observability"
+	"finga/pkg/observability/logger"
+	"finga/pkg/observability/metrics"
 	"finga/pkg/runner/runnertest"
 )
 
@@ -33,7 +33,7 @@ func TestHealthcheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	log := runnertest.NewLog()
-	shop := newHost(t, host.Options{Name: "shop", Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: log.Logger(), Registry: observability.NewRegistry()})
+	shop := newHost(t, host.Options{Name: "shop", Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: log.Logger(), Registry: metrics.NewRegistry()})
 	grpcAddr := runnertest.Start(t, log, shop.Run, "grpc", "ops").Addr("grpc")
 	edgeLog := runnertest.NewLog()
 	opsAddr := runnertest.Start(t, edgeLog, newPublic(t, edgeLog).Run, "http", "ops").Addr("ops")

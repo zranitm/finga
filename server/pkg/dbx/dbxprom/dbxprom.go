@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 
 	"finga/pkg/dbx"
-	"finga/pkg/observability"
+	"finga/pkg/observability/metrics"
 )
 
 // Transaction buckets cover a local Postgres (sub-millisecond) to a slow one.
@@ -28,13 +28,13 @@ var _ dbx.Observer = (*Metrics)(nil)
 func New(reg prometheus.Registerer) (*Metrics, error) {
 	m := &Metrics{
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: observability.Namespace, Name: "db_tx_duration_seconds", Help: "Database transaction time by operation, retries included.", Buckets: txBuckets,
+			Namespace: metrics.Namespace, Name: "db_tx_duration_seconds", Help: "Database transaction time by operation, retries included.", Buckets: txBuckets,
 		}, []string{"operation"}),
 		retries: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: observability.Namespace, Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout.",
+			Namespace: metrics.Namespace, Name: "db_tx_retries_total", Help: "Transactions re-run after a deadlock, a serialization failure or a lock timeout.",
 		}, []string{"operation"}),
 	}
-	return m, observability.Register(reg, m.duration, m.retries)
+	return m, metrics.Register(reg, m.duration, m.retries)
 }
 
 // TxDone records a transaction under the gRPC method it served, as Add for /finga.item.v1.ItemService/Add.

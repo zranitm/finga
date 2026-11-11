@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"finga/pkg/dbx/dbxprom"
-	"finga/pkg/observability/promtest"
+	"finga/pkg/observability/metrics/promtest"
 )
 
 // grpcMethod is a context as a gRPC server hands it to a handler of method.

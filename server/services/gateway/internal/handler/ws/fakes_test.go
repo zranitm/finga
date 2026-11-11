@@ -27,7 +27,7 @@ import (
 	"finga/internal/kernel"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/tracing"
+	"finga/pkg/observability/tracing"
 	"finga/services/gateway/internal/handler/ws/receive"
 	"finga/services/gateway/internal/model"
 )

@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 
-	"finga/pkg/tracing"
+	"finga/pkg/observability/tracing"
 )
 
 // Tracing gives calls trace context and spans, as Provider samples; not streams, whose spans would last hours.

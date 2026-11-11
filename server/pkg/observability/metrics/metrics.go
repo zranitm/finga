@@ -1,5 +1,5 @@
-// Package observability sets up Prometheus metrics: the registry, its handler and the process-wide counters.
-package observability
+// Package metrics sets up Prometheus metrics: the registry, its handler and the process-wide counters.
+package metrics
 
 import (
 	"fmt"
@@ -19,8 +19,8 @@ func NewRegistry() *prometheus.Registry {
 	return reg
 }
 
-// MetricsHandler serves reg in the Prometheus text format.
-func MetricsHandler(reg *prometheus.Registry) http.Handler {
+// Handler serves reg in the Prometheus text format.
+func Handler(reg *prometheus.Registry) http.Handler {
 	return promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg})
 }
 

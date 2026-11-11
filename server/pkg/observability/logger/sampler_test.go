@@ -6,7 +6,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 )
 
 type line struct {

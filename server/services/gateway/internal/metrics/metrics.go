@@ -4,7 +4,7 @@ package metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/pkg/observability"
+	"finga/pkg/observability/metrics"
 )
 
 // welcomeBuckets are a Welcome's encoded bytes, 512 B to 512 KiB.
@@ -23,22 +23,22 @@ type Metrics struct {
 func New(reg prometheus.Registerer) (*Metrics, error) {
 	m := &Metrics{
 		playersOnline: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: observability.Namespace, Name: "players_online", Help: "Players whose Hello joined them to a map.",
+			Namespace: metrics.Namespace, Name: "players_online", Help: "Players whose Hello joined them to a map.",
 		}),
 		registrationsWaiting: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: observability.Namespace, Name: "social_registrations_waiting", Help: "Logins whose registration with the social service has not landed yet, retries included.",
+			Namespace: metrics.Namespace, Name: "social_registrations_waiting", Help: "Logins whose registration with the social service has not landed yet, retries included.",
 		}),
 		messages: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: observability.Namespace, Name: "ws_messages_total", Help: "WebSocket messages by direction and type.",
+			Namespace: metrics.Namespace, Name: "ws_messages_total", Help: "WebSocket messages by direction and type.",
 		}, []string{"direction", "type"}),
 		slowConsumers: prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace: observability.Namespace, Name: "ws_slow_consumer_disconnects_total", Help: "Connections closed because their send queue filled up.",
+			Namespace: metrics.Namespace, Name: "ws_slow_consumer_disconnects_total", Help: "Connections closed because their send queue filled up.",
 		}),
 		welcomeBytes: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: observability.Namespace, Name: "ws_welcome_bytes", Help: "Encoded size of each Welcome, by kind: login or rejoin.", Buckets: welcomeBuckets,
+			Namespace: metrics.Namespace, Name: "ws_welcome_bytes", Help: "Encoded size of each Welcome, by kind: login or rejoin.", Buckets: welcomeBuckets,
 		}, []string{"kind"}),
 	}
-	return m, observability.Register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers, m.welcomeBytes)
+	return m, metrics.Register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers, m.welcomeBytes)
 }
 
 // MessageIn counts a message received over the WebSocket.

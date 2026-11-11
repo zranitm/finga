@@ -16,7 +16,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	"go.opentelemetry.io/otel/trace"
 
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 	"finga/pkg/uuidv7"
 )
 

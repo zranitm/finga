@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap/zapcore"
 
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 )
 
 func TestTheHandlerPassesSlogtest(t *testing.T) {

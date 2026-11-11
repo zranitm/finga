@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"finga/internal/host"
-	"finga/pkg/logger"
-	"finga/pkg/tracing"
+	"finga/pkg/observability/logger"
+	"finga/pkg/observability/tracing"
 )
 
 // Config is services/gateway/config/config.yaml.

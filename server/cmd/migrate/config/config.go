@@ -3,7 +3,7 @@ package config
 
 import (
 	"finga/pkg/dbx"
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 )
 
 // Dir is the config directory, relative to server/ (or /app in the image).
