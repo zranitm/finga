@@ -1,5 +1,6 @@
-// Package api_test guards the shape of the contracts.
-package api_test
+// The shape of the contracts.
+
+package rules_test
 
 import (
 	"io/fs"
@@ -37,7 +38,7 @@ func TestNoServiceContractImportsAnother(t *testing.T) {
 func contracts(t *testing.T) []string {
 	t.Helper()
 	var paths []string
-	err := fs.WalkDir(os.DirFS("proto"), "internal", func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(os.DirFS("../../api/proto"), "internal", func(path string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && strings.HasSuffix(path, ".proto") {
 			paths = append(paths, path)
 		}
@@ -47,7 +48,7 @@ func contracts(t *testing.T) []string {
 		t.Fatal(err)
 	}
 	if len(paths) == 0 {
-		t.Fatal("no contracts under proto/internal")
+		t.Fatal("no contracts under api/proto/internal")
 	}
 	return paths
 }
