@@ -20,6 +20,7 @@ const (
 	invulnerability  = time.Second // after contact damage
 	knockbackX       = 16.0        // px away from the mob
 	knockbackVY      = -250.0
+	fallMargin       = 64.0 // px below the map's bottom, two tiles, past which a falling player is taken back to its spawn
 )
 
 // RespawnHP is the HP a dead character comes back with.
@@ -112,10 +113,10 @@ func (i *Instance) contactDamage() {
 		if p.state.X < mobX {
 			dir = -1
 		}
-		p.state.X += dir * knockbackX
+		p.state = knockedBack(p.state, dir*knockbackX, i.m.Geometry.Solids, i.params)
 		p.state.VY = knockbackVY
 		p.state.OnGround = false
-		p.state.Ground = -1
+		p.state.Ground = sim.NoPlatform
 		p.moved = true
 		if dealt.Miss {
 			continue
@@ -125,6 +126,41 @@ func (i *Instance) contactDamage() {
 			i.kill(p)
 		}
 	}
+}
+
+// knockedBack is s moved dx sideways, stopped at the face of the first solid beside it: sim.Step only pushes a player out of a solid they walk into.
+func knockedBack(s sim.State, dx float64, solids []sim.Rect, p sim.Params) sim.State {
+	half := p.Width / 2
+	x := s.X + dx
+	for _, r := range solids {
+		if s.Y-p.Height >= r.Y+r.H || s.Y <= r.Y {
+			continue // above or below the player's box
+		}
+		switch {
+		case dx > 0 && r.X > s.X:
+			x = min(x, r.X-half)
+		case dx < 0 && r.X+r.W < s.X:
+			x = max(x, r.X+r.W+half)
+		}
+	}
+	s.X = x
+	return s
+}
+
+// fellOut reports whether s has fallen past the bottom of m, out of the world, or lost its position to NaN.
+func fellOut(s sim.State, m *gamedata.Map) bool {
+	return s.Y > m.Height+fallMargin || math.IsNaN(s.X) || math.IsNaN(s.Y)
+}
+
+// rescue takes a player who fell out of the map back to its spawn, alive and with nothing lost; the Delta corrects the client.
+func (i *Instance) rescue(p *player) {
+	i.log.Warn("a player fell out of the map; it took them back to its spawn", "character_id", p.ID, "map_id", i.m.ID, "x", p.state.X, "y", p.state.Y)
+	p.state = standing(i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y)
+}
+
+// standing is a character at rest at (x, y), as a join, a respawn or a rescue places one.
+func standing(x, y float64) sim.State {
+	return sim.State{X: x, Y: y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform}
 }
 
 func (i *Instance) kill(p *player) {
@@ -156,7 +192,7 @@ func (i *Instance) deathsAndRespawns() []kernel.CharacterID {
 		if i.m.Town == i.m.ID { // a town revives its own dead
 			x, y := i.m.PlayerSpawn.X, i.m.PlayerSpawn.Y
 			i.events = append(i.events, model.Respawned{Tick: i.tick, ID: p.ID, MapID: i.m.ID, X: x, Y: y, HP: p.HP})
-			p.state = sim.State{X: x, Y: y, Facing: 1, Ground: -1, DropPlatform: -1}
+			p.state = standing(x, y)
 			i.tellParty(p, i.m.ID)
 			p.moved = true
 			continue

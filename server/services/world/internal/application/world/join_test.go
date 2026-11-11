@@ -5,12 +5,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"math"
 	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/services/world/internal/application/world"
 	"finga/services/world/internal/model"
@@ -221,6 +223,52 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 			t.Fatalf("joined %+v, want %s's spawn with 72 HP", v, town.ID)
 		}
 	})
+}
+
+// A saved position the map can't hold, as a fall out of the world once left, starts at the map's spawn.
+func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
+	data := worldtest.LoadData(t)
+	forest, _ := data.Map("forest")
+	for _, c := range []struct {
+		name string
+		x, y float64
+		kept bool
+	}{
+		{"on the ground", 900, 608, true},
+		{"fallen far below", 2306.86, 36703.93, false}, // a checkpoint saved while falling out of the world
+		{"west of the map", -40, 608, false},
+		{"inside a solid", 1000, 600, false},
+		{"NaN", math.NaN(), 608, false},
+		{"infinitely far down", 900, math.Inf(1), false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				account := kernel.NewAccountID()
+				saved := model.Character{
+					ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
+					HP: 100, MP: 28, MapID: forest.ID, X: c.x, Y: c.y,
+				}
+				w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{saved.ID: saved}}, &fakeStarter{})
+				defer stop()
+				s := &worldtest.Sink{}
+				v, err := w.Join(context.Background(), account, saved.ID, "c-1", s)
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := forest.PlayerSpawn
+				if c.kept {
+					want = gamedata.Point{X: c.x, Y: c.y}
+				}
+				if v.MapID != forest.ID || v.X != want.X || v.Y != want.Y {
+					t.Fatalf("joined %s at (%v, %v), want %s at (%v, %v)", v.MapID, v.X, v.Y, forest.ID, want.X, want.Y)
+				}
+				snap := s.All()[0].(model.Snapshot)
+				if st := snap.Players[0].State; st.X != want.X || st.Y != want.Y {
+					t.Fatalf("the map placed the player at (%v, %v), want (%v, %v)", st.X, st.Y, want.X, want.Y)
+				}
+			})
+		})
+	}
 }
 
 type hangingStarter struct{}

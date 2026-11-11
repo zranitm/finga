@@ -261,6 +261,15 @@ type Map struct {
 	NPCs        []Placement
 }
 
+// Holds reports whether a character of body's size can stand at (x, y): inside the map and clear of every solid. NaN fails every comparison, so it never holds.
+func (m *Map) Holds(x, y float64, body sim.Params) bool {
+	if !(x >= 0 && x <= m.Width && y >= 0 && y <= m.Height) {
+		return false
+	}
+	box := sim.Rect{X: x - body.Width/2, Y: y - body.Height, W: body.Width, H: body.Height}
+	return !slices.ContainsFunc(m.Geometry.Solids, box.Overlaps)
+}
+
 // Placement is an NPC standing on a map, from its npcs layer.
 type Placement struct {
 	NPC string

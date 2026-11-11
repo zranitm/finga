@@ -66,6 +66,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
+	c = w.placed(ctx, c)
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
 	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests, HandedIn: handedIn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
@@ -201,6 +202,17 @@ func (w *World) respawned(c model.Character, maxHP int) (model.Character, error)
 	town, _ := w.data.Map(m.Town)
 	c.MapID, c.X, c.Y, c.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, instance.RespawnHP(maxHP)
 	return c, nil
+}
+
+// placed starts c at its map's player spawn when its saved position is off the map, inside a solid or NaN, as a fall out of the world once left it.
+func (w *World) placed(ctx context.Context, c model.Character) model.Character {
+	m, _ := w.data.Map(c.MapID)
+	if m.Holds(c.X, c.Y, w.data.Movement()) {
+		return c
+	}
+	w.deps.Logger.WarnContext(ctx, "a saved position the map can't hold; the character starts at its spawn", "character_id", c.ID, "map_id", c.MapID, "x", c.X, "y", c.Y)
+	c.X, c.Y = m.PlayerSpawn.X, m.PlayerSpawn.Y
+	return c
 }
 
 // withCheckpoint is c as cp left it; the quests are a copy, as the saver may still read cp's.
