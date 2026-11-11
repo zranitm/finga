@@ -2,9 +2,12 @@ package grpcx_test
 
 import (
 	"context"
+	"errors"
+	"io"
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -45,10 +48,16 @@ func TestCallsCarryTheTrace(t *testing.T) {
 		if _, err := c.EmptyCall(ctx, &testpb.Empty{}); err != nil {
 			t.Fatal(err)
 		}
+		// The server span ends once the answer is written, so it can land after the client has the answer.
 		kinds := map[trace.SpanKind]bool{}
-		for _, s := range rec.Ended() {
-			if s.Name() == "grpc.testing.TestService/EmptyCall" && s.SpanContext().TraceID() == parent.SpanContext().TraceID() {
-				kinds[s.SpanKind()] = true
+		for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+			for _, s := range inTrace(rec, parent.SpanContext().TraceID()) {
+				if s.Name() == "grpc.testing.TestService/EmptyCall" {
+					kinds[s.SpanKind()] = true
+				}
+			}
+			if kinds[trace.SpanKindClient] && kinds[trace.SpanKindServer] {
+				break
 			}
 		}
 		if !kinds[trace.SpanKindClient] || !kinds[trace.SpanKindServer] {
@@ -56,7 +65,6 @@ func TestCallsCarryTheTrace(t *testing.T) {
 		}
 	})
 	t.Run("a stream gets none", func(t *testing.T) {
-		before := len(rec.Ended())
 		ctx, parent := entry.Start(ctx, "shop.buy")
 		defer parent.End()
 		stream, err := c.StreamingOutputCall(ctx, &testpb.StreamingOutputCallRequest{})
@@ -66,12 +74,14 @@ func TestCallsCarryTheTrace(t *testing.T) {
 		if _, err := stream.Recv(); err != nil {
 			t.Fatal(err)
 		}
-		if got := rec.Ended()[before:]; len(got) != 0 {
+		if _, err := stream.Recv(); !errors.Is(err, io.EOF) { // the whole call, so any span it made has ended
+			t.Fatalf("after the one message: %v, want EOF", err)
+		}
+		if got := inTrace(rec, parent.SpanContext().TraceID()); len(got) != 0 {
 			t.Fatalf("%d spans, the first %s", len(got), got[0].Name())
 		}
 	})
 	t.Run("a root that is not sampled exports nothing but carries its trace ID", func(t *testing.T) {
-		before := len(rec.Ended())
 		ctx, root := tp.Tracer("test").Start(ctx, "shop.tick")
 		defer root.End()
 		if _, err := c.EmptyCall(ctx, &testpb.Empty{}); err != nil {
@@ -79,8 +89,19 @@ func TestCallsCarryTheTrace(t *testing.T) {
 		}
 		mu.Lock()
 		defer mu.Unlock()
-		if seen.TraceID() != root.SpanContext().TraceID() || seen.IsSampled() || len(rec.Ended()) != before {
-			t.Fatalf("the server saw %v under %v, and %d spans were recorded", seen, root.SpanContext(), len(rec.Ended())-before)
+		if got := inTrace(rec, root.SpanContext().TraceID()); seen.TraceID() != root.SpanContext().TraceID() || seen.IsSampled() || len(got) != 0 {
+			t.Fatalf("the server saw %v under %v, and %d spans were recorded", seen, root.SpanContext(), len(got))
 		}
 	})
+}
+
+// inTrace is the ended spans of one trace: each subtest has its own, so a late span of another can't count in it.
+func inTrace(rec *tracetest.SpanRecorder, id trace.TraceID) []sdktrace.ReadOnlySpan {
+	var out []sdktrace.ReadOnlySpan
+	for _, s := range rec.Ended() {
+		if s.SpanContext().TraceID() == id {
+			out = append(out, s)
+		}
+	}
+	return out
 }
