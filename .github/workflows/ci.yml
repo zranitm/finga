@@ -92,6 +92,15 @@ jobs:
         with:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
+      # A second stack (infra/README.md) is its own project on its own network, and its Alloy reads its logs alone.
+      - name: a second stack shares nothing with the first
+        env:
+          COMPOSE_PROJECT_NAME: other
+        run: |
+          make -s config OBS=1 FORMAT=json | jq -s -e '
+            .[0].name == "other" and ([.[0].networks[].name] == ["other_default"])
+            and .[1].name == "other-obs" and ([.[1].networks[].name] | sort) == ["other-obs_default", "other_default"]
+            and .[1].services.alloy.environment.FINGA_GAME_PROJECT == "other"'
       - run: make up
       - name: wait for the gateway
         run: |
