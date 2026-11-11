@@ -21,7 +21,7 @@
 - Changing maps or channels never loses HP, items, currency, or party.
 - A character who dies returns to the town linked to their map. See Systems → Combat.
 
-## MVP world (OD-12 default)
+## MVP world
 
 - 1 town.
 - 3 hunting maps in a chain from the town, for levels 1–10, 10–20, and 20–30.

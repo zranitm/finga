@@ -6,7 +6,7 @@ Repository: `finga` (formerly named Infinite Gacha).
 
 **Where things are**
 
-- **Product:** what the game is and how it plays, with its decisions. Start with Overview.
+- **Product:** what the game is and how it plays. Start with Overview.
 - **Tech:** how it's built, one page per feature, added as features need them.
 
 - [Product](./product/README.md)

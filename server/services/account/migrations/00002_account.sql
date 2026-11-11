@@ -16,7 +16,7 @@ CREATE TABLE sessions (
   expires_at  timestamptz NOT NULL,
   revoked_at  timestamptz
 );
--- one active session per account (OD-08)
+-- one active session per account
 CREATE UNIQUE INDEX one_active_session
   ON sessions (account_id) WHERE revoked_at IS NULL;
 

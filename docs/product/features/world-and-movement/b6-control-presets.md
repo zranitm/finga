@@ -1,6 +1,5 @@
 # B6. Control presets
 
-- **Decisions:** OD-20
 - **Feature:** B6. Control presets
 - **Group:** B. World and movement
 - **Priority:** P0

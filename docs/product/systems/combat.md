@@ -23,7 +23,7 @@
 - Some mobs deal magic damage (proposal: cave bats), so magic defense matters from the first maps.
 - Mobs appear at set spots up to a maximum per map, wander, and hurt players on contact.
 - Defeated mobs come back after a respawn delay.
-- Number of mob types in the MVP: OD-12.
+- Number of mob types in the MVP: see World → MVP world.
 
 ## HP and MP
 
@@ -33,7 +33,7 @@
 ## Death and respawn
 
 - A character who dies respawns in the town linked to their map, with half HP (proposal).
-- Penalty: see Progression (OD-06).
+- Penalty: see Progression.
 
 ## Skills
 

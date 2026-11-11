@@ -23,7 +23,7 @@ Every character starts with the Beginner's stats: STR 7, DEX 7, INT 7, AGI 7, VI
 
 ## Spending points
 
-OD-16 is decided: players spend their own points (C6).
+Players spend their own points (C6).
 
 - **Points:** each level-up gives 5 stat points, so 145 by the level cap. Points not spent are kept.
 - **No restrictions:** points can go into any primary stat, with no limit per stat and no class restriction. A Thief may put everything into INT.
@@ -37,7 +37,7 @@ OD-16 is decided: players spend their own points (C6).
   | Thief | STR 2, AGI 2, DEX 1 |
   | Magician | INT 3, DEX 1, VIT 1 |
 
-- **Resets** (OD-17 decided): a reset returns every spent point. Each character has one free reset. Once currency exists (F1), further resets cost currency, more at higher levels.
+- **Resets**: a reset returns every spent point. Each character has one free reset. Once currency exists (F1), further resets cost currency, more at higher levels.
 - **Skill points are separate** and belong to the skill system (Classes and skills, C5).
 
 ## Derived stats
@@ -68,7 +68,7 @@ Sixteen, computed from the primary stats, the class's base values (which grow wi
 
 ## Diminishing returns
 
-OD-18 is decided: diminishing returns, with the old caps as the limits.
+Rates have diminishing returns, with the old caps as the limits.
 
 - **Rates give less per point the more a character has.** That covers crit rate, attack speed, cooldown speed, and move speed. A stat gives *limit × points ÷ (points + k)*, where *k* is the number of points that reaches half the limit. Each point always helps, but no rate reaches its limit from points alone.
 - **k values** (proposal): crit rate 200 DEX, attack speed 150 AGI, cooldown speed 200 INT, move speed 200 AGI.
@@ -90,11 +90,11 @@ What 100 points buy, with no equipment, on top of the class's base values:
 - Reaching the EXP threshold raises the level by one. Extra EXP carries over to the next level.
 - Each level-up gives 5 stat points and 5 skill points, raises the class's base values (max HP and MP grow per level), and fully restores HP and MP (proposal).
 - The EXP needed per level grows with each level. The exact curve is still to define; target (proposal): about 10 hours of play to reach the MVP level cap.
-- Level cap in the MVP: OD-13 (default 30).
+- Level cap in the MVP: 30.
 
 ## Death
 
-- Death penalty: OD-06 (default: lose a small percentage of current EXP, outside towns only).
+- Death penalty: lose a small percentage of current EXP, outside towns only.
 - EXP never drops below the start of the current level, so a character can never lose a level.
 
 ## Later

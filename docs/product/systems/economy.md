@@ -23,8 +23,8 @@
 - Only one buyer can buy a given listing.
 - Proceeds reach the seller's wallet even if the seller is offline.
 - A seller can cancel a listing to get the item back. Unsold listings expire after a set time and the item returns.
-- Model: OD-07 (default: fixed-price listings first, an order book later).
-- Fee and expiry: OD-10 (default: 5% of the sale price, 7 days).
+- Model: open (default: fixed-price listings first, an order book later).
+- Fee and expiry: open (default: 5% of the sale price, 7 days).
 
 ## NPC shops (P1)
 

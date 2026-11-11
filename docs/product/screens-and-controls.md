@@ -34,7 +34,7 @@ The chat stays out of the way of play until the player uses it.
 
 ## Controls
 
-Keyboard only (OD-20). Attacks go the way the character faces; the mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
+Keyboard only. Attacks go the way the character faces; the mouse is used only for menus such as inventory and the marketplace. Players choose one of two presets in Settings.
 
 | Action | Classic | WASD |
 | --- | --- | --- |

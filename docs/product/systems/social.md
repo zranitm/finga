@@ -17,8 +17,8 @@
 - Members see each other's level, HP, and current map.
 - A member who logs out stays in the party and shows as offline (proposal).
 - The party stays together across maps and channels, and disbands when the last member leaves.
-- EXP sharing: OD-04 (default: equal split among members on the same map, plus a small party bonus).
-- Loot: round-robin (OD-05).
+- EXP sharing: open (default: equal split among members on the same map, plus a small party bonus).
+- Loot: round-robin.
   - The living members on the same map as the kill take turns, one drop each. A member who is dead when the mob dies is skipped, and the drop goes to the next living member.
   - The turn moves on with every drop and carries over from one kill to the next. A kill with three drops goes to three members in turn.
   - The order is the order members joined the party; when someone joins or leaves, the turn carries on with the next member still there (proposal).

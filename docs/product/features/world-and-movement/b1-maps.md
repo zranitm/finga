@@ -1,6 +1,5 @@
 # B1. Maps
 
-- **Decisions:** OD-12
 - **Feature:** B1. Maps
 - **Group:** B. World and movement
 - **Priority:** P0
