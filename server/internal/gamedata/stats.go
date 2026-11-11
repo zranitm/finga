@@ -1,6 +1,10 @@
 package gamedata
 
-import "finga/internal/kernel"
+import (
+	"math"
+
+	"finga/internal/kernel"
+)
 
 // Stats are the five primary stats.
 type Stats struct {
@@ -61,13 +65,32 @@ type Curve struct {
 	Base, Limit, K float64
 }
 
+// HitCurve is the chance an attack lands: Top ÷ (1 + K × (evasion ÷ accuracy)^Power), held between Min and Max.
+type HitCurve struct {
+	Top, K, Power float64
+	Min, Max      float64
+}
+
+// Chance is the chance an attack with accuracy lands on evasion.
+func (h HitCurve) Chance(accuracy, evasion float64) float64 {
+	c := h.Top
+	switch {
+	case evasion <= 0:
+	case accuracy <= 0:
+		c = 0
+	default:
+		c = h.Top / (1 + h.K*math.Pow(evasion/accuracy, h.Power))
+	}
+	return min(h.Max, max(h.Min, c))
+}
+
 // StatRules are data/stats.yaml: what each point gives, every class alike, each class's bases, and the limits.
 type StatRules struct {
 	PointsPerLevel int
 	PerPoint       PerPrimary[Flats[float64]]
 	Curves         Rates[Curve]
 	Penetration    float64 // its limit; only gear gives it
-	MinHit, MaxHit float64 // what the hit chance is held between
+	Hit            HitCurve
 	Classes        map[kernel.Class]Flats[Grows]
 }
 

@@ -20,8 +20,8 @@ func (r *rolls) Float64() float64 {
 	return v
 }
 
-// hit is stats.yaml's hit chance limits.
-var hit = model.HitChance{Min: 0.20, Max: 0.99}
+// hit is stats.yaml's hit curve and limits.
+var hit = gamedata.HitCurve{Top: 0.97, K: 0.12, Power: 2, Min: 0.20, Max: 0.99}
 
 func TestResolve(t *testing.T) {
 	warrior := model.Attacker{PhysicalAttack: 21, Accuracy: 21, CritRate: 0.06, CritDamage: 0.525}
@@ -33,18 +33,22 @@ func TestResolve(t *testing.T) {
 		seq  []float64 // hit roll, variation roll, crit roll
 		want model.Hit
 	}{
-		// hit chance 0.80 + 0.02·19 = 0.99 (the cap); raw 21·1.0 = 21; 21·100/102 = 20.59 → 21
+		// hit chance 0.97 ÷ (1 + 0.12·(2/21)²) = 0.969; raw 21·1.0 = 21; 21·100/102 = 20.59 → 21
 		{"average hit", warrior, slime, []float64{0.5, 0.5, 0.5}, model.Hit{Damage: 21}},
 		// variation 0.90: 18.9·100/102 = 18.53 → 19
 		{"low variation", warrior, slime, []float64{0.5, 0.0, 0.5}, model.Hit{Damage: 19}},
 		// variation just under 1.10: 23.1·100/102 = 22.6 → 23
 		{"high variation", warrior, slime, []float64{0.5, 0.999999, 0.5}, model.Hit{Damage: 23}},
-		{"a roll at the chance misses (0.99 is the cap)", warrior, slime, []float64{0.99, 0.5, 0.5}, model.Hit{Miss: true}},
-		{"a roll just below the chance hits", warrior, slime, []float64{0.989, 0.5, 0.5}, model.Hit{Damage: 21}},
+		// no evasion: the curve's top, 0.97
+		{"a roll at the chance misses", warrior, model.Defender{}, []float64{0.97, 0.5, 0.5}, model.Hit{Miss: true}},
+		{"a roll just below the chance hits", warrior, model.Defender{}, []float64{0.969, 0.5, 0.5}, model.Hit{Damage: 21}},
+		// evasion equal to accuracy: 0.97 ÷ 1.12 = 0.866
+		{"evasion as high as accuracy", warrior, model.Defender{Evasion: 21}, []float64{0.866, 0.5, 0.5}, model.Hit{Damage: 21}},
+		{"and a roll past it misses", warrior, model.Defender{Evasion: 21}, []float64{0.867, 0.5, 0.5}, model.Hit{Miss: true}},
 		// crit: 21 · 1.525 = 32.0 → 32
 		{"crit", warrior, slime, []float64{0.5, 0.5, 0.059}, model.Hit{Damage: 32, Crit: true}},
 		{"a crit roll at the rate is not a crit", warrior, slime, []float64{0.5, 0.5, 0.06}, model.Hit{Damage: 21}},
-		// hit chance 0.80 + 0.02·(0 − 50) = −0.2 → clamped to 0.20
+		// no accuracy against evasion: 0, clamped to 0.20
 		{"hit chance floors at 20%", model.Attacker{PhysicalAttack: 10}, model.Defender{Evasion: 50}, []float64{0.19, 0.5, 0.5}, model.Hit{Damage: 10}},
 		{"and a roll of 0.20 misses there", model.Attacker{PhysicalAttack: 10}, model.Defender{Evasion: 50}, []float64{0.20, 0.5, 0.5}, model.Hit{Miss: true}},
 		// 10·100/(100+100) = 5
@@ -70,7 +74,7 @@ func TestResolve(t *testing.T) {
 		})
 	}
 	t.Run("the hit chance is held between the limits it is given", func(t *testing.T) {
-		narrow := model.HitChance{Min: 0.5, Max: 0.6}
+		narrow := gamedata.HitCurve{Top: 0.97, K: 0.12, Power: 2, Min: 0.5, Max: 0.6}
 		sure, unsure := model.Attacker{PhysicalAttack: 10, Accuracy: 100}, model.Attacker{PhysicalAttack: 10}
 		for _, c := range []struct {
 			a    model.Attacker

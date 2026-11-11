@@ -30,6 +30,7 @@ type statsYAML struct {
 	PointsPerLevel int                             `yaml:"points_per_level"`
 	PerPoint       map[string]map[string]float64   `yaml:"per_point"`
 	Diminishing    map[string]curveYAML            `yaml:"diminishing"`
+	Hit            hitYAML                         `yaml:"hit"`
 	Limits         limitsYAML                      `yaml:"limits"`
 	Classes        map[string]map[string]growsYAML `yaml:"classes"`
 }
@@ -39,6 +40,12 @@ type curveYAML struct {
 	Base  float64 `yaml:"base"`
 	Limit float64 `yaml:"limit"`
 	K     float64 `yaml:"k"`
+}
+
+type hitYAML struct {
+	Top   float64 `yaml:"top"`
+	K     float64 `yaml:"k"`
+	Power float64 `yaml:"power"`
 }
 
 type limitsYAML struct {
@@ -162,7 +169,10 @@ func (l *loader) loadStats(dir string) error {
 	if h := file.Limits.HitChance; len(h) != 2 || h[0] <= 0 || h[0] >= h[1] || h[1] > 1 {
 		return fmt.Errorf("%s: limits: hit_chance must be [min, max] with 0 < min < max <= 1", statsFile)
 	}
-	r.MinHit, r.MaxHit = file.Limits.HitChance[0], file.Limits.HitChance[1]
+	if h := file.Hit; h.Top <= 0 || h.Top > 1 || h.K <= 0 || h.Power <= 0 {
+		return fmt.Errorf("%s: hit: top must be within (0, 1], and k and power above 0", statsFile)
+	}
+	r.Hit = gamedata.HitCurve{Top: file.Hit.Top, K: file.Hit.K, Power: file.Hit.Power, Min: file.Limits.HitChance[0], Max: file.Limits.HitChance[1]}
 	for _, name := range slices.Sorted(maps.Keys(file.Classes)) {
 		id := kernel.Class(name)
 		if !l.classes.has(id) {

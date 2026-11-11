@@ -51,7 +51,7 @@ type Arena struct {
 	spawns  []spawnState
 	nextMob uint64
 	removed []uint64 // this tick's
-	hit     model.HitChance
+	hit     gamedata.HitCurve
 }
 
 // Deps are the map the arena runs; all are required.
@@ -69,7 +69,7 @@ type Tuning struct {
 // NewArena spawns every area's mobs on the map, so it is full before its first tick.
 func NewArena(d Deps, t Tuning) *Arena {
 	rules := d.Data.StatRules()
-	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: model.HitChance{Min: rules.MinHit, Max: rules.MaxHit}}
+	a := &Arena{m: d.Map, data: d.Data, roll: d.Roll, interval: t.TickInterval, spawns: make([]spawnState, len(d.Map.Spawns)), hit: rules.Hit}
 	for s, area := range d.Map.Spawns {
 		for range area.Max {
 			a.spawn(s)

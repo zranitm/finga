@@ -87,6 +87,7 @@ diminishing:
   attack_speed:   {stat: agi, limit: 0.50, k: 150}
   cooldown_speed: {stat: int, limit: 0.40, k: 200}
   move_speed:     {stat: agi, limit: 0.30, k: 200}
+hit: {top: 0.97, k: 0.12, power: 2}
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
 classes:
   beginner: {max_hp: {base: 55, per_level: 15}, accuracy: {base: 12}}
@@ -358,8 +359,8 @@ func TestValidDataLoads(t *testing.T) {
 		if r.Curves != want {
 			t.Fatalf("curves %+v, want %+v", r.Curves, want)
 		}
-		if r.Penetration != 0.5 || r.MinHit != 0.2 || r.MaxHit != 0.99 {
-			t.Fatalf("limits: penetration %v, hit %v to %v", r.Penetration, r.MinHit, r.MaxHit)
+		if r.Penetration != 0.5 || r.Hit.Min != 0.2 || r.Hit.Max != 0.99 {
+			t.Fatalf("limits: penetration %v, hit %v to %v", r.Penetration, r.Hit.Min, r.Hit.Max)
 		}
 		w := r.Classes[kernel.Class("warrior")]
 		if w.MaxHP != (gamedata.Grows{Base: 60, PerLevel: 18}) || w.CritDamage.Base != 0.5 || w.MaxHP.At(3) != 96 {
@@ -606,6 +607,10 @@ func TestRejections(t *testing.T) {
 		{"a curve for a rate that doesn't exist", "stats.yaml", "diminishing:\n", "diminishing:\n  luck_rate: {stat: agi, limit: 0.3, k: 1}\n", []string{"stats.yaml", "luck_rate"}},
 		{"penetration above one", "stats.yaml", `penetration: 0.50`, `penetration: 1.5`, []string{"stats.yaml", "penetration"}},
 		{"a hit chance whose least is above its most", "stats.yaml", `hit_chance: [0.20, 0.99]`, `hit_chance: [0.99, 0.20]`, []string{"stats.yaml", "hit_chance"}},
+		{"no hit curve", "stats.yaml", "hit: {top: 0.97, k: 0.12, power: 2}\n", "", []string{"stats.yaml", "hit"}},
+		{"a hit curve's top above one", "stats.yaml", "top: 0.97", "top: 1.2", []string{"stats.yaml", "hit", "top"}},
+		{"a hit curve without k", "stats.yaml", "k: 0.12, ", "", []string{"stats.yaml", "hit", "k"}},
+		{"a hit curve with no power", "stats.yaml", "power: 2", "power: 0", []string{"stats.yaml", "hit", "power"}},
 		{"class bases for a class that doesn't exist", "stats.yaml", "  bowman:", "  thief: {max_hp: {base: 1}}\n  bowman:", []string{"stats.yaml", "thief"}},
 		{"a class base for a rate", "stats.yaml", `accuracy: {base: 15}`, `accuracy: {base: 15}, crit_rate: {base: 0.1}`, []string{"stats.yaml", "bowman", "crit_rate"}},
 		{"a class without bases", "stats.yaml", "  bowman:  {max_hp: {base: 50, per_level: 12}, accuracy: {base: 15}}\n", "", []string{"stats.yaml", "bowman"}},

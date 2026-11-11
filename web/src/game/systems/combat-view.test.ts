@@ -144,7 +144,7 @@ describe('AttackGate', () => {
       want: 8,
     },
     { name: 'and at 20 Hz', ticks: 0, hz: 20, want: 12 },
-    { name: 'a bowman’s 800 ms at 12 Hz', ticks: 0, hz: 12, want: 10, cls: 'bowman' },
+    { name: 'a bowman’s 750 ms at 12 Hz', ticks: 0, hz: 12, want: 9, cls: 'bowman' },
   ])('the cooldown is $name', ({ ticks, hz, want, cls = 'warrior' }) => {
     const sheet = ticks > 0 ? create(StatSheetSchema, { attackCooldownTicks: ticks }) : undefined;
     expect(attackCooldownTicks(sheet, cls, 1000 / hz)).toBe(want);

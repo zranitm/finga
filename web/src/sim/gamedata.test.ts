@@ -69,7 +69,7 @@ describe('generated gamedata', () => {
       kind: 'ranged',
       damage: 'physical',
       range: 420,
-      cooldown_ms: 800,
+      cooldown_ms: 750,
     });
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);

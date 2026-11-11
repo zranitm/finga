@@ -55,6 +55,7 @@ diminishing:               # base + (limit − base) × points ÷ (points + k)
   attack_speed:   {stat: agi, limit: 0.50, k: 150}
   cooldown_speed: {stat: int, limit: 0.40, k: 200}
   move_speed:     {stat: agi, limit: 0.30, k: 200}
+hit: {top: 0.94, k: 0.175, power: 2}  # an attack lands with top ÷ (1 + k × (evasion ÷ accuracy)^power), held within limits.hit_chance
 limits: {penetration: 0.50, hit_chance: [0.20, 0.99]}
 classes:                   # base values per class; per_level grows them
   warrior: {max_hp: {base: 60, per_level: 18}, max_mp: {base: 20, per_level: 4}, accuracy: {base: 10},
@@ -128,7 +129,11 @@ classes:                   # base values per class; per_level grows them
 - **`model.Resolve`:**
   - The attacker gains both attacks and the defender both defenses, and `Resolve` picks the pair that matches the attack's type.
   - Penetration applies to either defense.
-  - The hit chance is unchanged: accuracy against evasion, held between the limits in `stats.yaml` (20% and 99%), for every attack in both directions.
+  - **The hit chance** is accuracy against evasion, for every attack in both directions.
+    - It follows `stats.yaml`'s `hit` curve: top ÷ (1 + k × (evasion ÷ accuracy)^power), held between the limits (20% and 99%). `gamedata.HitCurve.Chance` computes it.
+    - With top 0.94, k 0.175 and power 2, equal accuracy and evasion land 80%, as the straight line 0.80 + 0.02 × (accuracy − evasion) before it did.
+    - The ratio and the power keep evasion well under accuracy nearly free of effect. Far past accuracy, each point takes less off, so stacked evasion can't reach the 20% floor as the straight line did.
+    - With no evasion an attack lands at the top. With no accuracy against any evasion, it lands at the floor.
 - **Regen:**
   - Once a second (every `tick_rate_hz` ticks), each living player gains their HP and MP regen. Fractions are carried in thousandths, so 0.05 a second adds up exactly, and HP and MP never go past their maximums.
   - It runs in towns too, since the combat page has HP and MP come back over time everywhere. It never runs while dead: HP stays 0 until the respawn sets it.
@@ -143,7 +148,7 @@ classes:                   # base values per class; per_level grows them
 - The world computes each player's cooldown in ticks: *⌈class cooldown ÷ (1 + attack speed) ÷ tick⌉*.
 - The sheet carries it as `attack_cooldown_ticks`.
 - The client's attack gate (`combat-view.ts`) uses that number instead of the class cooldown, so the gate and the server count the same ticks. Holding the attack key strikes again at each cooldown.
-- **The cooldown moves a whole tick at a time.** At 20 ticks a second, a warrior's 600 ms becomes 550 ms only from about 9.1% attack speed, and a bowman's 800 ms becomes 750 ms from about 6.7%. Less than that shows in the character window but doesn't change the pace yet.
+- **The cooldown moves a whole tick at a time.** At 20 ticks a second, a warrior's 600 ms becomes 550 ms only from about 9.1% attack speed, and a bowman's 750 ms becomes 700 ms from about 6.7%. Less than that shows in the character window but doesn't change the pace yet.
 
 ### Move speed
 

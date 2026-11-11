@@ -26,7 +26,7 @@ items:
      description: "A plain blade that holds an edge.", stats: {physical_attack: [16, 20]}}
   - {id: hunting_bow, name: Hunting Bow, tab: equip, slot: weapon, class: bowman, min_level: 8, requires: {dex: 18}, stars: 2,
      description: "A sturdy bow that reaches across a clearing.", stats: {physical_attack: [14, 18]}}
-  - {id: iron_dagger, name: Iron Dagger, tab: equip, slot: weapon, class: thief, min_level: 8, requires: {dex: 18}, stars: 2,
+  - {id: iron_dagger, name: Iron Dagger, tab: equip, slot: weapon, class: thief, min_level: 8, requires: {agi: 20}, stars: 2,
      description: "Short, plain and quick to draw.", stats: {physical_attack: [14, 18]}}
   - {id: willow_wand, name: Willow Wand, tab: equip, slot: weapon, class: magician, min_level: 8, requires: {int: 20}, stars: 2,
      description: "Supple willow that bends a spell before it lands.", stats: {magic_attack: [16, 20]}}
@@ -52,7 +52,7 @@ items:
      description: "Tempered steel that rings when it strikes.", stats: {physical_attack: [26, 32], str: [0, 2]}}
   - {id: longbow, name: Longbow, tab: equip, slot: weapon, class: bowman, min_level: 14, requires: {dex: 30}, stars: 3,
      description: "Taller than its archer, and twice as patient.", stats: {physical_attack: [24, 30], dex: [0, 2]}}
-  - {id: stiletto, name: Stiletto, tab: equip, slot: weapon, class: thief, min_level: 14, requires: {dex: 30}, stars: 3,
+  - {id: stiletto, name: Stiletto, tab: equip, slot: weapon, class: thief, min_level: 14, requires: {agi: 40}, stars: 3,
      description: "A needle of steel for the space between ribs.", stats: {physical_attack: [24, 30], agi: [0, 2]}}
   - {id: crystal_wand, name: Crystal Wand, tab: equip, slot: weapon, class: magician, min_level: 14, requires: {int: 40}, stars: 3,
      description: "A clear shard that gathers light before it lets it go.", stats: {magic_attack: [26, 32], int: [0, 2]}}
@@ -79,7 +79,7 @@ items:
      description: "A broad blade with a crest worn smooth.", stats: {physical_attack: [40, 48], str: [1, 3], crit_damage: [50, 100]}}
   - {id: composite_bow, name: Composite Bow, tab: equip, slot: weapon, class: bowman, min_level: 22, requires: {dex: 45}, stars: 4,
      description: "Horn, wood, and sinew glued into one hard pull.", stats: {physical_attack: [37, 45], dex: [1, 3], crit_rate: [10, 20]}}
-  - {id: shadow_kris, name: Shadow Kris, tab: equip, slot: weapon, class: thief, min_level: 22, requires: {dex: 45}, stars: 4,
+  - {id: shadow_kris, name: Shadow Kris, tab: equip, slot: weapon, class: thief, min_level: 22, requires: {agi: 60}, stars: 4,
      description: "Its wavy blade drinks the lamplight.", stats: {physical_attack: [37, 45], agi: [1, 3], crit_rate: [10, 20]}}
   - {id: runed_wand, name: Runed Wand, tab: equip, slot: weapon, class: magician, min_level: 22, requires: {int: 60}, stars: 4,
      description: "Each rune along it is a word half spoken.", stats: {magic_attack: [40, 48], int: [1, 3], max_mp: [30, 60]}}
@@ -104,7 +104,7 @@ items:
      description: "Runes along the fuller glow as it bites.", stats: {physical_attack: [56, 66], str: [2, 4], crit_damage: [100, 150]}}
   - {id: windpiercer, name: Windpiercer, tab: equip, slot: weapon, class: bowman, min_level: 30, requires: {dex: 60}, stars: 5,
      description: "Its arrows ride the wind instead of fighting it.", stats: {physical_attack: [52, 62], dex: [2, 4], crit_rate: [20, 30]}}
-  - {id: nightfang, name: Nightfang, tab: equip, slot: weapon, class: thief, min_level: 30, requires: {dex: 60}, stars: 5,
+  - {id: nightfang, name: Nightfang, tab: equip, slot: weapon, class: thief, min_level: 30, requires: {agi: 80}, stars: 5,
      description: "Nobody hears it leave the sheath.", stats: {physical_attack: [52, 62], agi: [2, 4], crit_rate: [20, 30]}}
   - {id: arcane_wand, name: Arcane Wand, tab: equip, slot: weapon, class: magician, min_level: 30, requires: {int: 80}, stars: 5,
      description: "Older than the tower that kept it.", stats: {magic_attack: [56, 66], int: [2, 4], crit_damage: [100, 150]}}
@@ -129,6 +129,10 @@ items:
      description: "Ground from a single fang, and still hungry.", stats: {physical_attack: [72, 84], str: [4, 6], crit_damage: [150, 250]}}
   - {id: starfall_bow, name: Starfall Bow, tab: equip, slot: weapon, class: bowman, min_level: 30, requires: {dex: 62}, stars: 7,
      description: "Strung with a thread of falling light.", stats: {physical_attack: [68, 80], dex: [4, 6], crit_rate: [30, 50]}}
+  - {id: whisper_edge, name: Whisper Edge, tab: equip, slot: weapon, class: thief, min_level: 30, requires: {agi: 85}, stars: 7,
+     description: "Thin enough to pass between two heartbeats.", stats: {physical_attack: [68, 80], agi: [4, 6], attack_speed: [30, 50]}}
+  - {id: void_scepter, name: Void Scepter, tab: equip, slot: weapon, class: magician, min_level: 30, requires: {int: 85}, stars: 7,
+     description: "A hollow in the dark that answers when called.", stats: {magic_attack: [72, 84], int: [4, 6], crit_damage: [150, 250]}}
   - {id: eclipse_ring, name: Eclipse Ring, tab: equip, slot: ring, min_level: 30, stars: 6,
      description: "A black band with a burning rim.", stats: {str: [3, 6], dex: [3, 6], agi: [3, 5], crit_rate: [20, 40], crit_damage: [150, 250]}}
   # use
