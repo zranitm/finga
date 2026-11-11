@@ -102,6 +102,19 @@ func TestAnEquipChangeCarriesItsEquipSlotsAndRolls(t *testing.T) {
 	}
 }
 
+// A change of HP or MP alone leaves the sheet unset, not zeroed, so the gateway and the client keep the last one.
+func TestStatsChangedWithoutASheetLeavesItUnset(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
+	s := &streamSink{sub: sub}
+	if !s.Send(model.StatsChanged{Tick: 6, HP: 200, MaxHP: 234, MP: 21, MaxMP: 28}) {
+		t.Fatal("the stream refused the change")
+	}
+	want := &worldv1.DeliverResponse{Tick: 6, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{Hp: 200, MaxHp: 234, Mp: 21, MaxMp: 28}}}
+	if got := <-sub.C(); !proto.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 // Every stat of the sheet, the points and the cooldown reach world.v1, the free reset as the one left.
 func TestStatsChangedCarriesTheSheet(t *testing.T) {
 	sub := hub.New[*worldv1.DeliverResponse](1).Subscribe("gw")
@@ -115,7 +128,7 @@ func TestStatsChangedCarriesTheSheet(t *testing.T) {
 		DerivedWorn: progression.Derived{MaxHP: 30, PhysicalAttack: 12.5, PhysicalDefense: 3, Penetration: 0.05},
 	}
 	points := model.Points{Spent: gamedata.Stats{STR: 4}, Unspent: 1, FreeResetUsed: true}
-	if !s.Send(model.StatsChanged{Tick: 5, Sheet: model.Sheet{Sheet: sheet, Points: points, AttackCooldownTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
+	if !s.Send(model.StatsChanged{Tick: 5, Sheet: &model.Sheet{Sheet: sheet, Points: points, AttackCooldownTicks: 12}, HP: 200, MaxHP: 234, MP: 20, MaxMP: 28}) {
 		t.Fatal("the stream refused the change")
 	}
 	want := &worldv1.DeliverResponse{Tick: 5, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{

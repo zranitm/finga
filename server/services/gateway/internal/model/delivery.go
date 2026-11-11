@@ -85,9 +85,9 @@ type InventoryChanged struct {
 	Equipment []EquipSlot
 }
 
-// StatsChanged is the player's stats after what it wears changed.
+// StatsChanged is the player's HP and MP after what it wears, its points, its regen or a potion changed them.
 type StatsChanged struct {
-	Sheet     StatSheet
+	Sheet     *StatSheet // set when the sheet changed; nil when only HP or MP moved, and the client keeps its last
 	HP, MaxHP int
 	MP, MaxMP int
 }

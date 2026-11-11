@@ -7,7 +7,7 @@ import (
 	"finga/services/gateway/internal/model"
 )
 
-// SpendPoints adds points through the world, which answers once the new stats apply; StatsChanged follows on its stream.
+// SpendPoints adds points through the world, which answers once the new stats apply; StatsChanged comes on its stream, before or after the answer.
 func (g *Gateway) SpendPoints(ctx context.Context, s *session.Session, in model.PointsSpend) error {
 	return g.deps.World.SpendPoints(ctx, s.Presence(), in)
 }

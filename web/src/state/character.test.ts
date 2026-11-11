@@ -145,6 +145,14 @@ describe('character store', () => {
         create(StatsChangedSchema, { sheet, hp: 180, maxHp: 180, mp: 28, maxMp: 28 }),
       );
     expect(character.getState().character).toMatchObject({ hp: 180, maxHp: 180 });
+    // Regen or a potion: HP and MP only, and the sheet and own stats stay.
+    character
+      .getState()
+      .applyStatsChanged(create(StatsChangedSchema, { hp: 190, maxHp: 180, mp: 20, maxMp: 28 }));
+    const regen = character.getState().character;
+    expect(regen).toMatchObject({ hp: 190, mp: 20 });
+    expect(regen?.sheet?.primary?.str).toBe(13);
+    expect(regen?.stats).toMatchObject({ str: 12, vit: 10 });
     character.getState().clear();
     character.getState().applyStatsChanged(create(StatsChangedSchema, { sheet, hp: 1 })); // no character: nothing to do
     expect(character.getState().character).toBeNull();

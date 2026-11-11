@@ -52,9 +52,11 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 			Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP), Sheet: statSheet(ev.Sheet),
 		}}}}
 	case model.StatsChanged:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: &worldv1.StatsChanged{
-			Sheet: statSheet(ev.Sheet), Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP),
-		}}}
+		sc := &worldv1.StatsChanged{Hp: int32(ev.HP), MaxHp: int32(ev.MaxHP), Mp: int32(ev.MP), MaxMp: int32(ev.MaxMP)}
+		if ev.Sheet != nil {
+			sc.Sheet = statSheet(*ev.Sheet)
+		}
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_StatsChanged{StatsChanged: sc}}
 	case model.Chat:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Chat{Chat: &worldv1.Chat{SenderId: ev.Sender.String(), SenderName: ev.SenderName, Text: ev.Text}}}
 	case model.InventoryChanged:

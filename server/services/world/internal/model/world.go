@@ -242,10 +242,10 @@ type LevelUp struct {
 	Sheet Sheet
 }
 
-// StatsChanged is the player's stats after what it wears, its points or its regen changed.
+// StatsChanged is the player's HP and MP after what it wears, its points, its regen or a potion changed them.
 type StatsChanged struct {
 	Tick  uint64
-	Sheet Sheet
+	Sheet *Sheet // set when the sheet changed, as gear and points change it; nil when only HP or MP moved
 	HP    int
 	MaxHP int
 	MP    int

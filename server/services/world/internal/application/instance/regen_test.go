@@ -65,8 +65,8 @@ func TestRegenAddsUpExactly(t *testing.T) {
 		var mpTicks []uint64
 		mp := 20
 		for _, c := range worldtest.Of[model.StatsChanged](s) {
-			if c.MP != mp+1 || c.MaxMP != 80 || c.HP == 0 {
-				t.Fatalf("stats changed %+v after MP %d; want one more MP of 80", c, mp)
+			if c.MP != mp+1 || c.MaxMP != 80 || c.HP == 0 || c.Sheet != nil {
+				t.Fatalf("stats changed %+v after MP %d; want one more MP of 80, and no sheet, which regen leaves as it was", c, mp)
 			}
 			mp = c.MP
 			mpTicks = append(mpTicks, c.Tick)

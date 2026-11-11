@@ -100,7 +100,7 @@ func (h *Handler) useItem(c *msgContext, in *clientv1.UseItem) (any, error) {
 	return nil, h.gw.UseItem(c.Ctx, c.Session.session, model.ItemUse{IdempotencyKey: in.GetIdempotencyKey(), Item: id, Template: in.GetTemplate()})
 }
 
-// spendPoints answers once the world applied the points; StatsChanged comes first, on the world's stream.
+// spendPoints answers once the world applied the points; StatsChanged comes on the world's stream, before or after the answer.
 func (h *Handler) spendPoints(c *msgContext, in *clientv1.SpendPoints) (any, error) {
 	p := in.GetPoints()
 	pts := model.Stats{STR: int(p.GetStr()), DEX: int(p.GetDex()), INT: int(p.GetInt()), AGI: int(p.GetAgi()), VIT: int(p.GetVit())}

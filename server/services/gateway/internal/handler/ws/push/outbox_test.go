@@ -187,7 +187,8 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.InventoryChanged{Revision: 6, Slots: []model.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []model.EquipSlot{{Slot: "weapon", Item: &bow}, {Slot: "hat"}}},
 			&clientv1.InventoryChanged{Revision: 6, Slots: []*clientv1.InventorySlot{{Tab: "equip", Slot: 0}}, Equipment: []*clientv1.EquipSlot{{EquipSlot: "weapon", Item: wireBow}, {EquipSlot: "hat"}}},
 		},
-		{model.StatsChanged{Sheet: sheet, HP: 50, MaxHP: 135, MP: 10, MaxMP: 33}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135, Mp: 10, MaxMp: 33}},
+		{model.StatsChanged{Sheet: &sheet, HP: 50, MaxHP: 135, MP: 10, MaxMP: 33}, &clientv1.StatsChanged{Sheet: wireSheet, Hp: 50, MaxHp: 135, Mp: 10, MaxMp: 33}},
+		{model.StatsChanged{HP: 50, MaxHP: 135, MP: 11, MaxMP: 33}, &clientv1.StatsChanged{Hp: 50, MaxHp: 135, Mp: 11, MaxMp: 33}}, // regen: the sheet stays unset, not zeroed
 		{
 			model.Loot{Kind: model.LootCollected, MapID: "forest", DropID: 7, Owner: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},
 			&clientv1.Loot{Kind: clientv1.LootKind_LOOT_KIND_COLLECTED, MapId: "forest", DropId: 7, OwnerId: "p-2", OwnerName: "Robin", Template: "slime_gel", Quantity: 2},

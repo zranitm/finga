@@ -55,5 +55,5 @@ func (i *Instance) restat(p *player) {
 	p.derived = s.Derived
 	p.HP, p.MP = min(p.HP, p.derived.MaxHP), min(p.MP, p.derived.MaxMP)
 	p.changed = true
-	p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: s.Sheet, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
+	p.private = append(p.private, model.StatsChanged{Tick: i.tick, Sheet: &s.Sheet, HP: p.HP, MaxHP: p.derived.MaxHP, MP: p.MP, MaxMP: p.derived.MaxMP})
 }

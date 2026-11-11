@@ -21,7 +21,11 @@ func InventoryChanged(ic model.InventoryChanged) *clientv1.InventoryChanged {
 }
 
 func statsChanged(sc model.StatsChanged) *clientv1.StatsChanged {
-	return &clientv1.StatsChanged{Sheet: statSheet(sc.Sheet), Hp: int32(sc.HP), MaxHp: int32(sc.MaxHP), Mp: int32(sc.MP), MaxMp: int32(sc.MaxMP)}
+	out := &clientv1.StatsChanged{Hp: int32(sc.HP), MaxHp: int32(sc.MaxHP), Mp: int32(sc.MP), MaxMp: int32(sc.MaxMP)}
+	if sc.Sheet != nil {
+		out.Sheet = statSheet(*sc.Sheet)
+	}
+	return out
 }
 
 func characterView(c model.CharacterView) *clientv1.CharacterView {
