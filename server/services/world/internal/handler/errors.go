@@ -27,6 +27,9 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrQuestFinished, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_QUEST_ALREADY_FINISHED},
 	{Err: model.ErrTooManyQuests, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_TOO_MANY_QUESTS},
 	{Err: model.ErrQuestNotReady, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_QUEST_NOT_READY},
+	{Err: model.ErrHPFull, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_HP_FULL},
+	{Err: model.ErrMPFull, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_MP_FULL},
+	{Err: model.ErrNotUsable, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NOT_USABLE},
 	{Err: ErrNotSubscribed, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NOT_SUBSCRIBED},
 	{Err: kernel.ErrBadID, Code: codes.InvalidArgument, Reason: worldv1.Reason_REASON_BAD_ID},
 }

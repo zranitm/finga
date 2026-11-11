@@ -933,6 +933,60 @@ func TestEquipmentInWelcomeAndCommands(t *testing.T) {
 	})
 }
 
+func TestUseItemAnswersOnceTheWorldApplies(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		c.expect("Welcome")
+		c.expect("Snapshot")
+		potion := kernel.NewItemID().String()
+
+		part(t, "UseItem goes to the world as the sender, with the template the client means", func() {
+			c.send(wsconn.Message{ReqID: "p-1", Data: &clientv1.UseItem{IdempotencyKey: "k-1", ItemId: potion, Template: "red_potion"}})
+			if r := c.expect("Response"); r.ReqID != "p-1" || !r.Data.(*clientv1.Response).GetOk() {
+				t.Fatalf("response %+v", r)
+			}
+			uses := h.world.useCalls()
+			if len(uses) != 1 || uses[0].GetPresence().GetCharacterId() != aylaID.String() || uses[0].GetPresence().GetConnectionId() == "" ||
+				uses[0].GetIdempotencyKey() != "k-1" || uses[0].GetItemId() != potion || uses[0].GetTemplate() != "red_potion" {
+				t.Fatalf("uses %+v", uses)
+			}
+		})
+		part(t, "a refusal answers the world's reason, or the item service's", func() {
+			for _, tt := range []struct {
+				err  error
+				code model.Public
+			}{
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_HP_FULL), model.HPFull},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_MP_FULL), model.MPFull},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_NOT_USABLE), model.NotUsable},
+				{grpctest.Error(codes.FailedPrecondition, itemv1.Reason_REASON_NOT_USABLE), model.NotUsable},
+				{grpctest.Error(codes.NotFound, itemv1.Reason_REASON_ITEM_NOT_FOUND), model.ItemNotFound},
+				{grpctest.Error(codes.FailedPrecondition, worldv1.Reason_REASON_CHARACTER_DEAD), model.CharacterDead},
+			} {
+				h.world.failUses(tt.err)
+				c.send(wsconn.Message{ReqID: "r-" + tt.code.Name, Data: &clientv1.UseItem{IdempotencyKey: "k-" + tt.code.Name, ItemId: potion, Template: "red_potion"}})
+				if r := c.expect("Response"); r.ReqID != "r-"+tt.code.Name || r.Data.(*clientv1.Response).GetOk() || r.Data.(*clientv1.Response).Code != int32(tt.code.Code) {
+					t.Fatalf("response %+v, want %s", r, tt.code.Name)
+				}
+				time.Sleep(time.Second) // under the potion limit of 5 a second
+			}
+			h.world.failUses(nil)
+		})
+		part(t, "a malformed item ID is BAD_ID without reaching the world", func() {
+			before := len(h.world.useCalls())
+			c.send(wsconn.Message{ReqID: "r-9", Data: &clientv1.UseItem{IdempotencyKey: "k-9", ItemId: "nope", Template: "red_potion"}})
+			if r := c.expect("Response").Data.(*clientv1.Response); r.GetOk() || r.Code != int32(model.BadID.Code) {
+				t.Fatalf("response %+v", r)
+			}
+			if len(h.world.useCalls()) != before {
+				t.Fatal("the world was called")
+			}
+		})
+	})
+}
+
 func TestAnUnexpectedCommandErrorIsInternalAndLoggedWithItsCause(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logs := &lockedBuffer{}

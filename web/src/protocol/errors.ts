@@ -60,6 +60,7 @@ const texts: Record<ErrorCode, string> = {
   [ERR.NOT_EQUIPMENT]: 'Only equipment can be worn.',
   [ERR.NOTHING_WORN]: 'Nothing is worn there.',
   [ERR.NOT_ENOUGH_ITEMS]: 'You don’t have everything the quest asks for.',
+  [ERR.NOT_USABLE]: 'That item can’t be used.',
 
   [ERR.CHARACTER_DEAD]: 'You can’t do that while dead.',
   [ERR.NOT_ENOUGH_POINTS]: 'You don’t have that many points.',
@@ -73,6 +74,8 @@ const texts: Record<ErrorCode, string> = {
   [ERR.QUEST_ALREADY_FINISHED]: 'You’ve finished that quest.',
   [ERR.TOO_MANY_QUESTS]: `You have ${limits.max_active_quests} quests already.`,
   [ERR.QUEST_NOT_READY]: 'That quest isn’t finished yet.',
+  [ERR.HP_FULL]: 'Your HP is already full.',
+  [ERR.MP_FULL]: 'Your MP is already full.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

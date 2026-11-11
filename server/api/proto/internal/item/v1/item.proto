@@ -26,6 +26,8 @@ service ItemService {
   rpc HandIn(HandInRequest) returns (HandInResponse);
   // HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
   rpc HandedIn(HandedInRequest) returns (HandedInResponse);
+  // Use takes one of a usable item, such as a potion, from its stack; the world applies what it does.
+  rpc Use(UseRequest) returns (UseResponse);
 }
 
 // Reason names a failure a caller can meet; retrying the same request cannot help.
@@ -75,6 +77,8 @@ enum Reason {
   REASON_INT_TOO_LOW = 30;
   REASON_AGI_TOO_LOW = 31;
   REASON_VIT_TOO_LOW = 32;
+  // A use of an item that isn't the template the caller named, or of a template that can't be used.
+  REASON_NOT_USABLE = 33;
 }
 
 // Grant is what became of one drop of an AddMany.
@@ -366,4 +370,21 @@ message HandedInQuest {
   // The slots the hand-in changed and the revision after it, as HandIn answered.
   repeated Slot changed = 3;
   uint64 revision = 4;
+}
+
+message UseRequest {
+  Actor actor = 1;
+  // A UUID, optionally prefixed k- (the client's request ID); scoped by account.
+  string idempotency_key = 2;
+  string item_id = 3;
+  // What the caller believes the item is, which decided what it restores; any other item is refused.
+  string template_id = 4;
+}
+
+message UseResponse {
+  repeated Slot changed = 1;
+  // The inventory's revision after this change.
+  uint64 revision = 2;
+  // An earlier call under the key took the item, and this is its reply: nothing was taken now.
+  bool replayed = 3;
 }

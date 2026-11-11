@@ -1,4 +1,4 @@
-// The Combat tab's lines: this player's EXP, level-ups, loot and quests, kept until they leave the world.
+// The Combat tab's lines: this player's EXP, level-ups, loot, quests and potions, kept until they leave the world.
 import { loot } from '@/gamedata/loot';
 import { LootKind, QuestChange } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
@@ -17,6 +17,13 @@ export type CombatEvent =
       readonly ownerName: string;
       readonly template: string;
       readonly quantity: number;
+    }
+  | {
+      readonly kind: 'drank';
+      readonly template: string;
+      /** What it restored, as the client worked it out when it asked; the world draws over each number. */
+      readonly hp: number;
+      readonly mp: number;
     }
   | {
       readonly kind: 'quest';
@@ -52,6 +59,8 @@ export interface CombatLogState {
   applyLevelUp(d: Data<'levelUp'>): void;
   applyLoot(d: Data<'loot'>): void;
   applyQuestChanged(d: Data<'questChanged'>): void;
+  /** The world applied a potion this player drank. */
+  drank(template: string, restored: { readonly hp: number; readonly mp: number }): void;
   /** A quest became ready to hand in: its last kill, item or level came. */
   questReady(quest: string): void;
   clear(): void;
@@ -106,6 +115,9 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
       if (change && d.quest) {
         add({ kind: 'quest', change, quest: d.quest.questId, progress: d.quest.progress });
       }
+    },
+    drank: (template, { hp, mp }) => {
+      add({ kind: 'drank', template, hp, mp });
     },
     questReady: (quest) => {
       add({ kind: 'quest', change: 'ready', quest, progress: [] });

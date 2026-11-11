@@ -185,6 +185,9 @@ type Item struct {
 	MaxStack    int // 1 for equipment, 100 for the rest
 }
 
+// Usable reports whether the item is used from the Use tab: a potion, restoring HP or MP.
+func (it Item) Usable() bool { return it.Tab == Use && (it.HealHP > 0 || it.HealMP > 0) }
+
 // Drop is one entry of a mob's drop table; each rolls independently.
 type Drop struct {
 	Item   string

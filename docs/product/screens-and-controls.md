@@ -9,7 +9,7 @@ The screens players see and the keys they use. This is the input for the design 
 | **Sign up and log in** | Create an account, log in | P0 |
 | **Character creation** | Pick a name; every character starts as a Beginner | P0 |
 | **Game view and HUD** | Play: the map; HP, MP, and EXP bars and level at the top left; Back to characters and the party panel at the top right; the chat at the bottom left (see [Chat](#chat)); currency from P1 | P0 |
-| **Inventory** | See items by tab; discard them | P0 |
+| **Inventory** | See items by tab; drink potions; discard them | P0 |
 | **Party window** | Invite, accept, leave, kick, hand over leadership | P0 |
 | **Marketplace** | Browse and search, buy, list an item, manage my listings | P1 |
 | **Settings** | Choose a control preset; turn on spending stat points automatically at level-up (off by default) | P0 |
@@ -48,6 +48,8 @@ Keyboard only. Attacks go the way the character faces; the mouse is used only fo
 | Party | P | P |
 | Character window | C | C |
 | Talk to an NPC | Z, while in reach | E, while in reach |
+| Drink an HP potion | A | R |
+| Drink an MP potion | S | F |
 | Skill window | K | K |
 | Quest log | Q | Q |
 | Open the chat; close it while typing | Enter; Esc | Enter; Esc |

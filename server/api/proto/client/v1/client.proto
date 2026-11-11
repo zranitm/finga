@@ -35,6 +35,7 @@ message ClientMessage {
     AcceptQuest accept_quest = 22;
     AbandonQuest abandon_quest = 23;
     HandInQuest hand_in_quest = 24;
+    UseItem use_item = 25;
   }
 }
 
@@ -161,6 +162,14 @@ message Equip {
   string item_id = 2;
   // Needed for rings only: empty, an item takes the first empty slot of its kind, else the first.
   string equip_slot = 3;
+}
+
+// UseItem drinks a potion from the Use tab; answered once its HP or MP applies, with StatsChanged and InventoryChanged before the Response.
+message UseItem {
+  string idempotency_key = 1;
+  string item_id = 2;
+  // The template the client sees there, which says what it restores; the item service refuses the use when the item is another.
+  string template = 3;
 }
 
 // Unequip puts a worn item back in the Equip tab.

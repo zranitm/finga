@@ -49,7 +49,7 @@ type player struct {
 	deadUntil     uint64
 	changed       bool                         // HP, level or death changed this tick
 	private       []model.Event                // events for this player only
-	itemCalls     int                          // equips, unequips and hand-ins in flight, which keep the player on this map
+	itemCalls     int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
 	handingIn     map[string]bool              // quests whose hand-in is in flight
 	questChanges  map[string]model.QuestChange // this tick's, told at its end
 	toldHP        int                          // the HP and max HP the party last heard

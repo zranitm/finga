@@ -90,6 +90,13 @@ type ItemEquip struct {
 	EquipSlot      string
 }
 
+// ItemUse drinks a Use-tab potion; Template is the one the client means, so a slot that changed under it is refused.
+type ItemUse struct {
+	IdempotencyKey string
+	Item           kernel.ItemID
+	Template       string
+}
+
 // PointsSpend adds points to the stats, out of the unspent ones, if their count is still ExpectedUnspent.
 type PointsSpend struct {
 	ExpectedUnspent int

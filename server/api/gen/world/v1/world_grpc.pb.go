@@ -35,6 +35,7 @@ const (
 	WorldService_AcceptQuest_FullMethodName  = "/internal.world.v1.WorldService/AcceptQuest"
 	WorldService_AbandonQuest_FullMethodName = "/internal.world.v1.WorldService/AbandonQuest"
 	WorldService_HandInQuest_FullMethodName  = "/internal.world.v1.WorldService/HandInQuest"
+	WorldService_UseItem_FullMethodName      = "/internal.world.v1.WorldService/UseItem"
 )
 
 // WorldServiceClient is the client API for WorldService service.
@@ -76,6 +77,8 @@ type WorldServiceClient interface {
 	AbandonQuest(ctx context.Context, in *AbandonQuestRequest, opts ...grpc.CallOption) (*AbandonQuestResponse, error)
 	// HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
 	HandInQuest(ctx context.Context, in *HandInQuestRequest, opts ...grpc.CallOption) (*HandInQuestResponse, error)
+	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
+	UseItem(ctx context.Context, in *UseItemRequest, opts ...grpc.CallOption) (*UseItemResponse, error)
 }
 
 type worldServiceClient struct {
@@ -256,6 +259,16 @@ func (c *worldServiceClient) HandInQuest(ctx context.Context, in *HandInQuestReq
 	return out, nil
 }
 
+func (c *worldServiceClient) UseItem(ctx context.Context, in *UseItemRequest, opts ...grpc.CallOption) (*UseItemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UseItemResponse)
+	err := c.cc.Invoke(ctx, WorldService_UseItem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServiceServer is the server API for WorldService service.
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
@@ -295,6 +308,8 @@ type WorldServiceServer interface {
 	AbandonQuest(context.Context, *AbandonQuestRequest) (*AbandonQuestResponse, error)
 	// HandInQuest hands a ready quest in to the NPC within reach that takes it: the item service takes what it asks to collect and gives its item rewards, then the world awards its EXP. It answers once applied, an item service refusal carrying that service's Reason.
 	HandInQuest(context.Context, *HandInQuestRequest) (*HandInQuestResponse, error)
+	// UseItem drinks a potion: the item service takes one from its stack, then the world restores its HP or MP. It answers once applied, with InventoryChanged and StatsChanged on Deliver, an item service refusal carrying that service's Reason.
+	UseItem(context.Context, *UseItemRequest) (*UseItemResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }
 
@@ -352,6 +367,9 @@ func (UnimplementedWorldServiceServer) AbandonQuest(context.Context, *AbandonQue
 }
 func (UnimplementedWorldServiceServer) HandInQuest(context.Context, *HandInQuestRequest) (*HandInQuestResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method HandInQuest not implemented")
+}
+func (UnimplementedWorldServiceServer) UseItem(context.Context, *UseItemRequest) (*UseItemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UseItem not implemented")
 }
 func (UnimplementedWorldServiceServer) mustEmbedUnimplementedWorldServiceServer() {}
 func (UnimplementedWorldServiceServer) testEmbeddedByValue()                      {}
@@ -655,6 +673,24 @@ func _WorldService_HandInQuest_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_UseItem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UseItemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).UseItem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_UseItem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).UseItem(ctx, req.(*UseItemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldService_ServiceDesc is the grpc.ServiceDesc for WorldService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -721,6 +757,10 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "HandInQuest",
 			Handler:    _WorldService_HandInQuest_Handler,
+		},
+		{
+			MethodName: "UseItem",
+			Handler:    _WorldService_UseItem_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
