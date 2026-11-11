@@ -88,7 +88,7 @@ describe('ChatBox', () => {
     expect(send).toHaveBeenCalledWith('chatSend', { channel: ChatChannel.MAP, text: 'hello all' });
     expect(isOpen()).toBe(false);
     expect(chatInput()).toBeNull();
-    expect(isTyping()).toBe(false);
+    expect(isTyping(document.activeElement)).toBe(false);
     act(() => ui.getState().openChat());
     expect(input()).toHaveValue('');
   });
@@ -133,10 +133,10 @@ describe('ChatBox', () => {
     act(() => ui.getState().openChat());
     expect(isOpen()).toBe(true);
     expect(input()).toHaveFocus();
-    expect(isTyping()).toBe(true);
+    expect(isTyping(document.activeElement)).toBe(true);
     await userEvent.keyboard('{Escape}');
     expect(isOpen()).toBe(false);
-    expect(isTyping()).toBe(false);
+    expect(isTyping(document.activeElement)).toBe(false);
     expect(ui.getState().chatOpen).toBe(false);
   });
 
@@ -197,7 +197,7 @@ describe('ChatBox', () => {
       });
       await userEvent.keyboard('{Escape}');
       expect(isOpen()).toBe(true);
-      expect(isTyping()).toBe(false);
+      expect(isTyping(document.activeElement)).toBe(false);
       await userEvent.type(input(), 'still here{Enter}');
       expect(send).toHaveBeenCalledWith('chatSend', {
         channel: ChatChannel.MAP,
@@ -205,7 +205,7 @@ describe('ChatBox', () => {
       });
       expect(isOpen()).toBe(true);
       expect(input()).not.toHaveFocus();
-      expect(isTyping()).toBe(false);
+      expect(isTyping(document.activeElement)).toBe(false);
     });
 
     it('the account’s pinned chat is open from the start, and unpinning it closes it', async () => {

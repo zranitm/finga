@@ -127,9 +127,9 @@ describe('LoginScreen', () => {
     expect(screen.getByText(/logged in somewhere else/i)).toBeInTheDocument();
     const field = screen.getByLabelText('Username');
     await userEvent.click(field);
-    expect(isTyping()).toBe(true);
+    expect(isTyping(document.activeElement)).toBe(true);
     field.blur();
-    expect(isTyping()).toBe(false);
+    expect(isTyping(document.activeElement)).toBe(false);
   });
 
   it('a kick reason this client does not know still says the server closed the connection', () => {

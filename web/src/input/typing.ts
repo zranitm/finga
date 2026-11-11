@@ -1,4 +1,4 @@
-// Read from the focus itself, never a flag, so it cannot go stale when a focused element goes without a blur.
+// Read from the element a key went to, never a flag or the focus by the time a listener runs: a handler before the game's may move the focus, as the chat does when it sends a line.
 
 /** Input types that take no typed text; Space and arrows on them belong to the game. */
 const untyped = new Set([
@@ -14,9 +14,8 @@ const untyped = new Set([
   'submit',
 ]);
 
-/** Whether a text field has focus, so keys belong to it and not to the game. */
-export function isTyping(): boolean {
-  const el = document.activeElement;
+/** Whether el is a text field, so a key it gets belongs to it and not to the game. */
+export function isTyping(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) {
     return false;
   }
