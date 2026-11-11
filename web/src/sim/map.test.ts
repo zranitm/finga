@@ -19,7 +19,7 @@ describe('parseMap', () => {
       town: 'town',
       solids: 4,
       platforms: 2,
-      ropes: 1,
+      ropes: 2,
       portals: 1,
       spawns: 0,
     },

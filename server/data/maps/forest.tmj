@@ -35,7 +35,7 @@
       {"id": 7, "name": "far_branch", "type": "", "rotation": 0, "visible": true, "x": 1280, "y": 448, "width": 384, "height": 8}
     ]},
     {"id": 3, "name": "ropes", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
-      {"id": 8, "name": "vine", "type": "", "rotation": 0, "visible": true, "x": 636, "y": 352, "width": 8, "height": 128},
+      {"id": 8, "name": "vine", "type": "", "rotation": 0, "visible": true, "x": 636, "y": 352, "width": 8, "height": 256},
       {"id": 9, "name": "far_vine", "type": "", "rotation": 0, "visible": true, "x": 1468, "y": 448, "width": 8, "height": 160}
     ]},
     {"id": 4, "name": "portals", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
