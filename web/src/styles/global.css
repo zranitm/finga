@@ -225,13 +225,23 @@ body {
   flex: none;
   white-space: nowrap;
 }
-/* A title shares its row with its buttons; a name too long for its share breaks rather than push them out. */
 .row h1 {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-wrap: anywhere;
+  flex: 1;
   font-size: 20px;
   margin: 0;
+}
+/* The character list's buttons stay on one line beside its title, or drop below it together. */
+.characters-header {
+  flex-wrap: wrap;
+}
+.row-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  margin-left: auto;
+}
+.row-actions .btn {
+  white-space: nowrap;
 }
 .error {
   margin: 0;

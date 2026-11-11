@@ -113,17 +113,19 @@ export function CharactersScreen({
   return (
     <div className="screen">
       <div className="panel">
-        <header className="row">
+        <header className="row characters-header">
           <h1>{username}&apos;s characters</h1>
-          <Button variant="quiet" onClick={onSettings}>
-            Settings
-          </Button>
-          <Button variant="quiet" onClick={() => void logout()} disabled={leaving}>
-            Log out
-          </Button>
-          <Button variant="quiet" onClick={() => void logoutEverywhere()} disabled={leaving}>
-            Log out everywhere
-          </Button>
+          <div className="row-actions">
+            <Button variant="quiet" onClick={onSettings}>
+              Settings
+            </Button>
+            <Button variant="quiet" onClick={() => void logout()} disabled={leaving}>
+              Log out
+            </Button>
+            <Button variant="quiet" onClick={() => void logoutEverywhere()} disabled={leaving}>
+              Log out everywhere
+            </Button>
+          </div>
         </header>
         {characters === null && !loadProblem && <p>Loading…</p>}
         {loadProblem && (
