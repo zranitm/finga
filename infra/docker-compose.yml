@@ -4,7 +4,7 @@ name: finga
 x-database: &database
   FINGA_DATABASE_URL: postgres://finga:finga@postgres:5432/finga?sslmode=disable
 
-# Empty exports nothing; make up OBS=1 points it at Alloy, which the finga-obs project (obs/compose.yml) runs.
+# Empty exports nothing; make up OBS=1 and production point it at Alloy (obs/compose.yml).
 x-tracing: &tracing
   FINGA_TRACING_OTLP_ENDPOINT: ${FINGA_TRACING_OTLP_ENDPOINT:-}
 

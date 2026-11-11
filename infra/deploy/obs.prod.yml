@@ -1,0 +1,5 @@
+# Production keeps the observability stack in the game's Compose project, under the obs profile (compose.prod.yml),
+# so a deploy that stops the game leaves it collecting the last logs and spans.
+# The path is relative to infra/, the directory of the first Compose file; the include keeps the stack's own paths relative to obs/.
+include:
+  - obs/compose.yml

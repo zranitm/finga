@@ -3,8 +3,8 @@ GO        ?= go
 SERVER    ?= server
 COVER_MIN ?= 80
 COMPOSE   ?= docker compose -f infra/docker-compose.yml
-# The observability stack is its own Compose project, finga-obs; its host port comes from infra/.env too.
-OBS_COMPOSE ?= docker compose -f infra/obs/compose.yml $(if $(wildcard infra/.env),--env-file infra/.env)
+# The observability stack as its own Compose project, finga-obs; its host port comes from infra/.env too.
+OBS_COMPOSE ?= docker compose -f infra/obs/compose.yml -f infra/obs/standalone.yml $(if $(wildcard infra/.env),--env-file infra/.env)
 SMOKE_URL ?= http://localhost:8080
 EDGE_URL ?= http://localhost:4173
 METRICS_URL ?= http://localhost:9104

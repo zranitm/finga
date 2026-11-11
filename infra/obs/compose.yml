@@ -1,5 +1,5 @@
-# The observability stack as its own Compose project, so Docker Desktop starts and stops it as one group (make up OBS=1): Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
-name: finga-obs
+# The observability stack: Grafana on :3000 over Mimir, Loki and Tempo, fed by Alloy.
+# make up OBS=1 runs it as its own Compose project with standalone.yml; production runs it in the game's project (../deploy/obs.prod.yml).
 
 services:
   alloy:
@@ -10,7 +10,6 @@ services:
       - ./config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro   # the containers' logs
       - alloy-data:/var/lib/alloy/data
-    networks: [default, game]   # game: it scrapes the services, and they send it their traces
     depends_on: [mimir, loki, tempo]
 
   mimir:
@@ -53,11 +52,6 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
     depends_on: [mimir, loki, tempo]
-
-networks:
-  game:
-    name: finga_default   # the game's network, named in ../docker-compose.yml; make up starts the game first
-    external: true
 
 volumes:
   alloy-data:

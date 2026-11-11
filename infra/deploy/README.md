@@ -273,7 +273,8 @@ Until that dump, `pg.sh restore latest` would pick the old world's, which the ne
 
 | File | What it does |
 |---|---|
-| `compose.prod.yml` | Overlay on `../docker-compose.yml`: ECR images, the database password, nginx's 443 and mounts, memory ceilings |
+| `obs.prod.yml` | Includes `../obs/compose.yml`, so the observability stack runs in the game's project, as locally it doesn't |
+| `compose.prod.yml` | Overlay on `../docker-compose.yml`: ECR images, the database password, nginx's 443 and mounts, the observability stack under the `obs` profile, memory ceilings |
 | `prod.env` | Compose's settings (files, profiles) and the deploy's (health timeout, check URLs, units) |
 | `deploy.sh` | The deploy itself, and `finga-compose`. Generic: it knows Compose, SSM and ECR, not Finga |
 | `pg.sh` | Postgres dumps to S3, the list, and restores; also generic |

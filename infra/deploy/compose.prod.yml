@@ -58,14 +58,20 @@ services:
       - ${DEPLOY_SHARED_DIR:?}/files/nginx/finga.d/realip.conf:/etc/nginx/finga.d/realip.conf:ro
       - ${DEPLOY_SHARED_DIR:?}/files/nginx/tls:/etc/nginx/tls:ro
 
-  # Ceilings so a busy observability stack can't starve the game; one restarting under its limit is the sign to raise it.
+  # The observability stack from obs.prod.yml, under the obs profile: DEPLOY_STOP_FIRST stops only the services outside one.
+  # Ceilings so a busy stack can't starve the game; one restarting under its limit is the sign to raise it.
   mimir:
+    profiles: [obs]
     mem_limit: 768m
   loki:
+    profiles: [obs]
     mem_limit: 512m
   tempo:
+    profiles: [obs]
     mem_limit: 512m
   alloy:
+    profiles: [obs]
     mem_limit: 256m
   grafana:
+    profiles: [obs]
     mem_limit: 256m
