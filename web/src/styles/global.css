@@ -243,20 +243,20 @@ body {
   border-bottom: 1px solid var(--panel-border);
 }
 
-/* Over the canvas while in the world. */
-.world-overlay {
+/* Top right over the canvas: Back to characters, then the party panel. */
+.world-corner {
   position: fixed;
   top: 12px;
-  left: 12px;
+  right: 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  align-items: flex-end;
+  gap: 8px;
+}
+.world-corner > .btn {
   background: color-mix(in srgb, var(--panel) 80%, transparent);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  pointer-events: auto;
-  font-size: 14px;
+  border-color: var(--panel-border);
+  font-size: 13px;
 }
 
 /* The HUD: bars and level, top left over the canvas. */
@@ -278,10 +278,6 @@ body {
 .hud-title {
   display: flex;
   justify-content: space-between;
-}
-.world-overlay {
-  top: auto;
-  bottom: 12px;
 }
 .notice-banner {
   position: fixed;
@@ -631,11 +627,11 @@ body {
   border-color: var(--danger);
 }
 
-/* Chat and party. */
+/* Chat and party. Idle, the chat's three lines sit below a standing character's feet. */
 .chat {
   position: fixed;
   left: 12px;
-  bottom: 56px;
+  bottom: 8px;
   width: 360px;
   display: flex;
   flex-direction: column;
@@ -643,17 +639,44 @@ body {
   pointer-events: auto;
   font-size: 13px;
 }
+/* Anchored to the bottom, so a wrapped line pushes the oldest line out of view, never the newest. */
 .chat-lines {
   list-style: none;
   margin: 0;
   padding: 6px 8px;
-  max-height: 150px;
+  max-height: calc(8 * 1.4em);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
   background: color-mix(in srgb, var(--panel) 70%, transparent);
   border-radius: var(--radius);
 }
 .chat-line {
+  flex-shrink: 0;
   line-height: 1.4;
+}
+.chat-idle {
+  cursor: pointer;
+}
+.chat-idle .chat-lines {
+  max-height: calc(3 * 1.4em);
+  background: color-mix(in srgb, var(--panel) 55%, transparent);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.chat-idle .chat-lines:empty::before {
+  content: 'Enter to chat';
+  color: color-mix(in srgb, var(--text) 80%, transparent);
+  line-height: 1.4;
+}
+.chat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.chat-pin[aria-pressed='true'] {
+  color: var(--text);
+  border-color: var(--accent);
 }
 .chat-party {
   color: #9ad3ff;
@@ -802,9 +825,6 @@ body {
   font-size: 12px;
 }
 .party-panel {
-  position: fixed;
-  top: 12px;
-  right: 12px;
   width: 180px;
   display: flex;
   flex-direction: column;

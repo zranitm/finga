@@ -66,6 +66,8 @@ message Settings {
   string control_preset = 1;
   // Whether the client spends each level's points by the class's split on its own; false by default.
   bool auto_assign_points = 2;
+  // Whether the chat stays open while the player isn't typing; false by default.
+  bool chat_pinned = 3;
 }
 
 message RegisterRequest {

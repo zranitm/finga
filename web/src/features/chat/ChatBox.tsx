@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
+import { saveSettings } from '@/features/shared/settings';
+import type { RestClient } from '@/net/rest';
 import type { GameSocket } from '@/net/socket';
 import { npcById, objectiveLabel, questById, questName } from '@/progression/quests';
 import { ChatChannel, LootKind } from '@/protocol/messages';
@@ -10,9 +12,13 @@ import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
 import type { CombatLine, QuestLineKind } from '@/state/combat-log';
+import { settings } from '@/state/settings';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 export const MAX_CHAT_CHARS = 120;
+// Idle, the last lines sit below a standing character's feet; open, the log shows more.
+const IDLE_LINES = 3;
 const SHOWN_LINES = 8;
 
 export type ChatTab = 'general' | 'party' | 'combat';
@@ -25,6 +31,7 @@ const TABS: readonly { readonly id: ChatTab; readonly label: string }[] = [
 
 export interface ChatBoxProps {
   readonly socket: Pick<GameSocket, 'send'>;
+  readonly rest: Pick<RestClient, 'putSettings'>;
 }
 
 /** "/p hello" is a party line from any tab; otherwise the Party tab sends party lines and the others map lines. */
@@ -36,8 +43,10 @@ export function parseLine(raw: string, tab: ChatTab): { channel: ChatChannel; te
   return { channel: tab === 'party' ? ChatChannel.PARTY : ChatChannel.MAP, text: raw.trim() };
 }
 
-export function ChatBox({ socket }: ChatBoxProps) {
+/** Idle, only the tab's last few lines; open while typing or pinned, the tabs, the log and the input. */
+export function ChatBox({ socket, rest }: ChatBoxProps) {
   const open = ui.use((s) => s.chatOpen);
+  const pinned = settings.use((s) => s.chatPinned);
   const [tab, setTab] = useState<ChatTab>('general');
   const [draft, setDraft] = useState('');
   const input = useRef<HTMLInputElement>(null);
@@ -72,26 +81,59 @@ export function ChatBox({ socket }: ChatBoxProps) {
     input.current?.blur();
   };
 
+  const togglePin = async () => {
+    settings.getState().setChatPinned(!pinned);
+    const problem = await saveSettings(rest);
+    if (problem) {
+      toasts.getState().push(problem);
+    }
+  };
+
+  if (!open && !pinned) {
+    return (
+      <div
+        className="chat chat-idle"
+        aria-label="Chat"
+        title="Enter or click to chat"
+        onClick={() => ui.getState().openChat()}
+      >
+        <Lines tab={tab} count={IDLE_LINES} />
+      </div>
+    );
+  }
+
   const label = TABS.find((t) => t.id === tab)!.label;
   return (
     <div className="chat" aria-label="Chat">
-      <div className="chat-tabs" role="tablist" aria-label="Chat tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={t.id === tab}
-            className="chat-tab"
-            onMouseDown={(e) => e.preventDefault()} // keeps the focus, and a draft being typed, in the input
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="chat-head">
+        <div className="chat-tabs" role="tablist" aria-label="Chat tabs">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={t.id === tab}
+              className="chat-tab"
+              onMouseDown={(e) => e.preventDefault()} // keeps the focus, and a draft being typed, in the input
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          className="chat-tab chat-pin"
+          aria-pressed={pinned}
+          title="Keep the chat open while you play"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => void togglePin()}
+        >
+          Pin
+        </button>
       </div>
       <div role="tabpanel" aria-label={label}>
-        {tab === 'combat' ? <CombatLines /> : <ChatLines partyOnly={tab === 'party'} />}
+        <Lines tab={tab} count={SHOWN_LINES} />
       </div>
       <div className="chat-input-row">
         <input
@@ -114,12 +156,21 @@ export function ChatBox({ socket }: ChatBoxProps) {
   );
 }
 
-function ChatLines({ partyOnly }: { readonly partyOnly: boolean }) {
+// The newest line is last and the list is anchored to its bottom, so a wrapped line pushes the oldest out of view.
+function Lines({ tab, count }: { readonly tab: ChatTab; readonly count: number }) {
+  return tab === 'combat' ? (
+    <CombatLines count={count} />
+  ) : (
+    <ChatLines partyOnly={tab === 'party'} count={count} />
+  );
+}
+
+function ChatLines({ partyOnly, count }: { readonly partyOnly: boolean; readonly count: number }) {
   const lines = chat.use((s) => s.lines);
   const shown = partyOnly ? lines.filter((l) => l.channel === ChatChannel.PARTY) : lines;
   return (
     <ul className="chat-lines" aria-live="polite">
-      {shown.slice(-SHOWN_LINES).map((l) => (
+      {shown.slice(-count).map((l) => (
         <li
           key={`${l.at}-${l.sender}-${l.text}`}
           className={`chat-line chat-${l.channel === ChatChannel.PARTY ? 'party' : 'map'}`}
@@ -132,12 +183,12 @@ function ChatLines({ partyOnly }: { readonly partyOnly: boolean }) {
   );
 }
 
-function CombatLines() {
+function CombatLines({ count }: { readonly count: number }) {
   const lines = combatLog.use((s) => s.lines);
   const me = character.use((s) => s.character?.id);
   return (
     <ul className="chat-lines" aria-live="polite">
-      {lines.slice(-SHOWN_LINES).map((l) => (
+      {lines.slice(-count).map((l) => (
         <li key={l.id} className="chat-line chat-combat">
           <CombatText line={l} me={me} />
         </li>

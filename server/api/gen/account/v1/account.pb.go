@@ -227,8 +227,10 @@ type Settings struct {
 	ControlPreset string `protobuf:"bytes,1,opt,name=control_preset,json=controlPreset,proto3" json:"control_preset,omitempty"`
 	// Whether the client spends each level's points by the class's split on its own; false by default.
 	AutoAssignPoints bool `protobuf:"varint,2,opt,name=auto_assign_points,json=autoAssignPoints,proto3" json:"auto_assign_points,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Whether the chat stays open while the player isn't typing; false by default.
+	ChatPinned    bool `protobuf:"varint,3,opt,name=chat_pinned,json=chatPinned,proto3" json:"chat_pinned,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Settings) Reset() {
@@ -271,6 +273,13 @@ func (x *Settings) GetControlPreset() string {
 func (x *Settings) GetAutoAssignPoints() bool {
 	if x != nil {
 		return x.AutoAssignPoints
+	}
+	return false
+}
+
+func (x *Settings) GetChatPinned() bool {
+	if x != nil {
+		return x.ChatPinned
 	}
 	return false
 }
@@ -1384,10 +1393,12 @@ const file_internal_account_v1_account_proto_rawDesc = "" +
 	"\busername\x18\x02 \x01(\tR\busername\x129\n" +
 	"\bsettings\x18\x03 \x01(\v2\x1d.internal.account.v1.SettingsR\bsettings\x129\n" +
 	"\n" +
-	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"_\n" +
+	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x80\x01\n" +
 	"\bSettings\x12%\n" +
 	"\x0econtrol_preset\x18\x01 \x01(\tR\rcontrolPreset\x12,\n" +
-	"\x12auto_assign_points\x18\x02 \x01(\bR\x10autoAssignPoints\"I\n" +
+	"\x12auto_assign_points\x18\x02 \x01(\bR\x10autoAssignPoints\x12\x1f\n" +
+	"\vchat_pinned\x18\x03 \x01(\bR\n" +
+	"chatPinned\"I\n" +
 	"\x0fRegisterRequest\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"J\n" +

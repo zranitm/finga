@@ -36,6 +36,7 @@ const (
 type Settings struct {
 	ControlPreset    Preset `json:"control_preset"`
 	AutoAssignPoints bool   `json:"auto_assign_points"` // the client spends each level's points by the class's split
+	ChatPinned       bool   `json:"chat_pinned"`        // the chat stays open while the player isn't typing
 }
 
 // DefaultSettings are a new account's settings.

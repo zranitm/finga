@@ -1,9 +1,13 @@
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 import { create } from '@bufbuild/protobuf';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { isTyping } from '@/input/typing';
+import type { Settings } from '@/net/rest';
 import {
   CharacterViewSchema,
   ChatChannel,
@@ -20,6 +24,8 @@ import {
 import { character } from '@/state/character';
 import { chat } from '@/state/chat';
 import { combatLog } from '@/state/combat-log';
+import { settings } from '@/state/settings';
+import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -48,10 +54,18 @@ const loot = (kind: LootKind, template: string, quantity: number, ownerName = 'A
 const tab = (name: string) => screen.getByRole('tab', { name });
 const shown = () => screen.getAllByRole('listitem').map((li) => li.textContent);
 
-function setup() {
+const chatInput = () => screen.queryByLabelText('Chat message');
+const isOpen = () => screen.queryByRole('tablist', { name: 'Chat tabs' }) !== null;
+
+/** Renders the chat, open as Enter leaves it unless asked idle. */
+function setup({ open = true } = {}) {
   const send = vi.fn(() => true);
-  render(<ChatBox socket={{ send } as never} />);
-  return { send, input: () => screen.getByLabelText('Chat message') };
+  const putSettings = vi.fn((s: Settings) => Promise.resolve(s));
+  render(<ChatBox socket={{ send } as never} rest={{ putSettings }} />);
+  if (open) {
+    act(() => ui.getState().openChat());
+  }
+  return { send, putSettings, input: () => screen.getByLabelText('Chat message') };
 }
 
 describe('ChatBox', () => {
@@ -77,13 +91,15 @@ describe('ChatBox', () => {
     expect(parseLine(raw, tab)).toEqual(want);
   });
 
-  it('Enter sends ChatSend with the typed text on the map channel, clears and leaves', async () => {
+  it('Enter sends ChatSend with the typed text on the map channel, clears, and closes the chat', async () => {
     const { send, input } = setup();
     await userEvent.type(input(), 'hello all{Enter}');
     expect(send).toHaveBeenCalledWith('chatSend', { channel: ChatChannel.MAP, text: 'hello all' });
+    expect(isOpen()).toBe(false);
+    expect(chatInput()).toBeNull();
+    expect(isTyping(document.activeElement)).toBe(false);
+    act(() => ui.getState().openChat());
     expect(input()).toHaveValue('');
-    expect(input()).not.toHaveFocus();
-    expect(isTyping()).toBe(false);
   });
 
   it.each([
@@ -120,15 +136,136 @@ describe('ChatBox', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  it('the Enter key (through the ui store) focuses the input, which then has the keyboard; Escape leaves', async () => {
-    const { input } = setup();
+  it('the Enter key (through the ui store) opens it with the input focused, which then has the keyboard; Escape closes it', async () => {
+    const { input } = setup({ open: false });
+    expect(isOpen()).toBe(false);
     act(() => ui.getState().openChat());
+    expect(isOpen()).toBe(true);
     expect(input()).toHaveFocus();
-    expect(isTyping()).toBe(true);
+    expect(isTyping(document.activeElement)).toBe(true);
     await userEvent.keyboard('{Escape}');
-    expect(input()).not.toHaveFocus();
-    expect(isTyping()).toBe(false);
+    expect(isOpen()).toBe(false);
+    expect(isTyping(document.activeElement)).toBe(false);
     expect(ui.getState().chatOpen).toBe(false);
+  });
+
+  it('a draft half typed is still there when the chat opens again', async () => {
+    const { input } = setup();
+    await userEvent.type(input(), 'half a');
+    await userEvent.keyboard('{Escape}');
+    act(() => ui.getState().openChat());
+    expect(input()).toHaveValue('half a');
+  });
+
+  describe('idle', () => {
+    beforeEach(() => {
+      act(() => {
+        for (let i = 1; i <= 5; i++) {
+          chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', `l${i}`), i);
+        }
+        chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Ayla', 'go'), 6);
+      });
+    });
+
+    it('shows only the last three lines, with no tabs or input', () => {
+      setup({ open: false });
+      expect(shown()).toEqual(['[Map] Robin: l4', '[Map] Robin: l5', '[Party] Ayla: go']);
+      expect(isOpen()).toBe(false);
+      expect(chatInput()).toBeNull();
+    });
+
+    it('a click on the lines opens the chat with the input focused', async () => {
+      setup({ open: false });
+      await userEvent.click(screen.getByLabelText('Chat'));
+      expect(isOpen()).toBe(true);
+      expect(chatInput()).toHaveFocus();
+      expect(shown()).toHaveLength(6);
+    });
+
+    it('shows the tab chosen while it was open', async () => {
+      setup();
+      await userEvent.click(tab('Party'));
+      await userEvent.keyboard('{Escape}');
+      expect(shown()).toEqual(['[Party] Ayla: go']);
+    });
+  });
+
+  describe('pin', () => {
+    const pin = () => screen.getByRole('button', { name: 'Pin' });
+
+    it('keeps the chat open after Escape and after sending, with the keys back to the game, and is saved', async () => {
+      const { send, putSettings, input } = setup();
+      await userEvent.click(pin());
+      expect(pin()).toHaveAttribute('aria-pressed', 'true');
+      expect(input()).toHaveFocus();
+      expect(settings.getState().chatPinned).toBe(true);
+      expect(putSettings).toHaveBeenCalledWith({
+        control_preset: 'classic',
+        auto_assign_points: false,
+        chat_pinned: true,
+      });
+      await userEvent.keyboard('{Escape}');
+      expect(isOpen()).toBe(true);
+      expect(isTyping(document.activeElement)).toBe(false);
+      await userEvent.type(input(), 'still here{Enter}');
+      expect(send).toHaveBeenCalledWith('chatSend', {
+        channel: ChatChannel.MAP,
+        text: 'still here',
+      });
+      expect(isOpen()).toBe(true);
+      expect(input()).not.toHaveFocus();
+      expect(isTyping(document.activeElement)).toBe(false);
+    });
+
+    it('the account’s pinned chat is open from the start, and unpinning it closes it', async () => {
+      act(() => settings.getState().setChatPinned(true));
+      const { putSettings } = setup({ open: false });
+      expect(isOpen()).toBe(true);
+      expect(chatInput()).not.toHaveFocus();
+      await userEvent.click(pin());
+      expect(isOpen()).toBe(false);
+      expect(putSettings).toHaveBeenCalledWith(expect.objectContaining({ chat_pinned: false }));
+    });
+
+    it('a pin that fails to save says so, and stays for now', async () => {
+      const { putSettings } = setup();
+      putSettings.mockRejectedValueOnce(new Error('offline'));
+      await userEvent.click(pin());
+      await waitFor(() =>
+        expect(toasts.getState().toasts.map((t) => t.text)).toEqual([
+          'Could not save the setting.',
+        ]),
+      );
+      expect(settings.getState().chatPinned).toBe(true);
+      expect(isOpen()).toBe(true);
+    });
+  });
+
+  it('the log is anchored to its bottom, so a wrapped line pushes out the oldest, never the newest', () => {
+    const style = document.createElement('style');
+    style.textContent = readFileSync(path.resolve(process.cwd(), 'src/styles/global.css'), 'utf8');
+    document.head.append(style);
+    try {
+      setup({ open: false });
+      act(() => {
+        chat
+          .getState()
+          .applyChatMessage(line(ChatChannel.MAP, 'Robin', 'a long line '.repeat(20)), 1);
+        chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Robin', 'newest'), 2);
+      });
+      const list = screen.getByRole('list');
+      expect(getComputedStyle(list)).toMatchObject({
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        overflow: 'hidden',
+      });
+      const items = screen.getAllByRole('listitem');
+      expect(items.at(-1)).toHaveTextContent('newest');
+      expect(items.map((li) => getComputedStyle(li).flexShrink)).toEqual(['0', '0']);
+    } finally {
+      style.remove();
+    }
   });
 
   it('an incoming ChatMessage renders with the right tag, and the last eight show', () => {

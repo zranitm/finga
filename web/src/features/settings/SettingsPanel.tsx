@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/Button';
-import { RestError } from '@/net/rest';
+import { loadSettings, saveSettings } from '@/features/shared/settings';
 import type { RestClient } from '@/net/rest';
 import { presets, settings } from '@/state/settings';
 import type { Preset } from '@/state/settings';
@@ -16,17 +16,6 @@ const labels: Record<Preset, string> = {
   wasd: 'WASD: W A S D, Space, J attack, E talk',
 };
 
-/** The account's saved settings win over the local ones once they arrive; until then, the cached preset and no auto-assign stay in force. */
-export async function loadSettings(rest: Pick<RestClient, 'getSettings'>): Promise<void> {
-  try {
-    const saved = await rest.getSettings();
-    settings.getState().setPreset(saved.control_preset);
-    settings.getState().setAutoAssignPoints(saved.auto_assign_points ?? false);
-  } catch {
-    // Kept as they are until the next try.
-  }
-}
-
 export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
   const preset = settings.use((s) => s.preset);
   const autoAssign = settings.use((s) => s.autoAssignPoints);
@@ -36,15 +25,9 @@ export function SettingsPanel({ rest, onClose }: SettingsPanelProps) {
     void loadSettings(rest);
   }, [rest]);
 
-  // A PUT replaces every setting, so it sends them all as they now stand.
   const save = async () => {
-    const s = settings.getState();
     setProblem(null);
-    try {
-      await rest.putSettings({ control_preset: s.preset, auto_assign_points: s.autoAssignPoints });
-    } catch (err) {
-      setProblem(err instanceof RestError ? err.message : 'Could not save the setting.');
-    }
+    setProblem(await saveSettings(rest));
   };
 
   const choose = (next: Preset) => {

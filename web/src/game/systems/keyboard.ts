@@ -11,8 +11,8 @@ export interface KeyTarget {
 export interface KeyboardOptions {
   readonly target: KeyTarget;
   readonly preset: () => Preset;
-  /** A text field has the keyboard. */
-  readonly typing: () => boolean;
+  /** Whether the element an event went to is a text field, which has the keyboard. */
+  readonly typing: (target: EventTarget | null) => boolean;
   /** One-shot actions: windows and chat; held ones (movement, attack) go to target. */
   readonly onAction?: (action: Action) => void;
 }
@@ -34,7 +34,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
   };
   const down = (e: KeyboardEvent) => {
     const action = actionFor(e.code, opts.preset());
-    if (action === undefined || opts.typing() || shortcut(e)) {
+    if (action === undefined || opts.typing(e.target) || shortcut(e)) {
       return;
     }
     e.preventDefault(); // the game's keys: arrows and Space would scroll, and Space or Enter would press a focused button
@@ -53,7 +53,7 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
       releaseAll(); // macOS sends no key up for a key let go while Cmd was held
       return;
     }
-    if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing() && !shortcut(e)) {
+    if (actionFor(e.code, opts.preset()) !== undefined && !opts.typing(e.target) && !shortcut(e)) {
       e.preventDefault(); // a focused button takes Space on its key up
     }
     const action = heldFor(e);
@@ -65,8 +65,8 @@ export function bindKeyboard(opts: KeyboardOptions): () => void {
   const blur = () => {
     releaseAll();
   };
-  const focusIn = () => {
-    if (opts.typing()) {
+  const focusIn = (e: FocusEvent) => {
+    if (opts.typing(e.target)) {
       releaseAll(); // keys held as typing starts would never see their key up
     }
   };

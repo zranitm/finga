@@ -11,8 +11,11 @@ export interface SettingsState {
   readonly preset: Preset;
   /** Spend each level-up's points by the class's split; the account's setting, off until it says so. */
   readonly autoAssignPoints: boolean;
+  /** The chat stays open while the player isn't typing; the account's setting, off until it says so. */
+  readonly chatPinned: boolean;
   setPreset(preset: Preset): void;
   setAutoAssignPoints(on: boolean): void;
+  setChatPinned(on: boolean): void;
 }
 
 export function isPreset(value: unknown): value is Preset {
@@ -51,11 +54,15 @@ function safeStorage(): Storage | null {
 export const settings = defineStore<SettingsState>((set) => ({
   preset: loadCachedPreset(),
   autoAssignPoints: false,
+  chatPinned: false,
   setPreset: (preset) => {
     cachePreset(preset);
     set({ preset });
   },
   setAutoAssignPoints: (autoAssignPoints) => {
     set({ autoAssignPoints });
+  },
+  setChatPinned: (chatPinned) => {
+    set({ chatPinned });
   },
 }));

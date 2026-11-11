@@ -7,6 +7,7 @@ import { ChatBox } from '@/features/chat/ChatBox';
 import { InventoryWindow } from '@/features/inventory/InventoryWindow';
 import { bindKeyboard } from '@/game/systems/keyboard';
 import { isTyping } from '@/input/typing';
+import { settings } from '@/state/settings';
 import { ui } from '@/state/ui';
 import { resetStores } from '@/testing/reset-stores';
 
@@ -16,7 +17,7 @@ function Overlay() {
   const characterOpen = ui.use((s) => s.windows.includes('character'));
   return (
     <>
-      <ChatBox socket={{ send: vi.fn(() => true) } as never} />
+      <ChatBox socket={{ send: vi.fn(() => true) } as never} rest={{ putSettings: vi.fn() }} />
       {open && (
         <InventoryWindow
           socket={{ request: vi.fn() } as never}
@@ -138,6 +139,37 @@ describe('the world’s keys with windows open', () => {
     expect(etc).toHaveAttribute('aria-selected', 'false');
     await userEvent.keyboard('{Enter}');
     expect(etc).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByLabelText('Chat message')).toHaveFocus();
+  });
+
+  it('Enter in the chat sends the line and leaves the chat closed, the keys back with the game', async () => {
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('hello{Enter}');
+    expect(screen.queryByLabelText('Chat message')).toBeNull();
+    expect(ui.getState().chatOpen).toBe(false);
+    expect(await walks()).toBe(true);
+  });
+
+  it('Esc in the chat closes the chat only, not a window open behind it', async () => {
+    await userEvent.keyboard('i');
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByLabelText('Chat message')).toBeNull();
+    expect(inventoryWindow()).not.toBeNull();
+  });
+
+  it('a pinned chat stays open: Esc gives the keys back to the game, and Enter takes the input again', async () => {
+    act(() => settings.getState().setChatPinned(true));
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByLabelText('Chat message')).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByLabelText('Chat message')).not.toHaveFocus();
+    expect(await walks()).toBe(true);
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByLabelText('Chat message')).toHaveFocus();
+    await userEvent.keyboard('again{Enter}');
+    expect(screen.getByLabelText('Chat message')).not.toHaveFocus();
+    await userEvent.keyboard('{Enter}');
     expect(screen.getByLabelText('Chat message')).toHaveFocus();
   });
 
