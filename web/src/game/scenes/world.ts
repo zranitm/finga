@@ -401,7 +401,6 @@ export class World extends Phaser.Scene {
       }),
       socket.on('snapshot', (m) => this.onWorld(m)),
       socket.on('delta', (m) => this.onWorld(m)),
-      socket.on('correction', (m) => this.onCorrection(m.d)),
       socket.on('welcome', (m) => this.onWelcome(m.d.mapId, m.d.tickRateHz)),
       socket.on('damage', (m) => this.onDamage(m.d)),
       socket.on('died', (m) => this.onWorld(m)),
@@ -625,13 +624,6 @@ export class World extends Phaser.Scene {
   private applySelf(me: Wire): void {
     this.pushHp(me.hp);
     this.flash.set(me.invulnerable, this.time.now);
-  }
-
-  /** A Correction carries no facing; the current one stays. */
-  private onCorrection(c: Data<'correction'>): void {
-    if (this.predictor && this.placed) {
-      this.predictor.correct(wireState({ ...c, facing: this.predictor.state.facing }), c.seq);
-    }
   }
 
   private setStalled(stalled: boolean): void {

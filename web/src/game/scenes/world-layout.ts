@@ -2,7 +2,7 @@ import { maps } from '@/gamedata/maps';
 import type { MapView } from '@/sim/map';
 import type { Rect } from '@/sim/step';
 
-import { NAME_TAG_TOP } from '../entities/player';
+import { NAME_TAG_TOP } from '../entities/name-tag';
 import { TEX, TILE } from '../keys';
 import type { TextureKey } from '../keys';
 

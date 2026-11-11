@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { maps } from '@/gamedata/maps';
 import { parseMap } from '@/sim/map';
 
-import { NAME_TAG_TOP } from '../entities/player';
+import { NAME_TAG_TOP } from '../entities/name-tag';
 import { TEX } from '../keys';
 
 import {

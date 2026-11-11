@@ -134,7 +134,7 @@ func TestCatalogueCoversPage4(t *testing.T) {
 	want := map[string][]string{
 		"client": {"AbandonQuest", "AcceptQuest", "Attack", "ChatSend", "EnterPortal", "Equip", "HandInQuest", "Hello", "Input", "InventoryDiscard", "InventoryMove",
 			"PartyInvite", "PartyKick", "PartyLeave", "PartyPromote", "PartyRespond", "PickUp", "Ping", "ResetPoints", "SpendPoints", "Talk", "Unequip", "UseItem"},
-		"server": {"ChatMessage", "Correction", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
+		"server": {"ChatMessage", "Damage", "Delta", "Died", "ExpGained", "InventoryChanged", "Kicked",
 			"LevelUp", "Loot", "MapChange", "NpcDialog", "PartyInvited", "PartyState", "Pong", "QuestChanged", "Respawned", "Response", "Snapshot", "StatsChanged", "Welcome"},
 	}
 	if got := clientMessages; !slices.Equal(got, want["client"]) {

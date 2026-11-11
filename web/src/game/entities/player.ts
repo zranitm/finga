@@ -3,6 +3,7 @@ import type Phaser from 'phaser';
 import { ANIM, ART_SCALE, TEX } from '../keys';
 import type { TextureKey } from '../keys';
 
+import { NAME_TAG_ABOVE } from './name-tag';
 import { climbMoving, poseFor } from './pose';
 import type { PoseState } from './pose';
 
@@ -46,9 +47,6 @@ export function classArt(cls: string): ClassArt {
   return art[cls] ?? warrior;
 }
 
-const LABEL_ABOVE = 70;
-/** How far above the feet a name tag reaches: its offset plus the line of its 12 px text. */
-export const NAME_TAG_TOP = LABEL_ABOVE + 16;
 const SWING_MS = 150;
 
 export class PlayerView {
@@ -73,7 +71,7 @@ export class PlayerView {
   apply(s: PlayerState, now = Number.NEGATIVE_INFINITY): void {
     this.sprite.setPosition(s.x, s.y);
     this.sprite.setFlipX(s.facing < 0);
-    this.label?.setPosition(s.x, s.y - LABEL_ABOVE);
+    this.label?.setPosition(s.x, s.y - NAME_TAG_ABOVE);
     if (this.dead) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.hit);
