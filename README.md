@@ -210,8 +210,9 @@ generated code committed in `server/api/gen/`:
   SIGTERM the gateway turns unready, tells every connection to reconnect
   (Kicked `server_restart`), then stops.
 - **`account`** holds accounts and sessions. The gateway checks tokens
-  through `pkg/auth`'s `Guard` over its client, and its `WatchSessions`
-  stream tells the gateway which connections to close when a session ends.
+  through its own session ports, served by its account client, and its
+  `WatchSessions` stream tells the gateway which connections to close
+  when a session ends.
 - **`character`** holds the characters: REST lists and creates them through
   it, and the world loads them on join and saves checkpoints and level-ups
   to it. A new character's starter items are granted through the item

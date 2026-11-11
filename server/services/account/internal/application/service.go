@@ -13,13 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-
 	"finga/internal/kernel"
-	"finga/pkg/auth"
-	"finga/pkg/auth/password"
 	"finga/pkg/ratelimit"
 	"finga/services/account/internal/model"
+	"finga/services/account/internal/password"
 )
 
 // RegisterInput is a sign-up.
@@ -81,11 +78,6 @@ type Service struct {
 	presetList []model.Preset
 }
 
-var (
-	_ auth.Authenticator = (*Service)(nil)
-	_ auth.Sessions      = (*Service)(nil)
-)
-
 // NewService wires the service over deps; it fails when the hasher cannot make the dummy hash.
 func NewService(deps Deps) (*Service, error) {
 	dummy, err := deps.Hasher.Hash(context.Background(), dummySecret)
@@ -139,34 +131,34 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (string, error) {
 	return s.Issue(ctx, id)
 }
 
-// Verify implements auth.Authenticator: an unknown username checks a dummy hash, and a match at another cost is rehashed.
-func (s *Service) Verify(ctx context.Context, username, pw string) (uuid.UUID, error) {
+// Verify returns the account the credentials name: an unknown username checks a dummy hash, and a match at another cost is rehashed.
+func (s *Service) Verify(ctx context.Context, username, pw string) (kernel.AccountID, error) {
 	creds, err := s.store.FindByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			if _, err := s.hasher.Verify(ctx, s.dummy, pw); errors.Is(err, password.ErrBusy) {
-				return uuid.Nil, model.ErrBusy
+				return kernel.AccountID{}, model.ErrBusy
 			}
-			return uuid.Nil, model.ErrUnauthenticated
+			return kernel.AccountID{}, model.ErrUnauthenticated
 		}
-		return uuid.Nil, err
+		return kernel.AccountID{}, err
 	}
 	ok, err := s.hasher.Verify(ctx, creds.PasswordHash, pw)
 	if errors.Is(err, password.ErrBusy) {
-		return uuid.Nil, model.ErrBusy
+		return kernel.AccountID{}, model.ErrBusy
 	}
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("account %s: %w", creds.Account.ID, err)
+		return kernel.AccountID{}, fmt.Errorf("account %s: %w", creds.Account.ID, err)
 	}
 	if !ok {
-		return uuid.Nil, model.ErrUnauthenticated
+		return kernel.AccountID{}, model.ErrUnauthenticated
 	}
 	if s.hasher.NeedsRehash(creds.PasswordHash) {
 		if err := s.rehash(ctx, creds, pw); err != nil {
-			return uuid.Nil, err
+			return kernel.AccountID{}, err
 		}
 	}
-	return uuid.UUID(creds.Account.ID), nil
+	return creds.Account.ID, nil
 }
 
 // rehash stores the verified password at the configured cost; with no hash slot free, the next login does.
@@ -183,14 +175,14 @@ func (s *Service) rehash(ctx context.Context, creds model.Credentials, pw string
 	})
 }
 
-// Issue implements auth.Sessions, replacing older sessions under the account lock; a unique-index race retries once.
-func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error) {
+// Issue starts a session and returns its token, replacing older sessions under the account lock; a unique-index race retries once.
+func (s *Service) Issue(ctx context.Context, accountID kernel.AccountID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
 		return "", err
 	}
 	now := time.Now()
-	session := model.Session{ID: kernel.NewSessionID(), AccountID: kernel.AccountID(accountID), TokenHash: hash, ExpiresAt: s.expiry(now, now)}
+	session := model.Session{ID: kernel.NewSessionID(), AccountID: accountID, TokenHash: hash, ExpiresAt: s.expiry(now, now)}
 	for attempt := 0; ; attempt++ {
 		err = s.store.InTx(ctx, func(uow UnitOfWork) error {
 			if err := uow.Accounts().Lock(ctx, session.AccountID); err != nil {
@@ -212,29 +204,29 @@ func (s *Service) Issue(ctx context.Context, accountID uuid.UUID) (string, error
 	}
 }
 
-// Validate implements auth.Sessions and slides the expiry; the rotated-out token passes once in the grace period.
-func (s *Service) Validate(ctx context.Context, token string) (auth.Principal, error) {
+// Validate resolves a token to its session and slides the expiry; the rotated-out token passes once in the grace period.
+func (s *Service) Validate(ctx context.Context, token string) (model.Principal, error) {
 	hash := sha256.Sum256([]byte(token))
 	session, err := s.store.FindActiveSession(ctx, hash[:])
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
-			return auth.Principal{}, model.ErrUnauthenticated
+			return model.Principal{}, model.ErrUnauthenticated
 		}
-		return auth.Principal{}, err
+		return model.Principal{}, err
 	}
 	now := time.Now()
 	if !now.Before(session.ExpiresAt) {
-		return auth.Principal{}, model.ErrUnauthenticated
+		return model.Principal{}, model.ErrUnauthenticated
 	}
 	if !bytes.Equal(session.TokenHash, hash[:]) {
 		if err := s.consumePrevious(ctx, session.ID, hash[:], now); err != nil {
-			return auth.Principal{}, err
+			return model.Principal{}, err
 		}
 	}
 	if err := s.extend(ctx, session, now); err != nil {
-		return auth.Principal{}, err
+		return model.Principal{}, err
 	}
-	return auth.Principal{AccountID: uuid.UUID(session.AccountID), SessionID: uuid.UUID(session.ID)}, nil
+	return model.Principal{AccountID: session.AccountID, SessionID: session.ID}, nil
 }
 
 // consumePrevious lets the old token through once in the grace, under the row lock; any other use revokes the session.
@@ -266,15 +258,15 @@ func (s *Service) consumePrevious(ctx context.Context, id kernel.SessionID, hash
 	return model.ErrUnauthenticated
 }
 
-// Rotate implements auth.Sessions; the old token stays valid once within the grace period.
-func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, error) {
+// Rotate issues a session's next token; the old one stays valid once within the grace period.
+func (s *Service) Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error) {
 	token, hash, err := newToken()
 	if err != nil {
 		return "", err
 	}
 	now := time.Now()
 	err = s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Sessions().Rotate(ctx, kernel.SessionID(sessionID), hash, now)
+		return uow.Sessions().Rotate(ctx, sessionID, hash, now)
 	})
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
@@ -285,9 +277,9 @@ func (s *Service) Rotate(ctx context.Context, sessionID uuid.UUID) (string, erro
 	return token, nil
 }
 
-// Check implements auth.Sessions: the session is active and not expired.
-func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
-	session, err := s.store.FindSession(ctx, kernel.SessionID(sessionID))
+// Check reports whether the session is active and not expired.
+func (s *Service) Check(ctx context.Context, sessionID kernel.SessionID) error {
+	session, err := s.store.FindSession(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, model.ErrNotFound) {
 			return model.ErrUnauthenticated
@@ -300,16 +292,16 @@ func (s *Service) Check(ctx context.Context, sessionID uuid.UUID) error {
 	return nil
 }
 
-// Revoke implements auth.Sessions: logging out of one session.
-func (s *Service) Revoke(ctx context.Context, sessionID uuid.UUID) error {
-	return s.revoke(ctx, kernel.SessionID(sessionID), time.Now(), ReasonLogout)
+// Revoke logs out of one session.
+func (s *Service) Revoke(ctx context.Context, sessionID kernel.SessionID) error {
+	return s.revoke(ctx, sessionID, time.Now(), ReasonLogout)
 }
 
-// RevokeAll implements auth.Sessions: logging out everywhere.
-func (s *Service) RevokeAll(ctx context.Context, accountID uuid.UUID) error {
+// RevokeAll logs out everywhere.
+func (s *Service) RevokeAll(ctx context.Context, accountID kernel.AccountID) error {
 	now := time.Now()
 	err := s.store.InTx(ctx, func(uow UnitOfWork) error {
-		return uow.Sessions().RevokeAll(ctx, kernel.AccountID(accountID), now)
+		return uow.Sessions().RevokeAll(ctx, accountID, now)
 	})
 	if err != nil {
 		return err
@@ -325,7 +317,7 @@ func (s *Service) revoke(ctx context.Context, id kernel.SessionID, now time.Time
 	if err != nil {
 		return err
 	}
-	s.notifier.SessionRevoked(ctx, uuid.UUID(id), reason)
+	s.notifier.SessionRevoked(ctx, id, reason)
 	return nil
 }
 

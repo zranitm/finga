@@ -32,6 +32,12 @@ type Actor struct {
 	Character kernel.CharacterID
 }
 
+// Principal is who a validated login session belongs to.
+type Principal struct {
+	AccountID kernel.AccountID
+	SessionID kernel.SessionID
+}
+
 // EndReason is why the gateway ends a player's session; the handler decides what the client sees.
 type EndReason string
 

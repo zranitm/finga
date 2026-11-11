@@ -4,7 +4,6 @@ package handler
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -12,7 +11,6 @@ import (
 
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/pkg/grpcx"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
@@ -22,11 +20,11 @@ import (
 type Service interface {
 	Register(ctx context.Context, in application.RegisterInput) (model.Account, error)
 	Login(ctx context.Context, in application.LoginInput) (string, error)
-	Validate(ctx context.Context, token string) (auth.Principal, error)
-	Rotate(ctx context.Context, sessionID uuid.UUID) (string, error)
-	Check(ctx context.Context, sessionID uuid.UUID) error
-	Revoke(ctx context.Context, sessionID uuid.UUID) error
-	RevokeAll(ctx context.Context, accountID uuid.UUID) error
+	Validate(ctx context.Context, token string) (model.Principal, error)
+	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
+	Check(ctx context.Context, sessionID kernel.SessionID) error
+	Revoke(ctx context.Context, sessionID kernel.SessionID) error
+	RevokeAll(ctx context.Context, accountID kernel.AccountID) error
 	Settings(ctx context.Context, id kernel.AccountID) (model.Settings, error)
 	UpdateSettings(ctx context.Context, id kernel.AccountID, s model.Settings) error
 }
@@ -74,7 +72,7 @@ func (s *Server) Validate(ctx context.Context, req *accountv1.ValidateRequest) (
 
 // Rotate issues a session's next token.
 func (s *Server) Rotate(ctx context.Context, req *accountv1.RotateRequest) (*accountv1.RotateResponse, error) {
-	id, err := parseSession(req.GetSessionId())
+	id, err := kernel.ParseSessionID(req.GetSessionId())
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +85,7 @@ func (s *Server) Rotate(ctx context.Context, req *accountv1.RotateRequest) (*acc
 
 // Check reports whether a session is still active.
 func (s *Server) Check(ctx context.Context, req *accountv1.CheckRequest) (*accountv1.CheckResponse, error) {
-	id, err := parseSession(req.GetSessionId())
+	id, err := kernel.ParseSessionID(req.GetSessionId())
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +97,7 @@ func (s *Server) Check(ctx context.Context, req *accountv1.CheckRequest) (*accou
 
 // Revoke ends one session.
 func (s *Server) Revoke(ctx context.Context, req *accountv1.RevokeRequest) (*accountv1.RevokeResponse, error) {
-	id, err := parseSession(req.GetSessionId())
+	id, err := kernel.ParseSessionID(req.GetSessionId())
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +113,7 @@ func (s *Server) RevokeAll(ctx context.Context, req *accountv1.RevokeAllRequest)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.svc.RevokeAll(ctx, uuid.UUID(id)); err != nil {
+	if err := s.svc.RevokeAll(ctx, id); err != nil {
 		return nil, err
 	}
 	return &accountv1.RevokeAllResponse{}, nil
@@ -159,10 +157,4 @@ func (s *Server) WatchSessions(req *accountv1.WatchSessionsRequest, stream grpc.
 
 func settingsOf(s model.Settings) *accountv1.Settings {
 	return &accountv1.Settings{ControlPreset: string(s.ControlPreset), AutoAssignPoints: s.AutoAssignPoints, ChatPinned: s.ChatPinned}
-}
-
-// parseSession reads a session ID the gateway sent; a malformed one is kernel.ErrBadID.
-func parseSession(s string) (uuid.UUID, error) {
-	id, err := kernel.ParseSessionID(s)
-	return uuid.UUID(id), err
 }

@@ -10,12 +10,12 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	"finga/internal/host"
 	"finga/internal/telemetry"
-	"finga/pkg/auth/password"
 	"finga/pkg/retention"
 	"finga/pkg/uuidv7"
 	"finga/services/account/config"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/handler"
+	"finga/services/account/internal/password"
 	"finga/services/account/internal/repository"
 )
 

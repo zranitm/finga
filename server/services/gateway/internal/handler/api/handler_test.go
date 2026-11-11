@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
@@ -26,7 +25,6 @@ import (
 	accountv1 "finga/api/gen/account/v1"
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/kernel"
-	"finga/pkg/auth"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
 	"finga/pkg/tracing"
@@ -42,7 +40,7 @@ const goodToken = "tok-good-0123456789abcdef"
 var (
 	accountID   = kernel.NewAccountID()
 	sessionID   = kernel.NewSessionID()
-	principal   = auth.Principal{AccountID: uuid.UUID(accountID), SessionID: uuid.UUID(sessionID)}
+	principal   = model.Principal{AccountID: accountID, SessionID: sessionID}
 	t0          = time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 	sampleChar  = &characterv1.Character{Id: kernel.NewCharacterID().String(), AccountId: accountID.String(), Name: "Ayla", Class: "warrior", Level: 1, OwnStats: &characterv1.Stats{Strength: 12, Dexterity: 5, Intelligence: 4, Agility: 5, Vitality: 10}, Hp: 204, MaxHp: 204, Mp: 28, MaxMp: 28, MapId: "town", X: 416, Y: 608, UpdatedAt: timestamppb.New(t0)}
 	errInternal = errors.New("pq: connection reset")
@@ -251,7 +249,7 @@ func TestLogout(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if len(h.sessions.revoked) != 1 || h.sessions.revoked[0] != uuid.UUID(sessionID) {
+		if len(h.sessions.revoked) != 1 || h.sessions.revoked[0] != sessionID {
 			t.Fatalf("revoked %v", h.sessions.revoked)
 		}
 	})
@@ -288,7 +286,7 @@ func TestAuthentication(t *testing.T) {
 	}
 	t.Run("a session store failure is 500, not 401", func(t *testing.T) {
 		h := newHarness()
-		h.sessions.validate = func(string) (auth.Principal, error) { return auth.Principal{}, errInternal }
+		h.sessions.validate = func(string) (model.Principal, error) { return model.Principal{}, errInternal }
 		assertError(t, h.do("GET", "/api/characters", "", authed()), http.StatusInternalServerError, model.Internal)
 	})
 	t.Run("bearer is matched regardless of case", func(t *testing.T) {
@@ -692,7 +690,7 @@ func TestLogoutEverywhere(t *testing.T) {
 		if rec.Code != http.StatusNoContent {
 			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
 		}
-		if len(h.sessions.revokedAccounts) != 1 || h.sessions.revokedAccounts[0] != uuid.UUID(accountID) {
+		if len(h.sessions.revokedAccounts) != 1 || h.sessions.revokedAccounts[0] != accountID {
 			t.Fatalf("revoked accounts %v", h.sessions.revokedAccounts)
 		}
 	})

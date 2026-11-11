@@ -8,11 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
-	"finga/pkg/auth/password"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
+	"finga/services/account/internal/password"
 )
 
 // The partial unique index is the backstop for one active session.
@@ -65,7 +63,7 @@ func TestConcurrentLoginsLeaveExactlyOneActiveSession(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range n {
 		wg.Go(func() {
-			tokens[i], errs[i] = svc.Issue(ctx, uuid.UUID(acc.ID)) // Login would be throttled; the race is in Issue
+			tokens[i], errs[i] = svc.Issue(ctx, acc.ID) // Login would be throttled; the race is in Issue
 		})
 	}
 	wg.Wait()
@@ -100,7 +98,7 @@ func TestTheRetiredTokenWorksOnceUnderARace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, err := svc.Issue(ctx, uuid.UUID(acc.ID))
+	old, err := svc.Issue(ctx, acc.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

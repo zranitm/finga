@@ -8,31 +8,30 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"finga/internal/kernel"
-	"finga/pkg/auth/password"
 	"finga/services/account/internal/application"
 	"finga/services/account/internal/model"
+	"finga/services/account/internal/password"
 )
 
 type notices struct {
 	mu             sync.Mutex
-	sessions       []uuid.UUID
+	sessions       []kernel.SessionID
 	reasons        []string
-	accounts       []uuid.UUID
+	accounts       []kernel.AccountID
 	accountReasons []string
 }
 
-func (h *notices) SessionRevoked(_ context.Context, id uuid.UUID, reason string) {
+func (h *notices) SessionRevoked(_ context.Context, id kernel.SessionID, reason string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.sessions = append(h.sessions, id)
 	h.reasons = append(h.reasons, reason)
 }
 
-func (h *notices) AccountRevoked(_ context.Context, id uuid.UUID, reason string) {
+func (h *notices) AccountRevoked(_ context.Context, id kernel.AccountID, reason string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.accounts = append(h.accounts, id)
@@ -61,7 +60,7 @@ func underSynctest(t *testing.T, f func(t *testing.T, svc *application.Service, 
 	})
 }
 
-func loginAs(t *testing.T, svc *application.Service, username string) (token string, accountID uuid.UUID) {
+func loginAs(t *testing.T, svc *application.Service, username string) (token string, accountID kernel.AccountID) {
 	t.Helper()
 	ctx := context.Background()
 	acc, err := svc.Register(ctx, application.RegisterInput{Username: username, Password: "correct horse"})
@@ -72,7 +71,7 @@ func loginAs(t *testing.T, svc *application.Service, username string) (token str
 	if err != nil {
 		t.Fatal(err)
 	}
-	return token, uuid.UUID(acc.ID)
+	return token, acc.ID
 }
 
 func TestRotationGraceAndReuse(t *testing.T) {
@@ -169,7 +168,7 @@ func TestSlidingExpiry(t *testing.T) {
 		}
 		expiresAt := func() time.Time {
 			t.Helper()
-			s, err := store.FindSession(ctx, kernel.SessionID(p.SessionID))
+			s, err := store.FindSession(ctx, p.SessionID)
 			if err != nil {
 				t.Fatal(err)
 			}
