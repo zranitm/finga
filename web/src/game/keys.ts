@@ -96,6 +96,9 @@ export const ANIM = {
   flyMove: 'fly:move',
 } as const;
 
+/** The grey copy of a texture or animation, which a tint colours fully. */
+export const greyKey = (key: string): string => `${key}:grey`;
+
 /** 128 px art scaled to the 32 px grid. */
 export const ART_SCALE = 0.25;
 export const TILE = 32;

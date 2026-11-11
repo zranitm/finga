@@ -2,9 +2,11 @@
 import Phaser from 'phaser';
 
 import { images, mapFile } from '../assets';
-import { ANIM, MAP_IDS, SCENES, TEX, mapKey } from '../keys';
+import { mobSprites } from '../entities/mob';
+import { ANIM, MAP_IDS, SCENES, TEX, greyKey, mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 
+import { addGreyCopies } from './grey-art';
 import { drawPlaceholders } from './placeholders';
 
 interface Anim {
@@ -24,6 +26,20 @@ export const animations: readonly Anim[] = [
   { key: ANIM.flyMove, frames: [TEX.flyStand, TEX.flyMove], frameRate: 10 },
 ];
 
+/** What the tinted mobs draw from: a grey copy of each mob texture, and of each mob animation over the grey frames. */
+export function greyMobArt(): { textures: string[]; animations: Anim[] } {
+  const moves = new Set(mobSprites.map((s) => s.move));
+  const anims = animations.filter((a) => moves.has(a.key));
+  const textures = new Set([
+    ...mobSprites.flatMap((s) => [s.stand, s.dead]),
+    ...anims.flatMap((a) => a.frames),
+  ]);
+  return {
+    textures: [...textures],
+    animations: anims.map((a) => ({ ...a, key: greyKey(a.key), frames: a.frames.map(greyKey) })),
+  };
+}
+
 export class Preloader extends Phaser.Scene {
   constructor() {
     super(SCENES.Preloader);
@@ -39,7 +55,9 @@ export class Preloader extends Phaser.Scene {
   }
 
   create(): void {
-    for (const a of animations) {
+    const grey = greyMobArt();
+    addGreyCopies(this, grey.textures);
+    for (const a of [...animations, ...grey.animations]) {
       if (!this.anims.exists(a.key)) {
         this.anims.create({
           key: a.key,

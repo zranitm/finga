@@ -2,14 +2,13 @@ import type Phaser from 'phaser';
 
 import { mobs } from '@/gamedata/mobs';
 
-import { ANIM, ART_SCALE, TEX } from '../keys';
-import type { TextureKey } from '../keys';
+import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { MobState } from '../systems/combat-view';
 
 interface Sprite {
-  readonly stand: TextureKey;
+  readonly stand: string; // texture key
   readonly move: string; // animation key
-  readonly dead: TextureKey;
+  readonly dead: string;
 }
 
 interface MobArt extends Sprite {
@@ -31,16 +30,31 @@ const sprites = {
 const _sprites: Record<SpriteName, Sprite> = sprites;
 void _sprites;
 
-// A mob from a newer server: magenta so it cannot pass for a real one.
-const UNKNOWN_MOB: MobArt = { ...sprites.slime, tint: 0xff00ff, scale: 1, elite: false };
+/** Every sprite mobs draw from; the preloader makes each a grey copy for the tinted ones. */
+export const mobSprites: readonly Sprite[] = Object.values(sprites);
 
+const grey = (s: Sprite): Sprite => ({
+  stand: greyKey(s.stand),
+  move: greyKey(s.move),
+  dead: greyKey(s.dead),
+});
+
+// A mob from a newer server: magenta so it cannot pass for a real one.
+const UNKNOWN_MOB: MobArt = { ...grey(sprites.slime), tint: 0xff00ff, scale: 1, elite: false };
+
+/** A tinted mob draws from the grey copy of its sprite, so the tint is its colour. */
 export function mobArt(type: string): MobArt {
   const mob = mobs.find((m) => m.id === type);
   if (!mob) {
     return UNKNOWN_MOB;
   }
   const { sprite, tint, scale } = mob.look;
-  return { ...sprites[sprite], tint, scale, elite: mob.elite };
+  return {
+    ...(tint === null ? sprites[sprite] : grey(sprites[sprite])),
+    tint,
+    scale,
+    elite: mob.elite,
+  };
 }
 
 const BAR_W = 32;
