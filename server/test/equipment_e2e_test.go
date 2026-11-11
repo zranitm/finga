@@ -95,19 +95,19 @@ func key() string { return "k-" + uuidv7.NewString() }
 func TestEquipment(t *testing.T) {
 	t.Run("E1/a-new-character-wears-its-starter-weapon-from-the-first-welcome", func(t *testing.T) {
 		s := newStack(t)
-		token, id := s.createCharacter(t, "sam", "Sam", "warrior")
+		token, id := s.createCharacter(t, "sam", "Sam", "beginner")
 		_, w := s.hello(t, token, id)
-		if len(w.Equipment) != 1 || w.Equipment[0].GetEquipSlot() != "weapon" || w.Equipment[0].GetItem().GetTemplate() != "wooden_sword" ||
-			w.Equipment[0].GetItem().GetStats().GetPhysicalAttack() != 10 || w.Equipment[0].GetItem().GetTab() != "" {
-			t.Fatalf("equipment %+v; want the wooden sword in the weapon slot at its lowest roll", w.Equipment)
+		if len(w.Equipment) != 1 || w.Equipment[0].GetEquipSlot() != "weapon" || w.Equipment[0].GetItem().GetTemplate() != "wooden_club" ||
+			w.Equipment[0].GetItem().GetStats().GetPhysicalAttack() != 8 || w.Equipment[0].GetItem().GetTab() != "" {
+			t.Fatalf("equipment %+v; want the wooden club in the weapon slot at its lowest roll", w.Equipment)
 		}
 		if len(w.Inventory) != 1 || w.Inventory[0].GetTemplate() != "red_potion" {
 			t.Fatalf("inventory %+v; want the potions alone", w.Inventory)
 		}
 		c := w.GetCharacter()
-		if sheet := c.GetSheet(); sheet.GetDerivedWorn().GetPhysicalAttack() < 10 || sheet.GetDerived().GetPhysicalAttack() <= sheet.GetDerivedWorn().GetPhysicalAttack() ||
+		if sheet := c.GetSheet(); sheet.GetDerivedWorn().GetPhysicalAttack() < 8 || sheet.GetDerived().GetPhysicalAttack() <= sheet.GetDerivedWorn().GetPhysicalAttack() ||
 			sheet.GetDerived().GetMaxHp() != c.GetMaxHp() || sheet.GetDerived().GetMaxMp() != c.GetMaxMp() {
-			t.Fatalf("sheet %+v of %+v; want the sword's attack in the totals and in the equipment's share, and the maxima combat uses", sheet, c)
+			t.Fatalf("sheet %+v of %+v; want the club's attack in the totals and in the equipment's share, and the maxima combat uses", sheet, c)
 		}
 		s.checkInvariants(t)
 	})
@@ -123,8 +123,8 @@ func TestEquipment(t *testing.T) {
 		}
 		l, w := s.hello(t, token, id)
 		starter := w.Equipment[0].GetItem()
-		if len(w.Inventory) != 25 || starter.GetTemplate() != "wooden_sword" {
-			t.Fatalf("welcome with %d items and %+v worn; want the full Equip tab, the potions, and the starter sword worn", len(w.Inventory), w.Equipment)
+		if len(w.Inventory) != 25 || starter.GetTemplate() != "wooden_club" {
+			t.Fatalf("welcome with %d items and %+v worn; want the full Equip tab, the potions, and the starter club worn", len(w.Inventory), w.Equipment)
 		}
 		before := w.GetCharacter().GetSheet().GetDerivedWorn().GetPhysicalAttack()
 
@@ -136,10 +136,10 @@ func TestEquipment(t *testing.T) {
 		ic := got["InventoryChanged"].Data.(*clientv1.InventoryChanged)
 		if len(ic.Slots) != 1 || ic.Slots[0].GetTab() != "equip" || ic.Slots[0].GetSlot() != 0 || ic.Slots[0].GetItem().GetItemId() != starter.GetItemId() ||
 			len(ic.Equipment) != 1 || ic.Equipment[0].GetEquipSlot() != "weapon" || ic.Equipment[0].GetItem().GetItemId() != better || ic.Revision <= w.InventoryRevision {
-			t.Fatalf("swap changed %+v; want the starter sword in the slot the better one left, the better one worn", ic)
+			t.Fatalf("swap changed %+v; want the starter club in the slot the better sword left, the sword worn", ic)
 		}
 		if sc := got["StatsChanged"].Data.(*clientv1.StatsChanged); sc.GetSheet().GetDerivedWorn().GetPhysicalAttack() <= before {
-			t.Fatalf("stats after the swap %+v; want more than the %v attack power the starter sword gave", sc, before)
+			t.Fatalf("stats after the swap %+v; want more than the %v attack power the starter club gave", sc, before)
 		}
 
 		if r := l.command(t, "u-1", &clientv1.Unequip{IdempotencyKey: key(), EquipSlot: "weapon"}); r.GetCode() != code("EQUIP_TAB_FULL") {
@@ -235,9 +235,9 @@ func TestEquipment(t *testing.T) {
 		for _, e := range w.Equipment {
 			wearing[e.GetEquipSlot()] = e.GetItem()
 		}
-		if w.GetMapId() != "forest" || len(wearing) != 2 || wearing["weapon"].GetTemplate() != "wooden_sword" ||
+		if w.GetMapId() != "forest" || len(wearing) != 2 || wearing["weapon"].GetTemplate() != "wooden_club" ||
 			wearing["hat"].GetItemId() != leatherCap || wearing["hat"].GetStats().GetPhysicalDefense() != 4 {
-			t.Fatalf("welcomed on %s wearing %+v; want the forest, the sword and the cap", w.GetMapId(), w.Equipment)
+			t.Fatalf("welcomed on %s wearing %+v; want the forest, the club and the cap", w.GetMapId(), w.Equipment)
 		}
 		if !proto.Equal(w.GetCharacter().GetSheet(), sheet) {
 			t.Fatalf("welcome sheet %+v, StatsChanged said %+v", w.GetCharacter().GetSheet(), sheet)
@@ -284,13 +284,13 @@ func TestEquipment(t *testing.T) {
 		if !l.pump(10*time.Second, func(m wsconn.Message) bool { return m.Type == "Snapshot" }) {
 			t.Fatalf("no Snapshot after the restart (closed: %v)", l.closed(0))
 		}
-		// Whether the swap committed before the stop or not, the item service holds both swords and wears one.
-		var swords int
-		if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM items WHERE owner_id = $1 AND template_id = 'wooden_sword' AND location IN ('inventory', 'equipped')`, id).Scan(&swords); err != nil {
+		// Whether the swap committed before the stop or not, the item service holds both weapons and wears one.
+		var weapons int
+		if err := s.db.QueryRow(context.Background(), `SELECT count(*) FROM items WHERE owner_id = $1 AND template_id IN ('wooden_club', 'wooden_sword') AND location IN ('inventory', 'equipped')`, id).Scan(&weapons); err != nil {
 			t.Fatal(err)
 		}
-		if worn := s.worn(t, id); swords != 2 || len(worn) != 1 || (worn["weapon"] != starter && worn["weapon"] != better) {
-			t.Fatalf("%d swords, %v worn; want both swords and one of them worn", swords, worn)
+		if worn := s.worn(t, id); weapons != 2 || len(worn) != 1 || (worn["weapon"] != starter && worn["weapon"] != better) {
+			t.Fatalf("%d weapons, %v worn; want the club and the sword and one of them worn", weapons, worn)
 		}
 		s.checkInvariants(t)
 

@@ -74,12 +74,12 @@ describe('rest client', () => {
     },
     {
       name: 'create a character',
-      run: (c: ReturnType<typeof createRestClient>) => c.createCharacter('Ayla', 'warrior'),
+      run: (c: ReturnType<typeof createRestClient>) => c.createCharacter('Ayla'),
       status: 201,
       body: character,
       method: 'POST',
       path: '/api/characters',
-      sent: { name: 'Ayla', class: 'warrior' },
+      sent: { name: 'Ayla' },
       want: character,
     },
     {
@@ -205,7 +205,7 @@ describe('rest client', () => {
   ])('$name', async ({ status, body, code, message }) => {
     const { fetch } = fakeFetch(() => ({ status, body }));
     const client = createRestClient({ origin: '', fetch });
-    const err = await client.createCharacter('Ayla', 'warrior').catch((e: unknown) => e);
+    const err = await client.createCharacter('Ayla').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(RestError);
     const re = err as RestError;
     expect(re.status).toBe(status);

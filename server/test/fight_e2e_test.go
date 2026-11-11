@@ -29,9 +29,25 @@ func (s *stack) createCharacter(t *testing.T, username, charName, class string) 
 	t.Helper()
 	s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": username, "password": "correct horse"}), http.StatusCreated)
 	token = s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
-	created := s.call("POST", "/api/characters", token, map[string]string{"name": charName, "class": class})
+	return token, s.newCharacter(t, token, charName, class)
+}
+
+// newCharacter creates a Beginner and, for another class, sets it in the database as a promotion would, its HP and MP full from the next join.
+func (s *stack) newCharacter(t *testing.T, token, name, class string) string {
+	t.Helper()
+	created := s.call("POST", "/api/characters", token, map[string]string{"name": name})
 	s.mustStatus(created, http.StatusCreated)
-	return token, created.body["id"].(string)
+	id := created.body["id"].(string)
+	if class == "beginner" {
+		return id
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	tag, err := s.db.Exec(ctx, `UPDATE characters SET class = $2, hp = 1000000, mp = 1000000 WHERE id = $1`, id, class)
+	if err != nil || tag.RowsAffected() != 1 {
+		t.Fatalf("make %s a %s: %v (%d rows)", name, class, err, tag.RowsAffected())
+	}
+	return id
 }
 
 func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapshot) {

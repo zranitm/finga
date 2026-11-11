@@ -35,6 +35,7 @@ type vector struct {
 var requiredStatVectors = []string{
 	"warrior-level-1", "warrior-level-10-auto-assigned", "bowman-level-1", "bowman-level-20-spread",
 	"warrior-every-stat-worn", "bowman-rates-at-their-limits", "magic-build",
+	"beginner-level-1", "thief-level-15-auto-assigned", "magician-level-15-auto-assigned",
 }
 
 func TestStatVectors(t *testing.T) {
@@ -52,11 +53,10 @@ func TestStatVectors(t *testing.T) {
 			if v.Name != name {
 				t.Fatalf("name %q inside the file, want %q", v.Name, name)
 			}
-			class, ok := data.Class(v.Class)
-			if !ok {
+			if _, ok := data.Class(v.Class); !ok {
 				t.Fatalf("class %q", v.Class)
 			}
-			got := progression.SheetOf(data.StatRules(), v.Class, v.Level, progression.AddStats(class.BaseStats, v.Points), v.Worn)
+			got := progression.SheetOf(data.StatRules(), v.Class, v.Level, progression.AddStats(data.StartClass().BaseStats, v.Points), v.Worn)
 			if *update {
 				v.Expected = got
 				saveVector(t, file, v)

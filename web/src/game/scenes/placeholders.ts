@@ -42,6 +42,38 @@ function bow(limb: number): Draw {
   };
 }
 
+function dagger(blade: number): Draw {
+  return (g) => {
+    g.fillStyle(blade).fillTriangle(14, 20, 24, 4, 28, 8).fillTriangle(14, 20, 28, 8, 18, 24);
+    g.fillStyle(palette.dark).fillRect(10, 18, 10, 3);
+    g.fillStyle(palette.wood).fillRect(6, 22, 6, 6);
+  };
+}
+
+function wand(orb: number): Draw {
+  return (g) => {
+    g.lineStyle(3, palette.wood).lineBetween(8, 28, 22, 10);
+    g.fillStyle(orb).fillCircle(23, 8, 5);
+    g.fillStyle(palette.bone).fillCircle(21, 6, 1.5);
+  };
+}
+
+function club(knot: number): Draw {
+  return (g) => {
+    g.lineStyle(4, palette.wood).lineBetween(8, 28, 18, 12);
+    g.fillStyle(palette.wood).fillEllipse(21, 9, 12, 10);
+    g.fillStyle(knot).fillCircle(22, 8, 2);
+  };
+}
+
+/** A weapon's shape, by the class it fits; one that fits every class is a club. */
+const weapons: Readonly<Record<string, (c: number) => Draw>> = {
+  warrior: sword,
+  bowman: bow,
+  thief: dagger,
+  magician: wand,
+};
+
 /** One shape per slot kind but the weapon, which follows its class. */
 const kinds: Readonly<Record<string, (c: number) => Draw>> = {
   hat: (c) => (g) => {
@@ -240,7 +272,7 @@ function drawFor(id: string): Draw {
   }
   const color = starColors[item.stars] ?? starColors[1]!;
   if (item.slot === 'weapon') {
-    return item.class === 'bowman' ? bow(color) : sword(color);
+    return (item.class === undefined ? club : (weapons[item.class] ?? sword))(color);
   }
   return kinds[item.slot]?.(color) ?? unknown;
 }

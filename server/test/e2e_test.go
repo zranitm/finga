@@ -297,12 +297,13 @@ func TestAcceptance(t *testing.T) {
 		s.mustStatus(s.call("POST", "/api/accounts", "", map[string]string{"username": "carol", "password": "correct horse"}), http.StatusCreated)
 		login := s.call("POST", "/api/sessions", "", map[string]string{"username": "carol", "password": "correct horse"})
 		token := login.body["token"].(string)
-		created := s.call("POST", "/api/characters", token, map[string]string{"name": "Ayla", "class": "warrior"})
+		created := s.call("POST", "/api/characters", token, map[string]string{"name": "Ayla"})
 		s.mustStatus(created, http.StatusCreated)
-		if created.body["level"] != float64(1) || created.body["class"] != "warrior" || created.body["map_id"] != "town" || created.body["hp"] != float64(144) {
-			t.Fatalf("character %v", created.body)
+		if created.body["level"] != float64(1) || created.body["class"] != "beginner" || created.body["map_id"] != "town" || created.body["hp"] != float64(135) {
+			t.Fatalf("character %v; want a level 1 Beginner in town at full HP", created.body)
 		}
-		s.mustStatus(s.call("POST", "/api/characters", token, map[string]string{"name": "ayla", "class": "bowman"}), http.StatusConflict)
+		s.mustStatus(s.call("POST", "/api/characters", token, map[string]string{"name": "ayla"}), http.StatusConflict)
+		// Every character starts a Beginner: a class in the body is refused.
 		s.mustStatus(s.call("POST", "/api/characters", token, map[string]string{"name": "Merlin", "class": "magician"}), http.StatusBadRequest)
 		list := s.call("GET", "/api/characters", token, nil)
 		s.mustStatus(list, http.StatusOK)

@@ -25,7 +25,7 @@ type Service interface {
 	Move(ctx context.Context, actor model.Actor, in application.MoveInput) (application.Result, error)
 	Discard(ctx context.Context, actor model.Actor, in application.DiscardInput) (application.Result, error)
 	Use(ctx context.Context, actor model.Actor, in application.UseInput) (application.Result, bool, error)
-	GrantStarter(ctx context.Context, actor model.Actor, class kernel.Class) (application.Result, error)
+	GrantStarter(ctx context.Context, actor model.Actor) (application.Result, error)
 	Equip(ctx context.Context, actor model.Actor, in application.EquipInput) (application.Result, error)
 	Unequip(ctx context.Context, actor model.Actor, in application.UnequipInput) (application.Result, error)
 	HandIn(ctx context.Context, actor model.Actor, in application.HandInInput) (application.Result, error)
@@ -210,11 +210,7 @@ func (s *Server) GrantStarter(ctx context.Context, req *itemv1.GrantStarterReque
 	if err != nil {
 		return nil, err
 	}
-	class, err := kernel.ParseClass(req.GetClass())
-	if err != nil {
-		return nil, err
-	}
-	res, err := s.svc.GrantStarter(ctx, actor, class)
+	res, err := s.svc.GrantStarter(ctx, actor)
 	if err != nil {
 		return nil, err
 	}
@@ -235,11 +231,7 @@ func (s *Server) Equip(ctx context.Context, req *itemv1.EquipRequest) (*itemv1.E
 	if err != nil {
 		return nil, err
 	}
-	class, err := kernel.ParseClass(req.GetClass())
-	if err != nil {
-		return nil, err
-	}
-	res, err := s.svc.Equip(ctx, actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: class, Stats: primaryOf(req.GetStats())})
+	res, err := s.svc.Equip(ctx, actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: req.GetEquipSlot(), Level: int(req.GetLevel()), Class: kernel.Class(req.GetClass()), Stats: primaryOf(req.GetStats())})
 	if err != nil {
 		return nil, err
 	}

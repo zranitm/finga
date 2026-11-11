@@ -3,7 +3,7 @@ import { useState } from 'react';
 
 import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
-import { addStats, autoAssign, noPoints, total } from '@/progression/stats';
+import { addStats, autoAssign, hasSplit, noPoints, total } from '@/progression/stats';
 import type { Primary, PrimaryKey } from '@/progression/stats';
 import { ERR } from '@/protocol/errors';
 import { character } from '@/state/character';
@@ -23,6 +23,8 @@ export interface Points {
   readonly undo: () => void;
   readonly apply: () => void;
   readonly autoAssign: () => void;
+  /** The class has a split to auto-assign by; a Beginner has none. */
+  readonly canAutoAssign: boolean;
   readonly reset: () => void;
 }
 
@@ -84,6 +86,7 @@ export function usePoints(socket: Pick<GameSocket, 'request'>): Points {
     undo: () => setDraft({ base: unspent, points: noPoints }),
     apply: () => spend(staged),
     autoAssign: () => spend(autoAssign(c?.class ?? '', unspent)),
+    canAutoAssign: hasSplit(c?.class ?? ''),
     reset: () => {
       if (!busy) {
         void send(() => socket.request('resetPoints', { expectedUnspent: unspent }));

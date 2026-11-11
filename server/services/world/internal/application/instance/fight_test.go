@@ -76,7 +76,7 @@ func warriorAt(x float64) model.Player {
 }
 
 func bowmanAt(x float64) model.Player {
-	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Bowman, Level: 1, HP: 105, MP: 33, X: x, Y: 608}
+	p := model.Player{ID: kernel.NewCharacterID(), Name: "Robin", Class: kernel.Class("bowman"), Level: 1, HP: 105, MP: 33, X: x, Y: 608}
 	p.Worn = model.Worn{Revision: 1, Items: []model.WornItem{{Template: "short_bow", Stats: progression.ItemStats{PhysicalAttack: 8}}}}
 	return p
 }

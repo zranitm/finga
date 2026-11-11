@@ -4,13 +4,10 @@ import type { FormEvent } from 'react';
 import { Button } from '@/components/Button';
 import { RestError } from '@/net/rest';
 import type { Character, RestClient } from '@/net/rest';
+import { className } from '@/progression/classes';
 
 export const MAX_CHARACTERS = 3; // per account
 export const NAME_RULE = 'Name: 3 to 12 letters and digits, starting with a letter.';
-export const stageClasses = [
-  { id: 'warrior', name: 'Warrior' },
-  { id: 'bowman', name: 'Bowman' },
-] as const;
 
 export function nameProblem(name: string): string | null {
   return /^[A-Za-z][A-Za-z0-9]{2,11}$/.test(name) ? null : NAME_RULE;
@@ -33,7 +30,6 @@ export function CharactersScreen({
 }: CharactersScreenProps) {
   const [characters, setCharacters] = useState<Character[] | null>(null);
   const [name, setName] = useState('');
-  const [cls, setCls] = useState<string>('warrior');
   const [problem, setProblem] = useState<string | null>(null);
   // The list failed to load, as while the gateway restarts; Try again loads it once more.
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
@@ -74,7 +70,7 @@ export function CharactersScreen({
     setBusy(true);
     setProblem(null);
     try {
-      const created = await rest.createCharacter(name, cls);
+      const created = await rest.createCharacter(name);
       setCharacters([...(characters ?? []), created]);
       setName('');
     } catch (err) {
@@ -140,7 +136,7 @@ export function CharactersScreen({
           {characters?.map((c) => (
             <li key={c.id}>
               <span>
-                {c.name}, level {c.level} {c.class}
+                {c.name}, level {c.level} {className(c.class)}
               </span>
               <Button onClick={() => onPlay(c)} disabled={leaving}>
                 Play
@@ -158,21 +154,9 @@ export function CharactersScreen({
               disabled={atCap}
             />
           </label>
-          <fieldset className="field" disabled={atCap}>
-            <legend>Class</legend>
-            {stageClasses.map((option) => (
-              <label key={option.id}>
-                <input
-                  type="radio"
-                  name="class"
-                  value={option.id}
-                  checked={cls === option.id}
-                  onChange={() => setCls(option.id)}
-                />
-                {option.name}
-              </label>
-            ))}
-          </fieldset>
+          <p className="hint">
+            Every character starts as a Beginner, and picks a class later at its trainer.
+          </p>
           {atCap && (
             <p className="notice">
               This account has the most characters allowed ({MAX_CHARACTERS}).

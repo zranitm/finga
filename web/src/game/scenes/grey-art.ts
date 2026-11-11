@@ -1,7 +1,8 @@
-// A tint multiplies onto the art, so a tinted mob draws from a grey copy brightened to white: the green slime tinted blue would stay green.
+// A tint multiplies onto the art, so a tinted mob or class draws from a grey copy brightened to white: the green slime tinted blue would stay green.
 import type Phaser from 'phaser';
 
 import { mobSprites } from '../entities/mob';
+import { playerSprites } from '../entities/player';
 import { animations, greyKey } from '../keys';
 import type { Anim } from '../keys';
 
@@ -43,12 +44,16 @@ export function addGreyCopies(scene: Phaser.Scene, keys: readonly string[]): voi
   }
 }
 
-/** What the tinted mobs draw from: a grey copy of each mob texture, and of each mob animation over the grey frames. */
-export function greyMobArt(): { textures: string[]; animations: Anim[] } {
-  const moves = new Set(mobSprites.map((s) => s.move));
-  const anims = animations.filter((a) => moves.has(a.key));
+/** What the tinted mobs and classes draw from: a grey copy of each of their textures, and of each of their animations over the grey frames. */
+export function greyArt(): { textures: string[]; animations: Anim[] } {
+  const loops = new Set([
+    ...mobSprites.map((s) => s.move),
+    ...playerSprites.flatMap((s) => [s.walk, s.climbAnim]),
+  ]);
+  const anims = animations.filter((a) => loops.has(a.key));
   const textures = new Set([
     ...mobSprites.flatMap((s) => [s.stand, s.dead]),
+    ...playerSprites.flatMap((s) => [s.stand, s.jump, s.climb, s.hit]),
     ...anims.flatMap((a) => a.frames),
   ]);
   return {

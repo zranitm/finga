@@ -20,18 +20,19 @@ type Stats struct {
 type Content interface {
 	Item(id string) (gamedata.Item, bool)
 	StatRules() gamedata.StatRules
+	StartClass() gamedata.Class
 }
 
-// StatsOf counts a character of class at level with points, wearing worn, on a map ticking every tick: the own stats are the class's starting stats plus the points spent, and a worn item adds only while those meet its requirements.
+// StatsOf counts a character of class at level with points, wearing worn, on a map ticking every tick: the own stats are the starting stats every character has plus the points spent, and a worn item adds only while those meet its requirements.
 func StatsOf(data Content, class gamedata.Class, level int, points model.Points, worn model.Worn, tick time.Duration) Stats {
-	own := progression.AddStats(class.BaseStats, points.Spent)
+	own := progression.AddStats(data.StartClass().BaseStats, points.Spent)
 	items := make([]progression.WornItem, 0, len(worn.Items))
 	for _, w := range worn.Items {
 		if it, ok := data.Item(w.Template); ok {
 			items = append(items, progression.WornItem{Item: it, Stats: w.Stats})
 		}
 	}
-	sheet := progression.SheetOf(data.StatRules(), class.ID, level, own, progression.Active(items, level, class.ID, own))
+	sheet := progression.SheetOf(data.StatRules(), class.ID, level, own, progression.Active(items, level, class, own))
 	cooldown := model.AttackCooldownTicks(class.Attack.Cooldown, sheet.Derived.AttackSpeed, tick)
 	return Stats{Own: own, Derived: sheet.Derived, Sheet: model.Sheet{Sheet: sheet, Points: points, AttackCooldownTicks: cooldown}}
 }

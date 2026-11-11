@@ -82,7 +82,7 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	}
 	defer conn.Close()
 	owner := kernel.NewAccountID()
-	res, err := characterv1.NewCharacterServiceClient(conn).Create(ctx, &characterv1.CreateRequest{AccountId: owner.String(), Name: "Ayla", Class: "warrior"})
+	res, err := characterv1.NewCharacterServiceClient(conn).Create(ctx, &characterv1.CreateRequest{AccountId: owner.String(), Name: "Ayla"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestCreationCommitsThenGrantsOverTheRealListeners(t *testing.T) {
 	}
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	if len(fake.grants) != 1 || fake.grants[0].GetActor().GetCharacterId() != res.GetCharacter().GetId() || fake.grants[0].GetClass() != "warrior" {
+	if len(fake.grants) != 1 || fake.grants[0].GetActor().GetCharacterId() != res.GetCharacter().GetId() {
 		t.Fatalf("grants %+v", fake.grants)
 	}
 }

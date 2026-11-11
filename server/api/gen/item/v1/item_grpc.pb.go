@@ -48,7 +48,7 @@ type ItemServiceClient interface {
 	Move(ctx context.Context, in *MoveRequest, opts ...grpc.CallOption) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
 	Discard(ctx context.Context, in *DiscardRequest, opts ...grpc.CallOption) (*DiscardResponse, error)
-	// GrantStarter gives a new character its starter items once, keyed by the character ID.
+	// GrantStarter gives a new character the start class's starter items once, keyed by the character ID.
 	GrantStarter(ctx context.Context, in *GrantStarterRequest, opts ...grpc.CallOption) (*GrantStarterResponse, error)
 	// Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
 	Equip(ctx context.Context, in *EquipRequest, opts ...grpc.CallOption) (*EquipResponse, error)
@@ -196,7 +196,7 @@ type ItemServiceServer interface {
 	Move(context.Context, *MoveRequest) (*MoveResponse, error)
 	// Discard destroys an item or part of a stack.
 	Discard(context.Context, *DiscardRequest) (*DiscardResponse, error)
-	// GrantStarter gives a new character its starter items once, keyed by the character ID.
+	// GrantStarter gives a new character the start class's starter items once, keyed by the character ID.
 	GrantStarter(context.Context, *GrantStarterRequest) (*GrantStarterResponse, error)
 	// Equip wears an inventory item in an equip slot; a worn item there swaps into the slot the new one left. The world sends the live level and class.
 	Equip(context.Context, *EquipRequest) (*EquipResponse, error)

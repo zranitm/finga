@@ -187,7 +187,7 @@ func TownSpawn(t *testing.T, data *gamedata.Data) (float64, float64) {
 
 // NewPlayer is a level 1 warrior named name at (x, y).
 func NewPlayer(name string, x, y float64) model.Player {
-	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: kernel.Warrior, Level: 1, HP: 204, MP: 28, X: x, Y: y}
+	return model.Player{ID: kernel.NewCharacterID(), Name: name, Class: "warrior", Level: 1, HP: 204, MP: 28, X: x, Y: y}
 }
 
 // FixedRoll rolls v every time.
@@ -419,7 +419,7 @@ func (nobody) AddMany(context.Context, model.GrantCall) (model.Granted, error) {
 func (nobody) ObserveBatch(int) {}
 
 // GrantStarter grants nothing, and does not fail a join.
-func (nobody) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+func (nobody) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {
 	return nil
 }
 

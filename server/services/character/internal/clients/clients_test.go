@@ -25,20 +25,20 @@ func (f *items) GrantStarter(_ context.Context, req *itemv1.GrantStarterRequest)
 	return &itemv1.GrantStarterResponse{}, f.err
 }
 
-func TestStarterAsksForTheCharactersClass(t *testing.T) {
+func TestStarterAsksForTheCharacter(t *testing.T) {
 	f := &items{}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	itemv1.RegisterItemServiceServer(srv, f)
 	s := clients.NewStarter(itemv1.NewItemServiceClient(grpctest.Conn(t, srv)))
 	account, id := kernel.NewAccountID(), kernel.NewCharacterID()
-	if err := s.GrantStarter(context.Background(), account, id, kernel.Bowman); err != nil {
+	if err := s.GrantStarter(context.Background(), account, id); err != nil {
 		t.Fatal(err)
 	}
-	if g := f.grants[0]; g.GetClass() != "bowman" || g.GetActor().GetAccountId() != account.String() || g.GetActor().GetCharacterId() != id.String() {
+	if g := f.grants[0]; g.GetActor().GetAccountId() != account.String() || g.GetActor().GetCharacterId() != id.String() {
 		t.Fatalf("grant %+v", g)
 	}
 	f.err = grpctest.Error(codes.InvalidArgument, itemv1.Reason_REASON_UNKNOWN_ITEM)
-	err := s.GrantStarter(context.Background(), account, id, kernel.Bowman)
+	err := s.GrantStarter(context.Background(), account, id)
 	if err == nil || s.Retryable(err) {
 		t.Fatalf("a refusal: %v, retryable %v", err, s.Retryable(err))
 	}

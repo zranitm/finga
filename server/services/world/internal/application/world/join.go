@@ -46,7 +46,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if err != nil {
 		return model.View{}, err
 	}
-	w.grantStarter(ctx, account, id, c.Class)
+	w.grantStarter(ctx, account, id)
 	worn, err := w.worn(ctx, id) // after the grant, so starter equipment counts
 	if err != nil {
 		return model.View{}, err
@@ -126,10 +126,10 @@ func (w *World) load(ctx context.Context, id kernel.CharacterID, account kernel.
 }
 
 // grantStarter is a safety net for a creation whose grant failed: a failure is logged, and the next join tries again.
-func (w *World) grantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID, class kernel.Class) {
+func (w *World) grantStarter(ctx context.Context, account kernel.AccountID, id kernel.CharacterID) {
 	ctx, cancel := context.WithTimeout(ctx, starterTimeout)
 	defer cancel()
-	if err := w.deps.Starter.GrantStarter(ctx, account, id, class); err != nil {
+	if err := w.deps.Starter.GrantStarter(ctx, account, id); err != nil {
 		w.deps.Logger.WarnContext(ctx, "starter items not granted; the next join tries again", "character_id", id, "err", err)
 	}
 }

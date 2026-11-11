@@ -29,7 +29,7 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 	var wg sync.WaitGroup
 	for i := range n {
 		wg.Go(func() {
-			_, errs[i] = svc.Create(ctx, account, application.CreateInput{Name: fmt.Sprintf("Hero%d", i), Class: "warrior"})
+			_, errs[i] = svc.Create(ctx, account, application.CreateInput{Name: fmt.Sprintf("Hero%d", i)})
 		})
 	}
 	wg.Wait()
@@ -56,7 +56,7 @@ func TestConcurrentCreatesKeepTheCharacterCap(t *testing.T) {
 // granted is an item service that grants every starter set.
 type granted struct{}
 
-func (granted) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID, kernel.Class) error {
+func (granted) GrantStarter(context.Context, kernel.AccountID, kernel.CharacterID) error {
 	return nil
 }
 func (granted) Retryable(error) bool { return false }

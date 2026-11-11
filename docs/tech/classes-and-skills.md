@@ -48,6 +48,7 @@ From the code, the rules this design keeps:
 classes:
   - id: beginner
     name: Beginner
+    look: {sprite: alien_blue, tint: 0xd8c8a8}
     attack: {kind: melee, width: 48, height: 48, cooldown: 700ms, damage: physical}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     skills: [strike, throw, spark, second_wind]
@@ -55,6 +56,7 @@ classes:
   - id: warrior
     name: Warrior
     parent: beginner
+    look: {sprite: alien_blue}
     attack: {kind: melee, width: 64, height: 56, cooldown: 600ms, damage: physical}
     skills: [...]
     auto_assign: {str: 3, vit: 2}
@@ -68,15 +70,17 @@ classes:
 
 - **Starting stats** (`base_stats`) move to `beginner` alone. Every character starts as one, and a promotion doesn't change primary stats.
 - **Base values** for each class, Beginner included, stay in `stats.yaml` (stat system).
-- **Thief and Magician** join the data as first classes. Their attacks follow the product page: the Thief's is fast with a short reach, and the Magician's is a ranged spell dealing magic damage. Both fit the attack kinds and damage types the world already has. Each also gets base values in `stats.yaml`, an auto-assign split (Progression), and its first weapons.
+- **Thief and Magician** join the data as first classes. Their attacks follow the product page: the Thief's is fast with a short reach, and the Magician's is a ranged spell dealing magic damage. Both fit the attack kinds and damage types the world already has. Each also gets base values in `stats.yaml`, an auto-assign split (Progression), and a weapon line: a dagger or a wand at each level the sword and bow have, dropping where they drop.
+- **Look:** the client's art for the class, a player sprite and an optional tint over its grey copy, as mobs have.
 - **Weapons:** a weapon's `class` now means "this class and every class below it in the tree". A weapon with no class, such as a Beginner weapon, fits everyone.
 - **Validation** refuses:
-  - a tree that isn't rooted at `beginner`, has a cycle, or names an unknown parent;
+  - a first class with a parent, or any later class without one or whose parent isn't above it in the file, so the tree has one root and no cycle;
+  - a look without a sprite, or with a tint past RGB;
   - a skill listed by two classes;
   - promotion conditions that name an unknown NPC, quest, or stat, or a skill the class below can't learn;
   - a trainer NPC whose `trainer:` doesn't match the class;
   - starting stats or starter items on any class but `beginner`;
-  - an auto-assign split on `beginner`.
+  - an auto-assign split on `beginner`, or none on any other class.
 
 ### `data/skills.yaml`
 
@@ -120,7 +124,7 @@ skills:
   - a new table `character_skills (character_id, skill_id, points)` holds the points invested;
   - `skill_bar int[6]`, or a small table, holds the skill IDs on keys 1 to 6.
 - **Stored vs derived:** stages are never stored. A skill's stage is the last whose `at` is at or below its points, computed by whoever needs it.
-- **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today.
+- **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today. The item service's `GrantStarter` loses `class` too: the starter items are always the root's.
 - **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and the changed skill rows, like stat points.
 - **The skill bar** is saved over REST: `PUT /api/characters/{id}/skill-bar`. It's a UI arrangement, not game state, and the world doesn't need it.
 

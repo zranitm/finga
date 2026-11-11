@@ -34,7 +34,7 @@ Players spend their own points (C6).
   | --- | --- |
   | Warrior | STR 3, VIT 2 |
   | Bowman | STR 2, DEX 2, AGI 1 |
-  | Thief | STR 2, AGI 2, DEX 1 |
+  | Thief | DEX 3, AGI 1, VIT 1 |
   | Magician | INT 3, DEX 1, VIT 1 |
 
 - **Resets**: a reset returns every spent point. Each character has one free reset. Once currency exists (F1), further resets cost currency, more at higher levels.

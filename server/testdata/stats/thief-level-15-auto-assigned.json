@@ -1,0 +1,66 @@
+{
+  "name": "thief-level-15-auto-assigned",
+  "notes": "A thief at level 15 whose 70 points went by its split, DEX 3, AGI 1 and VIT 1 a level.",
+  "class": "thief",
+  "level": 15,
+  "points": {
+    "str": 0,
+    "dex": 42,
+    "int": 0,
+    "agi": 14,
+    "vit": 14
+  },
+  "worn": {},
+  "expected": {
+    "primary": {
+      "str": 7,
+      "dex": 49,
+      "int": 7,
+      "agi": 21,
+      "vit": 21
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 489,
+      "max_mp": 99,
+      "physical_attack": 35,
+      "magic_attack": 35,
+      "physical_defense": 25,
+      "magic_defense": 17,
+      "accuracy": 62,
+      "evasion": 36,
+      "crit_rate": 0.1582329317269076,
+      "crit_damage": 0.745,
+      "penetration": 0,
+      "hp_regen": 1.05,
+      "mp_regen": 0.35000000000000003,
+      "attack_speed": 0.06140350877192982,
+      "cooldown_speed": 0.01352657004830918,
+      "move_speed": 0.02850678733031674
+    },
+    "derived_worn": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

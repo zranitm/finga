@@ -366,25 +366,25 @@ func (s *stack) inventoryTotals(t *testing.T, owner string) map[string]int {
 	return out
 }
 
-// swapper gives the character a second sword, then returns a loop that wears its two swords in turn through the item service for d, counting the swaps that answered.
+// swapper gives the character a sword, then returns a loop that wears it and the starter club in turn through the item service for d, counting the swaps that answered.
 func (s *stack) swapper(t *testing.T, id string) func(d time.Duration) int {
 	t.Helper()
 	ctx := context.Background()
 	actor := s.actor(t, id)
 	s.give(t, id, "wooden_sword", &itemv1.ItemStats{PhysicalAttack: 10})
-	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id = 'wooden_sword'`, id)
+	rows, err := s.db.Query(ctx, `SELECT id::text FROM items WHERE owner_id = $1 AND template_id IN ('wooden_club', 'wooden_sword')`, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	swords, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil || len(swords) != 2 {
-		t.Fatalf("swords %v (%v), want the starter and the second", swords, err)
+	weapons, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil || len(weapons) != 2 {
+		t.Fatalf("weapons %v (%v), want the starter club and the sword", weapons, err)
 	}
 	return func(d time.Duration) int {
 		n := 0
 		for k, end := 0, time.Now().Add(d); time.Now().Before(end); k++ {
 			callCtx, cancel := context.WithTimeout(ctx, time.Second)
-			_, err := s.items.Equip(callCtx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: uuidv7.NewString(), ItemId: swords[k%2], Level: 1, Class: "warrior"})
+			_, err := s.items.Equip(callCtx, &itemv1.EquipRequest{Actor: actor, IdempotencyKey: uuidv7.NewString(), ItemId: weapons[k%2], Level: 1, Class: "warrior"})
 			cancel()
 			if err == nil {
 				n++

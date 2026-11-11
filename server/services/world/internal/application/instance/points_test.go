@@ -127,7 +127,7 @@ func (r requiring) Item(id string) (gamedata.Item, bool) {
 func TestStatsOfCountsOnlyTheWornItemsWhoseRequirementsAreMet(t *testing.T) {
 	data := worldtest.LoadData(t)
 	content := requiring{data, "wooden_sword", gamedata.Stats{STR: 10}}
-	warrior, _ := data.Class(kernel.Warrior)
+	warrior, _ := data.Class(kernel.Class("warrior"))
 	worn := model.Worn{Items: []model.WornItem{
 		{Template: "wooden_sword", Stats: progression.ItemStats{PhysicalAttack: 10}},
 		{Template: "leather_cap", Stats: progression.ItemStats{STR: 5, MaxHP: 30}},

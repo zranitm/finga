@@ -47,9 +47,15 @@ describe('generated gamedata', () => {
     expect(equipSlots.map((s) => s.id)).toContain('ring_2');
   });
 
-  it('classes equal classes.yaml with cooldowns in milliseconds', () => {
+  it('classes equal classes.yaml, root first, with cooldowns in milliseconds and what a class leaves out as null', () => {
     const raw = yaml('classes.yaml').classes as Record<string, unknown>[];
     expect(classes.map((c) => c.id)).toEqual(raw.map((c) => c.id));
+    expect(classes.map((c) => c.parent)).toEqual(raw.map((c) => c.parent ?? null));
+    const beginner = classes[0];
+    expect(beginner.id).toBe('beginner');
+    expect(beginner.base_stats).toEqual(raw[0]!.base_stats);
+    expect(beginner.auto_assign).toBeNull();
+    expect(beginner.look).toEqual(raw[0]!.look);
     const warrior = classes.find((c) => c.id === 'warrior');
     expect(warrior?.attack).toEqual({
       kind: 'melee',
@@ -65,8 +71,9 @@ describe('generated gamedata', () => {
       range: 420,
       cooldown_ms: 800,
     });
-    expect(warrior?.base_stats).toEqual(raw[0]!.base_stats);
-    expect(warrior?.auto_assign).toEqual(raw[0]!.auto_assign);
+    expect(warrior?.base_stats).toBeNull();
+    expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
+    expect(warrior?.look).toEqual({ sprite: 'alien_blue', tint: null });
   });
 
   it('the stat rules equal stats.yaml', () => {

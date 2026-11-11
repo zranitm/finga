@@ -164,10 +164,7 @@ func (l *loader) loadStats(dir string) error {
 	}
 	r.MinHit, r.MaxHit = file.Limits.HitChance[0], file.Limits.HitChance[1]
 	for _, name := range slices.Sorted(maps.Keys(file.Classes)) {
-		id, err := kernel.ParseClass(name)
-		if err != nil {
-			return fmt.Errorf("%s: classes: %q is not a class", statsFile, name)
-		}
+		id := kernel.Class(name)
 		if !l.classes.has(id) {
 			return fmt.Errorf("%s: classes: %s is not in %s", statsFile, id, classesFile)
 		}
@@ -185,7 +182,7 @@ func (l *loader) loadStats(dir string) error {
 		if _, ok := r.Classes[c.ID]; !ok {
 			return fmt.Errorf("%s: classes: %s has no bases", statsFile, c.ID)
 		}
-		if got := c.AutoAssign.Total(); got != r.PointsPerLevel {
+		if got := c.AutoAssign.Total(); c.Parent != "" && got != r.PointsPerLevel {
 			return fmt.Errorf("%s: class %s: auto_assign must add up to points_per_level (%d), got %d", classesFile, c.ID, r.PointsPerLevel, got)
 		}
 	}

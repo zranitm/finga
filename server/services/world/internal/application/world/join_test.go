@@ -52,7 +52,7 @@ type fakeStarter struct {
 	err    error
 }
 
-func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id kernel.CharacterID, _ kernel.Class) error {
+func (f *fakeStarter) GrantStarter(_ context.Context, _ kernel.AccountID, id kernel.CharacterID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.grants = append(f.grants, id)
@@ -76,7 +76,7 @@ func joinWorld(t *testing.T, chars *fakeCharacters, starter *fakeStarter, log ..
 func TestJoinByID(t *testing.T) {
 	account := kernel.NewAccountID()
 	ayla := model.Character{
-		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
+		ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
 		HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 	lost := ayla
@@ -209,7 +209,7 @@ func TestACharacterSavedDeadJoinsRespawnedInTown(t *testing.T) {
 		forest, _ := data.Map("forest")
 		account := kernel.NewAccountID()
 		dead := model.Character{
-			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
+			ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
 			HP: 0, MP: 28, MapID: forest.ID, X: 900, Y: 600,
 		}
 		w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{dead.ID: dead}}, &fakeStarter{})
@@ -245,7 +245,7 @@ func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				account := kernel.NewAccountID()
 				saved := model.Character{
-					ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Warrior, Level: 1,
+					ID: kernel.NewCharacterID(), Account: account, Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
 					HP: 100, MP: 28, MapID: forest.ID, X: c.x, Y: c.y,
 				}
 				w, stop := joinWorld(t, &fakeCharacters{chars: map[kernel.CharacterID]model.Character{saved.ID: saved}}, &fakeStarter{})
@@ -273,7 +273,7 @@ func TestASavedPositionOffTheMapStartsAtItsSpawn(t *testing.T) {
 
 type hangingStarter struct{}
 
-func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ kernel.CharacterID, _ kernel.Class) error {
+func (hangingStarter) GrantStarter(ctx context.Context, _ kernel.AccountID, _ kernel.CharacterID) error {
 	<-ctx.Done() // an item service that takes the call and never answers
 	return ctx.Err()
 }

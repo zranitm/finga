@@ -15,10 +15,9 @@ import (
 	"finga/services/character/internal/model"
 )
 
-// CreateInput is a new character.
+// CreateInput is a new character; every one starts as the class at the root of the tree.
 type CreateInput struct {
-	Name  string
-	Class kernel.Class
+	Name string
 }
 
 // Deps are what the service is built over.
@@ -62,10 +61,7 @@ func (s *Service) Create(ctx context.Context, account kernel.AccountID, in Creat
 	if len(in.Name) < nameMin || len(in.Name) > nameMax || !nameRe.MatchString(in.Name) {
 		return model.Character{}, model.ErrBadName
 	}
-	class, ok := s.content.Class(in.Class)
-	if !ok {
-		return model.Character{}, model.ErrClassUnavailable
-	}
+	class := s.content.StartClass()
 	town := s.content.StartTown()
 	derived := progression.DeriveStats(s.content.StatRules(), class.ID, 1, class.BaseStats, progression.ItemStats{})
 	c := model.Character{
@@ -98,7 +94,7 @@ func (s *Service) grantStarter(ctx context.Context, c model.Character) {
 	defer cancel()
 	var last error
 	_, err := backoff.Retry(ctx, func() (struct{}, error) {
-		last = s.starter.GrantStarter(ctx, c.AccountID, c.ID, c.Class)
+		last = s.starter.GrantStarter(ctx, c.AccountID, c.ID)
 		if last != nil && !s.starter.Retryable(last) {
 			return struct{}{}, backoff.Permanent(last)
 		}
@@ -152,20 +148,15 @@ func (s *Service) SaveLevelUp(ctx context.Context, lu model.LevelUp) error {
 	})
 }
 
-// Own is a character's own stats: their class's starting stats plus the points they spent.
-func (s *Service) Own(c model.Character) (gamedata.Stats, error) {
-	class, ok := s.content.Class(c.Class)
-	if !ok {
-		return gamedata.Stats{}, model.ErrClassUnavailable
-	}
-	return progression.AddStats(class.BaseStats, c.Points), nil
+// Own is a character's own stats: the starting stats everyone shares, plus the points they spent.
+func (s *Service) Own(c model.Character) gamedata.Stats {
+	return progression.AddStats(s.content.StartClass().BaseStats, c.Points)
 }
 
-// Derived computes a character's derived stats with no equipment.
+// Derived computes a character's derived stats with no equipment; a class the game data doesn't have is ErrClassUnavailable.
 func (s *Service) Derived(c model.Character) (progression.Derived, error) {
-	own, err := s.Own(c)
-	if err != nil {
-		return progression.Derived{}, err
+	if _, ok := s.content.Class(c.Class); !ok {
+		return progression.Derived{}, model.ErrClassUnavailable
 	}
-	return progression.DeriveStats(s.content.StatRules(), c.Class, c.Level, own, progression.ItemStats{}), nil
+	return progression.DeriveStats(s.content.StatRules(), c.Class, c.Level, s.Own(c), progression.ItemStats{}), nil
 }

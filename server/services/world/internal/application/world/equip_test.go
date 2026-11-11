@@ -49,7 +49,7 @@ func wearingWorld(t *testing.T, ayla model.Character, o worldtest.Options) (*wor
 
 func aylaInTown() model.Character {
 	return model.Character{
-		ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: "Ayla", Class: kernel.Warrior, Level: 1,
+		ID: kernel.NewCharacterID(), Account: kernel.NewAccountID(), Name: "Ayla", Class: kernel.Class("warrior"), Level: 1,
 		HP: 999, MP: 28, MapID: "town", X: 416, Y: 608,
 	}
 }

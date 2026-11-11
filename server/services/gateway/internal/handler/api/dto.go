@@ -32,10 +32,9 @@ type SessionResponse struct {
 	Token string `json:"token"`
 }
 
-// CreateCharacterRequest is POST /api/characters.
+// CreateCharacterRequest is POST /api/characters; every new character is a Beginner, so it names no class.
 type CreateCharacterRequest struct {
-	Name  string `json:"name"`
-	Class string `json:"class"`
+	Name string `json:"name"`
 }
 
 // StatsResponse are the five primary stats.

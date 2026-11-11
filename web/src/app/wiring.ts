@@ -3,7 +3,7 @@ import { itemName, starMarks, starsOf } from '@/features/shared/items';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
 import { readyQuests } from '@/progression/quests';
-import { autoAssign } from '@/progression/stats';
+import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
 import { LootKind } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
@@ -134,11 +134,11 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** With the setting on, a level-up spends every unspent point by the class's split, as the window's button does. */
+/** With the setting on, a level-up spends every unspent point by the class's split, as the window's button does; a class with no split spends nothing. */
 function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
   const c = d.character;
   const unspent = c?.sheet?.points?.unspent ?? 0;
-  if (!c || unspent === 0 || !settings.getState().autoAssignPoints) {
+  if (!c || unspent === 0 || !settings.getState().autoAssignPoints || !hasSplit(c.class)) {
     return;
   }
   socket

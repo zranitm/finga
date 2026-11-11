@@ -26,7 +26,7 @@ func (h *harness) added(t *testing.T, template string) model.Item {
 
 // equip has the harness's warrior wear id at level.
 func (h *harness) equip(key string, id kernel.ItemID, slot string, level int) (application.Result, error) {
-	return h.svc.Equip(context.Background(), h.actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: slot, Level: level, Class: kernel.Warrior})
+	return h.svc.Equip(context.Background(), h.actor, application.EquipInput{Key: key, ItemID: id, EquipSlot: slot, Level: level, Class: kernel.Class("warrior")})
 }
 
 func (h *harness) unequip(key, slot string, to *int) (application.Result, error) {
@@ -107,14 +107,16 @@ func TestEquip(t *testing.T) {
 			in   application.EquipInput
 			want error
 		}{
-			{"someone else's item", other, application.EquipInput{ItemID: hat.ID, Level: 1, Class: kernel.Warrior}, model.ErrNotFound},
-			{"an item that doesn't exist", h.actor, application.EquipInput{ItemID: kernel.NewItemID(), Level: 1, Class: kernel.Warrior}, model.ErrNotFound},
-			{"a potion", h.actor, application.EquipInput{ItemID: potion.ID, Level: 1, Class: kernel.Warrior}, model.ErrNotEquipment},
-			{"a hat in the weapon slot", h.actor, application.EquipInput{ItemID: hat.ID, EquipSlot: "weapon", Level: 1, Class: kernel.Warrior}, model.ErrWrongEquipSlot},
-			{"a slot the game data doesn't have", h.actor, application.EquipInput{ItemID: hat.ID, EquipSlot: "boots", Level: 1, Class: kernel.Warrior}, model.ErrWrongEquipSlot},
-			{"below the item's level", h.actor, application.EquipInput{ItemID: vest.ID, Level: 4, Class: kernel.Warrior}, model.ErrLevelTooLow},
-			{"another class's item", h.actor, application.EquipInput{ItemID: bow.ID, Level: 1, Class: kernel.Warrior}, model.ErrWrongClass},
-			{"an item already worn", h.actor, application.EquipInput{ItemID: second.ID, Level: 1, Class: kernel.Warrior}, model.ErrItemWorn},
+			{"someone else's item", other, application.EquipInput{ItemID: hat.ID, Level: 1, Class: kernel.Class("warrior")}, model.ErrNotFound},
+			{"an item that doesn't exist", h.actor, application.EquipInput{ItemID: kernel.NewItemID(), Level: 1, Class: kernel.Class("warrior")}, model.ErrNotFound},
+			{"a potion", h.actor, application.EquipInput{ItemID: potion.ID, Level: 1, Class: kernel.Class("warrior")}, model.ErrNotEquipment},
+			{"a hat in the weapon slot", h.actor, application.EquipInput{ItemID: hat.ID, EquipSlot: "weapon", Level: 1, Class: kernel.Class("warrior")}, model.ErrWrongEquipSlot},
+			{"a slot the game data doesn't have", h.actor, application.EquipInput{ItemID: hat.ID, EquipSlot: "boots", Level: 1, Class: kernel.Class("warrior")}, model.ErrWrongEquipSlot},
+			{"below the item's level", h.actor, application.EquipInput{ItemID: vest.ID, Level: 4, Class: kernel.Class("warrior")}, model.ErrLevelTooLow},
+			{"another class's item", h.actor, application.EquipInput{ItemID: bow.ID, Level: 1, Class: kernel.Class("warrior")}, model.ErrWrongClass},
+			{"a class's weapon, for a Beginner", h.actor, application.EquipInput{ItemID: bow.ID, Level: 1, Class: "beginner"}, model.ErrWrongClass},
+			{"a class the game data doesn't have", h.actor, application.EquipInput{ItemID: hat.ID, Level: 1, Class: "paladin"}, kernel.ErrUnknownClass},
+			{"an item already worn", h.actor, application.EquipInput{ItemID: second.ID, Level: 1, Class: kernel.Class("warrior")}, model.ErrItemWorn},
 		}
 		for k, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
@@ -138,7 +140,7 @@ func TestEquip(t *testing.T) {
 		svc := application.NewService(application.Deps{Store: h.store, Content: requiring{h.data, "leather_vest", gamedata.Stats{STR: 20, VIT: 15}}, Logger: slog.New(slog.DiscardHandler)})
 		vest := h.added(t, "leather_vest")
 		equip := func(own gamedata.Stats) error {
-			_, err := svc.Equip(ctx, h.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: vest.ID, Level: 5, Class: kernel.Warrior, Stats: own})
+			_, err := svc.Equip(ctx, h.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: vest.ID, Level: 5, Class: kernel.Class("warrior"), Stats: own})
 			return err
 		}
 		revision := h.revision(t)

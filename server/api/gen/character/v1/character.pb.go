@@ -25,10 +25,11 @@ const (
 type Reason int32
 
 const (
-	Reason_REASON_UNSPECIFIED          Reason = 0
-	Reason_REASON_CHARACTER_NOT_FOUND  Reason = 1
-	Reason_REASON_NAME_TAKEN           Reason = 2
-	Reason_REASON_BAD_CHARACTER_NAME   Reason = 3
+	Reason_REASON_UNSPECIFIED         Reason = 0
+	Reason_REASON_CHARACTER_NOT_FOUND Reason = 1
+	Reason_REASON_NAME_TAKEN          Reason = 2
+	Reason_REASON_BAD_CHARACTER_NAME  Reason = 3
+	// A stored character's class the game data doesn't have.
 	Reason_REASON_CLASS_UNAVAILABLE    Reason = 4
 	Reason_REASON_CHARACTER_SLOTS_FULL Reason = 5
 	Reason_REASON_BAD_ID               Reason = 6
@@ -299,7 +300,7 @@ type Character struct {
 	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	AccountId string                 `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	Name      string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	// warrior, bowman, thief or magician.
+	// A class in the game data's tree: beginner until a promotion.
 	Class string `protobuf:"bytes,4,opt,name=class,proto3" json:"class,omitempty"`
 	Level int32  `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
 	// EXP within the current level.
@@ -480,11 +481,11 @@ func (x *Character) GetOwnStats() *Stats {
 	return nil
 }
 
+// CreateRequest is a new character: every one starts as the class at the root of the tree, so there is no class to ask for.
 type CreateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Class         string                 `protobuf:"bytes,3,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -529,13 +530,6 @@ func (x *CreateRequest) GetAccountId() string {
 func (x *CreateRequest) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *CreateRequest) GetClass() string {
-	if x != nil {
-		return x.Class
 	}
 	return ""
 }
@@ -1106,12 +1100,11 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12&\n" +
 	"\x0ffree_reset_used\x18\x11 \x01(\bR\rfreeResetUsed\x129\n" +
-	"\town_stats\x18\x12 \x01(\v2\x1c.internal.character.v1.StatsR\bownStats\"X\n" +
+	"\town_stats\x18\x12 \x01(\v2\x1c.internal.character.v1.StatsR\bownStats\"O\n" +
 	"\rCreateRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
-	"\x05class\x18\x03 \x01(\tR\x05class\"P\n" +
+	"\x04name\x18\x02 \x01(\tR\x04nameJ\x04\b\x03\x10\x04R\x05class\"P\n" +
 	"\x0eCreateResponse\x12>\n" +
 	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\",\n" +
 	"\vListRequest\x12\x1d\n" +

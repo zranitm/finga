@@ -570,30 +570,30 @@ func TestIdempotency(t *testing.T) {
 func TestGrantStarter(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	warrior := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-	first, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
+	newbie := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
+	first, err := h.svc.GrantStarter(ctx, newbie)
 	if err != nil {
 		t.Fatal(err)
 	}
-	read, err := h.svc.Inventory(ctx, warrior.Character)
+	read, err := h.svc.Inventory(ctx, newbie.Character)
 	if err != nil {
 		t.Fatal(err)
 	}
 	inv := read.Items
-	if len(inv) != 2 || inv[0].TemplateID != "red_potion" || inv[0].Quantity != 5 || inv[0].Tab != gamedata.Use || inv[1].TemplateID != "wooden_sword" || inv[1].EquipSlot != "weapon" {
-		t.Fatalf("starter inventory %+v; want 5 potions in the Use tab and the sword worn", inv)
+	if len(inv) != 2 || inv[0].TemplateID != "red_potion" || inv[0].Quantity != 5 || inv[0].Tab != gamedata.Use || inv[1].TemplateID != "wooden_club" || inv[1].EquipSlot != "weapon" {
+		t.Fatalf("starter inventory %+v; want 5 potions in the Use tab and the club worn", inv)
 	}
-	sword, _ := h.data.Item("wooden_sword")
-	if lowest := progression.Lowest(sword.Rolls); inv[1].Stats == nil || *inv[1].Stats != lowest {
-		t.Fatalf("starter sword rolled %+v, want the lowest roll %+v", inv[1].Stats, lowest)
+	club, _ := h.data.Item("wooden_club")
+	if lowest := progression.Lowest(club.Rolls); inv[1].Stats == nil || *inv[1].Stats != lowest {
+		t.Fatalf("starter club rolled %+v, want the lowest roll %+v", inv[1].Stats, lowest)
 	}
 	worn := inv[1]
 	if len(first.Changed) != 1 || first.Changed[0].Item.TemplateID != "red_potion" ||
 		!reflect.DeepEqual(first.Equipment, []model.WornSlot{{Slot: "weapon", Item: &worn}}) || first.Revision != 1 {
-		t.Fatalf("grant changed %+v and %+v at revision %d; want the potions' slot and the sword in the weapon slot, at 1", first.Changed, first.Equipment, first.Revision)
+		t.Fatalf("grant changed %+v and %+v at revision %d; want the potions' slot and the club in the weapon slot, at 1", first.Changed, first.Equipment, first.Revision)
 	}
-	// Created, then equipped: the sword's events say it is worn, so check 12 holds.
-	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, warrior.Character) != 3 ||
+	// Created, then equipped: the club's events say it is worn, so check 12 holds.
+	if h.count(t, `SELECT count(*) FROM item_events WHERE cause_type = 'starter' AND to_owner = $1`, newbie.Character) != 3 ||
 		h.count(t, `SELECT count(*) FROM item_events WHERE kind = 'equipped' AND item_id = $1`, worn.ID) != 1 {
 		t.Fatal("starter events missing")
 	}
@@ -612,23 +612,19 @@ func TestGrantStarter(t *testing.T) {
 		if len(again.Changed) != 0 || len(again.Equipment) != 0 {
 			t.Fatalf("a second grant changed %+v and %+v", again.Changed, again.Equipment)
 		}
-		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, warrior.Character) != 3 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
+		if h.count(t, `SELECT count(*) FROM item_events WHERE to_owner = $1`, newbie.Character) != 3 || h.count(t, `SELECT count(*) FROM outbox`) != 2 {
 			t.Fatal("the second grant wrote again")
 		}
 	}
 	t.Run("a second grant for the same character changes nothing", func(t *testing.T) {
-		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
-		unchanged(t, again, err)
-	})
-	t.Run("nor does one for another class", func(t *testing.T) {
-		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Bowman)
+		again, err := h.svc.GrantStarter(ctx, newbie)
 		unchanged(t, again, err)
 	})
 	t.Run("the grant is recorded for good, not only while its idempotency key is kept", func(t *testing.T) {
 		if _, err := h.pool.Exec(ctx, `DELETE FROM idempotency_keys`); err != nil {
 			t.Fatal(err)
 		}
-		again, err := h.svc.GrantStarter(ctx, warrior, kernel.Warrior)
+		again, err := h.svc.GrantStarter(ctx, newbie)
 		unchanged(t, again, err)
 	})
 	t.Run("concurrent grants give one kit", func(t *testing.T) {
@@ -636,7 +632,7 @@ func TestGrantStarter(t *testing.T) {
 		var wg sync.WaitGroup
 		for range 4 {
 			wg.Go(func() {
-				if _, err := h.svc.GrantStarter(ctx, mage, kernel.Warrior); err != nil {
+				if _, err := h.svc.GrantStarter(ctx, mage); err != nil {
 					t.Error(err)
 				}
 			})
@@ -646,43 +642,24 @@ func TestGrantStarter(t *testing.T) {
 			t.Fatalf("%d starter events, want one kit's 3", n)
 		}
 	})
-	t.Run("a bowman gets a bow", func(t *testing.T) {
-		bowman := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		if _, err := h.svc.GrantStarter(ctx, bowman, kernel.Bowman); err != nil {
-			t.Fatal(err)
-		}
-		read, _ := h.svc.Inventory(ctx, bowman.Character)
-		if inv := read.Items; len(inv) != 2 || inv[1].TemplateID != "short_bow" || inv[1].EquipSlot != "weapon" {
-			t.Fatalf("bowman inventory %+v", inv)
-		}
-	})
 	// A grant that comes late, from the world's safety net, may find a weapon already worn.
 	t.Run("starter equipment whose slot is taken lands in the inventory", func(t *testing.T) {
 		late := newHarness(t)
 		late.actor = model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
 		bow := late.added(t, "short_bow")
-		if _, err := late.svc.Equip(ctx, late.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: bow.ID, Level: 1, Class: kernel.Bowman}); err != nil {
+		if _, err := late.svc.Equip(ctx, late.actor, application.EquipInput{Key: uuidv7.NewString(), ItemID: bow.ID, Level: 1, Class: "bowman"}); err != nil {
 			t.Fatal(err)
 		}
-		kit, err := late.svc.GrantStarter(ctx, late.actor, kernel.Bowman)
+		kit, err := late.svc.GrantStarter(ctx, late.actor)
 		if err != nil {
 			t.Fatal(err)
 		}
 		inv := late.inventory(t)
-		if len(kit.Equipment) != 0 || len(kit.Changed) != 2 || len(inv) != 3 || inv[0].TemplateID != "short_bow" || inv[0].Tab != gamedata.Equip || inv[2].ID != bow.ID || inv[2].EquipSlot != "weapon" {
-			t.Fatalf("late grant changed %+v and %+v, inventory %+v; want the starter bow in the Equip tab, the worn one kept", kit.Changed, kit.Equipment, inv)
+		if len(kit.Equipment) != 0 || len(kit.Changed) != 2 || len(inv) != 3 || inv[0].TemplateID != "wooden_club" || inv[0].Tab != gamedata.Equip || inv[2].ID != bow.ID || inv[2].EquipSlot != "weapon" {
+			t.Fatalf("late grant changed %+v and %+v, inventory %+v; want the starter club in the Equip tab, the worn bow kept", kit.Changed, kit.Equipment, inv)
 		}
 		if mismatches, err := itemtest.CheckInvariants(ctx, late.pool, late.data); err != nil || len(mismatches) > 0 {
 			t.Fatalf("invariants: %v %v", mismatches, err)
-		}
-	})
-	t.Run("a class the game data does not have is unknown_class and writes nothing", func(t *testing.T) {
-		thief := model.Actor{Account: kernel.NewAccountID(), Character: kernel.NewCharacterID()}
-		if _, err := h.svc.GrantStarter(ctx, thief, kernel.Thief); !errors.Is(err, kernel.ErrUnknownClass) {
-			t.Fatalf("err = %v, want ErrUnknownClass", err)
-		}
-		if h.count(t, `SELECT count(*) FROM items WHERE owner_id = $1`, thief.Character) != 0 {
-			t.Fatal("items written")
 		}
 	})
 }
