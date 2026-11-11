@@ -694,6 +694,13 @@ body {
 .chat-idle .chat-lines {
   max-height: calc(3 * 1.4em);
 }
+/* A message taller than the idle box shows its first rows, tag included; opening the chat shows it whole. */
+.chat-idle .chat-line {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
 .chat-idle .chat-lines:empty::before {
   content: 'Enter to chat';
   color: color-mix(in srgb, var(--text) 80%, transparent);

@@ -278,6 +278,8 @@ describe('ChatBox', () => {
       expect(items.at(-1)).toHaveTextContent('newest'); // the markup stays oldest first, for screen readers
       expect(items.map((li) => li.style.order)).toEqual(['0', '-1']);
       expect(items.map((li) => getComputedStyle(li).width)).toEqual(['100%', '100%']);
+      // Idle, a line taller than the box shows its first three rows, tag included, rather than its last.
+      expect(getComputedStyle(items[0]!).getPropertyValue('-webkit-line-clamp')).toBe('3');
     } finally {
       style.remove();
     }
