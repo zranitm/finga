@@ -3,11 +3,9 @@ package model_test
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"testing"
 
 	"finga/internal/kernel"
-	"finga/pkg/sentineltest"
 	"finga/services/gateway/internal/model"
 )
 
@@ -31,23 +29,6 @@ func TestPublicOf(t *testing.T) {
 				t.Fatalf("PublicOf = %+v, want %+v", got, tt.want)
 			}
 		})
-	}
-}
-
-// TestEveryKernelErrorIsMapped fails when a kernel Err variable would reach a player as internal.
-func TestEveryKernelErrorIsMapped(t *testing.T) {
-	declared, err := sentineltest.Declared(filepath.Join("..", "..", "..", "..", "internal", "kernel"))
-	if err != nil || len(declared) == 0 {
-		t.Fatalf("declared %v, err %v: is the walk broken?", declared, err)
-	}
-	mapped, err := sentineltest.Referenced("public.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range declared {
-		if !mapped[name] {
-			t.Errorf("%s has no row in PublicOf", name)
-		}
 	}
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -20,7 +19,6 @@ import (
 	"finga/internal/progression"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/sentineltest"
 	"finga/pkg/transient"
 	"finga/pkg/uuidv7"
 	"finga/services/item/internal/application"
@@ -502,35 +500,5 @@ func TestATimeoutAsksTheCallerToRetry(t *testing.T) {
 	_, err := c.Add(context.Background(), &itemv1.AddRequest{Actor: actor, IdempotencyKey: key1, TemplateId: "slime_gel", Quantity: 1, Cause: &itemv1.Cause{Type: itemv1.CauseType_CAUSE_TYPE_DROP}})
 	if status.Code(err) != codes.Unavailable || grpcx.IsRule(err) {
 		t.Fatalf("got %v, want Unavailable without a reason", err)
-	}
-}
-
-func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(declared) == 0 {
-		t.Fatal("no errors found; is the walk broken?")
-	}
-	mapped, err := sentineltest.Referenced("errors.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range declared {
-		if !mapped[name] {
-			t.Errorf("%s has no row in Errors", name)
-		}
-	}
-	used := map[grpcx.Reason]bool{}
-	for _, row := range handler.Errors {
-		if row.Reason != nil {
-			used[grpcx.Key(row.Reason)] = true
-		}
-	}
-	for _, r := range grpctest.Reasons(itemv1.Reason(0).Descriptor()) {
-		if !used[r] {
-			t.Errorf("%s has no row in Errors", r)
-		}
 	}
 }

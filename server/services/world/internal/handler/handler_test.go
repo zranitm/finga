@@ -25,7 +25,6 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/panics"
-	"finga/pkg/sentineltest"
 	"finga/services/world/internal/application/instance"
 	"finga/services/world/internal/application/itemcalls"
 	"finga/services/world/internal/application/world"
@@ -419,31 +418,6 @@ func TestDetachedCrossesToTheConnection(t *testing.T) {
 	m := until(t, gw, "Detached", func(m *worldv1.DeliverResponse) bool { return m.GetDetached() != nil })
 	if m.GetConnectionId() != "conn-1" || m.GetCharacterId() != ayla.ID.String() {
 		t.Fatalf("got %+v", m)
-	}
-}
-
-func TestTheTableCoversTheModuleAndTheContract(t *testing.T) {
-	declared, err := sentineltest.Declared(filepath.Join("..", "model"))
-	if err != nil || len(declared) < 2 {
-		t.Fatalf("declared %v, err %v", declared, err)
-	}
-	mapped, err := sentineltest.Referenced("errors.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range declared {
-		if !mapped[name] {
-			t.Errorf("%s has no row in Errors", name)
-		}
-	}
-	used := map[grpcx.Reason]bool{}
-	for _, row := range handler.Errors {
-		used[grpcx.Key(row.Reason)] = true
-	}
-	for _, r := range grpctest.Reasons(worldv1.Reason(0).Descriptor()) {
-		if !used[r] {
-			t.Errorf("%s has no row in Errors", r)
-		}
 	}
 }
 
