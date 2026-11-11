@@ -4,7 +4,7 @@
 classes:
   - id: beginner
     name: Beginner
-    look: {sprite: alien_blue, tint: 0xd8c8a8}
+    look: {sprite: alien_blue, tint: 0xff6640}
     attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 700ms}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     starter_items:

@@ -48,7 +48,7 @@ From the code, the rules this design keeps:
 classes:
   - id: beginner
     name: Beginner
-    look: {sprite: alien_blue, tint: 0xd8c8a8}
+    look: {sprite: alien_blue, tint: 0xff6640}
     attack: {kind: melee, width: 48, height: 48, cooldown: 700ms, damage: physical}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     skills: [strike, throw, spark, second_wind]
