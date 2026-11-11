@@ -127,7 +127,7 @@ export function CharactersScreen({
         </header>
         {characters === null && !loadProblem && <p>Loading…</p>}
         {loadProblem && (
-          <div className="row">
+          <div className="row load-problem">
             <p className="error" role="alert">
               {loadProblem}
             </p>

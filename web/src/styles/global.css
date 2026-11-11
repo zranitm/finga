@@ -221,12 +221,15 @@ body {
   gap: 8px;
   align-items: center;
 }
-.row .btn {
+.load-problem .btn {
   flex: none;
   white-space: nowrap;
 }
+/* A title shares its row with its buttons; a name too long for its share breaks rather than push them out. */
 .row h1 {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: 20px;
   margin: 0;
 }
