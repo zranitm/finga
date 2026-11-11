@@ -11,6 +11,8 @@ export type Action =
   | 'jump' // with down on a one-way platform: drop through
   | 'attack'
   | 'talk' // to the nearest NPC within reach
+  | 'hpPotion' // the potion that best fills the HP missing
+  | 'mpPotion'
   | 'inventory'
   | 'character'
   | 'party'
@@ -26,6 +28,8 @@ export const actions: readonly Action[] = [
   'jump',
   'attack',
   'talk',
+  'hpPotion',
+  'mpPotion',
   'inventory',
   'character',
   'party',

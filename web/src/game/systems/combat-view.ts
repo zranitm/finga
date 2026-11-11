@@ -124,7 +124,7 @@ export class MobTracker {
   }
 }
 
-export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken';
+export type NumberKind = 'hit' | 'crit' | 'miss' | 'taken' | 'healHp' | 'healMp';
 
 export interface DamageNumber {
   readonly id: number;

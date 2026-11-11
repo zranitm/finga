@@ -7,6 +7,8 @@ const styles: Readonly<Record<NumberKind, Phaser.Types.GameObjects.Text.TextStyl
   crit: { fontSize: '18px', color: '#ffd166', fontFamily: 'sans-serif', fontStyle: 'bold' },
   miss: { fontSize: '13px', color: '#9a9ab0', fontFamily: 'sans-serif' },
   taken: { fontSize: '14px', color: '#e04848', fontFamily: 'sans-serif', fontStyle: 'bold' },
+  healHp: { fontSize: '14px', color: '#6fdc6f', fontFamily: 'sans-serif', fontStyle: 'bold' },
+  healMp: { fontSize: '14px', color: '#6f9cf0', fontFamily: 'sans-serif', fontStyle: 'bold' },
 };
 
 export class DamageNumberLayer {

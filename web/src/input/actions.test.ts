@@ -13,6 +13,8 @@ const table: Record<Preset, Record<string, string>> = {
     jump: 'Space',
     attack: 'KeyX',
     talk: 'KeyZ',
+    hpPotion: 'KeyA',
+    mpPotion: 'KeyS',
     inventory: 'KeyI',
     character: 'KeyC',
     party: 'KeyP',
@@ -28,6 +30,8 @@ const table: Record<Preset, Record<string, string>> = {
     jump: 'Space',
     attack: 'KeyJ',
     talk: 'KeyE',
+    hpPotion: 'KeyR',
+    mpPotion: 'KeyF',
     inventory: 'KeyI',
     character: 'KeyC',
     party: 'KeyP',
@@ -49,7 +53,7 @@ describe('key presets', () => {
   );
 
   it.each([
-    { preset: 'classic' as const, code: 'KeyA' },
+    { preset: 'classic' as const, code: 'KeyW' },
     { preset: 'wasd' as const, code: 'ArrowLeft' },
     { preset: 'classic' as const, code: 'KeyE' },
     { preset: 'wasd' as const, code: 'KeyZ' },

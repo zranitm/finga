@@ -420,6 +420,11 @@ describe('ChatBox', () => {
         text: 'Slime Gel ★ disappeared uncollected.',
       },
       {
+        name: 'a potion drunk',
+        add: () => combatLog.getState().drank('red_potion', { hp: 50, mp: 0 }),
+        text: 'Drank a Red Potion ★.',
+      },
+      {
         name: 'a quest taken',
         add: () =>
           combatLog
