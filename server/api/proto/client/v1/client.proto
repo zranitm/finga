@@ -66,7 +66,6 @@ message ServerMessage {
     Loot loot = 21;
     NpcDialog npc_dialog = 22;
     QuestChanged quest_changed = 23;
-    QuestLog quest_log = 24;
   }
 }
 
@@ -332,9 +331,9 @@ message PartyView {
   repeated PartyMember members = 2;
 }
 
-// Welcome answers Hello.
+// Welcome answers Hello, and comes again after the server joined the character again on its own, as after the world restarted: the whole state the screen needs at once, as the server has it, since pushes in between may be lost. Data a window opens on demand loads with that window, never here.
 message Welcome {
-  // The rotated session token, used from now on.
+  // The rotated session token, used from now on; empty on a Welcome after such a rejoin, where the client keeps the one it has.
   string token = 1;
   CharacterView character = 2;
   repeated ItemView inventory = 3;
@@ -629,9 +628,4 @@ enum QuestChange {
 message QuestChanged {
   QuestChange change = 1;
   QuestState quest = 2;
-}
-
-// QuestLog replaces the whole log after the server joined the character again on its own, as after the world restarted, since changes made meanwhile may be lost; Welcome carries it otherwise.
-message QuestLog {
-  repeated QuestState quests = 1;
 }

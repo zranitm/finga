@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,6 +61,7 @@ type fakeSessions struct {
 	tokens    map[string]auth.Principal
 	rotations int
 	expired   map[uuid.UUID]bool
+	rotateErr error // every Rotate fails with it
 }
 
 func (f *fakeSessions) Revoke(context.Context, uuid.UUID) error { return nil }
@@ -482,13 +484,14 @@ func (f *fakeWorld) push(to kernel.CharacterID, m *worldv1.DeliverResponse) {
 }
 
 type fakeObserver struct {
-	mu      sync.Mutex
-	in      map[string]int
-	out     map[string]int
-	online  int
-	changes int // OnlineChanged calls
-	slow    int
-	waiting int // logins waiting to register with social
+	mu       sync.Mutex
+	in       map[string]int
+	out      map[string]int
+	online   int
+	changes  int // OnlineChanged calls
+	slow     int
+	waiting  int      // logins waiting to register with social
+	welcomes []string // each Welcome's kind
 }
 
 func newFakeObserver() *fakeObserver {
@@ -498,6 +501,20 @@ func newFakeObserver() *fakeObserver {
 func (o *fakeObserver) MessageIn(t string)  { o.mu.Lock(); o.in[t]++; o.mu.Unlock() }
 func (o *fakeObserver) MessageOut(t string) { o.mu.Lock(); o.out[t]++; o.mu.Unlock() }
 func (o *fakeObserver) SlowConsumer()       { o.mu.Lock(); o.slow++; o.mu.Unlock() }
+func (o *fakeObserver) WelcomeSent(kind string, bytes int) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	if bytes > 0 {
+		o.welcomes = append(o.welcomes, kind)
+	}
+}
+
+// welcomed is each Welcome's kind so far.
+func (o *fakeObserver) welcomed() []string {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return slices.Clone(o.welcomes)
+}
 func (o *fakeObserver) OnlineChanged(d int) {
 	o.mu.Lock()
 	o.online += d
@@ -779,6 +796,9 @@ func (f *fakeSessions) Rotate(_ context.Context, sessionID uuid.UUID) (string, e
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.rotations++
+	if f.rotateErr != nil {
+		return "", f.rotateErr
+	}
 	return "rotated-" + sessionID.String()[:8] + "-" + fmt.Sprint(f.rotations), nil
 }
 

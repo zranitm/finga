@@ -43,8 +43,6 @@ func (o *Outbox) body(p model.Push) any {
 		return npcDialog(p)
 	case model.QuestChanged:
 		return &clientv1.QuestChanged{Change: questChanges[p.Change], Quest: questState(p.Quest)}
-	case model.QuestLog:
-		return &clientv1.QuestLog{Quests: questStates(p.Quests)}
 	}
 	return nil
 }

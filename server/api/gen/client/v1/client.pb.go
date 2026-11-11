@@ -811,7 +811,6 @@ type ServerMessage struct {
 	//	*ServerMessage_Loot
 	//	*ServerMessage_NpcDialog
 	//	*ServerMessage_QuestChanged
-	//	*ServerMessage_QuestLog
 	Body          isServerMessage_Body `protobuf_oneof:"body"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1057,15 +1056,6 @@ func (x *ServerMessage) GetQuestChanged() *QuestChanged {
 	return nil
 }
 
-func (x *ServerMessage) GetQuestLog() *QuestLog {
-	if x != nil {
-		if x, ok := x.Body.(*ServerMessage_QuestLog); ok {
-			return x.QuestLog
-		}
-	}
-	return nil
-}
-
 type isServerMessage_Body interface {
 	isServerMessage_Body()
 }
@@ -1154,10 +1144,6 @@ type ServerMessage_QuestChanged struct {
 	QuestChanged *QuestChanged `protobuf:"bytes,23,opt,name=quest_changed,json=questChanged,proto3,oneof"`
 }
 
-type ServerMessage_QuestLog struct {
-	QuestLog *QuestLog `protobuf:"bytes,24,opt,name=quest_log,json=questLog,proto3,oneof"`
-}
-
 func (*ServerMessage_Delta) isServerMessage_Body() {}
 
 func (*ServerMessage_Damage) isServerMessage_Body() {}
@@ -1199,8 +1185,6 @@ func (*ServerMessage_Loot) isServerMessage_Body() {}
 func (*ServerMessage_NpcDialog) isServerMessage_Body() {}
 
 func (*ServerMessage_QuestChanged) isServerMessage_Body() {}
-
-func (*ServerMessage_QuestLog) isServerMessage_Body() {}
 
 // Hello is the first message, within 5 seconds of connecting.
 type Hello struct {
@@ -3325,10 +3309,10 @@ func (x *PartyView) GetMembers() []*PartyMember {
 	return nil
 }
 
-// Welcome answers Hello.
+// Welcome answers Hello, and comes again after the server joined the character again on its own, as after the world restarted: the whole state the screen needs at once, as the server has it, since pushes in between may be lost. Data a window opens on demand loads with that window, never here.
 type Welcome struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The rotated session token, used from now on.
+	// The rotated session token, used from now on; empty on a Welcome after such a rejoin, where the client keeps the one it has.
 	Token     string         `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	Character *CharacterView `protobuf:"bytes,2,opt,name=character,proto3" json:"character,omitempty"`
 	Inventory []*ItemView    `protobuf:"bytes,3,rep,name=inventory,proto3" json:"inventory,omitempty"`
@@ -5420,51 +5404,6 @@ func (x *QuestChanged) GetQuest() *QuestState {
 	return nil
 }
 
-// QuestLog replaces the whole log after the server joined the character again on its own, as after the world restarted, since changes made meanwhile may be lost; Welcome carries it otherwise.
-type QuestLog struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Quests        []*QuestState          `protobuf:"bytes,1,rep,name=quests,proto3" json:"quests,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *QuestLog) Reset() {
-	*x = QuestLog{}
-	mi := &file_client_v1_client_proto_msgTypes[63]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *QuestLog) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*QuestLog) ProtoMessage() {}
-
-func (x *QuestLog) ProtoReflect() protoreflect.Message {
-	mi := &file_client_v1_client_proto_msgTypes[63]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use QuestLog.ProtoReflect.Descriptor instead.
-func (*QuestLog) Descriptor() ([]byte, []int) {
-	return file_client_v1_client_proto_rawDescGZIP(), []int{63}
-}
-
-func (x *QuestLog) GetQuests() []*QuestState {
-	if x != nil {
-		return x.Quests
-	}
-	return nil
-}
-
 var File_client_v1_client_proto protoreflect.FileDescriptor
 
 const file_client_v1_client_proto_rawDesc = "" +
@@ -5498,7 +5437,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\faccept_quest\x18\x16 \x01(\v2\x16.client.v1.AcceptQuestH\x00R\vacceptQuest\x12>\n" +
 	"\rabandon_quest\x18\x17 \x01(\v2\x17.client.v1.AbandonQuestH\x00R\fabandonQuest\x12<\n" +
 	"\rhand_in_quest\x18\x18 \x01(\v2\x16.client.v1.HandInQuestH\x00R\vhandInQuestB\x06\n" +
-	"\x04body\"\xc8\t\n" +
+	"\x04body\"\x94\t\n" +
 	"\rServerMessage\x12\x10\n" +
 	"\x03req\x18\x01 \x01(\tR\x03req\x12\x12\n" +
 	"\x04tick\x18\x02 \x01(\rR\x04tick\x12(\n" +
@@ -5529,8 +5468,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x04loot\x18\x15 \x01(\v2\x0f.client.v1.LootH\x00R\x04loot\x125\n" +
 	"\n" +
 	"npc_dialog\x18\x16 \x01(\v2\x14.client.v1.NpcDialogH\x00R\tnpcDialog\x12>\n" +
-	"\rquest_changed\x18\x17 \x01(\v2\x17.client.v1.QuestChangedH\x00R\fquestChanged\x122\n" +
-	"\tquest_log\x18\x18 \x01(\v2\x13.client.v1.QuestLogH\x00R\bquestLogB\x06\n" +
+	"\rquest_changed\x18\x17 \x01(\v2\x17.client.v1.QuestChangedH\x00R\fquestChangedB\x06\n" +
 	"\x04body\"k\n" +
 	"\x05Hello\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12)\n" +
@@ -5861,9 +5799,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x0etimes_finished\x18\x04 \x01(\x05R\rtimesFinished\"k\n" +
 	"\fQuestChanged\x12.\n" +
 	"\x06change\x18\x01 \x01(\x0e2\x16.client.v1.QuestChangeR\x06change\x12+\n" +
-	"\x05quest\x18\x02 \x01(\v2\x15.client.v1.QuestStateR\x05quest\"9\n" +
-	"\bQuestLog\x12-\n" +
-	"\x06quests\x18\x01 \x03(\v2\x15.client.v1.QuestStateR\x06quests*Y\n" +
+	"\x05quest\x18\x02 \x01(\v2\x15.client.v1.QuestStateR\x05quest*Y\n" +
 	"\vChatChannel\x12\x1c\n" +
 	"\x18CHAT_CHANNEL_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CHAT_CHANNEL_MAP\x10\x01\x12\x16\n" +
@@ -5912,7 +5848,7 @@ func file_client_v1_client_proto_rawDescGZIP() []byte {
 }
 
 var file_client_v1_client_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
+var file_client_v1_client_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
 var file_client_v1_client_proto_goTypes = []any{
 	(ChatChannel)(0),         // 0: client.v1.ChatChannel
 	(KickReason)(0),          // 1: client.v1.KickReason
@@ -5983,7 +5919,6 @@ var file_client_v1_client_proto_goTypes = []any{
 	(*QuestTurnIn)(nil),      // 66: client.v1.QuestTurnIn
 	(*QuestState)(nil),       // 67: client.v1.QuestState
 	(*QuestChanged)(nil),     // 68: client.v1.QuestChanged
-	(*QuestLog)(nil),         // 69: client.v1.QuestLog
 }
 var file_client_v1_client_proto_depIdxs = []int32{
 	9,  // 0: client.v1.ClientMessage.input:type_name -> client.v1.Input
@@ -6029,53 +5964,51 @@ var file_client_v1_client_proto_depIdxs = []int32{
 	54, // 40: client.v1.ServerMessage.loot:type_name -> client.v1.Loot
 	63, // 41: client.v1.ServerMessage.npc_dialog:type_name -> client.v1.NpcDialog
 	68, // 42: client.v1.ServerMessage.quest_changed:type_name -> client.v1.QuestChanged
-	69, // 43: client.v1.ServerMessage.quest_log:type_name -> client.v1.QuestLog
-	0,  // 44: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
-	30, // 45: client.v1.SpendPoints.points:type_name -> client.v1.Stats
-	30, // 46: client.v1.CharacterView.stats:type_name -> client.v1.Stats
-	32, // 47: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
-	30, // 48: client.v1.StatSheet.primary:type_name -> client.v1.Stats
-	30, // 49: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
-	34, // 50: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
-	34, // 51: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
-	33, // 52: client.v1.StatSheet.points:type_name -> client.v1.Points
-	30, // 53: client.v1.Points.spent:type_name -> client.v1.Stats
-	36, // 54: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
-	35, // 55: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
-	38, // 56: client.v1.PartyView.members:type_name -> client.v1.PartyMember
-	31, // 57: client.v1.Welcome.character:type_name -> client.v1.CharacterView
-	35, // 58: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
-	39, // 59: client.v1.Welcome.party:type_name -> client.v1.PartyView
-	37, // 60: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
-	67, // 61: client.v1.Welcome.quests:type_name -> client.v1.QuestState
-	41, // 62: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
-	42, // 63: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
-	43, // 64: client.v1.Snapshot.drops:type_name -> client.v1.DropView
-	41, // 65: client.v1.Delta.players:type_name -> client.v1.PlayerView
-	42, // 66: client.v1.Delta.mobs:type_name -> client.v1.MobView
-	43, // 67: client.v1.Delta.drops:type_name -> client.v1.DropView
-	31, // 68: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
-	35, // 69: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
-	52, // 70: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
-	37, // 71: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
-	2,  // 72: client.v1.Loot.kind:type_name -> client.v1.LootKind
-	32, // 73: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
-	0,  // 74: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
-	39, // 75: client.v1.PartyState.party:type_name -> client.v1.PartyView
-	1,  // 76: client.v1.Kicked.reason:type_name -> client.v1.KickReason
-	64, // 77: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
-	66, // 78: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
-	3,  // 79: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
-	65, // 80: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
-	4,  // 81: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
-	5,  // 82: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
-	67, // 83: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
-	67, // 84: client.v1.QuestLog.quests:type_name -> client.v1.QuestState
-	85, // [85:85] is the sub-list for method output_type
-	85, // [85:85] is the sub-list for method input_type
-	85, // [85:85] is the sub-list for extension type_name
-	85, // [85:85] is the sub-list for extension extendee
-	0,  // [0:85] is the sub-list for field type_name
+	0,  // 43: client.v1.ChatSend.channel:type_name -> client.v1.ChatChannel
+	30, // 44: client.v1.SpendPoints.points:type_name -> client.v1.Stats
+	30, // 45: client.v1.CharacterView.stats:type_name -> client.v1.Stats
+	32, // 46: client.v1.CharacterView.sheet:type_name -> client.v1.StatSheet
+	30, // 47: client.v1.StatSheet.primary:type_name -> client.v1.Stats
+	30, // 48: client.v1.StatSheet.primary_worn:type_name -> client.v1.Stats
+	34, // 49: client.v1.StatSheet.derived:type_name -> client.v1.DerivedStats
+	34, // 50: client.v1.StatSheet.derived_worn:type_name -> client.v1.DerivedStats
+	33, // 51: client.v1.StatSheet.points:type_name -> client.v1.Points
+	30, // 52: client.v1.Points.spent:type_name -> client.v1.Stats
+	36, // 53: client.v1.ItemView.stats:type_name -> client.v1.ItemStats
+	35, // 54: client.v1.EquipSlot.item:type_name -> client.v1.ItemView
+	38, // 55: client.v1.PartyView.members:type_name -> client.v1.PartyMember
+	31, // 56: client.v1.Welcome.character:type_name -> client.v1.CharacterView
+	35, // 57: client.v1.Welcome.inventory:type_name -> client.v1.ItemView
+	39, // 58: client.v1.Welcome.party:type_name -> client.v1.PartyView
+	37, // 59: client.v1.Welcome.equipment:type_name -> client.v1.EquipSlot
+	67, // 60: client.v1.Welcome.quests:type_name -> client.v1.QuestState
+	41, // 61: client.v1.Snapshot.players:type_name -> client.v1.PlayerView
+	42, // 62: client.v1.Snapshot.mobs:type_name -> client.v1.MobView
+	43, // 63: client.v1.Snapshot.drops:type_name -> client.v1.DropView
+	41, // 64: client.v1.Delta.players:type_name -> client.v1.PlayerView
+	42, // 65: client.v1.Delta.mobs:type_name -> client.v1.MobView
+	43, // 66: client.v1.Delta.drops:type_name -> client.v1.DropView
+	31, // 67: client.v1.LevelUp.character:type_name -> client.v1.CharacterView
+	35, // 68: client.v1.InventorySlot.item:type_name -> client.v1.ItemView
+	52, // 69: client.v1.InventoryChanged.slots:type_name -> client.v1.InventorySlot
+	37, // 70: client.v1.InventoryChanged.equipment:type_name -> client.v1.EquipSlot
+	2,  // 71: client.v1.Loot.kind:type_name -> client.v1.LootKind
+	32, // 72: client.v1.StatsChanged.sheet:type_name -> client.v1.StatSheet
+	0,  // 73: client.v1.ChatMessage.channel:type_name -> client.v1.ChatChannel
+	39, // 74: client.v1.PartyState.party:type_name -> client.v1.PartyView
+	1,  // 75: client.v1.Kicked.reason:type_name -> client.v1.KickReason
+	64, // 76: client.v1.NpcDialog.gives:type_name -> client.v1.QuestOffer
+	66, // 77: client.v1.NpcDialog.takes:type_name -> client.v1.QuestTurnIn
+	3,  // 78: client.v1.QuestOffer.state:type_name -> client.v1.QuestOfferState
+	65, // 79: client.v1.QuestOffer.unmet:type_name -> client.v1.QuestConditions
+	4,  // 80: client.v1.QuestState.status:type_name -> client.v1.QuestStatus
+	5,  // 81: client.v1.QuestChanged.change:type_name -> client.v1.QuestChange
+	67, // 82: client.v1.QuestChanged.quest:type_name -> client.v1.QuestState
+	83, // [83:83] is the sub-list for method output_type
+	83, // [83:83] is the sub-list for method input_type
+	83, // [83:83] is the sub-list for extension type_name
+	83, // [83:83] is the sub-list for extension extendee
+	0,  // [0:83] is the sub-list for field type_name
 }
 
 func init() { file_client_v1_client_proto_init() }
@@ -6129,7 +6062,6 @@ func file_client_v1_client_proto_init() {
 		(*ServerMessage_Loot)(nil),
 		(*ServerMessage_NpcDialog)(nil),
 		(*ServerMessage_QuestChanged)(nil),
-		(*ServerMessage_QuestLog)(nil),
 	}
 	file_client_v1_client_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
@@ -6138,7 +6070,7 @@ func file_client_v1_client_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_client_v1_client_proto_rawDesc), len(file_client_v1_client_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   64,
+			NumMessages:   63,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

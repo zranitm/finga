@@ -27,7 +27,7 @@ import { ui } from '@/state/ui';
 import { PhaserGame } from './PhaserGame';
 import { createServices } from './services';
 import type { Services } from './services';
-import { leaveWorld, wireSocket } from './wiring';
+import { leaveCharacter, leaveWorld, wireSocket } from './wiring';
 
 export interface AppProps {
   /** Tests pass fakes. */
@@ -123,6 +123,7 @@ function LoggedIn({ svc, account }: { readonly svc: Services; readonly account: 
       onLeave={() => {
         svc.game.leave();
         svc.socket.close();
+        leaveCharacter();
         setPlaying(null);
       }}
     />

@@ -571,12 +571,15 @@ export class World extends Phaser.Scene {
     }
   }
 
-  /** After a reconnect: the same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
+  /** After a reconnect or a rejoin the server made: the character is as the server has it, alive and on its map. The same map waits for the next Snapshot; another map, or tick rate, restarts the scene. */
   private onWelcome(mapId: string, tickRateHz: number): void {
     if (mapId !== this.mapId || tickRateHz !== this.tickRateHz) {
       this.restartOn(mapId, tickRateHz, false);
       return;
     }
+    this.transitionState = initialTransition;
+    this.player?.setDead(false);
+    this.attackGate?.reset();
     this.placed = false;
     this.player?.setVisible(false);
     this.clearOthers();

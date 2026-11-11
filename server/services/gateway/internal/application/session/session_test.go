@@ -26,6 +26,30 @@ func (world) Join(context.Context, string, string, kernel.AccountID, kernel.Char
 
 func (world) Leave(context.Context, model.Presence) error { return nil }
 
+// filled is d with the services it leaves out answering that nothing went wrong.
+func filled(d session.Deps) session.Deps {
+	if d.Social == nil {
+		d.Social = &social{}
+	}
+	if d.Items == nil {
+		d.Items = items{}
+	}
+	if d.Observer == nil {
+		d.Observer = observer{}
+	}
+	return d
+}
+
+type items struct{}
+
+func (items) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	return model.Inventory{}, nil
+}
+
+type observer struct{}
+
+func (observer) RegistrationsWaiting(int) {}
+
 type outbox struct{}
 
 func (outbox) Welcome(model.Welcome)  {}
@@ -34,7 +58,7 @@ func (outbox) End(model.EndReason)    {}
 
 // Pushes and logs read who a session plays while its join sets it, so the identity is replaced whole, never in place.
 func TestTheIdentityCanBeReadWhileAJoinSetsIt(t *testing.T) {
-	r := session.NewRegistry(session.Deps{World: world{}, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Second})
+	r := session.NewRegistry(filled(session.Deps{World: world{}, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Second})
 	s := r.Open("conn-1", outbox{})
 	account, login, character := kernel.NewAccountID(), kernel.NewSessionID(), kernel.NewCharacterID()
 	stop, reading := make(chan struct{}), make(chan struct{})
@@ -154,7 +178,7 @@ func (s *social) list() []string {
 // A registration again that comes after the connection closed sends nothing: the close's Offline has the last word.
 func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 	soc := &social{}
-	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Second})
+	r := session.NewRegistry(filled(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Second})
 	s := play(t, r, "c-1", kernel.NewCharacterID())
 	r.Close(s)
 	r.Online(t.Context(), s)
@@ -166,7 +190,7 @@ func TestAClosedConnectionIsNotRegisteredAgain(t *testing.T) {
 // A registration again of a tab whose character a newer login took sends nothing, so it can't pull the player back to the old tab.
 func TestATabThatLostItsCharacterIsNotRegisteredAgain(t *testing.T) {
 	soc := &social{}
-	r := session.NewRegistry(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Second})
+	r := session.NewRegistry(filled(session.Deps{World: world{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Second})
 	character := kernel.NewCharacterID()
 	older := play(t, r, "c-1", character)
 	play(t, r, "c-2", character)
@@ -185,11 +209,11 @@ func (w *seqWorld) Join(context.Context, string, string, kernel.AccountID, kerne
 
 func (*seqWorld) Leave(context.Context, model.Presence) error { return nil }
 
-// A registration carries the world's sequence of the session's join, its rejoin's once it rejoined, as social orders logins by it.
+// A registration carries the world's sequence of the session's join, its rejoin's once it rejoined, as social orders logins by it; a rejoin registers again by itself.
 func TestARegistrationCarriesItsJoinsSequence(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		soc := &social{}
-		r := session.NewRegistry(session.Deps{World: &seqWorld{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Minute})
+		r := session.NewRegistry(filled(session.Deps{World: &seqWorld{}, Social: soc, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Minute})
 		r.WorldSubscribed()
 		s := play(t, r, "c-1", kernel.NewCharacterID())
 		r.Online(t.Context(), s)
@@ -199,9 +223,8 @@ func TestARegistrationCarriesItsJoinsSequence(t *testing.T) {
 		}
 		time.Sleep(time.Minute)
 		synctest.Wait()
-		r.Online(t.Context(), s)
 		if calls := soc.list(); !slices.Equal(calls, []string{"online c-1 #1", "online c-1 #2"}) {
-			t.Fatalf("calls %v; want the join's sequence, then the rejoin's", calls)
+			t.Fatalf("calls %v; want the join's sequence, then the rejoin's, which registers again so the party follows its Welcome", calls)
 		}
 	})
 }
@@ -210,7 +233,7 @@ func TestARegistrationCarriesItsJoinsSequence(t *testing.T) {
 func TestRejoinsRunAFewAtATime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}
-		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Minute})
+		r := session.NewRegistry(filled(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Minute})
 		r.WorldSubscribed()
 		for i := range 100 {
 			play(t, r, fmt.Sprint("c-", i), kernel.NewCharacterID())
@@ -231,7 +254,7 @@ func TestRejoinsRunAFewAtATime(t *testing.T) {
 func TestANewerJoinOutlastsAStaleRejoin(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}
-		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Minute})
+		r := session.NewRegistry(filled(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Minute})
 		r.WorldSubscribed()
 		ayla := kernel.NewCharacterID()
 		old := play(t, r, "c-old", ayla)
@@ -257,7 +280,7 @@ func TestANewerJoinOutlastsAStaleRejoin(t *testing.T) {
 func TestAFailedLoginGivesTheCharacterBackOnlyToAnOpenTab(t *testing.T) {
 	for _, closed := range []bool{false, true} {
 		synctest.Test(t, func(t *testing.T) {
-			r := session.NewRegistry(session.Deps{World: world{}, Social: &social{}, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Second})
+			r := session.NewRegistry(filled(session.Deps{World: world{}, Social: &social{}, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Second})
 			character := kernel.NewCharacterID()
 			older := play(t, r, "c-1", character)
 			j, err := r.Join(t.Context(), r.Open("c-2", outbox{}), kernel.NewAccountID(), kernel.NewSessionID(), character)
@@ -284,7 +307,7 @@ func TestAFailedLoginGivesTheCharacterBackOnlyToAnOpenTab(t *testing.T) {
 func TestRejoinsAskedForTogetherJoinOnce(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &recordingWorld{}
-		r := session.NewRegistry(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}, session.Options{JoinTimeout: time.Minute})
+		r := session.NewRegistry(filled(session.Deps{World: w, Logger: slog.New(slog.DiscardHandler), Traces: noop.NewTracerProvider()}), session.Options{JoinTimeout: time.Minute})
 		r.WorldSubscribed()
 		s := play(t, r, "c-1", kernel.NewCharacterID())
 		r.Rejoin(s)

@@ -10,6 +10,8 @@ import { createRestClient } from '@/net/rest';
 import { GameSocket } from '@/net/socket';
 import { clearToken } from '@/net/token';
 import { KickReason } from '@/protocol/messages';
+import { chat } from '@/state/chat';
+import { combatLog } from '@/state/combat-log';
 import { ui } from '@/state/ui';
 import { fakeFetch, sampleCharacter } from '@/testing/fake-fetch';
 import type { Script } from '@/testing/fake-fetch';
@@ -100,9 +102,13 @@ describe('App', () => {
     expect(game.registry.get(REGISTRY.visit)).toBe(visit);
 
     act(() => ui.getState().openWindow('character'));
+    ws.push('chatMessage', { from: 'Bruno', text: 'hi Ayla' });
+    act(() => combatLog.getState().questReady('slime_cleanup'));
+    expect([chat.getState().lines.length, combatLog.getState().lines.length]).toEqual([1, 1]);
     await userEvent.click(screen.getByRole('button', { name: 'Back to characters' }));
     expect(game.stopped).toEqual([SCENES.World]);
     expect(ui.getState().windows).toEqual([]); // the next Play opens none
+    expect([chat.getState().lines, combatLog.getState().lines]).toEqual([[], []]); // the next character starts with a clean chat
     expect(await screen.findByText("alice's characters")).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Log out' }));
     await waitFor(() => expect(screen.getByRole('form', { name: 'Log in' })).toBeInTheDocument());

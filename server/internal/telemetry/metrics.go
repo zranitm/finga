@@ -21,6 +21,9 @@ var tickBuckets = []float64{.0005, .001, .002, .005, .01, .015, .025, .05, .1, .
 // Transaction buckets cover a local Postgres (sub-millisecond) to a slow one.
 var txBuckets = []float64{.0005, .001, .0025, .005, .01, .025, .05, .1, .25, .5, 1}
 
+// welcomeBuckets are a Welcome's encoded bytes, 512 B to 512 KiB.
+var welcomeBuckets = prometheus.ExponentialBuckets(512, 2, 11)
+
 // batchBuckets are drops per grant call, up to the item service's 32.
 var batchBuckets = []float64{1, 2, 4, 8, 16, 32}
 
@@ -93,6 +96,7 @@ type GatewayMetrics struct {
 	registrationsWaiting prometheus.Gauge
 	messages             *prometheus.CounterVec // by direction (in, out) and type
 	slowConsumers        prometheus.Counter
+	welcomeBytes         *prometheus.HistogramVec // by kind (login, rejoin)
 }
 
 // NewGatewayMetrics registers the gateway's metrics on reg; registering twice on one registry fails.
@@ -110,8 +114,11 @@ func NewGatewayMetrics(reg prometheus.Registerer) (*GatewayMetrics, error) {
 		slowConsumers: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: observability.Namespace, Name: "ws_slow_consumer_disconnects_total", Help: "Connections closed because their send queue filled up.",
 		}),
+		welcomeBytes: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: observability.Namespace, Name: "ws_welcome_bytes", Help: "Encoded size of each Welcome, by kind: login or rejoin.", Buckets: welcomeBuckets,
+		}, []string{"kind"}),
 	}
-	return m, register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers)
+	return m, register(reg, m.playersOnline, m.registrationsWaiting, m.messages, m.slowConsumers, m.welcomeBytes)
 }
 
 // MessageIn counts a message received over the WebSocket.
@@ -119,6 +126,11 @@ func (m *GatewayMetrics) MessageIn(msgType string) { m.messages.WithLabelValues(
 
 // MessageOut counts a message sent over the WebSocket.
 func (m *GatewayMetrics) MessageOut(msgType string) { m.messages.WithLabelValues("out", msgType).Inc() }
+
+// WelcomeSent records a Welcome's encoded size; it is the signal for when its sections need skipping or compressing.
+func (m *GatewayMetrics) WelcomeSent(kind string, bytes int) {
+	m.welcomeBytes.WithLabelValues(kind).Observe(float64(bytes))
+}
 
 // SlowConsumer counts a connection closed because its send queue filled up.
 func (m *GatewayMetrics) SlowConsumer() { m.slowConsumers.Inc() }

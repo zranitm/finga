@@ -15,6 +15,11 @@ type Player struct {
 	MaxHP int
 }
 
+// PlayerOf is the character as the session and the social service know it.
+func PlayerOf(id kernel.CharacterID, c CharacterView) Player {
+	return Player{ID: id, Name: c.Name, Level: c.Level, HP: c.HP, MaxHP: c.MaxHP}
+}
+
 // Presence is a connected player: its character and the connection it joined through; every world command carries it.
 type Presence struct {
 	Character  kernel.CharacterID
@@ -40,9 +45,9 @@ const (
 	EndTickRateChanged   EndReason = "tick_rate_changed" // a rejoin found the world at another rate, which the client learns from a new Welcome
 )
 
-// Welcome is what a joined player starts from; Token replaces the one Hello sent.
+// Welcome is what a joined player's screen starts from, after a login or a rejoin the player didn't ask for.
 type Welcome struct {
-	Token             string
+	Token             string // replaces the one Hello sent; empty after a rejoin, where the client keeps its own
 	Character         CharacterView
 	Inventory         []ItemView
 	Equipment         []EquipSlot

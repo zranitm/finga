@@ -37,7 +37,11 @@ export function wireSocket(socket: GameSocket): () => void {
       party.getState().applyWelcome();
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
-      ready = new Set(readyQuests(questPlayer()));
+      if (m.d.token === '') {
+        announceReady(); // a rejoin the server made, with no token: play went on, so a quest ready since gets its line
+      } else {
+        ready = new Set(readyQuests(questPlayer()));
+      }
     }),
     socket.on('inventoryChanged', (m) => {
       inventory.getState().applyInventoryChanged(m.d);
@@ -46,10 +50,6 @@ export function wireSocket(socket: GameSocket): () => void {
     socket.on('npcDialog', (m) => {
       quests.getState().applyNpcDialog(m.d);
       ui.getState().openWindow('npc');
-    }),
-    socket.on('questLog', (m) => {
-      quests.getState().applyQuestLog(m.d);
-      announceReady();
     }),
     socket.on('questChanged', (m) => {
       if (outdates(quests.getState().dialog, m.d)) {
@@ -176,12 +176,18 @@ function toastRareFind(d: Data<'loot'>): void {
   toasts.getState().push(`${who} got ${itemName(d.template)} ${starMarks(d.template)}`, 'info');
 }
 
-export function leaveWorld(): void {
+/** Back to the character list: what this character showed, its chat and Combat tab too, goes with it. */
+export function leaveCharacter(): void {
   character.getState().clear();
   inventory.getState().clear();
   party.getState().clear();
   quests.getState().clear();
   chat.getState().clear();
   combatLog.getState().clear();
+}
+
+/** Logged out or ended: the character and the session go. */
+export function leaveWorld(): void {
+  leaveCharacter();
   session.getState().logOut();
 }

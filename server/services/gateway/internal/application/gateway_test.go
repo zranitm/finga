@@ -40,8 +40,13 @@ const joinTimeout = 5 * time.Second
 func newGateway(w *world) gateway { return newGatewayWith(w, &guard{}, time.Hour) }
 
 func newGatewayWith(w *world, g *guard, checkEvery time.Duration) gateway {
+	return newGatewayOver(w, g, checkEvery, idle{})
+}
+
+// newGatewayOver is newGatewayWith over items, which every Welcome reads the inventory from.
+func newGatewayOver(w *world, g *guard, checkEvery time.Duration, items session.Items) gateway {
 	log := slog.New(slog.DiscardHandler)
-	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
+	sessions := session.NewRegistry(session.Deps{World: w, Social: idle{}, Items: items, Logger: log, Panics: panics.NewRecorder(log, nil), Traces: noop.NewTracerProvider(), Observer: idle{}}, session.Options{Gateway: "gw-1", JoinTimeout: joinTimeout})
 	return gateway{
 		Gateway: send.New(send.Deps{Sessions: g, Registry: sessions, World: w, Items: idle{}, Social: idle{}, Logger: log, Observer: idle{}}, send.Options{JoinTimeout: joinTimeout}),
 		pushes:  push.New(push.Deps{Sessions: g, Registry: sessions, World: w, Social: idle{}, Account: idle{}, Logger: log, Traces: noop.NewTracerProvider()}, push.Options{SessionCheckInterval: checkEvery}),
@@ -237,6 +242,13 @@ func (o *outbox) End(r model.EndReason) {
 	}
 }
 
+// forget drops the Welcome kept, so the next one shows.
+func (o *outbox) forget() {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.welcome = nil
+}
+
 func (o *outbox) welcomed() *model.Welcome {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -402,8 +414,14 @@ func (w *world) FollowDeliveries(ctx context.Context, _ string, deliver func(mod
 // running runs a gateway's push flow on w until the test ends.
 func running(t *testing.T, w *world) gateway {
 	t.Helper()
+	return runningOver(t, w, idle{})
+}
+
+// runningOver is running over items.
+func runningOver(t *testing.T, w *world, items session.Items) gateway {
+	t.Helper()
 	w.following = make(chan struct{})
-	g := newGateway(w)
+	g := newGatewayOver(w, &guard{}, time.Hour, items)
 	go func() { _ = g.pushes.Run(t.Context()) }()
 	select {
 	case <-w.following:
@@ -437,6 +455,19 @@ func TestSessionsTheGatewayEnds(t *testing.T) {
 			t.Fatalf("ended as %s", got)
 		}
 	})
+	t.Run("a rejoin whose inventory read fails ends as rejoin_failed, so the client logs in again for a whole Welcome", func(t *testing.T) {
+		w, items := &world{}, &inventories{}
+		g := runningOver(t, w, items)
+		o := &outbox{ends: make(chan model.EndReason, 1)}
+		if err := g.Hello(t.Context(), g.Open("c-1", o), token, ayla); err != nil {
+			t.Fatal(err)
+		}
+		items.fail(errors.New("item service down"))
+		w.reconnect()
+		if got := o.ended(t); got != model.EndRejoinFailed {
+			t.Fatalf("ended as %s", got)
+		}
+	})
 	t.Run("a rejoin onto a world at another tick rate ends as tick_rate_changed, so the client reconnects to learn it", func(t *testing.T) {
 		w := &world{tickRate: 20}
 		g := running(t, w)
@@ -450,6 +481,56 @@ func TestSessionsTheGatewayEnds(t *testing.T) {
 			t.Fatalf("ended as %s", got)
 		}
 	})
+}
+
+// A rejoin the player didn't ask for sends the whole screen again, as a login does but with no token: pushes in the break may be lost.
+func TestARejoinWelcomesThePlayerAgainWithNoToken(t *testing.T) {
+	w, items := &world{}, &inventories{}
+	g := runningOver(t, w, items)
+	o := &outbox{}
+	s := g.Open("c-1", o)
+	if err := g.Hello(t.Context(), s, token, ayla); err != nil {
+		t.Fatal(err)
+	}
+	if welcome := o.welcomed(); welcome == nil || welcome.Token != "rotated" || welcome.InventoryRevision != 0 {
+		t.Fatalf("login's welcome %+v", welcome)
+	}
+	items.hold(model.Inventory{Revision: 9, Items: []model.ItemView{{ID: "p-1", Template: "red_potion", Tab: "use", Quantity: 3}}})
+	o.forget()
+	w.reconnect()
+	deadline := time.Now().Add(5 * time.Second)
+	for o.welcomed() == nil && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	welcome := o.welcomed()
+	if welcome == nil || welcome.Token != "" || welcome.InventoryRevision != 9 || len(welcome.Inventory) != 1 || welcome.Character.ID != ayla.String() || welcome.MapID != "town" {
+		t.Fatalf("rejoin's welcome %+v; want no token and the inventory read at the rejoin", welcome)
+	}
+}
+
+// inventories answers the inventory it holds, or fails once told to.
+type inventories struct {
+	mu  sync.Mutex
+	inv model.Inventory
+	err error
+}
+
+func (i *inventories) Inventory(context.Context, kernel.CharacterID) (model.Inventory, error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.inv, i.err
+}
+
+func (i *inventories) hold(inv model.Inventory) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.inv = inv
+}
+
+func (i *inventories) fail(err error) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.err = err
 }
 
 func TestAPanickingFollowerStopsRun(t *testing.T) {

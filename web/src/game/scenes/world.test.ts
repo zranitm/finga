@@ -163,6 +163,21 @@ describe('World', () => {
     },
   );
 
+  it("a rejoin's Welcome on the same map brings a dead player back: its Snapshot places them and input flows", async () => {
+    const { frames, inputs, leave } = await playing('forest');
+    const ws = FakeWebSocket.latest();
+    ws.push('died', { characterId: ME, x: 480, y: 608 });
+    frames(2);
+    const dead = inputs();
+    frames(3);
+    expect(inputs()).toBe(dead); // the server holds a dead player
+    ws.push('welcome', { token: '', mapId: 'forest', tickRateHz: RATE }); // the world restarted, and saved them alive
+    ws.push('snapshot', snapshotOn('forest'), { tick: 900 });
+    frames(3);
+    expect(inputs()).toBeGreaterThan(dead);
+    leave();
+  });
+
   it('a Snapshot that lands while the assets still load places the player once they are in', async () => {
     const { socket } = await connected('forest');
     const { built, frames, inputs, assetsLoaded } = entered(socket, 'forest', false);

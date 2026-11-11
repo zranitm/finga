@@ -102,8 +102,9 @@ func (d deps) build() (*push.Gateway, http.Handler) {
 	world := clients.NewWorld(d.World, d.Logger, nil)
 	social := clients.NewSocial(d.Social, d.Logger, nil)
 	recorder := panics.NewRecorder(d.Logger, nil)
-	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
-	sends := send.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Items: clients.NewItems(d.Items), Social: social, Logger: d.Logger, Observer: d.Observer}
+	items := clients.NewItems(d.Items)
+	sessions := session.NewRegistry(session.Deps{World: world, Social: social, Items: items, Logger: d.Logger, Panics: recorder, Traces: d.Traces, Observer: d.Observer}, session.Options{Gateway: d.ID, JoinTimeout: d.JoinTimeout})
+	sends := send.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Items: items, Social: social, Logger: d.Logger, Observer: d.Observer}
 	pushes := push.Deps{Sessions: d.Sessions, Registry: sessions, World: world, Social: social, Account: clients.NewSessionEnds(d.Watcher, d.Logger, nil), Logger: d.Logger, Traces: d.Traces}
 	return push.New(pushes, push.Options{SessionCheckInterval: d.SessionCheckInterval}), ws.New(send.New(sends, send.Options{JoinTimeout: d.JoinTimeout}), ws.Options{
 		Origins: d.CORSOrigins, HelloTimeout: d.HelloTimeout, CommandQueue: d.CommandQueue, Observer: d.Observer, Logger: d.Logger, Panics: recorder, Traces: d.Traces,
@@ -1418,15 +1419,15 @@ func TestARegistrationRoundRunsInOneTrace(t *testing.T) {
 // A Hello that fails after its world join took the character from the older connection: as the login never happened, the older one is joined again.
 func TestAHelloFailingAfterItsJoinRejoinsTheOlderConnection(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		items := &fakeItems{}
-		h := newHarness(t, func(d *deps) { d.Items = items.client(t) })
+		sessions := &fakeSessions{tokens: map[string]auth.Principal{tokenAlice: {AccountID: uuid.UUID(alice), SessionID: uuid.UUID(sessAlice)}}}
+		h := newHarness(t, func(d *deps) { d.Sessions = sessions })
 		older := h.dial(t)
 		older.hello(tokenAlice, aylaID)
 		older.expect("Snapshot")
 		conn := connectionOf(h.world, aylaID)
-		items.mu.Lock()
-		items.invErr = status.Error(codes.Internal, "inventory down")
-		items.mu.Unlock()
+		sessions.mu.Lock()
+		sessions.rotateErr = errors.New("account service down") // the newer Hello fails at its last step, after its join
+		sessions.mu.Unlock()
 		newer := h.dial(t)
 		newer.hello(tokenAlice, aylaID)
 		older.expect("Snapshot") // its rejoin's; a Kicked first would close it
@@ -2016,10 +2017,14 @@ func TestDeliveriesBeforeWelcomeWaitAndFollowIt(t *testing.T) {
 
 func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		h := newHarness(t)
+		items := &fakeItems{inventory: []*itemv1.Item{{Id: "i-1", TemplateId: "red_potion", Tab: "use", Quantity: 3}}, revision: 7}
+		soc := newFakeSocial()
+		soc.of = map[string]*socialv1.Party{aylaID.String(): {LeaderId: aylaID.String(), Members: []*socialv1.Member{{Id: aylaID.String(), Name: "Ayla", Online: true}}}}
+		h := newHarness(t, func(d *deps) { d.Items, d.Social = items.client(t), soc.client(t) })
 		ayla := h.dial(t)
 		ayla.hello(tokenAlice, aylaID)
 		ayla.expect("Snapshot")
+		ayla.expect("PartyState") // the login's
 		bruno := h.dial(t)
 		bruno.hello(tokenBob, brunoID)
 		bruno.expect("Snapshot")
@@ -2032,25 +2037,32 @@ func TestAfterTheWorldsStreamBreaksEveryPlayerIsJoinedAgain(t *testing.T) {
 		h.world.mu.Lock()
 		h.world.quests = []*worldv1.QuestState{{QuestId: "slime_cleanup", Status: worldv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}
 		h.world.mu.Unlock()
+		items.mu.Lock()
+		items.revision = 8 // a pickup's push lost in the break
+		items.mu.Unlock()
 		h.world.restart("boot-2")
 
-		wantLog := &clientv1.QuestLog{Quests: []*clientv1.QuestState{{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}}
-		if m, _ := ayla.read(); m.Type != "QuestLog" || !proto.Equal(m.Data.(*clientv1.QuestLog), wantLog) {
-			t.Fatalf("ayla got %+v first, want the quest log the join found", m)
+		// Each gets the whole screen again, as the services have it, with no token: pushes in the break may be lost.
+		wantQuests := []*clientv1.QuestState{{QuestId: "slime_cleanup", Status: clientv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{4}}}
+		rejoined := func(c *client, mapID string, after uint64) {
+			t.Helper()
+			m, status := c.read()
+			w, ok := m.Data.(*clientv1.Welcome)
+			if status != -1 || !ok || w.GetToken() != "" || w.GetMapId() != mapID || w.GetInventoryRevision() != 8 || len(w.GetInventory()) != 1 ||
+				!slices.EqualFunc(w.GetQuests(), wantQuests, func(a, b *clientv1.QuestState) bool { return proto.Equal(a, b) }) {
+				t.Fatalf("got %+v (status %d) first, want a Welcome on %s with no token, the inventory and the quests the rejoin found", m, status, mapID)
+			}
+			if snap := c.expect("Snapshot"); snap.Tick <= after {
+				t.Fatalf("snapshot tick %d after %d: the ticks went back on the connection", snap.Tick, after)
+			}
 		}
-		snap := ayla.expect("Snapshot")
-		if snap.Tick <= 500 {
-			t.Fatalf("snapshot tick %d after 500: the ticks went back on the connection", snap.Tick)
+		rejoined(ayla, "town", 500)
+		rejoined(bruno, "forest", 0) // its Welcome moves it: no MapChange
+		if p := ayla.expect("PartyState").Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() {
+			t.Fatalf("party %v; the Welcome emptied it, and Online sends it again", p)
 		}
-		m, status := bruno.read()
-		if status != -1 || m.Type != "MapChange" || m.Data.(*clientv1.MapChange).GetMapId() != "forest" || m.Data.(*clientv1.MapChange).X != 64 {
-			t.Fatalf("bruno got %+v (status %d), want MapChange to the forest first", m, status)
-		}
-		if m, _ := bruno.read(); m.Type != "QuestLog" || !proto.Equal(m.Data.(*clientv1.QuestLog), wantLog) {
-			t.Fatalf("bruno got %+v after MapChange, want the quest log", m)
-		}
-		if m, _ := bruno.read(); m.Type != "Snapshot" {
-			t.Fatalf("bruno got %s after the quest log, want the Snapshot", m.Type)
+		if got := h.obs.welcomed(); !slices.Equal(got, []string{"login", "login", "rejoin", "rejoin"}) {
+			t.Fatalf("welcomes measured %v", got)
 		}
 		joins := h.world.joins()
 		if len(joins) != 4 || joins[2].GetConnectionId() == "" {

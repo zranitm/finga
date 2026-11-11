@@ -2,6 +2,7 @@ package push_test
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -215,11 +216,6 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 			model.QuestChanged{Change: model.QuestAbandoned, Quest: model.QuestState{Quest: "a"}},
 			&clientv1.QuestChanged{Change: clientv1.QuestChange_QUEST_CHANGE_ABANDONED, Quest: &clientv1.QuestState{QuestId: "a"}},
 		},
-		{
-			model.QuestLog{Quests: []model.QuestState{{Quest: "a", Status: model.QuestFinished, TimesFinished: 2}}},
-			&clientv1.QuestLog{Quests: []*clientv1.QuestState{{QuestId: "a", Status: clientv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2}}},
-		},
-		{model.QuestLog{}, &clientv1.QuestLog{}},
 	}
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%T", tt.push), func(t *testing.T) {
@@ -293,21 +289,43 @@ func TestWelcomeCarriesTheCharacterItsItemsAtTheirRevisionAndItsQuests(t *testin
 	if len(s.sent) != 1 || s.sent[0].Type != "Welcome" || !proto.Equal(s.sent[0].Data.(proto.Message), want) {
 		t.Fatalf("sent %+v, want %v", s.sent, want)
 	}
+	if !slices.Equal(s.welcomes, []string{fmt.Sprintf("login %d", proto.Size(want))}) {
+		t.Fatalf("welcomes measured %v", s.welcomes)
+	}
+}
+
+func TestAWelcomeWithNoTokenIsMeasuredAsARejoins(t *testing.T) {
+	s := &socket{}
+	o := push.NewOutbox(s, s, push.NewFrames())
+	o.Welcome(model.Welcome{Token: "t-1", MapID: "town"})
+	o.Welcome(model.Welcome{MapID: "town"})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.welcomes) != 2 || !strings.HasPrefix(s.welcomes[0], "login ") || !strings.HasPrefix(s.welcomes[1], "rejoin ") {
+		t.Fatalf("welcomes measured %v", s.welcomes)
+	}
 }
 
 // socket records what a connection sends, how it first closes, and the types the outbox counted.
 type socket struct {
-	mu      sync.Mutex
-	sent    []wsconn.Message
-	counted []string
-	code    int
-	why     string
+	mu       sync.Mutex
+	sent     []wsconn.Message
+	counted  []string
+	welcomes []string // "<kind> <bytes>", one a Welcome
+	code     int
+	why      string
 }
 
 func (s *socket) MessageOut(msgType string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.counted = append(s.counted, msgType)
+}
+
+func (s *socket) WelcomeSent(kind string, bytes int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.welcomes = append(s.welcomes, fmt.Sprintf("%s %d", kind, bytes))
 }
 
 func (s *socket) ID() string { return "c-1" }

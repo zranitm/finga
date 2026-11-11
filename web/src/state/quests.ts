@@ -11,9 +11,8 @@ export interface QuestsState {
   readonly log: Log;
   /** What the NPC offered when last talked to; the window shows it while open. */
   readonly dialog: NpcDialog | null;
+  /** A login's, or the whole log again after the server joined the character again on its own. */
   applyWelcome(d: Data<'welcome'>): void;
-  /** The whole log again, after the server joined the character again on its own. */
-  applyQuestLog(d: Data<'questLog'>): void;
   applyQuestChanged(d: Data<'questChanged'>): void;
   applyNpcDialog(d: Data<'npcDialog'>): void;
   clear(): void;
@@ -47,9 +46,6 @@ export const quests = defineStore<QuestsState>((set, get) => ({
   dialog: null,
   applyWelcome: (d) => {
     set({ log: logOf(d.quests), dialog: null });
-  },
-  applyQuestLog: (d) => {
-    set({ log: logOf(d.quests) });
   },
   applyQuestChanged: (d) => {
     const q = d.quest;

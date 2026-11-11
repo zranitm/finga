@@ -132,9 +132,8 @@ From the code, the rules this design keeps:
 | `NpcDialog` | server | New: the NPC, its quests to give and take with their states and unmet conditions, and its promotions with each condition met or not |
 | `AcceptQuest`, `HandInQuest` | client | New: `npc`, `quest`; Response |
 | `AbandonQuest` | client | New: `quest`; Response |
-| `Welcome` | server | New `quests`: the log, active quests with progress, and finished quests with counts |
+| `Welcome` | server | New `quests`: the log, active quests with progress, and finished quests with counts. Also sent again, with no token, when the gateway joins the character again on its own (the world restarted, or its stream broke): pushes sent meanwhile may be lost, so the client takes the whole screen again, as a login does |
 | `QuestChanged` | server | New: what happened (accepted, progressed, handed in, or abandoned), and the quest's status, progress, and count after it |
-| `QuestLog` | server | New: the whole log again, which the gateway sends when it joins the character again on its own (the world restarted, or its stream broke), since changes sent meanwhile were lost |
 
 - **New error codes:**
   - `npc_out_of_reach`: "move closer";
@@ -182,9 +181,9 @@ From the code, the rules this design keeps:
 | The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
 | Item service down during a hand-in | "The server is busy; try again" within 4 seconds; nothing changed | The call failed as a whole, or committed, and the next try or join finishes the quest |
 | The player reconnects while a hand-in is in flight | The quest finishes on the new connection | The answer finishes it for the character on the map, whatever its connection |
-| The world's stream breaks, or the world restarts | Nothing unusual: the quest log is put right | The rejoin sends `QuestLog`, and the changes after it follow |
+| The world's stream breaks, or the world restarts | Nothing unusual: the screen is put right, the party too | The rejoin sends a whole `Welcome`, with no token, read after the join: character, map, quests, and inventory as the services hold them. Changes lost in the break, and a world's unsaved ones undone by its restart, show as they are. The party follows in a `PartyState`, as after a login. If the inventory can't be read, the connection ends and the client logs in again |
 
-**Known issue, kept for now:** a rejoin resends only the quest log, and what a recorded hand-in did. Other inventory, EXP, and level changes sent while the stream was broken stay lost until the next change or login. A full resync after a rejoin would close it.
+**What a `Welcome` carries:** only what the screen needs at once, built section by section in the gateway (the character, map and tick rate, and quests from the world's join; the inventory and what is worn from one item read). Data a window opens on demand, such as storage or mail later, loads when that window opens, never in the `Welcome`. The gateway measures each `Welcome`'s encoded size, by login or rejoin, as the signal for when its sections need skipping or compressing.
 
 ## 12. Testing
 
