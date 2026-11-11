@@ -1,6 +1,5 @@
 // The client picks the potion and shows what it restores; the world checks every use again.
 import { items } from '@/gamedata/items';
-import type { ItemView } from '@/protocol/messages';
 
 export type Vital = 'hp' | 'mp';
 
@@ -38,13 +37,13 @@ export function missing(vital: Vital, v: Vitals): number {
 }
 
 /** The smallest potion carried that fills what is missing, else the largest; undefined with none. */
-export function pickPotion(
+export function pickPotion<T extends { readonly template: string }>(
   vital: Vital,
   need: number,
-  useTab: readonly (ItemView | null)[],
-): ItemView | undefined {
-  let fills: { item: ItemView; heal: number } | undefined;
-  let largest: { item: ItemView; heal: number } | undefined;
+  useTab: readonly (T | null)[],
+): T | undefined {
+  let fills: { item: T; heal: number } | undefined;
+  let largest: { item: T; heal: number } | undefined;
   for (const item of useTab) {
     const heal = item ? (healOf(item.template)?.[vital] ?? 0) : 0;
     if (!item || heal === 0) {

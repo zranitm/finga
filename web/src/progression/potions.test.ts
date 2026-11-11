@@ -1,12 +1,8 @@
-import { create } from '@bufbuild/protobuf';
 import { describe, expect, it } from 'vitest';
-
-import { ItemViewSchema } from '@/protocol/messages';
 
 import { fullFor, healOf, pickPotion, restores } from './potions';
 
-const item = (template: string, slot: number) =>
-  create(ItemViewSchema, { itemId: `i-${slot}`, template, tab: 'use', slot, quantity: 3 });
+const item = (template: string, slot: number) => ({ itemId: `i-${slot}`, template });
 
 const vitals = (hp: number, mp: number) => ({ hp, maxHp: 200, mp, maxMp: 100 });
 
