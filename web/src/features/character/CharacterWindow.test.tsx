@@ -145,6 +145,25 @@ describe('CharacterWindow', () => {
     expect(stat('Offense', 'Crit damage')).toHaveTextContent(/^150%$/);
   });
 
+  it('shows the skills’ part beside the equipment’s, and a preview keeps the passives', async () => {
+    setup();
+    // A Warrior learns the Beginner's skills: 12 points in Second Wind, Deep Breath, add 2.2 HP a second to 0.5.
+    act(() =>
+      stats({
+        derived: { ...sheet.derived, hpRegen: 2.7 },
+        derivedSkills: { hpRegen: 2.2 },
+        skills: { unspent: 0, invested: { second_wind: 12 } },
+        points: { unspent: 5, spent: {}, freeResetLeft: true },
+      }),
+    );
+    expect(stat('Defense', 'HP regen')).toHaveTextContent('2.7/s (+2.2/s)');
+    expect(screen.getByTitle('From skills')).toHaveTextContent('(+2.2/s)');
+    expect(screen.getAllByTitle('From equipment')[0]).toHaveTextContent('(+1)');
+    await userEvent.click(plus('STR'));
+    expect(stat('Offense', 'Physical attack')).toHaveTextContent('→');
+    expect(stat('Defense', 'HP regen')).not.toHaveTextContent('→');
+  });
+
   it('shows the sixteen derived stats in four groups, in their units', () => {
     setup();
     const names = (table: string) =>

@@ -145,9 +145,18 @@ func statSheet(s *worldv1.StatSheet) model.StatSheet {
 	p := s.GetPoints()
 	return model.StatSheet{
 		Primary: stats(s.GetPrimary()), PrimaryWorn: stats(s.GetPrimaryWorn()), Derived: derived(s.GetDerived()), DerivedWorn: derived(s.GetDerivedWorn()),
+		PrimarySkills: stats(s.GetPrimarySkills()), DerivedSkills: derived(s.GetDerivedSkills()), Skills: skillPoints(s.GetSkills()),
 		Points:              model.Points{Unspent: int(p.GetUnspent()), Spent: stats(p.GetSpent()), FreeResetLeft: p.GetFreeResetLeft()},
 		AttackCooldownTicks: int(s.GetAttackCooldownTicks()),
 	}
+}
+
+func skillPoints(s *worldv1.SkillPoints) model.SkillPoints {
+	out := model.SkillPoints{Unspent: int(s.GetUnspent()), Invested: make(map[string]int, len(s.GetInvested()))}
+	for skill, n := range s.GetInvested() {
+		out.Invested[skill] = int(n)
+	}
+	return out
 }
 
 func derived(d *worldv1.DerivedStats) model.DerivedStats {

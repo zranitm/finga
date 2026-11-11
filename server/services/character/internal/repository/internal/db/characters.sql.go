@@ -38,7 +38,7 @@ func (q *Queries) DropOtherQuests(ctx context.Context, arg DropOtherQuestsParams
 }
 
 const getOwnedCharacter = `-- name: GetOwnedCharacter :one
-SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used FROM characters WHERE id = $1 AND account_id = $2
+SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used, unspent_skill_points FROM characters WHERE id = $1 AND account_id = $2
 `
 
 type GetOwnedCharacterParams struct {
@@ -70,6 +70,7 @@ func (q *Queries) GetOwnedCharacter(ctx context.Context, arg GetOwnedCharacterPa
 		&i.UpdatedAt,
 		&i.CreatedAt,
 		&i.FreeResetUsed,
+		&i.UnspentSkillPoints,
 	)
 	return i, err
 }
@@ -84,7 +85,7 @@ INSERT INTO characters (
   $7, $8, $9, $10, $11, $12, $13,
   $14, $15, $16, $17, $18, $19, $19
 )
-RETURNING id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used
+RETURNING id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used, unspent_skill_points
 `
 
 type InsertCharacterParams struct {
@@ -153,12 +154,13 @@ func (q *Queries) InsertCharacter(ctx context.Context, arg InsertCharacterParams
 		&i.UpdatedAt,
 		&i.CreatedAt,
 		&i.FreeResetUsed,
+		&i.UnspentSkillPoints,
 	)
 	return i, err
 }
 
 const listCharactersByAccount = `-- name: ListCharactersByAccount :many
-SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used FROM characters WHERE account_id = $1 ORDER BY created_at, id
+SELECT id, account_id, name, class, level, exp, str_points, dex_points, int_points, agi_points, vit_points, unspent_points, hp, mp, map_id, pos_x, pos_y, updated_at, created_at, free_reset_used, unspent_skill_points FROM characters WHERE account_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UUID) ([]Character, error) {
@@ -191,6 +193,7 @@ func (q *Queries) ListCharactersByAccount(ctx context.Context, accountID uuid.UU
 			&i.UpdatedAt,
 			&i.CreatedAt,
 			&i.FreeResetUsed,
+			&i.UnspentSkillPoints,
 		); err != nil {
 			return nil, err
 		}
@@ -238,6 +241,35 @@ func (q *Queries) ListQuests(ctx context.Context, characterID uuid.UUID) ([]List
 	return items, nil
 }
 
+const listSkills = `-- name: ListSkills :many
+SELECT skill_id, points FROM character_skills WHERE character_id = $1 ORDER BY skill_id
+`
+
+type ListSkillsRow struct {
+	SkillID string
+	Points  int32
+}
+
+func (q *Queries) ListSkills(ctx context.Context, characterID uuid.UUID) ([]ListSkillsRow, error) {
+	rows, err := q.db.Query(ctx, listSkills, characterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSkillsRow
+	for rows.Next() {
+		var i ListSkillsRow
+		if err := rows.Scan(&i.SkillID, &i.Points); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockAccountCharacters = `-- name: LockAccountCharacters :exec
 SELECT pg_advisory_xact_lock(hashtextextended('character.account:' || $1::text, 0))
 `
@@ -254,27 +286,28 @@ SET map_id = $1, pos_x = $2, pos_y = $3, hp = $4, mp = $5,
     level = $6, exp = $7,
     str_points = $8, dex_points = $9, int_points = $10,
     agi_points = $11, vit_points = $12, unspent_points = $13,
-    free_reset_used = $14, updated_at = $15
-WHERE id = $16
+    free_reset_used = $14, unspent_skill_points = $15, updated_at = $16
+WHERE id = $17
 `
 
 type SaveCheckpointParams struct {
-	MapID         string
-	PosX          float32
-	PosY          float32
-	Hp            int32
-	Mp            int32
-	Level         int32
-	Exp           int64
-	StrPoints     int32
-	DexPoints     int32
-	IntPoints     int32
-	AgiPoints     int32
-	VitPoints     int32
-	UnspentPoints int32
-	FreeResetUsed bool
-	Now           dbx.Stamp
-	ID            uuid.UUID
+	MapID              string
+	PosX               float32
+	PosY               float32
+	Hp                 int32
+	Mp                 int32
+	Level              int32
+	Exp                int64
+	StrPoints          int32
+	DexPoints          int32
+	IntPoints          int32
+	AgiPoints          int32
+	VitPoints          int32
+	UnspentPoints      int32
+	FreeResetUsed      bool
+	UnspentSkillPoints int32
+	Now                dbx.Stamp
+	ID                 uuid.UUID
 }
 
 func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) (int64, error) {
@@ -293,6 +326,7 @@ func (q *Queries) SaveCheckpoint(ctx context.Context, arg SaveCheckpointParams) 
 		arg.VitPoints,
 		arg.UnspentPoints,
 		arg.FreeResetUsed,
+		arg.UnspentSkillPoints,
 		arg.Now,
 		arg.ID,
 	)
@@ -372,6 +406,33 @@ func (q *Queries) SaveQuests(ctx context.Context, arg SaveQuestsParams) error {
 		arg.Statuses,
 		arg.Progress,
 		arg.TimesFinished,
+		arg.Now,
+	)
+	return err
+}
+
+const saveSkills = `-- name: SaveSkills :exec
+INSERT INTO character_skills (character_id, skill_id, points, created_at, updated_at)
+SELECT $1, ($2::text[])[k], ($3::int[])[k], $4, $4
+FROM generate_subscripts($2::text[], 1) AS k
+ON CONFLICT (character_id, skill_id) DO UPDATE
+SET points = EXCLUDED.points, updated_at = EXCLUDED.updated_at
+WHERE character_skills.points IS DISTINCT FROM EXCLUDED.points
+`
+
+type SaveSkillsParams struct {
+	CharacterID uuid.UUID
+	SkillIds    []string
+	Points      []int32
+	Now         dbx.Stamp
+}
+
+// Points are never taken back, so a skill not listed keeps its row; a row already as given is left alone.
+func (q *Queries) SaveSkills(ctx context.Context, arg SaveSkillsParams) error {
+	_, err := q.db.Exec(ctx, saveSkills,
+		arg.CharacterID,
+		arg.SkillIds,
+		arg.Points,
 		arg.Now,
 	)
 	return err

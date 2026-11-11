@@ -55,7 +55,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	if !ok {
 		return model.View{}, model.ErrClassUnavailable
 	}
-	stats := instance.StatsOf(w.data, class, c.Level, c.Points, worn, w.tick)
+	stats := instance.StatsOf(w.data, class, c.Level, c.Points, c.Skills, worn, w.tick)
 	derived := stats.Derived
 	if c.HP <= 0 {
 		if c, err = w.respawned(c, derived.MaxHP); err != nil {
@@ -68,7 +68,7 @@ func (w *World) join(ctx context.Context, account kernel.AccountID, id kernel.Ch
 	}
 	c = w.placed(ctx, c)
 	log := c.Quests.Clone() // the view's: from the join on, the map's tick changes the player's
-	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests, HandedIn: handedIn}
+	p := model.Player{ID: c.ID, Account: account, Name: c.Name, Class: c.Class, Level: c.Level, Exp: c.Exp, Points: c.Points, Skills: c.Skills, HP: c.HP, MP: c.MP, X: c.X, Y: c.Y, Connection: conn, Worn: worn, Quests: c.Quests, HandedIn: handedIn}
 	at := w.presences.place(id, presence{inst: inst, conn: conn, account: account, sink: sink})
 	answerCtx, cancel := answerOf(ctx)
 	defer cancel()
@@ -215,9 +215,9 @@ func (w *World) placed(ctx context.Context, c model.Character) model.Character {
 	return c
 }
 
-// withCheckpoint is c as cp left it; the quests are a copy, as the saver may still read cp's.
+// withCheckpoint is c as cp left it; the skills and quests are copies, as the saver may still read cp's.
 func withCheckpoint(c model.Character, cp model.Checkpoint) model.Character {
-	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points, c.Quests = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points, cp.Quests.Clone()
+	c.MapID, c.X, c.Y, c.HP, c.MP, c.Level, c.Exp, c.Points, c.Skills, c.Quests = cp.MapID, cp.X, cp.Y, cp.HP, cp.MP, cp.Level, cp.Exp, cp.Points, cp.Skills.Clone(), cp.Quests.Clone()
 	return c
 }
 

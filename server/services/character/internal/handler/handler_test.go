@@ -30,7 +30,7 @@ var (
 	owner = kernel.NewAccountID()
 	ayla  = model.Character{
 		ID: kernel.NewCharacterID(), AccountID: owner, Name: "Ayla", Class: kernel.Class("warrior"), Level: 3, Exp: 40,
-		Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true, HP: 150, MP: 20,
+		Points: gamedata.Stats{STR: 6, VIT: 3}, UnspentPoints: 1, FreeResetUsed: true, HP: 150, MP: 20, UnspentSkillPoints: 4,
 		MapID: "forest", X: 412.5, Y: 608, UpdatedAt: time.Date(2026, 10, 28, 9, 0, 0, 0, time.UTC),
 	}
 )
@@ -40,6 +40,7 @@ type fakeCharacters struct {
 	account    kernel.AccountID
 	loaded     kernel.CharacterID
 	quests     []model.Quest
+	skills     []model.SkillPoints
 	checkpoint model.Checkpoint
 	levelUp    model.LevelUp
 	derivedErr error
@@ -69,6 +70,12 @@ func (f *fakeCharacters) Quests(_ context.Context, id kernel.CharacterID) ([]mod
 	f.calls++
 	f.loaded = id
 	return f.quests, f.err
+}
+
+func (f *fakeCharacters) Skills(_ context.Context, id kernel.CharacterID) ([]model.SkillPoints, error) {
+	f.calls++
+	f.loaded = id
+	return f.skills, f.err
 }
 
 func (f *fakeCharacters) Own(model.Character) gamedata.Stats {
@@ -129,9 +136,10 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 		}
 		wantAyla(t, res.GetCharacters()[0], true)
 	})
-	t.Run("Load carries the owner, the maximums and the quests", func(t *testing.T) {
+	t.Run("Load carries the owner, the maximums, the quests and the skills", func(t *testing.T) {
 		f.quests = []model.Quest{{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{7}}, {ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 2}}
-		defer func() { f.quests = nil }()
+		f.skills = []model.SkillPoints{{ID: "second_wind", Points: 2}, {ID: "strike", Points: 11}}
+		defer func() { f.quests, f.skills = nil, nil }()
 		res, err := c.Load(ctx, &characterv1.LoadRequest{CharacterId: ayla.ID.String(), AccountId: owner.String()})
 		if err != nil || f.loaded != ayla.ID || f.account != owner {
 			t.Fatalf("loaded %v for %v, err %v", f.loaded, f.account, err)
@@ -150,6 +158,10 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 				t.Fatalf("quest %d: %v, want %v", k, got[k], want[k])
 			}
 		}
+		skills := res.GetSkills()
+		if len(skills) != 2 || !proto.Equal(skills[1], &characterv1.SkillPoints{SkillId: "strike", Points: 11}) || res.GetCharacter().GetUnspentSkillPoints() != 4 {
+			t.Fatalf("skills %v, unspent %d", skills, res.GetCharacter().GetUnspentSkillPoints())
+		}
 	})
 	t.Run("SaveCheckpoint", func(t *testing.T) {
 		points := &characterv1.Stats{Strength: 9, Dexterity: 1, Intelligence: 2, Agility: 3, Vitality: 4}
@@ -159,7 +171,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 			{QuestId: "odd", Status: characterv1.QuestStatus(9)},
 		}
 		if _, err := c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{CharacterId: ayla.ID.String(), MapId: "cave", X: 10, Y: 20, Hp: 5, Mp: 6, Level: 5, Exp: 7, Points: points, UnspentPoints: 1, FreeResetUsed: true,
-			Quests: quests}); err != nil {
+			Quests: quests, UnspentSkillPoints: 3, Skills: []*characterv1.SkillPoints{{SkillId: "spark", Points: 6}}}); err != nil {
 			t.Fatal(err)
 		}
 		want := model.Checkpoint{ID: ayla.ID, MapID: "cave", X: 10, Y: 20, HP: 5, MP: 6, Level: 5, Exp: 7, Points: gamedata.Stats{STR: 9, DEX: 1, INT: 2, AGI: 3, VIT: 4}, UnspentPoints: 1, FreeResetUsed: true,
@@ -168,6 +180,7 @@ func TestEachCallMapsItsFieldsAndResult(t *testing.T) {
 				{ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 1},
 				{ID: "odd"}, // an unknown status reaches the module empty, which refuses it
 			},
+			UnspentSkillPoints: 3, Skills: []model.SkillPoints{{ID: "spark", Points: 6}},
 		}
 		if !reflect.DeepEqual(f.checkpoint, want) {
 			t.Fatalf("checkpoint %+v", f.checkpoint)

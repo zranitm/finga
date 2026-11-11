@@ -420,6 +420,11 @@ describe('ChatBox', () => {
         text: 'Slime Gel ★ disappeared uncollected.',
       },
       {
+        name: 'a skill evolved',
+        add: () => combatLog.getState().applySkillPoints({ strike: 9 }, { strike: 10 }),
+        text: 'Strike evolved into Heavy Strike!',
+      },
+      {
         name: 'a potion drunk',
         add: () => combatLog.getState().drank('red_potion', { hp: 50, mp: 0 }),
         text: 'Drank a Red Potion ★.',

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 
+import { passives } from './skills';
 import {
   activeRoll,
   addStats,
@@ -25,9 +26,10 @@ interface Vector {
   readonly level: number;
   readonly points: Primary;
   readonly worn: Readonly<Record<string, number>>;
+  readonly skills?: Readonly<Record<string, number>>;
   readonly expected: Readonly<
     Record<
-      'primary' | 'primary_worn' | 'derived' | 'derived_worn',
+      'primary' | 'primary_worn' | 'primary_skills' | 'derived' | 'derived_worn' | 'derived_skills',
       Readonly<Record<string, number>>
     >
   >;
@@ -46,18 +48,29 @@ const base: Primary = classes[0].base_stats; // every character starts with the 
 describe('the stat vectors', () => {
   it('are all here', () => {
     expect(vectors.map((v) => v.name)).toEqual(
-      expect.arrayContaining(['warrior-level-1', 'warrior-every-stat-worn', 'magic-build']),
+      expect.arrayContaining([
+        'warrior-level-1',
+        'warrior-every-stat-worn',
+        'magic-build',
+        'beginner-second-wind-evolved',
+      ]),
     );
   });
 
   it.each(vectors.map((v) => [v.name, v] as const))('%s matches the server', (_, v) => {
-    const got = sheetOf(v.class, v.level, addStats(base, v.points), roll(v.worn));
+    const own = addStats(base, v.points);
+    const got = sheetOf(v.class, v.level, own, roll(v.worn), passives(v.class, v.skills ?? {}));
     expect(got.primary).toEqual(v.expected.primary);
     expect(got.primaryWorn).toEqual(v.expected.primary_worn);
+    expect(got.primarySkills).toEqual(v.expected.primary_skills);
     for (const { key, data } of derivedStats) {
       expect(got.derived[key], `derived ${data}`).toBeCloseTo(v.expected.derived[data] ?? 0, 9);
       expect(got.derivedWorn[key], `worn ${data}`).toBeCloseTo(
         v.expected.derived_worn[data] ?? 0,
+        9,
+      );
+      expect(got.derivedSkills[key], `skills ${data}`).toBeCloseTo(
+        v.expected.derived_skills[data] ?? 0,
         9,
       );
     }

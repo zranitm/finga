@@ -107,6 +107,15 @@ func (h *Handler) spendPoints(c *msgContext, in *clientv1.SpendPoints) (any, err
 	return nil, h.gw.SpendPoints(c.Ctx, c.Session.session, model.PointsSpend{ExpectedUnspent: int(in.GetExpectedUnspent()), Points: pts})
 }
 
+// spendSkillPoints answers once the world applied the skill points; StatsChanged comes on the world's stream, before or after the answer.
+func (h *Handler) spendSkillPoints(c *msgContext, in *clientv1.SpendSkillPoints) (any, error) {
+	pts := make(map[string]int, len(in.GetPoints()))
+	for skill, n := range in.GetPoints() {
+		pts[skill] = int(n)
+	}
+	return nil, h.gw.SpendSkillPoints(c.Ctx, c.Session.session, model.SkillPointsSpend{ExpectedUnspent: int(in.GetExpectedUnspent()), Points: pts})
+}
+
 func (h *Handler) resetPoints(c *msgContext, in *clientv1.ResetPoints) (any, error) {
 	return nil, h.gw.ResetPoints(c.Ctx, c.Session.session, int(in.GetExpectedUnspent()))
 }

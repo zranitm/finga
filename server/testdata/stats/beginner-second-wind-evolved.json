@@ -1,0 +1,98 @@
+{
+  "name": "beginner-second-wind-evolved",
+  "notes": "A level 12 Beginner with 12 points in Second Wind, evolved into Deep Breath, wearing regen gear: the skill's share beside the equipment's.",
+  "class": "beginner",
+  "level": 12,
+  "points": {
+    "str": 10,
+    "dex": 10,
+    "int": 15,
+    "agi": 10,
+    "vit": 10
+  },
+  "worn": {
+    "max_hp": 20,
+    "hp_regen": 5
+  },
+  "skills": {
+    "second_wind": 12,
+    "strike": 10
+  },
+  "expected": {
+    "primary": {
+      "str": 17,
+      "dex": 17,
+      "int": 22,
+      "agi": 17,
+      "vit": 17
+    },
+    "primary_worn": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "primary_skills": {
+      "str": 0,
+      "dex": 0,
+      "int": 0,
+      "agi": 0,
+      "vit": 0
+    },
+    "derived": {
+      "max_hp": 418,
+      "max_mp": 159,
+      "physical_attack": 34,
+      "magic_attack": 41.5,
+      "physical_defense": 21,
+      "magic_defense": 23.5,
+      "accuracy": 29,
+      "evasion": 25,
+      "crit_rate": 0.09308755760368664,
+      "crit_damage": 0.585,
+      "penetration": 0,
+      "hp_regen": 3.5500000000000003,
+      "mp_regen": 3.3000000000000003,
+      "attack_speed": 0.05089820359281437,
+      "cooldown_speed": 0.039639639639639644,
+      "move_speed": 0.023502304147465437
+    },
+    "derived_worn": {
+      "max_hp": 20,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 0.5,
+      "mp_regen": 0,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    },
+    "derived_skills": {
+      "max_hp": 0,
+      "max_mp": 0,
+      "physical_attack": 0,
+      "magic_attack": 0,
+      "physical_defense": 0,
+      "magic_defense": 0,
+      "accuracy": 0,
+      "evasion": 0,
+      "crit_rate": 0,
+      "crit_damage": 0,
+      "penetration": 0,
+      "hp_regen": 2.2,
+      "mp_regen": 2.2,
+      "attack_speed": 0,
+      "cooldown_speed": 0,
+      "move_speed": 0
+    }
+  }
+}

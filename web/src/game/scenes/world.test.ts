@@ -340,6 +340,14 @@ describe('World', () => {
       press('KeyQ');
       expect(ui.getState().windows).toEqual([]);
     });
+
+    it('K opens and closes the skill window', async () => {
+      await inTown();
+      press('KeyK');
+      expect(ui.getState().windows).toEqual(['skills']);
+      press('KeyK');
+      expect(ui.getState().windows).toEqual([]);
+    });
   });
 
   it('a second map change during the fade lands on the second map', async () => {

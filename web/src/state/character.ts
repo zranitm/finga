@@ -34,12 +34,15 @@ export function expToNextLevel(level: number): number | null {
   return entry ? entry.exp : null;
 }
 
-/** The character's own stats, as requirements read them: the sheet's totals less what the gear adds. */
+/** The character's own stats, as requirements read them: the sheet's totals less what the gear and the skills add. */
 export function ownStats(sheet: StatSheet): Stats {
   return create(
     StatsSchema,
     Object.fromEntries(
-      primaryKeys.map((k) => [k, (sheet.primary?.[k] ?? 0) - (sheet.primaryWorn?.[k] ?? 0)]),
+      primaryKeys.map((k) => [
+        k,
+        (sheet.primary?.[k] ?? 0) - (sheet.primaryWorn?.[k] ?? 0) - (sheet.primarySkills?.[k] ?? 0),
+      ]),
     ),
   );
 }

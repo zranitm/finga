@@ -12,6 +12,7 @@ import { WorldWindow } from '@/features/shared/WorldWindow';
 import { equipSlots } from '@/gamedata/equip-slots';
 import type { GameSocket } from '@/net/socket';
 import { className } from '@/progression/classes';
+import { passives } from '@/progression/skills';
 import {
   activeRoll,
   addStats,
@@ -102,9 +103,22 @@ const groups: readonly { readonly name: string; readonly rows: readonly DerivedR
   },
 ];
 
-/** The equipment's part, shown only when it adds something. */
-function Worn({ show, by }: { readonly show: Show; readonly by: number }) {
-  return show(by) === show(0) ? null : <span className="stat-worn"> (+{show(by)})</span>;
+/** The equipment's or the skills' part, shown only when it adds something. */
+function Share({
+  show,
+  by,
+  from,
+}: {
+  readonly show: Show;
+  readonly by: number;
+  readonly from: 'equipment' | 'skills';
+}) {
+  return show(by) === show(0) ? null : (
+    <span className={from === 'skills' ? 'stat-skills' : 'stat-worn'} title={`From ${from}`}>
+      {' '}
+      (+{show(by)})
+    </span>
+  );
 }
 
 function DerivedTable({
@@ -128,7 +142,8 @@ function DerivedTable({
               <th scope="row">{name}</th>
               <td>
                 {now}
-                <Worn show={show} by={sheet?.derivedWorn?.[key] ?? 0} />
+                <Share show={show} by={sheet?.derivedWorn?.[key] ?? 0} from="equipment" />
+                <Share show={show} by={sheet?.derivedSkills?.[key] ?? 0} from="skills" />
                 {then !== now && <span className="stat-preview"> → {then}</span>}
               </td>
             </tr>
@@ -154,7 +169,8 @@ function PrimaryTable({
             <th scope="row">{k.toUpperCase()}</th>
             <td>
               {sheet?.primary?.[k] ?? 0}
-              <Worn show={num} by={sheet?.primaryWorn?.[k] ?? 0} />
+              <Share show={num} by={sheet?.primaryWorn?.[k] ?? 0} from="equipment" />
+              <Share show={num} by={sheet?.primarySkills?.[k] ?? 0} from="skills" />
               {points.staged[k] > 0 && <span className="stat-preview"> +{points.staged[k]}</span>}
               {points.unspent > 0 && (
                 <button
@@ -243,13 +259,19 @@ function wornItems(equipment: Equipment) {
   });
 }
 
-/** The sheet the staged points would make, the gear they would switch on included; null with nothing staged. */
+/** The sheet the staged points would make, the gear they would switch on and the passives included; null with nothing staged. */
 function previewSheet(c: CharacterView, equipment: Equipment, staged: Primary): Sheet | null {
   if (total(staged) === 0) {
     return null;
   }
   const own = addStats(c.stats ?? noPoints, staged);
-  return sheetOf(c.class, c.level, own, activeRoll(wornItems(equipment), c.level, c.class, own));
+  return sheetOf(
+    c.class,
+    c.level,
+    own,
+    activeRoll(wornItems(equipment), c.level, c.class, own),
+    passives(c.class, c.sheet?.skills?.invested ?? {}),
+  );
 }
 
 function Vitals({

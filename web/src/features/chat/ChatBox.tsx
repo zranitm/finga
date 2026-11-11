@@ -241,6 +241,12 @@ function CombatText({ line, me }: { readonly line: CombatLine; readonly me: stri
           Drank {article(itemName(line.template))} <Item template={line.template} quantity={1} />.
         </>
       );
+    case 'evolved':
+      return (
+        <>
+          {line.from} evolved into {line.to}!
+        </>
+      );
     case 'quest':
       return <QuestText change={line.change} quest={line.quest} progress={line.progress} />;
   }

@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"strings"
 	"testing"
@@ -298,7 +299,7 @@ func TestFightAndGrow(t *testing.T) {
 			t.Fatalf("no level-up in 40 s (exp gained: %v)", gained)
 		}
 		// The level's points wait unspent, so DEX stays the starting 7.
-		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 7 || lu.GetCharacter().GetSheet().GetPoints().GetUnspent() != 5 {
+		if lu.GetCharacter().GetLevel() != 2 || lu.GetCharacter().GetId() != id || lu.GetCharacter().GetHp() != lu.GetCharacter().GetMaxHp() || lu.GetCharacter().GetStats().GetDex() != 7 || lu.GetCharacter().GetSheet().GetPoints().GetUnspent() != 5 || lu.GetCharacter().GetSheet().GetSkills().GetUnspent() != 5 {
 			t.Fatalf("level-up %+v", lu.Character)
 		}
 		dl := time.Now().Add(5 * time.Second)
@@ -399,5 +400,59 @@ func TestFightAndGrow(t *testing.T) {
 			return
 		}
 		t.Fatal("no bat touched the player in 30 s")
+	})
+
+	t.Run("C7/skill-points-evolve-a-skill-and-a-passive-feeds-the-sheet-saved-at-once", func(t *testing.T) {
+		s := newStack(t)
+		token, id := s.createCharacter(t, "mira", "Mira", "beginner")
+		// HP and MP full from creation, so no regen sends a StatsChanged of its own.
+		if _, err := s.db.Exec(context.Background(), `UPDATE characters SET unspent_skill_points = 12 WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		l, w := s.hello(t, token, id)
+		if sk := w.GetCharacter().GetSheet().GetSkills(); sk.GetUnspent() != 12 || len(sk.GetInvested()) != 0 {
+			t.Fatalf("welcome skills %+v; want 12 unspent and none invested", sk)
+		}
+
+		// Ten in Strike is Heavy Strike; two in Second Wind add 0.5 + 0.2 HP and MP a second.
+		l.send(wsconn.Message{ReqID: "k-1", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 12, Points: map[string]int32{"strike": 10, "second_wind": 2}}})
+		got := l.gather("Response", "StatsChanged")
+		if !got["Response"].Data.(*clientv1.Response).GetOk() {
+			t.Fatalf("spend answered %+v", got["Response"])
+		}
+		sheet := got["StatsChanged"].Data.(*clientv1.StatsChanged).GetSheet()
+		if sk := sheet.GetSkills(); sk.GetUnspent() != 0 || sk.GetInvested()["strike"] != 10 || sk.GetInvested()["second_wind"] != 2 {
+			t.Fatalf("skills after spending %+v; want 10 in Strike, 2 in Second Wind and none left", sk)
+		}
+		if d := sheet.GetDerivedSkills(); math.Abs(d.GetHpRegen()-0.7) > 1e-9 || math.Abs(d.GetMpRegen()-0.7) > 1e-9 {
+			t.Fatalf("the skills' share %+v; want 0.7 HP and MP a second", d)
+		}
+		var saved bool
+		for dl := time.Now().Add(5 * time.Second); time.Now().Before(dl) && !saved; time.Sleep(100 * time.Millisecond) {
+			if err := s.db.QueryRow(context.Background(), `SELECT unspent_skill_points = 0 AND (SELECT count(*) FROM character_skills WHERE character_id = $1 AND (skill_id, points) IN (('strike', 10), ('second_wind', 2))) = 2 FROM characters WHERE id = $1`, id).Scan(&saved); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !saved {
+			t.Fatal("the skill points were not saved within 5 s")
+		}
+
+		refused := func(req string, in *clientv1.SpendSkillPoints, want string) {
+			t.Helper()
+			l.send(wsconn.Message{ReqID: req, Data: in})
+			if r := l.gather("Response")["Response"]; r.ReqID != req || r.Data.(*clientv1.Response).GetCode() != code(want) {
+				t.Fatalf("%s answered %+v; want %s", req, r, want)
+			}
+		}
+		refused("k-2", &clientv1.SpendSkillPoints{ExpectedUnspent: 12, Points: map[string]int32{"strike": 1}}, "SKILL_POINTS_CHANGED")
+		refused("k-3", &clientv1.SpendSkillPoints{ExpectedUnspent: 0, Points: map[string]int32{"fireball": 1}}, "SKILL_NOT_LEARNABLE")
+		refused("k-4", &clientv1.SpendSkillPoints{ExpectedUnspent: 0, Points: map[string]int32{"strike": -1}}, "BAD_SKILL_POINTS")
+		time.Sleep(600 * time.Millisecond) // under the points limit
+		refused("k-5", &clientv1.SpendSkillPoints{ExpectedUnspent: 0, Points: map[string]int32{"strike": 1}}, "NOT_ENOUGH_SKILL_POINTS")
+
+		_, again := s.welcome(t, "mira", id)
+		if sk := again.GetCharacter().GetSheet().GetSkills(); sk.GetInvested()["strike"] != 10 || sk.GetInvested()["second_wind"] != 2 || sk.GetUnspent() != 0 {
+			t.Fatalf("welcomed back with skills %+v; want the points kept", sk)
+		}
 	})
 }

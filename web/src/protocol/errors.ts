@@ -76,6 +76,10 @@ const texts: Record<ErrorCode, string> = {
   [ERR.QUEST_NOT_READY]: 'That quest isn’t finished yet.',
   [ERR.HP_FULL]: 'Your HP is already full.',
   [ERR.MP_FULL]: 'Your MP is already full.',
+  [ERR.NOT_ENOUGH_SKILL_POINTS]: 'You don’t have that many skill points.',
+  [ERR.SKILL_POINTS_CHANGED]: 'Your skill points changed. Try again.',
+  [ERR.SKILL_NOT_LEARNABLE]: 'Your class can’t learn that skill.',
+  [ERR.BAD_SKILL_POINTS]: 'Spend at least one skill point.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

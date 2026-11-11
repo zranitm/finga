@@ -77,7 +77,12 @@ export function wireSocket(socket: GameSocket): () => void {
       announceReady();
     }),
     socket.on('statsChanged', (m) => {
+      const before = character.getState().character?.sheet?.skills?.invested;
       character.getState().applyStatsChanged(m.d);
+      const after = m.d.sheet?.skills?.invested;
+      if (before && after) {
+        combatLog.getState().applySkillPoints(before, after);
+      }
     }),
     socket.on('expGained', (m) => {
       character.getState().applyExpGained(m.d);

@@ -127,7 +127,12 @@ func (s *Service) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Qu
 	return s.store.Quests(ctx, id)
 }
 
-// SaveCheckpoint persists position, HP, MP, the whole progression and every quest, in one transaction.
+// Skills is a loaded character's skills with points; the world reads them at join, while it is the only writer.
+func (s *Service) Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error) {
+	return s.store.Skills(ctx, id)
+}
+
+// SaveCheckpoint persists position, HP, MP, the whole progression, every quest and every skill, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	seen := make(map[string]bool, len(cp.Quests))
 	for _, q := range cp.Quests {
@@ -135,6 +140,16 @@ func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
 			return model.ErrBadQuest
 		}
 		seen[q.ID] = true
+	}
+	learned := make(map[string]bool, len(cp.Skills))
+	for _, sk := range cp.Skills {
+		if sk.ID == "" || sk.Points < 1 || learned[sk.ID] {
+			return model.ErrBadSkill
+		}
+		learned[sk.ID] = true
+	}
+	if cp.UnspentSkillPoints < 0 {
+		return model.ErrBadSkill
 	}
 	return s.store.InTx(ctx, func(uow UnitOfWork) error {
 		return uow.Characters().SaveCheckpoint(ctx, cp)

@@ -384,6 +384,30 @@
     "message": "your MP is already full"
   },
   {
+    "code": 330015,
+    "name": "NOT_ENOUGH_SKILL_POINTS",
+    "status": 409,
+    "message": "you don't have that many skill points"
+  },
+  {
+    "code": 330016,
+    "name": "SKILL_POINTS_CHANGED",
+    "status": 409,
+    "message": "your skill points changed; try again"
+  },
+  {
+    "code": 330017,
+    "name": "SKILL_NOT_LEARNABLE",
+    "status": 409,
+    "message": "your class can't learn that skill"
+  },
+  {
+    "code": 330018,
+    "name": "BAD_SKILL_POINTS",
+    "status": 400,
+    "message": "invest at least one skill point, and none below zero"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,

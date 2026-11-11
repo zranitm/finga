@@ -42,7 +42,8 @@ type Class struct {
 	// The root alone has these: every character starts with them, and a promotion keeps them.
 	BaseStats    Stats // primary stats at level 1
 	StarterItems []Grant
-	AutoAssign   Stats // how Auto-assign spends a level's points; none on the root, whose players spend their own
+	AutoAssign   Stats    // how Auto-assign spends a level's points; none on the root, whose players spend their own
+	Skills       []string // the skills it teaches, in skills.yaml
 }
 
 // Fits reports whether a weapon for class item fits a character of c: one of c's class or a class above it, or one for no class.

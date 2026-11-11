@@ -20,7 +20,7 @@ func samples() []wsconn.Message {
 		item4 = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b04"
 		ring  = "0192f6a4-6f2b-7c3e-8a1b-2c3d4e5f6b05"
 	)
-	// A level 2 warrior who spent 3 STR and 2 VIT, wearing a sword and a cap: the totals, the equipment's share of each, the points, and the attack's cooldown.
+	// A level 2 warrior who spent 3 STR and 2 VIT, wearing a sword and a cap, with 3 points in Second Wind: the totals, the equipment's and the skills' share of each, the points, the skill points, and the attack's cooldown.
 	sheet := func() *clientv1.StatSheet {
 		return &clientv1.StatSheet{
 			Primary: &clientv1.Stats{Str: 16, Dex: 5, Int: 4, Agi: 5, Vit: 12}, PrimaryWorn: &clientv1.Stats{Str: 1},
@@ -31,6 +31,9 @@ func samples() []wsconn.Message {
 			DerivedWorn:         &clientv1.DerivedStats{PhysicalAttack: 12.5, PhysicalDefense: 3, CritRate: 0.01, Penetration: 0.02, MaxHp: 30},
 			Points:              &clientv1.Points{Unspent: 0, Spent: &clientv1.Stats{Str: 3, Vit: 2}, FreeResetLeft: true},
 			AttackCooldownTicks: 12,
+			PrimarySkills:       &clientv1.Stats{},
+			DerivedSkills:       &clientv1.DerivedStats{HpRegen: 0.8, MpRegen: 0.8},
+			Skills:              &clientv1.SkillPoints{Unspent: 2, Invested: map[string]int32{"second_wind": 3}},
 		}
 	}
 	view := func() *clientv1.CharacterView {
@@ -77,6 +80,7 @@ func samples() []wsconn.Message {
 		{Type: "Unequip", ReqID: "r-9", Data: &clientv1.Unequip{IdempotencyKey: "k-4", EquipSlot: "hat", ToSlot: proto.Int32(7)}},
 		{Type: "SpendPoints", ReqID: "r-10", Data: &clientv1.SpendPoints{ExpectedUnspent: 5, Points: &clientv1.Stats{Str: 3, Vit: 2}}},
 		{Type: "ResetPoints", ReqID: "r-11", Data: &clientv1.ResetPoints{ExpectedUnspent: 0}},
+		{Type: "SpendSkillPoints", ReqID: "r-17", Data: &clientv1.SpendSkillPoints{ExpectedUnspent: 5, Points: map[string]int32{"strike": 3, "second_wind": 2}}},
 		{Type: "Talk", ReqID: "r-12", Data: &clientv1.Talk{NpcId: "town_guide"}},
 		{Type: "AcceptQuest", ReqID: "r-13", Data: &clientv1.AcceptQuest{NpcId: "town_guide", QuestId: "slime_cleanup"}},
 		{Type: "AbandonQuest", ReqID: "r-14", Data: &clientv1.AbandonQuest{QuestId: "slime_cleanup"}},

@@ -13,6 +13,7 @@ import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { npcs } from '@/gamedata/npcs';
 import { quests } from '@/gamedata/quests';
+import { skills } from '@/gamedata/skills';
 import { stats } from '@/gamedata/stats';
 
 const dataDir = path.resolve(process.cwd(), '..', 'server', 'data');
@@ -74,6 +75,40 @@ describe('generated gamedata', () => {
     expect(warrior?.base_stats).toBeNull();
     expect(warrior?.auto_assign).toEqual(raw[1]!.auto_assign);
     expect(warrior?.look).toEqual({ sprite: 'alien_blue', tint: null });
+    expect(classes.map((c) => c.skills)).toEqual(raw.map((c) => c.skills ?? []));
+  });
+
+  it('skills equal skills.yaml, each with the class that teaches it and every stage resolved', () => {
+    const raw = yaml('skills.yaml').skills as Record<string, unknown>[];
+    expect(skills.map((s) => s.id)).toEqual(raw.map((s) => s.id));
+    for (const s of skills) {
+      expect(classes.find((c) => c.id === s.class)?.skills, s.id).toContain(s.id);
+    }
+    const strike = skills.find((s) => s.id === 'strike')!;
+    expect(strike.stages[0]).toMatchObject({
+      at: 0,
+      name: 'Strike',
+      damage: 'physical',
+      shape: { kind: 'melee', width: 64, height: 56 },
+      mp: { base: 4, per_point: 0.2 },
+      cooldown_ms: 2000,
+      power: { base: 1.5, per_point: 0.05 },
+      targets: 1,
+    });
+    // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.
+    expect(strike.stages[1]).toMatchObject({
+      name: 'Heavy Strike',
+      shape: { kind: 'melee', width: 80, height: 56 },
+      mp: { base: 4, per_point: 0.2 },
+      power: { base: 2.2, per_point: 0.05 },
+    });
+    expect(strike.stages[2]).toMatchObject({ shape: { width: 80 }, targets: 3 });
+    const wind = skills.find((s) => s.id === 'second_wind')!;
+    expect(wind.stages[0]).toMatchObject({ damage: null, shape: null, cooldown_ms: 0 });
+    expect(wind.stages[1].bonus).toEqual({
+      hp_regen: { base: 10, per_point: 1 },
+      mp_regen: { base: 10, per_point: 1 },
+    });
   });
 
   it('the stat rules equal stats.yaml', () => {

@@ -227,9 +227,18 @@ func item(it *model.SlotItem) *worldv1.Item {
 func statSheet(s model.Sheet) *worldv1.StatSheet {
 	return &worldv1.StatSheet{
 		Primary: stats(s.Primary), PrimaryWorn: stats(s.PrimaryWorn), Derived: derived(s.Derived), DerivedWorn: derived(s.DerivedWorn),
+		PrimarySkills: stats(s.PrimarySkills), DerivedSkills: derived(s.DerivedSkills), Skills: skillPoints(s.Skills),
 		Points:              &worldv1.Points{Unspent: int32(s.Points.Unspent), Spent: stats(s.Points.Spent), FreeResetLeft: !s.Points.FreeResetUsed}, //nolint:gosec // points are small
 		AttackCooldownTicks: uint32(s.AttackCooldownTicks),                                                                                           //nolint:gosec // a cooldown is a few ticks
 	}
+}
+
+func skillPoints(s model.Skills) *worldv1.SkillPoints {
+	out := &worldv1.SkillPoints{Unspent: int32(s.Unspent), Invested: make(map[string]int32, len(s.Points))} //nolint:gosec // points are small
+	for skill, n := range s.Points {
+		out.Invested[skill] = int32(n) //nolint:gosec // points are small
+	}
+	return out
 }
 
 func derived(d progression.Derived) *worldv1.DerivedStats {

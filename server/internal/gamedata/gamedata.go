@@ -20,6 +20,7 @@ type Parts struct {
 	Movement        sim.Params
 	Loot            Loot
 	Classes         []Class
+	Skills          []Skill
 	StatRules       StatRules
 	LevelCap        int
 	ExpToNext       []int64 // index level-1, for levels 1..cap-1
@@ -39,6 +40,7 @@ type Parts struct {
 type Data struct {
 	p        Parts
 	classIdx map[kernel.Class]int
+	skillIdx map[string]int
 	itemIdx  map[string]int
 	mobIdx   map[string]int
 	mapIdx   map[string]int
@@ -51,6 +53,7 @@ func New(p Parts) *Data {
 	return &Data{
 		p:        p,
 		classIdx: index(p.Classes, func(c Class) kernel.Class { return c.ID }),
+		skillIdx: index(p.Skills, func(s Skill) string { return s.ID }),
 		itemIdx:  index(p.Items, func(it Item) string { return it.ID }),
 		mobIdx:   index(p.Mobs, func(m Mob) string { return m.ID }),
 		mapIdx:   index(p.Maps, func(m *Map) string { return m.ID }),

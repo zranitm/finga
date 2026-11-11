@@ -36,6 +36,7 @@ message ClientMessage {
     AbandonQuest abandon_quest = 23;
     HandInQuest hand_in_quest = 24;
     UseItem use_item = 25;
+    SpendSkillPoints spend_skill_points = 26;
   }
 }
 
@@ -191,6 +192,14 @@ message SpendPoints {
   Stats points = 2;
 }
 
+// SpendSkillPoints invests unspent skill points in skills the character's class can learn; answered once they apply. StatsChanged, whose sheet carries the skill points, comes on the world's stream, before or after the Response.
+message SpendSkillPoints {
+  // The unspent count the client saw; any other is refused with skill_points_changed, so a retried Apply lands once.
+  int32 expected_unspent = 1;
+  // How many points go to each skill, by skill ID.
+  map<string, int32> points = 2;
+}
+
 // ResetPoints returns every spent point to unspent, using the one free reset.
 message ResetPoints {
   // The unspent count the client saw; any other is refused with points_changed.
@@ -256,6 +265,17 @@ message StatSheet {
   DerivedStats derived_worn = 4;
   Points points = 5;
   uint32 attack_cooldown_ticks = 6;
+  // What the passive skills add, as primary_worn and derived_worn are what the equipment adds.
+  Stats primary_skills = 7;
+  DerivedStats derived_skills = 8;
+  SkillPoints skills = 9;
+}
+
+// SkillPoints are the skill points: those not yet invested, and those invested in each skill. A skill's stage comes from its points and the game data.
+message SkillPoints {
+  int32 unspent = 1;
+  // By skill ID; a skill with none isn't listed.
+  map<string, int32> invested = 2;
 }
 
 // Points are the stat points: those not yet spent, those spent in each stat, and whether the free reset is left.
@@ -503,7 +523,7 @@ message Loot {
   int32 quantity = 7;
 }
 
-// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points); unset, the client keeps its last one.
+// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points, skill points); unset, the client keeps its last one.
 message StatsChanged {
   StatSheet sheet = 1;
   int32 hp = 2;

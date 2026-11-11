@@ -567,6 +567,46 @@ body {
 .stat-worn {
   color: #7ac74f;
 }
+.stat-skills {
+  color: #6fb3ff;
+}
+
+/* Skill window: a list per class, each skill's head over its text. */
+.skill-window {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 380px;
+  max-height: 60vh;
+  overflow-y: auto;
+  font-size: 14px;
+}
+.skill-class {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.skills {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skill-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.skill-points {
+  margin-left: auto;
+}
+.skill-text {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
 
 /* Item cards: beside the pointer, above every window, never catching the pointer. */
 .item-cards {

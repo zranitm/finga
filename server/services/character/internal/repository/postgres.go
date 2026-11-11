@@ -77,6 +77,19 @@ func (p *Postgres) Quests(ctx context.Context, id kernel.CharacterID) ([]model.Q
 	return out, nil
 }
 
+// Skills is the character's skills with points, by ID.
+func (p *Postgres) Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error) {
+	rows, err := p.q.ListSkills(ctx, uuid.UUID(id))
+	if err != nil {
+		return nil, failures.Classify(err)
+	}
+	out := make([]model.SkillPoints, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, model.SkillPoints{ID: r.SkillID, Points: int(r.Points)})
+	}
+	return out, nil
+}
+
 func toCharacter(r db.Character) model.Character {
 	return model.Character{
 		ID: kernel.CharacterID(r.ID), AccountID: kernel.AccountID(r.AccountID), Name: r.Name, Class: kernel.Class(r.Class),
@@ -84,6 +97,7 @@ func toCharacter(r db.Character) model.Character {
 		Points:        gamedata.Stats{STR: int(r.StrPoints), DEX: int(r.DexPoints), INT: int(r.IntPoints), AGI: int(r.AgiPoints), VIT: int(r.VitPoints)},
 		UnspentPoints: int(r.UnspentPoints), FreeResetUsed: r.FreeResetUsed, HP: int(r.Hp), MP: int(r.Mp),
 		MapID: r.MapID, X: float64(r.PosX), Y: float64(r.PosY), UpdatedAt: r.UpdatedAt.Time(),
+		UnspentSkillPoints: int(r.UnspentSkillPoints),
 	}
 }
 
@@ -133,9 +147,18 @@ func (r repo) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 		Hp: int32(cp.HP), Mp: int32(cp.MP), Level: int32(cp.Level), Exp: cp.Exp, //nolint:gosec // HP and levels fit
 		StrPoints: int32(cp.Points.STR), DexPoints: int32(cp.Points.DEX), IntPoints: int32(cp.Points.INT), //nolint:gosec // points are small
 		AgiPoints: int32(cp.Points.AGI), VitPoints: int32(cp.Points.VIT), UnspentPoints: int32(cp.UnspentPoints), FreeResetUsed: cp.FreeResetUsed, //nolint:gosec // points are small
-		Now: r.now,
+		UnspentSkillPoints: int32(cp.UnspentSkillPoints), //nolint:gosec // points are small
+		Now:                r.now,
 	})
 	if err := dbx.RowsOrNotFound(n, err); err != nil {
+		return err
+	}
+	sk := db.SaveSkillsParams{CharacterID: uuid.UUID(cp.ID), SkillIds: []string{}, Points: []int32{}, Now: r.now}
+	for _, s := range cp.Skills {
+		sk.SkillIds = append(sk.SkillIds, s.ID)
+		sk.Points = append(sk.Points, int32(s.Points)) //nolint:gosec // points are small
+	}
+	if err := r.q.SaveSkills(ctx, sk); err != nil {
 		return err
 	}
 	q := db.SaveQuestsParams{CharacterID: uuid.UUID(cp.ID), QuestIds: []string{}, Now: r.now}

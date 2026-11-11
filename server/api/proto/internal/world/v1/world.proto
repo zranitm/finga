@@ -32,6 +32,8 @@ service WorldService {
   rpc SpendPoints(SpendPointsRequest) returns (SpendPointsResponse);
   // ResetPoints returns every spent point to unspent, using the one free reset; it answers once the new stats apply.
   rpc ResetPoints(ResetPointsRequest) returns (ResetPointsResponse);
+  // SpendSkillPoints invests unspent skill points in skills the character's class can learn; it answers once the new sheet applies, with StatsChanged on Deliver.
+  rpc SpendSkillPoints(SpendSkillPointsRequest) returns (SpendSkillPointsResponse);
   // Talk opens the dialog of an NPC within reach on the character's map; it answers once the NpcDialog is queued on Deliver.
   rpc Talk(TalkRequest) returns (TalkResponse);
   // AcceptQuest takes a quest the NPC within reach gives, once the character meets its conditions; it answers once the quest is in the log, with QuestChanged on Deliver, and saved.
@@ -86,6 +88,12 @@ enum Reason {
   REASON_MP_FULL = 22;
   // A template the game data has no potion of.
   REASON_NOT_USABLE = 23;
+  REASON_SKILL_POINTS_CHANGED = 24;
+  REASON_NOT_ENOUGH_SKILL_POINTS = 25;
+  // A skill the character's class, and every class above it, doesn't teach.
+  REASON_SKILL_NOT_LEARNABLE = 26;
+  // Skill points below one in all, or any negative.
+  REASON_BAD_SKILL_POINTS = 27;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -141,6 +149,17 @@ message StatSheet {
   DerivedStats derived_worn = 4;
   Points points = 5;
   uint32 attack_cooldown_ticks = 6;
+  // What the passive skills add, as primary_worn and derived_worn are what the equipment adds.
+  Stats primary_skills = 7;
+  DerivedStats derived_skills = 8;
+  SkillPoints skills = 9;
+}
+
+// SkillPoints are the skill points: those not yet invested, and those invested in each skill.
+message SkillPoints {
+  int32 unspent = 1;
+  // By skill ID; a skill with none isn't listed.
+  map<string, int32> invested = 2;
 }
 
 // Points are the stat points: those not yet spent, those spent in each stat, and whether the free reset is left.
@@ -365,7 +384,7 @@ message EquipSlot {
   Item item = 2;
 }
 
-// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points); unset, the gateway passes it on unset.
+// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points, skill points); unset, the gateway passes it on unset.
 message StatsChanged {
   StatSheet sheet = 1;
   int32 hp = 2;
@@ -540,6 +559,16 @@ message SpendPointsRequest {
 }
 
 message SpendPointsResponse {}
+
+message SpendSkillPointsRequest {
+  Presence presence = 1;
+  // The unspent count the client saw; any other refuses the spend, so a retried one lands once.
+  int32 expected_unspent = 2;
+  // How many points go to each skill, by skill ID.
+  map<string, int32> points = 3;
+}
+
+message SpendSkillPointsResponse {}
 
 message ResetPointsRequest {
   Presence presence = 1;
