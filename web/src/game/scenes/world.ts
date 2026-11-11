@@ -52,7 +52,7 @@ import { PortalSystem, standsIn } from '../systems/portals';
 import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 
-import { bannerLines, groundStyle, mapTiles } from './world-layout';
+import { bannerLines, groundStyle, mapTiles, portalLabel } from './world-layout';
 
 /** What the game enters the world with, from Welcome. */
 export interface WorldEntry {
@@ -84,6 +84,9 @@ type DropWire = Data<'snapshot'>['drops'][number];
 const BODY_MID_PX = movement.height / 2; // a drop flies into its owner's middle
 const ARROW_RANGE = 420;
 const ARROW_MS = 300;
+
+/** Below the players, mobs, NPCs and drops at 0, so a label shows over a wall but never over someone. */
+const DEPTH = { background: -4, glow: -3, tiles: -2, label: -1 } as const;
 
 export class World extends Phaser.Scene {
   private entry: Omit<WorldData, 'arriving'> = {
@@ -181,7 +184,10 @@ export class World extends Phaser.Scene {
       .setOrigin(0, 0)
       .setScrollFactor(0)
       .setDisplaySize(cam.width, cam.height)
-      .setDepth(-2);
+      .setDepth(DEPTH.background);
+    if (style.backgroundTint !== null) {
+      this.background.setTint(style.backgroundTint);
+    }
     const onResize = (size: Phaser.Structs.Size) => {
       this.background?.setDisplaySize(size.width, size.height);
     };
@@ -189,7 +195,14 @@ export class World extends Phaser.Scene {
     this.offs.push(() => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
 
     for (const t of mapTiles(view)) {
-      this.add.tileSprite(t.x, t.y, t.w, t.h, t.texture).setOrigin(0, 0).setTileScale(ART_SCALE);
+      const tile = this.add
+        .tileSprite(t.x, t.y, t.w, t.h, t.texture)
+        .setOrigin(0, 0)
+        .setTileScale(ART_SCALE)
+        .setDepth(DEPTH.tiles);
+      if (t.tint !== null) {
+        tile.setTint(t.tint);
+      }
     }
 
     // Hidden until the server says where the player is.
@@ -228,8 +241,20 @@ export class World extends Phaser.Scene {
           0x7ac7ff,
           0.18,
         )
-        .setDepth(-1);
+        .setDepth(DEPTH.glow);
       this.tweens.add({ targets: glow, alpha: 0.5, duration: 900, yoyo: true, repeat: -1 });
+      const label = this.add
+        .text(0, p.area.y - 6, portalLabel(p.target_map), {
+          fontSize: '12px',
+          color: '#cfe8ff',
+          fontFamily: 'sans-serif',
+          stroke: '#0a0c16',
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH.label);
+      const half = label.width / 2;
+      label.setX(Math.min(Math.max(p.area.x + p.area.w / 2, half + 4), view.width - half - 4));
     }
     for (const npc of npcsOn(view.id)) {
       this.npcViews.set(npc.id, new NpcView(this, npc));
@@ -735,6 +760,8 @@ export class World extends Phaser.Scene {
           fontSize: i === 0 ? '22px' : '15px',
           color: '#f4f4f8',
           fontFamily: 'sans-serif',
+          stroke: '#0a0c16', // reads on a pale sky as on a dark cave
+          strokeThickness: i === 0 ? 4 : 3,
         })
         .setOrigin(0.5, 0)
         .setScrollFactor(0)

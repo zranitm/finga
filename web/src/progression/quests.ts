@@ -38,6 +38,7 @@ export interface Npc {
   readonly y: number;
   readonly gives: readonly string[];
   readonly takes: readonly string[];
+  readonly lines: readonly string[]; // what it says when talked to
 }
 
 const allQuests: readonly Quest[] = quests;

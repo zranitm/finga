@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RequestError } from '@/net/socket';
+import { npcById } from '@/progression/quests';
 import { ERR } from '@/protocol/errors';
 import {
   InventoryChangedSchema,
@@ -173,6 +174,18 @@ describe('NpcWindow', () => {
     quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'town_guide' }));
     render(<NpcWindow socket={fakeSocket().socket} onClose={vi.fn()} />);
     expect(screen.getByText('Nothing for you right now.')).toBeInTheDocument();
+  });
+
+  it('an NPC with lines says them in place of having nothing for you', () => {
+    welcome(15, []);
+    quests.getState().applyNpcDialog(create(NpcDialogSchema, { npcId: 'crossroads_guide' }));
+    render(<NpcWindow socket={fakeSocket().socket} onClose={vi.fn()} />);
+    const lines = npcById('crossroads_guide')!.lines;
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      expect(screen.getByText(line)).toBeInTheDocument();
+    }
+    expect(screen.queryByText('Nothing for you right now.')).toBeNull();
   });
 
   it.each([

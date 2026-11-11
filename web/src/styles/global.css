@@ -816,6 +816,10 @@ body {
   margin: 4px 0 0;
   font-size: 14px;
 }
+.npc-line {
+  margin: 0;
+  line-height: 1.4;
+}
 .npc-quests {
   list-style: none;
   margin: 0;

@@ -559,6 +559,7 @@ func TestRejections(t *testing.T) {
 		{"a spawn whose mob is outside the map's levels", "maps/field.tmj", `{"name":"min_level","type":"int","value":1}`, `{"name":"min_level","type":"int","value":2}`, []string{"field.tmj", "slimes", "green_slime", "level 1", "2 to 5"}},
 		{"a mob without a look", "mobs.yaml", "    look: {sprite: slime}\n", "", []string{"mobs.yaml", "green_slime", "look"}},
 		{"a mob tinted past RGB", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, tint: 0x1000000}`, []string{"mobs.yaml", "green_slime", "tint"}},
+		{"a mob scaled to nothing", "mobs.yaml", `look: {sprite: slime}`, `look: {sprite: slime, scale: 0}`, []string{"mobs.yaml", "green_slime", "scale"}},
 		{"the EXP curve must rise strictly", "exp_curve.yaml", `{level: 3, exp: 129}`, `{level: 3, exp: 65}`, []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must cover every level below the cap", "exp_curve.yaml", "  - {level: 3, exp: 129}\n", "", []string{"exp_curve.yaml", "level 3"}},
 		{"the EXP curve must not go past the cap", "exp_curve.yaml", `level_cap: 4`, `level_cap: 3`, []string{"exp_curve.yaml", "level 3"}},
@@ -621,6 +622,8 @@ func TestRejections(t *testing.T) {
 		{"an NPC placed nowhere", "npcs.yaml", "npcs:\n", "npcs:\n  - {id: ghost, name: Ghost, look: ghost}\n", []string{"npcs.yaml", "ghost", "no map"}},
 		{"duplicate NPC IDs", "npcs.yaml", `id: hunter`, `id: guide`, []string{"npcs.yaml", "guide", "duplicate"}},
 		{"an NPC without a look", "npcs.yaml", "    look: hunter\n", "", []string{"npcs.yaml", "hunter", "look"}},
+		{"an NPC with an empty line", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [\"\"]\n", []string{"npcs.yaml", "hunter", "line"}},
+		{"an NPC saying a line twice", "npcs.yaml", "    look: hunter\n", "    look: hunter\n    lines: [Hi., Hi.]\n", []string{"npcs.yaml", "hunter", "twice"}},
 		{"a trainer of a class that doesn't exist", "npcs.yaml", `trainer: thief`, `trainer: paladin`, []string{"npcs.yaml", "hunter", "paladin"}},
 		{"a talk reach of zero", "npcs.yaml", `talk_reach: 60`, `talk_reach: 0`, []string{"npcs.yaml", "talk_reach"}},
 		{"a quest its giver doesn't list under gives", "npcs.yaml", `gives: [first_hunt, gel_for_me]`, `gives: [first_hunt]`, []string{"quests.yaml", "gel_for_me", "guide", "gives"}},
@@ -907,6 +910,22 @@ func TestRealDataLoads(t *testing.T) {
 				return r.Y == n.At.Y && n.At.X >= r.X && n.At.X <= r.X+r.W
 			}) {
 				t.Errorf("%s floats at %+v on %s", n.ID, n.At, m.ID)
+			}
+		}
+	})
+	// A mob spawns on its area's bottom edge and patrols the floor under it; with no floor there it would float.
+	t.Run("every spawn area stands on one floor or platform, clear of solids", func(t *testing.T) {
+		for _, m := range d.Maps() {
+			for _, s := range m.Spawns {
+				a := s.Area
+				if !slices.ContainsFunc(slices.Concat(m.Geometry.Solids, m.Geometry.Platforms), func(r sim.Rect) bool {
+					return r.Y == a.Y+a.H && a.X >= r.X && a.X+a.W <= r.X+r.W
+				}) {
+					t.Errorf("%s: spawn of %s at %+v has no one floor under all of it", m.ID, s.Mob, a)
+				}
+				if slices.ContainsFunc(m.Geometry.Solids, a.Overlaps) {
+					t.Errorf("%s: spawn of %s at %+v overlaps a solid its mobs would walk through", m.ID, s.Mob, a)
+				}
 			}
 		}
 	})

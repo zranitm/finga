@@ -60,7 +60,7 @@ items:
      description: "A plain silver band that never tarnishes.", stats: {str: [1, 2], dex: [1, 2], agi: [0, 1]}}
   - {id: moonstone_ring, name: Moonstone Ring, tab: equip, slot: ring, min_level: 15, stars: 6,
      description: "A pale stone that glows only in the dark.", stats: {agi: [2, 4], crit_rate: [20, 40], crit_damage: [100, 200]}}
-  # levels 20 to 29: until a map has mobs that high, rare finds in the cave
+  # levels 20 to 29, from the desert and the snow
   - {id: knight_sword, name: Knight's Sword, tab: equip, slot: weapon, class: warrior, min_level: 22, requires: {str: 60}, stars: 4,
      description: "A broad blade with a crest worn smooth.", stats: {physical_attack: [40, 48], str: [1, 3], crit_damage: [50, 100]}}
   - {id: composite_bow, name: Composite Bow, tab: equip, slot: weapon, class: bowman, min_level: 22, requires: {dex: 45}, stars: 4,
@@ -81,11 +81,62 @@ items:
      description: "Small suns that sharpen every glance.", stats: {accuracy: [4, 8], crit_rate: [10, 25], penetration: [30, 60]}}
   - {id: gold_ring, name: Gold Ring, tab: equip, slot: ring, min_level: 28, stars: 4,
      description: "Heavy gold, worn only by those who earned it.", stats: {str: [2, 4], dex: [2, 4], agi: [1, 2]}}
+  # level 30, at the cap: from the snow rarely, and from the keep
+  - {id: runeblade, name: Runeblade, tab: equip, slot: weapon, class: warrior, min_level: 30, requires: {str: 80}, stars: 5,
+     description: "Runes along the fuller glow as it bites.", stats: {physical_attack: [56, 66], str: [2, 4], crit_damage: [100, 150]}}
+  - {id: windpiercer, name: Windpiercer, tab: equip, slot: weapon, class: bowman, min_level: 30, requires: {dex: 60}, stars: 5,
+     description: "Its arrows ride the wind instead of fighting it.", stats: {physical_attack: [52, 62], dex: [2, 4], crit_rate: [20, 30]}}
+  - {id: mythril_helm, name: Mythril Helm, tab: equip, slot: hat, min_level: 30, requires: {str: 60}, stars: 5,
+     description: "Light as cloth and harder than steel.", stats: {physical_defense: [17, 21], magic_defense: [7, 11], max_hp: [40, 70]}}
+  - {id: mythril_plate, name: Mythril Plate, tab: equip, slot: top, min_level: 30, requires: {str: 65, vit: 45}, stars: 5,
+     description: "Silver-blue plates that never dent.", stats: {physical_defense: [25, 30], magic_defense: [9, 14], vit: [1, 3]}}
+  - {id: mythril_greaves, name: Mythril Greaves, tab: equip, slot: bottom, min_level: 30, requires: {str: 65}, stars: 5,
+     description: "They turn a blade aside without a sound.", stats: {physical_defense: [15, 19]}}
+  - {id: ranger_gloves, name: Ranger's Gloves, tab: equip, slot: gloves, min_level: 30, requires: {dex: 55}, stars: 5,
+     description: "Waxed fingertips for a thousand draws a day.", stats: {physical_defense: [8, 11], dex: [2, 3], attack_speed: [20, 40]}}
+  - {id: wind_boots, name: Wind Boots, tab: equip, slot: shoes, min_level: 30, requires: {agi: 30}, stars: 5,
+     description: "Each step lands a little farther than it should.", stats: {physical_defense: [8, 11], evasion: [4, 7], move_speed: [30, 50]}}
+  - {id: starlight_pendant, name: Starlight Pendant, tab: equip, slot: necklace, min_level: 30, stars: 5,
+     description: "A sliver of night sky that mends its wearer.", stats: {max_hp: [90, 130], max_mp: [20, 30], hp_regen: [15, 25], mp_regen: [10, 15]}}
+  - {id: starlight_earrings, name: Starlight Earrings, tab: equip, slot: earrings, min_level: 30, stars: 5,
+     description: "They show the gap in any guard.", stats: {accuracy: [6, 10], crit_rate: [20, 35], penetration: [50, 80]}}
+  - {id: starlight_ring, name: Starlight Ring, tab: equip, slot: ring, min_level: 30, stars: 5,
+     description: "Cold to the touch, and steady in any fight.", stats: {str: [3, 5], dex: [3, 5], agi: [2, 3]}}
+  # rare finds in the keep
+  - {id: dragonfang, name: Dragonfang, tab: equip, slot: weapon, class: warrior, min_level: 30, requires: {str: 85}, stars: 7,
+     description: "Ground from a single fang, and still hungry.", stats: {physical_attack: [72, 84], str: [4, 6], crit_damage: [150, 250]}}
+  - {id: starfall_bow, name: Starfall Bow, tab: equip, slot: weapon, class: bowman, min_level: 30, requires: {dex: 62}, stars: 7,
+     description: "Strung with a thread of falling light.", stats: {physical_attack: [68, 80], dex: [4, 6], crit_rate: [30, 50]}}
+  - {id: eclipse_ring, name: Eclipse Ring, tab: equip, slot: ring, min_level: 30, stars: 6,
+     description: "A black band with a burning rim.", stats: {str: [3, 6], dex: [3, 6], agi: [3, 5], crit_rate: [20, 40], crit_damage: [150, 250]}}
   # use
   - {id: red_potion, name: Red Potion, tab: use, heal_hp: 50, stars: 1, description: "A sweet red tonic."}
   - {id: blue_potion, name: Blue Potion, tab: use, heal_mp: 30, stars: 1, description: "A cool blue tonic that clears the head."}
+  - {id: orange_potion, name: Orange Potion, tab: use, heal_hp: 150, stars: 2, description: "Thick and bitter, and worth it."}
+  - {id: white_potion, name: White Potion, tab: use, heal_hp: 300, stars: 3, description: "Clear as snowmelt, and it closes wounds as fast."}
+  - {id: mana_elixir, name: Mana Elixir, tab: use, heal_mp: 100, stars: 2, description: "A violet draught that hums in the bottle."}
   # etc
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 1, description: "Sticky, cold, and faintly glowing."}
   - {id: mushroom_cap, name: Mushroom Cap, tab: etc, stars: 1, description: "The springy cap of a wandering mushroom."}
   - {id: boar_tusk, name: Boar Tusk, tab: etc, stars: 1, description: "A curved tusk, still sharp."}
   - {id: bat_wing, name: Bat Wing, tab: etc, stars: 1, description: "A thin leathery wing."}
+  - {id: spore_jelly, name: Spore Jelly, tab: etc, stars: 1, description: "A wobbling lump that puffs spores when squeezed."}
+  - {id: moss_shell, name: Moss Shell, tab: etc, stars: 1, description: "A snail shell under a thick green coat."}
+  - {id: moth_dust, name: Moth Dust, tab: etc, stars: 1, description: "Pale powder that makes the nose itch."}
+  - {id: spotted_tail, name: Spotted Tail, tab: etc, stars: 1, description: "A tail as red and spotted as a toadstool."}
+  - {id: glow_gel, name: Glow Gel, tab: etc, stars: 1, description: "It lights a dark pocket for a whole night."}
+  - {id: elder_shell, name: Elder Shell, tab: etc, stars: 1, description: "Rings on rings, older than the trees around it."}
+  - {id: sand_whisker, name: Sand Whisker, tab: etc, stars: 1, description: "Stiff, gritty, and longer than your hand."}
+  - {id: scarab_shell, name: Scarab Shell, tab: etc, stars: 1, description: "Blue-green and bright as a polished coin."}
+  - {id: vulture_feather, name: Vulture Feather, tab: etc, stars: 1, description: "Long, dusty, and smells of the cliffs."}
+  - {id: sun_gel, name: Sun Gel, tab: etc, stars: 1, description: "Warm to hold, even in the shade."}
+  - {id: tomb_fang, name: Tomb Fang, tab: etc, stars: 1, description: "A yellowed fang from under the old stones."}
+  - {id: wisp_essence, name: Wisp Essence, tab: etc, stars: 1, description: "A cold light that will not stay in a jar."}
+  - {id: frost_gel, name: Frost Gel, tab: etc, stars: 1, description: "It never quite melts."}
+  - {id: snow_pelt, name: Snow Pelt, tab: etc, stars: 1, description: "Thick white fur that sheds the wind."}
+  - {id: ice_scale, name: Ice Scale, tab: etc, stars: 1, description: "A thin scale that rings like glass."}
+  - {id: glacier_shell, name: Glacier Shell, tab: etc, stars: 1, description: "A shell of blue ice that frosts the fingers."}
+  - {id: ice_crystal, name: Ice Crystal, tab: etc, stars: 1, description: "Six sharp points, each one perfect."}
+  - {id: rime_fang, name: Rime Fang, tab: etc, stars: 1, description: "Rimed with frost that grows back when scraped."}
+  - {id: shade_wing, name: Shade Wing, tab: etc, stars: 1, description: "A wing that is darker than its shadow."}
+  - {id: gloom_core, name: Gloom Core, tab: etc, stars: 1, description: "A heavy black heart that drinks the light."}

@@ -74,6 +74,7 @@ type npcYAML struct {
 	Trainer string   `yaml:"trainer"`
 	Gives   []string `yaml:"gives"`
 	Takes   []string `yaml:"takes"`
+	Lines   []string `yaml:"lines"` // what the client shows it saying; the server checks each is there once, as the client keys them by text
 }
 
 type questsYAML struct {
@@ -122,6 +123,12 @@ func (d *Data) loadNPCs(dir string) error {
 		}
 		if _, dup := d.npcIdx[n.ID]; dup {
 			return fmt.Errorf("%s: duplicate npc %q", npcsFile, n.ID)
+		}
+		if slices.Contains(n.Lines, "") {
+			return fmt.Errorf("%s: npc %q: a line is empty", npcsFile, n.ID)
+		}
+		if len(slices.Compact(slices.Sorted(slices.Values(n.Lines)))) != len(n.Lines) {
+			return fmt.Errorf("%s: npc %q: a line is said twice", npcsFile, n.ID)
 		}
 		npc := NPC{ID: n.ID, Name: n.Name, Look: n.Look, Gives: n.Gives, Takes: n.Takes}
 		// A trainer may teach a class the data doesn't offer yet; it gives its trial until promotions arrive.
