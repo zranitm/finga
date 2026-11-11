@@ -73,6 +73,7 @@ func (i *Instance) settleUse(m usedMsg) {
 	}
 	switch {
 	case m.err != nil:
+		// A call that fails after the item service took the potion (a timeout, a lost reply) heals nothing, and its retry replays without healing, so the potion is lost; a world-side record of applied keys would be lost on a rejoin, and a key replayed after a map change would heal twice.
 		m.done <- m.err
 	case !ok:
 		m.done <- fmt.Errorf("%w: the character left the map before the potion applied", transient.ErrUnavailable)

@@ -218,6 +218,38 @@ func TestAReplayedUseRestoresNothingAgain(t *testing.T) {
 	})
 }
 
+// A potion the item service took but whose answer was lost heals nothing, and neither does its retry: the potion is lost, by choice.
+func TestAPotionTakenButUnansweredIsLost(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		potions := &fakePotions{err: context.DeadlineExceeded}
+		inst, stop := worldtest.Run(t, data, nil, worldtest.Options{Potions: potions, ItemCalls: runningPool(t)})
+		defer stop()
+		p := worldtest.NewPlayer("Ayla", 100, 608)
+		p.HP, p.Connection = 10, "c1"
+		s := join(t, inst, p)
+		done := useAsync(inst, p.ID, "red_potion")
+		tick(2)
+		if err := <-done; !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("err = %v, want the lost answer", err)
+		}
+		potions.mu.Lock()
+		potions.answer, potions.replayed, potions.err = redPotionsLeft(4), true, nil
+		potions.mu.Unlock()
+		done = useAsync(inst, p.ID, "red_potion") // the retry, under the same key
+		tick(2)
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+		if c := potions.uses; len(c) != 2 || c[0].Key != c[1].Key {
+			t.Fatalf("calls %+v, want two under one key", c)
+		}
+		if v, _ := s.Own(p.ID); v.HP != 10 || len(eventsOf[model.StatsChanged](s)) != 0 {
+			t.Fatalf("HP %d after the retry, want 10", v.HP)
+		}
+	})
+}
+
 // A player who dies while the item service takes the potion keeps nothing: the potion is spent, and the dead are not healed.
 func TestAPotionSpentAsThePlayerDiesRestoresNothing(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
