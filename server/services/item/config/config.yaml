@@ -26,3 +26,9 @@ idempotency_keys:         # a retry within keep replays the first answer; after 
   prune_every: 10m        # how often older keys are deleted
   prune_batch: 1000       # keys per DELETE, so none holds its locks long
   prune_gap: 100ms        # the pause between batches, so other writers get the table in between
+outbox:                   # the events a change writes, for Stage 2's relay to publish
+  published_keep: 24h     # a published row is deleted this long after published_at
+  unpublished_keep: 168h  # Stage 1 only: no relay publishes, so a row this old is deleted unsent. Set 0 (off) when Stage 2's relay arrives, or its pending events are lost
+  prune_every: 10m        # how often older rows are deleted
+  prune_batch: 1000       # rows per DELETE, so none holds its locks long
+  prune_gap: 100ms        # the pause between batches, so other writers get the table in between

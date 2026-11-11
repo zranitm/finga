@@ -58,6 +58,23 @@ func Build(ctx context.Context, cfg config.Config, log *slog.Logger, reg *promet
 	h.Task("idempotency key retention", func(ctx context.Context) error {
 		return retention.Run(ctx, "idempotency_keys", keys, pruneKeys, retentionMetrics, log)
 	})
+	outboxRows := func(keep time.Duration) retention.Policy {
+		return retention.Policy{Keep: keep, Every: cfg.Outbox.PruneEvery, Batch: cfg.Outbox.PruneBatch, Gap: cfg.Outbox.PruneGap}
+	}
+	h.Task("outbox published retention", func(ctx context.Context) error {
+		prune := func(ctx context.Context, before time.Time, limit int) (int64, error) {
+			return outboxpg.PrunePublished(ctx, pool, before, limit)
+		}
+		return retention.Run(ctx, "outbox", outboxRows(cfg.Outbox.PublishedKeep), prune, retentionMetrics, log.With("rows", "published"))
+	})
+	if cfg.Outbox.UnpublishedKeep > 0 { // Stage 1 only: with Stage 2's relay it would delete events not yet sent
+		h.Task("outbox unpublished retention", func(ctx context.Context) error {
+			prune := func(ctx context.Context, before time.Time, limit int) (int64, error) {
+				return outboxpg.PruneUnpublished(ctx, pool, before, limit)
+			}
+			return retention.Run(ctx, "outbox", outboxRows(cfg.Outbox.UnpublishedKeep), prune, retentionMetrics, log.With("rows", "unpublished"))
+		})
+	}
 	itemv1.RegisterItemServiceServer(h.GRPC, handler.New(items))
 	return h, nil
 }

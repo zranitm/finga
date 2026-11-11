@@ -133,7 +133,7 @@ console, `source`, `sampling`), and each internal service `grpc.listen` and
 | `gateway`   | `http.addr`, `http.cors_origins`; `ws.hello_timeout` (5s), `ws.command_queue` (64); `sessions.join_timeout` (5s), `sessions.check_interval` (1m); `dependencies` on the five services |
 | `account`   | `database.url`, `database.max_conns`; `password` (`time`, `memory_kib`, `threads`), the Argon2id cost |
 | `character` | `database`, `data_dir`, `dependencies.item`                                       |
-| `item`      | `database`, `data_dir`                                                            |
+| `item`      | `database`, `data_dir`; `idempotency_keys` (`keep` 24h, `prune_*`); `outbox` (`published_keep` 24h, `unpublished_keep` 168h, `prune_*`) |
 | `world`     | `data_dir`, `tick_rate_hz` (20), `checkpoint_interval` (30s), `item_calls.workers` (8), `item_calls.batch_max` (32, at most the item service's 32), `dependencies` on character, item and social |
 | `social`    | none                                                                              |
 | `migrate`   | `database`, `log` only                                                            |
@@ -219,7 +219,12 @@ generated code committed in `server/api/gen/`:
   service after the character commits.
 - **`item`** holds the items: append-only history, where every change is an
   item event and three invariant checks, run by the tests
-  (`services/item/itemtest`), tie quantities to events.
+  (`services/item/itemtest`), tie quantities to events. Grants, loots,
+  discards, uses and hand-ins also write an event to the outbox, for Stage
+  2's relay to publish. A published row is deleted a day after
+  `published_at`. In Stage 1 nothing publishes, so `outbox.unpublished_keep`
+  deletes unsent rows after 7 days. When the relay arrives, set it to 0
+  (off), or the deletion loses events the relay hasn't sent.
 - **`world`** runs one actor per map at 20 Hz: inputs applied in sequence
   order, movement in fixed sub-steps shared with the client as test
   vectors, mobs, combat, EXP, drops, portals, and a delta to every player

@@ -17,4 +17,6 @@ CREATE TABLE outbox (
   updated_at   timestamptz NOT NULL
 );
 CREATE INDEX outbox_unpublished ON outbox (id) WHERE published_at IS NULL;
+CREATE INDEX outbox_published_by_age ON outbox (published_at) WHERE published_at IS NOT NULL;
+CREATE INDEX outbox_unpublished_by_age ON outbox (created_at) WHERE published_at IS NULL;
 `

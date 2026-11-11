@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,7 @@ func cfgFor(t *testing.T) config.Config {
 		DataDir:         "../../../data",
 		Database:        dbx.Config{URL: cluster.URL(t), MaxConns: 2},
 		IdempotencyKeys: config.IdempotencyKeys{Keep: 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
+		Outbox:          config.Outbox{PublishedKeep: 24 * time.Hour, UnpublishedKeep: 7 * 24 * time.Hour, PruneEvery: time.Hour, PruneBatch: 100},
 	}
 }
 
@@ -80,6 +82,55 @@ func TestTheServiceDeletesExpiredIdempotencyKeys(t *testing.T) {
 	}
 	if err := p.Stop(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Published rows go a day after publishing; unsent ones go after the Stage 1 TTL, and stay when it is off, as Stage 2's relay needs.
+func TestTheServiceDeletesOldOutboxRows(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		ttl     time.Duration
+		deleted string
+		left    []string
+	}{
+		{"with the unpublished TTL", 7 * 24 * time.Hour, "2", []string{"published-new", "unpublished-new"}},
+		{"with it off", 0, "1", []string{"published-new", "unpublished-new", "unpublished-old"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			cfg := cfgFor(t)
+			cfg.Outbox.UnpublishedKeep = tt.ttl
+			pool, err := pgxpool.New(ctx, cfg.Database.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer pool.Close()
+			if _, err := pool.Exec(ctx, `INSERT INTO outbox (event_id, topic, key, type, content_type, payload, occurred_at, published_at, created_at, updated_at)
+				SELECT gen_random_uuid(), 'item', key, 'T', 'application/json', '{}', now() - created, now() - published, now() - created, now() - created
+				FROM (VALUES ('published-old', interval '30 days', interval '25 hours'), ('published-new', interval '30 days', interval '23 hours'),
+					('unpublished-old', interval '8 days', NULL), ('unpublished-new', interval '6 days', NULL)) AS r(key, created, published)`); err != nil {
+				t.Fatal(err)
+			}
+			log := runnertest.NewLog()
+			h, err := app.Build(ctx, cfg, log.Logger(), prometheus.NewRegistry())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(h.Close)
+			p := runnertest.Start(t, log, h.Run, "grpc", "ops")
+			runnertest.GetUntil(t, "http://"+p.Addr("ops")+"/metrics", `finga_retention_deleted_total{store="outbox"} `+tt.deleted+"\n")
+			rows, err := pool.Query(ctx, `SELECT key FROM outbox ORDER BY key`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			left, err := pgx.CollectRows(rows, pgx.RowTo[string])
+			if err != nil || !slices.Equal(left, tt.left) {
+				t.Fatalf("rows left %v (%v), want %v", left, err, tt.left)
+			}
+			if err := p.Stop(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
