@@ -211,8 +211,22 @@ function QuestText({
         </>
       );
     }
-    case 'finished':
-      return <>Quest finished: {name}!</>;
+    case 'finished': {
+      // EXP has its own line; the items a quest gives would otherwise go unsaid.
+      const items = questById(quest)?.rewards.items ?? [];
+      return (
+        <>
+          Quest finished: {name}!
+          {items.map((i, k) => (
+            <span key={i.item}>
+              {k === 0 ? ' You got ' : ', '}
+              <Item template={i.item} quantity={i.quantity} />
+            </span>
+          ))}
+          {items.length > 0 && '.'}
+        </>
+      );
+    }
     case 'abandoned':
       return <>Quest abandoned: {name}.</>;
   }

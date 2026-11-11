@@ -43,6 +43,10 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
   };
 
   const takes = dialog.takes.flatMap((t) => questById(t.questId) ?? []);
+  // A quest under way that this NPC also takes back shows once, under Hand in.
+  const gives = dialog.gives.filter(
+    (o) => o.state !== QuestOfferState.ACTIVE || !takes.some((q) => q.id === o.questId),
+  );
   return (
     <WorldWindow
       name="npc"
@@ -52,7 +56,7 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
       initialY={120}
     >
       <div className="npc-dialog">
-        {dialog.gives.length === 0 && takes.length === 0 && (
+        {gives.length === 0 && takes.length === 0 && (
           <p className="muted">Nothing for you right now.</p>
         )}
         {takes.length > 0 && (
@@ -79,11 +83,11 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
             </ul>
           </>
         )}
-        {dialog.gives.length > 0 && (
+        {gives.length > 0 && (
           <>
             <h3>Quests</h3>
             <ul className="npc-quests" aria-label="Quests offered">
-              {dialog.gives.map((o) => (
+              {gives.map((o) => (
                 <Offer
                   key={o.questId}
                   offer={o}

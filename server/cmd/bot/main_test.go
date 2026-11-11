@@ -115,7 +115,7 @@ func TestTheBotHandsInWhatIsReadyAndTakesWhatIsOpen(t *testing.T) {
 			}
 		})
 	}
-	if got := townNPCs(data, "town"); len(got) != 3 || got[0].ID != "magician_trainer" || got[1].ID != "town_guide" || got[2].ID != "warrior_trainer" {
+	if got := townNPCs(data, "town"); len(got) != 3 || got[0].ID != "warrior_trainer" || got[1].ID != "magician_trainer" || got[2].ID != "town_guide" {
 		t.Fatalf("a town visit talks to %v; want right to left from the portal", got)
 	}
 }

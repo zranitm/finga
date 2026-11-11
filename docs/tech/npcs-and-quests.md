@@ -161,9 +161,10 @@ From the code, the rules this design keeps:
   - It lists what `NpcDialog` offers, with unmet conditions greyed and explained.
   - Accept, Hand in, and Promote send their requests, and close the dialog on success.
   - Hand in is enabled once the quest is ready by the live log and inventory, items to bring included, so it doesn't wait for another Talk.
+  - A quest under way that the NPC also takes back shows once, under Hand in.
   - Walking out of reach closes it.
 - **The quest log** (`features/quests`, Q): active quests with each objective's progress. Collect objectives are counted from the inventory store. Each quest has an Abandon button.
-- **The combat channel** gains lines for a quest taken, kill and talk progress, a quest ready to hand in (when its last kill, item, or level comes), a quest finished, and a quest abandoned.
+- **The combat channel** gains lines for a quest taken, kill and talk progress, a quest ready to hand in (when its last kill, item, or level comes), a quest finished with the items it gave, and a quest abandoned.
 
 ## 11. When things fail
 

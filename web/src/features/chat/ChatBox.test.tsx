@@ -290,7 +290,7 @@ describe('ChatBox', () => {
           combatLog
             .getState()
             .applyQuestChanged(questChanged(QuestChange.HANDED_IN, 'slime_cleanup')),
-        text: 'Quest finished: Slime Cleanup!',
+        text: 'Quest finished: Slime Cleanup! You got Red Potion ★ ×10.',
       },
       {
         name: 'a quest abandoned',

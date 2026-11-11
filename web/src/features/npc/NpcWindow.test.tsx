@@ -145,7 +145,9 @@ describe('NpcWindow', () => {
       { t: 'handInQuest', d: { npcId: 'town_guide', questId: 'sticky_samples' } },
     ]);
     expect(onClose).toHaveBeenCalledOnce();
-    expect(screen.getByText('In progress')).toBeInTheDocument();
+    // Under way and taken back here, it shows once, under Hand in.
+    expect(screen.queryByText('In progress')).toBeNull();
+    expect(screen.getAllByText('Sticky Samples')).toHaveLength(1);
   });
 
   it('an NPC with nothing to give or take says so', () => {

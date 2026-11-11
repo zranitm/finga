@@ -64,7 +64,7 @@
       {"id": 15, "name": "start", "type": "", "rotation": 0, "visible": true, "x": 96, "y": 576, "width": 32, "height": 32}
     ]},
     {"id": 7, "name": "npcs", "type": "objectgroup", "visible": true, "opacity": 1, "x": 0, "y": 0, "draworder": "topdown", "objects": [
-      {"id": 20, "name": "bowman_trainer", "type": "", "rotation": 0, "visible": true, "x": 150, "y": 608, "width": 0, "height": 0, "point": true}
+      {"id": 20, "name": "bowman_trainer", "type": "", "rotation": 0, "visible": true, "x": 880, "y": 608, "width": 0, "height": 0, "point": true}
     ]}
   ]
 }
