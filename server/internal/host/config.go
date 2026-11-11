@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"finga/pkg/logger"
-	"finga/pkg/tracing"
+	"finga/pkg/observability/logger"
+	"finga/pkg/observability/tracing"
 )
 
 // EnvPrefix starts every environment override: database.url is FINGA_DATABASE_URL.

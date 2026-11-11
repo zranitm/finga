@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"finga/pkg/configload"
-	"finga/pkg/tracing"
+	"finga/pkg/observability/tracing"
 )
 
 func TestOnlyTheEntryPointsStartASampledTrace(t *testing.T) {

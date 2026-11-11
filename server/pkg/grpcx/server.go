@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 	"finga/pkg/panics"
 )
 

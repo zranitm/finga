@@ -1,4 +1,4 @@
-package observability_test
+package metrics_test
 
 import (
 	"bytes"
@@ -10,18 +10,18 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"finga/pkg/observability"
+	"finga/pkg/observability/metrics"
 )
 
-func TestMetricsHandler(t *testing.T) {
-	reg := observability.NewRegistry()
+func TestHandler(t *testing.T) {
+	reg := metrics.NewRegistry()
 	c := prometheus.NewCounter(prometheus.CounterOpts{Name: "finga_test_total", Help: "test"})
 	if err := reg.Register(c); err != nil {
 		t.Fatal(err)
 	}
 	c.Add(3)
 
-	srv := httptest.NewServer(observability.MetricsHandler(reg))
+	srv := httptest.NewServer(metrics.Handler(reg))
 	defer srv.Close()
 	res, err := http.Get(srv.URL)
 	if err != nil {
@@ -55,7 +55,7 @@ func TestMetricsHandler(t *testing.T) {
 // Every flow is a series from the start, so an alert on its rate sees the first panic.
 func TestPanicCounterCountsByFlow(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	c, err := observability.NewPanicCounter(reg)
+	c, err := metrics.NewPanicCounter(reg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ finga_panics_total{flow="ws"} 2
 	if err := testutil.GatherAndCompare(reg, strings.NewReader(want), "finga_panics_total"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := observability.NewPanicCounter(reg); err == nil {
+	if _, err := metrics.NewPanicCounter(reg); err == nil {
 		t.Fatal("a second counter registered finga_panics_total again")
 	}
 }

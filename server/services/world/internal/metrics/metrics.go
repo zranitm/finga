@@ -6,7 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"finga/pkg/observability"
+	"finga/pkg/observability/metrics"
 )
 
 // Tick buckets cover the 50 ms budget at 20 Hz with headroom for overruns.
@@ -28,25 +28,25 @@ type Metrics struct {
 func New(reg prometheus.Registerer, dropReasons []string) (*Metrics, error) {
 	m := &Metrics{
 		tickDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: observability.Namespace, Name: "tick_duration_seconds", Help: "Processing time of one map instance tick.", Buckets: tickBuckets,
+			Namespace: metrics.Namespace, Name: "tick_duration_seconds", Help: "Processing time of one map instance tick.", Buckets: tickBuckets,
 		}, []string{"map"}),
 		tickOverruns: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: observability.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
+			Namespace: metrics.Namespace, Name: "tick_overruns_total", Help: "Ticks that took longer than the tick interval.",
 		}, []string{"map"}),
 		itemCalls: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: observability.Namespace, Name: "item_calls_inflight", Help: "Calls to the item service waiting for a worker or running.",
+			Namespace: metrics.Namespace, Name: "item_calls_inflight", Help: "Calls to the item service waiting for a worker or running.",
 		}),
 		batchSize: prometheus.NewHistogram(prometheus.HistogramOpts{
-			Namespace: observability.Namespace, Name: "item_calls_batch_size", Help: "Drops carried by each grant call to the item service.", Buckets: batchBuckets,
+			Namespace: metrics.Namespace, Name: "item_calls_batch_size", Help: "Drops carried by each grant call to the item service.", Buckets: batchBuckets,
 		}),
 		savesDropped: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Namespace: observability.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why. One at shutdown is counted after /metrics has closed: alert on its ERROR log line instead, \"persistence failed\" with dropped=shutdown.",
+			Namespace: metrics.Namespace, Name: "saves_dropped_total", Help: "Checkpoints the world gave up on, so progress lost, by why. One at shutdown is counted after /metrics has closed: alert on its ERROR log line instead, \"persistence failed\" with dropped=shutdown.",
 		}, []string{"reason"}),
 	}
 	for _, reason := range dropReasons {
 		m.savesDropped.WithLabelValues(reason)
 	}
-	return m, observability.Register(reg, m.tickDuration, m.tickOverruns, m.itemCalls, m.batchSize, m.savesDropped)
+	return m, metrics.Register(reg, m.tickDuration, m.tickOverruns, m.itemCalls, m.batchSize, m.savesDropped)
 }
 
 // SaveDropped counts a checkpoint given up on.

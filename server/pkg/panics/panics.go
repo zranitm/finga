@@ -39,7 +39,7 @@ func Capture(err *error) {
 	}
 }
 
-// Counter counts recovered panics by flow; observability.PanicCounter is the Prometheus one.
+// Counter counts recovered panics by flow; metrics.PanicCounter in pkg/observability/metrics is the Prometheus one.
 type Counter interface{ Inc(flow string) }
 
 // Recorder logs and counts recovered panics; a process has one, shared by every flow.

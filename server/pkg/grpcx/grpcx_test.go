@@ -24,7 +24,7 @@ import (
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
 	"finga/pkg/hub"
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 	"finga/pkg/panics"
 	"finga/pkg/transient"
 )

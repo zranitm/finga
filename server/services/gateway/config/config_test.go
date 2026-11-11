@@ -9,7 +9,7 @@ import (
 
 	"finga/internal/host"
 	"finga/pkg/configload"
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 	"finga/services/gateway/config"
 )
 

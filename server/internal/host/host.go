@@ -20,10 +20,10 @@ import (
 	"finga/pkg/dbx"
 	"finga/pkg/dbx/dbxprom"
 	"finga/pkg/grpcx"
-	"finga/pkg/observability"
+	"finga/pkg/observability/metrics"
+	"finga/pkg/observability/tracing"
 	"finga/pkg/panics"
 	"finga/pkg/runner"
-	"finga/pkg/tracing"
 )
 
 // traceFlushTimeout bounds the export of the spans left at Close, inside the margin Compose leaves after shutdown_grace.
@@ -71,7 +71,7 @@ type Host struct {
 
 // New builds the process; add its handlers, listeners and tasks, then Run.
 func New(opts Options) (*Host, error) {
-	panicCount, err := observability.NewPanicCounter(opts.Registry)
+	panicCount, err := metrics.NewPanicCounter(opts.Registry)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (h *Host) Run(ctx context.Context) error {
 			h.health.SetServingStatus(service, healthpb.HealthCheckResponse_SERVING)
 		}
 	}
-	ops := runner.Probes(func() bool { return h.run.Ready() }, observability.MetricsHandler(h.opts.Registry))
+	ops := runner.Probes(func() bool { return h.run.Ready() }, metrics.Handler(h.opts.Registry))
 	listeners := append(slices.Clone(h.listeners), runner.Listener{Name: opsListener, Addr: h.opts.Settings.Ops, Server: runner.HTTP(ops)})
 	h.run = runner.New(runner.Options{Logger: h.logger, ShutdownGrace: h.opts.Settings.ShutdownGrace, Panics: h.Panics, Drain: h.drain}, listeners, h.tasks)
 	return h.run.Run(ctx)

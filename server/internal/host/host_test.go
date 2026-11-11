@@ -17,9 +17,9 @@ import (
 
 	"finga/internal/host"
 	"finga/pkg/grpcx"
-	"finga/pkg/observability"
+	"finga/pkg/observability/metrics"
+	"finga/pkg/observability/tracing"
 	"finga/pkg/runner/runnertest"
-	"finga/pkg/tracing"
 )
 
 type empty struct {
@@ -51,7 +51,7 @@ func newHost(t *testing.T, opts host.Options) *host.Host {
 // newPublic is a service that serves no gRPC but players over HTTP, as the gateway does.
 func newPublic(t *testing.T, log *runnertest.Log) *host.Host {
 	t.Helper()
-	h := newHost(t, host.Options{Name: "edge", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: 2 * time.Second}, Logger: log.Logger(), Registry: observability.NewRegistry()})
+	h := newHost(t, host.Options{Name: "edge", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: 2 * time.Second}, Logger: log.Logger(), Registry: metrics.NewRegistry()})
 	h.Serve("http", "127.0.0.1:0", http.NotFoundHandler())
 	return h
 }
@@ -64,7 +64,7 @@ func TestAServiceServesGRPCAndItsOpsEndpoints(t *testing.T) {
 		Name:     "shop",
 		Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: time.Second},
 		Logger:   log.Logger(),
-		Registry: observability.NewRegistry(), // with the Go collectors, as every binary builds it
+		Registry: metrics.NewRegistry(), // with the Go collectors, as every binary builds it
 	})
 	h.Task("worker", func(ctx context.Context) error { close(ran); <-ctx.Done(); return nil })
 	testpb.RegisterTestServiceServer(h.GRPC, empty{})
@@ -170,7 +170,7 @@ func TestAnOpenStreamDoesNotHoldTheShutdown(t *testing.T) {
 		Name:     "shop",
 		Settings: host.Settings{GRPC: "127.0.0.1:0", Ops: "127.0.0.1:0", ShutdownGrace: 30 * time.Second},
 		Logger:   log.Logger(),
-		Registry: observability.NewRegistry(),
+		Registry: metrics.NewRegistry(),
 	})
 	testpb.RegisterTestServiceServer(h.GRPC, empty{})
 	p := runnertest.Start(t, log, h.Run, "grpc", "ops")
@@ -267,7 +267,7 @@ func TestADrainStepRunsAfterReadinessTurnsOff(t *testing.T) {
 
 // The host's tracer provider samples the service's entry points, and Close flushes and ends it.
 func TestTheHostTracesItsEntryPointsUntilClose(t *testing.T) {
-	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: runnertest.NewLog().Logger(), Registry: observability.NewRegistry(),
+	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second}, Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry(),
 		Roots: func(name string) bool { return name == "shop.buy" }})
 	tracer := h.Traces.Tracer("test")
 	_, buy := tracer.Start(context.Background(), "shop.buy")
@@ -300,7 +300,7 @@ func TestCloseGivesUpOnASilentCollectorWithinTwoSeconds(t *testing.T) {
 		}
 	}()
 	h := newHost(t, host.Options{Name: "shop", Settings: host.Settings{Ops: "127.0.0.1:0", ShutdownGrace: time.Second, Tracing: tracing.Config{OTLPEndpoint: silent.Addr().String()}},
-		Logger: runnertest.NewLog().Logger(), Registry: observability.NewRegistry(), Roots: func(name string) bool { return name == "shop.buy" }})
+		Logger: runnertest.NewLog().Logger(), Registry: metrics.NewRegistry(), Roots: func(name string) bool { return name == "shop.buy" }})
 	_, buy := h.Traces.Tracer("test").Start(context.Background(), "shop.buy")
 	buy.End()
 	start := time.Now()

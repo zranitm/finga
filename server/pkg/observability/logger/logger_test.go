@@ -11,7 +11,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 )
 
 func jsonAt(level string) logger.Config {

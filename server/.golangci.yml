@@ -53,7 +53,7 @@ linters:
               desc: test support; only tests import it
             - pkg: finga/pkg/runner/runnertest
               desc: test support; only tests import it
-            - pkg: finga/pkg/observability/promtest
+            - pkg: finga/pkg/observability/metrics/promtest
               desc: test support; only tests import it
             - pkg: finga/services/item/itemtest
               desc: test support; only tests import it
@@ -450,10 +450,10 @@ linters:
             - pkg: github.com/gin-gonic/gin
               desc: Gin stays in the gateway's handlers and composition root
         zap-behind-slog:
-          files: ["$all", "!**/pkg/logger/**"]
+          files: ["$all", "!**/pkg/observability/logger/**"]
           deny:
             - pkg: go.uber.org/zap
-              desc: everything logs through log/slog; zap is pkg/logger's backend
+              desc: everything logs through log/slog; zap is pkg/observability/logger's backend
         # A binary's configuration is its keys and checks: the host's sections, the database's and the log's.
         config:
           list-mode: strict
@@ -463,8 +463,8 @@ linters:
             - finga/internal/host
             - finga/pkg/dbx
             - finga/pkg/idempotency
-            - finga/pkg/logger
-            - finga/pkg/tracing
+            - finga/pkg/observability/logger
+            - finga/pkg/observability/tracing
     forbidigo:
       analyze-types: true
       forbid:

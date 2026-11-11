@@ -36,7 +36,7 @@ import (
 	"finga/internal/protocol"
 	"finga/pkg/grpcx"
 	"finga/pkg/grpcx/grpctest"
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 	"finga/pkg/panics"
 	"finga/pkg/wsconn"
 	"finga/services/gateway/internal/application/push"

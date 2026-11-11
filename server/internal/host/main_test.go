@@ -13,7 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"finga/internal/host"
-	"finga/pkg/logger"
+	"finga/pkg/observability/logger"
 )
 
 // shopConfig is a made-up service's configuration: the host's sections and a key of its own.
