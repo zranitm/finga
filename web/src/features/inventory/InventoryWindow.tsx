@@ -26,7 +26,7 @@ export function InventoryWindow({ socket, onClose }: InventoryWindowProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [dragging, setDragging] = useState<ItemView | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState<ItemView | null>(null);
-  const { pending, notice, setNotice, run, retry } = useItemRequests();
+  const { pending, notice, setNotice, run, retry } = useItemRequests('inventory');
   const hover = useItemHover<{ tab: Tab; slot: number }>();
 
   const move = (item: ItemView, toTab: Tab, slot: number) => {

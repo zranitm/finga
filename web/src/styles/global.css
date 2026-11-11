@@ -639,30 +639,37 @@ body {
   pointer-events: auto;
   font-size: 13px;
 }
+/* The backing holds the padding, so the list clips at its own edge and no cut-off line shows above it. */
+.chat-log {
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  border-radius: var(--radius);
+}
 /* Anchored to the bottom, so a wrapped line pushes the oldest line out of view, never the newest. */
 .chat-lines {
   list-style: none;
   margin: 0;
-  padding: 6px 8px;
+  padding: 0;
   max-height: calc(8 * 1.4em);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: color-mix(in srgb, var(--panel) 70%, transparent);
-  border-radius: var(--radius);
 }
 .chat-line {
   flex-shrink: 0;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .chat-idle {
   cursor: pointer;
 }
-.chat-idle .chat-lines {
-  max-height: calc(3 * 1.4em);
+.chat-idle .chat-log {
   background: color-mix(in srgb, var(--panel) 55%, transparent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+.chat-idle .chat-lines {
+  max-height: calc(3 * 1.4em);
 }
 .chat-idle .chat-lines:empty::before {
   content: 'Enter to chat';

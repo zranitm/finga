@@ -8,6 +8,10 @@ export interface UiState {
   readonly windows: readonly WindowName[];
   /** Asks the chat input to take focus. */
   readonly chatOpen: boolean;
+  /** Why the last item request was refused, and the window it came from: the next request anywhere makes it stale. */
+  readonly itemNotice: { readonly from: WindowName; readonly text: string } | null;
+  /** Shows text in from; null clears whatever notice is up. */
+  setItemNotice(from: WindowName, text: string | null): void;
   /** Closes an open window, else opens it on top. */
   toggleWindow(name: WindowName): void;
   openChat(): void;
@@ -27,6 +31,10 @@ const without = (windows: readonly WindowName[], name: WindowName) =>
 export const ui = defineStore<UiState>((set, get) => ({
   windows: [],
   chatOpen: false,
+  itemNotice: null,
+  setItemNotice: (from, text) => {
+    set({ itemNotice: text === null ? null : { from, text } });
+  },
   openChat: () => {
     if (!get().chatOpen) {
       set({ chatOpen: true });
@@ -38,8 +46,11 @@ export const ui = defineStore<UiState>((set, get) => ({
     }
   },
   toggleWindow: (name) => {
-    const { windows } = get();
-    set({ windows: windows.includes(name) ? without(windows, name) : [...windows, name] });
+    if (get().windows.includes(name)) {
+      get().closeWindow(name);
+    } else {
+      set({ windows: [...get().windows, name] });
+    }
   },
   openWindow: (name) => {
     const { windows } = get();
@@ -48,9 +59,13 @@ export const ui = defineStore<UiState>((set, get) => ({
     }
   },
   closeWindow: (name) => {
-    const { windows } = get();
+    const { windows, itemNotice } = get();
     if (windows.includes(name)) {
-      set({ windows: without(windows, name) });
+      // A window opened again starts without the notice it closed with.
+      set({
+        windows: without(windows, name),
+        itemNotice: itemNotice?.from === name ? null : itemNotice,
+      });
     }
   },
   closeTopWindow: () => {
@@ -60,6 +75,6 @@ export const ui = defineStore<UiState>((set, get) => ({
     }
   },
   clear: () => {
-    set({ windows: [], chatOpen: false });
+    set({ windows: [], chatOpen: false, itemNotice: null });
   },
 }));

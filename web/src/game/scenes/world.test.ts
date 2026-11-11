@@ -9,6 +9,7 @@ import { clearToken, setToken } from '@/net/token';
 import { NpcDialogSchema, WelcomeSchema } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
+import { connection } from '@/state/connection';
 import { quests } from '@/state/quests';
 import { ui } from '@/state/ui';
 import { SceneRunner } from '@/testing/fake-phaser';
@@ -225,6 +226,43 @@ describe('World', () => {
     ws.push('delta', { players: [{ ...me, hp: 45, invulnerable: true }] }, { tick: 2 });
     ws.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 2 });
     expect(character.getState().character?.hp).toBe(45);
+  });
+
+  it('a world silent for two seconds holds the player still and takes no keys, until its frames come back', async () => {
+    const { frames, inputs, leave } = await playing('forest');
+    const ws = FakeWebSocket.latest();
+    const sent = (t: string) => ws.frames().filter((f) => f.t === t).length;
+    const key = (code: string, type: 'keydown' | 'keyup') =>
+      window.dispatchEvent(new KeyboardEvent(type, { code, cancelable: true }));
+    ws.push('delta', {}, { tick: 2 });
+    frames(1);
+    frames(40); // exactly two seconds of silence: input still flows
+    expect(connection.getState().worldStalled).toBe(false);
+    frames(1);
+    expect(connection.getState().worldStalled).toBe(true);
+    const held = inputs();
+    key('ArrowRight', 'keydown');
+    key('KeyX', 'keydown');
+    frames(10);
+    expect(inputs()).toBe(held); // nothing walks ahead of the server, so nothing snaps back
+    expect(sent('attack')).toBe(0);
+    ws.push('delta', {}, { tick: 3 });
+    frames(2);
+    expect(connection.getState().worldStalled).toBe(false);
+    expect(inputs()).toBeGreaterThan(held);
+    expect(sent('attack')).toBeGreaterThan(0); // the key still held strikes once the world is back
+    key('ArrowRight', 'keyup');
+    key('KeyX', 'keyup');
+    leave();
+    expect(connection.getState().worldStalled).toBe(false);
+  });
+
+  it('a stall the scene is left in is not shown on the next screen', async () => {
+    const { frames, leave } = await playing('forest');
+    frames(45);
+    expect(connection.getState().worldStalled).toBe(true);
+    leave();
+    expect(connection.getState().worldStalled).toBe(false);
   });
 
   describe('NPCs', () => {

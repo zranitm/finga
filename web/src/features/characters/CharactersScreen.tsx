@@ -35,6 +35,9 @@ export function CharactersScreen({
   const [name, setName] = useState('');
   const [cls, setCls] = useState<string>('warrior');
   const [problem, setProblem] = useState<string | null>(null);
+  // The list failed to load, as while the gateway restarts; Try again loads it once more.
+  const [loadProblem, setLoadProblem] = useState<string | null>(null);
+  const [loads, setLoads] = useState(0);
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false); // a log out is on its way, so the log out and Play buttons wait
 
@@ -47,12 +50,17 @@ export function CharactersScreen({
       })
       .catch((err: unknown) => {
         if (alive)
-          setProblem(err instanceof RestError ? err.message : 'Could not load characters.');
+          setLoadProblem(err instanceof RestError ? err.message : 'Could not load characters.');
       });
     return () => {
       alive = false;
     };
-  }, [rest]);
+  }, [rest, loads]);
+
+  const reload = () => {
+    setLoadProblem(null);
+    setLoads((n) => n + 1);
+  };
 
   const atCap = (characters?.length ?? 0) >= MAX_CHARACTERS;
 
@@ -117,7 +125,17 @@ export function CharactersScreen({
             Log out everywhere
           </Button>
         </header>
-        {characters === null && !problem && <p>Loading…</p>}
+        {characters === null && !loadProblem && <p>Loading…</p>}
+        {loadProblem && (
+          <div className="row">
+            <p className="error" role="alert">
+              {loadProblem}
+            </p>
+            <Button variant="quiet" onClick={reload}>
+              Try again
+            </Button>
+          </div>
+        )}
         <ul className="characters" aria-label="Characters">
           {characters?.map((c) => (
             <li key={c.id}>

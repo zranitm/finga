@@ -225,4 +225,17 @@ describe('CharactersScreen', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onSettings).toHaveBeenCalledTimes(1);
   });
+
+  it('a list that failed to load, as while the gateway restarts, loads again on Try again', async () => {
+    let up = false;
+    const { ff } = setup(() => (up ? list([sampleCharacter]) : { status: 502 }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The server isn’t answering right now. Try again in a moment.',
+    );
+    up = true;
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText('Ayla, level 1 warrior')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(ff.of('GET', '/api/characters')).toHaveLength(2);
+  });
 });

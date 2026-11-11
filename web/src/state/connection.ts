@@ -11,8 +11,11 @@ export interface ConnectionState {
   readonly attempt: number;
   readonly kick: KickReason | null;
   readonly rtt: number | null;
+  /** The socket is open but the world has sent no frame for a while; the scene holds the player still. */
+  readonly worldStalled: boolean;
   setConnection(status: ConnectionStatus, extra?: { attempt?: number; kick?: KickReason }): void;
   setRtt(rtt: number | null): void;
+  setWorldStalled(stalled: boolean): void;
 }
 
 export const connection = defineStore<ConnectionState>((set) => ({
@@ -20,6 +23,7 @@ export const connection = defineStore<ConnectionState>((set) => ({
   attempt: 0,
   kick: null,
   rtt: null,
+  worldStalled: false,
   setConnection: (status, extra = {}) => {
     set({
       status,
@@ -29,5 +33,8 @@ export const connection = defineStore<ConnectionState>((set) => ({
   },
   setRtt: (rtt) => {
     set({ rtt });
+  },
+  setWorldStalled: (worldStalled) => {
+    set({ worldStalled });
   },
 }));

@@ -24,6 +24,13 @@ const SHOWN_LINES = 8;
 
 export type ChatTab = 'general' | 'party' | 'combat';
 
+// The Combat tab has no channel of its own, so what is typed there goes to the map.
+const PLACEHOLDERS: Record<ChatTab, string> = {
+  general: 'Enter to chat; /p for the party',
+  party: 'Enter to chat with the party',
+  combat: 'Enter to chat on the map; /p for the party',
+};
+
 const TABS: readonly { readonly id: ChatTab; readonly label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'party', label: 'Party' },
@@ -59,7 +66,8 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
   }, [open]);
 
   const { channel, text } = parseLine(draft, tab);
-  const over = text.length > MAX_CHAT_CHARS;
+  const length = [...text].length; // characters, as the server counts them, so an emoji is one
+  const over = length > MAX_CHAT_CHARS;
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) {
@@ -140,9 +148,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
         <input
           ref={input}
           aria-label="Chat message"
-          placeholder={
-            tab === 'party' ? 'Enter to chat with the party' : 'Enter to chat; /p for the party'
-          }
+          placeholder={PLACEHOLDERS[tab]}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
@@ -150,7 +156,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
           onBlur={() => ui.getState().closeChat()}
         />
         <span className={`chat-count${over ? ' chat-over' : ''}`} aria-label="Characters">
-          {text.length}/{MAX_CHAT_CHARS}
+          {length}/{MAX_CHAT_CHARS}
         </span>
       </div>
     </div>
@@ -159,10 +165,14 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
 
 // The newest line is last and the list is anchored to its bottom, so a wrapped line pushes the oldest out of view.
 function Lines({ tab, count }: { readonly tab: ChatTab; readonly count: number }) {
-  return tab === 'combat' ? (
-    <CombatLines count={count} />
-  ) : (
-    <ChatLines partyOnly={tab === 'party'} count={count} />
+  return (
+    <div className="chat-log">
+      {tab === 'combat' ? (
+        <CombatLines count={count} />
+      ) : (
+        <ChatLines partyOnly={tab === 'party'} count={count} />
+      )}
+    </div>
   );
 }
 
