@@ -83,7 +83,7 @@ From the code, the rules this design keeps:
   - Active quests are at most 20 per character; finished one-time quests stay as rows with `times_finished = 1`.
 - **Held live by the world.** The world loads it at join with the character (`Load` returns it), and saves it with the character's checkpoint.
   - **Each checkpoint carries the whole quest log,** as it carries the whole progression: the world keeps only each character's newest unsaved checkpoint, so a checkpoint carrying only the rows that changed would lose them when a newer one replaced it, or when its save was given up. The character service writes only the rows that differ, and deletes those not listed: a quest abandoned before it was ever finished.
-  - **A repeatable quest abandoned after a completion** goes back to finished, keeping its count. Quest progress therefore has the same durability as EXP: saved every 30 seconds and at once on accept, abandon, and hand-in. A crash loses at most the kills counted since the last save.
+  - **A repeatable quest abandoned after a completion** goes back to finished, keeping its count. Quest progress therefore has the same durability as EXP: saved every 30 seconds, and queued to save at once on accept, abandon, and hand-in. A crash loses at most the kills counted since the last save.
 
 ## 6. Progress
 
@@ -95,15 +95,15 @@ From the code, the rules this design keeps:
 
 ## 7. Accepting, abandoning, and handing in
 
-- **`AcceptQuest{npc, quest}`:** the NPC must give it and be in reach, and the quest's conditions must be met. It is refused when the quest is already active, a one-time quest is already finished, or 20 are active. On success the quest becomes active with zero progress, and is saved at once.
-- **`AbandonQuest{quest}`:** no NPC is needed. The quest leaves the log, its progress is lost, and the change is saved at once. Abandoning a quest that isn't active does nothing, so a retry is safe; one whose hand-in is in flight is refused until it settles.
+- **`AcceptQuest{npc, quest}`:** the NPC must give it and be in reach, and the quest's conditions must be met. It is refused when the quest is already active, a one-time quest is already finished, or 20 are active. On success the quest becomes active with zero progress, and is queued to save at once.
+- **`AbandonQuest{quest}`:** no NPC is needed. The quest leaves the log, its progress is lost, and the change is queued to save at once. Abandoning a quest that isn't active does nothing, so a retry is safe; one whose hand-in is in flight is refused until it settles.
 - **`HandInQuest{npc, quest}`:**
   1. **On the tick:** the NPC must take this quest and be in reach. Every kill, talk, and level objective must be complete, or the hand-in is refused with `quest_not_ready`.
   2. **Rolls:** equipment rewards are rolled now, with the map's seeded generator, as drops are.
   3. **The item call:** a job goes to the item-call pool: `item.HandIn` with the collect objectives to take and the rewards to give.
      - Its idempotency key is derived from the character, the quest, and `times_finished + 1` (a UUIDv5). A retry, or a hand-in repeated after a crash, gets the same key.
   4. **The result comes back through the inbox:**
-     - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is saved at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`;
+     - on success: the quest is marked finished, `times_finished` goes up, the reward EXP is awarded in memory, and the change is queued to save at once. The player gets `InventoryChanged`, `QuestChanged`, and `ExpGained`;
      - on `not_enough_items` or `inventory_full`: nothing changed anywhere, and the player is told.
 - **Repeatable quests** finish with a new count each time, so each completion has its own key.
 
@@ -169,9 +169,16 @@ From the code, the rules this design keeps:
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
-| A `HandIn` reply is lost; the pool retries | Nothing unusual | Same key: the stored reply comes back, and nothing is taken or given twice |
-| World crashes after the item commit, before the quest is saved | After the rejoin the quest is still active; handing it in again finishes it. One with items to bring waits until they're held again, and none of them are taken | Same key (the count didn't move), so the item service answers its stored reply and gives nothing twice |
+| The item service commits a `HandIn`, but its reply is lost (the 5-second timeout, a broken connection) | "Try again in a moment"; the client still shows the items, and handing it in again finishes it | Same key: the stored reply comes back, and nothing is taken or given twice |
+| World crashes after the item commit, before the quest is saved | After the rejoin the quest is still active; handing it in again finishes it | Same key (the count didn't move), so the item service answers its stored reply and gives nothing twice |
 | The world's stream breaks, or the world restarts | Nothing unusual: the quest log is put right | The rejoin sends `QuestLog`, and the changes after it follow |
+
+**Known issues, kept for now:**
+
+- After either of the two hand-in failures above, a new login brings a fresh inventory without the items already taken. A quest with items to bring then waits until they're held again; handing it in takes none of them.
+- The item service keeps a hand-in's key for 24 hours. A hand-in stuck longer than that takes the items, and gives the item rewards, a second time.
+- A rejoin resends only the quest log: inventory, EXP, and level changes sent while the stream was broken stay lost until the next change or login.
+- A durable hand-in, recorded before the item call and finished by the world on its own, with keys kept longer, and a full resync after a rejoin, would close these.
 | That crash also lost some kills since the last save | The quest may need a few kills again before it can be handed in | Progress is saved like EXP; nothing is duplicated |
 | The player walks away with the dialog open | The action is refused with "move closer" | Every action re-checks reach |
 | Item service down during a hand-in | "Try again in a moment"; nothing changed | The call failed as a whole, or committed and answers the same next time |
@@ -223,7 +230,7 @@ First of the two designs, on its own branch and PR after PR #5. Each step is one
 Agreed on 2026-11-10:
 
 1. **The dialog is computed by the server, and markers by the client,** following the rule that the client computes and the server validates. The client can't open a promotion or a quest the server wouldn't. Markers update on events the client already receives, and the client holds the exact inventory, which the world doesn't.
-2. **Quest progress is saved like EXP** (checkpoints, and at once on accept, abandon, and hand-in), so a crash can cost a few counted kills, never items.
+2. **Quest progress is saved like EXP** (checkpoints, and queued at once on accept, abandon, and hand-in), so a crash can cost a few counted kills.
 3. **A hand-in's key is derived from the character, the quest, and the completion count,** so retries and repeats after a crash are safe without storing anything extra.
 4. **Collect progress is counted by the item service** at hand-in, and shown by the client from its inventory.
 5. **`talk_reach` is 60 px.**
