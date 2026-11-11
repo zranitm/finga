@@ -102,7 +102,7 @@ describe('App', () => {
     expect(game.registry.get(REGISTRY.visit)).toBe(visit);
 
     act(() => ui.getState().openWindow('character'));
-    ws.push('chatMessage', { from: 'Bruno', text: 'hi Ayla' });
+    ws.push('chatMessage', { sender: 'c-bruno', senderName: 'Bruno', text: 'hi Ayla' });
     act(() => combatLog.getState().questReady('slime_cleanup'));
     expect([chat.getState().lines.length, combatLog.getState().lines.length]).toEqual([1, 1]);
     await userEvent.click(screen.getByRole('button', { name: 'Back to characters' }));
