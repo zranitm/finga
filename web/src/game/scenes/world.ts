@@ -760,6 +760,8 @@ export class World extends Phaser.Scene {
           fontSize: i === 0 ? '22px' : '15px',
           color: '#f4f4f8',
           fontFamily: 'sans-serif',
+          stroke: '#0a0c16', // reads on a pale sky as on a dark cave
+          strokeThickness: i === 0 ? 4 : 3,
         })
         .setOrigin(0.5, 0)
         .setScrollFactor(0)
