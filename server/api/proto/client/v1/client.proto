@@ -164,7 +164,7 @@ message Equip {
   string equip_slot = 3;
 }
 
-// UseItem drinks a potion from the Use tab; answered once its HP or MP applies, with StatsChanged and InventoryChanged before the Response.
+// UseItem drinks a potion from the Use tab; answered once its HP or MP applies. InventoryChanged and StatsChanged come on the world's stream, before or after the Response.
 message UseItem {
   string idempotency_key = 1;
   string item_id = 2;
@@ -180,7 +180,7 @@ message Unequip {
   optional int32 to_slot = 3;
 }
 
-// SpendPoints adds unspent points to the stats; answered once they apply, with StatsChanged before the Response.
+// SpendPoints adds unspent points to the stats; answered once they apply. StatsChanged comes on the world's stream, before or after the Response.
 message SpendPoints {
   // The unspent count the client saw; any other is refused with points_changed, so a retried Apply lands once.
   int32 expected_unspent = 1;
