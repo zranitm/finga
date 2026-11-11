@@ -73,7 +73,7 @@ func (h *Handler) inventoryDiscard(c *msgContext, in *clientv1.InventoryDiscard)
 	return changed(h.gw.DiscardItem(c.Ctx, c.Session.session, model.ItemDiscard{IdempotencyKey: in.GetIdempotencyKey(), Item: id, Quantity: int(in.GetQuantity())}))
 }
 
-// equip answers once the world applied it; the changed slots and stats follow on the world's stream.
+// equip answers once the world applied it; the changed slots and stats come on the world's stream, before or after the answer.
 func (h *Handler) equip(c *msgContext, in *clientv1.Equip) (any, error) {
 	id, err := kernel.ParseItemID(in.GetItemId())
 	if err != nil {
@@ -91,7 +91,7 @@ func (h *Handler) unequip(c *msgContext, in *clientv1.Unequip) (any, error) {
 	return nil, h.gw.Unequip(c.Ctx, c.Session.session, out)
 }
 
-// useItem answers once the world applied the potion; the changed slot and stats follow on the world's stream.
+// useItem answers once the world applied the potion; the changed slot and stats come on the world's stream, before or after the answer.
 func (h *Handler) useItem(c *msgContext, in *clientv1.UseItem) (any, error) {
 	id, err := kernel.ParseItemID(in.GetItemId())
 	if err != nil {

@@ -1919,7 +1919,7 @@ func (x *Equip) GetEquipSlot() string {
 	return ""
 }
 
-// UseItem drinks a potion from the Use tab; answered once its HP or MP applies, with StatsChanged and InventoryChanged before the Response.
+// UseItem drinks a potion from the Use tab; answered once its HP or MP applies. InventoryChanged and StatsChanged come on the world's stream, before or after the Response.
 type UseItem struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
@@ -2043,7 +2043,7 @@ func (x *Unequip) GetToSlot() int32 {
 	return 0
 }
 
-// SpendPoints adds unspent points to the stats; answered once they apply, with StatsChanged before the Response.
+// SpendPoints adds unspent points to the stats; answered once they apply. StatsChanged comes on the world's stream, before or after the Response.
 type SpendPoints struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The unspent count the client saw; any other is refused with points_changed, so a retried Apply lands once.

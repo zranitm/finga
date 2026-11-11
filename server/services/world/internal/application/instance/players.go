@@ -73,7 +73,7 @@ func (i *Instance) add(j *joinMsg) {
 	p := &player{
 		Player: j.player,
 		sink:   j.sink,
-		state:  sim.State{X: j.player.X, Y: j.player.Y, Facing: 1, Ground: sim.NoPlatform, DropPlatform: sim.NoPlatform},
+		state:  standing(j.player.X, j.player.Y),
 		joined: true,
 		slot:   i.nextSlot,
 		class:  class,
@@ -160,6 +160,9 @@ func (i *Instance) simulate() (changed []kernel.CharacterID) {
 			moves := i.movement(p)
 			for range i.subSteps {
 				p.state = sim.Step(p.state, p.held, i.m.Geometry, moves)
+			}
+			if fellOut(p.state, i.m) {
+				i.rescue(p)
 			}
 		}
 		p.moved = p.state != before
