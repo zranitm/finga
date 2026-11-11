@@ -47,6 +47,8 @@ export function classArt(cls: string): ClassArt {
 }
 
 const LABEL_ABOVE = 70;
+/** How far above the feet a name tag reaches: its offset plus the line of its 12 px text. */
+export const NAME_TAG_TOP = LABEL_ABOVE + 16;
 const SWING_MS = 150;
 
 export class PlayerView {

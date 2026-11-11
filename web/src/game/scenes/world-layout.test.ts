@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { maps } from '@/gamedata/maps';
 import { parseMap } from '@/sim/map';
 
+import { NAME_TAG_TOP } from '../entities/player';
 import { TEX } from '../keys';
 
 import {
@@ -14,6 +15,7 @@ import {
   mapTiles,
   platformTiles,
   portalLabel,
+  portalLabelY,
   portalTiles,
   ropeTiles,
   solidTiles,
@@ -91,6 +93,20 @@ describe('world layout', () => {
       );
       for (const p of view.portals) {
         expect(portalLabel(p.target_map), `${m.id} ${p.name}`).not.toBe('');
+      }
+    }
+  });
+
+  it("every portal label sits clear above its door and a standing player's name tag", () => {
+    for (const m of maps) {
+      const view = parseMap(
+        m.id,
+        JSON.parse(readFileSync(path.resolve(process.cwd(), `public/maps/${m.id}.tmj`), 'utf8')),
+      );
+      for (const p of view.portals) {
+        const bottom = portalLabelY(p.area);
+        expect(bottom, `${m.id} ${p.name}`).toBeLessThan(p.area.y);
+        expect(bottom, `${m.id} ${p.name}`).toBeLessThan(p.area.y + p.area.h - NAME_TAG_TOP);
       }
     }
   });
