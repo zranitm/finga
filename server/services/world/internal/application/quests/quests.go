@@ -2,10 +2,6 @@
 package quests
 
 import (
-	"strconv"
-
-	"github.com/google/uuid"
-
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/internal/progression"
@@ -95,15 +91,6 @@ func Count(entry model.Quest, k int) int {
 		return entry.Progress[k]
 	}
 	return 0
-}
-
-// handInSpace is the namespace of the hand-in keys.
-var handInSpace = uuid.MustParse("6c0f2b1e-8a4d-4f3b-9e57-1d2c3b4a5f60")
-
-// HandInKey is the item service's key for c's completion-th hand-in of quest: a retry, or the same hand-in after a crash, gets the same one.
-func HandInKey(c kernel.CharacterID, quest string, completion int) string {
-	//nolint:forbidigo // derived from its parts, not minted: a UUIDv7 would differ on every try
-	return uuid.NewSHA1(handInSpace, []byte(c.String()+"/"+quest+"/"+strconv.Itoa(completion))).String()
 }
 
 // Items is what handing q in asks the item service for: its collect objectives to take, and its item rewards to give, equipment rolled by between, which picks a whole number in a range.

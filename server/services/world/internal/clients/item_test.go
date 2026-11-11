@@ -283,7 +283,7 @@ func TestHandInSendsTheQuestsLinesAndReadsWhatChanged(t *testing.T) {
 	f := &items{changed: []*itemv1.Slot{{Tab: "etc", Slot: 0}, {Tab: "etc", Slot: 1, Item: &itemv1.Item{Id: gel.String(), TemplateId: "slime_gel", Quantity: 3}}}, revision: 9}
 	e := clients.NewEquipment(itemClient(t, f))
 	call := model.HandInCall{
-		Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Key: "6f1c2a3b-4d5e-5f60-8a71-92b3c4d5e6f7", Quest: "bounty",
+		Account: kernel.NewAccountID(), Character: kernel.NewCharacterID(), Quest: "bounty", Completion: 2,
 		Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
 		Give: []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: &progression.ItemStats{PhysicalDefense: 3}}, {Template: "red_potion", Quantity: 3}},
 	}
@@ -292,8 +292,8 @@ func TestHandInSendsTheQuestsLinesAndReadsWhatChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := &itemv1.HandInRequest{
-		Actor:          &itemv1.Actor{AccountId: call.Account.String(), CharacterId: call.Character.String()},
-		IdempotencyKey: call.Key, QuestId: "bounty",
+		Actor:   &itemv1.Actor{AccountId: call.Account.String(), CharacterId: call.Character.String()},
+		QuestId: "bounty", Completion: 2,
 		Take: []*itemv1.HandInTake{{TemplateId: "slime_gel", Quantity: 2}},
 		Give: []*itemv1.HandInGive{{TemplateId: "leather_cap", Quantity: 1, Stats: &itemv1.ItemStats{PhysicalDefense: 3}}, {TemplateId: "red_potion", Quantity: 3}},
 	}

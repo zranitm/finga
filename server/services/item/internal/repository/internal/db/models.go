@@ -97,6 +97,17 @@ type Outbox struct {
 	UpdatedAt   dbx.Stamp
 }
 
+type QuestHandIn struct {
+	CharacterID uuid.UUID
+	QuestID     string
+	Completion  int32
+	ID          uuid.UUID
+	RequestHash []byte
+	Result      []byte
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
+}
+
 type StarterGrant struct {
 	CharacterID uuid.UUID
 	CreatedAt   dbx.Stamp

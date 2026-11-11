@@ -160,9 +160,9 @@ func (e Equipment) Unequip(ctx context.Context, c model.UnequipCall) (model.Equi
 	return equipped(res.GetChanged(), res.GetEquipment(), res.GetWorn(), res.GetRevision())
 }
 
-// HandIn takes what a quest asks to collect and gives its item rewards, under the hand-in's key.
+// HandIn takes what a quest asks to collect and gives its item rewards, once per completion.
 func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Inventory, error) {
-	req := &itemv1.HandInRequest{Actor: &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()}, IdempotencyKey: c.Key, QuestId: c.Quest}
+	req := &itemv1.HandInRequest{Actor: &itemv1.Actor{AccountId: c.Account.String(), CharacterId: c.Character.String()}, QuestId: c.Quest, Completion: int32(c.Completion)} //nolint:gosec // completions are small
 	for _, t := range c.Take {
 		req.Take = append(req.Take, &itemv1.HandInTake{TemplateId: t.Item, Quantity: int32(t.Quantity)}) //nolint:gosec // quantities are small
 	}

@@ -89,7 +89,7 @@ func TestCheckSixCatchesWhatCheckFiveCannot(t *testing.T) {
 	t.Run("a quest reward recorded as the player's own", func(t *testing.T) {
 		h := newHarness(t)
 		h.add(t, "c1", "slime_gel", 10)
-		if _, err := h.svc.HandIn(ctx, h.actor, application.HandInInput{Key: uuidv7.NewString(), Quest: "q", Take: []model.Grant{{Item: "slime_gel", Quantity: 4}}, Give: []application.Give{{TemplateID: "red_potion", Quantity: 3}}}); err != nil {
+		if _, err := h.svc.HandIn(ctx, h.actor, application.HandInInput{Quest: "q", Completion: 1, Take: []model.Grant{{Item: "slime_gel", Quantity: 4}}, Give: []application.Give{{TemplateID: "red_potion", Quantity: 3}}}); err != nil {
 			t.Fatal(err)
 		}
 		checkInvariants(t, h.pool, h.data)
@@ -325,7 +325,7 @@ func TestInventoryProperties(t *testing.T) {
 				}
 			case 6:
 				// A hand-in taking and giving a few lines, or one tried before again, which replays even when its rewards roll anew.
-				in := application.HandInInput{Key: uuidv7.NewString(), Quest: "q"}
+				in := application.HandInInput{Quest: "q", Completion: len(handedIn) + 1}
 				if len(handedIn) > 0 && rapid.Bool().Draw(rt, "again") {
 					in = rapid.SampledFrom(handedIn).Draw(rt, "earlier hand-in")
 				} else {

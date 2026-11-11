@@ -160,7 +160,7 @@ func (i *Instance) handIn(p *player, npc gamedata.NPC, m questMsg) error {
 		m.done <- nil
 		return nil
 	}
-	call := model.HandInCall{Account: p.Account, Character: p.ID, Key: quests.HandInKey(p.ID, q.ID, completion), Quest: q.ID, Take: take, Give: give}
+	call := model.HandInCall{Account: p.Account, Character: p.ID, Quest: q.ID, Completion: completion, Take: take, Give: give}
 	submitted := i.deps.ItemCalls.Submit(func(ctx context.Context) {
 		callCtx, cancel := context.WithTimeout(ctx, handInTimeout)
 		result, err := i.deps.HandIns.HandIn(callCtx, call)

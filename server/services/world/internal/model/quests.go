@@ -100,14 +100,14 @@ type QuestChanged struct {
 
 func (QuestChanged) event() {}
 
-// HandInCall takes what a quest asks to collect and gives its item rewards, under a key the world derives from the character, the quest and the completion.
+// HandInCall takes what a quest asks to collect and gives its item rewards, for the completion-th time it is handed in; the item service hands each completion in once.
 type HandInCall struct {
-	Account   kernel.AccountID
-	Character kernel.CharacterID
-	Key       string
-	Quest     string
-	Take      []gamedata.Grant
-	Give      []Reward
+	Account    kernel.AccountID
+	Character  kernel.CharacterID
+	Quest      string
+	Completion int
+	Take       []gamedata.Grant
+	Give       []Reward
 }
 
 // Reward is one item line a hand-in gives; equipment comes one per line, with its roll.

@@ -322,7 +322,7 @@ func TestHandingInAQuest(t *testing.T) {
 			tmpl, _ := q.data.Item("leather_cap")
 			roll := progression.Rolled(tmpl.Rolls, func(r gamedata.Range) int { return min(r.Min+int(0.5*float64(r.Max-r.Min+1)), r.Max) })
 			want := model.HandInCall{
-				Account: q.p.Account, Character: q.p.ID, Key: quests.HandInKey(q.p.ID, "bounty", 1), Quest: "bounty",
+				Account: q.p.Account, Character: q.p.ID, Quest: "bounty", Completion: 1,
 				Take: []gamedata.Grant{{Item: "slime_gel", Quantity: 2}},
 				Give: []model.Reward{{Template: "leather_cap", Quantity: 1, Stats: &roll}, {Template: "red_potion", Quantity: 3}},
 			}
@@ -345,7 +345,7 @@ func TestHandingInAQuest(t *testing.T) {
 			}
 		})
 	})
-	t.Run("a refusal changes nothing, and a hand-in again uses the same key", func(t *testing.T) {
+	t.Run("a refusal changes nothing, and a hand-in again is the same completion", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{err: errors.New("not enough items")}
 			q := newQuestTown(t, 1, ready(0), f)
@@ -361,19 +361,19 @@ func TestHandingInAQuest(t *testing.T) {
 			if err := q.handIn("bounty"); err != nil {
 				t.Fatal(err)
 			}
-			if got := f.called(); len(got) != 2 || got[0].Key != got[1].Key {
-				t.Fatalf("keys %+v; the same completion keeps its key", got)
+			if got := f.called(); len(got) != 2 || got[0].Completion != 1 || got[1].Completion != 1 {
+				t.Fatalf("called %+v; both are the first completion", got)
 			}
 		})
 	})
-	t.Run("a repeatable quest's next completion has its own key", func(t *testing.T) {
+	t.Run("a repeatable quest hands in its next completion", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			f := &fakeHandIns{answer: answer}
 			q := newQuestTown(t, 1, ready(1), f)
 			if err := q.handIn("bounty"); err != nil {
 				t.Fatal(err)
 			}
-			if got := f.called(); len(got) != 1 || got[0].Key != quests.HandInKey(q.p.ID, "bounty", 2) || got[0].Key == quests.HandInKey(q.p.ID, "bounty", 1) {
+			if got := f.called(); len(got) != 1 || got[0].Completion != 2 {
 				t.Fatalf("called %+v", got)
 			}
 			if got := q.saved(t)["bounty"]; got.TimesFinished != 2 {

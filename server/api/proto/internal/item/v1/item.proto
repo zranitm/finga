@@ -22,8 +22,10 @@ service ItemService {
   rpc Equip(EquipRequest) returns (EquipResponse);
   // Unequip puts a worn item back in the Equip tab.
   rpc Unequip(UnequipRequest) returns (UnequipResponse);
-  // HandIn takes the items a quest asks for and gives its rewards, in one transaction: all of it, or nothing when either side fails.
+  // HandIn takes the items a quest asks for and gives its rewards, in one transaction: all of it, or nothing when either side fails. Each completion of a quest is handed in once and kept for good: a repeat gets its stored reply.
   rpc HandIn(HandInRequest) returns (HandInResponse);
+  // HandedIn is which of a character's quest completions were handed in, each with its stored reply, so a world that missed the reply can finish the quest.
+  rpc HandedIn(HandedInRequest) returns (HandedInResponse);
 }
 
 // Reason names a failure a caller can meet; retrying the same request cannot help.
@@ -44,7 +46,7 @@ enum Reason {
   REASON_STACK_FULL = 12;
   // An idempotency key that is not a UUID, with or without the client's k- prefix.
   REASON_BAD_IDEMPOTENCY_KEY = 13;
-  // A cause with no type, or one this service does not know.
+  // A cause with no type, or one this service does not know; a hand-in with no quest or a completion below 1.
   REASON_BAD_CAUSE = 14;
   // Equipment added without a roll or with a stat outside its template's range, or anything else added with a roll.
   REASON_BAD_ROLL = 15;
@@ -302,10 +304,10 @@ message UnequipResponse {
 
 message HandInRequest {
   Actor actor = 1;
-  // A UUID the world derives from the character, the quest and its completion count, so a retry, or the same hand-in after a crash, gets the stored reply.
-  string idempotency_key = 2;
   // The quest handed in, which the history of every item taken or given names.
-  string quest_id = 3;
+  string quest_id = 2;
+  // The completion this hand-in makes, 1 the first time; a repeat of one handed in gets its stored reply, whatever its lines.
+  int32 completion = 3;
   // What the quest's collect objectives ask for, taken from the smallest stacks first.
   repeated HandInTake take = 4;
   // The quest's item rewards, each placed as Add would place it.
@@ -320,7 +322,7 @@ message HandInTake {
 message HandInGive {
   string template_id = 1;
   int32 quantity = 2;
-  // Equipment's roll, one per line; refused on anything else. A repeat after a crash may roll again and still gets the stored reply.
+  // Equipment's roll, one per line; refused on anything else. A repeat may roll again and still gets the stored reply.
   ItemStats stats = 3;
 }
 
@@ -329,4 +331,28 @@ message HandInResponse {
   repeated Slot changed = 1;
   // The inventory's revision after this change, kept by a replay.
   uint64 revision = 2;
+}
+
+message HandedInRequest {
+  string character_id = 1;
+  // The completions asked about; at most 32.
+  repeated QuestCompletion completions = 2;
+}
+
+message QuestCompletion {
+  string quest_id = 1;
+  int32 completion = 2;
+}
+
+message HandedInResponse {
+  // The completions asked about that were handed in; one not handed in is left out.
+  repeated HandedInQuest handed_in = 1;
+}
+
+message HandedInQuest {
+  string quest_id = 1;
+  int32 completion = 2;
+  // The slots the hand-in changed and the revision after it, as HandIn answered.
+  repeated Slot changed = 3;
+  uint64 revision = 4;
 }

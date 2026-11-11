@@ -49,6 +49,7 @@ func (p *Postgres) unitOfWork(tx pgx.Tx) application.UnitOfWork {
 		events:  eventRepo{q: q, now: now},
 		notices: notices{w: outboxpg.NewWriter(tx, now)},
 		idem:    idem{tx: tx, store: idempotencypg.NewStore(tx, now)},
+		handIns: handIns{q: q, now: now},
 	}
 }
 
@@ -78,6 +79,35 @@ func (p *Postgres) Inventory(ctx context.Context, owner kernel.CharacterID) (mod
 	return inv, nil
 }
 
+// HandedIn lists the owner's hand-ins of the completions asked.
+func (p *Postgres) HandedIn(ctx context.Context, owner kernel.CharacterID, asked []application.Completion) ([]application.HandIn, error) {
+	params := db.ListHandInsParams{CharacterID: uuid.UUID(owner)}
+	for _, c := range asked {
+		params.QuestIds = append(params.QuestIds, c.Quest)
+		params.Completions = append(params.Completions, int32(c.Completion)) //nolint:gosec // completions are small
+	}
+	var out []application.HandIn
+	err := dbx.InTx(ctx, p.pool, func(tx pgx.Tx) error {
+		rows, err := db.New(tx).ListHandIns(ctx, params)
+		if err != nil {
+			return err
+		}
+		out = make([]application.HandIn, 0, len(rows))
+		for _, r := range rows {
+			h, err := handInOf(r.QuestID, r.Completion, r.ID, r.RequestHash, r.Result)
+			if err != nil {
+				return err
+			}
+			out = append(out, h)
+		}
+		return nil
+	}, dbx.Observed(p.obs))
+	if err != nil {
+		return nil, failures.Classify(err)
+	}
+	return out, nil
+}
+
 // unitOfWork stamps every row it writes with now, the transaction's time on the app's clock.
 type unitOfWork struct {
 	tx      pgx.Tx
@@ -85,6 +115,7 @@ type unitOfWork struct {
 	events  eventRepo
 	notices notices
 	idem    idem
+	handIns handIns
 }
 
 // Items is the item repository bound to the transaction.
@@ -98,6 +129,9 @@ func (u unitOfWork) Notices() application.Notices { return u.notices }
 
 // Idempotency is the idempotency store bound to the transaction.
 func (u unitOfWork) Idempotency() application.Idempotency { return u.idem }
+
+// HandIns is the hand-in record bound to the transaction.
+func (u unitOfWork) HandIns() application.HandIns { return u.handIns }
 
 // Savepoint runs fn under a savepoint, rolled back to when fn fails; only one is open at a time.
 func (u unitOfWork) Savepoint(ctx context.Context, fn func() error) error {
@@ -255,6 +289,48 @@ func (r eventRepo) Append(ctx context.Context, e model.Event) error {
 		params.QuestID = &e.Cause.Quest
 	}
 	return r.q.InsertItemEvent(ctx, params)
+}
+
+type handIns struct {
+	q   *db.Queries
+	now dbx.Stamp
+}
+
+// Claim takes the owner's inventory lock, then reads the completion's record.
+func (h handIns) Claim(ctx context.Context, owner kernel.CharacterID, c application.Completion) (application.HandIn, bool, error) {
+	if err := h.q.LockOwner(ctx, owner.String()); err != nil {
+		return application.HandIn{}, false, err
+	}
+	completion := int32(c.Completion) //nolint:gosec // completions are small
+	row, err := h.q.FindHandIn(ctx, db.FindHandInParams{CharacterID: uuid.UUID(owner), QuestID: c.Quest, Completion: completion})
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		return application.HandIn{}, false, nil
+	case err != nil:
+		return application.HandIn{}, false, err
+	}
+	stored, err := handInOf(c.Quest, completion, row.ID, row.RequestHash, row.Result)
+	return stored, err == nil, err
+}
+
+// Record keeps a hand-in, its Result stored as a reply.
+func (h handIns) Record(ctx context.Context, owner kernel.CharacterID, in application.HandIn) error {
+	result, err := encodeReply(in.Result)
+	if err != nil {
+		return err
+	}
+	return h.q.InsertHandIn(ctx, db.InsertHandInParams{
+		CharacterID: uuid.UUID(owner), QuestID: in.Quest, Completion: int32(in.Completion), //nolint:gosec // completions are small
+		ID: in.ID, RequestHash: in.Fingerprint, Result: result, Now: h.now,
+	})
+}
+
+func handInOf(quest string, completion int32, id uuid.UUID, fingerprint, result []byte) (application.HandIn, error) {
+	res, err := decodeReply(result)
+	if err != nil {
+		return application.HandIn{}, err
+	}
+	return application.HandIn{Quest: quest, Completion: int(completion), ID: id, Fingerprint: fingerprint, Result: res}, nil
 }
 
 // idem adapts pkg/idempotency, storing the Result as a reply.
