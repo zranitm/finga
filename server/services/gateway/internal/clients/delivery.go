@@ -36,7 +36,12 @@ func worldPush(m *worldv1.DeliverResponse) (model.Push, bool) {
 		return model.InventoryChanged{Revision: ev.GetRevision(), Slots: worldSlots(ev.GetSlots()), Equipment: worldEquipment(ev.GetEquipment())}, true
 	case m.GetStatsChanged() != nil:
 		ev := m.GetStatsChanged()
-		return model.StatsChanged{Sheet: statSheet(ev.GetSheet()), HP: int(ev.GetHp()), MaxHP: int(ev.GetMaxHp()), MP: int(ev.GetMp()), MaxMP: int(ev.GetMaxMp())}, true
+		sc := model.StatsChanged{HP: int(ev.GetHp()), MaxHP: int(ev.GetMaxHp()), MP: int(ev.GetMp()), MaxMP: int(ev.GetMaxMp())}
+		if ev.GetSheet() != nil { // statSheet would read an unset sheet as a zeroed one
+			sheet := statSheet(ev.GetSheet())
+			sc.Sheet = &sheet
+		}
+		return sc, true
 	case m.GetLoot() != nil:
 		ev := m.GetLoot()
 		return model.Loot{

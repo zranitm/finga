@@ -4538,7 +4538,7 @@ func (x *Loot) GetQuantity() int32 {
 	return 0
 }
 
-// StatsChanged is the player's stats after what it wears changed.
+// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points); unset, the client keeps its last one.
 type StatsChanged struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sheet         *StatSheet             `protobuf:"bytes,1,opt,name=sheet,proto3" json:"sheet,omitempty"`

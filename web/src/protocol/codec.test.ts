@@ -67,6 +67,14 @@ describe('golden messages', () => {
     expect(fromBinary(ClientMessageSchema, binaryCodec.encode(msg))).toEqual(msg);
   });
 
+  it('a StatsChanged without a sheet decodes with none, in JSON and binary, so the store keeps the last', () => {
+    const json = '{"tick":9,"stats_changed":{"hp":50,"max_hp":135,"mp":11,"max_mp":33}}';
+    const msg = jsonCodec.decode(json);
+    expect(msg.body.case).toBe('statsChanged');
+    expect(msg.body.case === 'statsChanged' && msg.body.value.sheet).toBeUndefined();
+    expect(binaryCodec.decode(toBinary(ServerMessageSchema, msg).buffer)).toEqual(msg);
+  });
+
   it('a binary frame on the JSON codec decodes as UTF-8 text', () => {
     const pong = goldens.find((g) => g.name === 'Pong');
     if (!pong) throw new Error('no Pong golden');

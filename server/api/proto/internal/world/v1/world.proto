@@ -365,7 +365,7 @@ message EquipSlot {
   Item item = 2;
 }
 
-// StatsChanged is the player's stats after what it wears changed.
+// StatsChanged is the player's HP and MP after gear, points, regen or a potion changed them. The sheet comes only when it changed (gear, points); unset, the gateway passes it on unset.
 message StatsChanged {
   StatSheet sheet = 1;
   int32 hp = 2;

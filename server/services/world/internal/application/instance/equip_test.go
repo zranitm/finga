@@ -142,7 +142,7 @@ func TestEquipChangesStatsOnlyOnceTheResultArrives(t *testing.T) {
 		if len(inv) != 1 || inv[0].Revision != 5 || len(inv[0].Equipment) != 1 || inv[0].Equipment[0].Slot != "weapon" || len(inv[0].Slots) != 1 {
 			t.Fatalf("inventory changes %+v", inv)
 		}
-		if len(stats) != 1 || stats[0].MaxHP != before.MaxHP+30 || stats[0].Sheet.DerivedWorn.PhysicalAttack != 12 || stats[0].Sheet.DerivedWorn.MaxHP != 30 {
+		if len(stats) != 1 || stats[0].Sheet == nil || stats[0].MaxHP != before.MaxHP+30 || stats[0].Sheet.DerivedWorn.PhysicalAttack != 12 || stats[0].Sheet.DerivedWorn.MaxHP != 30 {
 			t.Fatalf("stats changes %+v; want 30 more max HP and the sword's 12 attack as the equipment's share", stats)
 		}
 		if v, _ := s.Own(p.ID); v.MaxHP != before.MaxHP+30 {

@@ -64,7 +64,7 @@ func TestSpendingPoints(t *testing.T) {
 		}
 		want := model.Points{Spent: gamedata.Stats{STR: 4, VIT: 2}, Unspent: 4}
 		changed := eventsOf[model.StatsChanged](s)
-		if len(changed) != 1 || changed[0].Sheet.Points != want || changed[0].Sheet.Primary != (gamedata.Stats{STR: 11, DEX: 7, INT: 7, AGI: 7, VIT: 9}) || changed[0].MaxHP != 208 {
+		if len(changed) != 1 || changed[0].Sheet == nil || changed[0].Sheet.Points != want || changed[0].Sheet.Primary != (gamedata.Stats{STR: 11, DEX: 7, INT: 7, AGI: 7, VIT: 9}) || changed[0].MaxHP != 208 {
 			t.Fatalf("stats changed %+v; want 4 more STR and 2 more VIT, 208 max HP", changed)
 		}
 		if saved := cps.Drain(); len(saved) != 1 || saved[0].Points != want {
@@ -96,7 +96,7 @@ func TestResettingPoints(t *testing.T) {
 		}
 		want := model.Points{Unspent: 10, FreeResetUsed: true}
 		changed := eventsOf[model.StatsChanged](s)
-		if len(changed) != 1 || changed[0].Sheet.Points != want || changed[0].MaxHP != 180 || changed[0].HP != 180 {
+		if len(changed) != 1 || changed[0].Sheet == nil || changed[0].Sheet.Points != want || changed[0].MaxHP != 180 || changed[0].HP != 180 {
 			t.Fatalf("stats changed %+v; want every point unspent and HP down to 180", changed)
 		}
 		if saved := cps.Drain(); len(saved) != 1 || saved[0].Points != want || saved[0].HP != 180 {

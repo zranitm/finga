@@ -103,6 +103,3 @@ func (i *Instance) putOn(p *player, eq model.Equipped) {
 
 // derive is the player's derived stats, from their class, level, points and what they wear.
 func (i *Instance) derive(p *player) progression.Derived { return i.stats(p).Derived }
-
-// sheet is what the player's character window shows.
-func (i *Instance) sheet(p *player) model.Sheet { return i.stats(p).Sheet }

@@ -89,8 +89,8 @@ func TestAPotionRestoresHPOnceTheItemServiceTakesIt(t *testing.T) {
 		if len(inv) != 1 || inv[0].Revision != 7 || inv[0].Slots[0].Item.Quantity != 4 {
 			t.Fatalf("inventory changes %+v", inv)
 		}
-		if len(stats) != 1 || stats[0].HP != 60 {
-			t.Fatalf("stats changes %+v, want HP 10 + 50", stats)
+		if len(stats) != 1 || stats[0].HP != 60 || stats[0].Sheet != nil {
+			t.Fatalf("stats changes %+v, want HP 10 + 50 and no sheet, which a potion leaves as it was", stats)
 		}
 		if v, _ := s.Own(p.ID); v.HP != 60 {
 			t.Fatalf("HP %d everyone sees, want 60", v.HP)
