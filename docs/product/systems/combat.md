@@ -20,7 +20,7 @@
 ## Mobs
 
 - Each mob type has: a level, HP, an attack and the type of damage it deals (physical or magic), physical and magic defense, accuracy, evasion, an EXP reward, a drop list, and a movement pattern.
-- Some mobs deal magic damage (proposal: cave bats), so magic defense matters from the first maps.
+- Some mobs deal magic damage: the cave bat, and one of the two mobs on every map from the woods on. Magic defense matters from the first maps.
 - Mobs appear at set spots up to a maximum per map, wander, and hurt players on contact.
 - Defeated mobs come back after a respawn delay.
 - Number of mob types in the MVP: see World → MVP world.
