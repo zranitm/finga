@@ -107,7 +107,7 @@ describe('generated gamedata', () => {
       targets: 1,
       length_ms: 1500,
       hit: 0,
-      cancel: actions.cancel,
+      cancel: 0.3, // its own, ahead of actions.yaml's
     });
     // A stage changes only what it names: Heavy Strike's base power and shape, the rest carried on.
     expect(strike.stages[1]).toMatchObject({

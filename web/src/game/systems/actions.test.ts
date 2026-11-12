@@ -92,11 +92,11 @@ describe('ActionClock', () => {
     { cancelable: true, goes: 850 },
     { cancelable: false, goes: 1050 },
   ])(
-    'an attack pressed early into a skill cancelable: $cancelable goes at $goes',
+    'an attack pressed any time into a skill cancelable: $cancelable, even at its start, goes at $goes',
     ({ cancelable, goes }) => {
       const { c, again, at } = clock();
       c.begin(skill(cancelable));
-      at(850 - early);
+      at(50);
       expect(c.press('attack', again)).toBe(false);
       at(goes - 1);
       expect(again).not.toHaveBeenCalled();
@@ -120,7 +120,7 @@ describe('ActionClock', () => {
     c.reset();
     at(1200);
     expect(first).not.toHaveBeenCalled();
-    expect(c.idle()).toBe(true);
+    expect(c.canStart('attack')).toBe(true);
   });
 
   it('while a skill press waits, an attack press does nothing; a skill press still takes a waiting attack’s place, and a newer skill a waiting skill’s', () => {
@@ -145,35 +145,44 @@ describe('ActionClock', () => {
     ]);
   });
 
-  it('a held attack key’s repeat runs as the action ends, once for that end, and a reset forgets it', () => {
+  it('a held attack key’s repeat runs as an attack’s end comes, once for that moment, and a reset forgets it', () => {
     const { c, at } = clock();
     const go = vi.fn();
-    c.repeatAtEnd(go); // nothing running: nothing to wait for
+    c.repeatWhenFree(go); // nothing running: nothing to wait for
     c.begin(attack);
     at(100);
-    c.repeatAtEnd(go);
+    c.repeatWhenFree(go);
     at(300);
-    c.repeatAtEnd(go); // the same end: still one
+    c.repeatWhenFree(go); // the same moment: still one
     at(599);
     expect(go).not.toHaveBeenCalled();
     at(600);
     expect(go).toHaveBeenCalledTimes(1);
     c.begin(attack);
-    c.repeatAtEnd(go);
+    c.repeatWhenFree(go);
     c.reset();
     at(1300);
     expect(go).toHaveBeenCalledTimes(1);
   });
 
-  it('a held attack key finds the clock idle only once the action ends', () => {
-    const { c, at } = clock();
-    expect(c.idle()).toBe(true);
-    c.begin(skill(true));
-    at(1049);
-    expect(c.idle()).toBe(false);
-    at(1050);
-    expect(c.idle()).toBe(true);
-  });
+  it.each([
+    { cancelable: true, goes: 850 },
+    { cancelable: false, goes: 1050 },
+  ])(
+    'a held attack key repeats into a skill cancelable: $cancelable at $goes, and may start from then',
+    ({ cancelable, goes }) => {
+      const { c, at } = clock();
+      const go = vi.fn();
+      expect(c.canStart('attack')).toBe(true);
+      c.begin(skill(cancelable));
+      at(50);
+      c.repeatWhenFree(go);
+      at(goes - 1);
+      expect([go.mock.calls.length, c.canStart('attack')]).toEqual([0, false]);
+      at(goes);
+      expect([go.mock.calls.length, c.canStart('attack')]).toEqual([1, true]);
+    },
+  );
 
   it('an undo gives the action back unless another started since', () => {
     const { c, again, at } = clock();
@@ -219,7 +228,7 @@ describe('action timings', () => {
       kind: 'skill',
       ticks: 30,
       hit: 0,
-      cancel: 0.85,
+      cancel: 0.3, // just after its strike, so an attack frees the player from its slow early
       cancelable: true,
     });
     expect(skillTiming(skillById('heal')!.stages[0]!, 50)).toMatchObject({ cancelable: false });

@@ -130,10 +130,11 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
 
 - **`ActionClock`** (`web/src/game/systems/actions.ts`) replaces `AttackGate` and the skill keys' `turnIn` and `takeTurn`. It holds the same action as the world, in local time from the shared tick counts: kind, cancelable, cancel point, and end. The client draws at the press, so it needs no hit.
 - **A press:**
-  - **The other kind, pressed from `early_press` before the cancel point on:** it goes at the cancel point, or at once if the point has passed.
+  - **An attack pressed any time during a cancelable skill:** it goes at the skill's cancel point, or at once if the point has passed, so it frees the player from the skill's slow. The cancelable skills cut off at 0.3, just after their strike.
+  - **A skill pressed from `early_press` before an attack's cancel point on:** it goes at the cancel point, or at once if the point has passed.
   - **Otherwise:** it waits for the end.
   - A waiting press is held on the client and sent when its moment comes, as a skill key waiting for its turn is today. A newer press takes its place, except that an attack press never takes a waiting skill's: while a skill waits, the attack key holds back, so mashing attack doesn't lose skills.
-- **Holding the attack key** repeats attacks at each action's end, timed to the end rather than the next frame. Only a fresh press cancels, so holding attack doesn't cut off every cancelable skill with no timing at all.
+- **Holding the attack key** attacks again as soon as an attack may start, timed to that moment rather than the next frame: at a cancelable skill's cancel point, as a fresh press would, and otherwise at each action's end.
 - **Sending starts the action at once** on the client: the swing pose, a ranged shot's flight, a skill's shape, its cooldown, and its MP check, as today.
   - A refusal of a skill gives back its action, as it gives back the turn today.
   - A timeout or a disconnect keeps it, as it may have landed.
@@ -226,7 +227,7 @@ On its own branch and PR. Each step is one commit, green on `make test`, `make l
 
 Agreed on 2026-11-12:
 
-1. **Holding the attack key repeats at each action's end; only a fresh press cancels.** Holding attack would otherwise cut off every cancelable skill without any timing, which the strict timing is meant to avoid.
+1. **Holding the attack key repeats at each action's end; only a fresh press cancels.** Holding attack would otherwise cut off every cancelable skill without any timing, which the strict timing is meant to avoid. The user changed this on 2026-11-12, with C11's casting slow: an attack, pressed or held, frees the player from a skill at its cancel point.
 2. **The first cancelable list:** the damage skills (Strike, Throw, Spark, Slash Blast, Double Stab, Power Shot, Fire Arrow). Heals and buffs (Heal, Iron Body, Haste, Focus) run to their end.
 3. **First skill lengths:** 1050 ms each, the Beginner's paced attack, then tuned in step 5 with the harness.
 4. **Rename the attack's `cooldown` to `length`** in data, code, and the sheet, since skills now have both.

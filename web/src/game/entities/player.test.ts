@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { actions } from '@/gamedata/actions';
 import { classes } from '@/gamedata/classes';
+import { movement } from '@/gamedata/movement';
 
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import { greyArt } from '../scenes/grey-art';
@@ -137,11 +138,14 @@ describe('PlayerView beats', () => {
   /** A sprite that keeps what was last drawn, and a scene that counts the shapes drawn beside it. */
   const drawn = () => {
     const last = { x: 0, angle: 0, scaleX: 0, scaleY: 0, texture: '', tint: -1, mode: 0 };
+    const anims = { timeScale: 1 };
     const sprite: unknown = new Proxy(
       {},
       {
         get: (_t, key) => {
           switch (key) {
+            case 'anims':
+              return anims;
             case 'setPosition':
               return (x: number) => ((last.x = x), sprite);
             case 'setAngle':
@@ -175,7 +179,7 @@ describe('PlayerView beats', () => {
       },
       tweens: { add: () => any },
     } as unknown as Phaser.Scene;
-    return { last, shapes, view: new PlayerView(scene, 'warrior', 'Ayla') };
+    return { last, anims, shapes, view: new PlayerView(scene, 'warrior', 'Ayla') };
   };
   const swing = { kind: 'attack', ticks: 21, hit: 0, cancel: 0.85, cancelable: true } as const;
   const at = (x: number, facing: 1 | -1 = 1) => ({
@@ -197,8 +201,11 @@ describe('PlayerView beats', () => {
     expect(last.scaleX).toBeGreaterThan(ART_SCALE);
     expect(last.scaleY).toBeLessThan(ART_SCALE);
     expect(view.feet).toEqual({ x: 300, y: 608 });
+    view.act(b); // the other way, from its start
     view.apply(at(300, -1), 1000);
     expect(last).toMatchObject({ x: 292, angle: -15 });
+    view.act(b);
+    view.apply(at(300), 1000);
     view.apply(at(300), b.strikeEnd + 1);
     expect(last.texture).toBe(TEX.alienBlueStand);
     expect(last.angle).toBeGreaterThan(0);
@@ -227,5 +234,41 @@ describe('PlayerView beats', () => {
       expect(last.angle).toBeGreaterThan(0);
     }
     expect(shapes).toHaveLength(0);
+  });
+
+  it('turning mid-pose ends it, so the lunge never jumps to the other side', () => {
+    const { last, view } = drawn();
+    view.act(beatsOf(swing, 1000, 50));
+    view.apply(at(300), 1400);
+    expect(last.x).toBeGreaterThan(300);
+    view.apply(at(300, -1), 1410);
+    expect(last).toMatchObject({ x: 300, angle: -0 });
+    view.apply(at(300), 1420);
+    expect(last).toMatchObject({ x: 300, angle: 0 });
+  });
+
+  it('a skill walks at the casting pace with a slight recovery lean to its end; an attack ends both at once, and so does a refusal', () => {
+    const { last, anims, view } = drawn();
+    const strike = { kind: 'skill', ticks: 30, hit: 0, cancel: 0.3, cancelable: true } as const;
+    const walking = { ...at(300), vx: 80 };
+    const b = beatsOf(strike, 1000, 50);
+    view.act(b);
+    view.apply(walking, 1100);
+    expect(anims.timeScale).toBe(movement.casting_speed);
+    view.apply(walking, 2000); // past the cancel point at 1450, before the end at 2500
+    expect(anims.timeScale).toBe(movement.casting_speed);
+    expect(last.angle).toBeCloseTo(15 * 0.25);
+    view.act(beatsOf(swing, 2000, 50)); // an attack cuts Strike short
+    view.apply(walking, 2000);
+    expect([anims.timeScale, last.angle, last.texture]).toEqual([1, 15, TEX.alienBlueHit]);
+
+    const refused = beatsOf(strike, 3000, 50);
+    view.act(refused);
+    view.forget(b); // an older action's refusal leaves this one alone
+    view.apply(walking, 3100);
+    expect(anims.timeScale).toBe(movement.casting_speed);
+    view.forget(refused);
+    view.apply(walking, 3200);
+    expect([anims.timeScale, last.angle]).toEqual([1, 0]);
   });
 });

@@ -11,6 +11,8 @@ export interface Caster {
   readonly mp: number;
   readonly cooldownSpeed: number;
   readonly dead: boolean;
+  /** The caster, or a party member online on the map, is hurt: otherwise a heal finds no one, and the world would refuse it after the casting began. */
+  readonly anyoneHurt: boolean;
 }
 
 export interface SkillKeysDeps {
@@ -75,6 +77,10 @@ export class SkillKeys {
         this.short.add(id); // once a stretch of shortage, so a mashed key says it once
         d.notice(errorText(ERR.NOT_ENOUGH_MP));
       }
+      return;
+    }
+    if (skill.effect === 'heal' && !caster.anyoneHurt) {
+      d.notice(errorText(ERR.HP_FULL));
       return;
     }
     this.short.delete(id);

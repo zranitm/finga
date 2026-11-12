@@ -140,6 +140,9 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 				p := caster(250)
 				s := join(t, inst, p)
 				length, cancel := skillTicks(t, data, "strike")
+				if length != 30 || cancel != 9 {
+					t.Fatalf("Strike of %d ticks with its cancel point at %d, want 30 and 9: just after its strike", length, cancel)
+				}
 
 				if err := cast(inst, p.ID, "strike"); err != nil {
 					t.Fatal(err)
@@ -322,7 +325,7 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 // A skill with a wind-up spends its MP and starts its cooldown at the start and lands at its hit.
 func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, strikeWith(t, "hit: 0.5"))
+		data := timelineData(t, strikeWith(t, "hit: 0.2"))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
