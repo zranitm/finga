@@ -6,6 +6,9 @@ import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { TextureKey } from '../keys';
 
+import { poseAt } from './beats';
+import type { Beats } from './beats';
+import { CUE_MS, drawCue } from './cue';
 import { NAME_TAG_ABOVE, NAME_TAG_STYLE } from './name-tag';
 import type { TagBox } from './name-tag';
 import { climbMoving, poseFor } from './pose';
@@ -86,17 +89,35 @@ export function classArt(cls: string): ClassArt {
   return { ...(tint === null ? sprites[sprite] : grey(sprites[sprite])), tint };
 }
 
-const SWING_MS = 225;
+const LEAN_DEG = 15;
+const WIND_UP_DEG = 8;
+const LUNGE_PX = 8; // drawn only: the body stays where the sim has it
+const STRETCH = 0.12; // wider at the strike's start, and shorter by two thirds of it
+const FLASH_MS = 120;
+const CUE_FRONT_PX = 14;
+const CHEST_PX = 30;
+// Phaser.TintModes' values: this file takes only Phaser's types, so tests can draw it without Phaser.
+const MULTIPLY = 0;
+const FILL = 1;
 
 export class PlayerView {
   readonly sprite: Phaser.GameObjects.Sprite;
   readonly label: Phaser.GameObjects.Text;
+  /** Where its feet stand, as the sim has them, whatever the pose draws: the camera follows it. */
+  readonly feet = { x: 0, y: 0 };
   private cls: string;
   private art: ClassArt;
-  private swingUntil = Number.NEGATIVE_INFINITY;
+  private beats: Beats | null = null;
+  private flash: { readonly color: number; readonly from: number } | null = null;
+  private cue: { readonly at: number; shown: boolean } | null = null;
+  private fill: number | null = null; // the colour the sprite is filled with now; null shows the class's own tint
   private dead = false;
 
-  constructor(scene: Phaser.Scene, cls: string, name: string) {
+  constructor(
+    private readonly scene: Phaser.Scene,
+    cls: string,
+    name: string,
+  ) {
     this.cls = cls;
     this.art = classArt(cls);
     this.sprite = scene.add
@@ -122,26 +143,54 @@ export class PlayerView {
     this.art = classArt(cls);
     this.sprite.stop();
     this.sprite.setTexture(this.art.stand);
-    if (this.art.tint === null) {
-      this.sprite.clearTint();
-    } else {
-      this.sprite.setTint(this.art.tint);
+    this.fill = null;
+    this.classTint();
+  }
+
+  /** Draws an action's beats from now on, in place of the last one's; a skill flashes the caster in its colour at the strike. */
+  act(b: Beats, flash?: number): void {
+    this.beats = b;
+    this.flash = flash === undefined ? null : { color: flash, from: b.hit };
+    this.cue = null;
+  }
+
+  /** The player's own cue at the moment given: a white flash and a spark burst. A new action, or forget, takes it back. */
+  cueAt(at: number): void {
+    this.cue = { at, shown: false };
+  }
+
+  /** Takes back the cue of the action b began, unless another action has replaced it. */
+  forgetCue(b: Beats): void {
+    if (this.beats === b) {
+      this.cue = null;
     }
   }
 
-  /** `now` lets a recent attack keep its swing pose. */
+  /** `now` on the scene's clock draws the action's beats; without it the sprite takes its plain pose. */
   apply(s: PlayerState, now = Number.NEGATIVE_INFINITY): void {
-    this.sprite.setPosition(s.x, s.y);
-    this.sprite.setFlipX(s.facing < 0);
+    const facing = s.facing < 0 ? -1 : 1;
+    const pose = this.dead || !this.beats ? null : poseAt(this.beats, now);
+    this.feet.x = s.x;
+    this.feet.y = s.y;
+    this.sprite.setPosition(s.x + facing * LUNGE_PX * (pose?.lunge ?? 0), s.y);
+    this.sprite.setFlipX(facing < 0);
+    const stretch = STRETCH * (pose?.stretch ?? 0);
+    this.sprite.setScale(ART_SCALE * (1 + stretch), ART_SCALE * (1 - (stretch * 2) / 3));
     this.label.setPosition(s.x, s.y - NAME_TAG_ABOVE);
+    this.setFill(this.dead ? null : this.fillAt(now));
     if (this.dead) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.hit);
-      this.sprite.setAngle(s.facing < 0 ? 90 : -90);
+      this.sprite.setAngle(facing < 0 ? 90 : -90);
       return;
     }
-    this.sprite.setAngle(0);
-    if (now < this.swingUntil) {
+    const lean = pose ? (pose.lean >= 0 ? LEAN_DEG : WIND_UP_DEG) * pose.lean : 0;
+    this.sprite.setAngle(facing * lean);
+    if (this.cue && !this.cue.shown && now >= this.cue.at && now < this.cue.at + CUE_MS) {
+      this.cue.shown = true;
+      drawCue(this.scene, s.x + facing * CUE_FRONT_PX, s.y - CHEST_PX);
+    }
+    if (pose?.hitFrame) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.hit);
       return;
@@ -175,7 +224,7 @@ export class PlayerView {
     if (!l.visible) {
       return null;
     }
-    return { x: this.sprite.x, bottom: this.sprite.y - NAME_TAG_ABOVE, w: l.width, h: l.height };
+    return { x: this.feet.x, bottom: this.feet.y - NAME_TAG_ABOVE, w: l.width, h: l.height };
   }
 
   liftTag(bottom: number): void {
@@ -185,10 +234,6 @@ export class PlayerView {
   setVisible(on: boolean): void {
     this.sprite.setVisible(on);
     this.label.setVisible(on);
-  }
-
-  attack(now: number): void {
-    this.swingUntil = now + SWING_MS;
   }
 
   setDead(dead: boolean): void {
@@ -202,5 +247,37 @@ export class PlayerView {
   destroy(): void {
     this.sprite.destroy();
     this.label.destroy();
+  }
+
+  /** White for the cue, else the skill's colour at its strike, else none. */
+  private fillAt(now: number): number | null {
+    if (this.cue && now >= this.cue.at && now < this.cue.at + CUE_MS) {
+      return 0xffffff;
+    }
+    if (this.flash && now >= this.flash.from && now < this.flash.from + FLASH_MS) {
+      return this.flash.color;
+    }
+    return null;
+  }
+
+  private setFill(fill: number | null): void {
+    if (fill === this.fill) {
+      return;
+    }
+    this.fill = fill;
+    if (fill === null) {
+      this.classTint();
+    } else {
+      this.sprite.setTint(fill).setTintMode(FILL);
+    }
+  }
+
+  private classTint(): void {
+    this.sprite.setTintMode(MULTIPLY);
+    if (this.art.tint === null) {
+      this.sprite.clearTint();
+    } else {
+      this.sprite.setTint(this.art.tint);
+    }
   }
 }

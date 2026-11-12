@@ -544,6 +544,47 @@ describe('World', () => {
       leave = undefined;
       expect(skillBar.getState().cooldowns.strike).toBeDefined();
     });
+
+    it('an attack draws its beats and cues the cancel; Strike flashes its colour and, as an attack may cut it short, cues too', async () => {
+      const act = vi.spyOn(PlayerView.prototype, 'act');
+      const cue = vi.spyOn(PlayerView.prototype, 'cueAt');
+      const { run } = await fighting();
+      press('KeyX');
+      run(FRAME_MS);
+      const [swing, flash] = act.mock.calls[0]!;
+      expect(flash).toBeUndefined();
+      expect(swing.cancelAt - swing.start).toBe(750); // the warrior's 900 ms, its cancel point at 15 of 18 ticks
+      expect(cue).toHaveBeenLastCalledWith(swing.cancelAt - 100);
+      run(900);
+      press('Digit1');
+      run(FRAME_MS);
+      expect(act).toHaveBeenCalledTimes(2);
+      expect(act.mock.calls[1]?.[1]).toBe(0xf0ead6); // Strike's physical colour
+      expect(cue).toHaveBeenCalledTimes(2);
+    });
+
+    it("another player's skill draws on them: its beats from its arrival, and its flash in its colour", async () => {
+      const world = await playing('forest');
+      leave = world.leave;
+      const act = vi.spyOn(PlayerView.prototype, 'act');
+      const me = snapshotOn('forest').players![0]!;
+      const robin = { ...me, id: 'c-robin', name: 'Robin', x: (me.x ?? 0) + 100 };
+      for (let tick = 2; tick <= 10; tick++) {
+        FakeWebSocket.latest().push('delta', tick === 2 ? { players: [robin] } : {}, { tick });
+        world.frames(1);
+      }
+      FakeWebSocket.latest().push('skillUsed', {
+        caster: 'c-robin',
+        skill: 'spark',
+        stage: 0,
+        facing: -1,
+      });
+      world.frames(1);
+      expect(act).toHaveBeenCalledOnce();
+      const [beats, flash] = act.mock.calls[0]!;
+      expect(flash).toBe(0xb070f0);
+      expect(beats.cancelAt - beats.start).toBe(850); // Spark's 21 ticks, the cancel point at 17
+    });
   });
 
   it("a promotion re-skins the player and paces the attack at the new class's speed", async () => {
