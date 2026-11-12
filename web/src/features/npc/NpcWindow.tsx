@@ -21,7 +21,10 @@ import type {
   QuestConditions,
   QuestOffer,
 } from '@/protocol/messages';
+import { character } from '@/state/character';
 import { quests } from '@/state/quests';
+
+import { haveNow } from './promotion';
 
 export interface NpcWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -147,15 +150,29 @@ function Promotion({
   readonly onPromote: (cls: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
+  const me = character.use((s) => s.character);
+  const log = quests.use((s) => s.log);
+  // The dialog's counts are from the talk; spends, level-ups and quests since update them here, and the world checks again.
+  const conditions = me
+    ? offer.conditions.map((c) => ({
+        ...c,
+        have: haveNow(c, {
+          level: me.level,
+          own: me.stats,
+          invested: me.sheet?.skills?.invested ?? {},
+          log,
+        }),
+      }))
+    : offer.conditions;
   const name = className(offer.class);
   const become = `Become ${article(name)} ${name}`;
-  const met = offer.conditions.every((c) => c.have >= c.need);
+  const met = conditions.every((c) => c.have >= c.need);
   return (
     <section className="npc-promotion" aria-label="Promotion">
       <h3>{become}</h3>
       <p className="npc-line">{classDescription(offer.class)}</p>
       <ul className="quest-objectives" aria-label="Promotion conditions">
-        {offer.conditions.map((c) => (
+        {conditions.map((c) => (
           <li key={`${c.kind}:${c.id}`} className={c.have >= c.need ? 'quest-done' : ''}>
             {conditionText(c)}
             {c.have >= c.need && ' ✓'}
@@ -203,7 +220,7 @@ export function conditionText(c: PromotionCondition): string {
       return `${c.need} points in ${skill}${short ? ` · you have ${c.have}` : ''}`;
     }
     case PromotionConditionKind.QUEST:
-      return `${questName(c.id)} finished`;
+      return `${questName(c.id)} finished${short ? ' · not yet' : ''}`;
     default:
       return "A condition this client doesn't know";
   }

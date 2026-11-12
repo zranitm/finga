@@ -197,7 +197,7 @@ func (e Equipment) HandIn(ctx context.Context, c model.HandInCall) (model.Invent
 // handedInMax is the most completions one HandedIn may ask about: the item service's MaxHandedIn.
 const handedInMax = 32
 
-// Give adds one item under the call's key, as a trainer's gift: a retried call, or one after a crash, gives it once.
+// Give adds one item under the call's key, as a trainer's gift: a retried call, or one after a crash, gives it once while the item service keeps the key.
 func (e Equipment) Give(ctx context.Context, c model.GiftCall) (model.Inventory, error) {
 	key := c.Key.String()
 	res, err := e.c.Add(ctx, &itemv1.AddRequest{

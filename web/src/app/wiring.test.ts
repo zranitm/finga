@@ -20,6 +20,7 @@ import { party } from '@/state/party';
 import { quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
+import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
@@ -272,14 +273,24 @@ describe('wiring', () => {
     expect(combatLog.getState().waiting).toMatchObject([{ key: 'meadow/7' }]);
   });
 
-  it('Promoted changes the class, adds a combat line and says so in a toast', async () => {
+  it("Promoted changes the class, adds a combat line, says so in a toast and closes the trainer's dialog", async () => {
     const { ws } = await connectedSocket();
+    ui.getState().openWindow('npc');
     ws.push('promoted', { character: { ...ayla, class: 'warrior' } });
+    expect(ui.getState().windows).not.toContain('npc');
     expect(character.getState().character?.class).toBe('warrior');
     expect(combatLog.getState().lines).toMatchObject([{ kind: 'promoted', cls: 'warrior' }]);
     expect(toasts.getState().toasts).toMatchObject([
       { text: 'You became a Warrior!', kind: 'info' },
     ]);
+  });
+
+  it("a Welcome starts the skill bar's cooldowns and buffs over, as the world's fresh join does", async () => {
+    const { ws } = await connectedSocket();
+    skillBar.getState().cool('strike', { from: 0, until: 60_000 });
+    skillBar.getState().buff({ skill: 'iron_body', points: 1, until: 30_000 });
+    ws.push('welcome', { ...welcome, token: '' }); // the rejoin after a world restart
+    expect(skillBar.getState()).toMatchObject({ cooldowns: {}, buffs: [] });
   });
 
   it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {

@@ -105,7 +105,7 @@ func (i *Instance) promotionOf(p *player) promotions.Character {
 	return promotions.Character{Class: p.Class, Level: p.Level, Own: i.stats(p).Own, Skills: p.Skills.Points, Log: p.Quests}
 }
 
-// giftOf is the trainer's weapon for p, under a key of the character and class, so a retry, or a promotion again after a crash lost it, gives it once. Its roll is the middle of each range, the same on every try.
+// giftOf is the trainer's weapon for p, under a key of the character and class, so a retry, or a promotion again within the item service's key retention (24 h), gives it once. Its roll is the middle of each range, the same on every try.
 func (i *Instance) giftOf(p *player, class gamedata.Class) model.GiftCall {
 	weapon := class.Promotion.Weapon
 	call := model.GiftCall{Account: p.Account, Character: p.ID, Key: uuidv7.Derived(uuid.UUID(p.ID), "promotion:"+class.ID.String()), Template: weapon}
@@ -137,7 +137,7 @@ func (i *Instance) callGift(ctx context.Context, call model.GiftCall) (model.Inv
 	}))
 }
 
-// settlePromotion promotes the character on this map, whatever its connection, once the trainer's weapon is theirs, checking again that they still may: alive, and meeting every condition, though they may have stepped away from the trainer. A refusal of the gift changed nothing anywhere; a later one keeps the weapon, and promoting again gives no second one.
+// settlePromotion promotes the character on this map, whatever its connection, once the trainer's weapon is theirs, checking again that they still may: alive, and meeting every condition, though they may have stepped away from the trainer. A refusal of the gift changed nothing anywhere; a later one keeps the weapon, and promoting again within the key retention gives no second one.
 func (i *Instance) settlePromotion(m giftedMsg) {
 	p, ok := i.players[m.id]
 	if ok && p == m.caller {
@@ -149,7 +149,7 @@ func (i *Instance) settlePromotion(m giftedMsg) {
 		return
 	}
 	if !ok {
-		m.done <- fmt.Errorf("%w: the character left the map before the promotion applied; promoting again gives no second weapon", transient.ErrUnavailable)
+		m.done <- fmt.Errorf("%w: the character left the map before the promotion applied; promoting again soon gives no second weapon", transient.ErrUnavailable)
 		return
 	}
 	npc, _ := i.data.NPC(m.npc)

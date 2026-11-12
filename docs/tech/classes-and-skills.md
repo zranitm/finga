@@ -191,7 +191,8 @@ skills:
 - **Buffs end at death.** The world restats, and the sheet goes out without them.
 - **A map change carries buffs and cooldowns,** through a portal or to the town after dying (whose buffs have ended).
   - Each map counts them in its own ticks, and maps may tick at different rates. So the handoff carries the time each has left, and the next map counts it on from its own tick. The time in transit doesn't count, so a map change never shortens one.
-  - **The client keeps its own** across the change too. Entering the world starts them over, as the world does for a fresh join.
+  - **The client keeps its own** across the change too. A `Welcome` starts them over, as the world does for a fresh join.
+  - **Known limit:** a fresh join loads the character from its checkpoint, which holds no timers. So a page reload or a reconnect starts both over, and can skip a 40–60 s cooldown in a few seconds.
 - **Passive skills and buffs feed the stats.** `DeriveStats` takes both as the skills' bonuses, added like gear, with the limits still the ceiling.
   - **Passives:** a passive with at least one point adds its stage's bonus.
   - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share, passives and buffs together: the totals less the totals without them. The character window shows both shares in one bracket after the total, without the unit: the equipment's in green, then the skills' in blue.
@@ -209,15 +210,15 @@ skills:
 - **`Promote{npc_id, class}`** goes through the gateway with a Response.
   1. **Checks, on the tick:** the character must be alive, the NPC in reach, and the class the one it offers. Every condition must be met. Otherwise the request is refused with `NPC_OUT_OF_REACH`, `NOT_YOUR_NEXT_CLASS` or `PROMOTION_CONDITIONS_UNMET`. One promotion goes at a time; a second while one is in flight is refused as unavailable.
   2. **The trainer's weapon first.** A worker asks the item service to add the class's `promotion.weapon`, with cause `promotion`, as hand-ins do, retrying while it's unavailable.
-     - **Its key is derived from the character and the class** (`uuidv7.Derived`), and each roll is the middle of its range. So a retry, or promoting again after a lost answer, gives the weapon once.
+     - **Its key is derived from the character and the class** (`uuidv7.Derived`), and each roll is the middle of its range. So a retry, or promoting again after a lost answer, gives the weapon once, while the item service keeps the key (`idempotency_keys.keep`, 24 h). A promotion tried again after that gives a second weapon.
      - **A refusal,** such as a full bag, changes nothing, and the player sees its words.
   3. **Apply, on the tick once the weapon is given:**
-     - The character must still be alive and meet every condition; a stat reset in the meantime refuses it. They may have stepped away from the trainer. A refusal here keeps the weapon given, and promoting later gives no second one.
+     - The character must still be alive and meet every condition; a stat reset in the meantime refuses it. They may have stepped away from the trainer. A refusal here keeps the weapon given, and promoting again within the key's 24 h gives no second one.
      - The class changes, with the basic attack and the base values. The stats re-derive, and HP and MP are restored to the new maximums, as at a level-up.
      - Worn weapons need no check: a Beginner weapon fits every class.
      - A checkpoint saves it at once. The checkpoint carries the class, and the character service refuses one that isn't in the data.
   4. **Tell everyone:** the player gets an `InventoryChanged` with the weapon, and a **`Promoted`** with the whole character view, as `LevelUp` has. The map sees the class in `PlayerView`, and the party in `PartyMember`.
-- **Durability:** a promotion is saved like a level-up, at once. A crash before the save means doing it again: the conditions are still met, and no second weapon comes.
+- **Durability:** a promotion is saved like a level-up, at once. A crash before the save means doing it again: the conditions are still met, and within the key's 24 h no second weapon comes.
 
 ## 8. Protocol
 
@@ -282,8 +283,9 @@ skills:
     - **No answer** keeps both, as the use may have landed.
   - skill effects are drawn from `SkillUsed`, as simple shapes, until there's art: the box a melee stage swings through, the line a ranged one flies along, with a dark edge so it shows on pale ground, or a ring around the caster.
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
+  - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.
   - **It asks first:** a promotion is for good, and the trainer hands over the first weapon. Then it sends `Promote`, and closes once it's done.
-- **On `Promoted`,** the character's look, basic attack and learnable skills switch at once. Others see the class from the next `Delta`. A toast and the combat channel say "You became a Warrior!".
+- **On `Promoted`,** the character's look, basic attack and learnable skills switch at once, and the trainer's dialog closes, even if the request's answer was lost. Others see the class from the next `Delta`. A toast and the combat channel say "You became a Warrior!".
 - **Auto-assign** for stat points is hidden while the character is a Beginner.
 
 ## 10. When things fail
@@ -298,8 +300,10 @@ skills:
 | Client and server disagree on a cooldown by more | "That skill isn't ready yet.", and the key keeps its cooldown until the client's count ends | The client only gates; the server counts the ticks |
 | A skill bar save fails | "Could not save the skill bar." or the refusal's words; the bar stays as arranged | The next change saves the whole bar again |
 | A map change during a cooldown or a buff | Both carry on | The handoff carries the time each has left, and the next map counts it in its own ticks |
+| A reload or a reconnect during a cooldown or a buff | Both start over | A known limit: the checkpoint holds no timers, so a fresh join has none |
 | The item service refuses the trainer's weapon, as for a full bag | The refusal's words; still the old class | Nothing changed anywhere |
-| A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so no second one comes |
+| A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so within the item service's 24 h key retention no second one comes |
+| A weapon's roll ranges change in the data between a gift and a retry within 24 h | The promotion is refused until the key expires | The retry's roll differs, so the item service refuses the reused key rather than giving another weapon |
 
 ## 11. Testing
 
