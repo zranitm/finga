@@ -154,6 +154,26 @@ export function portalTiles(portals: MapView['portals']): Tile[] {
 }
 
 /** Back to front. */
+/** The ground's fill under the map, out to the window's right and bottom: a window taller than the map shows below its floor, since the camera holds a smaller map at the top left, and the background would show there. Null when the map fills the window's height. */
+export function belowFloor(
+  view: MapView,
+  viewport: { readonly width: number; readonly height: number },
+): Tile | null {
+  const h = viewport.height - view.height;
+  if (h <= 0) {
+    return null;
+  }
+  const s = groundStyle(view.id);
+  return {
+    texture: s.fill,
+    x: 0,
+    y: view.height,
+    w: Math.max(view.width, viewport.width),
+    h,
+    tint: s.tint,
+  };
+}
+
 export function mapTiles(view: MapView): Tile[] {
   const s = groundStyle(view.id);
   return [
