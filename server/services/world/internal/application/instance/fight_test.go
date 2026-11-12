@@ -348,6 +348,40 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 	})
 }
 
+// A dodged touch shows MISS and leaves the player where they stand, without the hurt blink; the mob still rolls its next touch a second later.
+func TestADodgedTouchNeitherKnocksBackNorBlinks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := worldtest.LoadData(t)
+		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{NewRoll: worldtest.Rolls(0.999)})
+		defer stop()
+		time.Sleep(worldtest.TickInterval)
+		synctest.Wait()
+		s := join(t, inst, warriorAt(260))
+		id := idOf(t, s)
+		seq := worldtest.Walk(inst, id, 0, sim.Input{Right: true}, 2)
+		got := damages(s)
+		if len(got) != 1 || !got[0].Miss || got[0].Target.Player != id {
+			t.Fatalf("damages %+v, want one MISS on the player", got)
+		}
+		v, _ := s.Own(id)
+		if v.HP != 144 || !v.State.OnGround || v.State.VY != 0 || v.State.X <= 260 {
+			t.Fatalf("after the MISS %+v, want full HP, on the ground, not pushed back", v)
+		}
+		if v.Invulnerable {
+			t.Fatal("blinking after a MISS")
+		}
+		for range 25 { // standing in the slime
+			if len(damages(s)) > 1 {
+				break
+			}
+			seq = worldtest.Walk(inst, id, seq, sim.Input{}, 1)
+		}
+		if got := damages(s); len(got) != 2 || got[1].Tick != got[0].Tick+20 {
+			t.Fatalf("touches %+v, want the next roll a second after the MISS", got)
+		}
+	})
+}
+
 func TestDeathAndRespawn(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)

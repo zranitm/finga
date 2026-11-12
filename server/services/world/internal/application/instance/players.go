@@ -44,7 +44,8 @@ type player struct {
 	derived       progression.Derived
 	attackQueued  bool
 	cooldownUntil uint64
-	invulnUntil   uint64
+	invulnUntil   uint64 // shown: a hit's blink
+	nextTouch     uint64 // a mob's touch is rolled again from this tick, hit or MISS
 	dead          bool
 	deadUntil     uint64
 	changed       bool                         // HP, level or death changed this tick
