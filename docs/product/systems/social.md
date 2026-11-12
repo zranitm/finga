@@ -24,6 +24,7 @@
   - The order is the order members joined the party; when someone joins or leaves, the turn carries on with the next member still there (proposal).
   - A drop waits for the member whose turn it was, even if their inventory is full; it isn't passed on (proposal).
   - Every member on the map sees who got what in their combat channel.
+- A field boss's drops don't take turns: each player gets their own roll (Combat → Field bosses).
 - Currency (once F1 exists) doesn't take turns: each currency drop is split evenly among the same living members on the map. What doesn't divide evenly goes to the killer (proposal).
 
 ## Later
