@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetStores } from '@/testing/reset-stores';
 
@@ -8,6 +8,11 @@ describe('settings store', () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('the preset round-trips through localStorage', () => {
@@ -28,18 +33,20 @@ describe('settings store', () => {
     expect(loadCachedPreset()).toBe('classic');
   });
 
-  it('a throwing or missing storage still gives Classic and loses nothing else', () => {
-    const broken = {
-      getItem: () => {
-        throw new Error('blocked');
-      },
-      setItem: () => {
-        throw new Error('full');
-      },
-    };
-    expect(loadCachedPreset(broken)).toBe('classic');
-    expect(() => cachePreset('wasd', broken)).not.toThrow();
-    expect(loadCachedPreset(null)).toBe('classic');
-    expect(() => cachePreset('wasd', null)).not.toThrow();
+  it('a throwing storage still gives Classic and loses nothing else', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('full');
+    });
+    expect(loadCachedPreset()).toBe('classic');
+    expect(() => cachePreset('wasd')).not.toThrow();
+  });
+
+  it('no storage at all still gives Classic', () => {
+    vi.stubGlobal('localStorage', undefined);
+    expect(loadCachedPreset()).toBe('classic');
+    expect(() => cachePreset('wasd')).not.toThrow();
   });
 });

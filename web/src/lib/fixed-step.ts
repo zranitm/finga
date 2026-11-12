@@ -29,17 +29,16 @@ export interface Step {
   readonly tickStart: boolean;
 }
 
+/** Time beyond this many steps in one frame (a background tab coming back) is dropped, not simulated in a burst. */
+const MAX_STEPS_PER_FRAME = 15;
+
 export class FixedStep {
   private accumulated = 0;
   private stepCount = 0;
   private readonly stepsPerTick: number;
   private readonly unitsPerMs: number;
 
-  /** Time beyond maxStepsPerFrame (a background tab coming back) is dropped, not simulated in a burst. */
-  constructor(
-    timing: TickTiming,
-    readonly maxStepsPerFrame = 15,
-  ) {
+  constructor(timing: TickTiming) {
     const { stepsPerTick, stepsPerSecond } = timing;
     if (!Number.isInteger(stepsPerTick) || stepsPerTick < 1) {
       throw new RangeError(`stepsPerTick must be a positive integer, got ${stepsPerTick}`);
@@ -49,9 +48,6 @@ export class FixedStep {
     }
     this.stepsPerTick = stepsPerTick;
     this.unitsPerMs = (unitsPerStep * stepsPerSecond) / 1000;
-    if (!Number.isInteger(maxStepsPerFrame) || maxStepsPerFrame < 1) {
-      throw new RangeError(`maxStepsPerFrame must be a positive integer, got ${maxStepsPerFrame}`);
-    }
   }
 
   advance(frameMs: number): Step[] {
@@ -62,12 +58,12 @@ export class FixedStep {
     const steps: Step[] = [];
     while (this.accumulated >= unitsPerStep) {
       this.accumulated -= unitsPerStep;
-      if (steps.length < this.maxStepsPerFrame) {
+      if (steps.length < MAX_STEPS_PER_FRAME) {
         steps.push({ tickStart: this.stepCount % this.stepsPerTick === 0 });
         this.stepCount++;
       }
     }
-    if (steps.length === this.maxStepsPerFrame) {
+    if (steps.length === MAX_STEPS_PER_FRAME) {
       this.accumulated = 0;
     }
     return steps;

@@ -72,8 +72,9 @@ describe('InventoryWindow', () => {
 
   it('a drag between slots sends InventoryMove with the item, tab and slot, and the item waits in place as pending', async () => {
     const { calls } = setup([ok]);
-    fireEvent.dragStart(cell('Wooden Sword x1'));
-    fireEvent.drop(cell('empty slot 3'));
+    const carried = dataTransfer();
+    fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: carried });
+    fireEvent.drop(cell('empty slot 3'), { dataTransfer: carried });
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({
       t: 'inventoryMove',
@@ -99,8 +100,9 @@ describe('InventoryWindow', () => {
 
   it('a timed-out request retried sends the same idempotency key', async () => {
     const { calls } = setup([new RequestError('timeout', 'no answer'), ok]);
-    fireEvent.dragStart(cell('Wooden Sword x1'));
-    fireEvent.drop(cell('empty slot 4'));
+    const carried = dataTransfer();
+    fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: carried });
+    fireEvent.drop(cell('empty slot 4'), { dataTransfer: carried });
     await userEvent.click(cell('Wooden Sword x1'));
     await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(calls).toHaveLength(2));
@@ -111,8 +113,9 @@ describe('InventoryWindow', () => {
 
   it('a refused Response clears the pending mark and shows its words, the item never having moved', async () => {
     setup([refusal(ERR.SLOT_TAKEN)]);
-    fireEvent.dragStart(cell('Wooden Sword x1'));
-    fireEvent.drop(cell('Leather Cap x1'));
+    const carried = dataTransfer();
+    fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: carried });
+    fireEvent.drop(cell('Leather Cap x1'), { dataTransfer: carried });
     expect(await screen.findByRole('alert')).toHaveTextContent('That slot is taken.');
     expect(cell('Wooden Sword x1')).toHaveAttribute('aria-busy', 'false');
     expect(screen.getAllByRole('gridcell')[0]).toHaveAccessibleName('Wooden Sword x1');
@@ -120,14 +123,16 @@ describe('InventoryWindow', () => {
 
   it('a cross-tab drag never sends, and a drop on its own slot neither', async () => {
     const { calls } = setup();
-    fireEvent.dragStart(cell('Wooden Sword x1'));
+    const carried = dataTransfer();
+    fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: carried });
     await userEvent.click(screen.getByRole('tab', { name: 'Use' }));
-    fireEvent.drop(cell('empty slot 2'));
+    fireEvent.drop(cell('empty slot 2'), { dataTransfer: carried });
     expect(calls).toHaveLength(0);
     expect(screen.getByRole('alert')).toHaveTextContent('Items stay in their tab.');
     await userEvent.click(screen.getByRole('tab', { name: 'Equip' }));
-    fireEvent.dragStart(cell('Wooden Sword x1'));
-    fireEvent.drop(cell('Wooden Sword x1'));
+    const again = dataTransfer();
+    fireEvent.dragStart(cell('Wooden Sword x1'), { dataTransfer: again });
+    fireEvent.drop(cell('Wooden Sword x1'), { dataTransfer: again });
     expect(calls).toHaveLength(0);
   });
 
@@ -385,7 +390,7 @@ describe('item cards', () => {
     await userEvent.hover(cell('Red Potion x5'));
     expect(screen.getByRole('group', { name: 'Red Potion' })).toHaveTextContent('Restores 50 HP');
     expect(screen.queryByRole('group', { name: /^Worn/ })).toBeNull();
-    fireEvent.dragStart(cell('Red Potion x5'));
+    fireEvent.dragStart(cell('Red Potion x5'), { dataTransfer: dataTransfer() });
     expect(screen.queryByRole('group', { name: 'Red Potion' })).toBeNull();
   });
 });

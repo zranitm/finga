@@ -1,20 +1,12 @@
 // UUIDv7 like the server's: crypto.randomUUID is v4 and secure-context only, and a counter repeats after a reload.
-export type RandomBytes = (bytes: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>;
-
 const hex = Array.from({ length: 256 }, (_, n) => n.toString(16).padStart(2, '0'));
 
-export function uuidV7(
-  random: RandomBytes = (b) => crypto.getRandomValues(b),
-  now: () => number = Date.now,
-): string {
-  const ms = now();
+export function uuidV7(): string {
+  const ms = Date.now();
   if (!Number.isSafeInteger(ms) || ms < 0 || ms >= 2 ** 48) {
     throw new RangeError(`uuidV7 needs a 48-bit millisecond time, got ${ms}`);
   }
-  const b = random(new Uint8Array(16));
-  if (b.length !== 16) {
-    throw new RangeError(`uuidV7 needs 16 random bytes, got ${b.length}`);
-  }
+  const b = crypto.getRandomValues(new Uint8Array(16));
   for (let i = 5, t = ms; i >= 0; i--, t = Math.floor(t / 256)) {
     b[i] = t % 256;
   }
@@ -25,11 +17,11 @@ export function uuidV7(
 }
 
 /** A request ID for a command that expects a Response: r-<uuid>. */
-export function requestId(random?: RandomBytes): string {
-  return `r-${uuidV7(random)}`;
+export function requestId(): string {
+  return `r-${uuidV7()}`;
 }
 
 /** An idempotency key for an item action, made once per click: k-<uuid>. */
-export function idempotencyKey(random?: RandomBytes): string {
-  return `k-${uuidV7(random)}`;
+export function idempotencyKey(): string {
+  return `k-${uuidV7()}`;
 }

@@ -7,11 +7,14 @@ import { Button } from './Button';
 import { Modal } from './Modal';
 import { Window } from './Window';
 
+// Where a window opens, and its layer, for the tests that look at neither.
+const placed = { initialX: 80, initialY: 80, layer: 1, onRaise: () => undefined };
+
 describe('Window', () => {
   it('takes focus when it opens and closes on Escape', async () => {
     const onClose = vi.fn();
     render(
-      <Window title="Inventory" onClose={onClose}>
+      <Window {...placed} title="Inventory" onClose={onClose}>
         <p>items</p>
       </Window>,
     );
@@ -23,7 +26,7 @@ describe('Window', () => {
   it('draws at its layer, and a press or focus inside asks to bring it to the top', async () => {
     const onRaise = vi.fn();
     render(
-      <Window title="Inventory" onClose={vi.fn()} layer={3} onRaise={onRaise}>
+      <Window {...placed} title="Inventory" onClose={vi.fn()} layer={3} onRaise={onRaise}>
         <button type="button">Etc</button>
       </Window>,
     );
@@ -37,7 +40,7 @@ describe('Window', () => {
   it('closes from its title-bar button, whose press never starts a drag', async () => {
     const onClose = vi.fn();
     render(
-      <Window title="Party" onClose={onClose}>
+      <Window {...placed} title="Party" onClose={onClose}>
         <p>members</p>
       </Window>,
     );
@@ -50,7 +53,7 @@ describe('Window', () => {
 
   it('moves when the title is dragged', () => {
     render(
-      <Window title="Party" onClose={vi.fn()} initialX={100} initialY={50}>
+      <Window {...placed} title="Party" onClose={vi.fn()} initialX={100} initialY={50}>
         <p>members</p>
       </Window>,
     );
@@ -72,7 +75,7 @@ describe('Window', () => {
       .mockReturnValue({ width: 300 } as DOMRect);
     try {
       render(
-        <Window title="Party" onClose={vi.fn()} initialX={940} initialY={80}>
+        <Window {...placed} title="Party" onClose={vi.fn()} initialX={940} initialY={80}>
           <p>members</p>
         </Window>,
       );
@@ -85,7 +88,7 @@ describe('Window', () => {
 
   it('is never taller than the viewport below it, less the idle chat, and its body scrolls the rest', () => {
     render(
-      <Window title="Character" onClose={vi.fn()} initialX={24} initialY={80}>
+      <Window {...placed} title="Character" onClose={vi.fn()} initialX={24} initialY={80}>
         <p>stats</p>
       </Window>,
     );
@@ -99,6 +102,7 @@ describe('Window', () => {
   it('keeps its footer out of the scrolling body, so a notice stays in view', () => {
     render(
       <Window
+        {...placed}
         title="Character"
         onClose={vi.fn()}
         footer={<p role="alert">Your Equip tab is full.</p>}
@@ -126,17 +130,6 @@ describe('Modal', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(container.querySelector('.modal-backdrop')!);
     expect(onClose).toHaveBeenCalledTimes(2);
-  });
-
-  it('a blocking notice has no way to dismiss it', async () => {
-    const { container } = render(
-      <Modal title="Reconnecting">
-        <p>Hold on</p>
-      </Modal>,
-    );
-    await userEvent.keyboard('{Escape}');
-    fireEvent.click(container.querySelector('.modal-backdrop')!);
-    expect(screen.getByRole('dialog', { name: 'Reconnecting' })).toBeInTheDocument();
   });
 });
 

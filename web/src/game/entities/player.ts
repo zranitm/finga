@@ -89,23 +89,22 @@ const SWING_MS = 225;
 
 export class PlayerView {
   readonly sprite: Phaser.GameObjects.Sprite;
-  readonly label: Phaser.GameObjects.Text | null;
+  readonly label: Phaser.GameObjects.Text;
   private cls: string;
   private art: ClassArt;
   private swingUntil = Number.NEGATIVE_INFINITY;
   private dead = false;
 
-  constructor(scene: Phaser.Scene, cls: string, name?: string) {
+  constructor(scene: Phaser.Scene, cls: string, name: string) {
     this.cls = cls;
     this.art = classArt(cls);
     this.sprite = scene.add.sprite(0, 0, this.art.stand).setOrigin(0.5, 1).setScale(ART_SCALE);
     if (this.art.tint !== null) {
       this.sprite.setTint(this.art.tint);
     }
-    this.label =
-      name === undefined
-        ? null
-        : scene.add.text(0, 0, name, { ...NAME_TAG_STYLE, color: '#f4f4f8' }).setOrigin(0.5, 1);
+    this.label = scene.add
+      .text(0, 0, name, { ...NAME_TAG_STYLE, color: '#f4f4f8' })
+      .setOrigin(0.5, 1);
   }
 
   /** Draws the class's look from now on, as after a promotion; the next apply picks the pose. */
@@ -128,7 +127,7 @@ export class PlayerView {
   apply(s: PlayerState, now = Number.NEGATIVE_INFINITY): void {
     this.sprite.setPosition(s.x, s.y);
     this.sprite.setFlipX(s.facing < 0);
-    this.label?.setPosition(s.x, s.y - NAME_TAG_ABOVE);
+    this.label.setPosition(s.x, s.y - NAME_TAG_ABOVE);
     if (this.dead) {
       this.sprite.stop();
       this.sprite.setTexture(this.art.hit);
@@ -164,22 +163,22 @@ export class PlayerView {
     }
   }
 
-  /** Its name tag where it stands, before any lift; null with no tag or while hidden. */
+  /** Its name tag where it stands, before any lift; null while hidden. */
   nameTag(): TagBox | null {
     const l = this.label;
-    if (!l?.visible) {
+    if (!l.visible) {
       return null;
     }
     return { x: this.sprite.x, bottom: this.sprite.y - NAME_TAG_ABOVE, w: l.width, h: l.height };
   }
 
   liftTag(bottom: number): void {
-    this.label?.setY(bottom);
+    this.label.setY(bottom);
   }
 
   setVisible(on: boolean): void {
     this.sprite.setVisible(on);
-    this.label?.setVisible(on);
+    this.label.setVisible(on);
   }
 
   attack(now: number): void {
@@ -196,6 +195,6 @@ export class PlayerView {
 
   destroy(): void {
     this.sprite.destroy();
-    this.label?.destroy();
+    this.label.destroy();
   }
 }

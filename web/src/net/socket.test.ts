@@ -2,15 +2,14 @@ import { create } from '@bufbuild/protobuf';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { jsonCodec } from '@/protocol/codec';
-import type { ProtocolError } from '@/protocol/codec';
 import { ERR } from '@/protocol/errors';
 import { ChatChannel, KickReason, WelcomeSchema } from '@/protocol/messages';
 import type { Data } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
-import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
+import { FakeWebSocket } from '@/testing/fake-socket';
 
 import { GameSocket, PROTOCOL_VERSION, RequestError } from './socket';
-import type { StatusEvent } from './socket';
+import type { SocketOptions, SocketStatus, StatusEvent } from './socket';
 import { clearToken, getToken, setToken } from './token';
 
 const noInput: Input = { left: false, right: false, up: false, down: false, jump: false };
@@ -34,17 +33,16 @@ const welcome = create(WelcomeSchema, {
   serverTime: 1_761_000_000_050n,
 });
 
-function newSocket(
-  overrides: Partial<ConstructorParameters<typeof GameSocket>[0]> = {},
-): GameSocket {
-  return new GameSocket({
-    url: 'ws://game.test/ws',
-    WebSocket: fakeWebSocketClass,
-    backoff: { baseMs: 100, capMs: 1000, random: () => 0.5 },
-    now: () => Date.now(),
-    ...overrides,
-  });
+const latest = new WeakMap<GameSocket, SocketStatus>();
+
+function newSocket(overrides: Partial<SocketOptions> = {}): GameSocket {
+  const socket = new GameSocket({ url: 'ws://game.test/ws', ...overrides });
+  socket.onStatus((e) => latest.set(socket, e.status));
+  return socket;
 }
+
+/** Its status as the last onStatus event gave it. */
+const statusOf = (socket: GameSocket) => latest.get(socket);
 
 async function connected(socket: GameSocket, token = 'tok-login'): Promise<FakeWebSocket> {
   setToken(token);
@@ -59,10 +57,11 @@ async function connected(socket: GameSocket, token = 'tok-login'): Promise<FakeW
 describe('GameSocket', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    vi.spyOn(Math, 'random').mockReturnValue(0.5); // the reconnect jitter: backoff(0) is 250 ms, backoff(1) 500 ms
     FakeWebSocket.reset();
   });
   afterEach(() => {
-    vi.useRealTimers();
     clearToken();
   });
 
@@ -86,7 +85,7 @@ describe('GameSocket', () => {
     await expect(p).resolves.toEqual(welcome);
     expect(getToken()).toBe('tok-rotated-1');
     expect(statuses.map((s) => s.status)).toEqual(['connecting', 'connected']);
-    expect(socket.currentStatus).toBe('connected');
+    expect(statusOf(socket)).toBe('connected');
   });
 
   it('asks for the binary subprotocol by default and reads binary frames as ArrayBuffers', async () => {
@@ -104,7 +103,7 @@ describe('GameSocket', () => {
     expect(JSON.parse(String(ws.sent[0]))).toEqual({
       hello: { token: 'tok-login', protocol_version: 1, character_id: 'c1' },
     });
-    expect(socket.currentStatus).toBe('connected');
+    expect(statusOf(socket)).toBe('connected');
   });
 
   it('refuses to connect without a token', async () => {
@@ -117,17 +116,19 @@ describe('GameSocket', () => {
   });
 
   it('gives up on a connection that never answers Hello and reconnects', async () => {
-    const socket = newSocket({ helloTimeoutMs: 1000 });
+    const socket = newSocket();
     setToken('tok-login');
     const p = socket.connect('c1');
     const first = FakeWebSocket.latest();
     first.open();
     const rejected = p.catch((e: Error) => e.message);
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(first.closedWith).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
     expect(first.closedWith?.reason).toBe('no welcome');
     expect(await rejected).toMatch(/before Welcome/);
-    expect(socket.currentStatus).toBe('reconnecting');
-    await vi.advanceTimersByTimeAsync(100); // backoff(0) with random 0.5 is 50 ms
+    expect(statusOf(socket)).toBe('reconnecting');
+    await vi.advanceTimersByTimeAsync(250);
     expect(FakeWebSocket.instances).toHaveLength(2);
   });
 
@@ -182,12 +183,15 @@ describe('GameSocket', () => {
     });
 
     it('times out when no Response comes', async () => {
-      const socket = newSocket({ requestTimeoutMs: 2000 });
+      const socket = newSocket();
       await connected(socket);
       const p = socket.request('partyLeave', {});
-      const result = p.catch((e: RequestError) => e.code);
-      await vi.advanceTimersByTimeAsync(2000);
-      expect(await result).toBe('timeout');
+      let code: RequestError['code'] | undefined;
+      void p.catch((e: RequestError) => (code = e.code));
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(code).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(code).toBe('timeout');
     });
 
     it('a Response with no req reaches onUnmatchedResponse', async () => {
@@ -204,7 +208,7 @@ describe('GameSocket', () => {
     });
 
     it('a request pending across a reconnect is re-sent once with a new req and the same idempotency key', async () => {
-      const socket = newSocket({ requestTimeoutMs: 60_000 });
+      const socket = newSocket();
       const first = await connected(socket);
       const p = socket.request('inventoryDiscard', {
         idempotencyKey: 'k-7',
@@ -213,7 +217,7 @@ describe('GameSocket', () => {
       });
       const before = first.frames().at(-1);
       first.closeFromServer(4002, 'no pong');
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(250);
       const second = FakeWebSocket.latest();
       expect(second).not.toBe(first);
       second.open();
@@ -228,12 +232,12 @@ describe('GameSocket', () => {
       const q = socket.request('partyLeave', {});
       const rejected = q.catch((e: RequestError) => e.code);
       second.closeFromServer(4001);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(250);
       const third = FakeWebSocket.latest();
       third.open();
       third.push('welcome', welcome);
       third.closeFromServer(4001);
-      await vi.advanceTimersByTimeAsync(200);
+      await vi.advanceTimersByTimeAsync(500);
       const fourth = FakeWebSocket.latest();
       fourth.open();
       fourth.push('welcome', welcome);
@@ -293,41 +297,44 @@ describe('GameSocket', () => {
     it('an unknown frame from the server is reported, not thrown', async () => {
       const socket = newSocket();
       const ws = await connected(socket);
-      const errors: ProtocolError[] = [];
-      socket.onProtocolError((e) => errors.push(e));
+      vi.mocked(console.info).mockClear();
       expect(() => ws.pushRaw(new Uint8Array([0x9a, 0x06, 0x00]).buffer)).not.toThrow(); // field 99
       expect(() => ws.pushRaw(new Uint8Array([0xff]).buffer)).not.toThrow();
       expect(() => ws.pushRaw('a text frame')).not.toThrow();
       expect(() => ws.pushRaw(new Blob())).not.toThrow();
-      expect(errors.map((e) => e.message)).toEqual([
-        'no body, or one this client does not know',
-        expect.stringMatching(/^bad frame/),
-        'a text frame on the binary codec',
-        'frame is neither text nor binary',
+      expect(vi.mocked(console.info).mock.calls).toEqual([
+        [
+          'finga: dropped a frame this client cannot read: no body, or one this client does not know',
+        ],
+        [expect.stringMatching(/^finga: dropped a frame this client cannot read: bad frame/)],
+        ['finga: dropped a frame this client cannot read: a text frame on the binary codec'],
+        ['finga: dropped a frame this client cannot read: frame is neither text nor binary'],
       ]);
-      expect(socket.currentStatus).toBe('connected');
+      expect(statusOf(socket)).toBe('connected');
     });
 
     it('a Pong gives the round-trip time and the server time offset', async () => {
-      let now = 1_000_000;
-      const socket = newSocket({ now: () => now, pingIntervalMs: 15_000 });
+      vi.setSystemTime(985_000);
+      const socket = newSocket();
       const ws = await connected(socket);
       await vi.advanceTimersByTimeAsync(15_000);
       const ping = ws.frames().at(-1);
       expect(ping?.t).toBe('ping');
       expect(ping?.d).toMatchObject({ clientTime: 1_000_000n });
-      now += 80;
+      vi.setSystemTime(1_000_080);
       ws.push('pong', { clientTime: 1_000_000n, serverTime: 5_000_040n });
       expect(socket.rtt).toBe(80);
       expect(socket.serverTimeOffset).toBe(5_000_040 - (1_000_080 - 40));
     });
 
     it('a silent connection is dropped after the pong deadline and comes back', async () => {
-      const socket = newSocket({ pingIntervalMs: 15_000, pongTimeoutMs: 5000 });
+      const socket = newSocket();
       const ws = await connected(socket);
-      await vi.advanceTimersByTimeAsync(15_000 + 5000);
+      await vi.advanceTimersByTimeAsync(15_000 + 4999);
+      expect(ws.closedWith).toBeNull();
+      await vi.advanceTimersByTimeAsync(1);
       expect(ws.closedWith?.reason).toBe('no pong');
-      expect(socket.currentStatus).toBe('reconnecting');
+      expect(statusOf(socket)).toBe('reconnecting');
     });
   });
 
@@ -338,7 +345,8 @@ describe('GameSocket', () => {
       { name: 'a dropped connection', code: 1006, kick: undefined },
       { name: 'Kicked server_restart then 4003', code: 4003, kick: KickReason.SERVER_RESTART },
     ])('$name reconnects with backoff and a new Hello', async ({ code, kick }) => {
-      const socket = newSocket({ backoff: { baseMs: 100, capMs: 1000, random: () => 0.999 } });
+      vi.mocked(Math.random).mockReturnValue(0.999);
+      const socket = newSocket();
       const statuses: StatusEvent[] = [];
       socket.onStatus((e) => statuses.push(e));
       const first = await connected(socket);
@@ -346,10 +354,10 @@ describe('GameSocket', () => {
         first.push('kicked', { reason: kick });
       }
       first.closeFromServer(code);
-      expect(socket.currentStatus).toBe('reconnecting');
-      await vi.advanceTimersByTimeAsync(98);
-      expect(FakeWebSocket.instances).toHaveLength(1); // backoff(0) is just under 100 ms
-      await vi.advanceTimersByTimeAsync(2);
+      expect(statusOf(socket)).toBe('reconnecting');
+      await vi.advanceTimersByTimeAsync(498);
+      expect(FakeWebSocket.instances).toHaveLength(1); // backoff(0) is just under 500 ms
+      await vi.advanceTimersByTimeAsync(1);
       const second = FakeWebSocket.latest();
       expect(second).not.toBe(first);
       second.open();
@@ -358,7 +366,7 @@ describe('GameSocket', () => {
         d: { token: 'tok-login-rotated', protocolVersion: 1, characterId: 'c1' },
       });
       second.push('welcome', { ...welcome, token: 'tok-rotated-2' });
-      expect(socket.currentStatus).toBe('connected');
+      expect(statusOf(socket)).toBe('connected');
       expect(getToken()).toBe('tok-rotated-2');
       expect(statuses.map((s) => s.status)).toEqual([
         'connecting',
@@ -370,16 +378,17 @@ describe('GameSocket', () => {
     });
 
     it('a second failure backs off longer, and reconnect never runs twice at once', async () => {
-      const socket = newSocket({ backoff: { baseMs: 100, capMs: 1000, random: () => 0.999 } });
+      vi.mocked(Math.random).mockReturnValue(0.999);
+      const socket = newSocket();
       const first = await connected(socket);
       first.closeFromServer(4002);
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(499);
       const second = FakeWebSocket.latest();
       second.open();
       second.closeFromServer(4002); // fails before Welcome
-      await vi.advanceTimersByTimeAsync(100);
-      expect(FakeWebSocket.instances).toHaveLength(2); // backoff(1) is just under 200 ms
-      await vi.advanceTimersByTimeAsync(100);
+      await vi.advanceTimersByTimeAsync(998);
+      expect(FakeWebSocket.instances).toHaveLength(2); // backoff(1) is just under 1000 ms
+      await vi.advanceTimersByTimeAsync(1);
       expect(FakeWebSocket.instances).toHaveLength(3);
     });
 
@@ -422,7 +431,7 @@ describe('GameSocket', () => {
       const pending = socket.request('partyLeave', {}).catch((e: RequestError) => e.code);
       ws.push('kicked', { reason: kick });
       ws.closeFromServer(4003);
-      expect(socket.currentStatus).toBe('closed');
+      expect(statusOf(socket)).toBe('closed');
       expect(statuses.at(-1)).toMatchObject({ status: 'closed', reason, kick, code: 4003 });
       expect(getToken()).toBe(tokenAfter);
       expect(await pending).toBe('disconnected');
@@ -495,7 +504,7 @@ describe('GameSocket', () => {
       const pending = socket.request('partyLeave', {}).catch((e: RequestError) => e.code);
       socket.close();
       expect(ws.closedWith).toEqual({ code: 1000, reason: 'bye' });
-      expect(socket.currentStatus).toBe('closed');
+      expect(statusOf(socket)).toBe('closed');
       expect(await pending).toBe('disconnected');
       await vi.advanceTimersByTimeAsync(10_000);
       expect(FakeWebSocket.instances).toHaveLength(1);

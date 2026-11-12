@@ -35,10 +35,11 @@ describe('FixedStep', () => {
   });
 
   it('a long frame that hits the cap keeps the tick boundary where the steps left it', () => {
-    const fs = new FixedStep(at20, 4); // 4 steps: the 5th would have started a tick
+    const fs = new FixedStep(tickTiming(30, 1 / 60)); // two steps a tick, so the 15-step cap ends one tick in
     const first = fs.advance(1000);
-    expect(first.map((s) => s.tickStart)).toEqual([true, false, false, true]);
-    expect(fs.advance(50).map((s) => s.tickStart)).toEqual([false, false, true]);
+    expect(first).toHaveLength(15);
+    expect(first.at(-1)?.tickStart).toBe(true);
+    expect(fs.advance(50).map((s) => s.tickStart)).toEqual([false, true, false]);
   });
 
   it.each([-1, Number.NaN])('refuses frame time %s', (frameMs) => {
@@ -59,10 +60,6 @@ describe('FixedStep', () => {
 
   it('refuses fewer than one step per tick', () => {
     expect(() => new FixedStep({ ...at20, stepsPerTick: 0 })).toThrow(RangeError);
-  });
-
-  it('refuses a cap below one', () => {
-    expect(() => new FixedStep(at20, 0)).toThrow(RangeError);
   });
 
   it('steps by the movement dt it was given', () => {

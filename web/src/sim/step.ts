@@ -94,7 +94,7 @@ interface Working {
 }
 
 /** One sub-step of p.dt. The phase order matches the server's sim.Step; do not reorder. */
-export function step(state: State, input: Input, g: Geometry, p: Params = params): State {
+export function step(state: State, input: Input, g: Geometry, p: Params): State {
   const s: Working = { ...state };
 
   if (input.right) {

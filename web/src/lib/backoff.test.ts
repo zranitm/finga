@@ -1,10 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { backoff } from './backoff';
 
 const opts = { baseMs: 500, capMs: 10_000 };
 
 describe('backoff', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it.each([
     { name: 'the first retry at the top of its window', attempt: 0, random: 0.999, want: 499 },
     { name: 'the first retry at the bottom', attempt: 0, random: 0, want: 0 },
@@ -12,7 +16,8 @@ describe('backoff', () => {
     { name: 'the window is capped', attempt: 10, random: 0.999, want: 9990 },
     { name: 'the cap holds for any later attempt', attempt: 40, random: 0.5, want: 5000 },
   ])('$name', ({ attempt, random, want }) => {
-    expect(backoff(attempt, { ...opts, random: () => random })).toBe(want);
+    vi.spyOn(Math, 'random').mockReturnValue(random);
+    expect(backoff(attempt, opts)).toBe(want);
   });
 
   it('never leaves the jitter window with the real random source', () => {

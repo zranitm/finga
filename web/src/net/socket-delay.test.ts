@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Data } from '@/protocol/messages';
 import type { Input } from '@/sim/input';
-import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
+import { FakeWebSocket } from '@/testing/fake-socket';
 
 import { GameSocket } from './socket';
 import { clearToken, setToken } from './token';
@@ -15,6 +15,7 @@ describe('GameSocket delayMs', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     FakeWebSocket.reset();
+    vi.stubGlobal('WebSocket', FakeWebSocket);
     setToken('tok-login');
   });
   afterEach(() => {
@@ -25,9 +26,10 @@ describe('GameSocket delayMs', () => {
   it('holds frames both ways for the delay, and no delay means at once', async () => {
     const socket = new GameSocket({
       url: 'ws://game.test/ws',
-      WebSocket: fakeWebSocketClass,
       delayMs: 100,
     });
+    const statuses: string[] = [];
+    socket.onStatus((e) => statuses.push(e.status));
     const p = socket.connect('c-ayla');
     const ws = FakeWebSocket.latest();
     ws.open();
@@ -36,10 +38,10 @@ describe('GameSocket delayMs', () => {
     expect(ws.frames()[0]?.t).toBe('hello');
 
     ws.push('welcome', welcome);
-    expect(socket.currentStatus).toBe('connecting'); // Welcome waits too
+    expect(statuses.at(-1)).toBe('connecting'); // Welcome waits too
     await vi.advanceTimersByTimeAsync(100);
     await p;
-    expect(socket.currentStatus).toBe('connected');
+    expect(statuses.at(-1)).toBe('connected');
 
     const seen: Data<'snapshot'>[] = [];
     socket.on('snapshot', (m) => seen.push(m.d));
@@ -56,10 +58,9 @@ describe('GameSocket delayMs', () => {
   it('a frame delayed past the socket closing is dropped, not sent on the next one', async () => {
     const socket = new GameSocket({
       url: 'ws://game.test/ws',
-      WebSocket: fakeWebSocketClass,
       delayMs: 50,
-      backoff: { baseMs: 10, capMs: 10 },
     });
+    vi.spyOn(Math, 'random').mockReturnValue(0); // the next socket opens at once
     const p = socket.connect('c-ayla');
     const ws = FakeWebSocket.latest();
     ws.open();

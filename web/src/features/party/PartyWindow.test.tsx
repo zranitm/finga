@@ -157,14 +157,13 @@ describe('InviteToasts', () => {
 
   it('a PartyInvited toast counts down from 30 and disappears; accept sends PartyRespond', () => {
     const { socket, calls } = fakeSocket();
-    let now = 100_000;
-    render(<InviteToasts socket={socket} now={() => now} />);
-    act(() => party.getState().applyPartyInvited(invited('inv-1', 'c-robin', 'Robin'), now));
+    vi.setSystemTime(100_000);
+    render(<InviteToasts socket={socket} />);
+    act(() => party.getState().applyPartyInvited(invited('inv-1', 'c-robin', 'Robin')));
     expect(screen.getByRole('status')).toHaveTextContent(
       `Robin invites you to a party (${INVITE_SECONDS}s)`,
     );
     act(() => {
-      now += 5000;
       vi.advanceTimersByTime(5000);
     });
     expect(screen.getByRole('status')).toHaveTextContent('(25s)');
@@ -174,9 +173,8 @@ describe('InviteToasts', () => {
     expect(calls).toEqual([{ t: 'partyRespond', d: { inviteId: 'inv-1', accept: true } }]);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-    act(() => party.getState().applyPartyInvited(invited('inv-2', 'c-bruno', 'Bruno'), now));
+    act(() => party.getState().applyPartyInvited(invited('inv-2', 'c-bruno', 'Bruno')));
     act(() => {
-      now += INVITE_SECONDS * 1000;
       vi.advanceTimersByTime(INVITE_SECONDS * 1000);
     });
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
