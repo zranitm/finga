@@ -83,6 +83,8 @@ var statuses = map[model.Public]int{
 	model.SkillCoolingDown:     http.StatusConflict,
 	model.NotEnoughMP:          http.StatusConflict,
 	model.SkillWaiting:         http.StatusConflict,
+	model.PromotionUnmet:       http.StatusConflict,
+	model.NotYourNextClass:     http.StatusConflict,
 	model.NotPartyLeader:       http.StatusConflict,
 	model.PartyFull:            http.StatusConflict,
 	model.AlreadyInParty:       http.StatusConflict,

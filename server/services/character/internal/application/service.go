@@ -134,6 +134,9 @@ func (s *Service) Skills(ctx context.Context, id kernel.CharacterID) ([]model.Sk
 
 // SaveCheckpoint persists position, HP, MP, the whole progression, every quest and every skill, in one transaction.
 func (s *Service) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
+	if _, ok := s.content.Class(cp.Class); !ok {
+		return model.ErrClassUnavailable
+	}
 	seen := make(map[string]bool, len(cp.Quests))
 	for _, q := range cp.Quests {
 		if !q.Valid() || seen[q.ID] {

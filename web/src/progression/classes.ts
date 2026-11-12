@@ -1,9 +1,10 @@
-// The class tree from game data: a class's name, and the classes above it a weapon of theirs still fits.
+// The class tree from game data: a class's name and description, and the classes above it a weapon of theirs still fits.
 import { classes } from '@/gamedata/classes';
 
 interface ClassData {
   readonly id: string;
   readonly name: string;
+  readonly description: string;
   readonly parent: string | null;
 }
 
@@ -12,6 +13,11 @@ const tree: readonly ClassData[] = classes;
 /** The class's name, or its ID for one this client doesn't know. */
 export function className(id: string): string {
   return tree.find((c) => c.id === id)?.name ?? id;
+}
+
+/** The class's description, or nothing for one this client doesn't know. */
+export function classDescription(id: string): string {
+  return tree.find((c) => c.id === id)?.description ?? '';
 }
 
 /** The class and every class above it, up to the one everyone starts as. */

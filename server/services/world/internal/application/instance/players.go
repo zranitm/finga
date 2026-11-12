@@ -54,6 +54,7 @@ type player struct {
 	private       []model.Event                // events for this player only
 	itemCalls     int                          // equips, unequips, hand-ins and potions in flight, which keep the player on this map
 	handingIn     map[string]bool              // quests whose hand-in is in flight
+	promoting     bool                         // a promotion's gift is in flight
 	questChanges  map[string]model.QuestChange // this tick's, told at its end
 	toldHP        int                          // the HP and max HP the party last heard
 	toldMaxHP     int
@@ -84,6 +85,7 @@ func (i *Instance) add(j *joinMsg) {
 		slot:   i.nextSlot,
 		class:  class,
 	}
+	i.startTimers(p)
 	p.derived = i.derive(p)
 	p.HP = min(p.HP, p.derived.MaxHP)
 	p.MP = min(p.MP, p.derived.MaxMP)
@@ -194,7 +196,7 @@ func (i *Instance) playerBox(p *player) model.Rect {
 func (i *Instance) checkpoint(p *player) { i.checkpointOn(p, i.m.ID) }
 
 func (i *Instance) checkpointOn(p *player, mapID string) {
-	cp := model.Checkpoint{ID: p.ID, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone()}
+	cp := model.Checkpoint{ID: p.ID, Class: p.Class, MapID: mapID, X: p.state.X, Y: p.state.Y, HP: p.HP, MP: p.MP, Level: p.Level, Exp: p.Exp, Points: p.Points, Skills: p.Skills.Clone(), Quests: p.Quests.Clone()}
 	if p.dead { // the respawn it is owed; the death penalty is already taken
 		town := i.town()
 		cp.MapID, cp.X, cp.Y, cp.HP = town.ID, town.PlayerSpawn.X, town.PlayerSpawn.Y, RespawnHP(p.derived.MaxHP)

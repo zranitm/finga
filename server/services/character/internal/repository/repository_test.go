@@ -144,12 +144,12 @@ func TestRepository(t *testing.T) {
 
 	t.Run("a checkpoint saved, then loaded, matches and moves updated_at", func(t *testing.T) {
 		before := load(t)
-		cp := model.Checkpoint{ID: ayla.ID, MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3, DEX: 1, INT: 2, AGI: 4, VIT: 5}, UnspentPoints: 0, FreeResetUsed: false}
+		cp := model.Checkpoint{ID: ayla.ID, Class: "warrior", MapID: "forest", X: 300.5, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3, DEX: 1, INT: 2, AGI: 4, VIT: 5}, UnspentPoints: 0, FreeResetUsed: false}
 		if err := store.InTx(ctx, func(uow application.UnitOfWork) error { return uow.Characters().SaveCheckpoint(ctx, cp) }); err != nil {
 			t.Fatal(err)
 		}
 		got := load(t)
-		if got.MapID != "forest" || got.X != 300.5 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || !got.UpdatedAt.After(before.UpdatedAt) {
+		if got.Class != "warrior" || got.MapID != "forest" || got.X != 300.5 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || !got.UpdatedAt.After(before.UpdatedAt) {
 			t.Fatalf("got %+v", got)
 		}
 		if got.Level != 2 || got.Points != cp.Points || got.UnspentPoints != 0 || got.FreeResetUsed {

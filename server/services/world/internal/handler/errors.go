@@ -30,6 +30,8 @@ var Errors = grpcx.ErrorTable{
 	{Err: model.ErrSkillCoolingDown, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_SKILL_COOLING_DOWN},
 	{Err: model.ErrNotEnoughMP, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NOT_ENOUGH_MP},
 	{Err: model.ErrSkillWaiting, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_SKILL_WAITING},
+	{Err: model.ErrPromotionUnmet, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_PROMOTION_CONDITIONS_UNMET},
+	{Err: model.ErrNotYourNextClass, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NOT_YOUR_NEXT_CLASS},
 	{Err: model.ErrNpcOutOfReach, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_NPC_OUT_OF_REACH},
 	{Err: model.ErrQuestUnavailable, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_QUEST_UNAVAILABLE},
 	{Err: model.ErrQuestUnmet, Code: codes.FailedPrecondition, Reason: worldv1.Reason_REASON_QUEST_CONDITIONS_UNMET},

@@ -314,9 +314,10 @@ func actorOf(a *itemv1.Actor) (model.Actor, error) {
 }
 
 var causeTypes = map[itemv1.CauseType]model.CauseType{
-	itemv1.CauseType_CAUSE_TYPE_DROP:    model.CauseDrop,
-	itemv1.CauseType_CAUSE_TYPE_PLAYER:  model.CausePlayer,
-	itemv1.CauseType_CAUSE_TYPE_STARTER: model.CauseStarter,
+	itemv1.CauseType_CAUSE_TYPE_DROP:      model.CauseDrop,
+	itemv1.CauseType_CAUSE_TYPE_PLAYER:    model.CausePlayer,
+	itemv1.CauseType_CAUSE_TYPE_STARTER:   model.CauseStarter,
+	itemv1.CauseType_CAUSE_TYPE_PROMOTION: model.CausePromotion,
 }
 
 // keyOf accepts a canonical UUID, optionally k- prefixed, kept as sent so a retry across a deploy still finds it.

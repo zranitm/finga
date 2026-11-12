@@ -47,3 +47,86 @@ skills:
     stages:
       - {at: 0, name: Second Wind, description: "Catches breath faster: more HP and MP back every second."}
       - {at: 10, name: Deep Breath, description: "Breathes deeper still.", bonus: {hp_regen: {base: 10, per_point: 1}, mp_regen: {base: 10, per_point: 1}}}
+  # Two placeholder skills per first class, learned after promotion, until the real sets are designed.
+  # Each damage skill starts, at one point, about level with the Beginner form its promotion asks for at ten: another angle, never a step down.
+  - id: slash_blast
+    kind: active
+    effect: damage
+    damage: physical
+    shape: {kind: melee, width: 96, height: 56}
+    mp: {base: 6, per_point: 0.3}
+    cooldown: 3s
+    power: {base: 1.4, per_point: 0.04}
+    targets: 3
+    stages:
+      - {at: 0, name: Slash Blast, description: "A sweeping slash at up to three foes in front."}
+  - id: iron_body
+    kind: active
+    effect: buff
+    shape: {kind: area, radius: 48}
+    mp: {base: 10, per_point: 0.5}
+    cooldown: 60s
+    duration: 30s
+    bonus: {physical_defense: {base: 20, per_point: 2}}
+    stages:
+      - {at: 0, name: Iron Body, description: "Hardens the body: more physical defense for a while."}
+  - id: double_stab
+    kind: active
+    effect: damage
+    damage: physical
+    shape: {kind: melee, width: 56, height: 48}
+    mp: {base: 5, per_point: 0.25}
+    cooldown: 1500ms
+    power: {base: 2.0, per_point: 0.06}
+    stages:
+      - {at: 0, name: Double Stab, description: "Two quick stabs at the foe in front."}
+  - id: haste
+    kind: active
+    effect: buff
+    shape: {kind: area, radius: 48}
+    mp: {base: 10, per_point: 0.5}
+    cooldown: 40s
+    duration: 20s
+    bonus: {attack_speed: {base: 80, per_point: 5}, evasion: {base: 10, per_point: 1}}
+    stages:
+      - {at: 0, name: Haste, description: "Moves quicker: faster attacks and more evasion for a while."}
+  - id: power_shot
+    kind: active
+    effect: damage
+    damage: physical
+    shape: {kind: ranged, range: 460}
+    mp: {base: 6, per_point: 0.3}
+    cooldown: 2s
+    power: {base: 2.4, per_point: 0.06}
+    stages:
+      - {at: 0, name: Power Shot, description: "A drawn-back shot that flies far and hits hard."}
+  - id: focus
+    kind: active
+    effect: buff
+    shape: {kind: area, radius: 48}
+    mp: {base: 10, per_point: 0.5}
+    cooldown: 60s
+    duration: 30s
+    bonus: {accuracy: {base: 20, per_point: 2}, crit_rate: {base: 50, per_point: 5}}
+    stages:
+      - {at: 0, name: Focus, description: "Steadies the aim: more accuracy and crit rate for a while."}
+  - id: fire_arrow
+    kind: active
+    effect: damage
+    damage: magic
+    shape: {kind: ranged, range: 380}
+    mp: {base: 9, per_point: 0.4}
+    cooldown: 2s
+    power: {base: 2.8, per_point: 0.08}
+    stages:
+      - {at: 0, name: Fire Arrow, description: "A bolt of fire at the nearest foe ahead."}
+  - id: heal
+    kind: active
+    effect: heal
+    shape: {kind: area, radius: 150}
+    mp: {base: 10, per_point: 0.5}
+    cooldown: 3s
+    power: {base: 1.5, per_point: 0.05}
+    targets: 3
+    stages:
+      - {at: 0, name: Heal, description: "Heals the caster and up to two hurt party members nearby."}

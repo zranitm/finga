@@ -1,19 +1,30 @@
-// What an NPC offers, as its NpcDialog said when talked to; what it takes back is ready by the live log and inventory.
+// What an NPC offers, as its NpcDialog said when talked to: quests, and a trainer's promotion; what it takes back is ready by the live log and inventory.
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
+import { Modal } from '@/components/Modal';
 import { itemName } from '@/features/shared/items';
 import { problemOf } from '@/features/shared/problem';
 import { QuestObjectives } from '@/features/shared/QuestObjectives';
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
+import { article } from '@/features/shared/words';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
-import { className } from '@/progression/classes';
+import { classDescription, className } from '@/progression/classes';
 import { isReady, npcById, questById, questName } from '@/progression/quests';
 import type { Quest } from '@/progression/quests';
-import { QuestOfferState } from '@/protocol/messages';
-import type { QuestConditions, QuestOffer } from '@/protocol/messages';
+import { skillById } from '@/progression/skills';
+import { PromotionConditionKind, QuestOfferState } from '@/protocol/messages';
+import type {
+  PromotionCondition,
+  PromotionOffer,
+  QuestConditions,
+  QuestOffer,
+} from '@/protocol/messages';
+import { character } from '@/state/character';
 import { quests } from '@/state/quests';
+
+import { haveNow } from './promotion';
 
 export interface NpcWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -30,7 +41,7 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
   }
   const npc = dialog.npcId;
 
-  // Accept and Hand in close the dialog on success: what it showed has changed.
+  // Accept, Hand in and Promote close the dialog on success: what it showed has changed.
   const run = async (send: () => Promise<unknown>) => {
     setBusy(true);
     setProblem(null);
@@ -64,8 +75,17 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
             {line}
           </p>
         ))}
-        {lines.length === 0 && gives.length === 0 && takes.length === 0 && (
+        {lines.length === 0 && gives.length === 0 && takes.length === 0 && !dialog.promotion && (
           <p className="muted">Nothing for you right now.</p>
+        )}
+        {dialog.promotion && (
+          <Promotion
+            offer={dialog.promotion}
+            busy={busy}
+            onPromote={(cls) =>
+              void run(() => socket.request('promote', { npcId: npc, class: cls }))
+            }
+          />
         )}
         {takes.length > 0 && (
           <>
@@ -118,6 +138,92 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
       </div>
     </WorldWindow>
   );
+}
+
+function Promotion({
+  offer,
+  busy,
+  onPromote,
+}: {
+  readonly offer: PromotionOffer;
+  readonly busy: boolean;
+  readonly onPromote: (cls: string) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const me = character.use((s) => s.character);
+  const log = quests.use((s) => s.log);
+  // The dialog's counts are from the talk; spends, level-ups and quests since update them here, and the world checks again.
+  const conditions = me
+    ? offer.conditions.map((c) => ({
+        ...c,
+        have: haveNow(c, {
+          level: me.level,
+          own: me.stats,
+          invested: me.sheet?.skills?.invested ?? {},
+          log,
+        }),
+      }))
+    : offer.conditions;
+  const name = className(offer.class);
+  const become = `Become ${article(name)} ${name}`;
+  const met = conditions.every((c) => c.have >= c.need);
+  return (
+    <section className="npc-promotion" aria-label="Promotion">
+      <h3>{become}</h3>
+      <p className="npc-line">{classDescription(offer.class)}</p>
+      <ul className="quest-objectives" aria-label="Promotion conditions">
+        {conditions.map((c) => (
+          <li key={`${c.kind}:${c.id}`} className={c.have >= c.need ? 'quest-done' : ''}>
+            {conditionText(c)}
+            {c.have >= c.need && ' ✓'}
+          </li>
+        ))}
+      </ul>
+      <Button variant="primary" disabled={busy || !met} onClick={() => setConfirming(true)}>
+        {become}
+      </Button>
+      {confirming && (
+        <Modal title={`${become}?`} onClose={() => setConfirming(false)}>
+          <p>
+            A promotion is for good: you stay {article(name)} {name} from now on. The trainer hands
+            you your first weapon.
+          </p>
+          <Button
+            variant="primary"
+            disabled={busy}
+            onClick={() => {
+              setConfirming(false);
+              onPromote(offer.class);
+            }}
+          >
+            {become}
+          </Button>
+          <Button variant="quiet" onClick={() => setConfirming(false)}>
+            Not yet
+          </Button>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
+/** A promotion condition, with what the character has while it falls short. */
+export function conditionText(c: PromotionCondition): string {
+  const short = c.have < c.need;
+  switch (c.kind) {
+    case PromotionConditionKind.LEVEL:
+      return `Level ${c.need}${short ? ` · you're ${c.have}` : ''}`;
+    case PromotionConditionKind.STAT:
+      return `${c.id.toUpperCase()} ${c.need} without gear${short ? ` · yours ${c.have}` : ''}`;
+    case PromotionConditionKind.SKILL: {
+      const skill = skillById(c.id)?.stages[0]?.name ?? c.id;
+      return `${c.need} points in ${skill}${short ? ` · you have ${c.have}` : ''}`;
+    }
+    case PromotionConditionKind.QUEST:
+      return `${questName(c.id)} finished${short ? ' · not yet' : ''}`;
+    default:
+      return "A condition this client doesn't know";
+  }
 }
 
 function Offer({

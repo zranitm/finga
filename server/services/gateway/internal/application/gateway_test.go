@@ -398,6 +398,7 @@ func (w *world) SpendSkillPoints(context.Context, model.Presence, model.SkillPoi
 	return nil
 }
 func (w *world) UseSkill(context.Context, model.Presence, string) error            { return nil }
+func (w *world) Promote(context.Context, model.Presence, string, string) error     { return nil }
 func (w *world) Talk(context.Context, model.Presence, string) error                { return nil }
 func (w *world) AcceptQuest(context.Context, model.Presence, model.QuestAsk) error { return nil }
 func (w *world) AbandonQuest(context.Context, model.Presence, string) error        { return nil }

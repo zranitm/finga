@@ -87,6 +87,8 @@ const texts: Record<ErrorCode, string> = {
   [ERR.SKILL_COOLING_DOWN]: 'That skill isn’t ready yet.',
   [ERR.NOT_ENOUGH_MP]: 'Not enough MP.',
   [ERR.SKILL_WAITING]: 'Another skill is already waiting for its turn.',
+  [ERR.PROMOTION_CONDITIONS_UNMET]: 'You don’t meet every condition yet.',
+  [ERR.NOT_YOUR_NEXT_CLASS]: 'This trainer can’t promote you to that class.',
 
   [ERR.NOT_PARTY_LEADER]: 'Only the party leader can do that.',
   [ERR.PARTY_FULL]: 'The party is full.',

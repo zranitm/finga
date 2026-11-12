@@ -161,6 +161,8 @@ message SaveCheckpointRequest {
   int32 unspent_skill_points = 13;
   // Every skill with points; points are never taken back, so a stored skill not listed keeps its own.
   repeated SkillPoints skills = 14;
+  // The class, which a promotion changes; it must be in the game data.
+  string class = 15;
 }
 
 message SaveCheckpointResponse {}

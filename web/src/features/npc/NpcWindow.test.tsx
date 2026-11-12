@@ -9,9 +9,12 @@ import { ERR } from '@/protocol/errors';
 import {
   InventoryChangedSchema,
   NpcDialogSchema,
+  PromotionConditionKind,
+  PromotionConditionSchema,
   QuestConditionsSchema,
   QuestOfferState,
   QuestStatus,
+  StatsChangedSchema,
   WelcomeSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
@@ -20,7 +23,7 @@ import { quests } from '@/state/quests';
 import { refusal } from '@/testing/refusal';
 import { resetStores } from '@/testing/reset-stores';
 
-import { NpcWindow, unmetText } from './NpcWindow';
+import { NpcWindow, conditionText, unmetText } from './NpcWindow';
 
 function fakeSocket(answers: readonly (object | Error)[] = []) {
   const calls: { t: string; d: unknown }[] = [];
@@ -44,6 +47,39 @@ function welcome(
   inventory.getState().applyWelcome(d);
   quests.getState().applyWelcome(d);
 }
+
+/** A level 10 Beginner with ten points in Strike, the Warrior's Trial finished, and str of their own. */
+function trainee(str: number) {
+  const d = create(WelcomeSchema, {
+    character: {
+      id: 'c-ayla',
+      name: 'Ayla',
+      class: 'beginner',
+      level: 10,
+      stats: { str, dex: 7, int: 7, agi: 7, vit: 7 },
+      sheet: { skills: { unspent: 0, invested: { strike: 10 } } },
+    },
+    quests: [{ questId: 'warriors_trial', status: QuestStatus.FINISHED, timesFinished: 1 }],
+  });
+  character.getState().applyWelcome(d);
+  inventory.getState().applyWelcome(d);
+  quests.getState().applyWelcome(d);
+}
+
+// The Warrior Trainer's offer as the world counted it at the talk, its STR condition at have.
+const warriorOffer = (str: number) =>
+  create(NpcDialogSchema, {
+    npcId: 'warrior_trainer',
+    promotion: {
+      class: 'warrior',
+      conditions: [
+        { kind: PromotionConditionKind.LEVEL, need: 10, have: 10 },
+        { kind: PromotionConditionKind.STAT, id: 'str', need: 30, have: str },
+        { kind: PromotionConditionKind.SKILL, id: 'strike', need: 10, have: 10 },
+        { kind: PromotionConditionKind.QUEST, id: 'warriors_trial', need: 1, have: 1 },
+      ],
+    },
+  });
 
 const gels = (quantity: number) =>
   create(InventoryChangedSchema, {
@@ -186,6 +222,111 @@ describe('NpcWindow', () => {
       expect(screen.getByText(line)).toBeInTheDocument();
     }
     expect(screen.queryByText('Nothing for you right now.')).toBeNull();
+  });
+
+  it("a trainer's promotion lists each condition, and its button waits for every one", () => {
+    trainee(27);
+    quests.getState().applyNpcDialog(warriorOffer(27));
+    render(<NpcWindow socket={fakeSocket().socket} onClose={vi.fn()} />);
+    const offer = screen.getByRole('region', { name: 'Promotion' });
+    expect(within(offer).getByRole('heading')).toHaveTextContent('Become a Warrior');
+    const conditions = within(offer)
+      .getAllByRole('listitem')
+      .map((li) => li.textContent);
+    expect(conditions).toEqual([
+      'Level 10 ✓',
+      'STR 30 without gear · yours 27',
+      '10 points in Strike ✓',
+      "The Warrior's Trial finished ✓",
+    ]);
+    expect(within(offer).getByRole('button', { name: 'Become a Warrior' })).toBeDisabled();
+    expect(screen.queryByText('Nothing for you right now.')).toBeNull();
+  });
+
+  it('an open dialog follows a spend that meets the last condition, without talking again', () => {
+    trainee(27);
+    quests.getState().applyNpcDialog(warriorOffer(27));
+    const { socket, calls } = fakeSocket();
+    render(<NpcWindow socket={socket} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Become a Warrior' })).toBeDisabled();
+    act(() =>
+      character.getState().applyStatsChanged(
+        create(StatsChangedSchema, {
+          sheet: {
+            primary: { str: 30, dex: 7, int: 7, agi: 7, vit: 7 },
+            skills: { unspent: 0, invested: { strike: 10 } },
+          },
+          hp: 50,
+          maxHp: 50,
+        }),
+      ),
+    );
+    expect(screen.getByText('STR 30 without gear ✓')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Become a Warrior' })).toBeEnabled();
+    expect(calls).toEqual([]);
+  });
+
+  it("promoting asks first, saying it's for good, then sends the class and closes once done", async () => {
+    trainee(30);
+    quests.getState().applyNpcDialog(warriorOffer(30));
+    const { socket, calls } = fakeSocket();
+    const onClose = vi.fn();
+    render(<NpcWindow socket={socket} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+    const confirm = screen.getByRole('dialog', { name: 'Become a Warrior?' });
+    expect(confirm).toHaveTextContent('A promotion is for good');
+    expect(confirm).toHaveTextContent('The trainer hands you your first weapon.');
+    await userEvent.click(within(confirm).getByRole('button', { name: 'Not yet' }));
+    expect(screen.queryByRole('dialog', { name: 'Become a Warrior?' })).toBeNull();
+    expect(calls).toEqual([]);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
+        name: 'Become a Warrior',
+      }),
+    );
+    expect(calls).toEqual([{ t: 'promote', d: { npcId: 'warrior_trainer', class: 'warrior' } }]);
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('a refused promotion stays open and says why', async () => {
+    trainee(30);
+    quests.getState().applyNpcDialog(warriorOffer(30));
+    const { socket } = fakeSocket([refusal(ERR.PROMOTION_CONDITIONS_UNMET)]);
+    const onClose = vi.fn();
+    render(<NpcWindow socket={socket} onClose={onClose} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
+        name: 'Become a Warrior',
+      }),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('You don’t meet every condition yet.');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { c: { kind: PromotionConditionKind.LEVEL, need: 10, have: 9 }, text: "Level 10 · you're 9" },
+    { c: { kind: PromotionConditionKind.LEVEL, need: 10, have: 12 }, text: 'Level 10' },
+    {
+      c: { kind: PromotionConditionKind.STAT, id: 'agi', need: 30, have: 31 },
+      text: 'AGI 30 without gear',
+    },
+    {
+      c: { kind: PromotionConditionKind.SKILL, id: 'spark', need: 10, have: 4 },
+      text: '10 points in Spark · you have 4',
+    },
+    {
+      c: { kind: PromotionConditionKind.QUEST, id: 'warriors_trial', need: 1, have: 0 },
+      text: "The Warrior's Trial finished · not yet",
+    },
+    {
+      c: { kind: 9 as PromotionConditionKind, need: 1, have: 0 },
+      text: "A condition this client doesn't know",
+    },
+  ])('a condition reads "$text"', ({ c, text }) => {
+    expect(conditionText(create(PromotionConditionSchema, c))).toBe(text);
   });
 
   it.each([

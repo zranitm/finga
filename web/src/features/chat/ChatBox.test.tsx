@@ -16,6 +16,7 @@ import {
   LevelUpSchema,
   LootKind,
   LootSchema,
+  PromotedSchema,
   QuestChange,
   QuestChangedSchema,
   QuestStatus,
@@ -397,6 +398,16 @@ describe('ChatBox', () => {
               create(LevelUpSchema, { character: create(CharacterViewSchema, { level: 5 }) }),
             ),
         text: 'You reached level 5!',
+      },
+      {
+        name: 'a promotion',
+        add: () =>
+          combatLog.getState().applyPromoted(
+            create(PromotedSchema, {
+              character: create(CharacterViewSchema, { class: 'warrior' }),
+            }),
+          ),
+        text: 'You became a Warrior!',
       },
       {
         name: 'an item this player collected',

@@ -44,6 +44,9 @@ var (
 	ErrSkillCoolingDown = errors.New("world: the skill is still cooling down")
 	ErrNotEnoughMP      = errors.New("world: not enough MP for the skill")
 	ErrSkillWaiting     = errors.New("world: another skill use already waits for the next action turn")
+
+	ErrPromotionUnmet   = errors.New("world: the character doesn't meet every condition of the promotion")
+	ErrNotYourNextClass = errors.New("world: the NPC doesn't train that class, or its parent isn't the character's class")
 )
 
 // Worn is what a character wears as the item service last counted it: each worn item, at the inventory's Revision.
@@ -88,8 +91,9 @@ type Player struct {
 	X, Y    float64 // where to appear: feet centre
 	// Connection is the gateway connection joined through; a Leave from another one is ignored.
 	Connection string
-	Worn       Worn   // travels with the player between maps
-	Quests     Quests // travels with the player too
+	Worn       Worn        // travels with the player between maps
+	Quests     Quests      // travels with the player too
+	Timers     SkillTimers // travels with the player too, though no checkpoint keeps it
 	// HandedIn are completions the item service handed in while the world missed the reply; the map's join finishes them.
 	HandedIn []HandedIn
 }
@@ -298,7 +302,8 @@ func (SkillUsed) event() {}
 // Checkpoint is a character's non-economic state, saved every interval and at once on a level-up, map change or leave.
 type Checkpoint struct {
 	ID     kernel.CharacterID
-	MapID  string // the map it is on, or moving to
+	Class  kernel.Class // a promotion changes it
+	MapID  string       // the map it is on, or moving to
 	X, Y   float64
 	HP     int
 	MP     int

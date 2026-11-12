@@ -8,6 +8,7 @@ import (
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
 	"finga/pkg/transient"
+	"finga/services/world/internal/application/promotions"
 	"finga/services/world/internal/application/quests"
 	"finga/services/world/internal/model"
 )
@@ -41,6 +42,9 @@ func (i *Instance) talk(m talkMsg) {
 	}
 	i.progress(p, gamedata.TalkTo, npc.ID)
 	d := quests.Dialog(i.data, npc, i.questsOf(p))
+	if offer, ok := promotions.Offer(i.data, npc, i.promotionOf(p)); ok {
+		d.Promotion = &offer
+	}
 	d.Tick = i.tick
 	p.private = append(p.private, d)
 	m.done <- nil

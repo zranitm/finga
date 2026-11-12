@@ -181,6 +181,7 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 		{model.Respawned{CharacterID: "p-1", MapID: "town", X: 416, Y: 608, HP: 102}, &clientv1.Respawned{CharacterId: "p-1", MapId: "town", X: 416, Y: 608, Hp: 102}},
 		{model.ExpGained{Amount: 5, Exp: 15}, &clientv1.ExpGained{Amount: 5, Exp: 15}},
 		{model.LevelUp{Character: character}, &clientv1.LevelUp{Character: wireCharacter}},
+		{model.Promoted{Character: character}, &clientv1.Promoted{Character: wireCharacter}},
 		{
 			model.ChatMessage{Channel: model.ChatParty, Sender: "p-1", SenderName: "Robin", Text: "psst"},
 			&clientv1.ChatMessage{Channel: clientv1.ChatChannel_CHAT_CHANNEL_PARTY, Sender: "p-1", SenderName: "Robin", Text: "psst"},
@@ -215,6 +216,18 @@ func TestEachPushReachesTheClientAsItsMessage(t *testing.T) {
 				{QuestId: "c", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_FINISHED},
 				{QuestId: "d", State: clientv1.QuestOfferState_QUEST_OFFER_STATE_CONDITIONS_UNMET, Unmet: &clientv1.QuestConditions{Level: 5, Class: "thief", Quests: []string{"a"}}},
 			}, Takes: []*clientv1.QuestTurnIn{{QuestId: "b", Ready: true}, {QuestId: "e"}}},
+		},
+		{
+			model.NpcDialog{NPC: "warrior_trainer", Promotion: &model.PromotionOffer{Class: "warrior", Conditions: []model.PromotionCondition{
+				{Kind: model.ConditionLevel, Need: 10, Have: 9}, {Kind: model.ConditionStat, ID: "str", Need: 30, Have: 30},
+				{Kind: model.ConditionSkill, ID: "strike", Need: 10, Have: 4}, {Kind: model.ConditionQuest, ID: "warriors_trial", Need: 1},
+			}}},
+			&clientv1.NpcDialog{NpcId: "warrior_trainer", Promotion: &clientv1.PromotionOffer{Class: "warrior", Conditions: []*clientv1.PromotionCondition{
+				{Kind: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL, Need: 10, Have: 9},
+				{Kind: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT, Id: "str", Need: 30, Have: 30},
+				{Kind: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL, Id: "strike", Need: 10, Have: 4},
+				{Kind: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST, Id: "warriors_trial", Need: 1},
+			}}},
 		},
 		{
 			model.QuestChanged{Change: model.QuestProgressed, Quest: model.QuestState{Quest: "a", Status: model.QuestActive, Progress: []int{2, 0}, TimesFinished: 3}},

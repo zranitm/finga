@@ -878,7 +878,9 @@ type SaveCheckpointRequest struct {
 	Quests             []*Quest `protobuf:"bytes,12,rep,name=quests,proto3" json:"quests,omitempty"`
 	UnspentSkillPoints int32    `protobuf:"varint,13,opt,name=unspent_skill_points,json=unspentSkillPoints,proto3" json:"unspent_skill_points,omitempty"`
 	// Every skill with points; points are never taken back, so a stored skill not listed keeps its own.
-	Skills        []*SkillPoints `protobuf:"bytes,14,rep,name=skills,proto3" json:"skills,omitempty"`
+	Skills []*SkillPoints `protobuf:"bytes,14,rep,name=skills,proto3" json:"skills,omitempty"`
+	// The class, which a promotion changes; it must be in the game data.
+	Class         string `protobuf:"bytes,15,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1009,6 +1011,13 @@ func (x *SaveCheckpointRequest) GetSkills() []*SkillPoints {
 		return x.Skills
 	}
 	return nil
+}
+
+func (x *SaveCheckpointRequest) GetClass() string {
+	if x != nil {
+		return x.Class
+	}
+	return ""
 }
 
 type SaveCheckpointResponse struct {
@@ -1328,7 +1337,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\fLoadResponse\x12>\n" +
 	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\x124\n" +
 	"\x06quests\x18\x02 \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\x12:\n" +
-	"\x06skills\x18\x03 \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\"\xde\x03\n" +
+	"\x06skills\x18\x03 \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\"\xf4\x03\n" +
 	"\x15SaveCheckpointRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
@@ -1344,7 +1353,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x0ffree_reset_used\x18\v \x01(\bR\rfreeResetUsed\x124\n" +
 	"\x06quests\x18\f \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\x120\n" +
 	"\x14unspent_skill_points\x18\r \x01(\x05R\x12unspentSkillPoints\x12:\n" +
-	"\x06skills\x18\x0e \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\"\x18\n" +
+	"\x06skills\x18\x0e \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\x12\x14\n" +
+	"\x05class\x18\x0f \x01(\tR\x05class\"\x18\n" +
 	"\x16SaveCheckpointResponse\"\xb5\x01\n" +
 	"\x12SaveLevelUpRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x14\n" +

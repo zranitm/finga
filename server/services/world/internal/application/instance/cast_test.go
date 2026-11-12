@@ -25,7 +25,7 @@ func skillData(t *testing.T) *gamedata.Data {
 	return worldtest.LoadDataWith(t, map[string]func(string) string{
 		"classes.yaml": func(s string) string {
 			s = strings.Replace(s, "skills: [strike, throw, spark, second_wind]", "skills: [strike, throw, spark, second_wind, mend]", 1)
-			return strings.Replace(s, "auto_assign: {str: 3, vit: 2}", "auto_assign: {str: 3, vit: 2}\n    skills: [rally]", 1)
+			return strings.Replace(s, "skills: [slash_blast, iron_body]", "skills: [slash_blast, iron_body, rally]", 1)
 		},
 		"skills.yaml": func(s string) string {
 			return s + `
@@ -496,6 +496,51 @@ func TestASkillsCooldown(t *testing.T) {
 		}
 		if third := usedAt(); third != first+2*cd-slack {
 			t.Fatalf("used a third time at tick %d, want %d: the second cooldown counts from the first's end", third, first+2*cd-slack)
+		}
+	})
+}
+
+// A map change carries the time left on each cooldown and buff: Rally, used in town, is still cooling down on the next map, and its buff ends there when its time is up.
+func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		data := skillData(t)
+		tr := &transferRecorder{}
+		town, stopTown := worldtest.Run(t, data, nil, worldtest.Options{Transfer: tr})
+		defer stopTown()
+		next, stopNext := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
+		defer stopNext()
+		tick(1)
+		p := caster(0)
+		at := data.StartTown().Portals[0].Arrival()
+		p.X, p.Y = at.X, at.Y
+		join(t, town, p)
+		if err := cast(town, p.ID, "rally"); err != nil {
+			t.Fatal(err)
+		}
+		tick(5)
+		_ = town.EnterPortal(p.ID)
+		tick(1)
+		if moved(tr) != 1 {
+			t.Fatal("the portal moved nobody")
+		}
+		timers := tr.moved[0].Timers
+		cooldown, buff := timers.Cooldowns["rally"], timers.Buffs["rally"]
+		if cooldown <= 0 || cooldown >= time.Second || buff.Left <= time.Second || buff.Left >= 2*time.Second || buff.Bonus.PhysicalAttack != 50 {
+			t.Fatalf("carried %+v, want Rally part way through its 1 s cooldown and 2 s buff", timers)
+		}
+
+		s := join(t, next, tr.moved[0])
+		if err := cast(next, p.ID, "rally"); !errors.Is(err, model.ErrSkillCoolingDown) {
+			t.Fatalf("Rally again on the next map: %v, want still cooling down", err)
+		}
+		ends := int(model.TicksIn(buff.Left, worldtest.TickInterval)) // from the join's tick; the join and the cast took one each
+		tick(ends - 3)
+		if len(sheets(s)) != 0 {
+			t.Fatal("the buff ended before its time")
+		}
+		tick(1)
+		if changed := sheets(s); len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 0 {
+			t.Fatalf("stats changed %+v, want the sheet without Rally once its time is up", changed)
 		}
 	})
 }

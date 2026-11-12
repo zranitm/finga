@@ -38,6 +38,7 @@ const (
 	WorldService_HandInQuest_FullMethodName      = "/internal.world.v1.WorldService/HandInQuest"
 	WorldService_UseItem_FullMethodName          = "/internal.world.v1.WorldService/UseItem"
 	WorldService_UseSkill_FullMethodName         = "/internal.world.v1.WorldService/UseSkill"
+	WorldService_Promote_FullMethodName          = "/internal.world.v1.WorldService/Promote"
 )
 
 // WorldServiceClient is the client API for WorldService service.
@@ -85,6 +86,8 @@ type WorldServiceClient interface {
 	UseItem(ctx context.Context, in *UseItemRequest, opts ...grpc.CallOption) (*UseItemResponse, error)
 	// UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
 	UseSkill(ctx context.Context, in *UseSkillRequest, opts ...grpc.CallOption) (*UseSkillResponse, error)
+	// Promote moves the character to the class the NPC within reach trains, once their class is its parent and they meet every condition: the item service gives the trainer's weapon, then the class changes. It answers once applied, with Promoted on Deliver, an item service refusal carrying that service's Reason.
+	Promote(ctx context.Context, in *PromoteRequest, opts ...grpc.CallOption) (*PromoteResponse, error)
 }
 
 type worldServiceClient struct {
@@ -295,6 +298,16 @@ func (c *worldServiceClient) UseSkill(ctx context.Context, in *UseSkillRequest, 
 	return out, nil
 }
 
+func (c *worldServiceClient) Promote(ctx context.Context, in *PromoteRequest, opts ...grpc.CallOption) (*PromoteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromoteResponse)
+	err := c.cc.Invoke(ctx, WorldService_Promote_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldServiceServer is the server API for WorldService service.
 // All implementations must embed UnimplementedWorldServiceServer
 // for forward compatibility.
@@ -340,6 +353,8 @@ type WorldServiceServer interface {
 	UseItem(context.Context, *UseItemRequest) (*UseItemResponse, error)
 	// UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
 	UseSkill(context.Context, *UseSkillRequest) (*UseSkillResponse, error)
+	// Promote moves the character to the class the NPC within reach trains, once their class is its parent and they meet every condition: the item service gives the trainer's weapon, then the class changes. It answers once applied, with Promoted on Deliver, an item service refusal carrying that service's Reason.
+	Promote(context.Context, *PromoteRequest) (*PromoteResponse, error)
 	mustEmbedUnimplementedWorldServiceServer()
 }
 
@@ -406,6 +421,9 @@ func (UnimplementedWorldServiceServer) UseItem(context.Context, *UseItemRequest)
 }
 func (UnimplementedWorldServiceServer) UseSkill(context.Context, *UseSkillRequest) (*UseSkillResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UseSkill not implemented")
+}
+func (UnimplementedWorldServiceServer) Promote(context.Context, *PromoteRequest) (*PromoteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Promote not implemented")
 }
 func (UnimplementedWorldServiceServer) mustEmbedUnimplementedWorldServiceServer() {}
 func (UnimplementedWorldServiceServer) testEmbeddedByValue()                      {}
@@ -763,6 +781,24 @@ func _WorldService_UseSkill_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldService_Promote_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldServiceServer).Promote(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldService_Promote_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldServiceServer).Promote(ctx, req.(*PromoteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldService_ServiceDesc is the grpc.ServiceDesc for WorldService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -841,6 +877,10 @@ var WorldService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UseSkill",
 			Handler:    _WorldService_UseSkill_Handler,
+		},
+		{
+			MethodName: "Promote",
+			Handler:    _WorldService_Promote_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

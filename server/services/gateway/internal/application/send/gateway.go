@@ -19,7 +19,7 @@ type Sessions interface {
 	Rotate(ctx context.Context, sessionID kernel.SessionID) (string, error)
 }
 
-// World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill and the quest commands, which answer once applied.
+// World is the world service's commands; each is fire and forget, but Equip, Unequip, UseItem, SpendPoints, ResetPoints and SpendSkillPoints, which answer once the new stats apply, and UseSkill, Promote and the quest commands, which answer once applied.
 type World interface {
 	Input(ctx context.Context, p model.Presence, seq uint32, keys model.Keys) error
 	Attack(ctx context.Context, p model.Presence) error
@@ -36,6 +36,7 @@ type World interface {
 	AcceptQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
 	AbandonQuest(ctx context.Context, p model.Presence, quest string) error
 	HandInQuest(ctx context.Context, p model.Presence, in model.QuestAsk) error
+	Promote(ctx context.Context, p model.Presence, npc, class string) error
 }
 
 // Items is the item service: the inventory and its commands.

@@ -71,10 +71,11 @@ type QuestTurnIn struct {
 
 // NpcDialog is what an NPC offers the character now, computed from its live state.
 type NpcDialog struct {
-	Tick  uint64
-	NPC   string
-	Gives []QuestOffer
-	Takes []QuestTurnIn
+	Tick      uint64
+	NPC       string
+	Gives     []QuestOffer
+	Takes     []QuestTurnIn
+	Promotion *PromotionOffer // set when the NPC trains a class whose parent is the character's
 }
 
 func (NpcDialog) event() {}

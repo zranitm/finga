@@ -1,7 +1,9 @@
 // The single place net and state meet.
 import { itemName, starMarks, starsOf } from '@/features/shared/items';
+import { article } from '@/features/shared/words';
 import { RequestError } from '@/net/socket';
 import type { GameSocket, StatusEvent } from '@/net/socket';
+import { className } from '@/progression/classes';
 import { readyQuests } from '@/progression/quests';
 import { autoAssign, hasSplit } from '@/progression/stats';
 import { ERR, errorText, refusalCode } from '@/protocol/errors';
@@ -16,6 +18,7 @@ import { party } from '@/state/party';
 import { outdates, questPlayer, quests } from '@/state/quests';
 import { session } from '@/state/session';
 import { settings } from '@/state/settings';
+import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
@@ -37,6 +40,7 @@ export function wireSocket(socket: GameSocket): () => void {
       inventory.getState().applyWelcome(m.d);
       quests.getState().applyWelcome(m.d);
       ui.getState().closeWindow('npc');
+      skillBar.getState().clearTimers(); // a Welcome is a fresh join, which starts the world's over
       if (m.d.token === '') {
         // A rejoin the server made, with no token: play went on, so a quest ready since gets its line, and the party stays until the PartyState right behind.
         announceReady();
@@ -75,6 +79,15 @@ export function wireSocket(socket: GameSocket): () => void {
       combatLog.getState().applyLevelUp(m.d);
       autoAssignPoints(socket, m.d);
       announceReady();
+    }),
+    socket.on('promoted', (m) => {
+      character.getState().applyPromoted(m.d);
+      combatLog.getState().applyPromoted(m.d);
+      ui.getState().closeWindow('npc'); // its offer is spent, even if the request's answer was lost
+      if (m.d.character) {
+        const name = className(m.d.character.class);
+        toasts.getState().push(`You became ${article(name)} ${name}!`, 'info');
+      }
     }),
     socket.on('statsChanged', (m) => {
       const before = character.getState().character?.sheet?.skills?.invested;

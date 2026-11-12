@@ -38,6 +38,7 @@ message ClientMessage {
     UseItem use_item = 25;
     SpendSkillPoints spend_skill_points = 26;
     UseSkill use_skill = 27;
+    Promote promote = 28;
   }
 }
 
@@ -73,6 +74,7 @@ message ServerMessage {
     NpcDialog npc_dialog = 22;
     QuestChanged quest_changed = 23;
     SkillUsed skill_used = 24;
+    Promoted promoted = 25;
   }
 }
 
@@ -206,6 +208,12 @@ message SpendSkillPoints {
 message UseSkill {
   // The skill ID.
   string skill = 1;
+}
+
+// Promote moves the character to the class the NPC within reach trains, as its dialog offered it; a Promoted follows, and the Response says whether it applied.
+message Promote {
+  string npc_id = 1;
+  string class = 2;
 }
 
 // ResetPoints returns every spent point to unspent, using the one free reset.
@@ -503,6 +511,11 @@ message LevelUp {
   CharacterView character = 1;
 }
 
+// Promoted carries the character in its new class, with HP and MP restored and the new sheet.
+message Promoted {
+  CharacterView character = 1;
+}
+
 // InventorySlot is a slot after a change; item is unset when it emptied.
 message InventorySlot {
   string tab = 1;
@@ -604,6 +617,34 @@ message NpcDialog {
   repeated QuestOffer gives = 2;
   // The character's active quests it takes back.
   repeated QuestTurnIn takes = 3;
+  // Set when the NPC trains a class whose parent is the character's.
+  PromotionOffer promotion = 4;
+}
+
+// PromotionOffer is a trainer's promotion: each condition, with what the character has.
+message PromotionOffer {
+  string class = 1;
+  repeated PromotionCondition conditions = 2;
+}
+
+// PromotionCondition is one thing a promotion asks, met when have reaches need.
+message PromotionCondition {
+  PromotionConditionKind kind = 1;
+  // The stat (str, dex, int, agi or vit), skill or quest it names; empty for the level.
+  string id = 2;
+  int32 need = 3;
+  int32 have = 4;
+}
+
+enum PromotionConditionKind {
+  PROMOTION_CONDITION_KIND_UNSPECIFIED = 0;
+  PROMOTION_CONDITION_KIND_LEVEL = 1;
+  // Own stat points, without gear.
+  PROMOTION_CONDITION_KIND_STAT = 2;
+  // Points invested in the skill.
+  PROMOTION_CONDITION_KIND_SKILL = 3;
+  // The quest finished: need 1, and have 1 once it is.
+  PROMOTION_CONDITION_KIND_QUEST = 4;
 }
 
 // QuestOfferState is where a quest an NPC gives stands for the character.

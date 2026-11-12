@@ -6,6 +6,7 @@ import {
   CharacterViewSchema,
   ExpGainedSchema,
   LevelUpSchema,
+  PromotedSchema,
   LootKind,
   LootSchema,
 } from '@/protocol/messages';
@@ -35,17 +36,21 @@ describe('combatLog', () => {
     vi.useRealTimers();
   });
 
-  it('EXP, a level-up, loot and a potion each add a line, oldest first', () => {
+  it('EXP, a level-up, a promotion, loot and a potion each add a line, oldest first', () => {
     const s = combatLog.getState();
     s.applyExpGained(exp(12n));
     s.applyExpGained(exp(-30n));
     s.applyLevelUp(create(LevelUpSchema, { character: create(CharacterViewSchema, { level: 5 }) }));
+    s.applyPromoted(
+      create(PromotedSchema, { character: create(CharacterViewSchema, { class: 'thief' }) }),
+    );
     s.applyLoot(loot(LootKind.COLLECTED, 7));
     s.drank('red_potion', { hp: 50, mp: 0 });
     expect(combatLog.getState().lines).toMatchObject([
       { kind: 'exp', amount: 12 },
       { kind: 'exp', amount: -30 },
       { kind: 'level', level: 5 },
+      { kind: 'promoted', cls: 'thief' },
       {
         kind: 'loot',
         loot: LootKind.COLLECTED,
@@ -57,7 +62,7 @@ describe('combatLog', () => {
       { kind: 'drank', template: 'red_potion', hp: 50, mp: 0 },
     ]);
     const ids = combatLog.getState().lines.map((l) => l.id);
-    expect(new Set(ids).size).toBe(5);
+    expect(new Set(ids).size).toBe(6);
   });
 
   it.each([
@@ -65,6 +70,10 @@ describe('combatLog', () => {
     {
       name: 'a LevelUp with no character',
       apply: () => combatLog.getState().applyLevelUp(create(LevelUpSchema, {})),
+    },
+    {
+      name: 'a Promoted with no character',
+      apply: () => combatLog.getState().applyPromoted(create(PromotedSchema, {})),
     },
     {
       name: 'a Loot with no kind',

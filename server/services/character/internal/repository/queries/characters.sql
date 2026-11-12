@@ -25,7 +25,7 @@ SELECT * FROM characters WHERE id = $1 AND account_id = $2;
 
 -- name: SaveCheckpoint :execrows
 UPDATE characters
-SET map_id = sqlc.arg(map_id), pos_x = sqlc.arg(pos_x), pos_y = sqlc.arg(pos_y), hp = sqlc.arg(hp), mp = sqlc.arg(mp),
+SET class = sqlc.arg(class), map_id = sqlc.arg(map_id), pos_x = sqlc.arg(pos_x), pos_y = sqlc.arg(pos_y), hp = sqlc.arg(hp), mp = sqlc.arg(mp),
     level = sqlc.arg(level), exp = sqlc.arg(exp),
     str_points = sqlc.arg(str_points), dex_points = sqlc.arg(dex_points), int_points = sqlc.arg(int_points),
     agi_points = sqlc.arg(agi_points), vit_points = sqlc.arg(vit_points), unspent_points = sqlc.arg(unspent_points),

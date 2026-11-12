@@ -204,13 +204,13 @@ func TestSaves(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("a checkpoint updates position, HP, MP and the whole progression", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3}, UnspentPoints: 2, FreeResetUsed: true}
+	t.Run("a checkpoint updates the class, position, HP, MP and the whole progression", func(t *testing.T) {
+		cp := model.Checkpoint{ID: c.ID, Class: "warrior", MapID: "forest", X: 300, Y: 608, HP: 150, MP: 20, Level: 2, Exp: 12, Points: gamedata.Stats{STR: 3}, UnspentPoints: 2, FreeResetUsed: true}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
 		got := store.chars[c.ID]
-		if got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 2 ||
+		if got.Class != "warrior" || got.MapID != "forest" || got.X != 300 || got.Y != 608 || got.HP != 150 || got.MP != 20 || got.Exp != 12 || got.Level != 2 ||
 			got.Points != cp.Points || got.UnspentPoints != 2 || !got.FreeResetUsed {
 			t.Fatalf("after checkpoint: %+v", got)
 		}
@@ -228,7 +228,7 @@ func TestSaves(t *testing.T) {
 	})
 
 	t.Run("a checkpoint saves the whole quest log", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, MapID: "town", Level: 2, Quests: []model.Quest{
+		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, Quests: []model.Quest{
 			{ID: "slime_cleanup", Status: model.QuestActive, Progress: []int{4}},
 			{ID: "sticky_samples", Status: model.QuestFinished, TimesFinished: 1},
 		}}
@@ -247,13 +247,13 @@ func TestSaves(t *testing.T) {
 
 	t.Run("a checkpoint with a quest the table can't hold saves nothing", func(t *testing.T) {
 		for _, bad := range []model.Checkpoint{
-			{ID: c.ID, Quests: []model.Quest{{Status: model.QuestActive}}},
-			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: "paused"}}},
-			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestActive, Progress: []int{-1}}}},
-			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestFinished}}},
-			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestFinished, Progress: []int{3}, TimesFinished: 1}}},
-			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestActive, TimesFinished: -1}}},
-			{ID: c.ID, Quests: []model.Quest{{ID: "q", Status: model.QuestActive}, {ID: "q", Status: model.QuestActive}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{Status: model.QuestActive}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{ID: "q", Status: "paused"}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{ID: "q", Status: model.QuestActive, Progress: []int{-1}}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{ID: "q", Status: model.QuestFinished}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{ID: "q", Status: model.QuestFinished, Progress: []int{3}, TimesFinished: 1}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{ID: "q", Status: model.QuestActive, TimesFinished: -1}}},
+			{ID: c.ID, Class: "beginner", Quests: []model.Quest{{ID: "q", Status: model.QuestActive}, {ID: "q", Status: model.QuestActive}}},
 		} {
 			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadQuest) {
 				t.Fatalf("%+v: %v", bad, err)
@@ -265,7 +265,7 @@ func TestSaves(t *testing.T) {
 	})
 
 	t.Run("a checkpoint saves the skill points", func(t *testing.T) {
-		cp := model.Checkpoint{ID: c.ID, MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "strike", Points: 3}}}
+		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, UnspentSkillPoints: 2, Skills: []model.SkillPoints{{ID: "strike", Points: 3}}}
 		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
 			t.Fatal(err)
 		}
@@ -277,10 +277,10 @@ func TestSaves(t *testing.T) {
 
 	t.Run("a checkpoint with a skill the table can't hold saves nothing", func(t *testing.T) {
 		for _, bad := range []model.Checkpoint{
-			{ID: c.ID, Skills: []model.SkillPoints{{Points: 1}}},
-			{ID: c.ID, Skills: []model.SkillPoints{{ID: "strike"}}},
-			{ID: c.ID, Skills: []model.SkillPoints{{ID: "strike", Points: 1}, {ID: "strike", Points: 2}}},
-			{ID: c.ID, UnspentSkillPoints: -1},
+			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{Points: 1}}},
+			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{ID: "strike"}}},
+			{ID: c.ID, Class: "beginner", Skills: []model.SkillPoints{{ID: "strike", Points: 1}, {ID: "strike", Points: 2}}},
+			{ID: c.ID, Class: "beginner", UnspentSkillPoints: -1},
 		} {
 			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadSkill) {
 				t.Fatalf("%+v: %v", bad, err)
@@ -291,8 +291,20 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint with a class the game data lacks saves nothing", func(t *testing.T) {
+		before := store.chars[c.ID]
+		for _, class := range []kernel.Class{"", "paladin"} {
+			if err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: c.ID, Class: class, MapID: "cave"}); !errors.Is(err, model.ErrClassUnavailable) {
+				t.Fatalf("class %q: %v", class, err)
+			}
+		}
+		if store.chars[c.ID].MapID != before.MapID || store.chars[c.ID].Class != before.Class {
+			t.Fatal("a refused checkpoint changed the character")
+		}
+	})
+
 	t.Run("saving an unknown character is not_found", func(t *testing.T) {
-		err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID()})
+		err := svc.SaveCheckpoint(ctx, model.Checkpoint{ID: kernel.NewCharacterID(), Class: "beginner"})
 		if !errors.Is(err, model.ErrNotFound) {
 			t.Fatalf("checkpoint: %v", err)
 		}

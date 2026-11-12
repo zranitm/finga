@@ -190,7 +190,20 @@ func npcDialog(d model.NpcDialog) *clientv1.NpcDialog {
 	for _, t := range d.Takes {
 		out.Takes = append(out.Takes, &clientv1.QuestTurnIn{QuestId: t.Quest, Ready: t.Ready})
 	}
+	if p := d.Promotion; p != nil {
+		out.Promotion = &clientv1.PromotionOffer{Class: p.Class}
+		for _, c := range p.Conditions {
+			out.Promotion.Conditions = append(out.Promotion.Conditions, &clientv1.PromotionCondition{Kind: conditionKinds[c.Kind], Id: c.ID, Need: int32(c.Need), Have: int32(c.Have)}) //nolint:gosec // conditions are small
+		}
+	}
 	return out
+}
+
+var conditionKinds = map[model.ConditionKind]clientv1.PromotionConditionKind{
+	model.ConditionLevel: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL,
+	model.ConditionStat:  clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_STAT,
+	model.ConditionSkill: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_SKILL,
+	model.ConditionQuest: clientv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_QUEST,
 }
 
 func questStates(qs []model.QuestState) []*clientv1.QuestState {

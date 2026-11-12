@@ -114,9 +114,6 @@ func (i *Instance) usable(m skillMsg) (use, error) {
 func (i *Instance) cast(u use) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	p.MP -= st.MPAt(u.points)
-	if p.skillReady == nil {
-		p.skillReady = map[string]uint64{}
-	}
 	p.skillReady[s.ID] = max(u.ready, i.tick) + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
 	p.cooldownUntil = max(p.cooldownUntil, i.tick) + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
@@ -131,9 +128,6 @@ func (i *Instance) cast(u use) {
 			t.changed = true
 		}
 	case gamedata.BuffEffect:
-		if p.buffs == nil {
-			p.buffs = map[string]buff{}
-		}
 		p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: progression.BonusAt(st.Bonus, u.points)}
 		i.restat(p) // its StatsChanged carries the MP spent
 		return
@@ -171,6 +165,34 @@ func (i *Instance) expireBuffs() {
 			i.restat(p)
 		}
 	}
+}
+
+// timersOf is the time left on p's cooldowns and buffs, for the map p moves to.
+func (i *Instance) timersOf(p *player) model.SkillTimers {
+	t := model.SkillTimers{Cooldowns: map[string]time.Duration{}, Buffs: map[string]model.BuffLeft{}}
+	for s, ready := range p.skillReady {
+		if ready > i.tick {
+			t.Cooldowns[s] = time.Duration(ready-i.tick) * i.tuning.TickInterval
+		}
+	}
+	for s, b := range p.buffs {
+		if b.until > i.tick {
+			t.Buffs[s] = model.BuffLeft{Left: time.Duration(b.until-i.tick) * i.tuning.TickInterval, Bonus: b.bonus}
+		}
+	}
+	return t
+}
+
+// startTimers counts on the cooldowns and buffs p brought from another map, from this map's tick.
+func (i *Instance) startTimers(p *player) {
+	p.skillReady, p.buffs = map[string]uint64{}, map[string]buff{}
+	for s, left := range p.Timers.Cooldowns {
+		p.skillReady[s] = i.tick + i.ticksFor(left)
+	}
+	for s, b := range p.Timers.Buffs {
+		p.buffs[s] = buff{until: i.tick + i.ticksFor(b.Left), bonus: b.Bonus}
+	}
+	p.Timers = model.SkillTimers{}
 }
 
 // buffed is the sum of the player's buffs.

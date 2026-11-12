@@ -607,6 +607,43 @@ func TestUseSkillAnswersOnceTheTickResolvesIt(t *testing.T) {
 	}
 }
 
+// A trainer's dialog carries its promotion, and Promote answers each refusal with its reason.
+func TestPromoteAnswersWithItsRefusals(t *testing.T) {
+	s := newStack(t)
+	stream := s.gateway(t, "gw-1")
+	town := s.data.StartTown()
+	ayla := model.Character{
+		ID: kernel.NewCharacterID(), Account: s.account, Name: "Ayla", Class: kernel.Class("beginner"), Level: 3,
+		HP: 120, MP: 40, MapID: town.ID, X: 1120, Y: 608, // beside the Warrior Trainer
+	}
+	s.chars.add(ayla)
+	s.join(t, "gw-1", "c1", ayla)
+	presence := &worldv1.Presence{CharacterId: ayla.ID.String(), ConnectionId: "c1"}
+	if _, err := s.c.Talk(s.ctx, &worldv1.TalkRequest{Presence: presence, NpcId: "warrior_trainer"}); err != nil {
+		t.Fatal(err)
+	}
+	offer := until(t, stream, "the trainer's dialog", func(m *worldv1.DeliverResponse) bool { return m.GetNpcDialog() != nil }).GetNpcDialog().GetPromotion()
+	level := offer.GetConditions()[0]
+	if offer.GetClass() != "warrior" || len(offer.GetConditions()) != 4 || level.GetKind() != worldv1.PromotionConditionKind_PROMOTION_CONDITION_KIND_LEVEL || level.GetNeed() != 10 || level.GetHave() != 3 {
+		t.Fatalf("offer %+v, want the Warrior's four conditions, level 3 of 10 first", offer)
+	}
+	for _, c := range []struct {
+		name   string
+		npc    string
+		class  string
+		reason worldv1.Reason
+	}{
+		{"short of its conditions", "warrior_trainer", "warrior", worldv1.Reason_REASON_PROMOTION_CONDITIONS_UNMET},
+		{"a class the trainer doesn't train", "warrior_trainer", "thief", worldv1.Reason_REASON_NOT_YOUR_NEXT_CLASS},
+		{"from a trainer out of reach", "magician_trainer", "magician", worldv1.Reason_REASON_NPC_OUT_OF_REACH},
+	} {
+		_, err := s.c.Promote(s.ctx, &worldv1.PromoteRequest{Presence: presence, NpcId: c.npc, Class: c.class})
+		if r, ok := grpcx.ReasonOf(err); !ok || r != grpcx.Key(c.reason) || status.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("%s: %v, want %v", c.name, err, c.reason)
+		}
+	}
+}
+
 func TestAnEquipRefusalKeepsTheItemServicesReason(t *testing.T) {
 	refused := grpcx.ErrorFor(codes.FailedPrecondition, grpcx.Key(itemv1.Reason_REASON_LEVEL_TOO_LOW))
 	s := newStackWearing(t, wears{err: refused})

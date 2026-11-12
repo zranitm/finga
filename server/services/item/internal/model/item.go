@@ -93,13 +93,14 @@ type CauseType string
 
 // The cause types.
 const (
-	CauseDrop    CauseType = "drop"
-	CausePlayer  CauseType = "player"
-	CauseStarter CauseType = "starter"
-	CauseQuest   CauseType = "quest"
+	CauseDrop      CauseType = "drop"
+	CausePlayer    CauseType = "player"
+	CauseStarter   CauseType = "starter"
+	CauseQuest     CauseType = "quest"
+	CausePromotion CauseType = "promotion" // a trainer's gift; the cause ID is the gift's key
 )
 
-// Cause is the origin of a change: a drop, a player action, character creation, or a quest handed in.
+// Cause is the origin of a change: a drop, a player action, character creation, a quest handed in, or a promotion's gift.
 type Cause struct {
 	Type  CauseType
 	ID    uuid.UUID // optional: the drop or request; a hand-in's key

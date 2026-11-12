@@ -35,7 +35,7 @@ export interface SkillBarState {
   buff(b: ActiveBuff): void;
   /** Ends the buffs whose time is up by now, or every buff. */
   endBuffs(now?: number): void;
-  /** A map change starts the world's cooldowns and buffs over, so the client's follow. */
+  /** A join starts the world's cooldowns and buffs over, so the client's follow; a map change carries both. */
   clearTimers(): void;
 }
 

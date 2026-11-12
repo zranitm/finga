@@ -74,6 +74,11 @@ func (w *World) UseSkill(ctx context.Context, id kernel.CharacterID, conn, skill
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.UseSkill(ctx, id, conn, skill) })
 }
 
+// Promote moves the character to the class the NPC within reach trains, once the trainer's weapon is given, and returns once it applies.
+func (w *World) Promote(ctx context.Context, id kernel.CharacterID, conn, npc string, class kernel.Class) error {
+	return w.wait(id, conn, func(i *instance.Instance) error { return i.Promote(ctx, id, conn, npc, class) })
+}
+
 // ResetPoints returns every spent point to unspent with the free reset and returns once the new stats apply.
 func (w *World) ResetPoints(ctx context.Context, id kernel.CharacterID, conn string, expected int) error {
 	return w.wait(id, conn, func(i *instance.Instance) error { return i.ResetPoints(ctx, id, conn, expected) })

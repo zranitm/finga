@@ -232,6 +232,8 @@ const (
 	CauseType_CAUSE_TYPE_DROP        CauseType = 1
 	CauseType_CAUSE_TYPE_PLAYER      CauseType = 2
 	CauseType_CAUSE_TYPE_STARTER     CauseType = 3
+	// A trainer's gift at a promotion; the cause ID is the gift's key.
+	CauseType_CAUSE_TYPE_PROMOTION CauseType = 4
 )
 
 // Enum value maps for CauseType.
@@ -241,12 +243,14 @@ var (
 		1: "CAUSE_TYPE_DROP",
 		2: "CAUSE_TYPE_PLAYER",
 		3: "CAUSE_TYPE_STARTER",
+		4: "CAUSE_TYPE_PROMOTION",
 	}
 	CauseType_value = map[string]int32{
 		"CAUSE_TYPE_UNSPECIFIED": 0,
 		"CAUSE_TYPE_DROP":        1,
 		"CAUSE_TYPE_PLAYER":      2,
 		"CAUSE_TYPE_STARTER":     3,
+		"CAUSE_TYPE_PROMOTION":   4,
 	}
 )
 
@@ -2865,12 +2869,13 @@ const file_internal_item_v1_item_proto_rawDesc = "" +
 	"\x11GRANT_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rGRANT_GRANTED\x10\x01\x12\x19\n" +
 	"\x15GRANT_ALREADY_GRANTED\x10\x02\x12\x11\n" +
-	"\rGRANT_REFUSED\x10\x03*k\n" +
+	"\rGRANT_REFUSED\x10\x03*\x85\x01\n" +
 	"\tCauseType\x12\x1a\n" +
 	"\x16CAUSE_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fCAUSE_TYPE_DROP\x10\x01\x12\x15\n" +
 	"\x11CAUSE_TYPE_PLAYER\x10\x02\x12\x16\n" +
-	"\x12CAUSE_TYPE_STARTER\x10\x032\xeb\x06\n" +
+	"\x12CAUSE_TYPE_STARTER\x10\x03\x12\x18\n" +
+	"\x14CAUSE_TYPE_PROMOTION\x10\x042\xeb\x06\n" +
 	"\vItemService\x12T\n" +
 	"\tInventory\x12\".internal.item.v1.InventoryRequest\x1a#.internal.item.v1.InventoryResponse\x12B\n" +
 	"\x03Add\x12\x1c.internal.item.v1.AddRequest\x1a\x1d.internal.item.v1.AddResponse\x12N\n" +

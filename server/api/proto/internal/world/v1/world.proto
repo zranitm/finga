@@ -46,6 +46,8 @@ service WorldService {
   rpc UseItem(UseItemRequest) returns (UseItemResponse);
   // UseSkill uses an active skill the character has points in, the way it faces; it answers once the tick resolves it, with SkillUsed, Damage and StatsChanged on Deliver.
   rpc UseSkill(UseSkillRequest) returns (UseSkillResponse);
+  // Promote moves the character to the class the NPC within reach trains, once their class is its parent and they meet every condition: the item service gives the trainer's weapon, then the class changes. It answers once applied, with Promoted on Deliver, an item service refusal carrying that service's Reason.
+  rpc Promote(PromoteRequest) returns (PromoteResponse);
 }
 
 enum Reason {
@@ -106,6 +108,10 @@ enum Reason {
   REASON_NOT_ENOUGH_MP = 32;
   // Another skill use already waits for the character's next action turn.
   REASON_SKILL_WAITING = 33;
+  // A promotion condition the character doesn't meet.
+  REASON_PROMOTION_CONDITIONS_UNMET = 34;
+  // A class the NPC doesn't train, or one whose parent isn't the character's class.
+  REASON_NOT_YOUR_NEXT_CLASS = 35;
 }
 
 // Presence routes a command to the map the caller believes the character is on.
@@ -236,6 +242,7 @@ message DeliverResponse {
     NpcDialog npc_dialog = 20;
     QuestChanged quest_changed = 21;
     SkillUsed skill_used = 22;
+    Promoted promoted = 23;
   }
 }
 
@@ -381,6 +388,11 @@ message ExpGained {
 
 // LevelUp carries the player's new level, stats, and restored HP and MP.
 message LevelUp {
+  CharacterView character = 1;
+}
+
+// Promoted carries the player's character in its new class, with HP and MP restored and the new sheet.
+message Promoted {
   CharacterView character = 1;
 }
 
@@ -597,6 +609,15 @@ message UseSkillRequest {
   string skill = 2;
 }
 
+message PromoteRequest {
+  Presence presence = 1;
+  string npc_id = 2;
+  // The class the NPC trains, as its dialog offered it.
+  string class = 3;
+}
+
+message PromoteResponse {}
+
 message UseSkillResponse {}
 
 message ResetPointsRequest {
@@ -621,6 +642,34 @@ message NpcDialog {
   repeated QuestOffer gives = 2;
   // The character's active quests it takes back.
   repeated QuestTurnIn takes = 3;
+  // Set when the NPC trains a class whose parent is the character's.
+  PromotionOffer promotion = 4;
+}
+
+// PromotionOffer is a trainer's promotion: each condition, with what the character has.
+message PromotionOffer {
+  string class = 1;
+  repeated PromotionCondition conditions = 2;
+}
+
+// PromotionCondition is one thing a promotion asks, met when have reaches need.
+message PromotionCondition {
+  PromotionConditionKind kind = 1;
+  // The stat (str, dex, int, agi or vit), skill or quest it names; empty for the level.
+  string id = 2;
+  int32 need = 3;
+  int32 have = 4;
+}
+
+enum PromotionConditionKind {
+  PROMOTION_CONDITION_KIND_UNSPECIFIED = 0;
+  PROMOTION_CONDITION_KIND_LEVEL = 1;
+  // Own stat points, without gear.
+  PROMOTION_CONDITION_KIND_STAT = 2;
+  // Points invested in the skill.
+  PROMOTION_CONDITION_KIND_SKILL = 3;
+  // The quest finished: need 1, and have 1 once it is.
+  PROMOTION_CONDITION_KIND_QUEST = 4;
 }
 
 // QuestOfferState is where a quest an NPC gives stands for the character.

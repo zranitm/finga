@@ -95,6 +95,8 @@ var (
 	SkillCoolingDown     = Public{330022, "SKILL_COOLING_DOWN", "that skill isn't ready yet"}
 	NotEnoughMP          = Public{330023, "NOT_ENOUGH_MP", "not enough MP"}
 	SkillWaiting         = Public{330024, "SKILL_WAITING", "another skill is already waiting for its turn"}
+	PromotionUnmet       = Public{330025, "PROMOTION_CONDITIONS_UNMET", "you don't meet every condition yet"}
+	NotYourNextClass     = Public{330026, "NOT_YOUR_NEXT_CLASS", "this trainer can't promote you to that class"}
 )
 
 // 44: parties and chat.

@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
-import { NpcDialogSchema, WelcomeSchema } from '@/protocol/messages';
+import { NpcDialogSchema, PromotedSchema, WelcomeSchema } from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
@@ -20,6 +20,7 @@ import { FakeWebSocket, fakeWebSocketClass } from '@/testing/fake-socket';
 import type { ServerInit } from '@/testing/fake-socket';
 import { resetStores } from '@/testing/reset-stores';
 
+import { PlayerView } from '../entities/player';
 import { mapKey } from '../keys';
 import { EVENTS, REGISTRY } from '../registry';
 import { Arrival } from '../systems/arrival';
@@ -421,7 +422,7 @@ describe('World', () => {
       window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
     });
 
-    it('on a hunting map, a skill key uses the skill on its key once a cooldown, which a map change starts over', async () => {
+    it('on a hunting map, a skill key uses the skill on its key once a cooldown, which outlives the scene, as the world carries it to the next map', async () => {
       const world = await playing('forest');
       leave = world.leave;
       learned();
@@ -438,8 +439,31 @@ describe('World', () => {
       world.frames(1);
       world.leave();
       leave = undefined;
-      expect(skillBar.getState().cooldowns).toEqual({});
+      expect(skillBar.getState().cooldowns.strike).toBeDefined();
     });
+  });
+
+  it("a promotion re-skins the player and paces the attack at the new class's speed", async () => {
+    const world = await playing('forest');
+    const setClass = vi.spyOn(PlayerView.prototype, 'setClass');
+    const attacks = () =>
+      FakeWebSocket.latest()
+        .frames()
+        .filter((f) => f.t === 'attack').length;
+    character
+      .getState()
+      .applyPromoted(
+        create(PromotedSchema, { character: { id: ME, name: 'Ayla', class: 'thief', sheet: {} } }),
+      );
+    expect(setClass).toHaveBeenCalledWith('thief');
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyX', cancelable: true }));
+    for (let t = 0; t < 550; t += FRAME_MS) {
+      world.frames(1);
+      vi.advanceTimersByTime(FRAME_MS);
+    }
+    expect(attacks()).toBe(2); // the Thief's 500 ms, where the Warrior it entered as waits 600
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyX', cancelable: true }));
+    world.leave();
   });
 
   it('a second map change during the fade lands on the second map', async () => {

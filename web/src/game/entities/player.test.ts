@@ -1,11 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import type Phaser from 'phaser';
+import { describe, expect, it, vi } from 'vitest';
 
 import { classes } from '@/gamedata/classes';
 
 import { ANIM, TEX, greyKey } from '../keys';
 import { greyArt } from '../scenes/grey-art';
 
-import { classArt } from './player';
+import { PlayerView, classArt } from './player';
 
 describe('class art', () => {
   it.each([
@@ -46,5 +47,48 @@ describe('class art', () => {
       expect(anims, cls).toContain(art.walk);
       expect(anims, cls).toContain(art.climbAnim);
     }
+  });
+});
+
+describe('PlayerView', () => {
+  const scene = () => {
+    const sprite = {
+      x: 300,
+      y: 608,
+      setOrigin: vi.fn(() => sprite),
+      setScale: vi.fn(() => sprite),
+      setTint: vi.fn(() => sprite),
+      clearTint: vi.fn(() => sprite),
+      setTexture: vi.fn(() => sprite),
+      stop: vi.fn(() => sprite),
+    };
+    const label = { visible: true, width: 40, height: 14, setOrigin: () => label };
+    return {
+      sprite,
+      scene: { add: { sprite: () => sprite, text: () => label } } as unknown as Phaser.Scene,
+    };
+  };
+
+  it('a new class swaps the art and its tint; the same class changes nothing', () => {
+    const { sprite, scene: s } = scene();
+    const view = new PlayerView(s, 'beginner');
+    expect(sprite.setTint).toHaveBeenLastCalledWith(0xff6640);
+    view.setClass('warrior');
+    expect(sprite.setTexture).toHaveBeenLastCalledWith(TEX.alienBlueStand);
+    expect(sprite.clearTint).toHaveBeenCalledOnce();
+    view.setClass('thief');
+    expect(sprite.setTexture).toHaveBeenLastCalledWith(greyKey(TEX.alienGreenStand));
+    expect(sprite.setTint).toHaveBeenLastCalledWith(0x9a70d8);
+    sprite.setTexture.mockClear();
+    view.setClass('thief');
+    expect(sprite.setTexture).not.toHaveBeenCalled();
+  });
+
+  it("a promotion's new look leaves the name tag where it was", () => {
+    const view = new PlayerView(scene().scene, 'beginner', 'Ayla');
+    const before = view.nameTag();
+    view.setClass('warrior');
+    expect(before).not.toBeNull();
+    expect(view.nameTag()).toEqual(before);
   });
 });
