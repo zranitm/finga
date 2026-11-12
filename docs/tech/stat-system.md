@@ -148,7 +148,7 @@ classes:                   # base values per class; per_level grows them
 - The world computes each player's basic attack length in ticks: *⌈class length ÷ (1 + attack speed) ÷ tick⌉*.
 - The sheet carries it as `attack_length_ticks`.
 - The client's action clock (`game/systems/actions.ts`) uses that number instead of the class length, so the clock and the server count the same ticks. Holding the attack key strikes again at each action's end. [Animation cancel](animation-cancel.md) covers the rest of the timeline.
-- **The length moves a whole tick at a time.** At 20 ticks a second, a warrior's 600 ms becomes 550 ms only from about 9.1% attack speed, and a bowman's 750 ms becomes 700 ms from about 6.7%. Less than that shows in the character window but doesn't change the pace yet.
+- **The length moves a whole tick at a time.** At 20 ticks a second, a warrior's 900 ms becomes 850 ms only from about 5.9% attack speed, and a bowman's 1125 ms, counted as 23 ticks, becomes 1100 ms from about 2.3%. Less than that shows in the character window but doesn't change the pace yet.
 
 ### Move speed
 
@@ -158,7 +158,7 @@ classes:                   # base values per class; per_level grows them
   - jumping: `JumpVelocity × f`, `Gravity × f²`, and `MaxFallSpeed × f`. A jump then keeps its height and its length and takes 1/*f* of the time.
 - **Why jumps keep their shape:** a faster launch alone would make jumps higher by *f²*, so +30% speed would mean jumps 69% higher. Players could then reach platforms the maps weren't built for. Scaling the whole arc keeps every map's reach exactly as designed, and only the pace changes.
 - **The factor** is 1 + move speed, rounded to thousandths, so Go and TypeScript multiply by the same number. *f²* is computed as `f × f` the same way on both sides, with each product rounded explicitly, as the sim already does against fused multiply-adds.
-- **The drop-through time** (0.25 s) stays a time; at a faster fall it still clears a platform.
+- **The drop-through time** (0.3125 s) stays a time; at a faster fall it still clears a platform.
 - **Towns:** *f* is 1 there; both sides read the map's kind from the shared map data.
 - **Vectors:** the movement vectors gain cases at *f* = 1.3, the most move speed gives (walking, climbing a rope, a jump onto a platform, a fall at the clamp). Both the Go and TypeScript sims must match them. The sim knows no map kind, so the world's tests, and the client's, check that a town keeps *f* at 1.
 - **Speed changes take a moment to reach the client:**

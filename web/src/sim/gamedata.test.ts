@@ -70,7 +70,7 @@ describe('generated gamedata', () => {
       damage: 'physical',
       width: 64,
       height: 56,
-      length_ms: 600,
+      length_ms: 900,
       hit: 0,
       cancel: actions.cancel,
     });
@@ -79,7 +79,7 @@ describe('generated gamedata', () => {
       kind: 'ranged',
       damage: 'physical',
       range: 420,
-      length_ms: 750,
+      length_ms: 1125,
       hit: 0,
       cancel: actions.cancel,
     });
@@ -102,7 +102,7 @@ describe('generated gamedata', () => {
       damage: 'physical',
       shape: { kind: 'melee', width: 64, height: 56 },
       mp: { base: 4, per_point: 0.2 },
-      cooldown_ms: 2000,
+      cooldown_ms: 3000,
       power: { base: 1.5, per_point: 0.05 },
       targets: 1,
       length_ms: 1050,

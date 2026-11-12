@@ -90,7 +90,7 @@ What 100 points buy, with no equipment, on top of the class's base values:
 - Reaching the EXP threshold raises the level by one. Extra EXP carries over to the next level.
 - Each level-up gives 5 stat points and 5 skill points, raises the class's base values (max HP and MP grow per level), and fully restores HP and MP (proposal).
 - The EXP needed per level grows with each level: round(20 × level^1.7) from each level to the next. Target (proposal): about 10 hours of play to reach the level cap.
-- Level cap in the MVP: 30. A hunting map's normal mob gives about a thirtieth of the EXP its level needs.
+- Level cap in the MVP: 30. A hunting map's normal mob gives about a twentieth of the EXP its level needs.
 
 ## Death
 

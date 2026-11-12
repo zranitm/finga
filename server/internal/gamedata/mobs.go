@@ -1,5 +1,7 @@
 package gamedata
 
+import "time"
+
 // Drop is one entry of a mob's drop table; each rolls independently.
 type Drop struct {
 	Item   string
@@ -34,3 +36,6 @@ func (d *Data) Mobs() []Mob { return d.p.Mobs }
 
 // Mob finds a mob type.
 func (d *Data) Mob(id string) (Mob, bool) { return find(d.p.Mobs, d.mobIdx, id) }
+
+// TouchGuard is how long after a mob's touch, hit or MISS, the next touch waits.
+func (d *Data) TouchGuard() time.Duration { return d.p.TouchGuard }

@@ -2,6 +2,7 @@
 # HP and attack are set so a character who spends its points by its class's split, in the gear of the mob's level, needs as many hits to kill it, and survives as many of its touches, as its region's targets in the world's balance test; a magic touch meets the low magic defense most builds have, so it hits for less.
 # Each map drops its own band's gear at normal rates and the next band's rarely; the cave bat's rare finds are the gear of levels 20 to 24, and only the keep drops the level 30 ★6 and ★7 pieces.
 # look is the client's art: a sprite from its table, an optional tint and an optional scale. elite: true marks a map's bigger mob, with 2 to 3 times its normal mob's hits and EXP and about twice its drops; a map with an elite has a normal mob too.
+touch_guard: 1500ms # after a mob's touch, hit or MISS, the next touch waits this long; a hit blinks for it
 mobs:
   - id: green_slime
     name: Green Slime
@@ -13,15 +14,15 @@ mobs:
     magic_defense: 1
     accuracy: 24
     evasion: 2
-    exp: 5
-    speed: 40
+    exp: 8
+    speed: 32
     width: 32
     height: 28
     behavior: patrol
     look: {sprite: slime}
     drops:
-      - {item: slime_gel, chance: 0.6, min: 1, max: 2}
-      - {item: red_potion, chance: 0.15, min: 1, max: 1}
+      - {item: slime_gel, chance: 0.9, min: 1, max: 2}
+      - {item: red_potion, chance: 0.225, min: 1, max: 1}
   - id: orange_mushroom
     name: Orange Mushroom
     level: 4
@@ -32,21 +33,21 @@ mobs:
     magic_defense: 3
     accuracy: 32
     evasion: 4
-    exp: 14
-    speed: 50
+    exp: 21
+    speed: 40
     width: 36
     height: 40
     behavior: patrol
     look: {sprite: snail, tint: 0xe08a3c}
     drops:
-      - {item: mushroom_cap, chance: 0.6, min: 1, max: 2}
-      - {item: red_potion, chance: 0.2, min: 1, max: 1}
-      - {item: leather_cap, chance: 0.05, min: 1, max: 1}
-      - {item: cloth_trousers, chance: 0.04, min: 1, max: 1}
-      - {item: leather_shoes, chance: 0.04, min: 1, max: 1}
-      - {item: work_gloves, chance: 0.03, min: 1, max: 1}
-      - {item: wooden_pendant, chance: 0.02, min: 1, max: 1}
-      - {item: copper_ring, chance: 0.02, min: 1, max: 1}
+      - {item: mushroom_cap, chance: 0.9, min: 1, max: 2}
+      - {item: red_potion, chance: 0.3, min: 1, max: 1}
+      - {item: leather_cap, chance: 0.075, min: 1, max: 1}
+      - {item: cloth_trousers, chance: 0.06, min: 1, max: 1}
+      - {item: leather_shoes, chance: 0.06, min: 1, max: 1}
+      - {item: work_gloves, chance: 0.045, min: 1, max: 1}
+      - {item: wooden_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: copper_ring, chance: 0.03, min: 1, max: 1}
   - id: wild_boar
     name: Wild Boar
     level: 10
@@ -57,24 +58,24 @@ mobs:
     magic_defense: 6
     accuracy: 37
     evasion: 8
-    exp: 45
-    speed: 90
+    exp: 68
+    speed: 72
     width: 56
     height: 40
     behavior: patrol
     look: {sprite: mouse, tint: 0x8a5a3c}
     drops:
-      - {item: boar_tusk, chance: 0.5, min: 1, max: 1}
-      - {item: red_potion, chance: 0.25, min: 1, max: 2}
-      - {item: leather_vest, chance: 0.06, min: 1, max: 1}
-      - {item: iron_sword, chance: 0.03, min: 1, max: 1}
-      - {item: hunting_bow, chance: 0.03, min: 1, max: 1}
-      - {item: iron_dagger, chance: 0.03, min: 1, max: 1}
-      - {item: willow_wand, chance: 0.03, min: 1, max: 1}
-      - {item: copper_earrings, chance: 0.03, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.03, min: 1, max: 1}
-      - {item: travelers_boots, chance: 0.03, min: 1, max: 1}
-      - {item: chain_leggings, chance: 0.02, min: 1, max: 1}
+      - {item: boar_tusk, chance: 0.75, min: 1, max: 1}
+      - {item: red_potion, chance: 0.375, min: 1, max: 2}
+      - {item: leather_vest, chance: 0.09, min: 1, max: 1}
+      - {item: iron_sword, chance: 0.045, min: 1, max: 1}
+      - {item: hunting_bow, chance: 0.045, min: 1, max: 1}
+      - {item: iron_dagger, chance: 0.045, min: 1, max: 1}
+      - {item: willow_wand, chance: 0.045, min: 1, max: 1}
+      - {item: copper_earrings, chance: 0.045, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.045, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.045, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.03, min: 1, max: 1}
   - id: cave_bat
     name: Cave Bat
     level: 14
@@ -85,34 +86,34 @@ mobs:
     magic_defense: 8
     accuracy: 45
     evasion: 18
-    exp: 62
-    speed: 110
+    exp: 93
+    speed: 88
     width: 40
     height: 32
     behavior: patrol
     look: {sprite: fly, tint: 0x9a9ab0}
     drops:
-      - {item: bat_wing, chance: 0.55, min: 1, max: 2}
-      - {item: blue_potion, chance: 0.25, min: 1, max: 1}
-      - {item: hunters_gloves, chance: 0.03, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.02, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.02, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.015, min: 1, max: 1}
-      - {item: longbow, chance: 0.015, min: 1, max: 1}
-      - {item: stiletto, chance: 0.015, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.015, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.015, min: 1, max: 1}
-      - {item: silver_ring, chance: 0.01, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.004, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.004, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.004, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.004, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.003, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.003, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.003, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.003, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.003, min: 1, max: 1}
-      - {item: moonstone_ring, chance: 0.002, min: 1, max: 1}
+      - {item: bat_wing, chance: 0.825, min: 1, max: 2}
+      - {item: blue_potion, chance: 0.375, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.045, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.03, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.0225, min: 1, max: 1}
+      - {item: longbow, chance: 0.0225, min: 1, max: 1}
+      - {item: stiletto, chance: 0.0225, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.0225, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.0225, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.015, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.006, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.006, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.006, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.006, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.0045, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.0045, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.0045, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.0045, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.0045, min: 1, max: 1}
+      - {item: moonstone_ring, chance: 0.003, min: 1, max: 1}
   - id: spore_slime
     name: Spore Slime
     level: 15
@@ -123,25 +124,25 @@ mobs:
     magic_defense: 11
     accuracy: 46
     evasion: 22
-    exp: 67
-    speed: 60
+    exp: 101
+    speed: 48
     width: 32
     height: 28
     behavior: patrol
     look: {sprite: slime, tint: 0xb07ad0}
     drops:
-      - {item: spore_jelly, chance: 0.55, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.2, min: 1, max: 1}
-      - {item: blue_potion, chance: 0.15, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.03, min: 1, max: 1}
-      - {item: longbow, chance: 0.03, min: 1, max: 1}
-      - {item: stiletto, chance: 0.03, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.03, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.025, min: 1, max: 1}
-      - {item: chain_leggings, chance: 0.025, min: 1, max: 1}
-      - {item: travelers_boots, chance: 0.025, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.002, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.002, min: 1, max: 1}
+      - {item: spore_jelly, chance: 0.825, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
+      - {item: blue_potion, chance: 0.225, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.045, min: 1, max: 1}
+      - {item: longbow, chance: 0.045, min: 1, max: 1}
+      - {item: stiletto, chance: 0.045, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.045, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.0375, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.0375, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.0375, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.003, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.003, min: 1, max: 1}
   - id: mossback_snail
     name: Mossback Snail
     level: 16
@@ -153,25 +154,25 @@ mobs:
     magic_defense: 11
     accuracy: 47
     evasion: 23
-    exp: 168
-    speed: 35
+    exp: 252
+    speed: 28
     width: 54
     height: 60
     behavior: patrol
     look: {sprite: snail, tint: 0x6aa84f, scale: 1.5}
     drops:
-      - {item: moss_shell, chance: 0.6, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.4, min: 1, max: 1}
-      - {item: blue_potion, chance: 0.3, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.06, min: 1, max: 1}
-      - {item: longbow, chance: 0.06, min: 1, max: 1}
-      - {item: stiletto, chance: 0.06, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.06, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.05, min: 1, max: 1}
-      - {item: chain_leggings, chance: 0.05, min: 1, max: 1}
-      - {item: travelers_boots, chance: 0.05, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.004, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.004, min: 1, max: 1}
+      - {item: moss_shell, chance: 0.9, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
+      - {item: blue_potion, chance: 0.45, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.09, min: 1, max: 1}
+      - {item: longbow, chance: 0.09, min: 1, max: 1}
+      - {item: stiletto, chance: 0.09, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.09, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.075, min: 1, max: 1}
+      - {item: chain_leggings, chance: 0.075, min: 1, max: 1}
+      - {item: travelers_boots, chance: 0.075, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.006, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.006, min: 1, max: 1}
   - id: dust_moth
     name: Dust Moth
     level: 17
@@ -182,26 +183,26 @@ mobs:
     magic_defense: 12
     accuracy: 48
     evasion: 23
-    exp: 82
-    speed: 100
+    exp: 123
+    speed: 80
     width: 40
     height: 32
     behavior: patrol
     look: {sprite: fly, tint: 0xd8c8a0}
     drops:
-      - {item: moth_dust, chance: 0.55, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.2, min: 1, max: 1}
-      - {item: blue_potion, chance: 0.15, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.025, min: 1, max: 1}
-      - {item: hunters_gloves, chance: 0.025, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.02, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.02, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.02, min: 1, max: 1}
-      - {item: longbow, chance: 0.02, min: 1, max: 1}
-      - {item: stiletto, chance: 0.02, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.02, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.002, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.002, min: 1, max: 1}
+      - {item: moth_dust, chance: 0.825, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
+      - {item: blue_potion, chance: 0.225, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.0375, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.0375, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.03, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.03, min: 1, max: 1}
+      - {item: longbow, chance: 0.03, min: 1, max: 1}
+      - {item: stiletto, chance: 0.03, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.03, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.003, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.003, min: 1, max: 1}
   - id: toadstool_rat
     name: Toadstool Rat
     level: 18
@@ -213,26 +214,26 @@ mobs:
     magic_defense: 13
     accuracy: 50
     evasion: 25
-    exp: 205
-    speed: 60
+    exp: 308
+    speed: 48
     width: 84
     height: 60
     behavior: patrol
     look: {sprite: mouse, tint: 0xc04040, scale: 1.5}
     drops:
-      - {item: spotted_tail, chance: 0.6, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.4, min: 1, max: 1}
-      - {item: blue_potion, chance: 0.3, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.05, min: 1, max: 1}
-      - {item: hunters_gloves, chance: 0.05, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.04, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.04, min: 1, max: 1}
-      - {item: steel_sword, chance: 0.04, min: 1, max: 1}
-      - {item: longbow, chance: 0.04, min: 1, max: 1}
-      - {item: stiletto, chance: 0.04, min: 1, max: 1}
-      - {item: crystal_wand, chance: 0.04, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.004, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.004, min: 1, max: 1}
+      - {item: spotted_tail, chance: 0.9, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
+      - {item: blue_potion, chance: 0.45, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.075, min: 1, max: 1}
+      - {item: hunters_gloves, chance: 0.075, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.06, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.06, min: 1, max: 1}
+      - {item: steel_sword, chance: 0.06, min: 1, max: 1}
+      - {item: longbow, chance: 0.06, min: 1, max: 1}
+      - {item: stiletto, chance: 0.06, min: 1, max: 1}
+      - {item: crystal_wand, chance: 0.06, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.006, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.006, min: 1, max: 1}
   - id: glow_slime
     name: Glow Slime
     level: 19
@@ -243,26 +244,26 @@ mobs:
     magic_defense: 13
     accuracy: 52
     evasion: 25
-    exp: 100
-    speed: 70
+    exp: 150
+    speed: 56
     width: 32
     height: 28
     behavior: patrol
     look: {sprite: slime, tint: 0xf0ff30}
     drops:
-      - {item: glow_gel, chance: 0.55, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.2, min: 1, max: 1}
-      - {item: blue_potion, chance: 0.15, min: 1, max: 1}
-      - {item: silver_ring, chance: 0.02, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.025, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.025, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.025, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.025, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.002, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.002, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.002, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.002, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.002, min: 1, max: 1}
+      - {item: glow_gel, chance: 0.825, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
+      - {item: blue_potion, chance: 0.225, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.03, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.0375, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.0375, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.0375, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.0375, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.003, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.003, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.003, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.003, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.003, min: 1, max: 1}
   - id: elder_snail
     name: Elder Snail
     level: 20
@@ -274,26 +275,26 @@ mobs:
     magic_defense: 14
     accuracy: 54
     evasion: 25
-    exp: 250
-    speed: 35
+    exp: 375
+    speed: 28
     width: 54
     height: 60
     behavior: patrol
     look: {sprite: snail, tint: 0x8a6ad0, scale: 1.5}
     drops:
-      - {item: elder_shell, chance: 0.6, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.4, min: 1, max: 1}
-      - {item: blue_potion, chance: 0.3, min: 1, max: 1}
-      - {item: silver_ring, chance: 0.04, min: 1, max: 1}
-      - {item: silver_earrings, chance: 0.05, min: 1, max: 1}
-      - {item: chain_mail, chance: 0.05, min: 1, max: 1}
-      - {item: iron_helm, chance: 0.05, min: 1, max: 1}
-      - {item: silver_pendant, chance: 0.05, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.004, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.004, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.004, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.004, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.004, min: 1, max: 1}
+      - {item: elder_shell, chance: 0.9, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
+      - {item: blue_potion, chance: 0.45, min: 1, max: 1}
+      - {item: silver_ring, chance: 0.06, min: 1, max: 1}
+      - {item: silver_earrings, chance: 0.075, min: 1, max: 1}
+      - {item: chain_mail, chance: 0.075, min: 1, max: 1}
+      - {item: iron_helm, chance: 0.075, min: 1, max: 1}
+      - {item: silver_pendant, chance: 0.075, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.006, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.006, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.006, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.006, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.006, min: 1, max: 1}
   - id: sand_mouse
     name: Sand Mouse
     level: 21
@@ -304,23 +305,23 @@ mobs:
     magic_defense: 15
     accuracy: 55
     evasion: 25
-    exp: 118
-    speed: 100
+    exp: 177
+    speed: 80
     width: 56
     height: 40
     behavior: patrol
     look: {sprite: mouse, tint: 0xe0c080}
     drops:
-      - {item: sand_whisker, chance: 0.55, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.2, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.1, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.03, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.03, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.025, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.025, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.025, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.025, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.002, min: 1, max: 1}
+      - {item: sand_whisker, chance: 0.825, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.15, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.045, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.045, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.0375, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.0375, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.0375, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.0375, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
   - id: shellback_scarab
     name: Shellback Scarab
     level: 22
@@ -332,23 +333,23 @@ mobs:
     magic_defense: 15
     accuracy: 58
     evasion: 25
-    exp: 295
-    speed: 45
+    exp: 443
+    speed: 36
     width: 54
     height: 60
     behavior: patrol
     look: {sprite: snail, tint: 0x4a8ab0, scale: 1.5}
     drops:
-      - {item: scarab_shell, chance: 0.6, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.4, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.2, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.06, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.06, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.05, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.05, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.05, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.05, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.004, min: 1, max: 1}
+      - {item: scarab_shell, chance: 0.9, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.09, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.09, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.075, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.075, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.075, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.075, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.006, min: 1, max: 1}
   - id: dust_vulture
     name: Dust Vulture
     level: 23
@@ -359,21 +360,21 @@ mobs:
     magic_defense: 16
     accuracy: 59
     evasion: 25
-    exp: 138
-    speed: 110
+    exp: 207
+    speed: 88
     width: 40
     height: 32
     behavior: patrol
     look: {sprite: fly, tint: 0xa07050}
     drops:
-      - {item: vulture_feather, chance: 0.55, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.2, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.1, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.025, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.025, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.025, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.025, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.002, min: 1, max: 1}
+      - {item: vulture_feather, chance: 0.825, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.15, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.0375, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.0375, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.0375, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.0375, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.003, min: 1, max: 1}
   - id: sun_slime
     name: Sun Slime
     level: 24
@@ -385,21 +386,21 @@ mobs:
     magic_defense: 17
     accuracy: 61
     evasion: 23
-    exp: 345
-    speed: 50
+    exp: 518
+    speed: 40
     width: 48
     height: 42
     behavior: patrol
     look: {sprite: slime, tint: 0xf0a030, scale: 1.5}
     drops:
-      - {item: sun_gel, chance: 0.6, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.4, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.2, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.05, min: 1, max: 1}
-      - {item: plate_boots, chance: 0.05, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.05, min: 1, max: 1}
-      - {item: knight_helm, chance: 0.05, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.004, min: 1, max: 1}
+      - {item: sun_gel, chance: 0.9, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.075, min: 1, max: 1}
+      - {item: plate_boots, chance: 0.075, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.075, min: 1, max: 1}
+      - {item: knight_helm, chance: 0.075, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.006, min: 1, max: 1}
   - id: tomb_rat
     name: Tomb Rat
     level: 25
@@ -410,25 +411,25 @@ mobs:
     magic_defense: 18
     accuracy: 62
     evasion: 23
-    exp: 159
-    speed: 100
+    exp: 239
+    speed: 80
     width: 56
     height: 40
     behavior: patrol
     look: {sprite: mouse, tint: 0x7a7a6a}
     drops:
-      - {item: tomb_fang, chance: 0.55, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.2, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.1, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.02, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.02, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.02, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.02, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.02, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.025, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.02, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.002, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.002, min: 1, max: 1}
+      - {item: tomb_fang, chance: 0.825, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.3, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.15, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.03, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.03, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.03, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.03, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.03, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.0375, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.03, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.003, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.003, min: 1, max: 1}
   - id: ruin_wisp
     name: Ruin Wisp
     level: 26
@@ -440,25 +441,25 @@ mobs:
     magic_defense: 18
     accuracy: 64
     evasion: 25
-    exp: 398
-    speed: 70
+    exp: 597
+    speed: 56
     width: 60
     height: 48
     behavior: patrol
     look: {sprite: fly, tint: 0x60e0d0, scale: 1.5}
     drops:
-      - {item: wisp_essence, chance: 0.6, min: 1, max: 2}
-      - {item: orange_potion, chance: 0.4, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.2, min: 1, max: 1}
-      - {item: knight_sword, chance: 0.04, min: 1, max: 1}
-      - {item: composite_bow, chance: 0.04, min: 1, max: 1}
-      - {item: shadow_kris, chance: 0.04, min: 1, max: 1}
-      - {item: runed_wand, chance: 0.04, min: 1, max: 1}
-      - {item: plate_armor, chance: 0.04, min: 1, max: 1}
-      - {item: plate_greaves, chance: 0.05, min: 1, max: 1}
-      - {item: plate_gauntlets, chance: 0.04, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.004, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.004, min: 1, max: 1}
+      - {item: wisp_essence, chance: 0.9, min: 1, max: 2}
+      - {item: orange_potion, chance: 0.6, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
+      - {item: knight_sword, chance: 0.06, min: 1, max: 1}
+      - {item: composite_bow, chance: 0.06, min: 1, max: 1}
+      - {item: shadow_kris, chance: 0.06, min: 1, max: 1}
+      - {item: runed_wand, chance: 0.06, min: 1, max: 1}
+      - {item: plate_armor, chance: 0.06, min: 1, max: 1}
+      - {item: plate_greaves, chance: 0.075, min: 1, max: 1}
+      - {item: plate_gauntlets, chance: 0.06, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.006, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.006, min: 1, max: 1}
   - id: frost_slime
     name: Frost Slime
     level: 26
@@ -469,20 +470,20 @@ mobs:
     magic_defense: 18
     accuracy: 64
     evasion: 25
-    exp: 170
-    speed: 70
+    exp: 255
+    speed: 56
     width: 32
     height: 28
     behavior: patrol
     look: {sprite: slime, tint: 0xa0d8f0}
     drops:
-      - {item: frost_gel, chance: 0.55, min: 1, max: 2}
-      - {item: white_potion, chance: 0.15, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.15, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.03, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.025, min: 1, max: 1}
-      - {item: mythril_helm, chance: 0.002, min: 1, max: 1}
-      - {item: wind_boots, chance: 0.002, min: 1, max: 1}
+      - {item: frost_gel, chance: 0.825, min: 1, max: 2}
+      - {item: white_potion, chance: 0.225, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.225, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.045, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.0375, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.003, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.003, min: 1, max: 1}
   - id: snow_weasel
     name: Snow Weasel
     level: 27
@@ -494,20 +495,20 @@ mobs:
     magic_defense: 19
     accuracy: 66
     evasion: 25
-    exp: 425
-    speed: 70
+    exp: 638
+    speed: 56
     width: 84
     height: 60
     behavior: patrol
     look: {sprite: mouse, tint: 0xf0f0f0, scale: 1.5}
     drops:
-      - {item: snow_pelt, chance: 0.6, min: 1, max: 2}
-      - {item: white_potion, chance: 0.3, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.06, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.05, min: 1, max: 1}
-      - {item: mythril_helm, chance: 0.004, min: 1, max: 1}
-      - {item: wind_boots, chance: 0.004, min: 1, max: 1}
+      - {item: snow_pelt, chance: 0.9, min: 1, max: 2}
+      - {item: white_potion, chance: 0.45, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.45, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.09, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.075, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.006, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.006, min: 1, max: 1}
   - id: icewing
     name: Icewing
     level: 28
@@ -518,21 +519,21 @@ mobs:
     magic_defense: 20
     accuracy: 70
     evasion: 29
-    exp: 192
-    speed: 120
+    exp: 288
+    speed: 96
     width: 40
     height: 32
     behavior: patrol
     look: {sprite: fly, tint: 0x80b0f0}
     drops:
-      - {item: ice_scale, chance: 0.55, min: 1, max: 2}
-      - {item: white_potion, chance: 0.15, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.15, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.03, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.02, min: 1, max: 1}
-      - {item: mythril_greaves, chance: 0.002, min: 1, max: 1}
-      - {item: ranger_gloves, chance: 0.002, min: 1, max: 1}
-      - {item: starlight_pendant, chance: 0.002, min: 1, max: 1}
+      - {item: ice_scale, chance: 0.825, min: 1, max: 2}
+      - {item: white_potion, chance: 0.225, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.225, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.045, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.03, min: 1, max: 1}
+      - {item: mythril_greaves, chance: 0.003, min: 1, max: 1}
+      - {item: ranger_gloves, chance: 0.003, min: 1, max: 1}
+      - {item: starlight_pendant, chance: 0.003, min: 1, max: 1}
   - id: glacier_snail
     name: Glacier Snail
     level: 29
@@ -544,21 +545,21 @@ mobs:
     magic_defense: 20
     accuracy: 71
     evasion: 29
-    exp: 480
-    speed: 40
+    exp: 720
+    speed: 32
     width: 54
     height: 60
     behavior: patrol
     look: {sprite: snail, tint: 0x9ad0e0, scale: 1.5}
     drops:
-      - {item: glacier_shell, chance: 0.6, min: 1, max: 2}
-      - {item: white_potion, chance: 0.3, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.06, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.04, min: 1, max: 1}
-      - {item: mythril_greaves, chance: 0.004, min: 1, max: 1}
-      - {item: ranger_gloves, chance: 0.004, min: 1, max: 1}
-      - {item: starlight_pendant, chance: 0.004, min: 1, max: 1}
+      - {item: glacier_shell, chance: 0.9, min: 1, max: 2}
+      - {item: white_potion, chance: 0.45, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.45, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.09, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.06, min: 1, max: 1}
+      - {item: mythril_greaves, chance: 0.006, min: 1, max: 1}
+      - {item: ranger_gloves, chance: 0.006, min: 1, max: 1}
+      - {item: starlight_pendant, chance: 0.006, min: 1, max: 1}
   - id: crystal_slime
     name: Crystal Slime
     level: 29
@@ -569,26 +570,26 @@ mobs:
     magic_defense: 20
     accuracy: 71
     evasion: 29
-    exp: 204
-    speed: 80
+    exp: 306
+    speed: 64
     width: 32
     height: 28
     behavior: patrol
     look: {sprite: slime, tint: 0x4f7fe8}
     drops:
-      - {item: ice_crystal, chance: 0.55, min: 1, max: 2}
-      - {item: white_potion, chance: 0.15, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.15, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.025, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.025, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.02, min: 1, max: 1}
-      - {item: runeblade, chance: 0.002, min: 1, max: 1}
-      - {item: windpiercer, chance: 0.002, min: 1, max: 1}
-      - {item: nightfang, chance: 0.002, min: 1, max: 1}
-      - {item: arcane_wand, chance: 0.002, min: 1, max: 1}
-      - {item: mythril_plate, chance: 0.002, min: 1, max: 1}
-      - {item: starlight_earrings, chance: 0.002, min: 1, max: 1}
-      - {item: starlight_ring, chance: 0.002, min: 1, max: 1}
+      - {item: ice_crystal, chance: 0.825, min: 1, max: 2}
+      - {item: white_potion, chance: 0.225, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.225, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.0375, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.0375, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: runeblade, chance: 0.003, min: 1, max: 1}
+      - {item: windpiercer, chance: 0.003, min: 1, max: 1}
+      - {item: nightfang, chance: 0.003, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.003, min: 1, max: 1}
+      - {item: mythril_plate, chance: 0.003, min: 1, max: 1}
+      - {item: starlight_earrings, chance: 0.003, min: 1, max: 1}
+      - {item: starlight_ring, chance: 0.003, min: 1, max: 1}
   - id: rime_rat
     name: Rime Rat
     level: 30
@@ -600,26 +601,26 @@ mobs:
     magic_defense: 21
     accuracy: 78
     evasion: 33
-    exp: 510
-    speed: 70
+    exp: 765
+    speed: 56
     width: 84
     height: 60
     behavior: patrol
     look: {sprite: mouse, tint: 0xb8d8f8, scale: 1.5}
     drops:
-      - {item: rime_fang, chance: 0.6, min: 1, max: 2}
-      - {item: white_potion, chance: 0.3, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
-      - {item: gold_ring, chance: 0.05, min: 1, max: 1}
-      - {item: gold_pendant, chance: 0.05, min: 1, max: 1}
-      - {item: gold_earrings, chance: 0.04, min: 1, max: 1}
-      - {item: runeblade, chance: 0.004, min: 1, max: 1}
-      - {item: windpiercer, chance: 0.004, min: 1, max: 1}
-      - {item: nightfang, chance: 0.004, min: 1, max: 1}
-      - {item: arcane_wand, chance: 0.004, min: 1, max: 1}
-      - {item: mythril_plate, chance: 0.004, min: 1, max: 1}
-      - {item: starlight_earrings, chance: 0.004, min: 1, max: 1}
-      - {item: starlight_ring, chance: 0.004, min: 1, max: 1}
+      - {item: rime_fang, chance: 0.9, min: 1, max: 2}
+      - {item: white_potion, chance: 0.45, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.45, min: 1, max: 1}
+      - {item: gold_ring, chance: 0.075, min: 1, max: 1}
+      - {item: gold_pendant, chance: 0.075, min: 1, max: 1}
+      - {item: gold_earrings, chance: 0.06, min: 1, max: 1}
+      - {item: runeblade, chance: 0.006, min: 1, max: 1}
+      - {item: windpiercer, chance: 0.006, min: 1, max: 1}
+      - {item: nightfang, chance: 0.006, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.006, min: 1, max: 1}
+      - {item: mythril_plate, chance: 0.006, min: 1, max: 1}
+      - {item: starlight_earrings, chance: 0.006, min: 1, max: 1}
+      - {item: starlight_ring, chance: 0.006, min: 1, max: 1}
   - id: shade_bat
     name: Shade Bat
     level: 31
@@ -630,33 +631,33 @@ mobs:
     magic_defense: 22
     accuracy: 78
     evasion: 36
-    exp: 229
-    speed: 120
+    exp: 344
+    speed: 96
     width: 40
     height: 32
     behavior: patrol
     look: {sprite: fly, tint: 0x6a4a8a}
     drops:
-      - {item: shade_wing, chance: 0.55, min: 1, max: 2}
-      - {item: white_potion, chance: 0.2, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.2, min: 1, max: 1}
-      - {item: runeblade, chance: 0.012, min: 1, max: 1}
-      - {item: windpiercer, chance: 0.012, min: 1, max: 1}
-      - {item: nightfang, chance: 0.012, min: 1, max: 1}
-      - {item: arcane_wand, chance: 0.012, min: 1, max: 1}
-      - {item: mythril_helm, chance: 0.015, min: 1, max: 1}
-      - {item: mythril_plate, chance: 0.01, min: 1, max: 1}
-      - {item: mythril_greaves, chance: 0.015, min: 1, max: 1}
-      - {item: ranger_gloves, chance: 0.012, min: 1, max: 1}
-      - {item: wind_boots, chance: 0.012, min: 1, max: 1}
-      - {item: starlight_pendant, chance: 0.012, min: 1, max: 1}
-      - {item: starlight_earrings, chance: 0.01, min: 1, max: 1}
-      - {item: starlight_ring, chance: 0.01, min: 1, max: 1}
-      - {item: dragonfang, chance: 0.001, min: 1, max: 1}
-      - {item: starfall_bow, chance: 0.001, min: 1, max: 1}
-      - {item: whisper_edge, chance: 0.001, min: 1, max: 1}
-      - {item: void_scepter, chance: 0.001, min: 1, max: 1}
-      - {item: eclipse_ring, chance: 0.001, min: 1, max: 1}
+      - {item: shade_wing, chance: 0.825, min: 1, max: 2}
+      - {item: white_potion, chance: 0.3, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.3, min: 1, max: 1}
+      - {item: runeblade, chance: 0.018, min: 1, max: 1}
+      - {item: windpiercer, chance: 0.018, min: 1, max: 1}
+      - {item: nightfang, chance: 0.018, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.018, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.0225, min: 1, max: 1}
+      - {item: mythril_plate, chance: 0.015, min: 1, max: 1}
+      - {item: mythril_greaves, chance: 0.0225, min: 1, max: 1}
+      - {item: ranger_gloves, chance: 0.018, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.018, min: 1, max: 1}
+      - {item: starlight_pendant, chance: 0.018, min: 1, max: 1}
+      - {item: starlight_earrings, chance: 0.015, min: 1, max: 1}
+      - {item: starlight_ring, chance: 0.015, min: 1, max: 1}
+      - {item: dragonfang, chance: 0.0015, min: 1, max: 1}
+      - {item: starfall_bow, chance: 0.0015, min: 1, max: 1}
+      - {item: whisper_edge, chance: 0.0015, min: 1, max: 1}
+      - {item: void_scepter, chance: 0.0015, min: 1, max: 1}
+      - {item: eclipse_ring, chance: 0.0015, min: 1, max: 1}
   - id: gloom_slime
     name: Gloom Slime
     level: 33
@@ -668,30 +669,30 @@ mobs:
     magic_defense: 23
     accuracy: 78
     evasion: 36
-    exp: 573
-    speed: 50
+    exp: 860
+    speed: 40
     width: 48
     height: 42
     behavior: patrol
     look: {sprite: slime, tint: 0x3a3a4a, scale: 1.5}
     drops:
-      - {item: gloom_core, chance: 0.6, min: 1, max: 2}
-      - {item: white_potion, chance: 0.4, min: 1, max: 1}
-      - {item: mana_elixir, chance: 0.4, min: 1, max: 1}
-      - {item: runeblade, chance: 0.024, min: 1, max: 1}
-      - {item: windpiercer, chance: 0.024, min: 1, max: 1}
-      - {item: nightfang, chance: 0.024, min: 1, max: 1}
-      - {item: arcane_wand, chance: 0.024, min: 1, max: 1}
-      - {item: mythril_helm, chance: 0.03, min: 1, max: 1}
-      - {item: mythril_plate, chance: 0.02, min: 1, max: 1}
-      - {item: mythril_greaves, chance: 0.03, min: 1, max: 1}
-      - {item: ranger_gloves, chance: 0.024, min: 1, max: 1}
-      - {item: wind_boots, chance: 0.024, min: 1, max: 1}
-      - {item: starlight_pendant, chance: 0.024, min: 1, max: 1}
-      - {item: starlight_earrings, chance: 0.02, min: 1, max: 1}
-      - {item: starlight_ring, chance: 0.02, min: 1, max: 1}
-      - {item: dragonfang, chance: 0.002, min: 1, max: 1}
-      - {item: starfall_bow, chance: 0.002, min: 1, max: 1}
-      - {item: whisper_edge, chance: 0.002, min: 1, max: 1}
-      - {item: void_scepter, chance: 0.002, min: 1, max: 1}
-      - {item: eclipse_ring, chance: 0.002, min: 1, max: 1}
+      - {item: gloom_core, chance: 0.9, min: 1, max: 2}
+      - {item: white_potion, chance: 0.6, min: 1, max: 1}
+      - {item: mana_elixir, chance: 0.6, min: 1, max: 1}
+      - {item: runeblade, chance: 0.036, min: 1, max: 1}
+      - {item: windpiercer, chance: 0.036, min: 1, max: 1}
+      - {item: nightfang, chance: 0.036, min: 1, max: 1}
+      - {item: arcane_wand, chance: 0.036, min: 1, max: 1}
+      - {item: mythril_helm, chance: 0.045, min: 1, max: 1}
+      - {item: mythril_plate, chance: 0.03, min: 1, max: 1}
+      - {item: mythril_greaves, chance: 0.045, min: 1, max: 1}
+      - {item: ranger_gloves, chance: 0.036, min: 1, max: 1}
+      - {item: wind_boots, chance: 0.036, min: 1, max: 1}
+      - {item: starlight_pendant, chance: 0.036, min: 1, max: 1}
+      - {item: starlight_earrings, chance: 0.03, min: 1, max: 1}
+      - {item: starlight_ring, chance: 0.03, min: 1, max: 1}
+      - {item: dragonfang, chance: 0.003, min: 1, max: 1}
+      - {item: starfall_bow, chance: 0.003, min: 1, max: 1}
+      - {item: whisper_edge, chance: 0.003, min: 1, max: 1}
+      - {item: void_scepter, chance: 0.003, min: 1, max: 1}
+      - {item: eclipse_ring, chance: 0.003, min: 1, max: 1}

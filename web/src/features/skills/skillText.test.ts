@@ -18,9 +18,11 @@ const perPoint = (id: string) => perPointText(skill(id), skill(id).stages[0]!);
 
 describe('effectText', () => {
   it('a damage skill reads as its attack, cost, reach and foes', () => {
-    expect(at('strike', 8)).toBe('1.9× physical attack · 6 MP · 2s cooldown');
-    expect(at('spark', 1)).toBe('1.66× magic attack · 6 MP · 2.5s cooldown · range 220');
-    expect(at('slash_blast', 1)).toBe('1.44× physical attack · 6 MP · 3s cooldown · up to 3 foes');
+    expect(at('strike', 8)).toBe('1.9× physical attack · 6 MP · 3s cooldown');
+    expect(at('spark', 1)).toBe('1.66× magic attack · 6 MP · 3.75s cooldown · range 220');
+    expect(at('slash_blast', 1)).toBe(
+      '1.44× physical attack · 6 MP · 4.5s cooldown · up to 3 foes',
+    );
     expect(perPoint('strike')).toBe('power +0.05× · MP +0.2');
   });
 
@@ -52,7 +54,7 @@ describe('effectText', () => {
 
   it('a heal reads as whom it reaches, as the world picks them, and how much', () => {
     expect(at('heal', 1)).toBe(
-      'Heals you and the nearest hurt party members within 150, up to 3 in all, by 1.55× magic attack · 11 MP · 3s cooldown',
+      'Heals you and the nearest hurt party members within 150, up to 3 in all, by 1.55× magic attack · 11 MP · 4.5s cooldown',
     );
     expect(perPoint('heal')).toBe('heal +0.05× magic attack · MP +0.5');
   });
@@ -61,7 +63,7 @@ describe('effectText', () => {
     const heal = skill('heal');
     const one = { ...heal.stages[0]!, targets: 1 };
     expect(effectText(heal, one, 1)).toBe(
-      'Heals you if hurt, else the nearest hurt party member within 150, by 1.55× magic attack · 11 MP · 3s cooldown',
+      'Heals you if hurt, else the nearest hurt party member within 150, by 1.55× magic attack · 11 MP · 4.5s cooldown',
     );
   });
 

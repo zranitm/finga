@@ -2,6 +2,8 @@
 package gamedata
 
 import (
+	"time"
+
 	"finga/internal/kernel"
 	"finga/internal/sim"
 )
@@ -27,6 +29,7 @@ type Parts struct {
 	Items           []Item
 	EquipSlots      []EquipSlot
 	Mobs            []Mob
+	TouchGuard      time.Duration
 	Maps            []*Map
 	StartTown       *Map
 	NPCs            []NPC

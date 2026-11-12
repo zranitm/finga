@@ -55,11 +55,10 @@ var fighters = map[kernel.Class]fighter{
 }
 
 const (
-	refPace        = 0.75        // seconds a landed hit takes the warrior, 600 ms at 80% landing, which the hits bands are set at
-	promotionLevel = 10          // below it a character is a Beginner
-	killsPerLevel  = 30          // a normal mob's EXP is about a thirtieth of its level's
-	bandStars      = 5           // ★6 and ★7 are rare finds, not what a character can expect to wear
-	touchEvery     = time.Second // a player can be touched again a second after contact damage, the instance's invulnerability
+	refPace        = 1.125 // seconds a landed hit takes the warrior, 900 ms at 80% landing, which the hits bands are set at
+	promotionLevel = 10    // below it a character is a Beginner
+	killsPerLevel  = 20    // a normal mob's EXP is about a twentieth of its level's
+	bandStars      = 5     // ★6 and ★7 are rare finds, not what a character can expect to wear
 )
 
 func regionOf(m *gamedata.Map) (region, bool) {
@@ -135,7 +134,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 	}
 	pace := time.Duration(model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
-	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / touchEvery.Seconds() * f.touchRate)
+	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / d.TouchGuard().Seconds() * f.touchRate) // a player is touched at most once a touch guard
 	return f
 }
 

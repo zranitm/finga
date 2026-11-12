@@ -11,12 +11,12 @@ import (
 func params() sim.Params {
 	return sim.Params{
 		Dt:           1.0 / 60,
-		WalkSpeed:    200,
-		JumpVelocity: 620,
-		Gravity:      1900,
-		MaxFallSpeed: 900,
-		ClimbSpeed:   140,
-		DropThrough:  0.25,
+		WalkSpeed:    160,
+		JumpVelocity: 496,
+		Gravity:      1216,
+		MaxFallSpeed: 720,
+		ClimbSpeed:   112,
+		DropThrough:  0.3125,
 		Width:        24,
 		Height:       56,
 	}
@@ -52,11 +52,11 @@ func TestWalkOnFlatGround(t *testing.T) {
 		wantX      float64
 		wantFacing int
 	}{
-		{"right for one second covers walk speed", sim.Input{Right: true}, 60, 400, 1},
-		{"left for one second covers walk speed", sim.Input{Left: true}, 60, 0, -1},
+		{"right for one second covers walk speed", sim.Input{Right: true}, 60, 360, 1},
+		{"left for one second covers walk speed", sim.Input{Left: true}, 60, 40, -1},
 		{"both held: no movement, facing unchanged", sim.Input{Left: true, Right: true}, 60, 200, 1},
 		{"nothing held: stands still", sim.Input{}, 60, 200, 1},
-		{"one sub-step moves walk/60", sim.Input{Right: true}, 1, 200 + 200.0/60, 1},
+		{"one sub-step moves walk/60", sim.Input{Right: true}, 1, 200 + 160.0/60, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,9 +92,9 @@ func TestJump(t *testing.T) {
 	if rise < 95 || rise > 101.2 {
 		t.Fatalf("jump rose %v px, want about 100", rise)
 	}
-	// Flight time is about 2v/g = 0.65 s, 39 sub-steps, plus the landing step.
-	if landed < 38 || landed > 42 {
-		t.Fatalf("landed after %d sub-steps, want about 40", landed)
+	// Flight time is about 2v/g = 0.82 s, 49 sub-steps, plus the landing step.
+	if landed < 47 || landed > 52 {
+		t.Fatalf("landed after %d sub-steps, want about 50", landed)
 	}
 	if s.Y != 500 || s.VY != 0 || s.X != 200 {
 		t.Fatalf("landing state %+v, want back on the floor at the same x", s)
@@ -113,15 +113,15 @@ func TestJumpOnlyFromTheGround(t *testing.T) {
 
 func TestWalkingOffALedge(t *testing.T) {
 	ledge := sim.Geometry{Solids: []sim.Rect{{X: 0, Y: 500, W: 200, H: 32}}}
-	s := run(standing(150), sim.Input{Right: true}, ledge, 30) // 100 px right: past the edge at 200+12
+	s := run(standing(150), sim.Input{Right: true}, ledge, 30) // 80 px right: past the edge at 200+12
 	if s.OnGround {
 		t.Fatalf("still on the ground past the ledge: %+v", s)
 	}
 	if s.Y <= 500 || s.VY <= 0 {
 		t.Fatalf("not falling: %+v", s)
 	}
-	if !near(s.X, 250, 1e-9) {
-		t.Fatalf("x = %v, want 250: walking continues in the air", s.X)
+	if !near(s.X, 230, 1e-9) {
+		t.Fatalf("x = %v, want 230: walking continues in the air", s.X)
 	}
 }
 

@@ -15,7 +15,7 @@ import (
 	"finga/services/world/worldtest"
 )
 
-// A sword with 50% attack speed takes the warrior's 600 ms attack to 400 ms: 8 ticks, not 12.
+// A sword with 50% attack speed takes the warrior's 900 ms attack to 600 ms: 12 ticks, not 18.
 func TestAttackSpeedShortensTheAttack(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -29,10 +29,10 @@ func TestAttackSpeedShortensTheAttack(t *testing.T) {
 		_ = inst.Attack(p.ID)
 		tick(1)
 		_ = inst.Attack(p.ID) // inside the attack: it swings once that ends
-		tick(10)
+		tick(14)
 		got := damages(s)
-		if len(got) != 2 || got[1].Tick-got[0].Tick != 8 {
-			t.Fatalf("hits %+v; want two, 8 ticks apart", got)
+		if len(got) != 2 || got[1].Tick-got[0].Tick != 12 {
+			t.Fatalf("hits %+v; want two, 12 ticks apart", got)
 		}
 	})
 }
@@ -43,8 +43,8 @@ func TestTheSheetCarriesTheAttacksLength(t *testing.T) {
 	warrior, _ := data.Class(kernel.Class("warrior"))
 	plain := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{}, progression.ItemStats{}, worldtest.TickInterval)
 	fast := instance.StatsOf(data, warrior, 1, model.Points{}, model.Skills{}, model.Worn{Items: []model.WornItem{{Template: "wooden_sword", Stats: progression.ItemStats{AttackSpeed: 500}}}}, progression.ItemStats{}, worldtest.TickInterval)
-	if plain.Sheet.AttackLengthTicks != 12 || fast.Sheet.AttackLengthTicks != 8 {
-		t.Fatalf("attacks of %d and %d ticks, want 12 and 8", plain.Sheet.AttackLengthTicks, fast.Sheet.AttackLengthTicks)
+	if plain.Sheet.AttackLengthTicks != 18 || fast.Sheet.AttackLengthTicks != 12 {
+		t.Fatalf("attacks of %d and %d ticks, want 18 and 12", plain.Sheet.AttackLengthTicks, fast.Sheet.AttackLengthTicks)
 	}
 }
 

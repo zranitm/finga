@@ -147,7 +147,7 @@ func TestMobsSpawnAndRespawn(t *testing.T) {
 			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
 			synctest.Wait()
-			time.Sleep(12 * worldtest.TickInterval) // the 600 ms cooldown
+			time.Sleep(17 * worldtest.TickInterval) // the rest of the 900 ms attack
 			synctest.Wait()
 			_ = inst.Attack(idOf(t, s))
 			time.Sleep(worldtest.TickInterval)
@@ -256,7 +256,8 @@ func TestAttacks(t *testing.T) {
 			if got := damages(s); len(got) != 1 {
 				t.Fatalf("%d hits from 35 attacks inside one attack, want 1", len(got))
 			}
-			time.Sleep(16 * worldtest.TickInterval) // the attack ends
+			length, _ := attackTicks(t, data, bowmanAt(100))
+			time.Sleep(time.Duration(length-5) * worldtest.TickInterval) // the attack ends
 			synctest.Wait()
 			if got := damages(s); len(got) != 2 {
 				t.Fatalf("%d hits once the attack ended, want the one kept", len(got))
@@ -286,7 +287,8 @@ func TestAnEarlyAttackSwingsAsTheLastEnds(t *testing.T) {
 		if got := damages(s); len(got) != 1 {
 			t.Fatalf("%d hits inside the attack, want 1", len(got))
 		}
-		time.Sleep(10 * worldtest.TickInterval) // past its end
+		length, _ := attackTicks(t, data, bowmanAt(100))
+		time.Sleep(time.Duration(length-11) * worldtest.TickInterval) // its end
 		synctest.Wait()
 		if got := damages(s); len(got) != 2 {
 			t.Fatalf("%d hits after the attack, want the one sent during it", len(got))
@@ -323,7 +325,7 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 			t.Fatalf("not invulnerable after contact damage: %+v", v)
 		}
 		// Wait out the invulnerability standing still, then walk back in for a second hit.
-		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 22) // past the second of invulnerability, standing still
+		seq = worldtest.Walk(inst, id, seq, sim.Input{}, 32) // past the 1.5 s touch guard, standing still
 		{                                                    // the Delta carries the cleared flag while standing still
 			var ticks []uint64
 			for _, d := range s.Deltas() {
@@ -334,8 +336,8 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 				}
 			}
 			hitTick := damages(s)[0].Tick
-			if len(ticks) == 0 || ticks[0] != hitTick+20 {
-				t.Fatalf("the invulnerability edge: cleared in deltas at ticks %v, want %d (one second after the hit at %d)", ticks, hitTick+20, hitTick)
+			if len(ticks) == 0 || ticks[0] != hitTick+30 {
+				t.Fatalf("the invulnerability edge: cleared in deltas at ticks %v, want %d (1.5 s after the hit at %d)", ticks, hitTick+30, hitTick)
 			}
 		}
 		if len(damages(s)) != 1 {
@@ -348,7 +350,7 @@ func TestContactDamageAndInvulnerability(t *testing.T) {
 	})
 }
 
-// A dodged touch shows MISS and leaves the player where they stand, without the hurt blink; the mob still rolls its next touch a second later.
+// A dodged touch shows MISS and leaves the player where they stand, without the hurt blink; the mob still rolls its next touch a touch guard later.
 func TestADodgedTouchNeitherKnocksBackNorBlinks(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := worldtest.LoadData(t)
@@ -370,14 +372,14 @@ func TestADodgedTouchNeitherKnocksBackNorBlinks(t *testing.T) {
 		if v.Invulnerable {
 			t.Fatal("blinking after a MISS")
 		}
-		for range 25 { // standing in the slime
+		for range 35 { // standing in the slime
 			if len(damages(s)) > 1 {
 				break
 			}
 			seq = worldtest.Walk(inst, id, seq, sim.Input{}, 1)
 		}
-		if got := damages(s); len(got) != 2 || got[1].Tick != got[0].Tick+20 {
-			t.Fatalf("touches %+v, want the next roll a second after the MISS", got)
+		if got := damages(s); len(got) != 2 || got[1].Tick != got[0].Tick+30 {
+			t.Fatalf("touches %+v, want the next roll 1.5 s after the MISS", got)
 		}
 	})
 }
@@ -467,16 +469,16 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		p := warriorAt(250)
-		p.Exp = 18 // level 1 needs 20; a slime gives 5
+		p.Exp = 18 // level 1 needs 20; a slime gives 8
 		s := join(t, inst, p)
 		_ = inst.Attack(p.ID)
-		time.Sleep(13 * worldtest.TickInterval)
+		time.Sleep(18 * worldtest.TickInterval) // the 900 ms attack
 		synctest.Wait()
 		_ = inst.Attack(p.ID)
 		time.Sleep(worldtest.TickInterval)
 		synctest.Wait()
 		exp := ofType(s, func(e any) bool { _, ok := e.(model.ExpGained); return ok })
-		if len(exp) != 1 || exp[0].(model.ExpGained).Amount != 5 || exp[0].(model.ExpGained).Exp != 3 {
+		if len(exp) != 1 || exp[0].(model.ExpGained).Amount != 8 || exp[0].(model.ExpGained).Exp != 6 {
 			t.Fatalf("exp events %+v", exp)
 		}
 		lus := ofType(s, func(e any) bool { _, ok := e.(model.LevelUp); return ok })
@@ -485,7 +487,7 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 		}
 		lu := lus[0].(model.LevelUp)
 		// The level's 5 points wait unspent, so the stats stay the class's; max HP 60+18+2×7+10×7 = 162, max MP 20+4+3×7 = 45.
-		if lu.Level != 2 || lu.Exp != 3 || lu.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || lu.HP != 162 || lu.MaxHP != 162 || lu.MP != 45 || lu.MaxMP != 45 ||
+		if lu.Level != 2 || lu.Exp != 6 || lu.Stats != (gamedata.Stats{STR: 7, DEX: 7, INT: 7, AGI: 7, VIT: 7}) || lu.HP != 162 || lu.MaxHP != 162 || lu.MP != 45 || lu.MaxMP != 45 ||
 			lu.Sheet.Points != (model.Points{Unspent: 5}) || lu.Sheet.Skills.Unspent != 5 {
 			t.Fatalf("level-up %+v; want 5 stat and 5 skill points unspent", lu)
 		}
@@ -494,7 +496,7 @@ func TestKillGivesExpAndLevelsUp(t *testing.T) {
 			t.Fatalf("view after level-up %+v", v)
 		}
 		// The level-up is checkpointed right away, with the whole progression.
-		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 3 || saved[0].HP != 162 || saved[0].Points != (model.Points{Unspent: 5}) || saved[0].Skills.Unspent != 5 {
+		if saved := cps.Drain(); len(saved) != 1 || saved[0].ID != p.ID || saved[0].Level != 2 || saved[0].Exp != 6 || saved[0].HP != 162 || saved[0].Points != (model.Points{Unspent: 5}) || saved[0].Skills.Unspent != 5 {
 			t.Fatalf("checkpoints after the level-up %+v", saved)
 		}
 	})

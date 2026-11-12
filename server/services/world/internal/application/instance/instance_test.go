@@ -239,7 +239,7 @@ func TestInputsApplyInSequenceOrder(t *testing.T) {
 	})
 }
 
-// A player walks 200 px a second whatever the tick rate, as the client predicts; a new warrior's 7 AGI make that 1.01 times as far in a hunting map.
+// A player walks 160 px a second whatever the tick rate, as the client predicts; a new warrior's 7 AGI make that 1.01 times as far in a hunting map.
 func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 	for _, interval := range []time.Duration{50 * time.Millisecond, 100 * time.Millisecond} {
 		t.Run(interval.String(), func(t *testing.T) {
@@ -262,8 +262,8 @@ func TestWalkingSpeedDoesNotDependOnTheTickRate(t *testing.T) {
 					time.Sleep(interval)
 					synctest.Wait()
 				}
-				if v, _ := s.Own(p.ID); math.Abs(v.State.X-302) > 0.01 {
-					t.Fatalf("x = %.2f after a second, want 302", v.State.X)
+				if v, _ := s.Own(p.ID); math.Abs(v.State.X-261.6) > 0.01 {
+					t.Fatalf("x = %.2f after a second, want 261.6", v.State.X)
 				}
 			})
 		})

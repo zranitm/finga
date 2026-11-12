@@ -22,12 +22,12 @@ import (
 // wantMovement are the movement constants data/movement.yaml and the fixture both hold.
 var wantMovement = sim.Params{
 	Dt:           1.0 / 60,
-	WalkSpeed:    200,
-	JumpVelocity: 620,
-	Gravity:      1900,
-	MaxFallSpeed: 900,
-	ClimbSpeed:   140,
-	DropThrough:  0.25,
+	WalkSpeed:    160,
+	JumpVelocity: 496,
+	Gravity:      1216,
+	MaxFallSpeed: 720,
+	ClimbSpeed:   112,
+	DropThrough:  0.3125,
 	Width:        24,
 	Height:       56,
 }
@@ -37,12 +37,12 @@ func fixture() map[string]string {
 	return map[string]string{
 		"movement.yaml": `
 dt: 0.016666666666666666
-walk_speed: 200
-jump_velocity: 620
-gravity: 1900
-max_fall_speed: 900
-climb_speed: 140
-drop_through: 0.25
+walk_speed: 160
+jump_velocity: 496
+gravity: 1216
+max_fall_speed: 720
+climb_speed: 112
+drop_through: 0.3125
 width: 24
 height: 56
 `,
@@ -151,6 +151,7 @@ items:
   - {id: slime_gel, name: Slime Gel, tab: etc, stars: 2, description: "Sticky."}
 `,
 		"mobs.yaml": `
+touch_guard: 1500ms
 mobs:
   - id: green_slime
     name: Green Slime
@@ -334,9 +335,9 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 {
-			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
+	t.Run("the most active quests, the longest chat line and the touch guard", func(t *testing.T) {
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TouchGuard() != 1500*time.Millisecond {
+			t.Fatalf("max active %d, chat line %d, touch guard %s", d.MaxActiveQuests(), d.ChatLineMax(), d.TouchGuard())
 		}
 	})
 	t.Run("the class tree, with its attacks and auto-assign splits", func(t *testing.T) {
@@ -655,6 +656,7 @@ func TestRejections(t *testing.T) {
 		{"a drop table naming an unknown item", "mobs.yaml", `item: slime_gel`, `item: dragon_scale`, []string{"mobs.yaml", "green_slime", "dragon_scale"}},
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
+		{"mobs.yaml without a touch guard", "mobs.yaml", "touch_guard: 1500ms\n", "", []string{"mobs.yaml", "touch_guard"}},
 		{"duplicate item IDs", "items.yaml", `id: slime_gel`, `id: red_potion`, []string{"items.yaml", "red_potion", "duplicate"}},
 		{"duplicate mob IDs", "mobs.yaml", `mobs:`, "mobs:\n  - {id: green_slime, name: X, level: 1, hp: 1, attack: 1, damage: physical, physical_defense: 1, magic_defense: 1, accuracy: 1, evasion: 1, exp: 1, speed: 1, width: 1, height: 1, behavior: patrol, look: {sprite: slime}}", []string{"mobs.yaml", "green_slime", "duplicate"}},
 		{"a mob with an unknown damage type", "mobs.yaml", `damage: physical`, `damage: fire`, []string{"mobs.yaml", "green_slime", "fire"}},
@@ -755,7 +757,7 @@ func TestRejections(t *testing.T) {
 		{"an equip slot without a kind", "items.yaml", `{id: hat, name: Hat, kind: hat}`, `{id: hat, name: Hat}`, []string{"items.yaml", "hat", "kind"}},
 		{"an item restricted to an unknown class", "items.yaml", `class: warrior`, `class: paladin`, []string{"items.yaml", "wooden_sword", "paladin"}},
 		{"an unknown key is rejected", "items.yaml", `tab: etc`, `tab: etc, colour: green`, []string{"items.yaml", "colour"}},
-		{"movement constants must be positive", "movement.yaml", `gravity: 1900`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
+		{"movement constants must be positive", "movement.yaml", `gravity: 1216`, `gravity: 0`, []string{"movement.yaml", "gravity"}},
 		{"no active quest allowed", "quests.yaml", `max_active: 20`, `max_active: 0`, []string{"quests.yaml", "max_active"}},
 		{"no chat line allowed", "chat.yaml", `line_max: 120`, `line_max: 0`, []string{"chat.yaml", "line_max"}},
 		{"loot timings must be positive", "loot.yaml", `collect_delay: 1s`, `collect_delay: 0s`, []string{"loot.yaml", "collect_delay"}},

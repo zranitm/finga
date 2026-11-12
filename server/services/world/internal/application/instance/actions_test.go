@@ -34,9 +34,13 @@ func edit(t *testing.T, old, new string) func(string) string {
 	}
 }
 
-// cancelableStrike marks Strike, the first active skill, cancelable.
+// strikeWith gives Strike a line more, such as a hit or cancelable.
+func strikeWith(t *testing.T, line string) map[string]func(string) string {
+	return map[string]func(string) string{"skills.yaml": edit(t, "  - id: strike\n", "  - id: strike\n    "+line+"\n")}
+}
+
 func cancelableStrike(t *testing.T) map[string]func(string) string {
-	return map[string]func(string) string{"skills.yaml": edit(t, "cooldown: 2s\n", "cooldown: 2s\n    cancelable: true\n")}
+	return strikeWith(t, "cancelable: true")
 }
 
 // attackTicks is p's basic attack in ticks, and its cancel point, at p's attack speed.
@@ -320,7 +324,7 @@ func TestAnEarlySkillKeepsTheAttacksHitToLand(t *testing.T) {
 // A skill with a wind-up spends its MP and starts its cooldown at the start and lands at its hit.
 func TestASkillsWindUpSpendsAtTheStartAndLandsLate(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, map[string]func(string) string{"skills.yaml": edit(t, "cooldown: 2s\n", "cooldown: 2s\n    hit: 0.5\n")})
+		data := timelineData(t, strikeWith(t, "hit: 0.5"))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)

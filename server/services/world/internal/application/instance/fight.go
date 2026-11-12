@@ -17,9 +17,8 @@ const (
 	thousandths      = 1000
 	respawnDelay     = 3 * time.Second
 	respawnHPPercent = 50
-	invulnerability  = time.Second // after a touch: the next touch roll waits it out, and a hit shows it
-	knockbackX       = 16.0        // px away from the mob
-	knockbackVY      = -250.0
+	knockbackX       = 16.0 // px away from the mob
+	knockbackVY      = -200.0
 	fallMargin       = 64.0 // px below the map's bottom, two tiles, past which a falling player is taken back to its spawn
 )
 
@@ -97,7 +96,7 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 	}
 }
 
-// contactDamage rolls a mob's touch on a player at most once a second. A hit hurts, knocks back and briefly protects them; a MISS only shows.
+// contactDamage rolls a mob's touch on a player at most once a touch guard. A hit hurts, knocks back and briefly protects them; a MISS only shows.
 func (i *Instance) contactDamage() {
 	if i.m.Kind == gamedata.Town {
 		return
@@ -112,7 +111,7 @@ func (i *Instance) contactDamage() {
 			continue
 		}
 		i.events = append(i.events, dealt)
-		p.nextTouch = i.tick + i.ticksFor(invulnerability)
+		p.nextTouch = i.tick + i.ticksFor(i.data.TouchGuard()) // a hit shows it as invulnerability
 		if dealt.Miss {
 			continue // a dodge keeps the player where they are, without the hurt blink
 		}

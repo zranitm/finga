@@ -91,10 +91,10 @@ func TestATickThatSplitsAMovementStepIsRefused(t *testing.T) {
 	}
 }
 
-// One second holds whole movement steps, but it outlasts the Beginner's 700 ms attack.
+// One second holds whole movement steps, but it outlasts the Warrior's 900 ms attack.
 func TestATickLongerThanAnActionIsRefused(t *testing.T) {
 	cfg := config.Config{DataDir: "../../../data", TickRateHz: 1}
-	if _, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry()); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") || !strings.Contains(err.Error(), "beginner") {
+	if _, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry()); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") || !strings.Contains(err.Error(), "warrior") {
 		t.Fatalf("1 Hz: %v", err)
 	}
 }

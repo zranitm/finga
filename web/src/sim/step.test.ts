@@ -94,9 +94,9 @@ describe('step', () => {
 
   it('reads its constants from the generated gamedata', () => {
     expect(params).toMatchObject({
-      walk_speed: 200,
-      jump_velocity: 620,
-      gravity: 1900,
+      walk_speed: 160,
+      jump_velocity: 496,
+      gravity: 1216,
       width: 24,
       height: 56,
     });
@@ -117,7 +117,7 @@ describe('step', () => {
       facing: 1,
       vx: 0,
     },
-    { name: 'left alone faces and walks left', input: { left: true }, facing: -1, vx: -200 },
+    { name: 'left alone faces and walks left', input: { left: true }, facing: -1, vx: -160 },
     { name: 'nothing held keeps facing', input: {}, facing: 1, vx: 0 },
   ])('$name', ({ input, facing, vx }) => {
     const s = step(standing(200, 500), { ...noInput, ...input }, floor);

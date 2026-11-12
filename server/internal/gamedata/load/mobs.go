@@ -2,6 +2,7 @@ package load
 
 import (
 	"fmt"
+	"time"
 
 	"finga/internal/gamedata"
 )
@@ -9,7 +10,8 @@ import (
 const mobsFile = "mobs.yaml"
 
 type mobsYAML struct {
-	Mobs []mobYAML `yaml:"mobs"`
+	TouchGuard time.Duration `yaml:"touch_guard"`
+	Mobs       []mobYAML     `yaml:"mobs"`
 }
 
 type mobYAML struct {
@@ -52,6 +54,10 @@ func (l *loader) loadMobs(dir string) error {
 	if err := readYAML(dir, mobsFile, &file); err != nil {
 		return err
 	}
+	if file.TouchGuard <= 0 {
+		return fmt.Errorf("%s: touch_guard must be positive", mobsFile)
+	}
+	l.touchGuard = file.TouchGuard
 	for _, raw := range file.Mobs {
 		if raw.ID == "" {
 			return fmt.Errorf("%s: a mob has no id", mobsFile)

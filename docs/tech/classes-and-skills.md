@@ -49,7 +49,7 @@ classes:
   - id: beginner
     name: Beginner
     look: {sprite: alien_blue, tint: 0xff6640}
-    attack: {kind: melee, width: 48, height: 48, length: 700ms, damage: physical}
+    attack: {kind: melee, width: 48, height: 48, length: 1050ms, damage: physical}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     skills: [strike, throw, spark, second_wind]
     starter_items: [{item: wooden_club, quantity: 1}, {item: red_potion, quantity: 5}]
@@ -57,7 +57,7 @@ classes:
     name: Warrior
     parent: beginner
     look: {sprite: alien_blue}
-    attack: {kind: melee, width: 64, height: 56, length: 600ms, damage: physical}
+    attack: {kind: melee, width: 64, height: 56, length: 900ms, damage: physical}
     skills: [...]
     auto_assign: {str: 3, vit: 2}
     promotion:
@@ -92,7 +92,7 @@ skills:
     damage: physical
     shape: {kind: melee, width: 64, height: 56}   # melee | ranged (range) | area (radius)
     mp: {base: 4, per_point: 0.2}
-    cooldown: 2s
+    cooldown: 3s
     length: 1050ms                        # how long using it keeps the player busy (animation-cancel.md)
     power: {base: 1.5, per_point: 0.05}   # × the matching attack
     stages:                               # evolution, all data

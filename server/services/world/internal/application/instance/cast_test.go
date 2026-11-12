@@ -199,7 +199,7 @@ func TestStrikeHitsWithItsPowerUpToItsTargets(t *testing.T) {
 	} {
 		t.Run(fmt.Sprintf("at %d points", tc.points), func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				data := skillData(t)
+				data := skillDataWith(t, map[string]func(string) string{"mobs.yaml": edit(t, "hp: 34", "hp: 1000000")}) // no kill's EXP levels the caster up
 				inst, stop := worldtest.RunMap(t, data, crowd(), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
@@ -439,12 +439,13 @@ func TestASkillsCooldown(t *testing.T) {
 		p.Points = model.Points{Spent: gamedata.Stats{INT: 200}} // cooldown speed 0.4 × 207 ÷ 407, about 0.2
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
+		strike, _ := data.Skill("strike")
 		speed := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.CooldownSpeed
-		cd := model.SkillCooldownTicks(2*time.Second, speed, worldtest.TickInterval)
-		if cd >= 40 {
-			t.Fatalf("a %d tick cooldown; want cooldown speed to cut 2 s's 40", cd)
+		full := model.SkillCooldownTicks(strike.Stages[0].Cooldown, 0, worldtest.TickInterval)
+		cd := model.SkillCooldownTicks(strike.Stages[0].Cooldown, speed, worldtest.TickInterval)
+		if cd >= full {
+			t.Fatalf("a %d tick cooldown; want cooldown speed to cut its %d", cd, full)
 		}
-		const slack = 3 // 150 ms in 50 ms ticks
 		usedAt := func() uint64 {
 			t.Helper()
 			for range 2 * cd {

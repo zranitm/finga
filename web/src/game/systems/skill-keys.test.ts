@@ -66,17 +66,17 @@ function keys(caster: Partial<Caster> = {}, town = false) {
 const settled = () => new Promise((r) => setTimeout(r, 0));
 
 describe('SkillKeys', () => {
-  it('uses the skill on the key and starts its cooldown at once: 2 s of 50 ms ticks for Strike', () => {
+  it('uses the skill on the key and starts its cooldown at once: 3 s of 50 ms ticks for Strike', () => {
     const { k, use, cooldowns } = keys();
     k.press(0);
     expect(use).toHaveBeenCalledWith('strike');
-    expect(cooldowns.strike).toEqual({ from: 1000, until: 3000 });
+    expect(cooldowns.strike).toEqual({ from: 1000, until: 4000 });
   });
 
   it('cooldown speed cuts the cooldown before it is counted in whole ticks', () => {
     const { k, cooldowns } = keys({ cooldownSpeed: 0.21 });
-    k.press(1); // Spark's 2.5 s × 0.79 is 1975 ms: 40 ticks
-    expect(cooldowns.spark).toEqual({ from: 1000, until: 3000 });
+    k.press(1); // Spark's 3.75 s × 0.79 is 2962.5 ms: 60 ticks
+    expect(cooldowns.spark).toEqual({ from: 1000, until: 4000 });
   });
 
   it('a key pressed again during the cooldown sends nothing and says so once, and once it ends it sends again', () => {
@@ -84,7 +84,7 @@ describe('SkillKeys', () => {
     k.press(0);
     wait(1000);
     k.press(0);
-    wait(999);
+    wait(1999);
     k.press(0);
     expect(use).toHaveBeenCalledTimes(1);
     expect(notice.mock.calls).toEqual([['That skill isn’t ready yet.']]);
@@ -129,7 +129,7 @@ describe('SkillKeys', () => {
     mp = 9;
     k.press(1);
     expect(use).toHaveBeenCalledWith('spark');
-    wait(3000); // past Spark's cooldown
+    wait(4000); // past Spark's cooldown
     mp = 0;
     k.press(1);
     expect(notice.mock.calls).toEqual([['Not enough MP.'], ['Not enough MP.']]);
@@ -158,7 +158,7 @@ describe('SkillKeys', () => {
     lost.k.press(0);
     lost.answers[0]!.reject(new RequestError('timeout', 'no response'));
     await settled();
-    expect(lost.cooldowns.strike).toEqual({ from: 1000, until: 3000 });
+    expect(lost.cooldowns.strike).toEqual({ from: 1000, until: 4000 });
     expect(lost.action).toMatchObject({ begun: 1, givenBack: 0 });
     expect(lost.notice).not.toHaveBeenCalled();
   });
@@ -168,7 +168,7 @@ describe('SkillKeys', () => {
     k.press(0);
     answers[0]!.reject(new RequestError(ERR.SKILL_COOLING_DOWN, 'That skill isn’t ready yet.'));
     await settled();
-    expect(cooldowns.strike).toEqual({ from: 1000, until: 3000 });
+    expect(cooldowns.strike).toEqual({ from: 1000, until: 4000 });
     expect(action.givenBack).toBe(1);
     expect(notice).toHaveBeenCalledWith('That skill isn’t ready yet.');
   });
@@ -198,7 +198,7 @@ describe('SkillKeys', () => {
     wait(300);
     action.held!();
     expect(use.mock.calls).toEqual([['strike']]);
-    expect(cooldowns.strike).toEqual({ from: 1300, until: 3300 });
+    expect(cooldowns.strike).toEqual({ from: 1300, until: 4300 });
     action.free = false;
     k.press(1);
     mp = 0;
@@ -213,7 +213,7 @@ describe('SkillKeys', () => {
     try {
       const { k, cooldowns } = keys();
       k.press(0);
-      vi.advanceTimersByTime(1999);
+      vi.advanceTimersByTime(2999);
       expect(cooldowns.strike).toBeDefined();
       vi.advanceTimersByTime(1);
       expect(cooldowns).toEqual({});
@@ -225,10 +225,10 @@ describe('SkillKeys', () => {
   it('a late refusal leaves a newer cooldown alone', async () => {
     const { k, answers, cooldowns, wait } = keys();
     k.press(0);
-    wait(2000);
+    wait(3000);
     k.press(0);
     answers[0]!.reject(new RequestError(ERR.NOT_ENOUGH_MP, 'Not enough MP.'));
     await settled();
-    expect(cooldowns.strike).toEqual({ from: 3000, until: 5000 });
+    expect(cooldowns.strike).toEqual({ from: 4000, until: 7000 });
   });
 });
