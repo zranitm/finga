@@ -11,7 +11,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	clientv1 "finga/api/gen/client/v1"
-	"finga/internal/protocol"
 	"finga/pkg/wsconn"
 )
 
@@ -54,9 +53,7 @@ func (s *stack) newCharacter(t *testing.T, token, name, class string) string {
 func (s *stack) join(t *testing.T, token, id string) (*player, *clientv1.Snapshot) {
 	t.Helper()
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
-	p.token = p.expect("Welcome").Data.(*clientv1.Welcome).Token
-	snap := p.expect("Snapshot").Data.(*clientv1.Snapshot)
+	_, snap := p.hello(token)
 	return p, snap
 }
 

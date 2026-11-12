@@ -24,7 +24,8 @@ type player struct {
 	conn  *websocket.Conn
 	codec *wsconn.ProtoCodec
 	msgs  chan wsconn.Message
-	done  chan struct{} // closed when the reader stops (connection closed)
+	done  chan struct{}    // closed when the reader stops (connection closed)
+	held  []wsconn.Message // read past by hello, for the next read
 }
 
 func (s *stack) enter(t *testing.T, username, charName, class string) *player {
@@ -33,14 +34,43 @@ func (s *stack) enter(t *testing.T, username, charName, class string) *player {
 	token := s.call("POST", "/api/sessions", "", map[string]string{"username": username, "password": "correct horse"}).body["token"].(string)
 	id := s.newCharacter(t, token, charName, class)
 	p := s.connect(t, id)
-	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: id}})
-	w := p.expect("Welcome").Data.(*clientv1.Welcome)
-	if w.GetCharacter().GetName() != charName {
+	if w, _ := p.hello(token); w.GetCharacter().GetName() != charName {
 		t.Fatalf("welcome %+v", w)
 	}
-	p.token = w.Token // rotated on Hello; REST calls use this one from now on
-	p.expect("Snapshot")
 	return p
+}
+
+// hello says Hello, then waits for the Welcome, the Snapshot and the login's PartyState, in either order. The PartyState comes from the social registration, so once it has, an invite finds the player on their map.
+func (p *player) hello(token string) (*clientv1.Welcome, *clientv1.Snapshot) {
+	p.t.Helper()
+	p.send(wsconn.Message{Data: &clientv1.Hello{Token: token, ProtocolVersion: protocol.Version, CharacterId: p.id}})
+	w := p.expect("Welcome").Data.(*clientv1.Welcome)
+	p.token = w.Token // rotated on Hello; REST calls use this one from now on
+	var snap *clientv1.Snapshot
+	registered := false
+	deadline := time.Now().Add(5 * time.Second)
+	for snap == nil || !registered {
+		m, ok := p.receive(time.Until(deadline))
+		if !ok || time.Now().After(deadline) {
+			p.t.Fatalf("%s: within 5 s of the Welcome, a Snapshot %t and the registration's PartyState %t", p.id, snap != nil, registered)
+		}
+		switch d := m.Data.(type) {
+		case *clientv1.Snapshot:
+			if snap == nil {
+				snap = d
+				continue
+			}
+		case *clientv1.PartyState:
+			if !registered {
+				registered = true
+				continue
+			}
+		}
+		if snap != nil {
+			p.held = append(p.held, m)
+		}
+	}
+	return w, snap
 }
 
 // connect opens the WebSocket for a character without saying Hello.
@@ -84,7 +114,18 @@ func (p *player) send(m wsconn.Message) {
 	}
 }
 
+// read gives what hello held first, then the next message off the connection.
 func (p *player) read(d time.Duration) (wsconn.Message, bool) {
+	if len(p.held) > 0 {
+		m := p.held[0]
+		p.held = p.held[1:]
+		return m, true
+	}
+	return p.receive(d)
+}
+
+// receive is the next message off the connection, waiting up to d.
+func (p *player) receive(d time.Duration) (wsconn.Message, bool) {
 	select {
 	case m := <-p.msgs:
 		return m, true
