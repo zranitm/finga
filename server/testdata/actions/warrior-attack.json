@@ -1,0 +1,15 @@
+{
+  "name": "warrior-attack",
+  "notes": "The Warrior's paced 900 ms attack.",
+  "kind": "attack",
+  "length_ms": 900,
+  "attack_speed": 0,
+  "hit": 0,
+  "cancel": 0.85,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 18,
+    "hit": 0,
+    "cancel": 15
+  }
+}

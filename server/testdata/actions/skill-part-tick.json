@@ -1,0 +1,15 @@
+{
+  "name": "skill-part-tick",
+  "notes": "A 710 ms skill takes 15 ticks, rounded up.",
+  "kind": "skill",
+  "length_ms": 710,
+  "attack_speed": 0,
+  "hit": 0,
+  "cancel": 0.85,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 15,
+    "hit": 0,
+    "cancel": 12
+  }
+}

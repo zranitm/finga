@@ -36,6 +36,7 @@ func skillData(t *testing.T) *gamedata.Data {
     shape: {kind: area, radius: 120}
     mp: {base: 5}
     cooldown: 2s
+    length: 1050ms
     power: {base: 2}
     targets: 2
     stages:
@@ -46,6 +47,7 @@ func skillData(t *testing.T) *gamedata.Data {
     shape: {kind: area, radius: 1}
     mp: {base: 3}
     cooldown: 1s
+    length: 1050ms
     duration: 2s
     bonus: {physical_attack: {base: 50}}
     stages:
@@ -371,7 +373,7 @@ func TestASkillTakesTheNextAttacksTurn(t *testing.T) {
 		p.HP, p.MP = 1_000_000, 1000 // full HP, so a heal is refused
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
-		turn := model.AttackCooldownTicks(warrior.Attack.Cooldown, instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.AttackSpeed, worldtest.TickInterval)
+		turn := model.AttackLengthTicks(warrior.Attack.Length, instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.AttackSpeed, worldtest.TickInterval)
 		const slack = 3 // castSlack's 150 ms in 50 ms ticks
 
 		done := castAsync(inst, p.ID, "rally")

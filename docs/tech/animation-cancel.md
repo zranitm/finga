@@ -66,9 +66,11 @@ attack: {kind: melee, damage: physical, width: 64, height: 56, length: 600ms}   
 ### Validation refuses
 
 - an active skill without a length, or a passive with any timing;
-- a length under one tick;
+- a length that isn't positive;
 - a share outside 0 to 1, or a `hit` after `cancel`;
 - `early_press` below 0 or over 500 ms.
+
+The data doesn't know the tick rate, which is the world's setting. So the world refuses to start with a tick longer than any action, as it already refuses a tick that splits a movement step.
 
 The client generator carries all of it, `actions.yaml` included.
 

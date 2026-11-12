@@ -54,6 +54,10 @@ room_check_every: 2s
 		"chat.yaml": `
 line_max: 120
 `,
+		"actions.yaml": `
+cancel: 0.85
+early_press: 100ms
+`,
 		"skills.yaml": `
 skills:
   - id: strike
@@ -63,11 +67,13 @@ skills:
     shape: {kind: melee, width: 64, height: 56}
     mp: {base: 4, per_point: 0.2}
     cooldown: 2s
+    length: 700ms
+    cancelable: true
     power: {base: 1.5, per_point: 0.05}
     stages:
       - {at: 0, name: Strike, description: "A strong swing."}
       - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}}
-      - {at: 25, name: Crushing Blow, description: "Up to three foes.", targets: 3}
+      - {at: 25, name: Crushing Blow, description: "Up to three foes.", targets: 3, length: 900ms, hit: 0.3, cancel: 0.6}
   - id: second_wind
     kind: passive
     effect: bonus
@@ -82,7 +88,7 @@ classes:
     name: Beginner
     description: "Tries everything."
     look: {sprite: alien_blue, tint: 0xd8c8a8}
-    attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 700ms}
+    attack: {kind: melee, damage: physical, width: 48, height: 48, length: 700ms}
     base_stats: {str: 12, dex: 5, int: 4, agi: 5, vit: 10}
     starter_items: [{item: wooden_sword, quantity: 1}]
     skills: [strike, second_wind]
@@ -91,7 +97,7 @@ classes:
     description: "Fights up close."
     parent: beginner
     look: {sprite: alien_blue}
-    attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
+    attack: {kind: melee, damage: physical, width: 64, height: 56, length: 600ms}
     auto_assign: {str: 3, vit: 2}
     promotion: {trainer: drillmaster, level: 3, stats: {str: 20, vit: 10}, skills: {strike: 2}, quests: [first_hunt], weapon: wooden_sword}
   - id: bowman
@@ -99,7 +105,7 @@ classes:
     description: "Fights from afar."
     parent: beginner
     look: {sprite: alien_green}
-    attack: {kind: ranged, damage: magic, range: 420, cooldown: 800ms}
+    attack: {kind: ranged, damage: magic, range: 420, length: 800ms, hit: 0.25, cancel: 0.5}
     auto_assign: {dex: 3, agi: 2}
     promotion: {trainer: hunter, level: 2, weapon: short_bow}
 `,
@@ -348,7 +354,7 @@ func TestValidDataLoads(t *testing.T) {
 		if !ok || w.Parent != "beginner" || !slices.Equal(w.Line, []kernel.Class{"warrior", "beginner"}) {
 			t.Fatalf("warrior = %+v, want a child of the beginner", w)
 		}
-		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Cooldown: 600 * time.Millisecond}) {
+		if w.Attack != (gamedata.Attack{Kind: gamedata.Melee, Damage: gamedata.Physical, Width: 64, Height: 56, Length: 600 * time.Millisecond, Cancel: 0.85}) {
 			t.Fatalf("warrior attack = %+v", w.Attack)
 		}
 		if w.AutoAssign != (gamedata.Stats{STR: 3, VIT: 2}) || w.BaseStats != (gamedata.Stats{}) {
@@ -359,7 +365,7 @@ func TestValidDataLoads(t *testing.T) {
 			t.Fatalf("warrior promotion %+v, description %q; root promotion %+v", w.Promotion, w.Description, root.Promotion)
 		}
 		b, _ := d.Class("bowman")
-		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic {
+		if b.Attack.Kind != gamedata.Ranged || b.Attack.Range != 420 || b.Attack.Damage != gamedata.Magic || b.Attack.Timing != (gamedata.Timing{Length: 800 * time.Millisecond, Hit: 0.25, Cancel: 0.5}) {
 			t.Fatalf("bowman attack = %+v", b.Attack)
 		}
 	})
@@ -374,6 +380,15 @@ func TestValidDataLoads(t *testing.T) {
 		}
 		if crushing.Targets != 3 || crushing.Power != heavy.Power {
 			t.Fatalf("Crushing Blow = %+v: want three targets and Heavy Strike's power", crushing)
+		}
+		if first := strike.Stages[0]; first.Timing != (gamedata.Timing{Length: 700 * time.Millisecond, Cancel: 0.85}) || !first.Cancelable || heavy.Timing != first.Timing || !heavy.Cancelable {
+			t.Fatalf("Strike %+v, Heavy Strike %+v: want 700 ms at actions.yaml's cancel point, cancelable, carried", first.Timing, heavy.Timing)
+		}
+		if crushing.Timing != (gamedata.Timing{Length: 900 * time.Millisecond, Hit: 0.3, Cancel: 0.6}) || !crushing.Cancelable {
+			t.Fatalf("Crushing Blow timing %+v: want its own 900 ms, hit and cancel point, still cancelable", crushing.Timing)
+		}
+		if wind, _ := d.Skill("second_wind"); wind.Stages[0].Timing != (gamedata.Timing{}) || wind.Stages[0].Cancelable {
+			t.Fatalf("Second Wind timing %+v: a passive has none", wind.Stages[0].Timing)
 		}
 		for points, want := range map[int]int{0: 0, 9: 0, 10: 1, 24: 1, 25: 2, 400: 2} {
 			if got := strike.StageAt(points); got != want {
@@ -759,6 +774,18 @@ func TestRejections(t *testing.T) {
 		{"a class teaching a skill skills.yaml doesn't have", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike, second_wind, fireball]`, []string{"classes.yaml", "fireball"}},
 		{"a skill no class teaches", "classes.yaml", `skills: [strike, second_wind]`, `skills: [strike]`, []string{"skills.yaml", "second_wind", "teaches"}},
 		{"a skill two classes teach", "classes.yaml", "    auto_assign: {str: 3, vit: 2}\n", "    auto_assign: {str: 3, vit: 2}\n    skills: [strike]\n", []string{"classes.yaml", "strike", "beginner", "warrior"}},
+		{"actions.yaml without an early_press", "actions.yaml", "early_press: 100ms\n", "", []string{"actions.yaml", "early_press"}},
+		{"a cancel point past the end", "actions.yaml", "cancel: 0.85", "cancel: 1.2", []string{"actions.yaml", "cancel"}},
+		{"an early_press over 500 ms", "actions.yaml", "early_press: 100ms", "early_press: 600ms", []string{"actions.yaml", "early_press"}},
+		{"a negative early_press", "actions.yaml", "early_press: 100ms", "early_press: -1ms", []string{"actions.yaml", "early_press"}},
+		{"an attack without a length", "classes.yaml", "width: 48, height: 48, length: 700ms}", "width: 48, height: 48}", []string{"classes.yaml", "beginner", "length"}},
+		{"an attack keeping its old cooldown", "classes.yaml", "length: 700ms}", "cooldown: 700ms}", []string{"classes.yaml", "cooldown"}},
+		{"an attack whose hit share is above one", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 1.5, cancel: 0.5", []string{"classes.yaml", "bowman", "shares"}},
+		{"an attack whose hit lands after its cancel point", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 0.75, cancel: 0.5", []string{"classes.yaml", "bowman", "cancel point"}},
+		{"an active skill without a length", "skills.yaml", "    length: 700ms\n", "", []string{"skills.yaml", "strike", "length"}},
+		{"a stage whose hit lands after its cancel point", "skills.yaml", "hit: 0.3, cancel: 0.6", "hit: 0.7, cancel: 0.6", []string{"skills.yaml", "strike", "Crushing Blow", "cancel point"}},
+		{"a passive skill with a length", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    length: 1s\n", []string{"skills.yaml", "second_wind", "passive", "length"}},
+		{"a passive stage made cancelable", "skills.yaml", `{at: 10, name: Deep Breath, description: "Faster still.",`, `{at: 10, name: Deep Breath, description: "Faster still.", cancelable: true,`, []string{"skills.yaml", "second_wind", "cancelable"}},
 		{"a passive skill with a cooldown", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    cooldown: 2s\n", []string{"skills.yaml", "second_wind", "cooldown"}},
 		{"an active skill with a passive effect", "skills.yaml", "    effect: damage\n", "    effect: bonus\n", []string{"skills.yaml", "strike", "effect"}},
 		{"an active skill without a cost", "skills.yaml", "    mp: {base: 4, per_point: 0.2}\n", "", []string{"skills.yaml", "strike", "mp"}},

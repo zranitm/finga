@@ -1,0 +1,15 @@
+{
+  "name": "share-on-a-whole-tick",
+  "notes": "100 \u00d7 0.29 is 28.999\u2026 in floating point, and counts as the whole 29.",
+  "kind": "skill",
+  "length_ms": 5000,
+  "attack_speed": 0,
+  "hit": 0,
+  "cancel": 0.29,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 100,
+    "hit": 0,
+    "cancel": 29
+  }
+}

@@ -49,7 +49,7 @@ classes:
   - id: beginner
     name: Beginner
     look: {sprite: alien_blue, tint: 0xff6640}
-    attack: {kind: melee, width: 48, height: 48, cooldown: 700ms, damage: physical}
+    attack: {kind: melee, width: 48, height: 48, length: 700ms, damage: physical}
     base_stats: {str: 7, dex: 7, int: 7, agi: 7, vit: 7}
     skills: [strike, throw, spark, second_wind]
     starter_items: [{item: wooden_club, quantity: 1}, {item: red_potion, quantity: 5}]
@@ -57,7 +57,7 @@ classes:
     name: Warrior
     parent: beginner
     look: {sprite: alien_blue}
-    attack: {kind: melee, width: 64, height: 56, cooldown: 600ms, damage: physical}
+    attack: {kind: melee, width: 64, height: 56, length: 600ms, damage: physical}
     skills: [...]
     auto_assign: {str: 3, vit: 2}
     promotion:
@@ -93,6 +93,7 @@ skills:
     shape: {kind: melee, width: 64, height: 56}   # melee | ranged (range) | area (radius)
     mp: {base: 4, per_point: 0.2}
     cooldown: 2s
+    length: 1050ms                        # how long using it keeps the player busy (animation-cancel.md)
     power: {base: 1.5, per_point: 0.05}   # × the matching attack
     stages:                               # evolution, all data
       - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}
@@ -117,7 +118,7 @@ skills:
 - **Validation** refuses:
   - a kind and effect that don't go together: an active skill damages, heals or buffs, and a passive one gives a bonus;
   - a first stage not at 0, totals that don't rise, or a stage without a name and a description;
-  - an active skill without a cooldown or an MP cost, or a passive one with either, or with a shape;
+  - an active skill without a cooldown, a length or an MP cost, or a passive one with any of them, a shape, or any other timing;
   - power on anything but a damage or heal skill, or power that isn't positive or falls with points;
   - targets below 1, or on a skill that doesn't hit;
   - a damage type on anything but a damage skill, and a duration on anything but a buff;

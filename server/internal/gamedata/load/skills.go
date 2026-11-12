@@ -42,7 +42,12 @@ type skillFields struct {
 	Targets  int                   `yaml:"targets"`
 	Duration time.Duration         `yaml:"duration"`
 	Bonus    map[string]scaledYAML `yaml:"bonus"`
+
+	timingYAML `yaml:",inline"`
+	Cancelable *bool `yaml:"cancelable"`
 }
+
+func (f skillFields) timed() bool { return f.named() || f.Cancelable != nil }
 
 type shapeYAML struct {
 	Kind   string  `yaml:"kind"`
@@ -94,7 +99,7 @@ func (l *loader) loadSkills(dir string) error {
 		if !ok {
 			return fmt.Errorf("%s: skill %s: no class in %s teaches it", skillsFile, raw.ID, classesFile)
 		}
-		s, err := skillOf(raw)
+		s, err := skillOf(raw, l.cancel)
 		if err != nil {
 			return fmt.Errorf("%s: skill %s: %w", skillsFile, raw.ID, err)
 		}
@@ -109,8 +114,8 @@ func (l *loader) loadSkills(dir string) error {
 	return nil
 }
 
-// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn.
-func skillOf(raw skillYAML) (gamedata.Skill, error) {
+// skillOf resolves every stage: the skill's own fields, then each stage's changes in turn; an active skill's cancel point is cancel unless it names its own.
+func skillOf(raw skillYAML, cancel float64) (gamedata.Skill, error) {
 	s := gamedata.Skill{ID: raw.ID, Kind: gamedata.SkillKind(raw.Kind), Effect: gamedata.SkillEffect(raw.Effect)}
 	switch {
 	case s.Kind == gamedata.Active && (s.Effect == gamedata.DamageEffect || s.Effect == gamedata.HealEffect || s.Effect == gamedata.BuffEffect):
@@ -122,6 +127,11 @@ func skillOf(raw skillYAML) (gamedata.Skill, error) {
 		return s, errors.New("the first stage is at 0 points")
 	}
 	cur := gamedata.Stage{Targets: 1}
+	if s.Kind == gamedata.Active {
+		cur.Cancel = cancel
+	} else if raw.timed() || slices.ContainsFunc(raw.Stages, func(st stageYAML) bool { return st.timed() }) {
+		return s, errors.New("a passive skill has no length, hit, cancel or cancelable: it is never used")
+	}
 	if err := apply(&cur, raw.skillFields); err != nil {
 		return s, err
 	}
@@ -171,6 +181,10 @@ func apply(st *gamedata.Stage, f skillFields) error {
 	if f.Duration != 0 {
 		st.Duration = f.Duration
 	}
+	st.Timing = f.over(st.Timing)
+	if f.Cancelable != nil {
+		st.Cancelable = *f.Cancelable
+	}
 	for _, name := range slices.Sorted(maps.Keys(f.Bonus)) {
 		field := setField(&st.Bonus, name)
 		if field == nil {
@@ -210,6 +224,9 @@ func check(s gamedata.Skill, st gamedata.Stage) error {
 	}
 	if active {
 		if err := checkShape(st.Shape); err != nil {
+			return err
+		}
+		if err := checkTiming(st.Timing); err != nil {
 			return err
 		}
 	}

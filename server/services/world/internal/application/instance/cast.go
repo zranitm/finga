@@ -116,7 +116,7 @@ func (i *Instance) cast(u use) {
 	p, s, st := u.p, u.s, u.s.Stages[u.stage]
 	p.MP -= st.MPAt(u.points)
 	p.skillReady[s.ID] = max(u.ready, i.tick) + model.SkillCooldownTicks(st.Cooldown, p.derived.CooldownSpeed, i.tuning.TickInterval)
-	p.cooldownUntil = max(p.cooldownUntil, i.tick) + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
+	p.cooldownUntil = max(p.cooldownUntil, i.tick) + model.AttackLengthTicks(p.class.Attack.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
 	i.events = append(i.events, model.SkillUsed{Tick: i.tick, Caster: p.ID, Skill: s.ID, Stage: u.stage, Facing: p.state.Facing})
 	power := st.Power.At(u.points)
 	switch s.Effect {

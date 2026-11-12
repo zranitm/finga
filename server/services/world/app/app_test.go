@@ -91,6 +91,14 @@ func TestATickThatSplitsAMovementStepIsRefused(t *testing.T) {
 	}
 }
 
+// One second holds whole movement steps, but it outlasts the Beginner's 700 ms attack.
+func TestATickLongerThanAnActionIsRefused(t *testing.T) {
+	cfg := config.Config{DataDir: "../../../data", TickRateHz: 1}
+	if _, err := app.Build(t.Context(), cfg, runnertest.NewLog().Logger(), prometheus.NewRegistry()); err == nil || !strings.Contains(err.Error(), "tick_rate_hz") || !strings.Contains(err.Error(), "beginner") {
+		t.Fatalf("1 Hz: %v", err)
+	}
+}
+
 // The interval is cut to whole nanoseconds, so 30 Hz holds 1.99999998 steps of 1/60 s; the rate itself divides evenly.
 func TestATickOfWholeStepsIsAcceptedAtAnyRate(t *testing.T) {
 	for _, hz := range []int{10, 12, 15, 20, 30, 60} {

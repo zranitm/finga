@@ -16,7 +16,7 @@ import (
 // Dir reads and validates every file under dir.
 func Dir(dir string) (*gamedata.Data, error) {
 	l := &loader{}
-	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.loadItems, l.validateStarters, l.loadMobs, l.loadMaps, l.loadNPCs, l.loadQuests, l.checkPromotions, l.loadChat}
+	steps := []func(string) error{l.loadMovement, l.loadLoot, l.loadActions, l.loadClasses, l.loadSkills, l.loadStats, l.loadExpCurve, l.loadItems, l.validateStarters, l.loadMobs, l.loadMaps, l.loadNPCs, l.loadQuests, l.checkPromotions, l.loadChat}
 	for _, step := range steps {
 		if err := step(dir); err != nil {
 			return nil, fmt.Errorf("gamedata: %w", err)
@@ -47,6 +47,7 @@ func Dir(dir string) (*gamedata.Data, error) {
 type loader struct {
 	movement    sim.Params
 	loot        gamedata.Loot
+	cancel      float64 // actions.yaml's cancel point, for actions that don't name their own
 	classes     byID[kernel.Class, gamedata.Class]
 	skills      byID[string, gamedata.Skill]
 	stats       gamedata.StatRules

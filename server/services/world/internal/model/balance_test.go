@@ -133,7 +133,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 		touchesSurvived: int(math.Ceil(float64(me.MaxHP)/(taken/touches))) - 1,
 		touchRate:       touches / attacks,
 	}
-	pace := time.Duration(model.AttackCooldownTicks(c.Attack.Cooldown, me.AttackSpeed, tickInterval)) * tickInterval
+	pace := time.Duration(model.AttackLengthTicks(c.Attack.Length, me.AttackSpeed, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
 	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / touchEvery.Seconds() * f.touchRate)
 	return f

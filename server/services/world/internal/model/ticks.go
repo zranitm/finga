@@ -17,9 +17,30 @@ func TicksIn(d, interval time.Duration) uint64 {
 	return max(uint64(math.Ceil(ticks)), 1)
 }
 
-// AttackCooldownTicks is a basic attack's cooldown sped up by attack speed, in ticks of interval: ⌈cooldown ÷ (1 + speed) ÷ interval⌉, the sped-up cooldown first cut to whole nanoseconds.
-func AttackCooldownTicks(cooldown time.Duration, speed float64, interval time.Duration) uint64 {
-	return TicksIn(time.Duration(math.Round(float64(cooldown)/(1+speed))), interval)
+// AttackLengthTicks is a basic attack's length sped up by attack speed, in ticks of interval: ⌈length ÷ (1 + speed) ÷ interval⌉, the sped-up length first cut to whole nanoseconds.
+func AttackLengthTicks(length time.Duration, speed float64, interval time.Duration) uint64 {
+	return TicksIn(time.Duration(math.Round(float64(length)/(1+speed))), interval)
+}
+
+// SkillLengthTicks is a skill's length in ticks of interval; attack speed doesn't change it.
+func SkillLengthTicks(length, interval time.Duration) uint64 {
+	return TicksIn(length, interval)
+}
+
+// ActionPoints are where an action of length ticks lands its hit and reaches its cancel point, as ticks from its start: ⌊length × share⌋ each,
+// the cancel point held to at least the hit and at least one tick, so a cancel never comes before the hit or in the action's first tick.
+func ActionPoints(length uint64, hit, cancel float64) (hitAt, cancelAt uint64) {
+	hitAt = ticksOf(length, hit)
+	return hitAt, max(ticksOf(length, cancel), hitAt, 1)
+}
+
+// ticksOf is ⌊ticks × share⌋; a product within rounding of a whole number counts as it.
+func ticksOf(ticks uint64, share float64) uint64 {
+	x := float64(ticks) * share
+	if whole := math.Round(x); math.Abs(x-whole) <= whole*wholeTicks {
+		return uint64(whole)
+	}
+	return uint64(math.Floor(x))
 }
 
 // SkillCooldownTicks is a skill's cooldown cut by cooldown speed, in ticks of interval: ⌈cooldown × (1 − speed) ÷ interval⌉, the cut cooldown first cut to whole nanoseconds.

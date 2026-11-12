@@ -1,6 +1,6 @@
 // The client never computes damage, hit chance or EXP; it shows what the server sent.
 import { classes } from '@/gamedata/classes';
-import { ticksIn } from '@/lib/fixed-step';
+import { attackLengthTicks } from '@/progression/actions';
 import type { Data, StatSheet } from '@/protocol/messages';
 
 import { RemoteBuffer } from './interpolation';
@@ -183,18 +183,18 @@ export class DamageNumbers {
   }
 }
 
-function classCooldownMs(cls: string): number {
-  return (classes.find((c) => c.id === cls) ?? classes[0]).attack.cooldown_ms;
+function classLengthMs(cls: string): number {
+  return (classes.find((c) => c.id === cls) ?? classes[0]).attack.length_ms;
 }
 
-/** The sheet's count, which attack speed shortens; the class's cooldown in whole ticks before a sheet arrives. */
+/** The sheet's count, which attack speed shortens; the class's attack length in whole ticks before a sheet arrives. */
 export function attackCooldownTicks(
   sheet: StatSheet | undefined,
   cls: string,
   tickMs: number,
 ): number {
   const ticks = sheet?.attackCooldownTicks ?? 0;
-  return ticks > 0 ? ticks : ticksIn(classCooldownMs(cls), tickMs);
+  return ticks > 0 ? ticks : attackLengthTicks(classLengthMs(cls), 0, tickMs);
 }
 
 /** Only stops a held key spamming the server, which enforces the cooldown itself; it counts the server's whole ticks, so an attack the gate lets through never lands in it. */

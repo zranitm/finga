@@ -75,7 +75,7 @@ func (i *Instance) resolveAttacks() {
 		if town || p.dead {
 			continue
 		}
-		p.cooldownUntil = i.tick + model.AttackCooldownTicks(p.class.Attack.Cooldown, p.derived.AttackSpeed, i.tuning.TickInterval)
+		p.cooldownUntil = i.tick + model.AttackLengthTicks(p.class.Attack.Length, p.derived.AttackSpeed, i.tuning.TickInterval)
 		i.strike(p, p.class.Attack.Shape(), 1, model.PlayerAttacker(p.derived, p.class.Attack.Damage))
 	}
 }

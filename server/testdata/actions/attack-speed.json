@@ -1,0 +1,15 @@
+{
+  "name": "attack-speed",
+  "notes": "Attack speed 0.5 makes 600 ms exactly 400 ms: 8 ticks, and the cancel point moves with them.",
+  "kind": "attack",
+  "length_ms": 600,
+  "attack_speed": 0.5,
+  "hit": 0,
+  "cancel": 0.85,
+  "tick_hz": 20,
+  "expected": {
+    "ticks": 8,
+    "hit": 0,
+    "cancel": 6
+  }
+}

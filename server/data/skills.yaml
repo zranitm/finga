@@ -1,5 +1,7 @@
 # Every skill. A class lists the skills it teaches in classes.yaml; a character learns those of its class and of every class above it.
 # An active skill costs mp and has a cooldown; damage hits its shape's targets for power × the attack of its damage type, by the combat rules.
+# Using one keeps its player busy for its length (actions.yaml); attack speed doesn't change it. It may name where its hit and cancel point fall,
+# as shares of the length, and cancelable lets a basic attack cut it off from its cancel point.
 # A passive one adds its bonus, in the units items.yaml uses: rates in tenths of a percent, regen in tenths of a point a second.
 # Each value is base + per_point × the points invested, once there is one.
 # stages are the evolutions: the first at 0 points, the totals rising; a stage changes only what it names.
@@ -11,6 +13,7 @@ skills:
     shape: {kind: melee, width: 64, height: 56}
     mp: {base: 4, per_point: 0.2}
     cooldown: 2s
+    length: 1050ms
     power: {base: 1.5, per_point: 0.05}
     stages:
       - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}
@@ -23,6 +26,7 @@ skills:
     shape: {kind: ranged, range: 300}
     mp: {base: 4, per_point: 0.2}
     cooldown: 2s
+    length: 1050ms
     power: {base: 1.3, per_point: 0.05}
     stages:
       - {at: 0, name: Throw, description: "Hurls a stone at the nearest foe ahead."}
@@ -35,6 +39,7 @@ skills:
     shape: {kind: ranged, range: 220}
     mp: {base: 6, per_point: 0.3}
     cooldown: 2500ms
+    length: 1050ms
     power: {base: 1.6, per_point: 0.06}
     stages:
       - {at: 0, name: Spark, description: "A crackle of magic at a foe close by."}
@@ -56,6 +61,7 @@ skills:
     shape: {kind: melee, width: 96, height: 56}
     mp: {base: 6, per_point: 0.3}
     cooldown: 3s
+    length: 1050ms
     power: {base: 1.4, per_point: 0.04}
     targets: 3
     stages:
@@ -66,6 +72,7 @@ skills:
     shape: {kind: area, radius: 48}
     mp: {base: 10, per_point: 0.5}
     cooldown: 60s
+    length: 1050ms
     duration: 30s
     bonus: {physical_defense: {base: 20, per_point: 2}}
     stages:
@@ -77,6 +84,7 @@ skills:
     shape: {kind: melee, width: 56, height: 48}
     mp: {base: 5, per_point: 0.25}
     cooldown: 1500ms
+    length: 1050ms
     power: {base: 2.0, per_point: 0.06}
     stages:
       - {at: 0, name: Double Stab, description: "Two quick stabs at the foe in front."}
@@ -86,6 +94,7 @@ skills:
     shape: {kind: area, radius: 48}
     mp: {base: 10, per_point: 0.5}
     cooldown: 40s
+    length: 1050ms
     duration: 20s
     bonus: {attack_speed: {base: 80, per_point: 5}, evasion: {base: 10, per_point: 1}}
     stages:
@@ -97,6 +106,7 @@ skills:
     shape: {kind: ranged, range: 460}
     mp: {base: 6, per_point: 0.3}
     cooldown: 2s
+    length: 1050ms
     power: {base: 2.4, per_point: 0.06}
     stages:
       - {at: 0, name: Power Shot, description: "A drawn-back shot that flies far and hits hard."}
@@ -106,6 +116,7 @@ skills:
     shape: {kind: area, radius: 48}
     mp: {base: 10, per_point: 0.5}
     cooldown: 60s
+    length: 1050ms
     duration: 30s
     bonus: {accuracy: {base: 20, per_point: 2}, crit_rate: {base: 50, per_point: 5}}
     stages:
@@ -117,6 +128,7 @@ skills:
     shape: {kind: ranged, range: 380}
     mp: {base: 9, per_point: 0.4}
     cooldown: 2s
+    length: 1050ms
     power: {base: 2.8, per_point: 0.08}
     stages:
       - {at: 0, name: Fire Arrow, description: "A bolt of fire at the nearest foe ahead."}
@@ -126,6 +138,7 @@ skills:
     shape: {kind: area, radius: 150}
     mp: {base: 10, per_point: 0.5}
     cooldown: 3s
+    length: 1050ms
     power: {base: 1.5, per_point: 0.05}
     targets: 3
     stages:
