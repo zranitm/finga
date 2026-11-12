@@ -65,6 +65,7 @@ describe('mob art', () => {
       const filled: unknown[] = [];
       const g = {
         clear: () => g,
+        setDepth: () => g,
         fillStyle: () => g,
         lineStyle: () => g,
         strokeRect: () => g,

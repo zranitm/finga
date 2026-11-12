@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 
 import { mobs } from '@/gamedata/mobs';
 
+import { DEPTH } from '../depth';
 import { ANIM, ART_SCALE, TEX, greyKey } from '../keys';
 import type { MobState } from '../systems/combat-view';
 
@@ -81,11 +82,12 @@ export class MobView {
     this.sprite = scene.add
       .sprite(0, 0, this.art.stand)
       .setOrigin(0.5, 1)
-      .setScale(ART_SCALE * this.art.scale);
+      .setScale(ART_SCALE * this.art.scale)
+      .setDepth(DEPTH.actor);
     if (this.art.tint !== null) {
       this.sprite.setTint(this.art.tint);
     }
-    this.bar = scene.add.graphics();
+    this.bar = scene.add.graphics().setDepth(DEPTH.actor);
   }
 
   apply(s: MobState): void {

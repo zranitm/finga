@@ -6,6 +6,7 @@ import { classes } from '@/gamedata/classes';
 import { ANIM, TEX, greyKey } from '../keys';
 import { greyArt } from '../scenes/grey-art';
 
+import { MobView } from './mob';
 import { PlayerView, classArt } from './player';
 
 describe('class art', () => {
@@ -61,8 +62,15 @@ describe('PlayerView', () => {
       clearTint: vi.fn(() => sprite),
       setTexture: vi.fn(() => sprite),
       stop: vi.fn(() => sprite),
+      setDepth: vi.fn(() => sprite),
     };
-    const label = { visible: true, width: 40, height: 14, setOrigin: () => label };
+    const label = {
+      visible: true,
+      width: 40,
+      height: 14,
+      setOrigin: () => label,
+      setDepth: () => label,
+    };
     return {
       sprite,
       scene: { add: { sprite: () => sprite, text: () => label } } as unknown as Phaser.Scene,
@@ -90,5 +98,34 @@ describe('PlayerView', () => {
     view.setClass('warrior');
     expect(before).not.toBeNull();
     expect(view.nameTag()).toEqual(before);
+  });
+
+  it('draws over a boss made after it, name tag and all, so one fighting inside it still shows', () => {
+    const made: { kind: string; depth: number }[] = [];
+    const add = new Proxy(
+      {},
+      {
+        get: (_t, kind) => () => {
+          const o = { kind: String(kind), depth: 0 };
+          made.push(o);
+          const chain: unknown = new Proxy(() => undefined, {
+            get: (_c, key) =>
+              key === 'then'
+                ? undefined
+                : key === 'setDepth'
+                  ? (d: number) => ((o.depth = d), chain)
+                  : () => chain,
+          });
+          return chain;
+        },
+      },
+    );
+    const s = { add } as unknown as Phaser.Scene;
+    new PlayerView(s, 'warrior', 'Ayla');
+    new MobView(s, 'king_slime');
+    const [sprite, tag, boss] = made;
+    expect([sprite?.kind, tag?.kind, boss?.kind]).toEqual(['sprite', 'text', 'sprite']);
+    expect(sprite?.depth).toBeGreaterThan(boss?.depth ?? 0);
+    expect(tag?.depth).toBeGreaterThan(boss?.depth ?? 0);
   });
 });
