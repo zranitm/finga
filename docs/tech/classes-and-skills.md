@@ -131,10 +131,12 @@ skills:
   - `class` defaults to `beginner`;
   - `unspent_skill_points` is added, never below 0;
   - a new table `character_skills (character_id, skill_id, points)` holds the points invested, a row only for a skill with at least 1;
-  - `skill_bar text[]`, six entries, holds the skill on each of keys 1 to 6, `''` for none.
+  - `skill_bar text[]`, six entries, holds the skill on each of keys 1 to 6, `''` for none;
+  - a table `character_skill_timers (character_id, skill_id, kind, until, points)` (migration 00003) holds when each running cooldown and buff ends, with a buff's points.
 - **Stored vs derived:** stages are never stored. A skill's stage is the last whose `at` is at or below its points, computed by whoever needs it.
 - **Creating a character** (REST): `POST /api/characters` loses `class`. Every new character is a Beginner, with the Beginner's starter items granted as today. The item service's `GrantStarter` loses `class` too: the starter items are always the root's.
 - **`Load` and `SaveCheckpoint`** carry the class, the unspent skill points, and every skill's points, like stat points. The checkpoint writes only the rows that changed, and refuses with `REASON_BAD_SKILL` a skill with no ID or listed twice, points below 1, or unspent skill points below 0.
+  - **They carry the skill timers too:** every cooldown and buff still running, by skill and kind, each with when it ends, and a buff with the points it was used with. Each checkpoint writes the ones that changed and drops the ones it no longer lists. It refuses with `REASON_BAD_SKILL_TIMER` a timer with no skill, an unknown kind, one listed twice, or a buff without points.
 - **The skill bar** is saved over REST, `PUT /api/characters/{id}/skill-bar` with `{slots}`, and listed with the character in `GET /api/characters`. It's a UI arrangement, not game state, and the world never reads it.
   - **Validation:** six keys, each empty or an active skill in the game data, whether or not the character has learned it yet. Anything else is `BAD_SKILL_BAR`. Another account's character is `CHARACTER_NOT_FOUND`.
     - It doesn't check the class, as the world refuses a skill the class can't learn when it's used.
@@ -189,10 +191,11 @@ skills:
   - **The client counts them itself,** from the data and the sheet's cooldown speed, with the same formula. The sheet carries no skill cooldowns.
 - **Everyone sees it:** a **`SkillUsed{caster, skill, stage, facing}`** event goes to the map, for drawing. Its damage goes out as `Damage`, as attacks' does.
 - **Buffs end at death.** The world restats, and the sheet goes out without them.
-- **A map change carries buffs and cooldowns,** through a portal or to the town after dying (whose buffs have ended).
-  - Each map counts them in its own ticks, and maps may tick at different rates. So the handoff carries the time each has left, and the next map counts it on from its own tick. The time in transit doesn't count, so a map change never shortens one.
-  - **The client keeps its own** across the change too. A `Welcome` starts them over, as the world does for a fresh join.
-  - **Known limit:** a fresh join loads the character from its checkpoint, which holds no timers. So a page reload or a reconnect starts both over, and can skip a 40–60 s cooldown in a few seconds.
+- **Buffs and cooldowns outlive the map:** a map change, through a portal or to the town after dying (whose buffs have ended), and a fresh join, after a reload, a reconnect or a world restart.
+  - Each map counts them in its own ticks, and maps may tick at different rates. So the handoff and the checkpoint keep when each ends on the wall clock, with a buff's points, and a map counts each on from its own tick. A buff's bonus comes from the data again, at those points; a skill the data no longer has ends its buff.
+  - **A fresh join** reads them from the last checkpoint, dropping any that ended meanwhile. A running buff counts in the joining sheet.
+  - **The client keeps its own** across a map change. A `Welcome` sets them to the world's, from the time each has left: each cooldown drains from its full length, at the character's cooldown speed.
+  - A crash loses at most one checkpoint interval of them, as it does of everything else.
 - **Passive skills and buffs feed the stats.** `DeriveStats` takes both as the skills' bonuses, added like gear, with the limits still the ceiling.
   - **Passives:** a passive with at least one point adds its stage's bonus.
   - **The sheet's shares:** the sheet's equipment share stays separate. `primary_skills` and `derived_skills` are the skills' share, passives and buffs together: the totals less the totals without them. The character window shows both shares in one bracket after the total, without the unit: the equipment's in green, then the skills' in blue.
@@ -227,6 +230,7 @@ skills:
 | Message | Direction | Change |
 | --- | --- | --- |
 | `Welcome`, `LevelUp`, `StatsChanged` | server | `StatSheet` gains `skills` (the unspent skill points and each skill's points) and the skills' share, `primary_skills` and `derived_skills` |
+| `Welcome` | server | Gains `skill_timers`: each running cooldown and buff, with the time left and a buff's points |
 | `SpendSkillPoints` | client | New: `expected_unspent`, `points` per skill; Response |
 | `UseSkill` | client | New: `skill`; Response |
 | `SkillUsed` | server | New, to the map: caster, skill, stage, facing |
@@ -254,8 +258,8 @@ skills:
 
 ### Internal contracts
 
-- **`world.v1`:** `SpendSkillPoints`, `UseSkill`, and `Promote`; `SkillUsed` and `Promoted` on `Deliver`, and the promotion in the NPC dialog.
-- **`character.v1`:** class, skills, and skill points in `Load` and the checkpoint; `SetSkillBar`, and the skill bar in `Character`.
+- **`world.v1`:** `SpendSkillPoints`, `UseSkill`, and `Promote`; `SkillUsed` and `Promoted` on `Deliver`, and the promotion in the NPC dialog; the skill timers left in `JoinResponse`.
+- **`character.v1`:** class, skills, skill points and skill timers in `Load` and the checkpoint, and `REASON_BAD_SKILL_TIMER`; `SetSkillBar`, and the skill bar in `Character`.
 - **`item.v1`:** `CAUSE_TYPE_PROMOTION`, for the trainer's weapon.
 - **`social.v1`:** a member's class in its updates.
 
@@ -300,7 +304,7 @@ skills:
 | Client and server disagree on a cooldown by more | "That skill isn't ready yet.", and the key keeps its cooldown until the client's count ends | The client only gates; the server counts the ticks |
 | A skill bar save fails | "Could not save the skill bar." or the refusal's words; the bar stays as arranged | The next change saves the whole bar again |
 | A map change during a cooldown or a buff | Both carry on | The handoff carries the time each has left, and the next map counts it in its own ticks |
-| A reload or a reconnect during a cooldown or a buff | Both start over | A known limit: the checkpoint holds no timers, so a fresh join has none |
+| A reload or a reconnect during a cooldown or a buff | Both carry on | The checkpoint keeps when each ends, and the join counts them on and tells the client |
 | The item service refuses the trainer's weapon, as for a full bag | The refusal's words; still the old class | Nothing changed anywhere |
 | A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so within the item service's 24 h key retention no second one comes |
 | A weapon's roll ranges change in the data between a gift and a retry within 24 h | The promotion is refused until the key expires | The retry's roll differs, so the item service refuses the reused key rather than giving another weapon |
@@ -327,8 +331,9 @@ skills:
     - Beginner skills kept;
     - the party and the map seeing the class;
     - the weapon refused; a second promotion while one is in flight; a condition lost before it applies;
-  - a map change carrying a cooldown and a buff.
-- **End to end:** a Beginner meeting every condition talks to the trainer, is refused a class it doesn't train, promotes, finds the weapon in the bag, is refused a second promotion, and logs in again as a Warrior. Spending and using skills have their own rows.
+  - a map change carrying a cooldown and a buff;
+  - a checkpoint keeping them, and a fresh join counting them on, an ended one dropped and a running buff in the joining sheet.
+- **End to end:** a Beginner meeting every condition talks to the trainer, is refused a class it doesn't train, promotes, finds the weapon in the bag, is refused a second promotion, and logs in again as a Warrior. A Warrior who used Iron Body logs in again with its cooldown and buff still running, in the Welcome and in the world. Spending and using skills have their own rows.
 - **Client:**
   - Vitest for the skill window's staging, the skill keys' checks and cooldowns, the bar's saving, and the effects' shapes;
   - Testing Library for creation, the skill window, the skill bar's drags, the preview with a buff, and the promotion confirmation.

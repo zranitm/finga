@@ -27,8 +27,9 @@ func (skillMsg) message() {}
 
 // buff is a buff skill's bonus on a player, in the units items use, until a tick.
 type buff struct {
-	until uint64
-	bonus progression.ItemStats
+	until  uint64
+	bonus  progression.ItemStats
+	points int // what it was used with, which a checkpoint keeps to give the bonus again
 }
 
 // UseSkill uses one of the player's active skills and returns once the tick resolves it.
@@ -128,7 +129,7 @@ func (i *Instance) cast(u use) {
 			t.changed = true
 		}
 	case gamedata.BuffEffect:
-		p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: progression.BonusAt(st.Bonus, u.points)}
+		p.buffs[s.ID] = buff{until: i.tick + i.ticksFor(st.Duration), bonus: progression.BonusAt(st.Bonus, u.points), points: u.points}
 		i.restat(p) // its StatsChanged carries the MP spent
 		return
 	}
@@ -167,32 +168,57 @@ func (i *Instance) expireBuffs() {
 	}
 }
 
-// timersOf is the time left on p's cooldowns and buffs, for the map p moves to.
-func (i *Instance) timersOf(p *player) model.SkillTimers {
-	t := model.SkillTimers{Cooldowns: map[string]time.Duration{}, Buffs: map[string]model.BuffLeft{}}
+// timersOf is when p's running cooldowns and buffs end, taking this tick as now on the wall clock, for a checkpoint or the map p moves to.
+func (i *Instance) timersOf(p *player, now time.Time) model.SkillTimers {
+	t := model.SkillTimers{Cooldowns: map[string]time.Time{}, Buffs: map[string]model.BuffTimer{}}
 	for s, ready := range p.skillReady {
 		if ready > i.tick {
-			t.Cooldowns[s] = time.Duration(ready-i.tick) * i.tuning.TickInterval
+			t.Cooldowns[s] = now.Add(time.Duration(ready-i.tick) * i.tuning.TickInterval)
 		}
 	}
 	for s, b := range p.buffs {
 		if b.until > i.tick {
-			t.Buffs[s] = model.BuffLeft{Left: time.Duration(b.until-i.tick) * i.tuning.TickInterval, Bonus: b.bonus}
+			t.Buffs[s] = model.BuffTimer{Until: now.Add(time.Duration(b.until-i.tick) * i.tuning.TickInterval), Points: b.points}
 		}
 	}
 	return t
 }
 
-// startTimers counts on the cooldowns and buffs p brought from another map, from this map's tick.
-func (i *Instance) startTimers(p *player) {
+// startTimers counts on, from this map's tick, the cooldowns and buffs p joined with that are still running at now; a buff of a skill the data no longer has ends.
+func (i *Instance) startTimers(p *player, now time.Time) {
 	p.skillReady, p.buffs = map[string]uint64{}, map[string]buff{}
-	for s, left := range p.Timers.Cooldowns {
-		p.skillReady[s] = i.tick + i.ticksFor(left)
+	for s, until := range p.Timers.Cooldowns {
+		if left := until.Sub(now); left > 0 {
+			p.skillReady[s] = i.tick + i.ticksFor(left)
+		}
 	}
 	for s, b := range p.Timers.Buffs {
-		p.buffs[s] = buff{until: i.tick + i.ticksFor(b.Left), bonus: b.Bonus}
+		bonus, ok := buffBonus(i.data, s, b.Points)
+		if left := b.Until.Sub(now); ok && left > 0 {
+			p.buffs[s] = buff{until: i.tick + i.ticksFor(left), bonus: bonus, points: b.Points}
+		}
 	}
 	p.Timers = model.SkillTimers{}
+}
+
+// BuffsOf is the bonus of the buffs in t still running at now, each at the points it was used with.
+func BuffsOf(data Content, t model.SkillTimers, now time.Time) progression.ItemStats {
+	var sum progression.ItemStats
+	for s, b := range t.Buffs {
+		if bonus, ok := buffBonus(data, s, b.Points); ok && b.Until.After(now) {
+			sum = sum.Plus(bonus)
+		}
+	}
+	return sum
+}
+
+// buffBonus is the bonus a buff skill gives at points, from its stage then.
+func buffBonus(data Content, skill string, points int) (progression.ItemStats, bool) {
+	s, ok := data.Skill(skill)
+	if !ok {
+		return progression.ItemStats{}, false
+	}
+	return progression.BonusAt(s.Stages[s.StageAt(points)].Bonus, points), true
 }
 
 // buffed is the sum of the player's buffs.

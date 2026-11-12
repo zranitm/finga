@@ -21,6 +21,7 @@ type Service interface {
 	Load(ctx context.Context, id kernel.CharacterID, account kernel.AccountID) (model.Character, error)
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
+	Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error)
 	Own(c model.Character) gamedata.Stats
 	Derived(c model.Character) (progression.Derived, error)
 	SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error
@@ -100,7 +101,15 @@ func (s *Server) Load(ctx context.Context, req *characterv1.LoadRequest) (*chara
 	for _, sk := range sks {
 		skills = append(skills, &characterv1.SkillPoints{SkillId: sk.ID, Points: int32(sk.Points)}) //nolint:gosec // points are small
 	}
-	return &characterv1.LoadResponse{Character: s.view(c), Quests: quests, Skills: skills}, nil
+	ts, err := s.svc.Timers(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	timers := make([]*characterv1.SkillTimer, 0, len(ts))
+	for _, t := range ts {
+		timers = append(timers, timerView(t))
+	}
+	return &characterv1.LoadResponse{Character: s.view(c), Quests: quests, Skills: skills, Timers: timers}, nil
 }
 
 // SaveCheckpoint saves position, HP, MP and the whole progression.
@@ -119,6 +128,9 @@ func (s *Server) SaveCheckpoint(ctx context.Context, req *characterv1.SaveCheckp
 	cp.UnspentSkillPoints = int(req.GetUnspentSkillPoints())
 	for _, sk := range req.GetSkills() {
 		cp.Skills = append(cp.Skills, model.SkillPoints{ID: sk.GetSkillId(), Points: int(sk.GetPoints())})
+	}
+	for _, t := range req.GetTimers() {
+		cp.Timers = append(cp.Timers, timerOf(t))
 	}
 	if err := s.svc.SaveCheckpoint(ctx, cp); err != nil {
 		return nil, err
@@ -179,6 +191,26 @@ func questView(q model.Quest) *characterv1.Quest {
 		progress[k] = int32(n) //nolint:gosec // counts are small
 	}
 	return &characterv1.Quest{QuestId: q.ID, Status: questStatuses[q.Status], Progress: progress, TimesFinished: int32(q.TimesFinished)} //nolint:gosec // counts are small
+}
+
+var timerKinds = map[model.TimerKind]characterv1.SkillTimerKind{
+	model.CooldownTimer: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN,
+	model.BuffTimer:     characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF,
+}
+
+func timerView(t model.SkillTimer) *characterv1.SkillTimer {
+	return &characterv1.SkillTimer{SkillId: t.Skill, Kind: timerKinds[t.Kind], Until: timestamppb.New(t.Until), Points: int32(t.Points)} //nolint:gosec // points are small
+}
+
+// timerOf leaves an unknown kind empty, which the module refuses.
+func timerOf(t *characterv1.SkillTimer) model.SkillTimer {
+	out := model.SkillTimer{Skill: t.GetSkillId(), Until: t.GetUntil().AsTime(), Points: int(t.GetPoints())}
+	for kind, wire := range timerKinds {
+		if wire == t.GetKind() {
+			out.Kind = kind
+		}
+	}
+	return out
 }
 
 // questOf leaves an unknown status empty, which the module refuses.

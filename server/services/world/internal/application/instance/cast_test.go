@@ -12,6 +12,7 @@ import (
 
 	"finga/internal/gamedata"
 	"finga/internal/kernel"
+	"finga/internal/progression"
 	"finga/internal/sim"
 	"finga/pkg/transient"
 	"finga/services/world/internal/application/instance"
@@ -228,7 +229,7 @@ func TestStrikesPowerMultipliesTheAttack(t *testing.T) {
 		}
 		warrior, _ := data.Class("warrior")
 		slime, _ := data.Mob("green_slime")
-		attack := model.PlayerAttacker(instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, worldtest.TickInterval).Derived, gamedata.Physical).Times(1.55)
+		attack := model.PlayerAttacker(instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived, gamedata.Physical).Times(1.55)
 		want := model.Resolve(attack, model.MobDefender(slime), data.StatRules().Hit, worldtest.FixedRoll{V: 0.5})
 		if got := damages(s); len(got) != 1 || got[0].Amount != want.Damage {
 			t.Fatalf("damages %+v, want %d: physical attack × 1.55", got, want.Damage)
@@ -254,7 +255,7 @@ func TestAHealMendsTheCasterAndTheNearestPartyMember(t *testing.T) {
 			t.Fatal(err)
 		}
 		warrior, _ := data.Class("warrior")
-		heal := int(math.Round(instance.StatsOf(data, warrior, 1, a.Points, a.Skills, a.Worn, worldtest.TickInterval).Derived.MagicAttack * 2))
+		heal := int(math.Round(instance.StatsOf(data, warrior, 1, a.Points, a.Skills, a.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.MagicAttack * 2))
 		for _, c := range []struct {
 			name string
 			id   kernel.CharacterID
@@ -289,7 +290,7 @@ func TestAHealGoesToTheHurtOnly(t *testing.T) {
 			t.Fatal(err)
 		}
 		warrior, _ := data.Class("warrior")
-		heal := int(math.Round(instance.StatsOf(data, warrior, 1, a.Points, a.Skills, a.Worn, worldtest.TickInterval).Derived.MagicAttack * 2))
+		heal := int(math.Round(instance.StatsOf(data, warrior, 1, a.Points, a.Skills, a.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.MagicAttack * 2))
 		for _, c := range []struct {
 			name string
 			id   kernel.CharacterID
@@ -370,7 +371,7 @@ func TestASkillTakesTheNextAttacksTurn(t *testing.T) {
 		p.HP, p.MP = 1_000_000, 1000 // full HP, so a heal is refused
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
-		turn := model.AttackCooldownTicks(warrior.Attack.Cooldown, instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, worldtest.TickInterval).Derived.AttackSpeed, worldtest.TickInterval)
+		turn := model.AttackCooldownTicks(warrior.Attack.Cooldown, instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.AttackSpeed, worldtest.TickInterval)
 		const slack = 3 // castSlack's 150 ms in 50 ms ticks
 
 		done := castAsync(inst, p.ID, "rally")
@@ -469,7 +470,7 @@ func TestASkillsCooldown(t *testing.T) {
 		p.Points = model.Points{Spent: gamedata.Stats{INT: 200}} // cooldown speed 0.4 × 207 ÷ 407, about 0.2
 		s := join(t, inst, p)
 		warrior, _ := data.Class("warrior")
-		speed := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, worldtest.TickInterval).Derived.CooldownSpeed
+		speed := instance.StatsOf(data, warrior, 1, p.Points, p.Skills, p.Worn, progression.ItemStats{}, worldtest.TickInterval).Derived.CooldownSpeed
 		cd := model.SkillCooldownTicks(2*time.Second, speed, worldtest.TickInterval)
 		if cd >= 40 {
 			t.Fatalf("a %d tick cooldown; want cooldown speed to cut 2 s's 40", cd)
@@ -500,7 +501,7 @@ func TestASkillsCooldown(t *testing.T) {
 	})
 }
 
-// A map change carries the time left on each cooldown and buff: Rally, used in town, is still cooling down on the next map, and its buff ends there when its time is up.
+// A map change carries when each cooldown and buff ends: Rally, used in town, is still cooling down on the next map, and its buff ends there when its time is up, the time in transit counted.
 func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		data := skillData(t)
@@ -524,17 +525,17 @@ func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
 			t.Fatal("the portal moved nobody")
 		}
 		timers := tr.moved[0].Timers
-		cooldown, buff := timers.Cooldowns["rally"], timers.Buffs["rally"]
-		if cooldown <= 0 || cooldown >= time.Second || buff.Left <= time.Second || buff.Left >= 2*time.Second || buff.Bonus.PhysicalAttack != 50 {
-			t.Fatalf("carried %+v, want Rally part way through its 1 s cooldown and 2 s buff", timers)
+		cooldown, buff := time.Until(timers.Cooldowns["rally"]), timers.Buffs["rally"]
+		if left := time.Until(buff.Until); cooldown <= 0 || cooldown >= time.Second || left <= time.Second || left >= 2*time.Second || buff.Points != 1 {
+			t.Fatalf("carried %+v, want Rally part way through its 1 s cooldown and 2 s buff, at its 1 point", timers)
 		}
 
 		s := join(t, next, tr.moved[0])
 		if err := cast(next, p.ID, "rally"); !errors.Is(err, model.ErrSkillCoolingDown) {
 			t.Fatalf("Rally again on the next map: %v, want still cooling down", err)
 		}
-		ends := int(model.TicksIn(buff.Left, worldtest.TickInterval)) // from the join's tick; the join and the cast took one each
-		tick(ends - 3)
+		ends := int(model.TicksIn(time.Until(buff.Until), worldtest.TickInterval))
+		tick(ends - 1)
 		if len(sheets(s)) != 0 {
 			t.Fatal("the buff ended before its time")
 		}
@@ -542,5 +543,63 @@ func TestAMapChangeCarriesCooldownsAndBuffs(t *testing.T) {
 		if changed := sheets(s); len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 0 {
 			t.Fatalf("stats changed %+v, want the sheet without Rally once its time is up", changed)
 		}
+	})
+}
+
+// A checkpoint keeps when each running cooldown and buff ends, on the wall clock, with each buff's points; a fresh join counts them on, and a timer that ended meanwhile is gone.
+func TestACheckpointKeepsTheSkillTimersAndAFreshJoinCountsThemOn(t *testing.T) {
+	t.Run("kept", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			cps := &worldtest.Checkpoints{}
+			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), cps, worldtest.Options{})
+			defer stop()
+			tick(1)
+			p := caster(250)
+			join(t, inst, p)
+			if err := cast(inst, p.ID, "rally"); err != nil {
+				t.Fatal(err)
+			}
+			cps.Drain()
+			left := make(chan struct{})
+			_ = inst.Leave(p.ID, "c1", left)
+			<-left
+			saved := cps.Drain()
+			if len(saved) != 1 {
+				t.Fatalf("checkpoints %+v, want the leave's", saved)
+			}
+			timers := saved[0].Timers
+			cooldown, buff := time.Until(timers.Cooldowns["rally"]), timers.Buffs["rally"]
+			if cooldown <= 0 || cooldown > time.Second || time.Until(buff.Until) <= time.Second || time.Until(buff.Until) > 2*time.Second || buff.Points != 1 || len(timers.Cooldowns) != 1 {
+				t.Fatalf("saved %+v, want only Rally's 1 s cooldown and 2 s buff, at its 1 point", timers)
+			}
+		})
+	})
+	t.Run("counted on", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			inst, stop := worldtest.RunMap(t, skillData(t), arena(time.Hour), nil, worldtest.Options{})
+			defer stop()
+			tick(1)
+			p := caster(250)
+			now := time.Now()
+			p.Timers = model.SkillTimers{
+				Cooldowns: map[string]time.Time{"rally": now.Add(500 * time.Millisecond), "strike": now.Add(-time.Second)},
+				Buffs:     map[string]model.BuffTimer{"rally": {Until: now.Add(time.Second), Points: 1}},
+			}
+			s := join(t, inst, p)
+			if err := cast(inst, p.ID, "rally"); !errors.Is(err, model.ErrSkillCoolingDown) {
+				t.Fatalf("Rally after the join: %v, want still cooling down", err)
+			}
+			if err := cast(inst, p.ID, "strike"); err != nil {
+				t.Fatalf("Strike, whose cooldown ended before the join: %v", err)
+			}
+			tick(15)
+			if len(sheets(s)) != 0 {
+				t.Fatal("the buff ended before its time")
+			}
+			tick(10)
+			if changed := sheets(s); len(changed) != 1 || changed[0].Sheet.DerivedSkills.PhysicalAttack != 0 {
+				t.Fatalf("stats changed %+v, want the sheet without Rally once its second is up", changed)
+			}
+		})
 	})
 }

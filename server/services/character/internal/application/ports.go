@@ -18,6 +18,8 @@ type Store interface {
 	Quests(ctx context.Context, id kernel.CharacterID) ([]model.Quest, error)
 	// Skills is the character's skills with points.
 	Skills(ctx context.Context, id kernel.CharacterID) ([]model.SkillPoints, error)
+	// Timers is the character's skill timers as the last checkpoint left them.
+	Timers(ctx context.Context, id kernel.CharacterID) ([]model.SkillTimer, error)
 }
 
 // UnitOfWork is every repository bound to one transaction.

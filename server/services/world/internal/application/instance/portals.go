@@ -2,6 +2,7 @@ package instance
 
 import (
 	"slices"
+	"time"
 
 	"finga/internal/gamedata"
 	"finga/internal/sim"
@@ -47,7 +48,7 @@ func (i *Instance) handOff(p *player, target *gamedata.Map, x, y float64) {
 	p.sink.Send(model.Teleport{Tick: i.tick, MapID: target.ID, X: x, Y: y})
 	moved := p.Player
 	moved.X, moved.Y = x, y
-	moved.Timers = i.timersOf(p)
+	moved.Timers = i.timersOf(p, time.Now())
 	sink := p.sink
 	p.state.X, p.state.Y = x, y
 	i.checkpointOn(p, target.ID)

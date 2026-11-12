@@ -20,12 +20,13 @@ type fakeStore struct {
 	chars   map[kernel.CharacterID]model.Character
 	quests  map[kernel.CharacterID]map[string]model.Quest
 	skills  map[kernel.CharacterID]map[string]int
+	timers  map[kernel.CharacterID][]model.SkillTimer
 	order   []kernel.CharacterID
 	txCount int
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]int{}}
+	return &fakeStore{chars: map[kernel.CharacterID]model.Character{}, quests: map[kernel.CharacterID]map[string]model.Quest{}, skills: map[kernel.CharacterID]map[string]int{}, timers: map[kernel.CharacterID][]model.SkillTimer{}}
 }
 
 func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) error) error {
@@ -39,9 +40,9 @@ func (s *fakeStore) InTx(_ context.Context, fn func(uow application.UnitOfWork) 
 	for id, sk := range s.skills {
 		skills[id] = maps.Clone(sk)
 	}
-	order := slices.Clone(s.order)
+	order, timers := slices.Clone(s.order), maps.Clone(s.timers)
 	if err := fn(fakeUOW{s}); err != nil {
-		s.chars, s.quests, s.skills, s.order = chars, quests, skills, order
+		s.chars, s.quests, s.skills, s.order, s.timers = chars, quests, skills, order, timers
 		return err
 	}
 	return nil
@@ -63,6 +64,12 @@ func (s *fakeStore) Skills(_ context.Context, id kernel.CharacterID) ([]model.Sk
 		out = append(out, model.SkillPoints{ID: skill, Points: s.skills[id][skill]})
 	}
 	return out, nil
+}
+
+func (s *fakeStore) Timers(_ context.Context, id kernel.CharacterID) ([]model.SkillTimer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.timers[id]), nil
 }
 
 func (s *fakeStore) List(_ context.Context, account kernel.AccountID) ([]model.Character, error) {
@@ -169,6 +176,7 @@ func (r fakeRepo) SaveCheckpoint(_ context.Context, cp model.Checkpoint) error {
 	for _, q := range cp.Quests {
 		r.s.quests[cp.ID][q.ID] = q
 	}
+	r.s.timers[cp.ID] = slices.Clone(cp.Timers)
 	return nil
 }
 

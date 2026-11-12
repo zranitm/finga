@@ -2535,6 +2535,29 @@ func TestPointsCommandsAnswerOnceTheWorldApplies(t *testing.T) {
 	})
 }
 
+// The Welcome carries the skills' timers the world joined the character with, as left on its last checkpoint; a kind from a newer world is left out.
+func TestAWelcomeCarriesTheSkillTimersTheWorldJoinedWith(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newHarness(t)
+		h.world.mu.Lock()
+		h.world.timers = []*worldv1.SkillTimer{
+			{SkillId: "iron_body", Kind: worldv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 40_000},
+			{SkillId: "iron_body", Kind: worldv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 20_000, Points: 2},
+			{SkillId: "odd", Kind: worldv1.SkillTimerKind(9), LeftMs: 1},
+		}
+		h.world.mu.Unlock()
+		c := h.dial(t)
+		c.hello(tokenAlice, aylaID)
+		want := []*clientv1.SkillTimer{
+			{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: 40_000},
+			{Skill: "iron_body", Kind: clientv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: 20_000, Points: 2},
+		}
+		if got := c.expect("Welcome").Data.(*clientv1.Welcome).GetSkillTimers(); !slices.EqualFunc(got, want, func(a, b *clientv1.SkillTimer) bool { return proto.Equal(a, b) }) {
+			t.Fatalf("welcome skill timers %v, want %v", got, want)
+		}
+	})
+}
+
 func TestQuestCommandsAndEvents(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := newHarness(t)

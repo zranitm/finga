@@ -291,6 +291,43 @@ func TestSaves(t *testing.T) {
 		}
 	})
 
+	t.Run("a checkpoint replaces the skill timers", func(t *testing.T) {
+		end := time.Date(2026, 11, 12, 10, 0, 30, 0, time.UTC)
+		cp := model.Checkpoint{ID: c.ID, Class: "beginner", MapID: "town", Level: 2, Timers: []model.SkillTimer{
+			{Skill: "iron_body", Kind: model.CooldownTimer, Until: end.Add(30 * time.Second)},
+			{Skill: "iron_body", Kind: model.BuffTimer, Until: end, Points: 3},
+		}}
+		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
+			t.Fatal(err)
+		}
+		cp.Timers = cp.Timers[:1]
+		if err := svc.SaveCheckpoint(ctx, cp); err != nil {
+			t.Fatal(err)
+		}
+		got, err := svc.Timers(ctx, c.ID)
+		if err != nil || !reflect.DeepEqual(got, cp.Timers) {
+			t.Fatalf("timers %+v (%v), want only the cooldown", got, err)
+		}
+	})
+
+	t.Run("a checkpoint with a skill timer the table can't hold saves nothing", func(t *testing.T) {
+		until := time.Now()
+		for _, bad := range []model.Checkpoint{
+			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Kind: model.CooldownTimer, Until: until}}},
+			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: "charge", Until: until}}},
+			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.BuffTimer, Until: until}}},
+			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: until, Points: -1}}},
+			{ID: c.ID, Class: "beginner", Timers: []model.SkillTimer{{Skill: "haste", Kind: model.CooldownTimer, Until: until}, {Skill: "haste", Kind: model.CooldownTimer, Until: until}}},
+		} {
+			if err := svc.SaveCheckpoint(ctx, bad); !errors.Is(err, model.ErrBadSkillTimer) {
+				t.Fatalf("%+v: %v", bad, err)
+			}
+		}
+		if store.chars[c.ID].MapID != "town" {
+			t.Fatal("a refused checkpoint moved the character")
+		}
+	})
+
 	t.Run("a checkpoint with a class the game data lacks saves nothing", func(t *testing.T) {
 		before := store.chars[c.ID]
 		for _, class := range []kernel.Class{"", "paladin"} {

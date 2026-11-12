@@ -5,6 +5,8 @@
 package db
 
 import (
+	"time"
+
 	"finga/pkg/dbx"
 	"github.com/google/uuid"
 )
@@ -47,6 +49,16 @@ type CharacterQuest struct {
 type CharacterSkill struct {
 	CharacterID uuid.UUID
 	SkillID     string
+	Points      int32
+	CreatedAt   dbx.Stamp
+	UpdatedAt   dbx.Stamp
+}
+
+type CharacterSkillTimer struct {
+	CharacterID uuid.UUID
+	SkillID     string
+	Kind        string
+	Until       time.Time
 	Points      int32
 	CreatedAt   dbx.Stamp
 	UpdatedAt   dbx.Stamp

@@ -4,10 +4,12 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
@@ -39,13 +41,26 @@ func TestSaverOverTheCharacterService(t *testing.T) {
 		"sticky_samples": {Status: model.QuestActive, Progress: []int{3}, TimesFinished: 1},
 		"slime_cleanup":  {Status: model.QuestFinished, TimesFinished: 1},
 	}
+	end := time.Date(2026, 11, 12, 10, 0, 30, 0, time.UTC)
+	timers := model.SkillTimers{
+		Cooldowns: map[string]time.Time{"iron_body": end.Add(30 * time.Second), "focus": end},
+		Buffs:     map[string]model.BuffTimer{"iron_body": {Until: end, Points: 3}},
+	}
 	if err := s.SaveCheckpoint(ctx, model.Checkpoint{ID: id, MapID: "cave", X: 1.5, Y: 2, HP: 3, MP: 4, Level: 4, Exp: 5, Points: model.Points{Spent: gamedata.Stats{STR: 9, VIT: 4}, Unspent: 2, FreeResetUsed: true}, Quests: log,
-		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3}}); err != nil {
+		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3}, Timers: timers}); err != nil {
 		t.Fatal(err)
 	}
 	want := []*characterv1.Quest{
 		{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, Progress: []int32{}, TimesFinished: 1},
 		{QuestId: "sticky_samples", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{3}, TimesFinished: 1},
+	}
+	wantTimers := []*characterv1.SkillTimer{
+		{SkillId: "focus", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, Until: timestamppb.New(end)},
+		{SkillId: "iron_body", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, Until: timestamppb.New(end.Add(30 * time.Second))},
+		{SkillId: "iron_body", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, Until: timestamppb.New(end), Points: 3},
+	}
+	if got := f.checkpoints[0].GetTimers(); len(got) != 3 || !proto.Equal(got[0], wantTimers[0]) || !proto.Equal(got[1], wantTimers[1]) || !proto.Equal(got[2], wantTimers[2]) {
+		t.Fatalf("timers %v, want the cooldowns then the buffs, by skill", got)
 	}
 	if got := f.checkpoints[0].GetQuests(); len(got) != 2 || !proto.Equal(got[0], want[0]) || !proto.Equal(got[1], want[1]) {
 		t.Fatalf("quests %v, want the whole log by ID", got)
@@ -68,6 +83,7 @@ type loads struct {
 	char   *characterv1.Character
 	quests []*characterv1.Quest
 	skills []*characterv1.SkillPoints
+	timers []*characterv1.SkillTimer
 	req    *characterv1.LoadRequest
 }
 
@@ -76,7 +92,7 @@ func (f *loads) Load(_ context.Context, req *characterv1.LoadRequest) (*characte
 	if f.char == nil {
 		return nil, grpctest.Error(codes.NotFound, characterv1.Reason_REASON_CHARACTER_NOT_FOUND)
 	}
-	return &characterv1.LoadResponse{Character: f.char, Quests: f.quests, Skills: f.skills}, nil
+	return &characterv1.LoadResponse{Character: f.char, Quests: f.quests, Skills: f.skills, Timers: f.timers}, nil
 }
 
 func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
@@ -87,6 +103,11 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 		quests: []*characterv1.Quest{
 			{QuestId: "slime_cleanup", Status: characterv1.QuestStatus_QUEST_STATUS_ACTIVE, Progress: []int32{7}},
 			{QuestId: "first_steps", Status: characterv1.QuestStatus_QUEST_STATUS_FINISHED, TimesFinished: 2},
+		},
+		timers: []*characterv1.SkillTimer{
+			{SkillId: "focus", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, Until: timestamppb.New(time.Unix(1_800_000_000, 0))},
+			{SkillId: "focus", Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, Until: timestamppb.New(time.Unix(1_799_999_990, 0)), Points: 2},
+			{SkillId: "odd", Kind: characterv1.SkillTimerKind(9), Until: timestamppb.New(time.Unix(1_800_000_000, 0))},
 		}}
 	srv := grpcx.NewServer(grpcx.ServerOptions{})
 	characterv1.RegisterCharacterServiceServer(srv, f)
@@ -98,7 +119,11 @@ func TestCharactersLoadsAsTheWorldJoinsThem(t *testing.T) {
 	want := model.Character{ID: id, Account: account, Name: "Ayla", Class: kernel.Class("bowman"), Level: 3, Exp: 40,
 		Points: model.Points{Spent: gamedata.Stats{DEX: 6, AGI: 4}, FreeResetUsed: true}, HP: 90, MP: 30, MapID: "cave", X: 12.5, Y: 600,
 		Skills: model.Skills{Points: map[string]int{"throw": 7, "second_wind": 2}, Unspent: 3},
-		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}}}
+		Quests: model.Quests{"slime_cleanup": {Status: model.QuestActive, Progress: []int{7}}, "first_steps": {Status: model.QuestFinished, TimesFinished: 2}},
+		Timers: model.SkillTimers{ // a kind from a newer service is left out
+			Cooldowns: map[string]time.Time{"focus": time.Unix(1_800_000_000, 0).UTC()},
+			Buffs:     map[string]model.BuffTimer{"focus": {Until: time.Unix(1_799_999_990, 0).UTC(), Points: 2}},
+		}}
 	if !reflect.DeepEqual(got, want) || f.req.GetAccountId() != account.String() || f.req.GetCharacterId() != id.String() {
 		t.Fatalf("got %+v from %+v", got, f.req)
 	}

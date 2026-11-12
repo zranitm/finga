@@ -102,6 +102,7 @@ type fakeWorld struct {
 	promoteErr error                 // Promote fails with it
 	pointsErr  error                 // SpendPoints and ResetPoints fail with it
 	quests     []*worldv1.QuestState // the log Join reports
+	timers     []*worldv1.SkillTimer // the skill timers Join reports
 	questCalls []proto.Message       // Talk, AcceptQuest, AbandonQuest and HandInQuest requests
 	questErr   error                 // the four fail with it
 	calls      []string              // commands in arrival order
@@ -226,7 +227,7 @@ func (f *fakeWorld) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv
 		MapId: v.GetMapId(), Players: []*worldv1.PlayerView{{Id: v.GetId(), Name: v.GetName(), Class: v.GetClass(), Level: v.GetLevel(), Hp: v.GetHp(), MaxHp: v.GetMaxHp(), X: v.GetX(), Y: v.GetY(), Facing: 1}},
 	}}}
 	hz := cmp.Or(f.tickRate, 30)
-	return &worldv1.JoinResponse{Character: v, TickRateHz: hz, JoinSeq: uint64(len(f.joined)), Quests: f.quests}, nil
+	return &worldv1.JoinResponse{Character: v, TickRateHz: hz, JoinSeq: uint64(len(f.joined)), Quests: f.quests, Timers: f.timers}, nil
 }
 
 // save is the character's checkpoint, which the next join loads.

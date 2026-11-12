@@ -6,6 +6,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -105,7 +106,23 @@ func (s *Server) Join(ctx context.Context, req *worldv1.JoinRequest) (*worldv1.J
 	for _, id := range slices.Sorted(maps.Keys(v.Quests)) {
 		log = append(log, questState(id, v.Quests[id]))
 	}
-	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate, JoinSeq: v.JoinSeq, Quests: log}, nil
+	return &worldv1.JoinResponse{Character: characterView(v), TickRateHz: s.tickRate, JoinSeq: v.JoinSeq, Quests: log, Timers: timersLeft(v.Timers, time.Now())}, nil
+}
+
+// timersLeft is the time left at now on each running cooldown, then each buff, by skill.
+func timersLeft(t model.SkillTimers, now time.Time) []*worldv1.SkillTimer {
+	out := make([]*worldv1.SkillTimer, 0, len(t.Cooldowns)+len(t.Buffs))
+	for _, s := range slices.Sorted(maps.Keys(t.Cooldowns)) {
+		if left := t.Cooldowns[s].Sub(now); left > 0 {
+			out = append(out, &worldv1.SkillTimer{SkillId: s, Kind: worldv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, LeftMs: left.Milliseconds()})
+		}
+	}
+	for _, s := range slices.Sorted(maps.Keys(t.Buffs)) {
+		if b := t.Buffs[s]; b.Until.After(now) {
+			out = append(out, &worldv1.SkillTimer{SkillId: s, Kind: worldv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, LeftMs: b.Until.Sub(now).Milliseconds(), Points: int32(b.Points)}) //nolint:gosec // points are small
+		}
+	}
+	return out
 }
 
 // Leave removes the player if it joined through the presence's connection, once its map has.

@@ -40,6 +40,8 @@ enum Reason {
   REASON_BAD_SKILL = 9;
   // A skill bar without six keys, or with a key holding a skill that isn't an active one in the game data.
   REASON_BAD_SKILL_BAR = 10;
+  // A checkpoint's skill timer with no skill, an unknown kind, listed twice, or a buff without points.
+  REASON_BAD_SKILL_TIMER = 11;
 }
 
 // QuestStatus is where a character stands with a quest.
@@ -108,6 +110,21 @@ message SkillPoints {
   int32 points = 2;
 }
 
+// SkillTimer is when one of a skill's cooldown or buff ends, so a fresh join counts it on.
+message SkillTimer {
+  string skill_id = 1;
+  SkillTimerKind kind = 2;
+  google.protobuf.Timestamp until = 3;
+  // The points a buff was used with, which give its bonus; 0 for a cooldown.
+  int32 points = 4;
+}
+
+enum SkillTimerKind {
+  SKILL_TIMER_KIND_UNSPECIFIED = 0;
+  SKILL_TIMER_KIND_COOLDOWN = 1;
+  SKILL_TIMER_KIND_BUFF = 2;
+}
+
 // CreateRequest is a new character: every one starts as the class at the root of the tree, so there is no class to ask for.
 message CreateRequest {
   string account_id = 1;
@@ -140,6 +157,8 @@ message LoadResponse {
   repeated Quest quests = 2;
   // Its skills with points, by ID.
   repeated SkillPoints skills = 3;
+  // Its skills' cooldowns and buffs as the last checkpoint left them; some may have ended since.
+  repeated SkillTimer timers = 4;
 }
 
 message SaveCheckpointRequest {
@@ -163,6 +182,8 @@ message SaveCheckpointRequest {
   repeated SkillPoints skills = 14;
   // The class, which a promotion changes; it must be in the game data.
   string class = 15;
+  // Every cooldown and buff still running; a stored one not listed goes.
+  repeated SkillTimer timers = 16;
 }
 
 message SaveCheckpointResponse {}

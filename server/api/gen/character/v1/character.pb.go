@@ -42,6 +42,8 @@ const (
 	Reason_REASON_BAD_SKILL Reason = 9
 	// A skill bar without six keys, or with a key holding a skill that isn't an active one in the game data.
 	Reason_REASON_BAD_SKILL_BAR Reason = 10
+	// A checkpoint's skill timer with no skill, an unknown kind, listed twice, or a buff without points.
+	Reason_REASON_BAD_SKILL_TIMER Reason = 11
 )
 
 // Enum value maps for Reason.
@@ -58,6 +60,7 @@ var (
 		8:  "REASON_BAD_QUEST",
 		9:  "REASON_BAD_SKILL",
 		10: "REASON_BAD_SKILL_BAR",
+		11: "REASON_BAD_SKILL_TIMER",
 	}
 	Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":          0,
@@ -71,6 +74,7 @@ var (
 		"REASON_BAD_QUEST":            8,
 		"REASON_BAD_SKILL":            9,
 		"REASON_BAD_SKILL_BAR":        10,
+		"REASON_BAD_SKILL_TIMER":      11,
 	}
 )
 
@@ -151,6 +155,55 @@ func (x QuestStatus) Number() protoreflect.EnumNumber {
 // Deprecated: Use QuestStatus.Descriptor instead.
 func (QuestStatus) EnumDescriptor() ([]byte, []int) {
 	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{1}
+}
+
+type SkillTimerKind int32
+
+const (
+	SkillTimerKind_SKILL_TIMER_KIND_UNSPECIFIED SkillTimerKind = 0
+	SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN    SkillTimerKind = 1
+	SkillTimerKind_SKILL_TIMER_KIND_BUFF        SkillTimerKind = 2
+)
+
+// Enum value maps for SkillTimerKind.
+var (
+	SkillTimerKind_name = map[int32]string{
+		0: "SKILL_TIMER_KIND_UNSPECIFIED",
+		1: "SKILL_TIMER_KIND_COOLDOWN",
+		2: "SKILL_TIMER_KIND_BUFF",
+	}
+	SkillTimerKind_value = map[string]int32{
+		"SKILL_TIMER_KIND_UNSPECIFIED": 0,
+		"SKILL_TIMER_KIND_COOLDOWN":    1,
+		"SKILL_TIMER_KIND_BUFF":        2,
+	}
+)
+
+func (x SkillTimerKind) Enum() *SkillTimerKind {
+	p := new(SkillTimerKind)
+	*p = x
+	return p
+}
+
+func (x SkillTimerKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SkillTimerKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_internal_character_v1_character_proto_enumTypes[2].Descriptor()
+}
+
+func (SkillTimerKind) Type() protoreflect.EnumType {
+	return &file_internal_character_v1_character_proto_enumTypes[2]
+}
+
+func (x SkillTimerKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SkillTimerKind.Descriptor instead.
+func (SkillTimerKind) EnumDescriptor() ([]byte, []int) {
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{2}
 }
 
 // Quest is a character's state of one quest.
@@ -559,6 +612,76 @@ func (x *SkillPoints) GetPoints() int32 {
 	return 0
 }
 
+// SkillTimer is when one of a skill's cooldown or buff ends, so a fresh join counts it on.
+type SkillTimer struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	SkillId string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	Kind    SkillTimerKind         `protobuf:"varint,2,opt,name=kind,proto3,enum=internal.character.v1.SkillTimerKind" json:"kind,omitempty"`
+	Until   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=until,proto3" json:"until,omitempty"`
+	// The points a buff was used with, which give its bonus; 0 for a cooldown.
+	Points        int32 `protobuf:"varint,4,opt,name=points,proto3" json:"points,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SkillTimer) Reset() {
+	*x = SkillTimer{}
+	mi := &file_internal_character_v1_character_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SkillTimer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SkillTimer) ProtoMessage() {}
+
+func (x *SkillTimer) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_character_v1_character_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SkillTimer.ProtoReflect.Descriptor instead.
+func (*SkillTimer) Descriptor() ([]byte, []int) {
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SkillTimer) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *SkillTimer) GetKind() SkillTimerKind {
+	if x != nil {
+		return x.Kind
+	}
+	return SkillTimerKind_SKILL_TIMER_KIND_UNSPECIFIED
+}
+
+func (x *SkillTimer) GetUntil() *timestamppb.Timestamp {
+	if x != nil {
+		return x.Until
+	}
+	return nil
+}
+
+func (x *SkillTimer) GetPoints() int32 {
+	if x != nil {
+		return x.Points
+	}
+	return 0
+}
+
 // CreateRequest is a new character: every one starts as the class at the root of the tree, so there is no class to ask for.
 type CreateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -570,7 +693,7 @@ type CreateRequest struct {
 
 func (x *CreateRequest) Reset() {
 	*x = CreateRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[4]
+	mi := &file_internal_character_v1_character_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -582,7 +705,7 @@ func (x *CreateRequest) String() string {
 func (*CreateRequest) ProtoMessage() {}
 
 func (x *CreateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[4]
+	mi := &file_internal_character_v1_character_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -595,7 +718,7 @@ func (x *CreateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRequest.ProtoReflect.Descriptor instead.
 func (*CreateRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{4}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CreateRequest) GetAccountId() string {
@@ -621,7 +744,7 @@ type CreateResponse struct {
 
 func (x *CreateResponse) Reset() {
 	*x = CreateResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[5]
+	mi := &file_internal_character_v1_character_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -633,7 +756,7 @@ func (x *CreateResponse) String() string {
 func (*CreateResponse) ProtoMessage() {}
 
 func (x *CreateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[5]
+	mi := &file_internal_character_v1_character_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -646,7 +769,7 @@ func (x *CreateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateResponse.ProtoReflect.Descriptor instead.
 func (*CreateResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{5}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CreateResponse) GetCharacter() *Character {
@@ -665,7 +788,7 @@ type ListRequest struct {
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[6]
+	mi := &file_internal_character_v1_character_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -677,7 +800,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[6]
+	mi := &file_internal_character_v1_character_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -690,7 +813,7 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{6}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListRequest) GetAccountId() string {
@@ -709,7 +832,7 @@ type ListResponse struct {
 
 func (x *ListResponse) Reset() {
 	*x = ListResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[7]
+	mi := &file_internal_character_v1_character_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -721,7 +844,7 @@ func (x *ListResponse) String() string {
 func (*ListResponse) ProtoMessage() {}
 
 func (x *ListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[7]
+	mi := &file_internal_character_v1_character_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -734,7 +857,7 @@ func (x *ListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListResponse.ProtoReflect.Descriptor instead.
 func (*ListResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{7}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ListResponse) GetCharacters() []*Character {
@@ -755,7 +878,7 @@ type LoadRequest struct {
 
 func (x *LoadRequest) Reset() {
 	*x = LoadRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[8]
+	mi := &file_internal_character_v1_character_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -767,7 +890,7 @@ func (x *LoadRequest) String() string {
 func (*LoadRequest) ProtoMessage() {}
 
 func (x *LoadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[8]
+	mi := &file_internal_character_v1_character_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -780,7 +903,7 @@ func (x *LoadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadRequest.ProtoReflect.Descriptor instead.
 func (*LoadRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{8}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *LoadRequest) GetCharacterId() string {
@@ -803,14 +926,16 @@ type LoadResponse struct {
 	// Its active and finished quests.
 	Quests []*Quest `protobuf:"bytes,2,rep,name=quests,proto3" json:"quests,omitempty"`
 	// Its skills with points, by ID.
-	Skills        []*SkillPoints `protobuf:"bytes,3,rep,name=skills,proto3" json:"skills,omitempty"`
+	Skills []*SkillPoints `protobuf:"bytes,3,rep,name=skills,proto3" json:"skills,omitempty"`
+	// Its skills' cooldowns and buffs as the last checkpoint left them; some may have ended since.
+	Timers        []*SkillTimer `protobuf:"bytes,4,rep,name=timers,proto3" json:"timers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LoadResponse) Reset() {
 	*x = LoadResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[9]
+	mi := &file_internal_character_v1_character_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -822,7 +947,7 @@ func (x *LoadResponse) String() string {
 func (*LoadResponse) ProtoMessage() {}
 
 func (x *LoadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[9]
+	mi := &file_internal_character_v1_character_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -835,7 +960,7 @@ func (x *LoadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadResponse.ProtoReflect.Descriptor instead.
 func (*LoadResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{9}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *LoadResponse) GetCharacter() *Character {
@@ -855,6 +980,13 @@ func (x *LoadResponse) GetQuests() []*Quest {
 func (x *LoadResponse) GetSkills() []*SkillPoints {
 	if x != nil {
 		return x.Skills
+	}
+	return nil
+}
+
+func (x *LoadResponse) GetTimers() []*SkillTimer {
+	if x != nil {
+		return x.Timers
 	}
 	return nil
 }
@@ -880,14 +1012,16 @@ type SaveCheckpointRequest struct {
 	// Every skill with points; points are never taken back, so a stored skill not listed keeps its own.
 	Skills []*SkillPoints `protobuf:"bytes,14,rep,name=skills,proto3" json:"skills,omitempty"`
 	// The class, which a promotion changes; it must be in the game data.
-	Class         string `protobuf:"bytes,15,opt,name=class,proto3" json:"class,omitempty"`
+	Class string `protobuf:"bytes,15,opt,name=class,proto3" json:"class,omitempty"`
+	// Every cooldown and buff still running; a stored one not listed goes.
+	Timers        []*SkillTimer `protobuf:"bytes,16,rep,name=timers,proto3" json:"timers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SaveCheckpointRequest) Reset() {
 	*x = SaveCheckpointRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[10]
+	mi := &file_internal_character_v1_character_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -899,7 +1033,7 @@ func (x *SaveCheckpointRequest) String() string {
 func (*SaveCheckpointRequest) ProtoMessage() {}
 
 func (x *SaveCheckpointRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[10]
+	mi := &file_internal_character_v1_character_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -912,7 +1046,7 @@ func (x *SaveCheckpointRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveCheckpointRequest.ProtoReflect.Descriptor instead.
 func (*SaveCheckpointRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{10}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SaveCheckpointRequest) GetCharacterId() string {
@@ -1020,6 +1154,13 @@ func (x *SaveCheckpointRequest) GetClass() string {
 	return ""
 }
 
+func (x *SaveCheckpointRequest) GetTimers() []*SkillTimer {
+	if x != nil {
+		return x.Timers
+	}
+	return nil
+}
+
 type SaveCheckpointResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1028,7 +1169,7 @@ type SaveCheckpointResponse struct {
 
 func (x *SaveCheckpointResponse) Reset() {
 	*x = SaveCheckpointResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[11]
+	mi := &file_internal_character_v1_character_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1040,7 +1181,7 @@ func (x *SaveCheckpointResponse) String() string {
 func (*SaveCheckpointResponse) ProtoMessage() {}
 
 func (x *SaveCheckpointResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[11]
+	mi := &file_internal_character_v1_character_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1053,7 +1194,7 @@ func (x *SaveCheckpointResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveCheckpointResponse.ProtoReflect.Descriptor instead.
 func (*SaveCheckpointResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{11}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{12}
 }
 
 type SaveLevelUpRequest struct {
@@ -1070,7 +1211,7 @@ type SaveLevelUpRequest struct {
 
 func (x *SaveLevelUpRequest) Reset() {
 	*x = SaveLevelUpRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[12]
+	mi := &file_internal_character_v1_character_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1082,7 +1223,7 @@ func (x *SaveLevelUpRequest) String() string {
 func (*SaveLevelUpRequest) ProtoMessage() {}
 
 func (x *SaveLevelUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[12]
+	mi := &file_internal_character_v1_character_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1095,7 +1236,7 @@ func (x *SaveLevelUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveLevelUpRequest.ProtoReflect.Descriptor instead.
 func (*SaveLevelUpRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{12}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *SaveLevelUpRequest) GetCharacterId() string {
@@ -1148,7 +1289,7 @@ type SaveLevelUpResponse struct {
 
 func (x *SaveLevelUpResponse) Reset() {
 	*x = SaveLevelUpResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[13]
+	mi := &file_internal_character_v1_character_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1160,7 +1301,7 @@ func (x *SaveLevelUpResponse) String() string {
 func (*SaveLevelUpResponse) ProtoMessage() {}
 
 func (x *SaveLevelUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[13]
+	mi := &file_internal_character_v1_character_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1173,7 +1314,7 @@ func (x *SaveLevelUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveLevelUpResponse.ProtoReflect.Descriptor instead.
 func (*SaveLevelUpResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{13}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{14}
 }
 
 type SetSkillBarRequest struct {
@@ -1189,7 +1330,7 @@ type SetSkillBarRequest struct {
 
 func (x *SetSkillBarRequest) Reset() {
 	*x = SetSkillBarRequest{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[14]
+	mi := &file_internal_character_v1_character_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1201,7 +1342,7 @@ func (x *SetSkillBarRequest) String() string {
 func (*SetSkillBarRequest) ProtoMessage() {}
 
 func (x *SetSkillBarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[14]
+	mi := &file_internal_character_v1_character_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1214,7 +1355,7 @@ func (x *SetSkillBarRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSkillBarRequest.ProtoReflect.Descriptor instead.
 func (*SetSkillBarRequest) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{14}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *SetSkillBarRequest) GetCharacterId() string {
@@ -1246,7 +1387,7 @@ type SetSkillBarResponse struct {
 
 func (x *SetSkillBarResponse) Reset() {
 	*x = SetSkillBarResponse{}
-	mi := &file_internal_character_v1_character_proto_msgTypes[15]
+	mi := &file_internal_character_v1_character_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1258,7 +1399,7 @@ func (x *SetSkillBarResponse) String() string {
 func (*SetSkillBarResponse) ProtoMessage() {}
 
 func (x *SetSkillBarResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_character_v1_character_proto_msgTypes[15]
+	mi := &file_internal_character_v1_character_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1271,7 +1412,7 @@ func (x *SetSkillBarResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetSkillBarResponse.ProtoReflect.Descriptor instead.
 func (*SetSkillBarResponse) Descriptor() ([]byte, []int) {
-	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{15}
+	return file_internal_character_v1_character_proto_rawDescGZIP(), []int{16}
 }
 
 var File_internal_character_v1_character_proto protoreflect.FileDescriptor
@@ -1316,7 +1457,13 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\tskill_bar\x18\x14 \x03(\tR\bskillBar\"@\n" +
 	"\vSkillPoints\x12\x19\n" +
 	"\bskill_id\x18\x01 \x01(\tR\askillId\x12\x16\n" +
-	"\x06points\x18\x02 \x01(\x05R\x06points\"O\n" +
+	"\x06points\x18\x02 \x01(\x05R\x06points\"\xac\x01\n" +
+	"\n" +
+	"SkillTimer\x12\x19\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\x129\n" +
+	"\x04kind\x18\x02 \x01(\x0e2%.internal.character.v1.SkillTimerKindR\x04kind\x120\n" +
+	"\x05until\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x05until\x12\x16\n" +
+	"\x06points\x18\x04 \x01(\x05R\x06points\"O\n" +
 	"\rCreateRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x12\n" +
@@ -1333,11 +1480,12 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\vLoadRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x02 \x01(\tR\taccountId\"\xc0\x01\n" +
+	"account_id\x18\x02 \x01(\tR\taccountId\"\xfb\x01\n" +
 	"\fLoadResponse\x12>\n" +
 	"\tcharacter\x18\x01 \x01(\v2 .internal.character.v1.CharacterR\tcharacter\x124\n" +
 	"\x06quests\x18\x02 \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\x12:\n" +
-	"\x06skills\x18\x03 \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\"\xf4\x03\n" +
+	"\x06skills\x18\x03 \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\x129\n" +
+	"\x06timers\x18\x04 \x03(\v2!.internal.character.v1.SkillTimerR\x06timers\"\xaf\x04\n" +
 	"\x15SaveCheckpointRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\f\n" +
@@ -1354,7 +1502,8 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x06quests\x18\f \x03(\v2\x1c.internal.character.v1.QuestR\x06quests\x120\n" +
 	"\x14unspent_skill_points\x18\r \x01(\x05R\x12unspentSkillPoints\x12:\n" +
 	"\x06skills\x18\x0e \x03(\v2\".internal.character.v1.SkillPointsR\x06skills\x12\x14\n" +
-	"\x05class\x18\x0f \x01(\tR\x05class\"\x18\n" +
+	"\x05class\x18\x0f \x01(\tR\x05class\x129\n" +
+	"\x06timers\x18\x10 \x03(\v2!.internal.character.v1.SkillTimerR\x06timers\"\x18\n" +
 	"\x16SaveCheckpointResponse\"\xb5\x01\n" +
 	"\x12SaveLevelUpRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x14\n" +
@@ -1369,7 +1518,7 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\x12\x14\n" +
 	"\x05slots\x18\x03 \x03(\tR\x05slots\"\x15\n" +
-	"\x13SetSkillBarResponse*\xac\x02\n" +
+	"\x13SetSkillBarResponse*\xc8\x02\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aREASON_CHARACTER_NOT_FOUND\x10\x01\x12\x15\n" +
@@ -1382,11 +1531,16 @@ const file_internal_character_v1_character_proto_rawDesc = "" +
 	"\x10REASON_BAD_QUEST\x10\b\x12\x14\n" +
 	"\x10REASON_BAD_SKILL\x10\t\x12\x18\n" +
 	"\x14REASON_BAD_SKILL_BAR\x10\n" +
-	"*_\n" +
+	"\x12\x1a\n" +
+	"\x16REASON_BAD_SKILL_TIMER\x10\v*_\n" +
 	"\vQuestStatus\x12\x1c\n" +
 	"\x18QUEST_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13QUEST_STATUS_ACTIVE\x10\x01\x12\x19\n" +
-	"\x15QUEST_STATUS_FINISHED\x10\x022\xcb\x04\n" +
+	"\x15QUEST_STATUS_FINISHED\x10\x02*l\n" +
+	"\x0eSkillTimerKind\x12 \n" +
+	"\x1cSKILL_TIMER_KIND_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19SKILL_TIMER_KIND_COOLDOWN\x10\x01\x12\x19\n" +
+	"\x15SKILL_TIMER_KIND_BUFF\x10\x022\xcb\x04\n" +
 	"\x10CharacterService\x12U\n" +
 	"\x06Create\x12$.internal.character.v1.CreateRequest\x1a%.internal.character.v1.CreateResponse\x12O\n" +
 	"\x04List\x12\".internal.character.v1.ListRequest\x1a#.internal.character.v1.ListResponse\x12O\n" +
@@ -1407,60 +1561,66 @@ func file_internal_character_v1_character_proto_rawDescGZIP() []byte {
 	return file_internal_character_v1_character_proto_rawDescData
 }
 
-var file_internal_character_v1_character_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_internal_character_v1_character_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_internal_character_v1_character_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_internal_character_v1_character_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_internal_character_v1_character_proto_goTypes = []any{
 	(Reason)(0),                    // 0: internal.character.v1.Reason
 	(QuestStatus)(0),               // 1: internal.character.v1.QuestStatus
-	(*Quest)(nil),                  // 2: internal.character.v1.Quest
-	(*Stats)(nil),                  // 3: internal.character.v1.Stats
-	(*Character)(nil),              // 4: internal.character.v1.Character
-	(*SkillPoints)(nil),            // 5: internal.character.v1.SkillPoints
-	(*CreateRequest)(nil),          // 6: internal.character.v1.CreateRequest
-	(*CreateResponse)(nil),         // 7: internal.character.v1.CreateResponse
-	(*ListRequest)(nil),            // 8: internal.character.v1.ListRequest
-	(*ListResponse)(nil),           // 9: internal.character.v1.ListResponse
-	(*LoadRequest)(nil),            // 10: internal.character.v1.LoadRequest
-	(*LoadResponse)(nil),           // 11: internal.character.v1.LoadResponse
-	(*SaveCheckpointRequest)(nil),  // 12: internal.character.v1.SaveCheckpointRequest
-	(*SaveCheckpointResponse)(nil), // 13: internal.character.v1.SaveCheckpointResponse
-	(*SaveLevelUpRequest)(nil),     // 14: internal.character.v1.SaveLevelUpRequest
-	(*SaveLevelUpResponse)(nil),    // 15: internal.character.v1.SaveLevelUpResponse
-	(*SetSkillBarRequest)(nil),     // 16: internal.character.v1.SetSkillBarRequest
-	(*SetSkillBarResponse)(nil),    // 17: internal.character.v1.SetSkillBarResponse
-	(*timestamppb.Timestamp)(nil),  // 18: google.protobuf.Timestamp
+	(SkillTimerKind)(0),            // 2: internal.character.v1.SkillTimerKind
+	(*Quest)(nil),                  // 3: internal.character.v1.Quest
+	(*Stats)(nil),                  // 4: internal.character.v1.Stats
+	(*Character)(nil),              // 5: internal.character.v1.Character
+	(*SkillPoints)(nil),            // 6: internal.character.v1.SkillPoints
+	(*SkillTimer)(nil),             // 7: internal.character.v1.SkillTimer
+	(*CreateRequest)(nil),          // 8: internal.character.v1.CreateRequest
+	(*CreateResponse)(nil),         // 9: internal.character.v1.CreateResponse
+	(*ListRequest)(nil),            // 10: internal.character.v1.ListRequest
+	(*ListResponse)(nil),           // 11: internal.character.v1.ListResponse
+	(*LoadRequest)(nil),            // 12: internal.character.v1.LoadRequest
+	(*LoadResponse)(nil),           // 13: internal.character.v1.LoadResponse
+	(*SaveCheckpointRequest)(nil),  // 14: internal.character.v1.SaveCheckpointRequest
+	(*SaveCheckpointResponse)(nil), // 15: internal.character.v1.SaveCheckpointResponse
+	(*SaveLevelUpRequest)(nil),     // 16: internal.character.v1.SaveLevelUpRequest
+	(*SaveLevelUpResponse)(nil),    // 17: internal.character.v1.SaveLevelUpResponse
+	(*SetSkillBarRequest)(nil),     // 18: internal.character.v1.SetSkillBarRequest
+	(*SetSkillBarResponse)(nil),    // 19: internal.character.v1.SetSkillBarResponse
+	(*timestamppb.Timestamp)(nil),  // 20: google.protobuf.Timestamp
 }
 var file_internal_character_v1_character_proto_depIdxs = []int32{
 	1,  // 0: internal.character.v1.Quest.status:type_name -> internal.character.v1.QuestStatus
-	3,  // 1: internal.character.v1.Character.points:type_name -> internal.character.v1.Stats
-	18, // 2: internal.character.v1.Character.updated_at:type_name -> google.protobuf.Timestamp
-	3,  // 3: internal.character.v1.Character.own_stats:type_name -> internal.character.v1.Stats
-	4,  // 4: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
-	4,  // 5: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
-	4,  // 6: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
-	2,  // 7: internal.character.v1.LoadResponse.quests:type_name -> internal.character.v1.Quest
-	5,  // 8: internal.character.v1.LoadResponse.skills:type_name -> internal.character.v1.SkillPoints
-	3,  // 9: internal.character.v1.SaveCheckpointRequest.points:type_name -> internal.character.v1.Stats
-	2,  // 10: internal.character.v1.SaveCheckpointRequest.quests:type_name -> internal.character.v1.Quest
-	5,  // 11: internal.character.v1.SaveCheckpointRequest.skills:type_name -> internal.character.v1.SkillPoints
-	3,  // 12: internal.character.v1.SaveLevelUpRequest.points:type_name -> internal.character.v1.Stats
-	6,  // 13: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
-	8,  // 14: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
-	10, // 15: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
-	12, // 16: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
-	14, // 17: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
-	16, // 18: internal.character.v1.CharacterService.SetSkillBar:input_type -> internal.character.v1.SetSkillBarRequest
-	7,  // 19: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
-	9,  // 20: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
-	11, // 21: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
-	13, // 22: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
-	15, // 23: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
-	17, // 24: internal.character.v1.CharacterService.SetSkillBar:output_type -> internal.character.v1.SetSkillBarResponse
-	19, // [19:25] is the sub-list for method output_type
-	13, // [13:19] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	4,  // 1: internal.character.v1.Character.points:type_name -> internal.character.v1.Stats
+	20, // 2: internal.character.v1.Character.updated_at:type_name -> google.protobuf.Timestamp
+	4,  // 3: internal.character.v1.Character.own_stats:type_name -> internal.character.v1.Stats
+	2,  // 4: internal.character.v1.SkillTimer.kind:type_name -> internal.character.v1.SkillTimerKind
+	20, // 5: internal.character.v1.SkillTimer.until:type_name -> google.protobuf.Timestamp
+	5,  // 6: internal.character.v1.CreateResponse.character:type_name -> internal.character.v1.Character
+	5,  // 7: internal.character.v1.ListResponse.characters:type_name -> internal.character.v1.Character
+	5,  // 8: internal.character.v1.LoadResponse.character:type_name -> internal.character.v1.Character
+	3,  // 9: internal.character.v1.LoadResponse.quests:type_name -> internal.character.v1.Quest
+	6,  // 10: internal.character.v1.LoadResponse.skills:type_name -> internal.character.v1.SkillPoints
+	7,  // 11: internal.character.v1.LoadResponse.timers:type_name -> internal.character.v1.SkillTimer
+	4,  // 12: internal.character.v1.SaveCheckpointRequest.points:type_name -> internal.character.v1.Stats
+	3,  // 13: internal.character.v1.SaveCheckpointRequest.quests:type_name -> internal.character.v1.Quest
+	6,  // 14: internal.character.v1.SaveCheckpointRequest.skills:type_name -> internal.character.v1.SkillPoints
+	7,  // 15: internal.character.v1.SaveCheckpointRequest.timers:type_name -> internal.character.v1.SkillTimer
+	4,  // 16: internal.character.v1.SaveLevelUpRequest.points:type_name -> internal.character.v1.Stats
+	8,  // 17: internal.character.v1.CharacterService.Create:input_type -> internal.character.v1.CreateRequest
+	10, // 18: internal.character.v1.CharacterService.List:input_type -> internal.character.v1.ListRequest
+	12, // 19: internal.character.v1.CharacterService.Load:input_type -> internal.character.v1.LoadRequest
+	14, // 20: internal.character.v1.CharacterService.SaveCheckpoint:input_type -> internal.character.v1.SaveCheckpointRequest
+	16, // 21: internal.character.v1.CharacterService.SaveLevelUp:input_type -> internal.character.v1.SaveLevelUpRequest
+	18, // 22: internal.character.v1.CharacterService.SetSkillBar:input_type -> internal.character.v1.SetSkillBarRequest
+	9,  // 23: internal.character.v1.CharacterService.Create:output_type -> internal.character.v1.CreateResponse
+	11, // 24: internal.character.v1.CharacterService.List:output_type -> internal.character.v1.ListResponse
+	13, // 25: internal.character.v1.CharacterService.Load:output_type -> internal.character.v1.LoadResponse
+	15, // 26: internal.character.v1.CharacterService.SaveCheckpoint:output_type -> internal.character.v1.SaveCheckpointResponse
+	17, // 27: internal.character.v1.CharacterService.SaveLevelUp:output_type -> internal.character.v1.SaveLevelUpResponse
+	19, // 28: internal.character.v1.CharacterService.SetSkillBar:output_type -> internal.character.v1.SetSkillBarResponse
+	23, // [23:29] is the sub-list for method output_type
+	17, // [17:23] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_internal_character_v1_character_proto_init() }
@@ -1473,8 +1633,8 @@ func file_internal_character_v1_character_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_character_v1_character_proto_rawDesc), len(file_internal_character_v1_character_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   16,
+			NumEnums:      3,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

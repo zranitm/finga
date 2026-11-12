@@ -149,6 +149,19 @@
           0
         ]
       }
+    ],
+    "skill_timers": [
+      {
+        "skill": "iron_body",
+        "kind": "SKILL_TIMER_KIND_COOLDOWN",
+        "left_ms": "41200"
+      },
+      {
+        "skill": "iron_body",
+        "kind": "SKILL_TIMER_KIND_BUFF",
+        "left_ms": "11200",
+        "points": 3
+      }
     ]
   }
 }

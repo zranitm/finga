@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	characterv1 "finga/api/gen/character/v1"
 	"finga/internal/gamedata"
@@ -21,14 +24,42 @@ type Saver struct {
 // NewSaver adapts the character client.
 func NewSaver(c characterv1.CharacterServiceClient) Saver { return Saver{c: c} }
 
-// SaveCheckpoint saves position, HP, MP, the whole progression and the whole quest log.
+// SaveCheckpoint saves position, HP, MP, the whole progression, the whole quest log and the skills' timers.
 func (s Saver) SaveCheckpoint(ctx context.Context, cp model.Checkpoint) error {
 	_, err := s.c.SaveCheckpoint(ctx, &characterv1.SaveCheckpointRequest{
 		CharacterId: cp.ID.String(), Class: cp.Class.String(), MapId: cp.MapID, X: cp.X, Y: cp.Y, Hp: int32(cp.HP), Mp: int32(cp.MP),
 		Level: int32(cp.Level), Exp: cp.Exp, Points: statsOf(cp.Points.Spent), UnspentPoints: int32(cp.Points.Unspent), FreeResetUsed: cp.Points.FreeResetUsed,
 		Quests: questsOf(cp.Quests), UnspentSkillPoints: int32(cp.Skills.Unspent), Skills: skillsOf(cp.Skills), //nolint:gosec // points are small
+		Timers: timersOf(cp.Timers),
 	})
 	return err
+}
+
+// timersOf is the cooldowns then the buffs, each by skill, so a save is the same for the same timers.
+func timersOf(t model.SkillTimers) []*characterv1.SkillTimer {
+	out := make([]*characterv1.SkillTimer, 0, len(t.Cooldowns)+len(t.Buffs))
+	for _, s := range slices.Sorted(maps.Keys(t.Cooldowns)) {
+		out = append(out, &characterv1.SkillTimer{SkillId: s, Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN, Until: timestamppb.New(t.Cooldowns[s])})
+	}
+	for _, s := range slices.Sorted(maps.Keys(t.Buffs)) {
+		b := t.Buffs[s]
+		out = append(out, &characterv1.SkillTimer{SkillId: s, Kind: characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF, Until: timestamppb.New(b.Until), Points: int32(b.Points)}) //nolint:gosec // points are small
+	}
+	return out
+}
+
+// timersFrom is the stored timers; one of a kind from a newer service is left out.
+func timersFrom(ts []*characterv1.SkillTimer) model.SkillTimers {
+	out := model.SkillTimers{Cooldowns: map[string]time.Time{}, Buffs: map[string]model.BuffTimer{}}
+	for _, t := range ts {
+		switch t.GetKind() {
+		case characterv1.SkillTimerKind_SKILL_TIMER_KIND_COOLDOWN:
+			out.Cooldowns[t.GetSkillId()] = t.GetUntil().AsTime()
+		case characterv1.SkillTimerKind_SKILL_TIMER_KIND_BUFF:
+			out.Buffs[t.GetSkillId()] = model.BuffTimer{Until: t.GetUntil().AsTime(), Points: int(t.GetPoints())}
+		}
+	}
+	return out
 }
 
 var questStatuses = map[model.QuestStatus]characterv1.QuestStatus{
@@ -123,5 +154,6 @@ func (c Characters) Load(ctx context.Context, id kernel.CharacterID, account ker
 		},
 		Skills: skills,
 		HP:     int(ch.GetHp()), MP: int(ch.GetMp()), MapID: ch.GetMapId(), X: ch.GetX(), Y: ch.GetY(), Quests: log,
+		Timers: timersFrom(res.GetTimers()),
 	}, nil
 }
