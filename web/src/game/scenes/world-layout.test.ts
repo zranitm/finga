@@ -130,17 +130,18 @@ describe('world layout', () => {
   });
 
   it.each([
-    { map: 'town', texture: TEX.dirtCenter, tint: null, w: 2560, h: 800 },
-    { map: 'dune_road', texture: TEX.dirtCenter, tint: 0xf2d79a, w: 2560, h: 576 },
+    { map: 'town', w: 2560, h: 800 },
+    { map: 'dune_road', w: 2560, h: 576 },
   ])(
     "$map in a 2560×1440 window has its ground's fill under the floor, out to the window's edges",
-    ({ map, texture, tint, w, h }) => {
+    ({ map, w, h }) => {
       const view = parseMap(
         map,
         JSON.parse(readFileSync(path.resolve(process.cwd(), `public/maps/${map}.tmj`), 'utf8')),
       );
+      const { fill, tint } = groundStyle(map);
       expect(belowFloor(view, { width: 2560, height: 1440 })).toEqual({
-        texture,
+        texture: fill,
         x: 0,
         y: view.height,
         w,
