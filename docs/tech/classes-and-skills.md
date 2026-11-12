@@ -265,6 +265,7 @@ skills:
 - **features/skills, the skill window (K):**
   - the skills of the class and of every class above it, listed by class;
   - each skill's points, what it does at its stage, what a point adds, and its next stage at its total;
+    - What it does reads by its effect: an attack's power, cost, reach and foes; a buff's bonus on the caster and how long it lasts; a heal's reach, as the world picks who it heals, and its amount; a passive's bonus.
   - **+**, Apply, and Undo, as for stats, with a preview of the staged points and any evolution they reach. A skill with no points says it's usable once it has one, and with points staged, what that many points make it.
   - An active skill is dragged onto the skill bar.
 - **features/hud:**
