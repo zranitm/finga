@@ -4031,7 +4031,7 @@ type PlayerView struct {
 	Hp       int32 `protobuf:"varint,12,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp    int32 `protobuf:"varint,13,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	Dead     bool  `protobuf:"varint,14,opt,name=dead,proto3" json:"dead,omitempty"`
-	// Set for a second after contact damage.
+	// Set for the touch guard after contact damage.
 	Invulnerable  bool `protobuf:"varint,15,opt,name=invulnerable,proto3" json:"invulnerable,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

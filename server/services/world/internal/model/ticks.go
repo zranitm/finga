@@ -27,8 +27,7 @@ func SkillLengthTicks(length, interval time.Duration) uint64 {
 	return TicksIn(length, interval)
 }
 
-// ActionPoints are where an action of length ticks lands its hit and reaches its cancel point, as ticks from its start: ⌊length × share⌋ each,
-// the cancel point held to at least the hit and at least one tick, so a cancel never comes before the hit or in the action's first tick.
+// ActionPoints are an action's hit and cancel point in ticks from its start, ⌊length × share⌋ each, the cancel point held to at least the hit and one tick.
 func ActionPoints(length uint64, hit, cancel float64) (hitAt, cancelAt uint64) {
 	hitAt = ticksOf(length, hit)
 	return hitAt, max(ticksOf(length, cancel), hitAt, 1)

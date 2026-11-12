@@ -9,7 +9,7 @@ type PlayerView struct {
 	OnGround, Climbing bool
 	HP, MaxHP          int
 	Dead               bool
-	Invulnerable       bool // for a second after contact damage
+	Invulnerable       bool // for the touch guard after contact damage
 }
 
 // MobView is a mob as the players on its map see it; its ID counts up within one map instance.

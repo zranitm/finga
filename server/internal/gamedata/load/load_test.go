@@ -73,7 +73,7 @@ skills:
     stages:
       - {at: 0, name: Strike, description: "A strong swing."}
       - {at: 10, name: Heavy Strike, description: "A harder swing.", power: {base: 2.2}}
-      - {at: 25, name: Crushing Blow, description: "Up to three foes.", targets: 3, length: 900ms, hit: 0.3, cancel: 0.6}
+      - {at: 25, name: Crushing Blow, description: "Up to three foes.", targets: 3, length: 900ms, hit: 0.3, cancel: 0.6, cancelable: false}
   - id: second_wind
     kind: passive
     effect: bonus
@@ -385,8 +385,8 @@ func TestValidDataLoads(t *testing.T) {
 		if first := strike.Stages[0]; first.Timing != (gamedata.Timing{Length: 700 * time.Millisecond, Cancel: 0.85}) || !first.Cancelable || heavy.Timing != first.Timing || !heavy.Cancelable {
 			t.Fatalf("Strike %+v, Heavy Strike %+v: want 700 ms at actions.yaml's cancel point, cancelable, carried", first.Timing, heavy.Timing)
 		}
-		if crushing.Timing != (gamedata.Timing{Length: 900 * time.Millisecond, Hit: 0.3, Cancel: 0.6}) || !crushing.Cancelable {
-			t.Fatalf("Crushing Blow timing %+v: want its own 900 ms, hit and cancel point, still cancelable", crushing.Timing)
+		if crushing.Timing != (gamedata.Timing{Length: 900 * time.Millisecond, Hit: 0.3, Cancel: 0.6}) || crushing.Cancelable {
+			t.Fatalf("Crushing Blow timing %+v: want its own 900 ms, hit and cancel point, and no longer cancelable", crushing.Timing)
 		}
 		if wind, _ := d.Skill("second_wind"); wind.Stages[0].Timing != (gamedata.Timing{}) || wind.Stages[0].Cancelable {
 			t.Fatalf("Second Wind timing %+v: a passive has none", wind.Stages[0].Timing)
@@ -782,10 +782,12 @@ func TestRejections(t *testing.T) {
 		{"a negative early_press", "actions.yaml", "early_press: 100ms", "early_press: -1ms", []string{"actions.yaml", "early_press"}},
 		{"an attack without a length", "classes.yaml", "width: 48, height: 48, length: 700ms}", "width: 48, height: 48}", []string{"classes.yaml", "beginner", "length"}},
 		{"an attack keeping its old cooldown", "classes.yaml", "length: 700ms}", "cooldown: 700ms}", []string{"classes.yaml", "cooldown"}},
+		{"an attack with a negative length", "classes.yaml", "length: 700ms}", "length: -700ms}", []string{"classes.yaml", "beginner", "positive"}},
 		{"an attack whose hit share is above one", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 1.5, cancel: 0.5", []string{"classes.yaml", "bowman", "shares"}},
 		{"an attack whose hit lands after its cancel point", "classes.yaml", "hit: 0.25, cancel: 0.5", "hit: 0.75, cancel: 0.5", []string{"classes.yaml", "bowman", "cancel point"}},
 		{"an active skill without a length", "skills.yaml", "    length: 700ms\n", "", []string{"skills.yaml", "strike", "length"}},
 		{"a stage whose hit lands after its cancel point", "skills.yaml", "hit: 0.3, cancel: 0.6", "hit: 0.7, cancel: 0.6", []string{"skills.yaml", "strike", "Crushing Blow", "cancel point"}},
+		{"a stage whose cancel share is above one", "skills.yaml", "hit: 0.3, cancel: 0.6", "hit: 0.3, cancel: 1.6", []string{"skills.yaml", "strike", "Crushing Blow", "shares"}},
 		{"a passive skill with a length", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    length: 1s\n", []string{"skills.yaml", "second_wind", "passive", "length"}},
 		{"a passive stage made cancelable", "skills.yaml", `{at: 10, name: Deep Breath, description: "Faster still.",`, `{at: 10, name: Deep Breath, description: "Faster still.", cancelable: true,`, []string{"skills.yaml", "second_wind", "cancelable"}},
 		{"a passive skill with a cooldown", "skills.yaml", "    effect: bonus\n", "    effect: bonus\n    cooldown: 2s\n", []string{"skills.yaml", "second_wind", "cooldown"}},

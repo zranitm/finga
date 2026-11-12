@@ -10,7 +10,7 @@ From the product pages:
 - **Every stat means the same for every class.** There are sixteen derived stats, each fed by fixed amounts per point. Rates (crit rate and the three speeds) have diminishing returns toward a limit.
 - **Every attack is physical or magic.** One accuracy and one evasion decide hits for every attack. Penetration ignores either defense. Mobs name their damage type.
 - **Speed:**
-  - attack speed shortens basic-attack cooldowns only;
+  - attack speed shortens basic attacks only;
   - cooldown speed is for skills (nothing uses it until skills exist);
   - move speed makes walking, climbing, and jumping faster, in combat maps only.
 - **HP and MP regenerate** at the character's regen.
@@ -294,7 +294,7 @@ On a branch with one PR, as before. Each step is one commit, green on `make test
    - the world's `SpendPoints` and `ResetPoints`;
    - level-ups giving points, with the server-side split removed;
    - inactive gear.
-5. **Speed:** attack cooldown ticks, and move speed in the sim with its vectors.
+5. **Speed:** attack length ticks, and move speed in the sim with its vectors.
 6. **Gateway and protocol:** messages, routes, error codes, the REST setting, and contracts.
 7. **Client:** the 16-stat sheet, spending with a preview, reset, auto-assign and its setting, the HUD badge, requirements and inactive gear, the attack's pace, and move speed in prediction.
 8. **Content and balance:** starting stats, splits, item requirements and new rollable stats, mob damage types and defenses, retuning, a `make bots` run, and the production database reset in the runbook.

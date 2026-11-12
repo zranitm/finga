@@ -94,6 +94,7 @@ skills:
     mp: {base: 4, per_point: 0.2}
     cooldown: 3s
     length: 1050ms                        # how long using it keeps the player busy (animation-cancel.md)
+    cancelable: true                      # a basic attack may cut it short from its cancel point
     power: {base: 1.5, per_point: 0.05}   # × the matching attack
     stages:                               # evolution, all data
       - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}

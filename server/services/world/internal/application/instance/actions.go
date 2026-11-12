@@ -38,8 +38,7 @@ type windUp struct {
 	land func()
 }
 
-// begin starts p's action of kind at start, length ticks long with t's points, and lands its hit at once if it falls at the start, else when it comes due; it says whether the hit landed now.
-// A skill may go up to castSlack before start, but its action counts from start, so going early gains nothing.
+// begin starts p's action at start, landing its hit at once if it falls there, else when due, and says whether it landed now; a skill up to castSlack early still counts from start.
 func (i *Instance) begin(p *player, kind actionKind, start, length uint64, t gamedata.Timing, cancelable bool, hit func()) bool {
 	hitAt, cancelAt := model.ActionPoints(length, t.Hit, t.Cancel)
 	p.action = action{kind: kind, cancelable: cancelable, cancelAt: start + cancelAt, end: start + length}
