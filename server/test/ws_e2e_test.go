@@ -185,6 +185,17 @@ func (p *player) position(of string, d time.Duration) (*clientv1.PlayerView, boo
 	return nil, false
 }
 
+// moving is the first view of of that walks, past any from before, such as a landing still queued on a busy machine.
+func (p *player) moving(of string, d time.Duration) (*clientv1.PlayerView, bool) {
+	deadline := time.Now().Add(d)
+	for {
+		v, ok := p.position(of, time.Until(deadline))
+		if !ok || v.GetVx() != 0 {
+			return v, ok
+		}
+	}
+}
+
 func (p *player) drain(d time.Duration) {
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
@@ -211,7 +222,7 @@ func TestWalkTogether(t *testing.T) {
 		ayla.drain(300 * time.Millisecond) // land and settle
 		robin.drain(300 * time.Millisecond)
 		ayla.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Right: true}})
-		v1, ok := robin.position(ayla.id, 3*time.Second)
+		v1, ok := robin.moving(ayla.id, 3*time.Second)
 		if !ok {
 			t.Fatal("Robin never saw Ayla move")
 		}
@@ -221,7 +232,7 @@ func TestWalkTogether(t *testing.T) {
 		}
 		ayla.send(wsconn.Message{Seq: 2, Data: &clientv1.Input{}})
 		robin.send(wsconn.Message{Seq: 1, Data: &clientv1.Input{Left: true}})
-		r1, ok := ayla.position(robin.id, 3*time.Second)
+		r1, ok := ayla.moving(robin.id, 3*time.Second)
 		if !ok || r1.GetVx() != -160 || r1.Facing != -1 {
 			t.Fatalf("Robin as Ayla sees him: %+v", r1)
 		}
