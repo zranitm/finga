@@ -64,7 +64,7 @@ Sixteen, computed from the primary stats, the class's base values (which grow wi
 | | Move speed | Faster walking, climbing, and jumping in combat maps. Jumps keep their height and length and just take less time. In towns everyone moves at the same speed. | AGI, diminishing | approaches +30% |
 
 - Equipment can add to every primary and derived stat (Items). It adds on top of what points give, and a stat's limit is the ceiling for the total.
-- Attack speed covers basic attacks only, so that no single stat is worth buying for every build: AGI sets the pace of basic attacks, and INT the pace of skills.
+- Attack speed covers basic attacks only, so that no single stat is worth buying for every build: AGI sets the pace of basic attacks, and INT the pace of skills. It shortens a basic attack's whole length, its cancel point included (Combat → Actions); a skill's length doesn't change.
 
 ## Diminishing returns
 
