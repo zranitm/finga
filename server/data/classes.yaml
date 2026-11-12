@@ -18,21 +18,25 @@ classes:
     look: {sprite: alien_blue}
     attack: {kind: melee, damage: physical, width: 64, height: 56, cooldown: 600ms}
     auto_assign: {str: 3, vit: 2}
+    skills: [slash_blast, iron_body]
   - id: thief
     name: Thief
     parent: beginner
     look: {sprite: alien_green, tint: 0x9a70d8}
     attack: {kind: melee, damage: physical, width: 48, height: 48, cooldown: 500ms}
     auto_assign: {str: 1, agi: 3, dex: 1}
+    skills: [double_stab, haste]
   - id: bowman
     name: Bowman
     parent: beginner
     look: {sprite: alien_green}
     attack: {kind: ranged, damage: physical, range: 420, cooldown: 750ms}
     auto_assign: {str: 2, dex: 2, agi: 1}
+    skills: [power_shot, focus]
   - id: magician
     name: Magician
     parent: beginner
     look: {sprite: alien_blue, tint: 0xf0c060}
     attack: {kind: ranged, damage: magic, range: 360, cooldown: 850ms}
     auto_assign: {int: 3, dex: 1, vit: 1}
+    skills: [fire_arrow, heal]

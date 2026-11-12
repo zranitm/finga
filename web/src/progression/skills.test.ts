@@ -34,7 +34,11 @@ describe('skills', () => {
   it('a class learns its own skills and those of every class above it', () => {
     const beginner = ['strike', 'throw', 'spark', 'second_wind'];
     expect(learnable('beginner').map((s) => s.id)).toEqual(beginner);
-    expect(learnable('warrior').map((s) => s.id)).toEqual(beginner);
+    expect(learnable('warrior').map((s) => s.id)).toEqual([
+      'slash_blast',
+      'iron_body',
+      ...beginner,
+    ]);
     expect(learnable('nobody')).toEqual([]);
   });
 
