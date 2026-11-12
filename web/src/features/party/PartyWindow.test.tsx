@@ -16,11 +16,12 @@ import { MAX_PARTY, PartyWindow } from './PartyWindow';
 const member = (
   id: string,
   name: string,
-  extra: Partial<{ level: number; hp: number; online: boolean; mapId: string }> = {},
+  extra: Partial<{ level: number; class: string; hp: number; online: boolean; mapId: string }> = {},
 ) => ({
   characterId: id,
   name,
   level: 1,
+  class: 'beginner',
   hp: 100,
   maxHp: 100,
   mapId: 'forest',
@@ -88,6 +89,23 @@ describe('PartyWindow', () => {
     act(() => party.getState().applyPartyState(create(PartyStateSchema)));
     expect(screen.queryByLabelText('Members')).not.toBeInTheDocument();
     expect(screen.getByText('You are not in a party.')).toBeInTheDocument();
+  });
+
+  it('each member shows their level, class and map, a Beginner as Beginner', () => {
+    const { socket } = fakeSocket();
+    render(<PartyWindow socket={socket} me="c-ayla" onClose={vi.fn()} />);
+    act(() =>
+      party
+        .getState()
+        .applyPartyState(
+          partyOf('c-ayla', [
+            member('c-ayla', 'Ayla', { level: 12, class: 'warrior' }),
+            member('c-robin', 'Robin', { mapId: 'town', online: false }),
+          ]),
+        ),
+    );
+    expect(screen.getByText('Lv. 12 · Warrior · forest')).toBeInTheDocument();
+    expect(screen.getByText('Lv. 1 · Beginner · town · offline')).toBeInTheDocument();
   });
 
   it('the leader sees kick and promote for the others, members see leave only, and a refusal shows its words', async () => {

@@ -69,6 +69,7 @@ message Member {
   int32 max_hp = 5;
   string map_id = 6;
   bool online = 7;
+  string class = 8;
 }
 
 // Party is the leader and the members in join order.
@@ -222,6 +223,7 @@ message UpdateMemberRequest {
   int32 level = 3;
   int32 hp = 4;
   int32 max_hp = 5;
+  string class = 6;
 }
 
 message UpdateMemberResponse {}

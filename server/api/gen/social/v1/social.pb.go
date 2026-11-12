@@ -178,6 +178,7 @@ type Member struct {
 	MaxHp         int32                  `protobuf:"varint,5,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	MapId         string                 `protobuf:"bytes,6,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	Online        bool                   `protobuf:"varint,7,opt,name=online,proto3" json:"online,omitempty"`
+	Class         string                 `protobuf:"bytes,8,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -259,6 +260,13 @@ func (x *Member) GetOnline() bool {
 		return x.Online
 	}
 	return false
+}
+
+func (x *Member) GetClass() string {
+	if x != nil {
+		return x.Class
+	}
+	return ""
 }
 
 // Party is the leader and the members in join order.
@@ -1744,6 +1752,7 @@ type UpdateMemberRequest struct {
 	Level         int32                  `protobuf:"varint,3,opt,name=level,proto3" json:"level,omitempty"`
 	Hp            int32                  `protobuf:"varint,4,opt,name=hp,proto3" json:"hp,omitempty"`
 	MaxHp         int32                  `protobuf:"varint,5,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	Class         string                 `protobuf:"bytes,6,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1813,6 +1822,13 @@ func (x *UpdateMemberRequest) GetMaxHp() int32 {
 	return 0
 }
 
+func (x *UpdateMemberRequest) GetClass() string {
+	if x != nil {
+		return x.Class
+	}
+	return ""
+}
+
 type UpdateMemberResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1853,7 +1869,7 @@ var File_internal_social_v1_social_proto protoreflect.FileDescriptor
 
 const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\n" +
-	"\x1finternal/social/v1/social.proto\x12\x12internal.social.v1\"\x98\x01\n" +
+	"\x1finternal/social/v1/social.proto\x12\x12internal.social.v1\"\xae\x01\n" +
 	"\x06Member\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -1861,7 +1877,8 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"\x02hp\x18\x04 \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\x12\x15\n" +
 	"\x06map_id\x18\x06 \x01(\tR\x05mapId\x12\x16\n" +
-	"\x06online\x18\a \x01(\bR\x06online\"Z\n" +
+	"\x06online\x18\a \x01(\bR\x06online\x12\x14\n" +
+	"\x05class\x18\b \x01(\tR\x05class\"Z\n" +
 	"\x05Party\x12\x1b\n" +
 	"\tleader_id\x18\x01 \x01(\tR\bleaderId\x124\n" +
 	"\amembers\x18\x02 \x03(\v2\x1a.internal.social.v1.MemberR\amembers\"/\n" +
@@ -1952,13 +1969,14 @@ const file_internal_social_v1_social_proto_rawDesc = "" +
 	"Membership\x12#\n" +
 	"\rcharacter_ids\x18\x01 \x03(\tR\fcharacterIds\x12\x18\n" +
 	"\amembers\x18\x02 \x03(\tR\amembers\x12\x19\n" +
-	"\bparty_id\x18\x03 \x01(\tR\apartyId\"\x8c\x01\n" +
+	"\bparty_id\x18\x03 \x01(\tR\apartyId\"\xa2\x01\n" +
 	"\x13UpdateMemberRequest\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x15\n" +
 	"\x06map_id\x18\x02 \x01(\tR\x05mapId\x12\x14\n" +
 	"\x05level\x18\x03 \x01(\x05R\x05level\x12\x0e\n" +
 	"\x02hp\x18\x04 \x01(\x05R\x02hp\x12\x15\n" +
-	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\"\x16\n" +
+	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\x12\x14\n" +
+	"\x05class\x18\x06 \x01(\tR\x05class\"\x16\n" +
 	"\x14UpdateMemberResponse*\xec\x03\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x1b\n" +

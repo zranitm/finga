@@ -88,7 +88,7 @@ func Main[C Config](name string, build Build[C]) int {
 
 // Start loads the configuration, builds the process and runs it until ctx ends; config errors go to stderr.
 func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string, build Build[C]) int {
-	cfg, err := loadConfig[C](name)
+	cfg, err := LoadConfig[C](ConfigDir(name))
 	if err != nil {
 		_, _ = fmt.Fprintln(stderr, name+": invalid configuration:", err)
 		return 1
@@ -115,6 +115,7 @@ func Start[C Config](ctx context.Context, stdout, stderr io.Writer, name string,
 	return 0
 }
 
-func loadConfig[C Config](name string) (*C, error) {
-	return configload.Load[C](configload.Options{Path: configload.ResolvePath(ConfigDir(name)), EnvPrefix: EnvPrefix, Strict: true})
+// LoadConfig reads a binary's configuration from dir under where it runs, or CONFIG_PATH, with FINGA_ overrides; a key the binary lacks, as another's, is an error.
+func LoadConfig[C any](dir string) (*C, error) {
+	return configload.Load[C](configload.Options{Path: configload.ResolvePath(dir), EnvPrefix: EnvPrefix, Strict: true})
 }

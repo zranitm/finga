@@ -42,7 +42,7 @@ func (s *PartyService) Online(ctx context.Context, m model.Member) error {
 			}
 			m.JoinOrder = old.JoinOrder
 			if old.Connection == m.Connection || old.Connection == "" && time.Since(old.ReportedAt) < reportKept {
-				m.Level, m.HP, m.MaxHP, m.MapID, m.ReportedAt = old.Level, old.HP, old.MaxHP, old.MapID, old.ReportedAt
+				m.Class, m.Level, m.HP, m.MaxHP, m.MapID, m.ReportedAt = old.Class, old.Level, old.HP, old.MaxHP, old.MapID, old.ReportedAt
 			}
 		}
 		tx.PutMember(m)
@@ -96,16 +96,16 @@ func (s *PartyService) PruneMembers(ctx context.Context, before time.Time, limit
 const reportKept = time.Minute
 
 // Update records a change the world saw: the map, level or HP of a member, kept for their login when social does not know them yet.
-func (s *PartyService) Update(ctx context.Context, id kernel.CharacterID, mapID string, level, hp, maxHP int) error {
+func (s *PartyService) Update(ctx context.Context, id kernel.CharacterID, mapID string, class kernel.Class, level, hp, maxHP int) error {
 	return s.update(ctx, func(tx PartyTx, n *notes) error {
 		now := time.Now()
 		m, ok := tx.Member(id)
 		if !ok {
 			// Unknown yet, as after a restart: kept offline, with no connection, for the login to come.
-			tx.PutMember(model.Member{ID: id, MapID: mapID, Level: level, HP: hp, MaxHP: maxHP, OfflineAt: now, ReportedAt: now})
+			tx.PutMember(model.Member{ID: id, MapID: mapID, Class: class, Level: level, HP: hp, MaxHP: maxHP, OfflineAt: now, ReportedAt: now})
 			return nil
 		}
-		m.MapID, m.Level, m.HP, m.MaxHP, m.ReportedAt = mapID, level, hp, maxHP, now
+		m.MapID, m.Class, m.Level, m.HP, m.MaxHP, m.ReportedAt = mapID, class, level, hp, maxHP, now
 		tx.PutMember(m)
 		refresh(tx, n, m)
 		return nil

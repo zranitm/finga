@@ -1764,7 +1764,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		fs := newFakeSocial()
 		fs.of[aylaID.String()] = &socialv1.Party{LeaderId: aylaID.String(), Members: []*socialv1.Member{
 			{Id: aylaID.String(), Name: "Ayla", Level: 1, Hp: 204, MaxHp: 204, MapId: "town", Online: true},
-			{Id: brunoID.String(), Name: "Bruno", Level: 1, MapId: "forest"},
+			{Id: brunoID.String(), Name: "Bruno", Class: "magician", Level: 1, MapId: "forest"},
 		}}
 		fs.of[brunoID.String()] = nil
 		h := social(t, fs)
@@ -1772,7 +1772,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 		ayla.hello(tokenAlice, aylaID)
 		ayla.expect("Welcome")
 		// The party follows Welcome, from the registration, in order with the party's later changes.
-		if p := ayla.expectEach("Snapshot", "PartyState")["PartyState"].Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bruno" || p.GetMembers()[1].GetMapId() != "forest" || p.GetMembers()[1].GetOnline() {
+		if p := ayla.expectEach("Snapshot", "PartyState")["PartyState"].Data.(*clientv1.PartyState).GetParty(); p.GetLeader() != aylaID.String() || len(p.GetMembers()) != 2 || p.GetMembers()[1].GetName() != "Bruno" || p.GetMembers()[1].GetClass() != "magician" || p.GetMembers()[1].GetMapId() != "forest" || p.GetMembers()[1].GetOnline() {
 			t.Fatalf("ayla's party after Welcome %+v", p)
 		}
 		bruno := h.dial(t)
@@ -1792,7 +1792,7 @@ func TestPartyCommandsAndState(t *testing.T) {
 				mine = req
 			}
 		}
-		if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" || mine.GetConnectionId() != connectionOf(h.world, aylaID) || mine.GetJoinSeq() != joinSeqOf(h.world, aylaID) {
+		if m := mine.GetMember(); m.GetName() != "Ayla" || m.GetClass() != "warrior" || m.GetMapId() != "town" || m.GetMaxHp() != 204 || m.GetLevel() != 1 || mine.GetGatewayId() == "" || mine.GetConnectionId() != connectionOf(h.world, aylaID) || mine.GetJoinSeq() != joinSeqOf(h.world, aylaID) {
 			t.Fatalf("online %+v", fs.onlineCalls())
 		}
 

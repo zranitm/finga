@@ -40,7 +40,7 @@ func (s Social) FollowParties(ctx context.Context, world string, on func(model.P
 
 // UpdateMember tells the service what a map saw of a member.
 func (s Social) UpdateMember(ctx context.Context, u model.MemberUpdate) error {
-	_, err := s.c.UpdateMember(ctx, &socialv1.UpdateMemberRequest{CharacterId: u.ID.String(), MapId: u.MapID, Level: int32(u.Level), Hp: int32(u.HP), MaxHp: int32(u.MaxHP)})
+	_, err := s.c.UpdateMember(ctx, &socialv1.UpdateMemberRequest{CharacterId: u.ID.String(), MapId: u.MapID, Class: string(u.Class), Level: int32(u.Level), Hp: int32(u.HP), MaxHp: int32(u.MaxHP)})
 	return err
 }
 

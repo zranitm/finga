@@ -396,7 +396,7 @@ func (nobody) Party(kernel.CharacterID) model.Party { return model.Party{} }
 func (nobody) Epoch() uint64 { return 0 }
 
 // Update tells nobody.
-func (nobody) Update(kernel.CharacterID, string, int, int, int) {}
+func (nobody) Update(model.MemberUpdate) {}
 
 // CallQueued counts nothing.
 func (nobody) CallQueued() {}
