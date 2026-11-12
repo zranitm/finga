@@ -1,6 +1,6 @@
 // A refused line comes back as a Response with no req; app/wiring shows it as a toast.
-import { useEffect, useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 
 import { itemName, starClass, starMarks } from '@/features/shared/items';
 import { saveSettings } from '@/features/shared/settings';
@@ -20,9 +20,8 @@ import { toasts } from '@/state/toasts';
 import { ui } from '@/state/ui';
 
 export const MAX_CHAT_CHARS = limits.chat_line_max;
-// Idle, the last lines sit below a standing character's feet; open, the log shows more.
+// Idle, the last lines sit below a standing character's feet; open, the log scrolls through all its store keeps.
 const IDLE_LINES = 3;
-const SHOWN_LINES = 8;
 
 export type ChatTab = 'general' | 'party' | 'combat';
 
@@ -108,7 +107,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
         title="Enter or click to chat"
         onClick={() => ui.getState().openChat()}
       >
-        <Lines tab={tab} count={IDLE_LINES} />
+        <Lines tab={tab} idle />
       </div>
     );
   }
@@ -144,7 +143,7 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
         </button>
       </div>
       <div role="tabpanel" aria-label={label}>
-        <Lines tab={tab} count={SHOWN_LINES} />
+        <Lines tab={tab} idle={false} />
       </div>
       <div className="chat-input-row">
         <input
@@ -165,59 +164,112 @@ export function ChatBox({ socket, rest }: ChatBoxProps) {
   );
 }
 
-// The newest line is last in the markup and drawn at the bottom; the CSS hides any line that doesn't fit whole.
-function Lines({ tab, count }: { readonly tab: ChatTab; readonly count: number }) {
+// Each tab's log is its own list, so a tab chosen starts at its newest line.
+function Lines({ tab, idle }: { readonly tab: ChatTab; readonly idle: boolean }) {
   return (
     <div className="chat-log">
       {tab === 'combat' ? (
-        <CombatLines count={count} />
+        <CombatLines idle={idle} />
       ) : (
-        <ChatLines partyOnly={tab === 'party'} count={count} />
+        <ChatLines key={tab} partyOnly={tab === 'party'} idle={idle} />
       )}
     </div>
   );
 }
 
 // The Party tab shows party lines only; a notice shows in General.
-function ChatLines({ partyOnly, count }: { readonly partyOnly: boolean; readonly count: number }) {
+function ChatLines({ partyOnly, idle }: { readonly partyOnly: boolean; readonly idle: boolean }) {
   const lines = chat.use((s) => s.lines);
   const shown = partyOnly
     ? lines.filter((l) => l.kind === 'said' && l.channel === ChatChannel.PARTY)
     : lines;
   return (
-    <ul className="chat-lines" aria-live="polite">
-      {shown.slice(-count).map((l, i) =>
-        l.kind === 'notice' ? (
-          <li
-            key={`${l.at}-notice-${l.text}`}
-            className="chat-line chat-notice"
-            style={{ order: -i }}
-          >
-            <span className="chat-tag">[Notice]</span> {l.text}
-          </li>
-        ) : (
-          <li
-            key={`${l.at}-${l.sender}-${l.text}`}
-            className={`chat-line chat-${l.channel === ChatChannel.PARTY ? 'party' : 'map'}`}
-            style={{ order: -i }}
-          >
-            <span className="chat-tag">[{l.channel === ChatChannel.PARTY ? 'Party' : 'Map'}]</span>{' '}
-            <strong>{l.senderName}:</strong> {l.text}
-          </li>
-        ),
-      )}
-    </ul>
+    <LogList
+      idle={idle}
+      lines={shown.map((l) => {
+        if (l.kind === 'notice') {
+          return {
+            key: `${l.at}-notice-${l.text}`,
+            className: 'chat-notice',
+            body: (
+              <>
+                <span className="chat-tag">[Notice]</span> {l.text}
+              </>
+            ),
+          };
+        }
+        const party = l.channel === ChatChannel.PARTY;
+        return {
+          key: `${l.at}-${l.sender}-${l.text}`,
+          className: party ? 'chat-party' : 'chat-map',
+          body: (
+            <>
+              <span className="chat-tag">[{party ? 'Party' : 'Map'}]</span>{' '}
+              <strong>{l.senderName}:</strong> {l.text}
+            </>
+          ),
+        };
+      })}
+    />
   );
 }
 
-function CombatLines({ count }: { readonly count: number }) {
+function CombatLines({ idle }: { readonly idle: boolean }) {
   const lines = combatLog.use((s) => s.lines);
   const me = character.use((s) => s.character?.id);
   return (
-    <ul className="chat-lines" aria-live="polite">
-      {lines.slice(-count).map((l, i) => (
-        <li key={l.id} className="chat-line chat-combat" style={{ order: -i }}>
-          <CombatText line={l} me={me} />
+    <LogList
+      idle={idle}
+      lines={lines.map((l) => ({
+        key: l.id,
+        className: 'chat-combat',
+        body: <CombatText line={l} me={me} />,
+      }))}
+    />
+  );
+}
+
+interface LogLine {
+  readonly key: string | number;
+  readonly className: string;
+  readonly body: ReactNode;
+}
+
+/** Idle, the last few lines from the bottom up, the CSS hiding any that doesn't fit whole; open, every line, scrolled to the newest unless the player scrolled up to read. */
+function LogList({ lines, idle }: { readonly lines: readonly LogLine[]; readonly idle: boolean }) {
+  const list = useRef<HTMLUListElement>(null);
+  const following = useRef(true);
+  const newest = lines.at(-1)?.key;
+  useLayoutEffect(() => {
+    const el = list.current;
+    if (el && following.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [newest]);
+  if (idle) {
+    return (
+      <ul className="chat-lines" aria-live="polite">
+        {lines.slice(-IDLE_LINES).map((l, i) => (
+          <li key={l.key} className={`chat-line ${l.className}`} style={{ order: -i }}>
+            {l.body}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <ul
+      ref={list}
+      className="chat-lines"
+      aria-live="polite"
+      onScroll={(e) => {
+        const el = e.currentTarget;
+        following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 2;
+      }}
+    >
+      {lines.map((l) => (
+        <li key={l.key} className={`chat-line ${l.className}`}>
+          {l.body}
         </li>
       ))}
     </ul>

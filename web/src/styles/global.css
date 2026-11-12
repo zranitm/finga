@@ -817,17 +817,15 @@ body {
   background: color-mix(in srgb, var(--panel) 70%, transparent);
   border-radius: var(--radius);
 }
-/* Laid out newest first from the bottom (each line's order); a line that doesn't fit whole wraps into a column out of view, and every older one with it, so no line shows cut. */
+/* Open, the log scrolls through every line its store keeps. */
 .chat-lines {
   list-style: none;
   margin: 0;
   padding: 0;
   max-height: calc(8 * 1.4em);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column-reverse;
-  flex-wrap: wrap;
-  align-content: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .chat-line {
   flex: none;
@@ -842,8 +840,14 @@ body {
   background: color-mix(in srgb, var(--panel) 55%, transparent);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
 }
+/* Idle, laid out newest first from the bottom (each line's order); a line that doesn't fit whole wraps into a column out of view, and every older one with it, so no line shows cut. */
 .chat-idle .chat-lines {
   max-height: calc(3 * 1.4em);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  flex-wrap: wrap;
+  align-content: flex-start;
 }
 /* A message taller than the idle box shows its first rows, tag included; opening the chat shows it whole. */
 .chat-idle .chat-line {
