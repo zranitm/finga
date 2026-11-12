@@ -292,6 +292,7 @@ skills:
 - **The NPC dialog** (from the NPCs design) shows a trainer's promotion: "Become a Warrior", the class's description, and each condition, with what the character has while it falls short. Its button waits for every one.
   - **The counts follow live state.** The dialog's needs come from the world. What the character has is counted again from the client's own state, as the world counts it (`features/npc/promotion.ts`), so spends, level-ups and quests show without talking again. The world checks again anyway.
   - **It asks first:** a promotion is for good, and the trainer hands over the first weapon. Then it sends `Promote`, and closes once it's done.
+  - **The weapon needs room:** it is one Equip-tab item, counted as a quest reward is ([NPCs and quests](npcs-and-quests.md#10-client)), drops waiting for room included. With no free slot, nothing is sent: "Free 1 slot in your Equip tab to take your weapon."
 - **On `Promoted`,** the character's look, basic attack and learnable skills switch at once, and the trainer's dialog closes, even if the request's answer was lost. Others see the class from the next `Delta`. A toast and the combat channel say "You became a Warrior!".
 - **Auto-assign** for stat points is hidden while the character is a Beginner.
 
@@ -308,7 +309,7 @@ skills:
 | A skill bar save fails | "Could not save the skill bar." or the refusal's words; the bar stays as arranged | The next change saves the whole bar again |
 | A map change during a cooldown or a buff | Both carry on | The handoff carries the time each has left, and the next map counts it in its own ticks |
 | A reload or a reconnect during a cooldown or a buff | Both carry on | The checkpoint keeps when each ends, and the join counts them on and tells the client |
-| The item service refuses the trainer's weapon, as for a full bag | The refusal's words; still the old class | Nothing changed anywhere |
+| The item service refuses the trainer's weapon, as for a full bag | How many Equip slots to free, drops waiting included; still the old class | Nothing changed anywhere, and nothing is kept under the weapon's key, so the next try gives it |
 | A promotion's answer is lost after the weapon is given | Promoting again works | The weapon's key is the character's and the class's, so within the item service's 24 h key retention no second one comes |
 | A weapon's roll ranges change in the data between a gift and a retry within 24 h | The promotion is refused until the key expires | The retry's roll differs, so the item service refuses the reused key rather than giving another weapon |
 
@@ -336,10 +337,10 @@ skills:
     - the weapon refused; a second promotion while one is in flight; a condition lost before it applies;
   - a map change carrying a cooldown and a buff;
   - a checkpoint keeping them, and a fresh join counting them on, an ended one dropped and a running buff in the joining sheet.
-- **End to end:** a Beginner meeting every condition talks to the trainer, is refused a class it doesn't train, promotes, finds the weapon in the bag, is refused a second promotion, and logs in again as a Warrior. A Warrior who used Iron Body logs in again with its cooldown and buff still running, in the Welcome and in the world. Spending and using skills have their own rows.
+- **End to end:** a Beginner meeting every condition talks to the trainer, is refused a class it doesn't train, promotes, finds the weapon in the bag, is refused a second promotion, and logs in again as a Warrior. With a full Equip tab and a drop waiting, the promotion is refused, refused again once that drop takes the slot freed, and goes through after a second, with one weapon under its derived key. A Warrior who used Iron Body logs in again with its cooldown and buff still running, in the Welcome and in the world. Spending and using skills have their own rows.
 - **Client:**
   - Vitest for the skill window's staging, the skill keys' checks and cooldowns, the bar's saving, and the effects' shapes;
-  - Testing Library for creation, the skill window, the skill bar's drags, the preview with a buff, and the promotion confirmation.
+  - Testing Library for creation, the skill window, the skill bar's drags, the preview with a buff, and the promotion confirmation, held back with no room for the weapon.
 
 ## 12. Build order
 

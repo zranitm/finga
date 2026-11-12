@@ -9,6 +9,7 @@ import { QuestObjectives } from '@/features/shared/QuestObjectives';
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { article } from '@/features/shared/words';
 import { WorldWindow } from '@/features/shared/WorldWindow';
+import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { classDescription, className } from '@/progression/classes';
 import { isReady, npcById, questById, questName } from '@/progression/quests';
@@ -22,9 +23,14 @@ import type {
   QuestOffer,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
+import { inventory } from '@/state/inventory';
+import type { Tab } from '@/state/inventory';
 import { quests } from '@/state/quests';
 
 import { haveNow } from './promotion';
+import { fitsNow, freeText, fullTab, lineOf, toFree, trainerWeapon } from './room';
+import type { Line } from './room';
 
 export interface NpcWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -42,17 +48,39 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
   const npc = dialog.npcId;
 
   // Accept, Hand in and Promote close the dialog on success: what it showed has changed.
-  const run = async (send: () => Promise<unknown>) => {
+  const run = async (send: () => Promise<unknown>, room?: (full: Tab) => string) => {
     setBusy(true);
     setProblem(null);
     try {
       await send();
       onClose();
     } catch (err) {
-      setProblem(problemOf(err));
+      const full = err instanceof RequestError ? fullTab(err.code) : undefined;
+      setProblem(full && room ? room(full) : problemOf(err));
     } finally {
       setBusy(false);
     }
+  };
+
+  // A reward that doesn't fit now isn't asked for: the player is told what to free, counting their drops waiting for room, which can take a freed slot first.
+  const exchange = (
+    take: readonly Line[],
+    give: readonly Line[],
+    what: string,
+    send: () => Promise<unknown>,
+  ) => {
+    const room = (full?: Tab) => {
+      const waiting = combatLog
+        .getState()
+        .waiting.flatMap((w) => lineOf(w.template, w.quantity) ?? []);
+      const short = toFree(inventory.getState().slots, take, give, waiting);
+      return freeText(Object.keys(short).length > 0 ? short : { [full ?? 'equip']: 1 }, what);
+    };
+    if (!fitsNow(inventory.getState().slots, take, give)) {
+      setProblem(room());
+      return;
+    }
+    void run(send, room);
   };
 
   const lines = npcById(npc)?.lines ?? [];
@@ -83,7 +111,9 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
             offer={dialog.promotion}
             busy={busy}
             onPromote={(cls) =>
-              void run(() => socket.request('promote', { npcId: npc, class: cls }))
+              exchange([], [trainerWeapon], 'your weapon', () =>
+                socket.request('promote', { npcId: npc, class: cls }),
+              )
             }
           />
         )}
@@ -97,9 +127,12 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
                     <strong>{q.name}</strong>
                     <Button
                       disabled={busy || !isReady(q, player)}
-                      onClick={() =>
-                        void run(() => socket.request('handInQuest', { npcId: npc, questId: q.id }))
-                      }
+                      onClick={() => {
+                        const { take, give } = exchanged(q);
+                        exchange(take, give, 'this reward', () =>
+                          socket.request('handInQuest', { npcId: npc, questId: q.id }),
+                        );
+                      }}
                     >
                       Hand in
                     </Button>
@@ -287,6 +320,16 @@ export function unmetText(u: QuestConditions | undefined): string {
     parts.push(`Finish ${u.quests.map(questName).join(', ')} first`);
   }
   return parts.length > 0 ? parts.join(' · ') : 'Not available yet';
+}
+
+/** What a hand-in takes, its collect objectives, and gives, its item rewards, as the world asks the item service for them. */
+function exchanged(q: Quest): { take: Line[]; give: Line[] } {
+  return {
+    take: q.objectives.flatMap((o) =>
+      o.kind === 'collect' && o.target ? (lineOf(o.target, o.count) ?? []) : [],
+    ),
+    give: q.rewards.items.flatMap((i) => lineOf(i.item, i.quantity) ?? []),
+  };
 }
 
 function Rewards({ quest }: { readonly quest: Quest }) {

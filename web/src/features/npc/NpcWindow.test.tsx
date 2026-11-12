@@ -8,6 +8,8 @@ import { npcById } from '@/progression/quests';
 import { ERR } from '@/protocol/errors';
 import {
   InventoryChangedSchema,
+  LootKind,
+  LootSchema,
   NpcDialogSchema,
   PromotionConditionKind,
   PromotionConditionSchema,
@@ -18,6 +20,7 @@ import {
   WelcomeSchema,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
 import { inventory } from '@/state/inventory';
 import { quests } from '@/state/quests';
 import { refusal } from '@/testing/refusal';
@@ -91,6 +94,37 @@ const gels = (quantity: number) =>
         item: { itemId: 'g', template: 'slime_gel', tab: 'etc', slot: 0, quantity },
       },
     ],
+  });
+
+/** Equip slots from..to-1 holding leather caps, or emptied. */
+const caps = (from: number, to: number, held = true) =>
+  create(InventoryChangedSchema, {
+    revision: 3n + BigInt(held ? 0 : 1),
+    slots: Array.from({ length: to - from }, (_, k) => ({
+      tab: 'equip',
+      slot: from + k,
+      ...(held && {
+        item: {
+          itemId: `cap-${from + k}`,
+          template: 'leather_cap',
+          tab: 'equip',
+          slot: from + k,
+          quantity: 1,
+        },
+      }),
+    })),
+  });
+
+/** A cap of Ayla's on the ground, waiting for room in her Equip tab. */
+const waitingCap = () =>
+  create(LootSchema, {
+    kind: LootKind.WAITING,
+    mapId: 'forest',
+    dropId: 7,
+    ownerId: 'c-ayla',
+    ownerName: 'Ayla',
+    template: 'leather_cap',
+    quantity: 1,
   });
 
 describe('NpcWindow', () => {
@@ -203,6 +237,74 @@ describe('NpcWindow', () => {
     // Under way and taken back here, it shows once, under Hand in.
     expect(screen.queryByText('In progress')).toBeNull();
     expect(screen.getAllByText('Sticky Samples')).toHaveLength(1);
+  });
+
+  describe('room for the reward', () => {
+    const readySamples = () => {
+      welcome(2, [{ questId: 'sticky_samples', status: QuestStatus.ACTIVE, progress: [0] }]);
+      quests.getState().applyNpcDialog(
+        create(NpcDialogSchema, {
+          npcId: 'town_guide',
+          takes: [{ questId: 'sticky_samples', ready: true }],
+        }),
+      );
+      act(() => inventory.getState().applyInventoryChanged(gels(5)));
+    };
+
+    it("a hand-in whose reward doesn't fit isn't asked for: it says how many slots to free, a drop waiting for room counted in", async () => {
+      readySamples();
+      act(() => {
+        inventory.getState().applyInventoryChanged(caps(0, 24));
+        combatLog.getState().applyLoot(waitingCap());
+      });
+      const { socket, calls } = fakeSocket();
+      const onClose = vi.fn();
+      render(<NpcWindow socket={socket} onClose={onClose} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Hand in' }));
+      expect(calls).toEqual([]);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Free 2 slots in your Equip tab to take this reward.',
+      );
+      act(() => inventory.getState().applyInventoryChanged(caps(22, 24, false)));
+      await userEvent.click(screen.getByRole('button', { name: 'Hand in' }));
+      expect(calls).toEqual([
+        { t: 'handInQuest', d: { npcId: 'town_guide', questId: 'sticky_samples' } },
+      ]);
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+
+    it('a hand-in the item service refuses for a full tab says what to free, counted again', async () => {
+      readySamples();
+      act(() => {
+        inventory.getState().applyInventoryChanged(caps(0, 23));
+        combatLog.getState().applyLoot(waitingCap()); // it landed in the last slot as the hand-in went
+      });
+      const { socket, calls } = fakeSocket([refusal(ERR.EQUIP_TAB_FULL)]);
+      render(<NpcWindow socket={socket} onClose={vi.fn()} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Hand in' }));
+      expect(calls).toHaveLength(1);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Free 1 slot in your Equip tab to take this reward.',
+      );
+    });
+
+    it("a promotion whose weapon doesn't fit isn't asked for, and says so", async () => {
+      trainee(30);
+      quests.getState().applyNpcDialog(warriorOffer(30));
+      act(() => inventory.getState().applyInventoryChanged(caps(0, 24)));
+      const { socket, calls } = fakeSocket();
+      render(<NpcWindow socket={socket} onClose={vi.fn()} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Become a Warrior' }));
+      await userEvent.click(
+        within(screen.getByRole('dialog', { name: 'Become a Warrior?' })).getByRole('button', {
+          name: 'Become a Warrior',
+        }),
+      );
+      expect(calls).toEqual([]);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Free 1 slot in your Equip tab to take your weapon.',
+      );
+    });
   });
 
   it('an NPC with nothing to give or take says so', () => {
