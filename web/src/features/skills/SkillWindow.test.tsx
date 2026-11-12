@@ -105,6 +105,28 @@ describe('SkillWindow', () => {
     expect(row('Strike')).toHaveTextContent('0 points');
   });
 
+  it.each([
+    {
+      cls: 'bowman',
+      name: 'Focus',
+      text: 'Usable once it has a point: Accuracy +22 and Crit rate +5.5% on you for 30s · 11 MP · 60s cooldown',
+    },
+    {
+      cls: 'magician',
+      name: 'Heal',
+      text: 'Usable once it has a point: Heals you and the nearest hurt party members within 150, up to 3 in all, by 1.55× magic attack · 11 MP · 3s cooldown',
+    },
+  ])('a $cls reads $name by what it does, not as an attack', ({ cls, name, text }) => {
+    act(() =>
+      character
+        .getState()
+        .applyWelcome(create(WelcomeSchema, { token: 't', character: { ...ayla, class: cls } })),
+    );
+    setup();
+    expect(row(name)).toHaveTextContent(text);
+    expect(row(name)).not.toHaveTextContent('foes');
+  });
+
   it('+ stages points until none are left, previews the evolution, and Undo returns them', async () => {
     setup();
     skills(2, { strike: 8 });

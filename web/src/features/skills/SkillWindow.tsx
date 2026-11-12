@@ -1,59 +1,20 @@
 // Stages and evolutions are worked out here from game data and the points; the server's sheet holds only the points.
 import { Button } from '@/components/Button';
-import { itemStats, statText } from '@/components/item-stats';
 import { WorldWindow } from '@/features/shared/WorldWindow';
 import type { GameSocket } from '@/net/socket';
 import { className } from '@/progression/classes';
-import { learnable, mpAt, scaledAt, stageAt } from '@/progression/skills';
-import type { Skill, Stage } from '@/progression/skills';
+import { learnable, stageAt } from '@/progression/skills';
+import type { Skill } from '@/progression/skills';
 import { character } from '@/state/character';
 import { SKILL_DRAG_TYPE } from '@/state/skill-bar';
 
+import { effectText, perPointText } from './skillText';
 import { sumOf, useSkillPoints } from './useSkillPoints';
 import type { SkillPoints } from './useSkillPoints';
 
 export interface SkillWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
   readonly onClose: () => void;
-}
-
-/** Two decimals at most, so 1.55 stays 1.55 and 2 reads 2. */
-function num(n: number): string {
-  return String(Math.round(n * 100) / 100);
-}
-
-/** A bonus to a stat in the units items use, as an item card reads it. */
-function bonusText(stat: string, value: number): string {
-  const info = itemStats.find((s) => s.data === stat);
-  return info ? `${info.label} +${statText(info, value)}` : `${stat} +${num(value)}`;
-}
-
-/** What the stage does with points invested. */
-function effectOf(skill: Skill, stage: Stage, points: number): string {
-  if (skill.kind === 'passive') {
-    return Object.entries(stage.bonus)
-      .map(([stat, s]) => bonusText(stat, Math.round(scaledAt(s, points))))
-      .join(' · ');
-  }
-  const parts = [
-    `${num(scaledAt(stage.power, points))}× ${stage.damage === 'magic' || skill.effect === 'heal' ? 'magic' : 'physical'} attack`,
-    `${mpAt(stage, points)} MP`,
-    `${num(stage.cooldown_ms / 1000)}s cooldown`,
-  ];
-  if (stage.shape?.range) parts.push(`range ${stage.shape.range}`);
-  if (stage.shape?.radius) parts.push(`radius ${stage.shape.radius}`);
-  if (stage.targets > 1) parts.push(`up to ${stage.targets} foes`);
-  return parts.join(' · ');
-}
-
-/** What each point adds in the stage. */
-function perPointOf(skill: Skill, stage: Stage): string {
-  if (skill.kind === 'passive') {
-    return Object.entries(stage.bonus)
-      .map(([stat, s]) => bonusText(stat, s.per_point))
-      .join(' · ');
-  }
-  return [`power +${num(stage.power.per_point)}×`, `MP +${num(stage.mp.per_point)}`].join(' · ');
 }
 
 function SkillRow({
@@ -103,23 +64,23 @@ function SkillRow({
       <p className="skill-text">{then.description}</p>
       {points > 0 ? (
         <p className="skill-text">
-          {effectOf(skill, now, points)}
-          {staged > 0 && <span className="stat-preview"> → {effectOf(skill, then, total)}</span>}
+          {effectText(skill, now, points)}
+          {staged > 0 && <span className="stat-preview"> → {effectText(skill, then, total)}</span>}
         </p>
       ) : (
         <>
           <p className="skill-text muted">
             {active ? 'Usable' : 'Works'} once it has a point
-            {staged === 0 && `: ${effectOf(skill, now, 1)}`}
+            {staged === 0 && `: ${effectText(skill, now, 1)}`}
           </p>
           {staged > 0 && (
             <p className="skill-text stat-preview">
-              With {total} {total === 1 ? 'point' : 'points'}: {effectOf(skill, then, total)}
+              With {total} {total === 1 ? 'point' : 'points'}: {effectText(skill, then, total)}
             </p>
           )}
         </>
       )}
-      <p className="skill-text muted">Each point: {perPointOf(skill, then)}</p>
+      <p className="skill-text muted">Each point: {perPointText(skill, then)}</p>
       <p className="skill-text muted">
         {next
           ? `Evolves into ${next.name} at ${next.at} points (${next.at - total} more).`
