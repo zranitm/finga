@@ -95,7 +95,7 @@ When the boss falls, through the same `strike` kill path:
 
 1. **Who collects:** the players alive and on the map. Each is grouped with the other present members of their party, or stands alone.
 2. **A group's damage** is the sum of its whole party's tallies, members gone or dead included. A lone player's is their own.
-3. **EXP:** a group's share is the boss's EXP × the group's damage ÷ its max HP, rounded. It's split among the group's present members by the rule `shareExp` uses for any kill: equal shares and the party bonus. `shareExp` is split so the boss path can name the group instead of a killer.
+3. **EXP:** a group's share is the boss's EXP × the group's damage ÷ its max HP, rounded. It's split among the group's present members by the rule `shareExp` uses for any kill: equal shares and the party bonus. That rule moves into `splitExp`, which `shareExp` calls with the killer first and the boss path with the group in join order; the first takes what doesn't divide.
 4. **Drops:** each present player whose group reached `drop_share` of the boss's HP gets their own roll. A `loot.Kill` names them as killer and has no party, so `Ground.Roll` makes every drop theirs and party turns don't apply. Drops fly to their owners after `collect_delay`, as any drop does.
 5. **Quests:** the killer's kill counts as any kill does. No quest asks for a boss yet.
 6. `FieldBossGone{beaten: true}` goes to the map, and the count starts again.
@@ -179,8 +179,8 @@ All additive, so `buf breaking` passes:
 After animation cancel is merged, on its own branch and PR. Each step is one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Game data:** `boss`, `field_boss`, the `boss` layer in all 12 hunting maps with first stats by the rules above, validation, and the generator.
-2. **Arena and world:** `SpawnBoss`, `Remove`, `Dealt`, the count, appearing and leaving, the tally, the payout, and the events.
-3. **Social, gateway, and protocol:** `Announce`, the fan-out, the new messages and push, the snapshot field, and contracts.
+2. **Arena and world:** `SpawnBoss`, `Remove`, `Dealt`, the count, appearing and leaving, the tally, the payout, and the events, with their `world.proto` messages and snapshot field: the world's stream must carry every event it raises, and the gateway passes over one it doesn't know yet.
+3. **Social, gateway, and protocol:** `Announce`, the fan-out, the client's messages and push, its snapshot field, and contracts.
 4. **Client:** the boss bar, the boss's look, the announcement toast and `[Notice]` line, and the leaving notice.
 5. **Content and balance:** the harness's boss checks, the 12 bosses tuned to them, an end-to-end run, and `make bots`.
 

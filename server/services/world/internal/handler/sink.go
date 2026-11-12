@@ -29,9 +29,15 @@ func (s *streamSink) Send(e model.Event) bool {
 func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 	switch ev := e.(type) {
 	case model.Snapshot:
-		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{
-			MapId: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops),
-		}}}
+		snap := &worldv1.Snapshot{MapId: ev.MapID, Players: playerViews(ev.Players), Mobs: mobViews(ev.Mobs), Drops: dropViews(ev.Drops)}
+		if ev.FieldBoss != nil {
+			snap.FieldBoss = fieldBoss(*ev.FieldBoss)
+		}
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: snap}}
+	case model.FieldBoss:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: fieldBoss(ev)}}
+	case model.FieldBossGone:
+		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: ev.Mob, Beaten: ev.Beaten}}}
 	case model.Teleport:
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_Teleport{Teleport: &worldv1.Teleport{MapId: ev.MapID, X: ev.X, Y: ev.Y}}}
 	case model.Damage:
@@ -78,6 +84,10 @@ func (s *streamSink) delivery(e model.Event) *worldv1.DeliverResponse {
 		return &worldv1.DeliverResponse{Tick: ev.Tick, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: &worldv1.QuestChanged{Change: questChanges[ev.Change], Quest: questState(ev.ID, ev.Quest)}}}
 	}
 	return nil
+}
+
+func fieldBoss(b model.FieldBoss) *worldv1.FieldBoss {
+	return &worldv1.FieldBoss{MobId: b.Mob, Type: b.Type, LeavesInMs: b.LeavesIn.Milliseconds()}
 }
 
 var questChanges = map[model.QuestChange]worldv1.QuestChange{

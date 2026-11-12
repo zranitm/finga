@@ -13,10 +13,12 @@ import (
 
 const mobPause = time.Second // at a platform edge
 
+const noSpawn = -1 // a boss's spawn: it never respawns
+
 // mob patrols the platform it spawned on: walk, pause at an edge, turn.
 type mob struct {
 	id         uint64
-	spawn      int // index into the map's spawn areas
+	spawn      int // index into the map's spawn areas; noSpawn for a boss
 	def        gamedata.Mob
 	hp         int
 	x, y       float64 // feet centre
@@ -120,21 +122,33 @@ func (a *Arena) spawn(s int) {
 	half := def.Width / 2
 	x := area.Area.X + half + a.roll.Float64()*math.Max(0, area.Area.W-def.Width)
 	y := area.Area.Y + area.Area.H
-	mb := &mob{id: a.nextMob, spawn: s, def: def, hp: def.HP, x: x, y: y, facing: 1, changed: true}
-	if a.roll.Float64() < 0.5 {
-		mb.facing = -1
-	}
-	mb.minX, mb.maxX = a.patrolBounds(x, y, half, area)
-	a.mobs = append(a.mobs, mb)
+	a.place(&mob{id: a.nextMob, spawn: s, def: def, hp: def.HP, x: x, y: y}, area.Area)
 	a.spawns[s].alive++
 }
 
-// patrolBounds is the walkable x range: the ground under the mob within its area, else the area.
-func (a *Arena) patrolBounds(x, y, half float64, area gamedata.Spawn) (minX, maxX float64) {
-	if r, ok := a.m.GroundAt(x, y); ok {
-		return max(r.X, area.Area.X) + half, min(r.X+r.W, area.Area.X+area.Area.W) - half
+// SpawnBoss raises a field boss at its area's bottom centre, outside the spawn areas, so it never respawns; it returns the boss's mob ID.
+func (a *Arena) SpawnBoss(def gamedata.Mob, area model.Rect) uint64 {
+	a.nextMob++
+	a.place(&mob{id: a.nextMob, spawn: noSpawn, def: def, hp: def.HP, x: area.X + area.W/2, y: area.Y + area.H}, area)
+	return a.nextMob
+}
+
+// place puts mb on the map facing a random way, to patrol the ground under it within area.
+func (a *Arena) place(mb *mob, area model.Rect) {
+	mb.facing, mb.changed = 1, true
+	if a.roll.Float64() < 0.5 {
+		mb.facing = -1
 	}
-	return area.Area.X + half, area.Area.X + area.Area.W - half
+	mb.minX, mb.maxX = a.patrolBounds(mb.x, mb.y, mb.def.Width/2, area)
+	a.mobs = append(a.mobs, mb)
+}
+
+// patrolBounds is the walkable x range: the ground under the mob within its area, else the area.
+func (a *Arena) patrolBounds(x, y, half float64, area model.Rect) (minX, maxX float64) {
+	if r, ok := a.m.GroundAt(x, y); ok {
+		return max(r.X, area.X) + half, min(r.X+r.W, area.X+area.W) - half
+	}
+	return area.X + half, area.X + area.W - half
 }
 
 // Strike is a player's hit, a basic attack or a skill, from where they stand the way they face.
@@ -148,9 +162,10 @@ type Strike struct {
 	Height float64 // the attacker's; a shot flies at half of it, an area spreads from it
 }
 
-// Blow is what a strike did to one mob it reached: its damage, and the mob if it died.
+// Blow is what a strike did to one mob it reached: its damage, the HP it took, which overkill leaves out, and the mob if it died.
 type Blow struct {
 	Damage model.Damage
+	Dealt  int
 	Killed *Kill
 }
 
@@ -176,6 +191,7 @@ func (a *Arena) Strike(s Strike) []Blow {
 		h := model.Resolve(s.Power, model.MobDefender(mb.def), a.hit, a.roll)
 		b := Blow{Damage: model.Damage{Tick: a.tick, Source: model.EntityRef{Player: s.By}, Target: model.EntityRef{Mob: mb.id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}}
 		if !h.Miss {
+			b.Dealt = min(h.Damage, mb.hp)
 			mb.hp -= h.Damage
 			mb.changed = true
 			if mb.hp <= 0 {
@@ -188,9 +204,22 @@ func (a *Arena) Strike(s Strike) []Blow {
 	return blows
 }
 
+// Remove takes a mob off the map without a kill, as a boss nobody beat leaves; false if it is not there.
+func (a *Arena) Remove(id uint64) bool {
+	k := slices.IndexFunc(a.mobs, func(mb *mob) bool { return mb.id == id })
+	if k < 0 {
+		return false
+	}
+	a.remove(a.mobs[k])
+	return true
+}
+
 func (a *Arena) remove(mb *mob) {
 	a.mobs = slices.DeleteFunc(a.mobs, func(m *mob) bool { return m == mb })
 	a.removed = append(a.removed, mb.id)
+	if mb.spawn == noSpawn {
+		return
+	}
 	st := &a.spawns[mb.spawn]
 	st.alive--
 	st.returns = append(st.returns, a.tick+model.TicksIn(a.m.Spawns[mb.spawn].Respawn, a.interval))

@@ -80,7 +80,7 @@ func (i *Instance) resolveAttacks() {
 	}
 }
 
-// strike hits up to most mobs the shape reaches from the player, tells the map the damage, and drops, shares EXP and counts each kill.
+// strike hits up to most mobs the shape reaches from the player, tells the map the damage, tallies what the boss took, and drops, shares EXP and counts each kill; a beaten boss pays out by damage.
 func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model.Attacker) {
 	blows := i.arena.Strike(mobs.Strike{
 		By: p.ID, Shape: shape, Most: most, Power: power,
@@ -88,10 +88,19 @@ func (i *Instance) strike(p *player, shape gamedata.Shape, most int, power model
 	})
 	for _, b := range blows {
 		i.events = append(i.events, b.Damage)
-		if k := b.Killed; k != nil {
+		boss := i.boss != nil && b.Damage.Target.Mob == i.boss.id
+		if boss {
+			i.boss.dealt[p.ID] += b.Dealt
+		}
+		switch k := b.Killed; {
+		case k == nil:
+		case boss:
+			i.bossFell(p, k)
+		default:
 			i.ground.Roll(i.claim(p, k.Mob, k.X, k.Y))
 			i.shareExp(p, k.Mob.Exp)
 			i.countKill(p, k.Mob.ID)
+			i.countTowardBoss()
 		}
 	}
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -278,6 +279,28 @@ func TestQuestChangedCarriesTheQuestAsItStands(t *testing.T) {
 			t.Fatal("the stream refused the change")
 		}
 		want := &worldv1.DeliverResponse{CharacterId: "a", ConnectionId: "c-a", Tick: 3, Event: &worldv1.DeliverResponse_QuestChanged{QuestChanged: c.want}}
+		if got := <-sub.C(); !proto.Equal(got, want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+// The field boss goes out as it appears, in a joining player's Snapshot, and as it goes, its time left in milliseconds.
+func TestTheFieldBossEventsCarryItsMobTypeAndTime(t *testing.T) {
+	sub := hub.New[*worldv1.DeliverResponse](3).Subscribe("gw")
+	s := &streamSink{sub: sub, character: "a", conn: "c-a"}
+	up := model.FieldBoss{Tick: 5, Mob: 9, Type: "king_slime", LeavesIn: 90 * time.Second}
+	wantUp := &worldv1.FieldBoss{MobId: 9, Type: "king_slime", LeavesInMs: 90000}
+	for _, e := range []model.Event{up, model.Snapshot{Tick: 6, MapID: "forest", FieldBoss: &up}, model.FieldBossGone{Tick: 7, Mob: 9, Beaten: true}} {
+		if !s.Send(e) {
+			t.Fatal("the stream refused the event")
+		}
+	}
+	for _, want := range []*worldv1.DeliverResponse{
+		{CharacterId: "a", ConnectionId: "c-a", Tick: 5, Event: &worldv1.DeliverResponse_FieldBoss{FieldBoss: wantUp}},
+		{CharacterId: "a", ConnectionId: "c-a", Tick: 6, Event: &worldv1.DeliverResponse_Snapshot{Snapshot: &worldv1.Snapshot{MapId: "forest", FieldBoss: wantUp}}},
+		{CharacterId: "a", ConnectionId: "c-a", Tick: 7, Event: &worldv1.DeliverResponse_FieldBossGone{FieldBossGone: &worldv1.FieldBossGone{MobId: 9, Beaten: true}}},
+	} {
 		if got := <-sub.C(); !proto.Equal(got, want) {
 			t.Fatalf("got %v, want %v", got, want)
 		}

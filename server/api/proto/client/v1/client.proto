@@ -477,7 +477,7 @@ message Delta {
   repeated MobView mobs = 3;
   repeated DropView drops = 4;
   repeated string removed_players = 5;
-  // A mob leaves the map only by dying, so these are the mobs killed this tick.
+  // Mobs gone this tick: killed, or a field boss that left unbeaten.
   repeated uint32 removed_mobs = 6;
   // Drops gone without reaching an inventory: expired or lost.
   repeated uint32 removed_drops = 7;

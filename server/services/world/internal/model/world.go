@@ -177,11 +177,12 @@ type Event interface{ event() }
 
 // Snapshot is the whole map, sent to a player on join.
 type Snapshot struct {
-	Tick    uint64
-	MapID   string
-	Players []PlayerView
-	Mobs    []MobView
-	Drops   []DropView
+	Tick      uint64
+	MapID     string
+	Players   []PlayerView
+	Mobs      []MobView
+	Drops     []DropView
+	FieldBoss *FieldBoss // while one is up
 }
 
 // Frame is what changed on a map in one tick, shared by every player there and read-only once sent.

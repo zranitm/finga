@@ -97,6 +97,10 @@ func (i *Instance) add(j *joinMsg) {
 	for _, id := range i.order {
 		snap.Players = append(snap.Players, i.view(i.players[id]))
 	}
+	if i.boss != nil {
+		up := i.bossUp()
+		snap.FieldBoss = &up
+	}
 	if !j.sink.Send(snap) {
 		i.remove(p.ID)
 		j.done <- ErrSinkClosed

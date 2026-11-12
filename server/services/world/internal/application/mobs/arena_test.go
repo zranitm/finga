@@ -257,3 +257,81 @@ func TestChangesTellEachChangeOnce(t *testing.T) {
 		t.Fatalf("changed %+v; want both slimes moved", changed)
 	}
 }
+
+// king is a boss on the slimes' platform, with an area 400 px wide around x 600.
+func king(t *testing.T) (gamedata.Mob, model.Rect) {
+	t.Helper()
+	def, ok := worldtest.LoadData(t).Mob("king_slime")
+	if !ok || !def.Boss {
+		t.Fatal("no boss king_slime in the game data")
+	}
+	return def, model.Rect{X: 400, Y: floor - 128, W: 400, H: 128}
+}
+
+// A boss stands at its area's bottom centre, patrols its ground there, and once killed stays gone while the slimes come back.
+func TestABossSpawnsAtItsAreasBottomCentreAndNeverRespawns(t *testing.T) {
+	a := newArena(t, 0.5)
+	def, area := king(t)
+	id := a.SpawnBoss(def, area)
+	changed, _ := a.Changes()
+	boss := changed[len(changed)-1]
+	if boss.ID != id || boss.Type != "king_slime" || boss.X != 600 || boss.Y != floor || boss.HP != def.HP || boss.MaxHP != def.HP {
+		t.Fatalf("spawned %+v; want the king at its area's bottom centre, at full HP", boss)
+	}
+	for n := range uint64(400) {
+		a.Step(n + 1)
+		for _, v := range a.Views() {
+			if v.ID == id && (v.X < area.X+def.Width/2 || v.X > area.X+area.W-def.Width/2) {
+				t.Fatalf("tick %d: the king at x %v, outside its area", n+1, v.X)
+			}
+		}
+	}
+	at := a.Views()[2]
+	killer := mobs.Strike{By: kernel.NewCharacterID(), Shape: gamedata.Shape{Kind: gamedata.MeleeShape, Width: 60, Height: 60}, Most: 1, Power: model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 1e6, Accuracy: 100}, X: at.X - def.Width/2 - 10, Y: floor, Facing: 1, Height: 60}
+	if blow, _ := one(t, a.Strike(killer)); blow.Killed == nil || blow.Damage.Target.Mob != id {
+		t.Fatalf("blow %+v; want the king killed", blow)
+	}
+	for n := uint64(401); n < 401+uint64(time.Minute/tick); n++ {
+		a.Step(n)
+	}
+	if views := a.Views(); len(views) != 2 || views[0].Type != "green_slime" || views[1].Type != "green_slime" {
+		t.Fatalf("a minute on: %+v; want the two slimes and no king", views)
+	}
+}
+
+// Remove takes a mob away without a kill, reported as gone once; a mob that isn't there is refused.
+func TestRemoveTakesABossAwayWithoutAKill(t *testing.T) {
+	a := newArena(t, 0.5)
+	def, area := king(t)
+	id := a.SpawnBoss(def, area)
+	_, _ = a.Changes()
+	if !a.Remove(id) {
+		t.Fatal("the king was not removed")
+	}
+	if _, removed := a.Changes(); len(removed) != 1 || removed[0] != id {
+		t.Fatalf("removed %v; want the king", removed)
+	}
+	if a.Remove(id) || len(a.Views()) != 2 {
+		t.Fatalf("removed the king twice, or the slimes went with it: %+v", a.Views())
+	}
+}
+
+// A blow's Dealt is the HP it took: all of a hit that leaves the mob alive, only what was left of it on a kill, none on a MISS.
+func TestABlowDealsOnlyTheHPItTakes(t *testing.T) {
+	slime, _ := worldtest.LoadData(t).Mob("green_slime")
+	weak := meleeAt(spawnX-20, 1)
+	weak.Power = model.Attacker{Damage: gamedata.Physical, PhysicalAttack: 10, Accuracy: 100}
+	a := newArena(t, 0.5)
+	first, _ := one(t, a.Strike(weak))
+	if first.Killed != nil || first.Damage.Amount == 0 || first.Dealt != first.Damage.Amount {
+		t.Fatalf("blow %+v; want a hit that leaves the slime alive, dealing all of it", first)
+	}
+	last, _ := one(t, a.Strike(meleeAt(spawnX-20, 1)))
+	if last.Killed == nil || last.Damage.Amount <= slime.HP-first.Dealt || last.Dealt != slime.HP-first.Dealt {
+		t.Fatalf("blow %+v after %d; want the kill to deal the %d HP left", last, first.Dealt, slime.HP-first.Dealt)
+	}
+	missing := newArena(t, 0.995) // past the best hit chance
+	if miss, _ := one(t, missing.Strike(meleeAt(missing.Views()[0].X-20, 1))); !miss.Damage.Miss || miss.Dealt != 0 {
+		t.Fatalf("blow %+v; want a MISS dealing nothing", miss)
+	}
+}

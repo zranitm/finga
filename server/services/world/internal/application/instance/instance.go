@@ -83,6 +83,9 @@ type Instance struct {
 	ticksPer uint64               // ticks between a player's checkpoints
 	nextSlot uint64               // the sweep tick, mod ticksPer, the next player to join gets
 
+	bossKills int        // kills toward the map's field boss, counted while none is up
+	boss      *fieldBoss // the map's field boss while it is up
+
 	dropped []kernel.CharacterID // removed during the last broadcast, reported next tick
 	events  []model.Event        // map-wide events of the current tick
 	casts   []skillMsg           // this tick's skill uses, resolved after movement
@@ -297,6 +300,7 @@ func (i *Instance) Step(n uint64, _ time.Duration) {
 	i.resolveAttacks()
 	i.contactDamage()
 	removed = append(removed, i.deathsAndRespawns()...)
+	i.stepBoss()
 	if n%i.ticksFor(time.Second) == 0 {
 		i.regen()
 	}
