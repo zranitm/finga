@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -34,7 +33,6 @@ func Dir(dir string) (*gamedata.Data, error) {
 		Items:           l.items.list,
 		EquipSlots:      l.slots,
 		Mobs:            l.mobs.list,
-		TouchGuard:      l.touchGuard,
 		FieldBoss:       l.fieldBoss,
 		Maps:            l.maps.list,
 		StartTown:       l.start,
@@ -51,7 +49,6 @@ type loader struct {
 	movement    sim.Params
 	loot        gamedata.Loot
 	cancel      float64 // actions.yaml's cancel point, for actions that don't name their own
-	touchGuard  time.Duration
 	fieldBoss   gamedata.FieldBossRules
 	classes     byID[kernel.Class, gamedata.Class]
 	skills      byID[string, gamedata.Skill]

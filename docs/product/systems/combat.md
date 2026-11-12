@@ -77,7 +77,7 @@ The game moves at a deliberate pace, so a fight leaves room for timing and a can
   The window is the time from the cancel point to the end. A press up to 100 ms before it counts too (Actions).
 - **Skills** take about a second each. Damage and heal skills come back in 2 to 5 seconds, and buffs in 40 to 60, each set per skill.
 - **Movement:** walking at 160 px a second and climbing at 112, in towns too. Jumps reach every platform the maps have, and take a little longer in the air.
-- **Mobs** walk slowly, and touch a player at most every 1.5 seconds.
+- **Mobs** walk slowly, and touch a player at most every 1.5 seconds; a field boss, every 2 to 3.5.
 - **Fights** take the hits their region's balance targets set, so they last as long as the pace makes them. EXP per kill and drop chances are set so the level cap still takes about 10 hours (Progression).
 
 ## Mobs
@@ -103,6 +103,7 @@ Each hunting map has a field boss: a much bigger, stronger, and tougher version 
   - Size: about 3 times its map's mob, its sprite scaled with a tint until it has its own art.
   - Level: the map's top mob level + 2.
   - Attack: about twice its map's mob's, with the same damage type, and higher defenses.
+  - Touch: slower than a mob's, so each one hits harder. After a boss's touch, hit or MISS, the player is safe from every touch for the boss's own time, 2 to 3.5 seconds against a mob's 1.5, set so a lone melee player needs at most 30 of their band's potions for the fight.
   - HP: enough that one on-level player beats it alone in about 3 minutes; a group does it faster.
 - **Fighting:** it hits by its touch, as other mobs do. Special attacks come later.
 - **The boss HP bar:** while it's up, everyone on the map sees a bar at the top of the screen with its name, its HP, and the time it has left.

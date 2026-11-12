@@ -225,16 +225,24 @@ func (a *Arena) remove(mb *mob) {
 	st.returns = append(st.returns, a.tick+model.TicksIn(a.m.Spawns[mb.spawn].Respawn, a.interval))
 }
 
-// Touch is the hit of the first mob box overlaps, on player id defending with d; mobX is which way it knocks them.
-func (a *Arena) Touch(id kernel.CharacterID, box model.Rect, d model.Defender) (dealt model.Damage, mobX float64, touched bool) {
+// Contact is a mob's touch on a player: its hit, the mob's x, which way it knocks them, and the mob's touch guard, until their next touch.
+type Contact struct {
+	Damage model.Damage
+	X      float64
+	Guard  time.Duration
+}
+
+// Touch is the touch of the first mob box overlaps, on player id defending with d.
+func (a *Arena) Touch(id kernel.CharacterID, box model.Rect, d model.Defender) (Contact, bool) {
 	for _, mb := range a.mobs {
 		if !box.Overlaps(mb.box()) {
 			continue
 		}
 		h := model.Resolve(model.MobAttacker(mb.def), d, a.hit, a.roll)
-		return model.Damage{Tick: a.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}, mb.x, true
+		dealt := model.Damage{Tick: a.tick, Source: model.EntityRef{Mob: mb.id}, Target: model.EntityRef{Player: id}, Amount: h.Damage, Crit: h.Crit, Miss: h.Miss}
+		return Contact{Damage: dealt, X: mb.x, Guard: mb.def.TouchGuard}, true
 	}
-	return model.Damage{}, 0, false
+	return Contact{}, false
 }
 
 // Views are every mob, as a Snapshot shows them.

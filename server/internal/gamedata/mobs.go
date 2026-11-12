@@ -25,7 +25,8 @@ type Mob struct {
 	Accuracy        int
 	Evasion         int
 	Exp             int64
-	Speed           float64 // px/s
+	Speed           float64       // px/s
+	TouchGuard      time.Duration // after its touch, hit or MISS, how long the player's next touch from any mob waits
 	Width           float64
 	Height          float64
 	Behavior        string
@@ -46,6 +47,3 @@ type FieldBossRules struct {
 
 // FieldBoss is the rules every field boss shares.
 func (d *Data) FieldBoss() FieldBossRules { return d.p.FieldBoss }
-
-// TouchGuard is how long after a mob's touch, hit or MISS, the next touch waits.
-func (d *Data) TouchGuard() time.Duration { return d.p.TouchGuard }

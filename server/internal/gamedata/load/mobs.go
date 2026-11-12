@@ -21,25 +21,26 @@ type fieldBossYAML struct {
 }
 
 type mobYAML struct {
-	ID              string     `yaml:"id"`
-	Name            string     `yaml:"name"`
-	Level           int        `yaml:"level"`
-	Elite           bool       `yaml:"elite"`
-	Boss            bool       `yaml:"boss"`
-	HP              int        `yaml:"hp"`
-	Attack          int        `yaml:"attack"`
-	Damage          string     `yaml:"damage"`
-	PhysicalDefense int        `yaml:"physical_defense"`
-	MagicDefense    int        `yaml:"magic_defense"`
-	Accuracy        int        `yaml:"accuracy"`
-	Evasion         int        `yaml:"evasion"`
-	Exp             int64      `yaml:"exp"`
-	Speed           float64    `yaml:"speed"`
-	Width           float64    `yaml:"width"`
-	Height          float64    `yaml:"height"`
-	Behavior        string     `yaml:"behavior"`
-	Look            lookYAML   `yaml:"look"`
-	Drops           []dropYAML `yaml:"drops"`
+	ID              string         `yaml:"id"`
+	Name            string         `yaml:"name"`
+	Level           int            `yaml:"level"`
+	Elite           bool           `yaml:"elite"`
+	Boss            bool           `yaml:"boss"`
+	HP              int            `yaml:"hp"`
+	Attack          int            `yaml:"attack"`
+	Damage          string         `yaml:"damage"`
+	PhysicalDefense int            `yaml:"physical_defense"`
+	MagicDefense    int            `yaml:"magic_defense"`
+	Accuracy        int            `yaml:"accuracy"`
+	Evasion         int            `yaml:"evasion"`
+	Exp             int64          `yaml:"exp"`
+	Speed           float64        `yaml:"speed"`
+	TouchGuard      *time.Duration `yaml:"touch_guard"`
+	Width           float64        `yaml:"width"`
+	Height          float64        `yaml:"height"`
+	Behavior        string         `yaml:"behavior"`
+	Look            lookYAML       `yaml:"look"`
+	Drops           []dropYAML     `yaml:"drops"`
 }
 
 // lookYAML is the client's art for a mob: a sprite it draws, tinted and scaled; the server only checks it is there.
@@ -64,7 +65,6 @@ func (l *loader) loadMobs(dir string) error {
 	if file.TouchGuard <= 0 {
 		return fmt.Errorf("%s: touch_guard must be positive", mobsFile)
 	}
-	l.touchGuard = file.TouchGuard
 	if fb := file.FieldBoss; fb.Life <= 0 || fb.DropShare < 0 || fb.DropShare > 1 {
 		return fmt.Errorf("%s: field_boss needs a positive life and a drop_share from 0 to 1", mobsFile)
 	}
@@ -85,6 +85,13 @@ func (l *loader) loadMobs(dir string) error {
 		if raw.Boss && raw.Elite {
 			return fmt.Errorf("%s: mob %s: a mob is a boss or an elite, not both", mobsFile, raw.ID)
 		}
+		guard := file.TouchGuard
+		if raw.TouchGuard != nil {
+			guard = *raw.TouchGuard
+		}
+		if guard <= 0 {
+			return fmt.Errorf("%s: mob %s: touch_guard must be positive", mobsFile, raw.ID)
+		}
 		if raw.Behavior != "patrol" {
 			return fmt.Errorf("%s: mob %s: unknown behavior %q (Stage 1 has patrol)", mobsFile, raw.ID, raw.Behavior)
 		}
@@ -98,7 +105,7 @@ func (l *loader) loadMobs(dir string) error {
 		mob := gamedata.Mob{
 			ID: raw.ID, Name: raw.Name, Level: raw.Level, Elite: raw.Elite, Boss: raw.Boss, HP: raw.HP, Attack: raw.Attack, Damage: damage,
 			PhysicalDefense: raw.PhysicalDefense, MagicDefense: raw.MagicDefense,
-			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, Width: raw.Width, Height: raw.Height,
+			Accuracy: raw.Accuracy, Evasion: raw.Evasion, Exp: raw.Exp, Speed: raw.Speed, TouchGuard: guard, Width: raw.Width, Height: raw.Height,
 			Behavior: raw.Behavior,
 		}
 		for _, dr := range raw.Drops {

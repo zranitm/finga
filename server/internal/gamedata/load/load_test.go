@@ -189,6 +189,7 @@ mobs:
     evasion: 2
     exp: 200
     speed: 30
+    touch_guard: 3s
     width: 96
     height: 84
     behavior: patrol
@@ -359,9 +360,16 @@ func TestValidDataLoads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Run("the most active quests, the longest chat line and the touch guard", func(t *testing.T) {
-		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 || d.TouchGuard() != 1500*time.Millisecond {
-			t.Fatalf("max active %d, chat line %d, touch guard %s", d.MaxActiveQuests(), d.ChatLineMax(), d.TouchGuard())
+	t.Run("the most active quests and the longest chat line", func(t *testing.T) {
+		if d.MaxActiveQuests() != 20 || d.ChatLineMax() != 120 {
+			t.Fatalf("max active %d, chat line %d", d.MaxActiveQuests(), d.ChatLineMax())
+		}
+	})
+	t.Run("a mob's touch guard, its own or the file's", func(t *testing.T) {
+		lord, _ := d.Mob("slime_lord")
+		slime, _ := d.Mob("green_slime")
+		if lord.TouchGuard != 3*time.Second || slime.TouchGuard != 1500*time.Millisecond {
+			t.Fatalf("slime_lord's guard %s, green_slime's %s", lord.TouchGuard, slime.TouchGuard)
 		}
 	})
 	t.Run("the field boss rules, and a boss marked as one", func(t *testing.T) {
@@ -694,6 +702,7 @@ func TestRejections(t *testing.T) {
 		{"an equipment drop with a quantity above one", "mobs.yaml", `{item: red_potion, chance: 0.15, min: 1, max: 1}`, `{item: wooden_sword, chance: 0.15, min: 1, max: 2}`, []string{"mobs.yaml", "green_slime", "wooden_sword"}},
 		{"a drop chance above one", "mobs.yaml", `chance: 0.6`, `chance: 1.5`, []string{"mobs.yaml", "green_slime", "chance"}},
 		{"mobs.yaml without a touch guard", "mobs.yaml", "touch_guard: 1500ms\n", "", []string{"mobs.yaml", "touch_guard"}},
+		{"a mob's touch guard of zero", "mobs.yaml", "    touch_guard: 3s\n", "    touch_guard: 0s\n", []string{"mobs.yaml", "slime_lord", "touch_guard"}},
 		{"field_boss without a life", "mobs.yaml", "  life: 10m\n", "", []string{"mobs.yaml", "field_boss"}},
 		{"a drop share above one", "mobs.yaml", "drop_share: 0.01", "drop_share: 1.5", []string{"mobs.yaml", "field_boss", "drop_share"}},
 		{"a mob both a boss and an elite", "mobs.yaml", "    boss: true\n", "    boss: true\n    elite: true\n", []string{"mobs.yaml", "slime_lord", "elite"}},

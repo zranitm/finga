@@ -170,11 +170,11 @@ func TestAMissHurtsNothing(t *testing.T) {
 func TestTouchHurtsAPlayerOverlappingAMob(t *testing.T) {
 	a := newArena(t, 0.5)
 	id := kernel.NewCharacterID()
-	dealt, mobX, touched := a.Touch(id, model.Rect{X: spawnX, Y: floor - 50, W: 30, H: 50}, model.Defender{})
-	if !touched || mobX != spawnX || dealt.Target.Player != id || !dealt.Source.IsMob() || dealt.Amount == 0 {
-		t.Fatalf("dealt %+v from %v touched %v; want the slime's hit", dealt, mobX, touched)
+	c, touched := a.Touch(id, model.Rect{X: spawnX, Y: floor - 50, W: 30, H: 50}, model.Defender{})
+	if !touched || c.X != spawnX || c.Damage.Target.Player != id || !c.Damage.Source.IsMob() || c.Damage.Amount == 0 || c.Guard != 1500*time.Millisecond {
+		t.Fatalf("touch %+v, touched %v; want the slime's hit, guarding for its 1.5 s", c, touched)
 	}
-	if _, _, touched := a.Touch(id, model.Rect{X: 600, Y: floor - 50, W: 30, H: 50}, model.Defender{}); touched {
+	if _, touched := a.Touch(id, model.Rect{X: 600, Y: floor - 50, W: 30, H: 50}, model.Defender{}); touched {
 		t.Fatal("a player far from every slime was touched")
 	}
 }
@@ -187,11 +187,11 @@ func TestATouchMeetsTheDefenseOfTheMobsDamageType(t *testing.T) {
 		m.Spawns[0].Mob, m.Spawns[0].Max = mob, 1
 		a := mobs.NewArena(mobs.Deps{Map: m, Data: worldtest.LoadData(t), Roll: worldtest.FixedRoll{V: 0.5}}, mobs.Tuning{TickInterval: tick})
 		v := a.Views()[0]
-		dealt, _, touched := a.Touch(kernel.NewCharacterID(), model.Rect{X: v.X - 15, Y: v.Y - 20, W: 30, H: 20}, d)
-		if !touched || dealt.Miss {
-			t.Fatalf("%s: dealt %+v touched %v", mob, dealt, touched)
+		c, touched := a.Touch(kernel.NewCharacterID(), model.Rect{X: v.X - 15, Y: v.Y - 20, W: 30, H: 20}, d)
+		if !touched || c.Damage.Miss {
+			t.Fatalf("%s: touch %+v touched %v", mob, c, touched)
 		}
-		return dealt.Amount
+		return c.Damage.Amount
 	}
 	walls := model.Defender{PhysicalDefense: 100, MagicDefense: 100}
 	// Bat attack 22: 22·100/200 = 11 against either 100; a slime's 6: 6·100/200 = 3.

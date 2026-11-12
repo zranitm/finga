@@ -37,7 +37,8 @@ mobs:
     boss: true
     level: 6            # at least its map's top mob level; the product sets top + 2
     hp: ...
-    attack: ...         # about twice its map's mob's
+    attack: ...         # twice its map's mob's
+    touch_guard: 2500ms # its own, longer than a mob's 1.5 s, tuned to the potion budget (§8)
     width: 96
     height: 84
     look: {sprite: slime, tint: 0x6fd36f, scale: 3}
@@ -45,6 +46,7 @@ mobs:
 ```
 
 - **`boss`** marks a field boss. A mob is never both a boss and an elite.
+- **`touch_guard`** is a mob's own wait after its touch, before the player's next. Any mob can have one; one without it uses the file's `touch_guard`, 1.5 s. Every boss has its own, so its touches come slower and hit harder.
 - **Size** is `width` and `height` for the hitbox, and `look.scale` for the art, as for elites.
 - **Its map's mob,** wherever a rule compares a boss with one, is the map's normal mob of the top level, the one players at the boss's level hunt. Only the forest and the cave have two normal mobs, so King Slime takes the green slime's look and the orange mushroom's measure.
 
@@ -66,7 +68,8 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 - a boss area whose `mob` isn't a boss, or a boss used in `spawns`, on two maps, or on none;
 - a boss below its map's top level, or with a `kills` under 1;
 - no ground under the area's bottom center, or less of it within the area than the boss is wide;
-- a `life` of zero, or a `drop_share` outside 0 to 1.
+- a `life` of zero, or a `drop_share` outside 0 to 1;
+- a mob's `touch_guard` of zero or less.
 
 ## 4. World
 
@@ -87,7 +90,7 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 
 - **The instance holds the boss's state:** its mob id, the tick it leaves, and a damage tally by character. Each blow on the boss adds its `Dealt` to the striker's tally.
 - **Leaving:** once the tick passes its time, checked after attacks so a kill in its last tick still counts, the arena removes it. `FieldBossGone{beaten: false}` goes to the map.
-- **Its touch** is the ordinary contact damage, with its own attack and damage type.
+- **Its touch** is the ordinary contact damage, with its own attack, damage type and touch guard. The guard is the player's, not the mob's: after any mob's touch, hit or MISS, the player's next touch waits the toucher's guard, as `Arena.Touch` now reports it. So during a boss's longer guard no mob touches that player, normal mobs nearby included. The client changes nothing: its blink follows the player's invulnerability.
 
 ### Paying out
 
@@ -145,7 +148,9 @@ All additive, so `buf breaking` passes:
   - **Time:** a kill takes 2.5 to 3.5 minutes at the class's pace, misses included.
   - **Potions:** for a melee class standing in reach the whole fight, the touches it takes, less its HP, come to at most 30 of its band's potion.
   - **EXP:** about 40 of its map's normal mob's.
-- **The table is logged** for tuning, as it is for mobs.
+- **A Beginner's time is only logged:** in the forest, the four splits fight with one weapon and their times differ by half again, 2.4 to 3.6 minutes, more than the window holds. Their potions are held.
+- **Touches come at the boss's own guard.** At a mob's 1.5 s, a melee player in reach would take some 110 touches in 3 minutes, and twice the attack would cost them up to 70 potions. So each boss keeps twice its map's mob's attack, and its `touch_guard` is the shortest quarter second that keeps the potions within 30: 2 to 3.5 seconds, the Shade Lord's the longest.
+- **The table is logged** for tuning, as it is for mobs, with each class's time using its skills beside it, which skills make 0.5 to 2 minutes.
 
 ## 9. When things fail
 
@@ -160,15 +165,16 @@ All additive, so `buf breaking` passes:
 
 ## 10. Testing
 
-- **Game data:** the boss fields and layer, and each validation refusal.
-- **Arena:** `SpawnBoss` outside respawns, `Remove`, and `Dealt` without overkill.
+- **Game data:** the boss fields and layer, a mob's own touch guard or the file's, and each validation refusal.
+- **Arena:** `SpawnBoss` outside respawns, `Remove`, `Dealt` without overkill, and `Touch` reporting the toucher's guard.
 - **World:**
   - the count: kills counted, the boss's own not counted, none while it's up, and back to 0 after;
   - appearing at the number, once, at the end of the tick;
   - leaving at its time, and a kill in the last tick winning;
   - the damage tally and the payout: a lone player; a party with a dead member and one on another map; a group under `drop_share`; damage from a player who left;
   - each drop's owner, with party turns untouched for the next ordinary kill;
-  - the events, and the snapshot for a player joining mid-fight.
+  - the events, and the snapshot for a player joining mid-fight;
+  - a boss's touches coming at its own guard.
 - **Social and gateway:** `Announce` going once to each gateway with players online and to none without, the gateway handing it to each of its players, and the new push.
 - **Client:** the bar's countdown and HP, the joining snapshot, the toast and the `[Notice]` line, and the leaving notice.
 - **End to end,** on test data with a small `kills`: kill until the boss appears, see the announcement on another map, beat it in a party, and check each player's EXP and drop owner.
@@ -195,9 +201,12 @@ Agreed on 2026-11-12:
 5. **The boss's overhead HP bar is hidden;** the top bar replaces it.
 6. **The count and the boss aren't saved.** A world restart loses them, as it does every mob, so they need no storage.
 7. **Each hunting map's boss is set in its Tiled file,** as a `boss` layer beside `spawns`, so a map's whole layout stays in one place.
+8. **Slower, heavier touches:** a boss keeps twice its map's mob's attack and touches less often, by a `touch_guard` of its own tuned to the potion budget. During it the player is safe from every mob, which is simplest.
 
 ## 13. Alternatives considered
 
+- **Lower a boss's attack to fit the potion budget at a mob's 1.5 s guard:** its attack would come to 0.9 to 1.7 times its map's mob's, so some bosses would hit no harder than the mobs around them.
+- **One `field_boss.touch_guard` for every boss:** at twice the attack, the bosses need 2 to 3.5 seconds, so one guard would leave some far under the budget and others over it. A mob's own guard fits each, and any later mob can use it.
 - **Count kills in the arena:** the arena doesn't know which kills count, or when a boss is up. The instance already handles every kill in `strike`.
 - **Send the count to clients and hide it in the UI:** the product keeps it hidden, and anything sent could be read.
 - **Announce over the world's per-player streams:** each instance reaches only its own map, so it would need every other instance's players. The social service already reaches everyone.
