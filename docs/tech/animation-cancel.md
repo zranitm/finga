@@ -153,6 +153,7 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
 - **Each action's damage** is its mean on the mob, misses included, from the world's own combat rules. MP is taken as enough.
 - **It holds the chain's gain** (3 over 2) to at most 22% for every class and mob, which leaves room around the product's "up to about 20%". The hits-to-kill bands stay checked against 1, as before, so a player who never cancels or uses skills still meets them.
 - **With the first data** (every skill 1050 ms, cancel at 0.85, the damage skills cancelable), a perfect chain adds 0–13%, most often 5–8%. Skills on cooldown carry most of the damage, and a cancel shaves only an action's tail.
+- **Kill speed with skills on cooldown, and skills' share of a fight's damage, are logged for the user's playtest, not checked.** Whether the hits-to-kill bands move to the skill rotation is decided after it.
 - **Tuning moves only data:** skill lengths, the cancel points, `cancelable`, and the skill powers.
 
 ## 9. Pace

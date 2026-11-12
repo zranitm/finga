@@ -27,8 +27,8 @@ type act struct {
 	cancelable       bool
 }
 
-// rotation is damage a second three ways: basic attacks alone, skills on cooldown one action at a time, and the same actions as a perfect chain, every cancel allowed taken at its point.
-type rotation struct{ basic, skills, chain float64 }
+// rotation is damage a second three ways: basic attacks alone, skills on cooldown one action at a time, and the same actions as a perfect chain, every cancel allowed taken at its point; and the share of the second way's damage its skills deal.
+type rotation struct{ basic, skills, chain, skillShare float64 }
 
 func (r rotation) gain() float64 { return r.chain/r.skills - 1 }
 
@@ -70,7 +70,7 @@ func rotationOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, poin
 		})
 	}
 	slices.SortFunc(skills, func(a, b act) int { return cmp.Compare(b.damage, a.damage) }) // the strongest first
-	return rotation{basic: dps(basic, nil, false), skills: dps(basic, skills, false), chain: dps(basic, skills, true)}
+	return rotation{basic: dps(basic, nil, false), skills: dps(basic, skills, false), chain: dps(basic, skills, true), skillShare: skillShare(&basic, skills)}
 }
 
 // meanDamage is an action's damage on the mob, misses included, from a fixed seed.
@@ -118,6 +118,18 @@ func dps(basic act, skills []act, chain bool) float64 {
 		start = end
 	}
 	return dealt / (t * tickInterval.Seconds())
+}
+
+// skillShare is the share of the rotation's damage its skills deal.
+func skillShare(basic *act, skills []act) float64 {
+	var all, bySkills float64
+	for _, a := range rotate(basic, skills) {
+		all += a.damage
+		if a != basic {
+			bySkills += a.damage
+		}
+	}
+	return bySkills / all
 }
 
 // cuts is whether next may cut a short: only the other kind, and an attack only a cancelable skill.

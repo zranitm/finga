@@ -244,8 +244,10 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 				life = fmt.Sprintf("%5.1f", f.killsPerLife)
 			}
 			r := rotationOf(d, me, c, planned(d, c, p.future, level), mob)
-			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
-				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, r.basic, r.skills, 100*r.gain(), pace)
+			// Logged for the user's playtest, not held to the bands: how fast skills on cooldown kill, in hits at the reference pace, and their share of the damage.
+			withSkills := float64(mob.HP) / r.skills / refPace
+			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace, %4.1f with skills, %3.0f%% of it by skills)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
+				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, withSkills, 100*r.skillShare, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, r.basic, r.skills, 100*r.gain(), pace)
 			if r.gain() > maxChainGain {
 				t.Errorf("%s %s vs %s: a perfect chain adds %.0f%% to its skills on cooldown, want at most %.0f%%", m.ID, mob.ID, p.name, 100*r.gain(), 100*maxChainGain)
 			}
