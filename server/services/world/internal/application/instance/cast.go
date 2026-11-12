@@ -45,7 +45,7 @@ func (i *Instance) castSkills() {
 		case err != nil:
 			m.done <- err
 		case u.p.waitingCast != nil:
-			m.done <- model.ErrSkillCoolingDown // one waits for the turn at a time
+			m.done <- model.ErrSkillWaiting // one waits for the turn at a time
 		default:
 			waiting := m
 			u.p.waitingCast = &waiting

@@ -133,6 +133,14 @@ describe('rest client', () => {
     },
   );
 
+  it('a skill bar save asks to outlive the page, so one made as the tab closes still goes', async () => {
+    const { fetch, calls } = fakeFetch(() => ({ status: 200, body: { slots: [] } }));
+    const client = createRestClient({ origin: 'http://game.test', fetch });
+    await client.putSkillBar('c1', []);
+    await client.listCharacters().catch(() => undefined);
+    expect(calls.map((c) => c.init.keepalive)).toEqual([true, undefined]);
+  });
+
   it('login keeps the token, every later call carries it, and logout forgets it', async () => {
     const { fetch, calls } = fakeFetch(({ url }) =>
       url.endsWith('/api/sessions')

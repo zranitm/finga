@@ -170,6 +170,17 @@ describe('SkillKeys', () => {
     expect(notice).toHaveBeenCalledWith('That skill isn’t ready yet.');
   });
 
+  it('another skill already waiting gives the turn back and undoes the cooldown, as this one never went', async () => {
+    const { k, answers, cooldowns, turn } = keys();
+    k.press(0);
+    answers[0]!.reject(
+      new RequestError(ERR.SKILL_WAITING, 'Another skill is already waiting for its turn.'),
+    );
+    await settled();
+    expect(cooldowns).toEqual({});
+    expect(turn.givenBack).toBe(1);
+  });
+
   it('a key pressed before the action turn waits for it, checked again then; a newer press takes its place, and stop forgets it', () => {
     vi.useFakeTimers();
     try {

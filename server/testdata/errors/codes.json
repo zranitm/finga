@@ -444,6 +444,12 @@
     "message": "not enough MP"
   },
   {
+    "code": 330024,
+    "name": "SKILL_WAITING",
+    "status": 409,
+    "message": "another skill is already waiting for its turn"
+  },
+  {
     "code": 440001,
     "name": "NOT_PARTY_LEADER",
     "status": 409,
