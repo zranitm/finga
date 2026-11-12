@@ -9,7 +9,23 @@
   - Basic attacks: the Beginner's, Warrior's, Thief's, and Bowman's are physical; the Magician's is magic.
   - Each skill names its own type.
   - Each mob type names the type of damage its touch deals.
-- **Hitting:** the attacker's accuracy against the target's evasion decides whether an attack lands. This holds for every attack, physical or magic, players and mobs alike, and the hit chance stays between 20% and 99%.
+- **Hitting:** the attacker's accuracy against the target's evasion decides whether an attack lands. This holds for every attack, physical or magic, players and mobs alike.
+  - What counts is evasion as a share of the attacker's accuracy.
+    - Evasion well under the attacker's accuracy barely matters.
+    - Around and past it, evasion starts to tell.
+    - Far past it, each extra point counts for less, so stacking evasion never makes anyone untouchable.
+  - The chance is 94% ÷ (1 + 0.175 × (evasion ÷ accuracy)²), held between 20% and 99% (proposal):
+
+    | Evasion against accuracy | Lands |
+    | --- | --- |
+    | None | 94% |
+    | Half | 90% |
+    | Equal | 80% |
+    | One and a half times | 67% |
+    | Twice | 55% |
+    | Three times | 37% |
+
+  - Mobs' accuracy grows with their level. On-level, a mob lands about 93% of its touches on a Warrior or a Magician, about 87% on a Bowman, and about two thirds on a Thief built on AGI (proposal).
 - **Damage:**
   - A hit's damage comes from the attacker's physical or magic attack against the target's physical or magic defense, whichever matches the attack.
   - Penetration ignores part of that defense.

@@ -11,7 +11,7 @@ mobs:
     damage: physical
     physical_defense: 2
     magic_defense: 1
-    accuracy: 8
+    accuracy: 24
     evasion: 2
     exp: 5
     speed: 40
@@ -30,7 +30,7 @@ mobs:
     damage: physical
     physical_defense: 5
     magic_defense: 3
-    accuracy: 12
+    accuracy: 32
     evasion: 4
     exp: 14
     speed: 50
@@ -55,7 +55,7 @@ mobs:
     damage: physical
     physical_defense: 12
     magic_defense: 6
-    accuracy: 20
+    accuracy: 37
     evasion: 8
     exp: 45
     speed: 90
@@ -83,7 +83,7 @@ mobs:
     damage: magic
     physical_defense: 8
     magic_defense: 8
-    accuracy: 26
+    accuracy: 45
     evasion: 18
     exp: 62
     speed: 110
@@ -121,7 +121,7 @@ mobs:
     damage: physical
     physical_defense: 18
     magic_defense: 11
-    accuracy: 29
+    accuracy: 46
     evasion: 22
     exp: 67
     speed: 60
@@ -151,7 +151,7 @@ mobs:
     damage: magic
     physical_defense: 19
     magic_defense: 11
-    accuracy: 29
+    accuracy: 47
     evasion: 23
     exp: 168
     speed: 35
@@ -180,7 +180,7 @@ mobs:
     damage: magic
     physical_defense: 20
     magic_defense: 12
-    accuracy: 30
+    accuracy: 48
     evasion: 23
     exp: 82
     speed: 100
@@ -211,7 +211,7 @@ mobs:
     damage: physical
     physical_defense: 22
     magic_defense: 13
-    accuracy: 31
+    accuracy: 50
     evasion: 25
     exp: 205
     speed: 60
@@ -241,7 +241,7 @@ mobs:
     damage: magic
     physical_defense: 23
     magic_defense: 13
-    accuracy: 32
+    accuracy: 52
     evasion: 25
     exp: 100
     speed: 70
@@ -272,7 +272,7 @@ mobs:
     damage: physical
     physical_defense: 24
     magic_defense: 14
-    accuracy: 33
+    accuracy: 54
     evasion: 25
     exp: 250
     speed: 35
@@ -302,7 +302,7 @@ mobs:
     damage: physical
     physical_defense: 25
     magic_defense: 15
-    accuracy: 34
+    accuracy: 55
     evasion: 25
     exp: 118
     speed: 100
@@ -330,7 +330,7 @@ mobs:
     damage: magic
     physical_defense: 26
     magic_defense: 15
-    accuracy: 35
+    accuracy: 58
     evasion: 25
     exp: 295
     speed: 45
@@ -357,7 +357,7 @@ mobs:
     damage: physical
     physical_defense: 28
     magic_defense: 16
-    accuracy: 36
+    accuracy: 59
     evasion: 25
     exp: 138
     speed: 110
@@ -383,7 +383,7 @@ mobs:
     damage: magic
     physical_defense: 29
     magic_defense: 17
-    accuracy: 37
+    accuracy: 61
     evasion: 23
     exp: 345
     speed: 50
@@ -408,7 +408,7 @@ mobs:
     damage: physical
     physical_defense: 30
     magic_defense: 18
-    accuracy: 38
+    accuracy: 62
     evasion: 23
     exp: 159
     speed: 100
@@ -438,7 +438,7 @@ mobs:
     damage: magic
     physical_defense: 31
     magic_defense: 18
-    accuracy: 39
+    accuracy: 64
     evasion: 25
     exp: 398
     speed: 70
@@ -467,7 +467,7 @@ mobs:
     damage: magic
     physical_defense: 31
     magic_defense: 18
-    accuracy: 39
+    accuracy: 64
     evasion: 25
     exp: 170
     speed: 70
@@ -492,7 +492,7 @@ mobs:
     damage: physical
     physical_defense: 32
     magic_defense: 19
-    accuracy: 40
+    accuracy: 66
     evasion: 25
     exp: 425
     speed: 70
@@ -516,7 +516,7 @@ mobs:
     damage: physical
     physical_defense: 34
     magic_defense: 20
-    accuracy: 43
+    accuracy: 70
     evasion: 29
     exp: 192
     speed: 120
@@ -542,7 +542,7 @@ mobs:
     damage: magic
     physical_defense: 35
     magic_defense: 20
-    accuracy: 44
+    accuracy: 71
     evasion: 29
     exp: 480
     speed: 40
@@ -567,7 +567,7 @@ mobs:
     damage: magic
     physical_defense: 35
     magic_defense: 20
-    accuracy: 44
+    accuracy: 71
     evasion: 29
     exp: 204
     speed: 80
@@ -598,7 +598,7 @@ mobs:
     damage: physical
     physical_defense: 36
     magic_defense: 21
-    accuracy: 49
+    accuracy: 78
     evasion: 33
     exp: 510
     speed: 70
@@ -628,7 +628,7 @@ mobs:
     damage: magic
     physical_defense: 37
     magic_defense: 22
-    accuracy: 49
+    accuracy: 78
     evasion: 36
     exp: 229
     speed: 120
@@ -654,6 +654,8 @@ mobs:
       - {item: starlight_ring, chance: 0.01, min: 1, max: 1}
       - {item: dragonfang, chance: 0.001, min: 1, max: 1}
       - {item: starfall_bow, chance: 0.001, min: 1, max: 1}
+      - {item: whisper_edge, chance: 0.001, min: 1, max: 1}
+      - {item: void_scepter, chance: 0.001, min: 1, max: 1}
       - {item: eclipse_ring, chance: 0.001, min: 1, max: 1}
   - id: gloom_slime
     name: Gloom Slime
@@ -664,7 +666,7 @@ mobs:
     damage: physical
     physical_defense: 40
     magic_defense: 23
-    accuracy: 49
+    accuracy: 78
     evasion: 36
     exp: 573
     speed: 50
@@ -690,4 +692,6 @@ mobs:
       - {item: starlight_ring, chance: 0.02, min: 1, max: 1}
       - {item: dragonfang, chance: 0.002, min: 1, max: 1}
       - {item: starfall_bow, chance: 0.002, min: 1, max: 1}
+      - {item: whisper_edge, chance: 0.002, min: 1, max: 1}
+      - {item: void_scepter, chance: 0.002, min: 1, max: 1}
       - {item: eclipse_ring, chance: 0.002, min: 1, max: 1}

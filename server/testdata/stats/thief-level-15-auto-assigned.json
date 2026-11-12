@@ -1,23 +1,23 @@
 {
   "name": "thief-level-15-auto-assigned",
-  "notes": "A thief at level 15 whose 70 points went by its split, DEX 3, AGI 1 and VIT 1 a level.",
+  "notes": "A thief at level 15 whose 70 points went by its split, STR 1, AGI 3 and DEX 1 a level.",
   "class": "thief",
   "level": 15,
   "points": {
-    "str": 0,
-    "dex": 42,
+    "str": 14,
+    "dex": 14,
     "int": 0,
-    "agi": 14,
-    "vit": 14
+    "agi": 42,
+    "vit": 0
   },
   "worn": {},
   "expected": {
     "primary": {
-      "str": 7,
-      "dex": 49,
+      "str": 21,
+      "dex": 21,
       "int": 7,
-      "agi": 21,
-      "vit": 21
+      "agi": 49,
+      "vit": 7
     },
     "primary_worn": {
       "str": 0,
@@ -34,22 +34,22 @@
       "vit": 0
     },
     "derived": {
-      "max_hp": 489,
+      "max_hp": 671,
       "max_mp": 99,
-      "physical_attack": 35,
-      "magic_attack": 35,
-      "physical_defense": 25,
-      "magic_defense": 17,
-      "accuracy": 62,
-      "evasion": 36,
-      "crit_rate": 0.1582329317269076,
-      "crit_damage": 0.745,
+      "physical_attack": 42,
+      "magic_attack": 21,
+      "physical_defense": 11,
+      "magic_defense": 10,
+      "accuracy": 34,
+      "evasion": 64,
+      "crit_rate": 0.10226244343891402,
+      "crit_damage": 0.605,
       "penetration": 0,
-      "hp_regen": 1.05,
+      "hp_regen": 0.35000000000000003,
       "mp_regen": 0.35000000000000003,
-      "attack_speed": 0.06140350877192982,
+      "attack_speed": 0.12311557788944724,
       "cooldown_speed": 0.01352657004830918,
-      "move_speed": 0.02850678733031674
+      "move_speed": 0.05903614457831325
     },
     "derived_worn": {
       "max_hp": 0,

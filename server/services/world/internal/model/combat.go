@@ -62,11 +62,6 @@ func MobDefender(m gamedata.Mob) Defender {
 	return Defender{PhysicalDefense: float64(m.PhysicalDefense), MagicDefense: float64(m.MagicDefense), Evasion: float64(m.Evasion)}
 }
 
-// HitChance is what the chance to hit is held between, from stats.yaml.
-type HitChance struct {
-	Min, Max float64
-}
-
 // Hit is one resolved attack.
 type Hit struct {
 	Miss   bool
@@ -75,17 +70,14 @@ type Hit struct {
 }
 
 const (
-	baseHitChance  = 0.80
-	hitPerAccuracy = 0.02
-	minVariation   = 0.90
-	maxVariation   = 1.10
-	minDamage      = 1
+	minVariation = 0.90
+	maxVariation = 1.10
+	minDamage    = 1
 )
 
 // Resolve meets the attack of the attack's damage type with the defense of that type; it draws from r in a fixed order (hit, variation, crit), so replays match.
-func Resolve(a Attacker, d Defender, limits HitChance, r Roll) Hit {
-	chance := math.Min(limits.Max, math.Max(limits.Min, baseHitChance+hitPerAccuracy*(a.Accuracy-d.Evasion)))
-	if r.Float64() >= chance {
+func Resolve(a Attacker, d Defender, curve gamedata.HitCurve, r Roll) Hit {
+	if r.Float64() >= curve.Chance(a.Accuracy, d.Evasion) {
 		return Hit{Miss: true}
 	}
 	attack, defense := a.PhysicalAttack, d.PhysicalDefense

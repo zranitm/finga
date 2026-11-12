@@ -34,7 +34,7 @@ Players spend their own points (C6).
   | --- | --- |
   | Warrior | STR 3, VIT 2 |
   | Bowman | STR 2, DEX 2, AGI 1 |
-  | Thief | DEX 3, AGI 1, VIT 1 |
+  | Thief | STR 1, AGI 3, DEX 1 |
   | Magician | INT 3, DEX 1, VIT 1 |
 
 - **Resets**: a reset returns every spent point. Each character has one free reset. Once currency exists (F1), further resets cost currency, more at higher levels.
@@ -55,7 +55,7 @@ Sixteen, computed from the primary stats, the class's base values (which grow wi
 | Defense | Max HP | | VIT +10, STR +2 | none |
 | | Physical defense | Less physical damage taken | VIT +1 | none |
 | | Magic defense | Less magic damage taken | VIT +0.5, INT +0.5 | none |
-| | Evasion | Chance to dodge any attack, against the attacker's accuracy | AGI +1 | hit chance 20–99% |
+| | Evasion | Chance to dodge any attack, against the attacker's accuracy; less for each point far past it (Combat) | AGI +1 | hit chance 20–99% |
 | | HP regen | HP back over time | VIT +0.05 per second | none |
 | Resources | Max MP | | INT +3 | none |
 | | MP regen | MP back over time | INT +0.05 per second | none |

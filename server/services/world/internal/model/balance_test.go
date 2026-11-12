@@ -30,14 +30,15 @@ type region struct {
 	hits       [2]float64 // a normal mob's landed hits to kill at the reference pace; a faster class needs more, a slower one fewer
 	survives   [2]int     // a ranged class's touches lived through, the least of them a melee class's; 0 as the top is no top
 	playerHits float64    // the least share of every class's attacks that land, when below the class's own floor
+	life       float64    // the least kills a melee class manages on a normal mob before dying with no potion
 }
 
 // Forest and cave are only logged: they are the Beginner's, and skills retune them.
 var regions = []region{
-	{name: "A", from: 15, hits: [2]float64{2.5, 3.5}, survives: [2]int{10, 12}},
-	{name: "B", from: 21, hits: [2]float64{3.5, 4.5}, survives: [2]int{8, 10}},
-	{name: "C", from: 26, hits: [2]float64{4.5, 5.5}, survives: [2]int{6, 8}},
-	{name: "D", from: 31, hits: [2]float64{6, 8}, survives: [2]int{4, 0}, playerHits: 0.70},
+	{name: "A", from: 15, hits: [2]float64{2.5, 3.5}, survives: [2]int{10, 12}, life: 12},
+	{name: "B", from: 21, hits: [2]float64{3.5, 4.5}, survives: [2]int{8, 10}, life: 8},
+	{name: "C", from: 26, hits: [2]float64{4.5, 5.5}, survives: [2]int{6, 8}, life: 5.5},
+	{name: "D", from: 31, hits: [2]float64{6, 8}, survives: [2]int{4, 0}, playerHits: 0.70, life: 3},
 }
 
 // fighter is what a class a Beginner is promoted to must manage against a mob of its level.
@@ -47,17 +48,18 @@ type fighter struct {
 }
 
 var fighters = map[kernel.Class]fighter{
-	"warrior":  {hitFloor: 0.75, touched: [2]float64{0.85, 1}},    // its accuracy barely grows, so a mob's evasion must stay near it
-	"thief":    {hitFloor: 0.80, touched: [2]float64{0.45, 0.65}}, // dodges more than the bowman, and stands in reach
-	"bowman":   {hitFloor: 0.80, touched: [2]float64{0.65, 0.85}},
-	"magician": {hitFloor: 0.75, touched: [2]float64{0.85, 1}},
+	"warrior":  {hitFloor: 0.75, touched: [2]float64{0.85, 0.95}}, // its accuracy barely grows, so a mob's evasion must stay near it
+	"thief":    {hitFloor: 0.80, touched: [2]float64{0.55, 0.70}}, // built on AGI, it dodges clearly more than the rest, never most touches
+	"bowman":   {hitFloor: 0.80, touched: [2]float64{0.85, 0.95}},
+	"magician": {hitFloor: 0.75, touched: [2]float64{0.85, 0.95}},
 }
 
 const (
-	refPace        = 0.75 // seconds a landed hit takes the warrior, 600 ms at 80% landing, which the hits bands are set at
-	promotionLevel = 10   // below it a character is a Beginner
-	killsPerLevel  = 30   // a normal mob's EXP is about a thirtieth of its level's
-	bandStars      = 5    // ★6 and ★7 are rare finds, not what a character can expect to wear
+	refPace        = 0.75        // seconds a landed hit takes the warrior, 600 ms at 80% landing, which the hits bands are set at
+	promotionLevel = 10          // below it a character is a Beginner
+	killsPerLevel  = 30          // a normal mob's EXP is about a thirtieth of its level's
+	bandStars      = 5           // ★6 and ★7 are rare finds, not what a character can expect to wear
+	touchEvery     = time.Second // a player can be touched again a second after contact damage, the instance's invulnerability
 )
 
 func regionOf(m *gamedata.Map) (region, bool) {
@@ -78,6 +80,7 @@ type fight struct {
 	touchesSurvived int     // the mob's landed touches the character lives through
 	touchRate       float64 // the mob's touches that land
 	secondsPerKill  float64 // attacking, misses included, at the character's attack pace
+	killsPerLife    float64 // kills before dying with no potion, for a melee class in reach of the mob all along
 }
 
 // character is a class at level, every level's points spent by split and wearing, in every slot, the newest band gear it can use at its middle roll.
@@ -109,18 +112,17 @@ func character(d *gamedata.Data, items []gamedata.Item, c gamedata.Class, split 
 // fightOf resolves many attacks each way with the world's own combat, from a fixed seed.
 func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamedata.Mob) fight {
 	r := rand.New(rand.NewPCG(1, 2))
-	rules := d.StatRules()
-	limits := model.HitChance{Min: rules.MinHit, Max: rules.MaxHit}
+	hit := d.StatRules().Hit
 	var landed, dealt float64
 	for range attacks {
-		if h := model.Resolve(model.PlayerAttacker(me, c.Attack.Damage), model.MobDefender(m), limits, r); !h.Miss {
+		if h := model.Resolve(model.PlayerAttacker(me, c.Attack.Damage), model.MobDefender(m), hit, r); !h.Miss {
 			landed++
 			dealt += float64(h.Damage)
 		}
 	}
 	var touches, taken float64
 	for range attacks {
-		if h := model.Resolve(model.MobAttacker(m), model.PlayerDefender(me), limits, r); !h.Miss {
+		if h := model.Resolve(model.MobAttacker(m), model.PlayerDefender(me), hit, r); !h.Miss {
 			touches++
 			taken += float64(h.Damage)
 		}
@@ -133,6 +135,7 @@ func fightOf(d *gamedata.Data, me progression.Derived, c gamedata.Class, m gamed
 	}
 	pace := time.Duration(model.AttackCooldownTicks(c.Attack.Cooldown, me.AttackSpeed, tickInterval)) * tickInterval
 	f.secondsPerKill = f.hitsToKill / f.hitRate * pace.Seconds()
+	f.killsPerLife = float64(f.touchesSurvived+1) / (f.secondsPerKill / touchEvery.Seconds() * f.touchRate)
 	return f
 }
 
@@ -227,8 +230,12 @@ func TestBalance(t *testing.T) {
 				if !math.IsNaN(kills) {
 					pace = fmt.Sprintf("kills/level %4.0f  attacking/level %5.0fs", kills, kills*f.secondsPerKill)
 				}
-				t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  %s",
-					m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, pace)
+				life := "     "
+				if c.Attack.Kind == gamedata.Melee {
+					life = fmt.Sprintf("%5.1f", f.killsPerLife)
+				}
+				t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  %s",
+					m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, pace)
 				if !asserted {
 					continue
 				}
@@ -274,6 +281,10 @@ func check(t *testing.T, m *gamedata.Map, rg region, mob gamedata.Mob, c gamedat
 	}
 	if f.touchesSurvived < rg.survives[0] || top > 0 && f.touchesSurvived > top {
 		t.Errorf("%s: survives %d touches, want %d to %d in region %s", where, f.touchesSurvived, rg.survives[0], top, rg.name)
+	}
+	// A melee class trades touches for every kill, so what it lives through must last it a run of kills.
+	if c.Attack.Kind == gamedata.Melee && !mob.Elite && f.killsPerLife < rg.life {
+		t.Errorf("%s: %.1f kills a life, want at least %.1f in region %s", where, f.killsPerLife, rg.life, rg.name)
 	}
 }
 
