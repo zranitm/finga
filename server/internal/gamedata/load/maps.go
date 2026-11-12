@@ -83,6 +83,11 @@ func (l *loader) loadMaps(dir string) error {
 		}
 		bossOn[m.Boss.Mob] = m.ID
 	}
+	for _, mob := range l.mobs.list {
+		if _, ok := bossOn[mob.ID]; mob.Boss && !ok {
+			return fmt.Errorf("%s: boss %s: no map's layer %q places it", mobsFile, mob.ID, layerBoss)
+		}
+	}
 	for _, m := range l.maps.list {
 		town, ok := l.maps.get(m.Town)
 		if !ok || town.Kind != gamedata.Town {

@@ -63,7 +63,7 @@ One rectangle in a new object layer, `boss`. The boss appears at the rectangle's
 ### Validation refuses
 
 - a hunting map without exactly one boss area, or a town with one;
-- a boss area whose `mob` isn't a boss, or a boss used in `spawns` or on two maps;
+- a boss area whose `mob` isn't a boss, or a boss used in `spawns`, on two maps, or on none;
 - a boss below its map's top level, or with a `kills` under 1;
 - no ground under the area's bottom center, or less of it within the area than the boss is wide;
 - a `life` of zero, or a `drop_share` outside 0 to 1.

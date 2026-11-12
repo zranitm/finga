@@ -941,6 +941,14 @@ func TestRejectionsNeedingTheirOwnMaps(t *testing.T) {
 			t.Fatalf("err = %v", err)
 		}
 	})
+	t.Run("a boss no map places", func(t *testing.T) {
+		files := fixture()
+		files["mobs.yaml"] = strings.Replace(files["mobs.yaml"], "  - id: slime_lord\n", "  - {id: slime_king, name: Slime King, boss: true, level: 5, hp: 900, attack: 12, damage: physical, physical_defense: 3, magic_defense: 2, accuracy: 8, evasion: 2, exp: 200, speed: 30, width: 96, height: 84, behavior: patrol, look: {sprite: slime}}\n  - id: slime_lord\n", 1)
+		_, err := load.Dir(write(t, files))
+		if err == nil || !strings.Contains(err.Error(), "mobs.yaml") || !strings.Contains(err.Error(), "slime_king") || !strings.Contains(err.Error(), "boss") {
+			t.Fatalf("err = %v", err)
+		}
+	})
 	t.Run("one boss on two maps", func(t *testing.T) {
 		files := fixture()
 		files["maps/meadow.tmj"] = tiledMap("hunting", "", []object{
