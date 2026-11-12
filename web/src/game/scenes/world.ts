@@ -30,6 +30,8 @@ import { ui } from '@/state/ui';
 import { DamageNumberLayer } from '../entities/damage-number';
 import { DropView } from '../entities/drop';
 import { MobView } from '../entities/mob';
+import { stackTags } from '../entities/name-tag';
+import type { TagBox } from '../entities/name-tag';
 import { NpcView } from '../entities/npc';
 import { PlayerView } from '../entities/player';
 import { drawEffect, effectOf } from '../entities/skill-effect';
@@ -142,6 +144,8 @@ export class World extends Phaser.Scene {
   private view: MapView | null = null;
   private portals: PortalSystem | null = null;
   private readonly npcViews = new Map<string, NpcView>();
+  /** The NPCs' tags and markers, as showMarkers last left them. */
+  private npcTags: TagBox[] = [];
 
   constructor() {
     super(SCENES.World);
@@ -525,6 +529,7 @@ export class World extends Phaser.Scene {
     }
     this.closeDialogOutOfReach();
     this.drawRemotes(time);
+    this.liftTags();
     this.drawMobs(time);
     this.numberLayer?.sync(this.numbers.update(time));
     skillBar.getState().endBuffs(performance.now());
@@ -589,6 +594,20 @@ export class World extends Phaser.Scene {
         .getState()
         .setNearby([...this.remoteViews.keys()].map((id) => ({ id, name: remotes.nameOf(id) })));
     }
+  }
+
+  /** Players' tags stand clear of the NPCs' and of each other's: the local player's first, then others in order of arrival. */
+  private liftTags(): void {
+    const views: PlayerView[] = [];
+    const tags: TagBox[] = [];
+    for (const v of [this.player, ...this.remoteViews.values()]) {
+      const t = v?.nameTag();
+      if (v && t) {
+        views.push(v);
+        tags.push(t);
+      }
+    }
+    stackTags(this.npcTags, tags).forEach((bottom, i) => views[i]?.liftTag(bottom));
   }
 
   private drawMobs(now: number): void {
@@ -728,6 +747,7 @@ export class World extends Phaser.Scene {
       const npc = npcById(id);
       v.setMarker(npc ? markerFor(npc, p) : null);
     }
+    this.npcTags = [...this.npcViews.values()].flatMap((v) => v.tags());
   }
 
   /** Talks to the nearest NPC within reach; with none, the key does nothing. */
@@ -992,6 +1012,7 @@ export class World extends Phaser.Scene {
       v.destroy();
     }
     this.npcViews.clear();
+    this.npcTags = [];
     this.numberLayer?.destroy();
     this.numberLayer = null;
     this.remotes = null;

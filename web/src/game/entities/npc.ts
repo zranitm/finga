@@ -5,7 +5,8 @@ import type { Marker, Npc } from '@/progression/quests';
 import { ART_SCALE, TEX } from '../keys';
 import type { TextureKey } from '../keys';
 
-import { NAME_TAG_ABOVE } from './name-tag';
+import { NAME_TAG_ABOVE, NAME_TAG_STYLE, tagBox } from './name-tag';
+import type { TagBox } from './name-tag';
 
 interface NpcArt {
   readonly texture: TextureKey;
@@ -49,11 +50,7 @@ export class NpcView {
       .setScale(ART_SCALE)
       .setTint(art.tint);
     this.label = scene.add
-      .text(npc.x, npc.y - NAME_TAG_ABOVE, npc.name, {
-        fontSize: '12px',
-        color: '#ffe8a8',
-        fontFamily: 'sans-serif',
-      })
+      .text(npc.x, npc.y - NAME_TAG_ABOVE, npc.name, { ...NAME_TAG_STYLE, color: '#ffe8a8' })
       .setOrigin(0.5, 1);
     this.marker = scene.add
       .text(npc.x, npc.y - MARKER_ABOVE, '', {
@@ -72,6 +69,11 @@ export class NpcView {
       return;
     }
     this.marker.setText(MARKERS[m].text).setColor(MARKERS[m].color).setVisible(true);
+  }
+
+  /** Its name tag and any marker shown over it, which players' tags keep clear of. */
+  tags(): TagBox[] {
+    return this.marker.visible ? [tagBox(this.label), tagBox(this.marker)] : [tagBox(this.label)];
   }
 
   destroy(): void {
