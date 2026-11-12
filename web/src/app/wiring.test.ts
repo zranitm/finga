@@ -306,6 +306,10 @@ describe('wiring', () => {
       buffs: [{ skill: 'iron_body', points: 2, until: 120_000 }],
     });
     expect(skillBar.getState().cooldowns.strike).toBeUndefined();
+    vi.advanceTimersByTime(39_999);
+    expect(skillBar.getState().cooldowns.iron_body).toBeDefined();
+    vi.advanceTimersByTime(1);
+    expect(skillBar.getState().cooldowns.iron_body).toBeUndefined(); // it ends at its time, as a press's does
   });
 
   it('a StatsChanged whose skill points reach a later stage adds an evolution line', async () => {

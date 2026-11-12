@@ -154,8 +154,7 @@ export function applyStatus(e: StatusEvent): void {
   }
 }
 
-/** With the setting on, a level-up spends every unspent point by the class's split, as the window's button does; a class with no split spends nothing. */
-/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length at the character's cooldown speed. */
+/** The Welcome's skill timers as the skill bar times them: each cooldown drains from its full length at the character's cooldown speed, and ends at its time, as a press's does. */
 function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
   const sheet = d.character?.sheet;
   const tickMs = 1000 / (d.tickRateHz || 20);
@@ -175,8 +174,16 @@ function restoreSkillTimers(d: Data<'welcome'>, now: number): void {
     }
   }
   skillBar.getState().restoreTimers(cooldowns, buffs);
+  for (const [skill, c] of Object.entries(cooldowns)) {
+    setTimeout(() => {
+      if (skillBar.getState().cooldowns[skill] === c) {
+        skillBar.getState().cool(skill, null);
+      }
+    }, c.until - now);
+  }
 }
 
+/** With the setting on, a level-up spends every unspent point by the class's split, as the window's button does; a class with no split spends nothing. */
 function autoAssignPoints(socket: GameSocket, d: Data<'levelUp'>): void {
   const c = d.character;
   const unspent = c?.sheet?.points?.unspent ?? 0;

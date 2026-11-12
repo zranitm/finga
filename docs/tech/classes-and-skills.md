@@ -194,7 +194,7 @@ skills:
 - **Buffs and cooldowns outlive the map:** a map change, through a portal or to the town after dying (whose buffs have ended), and a fresh join, after a reload, a reconnect or a world restart.
   - Each map counts them in its own ticks, and maps may tick at different rates. So the handoff and the checkpoint keep when each ends on the wall clock, with a buff's points, and a map counts each on from its own tick. A buff's bonus comes from the data again, at those points; a skill the data no longer has ends its buff.
   - **A fresh join** reads them from the last checkpoint, dropping any that ended meanwhile. A running buff counts in the joining sheet.
-  - **The client keeps its own** across a map change. A `Welcome` sets them to the world's, from the time each has left: each cooldown drains from its full length, at the character's cooldown speed.
+  - **The client keeps its own** across a map change. A `Welcome` sets them to the world's, from the time each has left. A key shows its cooldown where it stands, against its full length at the character's cooldown speed, drains on from there, and ends at its time.
   - A crash loses at most one checkpoint interval of them, as it does of everything else.
 - **Passive skills and buffs feed the stats.** `DeriveStats` takes both as the skills' bonuses, added like gear, with the limits still the ceiling.
   - **Passives:** a passive with at least one point adds its stage's bonus.
