@@ -23,7 +23,6 @@ export const TEX = {
   snowMid: 'snowMid',
   snowCenter: 'snowCenter',
   snowHalf: 'snowHalf',
-  brickGrey: 'brickGrey',
   ladderMid: 'ladderMid',
   ladderTop: 'ladderTop',
   doorClosedMid: 'doorClosedMid',

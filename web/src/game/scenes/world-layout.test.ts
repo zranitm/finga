@@ -64,11 +64,12 @@ describe('world layout', () => {
       map: 'frost_trail',
       ground: [TEX.snowMid, TEX.snowCenter, TEX.snowHalf],
       background: TEX.bgCave,
-      backgroundTint: 0xeef6ff,
+      backgroundTint: 0xc8dcf2,
     },
     {
       map: 'fallen_keep',
-      ground: [TEX.brickGrey, TEX.brickGrey, TEX.stoneHalf],
+      ground: [TEX.stoneMid, TEX.stoneCenter, TEX.stoneHalf],
+      tint: 0x8c7f9e,
       background: TEX.bgLand,
       backgroundTint: 0x8a7aa8,
     },
@@ -79,24 +80,17 @@ describe('world layout', () => {
       backgroundTint: 0xffd8b0,
     },
   ])(
-    '$map draws its region art, its ground untinted',
-    ({ map, ground: [top, fill, platform], background, backgroundTint }) => {
-      expect(groundStyle(map)).toEqual({
-        top,
-        fill,
-        platform,
-        tint: null,
-        background,
-        backgroundTint,
-      });
+    '$map draws its region art',
+    ({ map, ground: [top, fill, platform], tint = null, background, backgroundTint }) => {
+      expect(groundStyle(map)).toEqual({ top, fill, platform, tint, background, backgroundTint });
     },
   );
 
-  it('a shaded ground tints its solids and platforms, not its ropes or portals', () => {
-    const shaded = { ...groundStyle('dune_road'), tint: 0xb8aec8 };
+  it("the keep's tinted ground tints its solids and platforms, not its ropes or portals", () => {
+    const keep = groundStyle('fallen_keep');
     const rect = { x: 0, y: 0, w: 64, h: 64 };
-    for (const t of [...solidTiles([rect], shaded), ...platformTiles([rect], shaded)]) {
-      expect(t.tint).toBe(0xb8aec8);
+    for (const t of [...solidTiles([rect], keep), ...platformTiles([rect], keep)]) {
+      expect(t.tint).toBe(0x8c7f9e);
     }
     for (const t of [...ropeTiles([rect]), ...portalTiles(town.portals)]) {
       expect(t.tint).toBeNull();

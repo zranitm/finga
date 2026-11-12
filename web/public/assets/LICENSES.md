@@ -15,16 +15,16 @@ licence; it is given here.
   projects. Credit (Kenney or www.kenney.nl) would be nice but is not
   mandatory.")
 - Used: ground tiles (Dirt, Grass, Stone, Sand, Snow: `*Mid`, `*Center`,
-  `*Half_mid`), tiles (`ladderMid`, `ladderTop`, `doorClosed_*`, `doorOpen_*`,
-  `brickGrey`), enemies (`slimeGreen*`, `snail*`, `mouse*`, `fly*`), players
-  (`alienBlue_*`, `alienGreen_*`), backgrounds (`colored_grass`,
-  `colored_land`, `colored_shroom`, `colored_desert`, `blue_land`). All 128 px
-  art drawn at scale 0.25 so one tile is one 32 px grid cell. The keep's
-  ground is `brickGrey`, with stone ledges for platforms, since the pack has
-  no half-height brick. The pack has no dawn, dusk or snowy sky, so those
-  maps draw the `colored_land` and `blue_land` backgrounds tinted, and the new
-  mobs are the four enemies above, tinted and, for elites, drawn 1.5 times as
-  big.
+  `*Half_mid`), tiles (`ladderMid`, `ladderTop`, `doorClosed_*`, `doorOpen_*`),
+  enemies (`slimeGreen*`, `snail*`, `mouse*`, `fly*`), players (`alienBlue_*`,
+  `alienGreen_*`), backgrounds (`colored_grass`, `colored_land`,
+  `colored_shroom`, `colored_desert`, `blue_land`). All 128 px art drawn at
+  scale 0.25 so one tile is one 32 px grid cell. The pack has no castle ground
+  (its `brick*` tiles are single blocks with see-through corners, made to stand
+  alone, not to tile), so the keep draws the stone tiles tinted. It has no
+  dawn, dusk or snowy sky either, so those maps draw the `colored_land` and
+  `blue_land` backgrounds tinted, and the new mobs are the four enemies above,
+  tinted and, for elites, drawn 1.5 times as big.
 
 ## Kenney, Generic Items (`generic-items/`)
 

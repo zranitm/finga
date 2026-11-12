@@ -29,7 +29,6 @@ export const images: readonly ImageAsset[] = [
   { key: TEX.snowMid, file: g('snowMid') },
   { key: TEX.snowCenter, file: g('snowCenter') },
   { key: TEX.snowHalf, file: g('snowHalf_mid') },
-  { key: TEX.brickGrey, file: t('brickGrey') },
   { key: TEX.ladderMid, file: t('ladderMid') },
   { key: TEX.ladderTop, file: t('ladderTop') },
   { key: TEX.doorClosedMid, file: t('doorClosed_mid') },
