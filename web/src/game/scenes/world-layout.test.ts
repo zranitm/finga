@@ -12,6 +12,7 @@ import { TEX } from '../keys';
 
 import {
   bannerLines,
+  belowFloor,
   groundStyle,
   mapTiles,
   platformTiles,
@@ -96,6 +97,32 @@ describe('world layout', () => {
         expect(portalLabel(p.target_map), `${m.id} ${p.name}`).not.toBe('');
       }
     }
+  });
+
+  it.each([
+    { map: 'town', texture: TEX.dirtCenter, tint: null, w: 2560, h: 800 },
+    { map: 'dune_road', texture: TEX.dirtCenter, tint: 0xf2d79a, w: 2560, h: 576 },
+  ])(
+    "$map in a 2560×1440 window has its ground's fill under the floor, out to the window's edges",
+    ({ map, texture, tint, w, h }) => {
+      const view = parseMap(
+        map,
+        JSON.parse(readFileSync(path.resolve(process.cwd(), `public/maps/${map}.tmj`), 'utf8')),
+      );
+      expect(belowFloor(view, { width: 2560, height: 1440 })).toEqual({
+        texture,
+        x: 0,
+        y: view.height,
+        w,
+        h,
+        tint,
+      });
+    },
+  );
+
+  it('a window no taller than the map needs nothing under the floor; a narrow one fills the map wide', () => {
+    expect(belowFloor(town, { width: 2560, height: 640 })).toBeNull();
+    expect(belowFloor(town, { width: 800, height: 900 })).toMatchObject({ w: 1280, h: 260 });
   });
 
   it("a second player in a door has its tag lifted above the door's label, not onto it", () => {

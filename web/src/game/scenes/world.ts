@@ -61,7 +61,14 @@ import { PotionKeys } from '../systems/potion-keys';
 import { Predictor, movementParams, wireState } from '../systems/prediction';
 import { SkillKeys } from '../systems/skill-keys';
 
-import { bannerLines, groundStyle, mapTiles, portalLabel, portalLabelY } from './world-layout';
+import {
+  bannerLines,
+  belowFloor,
+  groundStyle,
+  mapTiles,
+  portalLabel,
+  portalLabelY,
+} from './world-layout';
 
 /** What the game enters the world with, from Welcome. */
 export interface WorldEntry {
@@ -110,6 +117,8 @@ export class World extends Phaser.Scene {
   private timing: TickTiming = tickTiming(20, movement.dt);
   private player: PlayerView | null = null;
   private background: Phaser.GameObjects.Image | null = null;
+  /** The ground under the map's floor, in a window taller than the map. */
+  private underFloor: Phaser.GameObjects.TileSprite | null = null;
   private offs: (() => void)[] = [];
 
   private socket: GameSocket | null = null;
@@ -206,8 +215,10 @@ export class World extends Phaser.Scene {
     if (style.backgroundTint !== null) {
       this.background.setTint(style.backgroundTint);
     }
+    this.fillBelowFloor(view, cam);
     const onResize = (size: Phaser.Structs.Size) => {
       this.background?.setDisplaySize(size.width, size.height);
+      this.fillBelowFloor(view, size);
     };
     this.scale.on(Phaser.Scale.Events.RESIZE, onResize);
     this.offs.push(() => this.scale.off(Phaser.Scale.Events.RESIZE, onResize));
@@ -820,6 +831,26 @@ export class World extends Phaser.Scene {
     }
   }
 
+  private fillBelowFloor(
+    view: MapView,
+    viewport: { readonly width: number; readonly height: number },
+  ): void {
+    this.underFloor?.destroy();
+    this.underFloor = null;
+    const t = belowFloor(view, viewport);
+    if (!t) {
+      return;
+    }
+    this.underFloor = this.add
+      .tileSprite(t.x, t.y, t.w, t.h, t.texture)
+      .setOrigin(0, 0)
+      .setTileScale(ART_SCALE)
+      .setDepth(DEPTH.tiles);
+    if (t.tint !== null) {
+      this.underFloor.setTint(t.tint);
+    }
+  }
+
   private banner(lines: readonly string[]): void {
     const cam = this.cameras.main;
     const texts = lines.map((line, i) =>
@@ -1029,6 +1060,7 @@ export class World extends Phaser.Scene {
     this.remotes = null;
     this.player = null;
     this.background = null;
+    this.underFloor = null;
     this.socket = null;
     this.predictor = null;
     this.sender = null;
