@@ -174,20 +174,20 @@ func TestASetCreatesOnlyItsServicesTables(t *testing.T) {
 
 // citext belongs to two services, so rolling either back must leave it for the other.
 func TestCitextSurvivesEitherRollback(t *testing.T) {
-	ctx := context.Background()
-	pool := cluster.DB(t)
-	if _, err := app.Apply(ctx, pool); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `DROP TABLE sessions; DROP TABLE accounts; DELETE FROM goose_account_version WHERE version_id > 0`); err != nil {
-		t.Fatal(err)
-	}
-	down := downSection(t, find(t, "account").FS, "00001_citext.sql")
-	if _, err := pool.Exec(ctx, down); err != nil {
-		t.Fatal(err)
-	}
-	if !hasExtension(t, pool, "citext") {
-		t.Fatal("rolling the account service back dropped citext")
+	for _, service := range []string{"account", "character"} {
+		t.Run(service, func(t *testing.T) {
+			ctx := context.Background()
+			pool := cluster.DB(t)
+			if _, err := app.Apply(ctx, pool); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, downSection(t, find(t, service).FS, "00001_"+service+".sql")); err != nil {
+				t.Fatal(err)
+			}
+			if !hasExtension(t, pool, "citext") {
+				t.Fatalf("rolling the %s service back dropped citext", service)
+			}
+		})
 	}
 }
 

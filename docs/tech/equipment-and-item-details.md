@@ -307,7 +307,7 @@ Each step is one reviewed commit, green on `make test`, `make lint`, and `make c
 Approved on 2026-11-08 with every default below.
 
 1. **Starter equipment worn from the start.** Default: yes, so a new player fights with their weapon without first learning to equip it. Otherwise it lands in the inventory, as today.
-2. **Existing equipment.** Default: backfill each piece with its lowest roll. The alternative is recreating the database (`make down`), as the split required.
+2. **Existing equipment.** Default: backfill each piece with its lowest roll. The alternative is recreating the database (`make down`), as the split required. The backfill went when each service's migrations were squashed into one file on 2026-11-12: until go-live, a breaking change starts from a fresh database.
 3. **Balance.** Default: retune mobs in the content step. The alternative is lowering the class formulas so a starter weapon brings damage back to today's level.
 4. **Character list.** Default: the REST character list keeps showing stats without equipment. Showing them would mean the character service reading worn items from the item service.
 
