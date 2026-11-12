@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"maps"
 	"sync"
 	"time"
 
@@ -96,14 +95,17 @@ func (s *Streams) Unreachable(id kernel.CharacterID, conn string) {
 	}
 }
 
-// Announce sends a to every character online, through each one's gateway; it never blocks.
+// Announce sends a once to each gateway anyone is online through, which hands it to every player it has in the world: a burst that grows with gateways, not players, so it never fills one's queue. It never blocks.
 func (s *Streams) Announce(a *socialv1.Announcement) {
 	s.mu.Lock()
-	online := maps.Clone(s.presence)
+	gateways := map[string]bool{}
+	for _, p := range s.presence {
+		gateways[p.gateway] = true
+	}
 	s.mu.Unlock()
-	for id, p := range online {
-		if sub, ok := s.deliver.Get(p.gateway); ok {
-			sub.Send(&socialv1.DeliverResponse{CharacterId: id.String(), Event: &socialv1.DeliverResponse_Announcement{Announcement: a}})
+	for gateway := range gateways {
+		if sub, ok := s.deliver.Get(gateway); ok {
+			sub.Send(&socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Announcement{Announcement: a}})
 		}
 	}
 }

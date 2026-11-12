@@ -114,10 +114,10 @@ The client counts the time left down itself from `leaves_in_ms`.
 
 ## 5. Social service: announcing to everyone
 
-- **`Announce(Announcement)`,** a new RPC on the social service, fans out to every character in `presence` over the gateways' `Deliver` streams, as party lines go to members today. The social service already knows who is online, on every gateway. An announcement of no kind is refused.
+- **`Announce(Announcement)`,** a new RPC on the social service, sends the announcement once to each gateway that anyone in `presence` is online through, over its `Deliver` stream, with no character named. The gateway hands it to every player it has in the world. One message per gateway, not per player, keeps the burst within a gateway's delivery queue however many are online; one per player would fill the queue at a few thousand players and end that gateway's stream. An announcement of no kind is refused.
 - **The world sends it off the tick:** the instance hands the announcement to the `announce` queue, which a goroutine sends with a 2-second timeout, as `party.Copy` sends member updates. The queue is the same coalescing one, keyed by the news, so a boss's notice still waiting is replaced by the next one from its map rather than piling up. A failure is logged and dropped. The boss still appears; only the notice is lost.
 - **`Announcement` is typed:** a oneof whose first case is `boss_appeared{boss, map}`. The client writes the words from game data, so names stay in one place and later notices add cases.
-- **The gateway** maps the new `DeliverResponse` case to a push of its kind, `model.BossAppeared`, which the outbox writes as an `Announcement`; a later kind adds its own push.
+- **The gateway** maps the new `DeliverResponse` case to a push of its kind, `model.BossAppeared`, which the outbox writes as an `Announcement`; a later kind adds its own push. It comes as a `SocialBroadcast`, which every active session in the world gets.
 
 ## 6. Protocol
 
@@ -169,7 +169,7 @@ All additive, so `buf breaking` passes:
   - the damage tally and the payout: a lone player; a party with a dead member and one on another map; a group under `drop_share`; damage from a player who left;
   - each drop's owner, with party turns untouched for the next ordinary kill;
   - the events, and the snapshot for a player joining mid-fight.
-- **Social and gateway:** `Announce` reaching every online character across two gateways, and the new push.
+- **Social and gateway:** `Announce` going once to each gateway with players online and to none without, the gateway handing it to each of its players, and the new push.
 - **Client:** the bar's countdown and HP, the joining snapshot, the toast and the `[Notice]` line, and the leaving notice.
 - **End to end,** on test data with a small `kills`: kill until the boss appears, see the announcement on another map, beat it in a party, and check each player's EXP and drop owner.
 - **Balance:** the boss checks in the harness.

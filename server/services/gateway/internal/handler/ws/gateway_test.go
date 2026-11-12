@@ -1586,18 +1586,22 @@ func TestASocialDeliveryDuringHelloFollowsWelcome(t *testing.T) {
 	})
 }
 
-// News for everyone online reaches the player from the social stream as an Announcement.
-func TestAnAnnouncementReachesThePlayer(t *testing.T) {
+// An announcement comes once for the whole gateway, which hands it to every player it has in the world.
+func TestAnAnnouncementReachesEveryPlayerInTheWorld(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		fs := newFakeSocial()
 		h := social(t, fs)
-		c := h.dial(t)
-		c.hello(tokenAlice, aylaID)
-		c.expect("Snapshot")
+		ayla, bruno := h.dial(t), h.dial(t)
+		ayla.hello(tokenAlice, aylaID)
+		ayla.expect("Snapshot")
+		bruno.hello(tokenBob, brunoID)
+		bruno.expect("Snapshot")
 		news := &socialv1.Announcement{Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}
-		fs.push(aylaID, &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Announcement{Announcement: news}})
-		if b := c.expect("Announcement").Data.(*clientv1.Announcement).GetBossAppeared(); b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
-			t.Fatalf("announced %+v", b)
+		fs.events <- &socialv1.DeliverResponse{Event: &socialv1.DeliverResponse_Announcement{Announcement: news}}
+		for _, c := range []*client{ayla, bruno} {
+			if b := c.expect("Announcement").Data.(*clientv1.Announcement).GetBossAppeared(); b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
+				t.Fatalf("announced %+v", b)
+			}
 		}
 	})
 }

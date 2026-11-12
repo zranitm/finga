@@ -616,36 +616,37 @@ func TestAGatewayBackMidSweepKeepsThePlayersItRegistersAgain(t *testing.T) {
 	})
 }
 
-// An announcement reaches every character online, each through their own gateway, and no one gone offline; one of no kind is refused.
-func TestAnAnnouncementReachesEveryoneOnline(t *testing.T) {
+// An announcement goes once to each gateway anyone is online through, however many are on it, and to none with nobody online; one of no kind is refused.
+func TestAnAnnouncementGoesOnceToEachGatewayWithPlayers(t *testing.T) {
 	s := newStack(t)
-	gwA, gwB := s.gateway(t, "gw-a"), s.gateway(t, "gw-b")
-	ann, cy, bo := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
+	gwA, gwB, gwC := s.gateway(t, "gw-a"), s.gateway(t, "gw-b"), s.gateway(t, "gw-c")
+	ann, cy, bo, di := kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID(), kernel.NewCharacterID()
 	s.online(t, "gw-a", ann, "Ann")
 	s.online(t, "gw-a", cy, "Cy")
 	s.online(t, "gw-b", bo, "Bo")
 	recv(t, gwA)
 	recv(t, gwA)
 	recv(t, gwB)
-	if _, err := s.c.Offline(s.ctx, &socialv1.OfflineRequest{CharacterId: cy.String(), ConnectionId: "conn-Cy"}); err != nil {
-		t.Fatal(err)
-	}
 	news := &socialv1.Announcement{Kind: &socialv1.Announcement_BossAppeared{BossAppeared: &socialv1.BossAppeared{Boss: "king_slime", MapId: "forest"}}}
 	if _, err := s.c.Announce(s.ctx, &socialv1.AnnounceRequest{Announcement: news}); err != nil {
 		t.Fatal(err)
 	}
-	for stream, who := range map[grpc.ServerStreamingClient[socialv1.DeliverResponse]]kernel.CharacterID{gwA: ann, gwB: bo} {
+	for name, stream := range map[string]grpc.ServerStreamingClient[socialv1.DeliverResponse]{"gw-a": gwA, "gw-b": gwB} {
 		m := recv(t, stream)
-		if b := m.GetAnnouncement().GetBossAppeared(); m.GetCharacterId() != who.String() || b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
-			t.Fatalf("%s heard %+v; want the King Slime notice", who, m)
+		if b := m.GetAnnouncement().GetBossAppeared(); m.GetCharacterId() != "" || b.GetBoss() != "king_slime" || b.GetMapId() != "forest" {
+			t.Fatalf("%s heard %+v; want the King Slime notice, for no one character", name, m)
 		}
 	}
-	// Nothing went for Cy, offline: the next thing on Ann's gateway is an invite to Ann.
+	// Once only: the next thing on gw-a is an invite to Ann, and gw-c, with nobody online then, heard nothing before Di's party.
 	if _, err := s.c.Invite(s.ctx, &socialv1.InviteRequest{CharacterId: bo.String(), TargetId: ann.String()}); err != nil {
 		t.Fatal(err)
 	}
 	if m := recv(t, gwA); m.GetCharacterId() != ann.String() || m.GetPartyInvited() == nil {
-		t.Fatalf("next on Ann's gateway %+v; want Bo's invite, nothing for Cy", m)
+		t.Fatalf("next on gw-a %+v; want Bo's invite to Ann, the notice sent once", m)
+	}
+	s.online(t, "gw-c", di, "Di")
+	if m := recv(t, gwC); m.GetCharacterId() != di.String() || m.GetPartyState() == nil {
+		t.Fatalf("first on gw-c %+v; want Di's party, no notice", m)
 	}
 	if _, err := s.c.Announce(s.ctx, &socialv1.AnnounceRequest{Announcement: &socialv1.Announcement{}}); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("an announcement of no kind: %v, want InvalidArgument", err)

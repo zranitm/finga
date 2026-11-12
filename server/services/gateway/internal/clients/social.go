@@ -88,13 +88,17 @@ func (s Social) Promote(ctx context.Context, leader, target kernel.CharacterID) 
 	return errmap.Wrap(err)
 }
 
-// FollowDeliveries follows this gateway's party and chat stream until ctx ends.
+// FollowDeliveries follows this gateway's party, chat and announcement stream until ctx ends.
 func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver func(model.SocialEvent)) {
 	grpcx.Follow(ctx, func(ctx context.Context) (grpc.ServerStreamingClient[socialv1.DeliverResponse], error) {
 		return s.c.Deliver(ctx, &socialv1.DeliverRequest{GatewayId: gateway})
 	}, func(m *socialv1.DeliverResponse) {
 		if sub := m.GetSubscribed(); sub != nil {
 			deliver(model.SocialSubscribed{BootID: sub.GetBootId()})
+			return
+		}
+		if b := m.GetAnnouncement().GetBossAppeared(); b != nil {
+			deliver(model.SocialBroadcast{Delivery: model.Delivery{Push: model.BossAppeared{Boss: b.GetBoss(), MapID: b.GetMapId()}}})
 			return
 		}
 		id, err := kernel.ParseCharacterID(m.GetCharacterId())
@@ -111,9 +115,6 @@ func (s Social) FollowDeliveries(ctx context.Context, gateway string, deliver fu
 		case m.GetChatLine() != nil:
 			line := m.GetChatLine()
 			p = model.ChatMessage{Channel: model.ChatParty, Sender: line.GetSenderId(), SenderName: line.GetSenderName(), Text: line.GetText()}
-		case m.GetAnnouncement().GetBossAppeared() != nil:
-			b := m.GetAnnouncement().GetBossAppeared()
-			p = model.BossAppeared{Boss: b.GetBoss(), MapID: b.GetMapId()}
 		default:
 			return
 		}

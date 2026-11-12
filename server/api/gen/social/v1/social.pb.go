@@ -370,7 +370,7 @@ func (x *DeliverRequest) GetGatewayId() string {
 // DeliverResponse is one event for one character.
 type DeliverResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Empty only for Subscribed.
+	// Empty for Subscribed, and for an Announcement, which is for every player the gateway has in the world.
 	CharacterId string `protobuf:"bytes,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
 	// Types that are valid to be assigned to Event:
 	//

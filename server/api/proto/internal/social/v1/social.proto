@@ -29,7 +29,7 @@ service SocialService {
   rpc WatchParties(WatchPartiesRequest) returns (stream WatchPartiesResponse);
   // UpdateMember records what the world saw of a member: map, level, HP.
   rpc UpdateMember(UpdateMemberRequest) returns (UpdateMemberResponse);
-  // Announce delivers news to every character online, through every gateway.
+  // Announce delivers news to every character online: once to each gateway, which hands it to every player it has in the world.
   rpc Announce(AnnounceRequest) returns (AnnounceResponse);
 }
 
@@ -87,7 +87,7 @@ message DeliverRequest {
 
 // DeliverResponse is one event for one character.
 message DeliverResponse {
-  // Empty only for Subscribed.
+  // Empty for Subscribed, and for an Announcement, which is for every player the gateway has in the world.
   string character_id = 1;
   oneof event {
     Subscribed subscribed = 2;

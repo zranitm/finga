@@ -52,8 +52,14 @@ type SocialDelivery struct {
 	Delivery  Delivery
 }
 
+// SocialBroadcast is a push for every player the gateway has in the world.
+type SocialBroadcast struct {
+	Delivery Delivery
+}
+
 func (SocialSubscribed) socialEvent() {}
 func (SocialDelivery) socialEvent()   {}
+func (SocialBroadcast) socialEvent()  {}
 
 // SessionEnd is what the account service's session stream brings.
 //

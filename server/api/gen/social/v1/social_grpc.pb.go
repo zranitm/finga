@@ -62,7 +62,7 @@ type SocialServiceClient interface {
 	WatchParties(ctx context.Context, in *WatchPartiesRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[WatchPartiesResponse], error)
 	// UpdateMember records what the world saw of a member: map, level, HP.
 	UpdateMember(ctx context.Context, in *UpdateMemberRequest, opts ...grpc.CallOption) (*UpdateMemberResponse, error)
-	// Announce delivers news to every character online, through every gateway.
+	// Announce delivers news to every character online: once to each gateway, which hands it to every player it has in the world.
 	Announce(ctx context.Context, in *AnnounceRequest, opts ...grpc.CallOption) (*AnnounceResponse, error)
 }
 
@@ -251,7 +251,7 @@ type SocialServiceServer interface {
 	WatchParties(*WatchPartiesRequest, grpc.ServerStreamingServer[WatchPartiesResponse]) error
 	// UpdateMember records what the world saw of a member: map, level, HP.
 	UpdateMember(context.Context, *UpdateMemberRequest) (*UpdateMemberResponse, error)
-	// Announce delivers news to every character online, through every gateway.
+	// Announce delivers news to every character online: once to each gateway, which hands it to every player it has in the world.
 	Announce(context.Context, *AnnounceRequest) (*AnnounceResponse, error)
 	mustEmbedUnimplementedSocialServiceServer()
 }
