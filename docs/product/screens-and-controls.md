@@ -23,6 +23,14 @@ The screens players see and the keys they use. This is the input for the design 
 | **NPC dialog** | Talk to an NPC: promotions, quests to take and hand in, later shops | P1 |
 | **Quest log** | See active quests and their progress; abandon one | P1 |
 
+## The view
+
+The game view shows about 30 by 17 tiles of the world, 960 by 540 px, whatever the window's size (C11).
+
+- The world draws as big as the window allows while still showing that much. On a 1080p screen, that's twice the art's base size, and a character stands about a tenth of the screen's height.
+- A window wider or taller than 16:9 shows more of the map in that direction. A bigger screen alone shows no more of it.
+- Names, damage numbers, and NPC markers keep their size on screen. The HUD and windows don't scale with the view.
+
 ## Chat
 
 The chat stays out of the way of play until the player uses it.
