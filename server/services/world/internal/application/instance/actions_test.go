@@ -1,6 +1,7 @@
 package instance_test
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -39,8 +40,9 @@ func strikeWith(t *testing.T, line string) map[string]func(string) string {
 	return map[string]func(string) string{"skills.yaml": edit(t, "  - id: strike\n", "  - id: strike\n    "+line+"\n")}
 }
 
-func cancelableStrike(t *testing.T) map[string]func(string) string {
-	return strikeWith(t, "cancelable: true")
+// strikeCancelable sets whether a basic attack may cut Strike short; Strike is the data's first skill marked cancelable.
+func strikeCancelable(t *testing.T, on bool) map[string]func(string) string {
+	return map[string]func(string) string{"skills.yaml": edit(t, "    cancelable: true\n", fmt.Sprintf("    cancelable: %t\n", on))}
 }
 
 // attackTicks is p's basic attack in ticks, and its cancel point, at p's attack speed.
@@ -102,7 +104,7 @@ func usedAt(t *testing.T, s *worldtest.Sink, done <-chan error, most int) uint64
 // A skill cuts off a basic attack at the attack's cancel point, not before. It may go up to castSlack early, but its action counts from the cancel point, so the attack after it waits as long as ever.
 func TestASkillCutsOffAnAttackAtItsCancelPoint(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, nil)
+		data := timelineData(t, strikeCancelable(t, false))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
@@ -131,11 +133,7 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 	for _, cancelable := range []bool{true, false} {
 		t.Run(map[bool]string{true: "cancelable", false: "not cancelable"}[cancelable], func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
-				var more map[string]func(string) string
-				if cancelable {
-					more = cancelableStrike(t)
-				}
-				data := timelineData(t, more)
+				data := timelineData(t, strikeCancelable(t, cancelable))
 				inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 				defer stop()
 				tick(1)
@@ -164,7 +162,7 @@ func TestAnAttackCutsOffOnlyACancelableSkill(t *testing.T) {
 // Neither kind cuts off its own: a skill waits for the last skill's end, up to castSlack early with its action counted from that end, and an attack for the last attack's end.
 func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, cancelableStrike(t))
+		data := timelineData(t, strikeCancelable(t, true))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)
@@ -196,7 +194,7 @@ func TestTheSameKindWaitsForTheEnd(t *testing.T) {
 // Attack speed shortens a basic attack, moving its cancel point, and leaves a skill's length and cancel point alone.
 func TestAttackSpeedMovesOnlyTheAttacksCancelPoint(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		data := timelineData(t, cancelableStrike(t))
+		data := timelineData(t, strikeCancelable(t, true))
 		inst, stop := worldtest.RunMap(t, data, arena(time.Hour), nil, worldtest.Options{})
 		defer stop()
 		tick(1)

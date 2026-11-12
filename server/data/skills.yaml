@@ -14,6 +14,7 @@ skills:
     mp: {base: 4, per_point: 0.2}
     cooldown: 3s
     length: 1050ms
+    cancelable: true
     power: {base: 1.5, per_point: 0.05}
     stages:
       - {at: 0, name: Strike, description: "A strong swing at whatever stands in front."}
@@ -27,6 +28,7 @@ skills:
     mp: {base: 4, per_point: 0.2}
     cooldown: 3s
     length: 1050ms
+    cancelable: true
     power: {base: 1.3, per_point: 0.05}
     stages:
       - {at: 0, name: Throw, description: "Hurls a stone at the nearest foe ahead."}
@@ -40,6 +42,7 @@ skills:
     mp: {base: 6, per_point: 0.3}
     cooldown: 3750ms
     length: 1050ms
+    cancelable: true
     power: {base: 1.6, per_point: 0.06}
     stages:
       - {at: 0, name: Spark, description: "A crackle of magic at a foe close by."}
@@ -62,6 +65,7 @@ skills:
     mp: {base: 6, per_point: 0.3}
     cooldown: 4500ms
     length: 1050ms
+    cancelable: true
     power: {base: 1.4, per_point: 0.04}
     targets: 3
     stages:
@@ -85,6 +89,7 @@ skills:
     mp: {base: 5, per_point: 0.25}
     cooldown: 2250ms
     length: 1050ms
+    cancelable: true
     power: {base: 2.0, per_point: 0.06}
     stages:
       - {at: 0, name: Double Stab, description: "Two quick stabs at the foe in front."}
@@ -107,6 +112,7 @@ skills:
     mp: {base: 6, per_point: 0.3}
     cooldown: 3s
     length: 1050ms
+    cancelable: true
     power: {base: 2.4, per_point: 0.06}
     stages:
       - {at: 0, name: Power Shot, description: "A drawn-back shot that flies far and hits hard."}
@@ -129,6 +135,7 @@ skills:
     mp: {base: 9, per_point: 0.4}
     cooldown: 3s
     length: 1050ms
+    cancelable: true
     power: {base: 2.8, per_point: 0.08}
     stages:
       - {at: 0, name: Fire Arrow, description: "A bolt of fire at the nearest foe ahead."}

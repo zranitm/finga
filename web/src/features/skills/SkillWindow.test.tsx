@@ -75,7 +75,7 @@ describe('SkillWindow', () => {
     expect(within(beginner).getAllByRole('listitem')).toHaveLength(4);
     expect(row('Strike')).toHaveTextContent('8 points');
     expect(row('Strike')).toHaveTextContent('1.9× physical attack · 6 MP · 3s cooldown');
-    expect(row('Strike')).toHaveTextContent('Takes 1.05s.');
+    expect(row('Strike')).toHaveTextContent('Takes 1.05s. A basic attack can cut it short.');
     expect(row('Strike')).toHaveTextContent('Each point: power +0.05× · MP +0.2');
     expect(row('Strike')).toHaveTextContent('Evolves into Heavy Strike at 10 points (2 more).');
     expect(row('Volley')).toHaveTextContent(

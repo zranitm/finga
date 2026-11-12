@@ -178,7 +178,8 @@ describe('action timings', () => {
       ticks: 21,
       hit: 0,
       cancel: 0.85,
-      cancelable: false,
+      cancelable: true,
     });
+    expect(skillTiming(skillById('heal')!.stages[0]!, 50)).toMatchObject({ cancelable: false });
   });
 });

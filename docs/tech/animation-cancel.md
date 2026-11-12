@@ -144,12 +144,15 @@ Rounding the cancel point down keeps every class near the target. At 0.85 and th
 
 ## 8. Balance
 
-- **The harness** (`world/internal/model/balance_test.go`) today paces a fight by the basic attack alone: a skill was "a stronger hit in place of a normal one".
-- **It gains a rotation model.** For each class at its checkpoints, with its skills at the points the bots' plan gives them, it counts damage per second three ways:
+- **The harness** (`world/internal/model/balance_test.go`) paced a fight by the basic attack alone: a skill was "a stronger hit in place of a normal one".
+- **It gains a rotation model** (`rotation_test.go`). For each class against each mob of its level, it counts damage per second three ways:
   1. basic attacks alone;
-  2. skills on cooldown, one action at a time, with no cancels;
-  3. a perfect chain: every cancel that's allowed, taken at its point.
-- **It holds the chain's gain** (3 over 2) to at most 22% for every class and checkpoint, which leaves room around the product's "up to about 20%". The hits-to-kill bands stay checked against 1, as today, so a player who never cancels or uses skills still meets them.
+  2. skills on cooldown, one action at a time, with no cancels: as each action ends, the strongest damage skill ready goes, else a basic attack;
+  3. a perfect chain: the same actions in the same order, each one the next may cut short ending at its cancel point. A skill still waits for its cooldown.
+- **Skill points** follow the rule the bots spend them by: the promotion's skills up to what it asks, the rest in the main skill, which is the promotion's first before it and the class's first after.
+- **Each action's damage** is its mean on the mob, misses included, from the world's own combat rules. MP is taken as enough.
+- **It holds the chain's gain** (3 over 2) to at most 22% for every class and mob, which leaves room around the product's "up to about 20%". The hits-to-kill bands stay checked against 1, as before, so a player who never cancels or uses skills still meets them.
+- **With the first data** (every skill 1050 ms, cancel at 0.85, the damage skills cancelable), a perfect chain adds 0–13%, most often 5–8%. Skills on cooldown carry most of the damage, and a cancel shaves only an action's tail.
 - **Tuning moves only data:** skill lengths, the cancel points, `cancelable`, and the skill powers.
 
 ## 9. Pace

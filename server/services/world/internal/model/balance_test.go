@@ -181,9 +181,10 @@ func mapMobs(d *gamedata.Data, m *gamedata.Map) (normal, elite []gamedata.Mob) {
 
 // player is who meets a mob: a class a Beginner is promoted to, or a Beginner spending its points by the split of the class it means to become.
 type player struct {
-	class gamedata.Class
-	split gamedata.Stats
-	name  string
+	class  gamedata.Class
+	future gamedata.Class // the class it is, or means to become
+	split  gamedata.Stats
+	name   string
 }
 
 // players are who meets a mob of level: Beginners below the promotion level, the classes they are promoted to from it.
@@ -194,9 +195,9 @@ func players(d *gamedata.Data, level int) []player {
 			continue
 		}
 		if level < promotionLevel {
-			out = append(out, player{class: d.StartClass(), split: c.AutoAssign, name: "beg>" + string(c.ID)[:3]})
+			out = append(out, player{class: d.StartClass(), future: c, split: c.AutoAssign, name: "beg>" + string(c.ID)[:3]})
 		} else {
-			out = append(out, player{class: c, split: c.AutoAssign, name: string(c.ID)})
+			out = append(out, player{class: c, future: c, split: c.AutoAssign, name: string(c.ID)})
 		}
 	}
 	return out
@@ -242,8 +243,12 @@ func balanceOf(t *testing.T, d *gamedata.Data, items []gamedata.Item, m *gamedat
 			if c.Attack.Kind == gamedata.Melee {
 				life = fmt.Sprintf("%5.1f", f.killsPerLife)
 			}
-			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  %s",
-				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, pace)
+			r := rotationOf(d, me, c, planned(d, c, p.future, level), mob)
+			t.Logf("%-17s %-16s L%-2d %-8s hits %4.1f (%4.1f at the reference pace)  hit %3.0f%%  survives %3d  touched %3.0f%%  kills/life %s  dps %5.1f, %5.1f with skills, chained %+3.0f%%  %s",
+				m.ID, mob.ID, mob.Level, p.name, f.hitsToKill, f.secondsPerKill/refPace, 100*f.hitRate, f.touchesSurvived, 100*f.touchRate, life, r.basic, r.skills, 100*r.gain(), pace)
+			if r.gain() > maxChainGain {
+				t.Errorf("%s %s vs %s: a perfect chain adds %.0f%% to its skills on cooldown, want at most %.0f%%", m.ID, mob.ID, p.name, 100*r.gain(), 100*maxChainGain)
+			}
 			if !asserted {
 				continue
 			}
