@@ -14,12 +14,28 @@ describe('chat store', () => {
     resetStores();
   });
 
-  it('tags map and party lines and keeps them in order with their time', () => {
+  it('tags map and party lines and notices, and keeps them in order with their time', () => {
     chat.getState().applyChatMessage(line(ChatChannel.MAP, 'Ayla', 'hi'), 1000);
+    chat.getState().notice('King Slime has appeared in the Forest!', 1500);
     chat.getState().applyChatMessage(line(ChatChannel.PARTY, 'Robin', 'yo'), 2000);
     expect(chat.getState().lines).toEqual([
-      { channel: ChatChannel.MAP, sender: 'c-Ayla', senderName: 'Ayla', text: 'hi', at: 1000 },
-      { channel: ChatChannel.PARTY, sender: 'c-Robin', senderName: 'Robin', text: 'yo', at: 2000 },
+      {
+        kind: 'said',
+        channel: ChatChannel.MAP,
+        sender: 'c-Ayla',
+        senderName: 'Ayla',
+        text: 'hi',
+        at: 1000,
+      },
+      { kind: 'notice', text: 'King Slime has appeared in the Forest!', at: 1500 },
+      {
+        kind: 'said',
+        channel: ChatChannel.PARTY,
+        sender: 'c-Robin',
+        senderName: 'Robin',
+        text: 'yo',
+        at: 2000,
+      },
     ]);
   });
 

@@ -15,6 +15,7 @@ interface MobArt extends Sprite {
   readonly tint: number | null;
   readonly scale: number; // times the art's usual size
   readonly elite: boolean; // its HP bar has a gold frame
+  readonly boss: boolean; // the boss bar at the top shows its HP, so it has none overhead
 }
 
 type SpriteName = (typeof mobs)[number]['look']['sprite'];
@@ -40,7 +41,13 @@ const grey = (s: Sprite): Sprite => ({
 });
 
 // A mob from a newer server: magenta so it cannot pass for a real one.
-const UNKNOWN_MOB: MobArt = { ...grey(sprites.slime), tint: 0xff00ff, scale: 1, elite: false };
+const UNKNOWN_MOB: MobArt = {
+  ...grey(sprites.slime),
+  tint: 0xff00ff,
+  scale: 1,
+  elite: false,
+  boss: false,
+};
 
 /** A tinted mob draws from the grey copy of its sprite, so the tint is its colour. */
 export function mobArt(type: string): MobArt {
@@ -54,6 +61,7 @@ export function mobArt(type: string): MobArt {
     tint,
     scale,
     elite: mob.elite,
+    boss: mob.boss,
   };
 }
 
@@ -95,6 +103,9 @@ export class MobView {
       this.sprite.setTexture(this.art.stand);
     }
     this.bar.clear();
+    if (this.art.boss) {
+      return;
+    }
     const x = s.x - BAR_W / 2;
     const y = s.y - BAR_ABOVE * this.art.scale;
     if (this.art.elite) {

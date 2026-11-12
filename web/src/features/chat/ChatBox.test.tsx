@@ -313,10 +313,18 @@ describe('ChatBox', () => {
       });
     });
 
-    it('General shows map and party lines, Party only party lines, Combat the combat log', async () => {
+    it('General shows map and party lines and notices, Party only party lines, Combat the combat log', async () => {
       setup();
+      act(() => {
+        chat.getState().notice('King Slime has appeared in the Forest!', 3);
+      });
       expect(tab('General')).toHaveAttribute('aria-selected', 'true');
-      expect(shown()).toEqual(['[Map] Robin: hi', '[Party] Ayla: go']);
+      expect(shown()).toEqual([
+        '[Map] Robin: hi',
+        '[Party] Ayla: go',
+        '[Notice] King Slime has appeared in the Forest!',
+      ]);
+      expect(screen.getAllByRole('listitem')[2]).toHaveClass('chat-notice');
       await userEvent.click(tab('Party'));
       expect(tab('Party')).toHaveAttribute('aria-selected', 'true');
       expect(tab('General')).toHaveAttribute('aria-selected', 'false');

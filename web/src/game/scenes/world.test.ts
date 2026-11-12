@@ -6,10 +6,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { GameSocket } from '@/net/socket';
 import { clearToken, setToken } from '@/net/token';
-import { NpcDialogSchema, PromotedSchema, WelcomeSchema } from '@/protocol/messages';
+import {
+  FieldBossSchema,
+  NpcDialogSchema,
+  PromotedSchema,
+  WelcomeSchema,
+} from '@/protocol/messages';
 import { parseMap } from '@/sim/map';
 import { character } from '@/state/character';
 import { connection } from '@/state/connection';
+import { fieldBoss } from '@/state/field-boss';
 import { quests } from '@/state/quests';
 import { skillBar } from '@/state/skill-bar';
 import { toasts } from '@/state/toasts';
@@ -238,6 +244,30 @@ describe('World', () => {
     ws.push('delta', { players: [{ ...me, hp: 45, invulnerable: true }] }, { tick: 2 });
     ws.push('damage', { source: 'm:1', target: `p:${ME}`, amount: 5 }, { tick: 2 });
     expect(character.getState().character?.hp).toBe(45);
+  });
+
+  it('the field boss bar shows the HP of the boss as the scene draws it, and nothing once it is gone', async () => {
+    const { frames } = await playing('forest');
+    const ws = FakeWebSocket.latest();
+    fieldBoss
+      .getState()
+      .applyFieldBoss(
+        create(FieldBossSchema, { mobId: 9, type: 'king_slime', leavesInMs: 600000n }),
+        0,
+      );
+    const king = { id: 9, type: 'king_slime', x: 1400, y: 608, facing: 1, hp: 4260, maxHp: 4260 };
+    for (let tick = 2; tick <= 8; tick++) {
+      ws.push('delta', { mobs: [{ ...king, hp: tick < 5 ? 4260 : 3100 }] }, { tick });
+      frames(1);
+    }
+    frames(5);
+    expect(fieldBoss.getState().hp).toEqual({ hp: 3100, maxHp: 4260 });
+    ws.push('delta', { removedMobs: [9] }, { tick: 9 });
+    for (let tick = 10; tick <= 20; tick++) {
+      ws.push('delta', {}, { tick });
+      frames(1);
+    }
+    expect(fieldBoss.getState().hp).toBeNull();
   });
 
   it('a world silent for two seconds holds the player still and takes no keys, until its frames come back', async () => {

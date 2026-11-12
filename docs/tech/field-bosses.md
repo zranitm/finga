@@ -133,11 +133,11 @@ All additive, so `buf breaking` passes:
 
 ## 7. Client
 
-- **Boss bar:** a `fieldBoss` store holds the boss's mob id, type, and when it leaves. `BossBar`, at the top center under the connection notice's place, shows the boss's name from game data, its HP from the mob tracker, and the time left counting down. It's built on the shared `Bar`. It shows while the boss is in the tracker and the store holds it.
+- **Boss bar:** a `fieldBoss` store holds the boss's mob id, type, and when it leaves, counted from when the `FieldBoss` or the `Snapshot` came. The world scene puts the boss's HP in it as it draws the boss, only when it changes. `BossBar`, at the top center under the connection notice's place, shows the boss's name from game data, that HP, and the time left counting down each second. It's built on the shared `Bar`. It shows while the scene draws the boss and the store holds it.
 - **The mob itself** draws with its `look`. A boss's small overhead bar isn't drawn, since the top bar shows the same.
 - **Notices:**
-  - **`Announcement`** shows an info toast and adds a `[Notice]` line to the General tab: "King Slime has appeared in the Forest!" The chat store gains a system line kind beside map and party lines.
-  - **`FieldBossGone{beaten: false}`** shows "King Slime has left." on the map. A beaten boss needs no notice: the combat channel already lists each player's EXP and drops.
+  - **`Announcement`** shows an info toast and adds a `[Notice]` line to the General tab: "King Slime has appeared in the Forest!" The chat store's lines are a player's (`said`) or a `notice`; the Party tab shows party lines only.
+  - **`FieldBossGone{beaten: false}`** shows "King Slime has left." as an info toast, to the players on the map, who alone get it. A beaten boss needs no notice: the combat channel already lists each player's EXP and drops.
 
 ## 8. Balance
 

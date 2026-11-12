@@ -178,21 +178,34 @@ function Lines({ tab, count }: { readonly tab: ChatTab; readonly count: number }
   );
 }
 
+// The Party tab shows party lines only; a notice shows in General.
 function ChatLines({ partyOnly, count }: { readonly partyOnly: boolean; readonly count: number }) {
   const lines = chat.use((s) => s.lines);
-  const shown = partyOnly ? lines.filter((l) => l.channel === ChatChannel.PARTY) : lines;
+  const shown = partyOnly
+    ? lines.filter((l) => l.kind === 'said' && l.channel === ChatChannel.PARTY)
+    : lines;
   return (
     <ul className="chat-lines" aria-live="polite">
-      {shown.slice(-count).map((l, i) => (
-        <li
-          key={`${l.at}-${l.sender}-${l.text}`}
-          className={`chat-line chat-${l.channel === ChatChannel.PARTY ? 'party' : 'map'}`}
-          style={{ order: -i }}
-        >
-          <span className="chat-tag">[{l.channel === ChatChannel.PARTY ? 'Party' : 'Map'}]</span>{' '}
-          <strong>{l.senderName}:</strong> {l.text}
-        </li>
-      ))}
+      {shown.slice(-count).map((l, i) =>
+        l.kind === 'notice' ? (
+          <li
+            key={`${l.at}-notice-${l.text}`}
+            className="chat-line chat-notice"
+            style={{ order: -i }}
+          >
+            <span className="chat-tag">[Notice]</span> {l.text}
+          </li>
+        ) : (
+          <li
+            key={`${l.at}-${l.sender}-${l.text}`}
+            className={`chat-line chat-${l.channel === ChatChannel.PARTY ? 'party' : 'map'}`}
+            style={{ order: -i }}
+          >
+            <span className="chat-tag">[{l.channel === ChatChannel.PARTY ? 'Party' : 'Map'}]</span>{' '}
+            <strong>{l.senderName}:</strong> {l.text}
+          </li>
+        ),
+      )}
     </ul>
   );
 }

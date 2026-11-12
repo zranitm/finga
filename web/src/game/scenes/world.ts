@@ -20,6 +20,7 @@ import type { MapView } from '@/sim/map';
 import { character } from '@/state/character';
 import { combatLog } from '@/state/combat-log';
 import { connection } from '@/state/connection';
+import { fieldBoss } from '@/state/field-boss';
 import { inventory } from '@/state/inventory';
 import { nearby } from '@/state/nearby';
 import { questPlayer, quests } from '@/state/quests';
@@ -648,6 +649,9 @@ export class World extends Phaser.Scene {
       }
       v.apply(state);
     }
+    const boss = fieldBoss.getState().boss;
+    const drawn = boss && shown.get(boss.mobId);
+    fieldBoss.getState().setHp(drawn ? { hp: drawn.hp, maxHp: drawn.maxHp } : null); // the boss bar shows what is drawn
   }
 
   private me(players: readonly Wire[]): Wire | undefined {

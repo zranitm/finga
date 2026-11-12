@@ -1,9 +1,10 @@
 // Mirrors server/services/world/internal/application/quests for the dialog, the log and the markers; the server's answer wins.
 import { items } from '@/gamedata/items';
-import { mobs } from '@/gamedata/mobs';
 import { movement } from '@/gamedata/movement';
 import { npcs } from '@/gamedata/npcs';
 import { quests } from '@/gamedata/quests';
+
+import { mobName } from './names';
 
 export type ObjectiveKind = 'kill' | 'collect' | 'talk' | 'level';
 
@@ -116,7 +117,7 @@ export function objectiveLabel(o: Objective): string {
   const target = o.target ?? '';
   switch (o.kind) {
     case 'kill':
-      return mobs.find((m) => m.id === target)?.name ?? target;
+      return mobName(target);
     case 'collect':
       return items.find((i) => i.id === target)?.name ?? target;
     case 'talk':
