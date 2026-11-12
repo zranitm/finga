@@ -94,7 +94,7 @@ const WIND_UP_DEG = 8;
 const LUNGE_PX = 8; // drawn only: the body stays where the sim has it
 const STRETCH = 0.12; // wider at the strike's start, and shorter by two thirds of it
 const FLASH_MS = 120;
-const CUE_FRONT_PX = 14;
+const CUE_FRONT_PX = 30; // past the sprite's front, so the burst stays off the face
 const CHEST_PX = 30;
 // Phaser.TintModes' values: this file takes only Phaser's types, so tests can draw it without Phaser.
 const MULTIPLY = 0;

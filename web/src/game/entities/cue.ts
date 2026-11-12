@@ -4,7 +4,7 @@ import type Phaser from 'phaser';
 import { DEPTH } from '../depth';
 
 export const CUE_MS = 140;
-const BURST_MS = 260;
+const BURST_MS = 200;
 const RAYS = 6;
 
 /** Draws the burst at (x, y), the sprite's front at chest height, growing and fading on its own. */
@@ -18,7 +18,7 @@ export function drawCue(scene: Phaser.Scene, x: number, y: number): void {
   }
   scene.tweens.add({
     targets: [ring, rays],
-    scale: 2.4,
+    scale: 1.8,
     alpha: 0,
     duration: BURST_MS,
     onComplete: () => {

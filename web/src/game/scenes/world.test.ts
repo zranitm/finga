@@ -573,7 +573,7 @@ describe('World', () => {
       press('Digit1');
       run(FRAME_MS);
       expect(act).toHaveBeenCalledTimes(2);
-      expect(act.mock.calls[1]?.[1]).toBe(0xf0ead6); // Strike's physical colour
+      expect(act.mock.calls[1]?.[1]).toBe(0xff6a3d); // Strike's physical colour
       expect(cue).toHaveBeenCalledTimes(2);
     });
 
