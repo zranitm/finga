@@ -9,6 +9,7 @@ import { QuestObjectives } from '@/features/shared/QuestObjectives';
 import { useQuestPlayer } from '@/features/shared/useQuestPlayer';
 import { article } from '@/features/shared/words';
 import { WorldWindow } from '@/features/shared/WorldWindow';
+import { RequestError } from '@/net/socket';
 import type { GameSocket } from '@/net/socket';
 import { classDescription, className } from '@/progression/classes';
 import { isReady, npcById, questById, questName } from '@/progression/quests';
@@ -22,9 +23,14 @@ import type {
   QuestOffer,
 } from '@/protocol/messages';
 import { character } from '@/state/character';
+import { combatLog } from '@/state/combat-log';
+import { inventory } from '@/state/inventory';
+import type { Tab } from '@/state/inventory';
 import { quests } from '@/state/quests';
 
 import { haveNow } from './promotion';
+import { fitsNow, freeText, fullTab, lineOf, toFree, trainerWeapon } from './room';
+import type { Line } from './room';
 
 export interface NpcWindowProps {
   readonly socket: Pick<GameSocket, 'request'>;
@@ -42,17 +48,25 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
   const npc = dialog.npcId;
 
   // Accept, Hand in and Promote close the dialog on success: what it showed has changed.
-  const run = async (send: () => Promise<unknown>) => {
+  const run = async (send: () => Promise<unknown>, room?: (full: Tab) => string) => {
     setBusy(true);
     setProblem(null);
     try {
       await send();
       onClose();
     } catch (err) {
-      setProblem(problemOf(err));
+      const full = err instanceof RequestError ? fullTab(err.code) : undefined;
+      setProblem(full && room ? room(full) : problemOf(err));
     } finally {
       setBusy(false);
     }
+  };
+
+  // A reward that doesn't fit now isn't asked for: the player is told what to free instead.
+  const fits = (take: readonly Line[], give: readonly Line[], what: string) => {
+    const ok = fitsNow(inventory.getState().slots, take, give);
+    setProblem(ok ? null : freeFor(take, give, what));
+    return ok;
   };
 
   const lines = npcById(npc)?.lines ?? [];
@@ -82,8 +96,12 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
           <Promotion
             offer={dialog.promotion}
             busy={busy}
+            hasRoom={() => fits([], [trainerWeapon], 'your weapon')}
             onPromote={(cls) =>
-              void run(() => socket.request('promote', { npcId: npc, class: cls }))
+              void run(
+                () => socket.request('promote', { npcId: npc, class: cls }),
+                (full) => freeFor([], [trainerWeapon], 'your weapon', full),
+              )
             }
           />
         )}
@@ -97,9 +115,15 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
                     <strong>{q.name}</strong>
                     <Button
                       disabled={busy || !isReady(q, player)}
-                      onClick={() =>
-                        void run(() => socket.request('handInQuest', { npcId: npc, questId: q.id }))
-                      }
+                      onClick={() => {
+                        const { take, give } = exchanged(q);
+                        if (fits(take, give, 'this reward')) {
+                          void run(
+                            () => socket.request('handInQuest', { npcId: npc, questId: q.id }),
+                            (full) => freeFor(take, give, 'this reward', full),
+                          );
+                        }
+                      }}
                     >
                       Hand in
                     </Button>
@@ -143,10 +167,13 @@ export function NpcWindow({ socket, onClose }: NpcWindowProps) {
 function Promotion({
   offer,
   busy,
+  hasRoom,
   onPromote,
 }: {
   readonly offer: PromotionOffer;
   readonly busy: boolean;
+  /** Whether the weapon fits; when it doesn't, the dialog says what to free in place of asking. */
+  readonly hasRoom: () => boolean;
   readonly onPromote: (cls: string) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
@@ -179,7 +206,7 @@ function Promotion({
           </li>
         ))}
       </ul>
-      <Button variant="primary" disabled={busy || !met} onClick={() => setConfirming(true)}>
+      <Button variant="primary" disabled={busy || !met} onClick={() => setConfirming(hasRoom())}>
         {become}
       </Button>
       {confirming && (
@@ -287,6 +314,22 @@ export function unmetText(u: QuestConditions | undefined): string {
     parts.push(`Finish ${u.quests.map(questName).join(', ')} first`);
   }
   return parts.length > 0 ? parts.join(' · ') : 'Not available yet';
+}
+
+/** What to free for a reward, counting this player's drops waiting for room, which take freed slots first, and the tab a refusal named. */
+function freeFor(take: readonly Line[], give: readonly Line[], what: string, full?: Tab): string {
+  const waiting = combatLog.getState().waiting.flatMap((w) => lineOf(w.template, w.quantity) ?? []);
+  return freeText(toFree(inventory.getState().slots, take, give, waiting, full), what);
+}
+
+/** What a hand-in takes, its collect objectives, and gives, its item rewards, as the world asks the item service for them. */
+function exchanged(q: Quest): { take: Line[]; give: Line[] } {
+  return {
+    take: q.objectives.flatMap((o) =>
+      o.kind === 'collect' && o.target ? (lineOf(o.target, o.count) ?? []) : [],
+    ),
+    give: q.rewards.items.flatMap((i) => lineOf(i.item, i.quantity) ?? []),
+  };
 }
 
 function Rewards({ quest }: { readonly quest: Quest }) {

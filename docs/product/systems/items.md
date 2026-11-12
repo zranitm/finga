@@ -54,6 +54,7 @@ Every item type names its slot. A ring fits either ring slot.
 
 - Each tab has a fixed number of slots. Stacks have a maximum size.
 - With a full inventory, a drop waits on the ground for its owner and is collected within a few seconds of a slot freeing up. The owner is told what is waiting. A drop still waiting after 60 seconds vanishes.
+- A quest's item reward, or a trainer's weapon, is refused while it doesn't fit, and the player is told how many slots to free in each tab. Drops waiting for room in a tab the reward needs are counted in, since each takes a slot freed there first (the user's call of 2026-11-12; NPCs and quests → Handing in).
 - Items can be discarded. A worn item must be unequipped first. Items can no longer be dropped on the ground for someone else, since nobody could pick them up; giving items is trade (F3, F4).
 
 ## Integrity

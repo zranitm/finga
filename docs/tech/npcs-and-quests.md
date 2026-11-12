@@ -165,6 +165,10 @@ From the code, the rules this design keeps:
   - It lists what `NpcDialog` offers, with unmet conditions greyed and explained.
   - Accept, Hand in, and Promote send their requests, and close the dialog on success.
   - Hand in is enabled once the quest is ready by the live log and inventory, items to bring included, so it doesn't wait for another Talk.
+  - **Room for the reward** (`features/npc/room.ts`): the dialog places the reward as the item service would (§8), and sends nothing while it doesn't fit. It says how many slots to free in each tab, as "Free 2 slots in your Equip tab and 1 in your Use tab to take this reward.":
+    - the quest's items leave first, smallest stacks first, and free a slot only when a stack empties; a reward that stacks fills its stacks first;
+    - the count is, per tab, the fewest slots freed after which this player's drops waiting for room there (`Loot` waiting, which only the owner gets) land first and the reward still fits. A waiting drop lands as the item service adds one, whole or not at all, and a reward can stack onto it. Waiting drops count toward what to free, never toward whether it fits now, and a tab the reward doesn't use never shows;
+    - a full tab's refusal from the server (the bag changed, or a template the client doesn't know) is counted again the same way, with at least one slot in the tab it named.
   - A quest under way that the NPC also takes back shows once, under Hand in.
   - Walking out of reach closes it, and so does a quest it lists being accepted, handed in, or abandoned, even after its request gave up.
   - A request with no answer, timed out or cut off by a dropped connection, says "No answer yet. Try again."
@@ -212,8 +216,8 @@ From the code, the rules this design keeps:
   - an answer after a reconnect on the map finishing the quest, and one after the character left changing nothing there;
   - a join finishing each completion the item service handed in, once;
   - repeatable quests handing in their next completion.
-- **End to end:** accept a quest, kill, collect, hand in, see items taken and given; a party kill counting for both members; a hand-in refused for a full inventory; a hand-in the world missed, finished once at the next login.
-- **Client:** Vitest for markers and collect progress; Testing Library for the dialog and the quest log.
+- **End to end:** accept a quest, kill, collect, hand in, see items taken and given; a party kill counting for both members; a hand-in refused for a full inventory; a hand-in refused with a drop waiting, refused again once that drop takes the slot freed, and handed in after a second; a hand-in the world missed, finished once at the next login.
+- **Client:** Vitest for markers, collect progress, and room for a reward (one tab or several, takes that free a slot or don't, stacking, drops waiting in the reward's tab or another, landing whole, a refused tab); Testing Library for the dialog and the quest log, including a hand-in held back for room and a refusal counted again.
 
 ## 13. Build order
 

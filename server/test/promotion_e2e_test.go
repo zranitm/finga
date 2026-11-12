@@ -74,5 +74,6 @@ func TestPromotion(t *testing.T) {
 		if again.GetCharacter().GetClass() != "warrior" {
 			t.Fatalf("welcomed back as %q; want a Warrior", again.GetCharacter().GetClass())
 		}
+		s.checkInvariants(t)
 	})
 }

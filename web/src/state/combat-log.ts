@@ -47,11 +47,14 @@ const questLines: Partial<Record<QuestChange, QuestLineKind>> = {
 
 export type CombatLine = CombatEvent & { readonly id: number };
 
-/** A drop of this player's waiting for room, as map/drop since drop IDs are a map's own. */
+/** A drop of this player's waiting for room, as map/drop since drop IDs are a map's own; the world tells only its owner. */
 export interface Waiting {
   readonly key: string;
   /** No drop waits past its life, so one never heard of again is forgotten then (Unix ms). */
   readonly until: number;
+  /** What it is, so a reward's room counts it: it can take a freed slot first. */
+  readonly template: string;
+  readonly quantity: number;
 }
 
 export interface CombatLogState {
@@ -118,7 +121,9 @@ export const combatLog = defineStore<CombatLogState>((set, get) => {
       const { waiting } = get();
       const others = waiting.filter((w) => w.key !== key);
       if (kind === LootKind.WAITING) {
-        set({ waiting: [...others, { key, until: Date.now() + loot.drop_life_ms }] });
+        set({
+          waiting: [...others, { key, until: Date.now() + loot.drop_life_ms, template, quantity }],
+        });
         setTimeout(expire, loot.drop_life_ms);
       } else if (others.length !== waiting.length) {
         set({ waiting: others });

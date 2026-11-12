@@ -41,7 +41,11 @@ There is no story: a quest is a task with a reward, and narrative quests stay a 
 - **Handing in:**
   - At the NPC the quest names, usually the one who gave it, once every objective is done.
   - The rewards arrive at once: EXP, items, currency once F1 exists, and anything the quest unlocks, such as a promotion condition or a next quest.
-  - If there is no room for an item reward, the hand-in is refused, with nothing taken, until there is (proposal).
+  - If there is no room for an item reward, the hand-in is refused, with nothing taken, until there is (the user's call of 2026-11-12):
+    - The player is told how many slots to free in each tab: "Free 2 slots in your Equip tab and 1 in your Use tab to take this reward."
+    - The count lets the quest's items leave first, but one frees a slot only if its whole stack goes. A reward that stacks fills the player's stacks of it first.
+    - Drops waiting for room in a tab the reward needs count too, as each takes a slot freed there before the reward can (Items → Inventory). One in any other tab doesn't.
+  - A trainer's weapon at a promotion follows the same rule, and the trainer says it before asking to confirm: "Free 1 slot in your Equip tab to take your weapon."
 - **One-time or repeatable:** each quest says which. Promotion trials are one-time.
 - **Abandoning:** allowed at any time from the quest log. Progress is lost, and the quest can be taken again.
 - **Limit:** at most 20 active quests (proposal).
