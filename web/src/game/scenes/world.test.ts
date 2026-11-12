@@ -452,7 +452,7 @@ describe('World', () => {
       expect([uses().length, attacks()]).toEqual([0, 1]);
       run(100); // past the warrior's 900 ms
       expect([uses().length, attacks()]).toEqual([1, 1]);
-      run(950); // Strike runs 1050 ms and can't be cut short
+      run(1400); // Strike runs 1500 ms and can't be cut short
       expect(attacks()).toBe(1);
       run(100);
       expect(attacks()).toBe(2);
@@ -477,8 +477,8 @@ describe('World', () => {
         const { attacks, run } = await fighting();
         key('keydown', 'KeyX');
         run(650);
-        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 1800, its cancel point at 1600
-        run(900);
+        press('Digit1'); // Strike cuts the warrior's attack at 750 ms and runs to 2250, its cancel point at 2000
+        run(1300);
         expect([uses().length, attacks()]).toEqual([1, 1]);
         if (again) {
           key('keyup', 'MetaLeft', { key: 'Meta' }); // Cmd lets every key go
@@ -489,7 +489,7 @@ describe('World', () => {
         }
         run(100);
         expect(attacks()).toBe(again ? 1 : 2);
-        run(200);
+        run(250);
         expect(attacks()).toBe(2);
         key('keyup', 'KeyX');
         leave?.();
@@ -583,7 +583,7 @@ describe('World', () => {
       expect(act).toHaveBeenCalledOnce();
       const [beats, flash] = act.mock.calls[0]!;
       expect(flash).toBe(0xb070f0);
-      expect(beats.cancelAt - beats.start).toBe(850); // Spark's 21 ticks, the cancel point at 17
+      expect(beats.cancelAt - beats.start).toBe(1250); // Spark's 30 ticks, the cancel point at 25
     });
   });
 

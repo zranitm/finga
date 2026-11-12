@@ -17,7 +17,9 @@ func stillSlimes() []dataEdit {
 // C9: an attack, Strike and an attack again, chained, land sooner than the same three one at a time, and no sooner than the chain allows.
 func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	t.Parallel()
-	s := newStackOver(t, gameData(t, stillSlimes()...))
+	// Strike cools down as it ends, so the test needn't wait out its 4.5 s.
+	quickStrike := dataEdit{"skills.yaml", "width: 64, height: 56}\n    mp: {base: 4, per_point: 0.2}\n    cooldown: 4500ms\n", "width: 64, height: 56}\n    mp: {base: 4, per_point: 0.2}\n    cooldown: 1500ms\n"}
+	s := newStackOver(t, gameData(t, append(stillSlimes(), quickStrike)...))
 	// A scout starts the forest and finds a slime on the ground, which stays put.
 	scoutToken, scoutID := s.createCharacter(t, "scout", "Scout", "beginner")
 	s.place(t, scoutID, "forest", 100, 608, 135, 0)
@@ -62,17 +64,17 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 		return 0
 	}
 
-	// One at a time: each sent once the last has ended, the Beginner's attack and Strike both 1050 ms.
+	// One at a time: each sent once the last has ended, the Beginner's attack 1050 ms and Strike 1500 ms.
 	attack()
 	first := hit()
 	time.Sleep(1200 * time.Millisecond)
 	strike("one")
 	hit()
-	time.Sleep(1200 * time.Millisecond)
+	time.Sleep(1600 * time.Millisecond)
 	attack()
 	apart := hit() - first
 
-	time.Sleep(3 * time.Second) // Strike's cooldown
+	time.Sleep(1200 * time.Millisecond) // the attack ends, and Strike's cooldown with it
 	// Chained: Strike and the attack sent as the first attack lands; the world holds each to the chain.
 	attack()
 	first = hit()
@@ -80,7 +82,7 @@ func TestAChainLandsSoonerThanOneAtATime(t *testing.T) {
 	attack()
 	hit()
 	chained := hit() - first
-	const perfect = 17 + 17 // 21 ticks each, cut short at 17
+	const perfect = 17 + 25 // the attack's 21 ticks cut short at 17, Strike's 30 at 25
 	if chained != perfect || chained >= apart {
 		t.Fatalf("chained, the third blow came %d ticks after the first, one at a time %d; want %d, the chain's own pace", chained, apart, perfect)
 	}

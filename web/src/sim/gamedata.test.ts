@@ -102,10 +102,10 @@ describe('generated gamedata', () => {
       damage: 'physical',
       shape: { kind: 'melee', width: 64, height: 56 },
       mp: { base: 4, per_point: 0.2 },
-      cooldown_ms: 3000,
+      cooldown_ms: 4500,
       power: { base: 1.5, per_point: 0.05 },
       targets: 1,
-      length_ms: 1050,
+      length_ms: 1500,
       hit: 0,
       cancel: actions.cancel,
     });

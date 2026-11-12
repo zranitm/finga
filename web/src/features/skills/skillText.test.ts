@@ -18,10 +18,10 @@ const perPoint = (id: string) => perPointText(skill(id), skill(id).stages[0]!);
 
 describe('effectText', () => {
   it('a damage skill reads as its attack, cost, reach and foes', () => {
-    expect(at('strike', 8)).toBe('1.9× physical attack · 6 MP · 3s cooldown');
-    expect(at('spark', 1)).toBe('1.66× magic attack · 6 MP · 3.75s cooldown · range 220');
+    expect(at('strike', 8)).toBe('1.9× physical attack · 6 MP · 4.5s cooldown');
+    expect(at('spark', 1)).toBe('1.66× magic attack · 6 MP · 5.63s cooldown · range 220');
     expect(at('slash_blast', 1)).toBe(
-      '1.44× physical attack · 6 MP · 4.5s cooldown · up to 3 foes',
+      '1.44× physical attack · 6 MP · 6.75s cooldown · up to 3 foes',
     );
     expect(perPoint('strike')).toBe('power +0.05× · MP +0.2');
   });
@@ -82,7 +82,7 @@ describe('effectText', () => {
 describe('actionText', () => {
   it('reads an active stage’s length, and says a basic attack can cut short a cancelable one', () => {
     expect(actionText(skill('strike').stages[0]!)).toBe(
-      'Takes 1.05s. A basic attack can cut it short.',
+      'Takes 1.5s. A basic attack can cut it short.',
     );
     expect(actionText({ ...skill('heal').stages[0]!, length_ms: 700 })).toBe('Takes 0.7s.');
   });
