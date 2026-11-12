@@ -168,9 +168,9 @@ func TestMemberUpdates(t *testing.T) {
 			social := newFakeSocial()
 			p := runCopy(t, social, slog.New(slog.DiscardHandler))
 			ann := kernel.NewCharacterID()
-			p.Update(ann, "cave", 5, 40, 120)
+			p.Update(model.MemberUpdate{ID: ann, MapID: "cave", Class: "warrior", Level: 5, HP: 40, MaxHP: 120})
 			synctest.Wait()
-			if got := social.sent(); len(got) != 1 || got[0] != (model.MemberUpdate{ID: ann, MapID: "cave", Level: 5, HP: 40, MaxHP: 120}) {
+			if got := social.sent(); len(got) != 1 || got[0] != (model.MemberUpdate{ID: ann, MapID: "cave", Class: "warrior", Level: 5, HP: 40, MaxHP: 120}) {
 				t.Fatalf("updates %+v", got)
 			}
 		})
@@ -185,9 +185,9 @@ func TestMemberUpdates(t *testing.T) {
 			ann, bo := kernel.NewCharacterID(), kernel.NewCharacterID()
 			// Ann's is taken and held at the gate before Bo's is put, so Bo's is waiting when Ann's fails:
 			// put back to back, the sender could take and fail Ann's first, retrying it before Bo's existed.
-			p.Update(ann, "cave", 5, 40, 120)
+			p.Update(model.MemberUpdate{ID: ann, MapID: "cave", Level: 5, HP: 40, MaxHP: 120})
 			synctest.Wait()
-			p.Update(bo, "town", 3, 60, 60)
+			p.Update(model.MemberUpdate{ID: bo, MapID: "town", Level: 3, HP: 60, MaxHP: 60})
 			close(social.gate)
 			time.Sleep(time.Second)
 			synctest.Wait()
@@ -206,7 +206,7 @@ func TestMemberUpdates(t *testing.T) {
 			social.refused = errors.New("bad member")
 			var logs bytes.Buffer
 			p := runCopy(t, social, slog.New(slog.NewJSONHandler(&logs, nil)))
-			p.Update(kernel.NewCharacterID(), "cave", 5, 40, 120)
+			p.Update(model.MemberUpdate{ID: kernel.NewCharacterID(), MapID: "cave", Level: 5, HP: 40, MaxHP: 120})
 			time.Sleep(time.Minute)
 			synctest.Wait()
 			if len(social.sent()) != 1 || !strings.Contains(logs.String(), `"msg":"member update failed"`) {
@@ -221,16 +221,16 @@ func TestMemberUpdates(t *testing.T) {
 			social.gate = make(chan struct{})
 			p := runCopy(t, social, slog.New(slog.DiscardHandler))
 			ann := kernel.NewCharacterID()
-			p.Update(ann, "cave", 5, 40, 120) // taken, and held at the gate
+			p.Update(model.MemberUpdate{ID: ann, MapID: "cave", Level: 5, HP: 40, MaxHP: 120}) // taken, and held at the gate
 			synctest.Wait()
 			others := map[kernel.CharacterID]bool{}
 			for range 2000 {
 				id := kernel.NewCharacterID()
 				others[id] = true
-				p.Update(id, "town", 1, 1, 1)
+				p.Update(model.MemberUpdate{ID: id, MapID: "town", Level: 1, HP: 1, MaxHP: 1})
 			}
-			p.Update(ann, "cave", 6, 30, 130)
-			p.Update(ann, "cave", 6, 20, 130)
+			p.Update(model.MemberUpdate{ID: ann, MapID: "cave", Level: 6, HP: 30, MaxHP: 130})
+			p.Update(model.MemberUpdate{ID: ann, MapID: "cave", Level: 6, HP: 20, MaxHP: 130})
 			start := time.Now()
 			close(social.gate)
 			synctest.Wait()
@@ -253,7 +253,7 @@ func TestMemberUpdates(t *testing.T) {
 		p := party.NewCopy(party.Deps{Social: newFakeSocial(), Logger: slog.New(slog.DiscardHandler)}, party.Options{World: "world-1"}) // never Run: nothing drains
 		start := time.Now()
 		for range 4096 {
-			p.Update(kernel.NewCharacterID(), "town", 1, 1, 1)
+			p.Update(model.MemberUpdate{ID: kernel.NewCharacterID(), MapID: "town", Level: 1, HP: 1, MaxHP: 1})
 		}
 		if time.Since(start) > time.Second {
 			t.Fatal("Update blocked")
@@ -264,7 +264,7 @@ func TestMemberUpdates(t *testing.T) {
 			social := newFakeSocial()
 			social.panics = true
 			p := party.NewCopy(party.Deps{Social: social, Logger: slog.New(slog.DiscardHandler)}, party.Options{World: "world-1"})
-			p.Update(kernel.NewCharacterID(), "town", 1, 10, 10)
+			p.Update(model.MemberUpdate{ID: kernel.NewCharacterID(), MapID: "town", Level: 1, HP: 10, MaxHP: 10})
 			if e, ok := errors.AsType[*panics.Error](p.Run(context.Background())); !ok || e.Value != "bad update" {
 				t.Fatal("Run kept going after its update loop panicked")
 			}

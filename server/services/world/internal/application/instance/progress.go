@@ -90,7 +90,7 @@ func (i *Instance) retellParties() {
 }
 
 func (i *Instance) tellParty(p *player, mapID string) {
-	i.deps.Parties.Update(p.ID, mapID, p.Level, p.HP, p.derived.MaxHP)
+	i.deps.Parties.Update(model.MemberUpdate{ID: p.ID, MapID: mapID, Class: p.Class, Level: p.Level, HP: p.HP, MaxHP: p.derived.MaxHP})
 	p.toldHP, p.toldMaxHP = p.HP, p.derived.MaxHP
 }
 

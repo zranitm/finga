@@ -33,6 +33,7 @@ func (Membership) partyEvent()        {}
 type MemberUpdate struct {
 	ID    kernel.CharacterID
 	MapID string
+	Class kernel.Class
 	Level int
 	HP    int
 	MaxHP int

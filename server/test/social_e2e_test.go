@@ -110,7 +110,7 @@ func TestPlayTogether(t *testing.T) {
 			}
 			for _, l := range ls[:k+2] {
 				ps := l.partyState(t, k+2)
-				if ps.GetParty().GetLeader() != ann.id || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.id || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "forest" {
+				if ps.GetParty().GetLeader() != ann.id || ps.GetParty().GetMembers()[0].GetCharacterId() != ann.id || !ps.GetParty().GetMembers()[k+1].GetOnline() || ps.GetParty().GetMembers()[k+1].GetMapId() != "forest" || ps.GetParty().GetMembers()[k+1].GetClass() != "warrior" {
 					t.Fatalf("%s sees %+v", l.id, ps.Party)
 				}
 			}

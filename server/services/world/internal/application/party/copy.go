@@ -80,8 +80,8 @@ func (p *Copy) Party(id kernel.CharacterID) model.Party {
 }
 
 // Update queues what a map saw of a member, replacing an older update still waiting; it never blocks.
-func (p *Copy) Update(id kernel.CharacterID, mapID string, level, hp, maxHP int) {
-	p.updates.Put(model.MemberUpdate{ID: id, MapID: mapID, Level: level, HP: hp, MaxHP: maxHP})
+func (p *Copy) Update(u model.MemberUpdate) {
+	p.updates.Put(u)
 }
 
 // Run follows the party stream and sends the queued updates until ctx ends or either panics.

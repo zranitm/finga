@@ -3386,6 +3386,7 @@ type PartyMember struct {
 	MaxHp         int32                  `protobuf:"varint,5,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	MapId         string                 `protobuf:"bytes,6,opt,name=map_id,json=mapId,proto3" json:"map_id,omitempty"`
 	Online        bool                   `protobuf:"varint,7,opt,name=online,proto3" json:"online,omitempty"`
+	Class         string                 `protobuf:"bytes,8,opt,name=class,proto3" json:"class,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3467,6 +3468,13 @@ func (x *PartyMember) GetOnline() bool {
 		return x.Online
 	}
 	return false
+}
+
+func (x *PartyMember) GetClass() string {
+	if x != nil {
+		return x.Class
+	}
+	return ""
 }
 
 type PartyView struct {
@@ -5752,7 +5760,7 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\tEquipSlot\x12\x1d\n" +
 	"\n" +
 	"equip_slot\x18\x01 \x01(\tR\tequipSlot\x12'\n" +
-	"\x04item\x18\x02 \x01(\v2\x13.client.v1.ItemViewR\x04item\"\xb0\x01\n" +
+	"\x04item\x18\x02 \x01(\v2\x13.client.v1.ItemViewR\x04item\"\xc6\x01\n" +
 	"\vPartyMember\x12!\n" +
 	"\fcharacter_id\x18\x01 \x01(\tR\vcharacterId\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -5760,7 +5768,8 @@ const file_client_v1_client_proto_rawDesc = "" +
 	"\x02hp\x18\x04 \x01(\x05R\x02hp\x12\x15\n" +
 	"\x06max_hp\x18\x05 \x01(\x05R\x05maxHp\x12\x15\n" +
 	"\x06map_id\x18\x06 \x01(\tR\x05mapId\x12\x16\n" +
-	"\x06online\x18\a \x01(\bR\x06online\"U\n" +
+	"\x06online\x18\a \x01(\bR\x06online\x12\x14\n" +
+	"\x05class\x18\b \x01(\tR\x05class\"U\n" +
 	"\tPartyView\x12\x16\n" +
 	"\x06leader\x18\x01 \x01(\tR\x06leader\x120\n" +
 	"\amembers\x18\x02 \x03(\v2\x16.client.v1.PartyMemberR\amembers\"\xba\x03\n" +
