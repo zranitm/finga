@@ -14,9 +14,11 @@
 
 | Part | Today | After |
 | --- | --- | --- |
-| `data/classes.yaml` | `attack.cooldown`: the basic attack's turn | `attack.length`, with optional `hit` and `cancel` |
+| `data/classes.yaml` | `attack.cooldown`: the basic attack's turn | `attack.length`, 1.5× today's, with optional `hit` and `cancel` |
 | `data/skills.yaml` | A skill takes the attack's turn and starts its cooldown | Each active skill has its own `length`, `cancelable`, and optional `hit` and `cancel`; a stage may change them |
 | `data/actions.yaml` | — | New: the default cancel point, and the early-press margin |
+| `data/movement.yaml` | Walking at 200 px/s; jumps at 620 px/s against 1900 px/s² | 0.8× every speed and 0.64× gravity: the same jumps, 1.25× the air time |
+| `data/mobs.yaml` | Mob speeds; a 1 s touch guard in code | 0.8× speeds; `touch_guard: 1500ms` in data; EXP and drop chances 1.5× |
 | World | `cooldownUntil`: one turn shared by attacks and skills | An action timeline per player: kind, hit, cancel point, end |
 | `StatSheet` | `attack_cooldown_ticks` | `attack_length_ticks` |
 | Client | `AttackGate`, which skills take turns from | `ActionClock`: the same timeline, with the early-press margin |
@@ -81,15 +83,15 @@ The client generator carries all of it, `actions.yaml` included.
 - **Hit:** ⌊*L* × hit⌋.
 - **Cancel point:** ⌊*L* × cancel⌋, held to at least the hit and at least one tick, so a cancel never lands before the hit or in the action's own first tick.
 
-Rounding the cancel point down keeps every class near the target. At 0.85, the five basic attacks save 17–21% of their length per cancel. Rounding up would give 8–14%.
+Rounding the cancel point down keeps every class near the target. At 0.85 and the paced lengths (section 9), the five basic attacks save 15–20% of their length per cancel. Rounding up would give 11–14%.
 
-| Class | Length | Ticks | Cancel point |
-| --- | --- | --- | --- |
-| Beginner | 700 ms | 14 | 11 |
-| Warrior | 600 ms | 12 | 10 |
-| Thief | 500 ms | 10 | 8 |
-| Bowman | 750 ms | 15 | 12 |
-| Magician | 850 ms | 17 | 14 |
+| Class | Length | Ticks | Cancel point | Window |
+| --- | --- | --- | --- | --- |
+| Beginner | 1050 ms | 21 | 17 | 200 ms |
+| Warrior | 900 ms | 18 | 15 | 150 ms |
+| Thief | 750 ms | 15 | 12 | 150 ms |
+| Bowman | 1125 ms | 23 | 19 | 200 ms |
+| Magician | 1275 ms | 26 | 22 | 200 ms |
 
 **When the next action may start,** given the current one:
 - **The other kind:** from the cancel point, if the current action may be cut off by it. Every attack may be cut off by a skill, and a skill by an attack only if it's cancelable.
@@ -144,10 +146,40 @@ Rounding the cancel point down keeps every class near the target. At 0.85, the f
   1. basic attacks alone;
   2. skills on cooldown, one action at a time, with no cancels;
   3. a perfect chain: every cancel that's allowed, taken at its point.
-- **It holds the chain's gain** (3 over 2) to at most 22% for every class and checkpoint, which leaves room around the product's "up to about 20%". Time-to-kill targets stay checked against 2, so a player who never cancels still meets them.
+- **It holds the chain's gain** (3 over 2) to at most 22% for every class and checkpoint, which leaves room around the product's "up to about 20%". The hits-to-kill bands stay checked against 1, as today, so a player who never cancels or uses skills still meets them.
 - **Tuning moves only data:** skill lengths, the cancel points, `cancelable`, and the skill powers.
 
-## 9. When things fail
+## 9. Pace
+
+The product's slower pace is data, plus one constant moved into data, so cancels have a window a player can feel.
+
+- **Actions, 1.5×:** the class attacks' lengths are in section 4's table.
+  - Every active skill's length starts at 1050 ms.
+  - Damage and heal cooldowns grow 1.5×: Strike, Throw, Power Shot, and Fire Arrow 3 s; Spark 3.75 s; Slash Blast and Heal 4.5 s; Double Stab 2.25 s.
+  - Buffs keep their cooldowns and durations.
+- **Movement, 0.8×:** `movement.yaml` scales every speed by 0.8 and gravity by 0.64, the scaling the move speed stat already applies. A jump keeps its height (v² ÷ 2g) and its reach, and its air time grows 1.25×.
+
+  | Constant | Now | Paced |
+  | --- | --- | --- |
+  | `walk_speed` | 200 | 160 |
+  | `climb_speed` | 140 | 112 |
+  | `jump_velocity` | 620 | 496 |
+  | `gravity` | 1900 | 1216 |
+  | `max_fall_speed` | 900 | 720 |
+  | `drop_through` | 0.25 s | 0.3125 s |
+
+  - `drop_through` grows 1.25×, so a dropped-through platform is ignored for the same fall distance.
+  - The knockback hop, `knockbackVY` (−250 px/s), becomes −200 to keep its height. Its sideways push is a distance and stays.
+  - The movement vectors in `server/testdata/movement` are made again, the move speed cases included, and both sims replay them. The maps' route tests show every platform is still reachable.
+- **Mobs:**
+  - Every mob's `speed` is scaled by 0.8 and rounded.
+  - The touch guard, `invulnerability` in `fight.go` (1 s), becomes `touch_guard: 1500ms` in `mobs.yaml`.
+- **Rewards:**
+  - Every mob's `exp` is scaled by 1.5 and rounded, and every drop's `chance` by 1.5, held to 1, so EXP and drops an hour stay about where they are.
+  - Hits to kill and touches survived keep their balance targets. In the harness, `refPace` grows 1.5× (0.75 s to 1.125 s, the warrior's paced attack at 80% landing), `killsPerLevel` falls from 30 to 20 with the larger EXP, and `touchEvery` reads `touch_guard`.
+- **Client:** the swing pose (`SWING_MS`) grows to 225 ms. Shots keep their flight speed.
+
+## 10. When things fail
 
 | Failure | What the player sees | Why it is safe |
 | --- | --- | --- |
@@ -157,7 +189,7 @@ Rounding the cancel point down keeps every class near the target. At 0.85, the f
 | Death or a map change mid-action | The action ends; a pending wind-up hit is lost | It is held only in the map instance |
 | A deploy changes timing data while a player is on a map | One action may use the old timing | The world and the client load the same data at start; the next join brings the new data to both |
 
-## 10. Testing
+## 11. Testing
 
 - **Game data:** the new fields, defaults, stage overrides, and each validation refusal.
 - **Timeline vectors:** ticks and points across attack speeds and shares, including the one-tick minimum and the hit floor; replayed by Go and TypeScript.
@@ -170,32 +202,37 @@ Rounding the cancel point down keeps every class near the target. At 0.85, the f
   - a wind-up hit landing late, at the position then, and dropped at a death or a map change.
 - **Client:** `ActionClock`'s press rules, including the margin, a press just outside it, a held key versus a fresh press, and a newer press replacing a waiting one; refusals giving the action back; a cut-off shape.
 - **End to end:** an attack, Strike, and an attack again, chained, land sooner than the same three one at a time.
+- **Pace:** the movement vectors at the new constants, the route tests on every map, and the touch guard read from data.
 - **Balance:** the chain-gain bound for every class and checkpoint.
 
-## 11. Build order
+## 12. Build order
 
 On its own branch and PR. Each step is one commit, green on `make test`, `make lint`, `make cover`, and `make breaking`:
 
 1. **Data and timing:** `actions.yaml`, `length` (renamed from `cooldown`), `hit`, `cancel`, and `cancelable`, validation, the generator, `AttackLengthTicks`, `SkillLengthTicks`, and `ActionPoints` in Go and TypeScript, and the shared vectors.
 2. **World:** the action timeline in place of `cooldownUntil`, cancels in `resolveAttacks` and `castSkills`, and wind-up hits.
 3. **Protocol and client:** `attack_length_ticks`, `ActionClock`, the press rules, cut-off shapes, and the skill window's line.
-4. **Content and balance:** skill lengths and the cancelable list, the harness's rotation model and bound, and a `make bots` run.
+4. **Pace:** the attack lengths, skill cooldowns, movement constants and their vectors, mob speeds, the touch guard in data, EXP and drop chances, and the swing pose.
+5. **Content and balance:** skill lengths and the cancelable list, the harness's rotation model and bound, and a `make bots` run.
 
-## 12. Decisions
+## 13. Decisions
 
 Agreed on 2026-11-12:
 
 1. **Holding the attack key repeats at each action's end; only a fresh press cancels.** Holding attack would otherwise cut off every cancelable skill without any timing, which the strict timing is meant to avoid.
 2. **The first cancelable list:** the damage skills (Strike, Throw, Spark, Slash Blast, Double Stab, Power Shot, Fire Arrow). Heals and buffs (Heal, Iron Body, Haste, Focus) run to their end.
-3. **First skill lengths:** 700 ms each, the Beginner's attack, then tuned in step 4 with the harness.
+3. **First skill lengths:** 1050 ms each, the Beginner's paced attack, then tuned in step 5 with the harness.
 4. **Rename the attack's `cooldown` to `length`** in data, code, and the sheet, since skills now have both.
 5. **The skill window shows each skill's length and whether an attack can cut it short,** so players can learn the list.
 6. **Build wind-up now** (`hit`), though no action uses it yet, so the first charged skill is data only.
+7. **A slower pace** (section 9): actions take 1.5× as long, movement goes 0.8× as fast, and mobs match. Fights keep their hits to kill, and EXP and drop chances grow 1.5×, so the level cap still takes about 10 hours.
 
-## 13. Alternatives considered
+## 14. Alternatives considered
 
 - **The client decides cancels alone:** it saves the server nothing, since it checks every action already. And a modified client could then cancel every action at once and multiply its damage.
 - **The server applies the early-press margin:** it would judge presses by when they arrive, so network jitter would decide some cancels. The client knows exactly when the player pressed, so it applies the margin. The server only holds actions to their earliest allowed tick.
 - **A cancel message, or a field on `Attack` and `UseSkill`:** the server needs nothing beyond the action itself to check one.
 - **Cancel points in milliseconds instead of a share:** attack speed would then need its own rule for moving them. A share moves with the length.
-- **Rounding the cancel point up:** cancels would save only 8–14% of an attack's length at 0.85, short of the target, and unevenly by class.
+- **Rounding the cancel point up:** cancels would save only 11–14% of an attack's length at 0.85, short of the target.
+- **Keeping today's pace:** a Warrior's window would be 100 ms, two ticks, too short to feel. The window is about 15% of an action's length whatever the pace, since a larger share would pass the reward target, so only longer actions widen it.
+- **Same fight length at the slower pace,** with fewer and heavier hits: mob HP and the balance targets would all change. Keeping hits to kill and raising EXP and drops keeps the harness's targets and the time to the level cap.

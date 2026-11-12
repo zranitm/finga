@@ -19,6 +19,7 @@
   - A press earlier than that waits for the action to end, as today.
   - Holding the attack key keeps attacking at each action's end; only a fresh press cancels.
 - **The skill window** shows each active skill's length, and whether a basic attack can cut it short.
+- **Pace:** attacks and skills last about a second, so a cancel's window can be felt: 150 to 200 ms, plus the early margin (Systems → Combat → Pace).
 - **Reward:** a well-timed chain of attacks and skills deals up to about 20% more damage per second than one action at a time.
 - **Movement stays free** during every action, as today. Potions aren't actions and can be used at any time.
 - **What players see:** an action's shape plays and stops short when it's cancelled.
